@@ -1,0 +1,29 @@
+{
+  "root": "D:\\dataset\\agent",
+  "datasets": {
+    "admin_areas": {
+      "kind": "vector",
+      "format": "geojson",
+      "path": "湖北省_县.geojson",
+      "role": "county administrative boundaries"
+    },
+    "dem": {
+      "kind": "raster",
+      "format": "img",
+      "glob": "extracted/ASTGTM_*/*.img",
+      "role": "ASTER DEM tiles"
+    },
+    "land_use": {
+      "kind": "raster",
+      "format": "tif",
+      "glob": "extracted/N*_2025LC030/**/*.tif",
+      "role": "2025 land use tiles"
+    },
+    "land_use_vectors": {
+      "kind": "vector",
+      "format": "shp",
+      "glob": "extracted/N*_2025LC030/**/*.shp",
+      "role": "land use tile footprints or vector sidecars"
+    }
+  }
+}

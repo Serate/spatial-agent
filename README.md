@@ -25,6 +25,13 @@
 - 新增 SpatialToolAdapter，把工具调用转换为后端数据操作。
 - 工具结果返回 metrics 和 result_ref，为后续地图渲染、导出和性能对比做准备。
 
+## M4 当前能力
+
+- StepRun 记录 started_at、finished_at 和 latency_ms。
+- 新增 evaluation runner，批量运行评测用例并输出 JSON 报告。
+- 报告包含状态匹配率、工具序列匹配率、步骤数限制命中率和整体通过率。
+- 支持把评测报告写入文件，便于后续做面试展示和回归对比。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -45,6 +52,13 @@ python run_demo.py --planner openai "查询距离主干道500米以内、坡度�
 
 ~~~powershell
 python -m unittest discover -s tests -v
+~~~
+
+运行评测：
+
+~~~powershell
+python run_evaluation.py
+python run_evaluation.py --output evaluation/reports/latest.json
 ~~~
 
 ## 当前架构

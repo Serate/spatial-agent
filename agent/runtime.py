@@ -1,4 +1,6 @@
 import uuid
+from datetime import datetime, timezone
+from time import perf_counter
 from typing import Dict, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, ToolError
@@ -87,18 +89,26 @@ class AgentRuntime:
         if missing:
             raise ToolError("Step dependencies are not complete: " + ", ".join(missing))
         step_run.status = "RUNNING"
+        step_run.started_at = _utc_now()
+        started = perf_counter()
         for attempt in range(1, self._max_retries + 2):
             step_run.attempts = attempt
             try:
                 step_run.result = self._registry.invoke(step.tool, step.args)
                 step_run.status = "COMPLETED"
+                step_run.finished_at = _utc_now()
+                step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
                 return
             except ToolError as exc:
                 step_run.error = str(exc)
                 if attempt > self._max_retries:
                     step_run.status = "FAILED"
+                    step_run.finished_at = _utc_now()
+                    step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
                     raise
         step_run.status = "FAILED"
+        step_run.finished_at = _utc_now()
+        step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
 
     @staticmethod
     def _summarize(result: AgentRunResult) -> str:
@@ -110,3 +120,7 @@ class AgentRuntime:
         return "completed {} tool steps; result refs: {}".format(
             len(result.steps), ", ".join(refs) or "none"
         )
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
