@@ -1,0 +1,83 @@
+from typing import Any, Dict, Iterable, List, Mapping
+
+from .errors import PlanningError
+from .models import PlanStep, TaskPlan
+
+
+TASK_PLAN_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "required": ["goal", "steps"],
+    "additionalProperties": False,
+    "properties": {
+        "goal": {"type": "string"},
+        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "output": {"type": "object"},
+        "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "required": ["id", "tool", "args"],
+                "additionalProperties": False,
+                "properties": {
+                    "id": {"type": "string"},
+                    "tool": {"type": "string"},
+                    "args": {"type": "object"},
+                    "depends_on": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+    },
+}
+
+
+def task_plan_schema() -> Dict[str, Any]:
+    return TASK_PLAN_SCHEMA
+
+
+def parse_task_plan(payload: Mapping[str, Any], allowed_tools: Iterable[str]) -> TaskPlan:
+    if not isinstance(payload, Mapping):
+        raise PlanningError("planner output must be an object")
+
+    allowed = set(allowed_tools)
+    goal = _required_string(payload, "goal")
+    steps_payload = payload.get("steps")
+    if not isinstance(steps_payload, list) or not steps_payload:
+        raise PlanningError("planner output must include at least one step")
+
+    steps: List[PlanStep] = []
+    seen_ids = set()
+    for index, item in enumerate(steps_payload):
+        if not isinstance(item, Mapping):
+            raise PlanningError("step {} must be an object".format(index))
+        step_id = _required_string(item, "id")
+        if step_id in seen_ids:
+            raise PlanningError("duplicate step id: " + step_id)
+        seen_ids.add(step_id)
+        tool = _required_string(item, "tool")
+        if tool not in allowed:
+            raise PlanningError("planner selected an unknown tool: " + tool)
+        args = item.get("args")
+        if not isinstance(args, dict):
+            raise PlanningError("step args must be an object: " + step_id)
+        depends_on = item.get("depends_on", [])
+        if not isinstance(depends_on, list) or not all(isinstance(dep, str) for dep in depends_on):
+            raise PlanningError("depends_on must be an array of strings: " + step_id)
+        steps.append(PlanStep(step_id, tool, args, depends_on))
+
+    output = payload.get("output", {})
+    if not isinstance(output, dict):
+        raise PlanningError("output must be an object")
+
+    assumptions = payload.get("assumptions", [])
+    if not isinstance(assumptions, list) or not all(isinstance(item, str) for item in assumptions):
+        raise PlanningError("assumptions must be an array of strings")
+
+    return TaskPlan(goal=goal, steps=steps, output=output, assumptions=assumptions)
+
+
+def _required_string(payload: Mapping[str, Any], key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise PlanningError(key + " must be a non-empty string")
+    return value

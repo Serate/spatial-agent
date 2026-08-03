@@ -10,12 +10,28 @@
 - 使用确定性的 Demo Spatial Adapter 模拟空间数据工具。
 - 对正常任务、缺失信息、越权请求和非法工具参数提供测试。
 
+## M2 当前能力
+
+- 定义 TaskPlan JSON Schema，作为所有 Planner 的输出契约。
+- 新增 LLMPlanner，把大模型限制在“生成结构化计划”的 seam 内。
+- 新增 OpenAIPlannerClient，可通过 OpenAI Responses API 获取结构化 JSON 计划。
+- 保留 RuleBasedPlanner 作为无网络、无 Token 的测试基线。
+- 测试使用 fake LLM client，不调用真实模型、不消耗 Token。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
 
 ~~~powershell
 python run_demo.py "查询距离主干道500米以内、坡度超过25度的区域。"
+~~~
+
+使用 OpenAI Planner：
+
+~~~powershell
+copy .env.example .env
+$env:OPENAI_API_KEY="sk-your-key"
+python run_demo.py --planner openai "查询距离主干道500米以内、坡度超过25度的区域。"
 ~~~
 
 运行测试：
@@ -28,7 +44,7 @@ python -m unittest discover -s tests -v
 
 ~~~text
 request
-  -> Planner
+  -> Planner Adapter
   -> TaskPlan
   -> AgentRuntime
   -> ToolRegistry
@@ -36,7 +52,7 @@ request
   -> AgentRunResult
 ~~~
 
-M1 使用 RuleBasedPlanner 和 DemoSpatialAdapter 作为可替换 Adapter。后续接入真实大模型时，只替换 Planner Adapter；接入 GeoPandas、PostGIS、Spark 或 HBase 时，只替换工具 Adapter。
+M1 使用 RuleBasedPlanner 和 DemoSpatialAdapter 作为可替换 Adapter。M2 增加 LLMPlanner 和 OpenAIPlannerClient。接入真实大模型时，只替换 Planner Adapter；接入 GeoPandas、PostGIS、Spark 或 HBase 时，只替换工具 Adapter。
 
 ## 项目文档
 
