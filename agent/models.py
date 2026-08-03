@@ -1,0 +1,56 @@
+from dataclasses import asdict, dataclass, field
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+
+class RunStatus(str, Enum):
+    CREATED = "CREATED"
+    PLANNING = "PLANNING"
+    EXECUTING = "EXECUTING"
+    COMPLETED = "COMPLETED"
+    NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
+
+
+@dataclass(frozen=True)
+class PlanStep:
+    id: str
+    tool: str
+    args: Dict[str, Any]
+    depends_on: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class TaskPlan:
+    goal: str
+    steps: List[PlanStep]
+    output: Dict[str, Any] = field(default_factory=dict)
+    assumptions: List[str] = field(default_factory=list)
+
+
+@dataclass
+class StepRun:
+    id: str
+    tool: str
+    args: Dict[str, Any]
+    status: str = "PENDING"
+    attempts: int = 0
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+@dataclass
+class AgentRunResult:
+    run_id: str
+    status: RunStatus
+    request: str
+    plan: Optional[TaskPlan] = None
+    steps: List[StepRun] = field(default_factory=list)
+    answer: Optional[str] = None
+    error: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = asdict(self)
+        data["status"] = self.status.value
+        return data
