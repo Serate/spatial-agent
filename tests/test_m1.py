@@ -40,7 +40,7 @@ class M1RuntimeTests(unittest.TestCase):
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(len(result.steps), 4)
         self.assertTrue(all(step.status == "COMPLETED" for step in result.steps))
-        self.assertIn("demo://join/roads-slope", result.answer)
+        self.assertIn("memory://join/roads-slope", result.answer)
 
     def test_runtime_requests_missing_threshold(self):
         result = build_runtime().run("找出道路附近的高坡度区域。")

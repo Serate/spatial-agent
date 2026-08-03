@@ -18,6 +18,13 @@
 - 保留 RuleBasedPlanner 作为无网络、无 Token 的测试基线。
 - 测试使用 fake LLM client，不调用真实模型、不消耗 Token。
 
+## M3 当前能力
+
+- 新增 SpatialBackend 接口，为真实数据接入预留 seam。
+- 新增 InMemorySpatialBackend，作为暂时没有真实数据时的稳定占位后端。
+- 新增 SpatialToolAdapter，把工具调用转换为后端数据操作。
+- 工具结果返回 metrics 和 result_ref，为后续地图渲染、导出和性能对比做准备。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -58,5 +65,6 @@ M1 使用 RuleBasedPlanner 和 DemoSpatialAdapter 作为可替换 Adapter。M2 �
 
 - docs/spatial-agent-design.md：完整系统设计。
 - docs/m0-scope.md：M0 场景与验收范围。
+- docs/data-adapter-plan.md：真实空间数据接入计划。
 - tools/schema/tool-definitions.json：工具输入输出契约。
 - evaluation/cases/m0-cases.json：评测用例。

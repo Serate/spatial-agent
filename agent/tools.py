@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, Mapping, Protocol
 
 from .errors import ToolError
+from .spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
 
 
 class ToolAdapter(Protocol):
@@ -88,47 +89,8 @@ class ToolRegistry:
             raise ToolError(path + " is above the maximum")
 
 
-class DemoSpatialAdapter:
-    """Deterministic Adapter used by M1 before real spatial data is connected."""
+class DemoSpatialAdapter(SpatialToolAdapter):
+    """Backward-compatible name for the M1 demo adapter."""
 
-    _schemas = {
-        "roads": {
-            "geometry_type": "LineString",
-            "crs": "EPSG:4326",
-            "fields": ["id", "road_level", "geometry"],
-        },
-        "slope": {
-            "geometry_type": "Polygon",
-            "crs": "EPSG:4326",
-            "fields": ["id", "slope_degree", "geometry"],
-        },
-        "admin_areas": {
-            "geometry_type": "Polygon",
-            "crs": "EPSG:4326",
-            "fields": ["id", "name", "geometry"],
-        },
-    }
-
-    def invoke(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        if name == "get_dataset_schema":
-            dataset = arguments["dataset"]
-            return {"dataset": dataset, **self._schemas[dataset]}
-        if name == "range_query":
-            return {
-                "result_ref": "demo://range/" + arguments["dataset"],
-                "count": 12,
-                "crs": "EPSG:4326",
-            }
-        if name == "spatial_join":
-            if arguments["relation"] == "near" and "distance_m" not in arguments:
-                raise ToolError("near relation requires distance_m")
-            return {
-                "result_ref": "demo://join/"
-                + arguments["left_dataset"]
-                + "-"
-                + arguments["right_dataset"],
-                "count": 7,
-                "left_dataset": arguments["left_dataset"],
-                "right_dataset": arguments["right_dataset"],
-            }
-        raise ToolError("Adapter does not implement: " + name)
+    def __init__(self):
+        super().__init__(InMemorySpatialBackend())
