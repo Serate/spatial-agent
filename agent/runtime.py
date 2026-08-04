@@ -4,6 +4,7 @@ from time import perf_counter
 from typing import Dict, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, ToolError
+from .answer_composer import AnswerComposer
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .planner import Planner
 from .tools import ToolRegistry
@@ -28,12 +29,14 @@ class AgentRuntime:
         planner: Planner,
         registry: ToolRegistry,
         state_store: Optional[InMemoryStateStore] = None,
+        answer_composer: Optional[AnswerComposer] = None,
         max_steps: int = 12,
         max_retries: int = 2,
     ):
         self._planner = planner
         self._registry = registry
         self._state_store = state_store or InMemoryStateStore()
+        self._answer_composer = answer_composer or AnswerComposer()
         self._max_steps = max_steps
         self._max_retries = max_retries
 
@@ -55,7 +58,7 @@ class AgentRuntime:
                 self._execute_step(step_run, step, completed)
                 completed.add(step.id)
             result.status = RunStatus.COMPLETED
-            result.answer = self._summarize(result)
+            result.answer = self._answer_composer.compose(result)
         except ClarificationNeeded as exc:
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
@@ -109,18 +112,6 @@ class AgentRuntime:
         step_run.status = "FAILED"
         step_run.finished_at = _utc_now()
         step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
-
-    @staticmethod
-    def _summarize(result: AgentRunResult) -> str:
-        refs = [
-            step.result["result_ref"]
-            for step in result.steps
-            if step.result and "result_ref" in step.result
-        ]
-        return "completed {} tool steps; result refs: {}".format(
-            len(result.steps), ", ".join(refs) or "none"
-        )
-
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
