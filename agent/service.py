@@ -1,5 +1,6 @@
 from typing import Dict, Tuple
 
+from agent.artifact_store import ArtifactStore
 from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 
@@ -7,8 +8,9 @@ from run_demo import build_runtime
 class AgentService:
     """Application boundary for running Agent sessions from a CLI or HTTP API."""
 
-    def __init__(self):
+    def __init__(self, artifact_store: ArtifactStore = None):
         self._runtimes = {}
+        self._artifact_store = artifact_store or ArtifactStore()
 
     def run(
         self,
@@ -16,6 +18,7 @@ class AgentService:
         session_id: str = "default",
         planner: str = "rule",
         backend: str = "memory",
+        export_artifact: bool = False,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
@@ -25,6 +28,8 @@ class AgentService:
         result = runtime.run(request, session_id=session_id)
         payload = result.to_dict()
         payload["trace_summary"] = format_trace(result)
+        if export_artifact:
+            payload["artifact_ref"] = self._artifact_store.write_run(payload)
         return payload
 
     def _runtime(self, planner: str, backend: str):

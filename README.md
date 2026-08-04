@@ -88,6 +88,12 @@
 - AgentService 响应新增 trace_summary，展示请求、规划目标、工具调用和最终答案。
 - Trace 覆盖 completed、needs clarification 和 rejected 三类状态，方便调试与面试演示。
 
+## M14 当前能力
+
+- 新增 ArtifactStore，可将一次 Agent run 的摘要导出为 JSON artifact。
+- AgentService 和 HTTP API 支持 export_artifact=true，并返回 artifact_ref。
+- 导出内容只包含 run 摘要、answer 和 trace_summary，不写入原始空间数据。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。

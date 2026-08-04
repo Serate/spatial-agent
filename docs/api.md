@@ -41,6 +41,7 @@ Fields:
 | session_id | no | default | Conversation scope for clarification state. |
 | planner | no | rule | rule for deterministic demos, openai for LLM planning. |
 | backend | no | memory | memory for deterministic tests, local for configured local spatial data. |
+| export_artifact | no | false | When true, writes a small run summary artifact and returns artifact_ref. |
 
 Successful response shape:
 
@@ -51,6 +52,7 @@ Successful response shape:
   "request": "查询洪山区行政区边界",
   "resolved_request": "查询洪山区行政区边界",
   "answer": "已找到 1 个匹配行政区：洪山区。",
+  "artifact_ref": "outputs/runs/<run_id>.json",
   "trace_summary": [
     "Received request: 查询洪山区行政区边界",
     "Planned goal: query admin area boundary by name",
@@ -106,3 +108,4 @@ Unsupported backend:
 - Planner output still flows through ToolRegistry validation.
 - The API returns result_ref values instead of large geometries.
 - session_id scopes clarification state and prevents unrelated clients from sharing pending context.
+- Artifact export writes a compact run summary only, not raw spatial datasets.

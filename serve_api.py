@@ -28,6 +28,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 session_id=payload.get("session_id", "default"),
                 planner=payload.get("planner", "rule"),
                 backend=payload.get("backend", "memory"),
+                export_artifact=bool(payload.get("export_artifact", False)),
             )
         except ValueError as exc:
             self._write_json(400, {"error": str(exc)})
