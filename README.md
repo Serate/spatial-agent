@@ -70,6 +70,12 @@
 - 新增 serve_api.py，提供无需额外依赖的 HTTP API。
 - POST /runs 支持 request、session_id、planner、backend，并复用 M9 的多轮澄清状态。
 
+## M11 当前能力
+
+- 新增 scripts/smoke_check.py，统一执行核心单元测试和 AgentService 冒烟验证。
+- 新增 GitHub Actions CI，在 push 和 pull request 时运行 smoke check。
+- 冒烟检查覆盖普通空间查询、缺参数澄清和多轮 follow-up 执行。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
