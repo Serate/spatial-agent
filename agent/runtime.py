@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Dict, Optional, Set
@@ -21,6 +22,26 @@ class InMemoryStateStore:
         return self._runs.get(run_id)
 
 
+@dataclass(frozen=True)
+class PendingClarification:
+    request: str
+    error: str
+
+
+class InMemoryConversationStore:
+    def __init__(self):
+        self._pending: Dict[str, PendingClarification] = {}
+
+    def get_pending(self, session_id: str) -> Optional[PendingClarification]:
+        return self._pending.get(session_id)
+
+    def save_pending(self, session_id: str, request: str, error: str) -> None:
+        self._pending[session_id] = PendingClarification(request=request, error=error)
+
+    def clear_pending(self, session_id: str) -> None:
+        self._pending.pop(session_id, None)
+
+
 class AgentRuntime:
     """The orchestration seam for planning, validation, execution, and tracing."""
 
@@ -29,6 +50,7 @@ class AgentRuntime:
         planner: Planner,
         registry: ToolRegistry,
         state_store: Optional[InMemoryStateStore] = None,
+        conversation_store: Optional[InMemoryConversationStore] = None,
         answer_composer: Optional[AnswerComposer] = None,
         max_steps: int = 12,
         max_retries: int = 2,
@@ -36,19 +58,22 @@ class AgentRuntime:
         self._planner = planner
         self._registry = registry
         self._state_store = state_store or InMemoryStateStore()
+        self._conversation_store = conversation_store or InMemoryConversationStore()
         self._answer_composer = answer_composer or AnswerComposer()
         self._max_steps = max_steps
         self._max_retries = max_retries
 
-    def run(self, request: str) -> AgentRunResult:
+    def run(self, request: str, session_id: str = "default") -> AgentRunResult:
+        resolved_request = self._resolve_request(request, session_id)
         result = AgentRunResult(
             run_id=str(uuid.uuid4()),
             status=RunStatus.PLANNING,
             request=request,
+            resolved_request=resolved_request,
         )
         self._state_store.save(result)
         try:
-            plan = self._planner.plan(request)
+            plan = self._planner.plan(resolved_request)
             self._validate_plan(plan)
             result.plan = plan
             result.status = RunStatus.EXECUTING
@@ -59,12 +84,15 @@ class AgentRuntime:
                 completed.add(step.id)
             result.status = RunStatus.COMPLETED
             result.answer = self._answer_composer.compose(result)
+            self._conversation_store.clear_pending(session_id)
         except ClarificationNeeded as exc:
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
+            self._conversation_store.save_pending(session_id, resolved_request, result.error)
         except RequestRejected as exc:
             result.status = RunStatus.REJECTED
             result.error = str(exc)
+            self._conversation_store.clear_pending(session_id)
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
@@ -73,6 +101,12 @@ class AgentRuntime:
 
     def get_run(self, run_id: str) -> Optional[AgentRunResult]:
         return self._state_store.get(run_id)
+
+    def _resolve_request(self, request: str, session_id: str) -> str:
+        pending = self._conversation_store.get_pending(session_id)
+        if pending is None:
+            return request
+        return request.strip() + " " + pending.request.strip()
 
     def _validate_plan(self, plan: TaskPlan) -> None:
         if len(plan.steps) == 0:

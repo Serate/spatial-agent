@@ -48,6 +48,7 @@ class AgentRunResult:
     run_id: str
     status: RunStatus
     request: str
+    resolved_request: Optional[str] = None
     plan: Optional[TaskPlan] = None
     steps: List[StepRun] = field(default_factory=list)
     answer: Optional[str] = None
