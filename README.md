@@ -32,6 +32,13 @@
 - 报告包含状态匹配率、工具序列匹配率、步骤数限制命中率和整体通过率。
 - 支持把评测报告写入文件，便于后续做面试展示和回归对比。
 
+## M5 当前能力
+
+- 新增 DatasetProbe，使用 GeoPandas/Rasterio 读取真实矢量和栅格元数据。
+- 支持探测 GeoJSON/Shapefile 的 feature 数、字段、几何类型、CRS 和 bounds。
+- 支持探测 IMG/TIF 栅格的尺寸、波段数、数据类型、CRS、bounds 和像元大小。
+- 保持只读元数据扫描，不加载完整栅格数组，不进行重采样或坡度计算。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -61,6 +68,21 @@ python run_evaluation.py
 python run_evaluation.py --output evaluation/reports/latest.json
 ~~~
 
+创建 GIS 环境：
+
+~~~powershell
+conda env create -f environment.yml
+conda activate spatial-agent-gis
+~~~
+
+检查本地数据目录：
+
+~~~powershell
+python inspect_datasets.py
+python probe_datasets.py --max-files 2
+python probe_datasets.py --max-files 2 --output evaluation/reports/dataset-metadata.json
+~~~
+
 ## 当前架构
 
 ~~~text
@@ -82,3 +104,4 @@ M1 使用 RuleBasedPlanner 和 DemoSpatialAdapter 作为可替换 Adapter。M2 �
 - docs/data-adapter-plan.md：真实空间数据接入计划。
 - tools/schema/tool-definitions.json：工具输入输出契约。
 - evaluation/cases/m0-cases.json：评测用例。
+- config/datasets.local.example.json：本地数据目录示例配置。
