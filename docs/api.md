@@ -51,6 +51,11 @@ Successful response shape:
   "request": "查询洪山区行政区边界",
   "resolved_request": "查询洪山区行政区边界",
   "answer": "已找到 1 个匹配行政区：洪山区。",
+  "trace_summary": [
+    "Received request: 查询洪山区行政区边界",
+    "Planned goal: query admin area boundary by name",
+    "Tool range_query(admin_areas) completed, returned 1 result(s)."
+  ],
   "error": null
 }
 ~~~

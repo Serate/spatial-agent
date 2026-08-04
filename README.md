@@ -82,6 +82,12 @@
 - 补充 /health、/runs 多轮澄清和错误输入的 API 边界测试。
 - API 文档提供 PowerShell 调用示例，方便面试或本地演示。
 
+## M13 当前能力
+
+- 新增 Trace Formatter，把 AgentRunResult 转换成可读执行轨迹。
+- AgentService 响应新增 trace_summary，展示请求、规划目标、工具调用和最终答案。
+- Trace 覆盖 completed、needs clarification 和 rejected 三类状态，方便调试与面试演示。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。

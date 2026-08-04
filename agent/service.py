@@ -1,5 +1,6 @@
 from typing import Dict, Tuple
 
+from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 
 
@@ -22,7 +23,9 @@ class AgentService:
             raise ValueError("session_id must be a non-empty string")
         runtime = self._runtime(planner, backend)
         result = runtime.run(request, session_id=session_id)
-        return result.to_dict()
+        payload = result.to_dict()
+        payload["trace_summary"] = format_trace(result)
+        return payload
 
     def _runtime(self, planner: str, backend: str):
         key = _runtime_key(planner, backend)
