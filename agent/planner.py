@@ -20,6 +20,13 @@ class RuleBasedPlanner:
     HIGH_SLOPE_TERM = "\u9ad8\u5761\u5ea6"
     SLOPE_PATTERN = re.compile(r"\u5761\u5ea6(?:\u8d85\u8fc7|\u5927\u4e8e)\s*(\d+)\s*\u5ea6")
     DISTANCE_PATTERN = re.compile(r"(\d+)\s*\u7c73")
+    ADMIN_NAME_PATTERN = re.compile(
+        r"([\u4e00-\u9fff]{2,12}(?:\u81ea\u6cbb\u53bf|\u6797\u533a|\u5e02|\u53bf|\u533a))"
+    )
+    ADMIN_TERMS = ("\u884c\u653f\u533a", "\u8fb9\u754c", "\u53bf\u57df")
+    ADMIN_GENERIC_NAMES = ("\u884c\u653f\u533a", "\u53bf\u57df")
+    QUERY_PREFIXES = ("\u67e5\u8be2", "\u67e5\u627e", "\u83b7\u53d6", "\u7edf\u8ba1")
+    ADMIN_DESCRIPTIVE_SUFFIXES = ("\u884c\u653f\u533a", "\u53bf\u57df", "\u8fb9\u754c")
 
     def plan(self, request: str) -> TaskPlan:
         if not request.strip():
@@ -28,6 +35,10 @@ class RuleBasedPlanner:
             raise RequestRejected("request contains destructive, unauthorized, or oversized operations")
         if any(term in request.upper() for term in self.KNN_TERMS):
             raise ClarificationNeeded("M1 does not support KNN yet; use an explicit range condition")
+
+        admin_plan = self._try_admin_area_plan(request)
+        if admin_plan is not None:
+            return admin_plan
 
         slope_match = self.SLOPE_PATTERN.search(request)
         mentions_slope = self.SLOPE_TERM in request or self.HIGH_SLOPE_TERM in request
@@ -75,3 +86,45 @@ class RuleBasedPlanner:
             steps=steps,
             output={"type": "spatial_result", "summary": True},
         )
+
+    def _try_admin_area_plan(self, request: str):
+        if not any(term in request for term in self.ADMIN_TERMS):
+            return None
+        match = self.ADMIN_NAME_PATTERN.search(request)
+        if match is None:
+            raise ClarificationNeeded("missing admin area name, for example: 洪山区")
+        admin_name = self._clean_admin_name(match.group(1))
+        if not admin_name or admin_name in self.ADMIN_GENERIC_NAMES:
+            raise ClarificationNeeded("missing admin area name, for example: 洪山区")
+        steps = [
+            PlanStep("schema-admin", "get_dataset_schema", {"dataset": "admin_areas"}),
+            PlanStep(
+                "filter-admin",
+                "range_query",
+                {
+                    "dataset": "admin_areas",
+                    "conditions": [{"field": "name", "operator": "eq", "value": admin_name}],
+                    "limit": 100,
+                },
+                ["schema-admin"],
+            ),
+        ]
+        return TaskPlan(
+            goal="query admin area boundary by name",
+            steps=steps,
+            output={"type": "admin_area_result", "summary": True},
+        )
+
+    def _clean_admin_name(self, value: str) -> str:
+        name = value
+        for prefix in self.QUERY_PREFIXES:
+            if name.startswith(prefix):
+                name = name[len(prefix) :]
+        changed = True
+        while changed:
+            changed = False
+            for suffix in self.ADMIN_DESCRIPTIVE_SUFFIXES:
+                if name.endswith(suffix):
+                    name = name[: -len(suffix)]
+                    changed = True
+        return name

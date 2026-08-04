@@ -46,6 +46,12 @@
 - 支持真实行政区 schema 查询和按 name 字段过滤。
 - run_demo 支持 --backend local 切换到本地数据后端。
 
+## M7 当前能力
+
+- RuleBasedPlanner 支持行政区自然语言意图。
+- 用户可以输入“查询洪山区行政区边界”，Planner 会生成 admin_areas 的真实 range_query。
+- 使用 --backend local 时，Runtime 会真实读取湖北省县级 GeoJSON 并返回匹配行政区。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -58,6 +64,7 @@ python run_demo.py "查询距离主干道500米以内、坡度超过25度的区�
 
 ~~~powershell
 python run_demo.py --backend local "查询距离主干道500米以内、坡度超过25度的区域。"
+python run_demo.py --backend local "查询洪山区行政区边界"
 ~~~
 
 使用 OpenAI Planner：
