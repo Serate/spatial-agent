@@ -64,6 +64,12 @@
 - 当用户先输入“查询行政区边界”再补充“洪山区”时，Agent 会合并上下文并继续执行。
 - 澄清上下文按会话隔离，任务完成或被拒绝后会自动清理。
 
+## M10 当前能力
+
+- 新增 AgentService，作为 CLI、HTTP API 或后续前端共用的应用边界。
+- 新增 serve_api.py，提供无需额外依赖的 HTTP API。
+- POST /runs 支持 request、session_id、planner、backend，并复用 M9 的多轮澄清状态。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
