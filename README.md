@@ -76,6 +76,12 @@
 - 新增 GitHub Actions CI，在 push 和 pull request 时运行 smoke check。
 - 冒烟检查覆盖普通空间查询、缺参数澄清和多轮 follow-up 执行。
 
+## M12 当前能力
+
+- 新增 docs/api.md，说明 HTTP API 契约、请求字段、响应结构和错误响应。
+- 补充 /health、/runs 多轮澄清和错误输入的 API 边界测试。
+- API 文档提供 PowerShell 调用示例，方便面试或本地演示。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。

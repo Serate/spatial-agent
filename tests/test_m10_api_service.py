@@ -29,6 +29,38 @@ class M10AgentServiceTests(unittest.TestCase):
 
 
 class M10HttpApiTests(unittest.TestCase):
+    def test_http_api_health_check(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            payload = _get_json(server.server_address[1], "/health")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload, {"status": "ok"})
+
+    def test_http_api_returns_not_found_for_unknown_route(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            payload = _get_json(server.server_address[1], "/missing", expected_status=404)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload, {"error": "not found"})
+
     def test_http_api_runs_agent_and_keeps_session_state(self):
         class TestHandler(AgentApiHandler):
             service = AgentService()
@@ -54,8 +86,53 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertEqual(second["status"], "COMPLETED")
         self.assertIn("memory://range/admin_areas", second["answer"])
 
+    def test_http_api_rejects_bad_request_payloads(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
 
-def _post_json(port, payload):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            empty_request = _post_json(
+                server.server_address[1],
+                {"request": ""},
+                expected_status=400,
+            )
+            bad_backend = _post_json(
+                server.server_address[1],
+                {"request": ADMIN_NAME, "backend": "postgres"},
+                expected_status=400,
+            )
+            bad_planner = _post_json(
+                server.server_address[1],
+                {"request": ADMIN_NAME, "planner": "random"},
+                expected_status=400,
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertIn("request must be a non-empty string", empty_request["error"])
+        self.assertIn("backend must be one of", bad_backend["error"])
+        self.assertIn("planner must be one of", bad_planner["error"])
+
+
+def _get_json(port, path, expected_status=200):
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request("GET", path)
+        response = connection.getresponse()
+        data = json.loads(response.read().decode("utf-8"))
+        if response.status != expected_status:
+            raise AssertionError(data)
+        return data
+    finally:
+        connection.close()
+
+
+def _post_json(port, payload, expected_status=200):
     body = json.dumps(payload).encode("utf-8")
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     try:
@@ -67,7 +144,7 @@ def _post_json(port, payload):
         )
         response = connection.getresponse()
         data = json.loads(response.read().decode("utf-8"))
-        if response.status != 200:
+        if response.status != expected_status:
             raise AssertionError(data)
         return data
     finally:
