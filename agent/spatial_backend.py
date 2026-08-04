@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from .dataset_catalog import DatasetCatalog
 from .errors import ToolError
+from .raster_backend import RasterMetadataBackend
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,9 @@ class SpatialBackend(Protocol):
         relation: str,
         distance_m: Optional[float] = None,
     ) -> Dict[str, Any]:
+        ...
+
+    def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
         ...
 
 
@@ -116,6 +120,29 @@ class InMemorySpatialBackend:
                 "distance_m": distance_m,
                 "estimated_pairs": count,
             },
+        }
+
+    def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
+        if dataset not in ("dem", "land_use"):
+            raise ToolError("unknown raster dataset: " + dataset)
+        return {
+            "dataset": dataset,
+            "kind": "raster",
+            "format": "img" if dataset == "dem" else "tif",
+            "role": "deterministic in-memory raster metadata placeholder",
+            "file_count": 0,
+            "sample_files": [],
+            "metadata": {
+                "width": 0,
+                "height": 0,
+                "band_count": 0,
+                "dtypes": [],
+                "crs_values": [],
+                "bounds": None,
+                "pixel_size": None,
+                "files": [],
+            },
+            "metrics": {"backend": "in_memory", "probed_files": 0, "max_files": max_files},
         }
 
     def _require_schema(self, dataset: str) -> DatasetSchema:
@@ -239,6 +266,7 @@ class HybridSpatialBackend:
     def __init__(self, catalog: DatasetCatalog, fallback: Optional[SpatialBackend] = None):
         self._fallback = fallback or InMemorySpatialBackend()
         self._admin = GeoJSONAdminBackend(catalog)
+        self._raster = RasterMetadataBackend(catalog)
 
     def get_dataset_schema(self, dataset: str) -> Dict[str, Any]:
         if dataset == "admin_areas":
@@ -264,6 +292,11 @@ class HybridSpatialBackend:
         distance_m: Optional[float] = None,
     ) -> Dict[str, Any]:
         return self._fallback.spatial_join(left_dataset, right_dataset, relation, distance_m)
+
+    def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
+        if dataset in ("dem", "land_use"):
+            return self._raster.get_raster_metadata(dataset, max_files=max_files)
+        return self._fallback.get_raster_metadata(dataset, max_files=max_files)
 
 
 def _apply_condition(gdf, condition: Dict[str, Any]):
@@ -319,5 +352,10 @@ class SpatialToolAdapter:
                 right_dataset=arguments["right_dataset"],
                 relation=arguments["relation"],
                 distance_m=arguments.get("distance_m"),
+            )
+        if name == "get_raster_metadata":
+            return self._backend.get_raster_metadata(
+                dataset=arguments["dataset"],
+                max_files=arguments.get("max_files", 3),
             )
         raise ToolError("Adapter does not implement: " + name)

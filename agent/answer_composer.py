@@ -10,6 +10,8 @@ class AnswerComposer:
         output_type = result.plan.output.get("type") if result.plan else None
         if output_type == "admin_area_result":
             return self._compose_admin_area_result(result.steps)
+        if output_type == "raster_metadata_result":
+            return self._compose_raster_metadata_result(result.steps)
         return self._compose_default(result.steps)
 
     def _compose_admin_area_result(self, steps: Iterable[StepRun]) -> str:
@@ -41,6 +43,46 @@ class AnswerComposer:
         if source:
             details.append(_zh("数据源：{source}").format(source=source))
         return answer + _zh(" ") + _zh("；").join(details) + _zh("。")
+
+    def _compose_raster_metadata_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "get_raster_metadata")
+        if result is None:
+            return _zh("栅格元数据查询已完成，但没有找到可展示的结果。")
+
+        dataset = result.get("dataset", _zh("未知数据集"))
+        file_count = int(result.get("file_count", 0))
+        metadata = result.get("metadata", {})
+        metrics = result.get("metrics", {})
+        probed_files = metrics.get("probed_files", 0)
+        crs_values = metadata.get("crs_values") or []
+        dtype_values = metadata.get("dtypes") or []
+        pixel_size = metadata.get("pixel_size")
+        bounds = metadata.get("bounds")
+
+        if metadata.get("error"):
+            return _zh("{dataset} 栅格元数据查询完成，但未匹配到本地文件：{error}。").format(
+                dataset=dataset,
+                error=metadata["error"],
+            )
+
+        details = [
+            _zh("文件数：{count}").format(count=file_count),
+            _zh("已抽样：{count} 个文件").format(count=probed_files),
+            _zh("首个样本尺寸：{width}x{height}").format(
+                width=metadata.get("width", _zh("未知")),
+                height=metadata.get("height", _zh("未知")),
+            ),
+            _zh("波段数：{count}").format(count=metadata.get("band_count", _zh("未知"))),
+        ]
+        if dtype_values:
+            details.append(_zh("数据类型：{values}").format(values=", ".join(dtype_values)))
+        if crs_values:
+            details.append(_zh("坐标系：{values}").format(values=", ".join(crs_values)))
+        if pixel_size:
+            details.append(_zh("像元大小：{values}").format(values=", ".join(str(item) for item in pixel_size)))
+        if bounds:
+            details.append(_zh("范围：{values}").format(values=", ".join(str(round(float(item), 3)) for item in bounds)))
+        return _zh("{dataset} 栅格元数据：").format(dataset=dataset) + _zh("；").join(details) + _zh("。")
 
     def _compose_default(self, steps: Iterable[StepRun]) -> str:
         completed = [step for step in steps if step.status == "COMPLETED"]

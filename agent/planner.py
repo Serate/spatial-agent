@@ -27,6 +27,9 @@ class RuleBasedPlanner:
     ADMIN_GENERIC_NAMES = ("\u884c\u653f\u533a", "\u53bf\u57df")
     QUERY_PREFIXES = ("\u67e5\u8be2", "\u67e5\u627e", "\u83b7\u53d6", "\u7edf\u8ba1")
     ADMIN_DESCRIPTIVE_SUFFIXES = ("\u884c\u653f\u533a", "\u53bf\u57df", "\u8fb9\u754c")
+    RASTER_METADATA_TERMS = ("\u5143\u6570\u636e", "\u6805\u683c", "\u50cf\u5143", "\u5f71\u50cf", "metadata")
+    DEM_TERMS = ("DEM", "dem", "\u9ad8\u7a0b", "\u5730\u5f62")
+    LAND_USE_TERMS = ("\u571f\u5730\u5229\u7528", "\u5730\u7c7b", "land use", "land_use")
 
     def plan(self, request: str) -> TaskPlan:
         if not request.strip():
@@ -35,6 +38,10 @@ class RuleBasedPlanner:
             raise RequestRejected("request contains destructive, unauthorized, or oversized operations")
         if any(term in request.upper() for term in self.KNN_TERMS):
             raise ClarificationNeeded("M1 does not support KNN yet; use an explicit range condition")
+
+        raster_metadata_plan = self._try_raster_metadata_plan(request)
+        if raster_metadata_plan is not None:
+            return raster_metadata_plan
 
         admin_plan = self._try_admin_area_plan(request)
         if admin_plan is not None:
@@ -113,6 +120,30 @@ class RuleBasedPlanner:
             goal="query admin area boundary by name",
             steps=steps,
             output={"type": "admin_area_result", "summary": True},
+        )
+
+    def _try_raster_metadata_plan(self, request: str):
+        dataset = None
+        if any(term in request for term in self.DEM_TERMS):
+            dataset = "dem"
+        elif any(term in request for term in self.LAND_USE_TERMS):
+            dataset = "land_use"
+
+        if dataset is None:
+            return None
+        if not any(term in request for term in self.RASTER_METADATA_TERMS):
+            return None
+
+        return TaskPlan(
+            goal="inspect raster dataset metadata",
+            steps=[
+                PlanStep(
+                    "raster-metadata",
+                    "get_raster_metadata",
+                    {"dataset": dataset, "max_files": 3},
+                )
+            ],
+            output={"type": "raster_metadata_result", "summary": True},
         )
 
     def _clean_admin_name(self, value: str) -> str:

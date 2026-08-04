@@ -94,6 +94,13 @@
 - AgentService 和 HTTP API 支持 export_artifact=true，并返回 artifact_ref。
 - 导出内容只包含 run 摘要、answer 和 trace_summary，不写入原始空间数据。
 
+## M15 当前能力
+
+- 新增 RasterMetadataBackend，使用 Rasterio 读取 DEM 和土地利用栅格的轻量元数据。
+- 新增 get_raster_metadata 工具，返回文件数、抽样文件、尺寸、波段数、数据类型、CRS、bounds 和像元大小。
+- RuleBasedPlanner 支持“查询DEM栅格元数据”“查询土地利用栅格元数据”等请求。
+- local backend 读取真实本地栅格文件；memory backend 返回确定性占位结果，保持离线测试稳定。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -107,6 +114,8 @@ python run_demo.py "查询距离主干道500米以内、坡度超过25度的区�
 ~~~powershell
 python run_demo.py --backend local "查询距离主干道500米以内、坡度超过25度的区域。"
 python run_demo.py --backend local "查询洪山区行政区边界"
+python run_demo.py --backend local "查询DEM栅格元数据"
+python run_demo.py --backend local "查询土地利用栅格元数据"
 ~~~
 
 使用 OpenAI Planner：

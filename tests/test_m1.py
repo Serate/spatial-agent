@@ -20,11 +20,11 @@ def build_runtime():
 
 
 class M1RuntimeTests(unittest.TestCase):
-    def test_registry_loads_three_tools(self):
+    def test_registry_loads_registered_tools(self):
         runtime = build_runtime()
         self.assertEqual(
             set(runtime._registry.names),
-            {"get_dataset_schema", "range_query", "spatial_join"},
+            {"get_dataset_schema", "range_query", "spatial_join", "get_raster_metadata"},
         )
 
     def test_registry_rejects_unknown_fields(self):

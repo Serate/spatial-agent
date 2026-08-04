@@ -27,6 +27,7 @@ spatial_join(left_dataset, right_dataset, relation, distance_m=None)
 Candidate adapters:
 
 - GeoJSONBackend: reads local GeoJSON files and performs small local queries.
+- RasterMetadataBackend: reads raster file metadata without loading raster arrays.
 - PostGISBackend: translates structured conditions into parameterized SQL.
 - SparkSedonaBackend: submits distributed spatial jobs and returns result references.
 - HBaseSpatialBackend: uses spatial row keys and secondary indexes for lookup.
@@ -43,7 +44,15 @@ When real data is available, provide these logical layers first:
 | slope | Polygon | id, slope_degree, geometry |
 | admin_areas | Polygon | id, name, geometry |
 
+Raster datasets are exposed through metadata tools first:
+
+| Dataset | Format | Metadata returned |
+|---|---|---|
+| dem | IMG | file count, sample files, width, height, band count, dtype, CRS, bounds, pixel size |
+| land_use | TIF | file count, sample files, width, height, band count, dtype, CRS, bounds, pixel size |
+
 All backend implementations must return result_ref rather than large raw geometry payloads. This keeps model context small and makes map rendering/export a separate tool.
+Raster metadata tools must not read full pixel arrays, clip rasters, or resample data.
 
 ## Why This Matters For Interviews
 

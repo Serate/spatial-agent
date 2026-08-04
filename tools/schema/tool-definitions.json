@@ -120,6 +120,38 @@
           "right_dataset": {"type": "string"}
         }
       }
+    },
+    {
+      "name": "get_raster_metadata",
+      "description": "Return lightweight metadata for an allowed raster dataset without reading raster arrays.",
+      "side_effect": "none",
+      "requires_approval": false,
+      "input_schema": {
+        "type": "object",
+        "required": ["dataset"],
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["dem", "land_use"]
+          },
+          "max_files": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["dataset", "file_count", "sample_files", "metadata"],
+        "properties": {
+          "dataset": {"type": "string"},
+          "file_count": {"type": "integer"},
+          "sample_files": {"type": "array"},
+          "metadata": {"type": "object"}
+        }
+      }
     }
   ]
 }
