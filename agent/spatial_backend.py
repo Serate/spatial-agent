@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Protocol
 
+from .dataset_catalog import DatasetCatalog
 from .errors import ToolError
 
 
@@ -157,6 +158,143 @@ class InMemorySpatialBackend:
         if relation in ("intersects", "within", "contains"):
             return 6
         return 1
+
+
+class GeoJSONAdminBackend:
+    """Reads the real admin_areas GeoJSON dataset from DatasetCatalog."""
+
+    def __init__(self, catalog: DatasetCatalog):
+        self._entry = catalog.require("admin_areas")
+        if not self._entry.files:
+            raise ToolError("admin_areas dataset has no files")
+        self._path = self._entry.files[0]
+        self._gdf = None
+
+    def get_dataset_schema(self, dataset: str) -> Dict[str, Any]:
+        self._require_admin(dataset)
+        gdf = self._load()
+        return {
+            "dataset": "admin_areas",
+            "geometry_type": _single_or_mixed([str(item) for item in gdf.geometry.geom_type.dropna().unique()]),
+            "crs": str(gdf.crs) if gdf.crs else None,
+            "fields": [str(column) for column in gdf.columns if column != "geometry"],
+            "metrics": {
+                "backend": "geojson",
+                "feature_count": int(len(gdf)),
+                "source": self._path,
+            },
+        }
+
+    def range_query(
+        self,
+        dataset: str,
+        conditions: List[Dict[str, Any]],
+        limit: int,
+        bbox: Optional[List[float]] = None,
+    ) -> Dict[str, Any]:
+        self._require_admin(dataset)
+        gdf = self._load()
+        filtered = gdf
+        for condition in conditions:
+            filtered = _apply_condition(filtered, condition)
+        if bbox is not None:
+            minx, miny, maxx, maxy = bbox
+            filtered = filtered.cx[minx:maxx, miny:maxy]
+        returned = min(len(filtered), limit)
+        names = []
+        if "name" in filtered.columns:
+            names = [str(item) for item in filtered["name"].head(returned).tolist()]
+        return {
+            "result_ref": "geojson://range/admin_areas",
+            "count": int(returned),
+            "crs": str(gdf.crs) if gdf.crs else None,
+            "sample_names": names,
+            "metrics": {
+                "backend": "geojson",
+                "scanned_features": int(len(gdf)),
+                "returned_features": int(returned),
+                "used_bbox": bbox is not None,
+                "source": self._path,
+            },
+        }
+
+    def _load(self):
+        if self._gdf is None:
+            try:
+                import geopandas as gpd
+            except ImportError as exc:
+                raise ToolError("geopandas is required for GeoJSONAdminBackend") from exc
+            self._gdf = gpd.read_file(self._path)
+        return self._gdf
+
+    @staticmethod
+    def _require_admin(dataset: str) -> None:
+        if dataset != "admin_areas":
+            raise ToolError("GeoJSONAdminBackend only supports admin_areas")
+
+
+class HybridSpatialBackend:
+    """Routes real datasets to file-backed backends and falls back to memory."""
+
+    def __init__(self, catalog: DatasetCatalog, fallback: Optional[SpatialBackend] = None):
+        self._fallback = fallback or InMemorySpatialBackend()
+        self._admin = GeoJSONAdminBackend(catalog)
+
+    def get_dataset_schema(self, dataset: str) -> Dict[str, Any]:
+        if dataset == "admin_areas":
+            return self._admin.get_dataset_schema(dataset)
+        return self._fallback.get_dataset_schema(dataset)
+
+    def range_query(
+        self,
+        dataset: str,
+        conditions: List[Dict[str, Any]],
+        limit: int,
+        bbox: Optional[List[float]] = None,
+    ) -> Dict[str, Any]:
+        if dataset == "admin_areas":
+            return self._admin.range_query(dataset, conditions, limit, bbox)
+        return self._fallback.range_query(dataset, conditions, limit, bbox)
+
+    def spatial_join(
+        self,
+        left_dataset: str,
+        right_dataset: str,
+        relation: str,
+        distance_m: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        return self._fallback.spatial_join(left_dataset, right_dataset, relation, distance_m)
+
+
+def _apply_condition(gdf, condition: Dict[str, Any]):
+    field = condition.get("field")
+    operator = condition.get("operator")
+    value = condition.get("value")
+    if field not in gdf.columns:
+        raise ToolError("unknown admin_areas field: " + str(field))
+    if operator == "eq":
+        return gdf[gdf[field] == value]
+    if operator == "neq":
+        return gdf[gdf[field] != value]
+    if operator == "in":
+        return gdf[gdf[field].isin(value)]
+    if operator == "gt":
+        return gdf[gdf[field] > value]
+    if operator == "gte":
+        return gdf[gdf[field] >= value]
+    if operator == "lt":
+        return gdf[gdf[field] < value]
+    if operator == "lte":
+        return gdf[gdf[field] <= value]
+    raise ToolError("unsupported operator: " + str(operator))
+
+
+def _single_or_mixed(values: List[str]) -> str:
+    if not values:
+        return "Unknown"
+    if len(values) == 1:
+        return values[0]
+    return "Mixed(" + ",".join(sorted(values)) + ")"
 
 
 class SpatialToolAdapter:

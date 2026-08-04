@@ -39,12 +39,25 @@
 - 支持探测 IMG/TIF 栅格的尺寸、波段数、数据类型、CRS、bounds 和像元大小。
 - 保持只读元数据扫描，不加载完整栅格数组，不进行重采样或坡度计算。
 
+## M6 当前能力
+
+- 新增 GeoJSONAdminBackend，真实读取 admin_areas GeoJSON。
+- 新增 HybridSpatialBackend，对 admin_areas 使用真实文件，对 roads/slope 保持内存 fallback。
+- 支持真实行政区 schema 查询和按 name 字段过滤。
+- run_demo 支持 --backend local 切换到本地数据后端。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
 
 ~~~powershell
 python run_demo.py "查询距离主干道500米以内、坡度超过25度的区域。"
+~~~
+
+使用本地数据后端：
+
+~~~powershell
+python run_demo.py --backend local "查询距离主干道500米以内、坡度超过25度的区域。"
 ~~~
 
 使用 OpenAI Planner：
