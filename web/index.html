@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Spatial Agent Console</title>
+  <title>空间智能体控制台</title>
   <style>
     :root { font-family: Inter, "Segoe UI", sans-serif; color: #17212b; background: #eef2f4; }
     * { box-sizing: border-box; }
     body { margin: 0; }
-    header { background: #17212b; color: #f5f7f8; padding: 18px 28px; display:flex; justify-content:space-between; align-items:center; }
-    header h1 { margin:0; font-size:20px; letter-spacing:0; } header span { color:#a9bdc4; font-size:13px; }
+    header { background: #17212b; color: #f5f7f8; padding: 20px 28px; display:flex; justify-content:space-between; align-items:center; border-bottom:4px solid #e09a5b; }
+    header h1 { margin:0; font-size:21px; letter-spacing:0; } header span { color:#b6c8cc; font-size:13px; }
     main { max-width: 1280px; margin: 0 auto; padding: 24px; display:grid; grid-template-columns: 360px 1fr; gap:20px; }
     section, .panel { background:#fff; border:1px solid #d7e0e4; border-radius:8px; }
     .controls { padding:20px; align-self:start; position:sticky; top:18px; }
@@ -38,37 +38,39 @@
   </style>
 </head>
 <body>
-  <header><h1>Spatial Agent Console</h1><span>Planner / Runtime / Spatial Backend</span></header>
+  <header><h1>空间智能体控制台</h1><span>规划器 / 运行时 / 空间后端</span></header>
   <main>
     <aside class="controls panel">
-      <label for="request">Request</label>
+      <label for="request">分析请求</label>
       <textarea id="request">查询DEM栅格元数据</textarea>
-      <div class="row"><div><label for="planner">Planner</label><select id="planner"><option value="rule">Rule based</option><option value="openai">Live LLM</option></select></div><div><label for="backend">Backend</label><select id="backend"><option value="memory">Memory</option><option value="local">Local GIS</option></select></div></div>
-      <label for="session">Session ID</label><input id="session" value="console" style="width:100%;border:1px solid #bdcbd0;border-radius:6px;padding:11px;font:inherit">
-      <button id="run">Run analysis</button>
-      <div class="hint">Live LLM uses the local provider configuration. Export options produce compact, bounded artifacts.</div>
+      <div class="row"><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">空间后端</label><select id="backend"><option value="memory">内存演示</option><option value="local">本地 GIS</option></select></div></div>
+      <label for="session">会话 ID</label><input id="session" value="console" style="width:100%;border:1px solid #bdcbd0;border-radius:6px;padding:11px;font:inherit">
+      <button id="run">▶ 开始分析</button>
+      <div class="hint">真实大模型会读取本地服务商配置。导出结果为受大小限制的安全摘要。</div>
     </aside>
     <div class="content">
-      <section class="hero"><div><h2 id="title">Ready for a spatial request</h2><p id="subtitle">Submit a request to inspect the plan and execution trace.</p></div><span id="status" class="badge">IDLE</span></section>
+      <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">提交请求后查看任务计划和执行轨迹。</p></div><span id="status" class="badge">待机</span></section>
       <div class="grid">
-        <section class="panel"><h3>Answer</h3><div id="answer" class="answer muted">No run yet.</div><div id="error"></div></section>
-        <section class="panel"><h3>Planner metrics</h3><div id="metrics" class="metric-grid"><div class="metric"><b>-</b><small>model</small></div></div></section>
-        <section class="panel"><h3>Plan and steps</h3><div id="goal" class="muted" style="margin-bottom:14px">No plan generated.</div><ul id="steps" class="steps"><li class="muted">No tool steps.</li></ul></section>
-        <section class="panel"><h3>Map preview</h3><div id="map" class="map"><div class="map-empty">Export a local admin query to preview geometry.</div></div></section>
-        <section class="panel" style="grid-column:1/-1"><h3>Trace</h3><ol id="trace" class="trace"><li class="muted">No trace entries.</li></ol><div id="links" class="links" style="margin-top:14px"></div></section>
+        <section class="panel"><h3>分析结论</h3><div id="answer" class="answer muted">还没有运行记录。</div><div id="error"></div></section>
+        <section class="panel"><h3>规划指标</h3><div id="metrics" class="metric-grid"><div class="metric"><b>-</b><small>模型</small></div></div></section>
+        <section class="panel"><h3>任务计划与步骤</h3><div id="goal" class="muted" style="margin-bottom:14px">尚未生成任务计划。</div><ul id="steps" class="steps"><li class="muted">暂无工具步骤。</li></ul></section>
+        <section class="panel"><h3>空间预览</h3><div id="map" class="map"><div class="map-empty">导出本地行政区查询后，可在此预览几何形状。</div></div></section>
+        <section class="panel" style="grid-column:1/-1"><h3>执行轨迹</h3><ol id="trace" class="trace"><li class="muted">暂无执行轨迹。</li></ol><div id="links" class="links" style="margin-top:14px"></div></section>
       </div>
     </div>
   </main>
   <script>
     const $ = id => document.getElementById(id);
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    function setStatus(value) { const el=$('status'); el.textContent=value; el.className='badge '+String(value).toLowerCase(); }
-    function metrics(data) { const m=data.planner_metrics||{}; const items=[['model',m.model||'-'],['wire API',m.wire_api||'-'],['latency',m.latency_ms ? m.latency_ms+' ms':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['tokens',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>`<div class="metric"><b>${escapeHtml(x[1])}</b><small>${escapeHtml(x[0])}</small></div>`).join(''); }
-    function steps(data) { const list=data.steps||[]; $('steps').innerHTML=list.length?list.map(s=>`<li><div class="step-head"><span class="step-tool">${escapeHtml(s.tool)}</span><span class="step-status">${escapeHtml(s.status)}</span></div><div class="muted">${escapeHtml(s.latency_ms||'-')} ms · ${escapeHtml(s.attempts||0)} attempt(s)</div></li>`).join(''):'<li class="muted">No tool steps.</li>'; }
-    function trace(data) { $('trace').innerHTML=(data.trace_summary||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')||'<li class="muted">No trace entries.</li>'; }
-    function mapPreview(geo) { const features=(geo.features||[]).filter(f=>f.geometry&&f.geometry.coordinates); if(!features.length){$('map').innerHTML='<div class="map-empty">No geometry in this result.</div>';return;} const coords=[]; const walk=x=>Array.isArray(x[0])?x.forEach(walk):coords.push(x); features.forEach(f=>walk(f.geometry.coordinates)); const xs=coords.map(x=>x[0]),ys=coords.map(x=>x[1]),minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys),sx=x=>12+(x-minx)/(maxx-minx||1)*476,sy=y=>248-(y-miny)/(maxy-miny||1)*236; const path=f=>{let out=''; const walkRing=r=>{out+='M '+sx(r[0][0])+' '+sy(r[0][1])+' ';r.slice(1).forEach(p=>out+='L '+sx(p[0])+' '+sy(p[1])+' ');out+='Z ';}; const walkGeom=g=>g.type==='Polygon'?g.coordinates.forEach(walkRing):g.coordinates.forEach(p=>p.forEach(walkRing)); walkGeom(f.geometry);return out;}; $('map').innerHTML='<svg viewBox="0 0 500 260" role="img" aria-label="GeoJSON preview">'+features.map(f=>`<path d="${path(f)}" fill="#83c8b0" stroke="#176a49" stroke-width="1.2" opacity=".8"></path>`).join('')+'</svg>'; }
+    const statusNames={IDLE:'待机',PLANNING:'规划中',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败'};
+    const statusName=value=>statusNames[value]||value;
+    function setStatus(value) { const el=$('status'); el.textContent=statusName(value); el.className='badge '+String(value).toLowerCase(); }
+    function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>`<div class="metric"><b>${escapeHtml(x[1])}</b><small>${escapeHtml(x[0])}</small></div>`).join(''); }
+    function steps(data) { const list=data.steps||[]; $('steps').innerHTML=list.length?list.map(s=>`<li><div class="step-head"><span class="step-tool">${escapeHtml(s.tool)}</span><span class="step-status">${escapeHtml(statusName(s.status))}</span></div><div class="muted">${escapeHtml(s.latency_ms||'-')} 毫秒 · ${escapeHtml(s.attempts||0)} 次尝试</div></li>`).join(''):'<li class="muted">暂无工具步骤。</li>'; }
+    function trace(data) { $('trace').innerHTML=(data.trace_summary||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')||'<li class="muted">暂无执行轨迹。</li>'; }
+    function mapPreview(geo) { const features=(geo.features||[]).filter(f=>f.geometry&&f.geometry.coordinates); if(!features.length){$('map').innerHTML='<div class="map-empty">当前结果没有可预览的几何形状。</div>';return;} const coords=[]; const walk=x=>Array.isArray(x[0])?x.forEach(walk):coords.push(x); features.forEach(f=>walk(f.geometry.coordinates)); const xs=coords.map(x=>x[0]),ys=coords.map(x=>x[1]),minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys),sx=x=>12+(x-minx)/(maxx-minx||1)*476,sy=y=>248-(y-miny)/(maxy-miny||1)*236; const path=f=>{let out=''; const walkRing=r=>{out+='M '+sx(r[0][0])+' '+sy(r[0][1])+' ';r.slice(1).forEach(p=>out+='L '+sx(p[0])+' '+sy(p[1])+' ');out+='Z ';}; const walkGeom=g=>g.type==='Polygon'?g.coordinates.forEach(walkRing):g.coordinates.forEach(p=>p.forEach(walkRing)); walkGeom(f.geometry);return out;}; $('map').innerHTML='<svg viewBox="0 0 500 260" role="img" aria-label="GeoJSON 空间预览">'+features.map(f=>`<path d="${path(f)}" fill="#83c8b0" stroke="#176a49" stroke-width="1.2" opacity=".8"></path>`).join('')+'</svg>'; }
     async function loadGeoJSON(ref) { const name=ref.split(/[\\/]/).pop(); const response=await fetch('/artifacts/geojson/'+encodeURIComponent(name)); if(response.ok) mapPreview(await response.json()); }
-    async function run() { const button=$('run'); button.disabled=true; setStatus('PLANNING'); $('title').textContent='Running analysis'; $('subtitle').textContent='Planner and runtime are processing the request.'; $('error').innerHTML=''; try { const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:$('request').value,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'Request failed'); setStatus(data.status); $('title').textContent=data.plan?.goal||data.status; $('subtitle').textContent=data.resolved_request||data.request; $('answer').textContent=data.answer||'No final answer.'; $('answer').className='answer'+(data.answer?'':' muted'); if(data.error)$('error').innerHTML='<div class="error">'+escapeHtml(data.error)+'</div>'; $('goal').textContent=data.plan?.goal||'No plan generated.'; metrics(data); steps(data); trace(data); const links=[]; if(data.artifact_ref)links.push(`<a href="/artifacts/runs/${encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())}" target="_blank">Open JSON artifact</a>`); if(data.geojson_ref) { links.push(`<a href="/artifacts/geojson/${encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())}" target="_blank">Open GeoJSON</a>`); await loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; } finally { button.disabled=false; } }
+    async function run() { const button=$('run'); button.disabled=true; setStatus('PLANNING'); $('title').textContent='正在分析'; $('subtitle').textContent='规划器和运行时正在处理请求。'; $('error').innerHTML=''; try { const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:$('request').value,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'请求失败'); setStatus(data.status); $('title').textContent=data.plan?.goal||statusName(data.status); $('subtitle').textContent=data.resolved_request||data.request; $('answer').textContent=data.answer||'暂无最终答案。'; $('answer').className='answer'+(data.answer?'':' muted'); if(data.error)$('error').innerHTML='<div class="error">'+escapeHtml(data.error)+'</div>'; $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); steps(data); trace(data); const links=[]; if(data.artifact_ref)links.push(`<a href="/artifacts/runs/${encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())}" target="_blank">打开 JSON 运行记录</a>`); if(data.geojson_ref) { links.push(`<a href="/artifacts/geojson/${encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())}" target="_blank">打开 GeoJSON 文件</a>`); await loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; } finally { button.disabled=false; } }
     $('run').addEventListener('click',run);
   </script>
 </body>

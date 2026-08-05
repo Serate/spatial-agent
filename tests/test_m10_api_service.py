@@ -50,7 +50,7 @@ class M10HttpApiTests(unittest.TestCase):
             thread.join(timeout=2)
 
         self.assertEqual(response.status, 200)
-        self.assertIn("Spatial Agent Console", body)
+        self.assertIn("空间智能体控制台", body)
 
     def test_http_api_serves_exported_artifacts_and_rejects_traversal(self):
         with tempfile.TemporaryDirectory() as tmpdir:
