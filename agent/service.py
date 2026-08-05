@@ -1,6 +1,7 @@
 from typing import Dict, Tuple
 
 from agent.artifact_store import ArtifactStore
+from agent.geojson_exporter import export_run_summary
 from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 
@@ -19,6 +20,7 @@ class AgentService:
         planner: str = "rule",
         backend: str = "memory",
         export_artifact: bool = False,
+        export_geojson: bool = False,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
@@ -30,6 +32,8 @@ class AgentService:
         payload["trace_summary"] = format_trace(result)
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
+        if export_geojson:
+            payload["geojson_ref"] = export_run_summary(payload)
         return payload
 
     def _runtime(self, planner: str, backend: str):

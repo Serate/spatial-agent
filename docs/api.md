@@ -42,6 +42,7 @@ Fields:
 | planner | no | rule | rule for deterministic demos, openai for LLM planning. |
 | backend | no | memory | memory for deterministic tests, local for configured local spatial data. |
 | export_artifact | no | false | When true, writes a small run summary artifact and returns artifact_ref. |
+| export_geojson | no | false | When true, writes a bounded GeoJSON summary and returns geojson_ref. |
 
 Successful response shape:
 
@@ -181,3 +182,5 @@ python view_artifact.py outputs\runs\<run-id>.json
 ~~~
 
 The viewer shows the request, plan goal, tool status, attempts, latency, safe result summaries, answer, and trace. It does not expose raw tool arguments, geometries, credentials, or provider responses.
+
+`export_geojson=true` produces a small `FeatureCollection` whose features summarize tool steps. Current backends return `null` geometry because they expose result references and metrics rather than raw geometries; geometry-producing backends can be added later without changing the API flag.

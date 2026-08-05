@@ -111,6 +111,12 @@
 - 保留 RuleBasedPlanner 作为默认路径，CI 和 smoke check 不依赖真实模型 API。
 - 新增可选 live smoke test，只有设置 SPATIAL_AGENT_LIVE_OPENAI=1 时才调用真实模型。
 
+## M18 当前能力
+
+- `export_geojson=true` 可导出小型 GeoJSON summary。
+- summary 只包含工具步骤、状态、耗时、数量、结果引用和 CRS 等白名单字段，不包含原始工具参数或空间数据。
+- 导出包含大小限制，当前默认上限为 100 KB；现有 backend 未提供 geometry 时，Feature geometry 为 null。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -145,6 +151,14 @@ python view_artifact.py outputs\runs\<run-id>.json
 ~~~
 
 viewer 只展示运行摘要、计划目标、工具状态、耗时、结果引用和 trace，不导出原始空间数据或工具参数。
+
+通过 HTTP API 导出 GeoJSON summary：
+
+~~~powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8088/runs `
+  -ContentType "application/json" `
+  -Body '{"request":"查询DEM栅格元数据","export_geojson":true}'
+~~~
 
 也可以用环境变量覆盖本地配置：
 
