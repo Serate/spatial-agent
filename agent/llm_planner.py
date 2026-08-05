@@ -65,7 +65,9 @@ class LLMPlanner:
             "with args {\"dataset\":\"land_use\",\"max_files\":3}. "
             "For admin boundary requests with a named district/county, use "
             "get_dataset_schema on admin_areas and range_query on admin_areas where "
-            "field name equals the requested area name. "
+            "field name equals the requested area name. The exact range_query args "
+            "must be {\"dataset\":\"admin_areas\",\"conditions\":[{\"field\":\"name\","
+            "\"operator\":\"eq\",\"value\":\"洪山区\"}],\"limit\":100}. "
             "For road and slope proximity requests, use get_dataset_schema, range_query, "
             "and spatial_join as needed. "
             "For successful requests, never return an outcome/tool/args shortcut. "
@@ -295,19 +297,41 @@ def _usage_summary(usage: Any) -> Dict[str, int]:
 def _normalize_shortcut_plan(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     """Expand the known single-tool response shape before TaskPlan validation."""
     if "goal" in payload or "steps" in payload:
+        normalized = dict(payload)
+        if isinstance(payload.get("steps"), list):
+            normalized["steps"] = [
+                _normalize_step_arguments(step) for step in payload["steps"]
+            ]
         if isinstance(payload.get("output"), str):
-            normalized = dict(payload)
             normalized["output"] = {"type": payload["output"]}
             return normalized
-        return payload
+        return normalized
     if payload.get("outcome") not in (None, "success"):
         return payload
     tool = payload.get("tool")
     args = payload.get("args")
     if not isinstance(tool, str) or not isinstance(args, dict):
         return payload
+    args = _normalize_step_arguments({"tool": tool, "args": args})["args"]
     return {
         "goal": "execute " + tool,
         "steps": [{"id": "step-1", "tool": tool, "args": args, "depends_on": []}],
         "output": {},
     }
+
+
+def _normalize_step_arguments(step: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Normalize the known Chat Completions range_query shortcut."""
+    if step.get("tool") != "range_query" or not isinstance(step.get("args"), dict):
+        return step
+    args = dict(step["args"])
+    if "conditions" not in args and "field" in args and "value" in args:
+        field = args.pop("field")
+        value = args.pop("value")
+        operator = args.pop("operator", "eq")
+        args["conditions"] = [{"field": field, "operator": operator, "value": value}]
+    if "conditions" in args and "limit" not in args:
+        args["limit"] = 100
+    normalized = dict(step)
+    normalized["args"] = args
+    return normalized

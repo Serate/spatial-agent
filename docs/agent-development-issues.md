@@ -72,6 +72,28 @@ LLM Planner 可能返回合理的工具调用，但不符合要求的 TaskPlan �
 
 测试完整 TaskPlan、拒绝结果、澄清结果和快捷结构结果。
 
+## Chat Completions 工具参数字段漂移
+
+### 现象
+
+真实模型可以生成正确的行政区查询意图，但返回的 range_query 参数使用 field、value 这样的简写，缺少工具契约要求的 conditions 和 limit。运行时最终报错：missing required fields: conditions, limit。
+
+### 根因
+
+Chat Completions 的 JSON object 模式只能保证返回 JSON，不能保证每个工具参数符合工具 schema。当前 planner prompt 只描述了“按名称查询”，没有把 range_query 的完整参数形状写出来。
+
+### 诊断
+
+检查失败 run 的 plan 和步骤参数。如果工具名称正确但参数含有 field/value、缺少 conditions/limit，说明是模型输出字段漂移，不是 GeoPandas、Rasterio 或数据文件失败。
+
+### 修复
+
+在 planner guidance 中加入完整的 range_query 参数模板，并在 TaskPlan 解析前将已知的 field/value 简写转换为 conditions=[{field, operator, value}]，缺少 limit 时补充默认上限 100。最终仍由 ToolRegistry 执行 schema 校验。
+
+### 预防
+
+每个真实模型新增工具场景都要测试完整参数、字段简写和缺字段输出。Chat Completions 不能只测试 JSON 可解析，还必须测试工具参数归一化和最终 backend 执行。
+
 ## Chat Completions 的结构化输出约束不足
 
 ### 现象
