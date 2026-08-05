@@ -44,6 +44,12 @@ class ToolRegistry:
             raise ToolError("Tool must return an object: " + name)
         return result
 
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        exporter = getattr(self._adapter, "export_result", None)
+        if not callable(exporter):
+            raise ToolError("adapter does not support result export")
+        return exporter(result_ref, max_features=max_features)
+
     def _validate(self, value: Any, schema: Mapping[str, Any], path: str) -> None:
         expected = schema.get("type")
         if expected == "object":

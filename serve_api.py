@@ -30,6 +30,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 backend=payload.get("backend", "memory"),
                 export_artifact=bool(payload.get("export_artifact", False)),
                 export_geojson=bool(payload.get("export_geojson", False)),
+                geojson_max_features=payload.get("geojson_max_features", 100),
             )
         except ValueError as exc:
             self._write_json(400, {"error": str(exc)})

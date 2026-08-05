@@ -116,7 +116,7 @@
 
 - `export_geojson=true` 可导出小型 GeoJSON summary。
 - summary 只包含工具步骤、状态、耗时、数量、结果引用和 CRS 等白名单字段，不包含原始工具参数或空间数据。
-- 导出包含大小限制，当前默认上限为 100 KB；现有 backend 未提供 geometry 时，Feature geometry 为 null。
+- 导出包含大小限制，当前默认上限为 100 KB；local admin backend 可导出受限真实 geometry，memory/raster 结果保持 geometry 为 null。
 
 ## 本地运行
 

@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agent.geojson_exporter import export_run_summary
 from agent.service import AgentService
@@ -49,6 +50,23 @@ class M18GeoJSONExportTests(unittest.TestCase):
             ref = export_run_summary(result, root=tmpdir)
 
         self.assertTrue(ref.endswith(".geojson"))
+
+    def test_service_export_geojson_uses_runtime_result_export(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            def write_to_temp(payload, geometry_features=None):
+                return export_run_summary(
+                    payload, root=tmpdir, geometry_features=geometry_features
+                )
+
+            with patch("agent.service.export_run_summary", side_effect=write_to_temp):
+                result = AgentService().run(
+                    "查询DEM栅格元数据", export_geojson=True
+                )
+            document = json.loads(Path(result["geojson_ref"]).read_text(encoding="utf-8"))
+
+        self.assertEqual(document["type"], "FeatureCollection")
+        self.assertEqual(len(document["features"]), 1)
+        self.assertIsNone(document["features"][0]["geometry"])
 
 
 if __name__ == "__main__":

@@ -47,6 +47,9 @@ class SpatialBackend(Protocol):
     def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
         ...
 
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        ...
+
 
 class InMemorySpatialBackend:
     """Small deterministic backend used before real spatial datasets are connected."""
@@ -145,6 +148,9 @@ class InMemorySpatialBackend:
             "metrics": {"backend": "in_memory", "probed_files": 0, "max_files": max_files},
         }
 
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        return {"type": "FeatureCollection", "features": [], "geometry_source": "none"}
+
     def _require_schema(self, dataset: str) -> DatasetSchema:
         try:
             return self._schemas[dataset]
@@ -196,6 +202,7 @@ class GeoJSONAdminBackend:
             raise ToolError("admin_areas dataset has no files")
         self._path = self._entry.files[0]
         self._gdf = None
+        self._result_cache = {}
 
     def get_dataset_schema(self, dataset: str) -> Dict[str, Any]:
         self._require_admin(dataset)
@@ -231,8 +238,10 @@ class GeoJSONAdminBackend:
         names = []
         if "name" in filtered.columns:
             names = [str(item) for item in filtered["name"].head(returned).tolist()]
+        result_ref = "geojson://range/admin_areas"
+        self._result_cache[result_ref] = filtered.head(returned).copy()
         return {
-            "result_ref": "geojson://range/admin_areas",
+            "result_ref": result_ref,
             "count": int(returned),
             "crs": str(gdf.crs) if gdf.crs else None,
             "sample_names": names,
@@ -244,6 +253,20 @@ class GeoJSONAdminBackend:
                 "source": self._path,
             },
         }
+
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        if result_ref not in self._result_cache:
+            raise ToolError("result_ref is not available for export: " + result_ref)
+        selected = self._result_cache[result_ref].head(max_features)
+        features = []
+        for _, row in selected.iterrows():
+            properties = {}
+            for column in ("name", "gb"):
+                if column in row and row[column] is not None:
+                    properties[column] = str(row[column])
+            geometry = row.geometry.__geo_interface__ if row.geometry is not None else None
+            features.append({"type": "Feature", "geometry": geometry, "properties": properties})
+        return {"type": "FeatureCollection", "features": features, "geometry_source": "geojson"}
 
     def _load(self):
         if self._gdf is None:
@@ -297,6 +320,11 @@ class HybridSpatialBackend:
         if dataset in ("dem", "land_use"):
             return self._raster.get_raster_metadata(dataset, max_files=max_files)
         return self._fallback.get_raster_metadata(dataset, max_files=max_files)
+
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        if result_ref.startswith("geojson://"):
+            return self._admin.export_result(result_ref, max_features=max_features)
+        return self._fallback.export_result(result_ref, max_features=max_features)
 
 
 def _apply_condition(gdf, condition: Dict[str, Any]):
@@ -359,3 +387,9 @@ class SpatialToolAdapter:
                 max_files=arguments.get("max_files", 3),
             )
         raise ToolError("Adapter does not implement: " + name)
+
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        exporter = getattr(self._backend, "export_result", None)
+        if not callable(exporter):
+            raise ToolError("backend does not support result export")
+        return exporter(result_ref, max_features=max_features)

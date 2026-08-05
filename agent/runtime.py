@@ -105,6 +105,9 @@ class AgentRuntime:
     def get_run(self, run_id: str) -> Optional[AgentRunResult]:
         return self._state_store.get(run_id)
 
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict:
+        return self._registry.export_result(result_ref, max_features=max_features)
+
     def _resolve_request(self, request: str, session_id: str) -> str:
         pending = self._conversation_store.get_pending(session_id)
         if pending is None:

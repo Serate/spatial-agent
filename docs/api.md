@@ -185,4 +185,4 @@ python view_artifact.py outputs\runs\<run-id>.json
 
 The viewer shows the request, plan goal, tool status, attempts, latency, safe result summaries, answer, and trace. It does not expose raw tool arguments, geometries, credentials, or provider responses.
 
-`export_geojson=true` produces a small `FeatureCollection` whose features summarize tool steps. Current backends return `null` geometry because they expose result references and metrics rather than raw geometries; geometry-producing backends can be added later without changing the API flag.
+`export_geojson=true` produces a small `FeatureCollection` whose features summarize tool steps. The local admin backend can provide bounded real geometry on this explicit export path; memory and raster results use `null` geometry because they expose result references and metrics rather than raw geometries.

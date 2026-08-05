@@ -11,6 +11,7 @@ def export_run_summary(
     payload: Dict[str, Any],
     root: str = DEFAULT_GEOJSON_ROOT,
     max_bytes: int = DEFAULT_MAX_BYTES,
+    geometry_features=None,
 ) -> str:
     """Write a bounded GeoJSON summary without raw tool args or source data."""
     run_id = payload.get("run_id")
@@ -19,7 +20,7 @@ def export_run_summary(
     if max_bytes < 1:
         raise ValueError("max_bytes must be positive")
 
-    features = [_step_feature(step) for step in payload.get("steps", [])]
+    features = geometry_features or [_step_feature(step) for step in payload.get("steps", [])]
     if not features:
         features = [{
             "type": "Feature",

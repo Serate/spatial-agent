@@ -21,6 +21,7 @@ class AgentService:
         backend: str = "memory",
         export_artifact: bool = False,
         export_geojson: bool = False,
+        geojson_max_features: int = 100,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
@@ -33,7 +34,16 @@ class AgentService:
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
         if export_geojson:
-            payload["geojson_ref"] = export_run_summary(payload)
+            geometry_features = []
+            for step in payload.get("steps", []):
+                result_ref = (step.get("result") or {}).get("result_ref")
+                if result_ref:
+                    exported = runtime.export_result(result_ref, max_features=geojson_max_features)
+                    geometry_features.extend(exported.get("features", []))
+            payload["geojson_ref"] = export_run_summary(
+                payload,
+                geometry_features=geometry_features or None,
+            )
         return payload
 
     def _runtime(self, planner: str, backend: str):

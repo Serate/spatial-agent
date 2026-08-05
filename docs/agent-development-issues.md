@@ -403,6 +403,28 @@ Agent trace 通常包含工具参数、文件路径和模型输出。
 
 保持 outputs 目录被 Git 忽略。不要导出原始空间数据或凭据。
 
+## Geometry 导出必须与普通运行结果隔离
+
+### 现象
+
+普通工具结果只包含 `result_ref`、数量和指标，无法直接生成真实地图 geometry；如果把 geometry 直接放进每次 Runtime 响应，可能导致响应过大并暴露原始空间数据。
+
+### 根因
+
+运行结果、trace 和 artifact 面向调试与交互，geometry 导出面向明确的下游地图用途，两者的数据安全和大小约束不同。
+
+### 诊断
+
+检查普通 `/runs` 响应是否只包含结果引用和统计信息，并单独验证 `export_geojson=true` 是否经过 feature 数量和文件大小限制。
+
+### 修复
+
+将 geometry 导出放在显式的 result export 链路中。GeoJSON backend 只缓存受限查询结果，在导出时生成白名单属性和最多指定数量的 Feature；memory/raster backend 没有 geometry 时返回空 FeatureCollection 或 null geometry summary。
+
+### 预防
+
+不要为了方便把 geometry 加入所有工具结果、trace 或 artifact。新增 geometry backend 时，必须测试字段白名单、最大 feature 数、最大文件大小和默认响应不包含原始 geometry。
+
 ## 文档漂移
 
 ### 现象

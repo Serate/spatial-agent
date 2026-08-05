@@ -35,6 +35,21 @@ class M6GeoJSONAdminBackendTests(unittest.TestCase):
         self.assertIn("洪山区", result["sample_names"])
         self.assertEqual(result["metrics"]["backend"], "geojson")
 
+    def test_exports_bounded_geometry_for_last_query(self):
+        backend = self.build_backend()
+        result = backend.range_query(
+            "admin_areas",
+            [{"field": "name", "operator": "eq", "value": "洪山区"}],
+            10,
+        )
+
+        exported = backend.export_result(result["result_ref"], max_features=1)
+
+        self.assertEqual(exported["type"], "FeatureCollection")
+        self.assertEqual(len(exported["features"]), 1)
+        self.assertIsNotNone(exported["features"][0]["geometry"])
+        self.assertEqual(exported["features"][0]["properties"]["name"], "洪山区")
+
     def test_hybrid_backend_uses_real_admin_and_memory_fallback(self):
         catalog = DatasetCatalog.from_json(str(ROOT / "config" / "datasets.local.example.json"))
         backend = HybridSpatialBackend(catalog)
