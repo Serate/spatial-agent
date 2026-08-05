@@ -52,6 +52,8 @@ Fields:
 | export_artifact | no | false | When true, writes a small run summary artifact and returns artifact_ref. |
 | export_geojson | no | false | When true, writes a bounded GeoJSON summary and returns geojson_ref. |
 
+For raster value analysis, use a request such as `分析DEM高程统计`. The planner selects `get_raster_statistics`, which returns bounded statistics for sampled files and does not expose raster arrays through the API.
+
 Successful response shape:
 
 ~~~json

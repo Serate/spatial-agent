@@ -12,6 +12,10 @@ class AnswerComposer:
             return self._compose_admin_area_result(result.steps)
         if output_type == "raster_metadata_result":
             return self._compose_raster_metadata_result(result.steps)
+        if output_type == "raster_statistics_result":
+            return self._compose_raster_statistics_result(result.steps)
+        if _first_result(result.steps, "get_raster_statistics") is not None:
+            return self._compose_raster_statistics_result(result.steps)
         if _first_result(result.steps, "get_raster_metadata") is not None:
             return self._compose_raster_metadata_result(result.steps)
         return self._compose_default(result.steps)
@@ -85,6 +89,31 @@ class AnswerComposer:
         if bounds:
             details.append(_zh("范围：{values}").format(values=", ".join(str(round(float(item), 3)) for item in bounds)))
         return _zh("{dataset} 栅格元数据：").format(dataset=dataset) + _zh("；").join(details) + _zh("。")
+
+    def _compose_raster_statistics_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "get_raster_statistics")
+        if result is None:
+            return _zh("栅格统计分析已完成，但没有找到可展示的结果。")
+        statistics = result.get("statistics", {})
+        if statistics.get("error"):
+            return _zh("{dataset} 栅格统计分析未匹配到本地文件：{error}。").format(
+                dataset=result.get("dataset", _zh("未知数据集")),
+                error=statistics["error"],
+            )
+        metrics = result.get("metrics", {})
+        details = [
+            _zh("文件总数：{count}").format(count=result.get("file_count", 0)),
+            _zh("已分析：{count} 个文件").format(count=metrics.get("analyzed_files", 0)),
+            _zh("最小值：{value}").format(value=statistics.get("minimum", _zh("未知"))),
+            _zh("最大值：{value}").format(value=statistics.get("maximum", _zh("未知"))),
+            _zh("平均值：{value}").format(value=statistics.get("mean", _zh("未知"))),
+            _zh("标准差：{value}").format(value=statistics.get("standard_deviation", _zh("未知"))),
+            _zh("有效像元：{count}").format(count=statistics.get("valid_pixel_count", 0)),
+        ]
+        nodata_ratio = statistics.get("nodata_ratio")
+        if nodata_ratio is not None:
+            details.append(_zh("NoData 比例：{ratio}%").format(ratio=round(float(nodata_ratio) * 100, 3)))
+        return _zh("{dataset} 栅格统计：").format(dataset=result.get("dataset", _zh("未知数据集"))) + _zh("；").join(details) + _zh("。")
 
     def _compose_default(self, steps: Iterable[StepRun]) -> str:
         completed = [step for step in steps if step.status == "COMPLETED"]

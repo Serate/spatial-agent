@@ -47,6 +47,9 @@ class SpatialBackend(Protocol):
     def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
         ...
 
+    def get_raster_statistics(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
+        ...
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         ...
 
@@ -146,6 +149,27 @@ class InMemorySpatialBackend:
                 "files": [],
             },
             "metrics": {"backend": "in_memory", "probed_files": 0, "max_files": max_files},
+        }
+
+    def get_raster_statistics(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
+        if dataset not in ("dem", "land_use"):
+            raise ToolError("unknown raster dataset: " + dataset)
+        return {
+            "dataset": dataset,
+            "kind": "raster",
+            "role": "deterministic in-memory raster statistics placeholder",
+            "file_count": 0,
+            "statistics": {
+                "minimum": 0.0,
+                "maximum": 0.0,
+                "mean": 0.0,
+                "standard_deviation": 0.0,
+                "valid_pixel_count": 0,
+                "nodata_pixel_count": 0,
+                "nodata_ratio": 0.0,
+                "files": [],
+            },
+            "metrics": {"backend": "in_memory", "analyzed_files": 0, "max_files": max_files},
         }
 
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
@@ -321,6 +345,11 @@ class HybridSpatialBackend:
             return self._raster.get_raster_metadata(dataset, max_files=max_files)
         return self._fallback.get_raster_metadata(dataset, max_files=max_files)
 
+    def get_raster_statistics(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
+        if dataset in ("dem", "land_use"):
+            return self._raster.get_raster_statistics(dataset, max_files=max_files)
+        return self._fallback.get_raster_statistics(dataset, max_files=max_files)
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         if result_ref.startswith("geojson://"):
             return self._admin.export_result(result_ref, max_features=max_features)
@@ -383,6 +412,11 @@ class SpatialToolAdapter:
             )
         if name == "get_raster_metadata":
             return self._backend.get_raster_metadata(
+                dataset=arguments["dataset"],
+                max_files=arguments.get("max_files", 3),
+            )
+        if name == "get_raster_statistics":
+            return self._backend.get_raster_statistics(
                 dataset=arguments["dataset"],
                 max_files=arguments.get("max_files", 3),
             )

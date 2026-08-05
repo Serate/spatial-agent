@@ -59,6 +59,8 @@ class LLMPlanner:
             + tools
             + ". "
             "Allowed datasets: roads, slope, admin_areas, dem, land_use. "
+            "For DEM or land use value statistics, use tool get_raster_statistics with "
+            "args {\"dataset\":\"dem\",\"max_files\":3}. "
             "For DEM, elevation, or terrain raster metadata requests, use tool "
             "get_raster_metadata with args {\"dataset\":\"dem\",\"max_files\":3}. "
             "For land use raster metadata requests, use tool get_raster_metadata "

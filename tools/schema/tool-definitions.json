@@ -152,6 +152,37 @@
           "metadata": {"type": "object"}
         }
       }
+    },
+    {
+      "name": "get_raster_statistics",
+      "description": "Compute bounded streaming statistics for an allowed raster dataset.",
+      "side_effect": "none",
+      "requires_approval": false,
+      "input_schema": {
+        "type": "object",
+        "required": ["dataset"],
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["dem", "land_use"]
+          },
+          "max_files": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["dataset", "file_count", "statistics"],
+        "properties": {
+          "dataset": {"type": "string"},
+          "file_count": {"type": "integer"},
+          "statistics": {"type": "object"}
+        }
+      }
     }
   ]
 }

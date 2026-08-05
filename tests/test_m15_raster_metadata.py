@@ -31,6 +31,16 @@ class M15RasterMetadataTests(unittest.TestCase):
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(result.steps[0].result["dataset"], "land_use")
 
+    def test_rule_planner_runs_raster_statistics_offline(self):
+        runtime = build_runtime("rule", "memory")
+        result = runtime.run("分析DEM高程统计")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.plan.output["type"], "raster_statistics_result")
+        self.assertEqual(result.steps[0].tool, "get_raster_statistics")
+        self.assertEqual(result.steps[0].result["statistics"]["mean"], 0.0)
+        self.assertIn("dem 栅格统计", result.answer)
+
 
 @unittest.skipUnless(HAS_RASTERIO and HAS_LOCAL_RASTER, "requires rasterio and local raster dataset files")
 class M15LocalRasterMetadataTests(unittest.TestCase):
@@ -58,6 +68,18 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["probed_files"], 2)
         self.assertGreater(result["metadata"]["width"], 0)
         self.assertGreater(result["metadata"]["height"], 0)
+
+    def test_computes_dem_statistics_in_streaming_blocks(self):
+        result = self.build_backend().get_raster_statistics("dem", max_files=2)
+
+        statistics = result["statistics"]
+        self.assertEqual(result["dataset"], "dem")
+        self.assertEqual(result["metrics"]["analyzed_files"], 2)
+        self.assertGreater(statistics["valid_pixel_count"], 0)
+        self.assertLessEqual(statistics["minimum"], statistics["mean"])
+        self.assertLessEqual(statistics["mean"], statistics["maximum"])
+        self.assertGreaterEqual(statistics["nodata_ratio"], 0.0)
+        self.assertLessEqual(statistics["nodata_ratio"], 1.0)
 
 
 if __name__ == "__main__":
