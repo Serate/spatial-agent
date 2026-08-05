@@ -8,6 +8,8 @@ The HTTP API exposes the same Agent Runtime used by the CLI demo. Clients submit
 python serve_api.py --host 127.0.0.1 --port 8088
 ~~~
 
+Open `http://127.0.0.1:8088/` for the interactive Spatial Agent Console. The page uses the same `/runs` and artifact endpoints documented below and has no third-party runtime dependency.
+
 ## GET /health
 
 Returns a basic process health response.

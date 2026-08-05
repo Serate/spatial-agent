@@ -31,6 +31,27 @@ class M10AgentServiceTests(unittest.TestCase):
 
 
 class M10HttpApiTests(unittest.TestCase):
+    def test_http_api_serves_console(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+            connection.request("GET", "/")
+            response = connection.getresponse()
+            body = response.read().decode("utf-8")
+            connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.status, 200)
+        self.assertIn("Spatial Agent Console", body)
+
     def test_http_api_serves_exported_artifacts_and_rejects_traversal(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

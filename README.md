@@ -118,6 +118,13 @@
 - summary 只包含工具步骤、状态、耗时、数量、结果引用和 CRS 等白名单字段，不包含原始工具参数或空间数据。
 - 导出包含大小限制，当前默认上限为 100 KB；local admin backend 可导出受限真实 geometry，memory/raster 结果保持 geometry 为 null。
 
+## M21 当前能力
+
+- `serve_api.py` 同时提供 Spatial Agent Console 页面。
+- 页面支持请求提交、Planner/backend 选择、session、澄清和执行状态展示。
+- 页面展示答案、TaskPlan、工具步骤、耗时、planner metrics、trace 和 GeoJSON geometry 预览。
+- 页面可直接打开 JSON artifact 和 GeoJSON 导出结果。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。

@@ -11,11 +11,15 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     service = AgentService()
     artifact_root = Path("outputs/runs")
     geojson_root = Path("outputs/geojson")
+    web_root = Path(__file__).parent / "web"
 
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/health":
             self._write_json(200, {"status": "ok"})
+            return
+        if parsed.path in ("/", "/index.html"):
+            self._write_file(self.web_root / "index.html", "text/html")
             return
         artifact = self._artifact_file(parsed.path)
         if artifact is not None:
