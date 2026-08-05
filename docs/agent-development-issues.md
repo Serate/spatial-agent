@@ -524,3 +524,25 @@ Agent 项目会同时演进多个边界：planner、registry、backend、AnswerC
 ### 预防
 
 今后出现新的 Agent 开发问题时，应在本文件中优先记录，或至少与修复放在同一个 patch 中。
+
+## 配置存在但服务进程无法访问模型网络
+
+### 现象
+
+Console 的环境状态显示真实大模型配置可用，但发送请求后返回 OpenAI request failed: WinError 10013。GIS 后端和本地规则规划器仍然可以正常工作。
+
+### 根因
+
+之前的 health 检查只根据 API key 或本地配置文件是否存在判断 live_llm=true，没有判断当前服务进程是否能建立出站 socket。受限制的启动终端可以正常提供页面和本地 GIS，但不能访问外部模型 provider。
+
+### 诊断
+
+用最小的 planner=openai 请求复现，并检查响应中的 planner_metrics.error_type 是否为 url_error。再访问 /health，区分 live_llm_configured=false（没有模型配置）与 live_llm_configured=true 且 live_llm_network=false（服务进程网络受限）。
+
+### 修复
+
+health 检查对配置 provider 主机执行不发送模型请求的短 TCP 探测，并新增 live_llm_configured、live_llm_network 字段。Console 在发送前拦截网络受限状态，提示从允许出站网络的终端重新启动服务。
+
+### 预防
+
+不能把“配置文件存在”当成“真实模型可用”。真实模型能力必须同时检查配置、网络权限和后续 live smoke；离线规则规划器仍作为无网络环境下的可用回退路径。

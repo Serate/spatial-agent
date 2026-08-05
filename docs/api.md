@@ -95,7 +95,9 @@ Example response:
   "capabilities": {
     "memory_backend": true,
     "local_gis_backend": true,
-    "live_llm": true
+    "live_llm": true,
+    "live_llm_configured": true,
+    "live_llm_network": true
   },
   "dependencies": {
     "geopandas": true,
@@ -113,9 +115,11 @@ Capability meanings:
 |---|---|
 | memory_backend | Deterministic in-memory demo backend is available. |
 | local_gis_backend | GeoPandas, Rasterio, and the configured dataset root are available in this server process. |
-| live_llm | A live planner configuration is present through environment variables or config/openai.local.json. |
+| live_llm_configured | A live planner configuration is present through environment variables or config/openai.local.json. |
+| live_llm_network | The server process can open a short TCP connection to the configured provider host without sending a model request. |
+| live_llm | Both live_llm_configured and live_llm_network are true, so the Console may attempt a live planner request. |
 
-The Console uses this endpoint to warn before running a local GIS request from the wrong Python environment or a live model request without model configuration.
+The Console uses this endpoint to warn before running a local GIS request from the wrong Python environment, a live model request without model configuration, or a service process whose outbound sockets are blocked.
 
 ## Multi-Turn Clarification
 

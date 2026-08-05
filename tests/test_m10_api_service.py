@@ -105,6 +105,8 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIs(payload["capabilities"]["memory_backend"], True)
         self.assertIn("local_gis_backend", payload["capabilities"])
         self.assertIn("live_llm", payload["capabilities"])
+        self.assertIn("live_llm_configured", payload["capabilities"])
+        self.assertIn("live_llm_network", payload["capabilities"])
         self.assertIn("geopandas", payload["dependencies"])
         self.assertIn("rasterio", payload["dependencies"])
         self.assertIn("dataset_root_exists", payload["data"])
