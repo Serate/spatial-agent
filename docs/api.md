@@ -171,3 +171,13 @@ Troubleshooting notes from the M16 setup:
 - The API returns result_ref values instead of large geometries.
 - session_id scopes clarification state and prevents unrelated clients from sharing pending context.
 - Artifact export writes a compact run summary only, not raw spatial datasets.
+
+## Artifact Viewer
+
+Render an exported artifact as a standalone HTML file:
+
+~~~powershell
+python view_artifact.py outputs\runs\<run-id>.json
+~~~
+
+The viewer shows the request, plan goal, tool status, attempts, latency, safe result summaries, answer, and trace. It does not expose raw tool arguments, geometries, credentials, or provider responses.

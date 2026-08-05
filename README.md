@@ -137,6 +137,15 @@ python run_demo.py --planner openai "查询距离主干道500米以内、坡度�
 python run_demo.py --planner openai "查询DEM栅格元数据"
 ~~~
 
+查看运行 artifact：
+
+~~~powershell
+# 先通过 POST /runs 并设置 export_artifact=true 生成 JSON artifact
+python view_artifact.py outputs\runs\<run-id>.json
+~~~
+
+viewer 只展示运行摘要、计划目标、工具状态、耗时、结果引用和 trace，不导出原始空间数据或工具参数。
+
 也可以用环境变量覆盖本地配置：
 
 ~~~powershell
