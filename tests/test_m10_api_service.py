@@ -132,6 +132,10 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("正在检查运行环境", body)
         self.assertIn("本地 GIS", body)
         self.assertIn("真实大模型", body)
+        self.assertIn("对话", body)
+        self.assertIn("发送", body)
+        self.assertIn("空间智能体", body)
+        self.assertIn("data-request", body)
 
     def test_http_api_returns_not_found_for_unknown_route(self):
         class TestHandler(AgentApiHandler):

@@ -10,22 +10,38 @@
     body { margin: 0; }
     header { background: #17212b; color: #f5f7f8; padding: 20px 28px; display:flex; justify-content:space-between; align-items:center; border-bottom:4px solid #e09a5b; }
     header h1 { margin:0; font-size:21px; letter-spacing:0; } header span { color:#b6c8cc; font-size:13px; }
-    main { max-width: 1280px; margin: 0 auto; padding: 24px; display:grid; grid-template-columns: 360px 1fr; gap:20px; }
+    main { max-width: 1320px; margin: 0 auto; padding: 24px; display:grid; grid-template-columns: 320px 1fr; gap:20px; }
     section, .panel { background:#fff; border:1px solid #d7e0e4; border-radius:8px; }
     .controls { padding:20px; align-self:start; position:sticky; top:18px; }
     label { display:block; font-size:12px; font-weight:700; color:#52636b; margin:16px 0 7px; text-transform:uppercase; letter-spacing:.06em; }
-    textarea, select { width:100%; border:1px solid #bdcbd0; border-radius:6px; padding:11px; font:inherit; color:inherit; background:#fbfcfc; }
-    textarea { min-height:130px; resize:vertical; line-height:1.5; }
+    input, textarea, select { width:100%; border:1px solid #bdcbd0; border-radius:6px; padding:11px; font:inherit; color:inherit; background:#fbfcfc; }
+    textarea { resize:vertical; line-height:1.5; }
     .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    button { width:100%; margin-top:18px; border:0; border-radius:6px; padding:12px; background:#087f8c; color:#fff; font-weight:700; cursor:pointer; }
+    button { border:0; border-radius:6px; padding:11px 13px; background:#087f8c; color:#fff; font-weight:700; cursor:pointer; }
     button:hover { background:#066d78; } button:disabled { background:#9aabb0; cursor:wait; }
     .hint { color:#697980; font-size:12px; line-height:1.5; margin-top:12px; }
-    .content { min-width:0; }
+    .content { min-width:0; display:grid; gap:20px; }
     .hero { padding:20px; display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
     .hero h2 { margin:0 0 6px; font-size:18px; } .hero p { margin:0; color:#66777e; }
     .badge { border-radius:999px; padding:6px 10px; background:#e6f3ed; color:#176a49; font-size:12px; font-weight:700; white-space:nowrap; }
     .badge.failed, .badge.rejected { background:#fde9e5; color:#a43e2e; } .badge.planning { background:#fff2d8; color:#94651d; }
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px; }
+    .chat { min-height:520px; display:grid; grid-template-rows:auto 1fr auto; overflow:hidden; }
+    .chat-head { padding:16px 18px; border-bottom:1px solid #e4eaec; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    .chat-head h3 { margin:0; font-size:15px; } .chat-head span { color:#6a7a80; font-size:12px; }
+    .messages { padding:18px; overflow:auto; display:flex; flex-direction:column; gap:12px; max-height:520px; background:linear-gradient(#fbfcfc, #f6f9fa); }
+    .msg { max-width:78%; display:grid; gap:5px; }
+    .msg .role { font-size:11px; color:#6d7c81; font-weight:700; }
+    .bubble { border-radius:8px; padding:12px 14px; line-height:1.65; white-space:pre-wrap; box-shadow:0 1px 0 rgba(23,33,43,.04); }
+    .msg.user { align-self:flex-end; } .msg.user .role { text-align:right; }
+    .msg.user .bubble { background:#087f8c; color:#fff; }
+    .msg.assistant .bubble { background:#fff; border:1px solid #dfe7ea; }
+    .msg.system .bubble { background:#fff7e9; border:1px solid #f1d6aa; color:#6f501b; }
+    .composer { padding:14px; border-top:1px solid #e4eaec; background:#fff; display:grid; grid-template-columns:1fr 110px; gap:10px; align-items:end; }
+    .composer textarea { min-height:54px; max-height:150px; }
+    .examples { display:grid; gap:8px; margin-top:14px; }
+    .example { width:100%; text-align:left; background:#f2f6f7; color:#33444b; font-weight:600; }
+    .example:hover { background:#e6eef1; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
     .panel { padding:18px; min-width:0; } .panel h3 { margin:0 0 14px; font-size:15px; }
     .answer { line-height:1.65; white-space:pre-wrap; } .muted { color:#77868b; }
     .metric-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .metric { background:#f2f6f7; padding:10px; border-radius:6px; } .metric b { display:block; font-size:15px; } .metric small { color:#6c7b80; }
@@ -35,23 +51,33 @@
     .map { min-height:260px; background:#edf3f1; border-radius:6px; overflow:hidden; display:flex; align-items:center; justify-content:center; } .map svg { width:100%; height:260px; } .map-empty { color:#77868b; font-size:13px; }
     .links a { display:inline-block; margin-right:12px; color:#087f8c; font-size:13px; } .error { color:#aa3c2b; background:#fff0ed; padding:10px; border-radius:6px; white-space:pre-wrap; }
     .env { margin-top:14px; display:grid; gap:8px; } .env div { background:#f2f6f7; border-radius:6px; padding:9px 10px; font-size:13px; } .env .bad { background:#fff0ed; color:#9d3527; }
-    @media (max-width:850px) { main { grid-template-columns:1fr; padding:14px; } .controls { position:static; } .grid { grid-template-columns:1fr; } header { padding:16px; } }
+    @media (max-width:900px) { main { grid-template-columns:1fr; padding:14px; } .controls { position:static; } .grid { grid-template-columns:1fr; } header { padding:16px; } .composer { grid-template-columns:1fr; } .msg { max-width:92%; } }
   </style>
 </head>
 <body>
-  <header><h1>空间智能体控制台</h1><span>规划器 / 运行时 / 空间后端</span></header>
+  <header><h1>空间智能体控制台</h1><span>对话 / 规划器 / 运行时 / 空间后端</span></header>
   <main>
     <aside class="controls panel">
-      <label for="request">分析请求</label>
-      <textarea id="request">查询DEM栅格元数据</textarea>
       <div class="row"><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">空间后端</label><select id="backend"><option value="memory">内存演示</option><option value="local">本地 GIS</option></select></div></div>
-      <label for="session">会话 ID</label><input id="session" value="console" style="width:100%;border:1px solid #bdcbd0;border-radius:6px;padding:11px;font:inherit">
-      <button id="run">▶ 开始分析</button>
+      <label for="session">会话 ID</label><input id="session" value="console">
+      <div class="examples" aria-label="示例问题">
+        <button class="example" data-request="查询DEM栅格元数据">查询 DEM 栅格元数据</button>
+        <button class="example" data-request="查询洪山区行政区边界">查询洪山区行政区边界</button>
+        <button class="example" data-request="查询土地利用栅格元数据">查询土地利用栅格元数据</button>
+      </div>
       <div class="hint">真实大模型会读取本地服务商配置。本地 GIS 后端需要用 spatial-agent-gis 环境启动服务。</div>
       <div id="env" class="env"><div>正在检查运行环境...</div></div>
     </aside>
     <div class="content">
-      <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">提交请求后查看任务计划和执行轨迹。</p></div><span id="status" class="badge">待机</span></section>
+      <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">在对话框中输入问题，Agent 会生成计划、调用工具并返回结论。</p></div><span id="status" class="badge">待机</span></section>
+      <section class="chat">
+        <div class="chat-head"><h3>对话</h3><span id="chatMeta">当前会话：console</span></div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <div class="composer">
+          <textarea id="prompt" placeholder="例如：查询DEM栅格元数据"></textarea>
+          <button id="send">发送</button>
+        </div>
+      </section>
       <div class="grid">
         <section class="panel"><h3>分析结论</h3><div id="answer" class="answer muted">还没有运行记录。</div><div id="error"></div></section>
         <section class="panel"><h3>规划指标</h3><div id="metrics" class="metric-grid"><div class="metric"><b>-</b><small>模型</small></div></div></section>
@@ -68,16 +94,22 @@
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
     function setStatus(value) { const el=$('status'); el.textContent=statusName(value); el.className='badge '+String(value).toLowerCase(); }
-    function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>`<div class="metric"><b>${escapeHtml(x[1])}</b><small>${escapeHtml(x[0])}</small></div>`).join(''); }
-    function steps(data) { const list=data.steps||[]; $('steps').innerHTML=list.length?list.map(s=>`<li><div class="step-head"><span class="step-tool">${escapeHtml(s.tool)}</span><span class="step-status">${escapeHtml(statusName(s.status))}</span></div><div class="muted">${escapeHtml(s.latency_ms||'-')} 毫秒 · ${escapeHtml(s.attempts||0)} 次尝试</div></li>`).join(''):'<li class="muted">暂无工具步骤。</li>'; }
-    function trace(data) { $('trace').innerHTML=(data.trace_summary||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join('')||'<li class="muted">暂无执行轨迹。</li>'; }
-    function mapPreview(geo) { const features=(geo.features||[]).filter(f=>f.geometry&&f.geometry.coordinates); if(!features.length){$('map').innerHTML='<div class="map-empty">当前结果没有可预览的几何形状。</div>';return;} const coords=[]; const walk=x=>Array.isArray(x[0])?x.forEach(walk):coords.push(x); features.forEach(f=>walk(f.geometry.coordinates)); const xs=coords.map(x=>x[0]),ys=coords.map(x=>x[1]),minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys),sx=x=>12+(x-minx)/(maxx-minx||1)*476,sy=y=>248-(y-miny)/(maxy-miny||1)*236; const path=f=>{let out=''; const walkRing=r=>{out+='M '+sx(r[0][0])+' '+sy(r[0][1])+' ';r.slice(1).forEach(p=>out+='L '+sx(p[0])+' '+sy(p[1])+' ');out+='Z ';}; const walkGeom=g=>g.type==='Polygon'?g.coordinates.forEach(walkRing):g.coordinates.forEach(p=>p.forEach(walkRing)); walkGeom(f.geometry);return out;}; $('map').innerHTML='<svg viewBox="0 0 500 260" role="img" aria-label="GeoJSON 空间预览">'+features.map(f=>`<path d="${path(f)}" fill="#83c8b0" stroke="#176a49" stroke-width="1.2" opacity=".8"></path>`).join('')+'</svg>'; }
+    function appendMessage(role, text) { const labels={user:'你',assistant:'空间智能体',system:'系统'}; const wrap=document.createElement('div'); wrap.className='msg '+role; wrap.innerHTML='<div class="role">'+labels[role]+'</div><div class="bubble">'+escapeHtml(text)+'</div>'; $('messages').appendChild(wrap); $('messages').scrollTop=$('messages').scrollHeight; }
+    function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>'<div class="metric"><b>'+escapeHtml(x[1])+'</b><small>'+escapeHtml(x[0])+'</small></div>').join(''); }
+    function steps(data) { const list=data.steps||[]; $('steps').innerHTML=list.length?list.map(s=>'<li><div class="step-head"><span class="step-tool">'+escapeHtml(s.tool)+'</span><span class="step-status">'+escapeHtml(statusName(s.status))+'</span></div><div class="muted">'+escapeHtml(s.latency_ms||'-')+' 毫秒 · '+escapeHtml(s.attempts||0)+' 次尝试</div></li>').join(''):'<li class="muted">暂无工具步骤。</li>'; }
+    function trace(data) { $('trace').innerHTML=(data.trace_summary||[]).map(x=>'<li>'+escapeHtml(x)+'</li>').join('')||'<li class="muted">暂无执行轨迹。</li>'; }
+    function mapPreview(geo) { const features=(geo.features||[]).filter(f=>f.geometry&&f.geometry.coordinates); if(!features.length){$('map').innerHTML='<div class="map-empty">当前结果没有可预览的几何形状。</div>';return;} const coords=[]; const walk=x=>Array.isArray(x[0])?x.forEach(walk):coords.push(x); features.forEach(f=>walk(f.geometry.coordinates)); const xs=coords.map(x=>x[0]),ys=coords.map(x=>x[1]),minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys),sx=x=>12+(x-minx)/(maxx-minx||1)*476,sy=y=>248-(y-miny)/(maxy-miny||1)*236; const path=f=>{let out=''; const walkRing=r=>{out+='M '+sx(r[0][0])+' '+sy(r[0][1])+' ';r.slice(1).forEach(p=>out+='L '+sx(p[0])+' '+sy(p[1])+' ');out+='Z ';}; const walkGeom=g=>g.type==='Polygon'?g.coordinates.forEach(walkRing):g.coordinates.forEach(p=>p.forEach(walkRing)); walkGeom(f.geometry);return out;}; $('map').innerHTML='<svg viewBox="0 0 500 260" role="img" aria-label="GeoJSON 空间预览">'+features.map(f=>'<path d="'+path(f)+'" fill="#83c8b0" stroke="#176a49" stroke-width="1.2" opacity=".8"></path>').join('')+'</svg>'; }
     async function loadGeoJSON(ref) { const name=ref.split(/[\\/]/).pop(); const response=await fetch('/artifacts/geojson/'+encodeURIComponent(name)); if(response.ok) mapPreview(await response.json()); }
     function renderHealth(data) { health=data; const caps=data.capabilities||{}; const rows=[['内存演示',caps.memory_backend],['本地 GIS',caps.local_gis_backend],['真实大模型',caps.live_llm]]; $('env').innerHTML=rows.map(x=>'<div class="'+(x[1]?'':'bad')+'">'+x[0]+'：'+(x[1]?'可用':'不可用')+'</div>').join(''); }
     async function loadHealth() { try { const response=await fetch('/health'); renderHealth(await response.json()); } catch(e) { $('env').innerHTML='<div class="bad">无法读取运行环境状态</div>'; } }
     function validateSelection() { const caps=health.capabilities||{}; if($('backend').value==='local'&&!caps.local_gis_backend) throw new Error('当前服务不是 GIS 环境。本地 GIS 后端需要用 scripts/start_console.ps1 -Mode gis 启动。'); if($('planner').value==='openai'&&!caps.live_llm) throw new Error('当前服务没有可用的大模型配置。请先配置 config/openai.local.json 或环境变量。'); }
-    async function run() { const button=$('run'); button.disabled=true; setStatus('PLANNING'); $('title').textContent='正在分析'; $('subtitle').textContent='规划器和运行时正在处理请求。'; $('error').innerHTML=''; try { validateSelection(); const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:$('request').value,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'请求失败'); setStatus(data.status); $('title').textContent=data.plan?.goal||statusName(data.status); $('subtitle').textContent=data.resolved_request||data.request; $('answer').textContent=data.answer||'暂无最终答案。'; $('answer').className='answer'+(data.answer?'':' muted'); if(data.error)$('error').innerHTML='<div class="error">'+escapeHtml(data.error)+'</div>'; $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); steps(data); trace(data); const links=[]; if(data.artifact_ref)links.push(`<a href="/artifacts/runs/${encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())}" target="_blank">打开 JSON 运行记录</a>`); if(data.geojson_ref) { links.push(`<a href="/artifacts/geojson/${encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())}" target="_blank">打开 GeoJSON 文件</a>`); await loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; } finally { button.disabled=false; } }
-    $('run').addEventListener('click',run);
+    function renderRun(data) { setStatus(data.status); $('title').textContent=data.plan?.goal||statusName(data.status); $('subtitle').textContent=data.resolved_request||data.request; $('answer').textContent=data.answer||'暂无最终答案。'; $('answer').className='answer'+(data.answer?'':' muted'); $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); steps(data); trace(data); const links=[]; if(data.artifact_ref)links.push('<a href="/artifacts/runs/'+encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())+'" target="_blank">打开 JSON 运行记录</a>'); if(data.geojson_ref) { links.push('<a href="/artifacts/geojson/'+encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())+'" target="_blank">打开 GeoJSON 文件</a>'); loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); }
+    async function sendChat(text) { const request=(text ?? $('prompt').value).trim(); if(!request) return; const button=$('send'); button.disabled=true; $('prompt').value=''; $('chatMeta').textContent='当前会话：'+$('session').value; appendMessage('user',request); setStatus('PLANNING'); $('title').textContent='正在分析'; $('subtitle').textContent='规划器和运行时正在处理请求。'; $('error').innerHTML=''; try { validateSelection(); const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'请求失败'); renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } finally { button.disabled=false; $('prompt').focus(); } }
+    $('send').addEventListener('click',()=>sendChat());
+    $('prompt').addEventListener('keydown',event=>{ if(event.key==='Enter'&&!event.shiftKey){ event.preventDefault(); sendChat(); } });
+    $('session').addEventListener('input',()=>{$('chatMeta').textContent='当前会话：'+$('session').value;});
+    document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{ $('prompt').value=button.dataset.request; $('prompt').focus(); }));
+    appendMessage('assistant','你好，我是空间智能体。你可以直接问我 DEM、土地利用或行政区相关问题；如果需要多轮澄清，请保持同一个会话 ID。');
     loadHealth();
   </script>
 </body>
