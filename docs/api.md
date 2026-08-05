@@ -82,6 +82,41 @@ GET /artifacts/geojson/<run-id>.geojson
 
 Only files below the configured artifact directories and with the expected suffix are served. Path traversal and unknown artifact types return 404.
 
+## GET /health
+
+Returns service readiness and safe local capability information for the web Console. It does not return secrets, provider responses, or raw dataset paths.
+
+Example response:
+
+~~~json
+{
+  "status": "ok",
+  "python": "C:\\Users\\...\\python.exe",
+  "capabilities": {
+    "memory_backend": true,
+    "local_gis_backend": true,
+    "live_llm": true
+  },
+  "dependencies": {
+    "geopandas": true,
+    "rasterio": true
+  },
+  "data": {
+    "dataset_root_exists": true
+  }
+}
+~~~
+
+Capability meanings:
+
+| Field | Meaning |
+|---|---|
+| memory_backend | Deterministic in-memory demo backend is available. |
+| local_gis_backend | GeoPandas, Rasterio, and the configured dataset root are available in this server process. |
+| live_llm | A live planner configuration is present through environment variables or config/openai.local.json. |
+
+The Console uses this endpoint to warn before running a local GIS request from the wrong Python environment or a live model request without model configuration.
+
 ## Multi-Turn Clarification
 
 First turn:

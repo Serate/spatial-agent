@@ -86,6 +86,7 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertEqual(artifact["status"], "COMPLETED")
         self.assertEqual(geojson_payload["type"], "FeatureCollection")
         self.assertEqual(traversal["error"], "not found")
+
     def test_http_api_health_check(self):
         class TestHandler(AgentApiHandler):
             service = AgentService()
@@ -100,7 +101,37 @@ class M10HttpApiTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=2)
 
-        self.assertEqual(payload, {"status": "ok"})
+        self.assertEqual(payload["status"], "ok")
+        self.assertIs(payload["capabilities"]["memory_backend"], True)
+        self.assertIn("local_gis_backend", payload["capabilities"])
+        self.assertIn("live_llm", payload["capabilities"])
+        self.assertIn("geopandas", payload["dependencies"])
+        self.assertIn("rasterio", payload["dependencies"])
+        self.assertIn("dataset_root_exists", payload["data"])
+        self.assertIn("python", payload)
+
+    def test_http_api_console_includes_environment_status_panel(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+            connection.request("GET", "/")
+            response = connection.getresponse()
+            body = response.read().decode("utf-8")
+            connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(response.status, 200)
+        self.assertIn("正在检查运行环境", body)
+        self.assertIn("本地 GIS", body)
+        self.assertIn("真实大模型", body)
 
     def test_http_api_returns_not_found_for_unknown_route(self):
         class TestHandler(AgentApiHandler):

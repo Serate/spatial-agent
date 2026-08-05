@@ -4,6 +4,7 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+from agent.environment_status import environment_status
 from agent.service import AgentService
 
 
@@ -16,7 +17,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self._write_json(200, {"status": "ok"})
+            payload = {"status": "ok"}
+            payload.update(environment_status())
+            self._write_json(200, payload)
             return
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")

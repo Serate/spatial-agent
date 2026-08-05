@@ -125,6 +125,12 @@
 - 页面展示答案、TaskPlan、工具步骤、耗时、planner metrics、trace 和 GeoJSON geometry 预览。
 - 页面可直接打开 JSON artifact 和 GeoJSON 导出结果。
 
+## M22 当前能力
+
+- `GET /health` 返回当前服务进程的安全环境状态，包括内存后端、本地 GIS 后端、真实大模型配置、关键 GIS 依赖和数据目录是否可用。
+- Console 页面启动后会自动检查运行环境，并在用户选择不可用的本地 GIS 或真实大模型前给出中文提示。
+- 新增 `scripts/start_console.ps1`，可用 `-Mode memory` 启动离线演示，用 `-Mode gis` 从 `spatial-agent-gis` 环境启动真实本地 GIS 演示。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -167,6 +173,15 @@ Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8088/runs `
   -ContentType "application/json" `
   -Body '{"request":"查询DEM栅格元数据","export_geojson":true}'
 ~~~
+
+启动中文 Console：
+
+~~~powershell
+scripts\start_console.ps1 -Mode memory -Port 8088
+scripts\start_console.ps1 -Mode gis -Port 8088
+~~~
+
+`memory` 模式适合离线演示和 CI 级别验证；`gis` 模式需要本机存在 `spatial-agent-gis` conda 环境，并安装 GeoPandas 与 Rasterio。真实大模型还需要 `config/openai.local.json` 或环境变量提供 provider 配置。
 
 也可以用环境变量覆盖本地配置：
 

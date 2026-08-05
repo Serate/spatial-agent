@@ -271,6 +271,40 @@ OpenAI 兼容的 base_url、完整 api_url、header auth 和 query-string key au
 
 provider 文档给出完整 URL 时不要猜 endpoint 后缀。除非 provider 明确要求，否则不要切换到 query auth。
 
+## 前端选择项必须反映服务端真实能力
+
+### 现象
+
+Console 前端可以选择“本地 GIS”或“真实大模型”，但服务端进程可能并没有运行在 GIS conda 环境，或没有可用的大模型配置。用户点击“开始分析”后才看到 backend 报错，例如 `rasterio is required for RasterMetadataBackend`，容易误以为工具已经执行但没有真实结果。
+
+### 根因
+
+前端的 planner/backend 下拉选项是静态展示，之前没有读取当前服务进程的 Python 环境、GIS 依赖、数据目录和 LLM 配置状态。浏览器页面可用不代表服务端具备对应能力。
+
+### 诊断
+
+先访问 `GET /health`，检查：
+
+- `capabilities.local_gis_backend` 是否为 true。
+- `dependencies.rasterio` 和 `dependencies.geopandas` 是否为 true。
+- `data.dataset_root_exists` 是否为 true。
+- `capabilities.live_llm` 是否为 true。
+
+如果 local GIS 为 false，但页面选择了本地 GIS，问题在服务启动环境，不在栅格工具本身。
+
+### 修复
+
+`GET /health` 返回安全的运行环境能力信息。Console 页面启动后自动读取该接口，并在选择不可用能力时提前阻止执行，提示用户用正确模式启动服务。
+
+### 预防
+
+新增运行模式或外部依赖时，必须同时更新：
+
+- health capability 字段。
+- Console 前置校验。
+- API 契约测试。
+- README 启动说明。
+
 ## 中转 Provider 与 Codex 调用链不一致
 
 ### 现象
