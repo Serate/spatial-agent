@@ -177,6 +177,7 @@ Troubleshooting notes from the M16 setup:
 - Do not commit real credentials. Put provider credentials in config/openai.local.json; this file is ignored by Git via config/*.local.json.
 - base_url is for OpenAI-compatible providers and is normalized to /v1/responses. api_url is exact and is used as-is; use it when the provider does not want /v1 or /responses.
 - If local execution fails with WinError 10013, the OS or sandbox blocked outbound socket access. Retry only in an environment where network access is explicitly allowed.
+- When using the web Console with a live planner, start `serve_api.py` from a process that is allowed outbound network access; a restricted server process can serve the page while returning WinError 10013 for model requests.
 - If the live planner reaches the provider but returns HTTP 403 Forbidden / error code 1010, check the HTTP client headers first. This provider rejects Python urllib's default User-Agent; the project client sets a spatial-agent User-Agent and Accept: application/json by default.
 - Live model tests are intentionally skipped by default. Set SPATIAL_AGENT_LIVE_OPENAI=1 only for manual validation, not CI.
 

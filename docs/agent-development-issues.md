@@ -293,6 +293,28 @@ provider 文档给出完整 URL 时不要猜 endpoint 后缀。除非 provider �
 
 把“Codex 可用”和“项目 API client 可用”作为两个独立验收条件。接入新的中转站时，必须完成最小模型请求、真实 TaskPlan smoke 和错误分类；不能只依据根 URL 可达、探活 200 或 Codex 配置推断兼容。
 
+## 服务进程网络权限导致 WinError 10013
+
+### 现象
+
+通过本地 Console 调用真实 Planner 时，API 返回 `OpenAI request failed: <urlopen error [WinError 10013]>`；同一份配置和请求在允许出站网络的进程中可以正常完成。
+
+### 根因
+
+`serve_api.py` 进程继承了启动环境的 socket 权限限制。HTTP 页面和本地 `/runs` 路由仍然可用，但该 Python 进程不能向外部 provider 建立连接。
+
+### 诊断
+
+先通过本地 API 复现 `planner=openai` 请求，再在同一端口只更换服务进程的网络权限。若错误从 WinError 10013 变为 COMPLETED，说明是服务进程运行环境，而不是 API key、模型或 TaskPlan。
+
+### 修复
+
+停止受限的服务进程，并在允许出站网络的终端重新启动 `serve_api.py`。本次重启后 DeepSeek live 请求返回 COMPLETED。
+
+### 预防
+
+真实模型演示必须从允许访问 provider 的普通终端启动 API 服务；CI 和默认 smoke 继续使用离线 RuleBasedPlanner。遇到 WinError 10013 时先检查进程权限，不要修改请求协议或轮换 key。
+
 ## GIS 依赖和本地数据可用性
 
 ### 现象
