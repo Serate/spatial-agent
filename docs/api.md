@@ -63,6 +63,17 @@ Successful response shape:
 }
 ~~~
 
+## GET Artifact Files
+
+Exported files can be read through the API without exposing arbitrary filesystem paths:
+
+~~~text
+GET /artifacts/runs/<run-id>.json
+GET /artifacts/geojson/<run-id>.geojson
+~~~
+
+Only files below the configured artifact directories and with the expected suffix are served. Path traversal and unknown artifact types return 404.
+
 ## Multi-Turn Clarification
 
 First turn:

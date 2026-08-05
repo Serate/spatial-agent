@@ -1,5 +1,6 @@
 import argparse
 import json
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -8,11 +9,21 @@ from agent.service import AgentService
 
 class AgentApiHandler(BaseHTTPRequestHandler):
     service = AgentService()
+    artifact_root = Path("outputs/runs")
+    geojson_root = Path("outputs/geojson")
 
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/health":
             self._write_json(200, {"status": "ok"})
+            return
+        artifact = self._artifact_file(parsed.path)
+        if artifact is not None:
+            path, content_type = artifact
+            if not path.exists() or not path.is_file():
+                self._write_json(404, {"error": "artifact not found"})
+                return
+            self._write_file(path, content_type)
             return
         self._write_json(404, {"error": "not found"})
 
@@ -54,6 +65,30 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         body = json.dumps(payload, ensure_ascii=True, indent=2).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _artifact_file(self, path):
+        parts = path.strip("/").split("/")
+        if len(parts) != 3 or parts[0] != "artifacts":
+            return None
+        roots = {"runs": (self.artifact_root, "application/json"), "geojson": (self.geojson_root, "application/geo+json")}
+        if parts[1] not in roots or Path(parts[2]).name != parts[2]:
+            return None
+        root, content_type = roots[parts[1]]
+        candidate = (root / parts[2]).resolve()
+        if root.resolve() not in candidate.parents:
+            return None
+        expected_suffix = ".json" if parts[1] == "runs" else ".geojson"
+        if candidate.suffix != expected_suffix:
+            return None
+        return candidate, content_type
+
+    def _write_file(self, path, content_type):
+        body = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type + "; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

@@ -1,8 +1,10 @@
 import json
+import tempfile
 import threading
 import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 from agent.service import AgentService
 from serve_api import AgentApiHandler
@@ -29,6 +31,40 @@ class M10AgentServiceTests(unittest.TestCase):
 
 
 class M10HttpApiTests(unittest.TestCase):
+    def test_http_api_serves_exported_artifacts_and_rejects_traversal(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            runs = root / "runs"
+            geojson = root / "geojson"
+            runs.mkdir()
+            geojson.mkdir()
+            (runs / "run-1.json").write_text('{"status":"COMPLETED"}', encoding="utf-8")
+            (geojson / "run-1.geojson").write_text('{"type":"FeatureCollection"}', encoding="utf-8")
+
+            class TestHandler(AgentApiHandler):
+                service = AgentService()
+                artifact_root = runs
+                geojson_root = geojson
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                artifact = _get_json(server.server_address[1], "/artifacts/runs/run-1.json")
+                geojson_payload = _get_json(server.server_address[1], "/artifacts/geojson/run-1.geojson")
+                traversal = _get_json(
+                    server.server_address[1],
+                    "/artifacts/runs/../geojson/run-1.geojson",
+                    expected_status=404,
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+        self.assertEqual(artifact["status"], "COMPLETED")
+        self.assertEqual(geojson_payload["type"], "FeatureCollection")
+        self.assertEqual(traversal["error"], "not found")
     def test_http_api_health_check(self):
         class TestHandler(AgentApiHandler):
             service = AgentService()
