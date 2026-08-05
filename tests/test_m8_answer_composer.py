@@ -2,6 +2,8 @@ import importlib.util
 import unittest
 from pathlib import Path
 
+from agent.answer_composer import AnswerComposer
+from agent.models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from run_demo import build_runtime
 
 
@@ -25,6 +27,38 @@ class M8AnswerComposerTests(unittest.TestCase):
         self.assertIn("\u5df2\u627e\u5230", result.answer)
         self.assertIn("1", result.answer)
         self.assertIn("memory://range/admin_areas", result.answer)
+
+    def test_raster_answer_uses_tool_result_when_output_type_is_imprecise(self):
+        result = AgentRunResult(
+            run_id="run-1",
+            status=RunStatus.COMPLETED,
+            request="query raster metadata",
+            plan=TaskPlan(
+                goal="Query DEM raster metadata",
+                steps=[PlanStep("raster", "get_raster_metadata", {"dataset": "dem"})],
+                output={"type": "metadata"},
+            ),
+            steps=[
+                StepRun(
+                    id="raster",
+                    tool="get_raster_metadata",
+                    args={"dataset": "dem"},
+                    status="COMPLETED",
+                    result={
+                        "dataset": "dem",
+                        "file_count": 9,
+                        "metadata": {"width": 100, "height": 80, "band_count": 1},
+                        "metrics": {"probed_files": 2},
+                    },
+                )
+            ],
+        )
+
+        answer = AnswerComposer().compose(result)
+
+        self.assertIn("dem \u6805\u683c\u5143\u6570\u636e", answer)
+        self.assertIn("\u6587\u4ef6\u6570\uff1a9", answer)
+        self.assertIn("\u9996\u4e2a\u6837\u672c\u5c3a\u5bf8\uff1a100x80", answer)
 
 
 @unittest.skipUnless(HAS_GIS and HAS_LOCAL_DATA, "requires geopandas and local admin GeoJSON")

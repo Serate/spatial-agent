@@ -1,5 +1,6 @@
 import unittest
 
+from agent.models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from agent.planner import RuleBasedPlanner
 from agent.runtime import AgentRuntime
 from agent.service import AgentService
@@ -52,6 +53,38 @@ class M13TraceFormatterTests(unittest.TestCase):
         self.assertIn("trace_summary", second)
         self.assertTrue(any("Waiting for user clarification." in line for line in first["trace_summary"]))
         self.assertTrue(any("Resolved request:" in line for line in second["trace_summary"]))
+
+    def test_raster_trace_includes_metadata_summary(self):
+        result = AgentRunResult(
+            run_id="run-1",
+            status=RunStatus.COMPLETED,
+            request="query raster metadata",
+            plan=TaskPlan(
+                goal="Query DEM raster metadata",
+                steps=[PlanStep("raster", "get_raster_metadata", {"dataset": "dem"})],
+            ),
+            steps=[
+                StepRun(
+                    id="raster",
+                    tool="get_raster_metadata",
+                    args={"dataset": "dem"},
+                    status="COMPLETED",
+                    result={
+                        "dataset": "dem",
+                        "file_count": 9,
+                        "metadata": {"width": 100, "height": 80},
+                        "metrics": {"probed_files": 2},
+                    },
+                )
+            ],
+            answer="dem raster metadata: file_count=9",
+        )
+
+        trace = "\n".join(format_trace(result))
+
+        self.assertIn("file_count=9", trace)
+        self.assertIn("probed_files=2", trace)
+        self.assertIn("size=100x80", trace)
 
 
 if __name__ == "__main__":

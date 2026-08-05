@@ -12,6 +12,8 @@ class AnswerComposer:
             return self._compose_admin_area_result(result.steps)
         if output_type == "raster_metadata_result":
             return self._compose_raster_metadata_result(result.steps)
+        if _first_result(result.steps, "get_raster_metadata") is not None:
+            return self._compose_raster_metadata_result(result.steps)
         return self._compose_default(result.steps)
 
     def _compose_admin_area_result(self, steps: Iterable[StepRun]) -> str:

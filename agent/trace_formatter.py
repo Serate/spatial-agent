@@ -59,6 +59,14 @@ def _result_details(result: Dict[str, Any]) -> str:
     parts = []
     if "count" in result:
         parts.append("returned " + str(result["count"]) + " result(s)")
+    if "file_count" in result:
+        parts.append("file_count=" + str(result["file_count"]))
+    metrics = result.get("metrics", {})
+    if isinstance(metrics, dict) and "probed_files" in metrics:
+        parts.append("probed_files=" + str(metrics["probed_files"]))
+    metadata = result.get("metadata", {})
+    if isinstance(metadata, dict) and "width" in metadata and "height" in metadata:
+        parts.append("size=" + str(metadata["width"]) + "x" + str(metadata["height"]))
     if "result_ref" in result:
         parts.append("result_ref=" + str(result["result_ref"]))
     if "crs" in result and result["crs"]:
