@@ -46,7 +46,7 @@
       <div class="row"><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">空间后端</label><select id="backend"><option value="memory">内存演示</option><option value="local">本地 GIS</option></select></div></div>
       <label for="session">会话 ID</label><input id="session" value="console" style="width:100%;border:1px solid #bdcbd0;border-radius:6px;padding:11px;font:inherit">
       <button id="run">▶ 开始分析</button>
-      <div class="hint">真实大模型会读取本地服务商配置。导出结果为受大小限制的安全摘要。</div>
+      <div class="hint">真实大模型会读取本地服务商配置。本地 GIS 后端需要用 spatial-agent-gis 环境启动服务。</div>
     </aside>
     <div class="content">
       <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">提交请求后查看任务计划和执行轨迹。</p></div><span id="status" class="badge">待机</span></section>

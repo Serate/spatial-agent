@@ -10,6 +10,12 @@ python serve_api.py --host 127.0.0.1 --port 8088
 
 Open `http://127.0.0.1:8088/` for the interactive Spatial Agent Console. The page uses the same `/runs` and artifact endpoints documented below and has no third-party runtime dependency.
 
+For local GIS backend demos, start the server from the GIS conda environment so GeoPandas and Rasterio are available:
+
+~~~powershell
+& 'D:\code\conda\Scripts\conda.exe' run -n spatial-agent-gis python serve_api.py --host 127.0.0.1 --port 8088
+~~~
+
 ## GET /health
 
 Returns a basic process health response.

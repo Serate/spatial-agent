@@ -337,6 +337,28 @@ GIS 测试会根据 Python 环境和本地数据是否存在而失败或跳过�
 
 不要让 CI 依赖本地原始 GIS 数据。
 
+## 前端选择 Local GIS 不会改变服务 Python 环境
+
+### 现象
+
+Console 中选择“本地 GIS”并查询 DEM 栅格元数据时，返回 `rasterio is required for RasterMetadataBackend`。
+
+### 根因
+
+前端的 backend 选择只改变 `/runs` 请求参数；它不会切换已经启动的 `serve_api.py` 进程环境。若服务进程由普通 Python 启动，则缺少 rasterio/geopandas，即使请求参数是 `backend=local` 也无法读取真实 GIS 数据。
+
+### 诊断
+
+用同一个 `/runs` 请求做对照：普通 Python 服务返回 rasterio 缺失；用 `spatial-agent-gis` conda 环境重启服务后，同一请求返回真实 DEM 元数据。
+
+### 修复
+
+停止普通 Python 启动的 8088 服务，并用 `conda run -n spatial-agent-gis python serve_api.py --host 127.0.0.1 --port 8088` 重启。真实 DEM 查询返回 9 个文件、抽样 3 个文件、尺寸、CRS、像元大小和范围。
+
+### 预防
+
+本地 GIS 演示必须从 GIS conda 环境启动服务；前端只负责选择 backend，不负责安装或切换 Python 依赖。
+
 ## 栅格元数据范围蔓延
 
 ### 现象
