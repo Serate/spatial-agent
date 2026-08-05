@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from agent.llm_planner import LLMPlanner, OpenAIPlannerClient
+from agent.openai_config import load_openai_config
 from agent.planner import RuleBasedPlanner
 from agent.runtime import AgentRuntime
 from agent.dataset_catalog import DatasetCatalog
@@ -22,7 +23,7 @@ def build_runtime(planner_name: str, backend_name: str = "memory") -> AgentRunti
         adapter,
     )
     if planner_name == "openai":
-        planner = LLMPlanner(OpenAIPlannerClient(), registry.names)
+        planner = LLMPlanner(OpenAIPlannerClient(**load_openai_config()), registry.names)
     else:
         planner = RuleBasedPlanner()
     return AgentRuntime(planner, registry)

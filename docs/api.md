@@ -102,6 +102,68 @@ Unsupported backend:
 }
 ~~~
 
+## OpenAI Planner Configuration
+
+The API server can use the same real LLM planner as the CLI by passing "planner": "openai".
+Runtime configuration is read from environment variables first, then from config/openai.local.json.
+The local JSON file is ignored by Git so API keys are not committed.
+
+Example local config:
+
+~~~json
+{
+  "OPENAI_API_KEY": "sk-your-key",
+  "model": "gpt-5.6-luna",
+  "wire_api": "responses",
+  "model_reasoning_effort": "medium",
+  "base_url": "https://api.openai.com",
+  "api_url": null,
+  "auth_location": "header",
+  "api_key_query_param": "key"
+}
+~~~
+
+DeepSeek 使用 Chat Completions 兼容模式，不要只替换 base_url：
+
+~~~json
+{
+  "OPENAI_API_KEY": "your-deepseek-key",
+  "model": "deepseek-v4-flash",
+  "wire_api": "chat_completions",
+  "base_url": "https://api.deepseek.com",
+  "auth_location": "header"
+}
+~~~
+
+也可以使用环境变量 `OPENAI_WIRE_API=chat_completions`。该模式使用 `/chat/completions`、`messages` 和 JSON object 输出；最终仍由 TaskPlan parser 和 ToolRegistry 校验。
+
+For a provider that expects the key in the URL and does not use the OpenAI /v1/responses path, set api_url to the exact request URL and auth_location to query:
+
+~~~json
+{
+  "OPENAI_API_KEY": "sk-your-key",
+  "model": "gpt-5.6-luna",
+  "model_reasoning_effort": "medium",
+  "api_url": "https://provider.example/direct-endpoint",
+  "auth_location": "query",
+  "api_key_query_param": "key"
+}
+~~~
+
+Codex provider check:
+
+- Local Codex config uses model_provider custom, wire_api responses, requires_openai_auth true, and base_url https://crs.ruinique.com.
+- That maps to this project's OpenAI-compatible mode: base_url plus Authorization bearer header.
+- The query-key mode is retained only for providers whose own docs explicitly require key-in-URL authentication.
+
+Troubleshooting notes from the M16 setup:
+
+- Do not commit real credentials. Put provider credentials in config/openai.local.json; this file is ignored by Git via config/*.local.json.
+- base_url is for OpenAI-compatible providers and is normalized to /v1/responses. api_url is exact and is used as-is; use it when the provider does not want /v1 or /responses.
+- If local execution fails with WinError 10013, the OS or sandbox blocked outbound socket access. Retry only in an environment where network access is explicitly allowed.
+- If the live planner reaches the provider but returns HTTP 403 Forbidden / error code 1010, check the HTTP client headers first. This provider rejects Python urllib's default User-Agent; the project client sets a spatial-agent User-Agent and Accept: application/json by default.
+- Live model tests are intentionally skipped by default. Set SPATIAL_AGENT_LIVE_OPENAI=1 only for manual validation, not CI.
+
 ## Design Notes
 
 - The API does not expose arbitrary tool execution.

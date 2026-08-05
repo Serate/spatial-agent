@@ -101,6 +101,16 @@
 - RuleBasedPlanner 支持“查询DEM栅格元数据”“查询土地利用栅格元数据”等请求。
 - local backend 读取真实本地栅格文件；memory backend 返回确定性占位结果，保持离线测试稳定。
 
+## M16 当前能力
+
+- OpenAI Planner 支持从本地 config/openai.local.json 读取 API key、精确 API URL、base URL、模型和 reasoning effort。
+- LLM client 支持 Responses API 和 Chat Completions API；DeepSeek 使用 Chat Completions 模式。
+- config/openai.local.json 被 Git 忽略；config/openai.example.json 提供可提交的占位模板。
+- 默认真实模型配置为 gpt-5.6-luna，reasoning effort 为 medium。
+- 对非标准 provider，可用 api_url 精确指定请求地址，并用 auth_location=query 将 key 放到 URL query 参数。
+- 保留 RuleBasedPlanner 作为默认路径，CI 和 smoke check 不依赖真实模型 API。
+- 新增可选 live smoke test，只有设置 SPATIAL_AGENT_LIVE_OPENAI=1 时才调用真实模型。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。
@@ -121,9 +131,31 @@ python run_demo.py --backend local "查询土地利用栅格元数据"
 使用 OpenAI Planner：
 
 ~~~powershell
-copy .env.example .env
-$env:OPENAI_API_KEY="sk-your-key"
+copy config\openai.example.json config\openai.local.json
+# 编辑 config\openai.local.json，填入本地 API key、api_url 或 base_url、model 和 model_reasoning_effort。
 python run_demo.py --planner openai "查询距离主干道500米以内、坡度超过25度的区域。"
+python run_demo.py --planner openai "查询DEM栅格元数据"
+~~~
+
+也可以用环境变量覆盖本地配置：
+
+~~~powershell
+$env:OPENAI_API_KEY="sk-your-key"
+$env:OPENAI_API_URL="https://api.openai.com/v1/responses"
+$env:OPENAI_BASE_URL="https://api.openai.com"
+$env:OPENAI_MODEL="gpt-5.6-luna"
+$env:OPENAI_REASONING_EFFORT="medium"
+python run_demo.py --planner openai "查询DEM栅格元数据"
+~~~
+
+使用 DeepSeek Chat Completions：
+
+~~~powershell
+$env:OPENAI_API_KEY="your-deepseek-key"
+$env:OPENAI_BASE_URL="https://api.deepseek.com"
+$env:OPENAI_WIRE_API="chat_completions"
+$env:OPENAI_MODEL="deepseek-v4-flash"
+python run_demo.py --planner openai "查询DEM栅格元数据"
 ~~~
 
 运行测试：

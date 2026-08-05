@@ -1,0 +1,10 @@
+{
+  "OPENAI_API_KEY": "sk-your-key",
+  "model": "gpt-5.6-luna",
+  "wire_api": "responses",
+  "model_reasoning_effort": "medium",
+  "base_url": "https://api.openai.com",
+  "api_url": null,
+  "auth_location": "header",
+  "api_key_query_param": "key"
+}

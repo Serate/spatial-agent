@@ -89,6 +89,44 @@ class M2LLMPlannerTests(unittest.TestCase):
         with self.assertRaises(RequestRejected):
             LLMPlanner(client, tool_names()).plan("delete roads")
 
+    def test_llm_planner_normalizes_single_tool_success_shortcut(self):
+        client = FakeLLMClient(
+            {
+                "outcome": "success",
+                "tool": "get_raster_metadata",
+                "args": {"dataset": "dem", "max_files": 3},
+            }
+        )
+
+        plan = LLMPlanner(client, tool_names()).plan("query DEM metadata")
+
+        self.assertEqual(plan.steps[0].tool, "get_raster_metadata")
+        self.assertEqual(plan.steps[0].args["dataset"], "dem")
+        self.assertEqual(plan.steps[0].depends_on, [])
+
+    def test_llm_planner_still_rejects_unknown_shortcut_tool(self):
+        client = FakeLLMClient(
+            {"outcome": "success", "tool": "run_shell", "args": {}}
+        )
+
+        with self.assertRaises(PlanningError):
+            LLMPlanner(client, tool_names()).plan("run a command")
+
+    def test_llm_planner_normalizes_string_output_type(self):
+        client = FakeLLMClient(
+            {
+                "goal": "inspect raster metadata",
+                "steps": [
+                    {"id": "raster", "tool": "get_raster_metadata", "args": {}}
+                ],
+                "output": "raster_metadata_result",
+            }
+        )
+
+        plan = LLMPlanner(client, tool_names()).plan("query raster metadata")
+
+        self.assertEqual(plan.output, {"type": "raster_metadata_result"})
+
 
 if __name__ == "__main__":
     unittest.main()

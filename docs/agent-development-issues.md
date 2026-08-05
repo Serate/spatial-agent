@@ -1,0 +1,426 @@
+# Agent 开发问题记录
+
+本文档记录 Spatial Agent 开发过程中遇到的实际问题。它是项目级记录，不属于某个特定里程碑。每当出现新的 Agent 工程问题时，都应在依赖对话记忆之前更新本文档。
+
+## 更新规则
+
+每个问题都记录以下内容：
+
+1. 现象：什么失败了，或什么行为看起来不正确。
+2. 根因：实际导致问题的原因。
+3. 诊断：下次最快确认问题的方法。
+4. 修复：解决问题所采用的实现或流程改动。
+5. 预防：减少问题再次发生的测试、提示词规则、schema 规则、配置规则或文档规则。
+
+不得记录密钥、原始数据或 provider 返回的私有内容。
+
+## Planner 输出结构漂移
+
+### 现象
+
+LLM Planner 可能返回合理的工具调用，但不符合要求的 TaskPlan 结构。
+
+曾观察到的 live 输出：
+
+~~~json
+{
+  "outcome": "success",
+  "tool": "get_raster_metadata",
+  "args": {
+    "dataset": "dem",
+    "max_files": 3
+  }
+}
+~~~
+
+要求的结构：
+
+~~~json
+{
+  "goal": "inspect raster dataset metadata",
+  "steps": [
+    {
+      "id": "raster-metadata",
+      "tool": "get_raster_metadata",
+      "args": {
+        "dataset": "dem",
+        "max_files": 3
+      },
+      "depends_on": []
+    }
+  ],
+  "output": {
+    "type": "raster_metadata_result",
+    "summary": true
+  }
+}
+~~~
+
+### 根因
+
+模型理解了工具意图，却把计划压缩成了快捷结构。结构化输出有帮助，但仍需要由提示词和解析器共同约束运行时契约。
+
+### 诊断
+
+直接调用 planner client，在 TaskPlan 解析之前检查原始 JSON。确认是否包含 goal 和 steps。
+
+### 修复
+
+收紧 planner 提示词，要求成功计划必须使用 goal、steps 和 output。同时在解析前将已知的单工具快捷结构归一化为 TaskPlan，并继续保留 ToolRegistry 作为最终执行边界。
+
+### 预防
+
+测试完整 TaskPlan、拒绝结果、澄清结果和快捷结构结果。
+
+## Chat Completions 的结构化输出约束不足
+
+### 现象
+
+DeepSeek Chat Completions 请求可以正常返回 JSON，但 Runtime 可能因为模型返回的 TaskPlan 字段类型不稳定而失败，例如 `steps` 元素不是对象，或 `output` 返回字符串，最终出现 `step 0 must be an object` 等解析错误。
+
+### 根因
+
+Responses API 可以通过 `json_schema` 和 `strict` 直接约束输出；Chat Completions 兼容模式只使用 `response_format: {"type":"json_object"}` 时，通常只能保证结果是 JSON，不能保证 JSON 符合 TaskPlan schema。
+
+### 诊断
+
+先确认 HTTP 请求成功，再检查返回 JSON 的顶层字段、`steps` 的类型及每个元素的类型、`output` 的类型。不要把 Chat Completions 的 JSON 解析成功误认为 TaskPlan 校验成功。
+
+### 修复
+
+在 system prompt 中直接写出完整 TaskPlan 成功结构，明确要求 `steps` 必须是对象数组、`output` 必须是对象。对无歧义的字符串 output 做 `{"type": value}` 归一化；steps、tool、args 和依赖关系仍交给 TaskPlan parser 与 ToolRegistry 严格校验。
+
+### 预防
+
+不同 wire API 必须分别测试：Responses 测试 schema 约束，Chat Completions 测试 prompt 约束、字段类型漂移、未知工具和真实 live smoke。不能因为 provider 宣称 OpenAI 兼容，就假设两种协议的结构化输出能力相同。
+
+## Planner 领域词汇缺口
+
+### 现象
+
+用户请求查询 DEM 栅格元数据时，live planner 要求用户提供 DEM dataset 名称。
+
+### 根因
+
+模型不知道用户表达的领域术语与内部 dataset ID 之间的映射关系。
+
+### 诊断
+
+如果一个本应可执行的请求返回 NEEDS_CLARIFICATION，则检查澄清文本。如果模型要求用户提供实际上已经由用户请求隐含的信息，说明 planner guidance 缺少领域映射。
+
+### 修复
+
+在 planner guidance 中记录用户术语到 dataset ID 的映射。
+
+| 用户术语 | 内部 dataset |
+|---|---|
+| DEM / 高程 / 地形栅格 | dem |
+| 土地利用 / land use 栅格 | land_use |
+| 行政区 / 边界 / 县区 | admin_areas |
+
+### 预防
+
+新增 dataset 或工具时，同时加入面向用户的同义词和领域术语。
+
+## Tool Registry 契约扩展
+
+### 现象
+
+新增工具后，旧测试失败，因为测试断言了固定的工具数量或固定的历史工具集合。
+
+### 根因
+
+早期测试把某个里程碑的 Registry 结构错误地当成了永久契约。
+
+### 诊断
+
+失败信息中出现意外工具名称，例如 `get_raster_metadata`。
+
+### 修复
+
+让测试断言当前注册的工具集合；如果工具集合本身不是契约，则改为断言基础工具仍然存在。
+
+### 预防
+
+新增工具时，同时更新 schema、adapter dispatch、memory/local backend 行为、测试和 smoke check。
+
+## 必须进行分层校验
+
+### 现象
+
+Planner 生成的 JSON 看起来有效，但运行时因为 dataset、field、operator、dependency 或 output type 错误而失败。
+
+### 根因
+
+仅校验 JSON 结构不足以保证 Agent 正确性。
+
+### 诊断
+
+按校验层级分类失败：
+
+- PlanningError：Planner 输出结构错误或包含未知工具。
+- ToolError：ToolRegistry 校验失败或 backend 执行失败。
+- NEEDS_CLARIFICATION：Planner 选择暂停并向用户澄清。
+- FAILED 且包含步骤错误：运行时已进入工具执行阶段，但工具执行失败。
+
+### 修复
+
+保留分层校验：模型 schema、TaskPlan 解析、运行时依赖检查、ToolRegistry 输入 schema、backend 校验。
+
+### 预防
+
+绝不能绕过 ToolRegistry 执行 LLM 生成的计划。
+
+## 真实模型 API 与确定性测试不同
+
+### 现象
+
+Fake client 测试通过，但真实模型执行出现 provider 错误、澄清、格式错误的计划或错误的工具选择。
+
+### 根因
+
+Fake client 只能验证解析器行为，不能证明真实模型输出符合约定，也不能证明 provider 兼容性、认证、网络和提示词鲁棒性。
+
+### 诊断
+
+将失败分为 provider/network/auth、模型输出解析、计划校验和工具执行四类。
+
+### 修复
+
+保留 Fake 测试以支持 CI，并增加默认关闭的可选 live smoke test。
+
+### 预防
+
+Live 测试默认必须跳过。只有手动验证 provider 时才设置 `SPATIAL_AGENT_LIVE_OPENAI=1`。
+
+## Provider 的 HTTP 行为可能不同于 Codex
+
+### 现象
+
+同一个模型 provider 在 Codex 中可用，但项目的 Python client 请求失败。
+
+已观察到的行为：
+
+- Python urllib 的默认请求返回 HTTP 403，错误码为 1010。
+- 添加普通 User-Agent 和 Accept: application/json 后，provider 返回 HTTP 200。
+
+### 根因
+
+Codex 可能设置了不同的 headers，使用了不同的运行时 client，或经过了不同的网络路径。Python 脚本不会自动继承这些请求细节。
+
+### 诊断
+
+对比 Codex provider 配置、环境变量、不同 User-Agent 下的 HTTP 状态，以及响应是否已经到达模型层 JSON。
+
+### 修复
+
+显式设置 client headers：
+
+~~~text
+Accept: application/json
+Content-Type: application/json
+User-Agent: spatial-agent/0.1
+Authorization: Bearer <key>
+~~~
+
+### 预防
+
+如果 live API 在模型输出之前返回 403，应先检查 headers 和网络，再修改 planner 逻辑。
+
+## Live Provider 读取超时
+
+### 现象
+
+请求已经进入真实 provider，但 live smoke 在等待响应时超时，Runtime 返回 FAILED，未产生 TaskPlan。
+
+### 根因
+
+provider 没有在 client 设置的读取超时时间内返回响应。该失败发生在模型输出、TaskPlan 解析和 backend 执行之前。
+
+### 诊断
+
+检查 Runtime 的错误是否为读取超时，并确认没有出现 HTTP 状态码、模型 JSON 或步骤执行信息。使用显式开启的 live smoke 单独复现，不要用离线测试判断 provider 可用性。
+
+### 修复
+
+将底层 `TimeoutError` 包装为明确的 `PlanningError("OpenAI request timed out")`，让 trace 能区分 provider 超时与计划校验失败。
+
+### 预防
+
+Live smoke 默认保持关闭；执行时记录 provider 请求是否完成，但不得记录 API key 或完整私有响应。必要时再根据 provider 稳定性调整 client timeout 或增加可配置的超时参数。
+
+## Provider URL 和认证形式必须明确
+
+### 现象
+
+OpenAI 兼容的 base_url、完整 api_url、header auth 和 query-string key auth 之间容易产生混淆。
+
+### 根因
+
+不同 provider 使用不同约定。在一个工具中有效的 URL/key 组合，不能证明另一个 client 使用了正确的协议形式。
+
+### 诊断
+
+确认 provider 的实际 endpoint URL、请求 body 结构、key 的位置、参数名和响应 body 结构。
+
+### 修复
+
+对 OpenAI 兼容 Responses client 支持 base_url；对完整 endpoint provider 支持 api_url；认证支持 header 或 query 两种位置。
+
+### 预防
+
+provider 文档给出完整 URL 时不要猜 endpoint 后缀。除非 provider 明确要求，否则不要切换到 query auth。
+
+## 中转 Provider 与 Codex 调用链不一致
+
+### 现象
+
+同一个中转地址在 Codex 中可以调用，但项目 Python client 先返回 HTTP 403/error code 1010；补充普通 User-Agent 和 Accept header 后，基础 endpoint 探测可以返回 HTTP 200，但真实模型 POST 请求在 `/responses`、`/v1/responses` 以及 `/v1/chat/completions` 都发生读取超时。
+
+### 根因
+
+中转地址只是网关入口，Codex 和项目 client 可能使用不同的 endpoint、协议细节、streaming 设置、请求 headers、代理链、超时重试策略或认证凭据。Codex 配置中的 `wire_api=responses` 不能证明 Python 请求体和完整调用链完全相同。网关能返回 200 也不能证明模型上游已经成功处理请求。
+
+### 诊断
+
+按层级验证：先用无认证基础请求确认网络和网关，再用最小模型 POST 区分路由和模型上游，最后再加入 reasoning、JSON schema 和项目 prompt。分别记录 HTTP 状态、响应是否完成、响应解析和 TaskPlan 校验结果。不要输出 API key 或完整私有响应。
+
+### 修复
+
+项目 client 显式设置 Accept、Content-Type、User-Agent 和 Bearer header，并支持 `base_url`、精确 `api_url`、Responses/Chat Completions 两种 wire API 及可选 query auth。中转 provider 未确认模型 POST 兼容前，保留 RuleBasedPlanner 和已验证的 DeepSeek Chat Completions 作为可用路径，不让 CI 依赖中转服务。
+
+### 预防
+
+把“Codex 可用”和“项目 API client 可用”作为两个独立验收条件。接入新的中转站时，必须完成最小模型请求、真实 TaskPlan smoke 和错误分类；不能只依据根 URL 可达、探活 200 或 Codex 配置推断兼容。
+
+## GIS 依赖和本地数据可用性
+
+### 现象
+
+GIS 测试会根据 Python 环境和本地数据是否存在而失败或跳过。
+
+### 根因
+
+默认 Python 可能没有 geopandas 或 rasterio。原始 GIS 数据位于仓库外，不能提交到仓库。
+
+### 诊断
+
+检查 geopandas/rasterio 是否可以导入，并检查 `D:/dataset/agent` 是否存在。
+
+### 修复
+
+为 GIS 专用测试增加 skip guard，并保留确定性的 memory backend 测试以支持 CI。
+
+### 预防
+
+不要让 CI 依赖本地原始 GIS 数据。
+
+## 栅格元数据范围蔓延
+
+### 现象
+
+栅格功能请求容易从元数据查询扩展到裁剪、重采样、坡度计算或大规模数组读取。
+
+### 根因
+
+栅格数据通常很大，真实地理计算可能变慢，并引入较重的依赖。
+
+### 诊断
+
+确认任务只需要元数据，还是确实需要像素处理。
+
+### 修复
+
+对于元数据里程碑，只读取文件数量、样本文件、尺寸、波段数、dtype、CRS、边界和像元大小。
+
+### 预防
+
+除非里程碑明确要求栅格计算，否则不要读取完整栅格数组。
+
+## AnswerComposer 可能隐藏有用的 trace 数据
+
+### 现象
+
+Runtime 成功完成，但面向用户的答案遗漏了工具输出中的有用细节。
+
+### 根因
+
+工具结果面向机器结构化，而用户答案需要显式的组合逻辑。
+
+### 诊断
+
+对比结果步骤和最终答案。
+
+### 修复
+
+为新增结果类型加入对应的答案组合分支。
+
+### 预防
+
+新增工具输出类型时，同时增加 planner output type、AnswerComposer 分支、trace 预期，以及用户可见场景所需的 service/API 覆盖。
+
+## 多轮澄清状态
+
+### 现象
+
+后续回答可能在没有待处理请求的情况下被解释，或者澄清状态泄漏到其他 session。
+
+### 根因
+
+澄清状态必须按 session_id 隔离，并在正确时机清理。
+
+### 诊断
+
+测试以下场景：含糊请求、同一 session 的后续回答、另一 session 的无关请求，以及完成或拒绝后的状态清理。
+
+### 修复
+
+使用以 session_id 为键的会话存储。
+
+### 预防
+
+每个澄清功能都必须测试 session 隔离和清理。
+
+## Artifact 导出安全
+
+### 现象
+
+导出 Agent artifact 时，可能意外包含原始数据、大型几何对象、本地密钥或 provider 配置。
+
+### 根因
+
+Agent trace 通常包含工具参数、文件路径和模型输出。
+
+### 诊断
+
+在提交或分享前检查导出的 JSON。
+
+### 修复
+
+只导出紧凑的运行摘要：运行元数据、答案、trace 摘要和结果引用。
+
+### 预防
+
+保持 outputs 目录被 Git 忽略。不要导出原始空间数据或凭据。
+
+## 文档漂移
+
+### 现象
+
+README、API 文档、交接文档和测试对某个里程碑支持的能力描述不一致。
+
+### 根因
+
+Agent 项目会同时演进多个边界：planner、registry、backend、AnswerComposer、service 和 artifact。
+
+### 诊断
+
+每个里程碑完成后，对比 README、API 文档、task-resume 文档、测试和工具 schema。
+
+### 修复
+
+在同一个变更中同步更新文档。
+
+### 预防
+
+今后出现新的 Agent 开发问题时，应在本文件中优先记录，或至少与修复放在同一个 patch 中。
