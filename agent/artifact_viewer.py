@@ -11,6 +11,7 @@ def render_artifact_html(artifact: Dict[str, Any]) -> str:
     answer = html.escape(str(artifact.get("answer") or ""))
     error = html.escape(str(artifact.get("error") or ""))
     plan = artifact.get("plan") or {}
+    planner_metrics = artifact.get("planner_metrics") or {}
     goal = html.escape(str(plan.get("goal") or "No plan generated"))
     steps = artifact.get("steps") or []
     step_rows = "".join(_step_row(step) for step in steps)
@@ -19,6 +20,7 @@ def render_artifact_html(artifact: Dict[str, Any]) -> str:
         for line in artifact.get("trace_summary", [])
     )
     detail = "<p class=error>" + error + "</p>" if error else ""
+    metrics_text = html.escape(json.dumps(planner_metrics, ensure_ascii=False, sort_keys=True))
     return """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Spatial Agent Run {title}</title>
@@ -38,6 +40,7 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
 </style></head><body><main>
 <header><div><div class="muted">Spatial Agent run</div><h1>{title}</h1><div class="muted">{request}</div></div><div class="status">{status}</div></header>
 <section><h2>Plan</h2><div class="prompt">{goal}</div></section>
+<section><h2>Planner Metrics</h2><code>{metrics}</code></section>
 <section><h2>Tool Steps</h2><table><thead><tr><th>Tool</th><th>Status</th><th>Attempts</th><th>Latency</th><th>Result</th></tr></thead><tbody>{step_rows}</tbody></table>{detail}</section>
 <section><h2>Answer</h2><div class="answer">{answer}</div></section>
 <section><h2>Trace</h2><ul>{trace_rows}</ul></section>
@@ -46,6 +49,7 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
         status=status,
         request=request,
         goal=goal,
+        metrics=metrics_text,
         step_rows=step_rows or '<tr><td colspan="5" class="muted">No tool steps</td></tr>',
         detail=detail,
         answer=answer,

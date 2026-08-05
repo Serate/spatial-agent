@@ -74,6 +74,7 @@ class AgentRuntime:
         self._state_store.save(result)
         try:
             plan = self._planner.plan(resolved_request)
+            result.planner_metrics = self._planner_metrics()
             self._validate_plan(plan)
             result.plan = plan
             result.status = RunStatus.EXECUTING
@@ -96,6 +97,8 @@ class AgentRuntime:
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
+        if result.planner_metrics is None:
+            result.planner_metrics = self._planner_metrics()
         self._state_store.save(result)
         return result
 
@@ -107,6 +110,10 @@ class AgentRuntime:
         if pending is None:
             return request
         return request.strip() + " " + pending.request.strip()
+
+    def _planner_metrics(self) -> Optional[Dict]:
+        metrics = getattr(self._planner, "metrics", None)
+        return metrics() if callable(metrics) else None
 
     def _validate_plan(self, plan: TaskPlan) -> None:
         if len(plan.steps) == 0:

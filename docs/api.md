@@ -138,6 +138,8 @@ DeepSeek 使用 Chat Completions 兼容模式，不要只替换 base_url：
 
 也可以使用环境变量 `OPENAI_WIRE_API=chat_completions`。该模式使用 `/chat/completions`、`messages` 和 JSON object 输出；最终仍由 TaskPlan parser 和 ToolRegistry 校验。
 
+`max_output_tokens`、`timeout_seconds` 可限制成本和单次等待时间。运行结果中的 `planner_metrics` 只包含 provider、wire_api、model、耗时、错误类型和 provider 返回的 token usage，不包含 prompt、响应原文或密钥。
+
 For a provider that expects the key in the URL and does not use the OpenAI /v1/responses path, set api_url to the exact request URL and auth_location to query:
 
 ~~~json

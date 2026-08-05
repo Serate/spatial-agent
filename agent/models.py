@@ -50,6 +50,7 @@ class AgentRunResult:
     request: str
     resolved_request: Optional[str] = None
     plan: Optional[TaskPlan] = None
+    planner_metrics: Optional[Dict[str, Any]] = None
     steps: List[StepRun] = field(default_factory=list)
     answer: Optional[str] = None
     error: Optional[str] = None

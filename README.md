@@ -110,6 +110,7 @@
 - 对非标准 provider，可用 api_url 精确指定请求地址，并用 auth_location=query 将 key 放到 URL query 参数。
 - 保留 RuleBasedPlanner 作为默认路径，CI 和 smoke check 不依赖真实模型 API。
 - 新增可选 live smoke test，只有设置 SPATIAL_AGENT_LIVE_OPENAI=1 时才调用真实模型。
+- 真实 LLM 请求支持 max_output_tokens、timeout_seconds 和安全的 provider usage metrics。
 
 ## M18 当前能力
 

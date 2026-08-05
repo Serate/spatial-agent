@@ -19,6 +19,12 @@ def load_openai_config(path: Optional[str] = None) -> Dict[str, Any]:
         "api_key": os.environ.get("OPENAI_API_KEY") or config.get("OPENAI_API_KEY"),
         "model": os.environ.get("OPENAI_MODEL") or config.get("model"),
         "wire_api": os.environ.get("OPENAI_WIRE_API") or config.get("wire_api", "responses"),
+        "max_output_tokens": _int_setting(
+            os.environ.get("OPENAI_MAX_OUTPUT_TOKENS", config.get("max_output_tokens"))
+        ),
+        "timeout_seconds": _float_setting(
+            os.environ.get("OPENAI_TIMEOUT_SECONDS", config.get("timeout_seconds"))
+        ),
         "api_url": os.environ.get("OPENAI_API_URL") or config.get("api_url"),
         "base_url": os.environ.get("OPENAI_BASE_URL") or config.get("base_url"),
         "reasoning_effort": os.environ.get("OPENAI_REASONING_EFFORT")
@@ -27,3 +33,11 @@ def load_openai_config(path: Optional[str] = None) -> Dict[str, Any]:
         "api_key_query_param": os.environ.get("OPENAI_API_KEY_QUERY_PARAM")
         or config.get("api_key_query_param"),
     }
+
+
+def _int_setting(value):
+    return int(value) if value not in (None, "") else None
+
+
+def _float_setting(value):
+    return float(value) if value not in (None, "") else None

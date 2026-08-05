@@ -20,6 +20,7 @@ class ArtifactStore:
             "status": payload.get("status"),
             "request": payload.get("request"),
             "resolved_request": payload.get("resolved_request"),
+            "planner_metrics": payload.get("planner_metrics"),
             "plan": _plan_summary(payload.get("plan")),
             "steps": [_step_summary(step) for step in payload.get("steps", [])],
             "answer": payload.get("answer"),

@@ -2,6 +2,8 @@
   "OPENAI_API_KEY": "sk-your-key",
   "model": "gpt-5.6-luna",
   "wire_api": "responses",
+  "max_output_tokens": 800,
+  "timeout_seconds": 60,
   "model_reasoning_effort": "medium",
   "base_url": "https://api.openai.com",
   "api_url": null,

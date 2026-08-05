@@ -27,6 +27,8 @@ class M16OpenAIConfigTests(unittest.TestCase):
                         "OPENAI_API_KEY": "sk-test",
                         "model": "gpt-5.6-luna",
                         "wire_api": "responses",
+                        "max_output_tokens": 800,
+                        "timeout_seconds": 45,
                         "model_reasoning_effort": "medium",
                         "api_url": "https://crs.ruinique.com/custom",
                         "base_url": "https://crs.ruinique.com",
@@ -43,6 +45,8 @@ class M16OpenAIConfigTests(unittest.TestCase):
         self.assertEqual(config["api_key"], "sk-test")
         self.assertEqual(config["model"], "gpt-5.6-luna")
         self.assertEqual(config["wire_api"], "responses")
+        self.assertEqual(config["max_output_tokens"], 800)
+        self.assertEqual(config["timeout_seconds"], 45.0)
         self.assertEqual(config["reasoning_effort"], "medium")
         self.assertEqual(config["api_url"], "https://crs.ruinique.com/custom")
         self.assertEqual(config["base_url"], "https://crs.ruinique.com")
@@ -121,6 +125,53 @@ class M16OpenAIConfigTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(PlanningError):
                 OpenAIPlannerClient(api_key=None)
+
+    def test_openai_client_exposes_safe_metrics_defaults(self):
+        client = OpenAIPlannerClient(
+            api_key="sk-test",
+            model="deepseek-v4-flash",
+            wire_api="chat_completions",
+            max_output_tokens=800,
+            timeout_seconds=12,
+        )
+
+        self.assertEqual(client.metrics()["model"], "deepseek-v4-flash")
+        self.assertEqual(client.metrics()["wire_api"], "chat_completions")
+        self.assertNotIn("api_key", client.metrics())
+
+    def test_chat_completions_sends_token_limit_and_records_usage(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "choices": [{"message": {"content": '{"goal":"ok"}'}}],
+                        "usage": {"prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14},
+                    }
+                ).encode("utf-8")
+
+        client = OpenAIPlannerClient(
+            api_key="sk-test",
+            model="deepseek-v4-flash",
+            base_url="https://api.deepseek.com",
+            wire_api="chat_completions",
+            max_output_tokens=800,
+            timeout_seconds=12,
+        )
+        with patch("agent.llm_planner.urllib.request.urlopen", return_value=FakeResponse()) as urlopen:
+            payload = client.complete_json([], schema={})
+
+        request = urlopen.call_args.args[0]
+        body = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(payload, {"goal": "ok"})
+        self.assertEqual(body["max_tokens"], 800)
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 12)
+        self.assertEqual(client.metrics()["usage"]["total_tokens"], 14)
 
 
 @unittest.skipUnless(os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") == "1", "set SPATIAL_AGENT_LIVE_OPENAI=1 to run live OpenAI planner smoke")
