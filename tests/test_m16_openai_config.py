@@ -27,7 +27,7 @@ class M16OpenAIConfigTests(unittest.TestCase):
                         "OPENAI_API_KEY": "sk-test",
                         "model": "gpt-5.6-luna",
                         "wire_api": "responses",
-                        "max_output_tokens": 800,
+                        "max_output_tokens": 10000,
                         "timeout_seconds": 45,
                         "model_reasoning_effort": "medium",
                         "api_url": "https://crs.ruinique.com/custom",
@@ -45,7 +45,7 @@ class M16OpenAIConfigTests(unittest.TestCase):
         self.assertEqual(config["api_key"], "sk-test")
         self.assertEqual(config["model"], "gpt-5.6-luna")
         self.assertEqual(config["wire_api"], "responses")
-        self.assertEqual(config["max_output_tokens"], 800)
+        self.assertEqual(config["max_output_tokens"], 10000)
         self.assertEqual(config["timeout_seconds"], 45.0)
         self.assertEqual(config["reasoning_effort"], "medium")
         self.assertEqual(config["api_url"], "https://crs.ruinique.com/custom")
