@@ -806,3 +806,21 @@ Runtime 的 fail-fast 异常路径只设置了 Run 级错误，没有为后续 S
 ### 预防
 
 不要把坡度 fallback 或类别编码语义伪装成真实分析结果。新增栅格业务工具时，应同时验证真实像元数、CRS 转换、无交集错误、答案组合、前端摘要和 GIS 环境回归。
+
+## 同一 Conda 环境的 Python 进程仍可能缺少 GDAL 数据目录
+
+### 现象
+
+直接调用 `spatial-agent-gis` 环境中的 `python.exe` 时，Rasterio 可以部分读取栅格，但日志出现 `GDAL_DATA is not defined`、找不到 `gdalvrt.xsd` 或 `header.dxf`，复杂重投影调用还可能异常退出。
+
+### 根因
+
+解释器路径相同不等于启动进程继承了完整的 Conda shell 状态。GDAL/PROJ 的数据目录和动态库目录需要通过环境变量和 PATH 显式提供；`conda run`、直接路径调用和用户 PowerShell 会话也不一定共享变量。
+
+### 修复
+
+`scripts/start_console.ps1 -Mode gis` 现在自动定位 GIS Python，校验 `Library/share/gdal` 和 `Library/share/proj`，设置 `GDAL_DATA`、`PROJ_LIB`、PATH，并直接使用该环境解释器启动服务，不要求用户手动 `conda activate`。
+
+### 预防
+
+GIS 服务统一通过项目启动脚本启动，不要让用户手工拼接 Python 路径或依赖沙箱与用户 PowerShell 同步环境变量。
