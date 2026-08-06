@@ -261,6 +261,12 @@ Suggested next steps:
 
 ## Later Milestones
 
+### M26: Console Raster Statistics Overview
+
+- 完成区域/栅格统计结果的中文可视化概览。
+- 前端展示最小值、最大值、均值、标准差、有效像元和 NoData 比例。
+- 使用原生 HTML/CSS/JavaScript，不增加构建依赖；保留无结果和业务错误空态。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example
