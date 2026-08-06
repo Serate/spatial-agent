@@ -131,6 +131,7 @@
 - Console 页面启动后会自动检查运行环境，并在用户选择不可用的本地 GIS 或真实大模型前给出中文提示。
 - 新增 `scripts/start_console.ps1`，可用 `-Mode memory` 启动离线演示，用 `-Mode gis` 从 `spatial-agent-gis` 环境启动真实本地 GIS 演示。
 - 新增生产部署基线：`Dockerfile`、`docker-compose.prod.yml`、`production_api.py` 和 `/health/live`、`/health/ready`。生产容器固定 GIS 依赖，不依赖操作员手动激活 Conda。
+- 生产部署使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d`，支持只读挂载宿主机 GIS 数据，并验证 Linux GDAL/PROJ 数据目录。
 
 ## M23 当前能力
 

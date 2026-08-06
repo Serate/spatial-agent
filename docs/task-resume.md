@@ -32,10 +32,10 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M15 Real Raster / Land-Use Metadata Query
-- Latest pushed commit: 0ae304a feat: add raster metadata backend
-- Current milestone: M16 Real LLM API Demo Path, implementation complete and awaiting commit
-- Expected repository state before continuing M16: main...origin/main plus local M16 edits, with config/openai.local.json ignored by Git
+- Latest completed milestone: Production GIS container and live DeepSeek validation
+- Latest pushed commit: 3b07d4c feat: classify planner errors in evaluation reports
+- Current milestone: Demo convergence and final regression
+- Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Completed Milestones
 
@@ -258,6 +258,15 @@ Suggested next steps:
 - Do not make CI depend on either live provider.
 - Run full offline tests and smoke check.
 - Commit with a clear message such as feat: document openai planner config.
+
+## Current Production Validation
+
+- Docker Desktop Linux engine runs through WSL2 with domestic image mirrors.
+- The production Dockerfile installs GIS dependencies in cacheable Conda layers and uses Tsinghua Conda/PyPI mirrors.
+- Production Compose requires `docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d` so the host data path participates in volume interpolation.
+- The production image uses Linux `share/gdal` and `share/proj` runtime data paths and readiness checks both marker files.
+- Real DeepSeek smoke tests for DEM metadata and 洪山区 zonal DEM analysis pass inside the container.
+- `.env.production`, `config/openai.local.json`, raw GIS data, and API keys remain local-only.
 
 ## Later Milestones
 
