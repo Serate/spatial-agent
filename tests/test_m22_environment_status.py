@@ -73,6 +73,22 @@ class M22EnvironmentStatusTests(unittest.TestCase):
         self.assertIs(status["capabilities"]["live_llm_network"], False)
         self.assertIs(status["capabilities"]["live_llm"], False)
 
+    def test_reports_invalid_explicit_gdal_and_proj_data_directories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(
+                os.environ,
+                {
+                    "OPENAI_CONFIG_FILE": str(Path(directory) / "missing.json"),
+                    "GDAL_DATA": str(Path(directory) / "gdal"),
+                    "PROJ_LIB": str(Path(directory) / "proj"),
+                },
+                clear=True,
+            ):
+                status = environment_status()
+
+        self.assertIs(status["data"]["gdal_data_available"], False)
+        self.assertIs(status["data"]["proj_data_available"], False)
+
 
 if __name__ == "__main__":
     unittest.main()

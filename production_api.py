@@ -38,7 +38,11 @@ def readiness(response: Response) -> Dict[str, Any]:
     status = environment_status()
     required_gis = os.environ.get("SPATIAL_AGENT_REQUIRE_GIS", "0").lower() in ("1", "true", "yes")
     ready = True
-    if required_gis and not status["capabilities"]["local_gis_backend"]:
+    if required_gis and (
+        not status["capabilities"]["local_gis_backend"]
+        or not status["data"]["gdal_data_available"]
+        or not status["data"]["proj_data_available"]
+    ):
         ready = False
     if not ready:
         response.status_code = 503

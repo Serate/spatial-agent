@@ -18,6 +18,8 @@ def environment_status() -> Dict:
     config_file = Path(os.environ.get("OPENAI_CONFIG_FILE", "config/openai.local.json"))
     live_llm_configured = bool(openai_key) or config_file.exists()
     live_llm_network = _openai_network_available() if live_llm_configured else False
+    gdal_data_available = _runtime_data_available("GDAL_DATA", "gdalvrt.xsd")
+    proj_data_available = _runtime_data_available("PROJ_LIB", "proj.db")
     return {
         "python": sys.executable,
         "capabilities": {
@@ -33,6 +35,8 @@ def environment_status() -> Dict:
         },
         "data": {
             "dataset_root_exists": dataset_root.exists(),
+            "gdal_data_available": gdal_data_available,
+            "proj_data_available": proj_data_available,
         },
     }
 
@@ -51,3 +55,12 @@ def _openai_network_available(timeout_seconds: float = 1.5) -> bool:
             return True
     except OSError:
         return False
+
+
+def _runtime_data_available(variable: str, marker: str) -> bool:
+    """Check an explicitly configured GDAL/PROJ data directory safely."""
+    configured = os.environ.get(variable)
+    if not configured:
+        # Development environments may let GDAL discover its own data path.
+        return True
+    return (Path(configured) / marker).is_file()
