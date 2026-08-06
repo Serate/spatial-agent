@@ -315,6 +315,10 @@ Suggested next steps:
 - API/artifact 记录安全的步骤血缘摘要。
 - Console 展示依赖、输入绑定、执行策略和结果引用。
 
+### M36: Planner Evaluation Metrics
+
+- 评测报告统计状态/工具匹配、步骤耗时、Planner 延迟、Token 总量和依赖链有效率。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

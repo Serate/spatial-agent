@@ -45,6 +45,9 @@ class M4EvaluationTests(unittest.TestCase):
         report = run_cases(build_runtime("rule"), cases)
         encoded = json.dumps(report, ensure_ascii=False)
         self.assertIn("tool_match_rate", encoded)
+        self.assertIn("avg_total_latency_ms", report)
+        self.assertIn("lineage_valid_rate", report)
+        self.assertIn("total_tokens", report)
 
 
 if __name__ == "__main__":

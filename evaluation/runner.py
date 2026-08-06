@@ -18,6 +18,10 @@ class EvaluationResult:
     step_count: int
     max_steps: int
     within_max_steps: bool
+    total_latency_ms: float
+    planner_latency_ms: float
+    total_tokens: int
+    lineage_valid: bool
     error: str
 
     def to_dict(self) -> Dict[str, Any]:
@@ -32,6 +36,10 @@ class EvaluationResult:
             "step_count": self.step_count,
             "max_steps": self.max_steps,
             "within_max_steps": self.within_max_steps,
+            "total_latency_ms": self.total_latency_ms,
+            "planner_latency_ms": self.planner_latency_ms,
+            "total_tokens": self.total_tokens,
+            "lineage_valid": self.lineage_valid,
             "error": self.error,
         }
 
@@ -50,6 +58,14 @@ def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult
     expected_tools = case.get("expected_tools", [])
     expected_status = _expected_status(case)
     max_steps = int(case.get("max_steps", 999))
+    planner_metrics = run.planner_metrics or {}
+    usage = planner_metrics.get("usage") if isinstance(planner_metrics, dict) else {}
+    usage = usage if isinstance(usage, dict) else {}
+    total_latency_ms = round(
+        sum(float(step.latency_ms or 0) for step in run.steps), 3
+    )
+    planner_latency_ms = round(float(planner_metrics.get("latency_ms") or 0), 3)
+    total_tokens = int(usage.get("total_tokens") or 0)
     return EvaluationResult(
         case_id=case["id"],
         status=run.status.value,
@@ -61,6 +77,10 @@ def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult
         step_count=len(run.steps),
         max_steps=max_steps,
         within_max_steps=len(run.steps) <= max_steps,
+        total_latency_ms=total_latency_ms,
+        planner_latency_ms=planner_latency_ms,
+        total_tokens=total_tokens,
+        lineage_valid=_lineage_valid(run),
         error=run.error or "",
     )
 
@@ -80,6 +100,10 @@ def summarize(results: List[EvaluationResult]) -> Dict[str, Any]:
         "status_match_rate": _rate(result.status_match for result in results),
         "tool_match_rate": _rate(result.tools_match for result in results),
         "within_max_steps_rate": _rate(result.within_max_steps for result in results),
+        "lineage_valid_rate": _rate(result.lineage_valid for result in results),
+        "avg_total_latency_ms": _average(result.total_latency_ms for result in results),
+        "avg_planner_latency_ms": _average(result.planner_latency_ms for result in results),
+        "total_tokens": sum(result.total_tokens for result in results),
         "results": [result.to_dict() for result in results],
     }
 
@@ -108,3 +132,17 @@ def _rate(values) -> float:
     if not values:
         return 0
     return round(sum(1 for value in values if value) / len(values), 4)
+
+
+def _average(values) -> float:
+    values = list(values)
+    return round(sum(values) / len(values), 3) if values else 0
+
+
+def _lineage_valid(run: AgentRunResult) -> bool:
+    known = set()
+    for step in run.steps:
+        if any(dependency not in known for dependency in step.depends_on):
+            return False
+        known.add(step.id)
+    return True

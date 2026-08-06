@@ -83,6 +83,16 @@ Successful response shape:
 
 复合任务还会返回安全的 `provenance` 字段，包含 `execution_policy` 和每个步骤的 `depends_on`、`input_bindings`、`result_ref` 与受限统计摘要。它不包含原始工具参数、完整几何或凭据。
 
+## Planner 评测
+
+使用规则规划器执行离线评测：
+
+~~~powershell
+python scripts/evaluate_planner.py --planner rule --backend memory --output outputs/evaluation.json
+~~~
+
+报告包含状态/工具匹配率、依赖链有效率、平均步骤耗时、Planner 延迟和 Token 总量。默认只输出报告；加 `--strict` 才会在有失败用例时返回非零。只有显式指定 `--planner openai` 时才会调用真实模型。
+
 ## GET Artifact Files
 
 Exported files can be read through the API without exposing arbitrary filesystem paths:
