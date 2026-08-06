@@ -10,11 +10,13 @@ TASK_PLAN_SCHEMA: Dict[str, Any] = {
     "additionalProperties": False,
     "properties": {
         "goal": {"type": "string"},
+        "outcome": {"type": "string", "enum": ["success", "direct_answer", "needs_clarification", "rejected"]},
+        "message": {"type": "string"},
         "assumptions": {"type": "array", "items": {"type": "string"}},
         "output": {"type": "object"},
         "steps": {
             "type": "array",
-            "minItems": 1,
+            "minItems": 0,
             "items": {
                 "type": "object",
                 "required": ["id", "tool", "args"],
@@ -42,8 +44,8 @@ def parse_task_plan(payload: Mapping[str, Any], allowed_tools: Iterable[str]) ->
     allowed = set(allowed_tools)
     goal = _required_string(payload, "goal")
     steps_payload = payload.get("steps")
-    if not isinstance(steps_payload, list) or not steps_payload:
-        raise PlanningError("planner output must include at least one step")
+    if not isinstance(steps_payload, list):
+        raise PlanningError("planner output must include a steps array")
 
     steps: List[PlanStep] = []
     seen_ids = set()
@@ -90,6 +92,14 @@ def parse_task_plan(payload: Mapping[str, Any], allowed_tools: Iterable[str]) ->
     assumptions = payload.get("assumptions", [])
     if not isinstance(assumptions, list) or not all(isinstance(item, str) for item in assumptions):
         raise PlanningError("assumptions must be an array of strings")
+
+    if not steps and output.get("type") != "direct_answer":
+        raise PlanningError("planner output must include at least one step")
+    if output.get("type") == "direct_answer":
+        message = payload.get("message") or output.get("message")
+        if not isinstance(message, str) or not message.strip():
+            raise PlanningError("direct_answer requires a non-empty message")
+        output = {**output, "message": message}
 
     return TaskPlan(goal=goal, steps=steps, output=output, assumptions=assumptions)
 

@@ -96,6 +96,14 @@ class AgentRuntime:
         try:
             plan = self._planner.plan(resolved_request)
             result.planner_metrics = self._planner_metrics()
+            if plan.output.get("type") == "direct_answer":
+                result.plan = plan
+                result.status = RunStatus.COMPLETED
+                result.answer = str(plan.output.get("message", ""))
+                self._conversation_store.clear_pending(session_id)
+                self._conversation_store.save_completed(session_id, resolved_request)
+                self._state_store.save(result)
+                return result
             self._validate_plan(plan)
             result.plan = plan
             result.status = RunStatus.EXECUTING

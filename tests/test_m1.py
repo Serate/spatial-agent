@@ -57,6 +57,18 @@ class M1RuntimeTests(unittest.TestCase):
         self.assertEqual(result.status.value, "REJECTED")
         self.assertIn("destructive", result.error)
 
+    def test_runtime_returns_capability_answer_without_tools(self):
+        result = build_runtime().run("你能做什么")
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.steps, [])
+        self.assertIn("空间智能体", result.answer)
+
+    def test_runtime_keeps_unsupported_spatial_question_in_clarification(self):
+        result = build_runtime().run("分析洪山区空气质量变化")
+        self.assertEqual(result.status.value, "NEEDS_CLARIFICATION")
+        self.assertEqual(result.steps, [])
+        self.assertIn("requires", result.error)
+
     def test_case_file_is_valid_json(self):
         cases = json.loads(
             (ROOT / "evaluation" / "cases" / "m0-cases.json").read_text(encoding="utf-8")

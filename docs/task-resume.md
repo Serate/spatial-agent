@@ -390,6 +390,9 @@ Prefer small, explainable increments over large rewrites.
 - Leaflet 支持纯矢量模式与可选 OpenStreetMap 底图，外部网络不可用时不影响矢量结果。
 - `GET /runs` 返回历史 artifact 摘要，`GET /metrics` 返回运行次数、状态计数和累计 Token。
 - 生产接口已验证洪山区三个坡度阈值均可完成真实 GIS 分析。
+- Planner 支持结构化 `direct_answer` 决策；通用问题不强行调用 GIS 工具，空间问题仍必须通过 TaskPlan 和 ToolRegistry。
+- Console 在运行结果顶部显示决策模式：通用回答不会调用空间工具，澄清/拒绝不会执行工具，空间计划显示实际工具步骤数量。
+- 未知或暂不支持的空间问题保持 `NEEDS_CLARIFICATION`，不能由通用回答替代空间结果，也不能绕过 ToolRegistry。
 
 ## Development Issues Log
 

@@ -127,6 +127,18 @@ class M2LLMPlannerTests(unittest.TestCase):
 
         self.assertEqual(plan.output, {"type": "raster_metadata_result"})
 
+    def test_llm_planner_accepts_direct_answer_decision(self):
+        client = FakeLLMClient({
+            "outcome": "direct_answer",
+            "goal": "answer general question",
+            "message": "这是一个通用回答。",
+            "steps": [],
+            "output": {"type": "direct_answer"},
+        })
+        plan = LLMPlanner(client, tool_names()).plan("你是谁")
+        self.assertEqual(plan.steps, [])
+        self.assertEqual(plan.output["message"], "这是一个通用回答。")
+
     def test_llm_planner_normalizes_admin_range_shortcut_arguments(self):
         client = FakeLLMClient(
             {

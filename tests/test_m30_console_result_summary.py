@@ -42,6 +42,9 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "/runs?limit=20",
             "runtimeMetrics",
             "fetch('/metrics')",
+            "function decisionMode(data)",
+            "通用回答 · 未调用空间工具",
+            "空间计划 · 已执行",
         ):
             self.assertIn(marker, self.html)
 

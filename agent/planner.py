@@ -42,6 +42,16 @@ class RuleBasedPlanner:
         if any(term in request.upper() for term in self.KNN_TERMS):
             raise ClarificationNeeded("M1 does not support KNN yet; use an explicit range condition")
 
+        if any(term in request for term in ("你能做什么", "帮助", "能力范围", "你是谁")):
+            return TaskPlan(
+                goal="explain spatial agent capabilities",
+                steps=[],
+                output={
+                    "type": "direct_answer",
+                    "message": "我是空间智能体，可以查询行政区边界，分析 DEM 高程和坡度，统计土地利用，并进行建设适宜性演示筛选。需要真实栅格分析时，请选择本地 GIS 后端。",
+                },
+            )
+
         terrain_plan = self._try_terrain_land_use_plan(request)
         if terrain_plan is not None:
             return terrain_plan
