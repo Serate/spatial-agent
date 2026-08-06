@@ -54,6 +54,8 @@ Fields:
 
 For raster value analysis, use a request such as `分析DEM高程统计`. The planner selects `get_raster_statistics`, which returns bounded statistics for sampled files and does not expose raster arrays through the API.
 
+Raster statistics also include a bounded `statistics.distribution` summary. Its `bins` are generated from at most 10,000 sampled valid pixels, so the Console can show a lightweight value-distribution chart without transferring raster arrays.
+
 For administrative-area raster analysis, use a request such as `分析洪山区DEM高程概况`. The planner selects `get_zonal_raster_statistics`, which resolves the named area, converts its CRS for each raster file, and computes masked statistics only where the geometry intersects the raster.
 
 Successful response shape:

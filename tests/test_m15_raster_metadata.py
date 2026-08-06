@@ -90,6 +90,8 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         self.assertLessEqual(statistics["mean"], statistics["maximum"])
         self.assertGreaterEqual(statistics["nodata_ratio"], 0.0)
         self.assertLessEqual(statistics["nodata_ratio"], 1.0)
+        self.assertTrue(statistics["distribution"]["sampled"])
+        self.assertGreater(len(statistics["distribution"]["bins"]), 0)
 
     def test_computes_zonal_dem_statistics_for_admin_area(self):
         result = build_runtime("rule", "local").run("分析洪山区DEM高程概况")

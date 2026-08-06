@@ -132,6 +132,8 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
     minimum = None
     maximum = None
     file_summaries = []
+    distribution_samples = []
+    sampled_values_seen = 0
     for path in entry.files[:max_files]:
         file_total = 0
         file_valid = 0
@@ -148,6 +150,9 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
                 if not len(values):
                     continue
                 values = values.astype("float64", copy=False)
+                sampled_values_seen = _append_distribution_sample(
+                    distribution_samples, values, sampled_values_seen
+                )
                 count = int(values.size)
                 chunk_minimum = float(values.min())
                 chunk_maximum = float(values.max())
@@ -176,6 +181,7 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
 
     mean = value_sum / valid_pixels if valid_pixels else None
     variance = max(0.0, value_sum_squares / valid_pixels - mean * mean) if mean is not None else None
+    distribution = _distribution_summary(distribution_samples, minimum, maximum)
     return {
         "dataset": entry.name,
         "kind": entry.kind,
@@ -189,6 +195,7 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
             "valid_pixel_count": valid_pixels,
             "nodata_pixel_count": total_pixels - valid_pixels,
             "nodata_ratio": round((total_pixels - valid_pixels) / total_pixels, 6) if total_pixels else None,
+            "distribution": distribution,
             "files": file_summaries,
         },
         "metrics": {"backend": "rasterio", "analyzed_files": len(file_summaries)},
@@ -220,6 +227,8 @@ def zonal_statistics_for_entry(
     minimum = None
     maximum = None
     matched_files = []
+    distribution_samples = []
+    sampled_values_seen = 0
     for path in entry.files[:max_files]:
         try:
             with rasterio.open(path) as src:
@@ -235,6 +244,9 @@ def zonal_statistics_for_entry(
         values = values[numpy.isfinite(values)].astype("float64", copy=False)
         if not len(values):
             continue
+        sampled_values_seen = _append_distribution_sample(
+            distribution_samples, values, sampled_values_seen
+        )
         matched_files.append(path)
         valid_pixels += int(values.size)
         value_sum += float(values.sum(dtype=numpy.float64))
@@ -260,6 +272,7 @@ def zonal_statistics_for_entry(
             "valid_pixel_count": valid_pixels,
             "nodata_pixel_count": total_pixels - valid_pixels,
             "nodata_ratio": round((total_pixels - valid_pixels) / total_pixels, 6),
+            "distribution": _distribution_summary(distribution_samples, minimum, maximum),
         }
     return {
         "dataset": entry.name,
@@ -289,3 +302,44 @@ def _merge_bounds(current, next_bounds):
         max(current[2], next_bounds[2]),
         max(current[3], next_bounds[3]),
     ]
+
+
+def _append_distribution_sample(sample: List[float], values, seen: int, limit: int = 10000) -> int:
+    """Keep a bounded deterministic sample for an approximate value distribution."""
+    import numpy
+
+    values = numpy.asarray(values).reshape(-1)
+    if not len(values):
+        return seen
+    remaining = max(0, limit - len(sample))
+    if remaining:
+        sample.extend(float(value) for value in values[:remaining])
+    return seen + int(values.size)
+
+
+def _distribution_summary(sample: List[float], minimum, maximum, bins: int = 10) -> Dict[str, Any]:
+    if not sample or minimum is None or maximum is None:
+        return {"sampled": True, "sample_count": 0, "bins": []}
+    if minimum == maximum:
+        return {
+            "sampled": True,
+            "sample_count": len(sample),
+            "bins": [{"lower": float(minimum), "upper": float(maximum), "count": len(sample)}],
+        }
+    width = (float(maximum) - float(minimum)) / bins
+    counts = [0] * bins
+    for value in sample:
+        index = int((float(value) - float(minimum)) / width)
+        counts[min(bins - 1, max(0, index))] += 1
+    return {
+        "sampled": True,
+        "sample_count": len(sample),
+        "bins": [
+            {
+                "lower": round(float(minimum) + index * width, 3),
+                "upper": round(float(minimum) + (index + 1) * width, 3),
+                "count": count,
+            }
+            for index, count in enumerate(counts)
+        ],
+    }

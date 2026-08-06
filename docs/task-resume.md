@@ -267,6 +267,11 @@ Suggested next steps:
 - 前端展示最小值、最大值、均值、标准差、有效像元和 NoData 比例。
 - 使用原生 HTML/CSS/JavaScript，不增加构建依赖；保留无结果和业务错误空态。
 
+### M27: Raster Value Distribution Summary
+
+- 后端在分块统计过程中保留受限样本，生成 10 桶值分布摘要。
+- Console 用原生 CSS 条形图展示分布，并明确样本统计口径。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example
