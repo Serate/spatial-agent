@@ -26,6 +26,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "leafletMapPreview",
             "L.control.layers",
             "交互式空间预览",
+            "if(!boundaryLayer.getLayers().length&&!candidateLayer.getLayers().length)",
+            "catch(error) { destroyMap(); return false; }",
         ):
             self.assertIn(marker, self.html)
 
