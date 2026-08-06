@@ -68,11 +68,13 @@ class RasterMetadataBackend:
         geometry_crs: str,
         admin_name: str,
         max_files: int = 10,
+        slope_limit_degrees: float = 15.0,
     ) -> Dict[str, Any]:
         dem = self._catalog.require("dem")
         land_use = self._catalog.require("land_use")
         return zonal_buildability_for_entries(
-            dem, land_use, admin_geometry, geometry_crs, admin_name, max_files=max_files
+            dem, land_use, admin_geometry, geometry_crs, admin_name,
+            max_files=max_files, slope_limit_degrees=slope_limit_degrees
         )
 
 
@@ -479,6 +481,7 @@ def zonal_buildability_for_entries(
     geometry_crs: str,
     admin_name: str,
     max_files: int = 10,
+    slope_limit_degrees: float = 15.0,
 ) -> Dict[str, Any]:
     """Compute a deliberately simple, auditable demo buildability score.
 
@@ -497,7 +500,9 @@ def zonal_buildability_for_entries(
     except ImportError as exc:
         raise ToolError("rasterio and numpy are required for buildability analysis") from exc
 
-    slope_limit = 15.0
+    if not 1.0 <= slope_limit_degrees <= 45.0:
+        raise ToolError("slope_limit_degrees must be between 1 and 45")
+    slope_limit = float(slope_limit_degrees)
     class_scores = {10: 0.3, 20: 0.1, 30: 0.4, 40: 0.2, 50: 0.0, 60: 0.0, 70: 0.1, 80: 0.0, 90: 0.8, 100: 0.0, 255: 0.0}
     total_valid = 0
     candidate_pixels = 0
@@ -524,7 +529,8 @@ def zonal_buildability_for_entries(
                 with rasterio.open(dem_path) as dem_src:
                     dem_bounds = transform_bounds(land_src.crs, dem_src.crs, left, bottom, right, top)
                     dem_window = from_bounds(*dem_bounds, transform=dem_src.transform)
-                    dem_data = dem_src.read(1, window=dem_window, masked=True)
+                    # DEM sources are commonly int16; convert before inserting NaN nodata values.
+                    dem_data = dem_src.read(1, window=dem_window, masked=True).astype("float32")
                     dem_transform = dem_src.window_transform(dem_window)
                     destination = numpy.full((height, width), numpy.nan, dtype="float32")
                     reproject(

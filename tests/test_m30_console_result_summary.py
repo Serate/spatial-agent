@@ -14,7 +14,9 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "栅格统计概览",
             "综合空间分析",
             "运行血缘",
+            "建设适宜性筛选",
             "function stepResult(result)",
+            "function buildabilityStats(data)",
             "function rasterStats(data)",
         ):
             self.assertIn(marker, self.html)

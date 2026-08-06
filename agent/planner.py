@@ -31,6 +31,8 @@ class RuleBasedPlanner:
     RASTER_STATISTICS_TERMS = ("\u7edf\u8ba1", "\u5206\u6790", "\u5747\u503c", "\u5e73\u5747", "\u6700\u5c0f", "\u6700\u5927", "\u9ad8\u7a0b\u6982\u51b5", "\u5206\u5e03")
     DEM_TERMS = ("DEM", "dem", "\u9ad8\u7a0b", "\u5730\u5f62")
     LAND_USE_TERMS = ("\u571f\u5730\u5229\u7528", "\u5730\u7c7b", "land use", "land_use")
+    BUILDABILITY_TERMS = ("\u5efa\u8bbe\u9002\u5b9c\u6027", "\u9002\u5b9c\u5efa\u8bbe", "\u5efa\u8bbe\u5019\u9009", "\u5efa\u8bbe\u7b5b\u9009", "\u5efa\u8bbe\u7528\u5730")
+    BUILDABILITY_SLOPE_PATTERN = re.compile(r"\u5761\u5ea6(?:\u4e0d\u8d85\u8fc7|\u4e0d\u5927\u4e8e|\u5c0f\u4e8e|\u4f4e\u4e8e|\u9608\u503c\u4e3a)\s*(\d+(?:\.\d+)?)\s*\u5ea6")
 
     def plan(self, request: str) -> TaskPlan:
         if not request.strip():
@@ -250,15 +252,20 @@ class RuleBasedPlanner:
     def _try_terrain_land_use_plan(self, request: str):
         """Plan a real multi-source terrain overview for an administrative area."""
         has_area = any(term in request for term in self.ADMIN_TERMS) or self.ADMIN_NAME_PATTERN.search(request)
+        is_buildability = any(term in request for term in self.BUILDABILITY_TERMS)
         has_slope = self.SLOPE_TERM in request or any(term in request for term in ("地形", "建设", "适合"))
         has_land_use = any(term in request for term in self.LAND_USE_TERMS)
         has_dem = any(term in request for term in self.DEM_TERMS)
+        if is_buildability:
+            has_slope = has_land_use = has_dem = True
         if not (has_area and has_slope and has_land_use and has_dem):
             return None
         match = self.ADMIN_NAME_PATTERN.search(request)
         if match is None:
             raise ClarificationNeeded("missing admin area name, for example: 洪山区")
         admin_name = self._clean_admin_name(match.group(1))
+        slope_match = self.BUILDABILITY_SLOPE_PATTERN.search(request)
+        slope_limit = float(slope_match.group(1)) if slope_match else 15.0
         steps = [
                 PlanStep("schema-admin", "get_dataset_schema", {"dataset": "admin_areas"}),
                 PlanStep(
@@ -286,7 +293,7 @@ class RuleBasedPlanner:
             steps.append(
                 PlanStep(
                     "buildability-screening", "get_zonal_buildability_analysis",
-                    {"admin_name": {"$from": "filter-admin", "path": "first_name"}, "max_files": 10},
+                    {"admin_name": {"$from": "filter-admin", "path": "first_name"}, "max_files": 10, "slope_limit_degrees": slope_limit},
                     ["filter-admin"],
                 )
             )
