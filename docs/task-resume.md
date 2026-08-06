@@ -288,6 +288,11 @@ Suggested next steps:
 - 在 Console 任务步骤中展示每个工具的关键结构化结果。
 - 失败步骤显示业务错误，避免执行轨迹只有生命周期状态而缺少实际结果。
 
+### M31: Raster Footprint Preview
+
+- 栅格统计结果携带合并 bounds/CRS。
+- Console 在无矢量几何时显示栅格覆盖范围矩形。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

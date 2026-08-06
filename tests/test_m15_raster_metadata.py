@@ -102,6 +102,8 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         self.assertGreater(statistics["valid_pixel_count"], 0)
         self.assertLessEqual(statistics["minimum"], statistics["mean"])
         self.assertLessEqual(statistics["mean"], statistics["maximum"])
+        self.assertEqual(len(result.steps[0].result["bounds"]), 4)
+        self.assertTrue(result.steps[0].result["crs"])
         self.assertIn("洪山区", result.answer)
 
 

@@ -134,6 +134,8 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
     file_summaries = []
     distribution_samples = []
     sampled_values_seen = 0
+    combined_bounds = None
+    crs_values = set()
     for path in entry.files[:max_files]:
         file_total = 0
         file_valid = 0
@@ -141,6 +143,12 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
         file_minimum = None
         file_maximum = None
         with rasterio.open(path) as src:
+            combined_bounds = _merge_bounds(
+                combined_bounds,
+                _as_float_list([src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top]),
+            )
+            if src.crs:
+                crs_values.add(str(src.crs))
             for _, window in src.block_windows(1):
                 values = src.read(1, window=window, masked=True).compressed()
                 file_total += int(window.width * window.height)
@@ -187,6 +195,8 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
         "kind": entry.kind,
         "role": entry.role,
         "file_count": len(entry.files),
+        "bounds": combined_bounds,
+        "crs": sorted(crs_values)[0] if len(crs_values) == 1 else sorted(crs_values),
         "statistics": {
             "minimum": minimum,
             "maximum": maximum,
@@ -229,9 +239,14 @@ def zonal_statistics_for_entry(
     matched_files = []
     distribution_samples = []
     sampled_values_seen = 0
+    combined_bounds = None
+    crs_values = set()
     for path in entry.files[:max_files]:
         try:
             with rasterio.open(path) as src:
+                raster_bounds = _as_float_list(
+                    [src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top]
+                )
                 projected_geometry = transform_geom(
                     geometry_crs, src.crs, geometry, precision=6
                 )
@@ -244,6 +259,9 @@ def zonal_statistics_for_entry(
         values = values[numpy.isfinite(values)].astype("float64", copy=False)
         if not len(values):
             continue
+        combined_bounds = _merge_bounds(combined_bounds, raster_bounds)
+        if src.crs:
+            crs_values.add(str(src.crs))
         sampled_values_seen = _append_distribution_sample(
             distribution_samples, values, sampled_values_seen
         )
@@ -279,6 +297,8 @@ def zonal_statistics_for_entry(
         "admin_name": admin_name,
         "file_count": len(entry.files),
         "matched_files": matched_files,
+        "bounds": combined_bounds,
+        "crs": sorted(crs_values)[0] if len(crs_values) == 1 else sorted(crs_values),
         "statistics": statistics,
         "metrics": {
             "backend": "rasterio",
