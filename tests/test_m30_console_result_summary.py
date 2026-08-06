@@ -30,6 +30,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "catch(error) { destroyMap(); return false; }",
             ".map > svg",
             "leaflet-overlay-pane svg",
+            "fillColor:'#e09a5b'",
+            "fillColor:'#87c7d1'",
         ):
             self.assertIn(marker, self.html)
 
