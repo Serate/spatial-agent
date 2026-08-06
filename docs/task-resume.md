@@ -300,6 +300,11 @@ Suggested next steps:
 - 已有行政区 schema → 过滤 → 区域 DEM 统计的真实 GIS 示例链路。
 - Console 展示步骤依赖、执行状态和解析后的结果摘要。
 
+### M33: Failure-aware Multi-step Execution
+
+- 多步骤工具失败后 fail-fast。
+- 保留已完成结果，并将未执行步骤标记为 BLOCKED。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

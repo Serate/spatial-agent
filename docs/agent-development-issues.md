@@ -700,3 +700,25 @@ GIS 启动脚本设置 `GDAL_DATA` 和 `PROJ_LIB`，并使用 `conda run --no-ca
 ### 预防
 
 新增 GIS 启动方式时同时验证环境变量、真实 GeoJSON 读取、Rasterio 读取和服务日志；普通 Python memory 模式不应依赖这些变量。
+
+## 多步骤失败不能丢失已完成结果
+
+### 现象
+
+多步骤任务中某一步失败后，整个 Run 变成 FAILED，但用户无法区分之前哪些步骤已经成功、哪些步骤根本没有执行。
+
+### 根因
+
+Runtime 的 fail-fast 异常路径只设置了 Run 级错误，没有为后续 StepRun 写入阻塞状态；前端也只认识 COMPLETED/FAILED 等常见状态。
+
+### 诊断
+
+构造一个第二步失败的三步计划，检查已完成步骤是否保留 result、失败步骤是否有 error、后续步骤是否仍停留在 PENDING。
+
+### 修复
+
+明确采用 fail-fast 契约：失败步骤为 FAILED，所有后续未执行步骤为 BLOCKED 并记录 `blocked by failed step` 原因；前端增加“已阻塞”状态。
+
+### 预防
+
+多步骤工具测试必须覆盖成功、失败、阻塞三类 StepRun 状态，并确保 trace/API 不把 BLOCKED 误报为已执行。

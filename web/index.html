@@ -111,7 +111,7 @@
   <script>
     const $ = id => document.getElementById(id);
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const statusNames={IDLE:'待机',PLANNING:'规划中',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败'};
+    const statusNames={IDLE:'待机',PLANNING:'规划中',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞'};
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
     function setStatus(value) { const el=$('status'); el.textContent=statusName(value); el.className='badge '+String(value).toLowerCase(); }

@@ -140,6 +140,7 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("清空对话", body)
         self.assertIn("function newSession", body)
         self.assertIn("function stepResult", body)
+        self.assertIn("已阻塞", body)
         self.assertIn("依赖：", body)
         self.assertIn("有效像元", body)
         self.assertIn("空间智能体", body)

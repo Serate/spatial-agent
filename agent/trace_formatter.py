@@ -21,6 +21,8 @@ def format_trace(result: AgentRunResult) -> List[str]:
 
     if result.status == RunStatus.FAILED:
         lines.append("Run failed: " + str(result.error))
+        for step in result.steps:
+            lines.append(_format_step(step))
         return lines
 
     if result.plan:

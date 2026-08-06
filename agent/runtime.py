@@ -81,8 +81,12 @@ class AgentRuntime:
             result.steps = [StepRun(step.id, step.tool, step.args) for step in plan.steps]
             completed: Set[str] = set()
             completed_results: Dict[str, Dict[str, Any]] = {}
-            for step_run, step in zip(result.steps, plan.steps):
-                self._execute_step(step_run, step, completed, completed_results)
+            for index, (step_run, step) in enumerate(zip(result.steps, plan.steps)):
+                try:
+                    self._execute_step(step_run, step, completed, completed_results)
+                except Exception as exc:
+                    self._block_remaining_steps(result.steps, index + 1, step.id, str(exc))
+                    raise
                 completed.add(step.id)
                 if step_run.result is not None:
                     completed_results[step.id] = step_run.result
@@ -167,6 +171,16 @@ class AgentRuntime:
         step_run.status = "FAILED"
         step_run.finished_at = _utc_now()
         step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
+
+    def _block_remaining_steps(
+        self, steps, start_index: int, failed_step_id: str, reason: str
+    ) -> None:
+        for step in steps[start_index:]:
+            if step.status == "PENDING":
+                step.status = "BLOCKED"
+                step.error = "blocked by failed step {}: {}".format(
+                    failed_step_id, reason
+                )
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
