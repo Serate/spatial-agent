@@ -103,6 +103,14 @@ class InMemorySpatialBackend:
             "result_ref": "memory://range/" + dataset,
             "count": count,
             "crs": "EPSG:4326",
+            "first_name": next(
+                (
+                    str(condition.get("value"))
+                    for condition in conditions
+                    if dataset == "admin_areas" and condition.get("field") == "name"
+                ),
+                None,
+            ),
             "metrics": {
                 "backend": "in_memory",
                 "scanned_features": self._base_count(dataset),
@@ -307,6 +315,7 @@ class GeoJSONAdminBackend:
             "count": int(returned),
             "crs": str(gdf.crs) if gdf.crs else None,
             "sample_names": names,
+            "first_name": names[0] if names else None,
             "metrics": {
                 "backend": "geojson",
                 "scanned_features": int(len(gdf)),

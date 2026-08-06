@@ -51,6 +51,17 @@ class M15RasterMetadataTests(unittest.TestCase):
         self.assertEqual(result.steps[0].args["admin_name"], "洪山区")
         self.assertIn("洪山区", result.answer)
 
+    def test_rule_planner_builds_composite_admin_raster_plan(self):
+        runtime = build_runtime("rule", "memory")
+        result = runtime.run("查询洪山区行政区边界并分析DEM高程概况")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(
+            [step.tool for step in result.steps],
+            ["get_dataset_schema", "range_query", "get_zonal_raster_statistics"],
+        )
+        self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
+
 
 @unittest.skipUnless(HAS_RASTERIO and HAS_LOCAL_RASTER, "requires rasterio and local raster dataset files")
 class M15LocalRasterMetadataTests(unittest.TestCase):
@@ -105,6 +116,16 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         self.assertEqual(len(result.steps[0].result["bounds"]), 4)
         self.assertTrue(result.steps[0].result["crs"])
         self.assertIn("洪山区", result.answer)
+
+    def test_executes_composite_admin_raster_plan_with_real_gis(self):
+        result = build_runtime("rule", "local").run(
+            "查询洪山区行政区边界并分析DEM高程概况"
+        )
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(len(result.steps), 3)
+        self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
+        self.assertGreater(result.steps[2].result["statistics"]["valid_pixel_count"], 0)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,10 @@ if ($existing) {
 }
 
 if ($Mode -eq "gis") {
-  & "D:\code\conda\Scripts\conda.exe" run -n spatial-agent-gis python serve_api.py --host $HostName --port $Port
+  $gisPrefix = "C:\Users\torch\.conda\envs\spatial-agent-gis"
+  $env:GDAL_DATA = Join-Path $gisPrefix "Library\share\gdal"
+  $env:PROJ_LIB = Join-Path $gisPrefix "Library\share\proj"
+  & "D:\code\conda\Scripts\conda.exe" run --no-capture-output -n spatial-agent-gis python serve_api.py --host $HostName --port $Port
 } else {
   & "C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe" serve_api.py --host $HostName --port $Port
 }

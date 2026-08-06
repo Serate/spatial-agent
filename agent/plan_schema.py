@@ -65,6 +65,24 @@ def parse_task_plan(payload: Mapping[str, Any], allowed_tools: Iterable[str]) ->
             raise PlanningError("depends_on must be an array of strings: " + step_id)
         steps.append(PlanStep(step_id, tool, args, depends_on))
 
+    step_positions = {step.id: index for index, step in enumerate(steps)}
+    for index, step in enumerate(steps):
+        for source_id, path in _find_result_references(step.args):
+            if source_id not in step_positions:
+                raise PlanningError(
+                    "result reference points to unknown step: " + source_id
+                )
+            if source_id == step.id:
+                raise PlanningError("step cannot reference its own result: " + step.id)
+            if source_id not in step.depends_on:
+                raise PlanningError(
+                    "result reference must be listed in depends_on: " + step.id
+                )
+            if step_positions[source_id] >= index:
+                raise PlanningError(
+                    "result reference step must run earlier: " + source_id
+                )
+
     output = payload.get("output", {})
     if not isinstance(output, dict):
         raise PlanningError("output must be an object")
@@ -81,3 +99,27 @@ def _required_string(payload: Mapping[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise PlanningError(key + " must be a non-empty string")
     return value
+
+
+def _find_result_references(value: Any) -> List[Any]:
+    references = []
+    if isinstance(value, dict):
+        if "$from" in value or "path" in value:
+            if set(value) != {"$from", "path"}:
+                raise PlanningError("result reference must contain only $from and path")
+            source = value["$from"]
+            path = value["path"]
+            if not isinstance(source, str) or not source.strip():
+                raise PlanningError("result reference $from must be a non-empty string")
+            if not isinstance(path, str) or not path.strip():
+                raise PlanningError("result reference path must be a non-empty string")
+            if any(not part.strip() for part in path.split(".")):
+                raise PlanningError("result reference path contains an empty segment")
+            references.append((source, path))
+        else:
+            for item in value.values():
+                references.extend(_find_result_references(item))
+    elif isinstance(value, list):
+        for item in value:
+            references.extend(_find_result_references(item))
+    return references

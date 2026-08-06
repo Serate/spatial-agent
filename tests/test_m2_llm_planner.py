@@ -157,6 +157,96 @@ class M2LLMPlannerTests(unittest.TestCase):
         self.assertNotIn("field", plan.steps[0].args)
         self.assertNotIn("value", plan.steps[0].args)
 
+    def test_result_reference_requires_dependency(self):
+        with self.assertRaises(PlanningError):
+            parse_task_plan(
+                {
+                    "goal": "bind result",
+                    "steps": [
+                        {"id": "source", "tool": "get_dataset_schema", "args": {"dataset": "roads"}},
+                        {
+                            "id": "consumer",
+                            "tool": "get_dataset_schema",
+                            "args": {"dataset": {"$from": "source", "path": "dataset"}},
+                        },
+                    ],
+                },
+                tool_names(),
+            )
+
+    def test_result_reference_accepts_nested_path_with_dependency(self):
+        plan = parse_task_plan(
+            {
+                "goal": "bind result",
+                "steps": [
+                    {"id": "source", "tool": "get_dataset_schema", "args": {"dataset": "roads"}},
+                    {
+                        "id": "consumer",
+                        "tool": "get_dataset_schema",
+                        "args": {"dataset": {"$from": "source", "path": "dataset"}},
+                        "depends_on": ["source"],
+                    },
+                ],
+            },
+            tool_names(),
+        )
+        self.assertEqual(
+            plan.steps[1].args["dataset"],
+            {"$from": "source", "path": "dataset"},
+        )
+
+    def test_result_reference_rejects_malformed_object(self):
+        with self.assertRaises(PlanningError):
+            parse_task_plan(
+                {
+                    "goal": "bad reference",
+                    "steps": [
+                        {"id": "source", "tool": "get_dataset_schema", "args": {"dataset": "roads"}},
+                        {
+                            "id": "consumer",
+                            "tool": "get_dataset_schema",
+                            "args": {"dataset": {"$from": "source", "path": "dataset", "extra": True}},
+                            "depends_on": ["source"],
+                        },
+                    ],
+                },
+                tool_names(),
+            )
+
+    def test_fake_llm_preserves_composite_result_reference_plan(self):
+        client = FakeLLMClient(
+            {
+                "goal": "resolve area and analyze DEM",
+                "steps": [
+                    {"id": "schema-admin", "tool": "get_dataset_schema", "args": {"dataset": "admin_areas"}},
+                    {
+                        "id": "filter-admin",
+                        "tool": "range_query",
+                        "args": {
+                            "dataset": "admin_areas",
+                            "conditions": [{"field": "name", "operator": "eq", "value": "洪山区"}],
+                            "limit": 100,
+                        },
+                        "depends_on": ["schema-admin"],
+                    },
+                    {
+                        "id": "zonal",
+                        "tool": "get_zonal_raster_statistics",
+                        "args": {
+                            "dataset": "dem",
+                            "admin_name": {"$from": "filter-admin", "path": "first_name"},
+                        },
+                        "depends_on": ["filter-admin"],
+                    },
+                ],
+                "output": {"type": "zonal_raster_statistics_result"},
+            }
+        )
+
+        plan = LLMPlanner(client, tool_names()).plan("复合分析")
+
+        self.assertEqual(plan.steps[2].args["admin_name"]["$from"], "filter-admin")
+
 
 if __name__ == "__main__":
     unittest.main()

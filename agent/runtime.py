@@ -2,7 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, ToolError
 from .answer_composer import AnswerComposer
@@ -80,9 +80,12 @@ class AgentRuntime:
             result.status = RunStatus.EXECUTING
             result.steps = [StepRun(step.id, step.tool, step.args) for step in plan.steps]
             completed: Set[str] = set()
+            completed_results: Dict[str, Dict[str, Any]] = {}
             for step_run, step in zip(result.steps, plan.steps):
-                self._execute_step(step_run, step, completed)
+                self._execute_step(step_run, step, completed, completed_results)
                 completed.add(step.id)
+                if step_run.result is not None:
+                    completed_results[step.id] = step_run.result
             result.status = RunStatus.COMPLETED
             result.answer = self._answer_composer.compose(result)
             self._conversation_store.clear_pending(session_id)
@@ -131,17 +134,25 @@ class AgentRuntime:
             if missing:
                 raise ToolError("Plan has unknown dependencies: " + ", ".join(missing))
 
-    def _execute_step(self, step_run: StepRun, step: PlanStep, completed: Set[str]) -> None:
+    def _execute_step(
+        self,
+        step_run: StepRun,
+        step: PlanStep,
+        completed: Set[str],
+        completed_results: Dict[str, Dict[str, Any]],
+    ) -> None:
         missing = [dependency for dependency in step.depends_on if dependency not in completed]
         if missing:
             raise ToolError("Step dependencies are not complete: " + ", ".join(missing))
+        resolved_args = _resolve_result_references(step.args, completed_results)
+        step_run.args = resolved_args
         step_run.status = "RUNNING"
         step_run.started_at = _utc_now()
         started = perf_counter()
         for attempt in range(1, self._max_retries + 2):
             step_run.attempts = attempt
             try:
-                step_run.result = self._registry.invoke(step.tool, step.args)
+                step_run.result = self._registry.invoke(step.tool, resolved_args)
                 step_run.status = "COMPLETED"
                 step_run.finished_at = _utc_now()
                 step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
@@ -159,3 +170,24 @@ class AgentRuntime:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _resolve_result_references(value: Any, results: Dict[str, Dict[str, Any]]) -> Any:
+    if isinstance(value, dict):
+        if set(value) == {"$from", "path"}:
+            source = value["$from"]
+            path = value["path"]
+            if source not in results:
+                raise ToolError("result reference source is not complete: " + source)
+            current: Any = results[source]
+            for part in path.split("."):
+                if not isinstance(current, dict) or part not in current:
+                    raise ToolError(
+                        "result reference path not found: " + source + "." + path
+                    )
+                current = current[part]
+            return current
+        return {key: _resolve_result_references(item, results) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_resolve_result_references(item, results) for item in value]
+    return value

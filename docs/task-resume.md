@@ -293,6 +293,13 @@ Suggested next steps:
 - 栅格统计结果携带合并 bounds/CRS。
 - Console 在无矢量几何时显示栅格覆盖范围矩形。
 
+### M32: Multi-step Result References
+
+- 统一结果引用格式为 `{"$from":"步骤ID","path":"结果字段"}`。
+- 计划解析阶段校验引用来源、依赖声明和执行顺序。
+- 已有行政区 schema → 过滤 → 区域 DEM 统计的真实 GIS 示例链路。
+- Console 展示步骤依赖、执行状态和解析后的结果摘要。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

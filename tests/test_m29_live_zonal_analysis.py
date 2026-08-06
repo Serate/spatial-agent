@@ -20,6 +20,19 @@ class M29LiveZonalAnalysisTests(unittest.TestCase):
         self.assertGreater(statistics["valid_pixel_count"], 0)
         self.assertIn("洪山区", result.answer)
 
+    def test_live_model_plans_composite_admin_raster_analysis(self):
+        result = build_runtime("openai", "local").run(
+            "查询洪山区行政区边界并分析DEM高程概况"
+        )
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(
+            [step.tool for step in result.steps],
+            ["get_dataset_schema", "range_query", "get_zonal_raster_statistics"],
+        )
+        self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
+        self.assertGreater(result.steps[2].result["statistics"]["valid_pixel_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
