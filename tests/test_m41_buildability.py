@@ -30,6 +30,12 @@ class M41BuildabilityTests(unittest.TestCase):
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(result.steps[-1].args["slope_limit_degrees"], 15.0)
 
+    def test_buildability_tool_result_reference_is_optional_in_memory_mode(self):
+        result = build_runtime("rule", "memory").run("分析洪山区建设适宜性")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertNotIn("result_ref", result.steps[-1].result)
+
 
 if __name__ == "__main__":
     unittest.main()

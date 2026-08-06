@@ -71,6 +71,8 @@ Raster statistics also include a bounded `statistics.distribution` summary. Its 
 
 For a multi-source terrain overview, use `分析洪山区的高程、坡度和土地利用分布`. The rule planner executes elevation zonal statistics, derives slope in degrees from DEM pixels, and returns land-use raster class counts and shares. Land-use values remain source raster codes; the Agent does not invent semantic labels. Construction suitability requires explicit thresholds and weights and is therefore not inferred from this overview.
 
+For the demo construction screening workflow, use `分析洪山区建设适宜性，坡度不超过20度`. The planner combines administrative lookup, DEM elevation, derived slope, land-use classes, and a bounded buildability screening. The result reports candidate pixel ratio and can export a limited candidate-area GeoJSON; it is an auditable demo screen, not a legal planning or permit conclusion.
+
 For administrative-area raster analysis, use a request such as `分析洪山区DEM高程概况`. The planner selects `get_zonal_raster_statistics`, which resolves the named area, converts its CRS for each raster file, and computes masked statistics only where the geometry intersects the raster.
 
 ## POST /runs/{run_id}/retry

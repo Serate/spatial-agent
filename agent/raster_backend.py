@@ -1,4 +1,5 @@
 import math
+from uuid import uuid4
 from typing import Any, Dict, List
 
 from .dataset_catalog import DatasetCatalog, DatasetEntry
@@ -10,6 +11,7 @@ class RasterMetadataBackend:
 
     def __init__(self, catalog: DatasetCatalog):
         self._catalog = catalog
+        self._result_cache = {}
 
     def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
         entry = self._catalog.require(dataset)
@@ -72,10 +74,26 @@ class RasterMetadataBackend:
     ) -> Dict[str, Any]:
         dem = self._catalog.require("dem")
         land_use = self._catalog.require("land_use")
-        return zonal_buildability_for_entries(
+        result = zonal_buildability_for_entries(
             dem, land_use, admin_geometry, geometry_crs, admin_name,
             max_files=max_files, slope_limit_degrees=slope_limit_degrees
         )
+        geometry = result.pop("_candidate_geometry", None)
+        if geometry:
+            result_ref = "raster://buildability/" + uuid4().hex
+            self._result_cache[result_ref] = geometry
+            result["result_ref"] = result_ref
+        return result
+
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        if result_ref not in self._result_cache:
+            raise ToolError("result_ref is not available for export: " + result_ref)
+        if max_features < 1:
+            raise ToolError("max_features must be at least 1")
+        exported = dict(self._result_cache[result_ref])
+        exported["features"] = exported.get("features", [])[:max_features]
+        exported["geometry_source"] = "raster-buildability-screening"
+        return exported
 
 
 def raster_metadata_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict[str, Any]:
@@ -161,6 +179,7 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
     try:
         import numpy
         import rasterio
+        from rasterio.features import shapes
     except ImportError as exc:
         raise ToolError("rasterio and numpy are required for RasterMetadataBackend") from exc
 
@@ -493,6 +512,7 @@ def zonal_buildability_for_entries(
     try:
         import numpy
         import rasterio
+        from rasterio.features import shapes
         from rasterio.mask import mask
         from rasterio.transform import array_bounds
         from rasterio.warp import Resampling, reproject, transform_bounds, transform_geom
@@ -504,6 +524,7 @@ def zonal_buildability_for_entries(
         raise ToolError("slope_limit_degrees must be between 1 and 45")
     slope_limit = float(slope_limit_degrees)
     class_scores = {10: 0.3, 20: 0.1, 30: 0.4, 40: 0.2, 50: 0.0, 60: 0.0, 70: 0.1, 80: 0.0, 90: 0.8, 100: 0.0, 255: 0.0}
+    candidate_features = []
     total_valid = 0
     candidate_pixels = 0
     class_counts = {}
@@ -551,6 +572,17 @@ def zonal_buildability_for_entries(
                     scores = numpy.vectorize(lambda value: class_scores.get(int(value), 0.0), otypes=[float])(codes)
                     candidate = valid & (slope <= slope_limit) & (scores >= 0.4)
                     candidate_pixels += int(candidate.sum())
+                    if candidate_features.__len__() < 200 and candidate.any():
+                        for candidate_geometry, value in shapes(
+                            candidate.astype("uint8"), mask=candidate, transform=land_transform
+                        ):
+                            candidate_features.append({
+                                "type": "Feature",
+                                "geometry": candidate_geometry,
+                                "properties": {"slope_limit_degrees": slope_limit},
+                            })
+                            if len(candidate_features) >= 200:
+                                break
                     for value, count in zip(*numpy.unique(codes[valid], return_counts=True)):
                         class_counts[str(int(value))] = class_counts.get(str(int(value)), 0) + int(count)
                     matched_files.append(land_path)
@@ -572,7 +604,7 @@ def zonal_buildability_for_entries(
             "candidate_ratio": round(candidate_pixels / total_valid, 6),
             "land_use_classes": classes[:50],
         }
-    return {
+    result = {
         "dataset": "dem+land_use",
         "admin_name": admin_name,
         "file_count": len(land_use_entry.files),
@@ -588,6 +620,13 @@ def zonal_buildability_for_entries(
         },
         "metrics": {"backend": "rasterio", "analyzed_files": len(land_use_entry.files[:max_files]), "matched_files": len(matched_files), "geometry_crs": geometry_crs, "screening": True},
     }
+    if candidate_features:
+        result["_candidate_geometry"] = {
+            "type": "FeatureCollection",
+            "features": candidate_features,
+            "crs": {"type": "name", "properties": {"name": sorted(crs_values)[0] if crs_values else geometry_crs}},
+        }
+    return result
 
 
 def _find_overlapping_raster(paths, target_crs, bounds, rasterio):

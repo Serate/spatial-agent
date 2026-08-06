@@ -466,6 +466,8 @@ class HybridSpatialBackend:
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         if result_ref.startswith("geojson://"):
             return self._admin.export_result(result_ref, max_features=max_features)
+        if result_ref.startswith("raster://"):
+            return self._raster.export_result(result_ref, max_features=max_features)
         return self._fallback.export_result(result_ref, max_features=max_features)
 
 
