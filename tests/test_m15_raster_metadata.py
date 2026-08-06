@@ -41,6 +41,16 @@ class M15RasterMetadataTests(unittest.TestCase):
         self.assertEqual(result.steps[0].result["statistics"]["mean"], 0.0)
         self.assertIn("dem 栅格统计", result.answer)
 
+    def test_rule_planner_selects_zonal_raster_statistics(self):
+        runtime = build_runtime("rule", "memory")
+        result = runtime.run("分析洪山区DEM高程概况")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.plan.output["type"], "zonal_raster_statistics_result")
+        self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
+        self.assertEqual(result.steps[0].args["admin_name"], "洪山区")
+        self.assertIn("洪山区", result.answer)
+
 
 @unittest.skipUnless(HAS_RASTERIO and HAS_LOCAL_RASTER, "requires rasterio and local raster dataset files")
 class M15LocalRasterMetadataTests(unittest.TestCase):
@@ -80,6 +90,17 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         self.assertLessEqual(statistics["mean"], statistics["maximum"])
         self.assertGreaterEqual(statistics["nodata_ratio"], 0.0)
         self.assertLessEqual(statistics["nodata_ratio"], 1.0)
+
+    def test_computes_zonal_dem_statistics_for_admin_area(self):
+        result = build_runtime("rule", "local").run("分析洪山区DEM高程概况")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
+        statistics = result.steps[0].result["statistics"]
+        self.assertGreater(statistics["valid_pixel_count"], 0)
+        self.assertLessEqual(statistics["minimum"], statistics["mean"])
+        self.assertLessEqual(statistics["mean"], statistics["maximum"])
+        self.assertIn("洪山区", result.answer)
 
 
 if __name__ == "__main__":

@@ -61,6 +61,8 @@ def _result_details(result: Dict[str, Any]) -> str:
         parts.append("returned " + str(result["count"]) + " result(s)")
     if "file_count" in result:
         parts.append("file_count=" + str(result["file_count"]))
+    if "admin_name" in result:
+        parts.append("admin_name=" + str(result["admin_name"]))
     statistics = result.get("statistics", {})
     if isinstance(statistics, dict) and statistics.get("mean") is not None:
         parts.append("mean=" + str(statistics["mean"]))

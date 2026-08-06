@@ -23,6 +23,21 @@ class RasterMetadataBackend:
             raise ToolError("dataset is not raster: " + dataset)
         return raster_statistics_for_entry(entry, max_files=max_files)
 
+    def get_zonal_raster_statistics(
+        self,
+        dataset: str,
+        geometry: Dict[str, Any],
+        geometry_crs: str,
+        admin_name: str,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        entry = self._catalog.require(dataset)
+        if entry.kind != "raster":
+            raise ToolError("dataset is not raster: " + dataset)
+        return zonal_statistics_for_entry(
+            entry, geometry, geometry_crs, admin_name, max_files=max_files
+        )
+
 
 def raster_metadata_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict[str, Any]:
     if max_files < 1:
@@ -177,6 +192,87 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
             "files": file_summaries,
         },
         "metrics": {"backend": "rasterio", "analyzed_files": len(file_summaries)},
+    }
+
+
+def zonal_statistics_for_entry(
+    entry: DatasetEntry,
+    geometry: Dict[str, Any],
+    geometry_crs: str,
+    admin_name: str,
+    max_files: int = 10,
+) -> Dict[str, Any]:
+    """Compute raster statistics inside a vector geometry after CRS conversion."""
+    if max_files < 1:
+        raise ToolError("max_files must be at least 1")
+    try:
+        import numpy
+        import rasterio
+        from rasterio.mask import mask
+        from rasterio.warp import transform_geom
+    except ImportError as exc:
+        raise ToolError("rasterio and numpy are required for zonal raster statistics") from exc
+
+    total_pixels = 0
+    valid_pixels = 0
+    value_sum = 0.0
+    value_sum_squares = 0.0
+    minimum = None
+    maximum = None
+    matched_files = []
+    for path in entry.files[:max_files]:
+        try:
+            with rasterio.open(path) as src:
+                projected_geometry = transform_geom(
+                    geometry_crs, src.crs, geometry, precision=6
+                )
+                values, _ = mask(src, [projected_geometry], crop=True, filled=False)
+        except ValueError:
+            continue
+        masked_values = values[0]
+        total_pixels += int(masked_values.size)
+        values = masked_values.compressed()
+        values = values[numpy.isfinite(values)].astype("float64", copy=False)
+        if not len(values):
+            continue
+        matched_files.append(path)
+        valid_pixels += int(values.size)
+        value_sum += float(values.sum(dtype=numpy.float64))
+        value_sum_squares += float(numpy.square(values).sum(dtype=numpy.float64))
+        minimum = float(values.min()) if minimum is None else min(minimum, float(values.min()))
+        maximum = float(values.max()) if maximum is None else max(maximum, float(values.max()))
+
+    if not valid_pixels:
+        statistics = {
+            "error": "no raster pixels intersected the selected administrative area",
+            "valid_pixel_count": 0,
+            "nodata_pixel_count": 0,
+            "nodata_ratio": None,
+        }
+    else:
+        mean = value_sum / valid_pixels
+        variance = max(0.0, value_sum_squares / valid_pixels - mean * mean)
+        statistics = {
+            "minimum": minimum,
+            "maximum": maximum,
+            "mean": round(mean, 3),
+            "standard_deviation": round(math.sqrt(variance), 3),
+            "valid_pixel_count": valid_pixels,
+            "nodata_pixel_count": total_pixels - valid_pixels,
+            "nodata_ratio": round((total_pixels - valid_pixels) / total_pixels, 6),
+        }
+    return {
+        "dataset": entry.name,
+        "admin_name": admin_name,
+        "file_count": len(entry.files),
+        "matched_files": matched_files,
+        "statistics": statistics,
+        "metrics": {
+            "backend": "rasterio",
+            "analyzed_files": len(entry.files[:max_files]),
+            "matched_files": len(matched_files),
+            "geometry_crs": geometry_crs,
+        },
     }
 
 

@@ -50,6 +50,14 @@ class SpatialBackend(Protocol):
     def get_raster_statistics(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
         ...
 
+    def get_zonal_raster_statistics(
+        self,
+        dataset: str,
+        admin_name: str,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        ...
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         ...
 
@@ -172,6 +180,21 @@ class InMemorySpatialBackend:
             "metrics": {"backend": "in_memory", "analyzed_files": 0, "max_files": max_files},
         }
 
+    def get_zonal_raster_statistics(
+        self,
+        dataset: str,
+        admin_name: str,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        return {
+            "dataset": dataset,
+            "admin_name": admin_name,
+            "file_count": 0,
+            "matched_files": [],
+            "statistics": {"error": "in-memory backend has no raster geometry"},
+            "metrics": {"backend": "in_memory", "analyzed_files": 0},
+        }
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         return {"type": "FeatureCollection", "features": [], "geometry_source": "none"}
 
@@ -241,6 +264,21 @@ class GeoJSONAdminBackend:
                 "feature_count": int(len(gdf)),
                 "source": self._path,
             },
+        }
+
+    def geometry_for_name(self, name: str) -> Dict[str, Any]:
+        gdf = self._load()
+        if "name" not in gdf.columns:
+            raise ToolError("admin_areas dataset has no name field")
+        selected = gdf[gdf["name"] == name]
+        if selected.empty:
+            return {"geometry": None, "crs": str(gdf.crs) if gdf.crs else None}
+        geometry = selected.geometry.iloc[0]
+        if len(selected) > 1:
+            geometry = selected.geometry.unary_union
+        return {
+            "geometry": geometry.__geo_interface__,
+            "crs": str(gdf.crs) if gdf.crs else None,
         }
 
     def range_query(
@@ -350,6 +388,30 @@ class HybridSpatialBackend:
             return self._raster.get_raster_statistics(dataset, max_files=max_files)
         return self._fallback.get_raster_statistics(dataset, max_files=max_files)
 
+    def get_zonal_raster_statistics(
+        self,
+        dataset: str,
+        admin_name: str,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        area = self._admin.geometry_for_name(admin_name)
+        if area["geometry"] is None:
+            return {
+                "dataset": dataset,
+                "admin_name": admin_name,
+                "file_count": 0,
+                "matched_files": [],
+                "statistics": {"error": "administrative area was not found"},
+                "metrics": {"backend": "geojson", "analyzed_files": 0},
+            }
+        return self._raster.get_zonal_raster_statistics(
+            dataset=dataset,
+            geometry=area["geometry"],
+            geometry_crs=area["crs"],
+            admin_name=admin_name,
+            max_files=max_files,
+        )
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         if result_ref.startswith("geojson://"):
             return self._admin.export_result(result_ref, max_features=max_features)
@@ -419,6 +481,12 @@ class SpatialToolAdapter:
             return self._backend.get_raster_statistics(
                 dataset=arguments["dataset"],
                 max_files=arguments.get("max_files", 3),
+            )
+        if name == "get_zonal_raster_statistics":
+            return self._backend.get_zonal_raster_statistics(
+                dataset=arguments["dataset"],
+                admin_name=arguments["admin_name"],
+                max_files=arguments.get("max_files", 10),
             )
         raise ToolError("Adapter does not implement: " + name)
 
