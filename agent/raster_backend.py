@@ -93,7 +93,9 @@ class RasterMetadataBackend:
         exported = dict(self._result_cache[result_ref])
         exported["features"] = exported.get("features", [])[:max_features]
         exported["geometry_source"] = "raster-buildability-screening"
-        return exported
+        from .geometry_export import normalize_feature_collection
+
+        return normalize_feature_collection(exported)
 
 
 def raster_metadata_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict[str, Any]:

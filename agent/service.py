@@ -51,6 +51,7 @@ class AgentService:
                             exported.get("features", []),
                             source=exported.get("geometry_source"),
                             crs=exported.get("crs"),
+                            source_crs=exported.get("source_crs"),
                         )
                     )
             payload["geojson_ref"] = export_run_summary(
@@ -88,6 +89,7 @@ class AgentService:
                             exported.get("features", []),
                             source=exported.get("geometry_source"),
                             crs=exported.get("crs"),
+                            source_crs=exported.get("source_crs"),
                         )
                     )
             payload["geojson_ref"] = export_run_summary(
@@ -121,7 +123,7 @@ def _runtime_key(planner: str, backend: str) -> Tuple[str, str]:
     return planner, backend
 
 
-def _tag_geometry_features(features, source=None, crs=None):
+def _tag_geometry_features(features, source=None, crs=None, source_crs=None):
     """Keep CRS/source beside each feature when result collections are merged."""
     tagged = []
     crs_name = _crs_name(crs)
@@ -133,6 +135,8 @@ def _tag_geometry_features(features, source=None, crs=None):
             properties["geometry_source"] = source
         if crs_name:
             properties["geometry_crs"] = crs_name
+        if source_crs:
+            properties["geometry_source_crs"] = source_crs
         tagged.append({**feature, "properties": properties})
     return tagged
 

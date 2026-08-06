@@ -999,3 +999,7 @@ Windows Conda 环境常使用 `Library/share/gdal` 和 `Library/share/proj`；Li
 ## 预防
 
 合并不同空间来源的 GeoJSON 前必须保留 CRS 和来源信息，预览层不能假设所有 Feature 使用同一坐标系。空间预览回归测试应覆盖 Polygon、MultiPolygon、混合 CRS、无几何和资源请求失败。
+
+## 后续增强
+
+仅在前端按 CRS 分组仍然无法同时叠加行政区边界和候选栅格面。导出阶段现统一转换到 `EPSG:4326` 作为展示坐标系，并在 Feature 属性中保留 `geometry_source_crs`，从而兼顾叠加显示与数据溯源。

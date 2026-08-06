@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent.geojson_exporter import export_run_summary
+from agent.geometry_export import normalize_feature_collection
 from agent.service import AgentService, _tag_geometry_features
 
 
@@ -86,6 +87,17 @@ class M18GeoJSONExportTests(unittest.TestCase):
 
         self.assertEqual(tagged[0]["properties"]["geometry_source"], "raster-buildability-screening")
         self.assertEqual(tagged[0]["properties"]["geometry_crs"], "EPSG:32650")
+
+    def test_map_export_records_display_and_source_crs(self):
+        with patch("agent.geometry_export._transform_geometry", return_value={"type": "Point", "coordinates": [114.4, 30.5]}):
+            document = normalize_feature_collection({
+                "type": "FeatureCollection",
+                "crs": {"type": "name", "properties": {"name": "EPSG:32650"}},
+                "features": [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [500000, 3300000]}, "properties": {}}],
+            })
+
+        self.assertEqual(document["crs"]["properties"]["name"], "EPSG:4326")
+        self.assertEqual(document["features"][0]["properties"]["geometry_source_crs"], "EPSG:32650")
 
 
 if __name__ == "__main__":

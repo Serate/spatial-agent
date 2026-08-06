@@ -21,6 +21,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "function rasterStats(data)",
             "geometry_source==='raster-buildability-screening'",
             "空间预览加载失败：",
+            "行政区边界",
+            "map-legend",
         ):
             self.assertIn(marker, self.html)
 
