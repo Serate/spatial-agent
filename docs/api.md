@@ -51,6 +51,7 @@ Fields:
 | backend | no | memory | memory for deterministic tests, local for configured local spatial data. |
 | export_artifact | no | false | When true, writes a small run summary artifact and returns artifact_ref. |
 | export_geojson | no | false | When true, writes a bounded GeoJSON summary and returns geojson_ref. |
+| timeout_seconds | no | none | Optional cooperative run budget; Runtime stops at a step boundary after the budget is exceeded. |
 
 For raster value analysis, use a request such as `分析DEM高程统计`. The planner selects `get_raster_statistics`, which returns bounded statistics for sampled files and does not expose raster arrays through the API.
 
@@ -61,6 +62,10 @@ For administrative-area raster analysis, use a request such as `分析洪山区D
 ## POST /runs/{run_id}/retry
 
 Retries a failed run from its first failed step. The runtime reuses completed step results and does not call the Planner again. The request body accepts the same `planner`, `backend`, `export_artifact`, and `export_geojson` fields as needed.
+
+## POST /runs/{run_id}/cancel
+
+Requests cooperative cancellation of an active run. The current tool is allowed to return; Runtime then stops before the next step and returns `CANCELLED`. It does not forcibly terminate third-party code.
 
 Successful response shape:
 

@@ -16,3 +16,11 @@ class RequestRejected(PlanningError):
 
 class ToolError(AgentError):
     """A tool could not validate or execute a call."""
+
+
+class RunCancelled(AgentError):
+    """A running Agent task was cancelled at a safe execution boundary."""
+
+
+class RunTimedOut(AgentError):
+    """A running Agent task exceeded its cooperative time budget."""

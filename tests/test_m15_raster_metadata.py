@@ -127,6 +127,14 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
         self.assertGreater(result.steps[2].result["statistics"]["valid_pixel_count"], 0)
 
+    def test_executes_zonal_land_use_analysis_with_real_gis(self):
+        result = build_runtime("rule", "local").run("分析洪山区土地利用分布")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
+        self.assertEqual(result.steps[0].result["dataset"], "land_use")
+        self.assertGreater(result.steps[0].result["statistics"]["valid_pixel_count"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

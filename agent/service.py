@@ -23,13 +23,18 @@ class AgentService:
         export_artifact: bool = False,
         export_geojson: bool = False,
         geojson_max_features: int = 100,
+        timeout_seconds: float = None,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
         runtime = self._runtime(planner, backend)
-        result = runtime.run(request, session_id=session_id)
+        result = runtime.run(
+            request,
+            session_id=session_id,
+            timeout_seconds=timeout_seconds,
+        )
         payload = result.to_dict()
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
@@ -78,6 +83,16 @@ class AgentService:
                 geometry_features=geometry_features or None,
             )
         return payload
+
+    def cancel(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("run_id must be a non-empty string")
+        result = self._runtime(planner, backend).cancel(run_id)
+        return {
+            "run_id": run_id,
+            "status": "CANCEL_REQUESTED",
+            "current_status": result.status.value,
+        }
 
     def _runtime(self, planner: str, backend: str):
         key = _runtime_key(planner, backend)

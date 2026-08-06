@@ -210,6 +210,21 @@
 - 默认规则/Fake 评测不会消耗 Token；真实模型评测仍需显式开启。
 - 新增 `scripts/evaluate_planner.py`，可输出 JSON 评测报告或写入文件。
 
+## M37 当前能力
+
+- Runtime 支持协作式取消，在工具边界安全停止运行并保留已完成步骤。
+- API 提供 `POST /runs/{run_id}/cancel`，取消后的 Run 状态为 `CANCELLED`，后续步骤为 `BLOCKED`。
+- 支持 `timeout_seconds` 步骤边界超时，超时 Run 状态为 `TIMED_OUT`，不强杀第三方工具线程。
+
+## M38 当前能力
+
+- 支持真实土地利用栅格的行政区区域分析，例如“分析洪山区土地利用分布”。
+- 真实土地利用统计保留值域分布、有效像元和 NoData 指标；坡度仍明确使用内存 fallback，直到接入真实坡度栅格。
+
+## M39 当前能力
+
+- 新增 `docs/demo-checklist.md`，统一离线、真实 GIS、真实模型、失败恢复和自动化回归演示流程。
+
 ## 本地运行
 
 需要 Python 3.10 或更高版本。不需要第三方依赖。

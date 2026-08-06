@@ -25,6 +25,18 @@ def format_trace(result: AgentRunResult) -> List[str]:
             lines.append(_format_step(step))
         return lines
 
+    if result.status == RunStatus.CANCELLED:
+        lines.append("Run cancelled: " + str(result.error))
+        for step in result.steps:
+            lines.append(_format_step(step))
+        return lines
+
+    if result.status == RunStatus.TIMED_OUT:
+        lines.append("Run timed out: " + str(result.error))
+        for step in result.steps:
+            lines.append(_format_step(step))
+        return lines
+
     if result.plan:
         lines.append("Planned goal: " + result.plan.goal)
 

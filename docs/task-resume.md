@@ -319,6 +319,20 @@ Suggested next steps:
 
 - 评测报告统计状态/工具匹配、步骤耗时、Planner 延迟、Token 总量和依赖链有效率。
 
+### M38: Real Land-use Zonal Analysis
+
+- 增加真实土地利用栅格行政区分析示例。
+- 不伪造当前尚未接入的真实坡度栅格能力。
+
+### M37: Cooperative Runtime Control
+
+- Runtime 支持线程安全的协作式取消和步骤边界超时。
+- API 提供 cancel 入口；状态包括 `CANCELLED` 和 `TIMED_OUT`。
+
+### M39: Showcase Convergence
+
+- 新增中文演示验收清单，覆盖离线、GIS、真实模型、失败恢复和回归命令。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

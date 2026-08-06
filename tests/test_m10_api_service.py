@@ -247,6 +247,34 @@ class M10HttpApiTests(unittest.TestCase):
 
         self.assertEqual(payload, {"run_id": "run-1", "status": "COMPLETED"})
 
+    def test_http_api_cancel_route_is_available(self):
+        class TestHandler(AgentApiHandler):
+            class FakeService:
+                def cancel(self, **kwargs):
+                    return {
+                        "run_id": kwargs["run_id"],
+                        "status": "CANCEL_REQUESTED",
+                        "current_status": "EXECUTING",
+                    }
+
+            service = FakeService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            payload = _post_json(
+                server.server_address[1],
+                {"planner": "rule", "backend": "memory"},
+                path="/runs/run-1/cancel",
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload["status"], "CANCEL_REQUESTED")
+
 
 def _get_json(port, path, expected_status=200):
     connection = HTTPConnection("127.0.0.1", port, timeout=5)

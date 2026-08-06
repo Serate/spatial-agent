@@ -11,6 +11,8 @@ class RunStatus(str, Enum):
     NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
     REJECTED = "REJECTED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    TIMED_OUT = "TIMED_OUT"
 
 
 @dataclass(frozen=True)

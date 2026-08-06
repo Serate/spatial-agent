@@ -37,24 +37,33 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
-        if parsed.path != "/runs" and not is_retry:
+        is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
+        if parsed.path != "/runs" and not is_retry and not is_cancel:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
-            if is_retry:
+            if is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")
-                if len(parts) != 3 or not parts[1] or parts[2] != "retry":
+                expected_action = "retry" if is_retry else "cancel"
+                if len(parts) != 3 or not parts[1] or parts[2] != expected_action:
                     self._write_json(404, {"error": "not found"})
                     return
-                result = self.service.retry(
-                    run_id=parts[1],
-                    planner=payload.get("planner", "rule"),
-                    backend=payload.get("backend", "memory"),
-                    export_artifact=bool(payload.get("export_artifact", False)),
-                    export_geojson=bool(payload.get("export_geojson", False)),
-                    geojson_max_features=payload.get("geojson_max_features", 100),
-                )
+                if is_cancel:
+                    result = self.service.cancel(
+                        run_id=parts[1],
+                        planner=payload.get("planner", "rule"),
+                        backend=payload.get("backend", "memory"),
+                    )
+                else:
+                    result = self.service.retry(
+                        run_id=parts[1],
+                        planner=payload.get("planner", "rule"),
+                        backend=payload.get("backend", "memory"),
+                        export_artifact=bool(payload.get("export_artifact", False)),
+                        export_geojson=bool(payload.get("export_geojson", False)),
+                        geojson_max_features=payload.get("geojson_max_features", 100),
+                    )
             else:
                 result = self.service.run(
                     request=payload.get("request", ""),
@@ -64,6 +73,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     export_artifact=bool(payload.get("export_artifact", False)),
                     export_geojson=bool(payload.get("export_geojson", False)),
                     geojson_max_features=payload.get("geojson_max_features", 100),
+                    timeout_seconds=payload.get("timeout_seconds"),
                 )
         except ValueError as exc:
             self._write_json(400, {"error": str(exc)})
