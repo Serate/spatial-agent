@@ -28,6 +28,20 @@ def export_run_summary(
             "properties": {"run_id": run_id, "status": payload.get("status")},
         }]
     properties = {"run_id": run_id, "status": payload.get("status")}
+    sources = sorted({
+        str((feature.get("properties") or {}).get("geometry_source"))
+        for feature in features
+        if (feature.get("properties") or {}).get("geometry_source")
+    })
+    crs_values = sorted({
+        str((feature.get("properties") or {}).get("geometry_crs"))
+        for feature in features
+        if (feature.get("properties") or {}).get("geometry_crs")
+    })
+    if sources:
+        properties["geometry_sources"] = sources
+    if crs_values:
+        properties["coordinate_reference_systems"] = crs_values
     selected = []
     truncated = False
     for feature in features:

@@ -361,7 +361,14 @@ class GeoJSONAdminBackend:
                     properties[column] = str(row[column])
             geometry = row.geometry.__geo_interface__ if row.geometry is not None else None
             features.append({"type": "Feature", "geometry": geometry, "properties": properties})
-        return {"type": "FeatureCollection", "features": features, "geometry_source": "geojson"}
+        return {
+            "type": "FeatureCollection",
+            "features": features,
+            "geometry_source": "geojson",
+            "crs": {"type": "name", "properties": {"name": str(self._load().crs)}}
+            if self._load().crs
+            else None,
+        }
 
     def _load(self):
         if self._gdf is None:

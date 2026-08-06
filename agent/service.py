@@ -46,7 +46,13 @@ class AgentService:
                 result_ref = (step.get("result") or {}).get("result_ref")
                 if result_ref:
                     exported = runtime.export_result(result_ref, max_features=geojson_max_features)
-                    geometry_features.extend(exported.get("features", []))
+                    geometry_features.extend(
+                        _tag_geometry_features(
+                            exported.get("features", []),
+                            source=exported.get("geometry_source"),
+                            crs=exported.get("crs"),
+                        )
+                    )
             payload["geojson_ref"] = export_run_summary(
                 payload,
                 geometry_features=geometry_features or None,
@@ -77,7 +83,13 @@ class AgentService:
                 result_ref = (step.get("result") or {}).get("result_ref")
                 if result_ref:
                     exported = runtime.export_result(result_ref, max_features=geojson_max_features)
-                    geometry_features.extend(exported.get("features", []))
+                    geometry_features.extend(
+                        _tag_geometry_features(
+                            exported.get("features", []),
+                            source=exported.get("geometry_source"),
+                            crs=exported.get("crs"),
+                        )
+                    )
             payload["geojson_ref"] = export_run_summary(
                 payload,
                 geometry_features=geometry_features or None,
@@ -107,3 +119,29 @@ def _runtime_key(planner: str, backend: str) -> Tuple[str, str]:
     if backend not in ("memory", "local"):
         raise ValueError("backend must be one of: memory, local")
     return planner, backend
+
+
+def _tag_geometry_features(features, source=None, crs=None):
+    """Keep CRS/source beside each feature when result collections are merged."""
+    tagged = []
+    crs_name = _crs_name(crs)
+    for feature in features or []:
+        if not isinstance(feature, dict):
+            continue
+        properties = dict(feature.get("properties") or {})
+        if source:
+            properties["geometry_source"] = source
+        if crs_name:
+            properties["geometry_crs"] = crs_name
+        tagged.append({**feature, "properties": properties})
+    return tagged
+
+
+def _crs_name(crs):
+    if isinstance(crs, str):
+        return crs
+    if isinstance(crs, dict):
+        return (crs.get("properties") or {}).get("name")
+    if isinstance(crs, list) and len(crs) == 1:
+        return _crs_name(crs[0])
+    return None

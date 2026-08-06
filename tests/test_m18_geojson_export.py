@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent.geojson_exporter import export_run_summary
-from agent.service import AgentService
+from agent.service import AgentService, _tag_geometry_features
 
 
 class M18GeoJSONExportTests(unittest.TestCase):
@@ -76,6 +76,16 @@ class M18GeoJSONExportTests(unittest.TestCase):
         self.assertEqual(document["type"], "FeatureCollection")
         self.assertEqual(len(document["features"]), 1)
         self.assertIsNone(document["features"][0]["geometry"])
+
+    def test_merged_geometry_features_keep_source_and_crs(self):
+        tagged = _tag_geometry_features(
+            [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": []}, "properties": {"kind": "candidate"}}],
+            source="raster-buildability-screening",
+            crs={"type": "name", "properties": {"name": "EPSG:32650"}},
+        )
+
+        self.assertEqual(tagged[0]["properties"]["geometry_source"], "raster-buildability-screening")
+        self.assertEqual(tagged[0]["properties"]["geometry_crs"], "EPSG:32650")
 
 
 if __name__ == "__main__":

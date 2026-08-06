@@ -982,3 +982,20 @@ Windows Conda 环境常使用 `Library/share/gdal` 和 `Library/share/proj`；Li
 ### 预防
 
 不同操作系统和环境类型必须分别确认 GDAL/PROJ 数据目录；生产 readiness 还应增加一次轻量真实矢量读取检查，避免只报告依赖存在而遗漏运行时路径错误。
+# 混合 CRS 的 GeoJSON 直接合并会导致空间预览失真
+
+## 现象
+
+建设适宜性分析接口执行成功并导出了候选 Polygon，但 Console 的空间预览没有正确显示候选区域。
+
+## 根因
+
+一次运行可能同时导出行政区边界和栅格候选面。行政区边界使用经纬度 CRS（例如 EPSG:4490），候选面使用栅格 CRS（例如 EPSG:32649）。原实现把两类坐标直接合并计算 SVG 范围，且没有保留每个要素的 CRS；异步 GeoJSON 加载失败也没有反馈。
+
+## 修复
+
+导出服务把几何来源和 CRS 写入每个 Feature 的 properties。Console 对建设候选优先显示对应栅格图层，并按 CRS 分组后计算范围；GeoJSON 请求失败或坐标无效时显示中文空态。
+
+## 预防
+
+合并不同空间来源的 GeoJSON 前必须保留 CRS 和来源信息，预览层不能假设所有 Feature 使用同一坐标系。空间预览回归测试应覆盖 Polygon、MultiPolygon、混合 CRS、无几何和资源请求失败。

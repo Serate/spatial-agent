@@ -19,6 +19,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "function buildabilityStats(data)",
             "请将空间后端切换为“本地 GIS”",
             "function rasterStats(data)",
+            "geometry_source==='raster-buildability-screening'",
+            "空间预览加载失败：",
         ):
             self.assertIn(marker, self.html)
 
