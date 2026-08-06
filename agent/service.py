@@ -1,3 +1,4 @@
+import os
 from typing import Dict, Tuple
 
 from agent.artifact_store import ArtifactStore
@@ -5,14 +6,20 @@ from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.trace_formatter import format_trace
 from run_demo import build_runtime
+from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 
 
 class AgentService:
     """Application boundary for running Agent sessions from a CLI or HTTP API."""
 
-    def __init__(self, artifact_store: ArtifactStore = None):
+    def __init__(self, artifact_store: ArtifactStore = None, state_db_path: str = None):
         self._runtimes = {}
         self._artifact_store = artifact_store or ArtifactStore()
+        self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
+        self._state_store = SQLiteStateStore(self._state_db_path) if self._state_db_path else None
+        self._conversation_store = (
+            SQLiteConversationStore(self._state_db_path) if self._state_db_path else None
+        )
 
     def run(
         self,
@@ -156,7 +163,12 @@ class AgentService:
     def _runtime(self, planner: str, backend: str):
         key = _runtime_key(planner, backend)
         if key not in self._runtimes:
-            self._runtimes[key] = build_runtime(planner, backend)
+            self._runtimes[key] = build_runtime(
+                planner,
+                backend,
+                state_store=self._state_store,
+                conversation_store=self._conversation_store,
+            )
         return self._runtimes[key]
 
 

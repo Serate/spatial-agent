@@ -393,6 +393,7 @@ Prefer small, explainable increments over large rewrites.
 - Planner 支持结构化 `direct_answer` 决策；通用问题不强行调用 GIS 工具，空间问题仍必须通过 TaskPlan 和 ToolRegistry。
 - Console 在运行结果顶部显示决策模式：通用回答不会调用空间工具，澄清/拒绝不会执行工具，空间计划显示实际工具步骤数量。
 - 未知或暂不支持的空间问题保持 `NEEDS_CLARIFICATION`，不能由通用回答替代空间结果，也不能绕过 ToolRegistry。
+- M42 新增 SQLite 状态存储，Service/Runtime 重建后仍可恢复澄清上下文和运行快照。
 
 ## Development Issues Log
 

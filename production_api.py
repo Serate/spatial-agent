@@ -16,7 +16,9 @@ from agent.service import AgentService
 
 
 app = FastAPI(title="Spatial Agent", version="0.1.0")
-service = AgentService()
+service = AgentService(
+    state_db_path=os.environ.get("SPATIAL_AGENT_STATE_DB", "outputs/spatial-agent.db")
+)
 ROOT = Path(__file__).parent
 WEB_ROOT = ROOT / "web"
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))

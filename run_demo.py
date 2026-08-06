@@ -12,7 +12,12 @@ from agent.spatial_backend import HybridSpatialBackend, InMemorySpatialBackend, 
 from agent.tools import ToolRegistry
 
 
-def build_runtime(planner_name: str, backend_name: str = "memory") -> AgentRuntime:
+def build_runtime(
+    planner_name: str,
+    backend_name: str = "memory",
+    state_store=None,
+    conversation_store=None,
+) -> AgentRuntime:
     root = Path(__file__).parent
     if backend_name == "local":
         catalog_path = os.environ.get(
@@ -31,7 +36,12 @@ def build_runtime(planner_name: str, backend_name: str = "memory") -> AgentRunti
         planner = LLMPlanner(OpenAIPlannerClient(**load_openai_config()), registry.names)
     else:
         planner = RuleBasedPlanner()
-    return AgentRuntime(planner, registry)
+    return AgentRuntime(
+        planner,
+        registry,
+        state_store=state_store,
+        conversation_store=conversation_store,
+    )
 
 
 def parse_args():

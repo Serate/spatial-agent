@@ -46,4 +46,4 @@ RUN mkdir -p /app/outputs/runs /app/outputs/geojson /data \
 
 USER $MAMBA_USER
 EXPOSE 8088
-CMD ["uvicorn", "production_api:app", "--host", "0.0.0.0", "--port", "8088", "--workers", "1"]
+CMD ["uvicorn", "production_api:app", "--host", "0.0.0.0", "--port", "8088", "--workers", "2"]
