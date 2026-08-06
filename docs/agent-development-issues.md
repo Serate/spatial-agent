@@ -1019,3 +1019,7 @@ Leaflet 只负责增强交互，不依赖在线底图；初始化失败时自动
 前端新增公开三方库时必须保留无库降级路径，并把“库资源可用”和“空间数据可渲染”分开诊断，不能因为 CDN 失败而丢失核心分析结果。
 
 地图交互回归使用浏览器烟测断言 Leaflet 或 SVG 至少生成一个矢量路径，不能只断言页面 HTTP 200 或地图容器存在。
+
+## Leaflet 内部 SVG 不能使用全局地图 SVG 尺寸样式
+
+Leaflet 的矢量图层自身也会生成 `<svg>`。如果页面使用 `.map svg { width:100%; height:260px }`，会覆盖 Leaflet 对 overlay SVG 的尺寸和定位，表现为地图容器有背景但看不到图形。降级 SVG 应改为 `.map > svg`，并单独恢复 `.leaflet-overlay-pane svg` 的 Leaflet 尺寸规则。

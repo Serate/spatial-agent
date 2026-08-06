@@ -28,6 +28,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "交互式空间预览",
             "if(!boundaryLayer.getLayers().length&&!candidateLayer.getLayers().length)",
             "catch(error) { destroyMap(); return false; }",
+            ".map > svg",
+            "leaflet-overlay-pane svg",
         ):
             self.assertIn(marker, self.html)
 
