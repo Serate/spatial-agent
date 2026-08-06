@@ -259,9 +259,7 @@ class RuleBasedPlanner:
         if match is None:
             raise ClarificationNeeded("missing admin area name, for example: 洪山区")
         admin_name = self._clean_admin_name(match.group(1))
-        return TaskPlan(
-            goal="analyze elevation, derived slope, and land-use distribution inside an administrative area",
-            steps=[
+        steps = [
                 PlanStep("schema-admin", "get_dataset_schema", {"dataset": "admin_areas"}),
                 PlanStep(
                     "filter-admin", "range_query",
@@ -283,7 +281,18 @@ class RuleBasedPlanner:
                     {"admin_name": {"$from": "filter-admin", "path": "first_name"}, "max_files": 10},
                     ["filter-admin"],
                 ),
-            ],
+            ]
+        if "建设" in request or "适合" in request:
+            steps.append(
+                PlanStep(
+                    "buildability-screening", "get_zonal_buildability_analysis",
+                    {"admin_name": {"$from": "filter-admin", "path": "first_name"}, "max_files": 10},
+                    ["filter-admin"],
+                )
+            )
+        return TaskPlan(
+            goal="analyze elevation, derived slope, land-use distribution, and demo buildability screening inside an administrative area",
+            steps=steps,
             output={"type": "terrain_land_use_analysis_result", "summary": True},
         )
 

@@ -130,6 +130,7 @@
 - `GET /health` 返回当前服务进程的安全环境状态，包括内存后端、本地 GIS 后端、真实大模型配置、关键 GIS 依赖和数据目录是否可用。
 - Console 页面启动后会自动检查运行环境，并在用户选择不可用的本地 GIS 或真实大模型前给出中文提示。
 - 新增 `scripts/start_console.ps1`，可用 `-Mode memory` 启动离线演示，用 `-Mode gis` 从 `spatial-agent-gis` 环境启动真实本地 GIS 演示。
+- 新增生产部署基线：`Dockerfile`、`docker-compose.prod.yml`、`production_api.py` 和 `/health/live`、`/health/ready`。生产容器固定 GIS 依赖，不依赖操作员手动激活 Conda。
 
 ## M23 当前能力
 

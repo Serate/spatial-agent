@@ -824,3 +824,17 @@ Runtime 的 fail-fast 异常路径只设置了 Run 级错误，没有为后续 S
 ### 预防
 
 GIS 服务统一通过项目启动脚本启动，不要让用户手工拼接 Python 路径或依赖沙箱与用户 PowerShell 同步环境变量。
+
+## Demo 启动方式不能直接作为生产部署方式
+
+### 现象
+
+开发入口使用本机绝对路径、标准库 HTTP Server 和当前 Shell 状态，换机器或由进程管理器启动时容易丢失 GIS 依赖、数据挂载和密钥配置。
+
+### 修复
+
+增加 `production_api.py`、`requirements-prod.txt`、`Dockerfile` 和 `docker-compose.prod.yml`。生产入口使用 Uvicorn，容器固定 Rasterio/GDAL/PROJ，数据只读挂载，结果单独挂载，模型配置通过 `.env.production` 注入，并提供 liveness/readiness 两级健康检查。
+
+### 预防
+
+开发脚本只用于本地演示；生产部署必须固定依赖、显式注入环境变量、隔离密钥和数据，并让 readiness 在 GIS 能力不可用时返回失败。

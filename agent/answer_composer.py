@@ -30,6 +30,7 @@ class AnswerComposer:
         elevation = _first_result(steps, "get_zonal_raster_statistics")
         slope = _first_result(steps, "get_zonal_slope_statistics")
         land_use = _first_result(steps, "get_zonal_land_use_distribution")
+        buildability = _first_result(steps, "get_zonal_buildability_analysis")
         area = (elevation or slope or land_use or {}).get("admin_name", "指定区域")
         parts = [f"{area}综合空间分析已完成。"]
         if elevation:
@@ -52,7 +53,16 @@ class AnswerComposer:
                 categories = stats.get("categories", [])[:5]
                 category_text = "、".join(f"{item['value']}类 {round(float(item['share']) * 100, 2)}%" for item in categories)
                 parts.append(f"土地利用共识别 {stats.get('category_count', 0)} 个栅格类别，主要类别为 {category_text or '暂无'}。")
+        if buildability:
+            stats = buildability.get("statistics", {})
+            if stats.get("error"):
+                parts.append(f"建设候选筛选：{stats['error']}。")
+            else:
+                ratio = float(stats.get("candidate_ratio", 0)) * 100
+                parts.append(f"按演示规则筛选出约 {ratio:.2f}% 的候选像元（{stats.get('candidate_pixel_count', 0)} / {stats.get('valid_pixel_count', 0)}），坡度阈值为 {stats.get('slope_limit_degrees', 15)} 度。")
         parts.append("当前结果提供地形与土地利用事实统计；“适合建设”还需要明确坡度阈值、禁建地类和权重后才能生成可审计的候选区域。")
+        if buildability:
+            parts[-1] = "以上建设候选仅是演示筛选，不代表法定建设适宜性或规划许可结论。"
         return "".join(parts)
 
     def _compose_admin_area_result(self, steps: Iterable[StepRun]) -> str:

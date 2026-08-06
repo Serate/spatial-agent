@@ -10,6 +10,16 @@ python serve_api.py --host 127.0.0.1 --port 8088
 
 Open `http://127.0.0.1:8088/` for the interactive Spatial Agent Console. The page uses the same `/runs` and artifact endpoints documented below and has no third-party runtime dependency.
 
+## Production deployment
+
+Production uses `production_api:app` behind Uvicorn, with GDAL/Rasterio/PROJ fixed inside the container. Copy `.env.production.example` to `.env.production`, provide the model settings without committing the file, place read-only GIS data under `data/`, and start with:
+
+```text
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+The container sets `GDAL_DATA`, `PROJ_LIB`, `SPATIAL_AGENT_DATASET_CONFIG`, and `SPATIAL_AGENT_REQUIRE_GIS` itself. It does not depend on `conda activate` or the operator's shell. Use `/health/live` for process liveness and `/health/ready` for GIS readiness; a missing required GIS dependency or data mount returns HTTP 503 from readiness.
+
 For local GIS backend demos, start the server from the GIS conda environment so GeoPandas and Rasterio are available:
 
 ~~~powershell

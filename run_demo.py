@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 from pathlib import Path
 
 from agent.llm_planner import LLMPlanner, OpenAIPlannerClient
@@ -14,7 +15,11 @@ from agent.tools import ToolRegistry
 def build_runtime(planner_name: str, backend_name: str = "memory") -> AgentRuntime:
     root = Path(__file__).parent
     if backend_name == "local":
-        catalog = DatasetCatalog.from_json(str(root / "config" / "datasets.local.example.json"))
+        catalog_path = os.environ.get(
+            "SPATIAL_AGENT_DATASET_CONFIG",
+            str(root / "config" / "datasets.local.example.json"),
+        )
+        catalog = DatasetCatalog.from_json(catalog_path)
         adapter = SpatialToolAdapter(HybridSpatialBackend(catalog))
     else:
         adapter = SpatialToolAdapter(InMemorySpatialBackend())

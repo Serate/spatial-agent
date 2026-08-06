@@ -62,6 +62,19 @@ class RasterMetadataBackend:
             entry, admin_geometry, geometry_crs, admin_name, max_files=max_files
         )
 
+    def get_zonal_buildability_analysis(
+        self,
+        admin_geometry: Dict[str, Any],
+        geometry_crs: str,
+        admin_name: str,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        dem = self._catalog.require("dem")
+        land_use = self._catalog.require("land_use")
+        return zonal_buildability_for_entries(
+            dem, land_use, admin_geometry, geometry_crs, admin_name, max_files=max_files
+        )
+
 
 def raster_metadata_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict[str, Any]:
     if max_files < 1:
@@ -457,6 +470,129 @@ def zonal_land_use_distribution_for_entry(
         "statistics": statistics,
         "metrics": {"backend": "rasterio", "analyzed_files": len(entry.files[:max_files]), "matched_files": len(matched_files), "geometry_crs": geometry_crs, "categorical": True},
     }
+
+
+def zonal_buildability_for_entries(
+    dem_entry: DatasetEntry,
+    land_use_entry: DatasetEntry,
+    geometry: Dict[str, Any],
+    geometry_crs: str,
+    admin_name: str,
+    max_files: int = 10,
+) -> Dict[str, Any]:
+    """Compute a deliberately simple, auditable demo buildability score.
+
+    The land-use codes follow the common GlobeLand30-style convention used by
+    the sample data. This is a screening result, not a regulatory planning result.
+    """
+    if max_files < 1:
+        raise ToolError("max_files must be at least 1")
+    try:
+        import numpy
+        import rasterio
+        from rasterio.mask import mask
+        from rasterio.transform import array_bounds
+        from rasterio.warp import Resampling, reproject, transform_bounds, transform_geom
+        from rasterio.windows import from_bounds
+    except ImportError as exc:
+        raise ToolError("rasterio and numpy are required for buildability analysis") from exc
+
+    slope_limit = 15.0
+    class_scores = {10: 0.3, 20: 0.1, 30: 0.4, 40: 0.2, 50: 0.0, 60: 0.0, 70: 0.1, 80: 0.0, 90: 0.8, 100: 0.0, 255: 0.0}
+    total_valid = 0
+    candidate_pixels = 0
+    class_counts = {}
+    matched_files = []
+    combined_bounds = None
+    crs_values = set()
+
+    for land_path in land_use_entry.files[:max_files]:
+        try:
+            with rasterio.open(land_path) as land_src:
+                projected_geometry = transform_geom(geometry_crs, land_src.crs, geometry, precision=6)
+                land_values, land_transform = mask(land_src, [projected_geometry], crop=True, filled=False)
+                land_band = land_values[0]
+                land_valid = ~land_band.mask if hasattr(land_band, "mask") else numpy.ones(land_band.shape, dtype=bool)
+                land_valid &= numpy.isfinite(land_band.data)
+                if not land_valid.any():
+                    continue
+                height, width = land_band.shape
+                left, bottom, right, top = array_bounds(height, width, land_transform)
+                dem_path = _find_overlapping_raster(dem_entry.files, land_src.crs, (left, bottom, right, top), rasterio)
+                if dem_path is None:
+                    continue
+                with rasterio.open(dem_path) as dem_src:
+                    dem_bounds = transform_bounds(land_src.crs, dem_src.crs, left, bottom, right, top)
+                    dem_window = from_bounds(*dem_bounds, transform=dem_src.transform)
+                    dem_data = dem_src.read(1, window=dem_window, masked=True)
+                    dem_transform = dem_src.window_transform(dem_window)
+                    destination = numpy.full((height, width), numpy.nan, dtype="float32")
+                    reproject(
+                        source=dem_data.filled(numpy.nan), destination=destination,
+                        src_transform=dem_transform, src_crs=dem_src.crs,
+                        dst_transform=land_transform, dst_crs=land_src.crs,
+                        resampling=Resampling.bilinear, src_nodata=numpy.nan, dst_nodata=numpy.nan,
+                    )
+                    fill = float(numpy.nanmedian(destination)) if numpy.isfinite(destination).any() else 0.0
+                    filled = numpy.where(numpy.isfinite(destination), destination, fill)
+                    dy, dx = numpy.gradient(filled, abs(float(land_transform.e)), abs(float(land_transform.a)))
+                    slope = numpy.degrees(numpy.arctan(numpy.sqrt(numpy.square(dx) + numpy.square(dy))))
+                    valid = land_valid & numpy.isfinite(slope)
+                    if not valid.any():
+                        continue
+                    codes = land_band.data.astype("int32", copy=False)
+                    total_valid += int(valid.sum())
+                    scores = numpy.vectorize(lambda value: class_scores.get(int(value), 0.0), otypes=[float])(codes)
+                    candidate = valid & (slope <= slope_limit) & (scores >= 0.4)
+                    candidate_pixels += int(candidate.sum())
+                    for value, count in zip(*numpy.unique(codes[valid], return_counts=True)):
+                        class_counts[str(int(value))] = class_counts.get(str(int(value)), 0) + int(count)
+                    matched_files.append(land_path)
+                    combined_bounds = _merge_bounds(combined_bounds, [float(left), float(bottom), float(right), float(top)])
+                    if land_src.crs:
+                        crs_values.add(str(land_src.crs))
+        except ValueError:
+            continue
+
+    if not total_valid:
+        statistics = {"error": "no overlapping DEM and land-use pixels intersected the selected administrative area", "valid_pixel_count": 0, "candidate_pixel_count": 0, "candidate_ratio": None, "land_use_classes": []}
+    else:
+        classes = [{"value": value, "pixel_count": count, "share": round(count / total_valid, 6), "demo_score": class_scores.get(int(value), 0.0)} for value, count in class_counts.items()]
+        classes.sort(key=lambda item: (-item["pixel_count"], item["value"]))
+        statistics = {
+            "slope_limit_degrees": slope_limit,
+            "valid_pixel_count": total_valid,
+            "candidate_pixel_count": candidate_pixels,
+            "candidate_ratio": round(candidate_pixels / total_valid, 6),
+            "land_use_classes": classes[:50],
+        }
+    return {
+        "dataset": "dem+land_use",
+        "admin_name": admin_name,
+        "file_count": len(land_use_entry.files),
+        "matched_files": matched_files,
+        "bounds": combined_bounds,
+        "crs": sorted(crs_values)[0] if len(crs_values) == 1 else sorted(crs_values),
+        "statistics": statistics,
+        "rules": {
+            "description": "Demo 筛选规则：坡度不超过 15 度，且土地利用演示评分不低于 0.4。",
+            "slope_limit_degrees": slope_limit,
+            "land_use_scores": {str(key): value for key, value in class_scores.items()},
+            "warning": "仅用于演示，不代表法定建设适宜性或规划许可结论。",
+        },
+        "metrics": {"backend": "rasterio", "analyzed_files": len(land_use_entry.files[:max_files]), "matched_files": len(matched_files), "geometry_crs": geometry_crs, "screening": True},
+    }
+
+
+def _find_overlapping_raster(paths, target_crs, bounds, rasterio):
+    from rasterio.warp import transform_bounds
+    for path in paths:
+        with rasterio.open(path) as src:
+            check_bounds = transform_bounds(target_crs, src.crs, *bounds)
+            if src.bounds.right <= check_bounds[0] or src.bounds.left >= check_bounds[2] or src.bounds.top <= check_bounds[1] or src.bounds.bottom >= check_bounds[3]:
+                continue
+            return path
+    return None
 
 
 def _numeric_summary(values, total_pixels: int) -> Dict[str, Any]:
