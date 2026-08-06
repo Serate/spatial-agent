@@ -852,3 +852,25 @@ Docker Desktop 安装完成后，可能因为 WSL 未安装而无法启动 Linux
 ### 预防
 
 部署检查必须分别验证 WSL/Docker 引擎可用性和 Docker registry/Conda 下载链路，不要把 Docker Hub 镜像源当成 WSL 安装源。
+
+## Docker BuildKit 构建无输出并长时间卡住
+
+### 现象
+
+生产镜像执行 `docker compose build` 或 `docker build` 时，命令保持运行但没有构建日志，镜像标签和创建时间也没有变化。即使使用国内基础镜像和 Conda/PyPI 镜像，现象仍可能出现。
+
+### 根因
+
+构建过程由 Docker Desktop 的 BuildKit 后端执行，命令行前端可能在基础镜像解析、Conda 元数据下载或构建缓存通信阶段等待；仅看到 Docker CLI 进程存在，不能说明镜像已经构建完成。
+
+### 诊断
+
+同时检查 BuildKit/Buildx 子进程、镜像的创建时间和 Docker build cache。不要在没有新镜像 ID 的情况下启动生产容器并宣称安全修复已生效。Compose 和原生 `docker build` 都复现时，问题位于 Docker Desktop/BuildKit 或其网络链路，而不是 Compose 文件本身。
+
+### 修复
+
+停止明确的遗留构建进程，保留已有镜像和数据；确认 `.dockerignore` 已提交后再重试构建。构建成功的判据是命令正常退出且镜像 ID/创建时间更新，随后再启动 Compose 并检查 `/health/ready`。
+
+### 预防
+
+生产镜像构建应设置明确超时并保存构建日志；部署验证必须区分“代码已推送”“镜像已生成”和“容器已就绪”三个状态。不要使用包含本地私有配置的旧镜像替代新镜像。
