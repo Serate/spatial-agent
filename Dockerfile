@@ -1,9 +1,9 @@
-FROM mambaorg/micromamba:1.5.8-jammy
+FROM docker.m.daocloud.io/mambaorg/micromamba:1.5.8-jammy
 
 USER root
 WORKDIR /app
 
-COPY environment.yml /tmp/environment.yml
+COPY environment.container.yml /tmp/environment.yml
 COPY requirements-prod.txt /tmp/requirements-prod.txt
 RUN micromamba create -y -f /tmp/environment.yml \
     && micromamba run -n spatial-agent-gis pip install -r /tmp/requirements-prod.txt \

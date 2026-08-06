@@ -838,3 +838,17 @@ GIS 服务统一通过项目启动脚本启动，不要让用户手工拼接 Pyt
 ### 预防
 
 开发脚本只用于本地演示；生产部署必须固定依赖、显式注入环境变量、隔离密钥和数据，并让 readiness 在 GIS 能力不可用时返回失败。
+
+## Docker Desktop 的 WSL 安装源与 Docker 镜像源是两条链路
+
+### 现象
+
+Docker Desktop 安装完成后，可能因为 WSL 未安装而无法启动 Linux 引擎。即使配置了 Docker 国内镜像，也不能解决 WSL 组件缺失。
+
+### 修复
+
+先启用 `Microsoft-Windows-Subsystem-Linux` 和 `VirtualMachinePlatform`，再通过国内 GitHub 加速地址安装新版 WSL MSI，并设置默认 WSL 版本为 2。Docker 镜像拉取则单独使用 DaoCloud 代理；项目容器的 Conda GIS 依赖使用清华 Conda 镜像。
+
+### 预防
+
+部署检查必须分别验证 WSL/Docker 引擎可用性和 Docker registry/Conda 下载链路，不要把 Docker Hub 镜像源当成 WSL 安装源。
