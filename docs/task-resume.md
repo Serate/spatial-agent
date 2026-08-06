@@ -272,6 +272,11 @@ Suggested next steps:
 - 后端在分块统计过程中保留受限样本，生成 10 桶值分布摘要。
 - Console 用原生 CSS 条形图展示分布，并明确样本统计口径。
 
+### M28: Console Conversation Controls
+
+- 增加新建会话和清空对话操作。
+- 新会话使用新的 session_id，保持服务端澄清状态隔离。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

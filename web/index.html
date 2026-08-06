@@ -28,6 +28,9 @@
     .chat { min-height:520px; display:grid; grid-template-rows:auto 1fr auto; overflow:hidden; }
     .chat-head { padding:16px 18px; border-bottom:1px solid #e4eaec; display:flex; justify-content:space-between; align-items:center; gap:12px; }
     .chat-head h3 { margin:0; font-size:15px; } .chat-head span { color:#6a7a80; font-size:12px; }
+    .chat-actions { display:flex; align-items:center; gap:8px; }
+    .chat-actions button { padding:7px 9px; background:#f2f6f7; color:#43555c; font-size:12px; }
+    .chat-actions button:hover { background:#e3edef; }
     .messages { padding:18px; overflow:auto; display:flex; flex-direction:column; gap:12px; max-height:520px; background:linear-gradient(#fbfcfc, #f6f9fa); }
     .msg { max-width:78%; display:grid; gap:5px; }
     .msg .role { font-size:11px; color:#6d7c81; font-weight:700; }
@@ -86,7 +89,7 @@
     <div class="content">
       <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">在对话框中输入问题，Agent 会生成计划、调用工具并返回结论。</p></div><span id="status" class="badge">待机</span></section>
       <section class="chat">
-        <div class="chat-head"><h3>对话</h3><span id="chatMeta">当前会话：console</span></div>
+        <div class="chat-head"><h3>对话</h3><div class="chat-actions"><span id="chatMeta">当前会话：console</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button></div></div>
         <div id="messages" class="messages" aria-live="polite"></div>
         <div class="composer">
           <textarea id="prompt" placeholder="例如：查询DEM栅格元数据"></textarea>
@@ -111,6 +114,9 @@
     const statusName=value=>statusNames[value]||value;
     function setStatus(value) { const el=$('status'); el.textContent=statusName(value); el.className='badge '+String(value).toLowerCase(); }
     function appendMessage(role, text) { const labels={user:'你',assistant:'空间智能体',system:'系统'}; const wrap=document.createElement('div'); wrap.className='msg '+role; wrap.innerHTML='<div class="role">'+labels[role]+'</div><div class="bubble">'+escapeHtml(text)+'</div>'; $('messages').appendChild(wrap); $('messages').scrollTop=$('messages').scrollHeight; }
+    function welcome() { appendMessage('assistant','你好，我是空间智能体。你可以直接问我 DEM、土地利用或行政区相关问题；如果需要多轮澄清，请保持同一个会话 ID。'); }
+    function newSession() { const id='console-'+Date.now().toString(36); $('session').value=id; $('chatMeta').textContent='当前会话：'+id; $('messages').innerHTML=''; $('answer').textContent='还没有运行记录。'; $('answer').className='answer muted'; $('error').innerHTML=''; $('goal').textContent='尚未生成任务计划。'; $('steps').innerHTML='<li class="muted">暂无工具步骤。</li>'; $('trace').innerHTML='<li class="muted">暂无执行轨迹。</li>'; $('links').innerHTML=''; $('map').innerHTML='<div class="map-empty">导出本地行政区查询后，可在此预览几何形状。</div>'; $('rasterStats').innerHTML='<div class="metric"><b>-</b><small>等待统计分析</small></div>'; welcome(); }
+    function clearChat() { $('messages').innerHTML=''; welcome(); $('prompt').focus(); }
     function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>'<div class="metric"><b>'+escapeHtml(x[1])+'</b><small>'+escapeHtml(x[0])+'</small></div>').join(''); }
     function steps(data) { const list=data.steps||[]; $('steps').innerHTML=list.length?list.map(s=>'<li><div class="step-head"><span class="step-tool">'+escapeHtml(s.tool)+'</span><span class="step-status">'+escapeHtml(statusName(s.status))+'</span></div><div class="muted">'+escapeHtml(s.latency_ms||'-')+' 毫秒 · '+escapeHtml(s.attempts||0)+' 次尝试</div></li>').join(''):'<li class="muted">暂无工具步骤。</li>'; }
     function trace(data) { $('trace').innerHTML=(data.trace_summary||[]).map(x=>'<li>'+escapeHtml(x)+'</li>').join('')||'<li class="muted">暂无执行轨迹。</li>'; }
@@ -126,8 +132,10 @@
     $('send').addEventListener('click',()=>sendChat());
     $('prompt').addEventListener('keydown',event=>{ if(event.key==='Enter'&&!event.shiftKey){ event.preventDefault(); sendChat(); } });
     $('session').addEventListener('input',()=>{$('chatMeta').textContent='当前会话：'+$('session').value;});
+    $('newSession').addEventListener('click',newSession);
+    $('clearChat').addEventListener('click',clearChat);
     document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{ $('prompt').value=button.dataset.request; $('prompt').focus(); }));
-    appendMessage('assistant','你好，我是空间智能体。你可以直接问我 DEM、土地利用或行政区相关问题；如果需要多轮澄清，请保持同一个会话 ID。');
+    welcome();
     loadHealth();
   </script>
 </body>

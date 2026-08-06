@@ -136,6 +136,9 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("真实大模型", body)
         self.assertIn("对话", body)
         self.assertIn("发送", body)
+        self.assertIn("新建会话", body)
+        self.assertIn("清空对话", body)
+        self.assertIn("function newSession", body)
         self.assertIn("空间智能体", body)
         self.assertIn("data-request", body)
 
