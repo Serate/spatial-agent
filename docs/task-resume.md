@@ -283,6 +283,11 @@ Suggested next steps:
 - 验证模型工具选择、GIS 后端执行、真实统计结果和中文答案。
 - 默认跳过，只有显式设置 `SPATIAL_AGENT_LIVE_OPENAI=1` 才访问 provider。
 
+### M30: Per-step Result Summary
+
+- 在 Console 任务步骤中展示每个工具的关键结构化结果。
+- 失败步骤显示业务错误，避免执行轨迹只有生命周期状态而缺少实际结果。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example
