@@ -305,6 +305,11 @@ Suggested next steps:
 - 多步骤工具失败后 fail-fast。
 - 保留已完成结果，并将未执行步骤标记为 BLOCKED。
 
+### M34: Retry Failed Run
+
+- Runtime 支持从第一个失败步骤恢复。
+- API 和 Console 提供失败运行重试入口。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

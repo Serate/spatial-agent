@@ -58,6 +58,10 @@ Raster statistics also include a bounded `statistics.distribution` summary. Its 
 
 For administrative-area raster analysis, use a request such as `分析洪山区DEM高程概况`. The planner selects `get_zonal_raster_statistics`, which resolves the named area, converts its CRS for each raster file, and computes masked statistics only where the geometry intersects the raster.
 
+## POST /runs/{run_id}/retry
+
+Retries a failed run from its first failed step. The runtime reuses completed step results and does not call the Planner again. The request body accepts the same `planner`, `backend`, `export_artifact`, and `export_geojson` fields as needed.
+
 Successful response shape:
 
 ~~~json

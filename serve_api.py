@@ -36,20 +36,35 @@ class AgentApiHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != "/runs":
+        is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
+        if parsed.path != "/runs" and not is_retry:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
-            result = self.service.run(
-                request=payload.get("request", ""),
-                session_id=payload.get("session_id", "default"),
-                planner=payload.get("planner", "rule"),
-                backend=payload.get("backend", "memory"),
-                export_artifact=bool(payload.get("export_artifact", False)),
-                export_geojson=bool(payload.get("export_geojson", False)),
-                geojson_max_features=payload.get("geojson_max_features", 100),
-            )
+            if is_retry:
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) != 3 or not parts[1] or parts[2] != "retry":
+                    self._write_json(404, {"error": "not found"})
+                    return
+                result = self.service.retry(
+                    run_id=parts[1],
+                    planner=payload.get("planner", "rule"),
+                    backend=payload.get("backend", "memory"),
+                    export_artifact=bool(payload.get("export_artifact", False)),
+                    export_geojson=bool(payload.get("export_geojson", False)),
+                    geojson_max_features=payload.get("geojson_max_features", 100),
+                )
+            else:
+                result = self.service.run(
+                    request=payload.get("request", ""),
+                    session_id=payload.get("session_id", "default"),
+                    planner=payload.get("planner", "rule"),
+                    backend=payload.get("backend", "memory"),
+                    export_artifact=bool(payload.get("export_artifact", False)),
+                    export_geojson=bool(payload.get("export_geojson", False)),
+                    geojson_max_features=payload.get("geojson_max_features", 100),
+                )
         except ValueError as exc:
             self._write_json(400, {"error": str(exc)})
             return

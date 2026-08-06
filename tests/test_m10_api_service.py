@@ -141,6 +141,8 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("function newSession", body)
         self.assertIn("function stepResult", body)
         self.assertIn("已阻塞", body)
+        self.assertIn("retryRun", body)
+        self.assertIn("重试失败步骤", body)
         self.assertIn("依赖：", body)
         self.assertIn("有效像元", body)
         self.assertIn("空间智能体", body)
@@ -219,6 +221,30 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("backend must be one of", bad_backend["error"])
         self.assertIn("planner must be one of", bad_planner["error"])
 
+    def test_http_api_retry_route_is_available(self):
+        class TestHandler(AgentApiHandler):
+            class FakeService:
+                def retry(self, **kwargs):
+                    return {"run_id": kwargs["run_id"], "status": "COMPLETED"}
+
+            service = FakeService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            payload = _post_json(
+                server.server_address[1],
+                {"planner": "rule", "backend": "memory"},
+                path="/runs/run-1/retry",
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload, {"run_id": "run-1", "status": "COMPLETED"})
+
 
 def _get_json(port, path, expected_status=200):
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
@@ -233,13 +259,13 @@ def _get_json(port, path, expected_status=200):
         connection.close()
 
 
-def _post_json(port, payload, expected_status=200):
+def _post_json(port, payload, expected_status=200, path="/runs"):
     body = json.dumps(payload).encode("utf-8")
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     try:
         connection.request(
             "POST",
-            "/runs",
+            path,
             body=body,
             headers={"Content-Type": "application/json"},
         )

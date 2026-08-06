@@ -20,11 +20,17 @@ class FailurePlanner:
 
 
 class FailureAdapter:
+    def __init__(self):
+        self.calls = {}
+
     def invoke(self, name, arguments):
+        self.calls[name] = self.calls.get(name, 0) + 1
         if name == "make_value":
             return {"value": "retained"}
         if name == "fail_value":
-            raise ToolError("simulated backend failure")
+            if self.calls[name] == 1:
+                raise ToolError("simulated backend failure")
+            return {"value": "recovered"}
         if name == "use_value":
             return {"ok": True}
         raise AssertionError(name)
@@ -38,12 +44,14 @@ def registry():
         }
         for name in ("make_value", "fail_value", "use_value")
     }
-    return ToolRegistry(definitions, FailureAdapter())
+    adapter = FailureAdapter()
+    return ToolRegistry(definitions, adapter), adapter
 
 
 class M33FailureStateTests(unittest.TestCase):
     def test_failed_run_retains_completed_result_and_marks_remaining_blocked(self):
-        result = AgentRuntime(FailurePlanner(), registry(), max_retries=0).run("fail")
+        registry_instance, _ = registry()
+        result = AgentRuntime(FailurePlanner(), registry_instance, max_retries=0).run("fail")
 
         self.assertEqual(result.status.value, "FAILED")
         self.assertEqual(result.steps[0].status, "COMPLETED")
@@ -55,6 +63,19 @@ class M33FailureStateTests(unittest.TestCase):
         trace = format_trace(result)
         self.assertTrue(any("simulated backend failure" in line for line in trace))
         self.assertTrue(any("blocked" in line for line in trace))
+
+    def test_retry_reuses_completed_step_and_recovers_failed_chain(self):
+        registry_instance, adapter = registry()
+        runtime = AgentRuntime(FailurePlanner(), registry_instance, max_retries=0)
+        failed = runtime.run("fail")
+
+        recovered = runtime.retry_failed(failed.run_id)
+
+        self.assertEqual(recovered.status.value, "COMPLETED")
+        self.assertEqual([step.status for step in recovered.steps], ["COMPLETED"] * 3)
+        self.assertEqual(adapter.calls["make_value"], 1)
+        self.assertEqual(adapter.calls["fail_value"], 2)
+        self.assertEqual(adapter.calls["use_value"], 1)
 
 
 if __name__ == "__main__":
