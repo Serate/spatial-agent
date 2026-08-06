@@ -84,6 +84,34 @@ def run(payload: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.get("/runs")
+def list_runs(limit: int = 20):
+    try:
+        return service.list_runs(limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/metrics")
+def metrics():
+    return service.metrics()
+
+
+@app.post("/comparisons")
+def compare(payload: Dict[str, Any]):
+    try:
+        return service.compare_buildability(
+            admin_name=payload.get("admin_name", ""),
+            thresholds=payload.get("thresholds", []),
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "local"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.post("/runs/{run_id}/retry")
 def retry(run_id: str, payload: Dict[str, Any]):
     try:

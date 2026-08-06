@@ -382,6 +382,15 @@ For each milestone:
 
 Prefer small, explainable increments over large rewrites.
 
+## Current Extended Demo Capabilities
+
+- 同一 session_id 支持基于上一轮请求的受控追问，例如“继续分析这个结果”。
+- `POST /comparisons` 支持同一行政区的多个坡度阈值建设适宜性对比。
+- Console 支持阈值对比表、历史任务列表和运行指标摘要。
+- Leaflet 支持纯矢量模式与可选 OpenStreetMap 底图，外部网络不可用时不影响矢量结果。
+- `GET /runs` 返回历史 artifact 摘要，`GET /metrics` 返回运行次数、状态计数和累计 Token。
+- 生产接口已验证洪山区三个坡度阈值均可完成真实 GIS 分析。
+
 ## Development Issues Log
 
 - 新对话恢复优先阅读 docs/agent-context-resume.md。

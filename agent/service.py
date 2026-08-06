@@ -108,6 +108,51 @@ class AgentService:
             "current_status": result.status.value,
         }
 
+    def list_runs(self, limit: int = 20) -> Dict:
+        return {"runs": self._artifact_store.list_runs(limit=limit)}
+
+    def metrics(self) -> Dict:
+        return self._artifact_store.metrics()
+
+    def compare_buildability(
+        self,
+        admin_name: str,
+        thresholds,
+        planner: str = "rule",
+        backend: str = "local",
+    ) -> Dict:
+        if not isinstance(admin_name, str) or not admin_name.strip():
+            raise ValueError("admin_name must be a non-empty string")
+        if not isinstance(thresholds, list) or not thresholds or len(thresholds) > 6:
+            raise ValueError("thresholds must contain 1 to 6 values")
+        normalized = []
+        for threshold in thresholds:
+            value = float(threshold)
+            if not 1 <= value <= 45:
+                raise ValueError("slope thresholds must be between 1 and 45 degrees")
+            if value not in normalized:
+                normalized.append(value)
+        rows = []
+        for value in normalized:
+            result = self.run(
+                f"分析{admin_name}建设适宜性，坡度不超过{value:g}度",
+                session_id=f"comparison-{admin_name}-{value:g}",
+                planner=planner,
+                backend=backend,
+            )
+            step = next((item for item in result.get("steps", []) if item.get("tool") == "get_zonal_buildability_analysis"), {})
+            tool_result = step.get("result") or {}
+            statistics = tool_result.get("statistics") or {}
+            rows.append({
+                "slope_limit_degrees": value,
+                "status": result.get("status"),
+                "candidate_pixel_count": statistics.get("candidate_pixel_count"),
+                "valid_pixel_count": statistics.get("valid_pixel_count"),
+                "candidate_ratio": statistics.get("candidate_ratio"),
+                "error": statistics.get("error") or result.get("error"),
+            })
+        return {"admin_name": admin_name, "thresholds": normalized, "results": rows}
+
     def _runtime(self, planner: str, backend: str):
         key = _runtime_key(planner, backend)
         if key not in self._runtimes:

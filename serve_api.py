@@ -21,6 +21,12 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             payload.update(environment_status())
             self._write_json(200, payload)
             return
+        if parsed.path == "/runs":
+            self._write_json(200, self.service.list_runs())
+            return
+        if parsed.path == "/metrics":
+            self._write_json(200, self.service.metrics())
+            return
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")
             return
@@ -38,12 +44,20 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
-        if parsed.path != "/runs" and not is_retry and not is_cancel:
+        is_comparison = parsed.path == "/comparisons"
+        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
-            if is_retry or is_cancel:
+            if is_comparison:
+                result = self.service.compare_buildability(
+                    admin_name=payload.get("admin_name", ""),
+                    thresholds=payload.get("thresholds", []),
+                    planner=payload.get("planner", "rule"),
+                    backend=payload.get("backend", "local"),
+                )
+            elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")
                 expected_action = "retry" if is_retry else "cancel"
                 if len(parts) != 3 or not parts[1] or parts[2] != expected_action:

@@ -35,6 +35,7 @@ class PendingClarification:
 class InMemoryConversationStore:
     def __init__(self):
         self._pending: Dict[str, PendingClarification] = {}
+        self._last_requests: Dict[str, str] = {}
 
     def get_pending(self, session_id: str) -> Optional[PendingClarification]:
         return self._pending.get(session_id)
@@ -44,6 +45,12 @@ class InMemoryConversationStore:
 
     def clear_pending(self, session_id: str) -> None:
         self._pending.pop(session_id, None)
+
+    def save_completed(self, session_id: str, request: str) -> None:
+        self._last_requests[session_id] = request
+
+    def get_last_request(self, session_id: str) -> Optional[str]:
+        return self._last_requests.get(session_id)
 
 
 class AgentRuntime:
@@ -117,6 +124,7 @@ class AgentRuntime:
             result.status = RunStatus.COMPLETED
             result.answer = self._answer_composer.compose(result)
             self._conversation_store.clear_pending(session_id)
+            self._conversation_store.save_completed(session_id, resolved_request)
         except ClarificationNeeded as exc:
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
@@ -218,9 +226,13 @@ class AgentRuntime:
 
     def _resolve_request(self, request: str, session_id: str) -> str:
         pending = self._conversation_store.get_pending(session_id)
-        if pending is None:
-            return request
-        return request.strip() + " " + pending.request.strip()
+        if pending is not None:
+            return request.strip() + " " + pending.request.strip()
+        previous = self._conversation_store.get_last_request(session_id)
+        follow_up = ("继续", "刚才", "上面", "这个结果", "该结果", "改成", "调整为", "换成")
+        if previous and any(term in request for term in follow_up):
+            return request.strip() + "。基于上一轮请求：" + previous.strip()
+        return request
 
     def _planner_metrics(self) -> Optional[Dict]:
         metrics = getattr(self._planner, "metrics", None)

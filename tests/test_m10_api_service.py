@@ -191,6 +191,15 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertEqual(second["status"], "COMPLETED")
         self.assertIn("memory://range/admin_areas", second["answer"])
 
+    def test_runtime_reuses_completed_request_for_follow_up(self):
+        runtime = AgentService()._runtime("rule", "memory")
+        first = runtime.run("查询洪山区行政区边界", session_id="follow-up")
+        second = runtime.run("继续分析这个结果", session_id="follow-up")
+
+        self.assertEqual(first.status.value, "COMPLETED")
+        self.assertEqual(second.status.value, "COMPLETED")
+        self.assertIn("洪山区", second.resolved_request)
+
     def test_http_api_rejects_bad_request_payloads(self):
         class TestHandler(AgentApiHandler):
             service = AgentService()
@@ -274,6 +283,15 @@ class M10HttpApiTests(unittest.TestCase):
             thread.join(timeout=2)
 
         self.assertEqual(payload["status"], "CANCEL_REQUESTED")
+
+    def test_service_compares_buildability_thresholds(self):
+        result = AgentService().compare_buildability(
+            "洪山区", [15, 20], backend="memory"
+        )
+
+        self.assertEqual(result["thresholds"], [15.0, 20.0])
+        self.assertEqual(len(result["results"]), 2)
+        self.assertEqual(result["results"][0]["status"], "COMPLETED")
 
 
 def _get_json(port, path, expected_status=200):

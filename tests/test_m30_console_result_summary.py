@@ -19,6 +19,9 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "function buildabilityStats(data)",
             "请将空间后端切换为“本地 GIS”",
             "function rasterStats(data)",
+            "阈值结果对比",
+            "function compareBuildability()",
+            "candidate_pixel_count",
             "geometry_source==='raster-buildability-screening'",
             "空间预览加载失败：",
             "行政区边界",
@@ -32,6 +35,13 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "leaflet-overlay-pane svg",
             "fillColor:'#e09a5b'",
             "fillColor:'#87c7d1'",
+            "OpenStreetMap",
+            "纯矢量",
+            "历史任务",
+            "function loadHistory()",
+            "/runs?limit=20",
+            "runtimeMetrics",
+            "fetch('/metrics')",
         ):
             self.assertIn(marker, self.html)
 

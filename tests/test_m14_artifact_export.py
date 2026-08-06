@@ -32,8 +32,17 @@ class M14ArtifactExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AgentService(artifact_store=ArtifactStore(tmpdir))
             result = service.run(ADMIN_QUERY)
-            self.assertNotIn("artifact_ref", result)
-            self.assertEqual(list(Path(tmpdir).glob("*.json")), [])
+        self.assertNotIn("artifact_ref", result)
+        self.assertEqual(list(Path(tmpdir).glob("*.json")), [])
+
+    def test_artifact_store_reports_run_metrics(self):
+        with tempfile.TemporaryDirectory() as root:
+            store = ArtifactStore(root=root)
+            store.write_run({"run_id": "metrics-1", "status": "COMPLETED", "planner_metrics": {"usage": {"total_tokens": 12}}})
+            metrics = store.metrics()
+
+        self.assertEqual(metrics["run_count"], 1)
+        self.assertEqual(metrics["total_tokens"], 12)
 
     def test_http_api_can_export_run_artifact(self):
         with tempfile.TemporaryDirectory() as tmpdir:
