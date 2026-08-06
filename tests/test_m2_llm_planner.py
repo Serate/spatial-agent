@@ -139,6 +139,17 @@ class M2LLMPlannerTests(unittest.TestCase):
         self.assertEqual(plan.steps, [])
         self.assertEqual(plan.output["message"], "这是一个通用回答。")
 
+    def test_direct_answer_cannot_hide_tool_steps(self):
+        client = FakeLLMClient({
+            "outcome": "direct_answer",
+            "goal": "answer general question",
+            "message": "不应执行工具。",
+            "steps": [{"id": "hidden", "tool": "get_raster_metadata", "args": {"dataset": "dem"}}],
+            "output": {"type": "direct_answer"},
+        })
+        with self.assertRaises(PlanningError):
+            LLMPlanner(client, tool_names()).plan("查询 DEM")
+
     def test_llm_planner_normalizes_admin_range_shortcut_arguments(self):
         client = FakeLLMClient(
             {

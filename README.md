@@ -132,6 +132,7 @@
 - 新增 `scripts/start_console.ps1`，可用 `-Mode memory` 启动离线演示，用 `-Mode gis` 从 `spatial-agent-gis` 环境启动真实本地 GIS 演示。
 - 新增生产部署基线：`Dockerfile`、`docker-compose.prod.yml`、`production_api.py` 和 `/health/live`、`/health/ready`。生产容器固定 GIS 依赖，不依赖操作员手动激活 Conda。
 - 生产部署使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d`，支持只读挂载宿主机 GIS 数据，并验证 Linux GDAL/PROJ 数据目录。
+- 当前生产 demo 使用单 Uvicorn worker，因为会话和运行记录仍是进程内存；需要横向扩展时应先迁移到共享状态存储。
 
 ## M23 当前能力
 

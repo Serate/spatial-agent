@@ -96,6 +96,8 @@ def parse_task_plan(payload: Mapping[str, Any], allowed_tools: Iterable[str]) ->
     if not steps and output.get("type") != "direct_answer":
         raise PlanningError("planner output must include at least one step")
     if output.get("type") == "direct_answer":
+        if steps:
+            raise PlanningError("direct_answer must not include tool steps")
         message = payload.get("message") or output.get("message")
         if not isinstance(message, str) or not message.strip():
             raise PlanningError("direct_answer requires a non-empty message")
