@@ -17,6 +17,7 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "建设适宜性筛选",
             "function stepResult(result)",
             "function buildabilityStats(data)",
+            "请将空间后端切换为“本地 GIS”",
             "function rasterStats(data)",
         ):
             self.assertIn(marker, self.html)

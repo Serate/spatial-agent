@@ -33,6 +33,13 @@ class AnswerComposer:
         buildability = _first_result(steps, "get_zonal_buildability_analysis")
         area = (elevation or slope or land_use or {}).get("admin_name", "指定区域")
         parts = [f"{area}综合空间分析已完成。"]
+        errors = [
+            item.get("statistics", {}).get("error", "")
+            for item in (elevation, slope, land_use, buildability)
+            if item
+        ]
+        if any("in-memory backend" in error for error in errors):
+            parts.insert(0, "当前使用内存演示后端，未读取真实 GIS 栅格像元；请切换到本地 GIS 后端。")
         if elevation:
             stats = elevation.get("statistics", {})
             if stats.get("error"):

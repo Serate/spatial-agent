@@ -35,13 +35,22 @@ class M18GeoJSONExportTests(unittest.TestCase):
         self.assertNotIn("args", payload["features"][0]["properties"])
         self.assertEqual(payload["features"][0]["properties"]["file_count"], 9)
 
-    def test_rejects_summary_over_size_limit(self):
-        with self.assertRaises(ValueError):
-            export_run_summary(
-                {"run_id": "run-1", "steps": [{"error": "x" * 1000}]},
-                root=tempfile.gettempdir(),
-                max_bytes=10,
-            )
+    def test_truncates_geometry_summary_to_size_limit(self):
+        path = export_run_summary(
+            {"run_id": "run-1", "steps": []},
+            root=tempfile.gettempdir(),
+            max_bytes=2000,
+            geometry_features=[
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Polygon", "coordinates": [[[float(i), 0], [float(i), 1], [float(i + 1), 1], [float(i + 1), 0], [float(i), 0]] for i in range(500)]},
+                    "properties": {},
+                }
+            ],
+        )
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+
+        self.assertTrue(payload["properties"]["geometry_truncated"])
 
     def test_service_returns_geojson_ref(self):
         with tempfile.TemporaryDirectory() as tmpdir:

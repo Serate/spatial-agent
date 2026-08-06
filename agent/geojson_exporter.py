@@ -27,10 +27,37 @@ def export_run_summary(
             "geometry": None,
             "properties": {"run_id": run_id, "status": payload.get("status")},
         }]
+    properties = {"run_id": run_id, "status": payload.get("status")}
+    selected = []
+    truncated = False
+    for feature in features:
+        candidate = {
+            "type": "FeatureCollection",
+            "properties": properties,
+            "features": selected + [feature],
+        }
+        encoded = json.dumps(candidate, ensure_ascii=False, indent=2).encode("utf-8")
+        if len(encoded) <= max_bytes:
+            selected.append(feature)
+            continue
+        truncated = True
+        if not selected:
+            selected.append(
+                {
+                    "type": "Feature",
+                    "geometry": None,
+                    "properties": {
+                        **(feature.get("properties") or {}),
+                        "geometry_truncated": True,
+                    },
+                }
+            )
+        break
+    properties["geometry_truncated"] = truncated
     document = {
         "type": "FeatureCollection",
-        "properties": {"run_id": run_id, "status": payload.get("status")},
-        "features": features,
+        "properties": properties,
+        "features": selected,
     }
     encoded = json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8")
     if len(encoded) > max_bytes:
