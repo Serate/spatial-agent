@@ -48,6 +48,7 @@ class M4EvaluationTests(unittest.TestCase):
         self.assertIn("avg_total_latency_ms", report)
         self.assertIn("lineage_valid_rate", report)
         self.assertIn("total_tokens", report)
+        self.assertIn("planner_error_type", encoded)
 
 
 if __name__ == "__main__":

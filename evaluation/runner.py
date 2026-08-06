@@ -21,6 +21,7 @@ class EvaluationResult:
     total_latency_ms: float
     planner_latency_ms: float
     total_tokens: int
+    planner_error_type: str
     lineage_valid: bool
     error: str
 
@@ -39,6 +40,7 @@ class EvaluationResult:
             "total_latency_ms": self.total_latency_ms,
             "planner_latency_ms": self.planner_latency_ms,
             "total_tokens": self.total_tokens,
+            "planner_error_type": self.planner_error_type,
             "lineage_valid": self.lineage_valid,
             "error": self.error,
         }
@@ -66,6 +68,7 @@ def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult
     )
     planner_latency_ms = round(float(planner_metrics.get("latency_ms") or 0), 3)
     total_tokens = int(usage.get("total_tokens") or 0)
+    planner_error_type = str(planner_metrics.get("error_type") or "")
     return EvaluationResult(
         case_id=case["id"],
         status=run.status.value,
@@ -80,6 +83,7 @@ def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult
         total_latency_ms=total_latency_ms,
         planner_latency_ms=planner_latency_ms,
         total_tokens=total_tokens,
+        planner_error_type=planner_error_type,
         lineage_valid=_lineage_valid(run),
         error=run.error or "",
     )
