@@ -874,3 +874,21 @@ Docker Desktop 安装完成后，可能因为 WSL 未安装而无法启动 Linux
 ### 预防
 
 生产镜像构建应设置明确超时并保存构建日志；部署验证必须区分“代码已推送”“镜像已生成”和“容器已就绪”三个状态。不要使用包含本地私有配置的旧镜像替代新镜像。
+
+## Compose env_file 不参与宿主机卷路径插值
+
+### 现象
+
+`.env.production` 中已经设置了本地 GIS 数据目录，但容器仍然挂载项目下的空 `./data`，健康检查显示目录存在，真实工具调用却返回 `dataset has no files`。
+
+### 根因
+
+Compose 的 `env_file` 只负责向容器注入环境变量，不负责解析 Compose 文件中的 `${VAR}` 宿主机卷路径。卷路径插值发生在 Compose 启动命令解析阶段。
+
+### 修复
+
+使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up ...`，让同一配置文件参与宿主机路径插值；生产数据仍以只读 bind mount 提供，不复制进镜像。
+
+### 预防
+
+部署文档必须明确区分“容器环境变量”和“Compose 宿主机插值变量”，并用真实 GIS 请求验证挂载内容，而不能只检查目录是否存在。

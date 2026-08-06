@@ -6,7 +6,7 @@ services:
     env_file:
       - .env.production
     volumes:
-      - ./data:/data:ro
+      - ${SPATIAL_AGENT_HOST_DATASET_ROOT:-./data}:/data:ro
       - ./outputs:/app/outputs
     restart: unless-stopped
     healthcheck:

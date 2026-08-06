@@ -26,7 +26,8 @@ RUN micromamba install -y --strict-channel-priority -n spatial-agent-gis \
         geopandas shapely pyogrio fiona \
     && micromamba clean --all --yes
 
-RUN micromamba run -n spatial-agent-gis pip install --no-cache-dir -r /tmp/requirements-prod.txt \
+RUN PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    micromamba run -n spatial-agent-gis pip install --no-cache-dir -r /tmp/requirements-prod.txt \
     && micromamba clean --all --yes
 
 COPY . /app

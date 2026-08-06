@@ -12,11 +12,13 @@ Open `http://127.0.0.1:8088/` for the interactive Spatial Agent Console. The pag
 
 ## Production deployment
 
-Production uses `production_api:app` behind Uvicorn, with GDAL/Rasterio/PROJ fixed inside the container. Copy `.env.production.example` to `.env.production`, provide the model settings without committing the file, place read-only GIS data under `data/`, and start with:
+Production uses `production_api:app` behind Uvicorn, with GDAL/Rasterio/PROJ fixed inside the container. Copy `.env.production.example` to `.env.production`, set `SPATIAL_AGENT_HOST_DATASET_ROOT` to the host GIS data directory, provide model settings without committing the file, and start with:
 
 ```text
-docker compose -f docker-compose.prod.yml up --build -d
+docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
 ```
+
+`SPATIAL_AGENT_HOST_DATASET_ROOT` is used by Compose for the read-only `/data` bind mount. The `--env-file` option is required because a Compose `env_file` passes variables into the container but does not participate in host-side volume interpolation.
 
 The container uses a domestic Docker proxy for the base image and Tsinghua University's Conda mirror for GIS packages. It sets `GDAL_DATA`, `PROJ_LIB`, `SPATIAL_AGENT_DATASET_CONFIG`, and `SPATIAL_AGENT_REQUIRE_GIS` itself. It does not depend on `conda activate` or the operator's shell. Use `/health/live` for process liveness and `/health/ready` for GIS readiness; a missing required GIS dependency or data mount returns HTTP 503 from readiness.
 
