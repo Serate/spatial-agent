@@ -66,6 +66,29 @@ class M32ResultReferenceTests(unittest.TestCase):
                 {"source": {"value": "洪山区"}},
             )
 
+    def test_runtime_rejects_dependency_on_later_step(self):
+        class OutOfOrderPlanner(Planner):
+            def plan(self, request):
+                return TaskPlan(
+                    goal="out of order",
+                    steps=[
+                        PlanStep("consumer", "use_value", {}, ["source"]),
+                        PlanStep("source", "make_value", {}, []),
+                    ],
+                )
+
+        registry = ToolRegistry(
+            {
+                "make_value": {"name": "make_value", "input_schema": {"type": "object"}},
+                "use_value": {"name": "use_value", "input_schema": {"type": "object"}},
+            },
+            BindingAdapter(),
+        )
+        result = AgentRuntime(OutOfOrderPlanner(), registry).run("order")
+
+        self.assertEqual(result.status.value, "FAILED")
+        self.assertIn("earlier step", result.error)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -232,12 +232,19 @@ class AgentRuntime:
         if len(plan.steps) > self._max_steps:
             raise ToolError("Plan exceeds the maximum step limit.")
         known = {step.id for step in plan.steps}
-        for step in plan.steps:
+        positions = {step.id: index for index, step in enumerate(plan.steps)}
+        for index, step in enumerate(plan.steps):
             if step.tool not in self._registry.names:
                 raise ToolError("Plan selected an unregistered tool: " + step.tool)
             missing = [dependency for dependency in step.depends_on if dependency not in known]
             if missing:
                 raise ToolError("Plan has unknown dependencies: " + ", ".join(missing))
+            future = [dependency for dependency in step.depends_on if positions[dependency] >= index]
+            if future:
+                raise ToolError(
+                    "Plan dependency must refer to an earlier step: "
+                    + ", ".join(future)
+                )
 
     def _execute_step(
         self,
