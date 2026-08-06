@@ -2,6 +2,7 @@ from typing import Dict, Tuple
 
 from agent.artifact_store import ArtifactStore
 from agent.geojson_exporter import export_run_summary
+from agent.provenance import build_provenance
 from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 
@@ -31,6 +32,7 @@ class AgentService:
         result = runtime.run(request, session_id=session_id)
         payload = result.to_dict()
         payload["trace_summary"] = format_trace(result)
+        payload["provenance"] = build_provenance(payload)
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
         if export_geojson:
@@ -61,6 +63,7 @@ class AgentService:
         result = runtime.retry_failed(run_id)
         payload = result.to_dict()
         payload["trace_summary"] = format_trace(result)
+        payload["provenance"] = build_provenance(payload)
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
         if export_geojson:

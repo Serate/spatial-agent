@@ -310,6 +310,11 @@ Suggested next steps:
 - Runtime 支持从第一个失败步骤恢复。
 - API 和 Console 提供失败运行重试入口。
 
+### M35: Run Provenance
+
+- API/artifact 记录安全的步骤血缘摘要。
+- Console 展示依赖、输入绑定、执行策略和结果引用。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example

@@ -78,7 +78,10 @@ class AgentRuntime:
             self._validate_plan(plan)
             result.plan = plan
             result.status = RunStatus.EXECUTING
-            result.steps = [StepRun(step.id, step.tool, step.args) for step in plan.steps]
+            result.steps = [
+                StepRun(step.id, step.tool, step.args, list(step.depends_on))
+                for step in plan.steps
+            ]
             completed: Set[str] = set()
             completed_results: Dict[str, Dict[str, Any]] = {}
             for index, (step_run, step) in enumerate(zip(result.steps, plan.steps)):

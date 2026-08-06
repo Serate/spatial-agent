@@ -143,6 +143,8 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("已阻塞", body)
         self.assertIn("retryRun", body)
         self.assertIn("重试失败步骤", body)
+        self.assertIn("运行血缘", body)
+        self.assertIn("function provenance", body)
         self.assertIn("依赖：", body)
         self.assertIn("有效像元", body)
         self.assertIn("空间智能体", body)

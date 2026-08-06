@@ -34,6 +34,7 @@ class StepRun:
     id: str
     tool: str
     args: Dict[str, Any]
+    depends_on: List[str] = field(default_factory=list)
     status: str = "PENDING"
     attempts: int = 0
     result: Optional[Dict[str, Any]] = None

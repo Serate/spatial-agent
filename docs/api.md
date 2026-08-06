@@ -81,6 +81,8 @@ Successful response shape:
 }
 ~~~
 
+复合任务还会返回安全的 `provenance` 字段，包含 `execution_policy` 和每个步骤的 `depends_on`、`input_bindings`、`result_ref` 与受限统计摘要。它不包含原始工具参数、完整几何或凭据。
+
 ## GET Artifact Files
 
 Exported files can be read through the API without exposing arbitrary filesystem paths:
