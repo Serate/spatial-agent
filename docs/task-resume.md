@@ -277,6 +277,12 @@ Suggested next steps:
 - 增加新建会话和清空对话操作。
 - 新会话使用新的 session_id，保持服务端澄清状态隔离。
 
+### M29: Live Zonal Analysis Smoke
+
+- 增加真实模型“分析洪山区 DEM 高程概况”的可选端到端测试。
+- 验证模型工具选择、GIS 后端执行、真实统计结果和中文答案。
+- 默认跳过，只有显式设置 `SPATIAL_AGENT_LIVE_OPENAI=1` 才访问 provider。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example
