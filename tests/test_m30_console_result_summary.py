@@ -23,6 +23,9 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "空间预览加载失败：",
             "行政区边界",
             "map-legend",
+            "leafletMapPreview",
+            "L.control.layers",
+            "交互式空间预览",
         ):
             self.assertIn(marker, self.html)
 
