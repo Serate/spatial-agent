@@ -62,6 +62,17 @@ class M15RasterMetadataTests(unittest.TestCase):
         )
         self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
 
+    def test_rule_planner_builds_terrain_land_use_plan(self):
+        runtime = build_runtime("rule", "memory")
+        result = runtime.run("分析洪山区的高程、坡度和土地利用分布")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(
+            [step.tool for step in result.steps],
+            ["get_dataset_schema", "range_query", "get_zonal_raster_statistics", "get_zonal_slope_statistics", "get_zonal_land_use_distribution"],
+        )
+        self.assertIn("适合建设", result.answer)
+
 
 @unittest.skipUnless(HAS_RASTERIO and HAS_LOCAL_RASTER, "requires rasterio and local raster dataset files")
 class M15LocalRasterMetadataTests(unittest.TestCase):
@@ -134,6 +145,24 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
         self.assertEqual(result.steps[0].result["dataset"], "land_use")
         self.assertGreater(result.steps[0].result["statistics"]["valid_pixel_count"], 0)
+
+    def test_computes_real_zonal_slope_from_dem(self):
+        result = build_runtime("rule", "local").run("分析洪山区的高程、坡度和土地利用分布")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        slope = next(step.result for step in result.steps if step.tool == "get_zonal_slope_statistics")
+        self.assertNotIn("error", slope["statistics"])
+        self.assertGreater(slope["statistics"]["valid_pixel_count"], 0)
+        self.assertGreaterEqual(slope["statistics"]["maximum"], slope["statistics"]["minimum"])
+
+    def test_computes_real_land_use_category_distribution(self):
+        result = build_runtime("rule", "local").run("分析洪山区的高程、坡度和土地利用分布")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        land_use = next(step.result for step in result.steps if step.tool == "get_zonal_land_use_distribution")
+        self.assertNotIn("error", land_use["statistics"])
+        self.assertGreater(land_use["statistics"]["category_count"], 0)
+        self.assertAlmostEqual(sum(item["share"] for item in land_use["statistics"]["categories"]), 1.0, places=4)
 
 
 if __name__ == "__main__":

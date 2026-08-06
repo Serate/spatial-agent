@@ -40,6 +40,10 @@ class RuleBasedPlanner:
         if any(term in request.upper() for term in self.KNN_TERMS):
             raise ClarificationNeeded("M1 does not support KNN yet; use an explicit range condition")
 
+        terrain_plan = self._try_terrain_land_use_plan(request)
+        if terrain_plan is not None:
+            return terrain_plan
+
         composite_plan = self._try_composite_admin_raster_plan(request)
         if composite_plan is not None:
             return composite_plan
@@ -241,6 +245,46 @@ class RuleBasedPlanner:
                 ),
             ],
             output={"type": "zonal_raster_statistics_result", "summary": True},
+        )
+
+    def _try_terrain_land_use_plan(self, request: str):
+        """Plan a real multi-source terrain overview for an administrative area."""
+        has_area = any(term in request for term in self.ADMIN_TERMS) or self.ADMIN_NAME_PATTERN.search(request)
+        has_slope = self.SLOPE_TERM in request or any(term in request for term in ("地形", "建设", "适合"))
+        has_land_use = any(term in request for term in self.LAND_USE_TERMS)
+        has_dem = any(term in request for term in self.DEM_TERMS)
+        if not (has_area and has_slope and has_land_use and has_dem):
+            return None
+        match = self.ADMIN_NAME_PATTERN.search(request)
+        if match is None:
+            raise ClarificationNeeded("missing admin area name, for example: 洪山区")
+        admin_name = self._clean_admin_name(match.group(1))
+        return TaskPlan(
+            goal="analyze elevation, derived slope, and land-use distribution inside an administrative area",
+            steps=[
+                PlanStep("schema-admin", "get_dataset_schema", {"dataset": "admin_areas"}),
+                PlanStep(
+                    "filter-admin", "range_query",
+                    {"dataset": "admin_areas", "conditions": [{"field": "name", "operator": "eq", "value": admin_name}], "limit": 100},
+                    ["schema-admin"],
+                ),
+                PlanStep(
+                    "zonal-elevation", "get_zonal_raster_statistics",
+                    {"dataset": "dem", "admin_name": {"$from": "filter-admin", "path": "first_name"}, "max_files": 10},
+                    ["filter-admin"],
+                ),
+                PlanStep(
+                    "zonal-slope", "get_zonal_slope_statistics",
+                    {"admin_name": {"$from": "filter-admin", "path": "first_name"}, "max_files": 10},
+                    ["filter-admin"],
+                ),
+                PlanStep(
+                    "zonal-land-use", "get_zonal_land_use_distribution",
+                    {"admin_name": {"$from": "filter-admin", "path": "first_name"}, "max_files": 10},
+                    ["filter-admin"],
+                ),
+            ],
+            output={"type": "terrain_land_use_analysis_result", "summary": True},
         )
 
     def _clean_admin_name(self, value: str) -> str:

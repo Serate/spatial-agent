@@ -38,6 +38,30 @@ class RasterMetadataBackend:
             entry, geometry, geometry_crs, admin_name, max_files=max_files
         )
 
+    def get_zonal_slope_statistics(
+        self,
+        admin_geometry: Dict[str, Any],
+        geometry_crs: str,
+        admin_name: str,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        entry = self._catalog.require("dem")
+        return zonal_slope_statistics_for_entry(
+            entry, admin_geometry, geometry_crs, admin_name, max_files=max_files
+        )
+
+    def get_zonal_land_use_distribution(
+        self,
+        admin_geometry: Dict[str, Any],
+        geometry_crs: str,
+        admin_name: str,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        entry = self._catalog.require("land_use")
+        return zonal_land_use_distribution_for_entry(
+            entry, admin_geometry, geometry_crs, admin_name, max_files=max_files
+        )
+
 
 def raster_metadata_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict[str, Any]:
     if max_files < 1:
@@ -306,6 +330,150 @@ def zonal_statistics_for_entry(
             "matched_files": len(matched_files),
             "geometry_crs": geometry_crs,
         },
+    }
+
+
+def zonal_slope_statistics_for_entry(
+    entry: DatasetEntry,
+    geometry: Dict[str, Any],
+    geometry_crs: str,
+    admin_name: str,
+    max_files: int = 10,
+) -> Dict[str, Any]:
+    """Derive slope in degrees from DEM pixels and summarize the masked area."""
+    if max_files < 1:
+        raise ToolError("max_files must be at least 1")
+    try:
+        import numpy
+        import rasterio
+        from rasterio.mask import mask
+        from rasterio.warp import transform_geom
+    except ImportError as exc:
+        raise ToolError("rasterio and numpy are required for slope statistics") from exc
+
+    values = []
+    matched_files = []
+    combined_bounds = None
+    crs_values = set()
+    total_pixels = 0
+    for path in entry.files[:max_files]:
+        try:
+            with rasterio.open(path) as src:
+                projected_geometry = transform_geom(geometry_crs, src.crs, geometry, precision=6)
+                elevation, _ = mask(src, [projected_geometry], crop=True, filled=False)
+                elevation = elevation[0]
+                valid = ~elevation.mask if hasattr(elevation, "mask") else numpy.ones(elevation.shape, dtype=bool)
+                finite = numpy.isfinite(elevation.data)
+                valid &= finite
+                total_pixels += int(valid.size)
+                if not valid.any():
+                    continue
+                data = elevation.data.astype("float64", copy=False)
+                fill_value = float(numpy.nanmedian(data[valid]))
+                filled = numpy.where(valid, data, fill_value)
+                dy, dx = numpy.gradient(filled, abs(float(src.transform.e)), abs(float(src.transform.a)))
+                slope = numpy.degrees(numpy.arctan(numpy.sqrt(numpy.square(dx) + numpy.square(dy))))
+                area_values = slope[valid]
+                values.extend(float(value) for value in area_values if numpy.isfinite(value))
+                matched_files.append(path)
+                combined_bounds = _merge_bounds(combined_bounds, _as_float_list([src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top]))
+                if src.crs:
+                    crs_values.add(str(src.crs))
+        except ValueError:
+            continue
+
+    statistics = _numeric_summary(values, total_pixels)
+    if not values:
+        statistics = {"error": "no raster pixels intersected the selected administrative area", "valid_pixel_count": 0, "nodata_pixel_count": 0, "nodata_ratio": None}
+    return {
+        "dataset": "slope_from_dem",
+        "admin_name": admin_name,
+        "file_count": len(entry.files),
+        "matched_files": matched_files,
+        "bounds": combined_bounds,
+        "crs": sorted(crs_values)[0] if len(crs_values) == 1 else sorted(crs_values),
+        "statistics": statistics,
+        "metrics": {"backend": "rasterio", "analyzed_files": len(entry.files[:max_files]), "matched_files": len(matched_files), "source_dataset": "dem", "geometry_crs": geometry_crs, "derived": True},
+    }
+
+
+def zonal_land_use_distribution_for_entry(
+    entry: DatasetEntry,
+    geometry: Dict[str, Any],
+    geometry_crs: str,
+    admin_name: str,
+    max_files: int = 10,
+) -> Dict[str, Any]:
+    """Return bounded categorical counts and shares for land-use raster values."""
+    if max_files < 1:
+        raise ToolError("max_files must be at least 1")
+    try:
+        import numpy
+        import rasterio
+        from rasterio.mask import mask
+        from rasterio.warp import transform_geom
+    except ImportError as exc:
+        raise ToolError("rasterio and numpy are required for land-use distribution") from exc
+
+    counts = {}
+    total_pixels = 0
+    matched_files = []
+    combined_bounds = None
+    crs_values = set()
+    for path in entry.files[:max_files]:
+        try:
+            with rasterio.open(path) as src:
+                projected_geometry = transform_geom(geometry_crs, src.crs, geometry, precision=6)
+                masked, _ = mask(src, [projected_geometry], crop=True, filled=False)
+                band = masked[0]
+                values = band.compressed().astype("float64", copy=False)
+                values = values[numpy.isfinite(values)]
+                if not len(values):
+                    continue
+                total_pixels += int(values.size)
+                for value, count in zip(*numpy.unique(values, return_counts=True)):
+                    key = str(int(value)) if float(value).is_integer() else str(round(float(value), 3))
+                    counts[key] = counts.get(key, 0) + int(count)
+                matched_files.append(path)
+                combined_bounds = _merge_bounds(combined_bounds, _as_float_list([src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top]))
+                if src.crs:
+                    crs_values.add(str(src.crs))
+        except ValueError:
+            continue
+    categories = sorted(
+        [{"value": value, "pixel_count": count, "share": round(count / total_pixels, 6)} for value, count in counts.items()],
+        key=lambda item: (-item["pixel_count"], item["value"]),
+    )
+    statistics = {"category_count": len(categories), "valid_pixel_count": total_pixels, "categories": categories[:50]}
+    if not total_pixels:
+        statistics = {"error": "no raster pixels intersected the selected administrative area", "category_count": 0, "valid_pixel_count": 0, "categories": []}
+    return {
+        "dataset": "land_use",
+        "admin_name": admin_name,
+        "file_count": len(entry.files),
+        "matched_files": matched_files,
+        "bounds": combined_bounds,
+        "crs": sorted(crs_values)[0] if len(crs_values) == 1 else sorted(crs_values),
+        "statistics": statistics,
+        "metrics": {"backend": "rasterio", "analyzed_files": len(entry.files[:max_files]), "matched_files": len(matched_files), "geometry_crs": geometry_crs, "categorical": True},
+    }
+
+
+def _numeric_summary(values, total_pixels: int) -> Dict[str, Any]:
+    if not values:
+        return {"valid_pixel_count": 0, "nodata_pixel_count": total_pixels, "nodata_ratio": 1.0 if total_pixels else None}
+    import numpy
+    array = numpy.asarray(values, dtype="float64")
+    mean = float(array.mean())
+    return {
+        "minimum": float(array.min()),
+        "maximum": float(array.max()),
+        "mean": round(mean, 3),
+        "standard_deviation": round(float(array.std()), 3),
+        "valid_pixel_count": int(array.size),
+        "nodata_pixel_count": max(0, total_pixels - int(array.size)),
+        "nodata_ratio": round(max(0, total_pixels - int(array.size)) / total_pixels, 6) if total_pixels else 0.0,
+        "distribution": _distribution_summary([float(value) for value in array[:10000]], float(array.min()), float(array.max())),
     }
 
 

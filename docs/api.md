@@ -57,6 +57,8 @@ For raster value analysis, use a request such as `分析DEM高程统计`. The pl
 
 Raster statistics also include a bounded `statistics.distribution` summary. Its `bins` are generated from at most 10,000 sampled valid pixels, so the Console can show a lightweight value-distribution chart without transferring raster arrays.
 
+For a multi-source terrain overview, use `分析洪山区的高程、坡度和土地利用分布`. The rule planner executes elevation zonal statistics, derives slope in degrees from DEM pixels, and returns land-use raster class counts and shares. Land-use values remain source raster codes; the Agent does not invent semantic labels. Construction suitability requires explicit thresholds and weights and is therefore not inferred from this overview.
+
 For administrative-area raster analysis, use a request such as `分析洪山区DEM高程概况`. The planner selects `get_zonal_raster_statistics`, which resolves the named area, converts its CRS for each raster file, and computes masked statistics only where the geometry intersects the raster.
 
 ## POST /runs/{run_id}/retry

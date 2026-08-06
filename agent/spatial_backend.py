@@ -58,6 +58,16 @@ class SpatialBackend(Protocol):
     ) -> Dict[str, Any]:
         ...
 
+    def get_zonal_slope_statistics(
+        self, admin_name: str, max_files: int = 10
+    ) -> Dict[str, Any]:
+        ...
+
+    def get_zonal_land_use_distribution(
+        self, admin_name: str, max_files: int = 10
+    ) -> Dict[str, Any]:
+        ...
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         ...
 
@@ -202,6 +212,12 @@ class InMemorySpatialBackend:
             "statistics": {"error": "in-memory backend has no raster geometry"},
             "metrics": {"backend": "in_memory", "analyzed_files": 0},
         }
+
+    def get_zonal_slope_statistics(self, admin_name: str, max_files: int = 10) -> Dict[str, Any]:
+        return {"dataset": "slope_from_dem", "admin_name": admin_name, "statistics": {"error": "in-memory backend has no DEM pixels"}, "metrics": {"backend": "in_memory", "analyzed_files": 0}}
+
+    def get_zonal_land_use_distribution(self, admin_name: str, max_files: int = 10) -> Dict[str, Any]:
+        return {"dataset": "land_use", "admin_name": admin_name, "statistics": {"error": "in-memory backend has no land-use pixels", "categories": []}, "metrics": {"backend": "in_memory", "analyzed_files": 0}}
 
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         return {"type": "FeatureCollection", "features": [], "geometry_source": "none"}
@@ -421,6 +437,18 @@ class HybridSpatialBackend:
             max_files=max_files,
         )
 
+    def get_zonal_slope_statistics(self, admin_name: str, max_files: int = 10) -> Dict[str, Any]:
+        area = self._admin.geometry_for_name(admin_name)
+        if area["geometry"] is None:
+            return {"dataset": "slope_from_dem", "admin_name": admin_name, "statistics": {"error": "administrative area was not found"}, "metrics": {"backend": "geojson", "analyzed_files": 0}}
+        return self._raster.get_zonal_slope_statistics(area["geometry"], area["crs"], admin_name, max_files=max_files)
+
+    def get_zonal_land_use_distribution(self, admin_name: str, max_files: int = 10) -> Dict[str, Any]:
+        area = self._admin.geometry_for_name(admin_name)
+        if area["geometry"] is None:
+            return {"dataset": "land_use", "admin_name": admin_name, "statistics": {"error": "administrative area was not found", "categories": []}, "metrics": {"backend": "geojson", "analyzed_files": 0}}
+        return self._raster.get_zonal_land_use_distribution(area["geometry"], area["crs"], admin_name, max_files=max_files)
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         if result_ref.startswith("geojson://"):
             return self._admin.export_result(result_ref, max_features=max_features)
@@ -496,6 +524,14 @@ class SpatialToolAdapter:
                 dataset=arguments["dataset"],
                 admin_name=arguments["admin_name"],
                 max_files=arguments.get("max_files", 10),
+            )
+        if name == "get_zonal_slope_statistics":
+            return self._backend.get_zonal_slope_statistics(
+                admin_name=arguments["admin_name"], max_files=arguments.get("max_files", 10)
+            )
+        if name == "get_zonal_land_use_distribution":
+            return self._backend.get_zonal_land_use_distribution(
+                admin_name=arguments["admin_name"], max_files=arguments.get("max_files", 10)
             )
         raise ToolError("Adapter does not implement: " + name)
 

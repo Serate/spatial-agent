@@ -16,6 +16,8 @@ class AnswerComposer:
             return self._compose_raster_statistics_result(result.steps)
         if output_type == "zonal_raster_statistics_result":
             return self._compose_zonal_raster_statistics_result(result.steps)
+        if output_type == "terrain_land_use_analysis_result":
+            return self._compose_terrain_land_use_result(result.steps)
         if _first_result(result.steps, "get_raster_statistics") is not None:
             return self._compose_raster_statistics_result(result.steps)
         if _first_result(result.steps, "get_zonal_raster_statistics") is not None:
@@ -23,6 +25,35 @@ class AnswerComposer:
         if _first_result(result.steps, "get_raster_metadata") is not None:
             return self._compose_raster_metadata_result(result.steps)
         return self._compose_default(result.steps)
+
+    def _compose_terrain_land_use_result(self, steps: Iterable[StepRun]) -> str:
+        elevation = _first_result(steps, "get_zonal_raster_statistics")
+        slope = _first_result(steps, "get_zonal_slope_statistics")
+        land_use = _first_result(steps, "get_zonal_land_use_distribution")
+        area = (elevation or slope or land_use or {}).get("admin_name", "指定区域")
+        parts = [f"{area}综合空间分析已完成。"]
+        if elevation:
+            stats = elevation.get("statistics", {})
+            if stats.get("error"):
+                parts.append(f"高程：{stats['error']}。")
+            else:
+                parts.append(f"高程范围 {stats.get('minimum', '未知')}–{stats.get('maximum', '未知')} 米，平均 {stats.get('mean', '未知')} 米，有效像元 {stats.get('valid_pixel_count', 0)} 个。")
+        if slope:
+            stats = slope.get("statistics", {})
+            if stats.get("error"):
+                parts.append(f"坡度：{stats['error']}。")
+            else:
+                parts.append(f"由 DEM 动态计算的坡度范围 {stats.get('minimum', '未知')}–{stats.get('maximum', '未知')} 度，平均 {stats.get('mean', '未知')} 度。")
+        if land_use:
+            stats = land_use.get("statistics", {})
+            if stats.get("error"):
+                parts.append(f"土地利用：{stats['error']}。")
+            else:
+                categories = stats.get("categories", [])[:5]
+                category_text = "、".join(f"{item['value']}类 {round(float(item['share']) * 100, 2)}%" for item in categories)
+                parts.append(f"土地利用共识别 {stats.get('category_count', 0)} 个栅格类别，主要类别为 {category_text or '暂无'}。")
+        parts.append("当前结果提供地形与土地利用事实统计；“适合建设”还需要明确坡度阈值、禁建地类和权重后才能生成可审计的候选区域。")
+        return "".join(parts)
 
     def _compose_admin_area_result(self, steps: Iterable[StepRun]) -> str:
         schema = _first_result(steps, "get_dataset_schema")

@@ -333,6 +333,14 @@ Suggested next steps:
 
 - 新增中文演示验收清单，覆盖离线、GIS、真实模型、失败恢复和回归命令。
 
+### M40.1: Real Terrain And Land-use Analysis
+
+- `get_zonal_slope_statistics` 从真实 DEM 像元动态计算坡度统计，不伪造坡度数据。
+- `get_zonal_land_use_distribution` 返回行政区内土地利用栅格类别编码、像元数和占比。
+- 规则规划器支持高程、坡度和土地利用联合请求，生成多工具、有依赖的执行计划。
+- Console 增加综合分析卡片和土地利用类别占比图，并明确类别编码未做语义映射。
+- GIS 验收：洪山区真实 DEM 坡度和土地利用类别统计通过。
+
 ### M16: Real LLM API Demo Path
 
 - Add .env.example
