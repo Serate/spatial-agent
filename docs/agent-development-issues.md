@@ -892,3 +892,21 @@ Compose 的 `env_file` 只负责向容器注入环境变量，不负责解析 Co
 ### 预防
 
 部署文档必须明确区分“容器环境变量”和“Compose 宿主机插值变量”，并用真实 GIS 请求验证挂载内容，而不能只检查目录是否存在。
+
+## Linux GIS 容器不能复用 Windows Conda 的 GDAL 路径
+
+### 现象
+
+容器中的 Rasterio 元数据查询可以工作，但行政区 GeoPandas 查询或区域栅格分析失败，并提示 GDAL data directory 不包含正确的 GDAL 数据文件。
+
+### 根因
+
+Windows Conda 环境常使用 `Library/share/gdal` 和 `Library/share/proj`；Linux micromamba 环境的实际目录是 `share/gdal` 和 `share/proj`。直接复制 Windows 启动配置到 Linux 容器会让 GDAL 指向不存在或错误的目录。
+
+### 修复
+
+容器 Dockerfile 使用 `/opt/conda/envs/spatial-agent-gis/share/gdal` 和 `/opt/conda/envs/spatial-agent-gis/share/proj`，并通过真实 GeoPandas 行政区查询和区域栅格统计验证，而不只检查 Python 包是否可导入。
+
+### 预防
+
+不同操作系统和环境类型必须分别确认 GDAL/PROJ 数据目录；生产 readiness 还应增加一次轻量真实矢量读取检查，避免只报告依赖存在而遗漏运行时路径错误。

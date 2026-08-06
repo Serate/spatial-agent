@@ -33,8 +33,8 @@ RUN PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 COPY . /app
 
 ENV PATH=/opt/conda/envs/spatial-agent-gis/bin:/opt/conda/envs/spatial-agent-gis/Library/bin:$PATH \
-    GDAL_DATA=/opt/conda/envs/spatial-agent-gis/Library/share/gdal \
-    PROJ_LIB=/opt/conda/envs/spatial-agent-gis/Library/share/proj \
+    GDAL_DATA=/opt/conda/envs/spatial-agent-gis/share/gdal \
+    PROJ_LIB=/opt/conda/envs/spatial-agent-gis/share/proj \
     PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
     SPATIAL_AGENT_DATASET_CONFIG=/app/config/datasets.container.example.json \
     SPATIAL_AGENT_DATASET_ROOT=/data \
