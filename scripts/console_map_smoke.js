@@ -1,6 +1,7 @@
 /* Browser smoke check for the interactive console map. Requires Chrome started with CDP. */
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const consoleUrl = process.env.CONSOLE_URL || "http://127.0.0.1:8088/";
 const response = await fetch("http://127.0.0.1:9222/json/list");
 const pages = await response.json();
 const page = pages.find(item => item.type === "page");
@@ -28,7 +29,7 @@ const command = (method, params = {}) => new Promise((resolve, reject) => {
 await new Promise(resolve => { socket.onopen = resolve; });
 await command("Page.enable");
 await command("Runtime.enable");
-await command("Page.navigate", {url: "http://127.0.0.1:8088/"});
+await command("Page.navigate", {url: consoleUrl});
 await sleep(1500);
 const sendResult = await command("Runtime.evaluate", {
   expression: "(async()=>{ $('backend').value='local'; await sendChat('分析洪山区建设适宜性，坡度不超过20度'); })()",
@@ -62,5 +63,17 @@ if (snapshot.leafletPaths < 1 && snapshot.svgPaths < 1) {
 }
 if (!snapshot.selection.includes("洪山区") || !snapshot.selectionEnabled) {
   throw new Error("地图要素点击没有生成可用的空间上下文");
+}
+
+const cleared = await command("Runtime.evaluate", {
+  expression: "(()=>{ $('clearChat').click(); return JSON.stringify({selection: $('mapSelection')?.textContent, selectionEnabled: !$('useMapSelection')?.disabled, answer: $('answer')?.textContent, steps: $('steps')?.textContent, map: $('map')?.textContent})})()",
+  returnByValue: true,
+});
+const clearSnapshot = JSON.parse(cleared.result.result.value);
+if (!clearSnapshot.selection.includes("点击地图要素后") || clearSnapshot.selectionEnabled) {
+  throw new Error("清空对话没有清除地图选区");
+}
+if (clearSnapshot.answer || clearSnapshot.steps || clearSnapshot.map) {
+  throw new Error("清空对话没有清除工作区结果");
 }
 socket.close();

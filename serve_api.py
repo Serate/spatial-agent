@@ -67,6 +67,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     thresholds=payload.get("thresholds", []),
                     planner=payload.get("planner", "rule"),
                     backend=payload.get("backend", "local"),
+                    spatial_context=payload.get("spatial_context"),
                 )
             elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")

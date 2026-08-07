@@ -189,6 +189,19 @@ Run requests may include a bounded `spatial_context` object from the map:
 The runtime uses the named area as structured planning context; it does not
 accept arbitrary geometry or execute client-provided code.
 
+`POST /comparisons` accepts the same bounded `spatial_context` object. When it
+contains `admin_name`, the server uses that selected map area for every slope
+threshold instead of trusting a client-side label or page text:
+
+```json
+{
+  "admin_name":"洪山区",
+  "thresholds":[15,20,25],
+  "backend":"local",
+  "spatial_context":{"admin_name":"洪山区","source":"map","geometry_available":true}
+}
+```
+
 ## Multi-Turn Clarification
 
 First turn:

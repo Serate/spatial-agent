@@ -33,6 +33,24 @@ class M47SpatialContextTests(unittest.TestCase):
         )
         self.assertEqual(payload["spatial_context"], {"admin_name": "洪山区", "geometry_available": True})
 
+    def test_comparison_preserves_selected_spatial_context(self):
+        payload = AgentService().compare_buildability(
+            admin_name="错误区域",
+            thresholds=[20],
+            backend="memory",
+            spatial_context={
+                "admin_name": "洪山区",
+                "source": "map",
+                "crs": "EPSG:4326",
+                "geometry_type": "MultiPolygon",
+                "geometry_available": True,
+            },
+        )
+
+        self.assertEqual(payload["admin_name"], "洪山区")
+        self.assertEqual(payload["spatial_context"]["source"], "map")
+        self.assertEqual(payload["results"][0]["status"], "COMPLETED")
+
 
 if __name__ == "__main__":
     unittest.main()

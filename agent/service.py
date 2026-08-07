@@ -181,9 +181,14 @@ class AgentService:
         thresholds,
         planner: str = "rule",
         backend: str = "local",
+        spatial_context: Dict[str, Any] = None,
     ) -> Dict:
         if not isinstance(admin_name, str) or not admin_name.strip():
             raise ValueError("admin_name must be a non-empty string")
+        normalized_context = _normalize_spatial_context(spatial_context)
+        context_admin_name = normalized_context.get("admin_name")
+        if context_admin_name:
+            admin_name = context_admin_name
         if not isinstance(thresholds, list) or not thresholds or len(thresholds) > 6:
             raise ValueError("thresholds must contain 1 to 6 values")
         normalized = []
@@ -200,6 +205,7 @@ class AgentService:
                 session_id=f"comparison-{admin_name}-{value:g}",
                 planner=planner,
                 backend=backend,
+                spatial_context=normalized_context,
             )
             step = next((item for item in result.get("steps", []) if item.get("tool") == "get_zonal_buildability_analysis"), {})
             tool_result = step.get("result") or {}
@@ -212,7 +218,12 @@ class AgentService:
                 "candidate_ratio": statistics.get("candidate_ratio"),
                 "error": statistics.get("error") or result.get("error"),
             })
-        return {"admin_name": admin_name, "thresholds": normalized, "results": rows}
+        return {
+            "admin_name": admin_name,
+            "thresholds": normalized,
+            "spatial_context": normalized_context,
+            "results": rows,
+        }
 
     def _runtime(self, planner: str, backend: str):
         key = _runtime_key(planner, backend)

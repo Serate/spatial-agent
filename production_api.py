@@ -140,6 +140,7 @@ def compare(payload: Dict[str, Any]):
             thresholds=payload.get("thresholds", []),
             planner=payload.get("planner", "rule"),
             backend=payload.get("backend", "local"),
+            spatial_context=payload.get("spatial_context"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

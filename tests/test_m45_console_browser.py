@@ -24,6 +24,31 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("exceptionDetails", script)
         self.assertIn("地图要素点击没有生成可用的空间上下文", script)
 
+    def test_clear_chat_resets_the_complete_workspace(self):
+        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        clear_body = source.split("function clearChat()", 1)[1].split("\n", 1)[0]
+        self.assertIn("resetConversationView()", clear_body)
+        self.assertIn("resetMapSelection()", source)
+
+    def test_threshold_comparison_can_reuse_selected_map_context(self):
+        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("spatial_context:selectedSpatialContext", source)
+        self.assertIn("spatial_context:selectedSpatialContext", source.split("async function compareBuildability", 1)[1])
+
+    def test_clear_smoke_script_covers_workspace_reset(self):
+        script = (Path(__file__).parents[1] / "scripts" / "console_clear_smoke.js").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("$('clearChat').click()", script)
+        self.assertIn("清空对话没有清除当前工作区", script)
+
 
 if __name__ == "__main__":
     unittest.main()
