@@ -94,6 +94,22 @@ def list_runs(limit: int = 20):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/sessions")
+def list_sessions(limit: int = 50):
+    try:
+        return service.list_sessions(limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/sessions")
+def create_session():
+    try:
+        return service.create_session()
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
 @app.get("/metrics")
 def metrics():
     return service.metrics()

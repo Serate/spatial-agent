@@ -8,6 +8,28 @@ from run_demo import build_runtime
 
 
 class M42SQLiteStoreTests(unittest.TestCase):
+    def test_named_sessions_survive_store_recreation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "agent.db")
+            first_store = SQLiteConversationStore(path)
+            first = first_store.create_session()
+            second = first_store.create_session()
+            restored = SQLiteConversationStore(path).list_sessions()
+
+        self.assertEqual(first["display_name"], "对话1")
+        self.assertEqual(second["display_name"], "对话2")
+        self.assertEqual({item["display_name"] for item in restored}, {"对话1", "对话2"})
+
+    def test_service_registers_named_session_when_it_runs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "agent.db")
+            service = AgentService(state_db_path=path)
+            service.run("查询洪山区行政区边界", session_id="conversation-1")
+            sessions = service.list_sessions()["sessions"]
+
+        self.assertEqual(sessions[0]["session_id"], "conversation-1")
+        self.assertEqual(sessions[0]["display_name"], "对话1")
+
     def test_clarification_survives_service_recreation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "agent.db")

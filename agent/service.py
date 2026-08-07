@@ -36,6 +36,8 @@ class AgentService:
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
+        if self._conversation_store is not None:
+            self._conversation_store.ensure_session(session_id)
         runtime = self._runtime(planner, backend)
         result = runtime.run(
             request,
@@ -43,6 +45,7 @@ class AgentService:
             timeout_seconds=timeout_seconds,
         )
         payload = result.to_dict()
+        payload["result_type"] = _result_type(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         if export_artifact:
@@ -81,6 +84,7 @@ class AgentService:
         runtime = self._runtime(planner, backend)
         result = runtime.retry_failed(run_id)
         payload = result.to_dict()
+        payload["result_type"] = _result_type(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         if export_artifact:
@@ -126,6 +130,7 @@ class AgentService:
         if result is None:
             raise ValueError("run not found: " + run_id)
         payload = result.to_dict()
+        payload["result_type"] = _result_type(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         return payload
@@ -134,6 +139,16 @@ class AgentService:
         if self._state_store is not None:
             return {"runs": self._state_store.list_runs(limit=limit)}
         return {"runs": self._artifact_store.list_runs(limit=limit)}
+
+    def list_sessions(self, limit: int = 50) -> Dict:
+        if self._conversation_store is None:
+            return {"sessions": []}
+        return {"sessions": self._conversation_store.list_sessions(limit=limit)}
+
+    def create_session(self) -> Dict:
+        if self._conversation_store is None:
+            raise ValueError("session persistence is not configured")
+        return self._conversation_store.create_session()
 
     def metrics(self) -> Dict:
         if self._state_store is not None:
@@ -215,6 +230,10 @@ def _tag_geometry_features(features, source=None, crs=None, source_crs=None):
             properties["geometry_source_crs"] = source_crs
         tagged.append({**feature, "properties": properties})
     return tagged
+
+
+def _result_type(payload: Dict) -> str:
+    return str(((payload.get("plan") or {}).get("output") or {}).get("type") or "unknown")
 
 
 def _crs_name(crs):

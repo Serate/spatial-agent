@@ -148,7 +148,65 @@ class SQLiteConversationStore:
             ).fetchone()
         return PendingClarification(request=row[0], error=row[1]) if row else None
 
+    def ensure_session(self, session_id: str, display_name: Optional[str] = None) -> Dict[str, Any]:
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT session_id, display_name FROM conversation_sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if row:
+                connection.execute(
+                    "UPDATE conversation_sessions SET updated_at=CURRENT_TIMESTAMP WHERE session_id=?",
+                    (session_id,),
+                )
+                return {"session_id": row[0], "display_name": row[1]}
+            if not display_name:
+                count = connection.execute(
+                    "SELECT COUNT(*) FROM conversation_sessions WHERE session_id LIKE 'conversation-%'"
+                ).fetchone()[0]
+                display_name = f"对话{count + 1}"
+            connection.execute(
+                "INSERT INTO conversation_sessions (session_id, display_name, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                (session_id, display_name),
+            )
+        return {"session_id": session_id, "display_name": display_name}
+
+    def create_session(self) -> Dict[str, Any]:
+        with self._connection() as connection:
+            count = connection.execute(
+                "SELECT COUNT(*) FROM conversation_sessions WHERE session_id LIKE 'conversation-%'"
+            ).fetchone()[0]
+            number = count + 1
+            session_id = f"conversation-{number}"
+            while connection.execute(
+                "SELECT 1 FROM conversation_sessions WHERE session_id = ?", (session_id,)
+            ).fetchone():
+                number += 1
+                session_id = f"conversation-{number}"
+            display_name = f"对话{number}"
+            connection.execute(
+                "INSERT INTO conversation_sessions (session_id, display_name, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                (session_id, display_name),
+            )
+        return {"session_id": session_id, "display_name": display_name}
+
+    def list_sessions(self, limit: int = 50) -> List[Dict[str, Any]]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT session_id, display_name, created_at, updated_at FROM conversation_sessions WHERE session_id LIKE 'conversation-%' ORDER BY updated_at DESC, created_at ASC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [
+            {"session_id": row[0], "display_name": row[1], "created_at": row[2], "updated_at": row[3]}
+            for row in rows
+        ]
+
     def save_pending(self, session_id: str, request: str, error: str) -> None:
+        self.ensure_session(session_id)
         with self._connection() as connection:
             connection.execute(
                 """
@@ -166,6 +224,7 @@ class SQLiteConversationStore:
             )
 
     def save_completed(self, session_id: str, request: str) -> None:
+        self.ensure_session(session_id)
         with self._connection() as connection:
             connection.execute(
                 """
@@ -195,6 +254,12 @@ class SQLiteConversationStore:
                 CREATE TABLE IF NOT EXISTS completed_sessions (
                     session_id TEXT PRIMARY KEY,
                     request TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS conversation_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 );
                 """
             )

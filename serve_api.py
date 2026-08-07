@@ -24,6 +24,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/runs":
             self._write_json(200, self.service.list_runs())
             return
+        if parsed.path == "/sessions":
+            self._write_json(200, self.service.list_sessions())
+            return
         if parsed.path == "/metrics":
             self._write_json(200, self.service.metrics())
             return
@@ -45,12 +48,15 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
         is_comparison = parsed.path == "/comparisons"
-        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison:
+        is_session_create = parsed.path == "/sessions"
+        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison and not is_session_create:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
-            if is_comparison:
+            if is_session_create:
+                result = self.service.create_session()
+            elif is_comparison:
                 result = self.service.compare_buildability(
                     admin_name=payload.get("admin_name", ""),
                     thresholds=payload.get("thresholds", []),
