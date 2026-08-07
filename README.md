@@ -301,6 +301,13 @@ $env:OPENAI_MODEL="deepseek-v4-flash"
 python run_demo.py --planner openai "查询DEM栅格元数据"
 ~~~
 
+浏览器烟测（需要 Chrome 以 CDP 端口 9222 启动，并保持 Console 服务运行）：
+
+~~~powershell
+node scripts\console_session_smoke.js
+node scripts\console_map_smoke.js
+~~~
+
 运行测试：
 
 ~~~powershell

@@ -30,8 +30,14 @@ await command("Page.enable");
 await command("Runtime.enable");
 await command("Page.navigate", {url: "http://127.0.0.1:8088/"});
 await sleep(1500);
-await command("Runtime.evaluate", {expression: "sendChat('分析洪山区建设适宜性，坡度不超过20度')"});
-await sleep(7000);
+const sendResult = await command("Runtime.evaluate", {
+  expression: "(async()=>{ $('backend').value='local'; await sendChat('分析洪山区建设适宜性，坡度不超过20度'); })()",
+  awaitPromise: true,
+});
+if (sendResult.result.exceptionDetails) {
+  throw new Error(sendResult.result.exceptionDetails.exception?.description || "console request failed");
+}
+await sleep(1500);
 const result = await command("Runtime.evaluate", {
   expression: `JSON.stringify({
     leaflet: Boolean(document.querySelector('#leafletMap')),
