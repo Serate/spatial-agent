@@ -232,6 +232,14 @@
     .env div, .history-item, .step-result, .provenance-item { background:rgba(247,251,251,.72); }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; } }
     @media (max-width:900px) { .grid > .panel { animation-delay:0s; } .hero::before { animation:none; } }
+    .result-panel { display:none; }
+    .result-panel.is-visible { display:block; }
+    .result-empty { grid-column:1/-1; min-height:420px; display:flex; align-items:center; justify-content:center; padding:40px; color:#85969b; font-size:14px; text-align:center; border:1px dashed rgba(113,145,150,.35); border-radius:10px; background:rgba(247,251,251,.42); }
+    .suggestions { grid-column:1/-1; border-top:1px solid rgba(219,228,231,.7); padding-top:6px; }
+    .suggestions summary { color:#42616a; cursor:pointer; font-size:11px; font-weight:800; list-style:none; }
+    .suggestions summary::before { content:"+"; display:inline-grid; place-items:center; width:16px; height:16px; margin-right:5px; border:1px solid #b9d4d2; border-radius:50%; color:#087f8c; }
+    .suggestions[open] summary::before { content:"−"; }
+    .suggestions .examples { border-top:0; padding-top:6px; }
 
     /* Desktop workspace: keep the conversation visible without letting it dominate the analysis surface. */
     @media (min-width:901px) {
@@ -251,6 +259,7 @@
       .chat-settings .examples { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:5px; margin:0; padding:7px 0 0; border-top:1px solid rgba(219,228,231,.7); }
       .chat-settings .example { width:auto; padding:5px 7px; font-size:10px; border-radius:6px; }
       .chat-settings .hint { grid-column:1/-1; margin:0; padding:6px 8px; font-size:10px; line-height:1.4; }
+      .chat-settings .hint { display:none; }
       .chat-settings .env, .chat-settings .history { display:none; }
       .chat-head { padding:13px 15px; align-items:flex-start; }
       .chat-head h3 { padding-top:2px; }
@@ -264,6 +273,7 @@
       .composer button { min-height:38px; }
       .content > .grid { grid-column:1; grid-row:2; min-width:0; gap:0; padding:16px; border-radius:12px; background:rgba(255,255,255,.68); border:1px solid rgba(203,219,222,.86); box-shadow:0 18px 42px rgba(32,66,75,.08), inset 0 1px 0 rgba(255,255,255,.8); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); grid-template-columns:repeat(2,minmax(0,1fr)); }
       .content > .grid::before { content:"分析结果工作区"; grid-column:1/-1; display:block; padding:0 0 12px 1px; color:#1d3d45; font-size:15px; font-weight:800; }
+      .content > .grid > .result-empty { min-height:500px; }
       .content > .grid > .panel { background:transparent; border:0; border-radius:0; box-shadow:none; padding:14px 12px; }
       .content > .grid > .panel:hover { transform:none; border-color:transparent; box-shadow:none; background:rgba(237,247,245,.38); }
       .content > .grid > .panel:nth-last-child(1) { grid-column:1/-1; border-top:1px solid rgba(219,228,231,.78); }
@@ -287,7 +297,7 @@
     <aside id="workspaceControls" class="controls panel">
       <div class="row"><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">空间后端</label><select id="backend"><option value="memory">内存演示</option><option value="local">本地 GIS</option></select></div></div>
       <label for="session">会话 ID</label><input id="session" value="console">
-      <div class="examples" aria-label="示例问题">
+      <details class="suggestions"><summary>示例问题</summary><div class="examples" aria-label="示例问题">
         <button class="example" data-request="查询DEM栅格元数据">查询 DEM 栅格元数据</button>
         <button class="example" data-request="分析DEM高程统计">分析 DEM 高程统计</button>
         <button class="example" data-request="分析洪山区DEM高程概况">分析洪山区 DEM 高程概况</button>
@@ -295,7 +305,7 @@
         <button class="example" data-request="分析洪山区建设适宜性，坡度不超过20度">分析洪山区建设适宜性</button>
         <button class="example" data-request="查询洪山区行政区边界">查询洪山区行政区边界</button>
         <button class="example" data-request="查询土地利用栅格元数据">查询土地利用栅格元数据</button>
-      </div>
+      </div></details>
       <div class="hint">真实大模型会读取本地服务商配置。本地 GIS 后端需要用 spatial-agent-gis 环境启动服务。</div>
       <div id="env" class="env"><div>正在检查运行环境...</div></div>
       <div class="history"><div class="history-head"><strong>历史任务</strong><button id="refreshHistory" class="history-refresh" type="button">刷新</button></div><div id="runtimeMetrics" class="distribution-note">正在读取运行指标…</div><div id="historyList" class="history-list"><div class="muted">正在读取历史任务…</div></div></div>
@@ -311,16 +321,17 @@
         </div>
       </section>
       <div class="grid" aria-label="分析结果工作区">
-        <section class="panel"><h3>分析结论</h3><div id="answer" class="answer muted">还没有运行记录。</div><div id="error"></div></section>
-        <section class="panel"><h3>栅格统计概览</h3><div id="rasterStats"><div class="metric"><b>-</b><small>等待统计分析</small></div></div></section>
-        <section class="panel"><h3>综合空间分析</h3><div id="compositeStats" class="muted">等待高程、坡度和土地利用联合分析。</div></section>
-        <section class="panel"><h3>建设适宜性筛选</h3><div id="buildabilityStats" class="muted">等待建设候选筛选。</div></section>
-        <section class="panel"><h3>阈值结果对比</h3><div class="compare-controls"><input id="compareThresholds" value="15,20,25" aria-label="坡度阈值列表"><button id="compareButton" type="button">对比</button></div><div id="compareResults" class="muted">完成一次建设适宜性分析后，可比较多个坡度阈值。</div></section>
-        <section class="panel"><h3>规划指标</h3><div id="metrics" class="metric-grid"><div class="metric"><b>-</b><small>模型</small></div></div></section>
-        <section class="panel"><h3>任务计划与步骤</h3><div id="goal" class="muted" style="margin-bottom:14px">尚未生成任务计划。</div><ul id="steps" class="steps"><li class="muted">暂无工具步骤。</li></ul></section>
-        <section class="panel"><h3>运行血缘</h3><div id="provenance" class="provenance"><div class="muted">暂无运行血缘。</div></div></section>
-        <section class="panel"><h3>空间预览</h3><div id="map" class="map"><div class="map-empty">导出本地行政区查询后，可在此预览几何形状。</div></div></section>
-        <section class="panel" style="grid-column:1/-1"><h3>执行轨迹</h3><ol id="trace" class="trace"><li class="muted">暂无执行轨迹。</li></ol><div id="links" class="links" style="margin-top:14px"></div></section>
+        <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
+        <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="error"></div></section>
+        <section class="panel result-panel raster-result"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
+        <section class="panel result-panel composite-result"><h3>综合空间分析</h3><div id="compositeStats" class="muted"></div></section>
+        <section class="panel result-panel buildability-result"><h3>建设适宜性筛选</h3><div id="buildabilityStats" class="muted"></div></section>
+        <section class="panel result-panel compare-result"><h3>阈值结果对比</h3><div class="compare-controls"><input id="compareThresholds" value="15,20,25" aria-label="坡度阈值列表"><button id="compareButton" type="button">对比</button></div><div id="compareResults" class="muted"></div></section>
+        <section class="panel result-panel common-result"><h3>规划指标</h3><div id="metrics" class="metric-grid"></div></section>
+        <section class="panel result-panel common-result"><h3>任务计划与步骤</h3><div id="goal" class="muted" style="margin-bottom:14px"></div><ul id="steps" class="steps"></ul></section>
+        <section class="panel result-panel common-result"><h3>运行血缘</h3><div id="provenance" class="provenance"></div></section>
+        <section class="panel result-panel map-result"><h3>空间预览</h3><div id="map" class="map"></div></section>
+        <section class="panel result-panel common-result trace-result" style="grid-column:1/-1"><h3>执行轨迹</h3><ol id="trace" class="trace"></ol><div id="links" class="links" style="margin-top:14px"></div></section>
       </div>
     </div>
   </main>
@@ -337,6 +348,24 @@
       }
     }
     dockWorkspaceControls();
+    function setResultPanel(selector, visible) { document.querySelectorAll(selector).forEach(panel => panel.classList.toggle('is-visible', visible)); }
+    function resetResultWorkspace() {
+      $('resultEmpty').style.display = 'flex';
+      setResultPanel('.result-panel', false);
+    }
+    function updateResultPanels(data) {
+      const steps = data.steps || [];
+      const tools = new Set(steps.map(step => step.tool));
+      const hasRun = Boolean(data.run_id || data.status);
+      $('resultEmpty').style.display = hasRun ? 'none' : 'flex';
+      setResultPanel('.common-result', hasRun);
+      setResultPanel('.raster-result', tools.has('get_raster_metadata') || tools.has('get_raster_statistics') || tools.has('get_zonal_raster_statistics'));
+      setResultPanel('.composite-result', tools.has('get_zonal_slope_statistics') || tools.has('get_zonal_land_use_distribution'));
+      setResultPanel('.buildability-result', tools.has('get_zonal_buildability_analysis'));
+      setResultPanel('.compare-result', tools.has('get_zonal_buildability_analysis'));
+      setResultPanel('.map-result', Boolean(data.geojson_ref) || steps.some(step => step.result && step.result.bounds));
+    }
+    resetResultWorkspace();
     const statusNames={IDLE:'待机',PLANNING:'规划中',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
@@ -345,7 +374,7 @@
     function welcome() { appendMessage('assistant','你好，我是空间智能体。你可以直接问我 DEM、土地利用或行政区相关问题；如果需要多轮澄清，请保持同一个会话 ID。'); }
     let leafletMap=null;
     function destroyMap() { if(leafletMap){ leafletMap.remove(); leafletMap=null; } }
-    function newSession() { const id='console-'+Date.now().toString(36); destroyMap(); $('session').value=id; $('chatMeta').textContent='当前会话：'+id; $('messages').innerHTML=''; $('answer').textContent='还没有运行记录。'; $('answer').className='answer muted'; $('error').innerHTML=''; $('goal').textContent='尚未生成任务计划。'; $('decisionMode').textContent='等待决策'; $('steps').innerHTML='<li class="muted">暂无工具步骤。</li>'; $('provenance').innerHTML='<div class="muted">暂无运行血缘。</div>'; $('trace').innerHTML='<li class="muted">暂无执行轨迹。</li>'; $('links').innerHTML=''; $('map').innerHTML='<div class="map-empty">导出本地行政区查询后，可在此预览几何形状。</div>'; $('rasterStats').innerHTML='<div class="metric"><b>-</b><small>等待统计分析</small></div>'; $('buildabilityStats').innerHTML='等待建设候选筛选。'; $('compareResults').textContent='完成一次建设适宜性分析后，可比较多个坡度阈值。'; welcome(); }
+    function newSession() { const id='console-'+Date.now().toString(36); destroyMap(); $('session').value=id; $('chatMeta').textContent='当前会话：'+id; $('messages').innerHTML=''; $('answer').textContent=''; $('answer').className='answer muted'; $('error').innerHTML=''; $('goal').textContent=''; $('decisionMode').textContent='等待决策'; $('steps').innerHTML=''; $('provenance').innerHTML=''; $('trace').innerHTML=''; $('links').innerHTML=''; $('map').innerHTML=''; $('rasterStats').innerHTML=''; $('buildabilityStats').innerHTML=''; $('compareResults').textContent=''; resetResultWorkspace(); welcome(); }
     function clearChat() { $('messages').innerHTML=''; welcome(); $('prompt').focus(); }
     function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>'<div class="metric"><b>'+escapeHtml(x[1])+'</b><small>'+escapeHtml(x[0])+'</small></div>').join(''); }
     function stepResult(result) { if(!result) return '未返回工具结果'; if(result.error) return '业务错误：'+result.error; const s=result.statistics||{}; if(result.admin_name&&result.statistics) return result.admin_name+' · 有效像元 '+(s.valid_pixel_count??'-')+' · 均值 '+(s.mean??'-')+' · NoData '+(s.nodata_ratio===null||s.nodata_ratio===undefined?'-':(Number(s.nodata_ratio)*100).toFixed(3)+'%'); if(result.dataset&&s.categories) return result.dataset+' · 有效像元 '+(s.valid_pixel_count??'-')+' · 类别 '+(s.category_count??s.categories.length)+' 个'; if(result.dataset&&result.statistics) return result.dataset+' · 有效像元 '+(s.valid_pixel_count??'-')+' · 均值 '+(s.mean??'-'); if(result.dataset&&result.metadata) return result.dataset+' · 文件 '+(result.file_count??0)+' 个 · 抽样 '+((result.metrics||{}).probed_files??0)+' 个'; if(result.count!==undefined) return '命中 '+result.count+' 条 · 结果引用 '+(result.result_ref||'-'); return '已返回结构化结果'; }
@@ -366,7 +395,7 @@
     async function loadHistory() { try { const [historyResponse,metricsResponse]=await Promise.all([fetch('/runs?limit=20'),fetch('/metrics')]); if(!historyResponse.ok) throw new Error('历史任务读取失败'); const data=await historyResponse.json(); const metricsData=metricsResponse.ok?await metricsResponse.json():null; if(metricsData) $('runtimeMetrics').textContent='累计运行 '+metricsData.run_count+' 次 · 总令牌 '+(metricsData.total_tokens||0); const runs=data.runs||[]; $('historyList').innerHTML=runs.length?runs.map(item=>'<div class="history-item"><button type="button" data-history-request="'+escapeHtml(item.request||'')+'">'+escapeHtml(item.request||'未命名任务')+'</button><small>'+escapeHtml(statusName(item.status||'未知'))+' · '+escapeHtml(item.run_id||'')+'</small></div>').join(''):'<div class="muted">暂无历史任务。</div>'; $('historyList').querySelectorAll('[data-history-request]').forEach(button=>button.addEventListener('click',()=>sendChat(button.getAttribute('data-history-request')))); } catch(error) { $('historyList').innerHTML='<div class="muted">历史任务暂不可用。</div>'; $('runtimeMetrics').textContent='运行指标暂不可用。'; } }
     function validateSelection(request) { const caps=health.capabilities||{}; const needsRaster=/DEM|dem|高程|坡度|土地利用|地类|建设适宜性|适宜建设|建设候选/.test(request); if($('backend').value==='local'&&!caps.local_gis_backend) throw new Error('当前服务不是 GIS 环境。本地 GIS 后端需要用 scripts/start_console.ps1 -Mode gis 启动。'); if(needsRaster&&$('backend').value==='memory') throw new Error('该任务需要真实栅格像元，请将空间后端切换为“本地 GIS”。当前“内存演示”只返回占位结果。'); if($('planner').value==='openai'&&!caps.live_llm_configured) throw new Error('当前服务没有可用的大模型配置。请先配置 config/openai.local.json 或环境变量。'); if($('planner').value==='openai'&&!caps.live_llm_network) throw new Error('当前服务进程不能访问大模型网络。请从允许出站网络的终端重新启动服务，或先切回规则规划器。'); }
     async function retryRun(runId) { setStatus('EXECUTING'); $('subtitle').textContent='正在从失败步骤恢复，已完成步骤不会重复执行。'; try { const response=await fetch('/runs/'+encodeURIComponent(runId)+'/retry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'重试失败'); renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } }
-    function renderRun(data) { setStatus(data.status); $('title').textContent=data.plan?.goal||statusName(data.status); $('subtitle').textContent=data.resolved_request||data.request; $('decisionMode').textContent=decisionMode(data); $('answer').textContent=data.answer||'暂无最终答案。'; $('answer').className='answer'+(data.answer?'':' muted'); $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); rasterStats(data); buildabilityStats(data); steps(data); provenance(data); trace(data); const links=[]; const rasterResult=(data.steps||[]).map(s=>s.result||{}).find(x=>x.statistics&&x.bounds); if(rasterResult) rasterPreview(rasterResult); if(data.status==='FAILED'&&data.run_id) links.push('<button class="retry-action" type="button" onclick="retryRun(\''+escapeHtml(data.run_id)+'\')">重试失败步骤</button>'); if(data.artifact_ref)links.push('<a href="/artifacts/runs/'+encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())+'" target="_blank">打开 JSON 运行记录</a>'); if(data.geojson_ref) { links.push('<a download href="/artifacts/geojson/'+encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())+'">下载 GeoJSON</a>'); loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); }
+    function renderRun(data) { updateResultPanels(data); setStatus(data.status); $('title').textContent=data.plan?.goal||statusName(data.status); $('subtitle').textContent=data.resolved_request||data.request; $('decisionMode').textContent=decisionMode(data); $('answer').textContent=data.answer||'暂无最终答案。'; $('answer').className='answer'+(data.answer?'':' muted'); $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); rasterStats(data); buildabilityStats(data); steps(data); provenance(data); trace(data); const links=[]; const rasterResult=(data.steps||[]).map(s=>s.result||{}).find(x=>x.statistics&&x.bounds); if(rasterResult) rasterPreview(rasterResult); if(data.status==='FAILED'&&data.run_id) links.push('<button class="retry-action" type="button" onclick="retryRun(\''+escapeHtml(data.run_id)+'\')">重试失败步骤</button>'); if(data.artifact_ref)links.push('<a href="/artifacts/runs/'+encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())+'" target="_blank">打开 JSON 运行记录</a>'); if(data.geojson_ref) { links.push('<a download href="/artifacts/geojson/'+encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())+'">下载 GeoJSON</a>'); loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); }
     async function sendChat(text) { const request=(text ?? $('prompt').value).trim(); if(!request) return; const button=$('send'); button.disabled=true; $('prompt').value=''; $('chatMeta').textContent='当前会话：'+$('session').value; appendMessage('user',request); setStatus('PLANNING'); $('title').textContent='正在分析'; $('subtitle').textContent='规划器和运行时正在处理请求。'; $('error').innerHTML=''; try { validateSelection(request); const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'请求失败'); renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } finally { button.disabled=false; $('prompt').focus(); } }
     const baseRenderRun = renderRun; renderRun = data => { baseRenderRun(data); compositeStats(data); };
     $('send').addEventListener('click',()=>sendChat());

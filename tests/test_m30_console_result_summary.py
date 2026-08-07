@@ -45,6 +45,10 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "function decisionMode(data)",
             "通用回答 · 未调用空间工具",
             "空间计划 · 已执行",
+            "function updateResultPanels(data)",
+            "function resetResultWorkspace()",
+            "resultEmpty",
+            "result-panel",
         ):
             self.assertIn(marker, self.html)
 
