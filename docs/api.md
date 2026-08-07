@@ -233,6 +233,10 @@ runs entirely.
 administrative areas. It returns one bounded row per area and does not accept
 client-provided geometry.
 
+`POST /runs/async` returns a `run_id` immediately with status `QUEUED`. Poll
+`GET /runs/{run_id}` for `PLANNING`, `EXECUTING`, and terminal statuses. Active
+runs can be cooperatively cancelled with `POST /runs/{run_id}/cancel`.
+
 ## Error Responses
 
 Invalid or empty request:

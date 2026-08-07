@@ -87,6 +87,26 @@ def run(payload: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/runs/async")
+def run_async(payload: Dict[str, Any]):
+    try:
+        return service.run_async(
+            request=payload.get("request", ""),
+            session_id=payload.get("session_id", "default"),
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "memory"),
+            export_artifact=bool(payload.get("export_artifact", False)),
+            export_geojson=bool(payload.get("export_geojson", False)),
+            geojson_max_features=payload.get("geojson_max_features", 100),
+            timeout_seconds=payload.get("timeout_seconds"),
+            spatial_context=payload.get("spatial_context"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.get("/runs")
 def list_runs(limit: int = 20):
     try:

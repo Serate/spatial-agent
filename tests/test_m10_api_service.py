@@ -286,6 +286,30 @@ class M10HttpApiTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "CANCEL_REQUESTED")
 
+    def test_http_api_async_run_route_is_available(self):
+        class TestHandler(AgentApiHandler):
+            class FakeService:
+                def run_async(self, **kwargs):
+                    return {"run_id": "async-1", "status": "QUEUED"}
+
+            service = FakeService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            payload = _post_json(
+                server.server_address[1],
+                {"request": "你好", "session_id": "async-http", "planner": "rule", "backend": "memory"},
+                path="/runs/async",
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload, {"run_id": "async-1", "status": "QUEUED"})
+
     def test_service_compares_buildability_thresholds(self):
         result = AgentService().compare_buildability(
             "洪山区", [15, 20], backend="memory"

@@ -68,6 +68,16 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("/region-comparisons", source)
         self.assertIn("compareRegions()", source)
 
+    def test_console_uses_async_runs_and_exposes_cancel_control(self):
+        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('id="cancelRun"', source)
+        self.assertIn("/runs/async", source)
+        self.assertIn("/cancel", source)
+        self.assertIn("setCancelState(true)", source)
+
 
 if __name__ == "__main__":
     unittest.main()

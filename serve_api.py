@@ -52,16 +52,29 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
+        is_async_run = parsed.path == "/runs/async"
         is_comparison = parsed.path == "/comparisons"
         is_region_comparison = parsed.path == "/region-comparisons"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
-        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_session_create and not is_session_clear:
+        if parsed.path != "/runs" and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_session_create and not is_session_clear:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
-            if is_session_create:
+            if is_async_run:
+                result = self.service.run_async(
+                    request=payload.get("request", ""),
+                    session_id=payload.get("session_id", "default"),
+                    planner=payload.get("planner", "rule"),
+                    backend=payload.get("backend", "memory"),
+                    export_artifact=bool(payload.get("export_artifact", False)),
+                    export_geojson=bool(payload.get("export_geojson", False)),
+                    geojson_max_features=payload.get("geojson_max_features", 100),
+                    timeout_seconds=payload.get("timeout_seconds"),
+                    spatial_context=payload.get("spatial_context"),
+                )
+            elif is_session_create:
                 result = self.service.create_session()
             elif is_session_clear:
                 session_id = parsed.path[len("/sessions/") : -len("/clear")].strip("/")

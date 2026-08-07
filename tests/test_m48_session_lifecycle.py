@@ -1,4 +1,6 @@
 import tempfile
+import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -6,6 +8,31 @@ from agent.service import AgentService
 
 
 class M48SessionLifecycleTests(unittest.TestCase):
+    def test_async_run_returns_id_before_final_result(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = AgentService(state_db_path=str(Path(directory) / "state.db"))
+            queued = service.run_async(
+                request="你好",
+                session_id="conversation-async",
+                planner="rule",
+                backend="memory",
+            )
+
+            self.assertEqual(queued["status"], "QUEUED")
+            self.assertTrue(queued["run_id"])
+            result = None
+            for _ in range(30):
+                try:
+                    result = service.get_run(queued["run_id"], planner="rule", backend="memory")
+                except ValueError:
+                    time.sleep(0.02)
+                    continue
+                if result["status"] not in ("PLANNING", "EXECUTING"):
+                    break
+                time.sleep(0.02)
+            self.assertIsNotNone(result)
+            self.assertEqual(result["status"], "COMPLETED")
+
     def test_compare_buildability_across_regions(self):
         service = AgentService()
 

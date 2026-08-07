@@ -402,6 +402,7 @@ Prefer small, explainable increments over large rewrites.
 - M46 建立统一 `result` envelope，包含结果类型、标题、摘要、证据步骤、引用和空间几何可用性；核心评测新增结果类型与协议完整性断言。
 - M47 增加受控 `spatial_context`，地图要素点击后可作为下一次 Planner 请求的结构化区域上下文；浏览器烟测验证洪山区选区和后续分析入口。
 - M48 明确会话生命周期：清空会话删除持久化运行快照但保留会话编号，删除会话移除会话及其历史；前端同步清理工作区，并通过浏览器烟测等待异步清空完成。
+- M49 增加异步运行入口：`POST /runs/async` 先返回 `run_id`，Console 轮询最终结果并支持真正的协作式取消；同步 `POST /runs` 保持兼容。
 
 ## Development Issues Log
 

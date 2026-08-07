@@ -94,13 +94,14 @@ class AgentRuntime:
         request: str,
         session_id: str = "default",
         timeout_seconds: Optional[float] = None,
+        run_id: Optional[str] = None,
     ) -> AgentRunResult:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
         resolved_request = self._resolve_request(request, session_id)
         result = AgentRunResult(
-            run_id=str(uuid.uuid4()),
+            run_id=run_id or str(uuid.uuid4()),
             status=RunStatus.PLANNING,
             request=request,
             session_id=session_id,

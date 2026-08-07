@@ -1,4 +1,6 @@
 import os
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Tuple
 
 from agent.artifact_store import ArtifactStore
@@ -21,6 +23,7 @@ class AgentService:
         self._conversation_store = (
             SQLiteConversationStore(self._state_db_path) if self._state_db_path else None
         )
+        self._async_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="spatial-agent")
 
     def run(
         self,
@@ -33,6 +36,7 @@ class AgentService:
         geojson_max_features: int = 100,
         timeout_seconds: float = None,
         spatial_context: Dict[str, Any] = None,
+        run_id: str = None,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
@@ -46,6 +50,7 @@ class AgentService:
             _contextualize_request(request, normalized_context),
             session_id=session_id,
             timeout_seconds=timeout_seconds,
+            run_id=run_id,
         )
         payload = result.to_dict()
         payload["spatial_context"] = normalized_context
@@ -77,6 +82,21 @@ class AgentService:
             payload["result"] = build_result_contract(payload)
             payload.pop("_geometry_feature_count", None)
         return payload
+
+    def run_async(self, **kwargs) -> Dict:
+        request = kwargs.get("request", "")
+        session_id = kwargs.get("session_id", "default")
+        if not isinstance(request, str) or not request.strip():
+            raise ValueError("request must be a non-empty string")
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        planner = kwargs.get("planner", "rule")
+        backend = kwargs.get("backend", "memory")
+        self._runtime(planner, backend)
+        run_id = str(uuid.uuid4())
+        kwargs["run_id"] = run_id
+        self._async_executor.submit(self.run, **kwargs)
+        return {"run_id": run_id, "status": "QUEUED"}
 
     def retry(
         self,

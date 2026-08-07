@@ -310,7 +310,7 @@
       <div class="history"><div class="history-head"><strong>历史任务</strong><button id="refreshHistory" class="history-refresh" type="button">刷新</button></div><div id="runtimeMetrics" class="distribution-note">正在读取运行指标…</div><div id="historyList" class="history-list"><div class="muted">正在读取历史任务…</div></div></div>
     </aside>
     <div class="content">
-      <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">在对话框中输入问题，Agent 会生成计划、调用工具并返回结论。</p><span id="decisionMode" class="decision-mode">等待决策</span></div><span id="status" class="badge">待机</span></section>
+      <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">在对话框中输入问题，Agent 会生成计划、调用工具并返回结论。</p><span id="decisionMode" class="decision-mode">等待决策</span></div><div><span id="status" class="badge">待机</span><button id="cancelRun" type="button" hidden style="margin-left:8px">取消分析</button></div></section>
       <section id="chatPanel" class="chat">
         <div class="chat-head"><h3>对话</h3><div class="chat-actions"><span id="chatMeta">当前对话：对话1</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button><button id="deleteSession" type="button">删除对话</button></div></div>
         <div id="messages" class="messages" aria-live="polite"></div>
@@ -391,6 +391,13 @@
       $('genericResult').textContent = JSON.stringify(payload, null, 2);
     }
     resetResultWorkspace();
+    let activeRunId = null;
+    let activeRunParams = {};
+    const nativeFetch = window.fetch.bind(window);
+    const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    function setCancelState(active) { $('cancelRun').hidden=!active; $('cancelRun').disabled=false; }
+    async function cancelActiveRun() { if(!activeRunId) return; $('cancelRun').disabled=true; try { const response=await nativeFetch('/runs/'+encodeURIComponent(activeRunId)+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planner:activeRunParams.planner||'rule',backend:activeRunParams.backend||'memory'})}); if(!response.ok) throw new Error('取消请求失败'); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; $('cancelRun').disabled=false; } }
+    window.fetch = async (input, init) => { if(input==='/runs' && init?.method==='POST') { const payload=JSON.parse(init.body||'{}'); const queuedResponse=await nativeFetch('/runs/async',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!queuedResponse.ok) return queuedResponse; const queued=await queuedResponse.json(); activeRunId=queued.run_id; activeRunParams=payload; setCancelState(true); let data=queued; for(let attempt=0; attempt<600 && ['QUEUED','PLANNING','EXECUTING'].includes(data.status); attempt++) { await sleep(250); const response=await nativeFetch('/runs/'+encodeURIComponent(queued.run_id)+'?planner='+encodeURIComponent(payload.planner||'rule')+'&backend='+encodeURIComponent(payload.backend||'memory')); if(response.ok) data=await response.json(); } activeRunId=null; activeRunParams={}; setCancelState(false); return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}}); } return nativeFetch(input,init); };
     const statusNames={IDLE:'待机',PLANNING:'规划中',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
@@ -450,6 +457,7 @@
     async function compareRegions() { const names=$('compareRegions').value.split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean); const threshold=Number($('regionThreshold').value); if(names.length<2){ $('regionCompareResults').innerHTML='<div class="error">请输入至少两个行政区名称。</div>'; return; } $('regionCompareButton').disabled=true; $('regionCompareResults').textContent='正在执行多区域对比…'; try { const response=await fetch('/region-comparisons',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({admin_names:names,threshold,planner:$('planner').value,backend:$('backend').value})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'多区域对比失败'); const rows=data.results||[], peak=Math.max(1,...rows.map(row=>Number(row.candidate_pixel_count)||0)); $('regionCompareResults').innerHTML='<div class="distribution-note">坡度不超过 '+escapeHtml(data.slope_limit_degrees)+'°</div><table class="compare-table"><thead><tr><th>行政区</th><th>候选像元</th><th>比例</th><th>可视化</th></tr></thead><tbody>'+rows.map(row=>'<tr><td>'+escapeHtml(row.admin_name)+'</td><td>'+escapeHtml(Number(row.candidate_pixel_count||0).toLocaleString('zh-CN'))+'</td><td>'+escapeHtml(row.candidate_ratio===null||row.candidate_ratio===undefined?'-':(Number(row.candidate_ratio)*100).toFixed(2)+'%')+'</td><td><div class="compare-bar"><i style="width:'+Math.max(2,(Number(row.candidate_pixel_count)||0)/peak*100)+'%"></i></div></td></tr>').join('')+'</tbody></table>'; } catch(error) { $('regionCompareResults').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; } finally { $('regionCompareButton').disabled=false; } }
     $('compareButton').addEventListener('click',compareBuildability);
     $('regionCompareButton').addEventListener('click',compareRegions);
+    $('cancelRun').addEventListener('click',cancelActiveRun);
     $('useMapSelection').addEventListener('click',()=>{ $('prompt').value='分析当前区域地形与土地利用'; $('prompt').focus(); });
   </script>
 </body>
