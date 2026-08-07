@@ -9,6 +9,7 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         )
 
         self.assertIn("restoreSession", script)
+        self.assertIn("createRun", script)
         self.assertIn("conversation user history was not restored", script)
         self.assertIn("conversation assistant history was not restored", script)
         self.assertIn("result from another conversation leaked", script)

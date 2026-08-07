@@ -1,6 +1,7 @@
 import os
 import unittest
 
+from result_contract import build_result_contract
 from run_demo import build_runtime
 
 
@@ -19,6 +20,10 @@ class M29LiveZonalAnalysisTests(unittest.TestCase):
         self.assertIsNone(statistics.get("error"))
         self.assertGreater(statistics["valid_pixel_count"], 0)
         self.assertIn("洪山区", result.answer)
+        contract = build_result_contract({**result.to_dict(), "result_type": result.plan.output["type"]})
+        self.assertEqual(contract["type"], "zonal_raster_statistics_result")
+        self.assertTrue(contract["references"])
+        self.assertTrue(contract["data"]["evidence_steps"])
 
     def test_live_model_plans_composite_admin_raster_analysis(self):
         result = build_runtime("openai", "local").run(
@@ -32,6 +37,9 @@ class M29LiveZonalAnalysisTests(unittest.TestCase):
         )
         self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
         self.assertGreater(result.steps[2].result["statistics"]["valid_pixel_count"], 0)
+        contract = build_result_contract({**result.to_dict(), "result_type": result.plan.output["type"]})
+        self.assertEqual(contract["type"], "zonal_raster_statistics_result")
+        self.assertTrue(contract["data"]["evidence_steps"])
 
 
 if __name__ == "__main__":

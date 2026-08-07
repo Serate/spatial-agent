@@ -45,12 +45,10 @@ const evaluate = async (expression, needsValue = false) => {
 
 const sessionA = await evaluate("(async()=>await (await fetch('/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json())()", true);
 const sessionB = await evaluate("(async()=>await (await fetch('/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})).json())()", true);
+const createRun = async (session, request, backend) => evaluate(`(async()=>{ const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:${JSON.stringify(request)},planner:'rule',backend:${JSON.stringify(backend)},session_id:${JSON.stringify(session)},export_artifact:false,export_geojson:false})}); if(!response.ok) throw new Error(await response.text()); return response.json(); })()`, true);
+await createRun(sessionA.session_id, '你好', 'memory');
+await createRun(sessionB.session_id, '查询DEM栅格元数据', 'local');
 await evaluate(`(async()=>{ await loadSessions(); $('session').value=${JSON.stringify(sessionA.session_id)}; await restoreSession(); })()`);
-await evaluate("sendChat('你好')");
-await sleep(1200);
-await evaluate(`(async()=>{ await loadSessions(); $('session').value=${JSON.stringify(sessionB.session_id)}; await restoreSession(); })()`);
-await evaluate("sendChat('查询DEM栅格元数据')");
-await sleep(2500);
 await evaluate(`(async()=>{ await loadSessions(); $('session').value=${JSON.stringify(sessionA.session_id)}; await restoreSession(); })()`);
 await sleep(1000);
 

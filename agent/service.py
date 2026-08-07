@@ -7,6 +7,7 @@ from agent.provenance import build_provenance
 from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
+from result_contract import build_result_contract
 
 
 class AgentService:
@@ -46,6 +47,7 @@ class AgentService:
         )
         payload = result.to_dict()
         payload["result_type"] = _result_type(payload)
+        payload["result"] = build_result_contract(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         if export_artifact:
@@ -68,6 +70,9 @@ class AgentService:
                 payload,
                 geometry_features=geometry_features or None,
             )
+            payload["_geometry_feature_count"] = len(geometry_features)
+            payload["result"] = build_result_contract(payload)
+            payload.pop("_geometry_feature_count", None)
         return payload
 
     def retry(
@@ -85,6 +90,7 @@ class AgentService:
         result = runtime.retry_failed(run_id)
         payload = result.to_dict()
         payload["result_type"] = _result_type(payload)
+        payload["result"] = build_result_contract(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         if export_artifact:
@@ -107,6 +113,9 @@ class AgentService:
                 payload,
                 geometry_features=geometry_features or None,
             )
+            payload["_geometry_feature_count"] = len(geometry_features)
+            payload["result"] = build_result_contract(payload)
+            payload.pop("_geometry_feature_count", None)
         return payload
 
     def cancel(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
@@ -131,6 +140,7 @@ class AgentService:
             raise ValueError("run not found: " + run_id)
         payload = result.to_dict()
         payload["result_type"] = _result_type(payload)
+        payload["result"] = build_result_contract(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         return payload

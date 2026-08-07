@@ -398,6 +398,8 @@ Prefer small, explainable increments over large rewrites.
 - M43 提供 `GET /runs/{run_id}`，支持服务重启后读取完整运行快照。
 - M44 建立整体产品验收基线，集中覆盖 DEM 元数据、行政区区域分析、建设适宜性、澄清追问和不支持空间领域。
 - M44 扩展自然语言变体识别，并统一真实模型对土地利用、坡度和建设候选结果的中文摘要。
+- M45 增加 Chrome CDP 浏览器烟测，覆盖会话恢复、结果隔离和真实 GIS 地图矢量渲染。
+- M46 建立统一 `result` envelope，包含结果类型、标题、摘要、证据步骤、引用和空间几何可用性；核心评测新增结果类型与协议完整性断言。
 
 ## Development Issues Log
 

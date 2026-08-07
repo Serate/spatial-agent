@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
 from agent.models import AgentRunResult
+from result_contract import build_result_contract
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,10 @@ class EvaluationResult:
     actual_tools: List[str]
     expected_tools: List[str]
     tools_match: bool
+    result_type: str
+    expected_result_type: str
+    result_type_match: bool
+    result_contract_valid: bool
     step_count: int
     max_steps: int
     within_max_steps: bool
@@ -34,6 +39,10 @@ class EvaluationResult:
             "actual_tools": self.actual_tools,
             "expected_tools": self.expected_tools,
             "tools_match": self.tools_match,
+            "result_type": self.result_type,
+            "expected_result_type": self.expected_result_type,
+            "result_type_match": self.result_type_match,
+            "result_contract_valid": self.result_contract_valid,
             "step_count": self.step_count,
             "max_steps": self.max_steps,
             "within_max_steps": self.within_max_steps,
@@ -58,6 +67,11 @@ def run_cases(runtime, cases: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
 def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult:
     actual_tools = [step.tool for step in run.steps]
     expected_tools = case.get("expected_tools", [])
+    payload = run.to_dict()
+    result_type = str(((payload.get("plan") or {}).get("output") or {}).get("type") or "unknown")
+    payload["result_type"] = result_type
+    contract = build_result_contract(payload)
+    expected_result_type = str(case.get("expected_result_type", result_type))
     expected_status = _expected_status(case)
     max_steps = int(case.get("max_steps", 999))
     planner_metrics = run.planner_metrics or {}
@@ -77,6 +91,10 @@ def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult
         actual_tools=actual_tools,
         expected_tools=expected_tools,
         tools_match=_tools_match(actual_tools, expected_tools),
+        result_type=result_type,
+        expected_result_type=expected_result_type,
+        result_type_match=result_type == expected_result_type,
+        result_contract_valid=_valid_contract(contract),
         step_count=len(run.steps),
         max_steps=max_steps,
         within_max_steps=len(run.steps) <= max_steps,
@@ -94,7 +112,7 @@ def summarize(results: List[EvaluationResult]) -> Dict[str, Any]:
     passed = sum(
         1
         for result in results
-        if result.status_match and result.tools_match and result.within_max_steps
+        if result.status_match and result.tools_match and result.result_type_match and result.result_contract_valid and result.within_max_steps
     )
     return {
         "total": total,
@@ -103,6 +121,8 @@ def summarize(results: List[EvaluationResult]) -> Dict[str, Any]:
         "pass_rate": round(passed / total, 4) if total else 0,
         "status_match_rate": _rate(result.status_match for result in results),
         "tool_match_rate": _rate(result.tools_match for result in results),
+        "result_type_match_rate": _rate(result.result_type_match for result in results),
+        "result_contract_valid_rate": _rate(result.result_contract_valid for result in results),
         "within_max_steps_rate": _rate(result.within_max_steps for result in results),
         "lineage_valid_rate": _rate(result.lineage_valid for result in results),
         "avg_total_latency_ms": _average(result.total_latency_ms for result in results),
@@ -150,3 +170,17 @@ def _lineage_valid(run: AgentRunResult) -> bool:
             return False
         known.add(step.id)
     return True
+
+
+def _valid_contract(contract: Dict[str, Any]) -> bool:
+    required = {"type", "title", "summary", "data", "references", "geometry"}
+    geometry = contract.get("geometry") if isinstance(contract, dict) else None
+    return (
+        isinstance(contract, dict)
+        and required.issubset(contract)
+        and isinstance(contract.get("summary"), str)
+        and isinstance(contract.get("references"), list)
+        and isinstance(geometry, dict)
+        and isinstance(geometry.get("available"), bool)
+        and "coordinates" not in str(contract)
+    )

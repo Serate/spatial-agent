@@ -164,6 +164,22 @@ Capability meanings:
 
 The Console uses this endpoint to warn before running a local GIS request from the wrong Python environment, a live model request without model configuration, or a service process whose outbound sockets are blocked.
 
+Every run response also includes a bounded `result` envelope:
+
+```json
+{
+  "type": "raster_metadata_result",
+  "title": "栅格元数据",
+  "summary": "用户可读摘要",
+  "data": {"evidence_steps": []},
+  "references": [],
+  "geometry": {"available": false, "geojson_ref": null, "sources": [], "crs": []}
+}
+```
+
+`result` is the stable presentation contract. Tool payloads and raw geometries
+remain behind bounded references and artifact endpoints.
+
 ## Multi-Turn Clarification
 
 First turn:
