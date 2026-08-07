@@ -348,6 +348,7 @@ M1 使用 RuleBasedPlanner 和 DemoSpatialAdapter 作为可替换 Adapter。M2 �
 - docs/spatial-agent-design.md：完整系统设计。
 - docs/m0-scope.md：M0 场景与验收范围。
 - docs/core-acceptance.md：当前三条核心空间流程的整体验收基线。
+- 核心流程支持“洪山区地形怎么样”“查看洪山区土地覆盖情况”“洪山区有哪些地方适合建设”等自然语言变体，并统一返回事实摘要。
 - docs/data-adapter-plan.md：真实空间数据接入计划。
 - tools/schema/tool-definitions.json：工具输入输出契约。
 - evaluation/cases/m0-cases.json：评测用例。

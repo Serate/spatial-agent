@@ -23,15 +23,15 @@ class RuleBasedPlanner:
     ADMIN_NAME_PATTERN = re.compile(
         r"([\u4e00-\u9fff]{2,12}(?:\u81ea\u6cbb\u53bf|\u6797\u533a|\u5e02|\u53bf|\u533a))"
     )
-    ADMIN_TERMS = ("\u884c\u653f\u533a", "\u8fb9\u754c", "\u53bf\u57df")
+    ADMIN_TERMS = ("\u884c\u653f\u533a", "\u8fb9\u754c", "\u53bf\u57df", "\u884c\u653f\u8303\u56f4", "\u533a\u5212")
     ADMIN_GENERIC_NAMES = ("\u884c\u653f\u533a", "\u53bf\u57df")
-    QUERY_PREFIXES = ("\u67e5\u8be2", "\u67e5\u627e", "\u83b7\u53d6", "\u7edf\u8ba1", "\u5206\u6790")
+    QUERY_PREFIXES = ("\u67e5\u8be2", "\u67e5\u627e", "\u67e5\u770b", "\u83b7\u53d6", "\u7edf\u8ba1", "\u5206\u6790", "\u5e2e\u6211", "\u8bf7")
     ADMIN_DESCRIPTIVE_SUFFIXES = ("\u884c\u653f\u533a", "\u53bf\u57df", "\u8fb9\u754c")
     RASTER_METADATA_TERMS = ("\u5143\u6570\u636e", "\u6805\u683c", "\u50cf\u5143", "\u5f71\u50cf", "metadata")
-    RASTER_STATISTICS_TERMS = ("\u7edf\u8ba1", "\u5206\u6790", "\u5747\u503c", "\u5e73\u5747", "\u6700\u5c0f", "\u6700\u5927", "\u9ad8\u7a0b\u6982\u51b5", "\u5206\u5e03")
+    RASTER_STATISTICS_TERMS = ("\u7edf\u8ba1", "\u5206\u6790", "\u5747\u503c", "\u5e73\u5747", "\u6700\u5c0f", "\u6700\u5927", "\u9ad8\u7a0b\u6982\u51b5", "\u5206\u5e03", "\u60c5\u51b5", "\u5982\u4f55", "\u600e\u4e48\u6837", "\u6982\u51b5")
     DEM_TERMS = ("DEM", "dem", "\u9ad8\u7a0b", "\u5730\u5f62")
-    LAND_USE_TERMS = ("\u571f\u5730\u5229\u7528", "\u5730\u7c7b", "land use", "land_use")
-    BUILDABILITY_TERMS = ("\u5efa\u8bbe\u9002\u5b9c\u6027", "\u9002\u5b9c\u5efa\u8bbe", "\u5efa\u8bbe\u5019\u9009", "\u5efa\u8bbe\u7b5b\u9009", "\u5efa\u8bbe\u7528\u5730")
+    LAND_USE_TERMS = ("\u571f\u5730\u5229\u7528", "\u571f\u5730\u8986\u76d6", "\u8986\u76d6\u60c5\u51b5", "\u5730\u7c7b", "land use", "land_use")
+    BUILDABILITY_TERMS = ("\u5efa\u8bbe\u9002\u5b9c\u6027", "\u9002\u5b9c\u5efa\u8bbe", "\u9002\u5408\u5efa\u8bbe", "\u53ef\u5efa\u8bbe", "\u9002\u5408\u5f00\u53d1", "\u5efa\u8bbe\u6f5c\u529b", "\u5efa\u8bbe\u5019\u9009", "\u5efa\u8bbe\u7b5b\u9009", "\u5efa\u8bbe\u7528\u5730")
     BUILDABILITY_SLOPE_PATTERN = re.compile(r"\u5761\u5ea6(?:\u4e0d\u8d85\u8fc7|\u4e0d\u5927\u4e8e|\u5c0f\u4e8e|\u4f4e\u4e8e|\u9608\u503c\u4e3a)\s*(\d+(?:\.\d+)?)\s*\u5ea6")
 
     def plan(self, request: str) -> TaskPlan:

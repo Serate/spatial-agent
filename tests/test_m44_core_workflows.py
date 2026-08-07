@@ -49,6 +49,27 @@ class M44CoreWorkflowAcceptanceTests(unittest.TestCase):
         self.assertEqual(result.steps, [])
         self.assertIsNone(result.answer)
 
+    def test_natural_language_variants_preserve_the_same_workflows(self):
+        runtime = build_runtime("rule", "memory")
+        variants = {
+            "洪山区地形怎么样": ["get_zonal_raster_statistics"],
+            "查看洪山区土地覆盖情况": ["get_zonal_raster_statistics"],
+            "洪山区有哪些地方适合建设": [
+                "get_dataset_schema",
+                "range_query",
+                "get_zonal_raster_statistics",
+                "get_zonal_slope_statistics",
+                "get_zonal_land_use_distribution",
+                "get_zonal_buildability_analysis",
+            ],
+        }
+        for request, expected_tools in variants.items():
+            with self.subTest(request=request):
+                result = runtime.run(request, session_id="variant-" + request)
+                self.assertEqual(result.status.value, "COMPLETED")
+                self.assertEqual([step.tool for step in result.steps], expected_tools)
+                self.assertEqual(result.steps[-1].args.get("admin_name"), "洪山区")
+
 
 if __name__ == "__main__":
     unittest.main()

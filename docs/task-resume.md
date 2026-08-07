@@ -397,6 +397,7 @@ Prefer small, explainable increments over large rewrites.
 - M43 将取消标记、运行索引和指标也持久化到 SQLite，支持跨 worker 的取消检查和失败运行查询。
 - M43 提供 `GET /runs/{run_id}`，支持服务重启后读取完整运行快照。
 - M44 建立整体产品验收基线，集中覆盖 DEM 元数据、行政区区域分析、建设适宜性、澄清追问和不支持空间领域。
+- M44 扩展自然语言变体识别，并统一真实模型对土地利用、坡度和建设候选结果的中文摘要。
 
 ## Development Issues Log
 

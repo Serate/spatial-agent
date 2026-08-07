@@ -8,6 +8,12 @@ class AnswerComposer:
 
     def compose(self, result: AgentRunResult) -> str:
         output_type = result.plan.output.get("type") if result.plan else None
+        has_elevation = _first_result(result.steps, "get_zonal_raster_statistics") is not None
+        has_slope = _first_result(result.steps, "get_zonal_slope_statistics") is not None
+        has_land_use = _first_result(result.steps, "get_zonal_land_use_distribution") is not None
+        has_buildability = _first_result(result.steps, "get_zonal_buildability_analysis") is not None
+        if has_elevation and (has_slope or has_land_use or has_buildability):
+            return self._compose_terrain_land_use_result(result.steps)
         if output_type == "admin_area_result":
             return self._compose_admin_area_result(result.steps)
         if output_type == "raster_metadata_result":
@@ -18,6 +24,12 @@ class AnswerComposer:
             return self._compose_zonal_raster_statistics_result(result.steps)
         if output_type == "terrain_land_use_analysis_result":
             return self._compose_terrain_land_use_result(result.steps)
+        if has_buildability:
+            return self._compose_buildability_result(result.steps)
+        if has_land_use:
+            return self._compose_land_use_result(result.steps)
+        if has_slope:
+            return self._compose_slope_result(result.steps)
         if _first_result(result.steps, "get_raster_statistics") is not None:
             return self._compose_raster_statistics_result(result.steps)
         if _first_result(result.steps, "get_zonal_raster_statistics") is not None:
@@ -25,6 +37,51 @@ class AnswerComposer:
         if _first_result(result.steps, "get_raster_metadata") is not None:
             return self._compose_raster_metadata_result(result.steps)
         return self._compose_default(result.steps)
+
+    def _compose_slope_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "get_zonal_slope_statistics")
+        statistics = (result or {}).get("statistics", {})
+        area = (result or {}).get("admin_name", "指定区域")
+        if statistics.get("error"):
+            return f"{area}内坡度分析失败：{statistics['error']}。"
+        return (
+            f"{area}坡度分析：最小值 {statistics.get('minimum', '未知')} 度，"
+            f"最大值 {statistics.get('maximum', '未知')} 度，平均值 "
+            f"{statistics.get('mean', '未知')} 度，有效像元 {statistics.get('valid_pixel_count', 0)} 个。"
+        )
+
+    def _compose_land_use_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "get_zonal_land_use_distribution")
+        statistics = (result or {}).get("statistics", {})
+        area = (result or {}).get("admin_name", "指定区域")
+        if statistics.get("error"):
+            return f"{area}内土地利用分析失败：{statistics['error']}。"
+        categories = statistics.get("categories", [])[:5]
+        category_text = "、".join(
+            f"{item.get('value')}类 {float(item.get('share', 0)) * 100:.2f}%"
+            for item in categories
+        ) or "暂无"
+        return (
+            f"{area}土地利用分布：共 {statistics.get('category_count', 0)} 个栅格类别，"
+            f"有效像元 {statistics.get('valid_pixel_count', 0)} 个，主要类别为 {category_text}。"
+        )
+
+    def _compose_buildability_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "get_zonal_buildability_analysis")
+        statistics = (result or {}).get("statistics", {})
+        area = (result or {}).get("admin_name", "指定区域")
+        if statistics.get("error"):
+            return f"{area}建设候选筛选失败：{statistics['error']}。"
+        ratio = statistics.get("candidate_ratio")
+        ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.2f}%"
+        reference = (result or {}).get("result_ref")
+        suffix = f"结果引用：{reference}。" if reference else ""
+        return (
+            f"{area}建设候选演示筛选：候选像元 {statistics.get('candidate_pixel_count', 0)} 个，"
+            f"有效像元 {statistics.get('valid_pixel_count', 0)} 个，候选比例 {ratio_text}，"
+            f"坡度阈值 {statistics.get('slope_limit_degrees', '未知')} 度。"
+            f"{suffix}以上结果仅用于演示，不代表法定建设适宜性或规划许可结论。"
+        )
 
     def _compose_terrain_land_use_result(self, steps: Iterable[StepRun]) -> str:
         elevation = _first_result(steps, "get_zonal_raster_statistics")

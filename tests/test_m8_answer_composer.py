@@ -60,6 +60,49 @@ class M8AnswerComposerTests(unittest.TestCase):
         self.assertIn("\u6587\u4ef6\u6570\uff1a9", answer)
         self.assertIn("\u9996\u4e2a\u6837\u672c\u5c3a\u5bf8\uff1a100x80", answer)
 
+    def test_specialized_results_are_summarized_without_output_type_hint(self):
+        cases = [
+            (
+                "get_zonal_land_use_distribution",
+                {
+                    "admin_name": "洪山区",
+                    "statistics": {
+                        "category_count": 2,
+                        "valid_pixel_count": 100,
+                        "categories": [{"value": 80, "share": 0.6}],
+                    },
+                },
+                "土地利用分布",
+            ),
+            (
+                "get_zonal_buildability_analysis",
+                {
+                    "admin_name": "洪山区",
+                    "statistics": {
+                        "candidate_pixel_count": 20,
+                        "valid_pixel_count": 100,
+                        "candidate_ratio": 0.2,
+                        "slope_limit_degrees": 15,
+                    },
+                },
+                "建设候选演示筛选",
+            ),
+        ]
+        for tool, tool_result, expected in cases:
+            with self.subTest(tool=tool):
+                run = AgentRunResult(
+                    run_id="specialized-" + tool,
+                    status=RunStatus.COMPLETED,
+                    request="空间分析",
+                    plan=TaskPlan(
+                        goal="specialized result",
+                        steps=[PlanStep("step", tool, {})],
+                        output={"type": "unknown"},
+                    ),
+                    steps=[StepRun("step", tool, {}, status="COMPLETED", result=tool_result)],
+                )
+                self.assertIn(expected, AnswerComposer().compose(run))
+
 
 @unittest.skipUnless(HAS_GIS and HAS_LOCAL_DATA, "requires geopandas and local admin GeoJSON")
 class M8AnswerComposerLocalBackendTests(unittest.TestCase):

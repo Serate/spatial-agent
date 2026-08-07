@@ -33,5 +33,33 @@
     "expected_status": "COMPLETED",
     "expected_tools": ["get_dataset_schema", "range_query"],
     "acceptance": "返回行政区命中数量、坐标系和结果引用"
+  },
+  {
+    "id": "variant-terrain-overview",
+    "input": "洪山区地形怎么样",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["get_zonal_raster_statistics"],
+    "acceptance": "口语化地形问题仍识别为 DEM 区域统计"
+  },
+  {
+    "id": "variant-land-cover",
+    "input": "查看洪山区土地覆盖情况",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["get_zonal_raster_statistics"],
+    "acceptance": "土地覆盖同义表达映射到土地利用统计"
+  },
+  {
+    "id": "variant-buildability",
+    "input": "洪山区有哪些地方适合建设",
+    "expected_status": "COMPLETED",
+    "expected_tools": [
+      "get_dataset_schema",
+      "range_query",
+      "get_zonal_raster_statistics",
+      "get_zonal_slope_statistics",
+      "get_zonal_land_use_distribution",
+      "get_zonal_buildability_analysis"
+    ],
+    "acceptance": "未给出坡度阈值时使用显式默认值并说明演示筛选"
   }
 ]
