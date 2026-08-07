@@ -49,6 +49,14 @@ class M44CoreWorkflowAcceptanceTests(unittest.TestCase):
         self.assertEqual(result.steps, [])
         self.assertIsNone(result.answer)
 
+    def test_rule_planner_answers_basic_greeting_without_spatial_tools(self):
+        result = build_runtime("rule", "memory").run("你好")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.steps, [])
+        self.assertEqual(result.plan.output["type"], "direct_answer")
+        self.assertIn("空间智能体", result.answer)
+
     def test_natural_language_variants_preserve_the_same_workflows(self):
         runtime = build_runtime("rule", "memory")
         variants = {

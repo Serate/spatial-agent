@@ -13,6 +13,8 @@ class Planner(Protocol):
 class RuleBasedPlanner:
     """A deterministic Planner Adapter for M1 and contract tests."""
 
+    GREETING_TERMS = ("你好", "您好", "嗨", "hello", "hi")
+
     DELETE_TERMS = ("\u5220\u9664", "\u5168\u4e2d\u56fd", "\u4efb\u610f SQL", "\u5bfc\u51fa\u5168\u90e8")
     KNN_TERMS = ("\u6700\u8fd1", "KNN")
     ROAD_TERMS = ("\u9053\u8def", "\u4e3b\u5e72\u9053")
@@ -41,6 +43,16 @@ class RuleBasedPlanner:
             raise RequestRejected("request contains destructive, unauthorized, or oversized operations")
         if any(term in request.upper() for term in self.KNN_TERMS):
             raise ClarificationNeeded("M1 does not support KNN yet; use an explicit range condition")
+
+        if request.strip().lower() in self.GREETING_TERMS:
+            return TaskPlan(
+                goal="respond to greeting",
+                steps=[],
+                output={
+                    "type": "direct_answer",
+                    "message": "你好，我是空间智能体。你可以直接询问行政区边界、DEM 高程、坡度、土地利用或建设适宜性演示分析。",
+                },
+            )
 
         if any(term in request for term in ("你能做什么", "帮助", "能力范围", "你是谁")):
             return TaskPlan(
