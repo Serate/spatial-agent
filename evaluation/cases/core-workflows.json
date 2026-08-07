@@ -1,0 +1,37 @@
+[
+  {
+    "id": "core-dem-metadata",
+    "input": "查询DEM栅格元数据",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["get_raster_metadata"],
+    "acceptance": "返回栅格元数据摘要，不生成无关工具步骤"
+  },
+  {
+    "id": "core-zonal-dem",
+    "input": "分析洪山区DEM高程概况",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["get_zonal_raster_statistics"],
+    "acceptance": "按行政区返回 DEM 统计摘要"
+  },
+  {
+    "id": "core-buildability",
+    "input": "分析洪山区建设适宜性，坡度不超过20度",
+    "expected_status": "COMPLETED",
+    "expected_tools": [
+      "get_dataset_schema",
+      "range_query",
+      "get_zonal_raster_statistics",
+      "get_zonal_slope_statistics",
+      "get_zonal_land_use_distribution",
+      "get_zonal_buildability_analysis"
+    ],
+    "acceptance": "返回高程、坡度、土地利用和候选筛选的受控摘要"
+  },
+  {
+    "id": "core-admin-boundary",
+    "input": "查询洪山区行政区边界",
+    "expected_status": "COMPLETED",
+    "expected_tools": ["get_dataset_schema", "range_query"],
+    "acceptance": "返回行政区命中数量、坐标系和结果引用"
+  }
+]

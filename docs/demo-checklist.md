@@ -47,6 +47,13 @@ python scripts\smoke_check.py
 python scripts\evaluate_planner.py --planner rule --backend memory
 ```
 
+核心流程整体验收：
+
+```powershell
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest tests.test_m44_core_workflows
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\evaluate_planner.py --planner rule --backend memory --cases evaluation/cases/core-workflows.json --strict
+```
+
 ## 失败恢复演示
 
 使用 API：
