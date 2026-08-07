@@ -138,6 +138,8 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("发送", body)
         self.assertIn("新建会话", body)
         self.assertIn("清空对话", body)
+        self.assertIn('<select id="session">', body)
+        self.assertIn("对话1", body)
         self.assertIn("function newSession", body)
         self.assertIn("function stepResult", body)
         self.assertIn("已阻塞", body)
