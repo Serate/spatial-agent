@@ -235,14 +235,23 @@
 
     /* Desktop workspace: keep the conversation visible without letting it dominate the analysis surface. */
     @media (min-width:901px) {
-      main { max-width:1480px; grid-template-columns:248px minmax(0,1fr); gap:18px; padding:22px 24px 38px; }
-      .controls { padding:16px; top:18px; }
+      main { max-width:1480px; grid-template-columns:minmax(0,1fr); gap:18px; padding:22px 24px 38px; }
+      .controls { padding:11px 14px; top:18px; }
       .controls::before { margin-bottom:13px; }
       .content { display:grid; grid-template-columns:minmax(0,1fr) 324px; align-items:start; gap:14px; }
       .content > .hero { grid-column:1 / -1; min-height:96px; padding:19px 22px; }
       .content > .hero h2 { font-size:20px; margin-bottom:5px; }
       .content > .hero .decision-mode { margin-top:9px; }
       .content > .chat { grid-column:2; grid-row:2; position:sticky; top:18px; height:580px; min-height:0; max-height:calc(100vh - 40px); }
+      .chat { grid-template-rows:auto auto 1fr auto; }
+      .chat-settings { display:grid; grid-template-columns:1fr 1fr; gap:8px 10px; border-bottom:1px solid rgba(219,228,231,.9); background:rgba(247,251,251,.66); }
+      .chat-settings::before { content:"运行设置"; grid-column:1/-1; margin:0; color:#2d4e56; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+      .chat-settings label { margin:0 0 4px; font-size:10px; }
+      .chat-settings input, .chat-settings select { padding:7px 9px; font-size:12px; }
+      .chat-settings .examples { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:5px; margin:0; padding:7px 0 0; border-top:1px solid rgba(219,228,231,.7); }
+      .chat-settings .example { width:auto; padding:5px 7px; font-size:10px; border-radius:6px; }
+      .chat-settings .hint { grid-column:1/-1; margin:0; padding:6px 8px; font-size:10px; line-height:1.4; }
+      .chat-settings .env, .chat-settings .history { display:none; }
       .chat-head { padding:13px 15px; align-items:flex-start; }
       .chat-head h3 { padding-top:2px; }
       .chat-actions { gap:5px; justify-content:flex-end; }
@@ -253,7 +262,11 @@
       .composer { grid-template-columns:1fr; gap:8px; padding:11px; }
       .composer textarea { min-height:62px; max-height:130px; padding:10px 11px; font-size:13px; }
       .composer button { min-height:38px; }
-      .content > .grid { grid-column:1; grid-row:2; min-width:0; gap:14px; }
+      .content > .grid { grid-column:1; grid-row:2; min-width:0; gap:0; padding:16px; border-radius:12px; background:rgba(255,255,255,.68); border:1px solid rgba(203,219,222,.86); box-shadow:0 18px 42px rgba(32,66,75,.08), inset 0 1px 0 rgba(255,255,255,.8); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .content > .grid::before { content:"分析结果工作区"; grid-column:1/-1; display:block; padding:0 0 12px 1px; color:#1d3d45; font-size:15px; font-weight:800; }
+      .content > .grid > .panel { background:transparent; border:0; border-radius:0; box-shadow:none; padding:14px 12px; }
+      .content > .grid > .panel:hover { transform:none; border-color:transparent; box-shadow:none; background:rgba(237,247,245,.38); }
+      .content > .grid > .panel:nth-last-child(1) { grid-column:1/-1; border-top:1px solid rgba(219,228,231,.78); }
       .panel { padding:15px; border-radius:10px; }
       .panel h3 { margin-bottom:11px; font-size:13px; }
       .metric-grid { gap:7px; }
@@ -271,7 +284,7 @@
 <body>
   <header><h1>空间智能体控制台</h1><span>对话 / 规划器 / 运行时 / 空间后端</span></header>
   <main>
-    <aside class="controls panel">
+    <aside id="workspaceControls" class="controls panel">
       <div class="row"><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">空间后端</label><select id="backend"><option value="memory">内存演示</option><option value="local">本地 GIS</option></select></div></div>
       <label for="session">会话 ID</label><input id="session" value="console">
       <div class="examples" aria-label="示例问题">
@@ -289,7 +302,7 @@
     </aside>
     <div class="content">
       <section class="hero"><div><h2 id="title">准备好进行空间分析</h2><p id="subtitle">在对话框中输入问题，Agent 会生成计划、调用工具并返回结论。</p><span id="decisionMode" class="decision-mode">等待决策</span></div><span id="status" class="badge">待机</span></section>
-      <section class="chat">
+      <section id="chatPanel" class="chat">
         <div class="chat-head"><h3>对话</h3><div class="chat-actions"><span id="chatMeta">当前会话：console</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button></div></div>
         <div id="messages" class="messages" aria-live="polite"></div>
         <div class="composer">
@@ -297,7 +310,7 @@
           <button id="send">发送</button>
         </div>
       </section>
-      <div class="grid">
+      <div class="grid" aria-label="分析结果工作区">
         <section class="panel"><h3>分析结论</h3><div id="answer" class="answer muted">还没有运行记录。</div><div id="error"></div></section>
         <section class="panel"><h3>栅格统计概览</h3><div id="rasterStats"><div class="metric"><b>-</b><small>等待统计分析</small></div></div></section>
         <section class="panel"><h3>综合空间分析</h3><div id="compositeStats" class="muted">等待高程、坡度和土地利用联合分析。</div></section>
@@ -314,6 +327,16 @@
   <script>
     const $ = id => document.getElementById(id);
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function dockWorkspaceControls() {
+      const controls = $('workspaceControls');
+      const chat = $('chatPanel');
+      const chatHead = chat?.querySelector('.chat-head');
+      if (controls && chat && chatHead && controls.parentElement !== chat) {
+        controls.className = 'chat-settings';
+        chatHead.insertAdjacentElement('afterend', controls);
+      }
+    }
+    dockWorkspaceControls();
     const statusNames={IDLE:'待机',PLANNING:'规划中',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
