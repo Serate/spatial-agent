@@ -242,6 +242,42 @@ class AgentService:
             "results": rows,
         }
 
+    def compare_buildability_regions(
+        self,
+        admin_names,
+        threshold: float = 20,
+        planner: str = "rule",
+        backend: str = "local",
+    ) -> Dict:
+        if not isinstance(admin_names, list) or not 2 <= len(admin_names) <= 6:
+            raise ValueError("admin_names must contain 2 to 6 values")
+        try:
+            threshold_value = float(threshold)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("threshold must be a number") from exc
+        if not 1 <= threshold_value <= 45:
+            raise ValueError("slope threshold must be between 1 and 45 degrees")
+        names = []
+        for name in admin_names:
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("admin_names must contain non-empty strings")
+            cleaned = name.strip()[:80]
+            if cleaned not in names:
+                names.append(cleaned)
+        if len(names) < 2:
+            raise ValueError("admin_names must contain at least 2 distinct values")
+        rows = []
+        for admin_name in names:
+            result = self.compare_buildability(
+                admin_name=admin_name,
+                thresholds=[threshold_value],
+                planner=planner,
+                backend=backend,
+            )
+            row = (result.get("results") or [{}])[0]
+            rows.append({"admin_name": admin_name, **row})
+        return {"admin_names": names, "slope_limit_degrees": threshold_value, "results": rows}
+
     def _runtime(self, planner: str, backend: str):
         key = _runtime_key(planner, backend)
         if key not in self._runtimes:

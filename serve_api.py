@@ -53,9 +53,10 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
         is_comparison = parsed.path == "/comparisons"
+        is_region_comparison = parsed.path == "/region-comparisons"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
-        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison and not is_session_create and not is_session_clear:
+        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_session_create and not is_session_clear:
             self._write_json(404, {"error": "not found"})
             return
         try:
@@ -72,6 +73,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     planner=payload.get("planner", "rule"),
                     backend=payload.get("backend", "local"),
                     spatial_context=payload.get("spatial_context"),
+                )
+            elif is_region_comparison:
+                result = self.service.compare_buildability_regions(
+                    admin_names=payload.get("admin_names", []),
+                    threshold=payload.get("threshold", 20),
+                    planner=payload.get("planner", "rule"),
+                    backend=payload.get("backend", "local"),
                 )
             elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")

@@ -164,6 +164,21 @@ def compare(payload: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/region-comparisons")
+def compare_regions(payload: Dict[str, Any]):
+    try:
+        return service.compare_buildability_regions(
+            admin_names=payload.get("admin_names", []),
+            threshold=payload.get("threshold", 20),
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "local"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.post("/runs/{run_id}/retry")
 def retry(run_id: str, payload: Dict[str, Any]):
     try:

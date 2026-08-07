@@ -6,6 +6,17 @@ from agent.service import AgentService
 
 
 class M48SessionLifecycleTests(unittest.TestCase):
+    def test_compare_buildability_across_regions(self):
+        service = AgentService()
+
+        result = service.compare_buildability_regions(
+            ["洪山区", "江夏区"], threshold=20, backend="memory"
+        )
+
+        self.assertEqual(result["slope_limit_degrees"], 20.0)
+        self.assertEqual([row["admin_name"] for row in result["results"]], ["洪山区", "江夏区"])
+        self.assertEqual(len(result["results"]), 2)
+
     def test_clear_session_removes_runs_but_keeps_session(self):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(state_db_path=str(Path(directory) / "state.db"))

@@ -229,6 +229,10 @@ snapshots and pending clarification while keeping the conversation entry. Use
 `DELETE /sessions/{session_id}` to remove the conversation entry and its stored
 runs entirely.
 
+`POST /region-comparisons` compares the same slope rule across 2 to 6 named
+administrative areas. It returns one bounded row per area and does not accept
+client-provided geometry.
+
 ## Error Responses
 
 Invalid or empty request:

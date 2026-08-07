@@ -59,6 +59,15 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("/clear", source)
         self.assertIn("deleteSession", source)
 
+    def test_console_exposes_multi_region_comparison(self):
+        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('id="compareRegions"', source)
+        self.assertIn("/region-comparisons", source)
+        self.assertIn("compareRegions()", source)
+
 
 if __name__ == "__main__":
     unittest.main()
