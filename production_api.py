@@ -79,6 +79,7 @@ def run(payload: Dict[str, Any]):
             export_geojson=bool(payload.get("export_geojson", False)),
             geojson_max_features=payload.get("geojson_max_features", 100),
             timeout_seconds=payload.get("timeout_seconds"),
+            spatial_context=payload.get("spatial_context"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

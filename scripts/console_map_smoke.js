@@ -38,13 +38,20 @@ if (sendResult.result.exceptionDetails) {
   throw new Error(sendResult.result.exceptionDetails.exception?.description || "console request failed");
 }
 await sleep(1500);
+const clicked = await command("Runtime.evaluate", {
+  expression: "(()=>{let done=false; leafletMap.eachLayer(layer=>{if(layer.eachLayer) layer.eachLayer(item=>{if(!done&&item.fire){item.fire('click'); done=true;}})}); return done;})()",
+  returnByValue: true,
+});
+if (!clicked.result?.result?.value) throw new Error("空间预览没有可点击的矢量要素");
 const result = await command("Runtime.evaluate", {
   expression: `JSON.stringify({
     leaflet: Boolean(document.querySelector('#leafletMap')),
     leafletPaths: document.querySelectorAll('.leaflet-overlay-pane path').length,
     svgPaths: document.querySelectorAll('#map svg path').length,
     empty: Boolean(document.querySelector('#map .map-empty')),
-    status: document.querySelector('#status')?.textContent
+    status: document.querySelector('#status')?.textContent,
+    selection: document.querySelector('#mapSelection')?.textContent,
+    selectionEnabled: !document.querySelector('#useMapSelection')?.disabled
   })`,
   returnByValue: true,
 });
@@ -52,5 +59,8 @@ const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
 if (snapshot.leafletPaths < 1 && snapshot.svgPaths < 1) {
   throw new Error("空间预览没有生成任何矢量图层");
+}
+if (!snapshot.selection.includes("洪山区") || !snapshot.selectionEnabled) {
+  throw new Error("地图要素点击没有生成可用的空间上下文");
 }
 socket.close();

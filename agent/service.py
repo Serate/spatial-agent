@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 from agent.artifact_store import ArtifactStore
 from agent.geojson_exporter import export_run_summary
@@ -32,6 +32,7 @@ class AgentService:
         export_geojson: bool = False,
         geojson_max_features: int = 100,
         timeout_seconds: float = None,
+        spatial_context: Dict[str, Any] = None,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
@@ -39,13 +40,15 @@ class AgentService:
             raise ValueError("session_id must be a non-empty string")
         if self._conversation_store is not None:
             self._conversation_store.ensure_session(session_id)
+        normalized_context = _normalize_spatial_context(spatial_context)
         runtime = self._runtime(planner, backend)
         result = runtime.run(
-            request,
+            _contextualize_request(request, normalized_context),
             session_id=session_id,
             timeout_seconds=timeout_seconds,
         )
         payload = result.to_dict()
+        payload["spatial_context"] = normalized_context
         payload["result_type"] = _result_type(payload)
         payload["result"] = build_result_contract(payload)
         payload["trace_summary"] = format_trace(result)
@@ -229,6 +232,28 @@ def _runtime_key(planner: str, backend: str) -> Tuple[str, str]:
     if backend not in ("memory", "local"):
         raise ValueError("backend must be one of: memory, local")
     return planner, backend
+
+
+def _normalize_spatial_context(context: Dict[str, Any]) -> Dict[str, Any]:
+    if context is None:
+        return {}
+    if not isinstance(context, dict):
+        raise ValueError("spatial_context must be an object")
+    normalized = {}
+    for key in ("admin_name", "source", "crs", "geometry_type"):
+        value = context.get(key)
+        if isinstance(value, str) and value.strip():
+            normalized[key] = value.strip()[:160]
+    if context.get("geometry_available") is True:
+        normalized["geometry_available"] = True
+    return normalized
+
+
+def _contextualize_request(request: str, context: Dict[str, Any]) -> str:
+    admin_name = context.get("admin_name")
+    if not admin_name:
+        return request
+    return f"{request}（当前地图选中区域：{admin_name}）"
 
 
 def _tag_geometry_features(features, source=None, crs=None, source_crs=None):

@@ -180,6 +180,15 @@ Every run response also includes a bounded `result` envelope:
 `result` is the stable presentation contract. Tool payloads and raw geometries
 remain behind bounded references and artifact endpoints.
 
+Run requests may include a bounded `spatial_context` object from the map:
+
+```json
+{"admin_name":"洪山区","source":"geojson","crs":"EPSG:4490","geometry_type":"MultiPolygon","geometry_available":true}
+```
+
+The runtime uses the named area as structured planning context; it does not
+accept arbitrary geometry or execute client-provided code.
+
 ## Multi-Turn Clarification
 
 First turn:

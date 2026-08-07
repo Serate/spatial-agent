@@ -22,6 +22,7 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("$('backend').value='local'", script)
         self.assertIn("awaitPromise: true", script)
         self.assertIn("exceptionDetails", script)
+        self.assertIn("地图要素点击没有生成可用的空间上下文", script)
 
 
 if __name__ == "__main__":
