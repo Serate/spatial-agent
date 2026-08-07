@@ -29,7 +29,8 @@ await command("Runtime.enable");
 await command("Page.navigate", {url: consoleUrl});
 await sleep(700);
 const result = await command("Runtime.evaluate", {
-  expression: "(()=>{ $('answer').textContent='旧分析结论'; $('steps').textContent='旧执行步骤'; selectedSpatialContext={admin_name:'洪山区'}; $('mapSelection').textContent='已选中：洪山区'; $('useMapSelection').disabled=false; $('clearChat').click(); return JSON.stringify({answer:$('answer').textContent,steps:$('steps').textContent,selection:$('mapSelection').textContent,selectionEnabled:!$('useMapSelection').disabled})})()",
+  expression: "(async()=>{ $('answer').textContent='旧分析结论'; $('steps').textContent='旧执行步骤'; selectedSpatialContext={admin_name:'洪山区'}; $('mapSelection').textContent='已选中：洪山区'; $('useMapSelection').disabled=false; await clearChat(); return JSON.stringify({answer:$('answer').textContent,steps:$('steps').textContent,selection:$('mapSelection').textContent,selectionEnabled:!$('useMapSelection').disabled})})()",
+  awaitPromise: true,
   returnByValue: true,
 });
 if (result.result.exceptionDetails) {
