@@ -4,7 +4,7 @@ import json
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .runtime import PendingClarification
@@ -41,6 +41,65 @@ class SQLiteStateStore:
             return None
         return _result_from_dict(json.loads(row[0]))
 
+    def request_cancel(self, run_id: str) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO run_controls (run_id, cancel_requested)
+                VALUES (?, 1)
+                ON CONFLICT(run_id) DO UPDATE SET cancel_requested=1
+                """,
+                (run_id,),
+            )
+
+    def is_cancel_requested(self, run_id: str) -> bool:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT cancel_requested FROM run_controls WHERE run_id = ?", (run_id,)
+            ).fetchone()
+        return bool(row and row[0])
+
+    def clear_cancel(self, run_id: str) -> None:
+        with self._connection() as connection:
+            connection.execute("DELETE FROM run_controls WHERE run_id = ?", (run_id,))
+
+    def list_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT payload, updated_at FROM agent_runs ORDER BY updated_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        records = []
+        for payload, updated_at in rows:
+            item = json.loads(payload)
+            records.append({
+                "run_id": item.get("run_id"),
+                "status": item.get("status"),
+                "request": item.get("request"),
+                "answer": item.get("answer"),
+                "error": item.get("error"),
+                "planner_metrics": item.get("planner_metrics"),
+                "modified_at": updated_at,
+            })
+        return records
+
+    def metrics(self) -> Dict[str, Any]:
+        records = self.list_runs(limit=1000000)
+        status_counts: Dict[str, int] = {}
+        total_tokens = 0
+        for record in records:
+            status = record.get("status") or "UNKNOWN"
+            status_counts[status] = status_counts.get(status, 0) + 1
+            usage = ((record.get("planner_metrics") or {}).get("usage") or {})
+            total_tokens += int(usage.get("total_tokens") or 0)
+        return {
+            "run_count": len(records),
+            "status_counts": status_counts,
+            "total_tokens": total_tokens,
+        }
+
     def _initialize(self) -> None:
         with self._connection() as connection:
             connection.executescript(
@@ -49,6 +108,10 @@ class SQLiteStateStore:
                     run_id TEXT PRIMARY KEY,
                     payload TEXT NOT NULL,
                     updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS run_controls (
+                    run_id TEXT PRIMARY KEY,
+                    cancel_requested INTEGER NOT NULL DEFAULT 0
                 );
                 """
             )

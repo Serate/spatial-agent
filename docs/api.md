@@ -275,6 +275,9 @@ Troubleshooting notes from the M16 setup:
 - Planner output still flows through ToolRegistry validation.
 - The API returns result_ref values instead of large geometries.
 - session_id scopes clarification state and prevents unrelated clients from sharing pending context.
+- In production SQLite mode, `GET /runs` and `GET /metrics` read persisted run snapshots, including runs that were not exported as artifacts.
+- `GET /runs/{run_id}` returns a persisted run snapshot after a service restart; `POST /runs/{run_id}/retry` can then resume a failed planned run.
+- Cancellation is cooperative: the cancel request is persisted, and Runtime stops at the next safe step boundary. It does not forcibly terminate a running third-party GIS or provider call.
 - Artifact export writes a compact run summary only, not raw spatial datasets.
 
 ## Artifact Viewer

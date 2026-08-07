@@ -115,10 +115,29 @@ class AgentService:
             "current_status": result.status.value,
         }
 
+    def get_run(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("run_id must be a non-empty string")
+        result = (
+            self._state_store.get(run_id)
+            if self._state_store is not None
+            else self._runtime(planner, backend).get_run(run_id)
+        )
+        if result is None:
+            raise ValueError("run not found: " + run_id)
+        payload = result.to_dict()
+        payload["trace_summary"] = format_trace(result)
+        payload["provenance"] = build_provenance(payload)
+        return payload
+
     def list_runs(self, limit: int = 20) -> Dict:
+        if self._state_store is not None:
+            return {"runs": self._state_store.list_runs(limit=limit)}
         return {"runs": self._artifact_store.list_runs(limit=limit)}
 
     def metrics(self) -> Dict:
+        if self._state_store is not None:
+            return self._state_store.metrics()
         return self._artifact_store.metrics()
 
     def compare_buildability(

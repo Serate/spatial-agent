@@ -15,6 +15,7 @@ from .tools import ToolRegistry
 class InMemoryStateStore:
     def __init__(self):
         self._runs: Dict[str, AgentRunResult] = {}
+        self._cancelled: Set[str] = set()
         self._lock = Lock()
 
     def save(self, result: AgentRunResult) -> None:
@@ -24,6 +25,18 @@ class InMemoryStateStore:
     def get(self, run_id: str) -> Optional[AgentRunResult]:
         with self._lock:
             return self._runs.get(run_id)
+
+    def request_cancel(self, run_id: str) -> None:
+        with self._lock:
+            self._cancelled.add(run_id)
+
+    def is_cancel_requested(self, run_id: str) -> bool:
+        with self._lock:
+            return run_id in self._cancelled
+
+    def clear_cancel(self, run_id: str) -> None:
+        with self._lock:
+            self._cancelled.discard(run_id)
 
 
 @dataclass(frozen=True)
@@ -166,6 +179,9 @@ class AgentRuntime:
             raise ToolError("run is not active: " + run_id)
         with self._control_lock:
             self._cancelled_runs.add(run_id)
+        request_cancel = getattr(self._state_store, "request_cancel", None)
+        if callable(request_cancel):
+            request_cancel(run_id)
         return result
 
     def retry_failed(self, run_id: str) -> AgentRunResult:
@@ -205,6 +221,9 @@ class AgentRuntime:
         result.answer = None
         with self._control_lock:
             self._cancelled_runs.discard(run_id)
+        clear_cancel = getattr(self._state_store, "clear_cancel", None)
+        if callable(clear_cancel):
+            clear_cancel(run_id)
         try:
             for index in range(failed_index, len(result.steps)):
                 step_run = result.steps[index]
@@ -306,7 +325,10 @@ class AgentRuntime:
 
     def _check_control(self, run_id: str, deadline: Optional[float]) -> None:
         with self._control_lock:
-            if run_id in self._cancelled_runs:
+            is_cancel_requested = getattr(self._state_store, "is_cancel_requested", None)
+            if run_id in self._cancelled_runs or (
+                callable(is_cancel_requested) and is_cancel_requested(run_id)
+            ):
                 raise RunCancelled("run cancellation requested")
         if deadline is not None and perf_counter() >= deadline:
             raise RunTimedOut("run exceeded timeout_seconds")

@@ -99,6 +99,14 @@ def metrics():
     return service.metrics()
 
 
+@app.get("/runs/{run_id}")
+def get_run(run_id: str, planner: str = "rule", backend: str = "memory"):
+    try:
+        return service.get_run(run_id=run_id, planner=planner, backend=backend)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @app.post("/comparisons")
 def compare(payload: Dict[str, Any]):
     try:

@@ -388,12 +388,14 @@ Prefer small, explainable increments over large rewrites.
 - `POST /comparisons` 支持同一行政区的多个坡度阈值建设适宜性对比。
 - Console 支持阈值对比表、历史任务列表和运行指标摘要。
 - Leaflet 支持纯矢量模式与可选 OpenStreetMap 底图，外部网络不可用时不影响矢量结果。
-- `GET /runs` 返回历史 artifact 摘要，`GET /metrics` 返回运行次数、状态计数和累计 Token。
+- `GET /runs` 和 `GET /metrics` 在生产 SQLite 模式下直接读取持久化运行快照，不要求每次运行导出 artifact；内存模式仍使用 artifact store。
 - 生产接口已验证洪山区三个坡度阈值均可完成真实 GIS 分析。
 - Planner 支持结构化 `direct_answer` 决策；通用问题不强行调用 GIS 工具，空间问题仍必须通过 TaskPlan 和 ToolRegistry。
 - Console 在运行结果顶部显示决策模式：通用回答不会调用空间工具，澄清/拒绝不会执行工具，空间计划显示实际工具步骤数量。
 - 未知或暂不支持的空间问题保持 `NEEDS_CLARIFICATION`，不能由通用回答替代空间结果，也不能绕过 ToolRegistry。
 - M42 新增 SQLite 状态存储，Service/Runtime 重建后仍可恢复澄清上下文和运行快照。
+- M43 将取消标记、运行索引和指标也持久化到 SQLite，支持跨 worker 的取消检查和失败运行查询。
+- M43 提供 `GET /runs/{run_id}`，支持服务重启后读取完整运行快照。
 
 ## Development Issues Log
 
