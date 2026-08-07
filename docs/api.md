@@ -178,6 +178,14 @@ Follow-up turn using the same session_id:
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8088/runs -ContentType "application/json" -Body '{"request":"洪山区","session_id":"demo"}'
 ~~~
 
+## Conversation History
+
+`GET /sessions` lists named conversations. `POST /sessions` creates the next
+conversation name, such as `对话2`. Use
+`GET /sessions/{session_id}/runs?limit=20` to restore the recent run summaries
+for one conversation, then `GET /runs/{run_id}` for the complete structured
+result of the latest run.
+
 ## Error Responses
 
 Invalid or empty request:

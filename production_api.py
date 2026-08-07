@@ -102,6 +102,14 @@ def list_sessions(limit: int = 50):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.get("/sessions/{session_id}/runs")
+def list_session_runs(session_id: str, limit: int = 20):
+    try:
+        return service.list_session_runs(session_id=session_id, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/sessions")
 def create_session():
     try:

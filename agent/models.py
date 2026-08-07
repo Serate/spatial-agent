@@ -51,6 +51,7 @@ class AgentRunResult:
     run_id: str
     status: RunStatus
     request: str
+    session_id: Optional[str] = None
     resolved_request: Optional[str] = None
     plan: Optional[TaskPlan] = None
     planner_metrics: Optional[Dict[str, Any]] = None

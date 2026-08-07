@@ -103,6 +103,7 @@ class AgentRuntime:
             run_id=str(uuid.uuid4()),
             status=RunStatus.PLANNING,
             request=request,
+            session_id=session_id,
             resolved_request=resolved_request,
         )
         self._state_store.save(result)

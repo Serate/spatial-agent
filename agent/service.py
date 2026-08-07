@@ -140,6 +140,13 @@ class AgentService:
             return {"runs": self._state_store.list_runs(limit=limit)}
         return {"runs": self._artifact_store.list_runs(limit=limit)}
 
+    def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        if self._state_store is None:
+            return {"runs": []}
+        return {"runs": self._state_store.list_runs(limit=limit, session_id=session_id)}
+
     def list_sessions(self, limit: int = 50) -> Dict:
         if self._conversation_store is None:
             return {"sessions": []}

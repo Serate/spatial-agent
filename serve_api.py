@@ -24,6 +24,11 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/runs":
             self._write_json(200, self.service.list_runs())
             return
+        if parsed.path.startswith("/sessions/") and parsed.path.endswith("/runs"):
+            session_id = parsed.path[len("/sessions/") : -len("/runs")].strip("/")
+            if session_id:
+                self._write_json(200, self.service.list_session_runs(session_id))
+                return
         if parsed.path == "/sessions":
             self._write_json(200, self.service.list_sessions())
             return

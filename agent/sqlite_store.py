@@ -63,19 +63,26 @@ class SQLiteStateStore:
         with self._connection() as connection:
             connection.execute("DELETE FROM run_controls WHERE run_id = ?", (run_id,))
 
-    def list_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
+    def list_runs(self, limit: int = 20, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
         if limit < 1:
             raise ValueError("limit must be positive")
         with self._connection() as connection:
-            rows = connection.execute(
-                "SELECT payload, updated_at FROM agent_runs ORDER BY updated_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+            if session_id:
+                rows = connection.execute(
+                    "SELECT payload, updated_at FROM agent_runs WHERE json_extract(payload, '$.session_id') = ? ORDER BY updated_at DESC LIMIT ?",
+                    (session_id, limit),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT payload, updated_at FROM agent_runs ORDER BY updated_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
         records = []
         for payload, updated_at in rows:
             item = json.loads(payload)
             records.append({
                 "run_id": item.get("run_id"),
+                "session_id": item.get("session_id"),
                 "status": item.get("status"),
                 "request": item.get("request"),
                 "answer": item.get("answer"),
@@ -318,6 +325,7 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         run_id=payload["run_id"],
         status=RunStatus(payload["status"]),
         request=payload["request"],
+        session_id=payload.get("session_id"),
         resolved_request=payload.get("resolved_request"),
         plan=plan,
         planner_metrics=payload.get("planner_metrics"),

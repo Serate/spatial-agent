@@ -111,6 +111,19 @@ class M42SQLiteStoreTests(unittest.TestCase):
         self.assertEqual(restored["status"], "COMPLETED")
         self.assertIn("trace_summary", restored)
 
+    def test_session_run_index_restores_recent_conversation_records(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "agent.db")
+            service = AgentService(state_db_path=path)
+            first = service.run("你好", session_id="conversation-1")
+            second = service.run("查询洪山区行政区边界", session_id="conversation-2")
+            same_session = service.run("查询DEM栅格元数据", session_id="conversation-1")
+            records = service.list_session_runs("conversation-1")["runs"]
+
+        self.assertEqual({item["run_id"] for item in records}, {same_session["run_id"], first["run_id"]})
+        self.assertTrue(all(item["session_id"] == "conversation-1" for item in records))
+        self.assertNotIn(second["run_id"], [item["run_id"] for item in records])
+
 
 if __name__ == "__main__":
     unittest.main()
