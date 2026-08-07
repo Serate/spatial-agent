@@ -401,6 +401,7 @@ Prefer small, explainable increments over large rewrites.
 - M45 增加 Chrome CDP 浏览器烟测，覆盖会话恢复、结果隔离和真实 GIS 地图矢量渲染。
 - M46 建立统一 `result` envelope，包含结果类型、标题、摘要、证据步骤、引用和空间几何可用性；核心评测新增结果类型与协议完整性断言。
 - M47 增加受控 `spatial_context`，地图要素点击后可作为下一次 Planner 请求的结构化区域上下文；浏览器烟测验证洪山区选区和后续分析入口。
+- M48 明确会话生命周期：清空会话删除持久化运行快照但保留会话编号，删除会话移除会话及其历史；前端同步清理工作区，并通过浏览器烟测等待异步清空完成。
 
 ## Development Issues Log
 

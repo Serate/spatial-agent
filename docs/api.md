@@ -224,6 +224,11 @@ conversation name, such as `对话2`. Use
 for one conversation, then `GET /runs/{run_id}` for the complete structured
 result of the latest run.
 
+`POST /sessions/{session_id}/clear` clears the conversation's persisted run
+snapshots and pending clarification while keeping the conversation entry. Use
+`DELETE /sessions/{session_id}` to remove the conversation entry and its stored
+runs entirely.
+
 ## Error Responses
 
 Invalid or empty request:

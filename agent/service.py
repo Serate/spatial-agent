@@ -170,6 +170,23 @@ class AgentService:
             raise ValueError("session persistence is not configured")
         return self._conversation_store.create_session()
 
+    def clear_session(self, session_id: str) -> Dict:
+        _validate_session_id(session_id)
+        cleared_runs = self._state_store.clear_session_runs(session_id) if self._state_store else 0
+        if self._conversation_store:
+            self._conversation_store.clear_session(session_id)
+        for runtime in self._runtimes.values():
+            runtime.clear_session(session_id)
+        return {"session_id": session_id, "cleared_runs": cleared_runs}
+
+    def delete_session(self, session_id: str) -> Dict:
+        _validate_session_id(session_id)
+        cleared_runs = self._state_store.clear_session_runs(session_id) if self._state_store else 0
+        deleted = self._conversation_store.delete_session(session_id) if self._conversation_store else False
+        for runtime in self._runtimes.values():
+            runtime.clear_session(session_id)
+        return {"session_id": session_id, "deleted": deleted, "cleared_runs": cleared_runs}
+
     def metrics(self) -> Dict:
         if self._state_store is not None:
             return self._state_store.metrics()
@@ -243,6 +260,11 @@ def _runtime_key(planner: str, backend: str) -> Tuple[str, str]:
     if backend not in ("memory", "local"):
         raise ValueError("backend must be one of: memory, local")
     return planner, backend
+
+
+def _validate_session_id(session_id: str) -> None:
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise ValueError("session_id must be a non-empty string")
 
 
 def _normalize_spatial_context(context: Dict[str, Any]) -> Dict[str, Any]:

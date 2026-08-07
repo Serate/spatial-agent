@@ -169,6 +169,10 @@ class AgentRuntime:
         self._state_store.save(result)
         return result
 
+    def clear_session(self, session_id: str) -> None:
+        """Clear runtime-only clarification state for a conversation."""
+        self._conversation_store.clear_pending(session_id)
+
     def get_run(self, run_id: str) -> Optional[AgentRunResult]:
         return self._state_store.get(run_id)
 

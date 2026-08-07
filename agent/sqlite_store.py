@@ -92,6 +92,23 @@ class SQLiteStateStore:
             })
         return records
 
+    def clear_session_runs(self, session_id: str) -> int:
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT run_id FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?",
+                (session_id,),
+            ).fetchall()
+            if rows:
+                connection.execute(
+                    "DELETE FROM run_controls WHERE run_id IN (SELECT run_id FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?)",
+                    (session_id,),
+                )
+                connection.execute(
+                    "DELETE FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?",
+                    (session_id,),
+                )
+        return len(rows)
+
     def metrics(self) -> Dict[str, Any]:
         records = self.list_runs(limit=1000000)
         status_counts: Dict[str, int] = {}
@@ -229,6 +246,25 @@ class SQLiteConversationStore:
             connection.execute(
                 "DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,)
             )
+
+    def clear_session(self, session_id: str) -> None:
+        with self._connection() as connection:
+            connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
+            connection.execute(
+                "UPDATE conversation_sessions SET updated_at=CURRENT_TIMESTAMP WHERE session_id = ?",
+                (session_id,),
+            )
+
+    def delete_session(self, session_id: str) -> bool:
+        with self._connection() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM conversation_sessions WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM conversation_sessions WHERE session_id = ?", (session_id,))
+        return bool(exists)
 
     def save_completed(self, session_id: str, request: str) -> None:
         self.ensure_session(session_id)

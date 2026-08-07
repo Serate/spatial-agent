@@ -46,8 +46,18 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("$('clearChat').click()", script)
+        self.assertIn("await clearChat()", script)
         self.assertIn("清空对话没有清除当前工作区", script)
+        self.assertIn("awaitPromise: true", script)
+
+    def test_console_exposes_distinct_clear_and_delete_session_actions(self):
+        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('id="deleteSession"', source)
+        self.assertIn("/clear", source)
+        self.assertIn("deleteSession", source)
 
 
 if __name__ == "__main__":

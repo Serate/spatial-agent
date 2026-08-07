@@ -54,13 +54,17 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
         is_comparison = parsed.path == "/comparisons"
         is_session_create = parsed.path == "/sessions"
-        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison and not is_session_create:
+        is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
+        if parsed.path != "/runs" and not is_retry and not is_cancel and not is_comparison and not is_session_create and not is_session_clear:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
             if is_session_create:
                 result = self.service.create_session()
+            elif is_session_clear:
+                session_id = parsed.path[len("/sessions/") : -len("/clear")].strip("/")
+                result = self.service.clear_session(session_id)
             elif is_comparison:
                 result = self.service.compare_buildability(
                     admin_name=payload.get("admin_name", ""),
@@ -102,6 +106,22 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     timeout_seconds=payload.get("timeout_seconds"),
                     spatial_context=payload.get("spatial_context"),
                 )
+        except ValueError as exc:
+            self._write_json(400, {"error": str(exc)})
+            return
+        except Exception as exc:
+            self._write_json(500, {"error": str(exc)})
+            return
+        self._write_json(200, result)
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        if not parsed.path.startswith("/sessions/"):
+            self._write_json(404, {"error": "not found"})
+            return
+        try:
+            session_id = parsed.path[len("/sessions/") :].strip("/")
+            result = self.service.delete_session(session_id)
         except ValueError as exc:
             self._write_json(400, {"error": str(exc)})
             return

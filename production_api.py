@@ -119,6 +119,22 @@ def create_session():
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.post("/sessions/{session_id}/clear")
+def clear_session(session_id: str):
+    try:
+        return service.clear_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.delete("/sessions/{session_id}")
+def delete_session(session_id: str):
+    try:
+        return service.delete_session(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/metrics")
 def metrics():
     return service.metrics()
