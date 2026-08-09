@@ -38,7 +38,7 @@ if (result.result.exceptionDetails) {
 }
 const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
-if (!snapshot.panel || !snapshot.text.includes("整体状态") || !snapshot.text.includes("admin_areas") || snapshot.tool !== "get_dataset_health_report") {
+if (!snapshot.panel || !snapshot.text.includes("整体状态") || !snapshot.text.includes("核心数据") || !snapshot.text.includes("admin_areas") || snapshot.tool !== "get_dataset_health_report") {
   throw new Error("数据健康结果没有激活专用前端面板");
 }
 socket.close();

@@ -5,11 +5,17 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from .dataset_catalog import DatasetCatalog, DatasetEntry
-from .capability_catalog import DATASET_TOOL_CAPABILITIES, capability_catalog
+from .capability_catalog import (
+    DATASET_GROUPS,
+    DATASET_TOOL_CAPABILITIES,
+    capability_catalog,
+)
 from .errors import ToolError
 
 
 HEALTH_DATASETS = ("admin_areas", "dem", "land_use", "roads", "water")
+CORE_DATASETS = DATASET_GROUPS["core"]
+OPTIONAL_DATASETS = DATASET_GROUPS["optional"]
 
 # These are product capabilities, rather than raw file types. Keeping the
 # mapping here lets health results explain which registered tools are safe to
@@ -32,12 +38,14 @@ def dataset_health_report(
         _health_for_entry(catalog.get(name), name, max_files)
         for name in names
     ]
+    for item in reports:
+        item["layer"] = _dataset_layer(item["dataset"])
     statuses = [item["status"] for item in reports]
-    overall = "ready"
-    if any(status == "unavailable" for status in statuses):
-        overall = "unavailable"
-    elif any(status == "degraded" for status in statuses):
-        overall = "degraded"
+    core_status = _layer_status(reports, CORE_DATASETS)
+    optional_status = _layer_status(reports, OPTIONAL_DATASETS)
+    # For an all-dataset health check, status deliberately describes the core
+    # product layer. Optional data remains visible through its own status.
+    overall = core_status if dataset == "all" else _aggregate_status(statuses)
     relationships = {}
     dem_entry = catalog.get("dem")
     land_use_entry = catalog.get("land_use")
@@ -48,6 +56,7 @@ def dataset_health_report(
     capabilities = {
         item["dataset"]: list(item.get("usable_for", [])) for item in reports
     }
+    dataset_statuses = {item["dataset"]: item["status"] for item in reports}
     alignment = relationships.get("dem_land_use") or {}
     if alignment.get("status") == "ready":
         for name in ("dem", "land_use"):
@@ -57,12 +66,22 @@ def dataset_health_report(
     return {
         "dataset": dataset,
         "status": overall,
+        "core_status": core_status,
+        "optional_status": optional_status,
+        "status_by_layer": {
+            "core": core_status,
+            "optional": optional_status,
+        },
+        "core_datasets": list(CORE_DATASETS),
+        "optional_datasets": list(OPTIONAL_DATASETS),
         "updated_at": updated_at,
         "datasets": reports,
         "relationships": relationships,
         "capabilities": capabilities,
         "capability_catalog": capability_catalog(
-            environment="local", dataset_capabilities=capabilities
+            environment="local",
+            dataset_capabilities=capabilities,
+            dataset_statuses=dataset_statuses,
         ),
         "metrics": {
             "backend": "catalog_health",
@@ -71,6 +90,34 @@ def dataset_health_report(
         },
         "warning": "健康检查只验证数据可读取性和基础质量，不代表数据的法定权威性或规划合规性。",
     }
+
+
+def _aggregate_status(statuses: Iterable[str]) -> str:
+    values = list(statuses)
+    if not values:
+        return "not_checked"
+    if any(status == "unavailable" for status in values):
+        return "unavailable"
+    if any(status == "degraded" for status in values):
+        return "degraded"
+    if all(status == "ready" for status in values):
+        return "ready"
+    return "unknown"
+
+
+def _layer_status(reports: Iterable[Dict[str, Any]], layer: Iterable[str]) -> str:
+    names = set(layer)
+    return _aggregate_status(
+        item["status"] for item in reports if item.get("dataset") in names
+    )
+
+
+def _dataset_layer(name: str) -> str:
+    if name in CORE_DATASETS:
+        return "core"
+    if name in OPTIONAL_DATASETS:
+        return "optional"
+    return "unknown"
 
 
 def _health_for_entry(

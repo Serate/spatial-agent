@@ -461,6 +461,13 @@ Prefer small, explainable increments over large rewrites.
 2. 将武汉道路/水体数据卷和可选数据健康分层纳入生产部署，避免缺失可选数据掩盖核心能力。
 3. 深化异步幂等、重启恢复、真实模型超时重试和 Console 动态结果展示。
 
+### M61 当前实现
+
+- 数据健康分为核心层与可选层，能力目录新增 `data_layer`、`capability_status`、`available`，逐能力门控道路/水体约束分析。
+- SQLite 异步入口支持默认请求指纹和显式 `idempotency_key`，并发重复提交、显式运行 ID 重放、清空去重键和重启接管均有契约测试。
+- 真实模型客户端支持超时、暂态重试、指数退避和安全请求指标；默认 CI 仍不访问网络。
+- M61 专项测试已通过 20 项；全量回归与生产验收待集成后执行。
+
 ## Development Issues Log
 
 - 新对话恢复优先阅读 docs/agent-context-resume.md。

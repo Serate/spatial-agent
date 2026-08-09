@@ -25,6 +25,20 @@ def load_openai_config(path: Optional[str] = None) -> Dict[str, Any]:
         "timeout_seconds": _float_setting(
             os.environ.get("OPENAI_TIMEOUT_SECONDS", config.get("timeout_seconds"))
         ),
+        "max_retries": _int_setting(
+            os.environ.get("OPENAI_MAX_RETRIES", config.get("max_retries"))
+        ),
+        "retry_backoff_seconds": _float_setting(
+            os.environ.get(
+                "OPENAI_RETRY_BACKOFF_SECONDS", config.get("retry_backoff_seconds")
+            )
+        ),
+        "retry_backoff_max_seconds": _float_setting(
+            os.environ.get(
+                "OPENAI_RETRY_BACKOFF_MAX_SECONDS",
+                config.get("retry_backoff_max_seconds"),
+            )
+        ),
         "api_url": os.environ.get("OPENAI_API_URL") or config.get("api_url"),
         "base_url": os.environ.get("OPENAI_BASE_URL") or config.get("base_url"),
         "reasoning_effort": os.environ.get("OPENAI_REASONING_EFFORT")

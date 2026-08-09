@@ -1,5 +1,8 @@
 import json
+import errno
 import os
+import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -142,6 +145,9 @@ class OpenAIPlannerClient:
         wire_api: Optional[str] = None,
         max_output_tokens: Optional[int] = None,
         timeout_seconds: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        retry_backoff_seconds: Optional[float] = None,
+        retry_backoff_max_seconds: Optional[float] = None,
         reasoning_effort: Optional[str] = None,
         auth_location: Optional[str] = None,
         api_key_query_param: Optional[str] = None,
@@ -161,8 +167,30 @@ class OpenAIPlannerClient:
         self._reasoning_effort = reasoning_effort or os.environ.get(
             "OPENAI_REASONING_EFFORT", "medium"
         )
-        self._max_output_tokens = max_output_tokens or _env_int("OPENAI_MAX_OUTPUT_TOKENS")
-        self._timeout_seconds = timeout_seconds or _env_float("OPENAI_TIMEOUT_SECONDS") or 60.0
+        self._max_output_tokens = _first_not_none(
+            max_output_tokens, _env_int("OPENAI_MAX_OUTPUT_TOKENS")
+        )
+        self._timeout_seconds = _first_not_none(
+            timeout_seconds, _env_float("OPENAI_TIMEOUT_SECONDS"), 60.0
+        )
+        self._max_retries = _first_not_none(max_retries, _env_int("OPENAI_MAX_RETRIES"), 2)
+        self._retry_backoff_seconds = _first_not_none(
+            retry_backoff_seconds,
+            _env_float("OPENAI_RETRY_BACKOFF_SECONDS"),
+            0.5,
+        )
+        self._retry_backoff_max_seconds = _first_not_none(
+            retry_backoff_max_seconds,
+            _env_float("OPENAI_RETRY_BACKOFF_MAX_SECONDS"),
+            8.0,
+        )
+        _validate_request_settings(
+            self._timeout_seconds,
+            self._max_output_tokens,
+            self._max_retries,
+            self._retry_backoff_seconds,
+            self._retry_backoff_max_seconds,
+        )
         self._auth_location = auth_location or os.environ.get("OPENAI_AUTH_LOCATION", "header")
         self._api_key_query_param = api_key_query_param or os.environ.get(
             "OPENAI_API_KEY_QUERY_PARAM", "key"
@@ -171,6 +199,11 @@ class OpenAIPlannerClient:
             "provider": "openai-compatible",
             "wire_api": self._wire_api,
             "model": self._model,
+            "timeout_seconds": self._timeout_seconds,
+            "max_output_tokens": self._max_output_tokens,
+            "max_retries": self._max_retries,
+            "retry_backoff_seconds": self._retry_backoff_seconds,
+            "retry_backoff_max_seconds": self._retry_backoff_max_seconds,
         }
 
     def complete_json(self, messages, schema: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -206,36 +239,95 @@ class OpenAIPlannerClient:
             method="POST",
         )
         started = perf_counter()
-        try:
-            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-            self._last_metrics = dict(self._last_metrics)
-            self._last_metrics["latency_ms"] = round((perf_counter() - started) * 1000, 3)
-            self._last_metrics["usage"] = _usage_summary(payload.get("usage"))
-        except urllib.error.HTTPError as exc:
-            self._record_error(started, "http_error")
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise PlanningError("OpenAI request failed: " + detail) from exc
-        except urllib.error.URLError as exc:
-            self._record_error(started, "url_error")
-            raise PlanningError("OpenAI request failed: " + str(exc)) from exc
-        except TimeoutError as exc:
-            self._record_error(started, "timeout")
-            raise PlanningError("OpenAI request timed out") from exc
+        attempts = 0
+        self._last_metrics = dict(self._last_metrics)
+        for key in ("usage", "error_type", "response_status", "latency_ms"):
+            self._last_metrics.pop(key, None)
+        self._last_metrics.update({"attempts": 0, "retries": 0, "status": "in_progress"})
+        while attempts <= self._max_retries:
+            attempts += 1
+            self._last_metrics["attempts"] = attempts
+            try:
+                with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                self._record_success(started, attempts, payload)
+                break
+            except json.JSONDecodeError as exc:
+                self._record_error(started, "response_json_error", attempts)
+                raise PlanningError("OpenAI response was not valid JSON") from exc
+            except urllib.error.HTTPError as exc:
+                if _retryable_http_status(exc.code) and attempts <= self._max_retries:
+                    self._wait_before_retry(attempts)
+                    continue
+                self._record_error(started, "http_error", attempts, exc.code)
+                detail = exc.read().decode("utf-8", errors="replace")
+                raise PlanningError("OpenAI request failed: " + detail) from exc
+            except urllib.error.URLError as exc:
+                if _retryable_url_error(exc) and attempts <= self._max_retries:
+                    self._wait_before_retry(attempts)
+                    continue
+                self._record_error(started, "url_error", attempts)
+                raise PlanningError("OpenAI request failed: " + str(exc)) from exc
+            except (TimeoutError, socket.timeout) as exc:
+                if attempts <= self._max_retries:
+                    self._wait_before_retry(attempts)
+                    continue
+                self._record_error(started, "timeout", attempts)
+                raise PlanningError("OpenAI request timed out") from exc
 
-        text = self._extract_text(payload)
+        try:
+            text = self._extract_text(payload)
+        except PlanningError:
+            self._record_error(started, "response_shape_error", attempts)
+            raise
         try:
             return json.loads(text)
         except json.JSONDecodeError as exc:
+            self._record_error(started, "response_json_error", attempts)
             raise PlanningError("OpenAI response was not valid JSON") from exc
 
     def metrics(self) -> Dict[str, Any]:
         return dict(self._last_metrics)
 
-    def _record_error(self, started: float, error_type: str) -> None:
+    def _record_success(self, started: float, attempts: int, payload: Mapping[str, Any]) -> None:
         self._last_metrics = dict(self._last_metrics)
-        self._last_metrics["latency_ms"] = round((perf_counter() - started) * 1000, 3)
-        self._last_metrics["error_type"] = error_type
+        self._last_metrics.update(
+            {
+                "latency_ms": round((perf_counter() - started) * 1000, 3),
+                "attempts": attempts,
+                "retries": attempts - 1,
+                "status": "success",
+                "usage": _usage_summary(payload.get("usage")),
+            }
+        )
+
+    def _record_error(
+        self,
+        started: float,
+        error_type: str,
+        attempts: int,
+        response_status: Optional[int] = None,
+    ) -> None:
+        self._last_metrics = dict(self._last_metrics)
+        self._last_metrics.update(
+            {
+                "latency_ms": round((perf_counter() - started) * 1000, 3),
+                "attempts": attempts,
+                "retries": attempts - 1,
+                "status": "error",
+                "error_type": error_type,
+            }
+        )
+        if response_status is not None:
+            self._last_metrics["response_status"] = response_status
+
+    def _wait_before_retry(self, attempt: int) -> None:
+        delay = min(
+            self._retry_backoff_seconds * (2 ** (attempt - 1)),
+            self._retry_backoff_max_seconds,
+        )
+        if delay > 0:
+            time.sleep(delay)
 
     def _extract_text(self, payload: Mapping[str, Any]) -> str:
         if self._wire_api == "chat_completions":
@@ -326,6 +418,49 @@ def _env_float(name: str) -> Optional[float]:
     return float(value) if value else None
 
 
+def _first_not_none(*values):
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _validate_request_settings(
+    timeout_seconds: float,
+    max_output_tokens: Optional[int],
+    max_retries: int,
+    retry_backoff_seconds: float,
+    retry_backoff_max_seconds: float,
+) -> None:
+    if timeout_seconds <= 0:
+        raise PlanningError("OPENAI_TIMEOUT_SECONDS must be positive")
+    if max_output_tokens is not None and max_output_tokens <= 0:
+        raise PlanningError("OPENAI_MAX_OUTPUT_TOKENS must be positive")
+    if max_retries < 0:
+        raise PlanningError("OPENAI_MAX_RETRIES must be non-negative")
+    if retry_backoff_seconds < 0 or retry_backoff_max_seconds < 0:
+        raise PlanningError("OpenAI retry backoff must be non-negative")
+    if retry_backoff_max_seconds < retry_backoff_seconds:
+        raise PlanningError("OPENAI_RETRY_BACKOFF_MAX_SECONDS must not be below the base backoff")
+
+
+def _retryable_http_status(status: int) -> bool:
+    return status in (408, 425, 429) or 500 <= status <= 599
+
+
+def _retryable_url_error(error: urllib.error.URLError) -> bool:
+    reason = getattr(error, "reason", None)
+    if isinstance(reason, (TimeoutError, socket.timeout, ConnectionResetError,
+                           ConnectionAbortedError, ConnectionRefusedError)):
+        return True
+    return getattr(reason, "errno", None) in {
+        errno.ETIMEDOUT,
+        errno.ECONNRESET,
+        errno.ECONNABORTED,
+        errno.ECONNREFUSED,
+    }
+
+
 def _usage_summary(usage: Any) -> Dict[str, int]:
     if not isinstance(usage, Mapping):
         return {}
@@ -336,7 +471,11 @@ def _usage_summary(usage: Any) -> Dict[str, int]:
         "prompt_tokens",
         "completion_tokens",
     )
-    return {key: usage[key] for key in keys if isinstance(usage.get(key), int)}
+    return {
+        key: usage[key]
+        for key in keys
+        if type(usage.get(key)) is int and usage[key] >= 0
+    }
 
 
 def _normalize_shortcut_plan(payload: Mapping[str, Any]) -> Mapping[str, Any]:

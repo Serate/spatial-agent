@@ -32,6 +32,13 @@ DATASET_TOOL_CAPABILITIES = {
     ],
 }
 
+# The core layer supports the default spatial workflows. Roads and water are
+# optional enrichments and must not make core capabilities unavailable.
+DATASET_GROUPS = {
+    "core": ("admin_areas", "dem", "land_use"),
+    "optional": ("roads", "water"),
+}
+
 
 _CAPABILITIES = (
     {
@@ -123,6 +130,7 @@ def capability_catalog(
     *,
     environment: str = "unknown",
     dataset_capabilities: Mapping[str, Iterable[str]] | None = None,
+    dataset_statuses: Mapping[str, str] | None = None,
 ) -> Dict[str, Any]:
     """Return a JSON-safe snapshot; callers cannot mutate the source contract."""
     has_dataset_gate = dataset_capabilities is not None
@@ -145,6 +153,18 @@ def capability_catalog(
             "unknown" if not has_dataset_gate else "ready" if not missing else "missing"
         )
         entry["missing_datasets"] = missing
+        entry["data_layer"] = _capability_data_layer(entry["datasets"])
+        entry["capability_status"] = _capability_status(
+            entry["datasets"], dataset_statuses
+        )
+        entry["available"] = (
+            entry["environment_supported"]
+            and entry["dataset_gate"] != "missing"
+            and (
+                dataset_statuses is None
+                or entry["capability_status"] not in {"unavailable", "unknown"}
+            )
+        )
         capabilities.append(entry)
     return {
         "version": "1.0",
@@ -152,6 +172,9 @@ def capability_catalog(
         "capabilities": capabilities,
         "dataset_tools": deepcopy(DATASET_TOOL_CAPABILITIES),
         "available_dataset_tools": available,
+        "dataset_groups": {
+            name: list(datasets) for name, datasets in DATASET_GROUPS.items()
+        },
     }
 
 
@@ -167,9 +190,14 @@ def runtime_capability_catalog(
         if isinstance(item, Mapping) and item.get("dataset")
     }
     dataset_capabilities = health_report.get("capabilities")
+    dataset_statuses = {
+        name: str(item.get("status", "unknown"))
+        for name, item in dataset_reports.items()
+    }
     snapshot = capability_catalog(
         environment=environment,
         dataset_capabilities=dataset_capabilities if isinstance(dataset_capabilities, Mapping) else None,
+        dataset_statuses=dataset_statuses,
     )
     evidence = {}
     for name, item in dataset_reports.items():
@@ -193,4 +221,39 @@ def runtime_capability_catalog(
     snapshot["updated_at"] = health_report.get("updated_at")
     snapshot["data_evidence"] = evidence
     snapshot["health_status"] = health_report.get("status", "unknown")
+    snapshot["core_health_status"] = health_report.get(
+        "core_status", health_report.get("status", "unknown")
+    )
+    snapshot["optional_health_status"] = health_report.get(
+        "optional_status", "unknown"
+    )
     return snapshot
+
+
+def _capability_data_layer(datasets: Iterable[str]) -> str:
+    names = set(datasets)
+    groups = {
+        group
+        for group, members in DATASET_GROUPS.items()
+        if names and names.issubset(set(members))
+    }
+    if len(groups) == 1:
+        return next(iter(groups))
+    return "mixed" if names else "none"
+
+
+def _capability_status(
+    datasets: Iterable[str], dataset_statuses: Mapping[str, str] | None
+) -> str:
+    if dataset_statuses is None:
+        return "unknown"
+    statuses = [str(dataset_statuses.get(name, "unavailable")) for name in datasets]
+    if not statuses:
+        return "ready"
+    if any(status == "unavailable" for status in statuses):
+        return "unavailable"
+    if any(status == "degraded" for status in statuses):
+        return "degraded"
+    if all(status == "ready" for status in statuses):
+        return "ready"
+    return "unknown"
