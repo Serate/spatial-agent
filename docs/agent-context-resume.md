@@ -206,6 +206,7 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 - M62.1 已将结构化澄清详情接入 `AgentRunResult`、SQLite、`result` envelope 和 Console；保留旧 `error` 文本兼容客户端。下一步是 HTTP/评测契约、能力目录标签和 Docker 复验。
 - M62.2 已让澄清候选复用 `capability_catalog` 中文标签，并增加标准 HTTP 结构化澄清测试；离线全量 243 项通过。下一阶段重点是多工具开放式编排、证据评测和生产 Docker/GIS 复验。
 - M63 已开始受控空间总览编排：`spatial_overview` 生成 8 步跨来源计划并返回 `spatial_overview_result`；专项回归通过，待全局评测、浏览器、GIS 和 Docker 验收。
+- M63 已完成联合验收：GIS 41 项通过；Docker 重建后 `healthy`、生产 acceptance 通过；容器同步空间总览返回 8 步 `spatial_overview_result`。同时修复生产同步路由误传异步 `idempotency_key`，离线全量 245 项通过、32 项跳过。下一阶段重点是真实几何证据、真实模型结构化总览和 Console 动态结果展示。
 
 M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
 
