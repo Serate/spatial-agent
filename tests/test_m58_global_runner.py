@@ -20,6 +20,8 @@ class M58GlobalRunnerTests(unittest.TestCase):
         self.assertEqual(report["failed"], 0)
         self.assertEqual(report["evaluation_context"]["environment"], "memory")
         self.assertTrue(any(item.get("status") == "SKIPPED" for item in report["results"]))
+        executed = [item for item in report["results"] if not item.get("skipped")]
+        self.assertTrue(all(item.get("capability_contract_match", True) for item in executed))
 
     def test_async_snapshot_is_readable_after_service_recreation(self):
         import tempfile

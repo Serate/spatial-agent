@@ -7,6 +7,7 @@
     "backend": "memory",
     "expected_status": "COMPLETED",
     "expected_result_type": "direct_answer",
+    "capability_id": "conversation",
     "expected_tools": [],
     "verification": "不调用空间工具，返回能力介绍"
   },
@@ -18,6 +19,7 @@
     "backend": "memory",
     "expected_status": "COMPLETED",
     "expected_result_type": "admin_area_result",
+    "capability_id": "admin_boundary_query",
     "expected_tools": ["get_dataset_schema", "range_query"],
     "verification": "返回行政区命中和边界证据"
   },
@@ -29,6 +31,7 @@
     "backend": "memory",
     "expected_status": "COMPLETED",
     "expected_result_type": "zonal_raster_statistics_result",
+    "capability_id": "zonal_raster_statistics",
     "expected_tools": ["get_dataset_health_report", "get_zonal_raster_statistics"],
     "verification": "健康预检先于区域栅格统计"
   },
@@ -40,6 +43,7 @@
     "backend": "memory",
     "expected_status": "COMPLETED",
     "expected_result_type": "terrain_land_use_analysis_result",
+    "capability_id": "zonal_terrain_land_use",
     "expected_tools": [
       "get_dataset_health_report",
       "get_dataset_schema",
@@ -58,6 +62,7 @@
     "backend": "memory",
     "expected_status": "COMPLETED",
     "expected_result_type": "buildability_comparison",
+    "capability_id": "buildability_screening",
     "verification": "返回统一 scenario 和每个阈值结果"
   },
   {
@@ -68,6 +73,7 @@
     "backend": "memory",
     "expected_status": "COMPLETED",
     "expected_result_type": "buildability_comparison",
+    "capability_id": "buildability_screening",
     "verification": "返回统一 scenario 和每个行政区结果"
   },
   {

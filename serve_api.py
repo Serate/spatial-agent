@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from agent.environment_status import environment_status
+from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 
 
@@ -20,6 +21,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             payload = {"status": "ok"}
             payload.update(environment_status())
             self._write_json(200, payload)
+            return
+        if parsed.path == "/capabilities":
+            self._write_json(200, capability_catalog(environment="unknown"))
             return
         if parsed.path.startswith("/runs/"):
             parts = parsed.path.strip("/").split("/")

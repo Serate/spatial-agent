@@ -7,6 +7,7 @@ from typing import Dict
 from urllib.parse import urlsplit
 
 from agent.openai_config import load_openai_config
+from agent.capability_catalog import capability_catalog
 
 
 def environment_status() -> Dict:
@@ -20,15 +21,19 @@ def environment_status() -> Dict:
     live_llm_network = _openai_network_available() if live_llm_configured else False
     gdal_data_available = _runtime_data_available("GDAL_DATA", "gdalvrt.xsd")
     proj_data_available = _runtime_data_available("PROJ_LIB", "proj.db")
+    capabilities = {
+        "memory_backend": True,
+        "local_gis_backend": has_geopandas and has_rasterio and dataset_root.exists(),
+        "live_llm": live_llm_configured and live_llm_network,
+        "live_llm_configured": live_llm_configured,
+        "live_llm_network": live_llm_network,
+    }
     return {
         "python": sys.executable,
-        "capabilities": {
-            "memory_backend": True,
-            "local_gis_backend": has_geopandas and has_rasterio and dataset_root.exists(),
-            "live_llm": live_llm_configured and live_llm_network,
-            "live_llm_configured": live_llm_configured,
-            "live_llm_network": live_llm_network,
-        },
+        "capabilities": capabilities,
+        "capability_catalog": capability_catalog(
+            environment="local" if capabilities["local_gis_backend"] else "memory"
+        ),
         "dependencies": {
             "geopandas": has_geopandas,
             "rasterio": has_rasterio,

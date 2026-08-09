@@ -34,7 +34,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: Production GIS container and live DeepSeek validation
 - Latest pushed commit: 3b07d4c feat: classify planner errors in evaluation reports
-- Current milestone: M58.3 Docker/Compose business acceptance completed; M59 global capability orchestration is next
+- Current milestone: M59.1 unified capability catalog completed; M59.2 cross-process evidence acceptance is next
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Development Loop
@@ -422,12 +422,13 @@ Prefer small, explainable increments over large rewrites.
 - M58.1 将 environment、execution_mode、planner 写入评测报告，并新增 `scripts/evaluate_global.py`；全局矩阵离线执行 7/7 通过、3 个可选环境跳过。
 - M58.2 新增 `scripts/production_acceptance.ps1` 和 SQLite 异步快照重建测试。
 - M58.3 完成 Docker/Compose 配置、healthy/readiness、异步业务验收和容器重启后的 SQLite 快照验证；生产验收脚本修复了 session 隔离和 PowerShell UTF-8 编码问题。离线 200 个测试、GIS 190 个测试、smoke 和浏览器健康烟测通过。
+- M59.1 新增统一能力目录、跨入口 `/capabilities` 契约、能力驱动的全局评测字段和 Console 摘要；生产容器重建后返回 8 项能力。离线 206 个测试、GIS 196 个测试、production acceptance 和浏览器健康烟测通过。
 
-### 下一阶段 M59：统一能力编排与全局评测扩展
+### 下一阶段 M59.2：跨进程运行与结果证据验收
 
-- 建立统一能力目录，连接数据健康、工具依赖、结果类型、环境要求和 Planner/Console 展示。
-- 扩展跨环境全局评测及报告对比，区分真实空间几何、演示结果和模型规划结果。
-- 增加异步运行、会话恢复、失败重试和结果引用的跨进程部署契约测试。
+- 将能力目录中的环境要求接入评测 optional gating，区分 planner/tool 成功和真实 GIS 能力完成。
+- 增加生产 SQLite 会话、运行、重试、取消和结果引用的跨进程契约矩阵。
+- 细化真实 artifact 几何、边界几何、无几何演示和截断不可绘制等证据状态，并接入 Console 与全局报告。
 - 大阶段按依赖拆分后最多并行 5 路，集成后运行全量、GIS、浏览器和部署验收，再基于全局结果规划 M60。
 
 ## Development Issues Log

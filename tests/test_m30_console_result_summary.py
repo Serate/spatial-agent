@@ -53,6 +53,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "dataset_health_result",
             "function healthStats(data)",
             "DEM/土地利用覆盖关系",
+            "capabilityStatus",
+            "function renderCapabilities(data)",
         ):
             self.assertIn(marker, self.html)
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from .dataset_catalog import DatasetCatalog, DatasetEntry
+from .capability_catalog import DATASET_TOOL_CAPABILITIES, capability_catalog
 from .errors import ToolError
 
 
@@ -12,33 +13,7 @@ HEALTH_DATASETS = ("admin_areas", "dem", "land_use", "roads", "water")
 # These are product capabilities, rather than raw file types. Keeping the
 # mapping here lets health results explain which registered tools are safe to
 # attempt after the preflight step.
-DATASET_CAPABILITIES = {
-    "admin_areas": ["get_dataset_schema", "range_query"],
-    "dem": [
-        "get_raster_metadata",
-        "get_raster_statistics",
-        "get_zonal_raster_statistics",
-        "get_zonal_slope_statistics",
-    ],
-    "land_use": [
-        "get_raster_metadata",
-        "get_raster_statistics",
-        "get_zonal_raster_statistics",
-        "get_zonal_land_use_distribution",
-    ],
-    "roads": [
-        "get_dataset_schema",
-        "range_query",
-        "get_zonal_vector_summary",
-        "spatial_join",
-    ],
-    "water": [
-        "get_dataset_schema",
-        "range_query",
-        "get_zonal_vector_summary",
-        "spatial_join",
-    ],
-}
+DATASET_CAPABILITIES = DATASET_TOOL_CAPABILITIES
 
 
 def dataset_health_report(
@@ -83,6 +58,9 @@ def dataset_health_report(
         "datasets": reports,
         "relationships": relationships,
         "capabilities": capabilities,
+        "capability_catalog": capability_catalog(
+            environment="local", dataset_capabilities=capabilities
+        ),
         "metrics": {
             "backend": "catalog_health",
             "checked_datasets": len(reports),

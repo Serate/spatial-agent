@@ -3,6 +3,7 @@
 from typing import Any, Dict, Iterable, List
 
 from agent.service import AgentService
+from agent.capability_catalog import capability_catalog
 from evaluation.runner import evaluate_case
 from run_demo import build_runtime
 
@@ -24,6 +25,7 @@ def run_global_cases(
             continue
         if surface == "runtime":
             evaluation = evaluate_case(runtime.run(case["input"]), case).to_dict()
+            evaluation = _annotate_capability(evaluation, case)
             results.append({**evaluation, "surface": surface, "category": case.get("category")})
             continue
         if surface == "runtime-contract":
@@ -44,7 +46,7 @@ def run_global_cases(
 
     executed = [item for item in results if not item.get("skipped")]
     passed = sum(1 for item in executed if item.get("passed", _evaluation_passed(item)))
-    return {
+    result_payload = {
         "total": len(results),
         "executed": len(executed),
         "skipped": len(results) - len(executed),
@@ -58,6 +60,7 @@ def run_global_cases(
         },
         "results": results,
     }
+    return result_payload
 
 
 def _run_comparison_case(service: AgentService, case: Dict[str, Any]) -> Dict[str, Any]:
@@ -68,7 +71,7 @@ def _run_comparison_case(service: AgentService, case: Dict[str, Any]) -> Dict[st
         result = service.compare_buildability_regions(**payload, backend=case.get("backend", "memory"))
     scenario = result.get("scenario") or {}
     passed = bool(scenario.get("operation") and result.get("results"))
-    return {
+    result_payload = {
         "case_id": case["id"],
         "surface": case.get("surface"),
         "category": case.get("category"),
@@ -79,6 +82,30 @@ def _run_comparison_case(service: AgentService, case: Dict[str, Any]) -> Dict[st
         "row_count": len(result.get("results") or []),
         "error": "" if passed else "comparison result has no normalized scenario or rows",
     }
+    return _annotate_capability(result_payload, case)
+
+
+def _annotate_capability(result: Dict[str, Any], case: Dict[str, Any]) -> Dict[str, Any]:
+    capability_id = case.get("capability_id")
+    if not capability_id:
+        return result
+    definitions = capability_catalog()["capabilities"]
+    definition = next((item for item in definitions if item["id"] == capability_id), None)
+    if definition is None:
+        result["capability_contract_match"] = False
+        result["capability_error"] = "unknown capability: " + str(capability_id)
+        return result
+    expected_tools = set(case.get("expected_tools") or [])
+    actual_tools = set(result.get("actual_tools") or [])
+    expected_types = set(definition["result_types"])
+    result_type = result.get("result_type") or case.get("expected_result_type")
+    result["capability_id"] = capability_id
+    result["capability_contract_match"] = (
+        expected_tools.issubset(actual_tools)
+        and (not expected_types or result_type in expected_types)
+    )
+    result["geometry_evidence"] = "unknown"
+    return result
 
 
 def _skipped(case: Dict[str, Any], reason: str) -> Dict[str, Any]:
@@ -99,4 +126,5 @@ def _evaluation_passed(item: Dict[str, Any]) -> bool:
         and item.get("result_type_match")
         and item.get("result_contract_valid")
         and item.get("within_max_steps")
+        and item.get("capability_contract_match", True)
     )

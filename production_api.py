@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 
 from agent.environment_status import environment_status
+from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 
 
@@ -55,6 +56,13 @@ def readiness(response: Response) -> Dict[str, Any]:
 @app.get("/health")
 def health() -> Dict[str, Any]:
     return {"status": "ok", **environment_status()}
+
+
+@app.get("/capabilities")
+def capabilities() -> Dict[str, Any]:
+    status = environment_status()
+    environment = "local" if status["capabilities"]["local_gis_backend"] else "memory"
+    return capability_catalog(environment=environment)
 
 
 @app.get("/")
