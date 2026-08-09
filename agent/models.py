@@ -59,8 +59,13 @@ class AgentRunResult:
     answer: Optional[str] = None
     error: Optional[str] = None
     clarification: Optional[Dict[str, Any]] = None
+    artifact_ref: Optional[str] = None
+    geojson_ref: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         data["status"] = self.status.value
+        for key in ("artifact_ref", "geojson_ref"):
+            if data.get(key) is None:
+                data.pop(key, None)
         return data

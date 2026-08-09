@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from agent.geojson_exporter import export_run_summary
 from agent.geometry_export import normalize_feature_collection
-from agent.service import AgentService, _tag_geometry_features
+from agent.service import AgentService, _exported_geometry_evidence, _tag_geometry_features
 
 
 class M18GeoJSONExportTests(unittest.TestCase):
@@ -35,6 +35,16 @@ class M18GeoJSONExportTests(unittest.TestCase):
         self.assertIsNone(payload["features"][0]["geometry"])
         self.assertNotIn("args", payload["features"][0]["properties"])
         self.assertEqual(payload["features"][0]["properties"]["file_count"], 9)
+
+    def test_export_preserves_result_type_for_dynamic_map_rendering(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = export_run_summary(
+                {"run_id": "overview-run", "status": "COMPLETED", "result_type": "spatial_overview_result", "steps": []},
+                root=tmpdir,
+            )
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+
+        self.assertEqual(payload["properties"]["result_type"], "spatial_overview_result")
 
     def test_truncates_geometry_summary_to_size_limit(self):
         path = export_run_summary(
@@ -87,6 +97,34 @@ class M18GeoJSONExportTests(unittest.TestCase):
 
         self.assertEqual(tagged[0]["properties"]["geometry_source"], "raster-buildability-screening")
         self.assertEqual(tagged[0]["properties"]["geometry_crs"], "EPSG:32650")
+
+    def test_merged_geometry_features_keep_dataset_label(self):
+        tagged = _tag_geometry_features(
+            [{"type": "Feature", "geometry": {"type": "LineString", "coordinates": [[0, 0], [1, 1]]}, "properties": {}}],
+            source="geopackage",
+            dataset="roads",
+        )
+        self.assertEqual(tagged[0]["properties"]["dataset"], "roads")
+
+    def test_exported_geometry_evidence_measures_truncated_artifact(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = export_run_summary(
+                {"run_id": "truncated-run", "status": "COMPLETED", "steps": []},
+                root=tmpdir,
+                max_bytes=2000,
+                geometry_features=[
+                    {
+                        "type": "Feature",
+                        "geometry": {"type": "Polygon", "coordinates": [[[float(i), 0], [float(i), 1], [float(i + 1), 1], [float(i + 1), 0], [float(i), 0]] for i in range(500)]},
+                        "properties": {"geometry_source": "geopackage", "dataset": "roads"},
+                    }
+                ],
+            )
+            count, evidence = _exported_geometry_evidence(path)
+
+        self.assertEqual(count, 0)
+        self.assertEqual(evidence["status"], "truncated_geometry")
+        self.assertTrue(evidence["truncated"])
 
     def test_map_export_records_display_and_source_crs(self):
         with patch("agent.geometry_export._transform_geometry", return_value={"type": "Point", "coordinates": [114.4, 30.5]}):

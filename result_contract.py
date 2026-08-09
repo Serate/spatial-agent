@@ -71,7 +71,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             "feature_count": geometry_evidence["feature_count"],
             "truncated": geometry_evidence["truncated"],
             "geojson_ref": payload.get("geojson_ref"),
-            "sources": sorted(geometry_sources),
+            "sources": sorted(set(geometry_sources) | set(geometry_evidence.get("sources", []))),
             "crs": sorted(geometry_crs),
         },
     }
@@ -86,6 +86,7 @@ def _geometry_evidence(payload: Dict[str, Any], geometry_sources) -> Dict[str, A
             "reason": str(explicit.get("reason") or "运行结果未提供几何证据")[:240],
             "feature_count": int(explicit.get("feature_count") or 0),
             "truncated": bool(explicit.get("truncated")),
+            "sources": [str(item) for item in explicit.get("sources", []) if item],
         }
     if payload.get("_geometry_feature_count"):
         status = "boundary_geometry" if geometry_sources == {"geojson"} else "real_geometry"
@@ -94,6 +95,7 @@ def _geometry_evidence(payload: Dict[str, Any], geometry_sources) -> Dict[str, A
             "reason": "导出摘要包含真实空间要素",
             "feature_count": int(payload.get("_geometry_feature_count") or 0),
             "truncated": False,
+            "sources": sorted(geometry_sources),
         }
     if payload.get("geojson_ref"):
         return {
@@ -101,12 +103,14 @@ def _geometry_evidence(payload: Dict[str, Any], geometry_sources) -> Dict[str, A
             "reason": "GeoJSON 引用存在，但摘要没有可绘制空间要素",
             "feature_count": 0,
             "truncated": False,
+            "sources": [],
         }
     return {
         "status": "unknown",
         "reason": "本次运行尚未生成空间导出证据",
         "feature_count": 0,
         "truncated": False,
+        "sources": [],
     }
 
 

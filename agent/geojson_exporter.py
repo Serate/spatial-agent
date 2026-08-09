@@ -27,7 +27,12 @@ def export_run_summary(
             "geometry": None,
             "properties": {"run_id": run_id, "status": payload.get("status")},
         }]
-    properties = {"run_id": run_id, "status": payload.get("status")}
+    properties = {
+        "run_id": run_id,
+        "status": payload.get("status"),
+        "result_type": payload.get("result_type")
+        or ((payload.get("plan") or {}).get("output") or {}).get("type"),
+    }
     sources = sorted({
         str((feature.get("properties") or {}).get("geometry_source"))
         for feature in features

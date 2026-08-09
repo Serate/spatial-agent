@@ -1867,3 +1867,39 @@ Planner 的分支顺序本身是行为契约：能力识别兜底只能处理没
 ### 预防
 
 同步、异步 API 的参数映射必须分别测试，不能仅验证路由存在或健康接口正常；生产容器验收至少要执行一次真实同步业务请求。
+
+## GeoJSON 截断后仍沿用原始几何数量
+
+### 现象
+
+武汉空间总览导出前有 201 个几何要素，但受 GeoJSON 字节上限影响，文件只保留了部分要素；旧结果仍报告 `truncated=false`，前端会误以为完整几何可用。
+
+### 根因
+
+服务在调用有大小限制的导出器之前就根据内存中的完整 feature 列表生成几何证据，没有读取最终 artifact 的 `geometry_truncated` 和实际 features 数量。
+
+### 修复
+
+导出完成后重新读取受限 GeoJSON，依据最终文件计算 feature_count、sources 和 `truncated_geometry`；同时给道路/水体 feature 写入 dataset 标签，供前端分层渲染。
+
+### 预防
+
+空间证据必须以最终交付 artifact 为准，不能以导出前的中间集合替代。任何字节、要素数或坐标转换限制都必须进入结果状态和地图提示。
+
+## 异步结果轮询会丢失最终 artifact 引用
+
+### 现象
+
+同步运行可以生成 GeoJSON，但 Console 通过异步提交和 `GET /runs/{run_id}` 轮询时，结果区没有 `geojson_ref`，地图为空；工具步骤本身仍显示成功。
+
+### 根因
+
+异步 worker 在服务层生成 artifact 后，持久化的 `AgentRunResult` 只包含 Runtime 基础快照，`artifact_ref` 和 `geojson_ref` 没有进入 SQLite/进程状态。异步提交响应和终态结果因此不完整。
+
+### 修复
+
+运行快照增加可选交付引用；服务完成 artifact/GeoJSON 导出后回写快照，SQLite 恢复也读取这些字段。未生成引用时保持字段省略，兼容原有同步契约。
+
+### 预防
+
+异步接口验收必须使用包含 artifact 和地图结果的请求，检查提交、轮询、服务重启后的最终响应，而不能只验证 status 和工具步骤。

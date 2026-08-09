@@ -54,6 +54,30 @@ class M42SQLiteStoreTests(unittest.TestCase):
         self.assertEqual(restored["status"], "NEEDS_CLARIFICATION")
         self.assertEqual(restored["clarification"]["state"], "unmatched_spatial_capability")
 
+    def test_async_artifact_references_survive_polling_and_recreation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "agent.db")
+            first = AgentService(state_db_path=path)
+            queued = first.run_async(
+                request="查询洪山区行政区边界",
+                session_id="async-artifact",
+                export_artifact=True,
+                export_geojson=True,
+            )
+            final = None
+            for _ in range(100):
+                final = first.get_run(queued["run_id"])
+                if final["status"] not in {"PLANNING", "EXECUTING", "CREATED"}:
+                    break
+                import time
+                time.sleep(0.02)
+            restored = AgentService(state_db_path=path).get_run(queued["run_id"])
+
+        self.assertEqual(final["status"], "COMPLETED")
+        self.assertTrue(final.get("artifact_ref"))
+        self.assertTrue(final.get("geojson_ref"))
+        self.assertEqual(restored.get("geojson_ref"), final["geojson_ref"])
+
     def test_run_snapshot_survives_runtime_recreation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "agent.db")

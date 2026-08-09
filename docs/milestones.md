@@ -195,3 +195,10 @@ M55 完成时的验证结果：189 个离线测试通过、36 个 GIS 重点测�
 - 已完成规则 Planner、能力目录、AnswerComposer 和专项测试；待完成全量回归、全局评测用例、浏览器展示和 GIS/Docker 验收。
 - M63 真实 GIS 回归 41 项通过；Docker 重新构建后生产验收通过，容器 `healthy`，空间总览同步请求返回 8 步 `spatial_overview_result`。
 - 生产入口修复了同步路由误传异步 `idempotency_key` 的问题；全量离线测试 245 项通过、32 项按环境跳过。
+
+## M64：真实总览证据与动态地图（实现中）
+
+- 武汉真实 GIS 总览已验证可生成行政区、道路和水体几何；导出后结果现在按最终 GeoJSON 正确标记 `real_geometry` 或 `truncated_geometry`，并保留 `geojson/geopackage` 来源。
+- 总览导出 feature 增加 `dataset` 标签，Console 已注册总览结果面板，并准备按道路/水体/边界分层渲染。
+- LLM Planner guidance 已加入总览计划约束；待完成浏览器实际渲染、真实模型 live 结构化计划和多进程生产矩阵。
+- DeepSeek live 调用已生成完整 `spatial_overview_result` 和 8 个注册工具步骤；当前仍只证明规划结构，不把内存后端结果当作真实 GIS 证据。

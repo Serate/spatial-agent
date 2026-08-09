@@ -487,6 +487,13 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 
 下一阶段从全局推进：真实 GIS 空间总览的几何证据、真实模型对总览计划的结构化一致性、Console 按 `spatial_overview_result` 动态展示，以及生产数据卷/多进程观测矩阵。
 
+## M64 当前进展
+
+- 真实武汉配置下总览返回 `real_geometry`，GeoJSON 达到大小上限时返回 `truncated_geometry`，并包含最终 feature_count 与来源。
+- 道路/水体导出 feature 保留 dataset 标签；Console 已增加 `spatial_overview_result` 结果注册和总览地图渲染入口。
+- 下一步执行浏览器烟测、真实模型结构化总览测试、Docker 多进程矩阵，并完成阶段联合验收。
+- DeepSeek live 总览规划已通过，返回完整 8 步注册工具计划；浏览器和重建后容器验收仍待完成。
+
 ## Development Issues Log
 
 - 新对话恢复优先阅读 docs/agent-context-resume.md。

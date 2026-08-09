@@ -3,6 +3,7 @@ import unittest
 from agent.planner import RuleBasedPlanner
 from agent.errors import ClarificationNeeded
 from agent.spatial_intent import classify_spatial_intent
+from agent.llm_planner import LLMPlanner
 from run_demo import build_runtime
 
 
@@ -44,6 +45,12 @@ class M62SpatialIntentTests(unittest.TestCase):
         )
         self.assertIn("道路摘要", result.answer)
         self.assertIn("水体摘要", result.answer)
+
+    def test_llm_guidance_names_spatial_overview_contract(self):
+        planner = LLMPlanner(object(), [])
+        prompt = planner._system_prompt()
+        self.assertIn("spatial_overview_result", prompt)
+        self.assertIn("get_zonal_vector_summary", prompt)
 
 
 if __name__ == "__main__":

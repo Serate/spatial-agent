@@ -51,6 +51,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "result-panel",
             "数据健康检查",
             "dataset_health_result",
+            "spatial_overview_result",
+            "spatialOverviewMapPreview",
             "function healthStats(data)",
             "DEM/土地利用覆盖关系",
             "capabilityStatus",

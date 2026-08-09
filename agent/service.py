@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Tuple
 
@@ -90,6 +91,7 @@ class AgentService:
         payload["provenance"] = build_provenance(payload)
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
+            result.artifact_ref = payload["artifact_ref"]
         if export_geojson:
             geometry_features = []
             for step in payload.get("steps", []):
@@ -102,17 +104,20 @@ class AgentService:
                             source=exported.get("geometry_source"),
                             crs=exported.get("crs"),
                             source_crs=exported.get("source_crs"),
+                            dataset=(step.get("result") or {}).get("dataset"),
                         )
                     )
             payload["geojson_ref"] = export_run_summary(
                 payload,
                 geometry_features=geometry_features or None,
             )
-            payload["_geometry_feature_count"] = len(geometry_features)
-            payload["_geometry_evidence"] = _geometry_evidence_for_features(geometry_features)
+            payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
             payload["result"] = build_result_contract(payload)
             payload.pop("_geometry_feature_count", None)
             payload.pop("_geometry_evidence", None)
+            result.geojson_ref = payload["geojson_ref"]
+        if self._state_store is not None:
+            self._state_store.save(result)
         self._finalize_async_job(payload)
         return payload
 
@@ -260,6 +265,7 @@ class AgentService:
         payload["provenance"] = build_provenance(payload)
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
+            result.artifact_ref = payload["artifact_ref"]
         if export_geojson:
             geometry_features = []
             for step in payload.get("steps", []):
@@ -272,17 +278,20 @@ class AgentService:
                             source=exported.get("geometry_source"),
                             crs=exported.get("crs"),
                             source_crs=exported.get("source_crs"),
+                            dataset=(step.get("result") or {}).get("dataset"),
                         )
                     )
             payload["geojson_ref"] = export_run_summary(
                 payload,
                 geometry_features=geometry_features or None,
             )
-            payload["_geometry_feature_count"] = len(geometry_features)
-            payload["_geometry_evidence"] = _geometry_evidence_for_features(geometry_features)
+            payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
             payload["result"] = build_result_contract(payload)
             payload.pop("_geometry_feature_count", None)
             payload.pop("_geometry_evidence", None)
+            result.geojson_ref = payload["geojson_ref"]
+        if self._state_store is not None:
+            self._state_store.save(result)
         return payload
 
     def cancel(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
@@ -540,7 +549,7 @@ def _contextualize_request(request: str, context: Dict[str, Any]) -> str:
     return f"{request}（当前地图选中区域：{admin_name}）"
 
 
-def _tag_geometry_features(features, source=None, crs=None, source_crs=None):
+def _tag_geometry_features(features, source=None, crs=None, source_crs=None, dataset=None):
     """Keep CRS/source beside each feature when result collections are merged."""
     tagged = []
     crs_name = _crs_name(crs)
@@ -554,6 +563,8 @@ def _tag_geometry_features(features, source=None, crs=None, source_crs=None):
             properties["geometry_crs"] = crs_name
         if source_crs:
             properties["geometry_source_crs"] = source_crs
+        if dataset:
+            properties["dataset"] = dataset
         tagged.append({**feature, "properties": properties})
     return tagged
 
@@ -573,7 +584,10 @@ def _crs_name(crs):
 
 
 def _geometry_evidence_for_features(features):
-    features = [item for item in features or [] if isinstance(item, dict)]
+    features = [
+        item for item in features or []
+        if isinstance(item, dict) and item.get("geometry")
+    ]
     if not features:
         return {
             "status": "no_geometry",
@@ -595,7 +609,39 @@ def _geometry_evidence_for_features(features):
             bool((item.get("properties") or {}).get("geometry_truncated"))
             for item in features
         ),
+        "sources": sorted(sources),
     }
+
+
+def _exported_geometry_evidence(geojson_ref):
+    """Measure the bounded artifact, not the pre-truncation feature list."""
+    path = Path(str(geojson_ref))
+    if not path.exists():
+        return 0, {
+            "status": "unknown",
+            "reason": "GeoJSON 导出文件不存在",
+            "feature_count": 0,
+            "truncated": False,
+            "sources": [],
+        }
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0, {
+            "status": "unknown",
+            "reason": "GeoJSON 导出文件无法读取",
+            "feature_count": 0,
+            "truncated": False,
+            "sources": [],
+        }
+    features = [item for item in document.get("features", []) if isinstance(item, dict)]
+    evidence = _geometry_evidence_for_features(features)
+    truncated = bool((document.get("properties") or {}).get("geometry_truncated"))
+    if truncated:
+        evidence["status"] = "truncated_geometry"
+        evidence["reason"] = "GeoJSON 摘要达到大小上限，空间要素已截断"
+        evidence["truncated"] = True
+    return len([item for item in features if item.get("geometry")]), evidence
 
 
 def _format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Dict[str, Any]:
