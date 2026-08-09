@@ -120,6 +120,7 @@ Invoke-RestMethod http://127.0.0.1:8088/health/ready
 ```powershell
 python -m unittest discover -s tests -v
 python scripts\smoke_check.py
+python scripts\evaluate_global.py --strict
 ```
 
 GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控制台的 `scripts/start_console.ps1 -Mode gis` 会自动设置它们。阶段历史和每阶段验证记录见 [`docs/milestones.md`](docs/milestones.md)。

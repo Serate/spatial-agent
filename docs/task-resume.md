@@ -420,16 +420,9 @@ Prefer small, explainable increments over large rewrites.
 - M57.1 抽取 `BuildabilityComparisonScenario`，统一阈值对比和多区域对比的输入验证与 `scenario` 输出；194 个离线测试、19 个 GIS/真实数据重点测试通过。
 - M57.2 新增 `evaluation/cases/global-acceptance.json` 和矩阵契约测试，覆盖通用问答、单区域、多数据集、阈值对比、多区域、不可用数据、真实 GIS 和真实模型；197 个离线测试、36 个 GIS 测试、smoke 与浏览器健康烟测通过。
 
-### 下一阶段 M56：证据驱动的降级执行
-
-- 健康报告输出每个数据集可支持的操作能力，而不只是整体状态。
-- Planner 根据能力声明决定继续、降级为元数据、或返回需要切换 GIS 后端的澄清。
-- trace、结果 envelope 和 Console 展示停止/降级原因及对应健康检查步骤。
-- 用内存演示、真实 GIS 和缺失数据配置覆盖三种执行路径，并保留真实模型为可选验收。
-
 ### 下一阶段 M58：生产级端到端验收
 
-- 将全局验收矩阵接入统一评测报告，区分 offline、GIS、live-model 和 deployment 状态。
+- 将全局验收矩阵接入统一评测报告，区分 offline、GIS、live-model 和 deployment 状态。M58.1 已完成内存/比较 API 执行和可选环境 skipped 语义。
 - 自动验收 Docker/SQLite/异步运行，确认服务重启后会话、运行结果和场景结果契约仍一致。
 - 对真实模型只做显式 opt-in 验收，记录 provider、模型输出、工具计划和 token/延迟指标。
 - 可并行子任务最多 5 路；集成后完成全量、GIS、浏览器和部署健康验证。

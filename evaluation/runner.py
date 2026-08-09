@@ -59,9 +59,21 @@ def load_cases(path: str) -> List[Dict[str, Any]]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def run_cases(runtime, cases: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+def run_cases(
+    runtime,
+    cases: Iterable[Dict[str, Any]],
+    environment: str = "memory",
+    execution_mode: str = "offline",
+    planner: str = "rule",
+) -> Dict[str, Any]:
     results = [evaluate_case(runtime.run(case["input"]), case) for case in cases]
-    return summarize(results)
+    report = summarize(results)
+    report["evaluation_context"] = {
+        "environment": environment,
+        "execution_mode": execution_mode,
+        "planner": planner,
+    }
+    return report
 
 
 def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult:
@@ -71,7 +83,7 @@ def evaluate_case(run: AgentRunResult, case: Dict[str, Any]) -> EvaluationResult
     result_type = str(((payload.get("plan") or {}).get("output") or {}).get("type") or "unknown")
     payload["result_type"] = result_type
     contract = build_result_contract(payload)
-    expected_result_type = str(case.get("expected_result_type", result_type))
+    expected_result_type = str(case.get("expected_result_type") or result_type)
     expected_status = _expected_status(case)
     max_steps = int(case.get("max_steps", 999))
     planner_metrics = run.planner_metrics or {}
@@ -133,6 +145,9 @@ def summarize(results: List[EvaluationResult]) -> Dict[str, Any]:
 
 
 def _expected_status(case: Dict[str, Any]) -> str:
+    explicit = case.get("expected_status")
+    if isinstance(explicit, str) and explicit:
+        return explicit
     outcome = case.get("expected_outcome")
     if outcome == "needs_clarification":
         return "NEEDS_CLARIFICATION"

@@ -23,13 +23,21 @@ def parse_args():
         "--output",
         help="Optional path to write the evaluation report JSON.",
     )
+    parser.add_argument("--environment", default="memory")
+    parser.add_argument("--execution-mode", default="offline")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     runtime = build_runtime(args.planner)
-    report = run_cases(runtime, load_cases(args.cases))
+    report = run_cases(
+        runtime,
+        load_cases(args.cases),
+        environment=args.environment,
+        execution_mode=args.execution_mode,
+        planner=args.planner,
+    )
     payload = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)

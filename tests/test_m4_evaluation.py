@@ -50,6 +50,20 @@ class M4EvaluationTests(unittest.TestCase):
         self.assertIn("total_tokens", report)
         self.assertIn("planner_error_type", encoded)
 
+    def test_report_records_evaluation_context(self):
+        cases = load_cases(str(ROOT / "evaluation" / "cases" / "m0-cases.json"))
+        report = run_cases(
+            build_runtime("rule"),
+            cases,
+            environment="memory",
+            execution_mode="offline",
+            planner="rule",
+        )
+        self.assertEqual(
+            report["evaluation_context"],
+            {"environment": "memory", "execution_mode": "offline", "planner": "rule"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

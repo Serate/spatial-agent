@@ -68,13 +68,15 @@ M55 完成时的验证结果：189 个离线测试通过、36 个 GIS 重点测�
 - 新增矩阵契约测试，验证 Runtime 与比较 API 的结果类型、工具序列、统一场景和不可用数据边界。
 - M57.2 验证：197 个离线测试、36 个 GIS 重点测试、smoke 和浏览器健康烟测通过。
 
-## 下一阶段 M58：生产级端到端验收
+## M58.1：分环境全局评测报告
+
+- `evaluation.runner` 报告增加 `evaluation_context`，记录 environment、execution_mode 和 planner。
+- 显式 `expected_status` 现在参与评测，不再被默认状态推断覆盖。
+- 新增 `evaluation.global_runner` 与 `scripts/evaluate_global.py`：可执行内存场景和比较 API，GIS/真实模型/部署场景未显式启用时明确标记 skipped。
+- M58.1 验证：全局矩阵离线执行 7/7 通过、3 个可选环境跳过，197 个离线测试通过。
+
+## 下一阶段 M58.2：生产级端到端验收
 
 - 将全局验收矩阵接入统一评测报告，区分 offline、GIS、live-model 和 deployment 状态。
 - 自动验收 Docker/SQLite/异步运行，确认服务重启后会话、运行结果和场景结果契约仍一致。
 - 对真实模型只做显式 opt-in 验收，记录 provider、模型输出、工具计划和 token/延迟指标。
-
-- 从单个工具链扩展到区域对比、时间/阈值对比、栅格-矢量联合分析的统一场景模型。
-- 抽取结果 envelope、能力声明和空间证据的公共契约，减少 Planner、Runtime、API 和 Console 之间的重复判断。
-- 建立覆盖“通用问答、单区域、跨数据集、多区域、不可用数据、真实模型”的端到端验收矩阵。
-- 每个独立子任务最多并行 5 路，集成后必须完成全量、GIS、浏览器和部署健康验证。

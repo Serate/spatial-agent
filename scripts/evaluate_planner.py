@@ -25,11 +25,17 @@ def main() -> int:
         action="store_true",
         help="Return non-zero when any evaluation case fails.",
     )
+    parser.add_argument("--environment", default=None)
+    parser.add_argument("--execution-mode", default="offline")
     args = parser.parse_args()
 
+    environment = args.environment or args.backend
     report = run_cases(
         build_runtime(args.planner, args.backend),
         load_cases(args.cases),
+        environment=environment,
+        execution_mode=args.execution_mode,
+        planner=args.planner,
     )
     encoded = json.dumps(report, ensure_ascii=False, indent=2)
     print(encoded)
