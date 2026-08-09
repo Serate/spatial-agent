@@ -41,6 +41,108 @@ class SQLiteStateStore:
             return None
         return _result_from_dict(json.loads(row[0]))
 
+    def create_async_job(
+        self, idempotency_key: str, run_id: str, payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Atomically register an async submission and return the canonical job."""
+        serialized = json.dumps(payload, ensure_ascii=True, sort_keys=True)
+        with self._connection() as connection:
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO async_jobs
+                    (idempotency_key, run_id, payload, status, owner_pid, updated_at)
+                VALUES (?, ?, ?, 'QUEUED', NULL, CURRENT_TIMESTAMP)
+                """,
+                (idempotency_key, run_id, serialized),
+            )
+            row = connection.execute(
+                """
+                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
+                FROM async_jobs WHERE idempotency_key = ?
+                """,
+                (idempotency_key,),
+            ).fetchone()
+            if row is None:
+                row = connection.execute(
+                    """
+                    SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
+                    FROM async_jobs WHERE run_id = ?
+                    """,
+                    (run_id,),
+                ).fetchone()
+        result = _async_job_from_row(row)
+        result["created"] = cursor.rowcount == 1
+        return result
+
+    def get_async_job(self, run_id: str) -> Optional[Dict[str, Any]]:
+        with self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
+                FROM async_jobs WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+        return _async_job_from_row(row) if row else None
+
+    def claim_async_job(
+        self,
+        run_id: str,
+        owner_pid: int,
+        recover: bool = False,
+        previous_owner_pid: Optional[int] = None,
+    ) -> bool:
+        """Claim a queued job, or reclaim one owned by a dead process."""
+        if recover:
+            if previous_owner_pid is None:
+                owner_clause = "owner_pid IS NULL OR owner_pid != ?"
+                expected_owner = owner_pid
+            else:
+                owner_clause = "owner_pid IS NULL OR owner_pid = ?"
+                expected_owner = previous_owner_pid
+            parameters = (owner_pid, run_id, expected_owner)
+        else:
+            owner_clause = "owner_pid IS NULL"
+            parameters = (owner_pid, run_id)
+        with self._connection() as connection:
+            cursor = connection.execute(
+                f"""
+                UPDATE async_jobs
+                   SET owner_pid = ?, status = 'RUNNING', updated_at = CURRENT_TIMESTAMP
+                 WHERE run_id = ?
+                   AND status IN ('QUEUED', 'RUNNING')
+                   AND ({owner_clause})
+                """,
+                parameters,
+            )
+        return cursor.rowcount == 1
+
+    def list_recoverable_async_jobs(self, owner_pid: int) -> List[Dict[str, Any]]:
+        """Return jobs left by another process or never claimed after a crash."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
+                FROM async_jobs
+                WHERE status IN ('QUEUED', 'RUNNING')
+                  AND (owner_pid IS NULL OR owner_pid != ?)
+                ORDER BY updated_at, run_id
+                """,
+                (owner_pid,),
+            ).fetchall()
+        return [_async_job_from_row(row) for row in rows]
+
+    def finish_async_job(self, run_id: str, status: str, owner_pid: int) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                """
+                UPDATE async_jobs
+                   SET status = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE run_id = ? AND owner_pid = ?
+                """,
+                (status, run_id, owner_pid),
+            )
+
     def request_cancel(self, run_id: str) -> None:
         with self._connection() as connection:
             connection.execute(
@@ -107,6 +209,10 @@ class SQLiteStateStore:
                     "DELETE FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?",
                     (session_id,),
                 )
+            connection.execute(
+                "DELETE FROM async_jobs WHERE json_extract(payload, '$.session_id') = ?",
+                (session_id,),
+            )
         return len(rows)
 
     def metrics(self) -> Dict[str, Any]:
@@ -137,6 +243,16 @@ class SQLiteStateStore:
                     run_id TEXT PRIMARY KEY,
                     cancel_requested INTEGER NOT NULL DEFAULT 0
                 );
+                CREATE TABLE IF NOT EXISTS async_jobs (
+                    idempotency_key TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL UNIQUE,
+                    payload TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    owner_pid INTEGER,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_async_jobs_status
+                    ON async_jobs(status, owner_pid);
                 """
             )
 
@@ -321,6 +437,20 @@ class SQLiteConversationStore:
                 yield connection
         finally:
             connection.close()
+
+
+def _async_job_from_row(row) -> Dict[str, Any]:
+    if row is None:
+        return {}
+    key, run_id, payload, status, owner_pid, updated_at = row
+    return {
+        "idempotency_key": key,
+        "run_id": run_id,
+        "payload": json.loads(payload),
+        "status": status,
+        "owner_pid": owner_pid,
+        "updated_at": updated_at,
+    }
 
 
 def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:

@@ -1,6 +1,10 @@
 import os
+import hashlib
+import json
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 from typing import Any, Dict, Tuple
 
 from agent.artifact_store import ArtifactStore
@@ -10,7 +14,18 @@ from agent.scenario import BuildabilityComparisonScenario
 from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
+from agent.models import AgentRunResult, RunStatus
 from result_contract import build_result_contract
+
+
+_TERMINAL_RUN_STATUSES = {
+    RunStatus.COMPLETED,
+    RunStatus.NEEDS_CLARIFICATION,
+    RunStatus.REJECTED,
+    RunStatus.FAILED,
+    RunStatus.CANCELLED,
+    RunStatus.TIMED_OUT,
+}
 
 
 class AgentService:
@@ -25,6 +40,9 @@ class AgentService:
             SQLiteConversationStore(self._state_db_path) if self._state_db_path else None
         )
         self._async_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="spatial-agent")
+        self._async_lock = Lock()
+        self._async_jobs: Dict[str, Dict[str, Any]] = {}
+        self._recover_async_jobs()
 
     def run(
         self,
@@ -38,11 +56,22 @@ class AgentService:
         timeout_seconds: float = None,
         spatial_context: Dict[str, Any] = None,
         run_id: str = None,
+        _force_run_id: bool = False,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
+        if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
+            raise ValueError("run_id must be a non-empty string")
+        if run_id is not None and not _force_run_id:
+            existing = (
+                self._state_store.get(run_id)
+                if self._state_store is not None
+                else self._runtime(planner, backend).get_run(run_id)
+            )
+            if existing is not None:
+                return _format_result(existing, _normalize_spatial_context(spatial_context))
         if self._conversation_store is not None:
             self._conversation_store.ensure_session(session_id)
         normalized_context = _normalize_spatial_context(spatial_context)
@@ -84,6 +113,7 @@ class AgentService:
             payload["result"] = build_result_contract(payload)
             payload.pop("_geometry_feature_count", None)
             payload.pop("_geometry_evidence", None)
+        self._finalize_async_job(payload)
         return payload
 
     def run_async(self, **kwargs) -> Dict:
@@ -96,10 +126,119 @@ class AgentService:
         planner = kwargs.get("planner", "rule")
         backend = kwargs.get("backend", "memory")
         self._runtime(planner, backend)
-        run_id = str(uuid.uuid4())
-        kwargs["run_id"] = run_id
-        self._async_executor.submit(self.run, **kwargs)
-        return {"run_id": run_id, "status": "QUEUED"}
+        run_id = kwargs.get("run_id")
+        if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
+            raise ValueError("run_id must be a non-empty string")
+        idempotency_key = kwargs.get("idempotency_key")
+        if idempotency_key is not None and (
+            not isinstance(idempotency_key, str) or not idempotency_key.strip()
+        ):
+            raise ValueError("idempotency_key must be a non-empty string")
+
+        job_payload = _async_job_payload(kwargs)
+        if run_id:
+            idempotency_key = idempotency_key or "run_id:" + run_id.strip()
+        else:
+            idempotency_key = idempotency_key or _async_fingerprint(job_payload)
+            run_id = str(uuid.uuid4())
+        job_payload["run_id"] = run_id
+
+        with self._async_lock:
+            if self._state_store is not None:
+                existing_result = self._state_store.get(run_id)
+                if existing_result is not None and not self._state_store.get_async_job(run_id):
+                    return _async_response(run_id, existing_result.status.value, True)
+                job = self._state_store.create_async_job(
+                    idempotency_key, run_id, job_payload
+                )
+                created = bool(job.pop("created", False))
+                if not created:
+                    return _async_response(
+                        job["run_id"], _async_status(self._state_store, job), True
+                    )
+                self._state_store.save(
+                    AgentRunResult(
+                        run_id=run_id,
+                        status=RunStatus.PLANNING,
+                        request=request,
+                        session_id=session_id,
+                    )
+                )
+                if not self._state_store.claim_async_job(run_id, os.getpid()):
+                    return _async_response(run_id, "QUEUED", True)
+            else:
+                job = self._async_jobs.get(idempotency_key)
+                if job is not None:
+                    return _async_response(run_id=job["run_id"], status=job["status"], reused=True)
+                job = {
+                    "run_id": run_id,
+                    "payload": job_payload,
+                    "status": "QUEUED",
+                }
+                self._async_jobs[idempotency_key] = job
+
+            self._async_executor.submit(self._run_async_job, job_payload)
+        return _async_response(run_id, "QUEUED", False)
+
+    def _run_async_job(self, job_payload: Dict[str, Any]) -> None:
+        run_id = job_payload["run_id"]
+        kwargs = dict(job_payload)
+        kwargs.pop("run_id", None)
+        completed = False
+        try:
+            payload = self.run(run_id=run_id, _force_run_id=True, **kwargs)
+            status = str(payload.get("status") or "FAILED")
+            completed = True
+        except Exception as exc:
+            status = "FAILED"
+            if self._state_store is not None:
+                result = self._state_store.get(run_id)
+                if result is None:
+                    result = AgentRunResult(
+                        run_id=run_id,
+                        status=RunStatus.FAILED,
+                        request=str(kwargs.get("request") or ""),
+                        session_id=kwargs.get("session_id"),
+                        error=str(exc),
+                    )
+                elif result.status in {RunStatus.CREATED, RunStatus.PLANNING, RunStatus.EXECUTING}:
+                    result.status = RunStatus.FAILED
+                    result.error = str(exc)
+                self._state_store.save(result)
+        if self._state_store is not None and not completed:
+            self._state_store.finish_async_job(run_id, status, os.getpid())
+        else:
+            with self._async_lock:
+                for job in self._async_jobs.values():
+                    if job.get("run_id") == run_id:
+                        job["status"] = status
+                        break
+
+    def _finalize_async_job(self, payload: Dict[str, Any]) -> None:
+        if self._state_store is None:
+            return
+        job = self._state_store.get_async_job(payload.get("run_id"))
+        if job and job.get("owner_pid") == os.getpid():
+            self._state_store.finish_async_job(
+                payload["run_id"], str(payload.get("status") or "FAILED"), os.getpid()
+            )
+
+    def _recover_async_jobs(self) -> None:
+        if self._state_store is None:
+            return
+        for job in self._state_store.list_recoverable_async_jobs(os.getpid()):
+            run_id = job["run_id"]
+            owner_pid = job.get("owner_pid")
+            if owner_pid and owner_pid != os.getpid() and _process_is_alive(owner_pid):
+                continue
+            if not self._state_store.claim_async_job(
+                run_id,
+                os.getpid(),
+                recover=True,
+                previous_owner_pid=owner_pid,
+            ):
+                continue
+            self._async_executor.submit(self._run_async_job, job["payload"])
 
     def retry(
         self,
@@ -159,11 +298,28 @@ class AgentService:
     def get_run(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
-        result = (
-            self._state_store.get(run_id)
-            if self._state_store is not None
-            else self._runtime(planner, backend).get_run(run_id)
-        )
+        result = None
+        # A terminal run snapshot can be written just before the durable async
+        # job marker is finalized. Wait long enough for readers to observe one
+        # consistent terminal state instead of returning while the worker
+        # still owns the SQLite file.
+        for _ in range(1000):
+            result = (
+                self._state_store.get(run_id)
+                if self._state_store is not None
+                else self._runtime(planner, backend).get_run(run_id)
+            )
+            if result is None or self._state_store is None:
+                break
+            job = self._state_store.get_async_job(run_id)
+            if (
+                result.status in _TERMINAL_RUN_STATUSES
+                and job is not None
+                and job.get("status") in {"QUEUED", "RUNNING"}
+            ):
+                time.sleep(0.005)
+                continue
+            break
         if result is None:
             raise ValueError("run not found: " + run_id)
         payload = result.to_dict()
@@ -301,6 +457,54 @@ class AgentService:
         return self._runtimes[key]
 
 
+def _async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep the persisted submission limited to arguments accepted by run()."""
+    return {
+        "request": kwargs.get("request", ""),
+        "session_id": kwargs.get("session_id", "default"),
+        "planner": kwargs.get("planner", "rule"),
+        "backend": kwargs.get("backend", "memory"),
+        "export_artifact": bool(kwargs.get("export_artifact", False)),
+        "export_geojson": bool(kwargs.get("export_geojson", False)),
+        "geojson_max_features": kwargs.get("geojson_max_features", 100),
+        "timeout_seconds": kwargs.get("timeout_seconds"),
+        "spatial_context": kwargs.get("spatial_context"),
+    }
+
+
+def _async_fingerprint(payload: Dict[str, Any]) -> str:
+    serialized = json.dumps(
+        payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")
+    )
+    return "request:" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _async_status(state_store: SQLiteStateStore, job: Dict[str, Any]) -> str:
+    result = state_store.get(job["run_id"])
+    if result is not None:
+        return result.status.value
+    return "QUEUED" if job.get("status") in {"QUEUED", "RUNNING"} else str(job.get("status"))
+
+
+def _async_response(run_id: str, status: str, reused: bool) -> Dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "status": status,
+        "idempotent": bool(reused),
+        "reused": bool(reused),
+    }
+
+
+def _process_is_alive(pid: int) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except PermissionError:
+        return True
+    except (ProcessLookupError, OSError, ValueError):
+        return False
+    return True
+
+
 def _runtime_key(planner: str, backend: str) -> Tuple[str, str]:
     if planner not in ("rule", "openai"):
         raise ValueError("planner must be one of: rule, openai")
@@ -392,3 +596,13 @@ def _geometry_evidence_for_features(features):
             for item in features
         ),
     }
+
+
+def _format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Dict[str, Any]:
+    payload = result.to_dict()
+    payload["spatial_context"] = spatial_context
+    payload["result_type"] = _result_type(payload)
+    payload["result"] = build_result_contract(payload)
+    payload["trace_summary"] = format_trace(result)
+    payload["provenance"] = build_provenance(payload)
+    return payload
