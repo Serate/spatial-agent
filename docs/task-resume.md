@@ -32,9 +32,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: Production GIS container and live DeepSeek validation
-- Latest pushed commit: 3b07d4c feat: classify planner errors in evaluation reports
-- Current milestone: M60 runtime data capability and async reliability in progress
+- Latest completed milestone: M61 data health, async reliability, and model observability baseline
+- Latest pushed commits: `ac38f3a` async reliability, `85b1ce4` data health and model reliability
+- Current milestone: M61 deployment revalidation and next global planning
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Development Loop
