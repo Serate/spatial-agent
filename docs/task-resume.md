@@ -34,8 +34,15 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: Production GIS container and live DeepSeek validation
 - Latest pushed commit: 3b07d4c feat: classify planner errors in evaluation reports
-- Current milestone: Demo convergence and final regression
+- Current milestone: M56 evidence-driven execution completed; next cycle is global scenario orchestration and final demo acceptance
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
+
+## Development Loop
+
+- Overall loop: global planning -> parallelizable implementation -> integrated testing -> global replanning.
+- A large milestone may be split into independent sub-tasks, with a maximum concurrency of five.
+- Each completed milestone must update `docs/milestones.md`, refresh this handoff document, and create one GitHub commit/version.
+- Parallel work must converge through the shared tool schema, runtime contract, focused tests, full regression, and GIS/browser verification.
 
 ## Completed Milestones
 
@@ -403,6 +410,27 @@ Prefer small, explainable increments over large rewrites.
 - M47 增加受控 `spatial_context`，地图要素点击后可作为下一次 Planner 请求的结构化区域上下文；浏览器烟测验证洪山区选区和后续分析入口。
 - M48 明确会话生命周期：清空会话删除持久化运行快照但保留会话编号，删除会话移除会话及其历史；前端同步清理工作区，并通过浏览器烟测等待异步清空完成。
 - M49 增加异步运行入口：`POST /runs/async` 先返回 `run_id`，Console 轮询最终结果并支持真正的协作式取消；同步 `POST /runs` 保持兼容。
+- M50 接入武汉 OSM 道路/水体 GeoPackage，并完成真实 DEM、土地利用候选与道路/水体约束的联合演示筛选；修复 Rasterio window native 崩溃和全量矢量 union 内存暴涨。
+- M51 增加 `get_dataset_health_report`，对武汉行政区、DEM、土地利用、道路和水体执行有界的可读性、CRS、覆盖范围和基础几何质量检查，并接入规则 Planner、LLM guidance 与中文答案。
+- M52 健康报告增加 DEM 与土地利用的跨栅格覆盖关系，显示可重叠文件对数量和 CRS 组合；检查只读取元数据，不加载完整像元。
+- M53 为联合建设筛选增加显式数据健康 preflight，并在工具依赖和答案中保留预检证据。
+- M54 将健康 preflight 接入综合高程、坡度、土地利用和建设候选分析。
+- M55 将健康 preflight 扩展到单独区域栅格统计和复合行政区栅格流程；189 个离线测试、36 个 GIS 测试、smoke 与浏览器健康烟测通过。
+- M56 为健康报告增加 `usable_for`/`capabilities`，Runtime 在下游 dispatch 前阻止明确不可用的数据，并完成 README 与阶段记录分离；191 个离线测试、38 个 GIS 测试、smoke 与浏览器健康烟测通过。
+
+### 下一阶段 M56：证据驱动的降级执行
+
+- 健康报告输出每个数据集可支持的操作能力，而不只是整体状态。
+- Planner 根据能力声明决定继续、降级为元数据、或返回需要切换 GIS 后端的澄清。
+- trace、结果 envelope 和 Console 展示停止/降级原因及对应健康检查步骤。
+- 用内存演示、真实 GIS 和缺失数据配置覆盖三种执行路径，并保留真实模型为可选验收。
+
+### 下一阶段 M57：全局场景编排与验收
+
+- 统一区域对比、阈值对比和栅格-矢量联合分析的场景模型。
+- 抽取结果 envelope、能力声明和空间证据公共契约，降低 API、Runtime 和 Console 的重复分支。
+- 建立覆盖通用问答、单区域、多数据集、多区域、不可用数据和真实模型的端到端验收矩阵。
+- 可并行子任务最多 5 路；集成后完成全量、GIS、浏览器和部署健康验证。
 
 ## Development Issues Log
 

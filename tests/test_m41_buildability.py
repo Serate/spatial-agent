@@ -13,6 +13,7 @@ class M41BuildabilityTests(unittest.TestCase):
         self.assertEqual(
             [step.tool for step in result.steps],
             [
+                "get_dataset_health_report",
                 "get_dataset_schema",
                 "range_query",
                 "get_zonal_raster_statistics",

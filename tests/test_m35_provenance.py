@@ -16,10 +16,10 @@ class M35ProvenanceTests(unittest.TestCase):
 
         self.assertIn("provenance", result)
         entries = result["provenance"]["steps"]
-        self.assertEqual(entries[1]["id"], "filter-admin")
-        self.assertEqual(entries[2]["depends_on"], ["filter-admin"])
+        self.assertEqual(entries[2]["id"], "filter-admin")
+        self.assertEqual(entries[3]["depends_on"], ["filter-admin"])
         self.assertEqual(
-            entries[2]["input_bindings"],
+            entries[3]["input_bindings"],
             [{"source_step": "filter-admin", "path": "first_name"}],
         )
         self.assertNotIn("args", result["provenance"])
@@ -37,7 +37,7 @@ class M35ProvenanceTests(unittest.TestCase):
 
         self.assertEqual(artifact["provenance"]["execution_policy"], "fail_fast")
         self.assertEqual(
-            artifact["provenance"]["steps"][2]["input_bindings"][0]["source_step"],
+            artifact["provenance"]["steps"][3]["input_bindings"][0]["source_step"],
             "filter-admin",
         )
         self.assertNotIn("args", json.dumps(artifact))

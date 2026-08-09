@@ -47,8 +47,11 @@ class M15RasterMetadataTests(unittest.TestCase):
 
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(result.plan.output["type"], "zonal_raster_statistics_result")
-        self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
-        self.assertEqual(result.steps[0].args["admin_name"], "洪山区")
+        self.assertEqual(
+            [step.tool for step in result.steps],
+            ["get_dataset_health_report", "get_zonal_raster_statistics"],
+        )
+        self.assertEqual(result.steps[1].args["admin_name"], "洪山区")
         self.assertIn("洪山区", result.answer)
 
     def test_rule_planner_builds_composite_admin_raster_plan(self):
@@ -58,9 +61,14 @@ class M15RasterMetadataTests(unittest.TestCase):
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(
             [step.tool for step in result.steps],
-            ["get_dataset_schema", "range_query", "get_zonal_raster_statistics"],
+            [
+                "get_dataset_health_report",
+                "get_dataset_schema",
+                "range_query",
+                "get_zonal_raster_statistics",
+            ],
         )
-        self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
+        self.assertEqual(result.steps[3].args["admin_name"], "洪山区")
 
     def test_rule_planner_builds_terrain_land_use_plan(self):
         runtime = build_runtime("rule", "memory")
@@ -69,7 +77,7 @@ class M15RasterMetadataTests(unittest.TestCase):
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(
             [step.tool for step in result.steps],
-            ["get_dataset_schema", "range_query", "get_zonal_raster_statistics", "get_zonal_slope_statistics", "get_zonal_land_use_distribution"],
+            ["get_dataset_health_report", "get_dataset_schema", "range_query", "get_zonal_raster_statistics", "get_zonal_slope_statistics", "get_zonal_land_use_distribution"],
         )
         self.assertIn("适合建设", result.answer)
 
@@ -119,13 +127,14 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         result = build_runtime("rule", "local").run("分析洪山区DEM高程概况")
 
         self.assertEqual(result.status.value, "COMPLETED")
-        self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
-        statistics = result.steps[0].result["statistics"]
+        self.assertEqual(result.steps[0].tool, "get_dataset_health_report")
+        self.assertEqual(result.steps[1].tool, "get_zonal_raster_statistics")
+        statistics = result.steps[1].result["statistics"]
         self.assertGreater(statistics["valid_pixel_count"], 0)
         self.assertLessEqual(statistics["minimum"], statistics["mean"])
         self.assertLessEqual(statistics["mean"], statistics["maximum"])
-        self.assertEqual(len(result.steps[0].result["bounds"]), 4)
-        self.assertTrue(result.steps[0].result["crs"])
+        self.assertEqual(len(result.steps[1].result["bounds"]), 4)
+        self.assertTrue(result.steps[1].result["crs"])
         self.assertIn("洪山区", result.answer)
 
     def test_executes_composite_admin_raster_plan_with_real_gis(self):
@@ -134,17 +143,18 @@ class M15LocalRasterMetadataTests(unittest.TestCase):
         )
 
         self.assertEqual(result.status.value, "COMPLETED")
-        self.assertEqual(len(result.steps), 3)
-        self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
-        self.assertGreater(result.steps[2].result["statistics"]["valid_pixel_count"], 0)
+        self.assertEqual(len(result.steps), 4)
+        self.assertEqual(result.steps[3].args["admin_name"], "洪山区")
+        self.assertGreater(result.steps[3].result["statistics"]["valid_pixel_count"], 0)
 
     def test_executes_zonal_land_use_analysis_with_real_gis(self):
         result = build_runtime("rule", "local").run("分析洪山区土地利用分布")
 
         self.assertEqual(result.status.value, "COMPLETED")
-        self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
-        self.assertEqual(result.steps[0].result["dataset"], "land_use")
-        self.assertGreater(result.steps[0].result["statistics"]["valid_pixel_count"], 0)
+        self.assertEqual(result.steps[0].tool, "get_dataset_health_report")
+        self.assertEqual(result.steps[1].tool, "get_zonal_raster_statistics")
+        self.assertEqual(result.steps[1].result["dataset"], "land_use")
+        self.assertGreater(result.steps[1].result["statistics"]["valid_pixel_count"], 0)
 
     def test_computes_real_zonal_slope_from_dem(self):
         result = build_runtime("rule", "local").run("分析洪山区的高程、坡度和土地利用分布")

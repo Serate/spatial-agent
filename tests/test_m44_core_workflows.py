@@ -60,9 +60,10 @@ class M44CoreWorkflowAcceptanceTests(unittest.TestCase):
     def test_natural_language_variants_preserve_the_same_workflows(self):
         runtime = build_runtime("rule", "memory")
         variants = {
-            "洪山区地形怎么样": ["get_zonal_raster_statistics"],
-            "查看洪山区土地覆盖情况": ["get_zonal_raster_statistics"],
+            "洪山区地形怎么样": ["get_dataset_health_report", "get_zonal_raster_statistics"],
+            "查看洪山区土地覆盖情况": ["get_dataset_health_report", "get_zonal_raster_statistics"],
             "洪山区有哪些地方适合建设": [
+                "get_dataset_health_report",
                 "get_dataset_schema",
                 "range_query",
                 "get_zonal_raster_statistics",

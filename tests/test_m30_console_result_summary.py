@@ -49,6 +49,10 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "function resetResultWorkspace()",
             "resultEmpty",
             "result-panel",
+            "数据健康检查",
+            "dataset_health_result",
+            "function healthStats(data)",
+            "DEM/土地利用覆盖关系",
         ):
             self.assertIn(marker, self.html)
 

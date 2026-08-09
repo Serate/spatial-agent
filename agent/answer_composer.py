@@ -12,10 +12,21 @@ class AnswerComposer:
         has_slope = _first_result(result.steps, "get_zonal_slope_statistics") is not None
         has_land_use = _first_result(result.steps, "get_zonal_land_use_distribution") is not None
         has_buildability = _first_result(result.steps, "get_zonal_buildability_analysis") is not None
+        has_health = _first_result(result.steps, "get_dataset_health_report") is not None
         if has_elevation and (has_slope or has_land_use or has_buildability):
             return self._compose_terrain_land_use_result(result.steps)
         if output_type == "admin_area_result":
             return self._compose_admin_area_result(result.steps)
+        if output_type == "vector_result":
+            return self._compose_vector_result(result.steps)
+        if output_type == "zonal_vector_result":
+            return self._compose_zonal_vector_result(result.steps)
+        if output_type == "spatial_relation_result":
+            return self._compose_spatial_relation_result(result.steps)
+        if output_type == "constrained_buildability_result":
+            return self._compose_constrained_buildability_result(result.steps)
+        if output_type == "dataset_health_result":
+            return self._compose_dataset_health_result(result.steps)
         if output_type == "raster_metadata_result":
             return self._compose_raster_metadata_result(result.steps)
         if output_type == "raster_statistics_result":
@@ -37,6 +48,46 @@ class AnswerComposer:
         if _first_result(result.steps, "get_raster_metadata") is not None:
             return self._compose_raster_metadata_result(result.steps)
         return self._compose_default(result.steps)
+
+    def compose_failure(self, result: AgentRunResult) -> str:
+        """Explain a failed run while preserving preflight evidence."""
+        health = _first_result(result.steps, "get_dataset_health_report") or {}
+        error = result.error or "未知执行错误"
+        if "数据预检阻止工具" in error:
+            return f"执行已停止：{error}。健康检查结果已保留在执行轨迹中。"
+        if health.get("status") == "unavailable":
+            return f"执行未完成：数据预检显示所需数据不可用。{error}"
+        return f"执行未完成：{error}"
+
+    def _compose_dataset_health_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "get_dataset_health_report") or {}
+        status = result.get("status", "unknown")
+        labels = {"ready": "可用", "degraded": "部分可用", "unavailable": "不可用"}
+        reports = result.get("datasets") or []
+        details = []
+        for item in reports:
+            name = item.get("dataset", "未知数据集")
+            label = labels.get(item.get("status"), item.get("status", "未知"))
+            files = item.get("file_count", 0)
+            errors = item.get("errors") or []
+            detail = f"{name}：{label}，文件 {files} 个"
+            if item.get("feature_count") is not None:
+                detail += f"，要素 {item['feature_count']} 个"
+            usable = item.get("usable_for") or []
+            if usable:
+                detail += "，可用于：" + "、".join(usable)
+            if errors:
+                detail += f"，问题：{str(errors[0])[:120]}"
+            details.append(detail)
+        suffix = result.get("warning") or ""
+        relationships = result.get("relationships") or {}
+        alignment = relationships.get("dem_land_use") or {}
+        if alignment:
+            details.append(
+                f"DEM/土地利用覆盖关系：{alignment.get('status', '未知')}，"
+                f"重叠文件对 {alignment.get('overlapping_pairs', 0)} 对"
+            )
+        return f"数据健康检查完成：整体状态为{labels.get(status, status)}。" + "；".join(details) + (f"。{suffix}" if suffix else "。")
 
     def _compose_slope_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_zonal_slope_statistics")
@@ -84,12 +135,19 @@ class AnswerComposer:
         )
 
     def _compose_terrain_land_use_result(self, steps: Iterable[StepRun]) -> str:
+        health = _first_result(steps, "get_dataset_health_report") or {}
         elevation = _first_result(steps, "get_zonal_raster_statistics")
         slope = _first_result(steps, "get_zonal_slope_statistics")
         land_use = _first_result(steps, "get_zonal_land_use_distribution")
         buildability = _first_result(steps, "get_zonal_buildability_analysis")
         area = (elevation or slope or land_use or {}).get("admin_name", "指定区域")
         parts = [f"{area}综合空间分析已完成。"]
+        if health.get("status") and health.get("status") != "ready":
+            alignment = (health.get("relationships") or {}).get("dem_land_use") or {}
+            parts.append(
+                f"数据预检为{ {'degraded': '部分可用', 'unavailable': '不可用'}.get(health.get('status'), health.get('status')) }，"
+                f"DEM/土地利用重叠文件对 {alignment.get('overlapping_pairs', 0)} 对。"
+            )
         errors = [
             item.get("statistics", {}).get("error", "")
             for item in (elevation, slope, land_use, buildability)
@@ -158,6 +216,78 @@ class AnswerComposer:
         if source:
             details.append(_zh("数据源：{source}").format(source=source))
         return answer + _zh(" ") + _zh("；").join(details) + _zh("。")
+
+    def _compose_vector_result(self, steps: Iterable[StepRun]) -> str:
+        schema = _first_result(steps, "get_dataset_schema") or {}
+        result = _first_result(steps, "range_query") or {}
+        dataset = result.get("dataset") or schema.get("dataset") or "空间数据"
+        count = result.get("count", 0)
+        metrics = result.get("metrics", {})
+        source = metrics.get("source", "未知")
+        names = result.get("sample_names") or []
+        label = "道路" if dataset == "roads" else "水体" if dataset == "water" else dataset
+        detail = f"已查询{label}数据 {count} 条"
+        if names:
+            detail += f"，名称样例：{'、'.join(names[:5])}"
+        return f"{detail}。坐标系：{result.get('crs', schema.get('crs', '未知'))}；数据源：{source}。这是基于 OpenStreetMap 演示数据的空间结果，不代表法定道路或水体边界。"
+
+    def _compose_zonal_vector_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "get_zonal_vector_summary") or {}
+        summary = result.get("summary") or {}
+        area = result.get("admin_name", "指定区域")
+        dataset = result.get("dataset", "vector")
+        label = "道路" if dataset == "roads" else "水体"
+        if summary.get("error"):
+            return f"{area}{label}分析失败：{summary['error']}。"
+        categories = summary.get("category_counts") or {}
+        category_text = "、".join(f"{key} {value} 条" for key, value in list(categories.items())[:6]) or "暂无分类统计"
+        return (
+            f"{area}{label}统计：相交要素 {summary.get('matched_features', result.get('count', 0))} 条，"
+            f"返回几何 {summary.get('returned_features', 0)} 条，已命名要素 {summary.get('named_features', 0)} 条。"
+            f"分类统计：{category_text}。坐标系：{result.get('crs', '未知')}。"
+            "数据来自 OpenStreetMap 演示图层，不代表法定道路、水体边界或规划许可结论。"
+        )
+
+    def _compose_spatial_relation_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "spatial_join") or {}
+        metrics = result.get("metrics") or {}
+        if result.get("error"):
+            return f"空间关系分析失败：{result['error']}。"
+        distance = result.get("distance_m", metrics.get("distance_m", "未知"))
+        return (
+            f"已完成道路与水体的邻近分析：{result.get('count', 0)} 条道路-水体关系满足 {distance} 米范围。"
+            f"左侧数据 {result.get('left_dataset', 'roads')}，右侧数据 {result.get('right_dataset', 'water')}，"
+            "结果基于 OpenStreetMap 演示图层，不代表法定道路、水体边界或规划结论。"
+        )
+
+    def _compose_constrained_buildability_result(self, steps: Iterable[StepRun]) -> str:
+        health = _first_result(steps, "get_dataset_health_report") or {}
+        result = _first_result(steps, "get_zonal_constrained_buildability_analysis") or {}
+        area = result.get("admin_name", "指定区域")
+        statistics = result.get("statistics") or {}
+        if statistics.get("error"):
+            return f"{area}联合建设候选筛选失败：{statistics['error']}。"
+        constraints = result.get("constraint_summary") or {}
+        ratio = statistics.get("candidate_ratio")
+        ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.2f}%"
+        health_note = ""
+        if health.get("status") and health.get("status") != "ready":
+            alignment = (health.get("relationships") or {}).get("dem_land_use") or {}
+            health_status = {"degraded": "部分可用", "unavailable": "不可用"}.get(
+                health.get("status"), health.get("status")
+            )
+            health_note = (
+                f"数据预检为{health_status}"
+                f"（DEM/土地利用重叠文件对 {alignment.get('overlapping_pairs', 0)} 对）；"
+            )
+        return (
+            f"{area}联合建设候选演示筛选完成：{health_note}原始候选像元比例 {ratio_text}，"
+            f"候选几何样本 {constraints.get('candidate_features', 0)} 个，"
+            f"满足道路距离约束 {constraints.get('eligible_features', 0)} 个，"
+            f"因水体排除 {constraints.get('water_excluded_features', 0)} 个。"
+            f"道路距离阈值 {constraints.get('road_distance_m', '未知')} 米。"
+            "矢量约束只作用于有限候选几何样本，不代表全像元精确适宜性或法定规划结论。"
+        )
 
     def _compose_raster_metadata_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_raster_metadata")
@@ -228,10 +358,17 @@ class AnswerComposer:
         result = _first_result(steps, "get_zonal_raster_statistics")
         if result is None:
             return _zh("区域栅格统计已完成，但没有找到可展示的结果。")
+        health = _first_result(steps, "get_dataset_health_report") or {}
         statistics = result.get("statistics", {})
         admin_name = result.get("admin_name", _zh("指定区域"))
+        health_note = ""
+        if health.get("status") and health.get("status") != "ready":
+            status = {"degraded": "部分可用", "unavailable": "不可用"}.get(
+                health.get("status"), health.get("status")
+            )
+            health_note = _zh("数据预检为{status}；").format(status=status)
         if statistics.get("error"):
-            return _zh("{area} 内没有可统计的 {dataset} 栅格像元：{error}。").format(
+            return health_note + _zh("{area} 内没有可统计的 {dataset} 栅格像元：{error}。").format(
                 area=admin_name,
                 dataset=result.get("dataset", _zh("未知数据集")),
                 error=statistics["error"],
@@ -253,7 +390,7 @@ class AnswerComposer:
                     ratio=round(float(statistics["nodata_ratio"]) * 100, 3)
                 )
             )
-        return _zh("{area}的 {dataset} 区域统计：").format(
+        return health_note + _zh("{area}的 {dataset} 区域统计：").format(
             area=admin_name, dataset=result.get("dataset", _zh("未知数据集"))
         ) + _zh("；").join(details) + _zh("。")
 

@@ -165,6 +165,7 @@ class AgentRuntime:
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
+            result.answer = self._answer_composer.compose_failure(result)
         if result.planner_metrics is None:
             result.planner_metrics = self._planner_metrics()
         self._state_store.save(result)
@@ -251,6 +252,7 @@ class AgentRuntime:
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
+            result.answer = self._answer_composer.compose_failure(result)
         self._state_store.save(result)
         return result
 
@@ -303,6 +305,13 @@ class AgentRuntime:
         missing = [dependency for dependency in step.depends_on if dependency not in completed]
         if missing:
             raise ToolError("Step dependencies are not complete: " + ", ".join(missing))
+        try:
+            self._enforce_preflight_policy(step.tool, step.args, completed_results)
+        except ToolError as exc:
+            step_run.status = "FAILED"
+            step_run.error = str(exc)
+            step_run.finished_at = _utc_now()
+            raise
         resolved_args = _resolve_result_references(step.args, completed_results)
         self._check_control(run_id, deadline)
         step_run.args = resolved_args
@@ -328,6 +337,30 @@ class AgentRuntime:
         step_run.status = "FAILED"
         step_run.finished_at = _utc_now()
         step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
+
+    def _enforce_preflight_policy(
+        self,
+        tool: str,
+        arguments: Dict[str, Any],
+        completed_results: Dict[str, Dict[str, Any]],
+    ) -> None:
+        health = next(
+            (value for value in completed_results.values() if value.get("capabilities") is not None),
+            None,
+        )
+        if health is None:
+            return
+        reports = {item.get("dataset"): item for item in health.get("datasets", [])}
+        for dataset in _required_health_datasets(tool, arguments):
+            report = reports.get(dataset) or {}
+            if report.get("status") != "unavailable":
+                continue
+            capabilities = report.get("usable_for") or []
+            capability_text = ", ".join(capabilities) if capabilities else "无"
+            raise ToolError(
+                f"数据预检阻止工具 {tool}：数据集 {dataset} 不可用；"
+                f"当前可用能力：{capability_text}。请切换到本地 GIS 后端或补充数据配置。"
+            )
 
     def _check_control(self, run_id: str, deadline: Optional[float]) -> None:
         with self._control_lock:
@@ -372,3 +405,21 @@ def _resolve_result_references(value: Any, results: Dict[str, Dict[str, Any]]) -
     if isinstance(value, list):
         return [_resolve_result_references(item, results) for item in value]
     return value
+
+
+def _required_health_datasets(tool: str, arguments: Dict[str, Any]) -> Set[str]:
+    if tool in {"get_raster_metadata", "get_raster_statistics", "get_zonal_raster_statistics"}:
+        dataset = arguments.get("dataset")
+        return {dataset} if dataset in {"dem", "land_use"} else set()
+    if tool == "get_zonal_slope_statistics":
+        return {"dem"}
+    if tool == "get_zonal_land_use_distribution":
+        return {"land_use"}
+    if tool == "get_zonal_buildability_analysis":
+        return {"dem", "land_use"}
+    if tool == "get_zonal_constrained_buildability_analysis":
+        required = {"dem", "land_use", "roads"}
+        if arguments.get("exclude_water", True):
+            required.add("water")
+        return required
+    return set()

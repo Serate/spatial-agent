@@ -12,7 +12,7 @@
         "properties": {
           "dataset": {
             "type": "string",
-            "enum": ["roads", "slope", "admin_areas"]
+            "enum": ["roads", "water", "slope", "admin_areas"]
           }
         },
         "additionalProperties": false
@@ -39,7 +39,7 @@
         "properties": {
           "dataset": {
             "type": "string",
-            "enum": ["roads", "slope", "admin_areas"]
+            "enum": ["roads", "water", "slope", "admin_areas"]
           },
           "bbox": {
             "type": "array",
@@ -92,11 +92,11 @@
         "properties": {
           "left_dataset": {
             "type": "string",
-            "enum": ["roads", "slope", "admin_areas"]
+            "enum": ["roads", "water", "slope", "admin_areas"]
           },
           "right_dataset": {
             "type": "string",
-            "enum": ["roads", "slope", "admin_areas"]
+            "enum": ["roads", "water", "slope", "admin_areas"]
           },
           "relation": {
             "type": "string",
@@ -275,6 +275,91 @@
         "type": "object",
         "required": ["dataset", "admin_name", "statistics", "rules"],
         "properties": {"dataset": {"type": "string"}, "admin_name": {"type": "string"}, "statistics": {"type": "object"}, "rules": {"type": "object"}}
+      }
+    },
+    {
+      "name": "get_zonal_vector_summary",
+      "description": "Summarize clipped OSM roads or water features inside a named administrative area.",
+      "side_effect": "none",
+      "requires_approval": false,
+      "input_schema": {
+        "type": "object",
+        "required": ["dataset", "admin_name"],
+        "properties": {
+          "dataset": {"type": "string", "enum": ["roads", "water"]},
+          "admin_name": {"type": "string", "minLength": 2},
+          "max_features": {"type": "integer", "minimum": 1, "maximum": 10000}
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["dataset", "admin_name", "summary", "result_ref"],
+        "properties": {
+          "dataset": {"type": "string"},
+          "admin_name": {"type": "string"},
+          "summary": {"type": "object"},
+          "result_ref": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "get_zonal_constrained_buildability_analysis",
+      "description": "Apply auditable demo constraints from slope, land-use candidates, road distance, and water exclusion inside an administrative area.",
+      "side_effect": "none",
+      "requires_approval": false,
+      "input_schema": {
+        "type": "object",
+        "required": ["admin_name"],
+        "properties": {
+          "admin_name": {"type": "string", "minLength": 2},
+          "slope_limit_degrees": {"type": "number", "minimum": 1, "maximum": 45},
+          "road_distance_m": {"type": "number", "minimum": 0, "maximum": 10000},
+          "exclude_water": {"type": "boolean"},
+          "max_files": {"type": "integer", "minimum": 1, "maximum": 10}
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["dataset", "admin_name", "statistics"],
+        "properties": {
+          "dataset": {"type": "string"},
+          "admin_name": {"type": "string"},
+          "statistics": {"type": "object"},
+          "constraint_summary": {"type": "object"},
+          "result_ref": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "get_dataset_health_report",
+      "description": "Check bounded readability, CRS, coverage, and basic geometry quality for configured spatial datasets.",
+      "side_effect": "none",
+      "requires_approval": false,
+      "input_schema": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": ["all", "admin_areas", "dem", "land_use", "roads", "water"]
+          },
+          "max_files": {"type": "integer", "minimum": 1, "maximum": 10}
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["dataset", "status", "datasets"],
+        "properties": {
+          "dataset": {"type": "string"},
+          "status": {"type": "string", "enum": ["ready", "degraded", "unavailable"]},
+          "datasets": {"type": "array"},
+          "capabilities": {"type": "object"},
+          "relationships": {"type": "object"},
+          "warning": {"type": "string"}
+        }
       }
     }
   ]

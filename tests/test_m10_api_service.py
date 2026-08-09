@@ -193,6 +193,36 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertEqual(second["status"], "COMPLETED")
         self.assertIn("memory://range/admin_areas", second["answer"])
 
+    def test_http_api_returns_an_individual_run_for_async_polling(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            created = _post_json(
+                server.server_address[1],
+                {"request": "查询洪山区行政区边界", "planner": "rule", "backend": "memory"},
+            )
+            payload = _get_json(
+                server.server_address[1],
+                "/runs/" + created["run_id"] + "?planner=rule&backend=memory",
+            )
+            missing = _get_json(
+                server.server_address[1],
+                "/runs/not-found?planner=rule&backend=memory",
+                expected_status=404,
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload["run_id"], created["run_id"])
+        self.assertEqual(payload["status"], "COMPLETED")
+        self.assertIn("run not found", missing["error"])
+
     def test_runtime_reuses_completed_request_for_follow_up(self):
         runtime = AgentService()._runtime("rule", "memory")
         first = runtime.run("查询洪山区行政区边界", session_id="follow-up")

@@ -12,7 +12,7 @@
     "input": "分析洪山区DEM高程概况",
     "expected_status": "COMPLETED",
     "expected_result_type": "zonal_raster_statistics_result",
-    "expected_tools": ["get_zonal_raster_statistics"],
+    "expected_tools": ["get_dataset_health_report", "get_zonal_raster_statistics"],
     "acceptance": "按行政区返回 DEM 统计摘要"
   },
   {
@@ -21,6 +21,7 @@
     "expected_status": "COMPLETED",
     "expected_result_type": "terrain_land_use_analysis_result",
     "expected_tools": [
+      "get_dataset_health_report",
       "get_dataset_schema",
       "range_query",
       "get_zonal_raster_statistics",
@@ -43,7 +44,7 @@
     "input": "洪山区地形怎么样",
     "expected_status": "COMPLETED",
     "expected_result_type": "zonal_raster_statistics_result",
-    "expected_tools": ["get_zonal_raster_statistics"],
+    "expected_tools": ["get_dataset_health_report", "get_zonal_raster_statistics"],
     "acceptance": "口语化地形问题仍识别为 DEM 区域统计"
   },
   {
@@ -51,7 +52,7 @@
     "input": "查看洪山区土地覆盖情况",
     "expected_status": "COMPLETED",
     "expected_result_type": "zonal_raster_statistics_result",
-    "expected_tools": ["get_zonal_raster_statistics"],
+    "expected_tools": ["get_dataset_health_report", "get_zonal_raster_statistics"],
     "acceptance": "土地覆盖同义表达映射到土地利用统计"
   },
   {
@@ -60,6 +61,7 @@
     "expected_status": "COMPLETED",
     "expected_result_type": "terrain_land_use_analysis_result",
     "expected_tools": [
+      "get_dataset_health_report",
       "get_dataset_schema",
       "range_query",
       "get_zonal_raster_statistics",

@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from agent.environment_status import environment_status
 from agent.service import AgentService
@@ -21,6 +21,21 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             payload.update(environment_status())
             self._write_json(200, payload)
             return
+        if parsed.path.startswith("/runs/"):
+            parts = parsed.path.strip("/").split("/")
+            if len(parts) == 2 and parts[1]:
+                query = parse_qs(parsed.query)
+                try:
+                    result = self.service.get_run(
+                        parts[1],
+                        planner=query.get("planner", ["rule"])[0],
+                        backend=query.get("backend", ["memory"])[0],
+                    )
+                except ValueError as exc:
+                    self._write_json(404, {"error": str(exc)})
+                else:
+                    self._write_json(200, result)
+                return
         if parsed.path == "/runs":
             self._write_json(200, self.service.list_runs())
             return

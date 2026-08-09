@@ -158,9 +158,24 @@ error code: 1010
 - 道路 -> dataset roads。
 - 坡度 -> dataset slope。
 
+## 当前恢复位置：M56 已完成
+
+已获取并核验武汉道路、水体、行政区、DEM 和土地利用数据。M50 已完成真实栅格候选与 OSM 道路/水体约束闭环；M51 已新增 `get_dataset_health_report`，并接入工具 schema、规则 Planner、LLM guidance、中文 AnswerComposer 和 Console 的数据健康面板；M52 又增加了 DEM/土地利用跨栅格覆盖关系检查。
+
+真实武汉健康检查结果：行政区、道路、水体为 `ready`；DEM 和土地利用文件可读取，但跨 `EPSG:32649`/`EPSG:32650`，因此标记为 `degraded`。M54-M56 已将健康预检接入综合建设分析、单独区域栅格统计和复合行政区栅格分析，并增加能力声明和不可用数据门控。当前验证结果为 191 个离线测试通过、38 个 GIS 重点测试通过、smoke 和浏览器健康烟测通过。
+
+M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS 环境触发 native exit；全量道路/水体 `unary_union` 导致内存暴涨。根因、修复和预防已记录在 `docs/agent-development-issues.md`。
+
 ## 下一步任务
 
-优先完成 M16 收尾：
+进入 M57：从局部工具链走向全局场景编排与统一验收。
+
+1. 建立区域对比、阈值对比和栅格-矢量联合分析的统一场景模型。
+2. 抽取结果 envelope、能力声明和空间证据的公共契约，减少跨模块重复判断。
+3. 建立覆盖通用问答、单区域、多数据集、多区域、不可用数据和真实模型的端到端验收矩阵。
+4. 每个独立子任务最多并行 5 路，集成后完成全量、GIS、浏览器和部署健康验证。
+
+M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
 
 ~~~powershell
 $env:SPATIAL_AGENT_LIVE_OPENAI='1'
@@ -221,3 +236,5 @@ git -c safe.directory=D:/Project/job/ai-agent check-ignore -v config/openai.loca
 - 新增 Agent 工具时，同时更新 schema、adapter、planner guidance、answer composer、测试和文档。
 - 真实模型失败时，先判断是网络、provider、模型输出、plan 校验还是 backend 执行问题。
 - 新遇到的 Agent 开发问题，记录到 docs/agent-development-issues.md。
+- 开发采用“整体规划 -> 可并行实现 -> 集成测试 -> 整体重规划”循环；可并行子任务最多 5 个。
+- 每个阶段完成后更新 docs/milestones.md、恢复文档，并创建一个 GitHub 版本；私有配置和原始数据不得提交。

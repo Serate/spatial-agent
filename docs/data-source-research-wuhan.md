@@ -206,3 +206,85 @@ OSM 水体标签表达的是 OSM 对象分类，不等同于水利、自然资�
 - 洪山区是否有自然资源、生态环境或规划部门公开发布的可下载保护区/生态红线边界，以及其可否用于本项目 Demo。
 - 当前 `land_use` 栅格四个文件对应的编码表、分类体系、版本和授权。
 - 武汉市官方数据与 OSM 数据的道路等级、水体边界和坐标偏差对比。
+
+## 直接拉取验证
+
+调研时间：2026-08-08。
+
+### 武汉市范围
+
+根据本地湖北县级行政区 GeoJSON 中的武汉 13 个区（含洪山区、江夏区、黄陂区等）计算得到外包络框：
+
+```text
+min_lon=113.698077
+min_lat=29.971928
+max_lon=115.076651
+max_lat=31.362866
+```
+
+这是行政区外包络框，不是严格的武汉市融合边界。下载后仍应使用融合后的武汉市边界裁切，避免把外包络中的周边区域当作武汉市数据。
+
+### OSM API 实测
+
+官方 OSM API 地址：
+
+`https://api.openstreetmap.org/api/0.6/map?bbox={min_lon},{min_lat},{max_lon},{max_lat}`
+
+使用洪山区附近约 `0.02° x 0.02°` 的小范围请求时，在当前网络环境中 60 秒内连接超时，未生成文件。该结果只能说明当前 API 路径或网络对本次客户端不可用，不能据此断言 OSM 没有数据。武汉市完整外包络约 `1.38° x 1.39°`，不应直接作为一个 `map` 请求提交；官方文档也要求对大范围下载采用更合适的导出方式，而不是把 API 当作整市数据导出服务。
+
+### Overpass 小网格实测
+
+公共 Overpass 查询服务成功返回了一个 `0.1° x 0.1°` 样本网格：
+
+`https://overpass-api.de/api/interpreter`
+
+查询主题为 `highway`、`natural=water` 和 `waterway`，使用 `out geom` 返回几何。样本结果约为：
+
+| 类型 | way 数量 |
+|---|---:|
+| 道路（`highway`） | 11,270 |
+| 面状水体（`natural=water`） | 161 |
+| 线状水系（`waterway`） | 43 |
+
+该数量表明全市道路和水体对象可能达到百万级，不能用一个请求或一次性内存合并处理。建议将武汉外包络切成 `0.05°-0.1°` 网格，逐格请求并在本地按 OSM element 的 `type+id` 去重；每个网格保存原始 JSON、查询时间、bbox 和响应校验信息，失败网格支持重试和断点续传。
+
+Overpass 不是 OSM 数据许可的替代品。导出的 OSM 数据仍受 ODbL 1.0 约束，产品页面和导出文件应保留 OpenStreetMap attribution，并记录数据时间和查询范围。来源：
+
+- OSM API 文档：https://wiki.openstreetmap.org/wiki/API_v0.6
+- OSM 版权与 ODbL 说明：https://www.openstreetmap.org/copyright
+- Overpass API 文档：https://wiki.openstreetmap.org/wiki/Overpass_API
+
+### 区域 PBF 路线
+
+本次读取 Geofabrik 中国目录页时连接超时，未确认可直接下载的湖北/武汉区域 PBF 地址。Geofabrik 是 OSM 数据的常用区域导出服务，但不是武汉市政府官方数据源；若后续能访问，应优先选择最小覆盖区域的 PBF，使用 `osmium`/`pyrosm`/`osmnx` 在本地裁切道路和水体，并继续保留 ODbL attribution。不能为了武汉市而下载整个中国 PBF。
+
+### 结论
+
+**可以拉取整个武汉市的道路和水体演示数据，但应采用分块 Overpass 或可访问的区域 PBF，不应直接请求武汉市外包络的 OSM API。** 当前最稳妥的落地顺序是：先用 0.05° 网格验证断点下载器，再扩大到全市；下载完成后转换为 GeoPackage，建立空间索引，并在项目数据登记表中记录来源、时间、CRS、许可和裁切边界。
+
+### 项目下载器
+
+已提供 `scripts/download_wuhan_osm.py`。它默认使用记录的武汉外包络，也可以从本地行政区 GeoJSON 计算边界：
+
+```powershell
+python scripts/download_wuhan_osm.py `
+  --boundary D:\dataset\agent\湖北省_县.geojson `
+  --tile-size 0.1 `
+  --output D:\tmp\wuhan-osm `
+  --merge
+```
+
+下载器会跳过已经存在且可解析的网格文件，写入 `manifest.json`，失败网格可以在下一次运行时重试；`merged.json` 只按 OSM `type:id` 去重，不代表已经按严格武汉边界裁切。正式接入 GIS 后端前，还应在 GIS 环境中将结果转换为 GeoPackage，并用武汉融合边界做精确裁切。默认查询的是带 `highway`、`natural=water` 或 `waterway` 标签的 way，不包含完整的 OSM relation 关系组，不能将其表述为法定道路、水体边界或生态红线。
+
+### 全武汉实际下载结果
+
+2026-08-08 使用项目下载器实际完成了武汉外包络的分块采集。主目录计划网格数为 196 个，其中 194 个主网格成功；2 个外围网格返回 HTTP 504，随后各自拆成 `0.05°` 子网格并通过备用 Overpass 实例补齐。最终合并 206 个网格 JSON 文件，按 `type:id` 全局去重后得到：
+
+| 类型 | 数量 |
+|---|---:|
+| 唯一 OSM 元素 | 124,294 |
+| 带 `highway` 标签的 way | 96,872 |
+| 带 `natural=water` 的 way | 24,629 |
+| 带 `waterway` 标签的 way | 2,793 |
+
+合并 JSON 位于本机临时目录 `D:\tmp\wuhan-osm\merged.json`，大小约 131 MB；该文件和原始网格没有加入仓库。这个结果证明“整个武汉市道路/水体演示数据可以直接拉取”是可行的，但仍有三个边界：数据是武汉外包络而非严格融合边界、查询只覆盖 way 而没有完整 relation 关系组、OSM 对象不等于法定道路或水体边界。接入前必须在 GIS 环境中做边界裁切、几何有效性检查和 GeoPackage 空间索引，并在产品中保留 ODbL attribution、查询时间和数据来源。

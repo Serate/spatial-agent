@@ -1,0 +1,35 @@
+{
+  "root": "D:\\dataset\\agent",
+  "datasets": {
+    "admin_areas": {
+      "kind": "vector",
+      "format": "geojson",
+      "path": "湖北省_县.geojson",
+      "role": "county administrative boundaries"
+    },
+    "dem": {
+      "kind": "raster",
+      "format": "img",
+      "glob": "extracted/ASTGTM_*/*.img",
+      "role": "ASTER DEM tiles"
+    },
+    "land_use": {
+      "kind": "raster",
+      "format": "tif",
+      "glob": "extracted/N*_2025LC030/**/*.tif",
+      "role": "2025 land use tiles"
+    },
+    "roads": {
+      "kind": "vector",
+      "format": "gpkg",
+      "path": "..\\..\\tmp\\wuhan-gis\\wuhan-osm.gpkg",
+      "role": "OSM Wuhan roads clipped to the 13-district boundary"
+    },
+    "water": {
+      "kind": "vector",
+      "format": "gpkg",
+      "path": "..\\..\\tmp\\wuhan-gis\\wuhan-osm.gpkg",
+      "role": "OSM Wuhan water ways clipped to the 13-district boundary"
+    }
+  }
+}

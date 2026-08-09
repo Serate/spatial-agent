@@ -97,6 +97,11 @@ class RasterMetadataBackend:
 
         return normalize_feature_collection(exported)
 
+    def cache_geometry_result(self, collection: Dict[str, Any], source: str) -> str:
+        result_ref = "raster://" + source + "/" + uuid4().hex
+        self._result_cache[result_ref] = collection
+        return result_ref
+
 
 def raster_metadata_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict[str, Any]:
     if max_files < 1:
@@ -518,7 +523,7 @@ def zonal_buildability_for_entries(
         from rasterio.mask import mask
         from rasterio.transform import array_bounds
         from rasterio.warp import Resampling, reproject, transform_bounds, transform_geom
-        from rasterio.windows import from_bounds
+        from rasterio.windows import Window
     except ImportError as exc:
         raise ToolError("rasterio and numpy are required for buildability analysis") from exc
 
@@ -551,7 +556,13 @@ def zonal_buildability_for_entries(
                     continue
                 with rasterio.open(dem_path) as dem_src:
                     dem_bounds = transform_bounds(land_src.crs, dem_src.crs, left, bottom, right, top)
-                    dem_window = from_bounds(*dem_bounds, transform=dem_src.transform)
+                    dem_window = _safe_window_from_bounds(
+                        dem_bounds,
+                        dem_src.transform,
+                        dem_src.width,
+                        dem_src.height,
+                        Window,
+                    )
                     # DEM sources are commonly int16; convert before inserting NaN nodata values.
                     dem_data = dem_src.read(1, window=dem_window, masked=True).astype("float32")
                     dem_transform = dem_src.window_transform(dem_window)
@@ -640,6 +651,36 @@ def _find_overlapping_raster(paths, target_crs, bounds, rasterio):
                 continue
             return path
     return None
+
+
+def _safe_window_from_bounds(bounds, transform, width, height, window_type):
+    """Build a clamped north-up window without Rasterio's GDAL rowcol path.
+
+    The GIS environment used by the demo can terminate the interpreter inside
+    ``rasterio.windows.from_bounds`` for otherwise valid affine transforms.
+    These local datasets are north-up, so direct affine arithmetic is both
+    sufficient and easier to validate before a native raster read.
+    """
+    left, bottom, right, top = (float(value) for value in bounds)
+    if not left < right or not bottom < top:
+        raise ToolError("raster bounds must be increasing")
+    a = float(transform.a)
+    e = float(transform.e)
+    if float(transform.b) != 0.0 or float(transform.d) != 0.0 or a <= 0.0 or e >= 0.0:
+        raise ToolError("only north-up rasters are supported for aligned window reads")
+
+    col_values = ((left - float(transform.c)) / a, (right - float(transform.c)) / a)
+    row_values = ((top - float(transform.f)) / e, (bottom - float(transform.f)) / e)
+    col_start = max(0.0, min(col_values))
+    row_start = max(0.0, min(row_values))
+    col_stop = min(float(width), max(col_values))
+    row_stop = min(float(height), max(row_values))
+    return window_type(
+        col_off=col_start,
+        row_off=row_start,
+        width=max(0.0, col_stop - col_start),
+        height=max(0.0, row_stop - row_start),
+    )
 
 
 def _numeric_summary(values, total_pixels: int) -> Dict[str, Any]:
