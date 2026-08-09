@@ -55,6 +55,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "DEM/土地利用覆盖关系",
             "capabilityStatus",
             "function renderCapabilities(data)",
+            "function geometryEvidence(data)",
+            "空间证据：",
         ):
             self.assertIn(marker, self.html)
 

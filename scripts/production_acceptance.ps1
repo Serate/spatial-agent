@@ -11,8 +11,10 @@ function Get-Json($url) {
 
 $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
+$capabilityCatalog = Get-Json "$BaseUrl/capabilities"
 if ($live.status -ne "ok") { throw "liveness failed" }
 if ($ready.status -ne "ready") { throw "readiness failed: $($ready.status)" }
+if ($capabilityCatalog.version -ne "1.0" -or @($capabilityCatalog.capabilities).Count -lt 1) { throw "capability catalog failed" }
 
 $sessionId = "production-acceptance-" + [guid]::NewGuid().ToString("N")
 $greeting = ([char]0x4F60) + ([char]0x597D)
@@ -37,6 +39,7 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   status = "ok"
   liveness = $live.status
   readiness = $ready.status
+  capability_count = @($capabilityCatalog.capabilities).Count
   async_status = $final.status
   run_id = $queued.run_id
 } | ConvertTo-Json -Compress

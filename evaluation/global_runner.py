@@ -104,6 +104,16 @@ def _annotate_capability(result: Dict[str, Any], case: Dict[str, Any]) -> Dict[s
         expected_tools.issubset(actual_tools)
         and (not expected_types or result_type in expected_types)
     )
+    environment = case.get("backend", "memory")
+    result["capability_environment"] = environment
+    result["capability_environment_supported"] = (
+        environment in definition["environments"]
+    )
+    result["execution_claim"] = (
+        "environment_supported"
+        if result["capability_contract_match"] and result["capability_environment_supported"]
+        else "contract_only_or_environment_mismatch"
+    )
     result["geometry_evidence"] = "unknown"
     return result
 

@@ -8,6 +8,7 @@ from agent.capability_catalog import capability_catalog
 from agent.data_quality import dataset_health_report
 from agent.dataset_catalog import DatasetCatalog
 from agent.service import AgentService
+from result_contract import build_result_contract
 from serve_api import AgentApiHandler
 
 
@@ -87,6 +88,30 @@ class M59CapabilityCatalogTests(unittest.TestCase):
             [item["id"] for item in payload["capabilities"]],
             [item["id"] for item in capability_catalog()["capabilities"]],
         )
+
+    def test_geometry_evidence_statuses_are_explicit(self):
+        boundary = build_result_contract({
+            "result_type": "admin_area_result",
+            "geojson_ref": "outputs/geojson/boundary.geojson",
+            "_geometry_evidence": {
+                "status": "boundary_geometry",
+                "reason": "行政区边界",
+                "feature_count": 1,
+            },
+        })
+        truncated = build_result_contract({
+            "result_type": "buildability_result",
+            "_geometry_evidence": {
+                "status": "truncated_geometry",
+                "reason": "摘要达到大小上限",
+                "feature_count": 1,
+                "truncated": True,
+            },
+        })
+        self.assertTrue(boundary["geometry"]["available"])
+        self.assertEqual(boundary["geometry"]["status"], "boundary_geometry")
+        self.assertFalse(truncated["geometry"]["available"])
+        self.assertTrue(truncated["geometry"]["truncated"])
 
 
 if __name__ == "__main__":

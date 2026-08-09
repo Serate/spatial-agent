@@ -323,7 +323,7 @@
       <div class="grid" aria-label="分析结果工作区">
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><pre id="genericResult"></pre></section>
-        <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="error"></div></section>
+        <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
         <section class="panel result-panel raster-result"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
         <section class="panel result-panel health-result"><h3>数据健康检查</h3><div id="healthStats" class="muted"></div></section>
         <section class="panel result-panel composite-result"><h3>综合空间分析</h3><div id="compositeStats" class="muted"></div></section>
@@ -366,11 +366,13 @@
       setResultPanel('.result-panel', false);
       $('genericResult').textContent = '';
       $('healthStats').innerHTML = '';
+      $('geometryEvidence').textContent = '';
     }
     function updateResultPanels(data) {
       const steps = data.steps || [];
       const tools = new Set(steps.map(step => step.tool));
       const envelope = data.result || {};
+      geometryEvidence(data);
       const outputType = envelope.type || data.result_type || data.plan?.output?.type || '';
       const registeredViews = resultViewRegistry[outputType];
       const views = new Set(registeredViews || []);
@@ -435,6 +437,7 @@
     function rasterPreview(result) { const b=result&&result.bounds; if(!Array.isArray(b)||b.length!==4){$('map').innerHTML='<div class="map-empty">当前结果没有可预览的空间范围。</div>';return;} const width=b[2]-b[0],height=b[3]-b[1],x=width>=height?12:12+(1-height/(width||1))*238,y=height>=width?12:12+(1-width/(height||1))*118,w=width>=height?476:Math.max(8,476*width/(height||1)),h=height>=width?236:Math.max(8,236*height/(width||1)); $('map').innerHTML='<svg viewBox="0 0 500 260" role="img" aria-label="栅格覆盖范围预览"><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="6" fill="#b8d9cf" stroke="#087f8c" stroke-width="2"></rect><text x="250" y="244" text-anchor="middle" fill="#53656b" font-size="12">'+escapeHtml(result.dataset||'栅格')+' · '+escapeHtml(result.crs||'未知 CRS')+'</text></svg>'; }
     async function loadGeoJSON(ref) { try { const name=ref.split(/[\\/]/).pop(); const response=await fetch('/artifacts/geojson/'+encodeURIComponent(name)); if(!response.ok) throw new Error('GeoJSON 下载失败（HTTP '+response.status+'）'); mapPreview(await response.json()); } catch(error) { destroyMap(); $('map').innerHTML='<div class="map-empty">空间预览加载失败：'+escapeHtml(error.message)+'</div>'; } }
     function llmHealthLabel(caps) { if(caps.live_llm) return ['真实大模型','可用',true]; if(caps.live_llm_configured) return ['真实大模型','网络受限',false]; return ['真实大模型','未配置',false]; }
+    function geometryEvidence(data) { const geometry=(data.result||{}).geometry||{}; const labels={real_geometry:'真实空间要素可绘制',boundary_geometry:'行政区边界可绘制',no_geometry:'无可绘制几何（仅结果摘要）',truncated_geometry:'几何摘要已截断，不保证可完整绘制',unknown:'尚未形成空间几何证据'}; $('geometryEvidence').textContent='空间证据：'+(labels[geometry.status]||labels.unknown)+(geometry.feature_count?' · '+geometry.feature_count+' 个要素':'')+(geometry.reason?'；'+geometry.reason:''); }
     function renderCapabilities(data) { const catalog=data.capability_catalog||{}; const items=catalog.capabilities||[]; const ready=items.filter(item=>item.dataset_gate==='ready'&&item.environment_supported).length; const unknown=items.filter(item=>item.dataset_gate==='unknown').length; $('capabilityStatus').textContent='能力目录：'+ready+' / '+items.length+' 项已通过数据门控'+(unknown?'；'+unknown+' 项待健康检查':'')+'；真实几何以运行证据为准。'; }
     function renderHealth(data) { health=data; const caps=data.capabilities||{}; const rows=[['内存演示',caps.memory_backend?'可用':'不可用',caps.memory_backend],['本地 GIS',caps.local_gis_backend?'可用':'不可用',caps.local_gis_backend],llmHealthLabel(caps)]; $('env').innerHTML=rows.map(x=>'<div class="'+(x[2]?'':'bad')+'">'+x[0]+'：'+x[1]+'</div>').join(''); renderCapabilities(data); }
     async function loadHealth() { try { const response=await fetch('/health'); renderHealth(await response.json()); } catch(e) { $('env').innerHTML='<div class="bad">无法读取运行环境状态</div>'; $('capabilityStatus').textContent='能力目录暂不可用。'; } }

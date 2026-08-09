@@ -1705,3 +1705,21 @@ AgentService 已实现 `get_run`，生产 FastAPI 路由也有运行查询能力
 ### 预防
 
 新增 HTTP 路由必须同步检查所有运行入口、生产容器实际 CMD 和对应契约测试；部署验收不能只检查健康接口，还要请求新增业务路由。标准库服务和生产 ASGI 服务应共享返回模型或至少共享契约测试。
+
+## 空间引用存在但几何证据状态不明确
+
+### 现象
+
+运行结果包含 `geojson_ref` 时，客户端容易直接显示地图可用；但内存后端生成的 GeoJSON 可能只有步骤摘要和 `geometry: null`，真实 GIS 候选筛选则可能包含可绘制要素。
+
+### 根因
+
+传输引用、结果摘要和空间几何是不同层次的证据。旧 envelope 只有布尔 `geometry.available`，无法解释“没有几何”“边界几何”“真实候选几何”和“摘要截断”的差异。
+
+### 修复
+
+结果契约新增 `geometry.status`、`reason`、`feature_count` 和 `truncated`，支持 `real_geometry`、`boundary_geometry`、`no_geometry`、`truncated_geometry` 和 `unknown`。Console 显示空间证据状态；内存 API 验证为 `no_geometry`，真实 GIS 建设筛选验证为 `real_geometry` 且包含 101 个要素。
+
+### 预防
+
+地图组件必须同时检查引用、证据状态、要素数量和坐标有效性。评测和答案不能把工具成功、GeoJSON 可下载或模型规划成功当成真实空间几何已生成。

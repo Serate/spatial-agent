@@ -33,6 +33,7 @@ class M46ResultContractTests(unittest.TestCase):
 
         result = payload["result"]
         self.assertFalse(result["geometry"]["available"])
+        self.assertEqual(result["geometry"]["status"], "no_geometry")
         self.assertEqual(result["references"][-1]["kind"], "geojson")
         self.assertTrue(result["geometry"]["geojson_ref"])
 

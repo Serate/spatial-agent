@@ -22,6 +22,9 @@ class M58GlobalRunnerTests(unittest.TestCase):
         self.assertTrue(any(item.get("status") == "SKIPPED" for item in report["results"]))
         executed = [item for item in report["results"] if not item.get("skipped")]
         self.assertTrue(all(item.get("capability_contract_match", True) for item in executed))
+        buildability = next(item for item in executed if item.get("case_id") == "threshold-comparison")
+        self.assertFalse(buildability["capability_environment_supported"])
+        self.assertEqual(buildability["execution_claim"], "contract_only_or_environment_mismatch")
 
     def test_async_snapshot_is_readable_after_service_recreation(self):
         import tempfile
@@ -30,7 +33,7 @@ class M58GlobalRunnerTests(unittest.TestCase):
             path = str(Path(directory) / "production.db")
             first = AgentService(state_db_path=path)
             queued = first.run_async(
-                request="你好",
+                request="查询DEM栅格元数据",
                 session_id="restart-async",
                 planner="rule",
                 backend="memory",
@@ -48,6 +51,8 @@ class M58GlobalRunnerTests(unittest.TestCase):
             restored = AgentService(state_db_path=path).get_run(queued["run_id"])
             self.assertEqual(restored["status"], "COMPLETED")
             self.assertEqual(restored["run_id"], queued["run_id"])
+            self.assertEqual(restored["result"]["geometry"]["status"], "unknown")
+            self.assertTrue(restored["result"]["data"]["evidence_steps"])
 
 
 if __name__ == "__main__":

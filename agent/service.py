@@ -80,8 +80,10 @@ class AgentService:
                 geometry_features=geometry_features or None,
             )
             payload["_geometry_feature_count"] = len(geometry_features)
+            payload["_geometry_evidence"] = _geometry_evidence_for_features(geometry_features)
             payload["result"] = build_result_contract(payload)
             payload.pop("_geometry_feature_count", None)
+            payload.pop("_geometry_evidence", None)
         return payload
 
     def run_async(self, **kwargs) -> Dict:
@@ -138,8 +140,10 @@ class AgentService:
                 geometry_features=geometry_features or None,
             )
             payload["_geometry_feature_count"] = len(geometry_features)
+            payload["_geometry_evidence"] = _geometry_evidence_for_features(geometry_features)
             payload["result"] = build_result_contract(payload)
             payload.pop("_geometry_feature_count", None)
+            payload.pop("_geometry_evidence", None)
         return payload
 
     def cancel(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
@@ -362,3 +366,29 @@ def _crs_name(crs):
     if isinstance(crs, list) and len(crs) == 1:
         return _crs_name(crs[0])
     return None
+
+
+def _geometry_evidence_for_features(features):
+    features = [item for item in features or [] if isinstance(item, dict)]
+    if not features:
+        return {
+            "status": "no_geometry",
+            "reason": "导出摘要没有可绘制空间要素",
+            "feature_count": 0,
+            "truncated": False,
+        }
+    sources = {
+        str((item.get("properties") or {}).get("geometry_source"))
+        for item in features
+        if (item.get("properties") or {}).get("geometry_source")
+    }
+    status = "boundary_geometry" if sources == {"geojson"} else "real_geometry"
+    return {
+        "status": status,
+        "reason": "导出摘要包含可绘制空间要素",
+        "feature_count": len(features),
+        "truncated": any(
+            bool((item.get("properties") or {}).get("geometry_truncated"))
+            for item in features
+        ),
+    }
