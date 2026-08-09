@@ -168,11 +168,11 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 
 ## 下一步任务
 
-进入 M58.3：实际 Docker/Compose 业务验收。M58.1 已完成分环境全局评测报告，M58.2 已完成生产 HTTP 验收脚本和 SQLite 异步快照重建测试；Docker Engine named pipe 权限仍待环境恢复。
+进入 M59：统一能力编排与全局评测扩展。M58.1 已完成分环境全局评测报告，M58.2 已完成生产 HTTP 验收脚本和 SQLite 异步快照重建测试，M58.3 已完成真实 Docker/Compose 业务验收。
 
-1. 在 Docker Engine 可访问后执行 Compose 配置、容器健康、`/health/ready` 和 production acceptance 脚本。
-2. 验证容器重启后 SQLite 会话、运行结果和统一场景契约仍一致。
-3. 对真实模型只做显式 opt-in 验收，记录 provider、模型输出、工具计划和 token/延迟指标。
+1. 建立统一能力目录，连接数据健康、工具依赖、结果类型、环境要求和前端展示。
+2. 扩展跨环境全局评测与报告对比，明确真实几何、演示结果和模型规划的边界。
+3. 增加异步运行、会话恢复、失败重试和结果引用的跨进程部署契约测试。
 4. 每个独立子任务最多并行 5 路，集成后完成全量、GIS、浏览器和部署健康验证。
 
 M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
@@ -238,3 +238,4 @@ git -c safe.directory=D:/Project/job/ai-agent check-ignore -v config/openai.loca
 - 新遇到的 Agent 开发问题，记录到 docs/agent-development-issues.md。
 - 开发采用“整体规划 -> 可并行实现 -> 集成测试 -> 整体重规划”循环；可并行子任务最多 5 个。
 - 每个阶段完成后更新 docs/milestones.md、恢复文档，并创建一个 GitHub 版本；私有配置和原始数据不得提交。
+- 全局 goal：持续执行“整体规划 -> 最多 5 路可并行实现 -> 统一集成测试 -> 全局重规划”，阶段验收通过后提交并推送版本；规划必须覆盖产品能力、数据质量、真实模型、部署可靠性和用户体验。

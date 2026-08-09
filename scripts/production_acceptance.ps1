@@ -14,8 +14,11 @@ $ready = Get-Json "$BaseUrl/health/ready"
 if ($live.status -ne "ok") { throw "liveness failed" }
 if ($ready.status -ne "ready") { throw "readiness failed: $($ready.status)" }
 
-$payload = @{ request = "你好"; session_id = "production-acceptance"; planner = "rule"; backend = "memory" } | ConvertTo-Json
-$queued = Invoke-RestMethod -Method Post -Uri "$BaseUrl/runs/async" -ContentType "application/json" -Body $payload -TimeoutSec 5
+$sessionId = "production-acceptance-" + [guid]::NewGuid().ToString("N")
+$greeting = ([char]0x4F60) + ([char]0x597D)
+$payload = @{ request = $greeting; session_id = $sessionId; planner = "rule"; backend = "memory" } | ConvertTo-Json
+$payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+$queued = Invoke-RestMethod -Method Post -Uri "$BaseUrl/runs/async" -ContentType "application/json; charset=utf-8" -Body $payloadBytes -TimeoutSec 5
 if (-not $queued.run_id -or $queued.status -ne "QUEUED") { throw "async submission failed" }
 
 $final = $null

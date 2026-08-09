@@ -1598,6 +1598,42 @@ Windows 当前用户进程没有访问 Docker Desktop Engine named pipe 的权�
 
 生产部署验收必须分别记录 Compose 配置解析、Engine 连接、容器健康、HTTP readiness 和业务异步结果；任一层不可访问时应标记为环境阻塞，而不是归因到应用代码或直接宣称部署成功。
 
+## 生产验收固定 session 污染 SQLite 待澄清状态
+
+### 现象
+
+生产验收脚本第一次运行失败后，第二次即使发送“你好”，仍可能得到旧空间约束错误。容器健康、API 请求和当前 Planner 都正常，但验收脚本无法稳定复现独立场景。
+
+### 根因
+
+SQLite 会持久化 session 的待澄清请求。脚本固定使用同一个 `production-acceptance` session；上一次失败留下的上下文会被下一次请求自动合并，导致验收输入不再是脚本显示的原始请求。
+
+### 修复
+
+脚本每次运行生成唯一的 `production-acceptance-{guid}` session_id，避免复用历史上下文；实际产品仍保留固定 session 的多轮澄清语义。
+
+### 预防
+
+自动化验收必须为每次场景使用隔离 session，或在场景开始显式清空并验证持久化状态。不能仅凭请求文本判断测试输入没有被历史上下文改变。
+
+## Windows PowerShell 未显式 UTF-8 导致中文验收请求变成问号
+
+### 现象
+
+生产 API 本身可以正确处理中文请求，但 `production_acceptance.ps1` 发送“你好”后，SQLite 运行快照中记录为 \"???\"，规则 Planner 返回缺少空间条件的澄清错误。
+
+### 根因
+
+Windows PowerShell 通过 `Invoke-RestMethod -Body` 发送字符串时，未声明 UTF-8 字节编码；请求头只有通用 `application/json`，服务端收到的中文已在客户端编码阶段丢失。
+
+### 修复
+
+验收脚本避免直接包含中文字面量，使用 Unicode code point 构造文本，再将 JSON 显式转换为 `[System.Text.Encoding]::UTF8.GetBytes(...)`，并发送 `application/json; charset=utf-8`。
+
+### 预防
+
+中文 API 的 PowerShell 验收必须检查服务端保存的原始 request 或最终 resolved_request；不能只依据 HTTP 200 判断编码正确。无 BOM UTF-8 脚本在 Windows PowerShell 5.1 中不应直接依赖中文源代码字面量，跨平台脚本应统一使用 UTF-8 bytes 或明确设置 charset。
+
 ## 轻量 HTTP 服务缺少 `GET /runs/{run_id}` 会让 Console 永久停在规划中
 
 ### 现象
