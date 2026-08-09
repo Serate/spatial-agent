@@ -75,7 +75,14 @@ M55 完成时的验证结果：189 个离线测试通过、36 个 GIS 重点测�
 - 新增 `evaluation.global_runner` 与 `scripts/evaluate_global.py`：可执行内存场景和比较 API，GIS/真实模型/部署场景未显式启用时明确标记 skipped。
 - M58.1 验证：全局矩阵离线执行 7/7 通过、3 个可选环境跳过，197 个离线测试通过。
 
-## 下一阶段 M58.2：生产级端到端验收
+## M58.2：部署验收工具与 SQLite 重启验证
+
+- 新增 `scripts/production_acceptance.ps1`，统一检查 liveness、readiness、异步提交、状态轮询和终态结果。
+- 新增 SQLite 异步快照重建测试，验证服务对象重建后仍可读取已完成运行。
+- 200 个离线测试通过，PowerShell 脚本解析通过。
+- Docker Engine 当前返回 named pipe 权限错误，因此 Compose/容器实际启动验收保留为未完成的环境任务。
+
+## 下一阶段 M58.3：实际 Docker/Compose 业务验收
 
 - 将全局验收矩阵接入统一评测报告，区分 offline、GIS、live-model 和 deployment 状态。
 - 自动验收 Docker/SQLite/异步运行，确认服务重启后会话、运行结果和场景结果契约仍一致。

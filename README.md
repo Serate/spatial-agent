@@ -98,6 +98,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up --build 
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8088/health/ready
+scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 ```
 
 生产容器固定 GIS 依赖，通过只读 volume 挂载宿主机数据；SQLite 保存会话和运行快照。生产环境不依赖操作员手动 `conda activate`。

@@ -1580,6 +1580,24 @@ GeoPackage 中有约 68,903 条道路和 20,923 条水体。旧实现将全部�
 
 数据接入验收必须同时检查文件可读性和 CRS 一致性。多分区数据应在每次跨文件计算前做显式 CRS 转换/对齐，并在结果中保留 CRS 与覆盖范围证据。
 
+## Docker CLI 能力存在但 Docker Engine 管道无权限
+
+### 现象
+
+生产验收尝试执行 `docker version` 或 `docker compose config` 时，Docker CLI 返回 `permission denied`，无法连接 `npipe:////./pipe/docker_engine`；这与 Dockerfile 或 Compose 配置语法错误不同。
+
+### 根因
+
+Windows 当前用户进程没有访问 Docker Desktop Engine named pipe 的权限，或 Docker Desktop/WSL2 引擎尚未对当前会话可用。CLI 文件存在不能证明 Engine 已启动且可调用。
+
+### 修复
+
+本阶段不修改系统权限，也不伪造容器验收结果；增加 `scripts/production_acceptance.ps1`，在 Engine 恢复后执行 liveness、readiness、异步提交、轮询和终态结果检查。与此同时用 SQLite 临时数据库完成服务重建后的异步运行快照验收。
+
+### 预防
+
+生产部署验收必须分别记录 Compose 配置解析、Engine 连接、容器健康、HTTP readiness 和业务异步结果；任一层不可访问时应标记为环境阻塞，而不是归因到应用代码或直接宣称部署成功。
+
 ## 轻量 HTTP 服务缺少 `GET /runs/{run_id}` 会让 Console 永久停在规划中
 
 ### 现象

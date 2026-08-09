@@ -168,10 +168,10 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 
 ## 下一步任务
 
-进入 M58：生产级端到端验收。M57.1 已统一建设候选阈值/多区域对比场景模型，M57.2 已建立全局验收矩阵。
+进入 M58.3：实际 Docker/Compose 业务验收。M58.1 已完成分环境全局评测报告，M58.2 已完成生产 HTTP 验收脚本和 SQLite 异步快照重建测试；Docker Engine named pipe 权限仍待环境恢复。
 
-1. 将全局验收矩阵接入统一评测报告，区分 offline、GIS、live-model 和 deployment 状态。
-2. 自动验收 Docker/SQLite/异步运行，确认重启后会话、运行结果和场景结果契约仍一致。
+1. 在 Docker Engine 可访问后执行 Compose 配置、容器健康、`/health/ready` 和 production acceptance 脚本。
+2. 验证容器重启后 SQLite 会话、运行结果和统一场景契约仍一致。
 3. 对真实模型只做显式 opt-in 验收，记录 provider、模型输出、工具计划和 token/延迟指标。
 4. 每个独立子任务最多并行 5 路，集成后完成全量、GIS、浏览器和部署健康验证。
 

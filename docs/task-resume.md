@@ -34,7 +34,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: Production GIS container and live DeepSeek validation
 - Latest pushed commit: 3b07d4c feat: classify planner errors in evaluation reports
-- Current milestone: M57.2 global acceptance matrix completed; next cycle is production end-to-end acceptance
+- Current milestone: M58.2 deployment acceptance harness completed; M58.3 awaits Docker Engine access for actual Compose verification
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Development Loop
@@ -419,11 +419,13 @@ Prefer small, explainable increments over large rewrites.
 - M56 为健康报告增加 `usable_for`/`capabilities`，Runtime 在下游 dispatch 前阻止明确不可用的数据，并完成 README 与阶段记录分离；191 个离线测试、38 个 GIS 测试、smoke 与浏览器健康烟测通过。
 - M57.1 抽取 `BuildabilityComparisonScenario`，统一阈值对比和多区域对比的输入验证与 `scenario` 输出；194 个离线测试、19 个 GIS/真实数据重点测试通过。
 - M57.2 新增 `evaluation/cases/global-acceptance.json` 和矩阵契约测试，覆盖通用问答、单区域、多数据集、阈值对比、多区域、不可用数据、真实 GIS 和真实模型；197 个离线测试、36 个 GIS 测试、smoke 与浏览器健康烟测通过。
+- M58.1 将 environment、execution_mode、planner 写入评测报告，并新增 `scripts/evaluate_global.py`；全局矩阵离线执行 7/7 通过、3 个可选环境跳过。
+- M58.2 新增 `scripts/production_acceptance.ps1` 和 SQLite 异步快照重建测试；200 个离线测试通过。Docker Engine 当前因 named pipe 权限不可访问，实际 Compose 业务验收尚未完成。
 
-### 下一阶段 M58：生产级端到端验收
+### 下一阶段 M58.3：实际 Docker/Compose 业务验收
 
-- 将全局验收矩阵接入统一评测报告，区分 offline、GIS、live-model 和 deployment 状态。M58.1 已完成内存/比较 API 执行和可选环境 skipped 语义。
-- 自动验收 Docker/SQLite/异步运行，确认服务重启后会话、运行结果和场景结果契约仍一致。
+- 在 Docker Engine 可访问后执行 Compose 配置、容器健康、`/health/ready` 和 production acceptance 脚本。
+- 验证容器重启后 SQLite 会话、运行结果和统一场景契约仍一致。
 - 对真实模型只做显式 opt-in 验收，记录 provider、模型输出、工具计划和 token/延迟指标。
 - 可并行子任务最多 5 路；集成后完成全量、GIS、浏览器和部署健康验证。
 

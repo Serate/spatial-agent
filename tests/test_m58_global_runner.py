@@ -1,8 +1,10 @@
 import unittest
+import time
 from pathlib import Path
 
 from evaluation.global_runner import run_global_cases
 from evaluation.runner import load_cases
+from agent.service import AgentService
 
 
 class M58GlobalRunnerTests(unittest.TestCase):
@@ -18,6 +20,32 @@ class M58GlobalRunnerTests(unittest.TestCase):
         self.assertEqual(report["failed"], 0)
         self.assertEqual(report["evaluation_context"]["environment"], "memory")
         self.assertTrue(any(item.get("status") == "SKIPPED" for item in report["results"]))
+
+    def test_async_snapshot_is_readable_after_service_recreation(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "production.db")
+            first = AgentService(state_db_path=path)
+            queued = first.run_async(
+                request="你好",
+                session_id="restart-async",
+                planner="rule",
+                backend="memory",
+            )
+            snapshot = None
+            for _ in range(60):
+                try:
+                    snapshot = first.get_run(queued["run_id"])
+                except ValueError:
+                    pass
+                if snapshot and snapshot["status"] not in {"PLANNING", "EXECUTING"}:
+                    break
+                time.sleep(0.02)
+            self.assertIsNotNone(snapshot)
+            restored = AgentService(state_db_path=path).get_run(queued["run_id"])
+            self.assertEqual(restored["status"], "COMPLETED")
+            self.assertEqual(restored["run_id"], queued["run_id"])
 
 
 if __name__ == "__main__":
