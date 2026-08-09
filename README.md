@@ -130,6 +130,7 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/demo-checklist.md`](docs/demo-checklist.md)：离线、GIS、模型和失败路径演示清单。
 - [`docs/spatial-agent-design.md`](docs/spatial-agent-design.md)：系统设计与模块边界。
 - [`docs/core-acceptance.md`](docs/core-acceptance.md)：核心空间流程验收标准。
+- [`evaluation/cases/global-acceptance.json`](evaluation/cases/global-acceptance.json)：全局场景验收矩阵。
 - [`docs/agent-context-resume.md`](docs/agent-context-resume.md)：新对话恢复上下文。
 - [`docs/task-resume.md`](docs/task-resume.md)：当前任务和下一阶段规划。
 - [`docs/agent-development-issues.md`](docs/agent-development-issues.md)：中文工程问题记录。

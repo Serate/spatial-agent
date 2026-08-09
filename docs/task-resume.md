@@ -34,7 +34,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: Production GIS container and live DeepSeek validation
 - Latest pushed commit: 3b07d4c feat: classify planner errors in evaluation reports
-- Current milestone: M57.1 comparison scenario model completed; next cycle is global scenario orchestration and final demo acceptance
+- Current milestone: M57.2 global acceptance matrix completed; next cycle is production end-to-end acceptance
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Development Loop
@@ -418,6 +418,7 @@ Prefer small, explainable increments over large rewrites.
 - M55 将健康 preflight 扩展到单独区域栅格统计和复合行政区栅格流程；189 个离线测试、36 个 GIS 测试、smoke 与浏览器健康烟测通过。
 - M56 为健康报告增加 `usable_for`/`capabilities`，Runtime 在下游 dispatch 前阻止明确不可用的数据，并完成 README 与阶段记录分离；191 个离线测试、38 个 GIS 测试、smoke 与浏览器健康烟测通过。
 - M57.1 抽取 `BuildabilityComparisonScenario`，统一阈值对比和多区域对比的输入验证与 `scenario` 输出；194 个离线测试、19 个 GIS/真实数据重点测试通过。
+- M57.2 新增 `evaluation/cases/global-acceptance.json` 和矩阵契约测试，覆盖通用问答、单区域、多数据集、阈值对比、多区域、不可用数据、真实 GIS 和真实模型；197 个离线测试、36 个 GIS 测试、smoke 与浏览器健康烟测通过。
 
 ### 下一阶段 M56：证据驱动的降级执行
 
@@ -426,11 +427,11 @@ Prefer small, explainable increments over large rewrites.
 - trace、结果 envelope 和 Console 展示停止/降级原因及对应健康检查步骤。
 - 用内存演示、真实 GIS 和缺失数据配置覆盖三种执行路径，并保留真实模型为可选验收。
 
-### 下一阶段 M57：全局场景编排与验收
+### 下一阶段 M58：生产级端到端验收
 
-- 统一区域对比、阈值对比和栅格-矢量联合分析的场景模型。
-- 抽取结果 envelope、能力声明和空间证据公共契约，降低 API、Runtime 和 Console 的重复分支。
-- 建立覆盖通用问答、单区域、多数据集、多区域、不可用数据和真实模型的端到端验收矩阵。
+- 将全局验收矩阵接入统一评测报告，区分 offline、GIS、live-model 和 deployment 状态。
+- 自动验收 Docker/SQLite/异步运行，确认服务重启后会话、运行结果和场景结果契约仍一致。
+- 对真实模型只做显式 opt-in 验收，记录 provider、模型输出、工具计划和 token/延迟指标。
 - 可并行子任务最多 5 路；集成后完成全量、GIS、浏览器和部署健康验证。
 
 ## Development Issues Log

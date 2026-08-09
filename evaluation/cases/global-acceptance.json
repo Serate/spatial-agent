@@ -1,0 +1,112 @@
+[
+  {
+    "id": "conversation-greeting",
+    "surface": "runtime",
+    "category": "通用问答",
+    "input": "你好",
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "direct_answer",
+    "expected_tools": [],
+    "verification": "不调用空间工具，返回能力介绍"
+  },
+  {
+    "id": "admin-boundary",
+    "surface": "runtime",
+    "category": "单区域",
+    "input": "查询洪山区行政区边界",
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "admin_area_result",
+    "expected_tools": ["get_dataset_schema", "range_query"],
+    "verification": "返回行政区命中和边界证据"
+  },
+  {
+    "id": "zonal-dem",
+    "surface": "runtime",
+    "category": "单区域",
+    "input": "分析洪山区DEM高程概况",
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "zonal_raster_statistics_result",
+    "expected_tools": ["get_dataset_health_report", "get_zonal_raster_statistics"],
+    "verification": "健康预检先于区域栅格统计"
+  },
+  {
+    "id": "composite-terrain-land-use",
+    "surface": "runtime",
+    "category": "多数据集",
+    "input": "分析洪山区的高程、坡度和土地利用分布",
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "terrain_land_use_analysis_result",
+    "expected_tools": [
+      "get_dataset_health_report",
+      "get_dataset_schema",
+      "range_query",
+      "get_zonal_raster_statistics",
+      "get_zonal_slope_statistics",
+      "get_zonal_land_use_distribution"
+    ],
+    "verification": "保留跨栅格预检、区域绑定和多源事实摘要"
+  },
+  {
+    "id": "threshold-comparison",
+    "surface": "comparison-api",
+    "category": "阈值对比",
+    "input": {"admin_name": "洪山区", "thresholds": [15, 20, 25]},
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "buildability_comparison",
+    "verification": "返回统一 scenario 和每个阈值结果"
+  },
+  {
+    "id": "region-comparison",
+    "surface": "comparison-api",
+    "category": "多区域",
+    "input": {"admin_names": ["洪山区", "江夏区"], "threshold": 20},
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "buildability_comparison",
+    "verification": "返回统一 scenario 和每个行政区结果"
+  },
+  {
+    "id": "unsupported-spatial-domain",
+    "surface": "runtime",
+    "category": "边界",
+    "input": "分析洪山区空气质量变化",
+    "backend": "memory",
+    "expected_status": "NEEDS_CLARIFICATION",
+    "expected_result_type": null,
+    "expected_tools": [],
+    "verification": "不把未注册空间能力伪装成通用答案"
+  },
+  {
+    "id": "unavailable-preflight",
+    "surface": "runtime-contract",
+    "category": "不可用数据",
+    "input": "固定 Planner + 缺失 DEM",
+    "backend": "synthetic-unavailable",
+    "expected_status": "FAILED",
+    "expected_result_type": "zonal_raster_statistics_result",
+    "verification": "健康步骤完成后，在栅格工具 dispatch 前停止"
+  },
+  {
+    "id": "real-gis-wuhan",
+    "surface": "gis-e2e",
+    "category": "真实 GIS",
+    "input": "分析洪山区建设适宜性，坡度不超过20度",
+    "backend": "local",
+    "expected_status": "COMPLETED",
+    "verification": "使用 spatial-agent-gis 和武汉真实数据运行，默认回归可跳过"
+  },
+  {
+    "id": "real-model-wuhan",
+    "surface": "live-model-e2e",
+    "category": "真实模型",
+    "input": "分析洪山区DEM高程概况",
+    "backend": "local",
+    "expected_status": "COMPLETED",
+    "verification": "仅在 SPATIAL_AGENT_LIVE_OPENAI=1 且 provider 可用时运行"
+  }
+]
