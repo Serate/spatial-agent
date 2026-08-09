@@ -233,6 +233,20 @@ runs entirely.
 administrative areas. It returns one bounded row per area and does not accept
 client-provided geometry.
 
+Both comparison endpoints return a normalized `scenario` object. The object
+contains `operation`, deduplicated `admin_names`, and numeric `thresholds`, so
+clients do not need to reconstruct the comparison semantics from page fields:
+
+```json
+{
+  "scenario": {
+    "operation": "buildability_comparison",
+    "admin_names": ["洪山区", "江夏区"],
+    "thresholds": [20.0]
+  }
+}
+```
+
 `POST /runs/async` returns a `run_id` immediately with status `QUEUED`. Poll
 `GET /runs/{run_id}` for `PLANNING`, `EXECUTING`, and terminal statuses. Active
 runs can be cooperatively cancelled with `POST /runs/{run_id}/cancel`.

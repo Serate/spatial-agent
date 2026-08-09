@@ -6,6 +6,7 @@ from typing import Any, Dict, Tuple
 from agent.artifact_store import ArtifactStore
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
+from agent.scenario import BuildabilityComparisonScenario
 from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
@@ -220,23 +221,14 @@ class AgentService:
         backend: str = "local",
         spatial_context: Dict[str, Any] = None,
     ) -> Dict:
-        if not isinstance(admin_name, str) or not admin_name.strip():
-            raise ValueError("admin_name must be a non-empty string")
         normalized_context = _normalize_spatial_context(spatial_context)
         context_admin_name = normalized_context.get("admin_name")
         if context_admin_name:
             admin_name = context_admin_name
-        if not isinstance(thresholds, list) or not thresholds or len(thresholds) > 6:
-            raise ValueError("thresholds must contain 1 to 6 values")
-        normalized = []
-        for threshold in thresholds:
-            value = float(threshold)
-            if not 1 <= value <= 45:
-                raise ValueError("slope thresholds must be between 1 and 45 degrees")
-            if value not in normalized:
-                normalized.append(value)
+        scenario = BuildabilityComparisonScenario.for_thresholds(admin_name, thresholds)
+        admin_name = scenario.admin_names[0]
         rows = []
-        for value in normalized:
+        for value in scenario.thresholds:
             result = self.run(
                 f"分析{admin_name}建设适宜性，坡度不超过{value:g}度",
                 session_id=f"comparison-{admin_name}-{value:g}",
@@ -257,7 +249,8 @@ class AgentService:
             })
         return {
             "admin_name": admin_name,
-            "thresholds": normalized,
+            "thresholds": list(scenario.thresholds),
+            "scenario": scenario.to_dict(),
             "spatial_context": normalized_context,
             "results": rows,
         }
@@ -269,23 +262,12 @@ class AgentService:
         planner: str = "rule",
         backend: str = "local",
     ) -> Dict:
-        if not isinstance(admin_names, list) or not 2 <= len(admin_names) <= 6:
-            raise ValueError("admin_names must contain 2 to 6 values")
         try:
             threshold_value = float(threshold)
         except (TypeError, ValueError) as exc:
             raise ValueError("threshold must be a number") from exc
-        if not 1 <= threshold_value <= 45:
-            raise ValueError("slope threshold must be between 1 and 45 degrees")
-        names = []
-        for name in admin_names:
-            if not isinstance(name, str) or not name.strip():
-                raise ValueError("admin_names must contain non-empty strings")
-            cleaned = name.strip()[:80]
-            if cleaned not in names:
-                names.append(cleaned)
-        if len(names) < 2:
-            raise ValueError("admin_names must contain at least 2 distinct values")
+        scenario = BuildabilityComparisonScenario.for_regions(admin_names, threshold_value)
+        names = list(scenario.admin_names)
         rows = []
         for admin_name in names:
             result = self.compare_buildability(
@@ -296,7 +278,12 @@ class AgentService:
             )
             row = (result.get("results") or [{}])[0]
             rows.append({"admin_name": admin_name, **row})
-        return {"admin_names": names, "slope_limit_degrees": threshold_value, "results": rows}
+        return {
+            "admin_names": names,
+            "slope_limit_degrees": threshold_value,
+            "scenario": scenario.to_dict(),
+            "results": rows,
+        }
 
     def _runtime(self, planner: str, backend: str):
         key = _runtime_key(planner, backend)
