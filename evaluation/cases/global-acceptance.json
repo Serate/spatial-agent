@@ -55,6 +55,27 @@
     "verification": "保留跨栅格预检、区域绑定和多源事实摘要"
   },
   {
+    "id": "spatial-overview",
+    "surface": "runtime",
+    "category": "跨来源总览",
+    "input": "分析洪山区空间概况",
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "spatial_overview_result",
+    "capability_id": "spatial_overview",
+    "expected_tools": [
+      "get_dataset_health_report",
+      "get_dataset_schema",
+      "range_query",
+      "get_zonal_raster_statistics",
+      "get_zonal_slope_statistics",
+      "get_zonal_land_use_distribution",
+      "get_zonal_vector_summary",
+      "get_zonal_vector_summary"
+    ],
+    "verification": "跨行政区、栅格、道路和水体的受控多工具计划"
+  },
+  {
     "id": "threshold-comparison",
     "surface": "comparison-api",
     "category": "阈值对比",

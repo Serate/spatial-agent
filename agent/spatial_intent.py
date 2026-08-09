@@ -6,6 +6,7 @@ from .capability_catalog import capability_suggestions
 
 
 _HINTS = (
+    ("spatial_overview", ("空间概况", "空间总览", "整体空间分析", "综合空间概览", "全面分析")),
     ("admin_boundary_query", ("行政区", "边界", "区域", "区划")),
     ("zonal_raster_statistics", ("高程", "DEM", "地形", "栅格", "像元")),
     ("zonal_terrain_land_use", ("坡度", "土地利用", "土地覆盖", "地类")),

@@ -51,6 +51,19 @@ _CAPABILITIES = (
         "geometry": "none",
     },
     {
+        "id": "spatial_overview",
+        "label": "区域空间总览",
+        "datasets": ["admin_areas", "dem", "land_use", "roads", "water"],
+        "tools": [
+            "get_dataset_health_report", "get_dataset_schema", "range_query",
+            "get_zonal_raster_statistics", "get_zonal_slope_statistics",
+            "get_zonal_land_use_distribution", "get_zonal_vector_summary",
+        ],
+        "result_types": ["spatial_overview_result"],
+        "environments": ["local", "production"],
+        "geometry": "optional",
+    },
+    {
         "id": "admin_boundary_query",
         "label": "行政区边界查询",
         "datasets": ["admin_areas"],

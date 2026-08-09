@@ -82,6 +82,10 @@ class RuleBasedPlanner:
         if composite_plan is not None:
             return composite_plan
 
+        overview_plan = self._try_spatial_overview_plan(request)
+        if overview_plan is not None:
+            return overview_plan
+
         zonal_vector_plan = self._try_zonal_vector_plan(request)
         if zonal_vector_plan is not None:
             return zonal_vector_plan
@@ -459,6 +463,35 @@ class RuleBasedPlanner:
                 ),
             ],
             output={"type": "zonal_raster_statistics_result", "summary": True},
+        )
+
+    def _try_spatial_overview_plan(self, request: str):
+        overview_terms = ("空间概况", "空间总览", "整体空间分析", "综合空间概览", "全面分析")
+        if not any(term in request for term in overview_terms):
+            return None
+        match = self.ADMIN_NAME_PATTERN.search(request)
+        if match is None:
+            raise ClarificationNeeded("missing admin area name, for example: 洪山区")
+        admin_name = self._clean_admin_name(match.group(1))
+        area_ref = {"$from": "filter-admin", "path": "first_name"}
+        steps = [
+            PlanStep("dataset-health", "get_dataset_health_report", {"dataset": "all", "max_files": 10}),
+            PlanStep("schema-admin", "get_dataset_schema", {"dataset": "admin_areas"}, ["dataset-health"]),
+            PlanStep(
+                "filter-admin", "range_query",
+                {"dataset": "admin_areas", "conditions": [{"field": "name", "operator": "eq", "value": admin_name}], "limit": 100},
+                ["schema-admin"],
+            ),
+            PlanStep("overview-elevation", "get_zonal_raster_statistics", {"dataset": "dem", "admin_name": area_ref, "max_files": 10}, ["filter-admin"]),
+            PlanStep("overview-slope", "get_zonal_slope_statistics", {"admin_name": area_ref, "max_files": 10}, ["filter-admin"]),
+            PlanStep("overview-land-use", "get_zonal_land_use_distribution", {"admin_name": area_ref, "max_files": 10}, ["filter-admin"]),
+            PlanStep("overview-roads", "get_zonal_vector_summary", {"dataset": "roads", "admin_name": area_ref, "max_features": 10000}, ["filter-admin"]),
+            PlanStep("overview-water", "get_zonal_vector_summary", {"dataset": "water", "admin_name": area_ref, "max_features": 10000}, ["filter-admin"]),
+        ]
+        return TaskPlan(
+            goal="build a cross-source spatial overview for an administrative area",
+            steps=steps,
+            output={"type": "spatial_overview_result", "summary": True},
         )
 
     def _try_terrain_land_use_plan(self, request: str):

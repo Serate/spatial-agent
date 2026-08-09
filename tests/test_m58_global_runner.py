@@ -14,7 +14,7 @@ class M58GlobalRunnerTests(unittest.TestCase):
             load_cases(str(root / "evaluation" / "cases" / "global-acceptance.json")),
             backend="memory",
         )
-        self.assertEqual(report["total"], 10)
+        self.assertEqual(report["total"], 11)
         self.assertGreaterEqual(report["executed"], 7)
         self.assertGreaterEqual(report["skipped"], 2)
         self.assertEqual(report["failed"], 0)

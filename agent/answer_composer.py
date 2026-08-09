@@ -13,6 +13,9 @@ class AnswerComposer:
         has_land_use = _first_result(result.steps, "get_zonal_land_use_distribution") is not None
         has_buildability = _first_result(result.steps, "get_zonal_buildability_analysis") is not None
         has_health = _first_result(result.steps, "get_dataset_health_report") is not None
+        output_type = result.plan.output.get("type") if result.plan else None
+        if output_type == "spatial_overview_result":
+            return self._compose_spatial_overview_result(result.steps)
         if has_elevation and (has_slope or has_land_use or has_buildability):
             return self._compose_terrain_land_use_result(result.steps)
         if output_type == "admin_area_result":
@@ -88,6 +91,32 @@ class AnswerComposer:
                 f"重叠文件对 {alignment.get('overlapping_pairs', 0)} 对"
             )
         return f"数据健康检查完成：整体状态为{labels.get(status, status)}。" + "；".join(details) + (f"。{suffix}" if suffix else "。")
+
+    def _compose_spatial_overview_result(self, steps: Iterable[StepRun]) -> str:
+        health = _first_result(steps, "get_dataset_health_report") or {}
+        raster = _first_result(steps, "get_zonal_raster_statistics") or {}
+        slope = _first_result(steps, "get_zonal_slope_statistics") or {}
+        land_use = _first_result(steps, "get_zonal_land_use_distribution") or {}
+        vectors = [
+            step.result for step in steps
+            if step.tool == "get_zonal_vector_summary" and step.result
+        ]
+        area = raster.get("admin_name") or slope.get("admin_name") or land_use.get("admin_name") or "指定区域"
+        parts = [f"{area}空间总览已完成。"]
+        if health:
+            parts.append(f"数据健康状态：{health.get('status', '未知')}。")
+        for label, item in (("高程", raster), ("坡度", slope), ("土地利用", land_use)):
+            statistics = item.get("statistics") or {}
+            if statistics.get("error"):
+                parts.append(f"{label}：{statistics['error']}。")
+            elif statistics:
+                parts.append(f"{label}返回 {statistics.get('valid_pixel_count', 0)} 个有效像元统计。")
+        for item in vectors:
+            dataset = item.get("dataset", "矢量")
+            label = "道路" if dataset == "roads" else "水体" if dataset == "water" else dataset
+            parts.append(f"{label}摘要包含 {item.get('count', 0)} 个要素。")
+        parts.append("以上是可用数据的事实汇总；缺失或降级数据不代表法定规划结论。")
+        return "".join(parts)
 
     def _compose_slope_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_zonal_slope_statistics")

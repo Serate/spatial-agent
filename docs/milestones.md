@@ -186,3 +186,10 @@ M55 完成时的验证结果：189 个离线测试通过、36 个 GIS 重点测�
 - 澄清候选能力复用 `capability_catalog` 的 ID 和中文 label；Console 通过结构化字段渲染，不维护第二份能力名称表。
 - 标准 HTTP `POST /runs` 已增加 `NEEDS_CLARIFICATION` 结构化返回契约测试。
 - 当前离线全量 243 项通过、31 项按环境跳过；GIS、浏览器和 Docker 联合验收待环境条件满足后执行。
+
+## M63：受控空间总览编排（实现中）
+
+- 新增 `spatial_overview` 能力和 `spatial_overview_result` 结果类型。
+- “分析洪山区空间概况”等开放表达会生成 8 步受控计划：数据健康、行政区解析、高程、坡度、土地利用、道路和水体摘要。
+- 计划仍经 TaskPlan、依赖执行、ToolRegistry 和数据健康门控；内存后端只返回演示限制，真实几何和栅格证据仍需 GIS 环境验证。
+- 已完成规则 Planner、能力目录、AnswerComposer 和专项测试；待完成全量回归、全局评测用例、浏览器展示和 GIS/Docker 验收。

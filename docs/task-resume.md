@@ -478,6 +478,12 @@ M62.1 已完成结构化澄清第一阶段：`ClarificationNeeded`、运行快�
 
 M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签，标准 HTTP 返回和全量离线测试已验证。下一步从全局推进多工具开放式编排、真实 GIS/模型证据矩阵和生产 Docker 复验。
 
+## M63 当前实现：受控空间总览编排
+
+- 新增 `spatial_overview` 能力；规则 Planner 支持“分析洪山区空间概况”等请求。
+- 计划固定为健康检查、行政区解析、高程、坡度、土地利用、道路和水体摘要 8 步，所有工具仍经过 Registry 和数据门控。
+- 专用结果类型和中文答案已接入；下一步补全局评测、HTTP/Console 结果类型验证，并在 GIS 数据环境执行真实证据验收。
+
 ## Development Issues Log
 
 - 新对话恢复优先阅读 docs/agent-context-resume.md。

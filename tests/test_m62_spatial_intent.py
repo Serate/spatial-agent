@@ -29,6 +29,22 @@ class M62SpatialIntentTests(unittest.TestCase):
         self.assertEqual(result.clarification["state"], "unmatched_spatial_capability")
         self.assertIn("区域", result.clarification["missing"])
 
+    def test_spatial_overview_is_a_bounded_multi_tool_plan(self):
+        result = build_runtime("rule", "memory").run("分析洪山区空间概况")
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.plan.output["type"], "spatial_overview_result")
+        self.assertEqual(
+            [step.tool for step in result.steps],
+            [
+                "get_dataset_health_report", "get_dataset_schema", "range_query",
+                "get_zonal_raster_statistics", "get_zonal_slope_statistics",
+                "get_zonal_land_use_distribution", "get_zonal_vector_summary",
+                "get_zonal_vector_summary",
+            ],
+        )
+        self.assertIn("道路摘要", result.answer)
+        self.assertIn("水体摘要", result.answer)
+
 
 if __name__ == "__main__":
     unittest.main()

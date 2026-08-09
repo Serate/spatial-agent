@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 TITLE_BY_TYPE = {
     "direct_answer": "通用回答",
+    "spatial_overview_result": "区域空间总览",
     "admin_area_result": "行政区边界",
     "raster_metadata_result": "栅格元数据",
     "raster_statistics_result": "栅格统计",
