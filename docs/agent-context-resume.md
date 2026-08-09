@@ -204,6 +204,7 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 - 未命中固定规则的空间请求不再统一落到旧 M1 错误；已匹配的空间能力会提示补充区域、数据集或阈值。
 - M62 新增测试已通过；下一步是结构化澄清 API/Console 展示、全局评测和 Docker 环境复验。
 - M62.1 已将结构化澄清详情接入 `AgentRunResult`、SQLite、`result` envelope 和 Console；保留旧 `error` 文本兼容客户端。下一步是 HTTP/评测契约、能力目录标签和 Docker 复验。
+- M62.2 已让澄清候选复用 `capability_catalog` 中文标签，并增加标准 HTTP 结构化澄清测试；离线全量 243 项通过。下一阶段重点是多工具开放式编排、证据评测和生产 Docker/GIS 复验。
 
 M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
 

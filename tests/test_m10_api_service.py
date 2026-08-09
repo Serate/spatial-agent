@@ -340,6 +340,27 @@ class M10HttpApiTests(unittest.TestCase):
 
         self.assertEqual(payload, {"run_id": "async-1", "status": "QUEUED"})
 
+    def test_http_api_returns_structured_spatial_clarification(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            payload = _post_json(
+                server.server_address[1],
+                {"request": "查询武汉城市绿地空间分布", "session_id": "clarification-http"},
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload["status"], "NEEDS_CLARIFICATION")
+        self.assertEqual(payload["result"]["clarification"]["state"], "unmatched_spatial_capability")
+        self.assertIn("空间对象", payload["clarification"]["missing"])
+
     def test_service_compares_buildability_thresholds(self):
         result = AgentService().compare_buildability(
             "洪山区", [15, 20], backend="memory"

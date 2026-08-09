@@ -2,6 +2,8 @@
 
 from typing import Any, Dict, List
 
+from .capability_catalog import capability_suggestions
+
 
 _HINTS = (
     ("admin_boundary_query", ("行政区", "边界", "区域", "区划")),
@@ -42,6 +44,7 @@ def classify_spatial_intent(request: str) -> Dict[str, Any]:
         "matched_capabilities": matched,
         "matched_terms": sorted(set(matched_terms), key=len, reverse=True)[:8],
         "suggested_capabilities": [item[0] for item in _HINTS],
+        "suggested_capability_details": capability_suggestions(),
     }
 
 

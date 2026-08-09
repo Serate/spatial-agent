@@ -178,6 +178,14 @@ def capability_catalog(
     }
 
 
+def capability_suggestions() -> list[Dict[str, str]]:
+    """Return the stable, user-facing capability choices for clarification UI."""
+    return [
+        {"id": str(item["id"]), "label": str(item["label"])}
+        for item in _CAPABILITIES
+    ]
+
+
 def runtime_capability_catalog(
     health_report: Mapping[str, Any],
     *,

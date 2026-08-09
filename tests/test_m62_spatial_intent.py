@@ -12,6 +12,7 @@ class M62SpatialIntentTests(unittest.TestCase):
         self.assertTrue(result["is_spatial"])
         self.assertIn("zonal_raster_statistics", result["matched_capabilities"])
         self.assertIn("suggested_capabilities", result)
+        self.assertTrue(any(item["id"] == "admin_boundary_query" for item in result["suggested_capability_details"]))
         self.assertNotIn("status", result)
 
     def test_unknown_spatial_question_becomes_actionable_clarification(self):

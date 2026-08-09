@@ -4,7 +4,7 @@ import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 
-from agent.capability_catalog import capability_catalog
+from agent.capability_catalog import capability_catalog, capability_suggestions
 from agent.data_quality import dataset_health_report
 from agent.dataset_catalog import DatasetCatalog
 from agent.service import AgentService
@@ -37,6 +37,11 @@ class M59CapabilityCatalogTests(unittest.TestCase):
         first["capabilities"][0]["label"] = "changed"
         second = capability_catalog()
         self.assertEqual(second["capabilities"][0]["label"], "通用对话")
+
+    def test_capability_suggestions_share_catalog_labels(self):
+        suggestions = capability_suggestions()
+        self.assertEqual(suggestions[0], {"id": "conversation", "label": "通用对话"})
+        self.assertTrue(any(item["id"] == "buildability_screening" for item in suggestions))
 
     def test_catalog_without_health_evidence_marks_dataset_gate_unknown(self):
         item = next(

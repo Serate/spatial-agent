@@ -476,6 +476,8 @@ Prefer small, explainable increments over large rewrites.
 
 M62.1 已完成结构化澄清第一阶段：`ClarificationNeeded`、运行快照、SQLite、结果 envelope 和 Console 均支持 `clarification`；下一步做 HTTP/评测契约和能力目录驱动的前端动作。阶段验收仍需全量离线、HTTP/浏览器、GIS 以及 Docker（环境恢复后）验证。
 
+M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签，标准 HTTP 返回和全量离线测试已验证。下一步从全局推进多工具开放式编排、真实 GIS/模型证据矩阵和生产 Docker 复验。
+
 ## Development Issues Log
 
 - 新对话恢复优先阅读 docs/agent-context-resume.md。
