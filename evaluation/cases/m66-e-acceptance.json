@@ -1,0 +1,30 @@
+[
+  {
+    "id": "known-capability-missing-parameters",
+    "surface": "runtime",
+    "category": "开放式意图澄清",
+    "input": "分析建设适宜性",
+    "backend": "memory",
+    "expected_status": "NEEDS_CLARIFICATION",
+    "expected_result_type": null,
+    "expected_capability_id": "buildability_screening",
+    "expected_clarification_state": "matched_capability_missing_parameters",
+    "expected_missing": ["区域或行政区", "筛选阈值"],
+    "expected_tools": [],
+    "verification": "识别已注册建设适宜性能力，但缺少区域和筛选阈值时结构化澄清且不执行工具"
+  },
+  {
+    "id": "region-comparison-contract",
+    "surface": "comparison-api",
+    "category": "多区域",
+    "input": {"admin_names": ["洪山区", "江夏区"], "threshold": 20},
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "buildability_comparison",
+    "expected_capability_id": "buildability_screening",
+    "expected_admin_names": ["洪山区", "江夏区"],
+    "expected_threshold": 20,
+    "expected_row_count": 2,
+    "verification": "跨区域建设适宜性对比保留统一 scenario、固定阈值和每个行政区结果"
+  }
+]
