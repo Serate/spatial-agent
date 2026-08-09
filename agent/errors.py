@@ -9,6 +9,10 @@ class PlanningError(AgentError):
 class ClarificationNeeded(PlanningError):
     """The request is missing information or asks for an unsupported capability."""
 
+    def __init__(self, message: str, details=None):
+        super().__init__(message)
+        self.details = details if isinstance(details, dict) else None
+
 
 class RequestRejected(PlanningError):
     """The request violates the runtime policy."""

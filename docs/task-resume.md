@@ -468,6 +468,14 @@ Prefer small, explainable increments over large rewrites.
 - 真实模型客户端支持超时、暂态重试、指数退避和安全请求指标；默认 CI 仍不访问网络。
 - M61 专项测试已通过 20 项；全量回归与生产验收待集成后执行。
 
+### M62 当前实现
+
+- 新增轻量空间意图分类器，识别空间请求和候选能力，但不把意图识别当作工具成功或真实几何证据。
+- 未命中固定规则的空间问题现在返回可操作澄清；已支持的道路/坡度、多轮澄清和 ToolRegistry 契约保持不变。
+- 下一步扩展能力目录与澄清动作的结构化 API/Console 展示，并补全 Docker 新镜像验收。
+
+M62.1 已完成结构化澄清第一阶段：`ClarificationNeeded`、运行快照、SQLite、结果 envelope 和 Console 均支持 `clarification`；下一步做 HTTP/评测契约和能力目录驱动的前端动作。阶段验收仍需全量离线、HTTP/浏览器、GIS 以及 Docker（环境恢复后）验证。
+
 ## Development Issues Log
 
 - 新对话恢复优先阅读 docs/agent-context-resume.md。

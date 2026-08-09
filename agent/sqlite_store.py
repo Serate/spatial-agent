@@ -498,4 +498,5 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         steps=steps,
         answer=payload.get("answer"),
         error=payload.get("error"),
+        clarification=payload.get("clarification"),
     )

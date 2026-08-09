@@ -43,6 +43,17 @@ class M42SQLiteStoreTests(unittest.TestCase):
         self.assertEqual(second["status"], "COMPLETED")
         self.assertIn("洪山区", second["resolved_request"])
 
+    def test_structured_clarification_survives_service_recreation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "agent.db")
+            first = AgentService(state_db_path=path).run(
+                "查询武汉城市绿地空间分布", session_id="structured-clarification"
+            )
+            restored = AgentService(state_db_path=path).get_run(first["run_id"])
+
+        self.assertEqual(restored["status"], "NEEDS_CLARIFICATION")
+        self.assertEqual(restored["clarification"]["state"], "unmatched_spatial_capability")
+
     def test_run_snapshot_survives_runtime_recreation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "agent.db")

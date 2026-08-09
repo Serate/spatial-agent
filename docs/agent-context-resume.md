@@ -198,6 +198,13 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 - M61 专项测试 20 项通过；离线/GIS、全局评测和浏览器集成验证已通过。
 - M61 已推送 `ac38f3a` 与 `85b1ce4`；Docker 新镜像重建未完成，当前 Docker 服务被 Windows named pipe/service 权限阻塞，不能把旧容器响应当作新镜像证据。
 
+## M62 当前进展
+
+- 新增 `agent/spatial_intent.py`，为开放式空间问题提供候选能力和澄清提示，不绕过 Planner、schema 或 ToolRegistry。
+- 未命中固定规则的空间请求不再统一落到旧 M1 错误；已匹配的空间能力会提示补充区域、数据集或阈值。
+- M62 新增测试已通过；下一步是结构化澄清 API/Console 展示、全局评测和 Docker 环境复验。
+- M62.1 已将结构化澄清详情接入 `AgentRunResult`、SQLite、`result` envelope 和 Console；保留旧 `error` 文本兼容客户端。下一步是 HTTP/评测契约、能力目录标签和 Docker 复验。
+
 M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
 
 ~~~powershell

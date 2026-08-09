@@ -151,6 +151,7 @@ class AgentRuntime:
         except ClarificationNeeded as exc:
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
+            result.clarification = exc.details
             self._conversation_store.save_pending(session_id, resolved_request, result.error)
         except RequestRejected as exc:
             result.status = RunStatus.REJECTED

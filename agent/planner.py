@@ -3,6 +3,7 @@ from typing import Protocol
 
 from .errors import ClarificationNeeded, RequestRejected
 from .models import PlanStep, TaskPlan
+from .spatial_intent import clarification_details, clarification_message, classify_spatial_intent
 
 
 class Planner(Protocol):
@@ -113,6 +114,10 @@ class RuleBasedPlanner:
         mentions_slope = self.SLOPE_TERM in request or self.HIGH_SLOPE_TERM in request
         if mentions_slope and slope_match is None:
             raise ClarificationNeeded("missing slope threshold, for example: slope greater than 25 degrees")
+
+        intent = classify_spatial_intent(request)
+        if intent["is_spatial"] and slope_match is None:
+            raise ClarificationNeeded(clarification_message(request), clarification_details(request))
 
         if not any(term in request for term in self.ROAD_TERMS) or slope_match is None:
             raise ClarificationNeeded("M1 requires a road condition and an explicit slope threshold")

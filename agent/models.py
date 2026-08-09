@@ -58,6 +58,7 @@ class AgentRunResult:
     steps: List[StepRun] = field(default_factory=list)
     answer: Optional[str] = None
     error: Optional[str] = None
+    clarification: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

@@ -61,6 +61,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
         "data": {"evidence_steps": evidence_steps},
+        "clarification": payload.get("clarification"),
         "references": references,
         "geometry": {
             "available": geometry_evidence["status"] in {"real_geometry", "boundary_geometry"},
