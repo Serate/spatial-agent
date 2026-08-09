@@ -210,6 +210,13 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 - M64 已验证真实武汉总览 GeoJSON 的最终几何证据：导出受限时正确为 `truncated_geometry`，来源包含 `geojson/geopackage`，道路/水体 feature 带 dataset 标签；LLM guidance 和 Console 总览结果注册已更新。下一步是浏览器、真实模型和 Docker 多进程验收。
 - M64 已完成 DeepSeek live 总览规划验证：返回 `spatial_overview_result` 和 8 个注册工具步骤；真实 GIS 几何与模型规划证据仍分开统计。
 
+## M65 当前进展
+
+- 已新增脱敏录制模型响应回归，验证空间总览 8 步计划、依赖 DAG、结果绑定和 ToolRegistry 实际执行，默认不访问网络。
+- 已增加多 worker 异步提交、独立轮询、幂等和 claim 后崩溃恢复测试；修复首次提交被误标为幂等复用，以及 Windows 已退出 worker 被误判为存活的问题。
+- Console 已增加 `spatial_overview_result` 紧凑摘要面板；已有多区域对比服务能力纳入本阶段验收。
+- M65 尚未完成全量和联合验收，完成后必须更新五维全局规划、提交并推送一个版本。
+
 M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
 
 ~~~powershell

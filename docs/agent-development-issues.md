@@ -1903,3 +1903,39 @@ Planner 的分支顺序本身是行为契约：能力识别兜底只能处理没
 ### 预防
 
 异步接口验收必须使用包含 artifact 和地图结果的请求，检查提交、轮询、服务重启后的最终响应，而不能只验证 status 和工具步骤。
+
+## 并发异步首次提交被误标为幂等复用
+
+### 现象
+
+两个 worker 同时提交同一个异步请求时，最终只有一个任务被执行，但两个 HTTP 响应都可能返回 `idempotent=true`。客户端无法区分“首次接受”与“重复复用”。
+
+### 根因
+
+SQLite 插入和 worker claim 之间存在并发窗口。首次提交创建作业后，如果另一个 worker 先完成 claim，首次调用会走 claim 失败分支；旧代码把该分支统一当成重复提交返回。
+
+### 修复
+
+保留“创建者”身份：即使首次创建者没有抢到执行权，也返回 `idempotent=false`；只有 `INSERT OR IGNORE` 未创建新作业的调用才返回 `idempotent=true`。任务执行仍由成功 claim 的 worker 独占。
+
+### 预防
+
+幂等接口验收必须同时断言 canonical `run_id`、首次/重复响应标记和实际执行次数；不能只验证重复请求复用了同一 ID。
+
+## Windows 进程存活探测导致异步作业无法恢复
+
+### 现象
+
+worker 在 claim 作业后崩溃，新的服务进程启动时作业仍保持 `RUNNING`，运行快照停留在 `PLANNING`，没有被重新执行。
+
+### 根因
+
+Windows 下用 `os.kill(pid, 0)` 判断进程存活时，已退出进程也可能抛出 `PermissionError`。旧实现把该异常当成“进程仍然存活”，恢复逻辑因此跳过了实际已经死亡的 owner。
+
+### 修复
+
+Windows 使用 `OpenProcess`、`GetExitCodeProcess` 和 `CloseHandle` 查询进程退出码，仅将 `STILL_ACTIVE` 视为存活；其他平台继续使用 `os.kill`。增加跨进程崩溃后接管回归测试。
+
+### 预防
+
+异步重启验收必须实际杀死 claim worker，再由新服务轮询到终态；平台相关的进程探测不能只用 Unix 语义推断 Windows 行为。

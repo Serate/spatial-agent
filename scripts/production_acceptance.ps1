@@ -53,6 +53,8 @@ $payload = @{ request = $greeting; session_id = $sessionId; planner = "rule"; ba
 $payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
 $queued = Invoke-RestMethod -Method Post -Uri "$BaseUrl/runs/async" -ContentType "application/json; charset=utf-8" -Body $payloadBytes -TimeoutSec 5
 if (-not $queued.run_id -or $queued.status -ne "QUEUED") { throw "async submission failed" }
+$duplicate = Invoke-RestMethod -Method Post -Uri "$BaseUrl/runs/async" -ContentType "application/json; charset=utf-8" -Body $payloadBytes -TimeoutSec 5
+if ($duplicate.run_id -ne $queued.run_id -or -not $duplicate.idempotent) { throw "async duplicate submission was not idempotent" }
 
 $final = $null
 for ($index = 0; $index -lt $PollLimit; $index++) {
@@ -75,5 +77,6 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   runtime_capability_count = @($runtimeCapabilities.capabilities).Count
   runtime_updated_at = $runtimeCapabilities.updated_at
   async_status = $final.status
+  async_duplicate_idempotent = $duplicate.idempotent
   run_id = $queued.run_id
 } | ConvertTo-Json -Compress

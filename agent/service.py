@@ -170,7 +170,10 @@ class AgentService:
                     )
                 )
                 if not self._state_store.claim_async_job(run_id, os.getpid()):
-                    return _async_response(run_id, "QUEUED", True)
+                    # Another worker may claim the just-created job between the
+                    # INSERT and this claim. The caller is still the first
+                    # accepted submission, so preserve idempotent=false.
+                    return _async_response(run_id, "QUEUED", False)
             else:
                 job = self._async_jobs.get(idempotency_key)
                 if job is not None:
@@ -505,6 +508,22 @@ def _async_response(run_id: str, status: str, reused: bool) -> Dict[str, Any]:
 
 
 def _process_is_alive(pid: int) -> bool:
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            process = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))
+            if not process:
+                return False
+            try:
+                exit_code = ctypes.c_ulong()
+                if not ctypes.windll.kernel32.GetExitCodeProcess(process, ctypes.byref(exit_code)):
+                    return False
+                return exit_code.value == 259  # STILL_ACTIVE
+            finally:
+                ctypes.windll.kernel32.CloseHandle(process)
+        except (AttributeError, OSError, TypeError, ValueError):
+            return False
     try:
         os.kill(int(pid), 0)
     except PermissionError:

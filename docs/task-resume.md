@@ -500,3 +500,14 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - Maintain docs/agent-development-issues.md as the project-level log of practical AI Agent engineering issues.
 - This log is not milestone-specific. It covers planner behavior, tool schemas, runtime validation, real model APIs, local data, answer composition, trace/artifact safety, and documentation drift.
 - When a new development issue appears, update docs/agent-development-issues.md with symptom, root cause, diagnosis, fix, and prevention before relying on chat history.
+
+## M65 当前进展
+
+- 生产异步链路已增加多 worker 并发提交、独立轮询和 claim 后崩溃恢复测试；修复首次提交幂等标记和 Windows 进程存活探测。
+- 真实模型链路已用脱敏录制响应验证空间总览 8 步计划、依赖和 ToolRegistry 执行，测试不访问网络。
+- Console 已增加 `spatial_overview_result` 紧凑摘要面板；跨区域对比沿用现有服务/HTTP/前端能力。
+- 阶段验收尚未完成，下一步运行全量离线、GIS、HTTP/浏览器和 Docker 验收，之后提交并推送一个 M65 版本。
+
+## 持续目标扩展
+
+每个大阶段必须从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度做全局规划；可独立的工作拆成最多 5 路并行，公共 schema、runtime、result envelope 和能力目录由主线统一集成。阶段完成后必须有专项测试、全量回归、真实 GIS/浏览器/部署证据、中文问题记录、里程碑更新和 GitHub 版本，再依据全局结果规划下一阶段。
