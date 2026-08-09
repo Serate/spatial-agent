@@ -153,3 +153,44 @@ def capability_catalog(
         "dataset_tools": deepcopy(DATASET_TOOL_CAPABILITIES),
         "available_dataset_tools": available,
     }
+
+
+def runtime_capability_catalog(
+    health_report: Mapping[str, Any],
+    *,
+    environment: str = "unknown",
+) -> Dict[str, Any]:
+    """Attach bounded data evidence to the static capability contract."""
+    dataset_reports = {
+        str(item.get("dataset")): item
+        for item in health_report.get("datasets", [])
+        if isinstance(item, Mapping) and item.get("dataset")
+    }
+    dataset_capabilities = health_report.get("capabilities")
+    snapshot = capability_catalog(
+        environment=environment,
+        dataset_capabilities=dataset_capabilities if isinstance(dataset_capabilities, Mapping) else None,
+    )
+    evidence = {}
+    for name, item in dataset_reports.items():
+        evidence[name] = {
+            "status": item.get("status", "unknown"),
+            "quality": item.get("status", "unknown"),
+            "coverage": item.get("bounds"),
+            "crs": list(item.get("crs_values") or []),
+            "file_count": int(item.get("file_count") or 0),
+            "checked_files": int((item.get("metrics") or {}).get("checked_files") or 0),
+            "updated_at": health_report.get("updated_at"),
+        }
+    for item in snapshot["capabilities"]:
+        item["runtime_evidence"] = {
+            "datasets": {
+                name: evidence.get(name, {"status": "unknown"})
+                for name in item["datasets"]
+            },
+            "updated_at": health_report.get("updated_at"),
+        }
+    snapshot["updated_at"] = health_report.get("updated_at")
+    snapshot["data_evidence"] = evidence
+    snapshot["health_status"] = health_report.get("status", "unknown")
+    return snapshot

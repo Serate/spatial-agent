@@ -8,6 +8,7 @@ from agent.capability_catalog import capability_catalog
 from agent.data_quality import dataset_health_report
 from agent.dataset_catalog import DatasetCatalog
 from agent.service import AgentService
+from agent.runtime_capabilities import runtime_capability_snapshot
 from result_contract import build_result_contract
 from serve_api import AgentApiHandler
 
@@ -112,6 +113,17 @@ class M59CapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(boundary["geometry"]["status"], "boundary_geometry")
         self.assertFalse(truncated["geometry"]["available"])
         self.assertTrue(truncated["geometry"]["truncated"])
+
+    def test_runtime_snapshot_contains_bounded_data_evidence(self):
+        snapshot = runtime_capability_snapshot(max_files=1)
+        self.assertIn(snapshot["health_status"], {"ready", "degraded", "unavailable"})
+        self.assertTrue(snapshot.get("updated_at"))
+        self.assertIn("data_evidence", snapshot)
+        buildability = next(
+            item for item in snapshot["capabilities"]
+            if item["id"] == "buildability_screening"
+        )
+        self.assertIn("datasets", buildability["runtime_evidence"])
 
 
 if __name__ == "__main__":

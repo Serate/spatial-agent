@@ -1,5 +1,6 @@
 """Bounded health checks for configured local spatial datasets."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -52,9 +53,11 @@ def dataset_health_report(
         for name in ("dem", "land_use"):
             if name in capabilities and reports[names.index(name)]["status"] != "unavailable":
                 capabilities[name].append("get_zonal_buildability_analysis")
+    updated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     return {
         "dataset": dataset,
         "status": overall,
+        "updated_at": updated_at,
         "datasets": reports,
         "relationships": relationships,
         "capabilities": capabilities,

@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
+from agent.runtime_capabilities import runtime_capability_snapshot
 
 
 app = FastAPI(title="Spatial Agent", version="0.1.0")
@@ -63,6 +64,13 @@ def capabilities() -> Dict[str, Any]:
     status = environment_status()
     environment = "local" if status["capabilities"]["local_gis_backend"] else "memory"
     return capability_catalog(environment=environment)
+
+
+@app.get("/capabilities/runtime")
+def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
+    if max_files < 1 or max_files > 10:
+        raise HTTPException(status_code=400, detail="max_files must be between 1 and 10")
+    return runtime_capability_snapshot(max_files=max_files)
 
 
 @app.get("/")

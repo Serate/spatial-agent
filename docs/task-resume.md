@@ -34,7 +34,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: Production GIS container and live DeepSeek validation
 - Latest pushed commit: 3b07d4c feat: classify planner errors in evaluation reports
-- Current milestone: M59.2 cross-process evidence acceptance completed; M60 runtime data capability and async reliability is next
+- Current milestone: M60 runtime data capability and async reliability in progress
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Development Loop
@@ -433,12 +433,33 @@ Prefer small, explainable increments over large rewrites.
 
 - M59.2 验证：内存导出为 `no_geometry`，真实 GIS 建设筛选为 `real_geometry`、101 个要素；离线 207 个测试、GIS 197 个测试、smoke、全局评测、生产 acceptance 和浏览器烟测通过。
 
-### 下一阶段 M60：真实数据能力与异步可靠性深化
+### M60：真实数据能力与异步可靠性深化（已完成）
 
 - 将能力目录扩展为带数据覆盖、CRS、质量等级和更新时间的运行时能力快照。
 - 完成生产 SQLite 的重试、取消、会话清空和结果引用跨进程矩阵，覆盖异常重启和重复请求。
 - 将真实几何证据状态接入评测报告、答案组合和地图渲染，明确截断与不可绘制原因。
 - 按依赖最多拆分 5 路并行任务，集成后重新验收真实模型、GIS 数据和部署链路。
+
+### M60 当前进展与验证边界
+
+- 已新增运行时能力快照模块，包含数据质量、覆盖范围、CRS、文件数、检查文件数和更新时间。
+- 已接入 `runtime_capability_catalog()`、数据健康报告 `updated_at`、`GET /capabilities/runtime` 和生产验收脚本的 `runtime_health` 输出。
+- 运行时能力和入口契约测试通过；默认环境缺少 FastAPI 的测试按环境条件跳过。
+- 生产容器已重建并通过快照、健康和异步业务验收；容器完整健康状态为 `unavailable`，仅因示例数据卷未提供道路/水体，核心栅格与行政区逐项证据为 `ready`。
+- SQLite 跨进程结果引用、会话清空、取消和失败重试测试 4/4 通过；离线 208 项、GIS 205 项、smoke、全局评测和浏览器烟测通过。
+
+### M60 并行执行规则
+
+- 最大并行度为 5；只有依赖独立、修改边界清晰且可单独验收的子任务才并行。
+- 推荐五路：运行时能力快照、SQLite 异步可靠性、几何证据、评测/答案契约、部署与 Console 验收。
+- 所有并行任务必须遵守统一工具 schema、runtime 状态、result envelope、能力目录和测试夹具；公共契约变更由集成阶段统一合并。
+- 每路先做聚焦测试，集成后统一执行离线、GIS、HTTP/浏览器、Docker 和可选真实模型验证；阶段版本只在联合验收通过后创建。
+
+### M61 后续全局规划
+
+1. 从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度整体推进 M61。
+2. 将武汉道路/水体数据卷和可选数据健康分层纳入生产部署，避免缺失可选数据掩盖核心能力。
+3. 深化异步幂等、重启恢复、真实模型超时重试和 Console 动态结果展示。
 
 ## Development Issues Log
 

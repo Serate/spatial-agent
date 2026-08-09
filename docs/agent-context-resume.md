@@ -158,22 +158,37 @@ error code: 1010
 - 道路 -> dataset roads。
 - 坡度 -> dataset slope。
 
-## 当前恢复位置：M56 已完成
+## 当前恢复位置：M60 已完成，下一阶段为 M61
 
 已获取并核验武汉道路、水体、行政区、DEM 和土地利用数据。M50 已完成真实栅格候选与 OSM 道路/水体约束闭环；M51 已新增 `get_dataset_health_report`，并接入工具 schema、规则 Planner、LLM guidance、中文 AnswerComposer 和 Console 的数据健康面板；M52 又增加了 DEM/土地利用跨栅格覆盖关系检查。
 
-真实武汉健康检查结果：行政区、道路、水体为 `ready`；DEM 和土地利用文件可读取，但跨 `EPSG:32649`/`EPSG:32650`，因此标记为 `degraded`。M54-M56 已将健康预检接入综合建设分析、单独区域栅格统计和复合行政区栅格分析，并增加能力声明和不可用数据门控。当前验证结果为 191 个离线测试通过、38 个 GIS 重点测试通过、smoke 和浏览器健康烟测通过。
+真实武汉健康检查结果：行政区、道路、水体为 `ready`；DEM 和土地利用文件可读取，但跨 `EPSG:32649`/`EPSG:32650`，因此标记为 `degraded`。M54-M56 已将健康预检接入综合建设分析、单独区域栅格统计和复合行政区栅格分析，并增加能力声明和不可用数据门控。M60 验证结果为 208 个离线测试、205 个 GIS 测试通过，smoke、全局评测、生产 acceptance 和浏览器烟测通过。
 
 M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS 环境触发 native exit；全量道路/水体 `unary_union` 导致内存暴涨。根因、修复和预防已记录在 `docs/agent-development-issues.md`。
 
-## 下一步任务
+## M60 已完成的当前改动
 
-进入 M60：真实数据能力与异步可靠性深化。M59.1 已完成统一能力目录，M59.2 已完成跨进程结果恢复、环境适配声明和几何证据状态；M58.3 的 Docker/Compose 业务验收也已完成。
+- 新增 `agent/runtime_capabilities.py`，按需生成包含数据质量、覆盖范围、CRS、文件数、检查文件数和更新时间的运行时能力快照。
+- `agent/capability_catalog.py` 新增 `runtime_capability_catalog()`；`agent/data_quality.py` 的健康报告增加 `updated_at`。
+- `serve_api.py` 和 `production_api.py` 接入 `GET /capabilities/runtime`。
+- `scripts/production_acceptance.ps1` 增加运行时能力快照检查并输出 `runtime_health`。
+- 运行时快照测试已加入 `tests/test_m59_capability_catalog.py`。
 
-1. 将能力目录扩展为带数据覆盖、CRS、质量等级和更新时间的运行时能力快照。
-2. 完成生产 SQLite 的重试、取消、会话清空和结果引用跨进程矩阵，覆盖异常重启和重复请求。
-3. 将真实几何证据状态接入评测报告、答案组合和地图渲染，明确截断与不可绘制原因。
-4. 每个独立子任务最多并行 5 路，集成后完成全量、GIS、浏览器和部署健康验证。
+## M60 验证状态
+
+- 运行时能力和入口契约测试通过；默认环境缺少 FastAPI 的测试按环境条件跳过。
+- 生产容器已重新 build，快照、健康、异步提交/轮询和 production acceptance 通过；完整健康为 `unavailable` 仅因容器示例数据卷缺少 roads/water。
+- SQLite 跨进程结果引用、清空会话、取消标记和失败重试测试 4/4 通过；离线 208、GIS 205、smoke、全局评测和浏览器烟测通过。
+
+## M61 下一步任务
+
+进入 M61：全局产品能力、数据质量、真实模型、部署可靠性和用户体验深化。M60 已完成运行时能力快照和异步跨进程可靠性基础。
+
+1. 分层处理核心与可选数据健康，完善武汉道路/水体生产数据卷和 CRS/覆盖降级说明。
+2. 深化异步幂等、异常重启恢复、状态观测和真实模型超时/重试指标。
+3. 扩展开放式空间问答的意图、澄清和多工具编排，并让 Console 按结果类型动态展示。
+
+大阶段最多拆分 5 路并行；仅将边界清晰、可独立测试且不同时修改同一公共契约的任务并行执行。推荐拆分为能力快照、SQLite 可靠性、几何证据、评测/答案契约、部署/Console 验收五路；所有任务必须在共享 schema、runtime 状态、result envelope 和能力目录上统一集成。
 
 M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
 
