@@ -15,7 +15,15 @@ from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
-from agent.workflow_templates import workflow_template_catalog
+from agent.workflow_templates import (
+    WorkflowTemplateError,
+    get_workflow_template,
+    normalize_workflow_constraints,
+    normalize_workflow_evidence,
+    revise_workflow_plan,
+    validate_workflow_plan,
+    workflow_template_catalog,
+)
 
 
 app = FastAPI(title="Spatial Agent", version="0.1.0")
@@ -181,6 +189,42 @@ def metrics():
 @app.get("/workflows")
 def workflows():
     return {"templates": workflow_template_catalog()}
+
+
+@app.post("/workflows/{template_id}/validate")
+def validate_workflow(template_id: str, payload: Dict[str, Any]):
+    try:
+        template = get_workflow_template(template_id)
+        constraints = normalize_workflow_constraints(template, payload.get("constraints", {}))
+        evidence = normalize_workflow_evidence(template, payload.get("evidence"))
+        plan = payload.get("plan")
+        result = {"valid": True, "template": template, "constraints": constraints, "evidence": evidence}
+        if plan is not None:
+            result["plan"] = validate_workflow_plan(template, plan)
+        return result
+    except (ValueError, WorkflowTemplateError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/workflows/{template_id}/revise")
+def revise_workflow(template_id: str, payload: Dict[str, Any]):
+    try:
+        template = get_workflow_template(template_id)
+        plan = payload.get("plan")
+        if not isinstance(plan, dict):
+            raise WorkflowTemplateError("revise requires a plan object")
+        return {
+            "valid": True,
+            "template": template,
+            "plan": revise_workflow_plan(
+                template,
+                plan,
+                constraints=payload.get("constraints"),
+                evidence=payload.get("evidence"),
+            ),
+        }
+    except (ValueError, WorkflowTemplateError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/runs/{run_id}")

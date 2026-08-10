@@ -9,6 +9,7 @@ from evaluation.model_evaluation import (
     classify_provider_error,
     evaluate_plan_quality,
     evaluate_model_fixture,
+    evaluate_model_replay_suite_file,
     load_model_fixture,
     sanitize_provider_metrics,
 )
@@ -148,6 +149,18 @@ class M67ModelEvaluationTests(unittest.TestCase):
         first["response"]["goal"] = "changed"
         self.assertNotEqual(first["response"]["goal"], second["response"]["goal"])
         self.assertNotIn("api_key", json.dumps(second).lower())
+
+    def test_m69_replay_suite_covers_clarification_and_plan_repair(self):
+        report = evaluate_model_replay_suite_file(
+            ROOT / "tests" / "fixtures" / "m69_model_replay_suite.json"
+        )
+        self.assertEqual(report["passed"], 2)
+        self.assertEqual(report["failed"], 0)
+        self.assertEqual(
+            {item["replay_type"] for item in report["results"]},
+            {"clarification_follow_up", "plan_repair"},
+        )
+        self.assertTrue(all(item["repair_count"] == 1 for item in report["results"]))
 
 
 if __name__ == "__main__":

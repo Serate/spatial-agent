@@ -260,6 +260,13 @@ M68 继续最多拆分 3 个独立子任务；集成后必须执行离线、GIS�
 
 M69 最多拆分 3 路可独立验收的子任务：工作流编辑与计划契约、数据 manifest/对齐门控、模型回放与运行可靠性。主线统一公共 schema、runtime、result envelope 和 Console 集成；阶段完成后执行离线、GIS、HTTP、串行浏览器和 Docker（环境恢复后）验收，再创建 GitHub 版本。
 
+### M69 当前实现进展
+
+- 工作流模板已增加语义版本、约束规格（字符串/数值/整数/布尔/枚举及边界）、证据选项和默认选择；计划校验输出模板版本、归一化约束与证据。
+- 新增 `POST /workflows/{template_id}/validate` 和 `POST /workflows/{template_id}/revise`，开发 HTTP 与生产 FastAPI 入口均接入；修订只合并声明的约束并重新经过模板、schema 和 DAG 校验。
+- 新增 `agent/dataset_manifest.py` 和 `scripts/dataset_manifest.py`，支持相对路径、文件大小、SHA-256、数据类型和受控 provenance 的确定性 manifest；配置 manifest 后健康检查执行轻量路径/大小/provenance 校验。
+- 全局评测新增脱敏多轮模型回放，覆盖澄清补全和非法计划修复；当前 M69 相关专项测试和全局回放已通过，尚未完成 Console 动态编辑、武汉 manifest 生产配置、可靠性组合矩阵及 Docker/live 验收。
+
 ## M65：生产异步、模型执行一致性与总览结果体验（已完成）
 
 - 增加录制模型响应回归，验证空间总览 8 步计划、依赖 DAG、`$from` 绑定和 ToolRegistry 实际执行；默认测试不访问网络。

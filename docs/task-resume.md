@@ -560,3 +560,10 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 3. 模型回放与可靠性矩阵：覆盖开放式澄清补全、非法计划修复、失败重试、多 worker 取消/超时/滚动重启，并保留可选 live provider 基线。
 
 主线集成后再做动态 Console 结果工作区统一、全量离线/GIS/HTTP/串行浏览器验收；Docker Desktop 恢复后补新镜像和 production acceptance，阶段通过后提交并推送一个版本。
+
+## M69 当前实现进展
+
+- 工作流模板已增加语义版本、约束规格、证据选项和默认选择；`validate_workflow_plan` 输出 `template_version`、归一化 `constraints` 与 `evidence`，`revise_workflow_plan` 提供受控修订。
+- 开发服务和生产 FastAPI 已提供 `/workflows/{template_id}/validate`、`/workflows/{template_id}/revise`；接口只校验契约，不直接执行工具。
+- 新增 `agent/dataset_manifest.py`、`scripts/dataset_manifest.py` 和 M69 manifest 测试；完整哈希校验是显式动作，健康报告只做轻量检查。
+- 新增脱敏模型回放套件并接入全局评测：澄清补全、非法计划修复各 1 条，均通过；当前尚未完成 Console 编辑器、武汉 manifest 实际绑定、多 worker 组合矩阵、Docker 和 live provider 验收。

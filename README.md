@@ -115,6 +115,9 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 - `GET /runs/{run_id}/observability`
 - `GET /runs/{run_id}/async`
 - `GET /capabilities/runtime`
+- `GET /workflows`
+- `POST /workflows/{template_id}/validate`
+- `POST /workflows/{template_id}/revise`
 - `GET /metrics`
 - `POST /runs/{run_id}/cancel`
 - `POST /runs/{run_id}/retry`
@@ -142,6 +145,8 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/task-resume.md`](docs/task-resume.md)：当前任务和下一阶段规划。
 - [`docs/agent-development-issues.md`](docs/agent-development-issues.md)：中文工程问题记录。
 - [`docs/data-adapter-plan.md`](docs/data-adapter-plan.md)：真实空间数据接入计划。
+
+数据 manifest 可用 `scripts\dataset_manifest.py` 显式生成和校验；健康接口只做轻量 manifest 检查，完整 SHA-256 校验不会隐式发生。
 
 ## 数据与合规边界
 

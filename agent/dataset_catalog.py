@@ -68,9 +68,15 @@ class DatasetEntry:
 class DatasetCatalog:
     """Reads local dataset configuration without binding the Agent to file formats."""
 
-    def __init__(self, root: str, entries: Mapping[str, DatasetEntry]):
+    def __init__(
+        self,
+        root: str,
+        entries: Mapping[str, DatasetEntry],
+        manifest_path: Optional[str] = None,
+    ):
         self.root = str(Path(root))
         self._entries = dict(entries)
+        self.manifest_path = str(manifest_path) if manifest_path else None
 
     @classmethod
     def from_json(cls, path: str) -> "DatasetCatalog":
@@ -90,7 +96,15 @@ class DatasetCatalog:
                 attribution=definition.get("attribution"),
                 license=definition.get("license"),
             )
-        return cls(root, entries)
+        manifest_path = payload.get("manifest")
+        if isinstance(manifest_path, str) and manifest_path.strip():
+            manifest_candidate = Path(manifest_path)
+            if not manifest_candidate.is_absolute():
+                manifest_candidate = Path(path).parent / manifest_candidate
+            manifest_path = str(manifest_candidate)
+        else:
+            manifest_path = None
+        return cls(root, entries, manifest_path=manifest_path)
 
     def get(self, name: str) -> Optional[DatasetEntry]:
         return self._entries.get(name)
@@ -105,10 +119,13 @@ class DatasetCatalog:
         return list(self._entries.values())
 
     def summary(self) -> Dict[str, Any]:
-        return {
+        result = {
             "root": self.root,
             "datasets": [entry.to_dict() for entry in self.list_entries()],
         }
+        if self.manifest_path:
+            result["manifest_configured"] = True
+        return result
 
 
 def _resolve_files(root: str, definition: Mapping[str, Any]) -> List[str]:

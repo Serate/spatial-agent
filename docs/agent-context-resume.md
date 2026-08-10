@@ -330,3 +330,10 @@ git -c safe.directory=D:/Project/job/ai-agent check-ignore -v config/openai.loca
 5. 用户体验：答案、轨迹、证据和地图互相引用，并明确展示数据版本、对齐状态和降级原因。
 
 M69 最多启动 3 路并行子任务；并行任务不得各自修改公共 schema 或 result envelope，必须由主线统一集成。每阶段完成后更新本文件、`docs/task-resume.md`、`docs/milestones.md` 和中文开发问题日志，并提交推送一个 GitHub 版本。
+
+## M69 当前实现进展
+
+- 工作流模板契约已支持版本、结构化约束和证据选择；开发/生产 HTTP 均支持 validate/revise，计划修订仍经过统一模板、TaskPlan 和 DAG 校验。
+- 数据 manifest 支持确定性文件记录、SHA-256 显式验证和受控 provenance；配置 manifest 时健康检查默认只做路径/大小/provenance 轻量校验。
+- 脱敏模型回放已加入全局评测，覆盖多轮澄清和失败计划修复，当前两条回放均通过。
+- M69 尚未完成：Console 动态工作流编辑、武汉真实数据 manifest 绑定、像元级对齐执行门控、SQLite 多 worker 组合矩阵、Docker 新镜像和可选 live provider 验收。

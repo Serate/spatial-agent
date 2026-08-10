@@ -58,6 +58,9 @@ KNOWN_RESULT_TYPES = [
     "zonal_vector_result",
 ]
 
+DEFAULT_TEMPLATE_VERSION = "1.0.0"
+SUPPORTED_CONSTRAINT_TYPES = {"string", "number", "integer", "boolean", "enum"}
+
 
 # The values use only JSON-native objects, arrays, strings, numbers, booleans,
 # and null.  Keep this directory declarative so it can later be loaded from a
@@ -65,22 +68,35 @@ KNOWN_RESULT_TYPES = [
 WORKFLOW_TEMPLATE_CATALOG = {
     "admin_boundary_query": {
         "id": "admin_boundary_query",
+        "version": "1.0.0",
         "label": "行政区边界查询",
         "allowed_tools": ["get_dataset_schema", "range_query"],
         "result_types": ["admin_area_result"],
         "max_steps": 2,
         "required_constraints": ["admin_name"],
+        "constraint_specs": [
+            {"name": "admin_name", "label": "行政区", "type": "string", "required": True, "min_length": 1}
+        ],
+        "evidence_options": ["summary", "geometry", "trace"],
+        "default_evidence": ["summary", "geometry", "trace"],
     },
     "raster_metadata": {
         "id": "raster_metadata",
+        "version": "1.0.0",
         "label": "栅格元数据查询",
         "allowed_tools": ["get_raster_metadata"],
         "result_types": ["raster_metadata_result"],
         "max_steps": 1,
         "required_constraints": ["dataset"],
+        "constraint_specs": [
+            {"name": "dataset", "label": "数据集", "type": "enum", "required": True, "choices": ["dem", "land_use", "slope"]}
+        ],
+        "evidence_options": ["summary", "metadata", "trace"],
+        "default_evidence": ["summary", "metadata", "trace"],
     },
     "spatial_overview": {
         "id": "spatial_overview",
+        "version": "1.0.0",
         "label": "区域空间总览",
         "allowed_tools": [
             "get_dataset_health_report",
@@ -94,9 +110,16 @@ WORKFLOW_TEMPLATE_CATALOG = {
         "result_types": ["spatial_overview_result"],
         "max_steps": 8,
         "required_constraints": ["admin_name"],
+        "constraint_specs": [
+            {"name": "admin_name", "label": "行政区", "type": "string", "required": True, "min_length": 1},
+            {"name": "include_geometry", "label": "包含空间几何", "type": "boolean", "required": False, "default": True},
+        ],
+        "evidence_options": ["summary", "geometry", "data_health", "trace"],
+        "default_evidence": ["summary", "geometry", "data_health", "trace"],
     },
     "constrained_buildability": {
         "id": "constrained_buildability",
+        "version": "1.0.0",
         "label": "道路与水体约束筛选",
         "allowed_tools": [
             "get_dataset_health_report",
@@ -105,11 +128,31 @@ WORKFLOW_TEMPLATE_CATALOG = {
         "result_types": ["constrained_buildability_result"],
         "max_steps": 2,
         "required_constraints": ["admin_name", "slope_limit_degrees"],
+        "constraint_specs": [
+            {"name": "admin_name", "label": "行政区", "type": "string", "required": True, "min_length": 1},
+            {"name": "slope_limit_degrees", "label": "坡度上限（度）", "type": "number", "required": True, "min": 0, "max": 90},
+            {"name": "road_distance_m", "label": "道路距离（米）", "type": "number", "required": False, "min": 0, "default": 1000},
+            {"name": "exclude_water", "label": "排除水体", "type": "boolean", "required": False, "default": True},
+        ],
+        "evidence_options": ["summary", "geometry", "data_health", "trace"],
+        "default_evidence": ["summary", "geometry", "data_health", "trace"],
     },
 }
 
 
 _TEMPLATE_KEYS = {
+    "id",
+    "version",
+    "label",
+    "allowed_tools",
+    "result_types",
+    "max_steps",
+    "required_constraints",
+    "constraint_specs",
+    "evidence_options",
+    "default_evidence",
+}
+_REQUIRED_TEMPLATE_KEYS = {
     "id",
     "label",
     "allowed_tools",
@@ -117,9 +160,11 @@ _TEMPLATE_KEYS = {
     "max_steps",
     "required_constraints",
 }
-_PLAN_KEYS = {"template_id", "goal", "constraints", "steps", "output", "assumptions"}
+_PLAN_KEYS = {"template_id", "template_version", "goal", "constraints", "evidence", "steps", "output", "assumptions"}
 _STEP_KEYS = {"id", "tool", "args", "depends_on"}
+_CONSTRAINT_SPEC_KEYS = {"name", "label", "type", "required", "min", "max", "min_length", "max_length", "choices", "default"}
 _CHINESE_LABEL = re.compile(r"[\u3400-\u9fff]")
+_SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
 def workflow_template_catalog() -> Dict[str, Dict[str, Any]]:
@@ -196,11 +241,14 @@ def validate_workflow_template(
     if unknown:
         raise WorkflowTemplateError("template has unknown fields: " + ", ".join(unknown))
 
-    for key in _TEMPLATE_KEYS:
+    for key in _REQUIRED_TEMPLATE_KEYS:
         if key not in template:
             raise WorkflowTemplateError("template missing required field: " + key)
 
     template_id = _text(template["id"], "template.id")
+    version = _text(template.get("version", DEFAULT_TEMPLATE_VERSION), "template.version")
+    if _SEMVER.fullmatch(version) is None:
+        raise WorkflowTemplateError("template.version must use semantic versioning")
     label = _text(template["label"], "template.label")
     if _CHINESE_LABEL.search(label) is None:
         raise WorkflowTemplateError("template.label must contain Chinese text")
@@ -232,14 +280,96 @@ def validate_workflow_template(
     if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1:
         raise WorkflowTemplateError("template.max_steps must be a positive integer")
 
+    raw_specs = template.get("constraint_specs")
+    if raw_specs is None:
+        raw_specs = [
+            {"name": name, "label": name, "type": "string", "required": True}
+            for name in constraints
+        ]
+    constraint_specs = _normalize_constraint_specs(raw_specs, constraints)
+    evidence_options = _string_list(
+        template.get("evidence_options", ["summary", "trace"]),
+        "template.evidence_options",
+    )
+    default_evidence = _string_list(
+        template.get("default_evidence", evidence_options),
+        "template.default_evidence",
+    )
+    if not set(default_evidence).issubset(evidence_options):
+        raise WorkflowTemplateError("template.default_evidence contains an unknown option")
+
     return {
         "id": template_id,
+        "version": version,
         "label": label,
         "allowed_tools": tool_names,
         "result_types": result_types,
         "max_steps": max_steps,
         "required_constraints": constraints,
+        "constraint_specs": constraint_specs,
+        "evidence_options": evidence_options,
+        "default_evidence": default_evidence,
     }
+
+
+def normalize_workflow_constraints(
+    template: str | Mapping[str, Any],
+    constraints: Mapping[str, Any],
+    *,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    known_tools: Optional[Iterable[str]] = None,
+    known_result_types: Optional[Iterable[str]] = None,
+) -> Dict[str, Any]:
+    """Validate and normalize user-editable structured workflow constraints."""
+
+    normalized_template = validate_workflow_template(
+        _resolve_template(template, catalog),
+        known_tools=known_tools,
+        known_result_types=known_result_types,
+    )
+    if not isinstance(constraints, Mapping):
+        raise WorkflowTemplateError("constraints must be an object")
+    specs = {item["name"]: item for item in normalized_template["constraint_specs"]}
+    unknown = sorted(set(constraints) - set(specs))
+    if unknown:
+        raise WorkflowTemplateError("unknown constraints: " + ", ".join(unknown))
+    result: Dict[str, Any] = {}
+    for name, spec in specs.items():
+        if name not in constraints:
+            if "default" in spec:
+                result[name] = copy.deepcopy(spec["default"])
+            elif spec["required"]:
+                raise WorkflowTemplateError("plan is missing required constraints: " + name)
+            continue
+        if _is_empty_constraint(constraints[name]):
+            if spec["required"]:
+                raise WorkflowTemplateError("plan is missing required constraints: " + name)
+            continue
+        result[name] = _normalize_constraint_value(constraints[name], spec)
+    return result
+
+
+def normalize_workflow_evidence(
+    template: str | Mapping[str, Any],
+    evidence: Optional[Iterable[str]] = None,
+    *,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    known_tools: Optional[Iterable[str]] = None,
+    known_result_types: Optional[Iterable[str]] = None,
+) -> List[str]:
+    """Validate the evidence views selected by a user or a plan."""
+
+    normalized_template = validate_workflow_template(
+        _resolve_template(template, catalog),
+        known_tools=known_tools,
+        known_result_types=known_result_types,
+    )
+    selected = normalized_template["default_evidence"] if evidence is None else evidence
+    values = _string_list(list(selected), "evidence")
+    unknown = sorted(set(values) - set(normalized_template["evidence_options"]))
+    if unknown:
+        raise WorkflowTemplateError("unknown evidence options: " + ", ".join(unknown))
+    return values
 
 
 def validate_workflow_plan(
@@ -286,18 +416,12 @@ def validate_workflow_plan(
         if declared_template_id != normalized_template["id"]:
             raise WorkflowTemplateError("plan.template_id does not match template.id")
 
-    constraints = plan.get("constraints", {})
-    if not isinstance(constraints, dict):
-        raise WorkflowTemplateError("plan.constraints must be an object")
-    missing_constraints = [
-        name
-        for name in normalized_template["required_constraints"]
-        if name not in constraints or _is_empty_constraint(constraints[name])
-    ]
-    if missing_constraints:
-        raise WorkflowTemplateError(
-            "plan is missing required constraints: " + ", ".join(missing_constraints)
-        )
+    constraints = normalize_workflow_constraints(
+        normalized_template,
+        plan.get("constraints", {}),
+        known_tools=available_tools,
+        known_result_types=available_results,
+    )
 
     steps = plan.get("steps")
     if not isinstance(steps, list):
@@ -383,10 +507,41 @@ def validate_workflow_plan(
         )
 
     normalized_plan = copy.deepcopy(dict(plan))
+    normalized_plan["template_id"] = normalized_template["id"]
+    normalized_plan["template_version"] = normalized_template["version"]
     normalized_plan["steps"] = normalized_steps
-    normalized_plan["constraints"] = copy.deepcopy(constraints)
+    normalized_plan["constraints"] = constraints
+    normalized_plan["evidence"] = normalize_workflow_evidence(
+        normalized_template,
+        plan.get("evidence"),
+        known_tools=available_tools,
+        known_result_types=available_results,
+    )
     normalized_plan["output"] = copy.deepcopy(dict(output))
     return normalized_plan
+
+
+def revise_workflow_plan(
+    template: str | Mapping[str, Any],
+    plan: Mapping[str, Any],
+    *,
+    constraints: Optional[Mapping[str, Any]] = None,
+    evidence: Optional[Iterable[str]] = None,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Apply a bounded user revision and revalidate the complete plan."""
+
+    current = validate_workflow_plan(template, plan, catalog=catalog)
+    merged_constraints = dict(current["constraints"])
+    if constraints is not None:
+        if not isinstance(constraints, Mapping):
+            raise WorkflowTemplateError("constraints must be an object")
+        merged_constraints.update(constraints)
+    revised = copy.deepcopy(dict(current))
+    revised["constraints"] = merged_constraints
+    if evidence is not None:
+        revised["evidence"] = list(evidence)
+    return validate_workflow_plan(template, revised, catalog=catalog)
 
 
 def validate_template(
@@ -490,3 +645,85 @@ def _value_set(values: Iterable[str], path: str) -> Set[str]:
 
 def _is_empty_constraint(value: Any) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
+
+
+def _normalize_constraint_specs(
+    raw_specs: Any,
+    required_constraints: List[str],
+) -> List[Dict[str, Any]]:
+    if not isinstance(raw_specs, list):
+        raise WorkflowTemplateError("template.constraint_specs must be an array")
+    normalized = []
+    names = set()
+    for index, raw in enumerate(raw_specs):
+        path = "template.constraint_specs[{}]".format(index)
+        if not isinstance(raw, Mapping):
+            raise WorkflowTemplateError(path + " must be an object")
+        unknown = sorted(set(raw) - _CONSTRAINT_SPEC_KEYS)
+        if unknown:
+            raise WorkflowTemplateError(path + " has unknown fields: " + ", ".join(unknown))
+        name = _text(raw.get("name"), path + ".name")
+        if name in names:
+            raise WorkflowTemplateError("duplicate constraint spec: " + name)
+        names.add(name)
+        label = _text(raw.get("label", name), path + ".label")
+        kind = _text(raw.get("type", "string"), path + ".type")
+        if kind not in SUPPORTED_CONSTRAINT_TYPES:
+            raise WorkflowTemplateError("unsupported constraint type: " + kind)
+        required = raw.get("required", name in required_constraints)
+        if not isinstance(required, bool):
+            raise WorkflowTemplateError(path + ".required must be boolean")
+        item = {"name": name, "label": label, "type": kind, "required": required}
+        for key in ("min", "max", "min_length", "max_length"):
+            if key in raw:
+                value = raw[key]
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                    raise WorkflowTemplateError(path + "." + key + " must be a finite number")
+                item[key] = int(value) if key.endswith("length") else float(value)
+        if "choices" in raw:
+            item["choices"] = _string_list(raw["choices"], path + ".choices")
+        if kind == "enum" and not item.get("choices"):
+            raise WorkflowTemplateError(path + ".choices is required for enum")
+        if "default" in raw:
+            item["default"] = copy.deepcopy(raw["default"])
+        normalized.append(item)
+    missing_specs = sorted(set(required_constraints) - names)
+    if missing_specs:
+        raise WorkflowTemplateError("required constraints missing specs: " + ", ".join(missing_specs))
+    return normalized
+
+
+def _normalize_constraint_value(value: Any, spec: Mapping[str, Any]) -> Any:
+    name = spec["name"]
+    kind = spec["type"]
+    if kind == "string":
+        if not isinstance(value, str) or not value.strip():
+            raise WorkflowTemplateError("constraint {} must be a non-empty string".format(name))
+        value = value.strip()
+        if "min_length" in spec and len(value) < spec["min_length"]:
+            raise WorkflowTemplateError("constraint {} is shorter than minimum length".format(name))
+        if "max_length" in spec and len(value) > spec["max_length"]:
+            raise WorkflowTemplateError("constraint {} exceeds maximum length".format(name))
+        return value
+    if kind in ("number", "integer"):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise WorkflowTemplateError("constraint {} must be a number".format(name))
+        number = float(value)
+        if not math.isfinite(number):
+            raise WorkflowTemplateError("constraint {} must be finite".format(name))
+        if kind == "integer" and number != int(number):
+            raise WorkflowTemplateError("constraint {} must be an integer".format(name))
+        if "min" in spec and number < spec["min"]:
+            raise WorkflowTemplateError("constraint {} is below minimum".format(name))
+        if "max" in spec and number > spec["max"]:
+            raise WorkflowTemplateError("constraint {} exceeds maximum".format(name))
+        return int(number) if kind == "integer" else number
+    if kind == "boolean":
+        if not isinstance(value, bool):
+            raise WorkflowTemplateError("constraint {} must be boolean".format(name))
+        return value
+    if kind == "enum":
+        if value not in spec["choices"]:
+            raise WorkflowTemplateError("constraint {} must be one of: {}".format(name, ", ".join(spec["choices"])))
+        return value
+    raise WorkflowTemplateError("unsupported constraint type: " + kind)

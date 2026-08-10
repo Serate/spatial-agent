@@ -8,7 +8,14 @@ from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
-from agent.workflow_templates import workflow_template_catalog
+from agent.workflow_templates import (
+    WorkflowTemplateError,
+    get_workflow_template,
+    normalize_workflow_constraints,
+    normalize_workflow_evidence,
+    revise_workflow_plan,
+    workflow_template_catalog,
+)
 
 
 class AgentApiHandler(BaseHTTPRequestHandler):
@@ -29,6 +36,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/workflows":
             self._write_json(200, {"templates": workflow_template_catalog()})
+            return
+        if parsed.path.startswith("/workflows/"):
+            self._write_json(404, {"error": "not found"})
             return
         if parsed.path == "/capabilities/runtime":
             query = parse_qs(parsed.query)
@@ -99,12 +109,49 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_region_comparison = parsed.path == "/region-comparisons"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
-        if parsed.path != "/runs" and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_session_create and not is_session_clear:
+        workflow_action = None
+        workflow_template_id = None
+        workflow_parts = parsed.path.strip("/").split("/")
+        if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
+            workflow_template_id = workflow_parts[1]
+            workflow_action = workflow_parts[2]
+        if parsed.path != "/runs" and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_session_create and not is_session_clear and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
-            if is_async_run:
+            if workflow_action is not None:
+                template = get_workflow_template(workflow_template_id)
+                if workflow_action == "validate":
+                    constraints = normalize_workflow_constraints(template, payload.get("constraints", {}))
+                    evidence = normalize_workflow_evidence(template, payload.get("evidence"))
+                    plan = payload.get("plan")
+                    if plan is not None:
+                        from agent.workflow_templates import validate_workflow_plan
+                        plan = validate_workflow_plan(template, plan)
+                    result = {
+                        "valid": True,
+                        "template": template,
+                        "constraints": constraints,
+                        "evidence": evidence,
+                    }
+                    if plan is not None:
+                        result["plan"] = plan
+                else:
+                    plan = payload.get("plan")
+                    if not isinstance(plan, dict):
+                        raise WorkflowTemplateError("revise requires a plan object")
+                    result = {
+                        "valid": True,
+                        "template": template,
+                        "plan": revise_workflow_plan(
+                            template,
+                            plan,
+                            constraints=payload.get("constraints"),
+                            evidence=payload.get("evidence"),
+                        ),
+                    }
+            elif is_async_run:
                 result = self.service.run_async(
                     request=payload.get("request", ""),
                     session_id=payload.get("session_id", "default"),
@@ -170,7 +217,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     timeout_seconds=payload.get("timeout_seconds"),
                     spatial_context=payload.get("spatial_context"),
                 )
-        except ValueError as exc:
+        except (ValueError, WorkflowTemplateError) as exc:
             self._write_json(400, {"error": str(exc)})
             return
         except Exception as exc:

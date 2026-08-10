@@ -1,0 +1,80 @@
+{
+  "schema_version": "m69-model-replay-v1",
+  "suite_id": "m69-open-spatial-replays",
+  "fixtures": [
+    {
+      "fixture_id": "clarification-follow-up",
+      "replay_type": "clarification_follow_up",
+      "expected_repair_count": 1,
+      "expected_final_status": "COMPLETED",
+      "provider_metrics": {
+        "usage": {"input_tokens": 420, "output_tokens": 120, "total_tokens": 540},
+        "latency_ms": 180,
+        "attempts": 1,
+        "retries": 0
+      },
+      "turns": [
+        {
+          "request": "查询某个行政区边界",
+          "response": {"outcome": "needs_clarification", "message": "请补充行政区名称"},
+          "expected": {"expected_status": "NEEDS_CLARIFICATION"}
+        },
+        {
+          "request": "洪山区",
+          "response": {
+            "goal": "查询行政区边界",
+            "steps": [
+              {"id": "schema", "tool": "get_dataset_schema", "args": {"dataset": "admin_areas"}, "depends_on": []},
+              {"id": "query", "tool": "range_query", "args": {"dataset": "admin_areas", "conditions": [], "limit": 100}, "depends_on": ["schema"]}
+            ],
+            "output": {"type": "admin_area_result", "summary": true}
+          },
+          "expected": {
+            "expected_status": "COMPLETED",
+            "expected_tools": ["get_dataset_schema", "range_query"],
+            "expected_result_type": "admin_area_result"
+          }
+        }
+      ]
+    },
+    {
+      "fixture_id": "invalid-plan-repair",
+      "replay_type": "plan_repair",
+      "expected_repair_count": 1,
+      "expected_final_status": "COMPLETED",
+      "provider_metrics": {
+        "usage": {"input_tokens": 510, "output_tokens": 160, "total_tokens": 670},
+        "latency_ms": 240,
+        "attempts": 2,
+        "retries": 1
+      },
+      "turns": [
+        {
+          "request": "查询洪山区行政区边界",
+          "response": {
+            "goal": "查询行政区边界",
+            "steps": [{"id": "bad", "tool": "unknown_tool", "args": {}}],
+            "output": {"type": "admin_area_result"}
+          },
+          "expected": {"expected_status": "FAILED"}
+        },
+        {
+          "request": "修复刚才的计划并重新执行",
+          "response": {
+            "goal": "查询行政区边界",
+            "steps": [
+              {"id": "schema", "tool": "get_dataset_schema", "args": {"dataset": "admin_areas"}, "depends_on": []},
+              {"id": "query", "tool": "range_query", "args": {"dataset": "admin_areas", "conditions": [], "limit": 100}, "depends_on": ["schema"]}
+            ],
+            "output": {"type": "admin_area_result", "summary": true}
+          },
+          "expected": {
+            "expected_status": "COMPLETED",
+            "expected_tools": ["get_dataset_schema", "range_query"],
+            "expected_result_type": "admin_area_result"
+          }
+        }
+      ]
+    }
+  ]
+}

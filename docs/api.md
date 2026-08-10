@@ -262,11 +262,21 @@ runs can be cooperatively cancelled with `POST /runs/{run_id}/cancel`.
 模型响应或凭据。`GET /metrics` 的 `async_jobs` 汇总状态数量、失败分类和耗时
 统计，可用于部署监控但不能替代具体运行结果。
 
-`GET /workflows` 返回当前受控工作流模板目录。模板只描述允许的工具、结果类型、
-最大步骤数和必填约束；客户端不能通过该接口直接执行任意工具，实际计划仍必须经过
-TaskPlan schema 和 ToolRegistry。生产异步 worker 数量可通过
+`GET /workflows` 返回当前受控工作流模板目录。每个模板包含版本、允许的工具、结果类型、
+结构化约束规格、证据选项、最大步骤数和必填约束；客户端不能通过该接口直接执行任意工具，实际计划仍必须经过
+TaskPlan schema 和 ToolRegistry。可通过 `POST /workflows/{template_id}/validate` 校验用户编辑的
+约束/证据选择和可选计划，通过 `POST /workflows/{template_id}/revise` 合并受控约束修改并重新校验计划。
+两个接口只返回归一化契约，不执行空间工具。生产异步 worker 数量可通过
 `SPATIAL_AGENT_ASYNC_WORKERS` 配置为 1 到 16，默认值为 4，实际值可从
 `metrics.async_jobs.worker_count` 读取。
+
+数据目录可在配置 JSON 中增加相对 `manifest` 路径。健康检查会对 manifest 做不读大文件内容的
+路径、大小和 provenance 校验；需要完整 SHA-256 校验时显式执行：
+
+~~~powershell
+python scripts\dataset_manifest.py --config config\datasets.wuhan.local.example.json --output outputs\wuhan.manifest.json
+python scripts\dataset_manifest.py --config config\datasets.wuhan.local.example.json --verify outputs\wuhan.manifest.json
+~~~
 
 ## Error Responses
 

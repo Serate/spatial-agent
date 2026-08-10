@@ -21,6 +21,7 @@ from agent.tools import DemoSpatialAdapter, ToolRegistry
 
 ROOT = Path(__file__).parents[1]
 DEFAULT_MODEL_FIXTURE = ROOT / "tests" / "fixtures" / "m67_spatial_overview_model.json"
+DEFAULT_MODEL_REPLAY_FIXTURE = ROOT / "tests" / "fixtures" / "m69_model_replay_suite.json"
 TOOL_SCHEMA = ROOT / "tools" / "schema" / "tool-definitions.json"
 _CHINESE_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 _SECRET_KEY_TERMS = ("api_key", "apikey", "secret", "access_token", "refresh_token")
@@ -40,6 +41,95 @@ def load_model_fixture(path: Union[str, Path] = DEFAULT_MODEL_FIXTURE) -> Dict[s
 def evaluate_model_fixture_file(path: Union[str, Path] = DEFAULT_MODEL_FIXTURE) -> Dict[str, Any]:
     """Evaluate a fixture from disk without creating a network client."""
     return evaluate_model_fixture(load_model_fixture(path))
+
+
+def evaluate_model_replay_suite_file(path: Union[str, Path] = DEFAULT_MODEL_REPLAY_FIXTURE) -> Dict[str, Any]:
+    """Evaluate a redacted multi-turn replay suite without network access."""
+    return evaluate_model_replay_suite(load_model_fixture(path))
+
+
+def evaluate_model_replay_suite(suite: Mapping[str, Any]) -> Dict[str, Any]:
+    """Replay clarification and plan-repair turns through the normal runtime."""
+    if not isinstance(suite, Mapping) or _contains_private_field(suite):
+        raise ValueError("model replay suite is invalid or contains private fields")
+    fixtures = suite.get("fixtures")
+    if not isinstance(fixtures, list):
+        raise ValueError("model replay suite must contain a fixtures array")
+    results = [_evaluate_replay_fixture(fixture) for fixture in fixtures]
+    passed = sum(1 for item in results if item["passed"])
+    return {
+        "suite_id": str(suite.get("suite_id") or "unnamed"),
+        "execution_mode": "offline_fixture",
+        "total": len(results),
+        "passed": passed,
+        "failed": len(results) - passed,
+        "pass_rate": round(passed / len(results), 4) if results else 0,
+        "results": results,
+    }
+
+
+def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
+    if not isinstance(fixture, Mapping):
+        return {"fixture_id": "invalid", "passed": False, "error_class": "fixture_error"}
+    fixture_id = str(fixture.get("fixture_id") or "unnamed")
+    turns = fixture.get("turns")
+    if not isinstance(turns, list) or not turns:
+        return {"fixture_id": fixture_id, "passed": False, "error_class": "fixture_error"}
+    responses = [turn.get("response") for turn in turns if isinstance(turn, Mapping)]
+    if len(responses) != len(turns) or not all(isinstance(item, Mapping) for item in responses):
+        return {"fixture_id": fixture_id, "passed": False, "error_class": "fixture_error"}
+    metrics = _fixture_metrics(fixture)
+    safe_metrics = sanitize_provider_metrics(metrics)
+    runtime = _build_recorded_runtime(responses, metrics)
+    session_id = "m69-replay-" + fixture_id
+    turn_results = []
+    for turn in turns:
+        expected = turn.get("expected") or {}
+        try:
+            result = runtime.run(str(turn.get("request") or ""), session_id=session_id)
+            status = result.status.value
+            status_match = status == str(expected.get("expected_status") or status)
+            quality = {"passed": True, "status_only": True}
+            if status == "COMPLETED":
+                plan = result.to_dict().get("plan") or {}
+                quality = evaluate_plan_quality(
+                    plan,
+                    expected_tools=expected.get("expected_tools") or [],
+                    expected_result_type=expected.get("expected_result_type"),
+                    answer=result.answer,
+                )
+            turn_results.append({
+                "status": status,
+                "expected_status": expected.get("expected_status"),
+                "status_match": status_match,
+                "quality": quality,
+            })
+        except Exception:
+            turn_results.append({
+                "status": "EVALUATOR_ERROR",
+                "expected_status": expected.get("expected_status"),
+                "status_match": False,
+                "quality": {"passed": False},
+            })
+    repair_count = sum(1 for item in turn_results[:-1] if item["status"] in {"FAILED", "NEEDS_CLARIFICATION"})
+    expected_repair_count = fixture.get("expected_repair_count")
+    final_expected = fixture.get("expected_final_status", "COMPLETED")
+    final_status = turn_results[-1]["status"]
+    passed = all(item["status_match"] and item["quality"]["passed"] for item in turn_results)
+    passed = passed and final_status == final_expected
+    if expected_repair_count is not None:
+        passed = passed and repair_count == expected_repair_count
+    return {
+        "fixture_id": fixture_id,
+        "replay_type": str(fixture.get("replay_type") or "unknown"),
+        "turn_count": len(turn_results),
+        "repair_count": repair_count,
+        "final_status": final_status,
+        "turns": turn_results,
+        "metrics": safe_metrics,
+        "passed": passed,
+        "error_class": "none" if passed else "replay_contract_error",
+    }
 
 
 def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
@@ -236,11 +326,17 @@ def _build_recorded_runtime(response: Mapping[str, Any], metrics: Mapping[str, A
 
 class _RecordedModelClient:
     def __init__(self, response: Mapping[str, Any], metrics: Mapping[str, Any]):
-        self._response = deepcopy(dict(response))
+        self._responses = (
+            [deepcopy(dict(item)) for item in response]
+            if isinstance(response, list)
+            else [deepcopy(dict(response))]
+        )
         self._metrics = dict(metrics)
 
     def complete_json(self, messages, schema):
-        return deepcopy(self._response)
+        if len(self._responses) > 1:
+            return self._responses.pop(0)
+        return deepcopy(self._responses[0])
 
     def metrics(self):
         return dict(self._metrics)

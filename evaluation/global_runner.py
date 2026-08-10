@@ -4,7 +4,12 @@ from typing import Any, Dict, Iterable, List
 
 from agent.service import AgentService
 from agent.capability_catalog import capability_catalog
-from evaluation.model_evaluation import DEFAULT_MODEL_FIXTURE, evaluate_model_fixture_file
+from evaluation.model_evaluation import (
+    DEFAULT_MODEL_FIXTURE,
+    DEFAULT_MODEL_REPLAY_FIXTURE,
+    evaluate_model_fixture_file,
+    evaluate_model_replay_suite_file,
+)
 from evaluation.runner import evaluate_case
 from run_demo import build_runtime
 
@@ -15,6 +20,7 @@ def run_global_cases(
     backend: str = "memory",
     include_optional: bool = False,
     model_fixture: Any = DEFAULT_MODEL_FIXTURE,
+    model_replay_fixture: Any = DEFAULT_MODEL_REPLAY_FIXTURE,
 ) -> Dict[str, Any]:
     cases = list(cases)
     runtime = build_runtime(planner, backend)
@@ -64,6 +70,8 @@ def run_global_cases(
     }
     if model_fixture is not None:
         result_payload["model_evaluation"] = evaluate_model_fixture_file(model_fixture)
+    if model_replay_fixture is not None:
+        result_payload["model_replay_evaluation"] = evaluate_model_replay_suite_file(model_replay_fixture)
     return result_payload
 
 

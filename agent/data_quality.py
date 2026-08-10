@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from .dataset_catalog import DatasetCatalog, DatasetEntry
+from .dataset_manifest import load_manifest, verify_dataset_manifest
 from .capability_catalog import (
     DATASET_GROUPS,
     DATASET_TOOL_CAPABILITIES,
@@ -79,7 +80,7 @@ def dataset_health_report(
             if name in capabilities and reports[names.index(name)]["status"] != "unavailable":
                 capabilities[name].append("get_zonal_buildability_analysis")
     updated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    return {
+    result = {
         "dataset": dataset,
         "status": overall,
         "core_status": core_status,
@@ -107,6 +108,30 @@ def dataset_health_report(
         },
         "warning": "健康检查只验证数据可读取性和基础质量，不代表数据的法定权威性或规划合规性。",
     }
+    if catalog.manifest_path:
+        result["manifest"] = _manifest_health(catalog)
+    return result
+
+
+def _manifest_health(catalog: DatasetCatalog) -> Dict[str, Any]:
+    path = Path(catalog.manifest_path)
+    if not path.is_file():
+        return {
+            "status": "unavailable",
+            "path_configured": True,
+            "mismatches": ["manifest file does not exist"],
+        }
+    try:
+        manifest = load_manifest(path)
+        verification = verify_dataset_manifest(catalog, manifest, verify_hashes=False)
+    except Exception as exc:
+        return {
+            "status": "unavailable",
+            "path_configured": True,
+            "mismatches": [str(exc)[:240]],
+        }
+    verification["path_configured"] = True
+    return verification
 
 
 def _aggregate_status(statuses: Iterable[str]) -> str:
