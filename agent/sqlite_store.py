@@ -2,12 +2,22 @@
 
 import json
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .runtime import PendingClarification
+
+
+_ASYNC_JOB_SELECT = """
+    SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at,
+           created_at, started_at, finished_at, queue_wait_ms,
+           run_duration_ms, failure_category, recovery_count,
+           cancel_requested_at, last_event
+    FROM async_jobs
+"""
 
 
 class SQLiteStateStore:
@@ -46,43 +56,27 @@ class SQLiteStateStore:
     ) -> Dict[str, Any]:
         """Atomically register an async submission and return the canonical job."""
         serialized = json.dumps(payload, ensure_ascii=True, sort_keys=True)
+        created_at = time.time()
         with self._connection() as connection:
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO async_jobs
-                    (idempotency_key, run_id, payload, status, owner_pid, updated_at)
-                VALUES (?, ?, ?, 'QUEUED', NULL, CURRENT_TIMESTAMP)
+                    (idempotency_key, run_id, payload, status, owner_pid, updated_at,
+                     created_at, recovery_count, last_event)
+                VALUES (?, ?, ?, 'QUEUED', NULL, CURRENT_TIMESTAMP, ?, 0, 'submitted')
                 """,
-                (idempotency_key, run_id, serialized),
+                (idempotency_key, run_id, serialized, created_at),
             )
-            row = connection.execute(
-                """
-                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
-                FROM async_jobs WHERE idempotency_key = ?
-                """,
-                (idempotency_key,),
-            ).fetchone()
+            row = connection.execute(_ASYNC_JOB_SELECT + " WHERE idempotency_key = ?", (idempotency_key,)).fetchone()
             if row is None:
-                row = connection.execute(
-                    """
-                    SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
-                    FROM async_jobs WHERE run_id = ?
-                    """,
-                    (run_id,),
-                ).fetchone()
+                row = connection.execute(_ASYNC_JOB_SELECT + " WHERE run_id = ?", (run_id,)).fetchone()
         result = _async_job_from_row(row)
         result["created"] = cursor.rowcount == 1
         return result
 
     def get_async_job(self, run_id: str) -> Optional[Dict[str, Any]]:
         with self._connection() as connection:
-            row = connection.execute(
-                """
-                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
-                FROM async_jobs WHERE run_id = ?
-                """,
-                (run_id,),
-            ).fetchone()
+            row = connection.execute(_ASYNC_JOB_SELECT + " WHERE run_id = ?", (run_id,)).fetchone()
         return _async_job_from_row(row) if row else None
 
     def claim_async_job(
@@ -93,6 +87,9 @@ class SQLiteStateStore:
         previous_owner_pid: Optional[int] = None,
     ) -> bool:
         """Claim a queued job, or reclaim one owned by a dead process."""
+        now = time.time()
+        recovery_increment = 1 if recover else 0
+        event = "recovered" if recover else "started"
         if recover:
             if previous_owner_pid is None:
                 owner_clause = "owner_pid IS NULL OR owner_pid != ?"
@@ -108,12 +105,20 @@ class SQLiteStateStore:
             cursor = connection.execute(
                 f"""
                 UPDATE async_jobs
-                   SET owner_pid = ?, status = 'RUNNING', updated_at = CURRENT_TIMESTAMP
+                   SET owner_pid = ?,
+                       status = CASE WHEN status = 'CANCEL_REQUESTED'
+                                     THEN 'CANCEL_REQUESTED' ELSE 'RUNNING' END,
+                       updated_at = CURRENT_TIMESTAMP,
+                       started_at = COALESCE(started_at, ?),
+                       queue_wait_ms = COALESCE(queue_wait_ms,
+                           MAX(0, (? - COALESCE(created_at, ?)) * 1000)),
+                       recovery_count = recovery_count + ?,
+                       last_event = ?
                  WHERE run_id = ?
-                   AND status IN ('QUEUED', 'RUNNING')
-                   AND ({owner_clause})
+                    AND status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')
+                    AND ({owner_clause})
                 """,
-                parameters,
+                (owner_pid, now, now, now, recovery_increment, event) + parameters[1:],
             )
         return cursor.rowcount == 1
 
@@ -122,9 +127,12 @@ class SQLiteStateStore:
         with self._connection() as connection:
             rows = connection.execute(
                 """
-                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at
+                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at,
+                       created_at, started_at, finished_at, queue_wait_ms,
+                       run_duration_ms, failure_category, recovery_count,
+                       cancel_requested_at, last_event
                 FROM async_jobs
-                WHERE status IN ('QUEUED', 'RUNNING')
+                WHERE status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')
                   AND (owner_pid IS NULL OR owner_pid != ?)
                 ORDER BY updated_at, run_id
                 """,
@@ -132,18 +140,42 @@ class SQLiteStateStore:
             ).fetchall()
         return [_async_job_from_row(row) for row in rows]
 
-    def finish_async_job(self, run_id: str, status: str, owner_pid: int) -> None:
+    def finish_async_job(
+        self,
+        run_id: str,
+        status: str,
+        owner_pid: int,
+        failure_category: Optional[str] = None,
+    ) -> None:
+        finished_at = time.time()
         with self._connection() as connection:
             connection.execute(
                 """
                 UPDATE async_jobs
-                   SET status = ?, updated_at = CURRENT_TIMESTAMP
+                   SET status = ?, updated_at = CURRENT_TIMESTAMP,
+                       finished_at = ?,
+                       run_duration_ms = CASE
+                           WHEN started_at IS NULL THEN NULL
+                           ELSE MAX(0, (? - started_at) * 1000)
+                       END,
+                       failure_category = ?,
+                       last_event = CASE
+                           WHEN ? = 'COMPLETED' THEN 'completed'
+                           WHEN ? = 'CANCELLED' THEN 'cancelled'
+                           WHEN ? = 'TIMED_OUT' THEN 'timed_out'
+                           WHEN ? = 'FAILED' THEN 'failed'
+                           ELSE 'finished'
+                       END
                  WHERE run_id = ? AND owner_pid = ?
                 """,
-                (status, run_id, owner_pid),
+                (
+                    status, finished_at, finished_at, failure_category,
+                    status, status, status, status, run_id, owner_pid,
+                ),
             )
 
     def request_cancel(self, run_id: str) -> None:
+        requested_at = time.time()
         with self._connection() as connection:
             connection.execute(
                 """
@@ -152,6 +184,21 @@ class SQLiteStateStore:
                 ON CONFLICT(run_id) DO UPDATE SET cancel_requested=1
                 """,
                 (run_id,),
+            )
+            connection.execute(
+                """
+                UPDATE async_jobs
+                   SET status = CASE
+                           WHEN status IN ('QUEUED', 'RUNNING') THEN 'CANCEL_REQUESTED'
+                           ELSE status
+                       END,
+                       cancel_requested_at = COALESCE(cancel_requested_at, ?),
+                       last_event = CASE WHEN status IN ('QUEUED', 'RUNNING')
+                                         THEN 'cancel_requested' ELSE last_event END,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE run_id = ?
+                """,
+                (requested_at, run_id),
             )
 
     def is_cancel_requested(self, run_id: str) -> bool:
@@ -228,6 +275,48 @@ class SQLiteStateStore:
             "run_count": len(records),
             "status_counts": status_counts,
             "total_tokens": total_tokens,
+            "async_jobs": self.async_metrics(),
+        }
+
+    def async_metrics(self) -> Dict[str, Any]:
+        """Return aggregate async lifecycle metrics without request payloads."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT status, created_at, started_at, finished_at,
+                       queue_wait_ms, run_duration_ms, failure_category,
+                       recovery_count
+                FROM async_jobs
+                """
+            ).fetchall()
+        now = time.time()
+        status_counts: Dict[str, int] = {}
+        failure_categories: Dict[str, int] = {}
+        queue_waits = []
+        run_durations = []
+        recovered_jobs = 0
+        for row in rows:
+            status, created_at, started_at, finished_at, queue_wait, duration, category, recovery_count = row
+            status_counts[status] = status_counts.get(status, 0) + 1
+            if category:
+                failure_categories[category] = failure_categories.get(category, 0) + 1
+            if queue_wait is None and created_at is not None and started_at is None:
+                queue_wait = max(0, (now - created_at) * 1000)
+            if queue_wait is not None:
+                queue_waits.append(float(queue_wait))
+            if duration is None and started_at is not None and finished_at is None:
+                duration = max(0, (now - started_at) * 1000)
+            if duration is not None:
+                run_durations.append(float(duration))
+            if int(recovery_count or 0) > 0:
+                recovered_jobs += 1
+        return {
+            "count": len(rows),
+            "status_counts": status_counts,
+            "failure_categories": failure_categories,
+            "recovered_jobs": recovered_jobs,
+            "queue_wait_ms": _duration_summary(queue_waits),
+            "run_duration_ms": _duration_summary(run_durations),
         }
 
     def _initialize(self) -> None:
@@ -249,11 +338,40 @@ class SQLiteStateStore:
                     payload TEXT NOT NULL,
                     status TEXT NOT NULL,
                     owner_pid INTEGER,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    created_at REAL,
+                    started_at REAL,
+                    finished_at REAL,
+                    queue_wait_ms REAL,
+                    run_duration_ms REAL,
+                    failure_category TEXT,
+                    recovery_count INTEGER NOT NULL DEFAULT 0,
+                    cancel_requested_at REAL,
+                    last_event TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_async_jobs_status
                     ON async_jobs(status, owner_pid);
                 """
+            )
+            existing_columns = {
+                row[1] for row in connection.execute("PRAGMA table_info(async_jobs)").fetchall()
+            }
+            migrations = {
+                "created_at": "ALTER TABLE async_jobs ADD COLUMN created_at REAL",
+                "started_at": "ALTER TABLE async_jobs ADD COLUMN started_at REAL",
+                "finished_at": "ALTER TABLE async_jobs ADD COLUMN finished_at REAL",
+                "queue_wait_ms": "ALTER TABLE async_jobs ADD COLUMN queue_wait_ms REAL",
+                "run_duration_ms": "ALTER TABLE async_jobs ADD COLUMN run_duration_ms REAL",
+                "failure_category": "ALTER TABLE async_jobs ADD COLUMN failure_category TEXT",
+                "recovery_count": "ALTER TABLE async_jobs ADD COLUMN recovery_count INTEGER NOT NULL DEFAULT 0",
+                "cancel_requested_at": "ALTER TABLE async_jobs ADD COLUMN cancel_requested_at REAL",
+                "last_event": "ALTER TABLE async_jobs ADD COLUMN last_event TEXT",
+            }
+            for name, statement in migrations.items():
+                if name not in existing_columns:
+                    connection.execute(statement)
+            connection.execute(
+                "UPDATE async_jobs SET last_event = COALESCE(last_event, 'legacy')"
             )
 
     def _connect(self) -> sqlite3.Connection:
@@ -442,7 +560,24 @@ class SQLiteConversationStore:
 def _async_job_from_row(row) -> Dict[str, Any]:
     if row is None:
         return {}
-    key, run_id, payload, status, owner_pid, updated_at = row
+    values = list(row) + [None] * max(0, 15 - len(row))
+    (
+        key,
+        run_id,
+        payload,
+        status,
+        owner_pid,
+        updated_at,
+        created_at,
+        started_at,
+        finished_at,
+        queue_wait_ms,
+        run_duration_ms,
+        failure_category,
+        recovery_count,
+        cancel_requested_at,
+        last_event,
+    ) = values[:15]
     return {
         "idempotency_key": key,
         "run_id": run_id,
@@ -450,6 +585,27 @@ def _async_job_from_row(row) -> Dict[str, Any]:
         "status": status,
         "owner_pid": owner_pid,
         "updated_at": updated_at,
+        "created_at": created_at,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "queue_wait_ms": queue_wait_ms,
+        "run_duration_ms": run_duration_ms,
+        "failure_category": failure_category,
+        "recovery_count": int(recovery_count or 0),
+        "cancel_requested_at": cancel_requested_at,
+        "last_event": last_event,
+    }
+
+
+def _duration_summary(values: List[float]) -> Dict[str, Any]:
+    if not values:
+        return {"count": 0, "total_ms": 0.0, "average_ms": None, "max_ms": None}
+    total = sum(values)
+    return {
+        "count": len(values),
+        "total_ms": round(total, 3),
+        "average_ms": round(total / len(values), 3),
+        "max_ms": round(max(values), 3),
     }
 
 

@@ -5,19 +5,31 @@
       "kind": "vector",
       "format": "geojson",
       "path": "湖北省_县.geojson",
-      "role": "county administrative boundaries"
+      "role": "county administrative boundaries",
+      "source": "本地行政区划演示数据",
+      "version": "local-example",
+      "attribution": "请替换为实际数据提供方",
+      "license": "待核验"
     },
     "dem": {
       "kind": "raster",
       "format": "img",
       "glob": "extracted/ASTGTM_*/*.img",
-      "role": "ASTER DEM tiles"
+      "role": "ASTER DEM tiles",
+      "source": "ASTER GDEM",
+      "version": "v3",
+      "attribution": "NASA/METI",
+      "license": "ASTER GDEM data policy"
     },
     "land_use": {
       "kind": "raster",
       "format": "tif",
       "glob": "extracted/N*_2025LC030/**/*.tif",
-      "role": "2025 land use tiles"
+      "role": "2025 land use tiles",
+      "version": "2025",
+      "source": "本地土地利用演示栅格",
+      "attribution": "请替换为实际数据提供方",
+      "license": "待核验"
     }
   }
 }

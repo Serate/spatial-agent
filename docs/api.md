@@ -251,6 +251,17 @@ clients do not need to reconstruct the comparison semantics from page fields:
 `GET /runs/{run_id}` for `PLANNING`, `EXECUTING`, and terminal statuses. Active
 runs can be cooperatively cancelled with `POST /runs/{run_id}/cancel`.
 
+异步提交、运行结果和 `GET /runs/{run_id}` 会附带受限的
+`async_observability`。客户端也可以通过以下两个等价入口单独读取该对象：
+
+- `GET /runs/{run_id}/observability`
+- `GET /runs/{run_id}/async`
+
+观测对象包含 `status`、`phase`、提交/开始/完成时间、排队耗时、运行耗时、
+失败分类、取消请求、重启恢复次数和最后事件；不包含原始请求、任务 payload、
+模型响应或凭据。`GET /metrics` 的 `async_jobs` 汇总状态数量、失败分类和耗时
+统计，可用于部署监控但不能替代具体运行结果。
+
 ## Error Responses
 
 Invalid or empty request:

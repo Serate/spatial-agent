@@ -116,6 +116,7 @@ def run_async(payload: Dict[str, Any]):
             geojson_max_features=payload.get("geojson_max_features", 100),
             timeout_seconds=payload.get("timeout_seconds"),
             spatial_context=payload.get("spatial_context"),
+            idempotency_key=payload.get("idempotency_key"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -180,6 +181,15 @@ def metrics():
 def get_run(run_id: str, planner: str = "rule", backend: str = "memory"):
     try:
         return service.get_run(run_id=run_id, planner=planner, backend=backend)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/runs/{run_id}/observability")
+@app.get("/runs/{run_id}/async")
+def async_observability(run_id: str):
+    try:
+        return service.get_async_observability(run_id=run_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

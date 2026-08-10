@@ -237,6 +237,47 @@
     @media (max-width:900px) { .grid > .panel { animation-delay:0s; } .hero::before { animation:none; } }
     .result-panel { display:none; }
     .result-panel.is-visible { display:block; }
+    .evidence-result { grid-column:1/-1; }
+    .evidence-summary { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; color:#53656b; font-size:13px; }
+    .evidence-summary strong { color:#18252d; font-size:14px; }
+    .evidence-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-top:10px; }
+    .evidence-card { min-width:0; padding:11px 12px; border:1px solid #e2ebed; border-radius:8px; background:rgba(247,251,251,.72); color:#506067; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+    .evidence-card h4 { margin:0 0 6px; color:#31545b; font-size:12px; }
+    .evidence-card p { margin:3px 0; }
+    .evidence-status { display:inline-block; margin-left:5px; padding:2px 6px; border-radius:999px; font-size:11px; font-weight:700; background:#edf1f2; color:#63747b; }
+    .evidence-status.ready { background:#dcf4e9; color:#176a49; }
+    .evidence-status.degraded, .evidence-status.truncated_geometry { background:#fff2d8; color:#94651d; }
+    .evidence-status.unavailable, .evidence-status.no_geometry { background:#fde9e5; color:#a43e2e; }
+    .evidence-status.real_geometry, .evidence-status.boundary_geometry { background:#dff3ee; color:#176a49; }
+    .evidence-status.unknown { background:#eef1f2; color:#66777e; }
+    .evidence-card a { color:#087f8c; font-weight:700; }
+    .degradation-list { display:grid; gap:6px; margin-top:10px; }
+    .degradation-list:empty { display:none; }
+    .degradation-item { padding:9px 11px; border-left:3px solid #e09a5b; border-radius:0 7px 7px 0; background:#fff8ec; color:#6f501b; font-size:12px; line-height:1.55; }
+    .degradation-item.ok { border-left-color:#83c8b0; background:#f2faf8; color:#41675d; }
+    @media (max-width:900px) { .evidence-grid { grid-template-columns:1fr; } .evidence-summary { align-items:flex-start; flex-direction:column; } }
+    .evidence-result { grid-column:1/-1; }
+    .evidence-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+    .evidence-card { min-width:0; padding:13px 14px; border:1px solid #dce9e7; border-radius:9px; background:rgba(248,252,251,.78); }
+    .evidence-card h4 { margin:0 0 8px; font-size:12px; color:#28454b; }
+    .evidence-card p { margin:4px 0 0; color:#607277; font-size:12px; line-height:1.55; overflow-wrap:anywhere; }
+    .evidence-card strong { color:#183b40; }
+    .evidence-card.degraded { border-color:#e7c98d; background:#fffaf0; }
+    .evidence-card.unavailable { border-color:#e6b2b2; background:#fff6f6; }
+    .evidence-card.neutral { border-color:#d9e1e4; background:#f8fafb; }
+    .evidence-state { display:inline-flex; align-items:center; gap:5px; font-weight:700; color:#176a49; }
+    .evidence-state::before { content:""; width:7px; height:7px; border-radius:50%; background:#2e9d75; }
+    .evidence-card.degraded .evidence-state { color:#99651b; }
+    .evidence-card.degraded .evidence-state::before { background:#d18a22; }
+    .evidence-card.unavailable .evidence-state { color:#a04646; }
+    .evidence-card.unavailable .evidence-state::before { background:#c45a5a; }
+    .evidence-list { margin:6px 0 0; padding-left:17px; color:#607277; font-size:12px; line-height:1.55; }
+    .evidence-list li { overflow-wrap:anywhere; }
+    .evidence-reference { display:block; margin-top:5px; color:#50727a; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11px; overflow-wrap:anywhere; }
+    .degradation-list { margin:5px 0 0; padding-left:17px; color:#875b19; font-size:12px; line-height:1.5; }
+    .evidence-empty { color:#829196; font-size:12px; line-height:1.55; }
+    .evidence-result .evidence-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    @media (max-width:900px) { .evidence-result .evidence-grid { grid-template-columns:1fr; } }
     .result-empty { grid-column:1/-1; min-height:420px; display:flex; align-items:center; justify-content:center; padding:40px; color:#85969b; font-size:14px; text-align:center; border:1px dashed rgba(113,145,150,.35); border-radius:10px; background:rgba(247,251,251,.42); }
     .suggestions { grid-column:1/-1; border-top:1px solid rgba(219,228,231,.7); padding-top:6px; }
     .suggestions summary { color:#42616a; cursor:pointer; font-size:11px; font-weight:800; list-style:none; }
@@ -287,6 +328,7 @@
       .metric small { font-size:10px; }
       .distribution { height:76px; margin-top:11px; }
       .map, .map > svg, #leafletMap { min-height:230px; height:230px; }
+      .evidence-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .trace { max-height:170px; font-size:12px; }
       .steps li { padding:9px 0; }
       .history-list { max-height:190px; }
@@ -327,6 +369,7 @@
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><pre id="genericResult"></pre></section>
         <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
+        <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="geometryEvidenceDetail" class="evidence-card"></div><div id="provenanceEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="runtimeEvidence" class="evidence-card"></div><div id="dataEvidence" class="evidence-card"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
         <section class="panel result-panel raster-result"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
         <section class="panel result-panel health-result"><h3>数据健康检查</h3><div id="healthStats" class="muted"></div></section>
         <section class="panel result-panel overview-result"><h3>空间总览摘要</h3><div id="overviewStats" class="metric-grid"></div><div id="overviewEvidence" class="distribution-note"></div></section>
@@ -370,6 +413,13 @@
       $('resultEmpty').style.display = 'flex';
       setResultPanel('.result-panel', false);
       $('genericResult').textContent = '';
+      $('evidenceSummary').innerHTML = '';
+      $('geometryEvidenceDetail').innerHTML = '';
+      $('provenanceEvidence').innerHTML = '';
+      $('runtimeEvidence').innerHTML = '';
+      $('dataEvidence').innerHTML = '';
+      $('degradationEvidence').innerHTML = '';
+      lastRunData = null;
       $('healthStats').innerHTML = '';
       $('overviewStats').innerHTML = '';
       $('overviewEvidence').textContent = '';
@@ -386,25 +436,39 @@
       const hasRun = Boolean(data.run_id || data.status);
       $('resultEmpty').style.display = hasRun ? 'none' : 'flex';
       setResultPanel('.common-result', hasRun);
+      setResultPanel('.evidence-result', hasRun);
+      const hasToolResult = names => steps.some(step => names.includes(step.tool) && step.result && !step.result.error);
+      const hasRasterTool = ['get_raster_metadata', 'get_raster_statistics', 'get_zonal_raster_statistics'].some(tool => tools.has(tool));
+      const hasCompositeTool = ['get_zonal_slope_statistics', 'get_zonal_land_use_distribution'].some(tool => tools.has(tool));
+      const hasHealthTool = tools.has('get_dataset_health_report');
+      const hasRasterResult = hasToolResult(['get_raster_metadata', 'get_raster_statistics', 'get_zonal_raster_statistics']);
+      const hasCompositeResult = hasToolResult(['get_zonal_slope_statistics', 'get_zonal_land_use_distribution']);
+      const hasHealthResult = hasToolResult(['get_dataset_health_report']);
       if (registeredViews === undefined) {
-        if (tools.has('get_raster_metadata') || tools.has('get_raster_statistics') || tools.has('get_zonal_raster_statistics')) views.add('raster');
-        if (tools.has('get_zonal_slope_statistics') || tools.has('get_zonal_land_use_distribution')) views.add('composite');
+        if (hasRasterTool) views.add('raster');
+        if (hasCompositeTool) views.add('composite');
       }
       const hasBuildability = tools.has('get_zonal_buildability_analysis');
-      setResultPanel('.raster-result', hasRun && views.has('raster'));
-      setResultPanel('.health-result', hasRun && views.has('health'));
+      setResultPanel('.raster-result', hasRun && (hasRasterResult || (outputType !== 'spatial_overview_result' && hasRasterTool)));
+      setResultPanel('.health-result', hasRun && (hasHealthResult || (outputType !== 'spatial_overview_result' && hasHealthTool)));
       setResultPanel('.overview-result', hasRun && outputType === 'spatial_overview_result');
-      setResultPanel('.composite-result', hasRun && views.has('composite'));
+      setResultPanel('.composite-result', hasRun && (hasCompositeResult || (outputType !== 'spatial_overview_result' && hasCompositeTool)));
       setResultPanel('.buildability-result', hasRun && hasBuildability);
       setResultPanel('.compare-result', hasRun && hasBuildability);
-      setResultPanel('.map-result', hasRun && (outputType === 'geojson' || Boolean(envelope.geometry?.available) || Boolean(data.geojson_ref) || steps.some(step => step.result && step.result.bounds)));
-      const knownResult = views.size > 0 || hasBuildability || outputType === 'direct_answer' || outputType === 'admin_area_result' || outputType === 'geojson';
+      const geometry = envelope.geometry || {};
+      const hasDrawableGeometry = Boolean(envelope.geometry?.available) && Number(geometry.feature_count || 0) > 0;
+      const hasRasterBounds = hasRasterTool && steps.some(step => step.result && Array.isArray(step.result.bounds));
+      setResultPanel('.map-result', hasRun && (hasDrawableGeometry || hasRasterBounds));
+      const knownResult = views.size > 0 || hasBuildability || hasHealthTool || hasRasterTool || hasCompositeTool || outputType === 'direct_answer' || outputType === 'admin_area_result' || outputType === 'geojson';
       setResultPanel('.generic-result', hasRun && steps.length > 0 && !knownResult);
     }
     function genericResult(data) {
       const payload = data.result || { result_type: data.result_type || data.plan?.output?.type || 'unknown', steps: (data.steps || []).map(step => ({ tool: step.tool, status: step.status, error: step.error || null })) };
       $('genericResult').textContent = JSON.stringify(payload, null, 2);
     }
+    let lastRunData = null;
+    let runtimeEvidenceSnapshot = null;
+    let runtimeEvidencePromise = null;
     resetResultWorkspace();
     let activeRunId = null;
     let activeRunParams = {};
@@ -448,6 +512,55 @@
     async function loadGeoJSON(ref) { try { const name=ref.split(/[\\/]/).pop(); const response=await fetch('/artifacts/geojson/'+encodeURIComponent(name)); if(!response.ok) throw new Error('GeoJSON 下载失败（HTTP '+response.status+'）'); mapPreview(await response.json()); } catch(error) { destroyMap(); $('map').innerHTML='<div class="map-empty">空间预览加载失败：'+escapeHtml(error.message)+'</div>'; } }
     function llmHealthLabel(caps) { if(caps.live_llm) return ['真实大模型','可用',true]; if(caps.live_llm_configured) return ['真实大模型','网络受限',false]; return ['真实大模型','未配置',false]; }
     function geometryEvidence(data) { const geometry=(data.result||{}).geometry||{}; const labels={real_geometry:'真实空间要素可绘制',boundary_geometry:'行政区边界可绘制',no_geometry:'无可绘制几何（仅结果摘要）',truncated_geometry:'几何摘要已截断，不保证可完整绘制',unknown:'尚未形成空间几何证据'}; $('geometryEvidence').textContent='空间证据：'+(labels[geometry.status]||labels.unknown)+(geometry.feature_count?' · '+geometry.feature_count+' 个要素':'')+(geometry.reason?'；'+geometry.reason:''); }
+    const evidenceStatusNames={ready:'可用',degraded:'部分可用',unavailable:'不可用',passed:'通过',warning:'警告',real_geometry:'真实几何',boundary_geometry:'边界几何',no_geometry:'无几何',truncated_geometry:'已截断',unknown:'未知'};
+    const evidenceStatusClass=status=>({passed:'ready',warning:'degraded',real_geometry:'real_geometry',boundary_geometry:'boundary_geometry',no_geometry:'no_geometry',truncated_geometry:'truncated_geometry',ready:'ready',degraded:'degraded',unavailable:'unavailable',unknown:'unknown'}[String(status||'unknown')]||'unknown');
+    const evidenceStatusLabel=status=>evidenceStatusNames[String(status||'unknown')]||String(status||'未知');
+    const evidenceBadge=status=>'<span class="evidence-status '+evidenceStatusClass(status)+'">'+escapeHtml(evidenceStatusLabel(status))+'</span>';
+    const evidenceText=value=>Array.isArray(value)?value.join('、'):value===null||value===undefined||value===''?'-':typeof value==='object'?JSON.stringify(value):String(value);
+    function evidenceDataEntries(data, snapshot) { const envelope=data.result||{}; const explicit=data.data_evidence||envelope.data_evidence||snapshot.data_evidence; if(explicit&&typeof explicit==='object'&&!Array.isArray(explicit)) return Object.entries(explicit); const healthResult=((data.steps||[]).find(step=>step.tool==='get_dataset_health_report')||{}).result||{}; return (healthResult.datasets||[]).filter(item=>item&&item.dataset).map(item=>[item.dataset,item]); }
+    function runtimeDataEvidence(data, snapshot) { const envelope=data.result||{}; return data.runtime_evidence||envelope.runtime_evidence||snapshot||{}; }
+    function renderEvidence(data) {
+      const envelope=data.result||{};
+      const geometry=envelope.geometry||data.geometry_evidence||{};
+      const geometryStatus=geometry.status||'unknown';
+      const geometryRef=geometry.geojson_ref||data.geojson_ref;
+      const p=data.provenance||{};
+      const provenanceSteps=Array.isArray(p.steps)?p.steps:[];
+      const snapshot=runtimeDataEvidence(data,runtimeEvidenceSnapshot||{});
+      const healthResult=((data.steps||[]).find(step=>step.tool==='get_dataset_health_report')||{}).result||{};
+      const dataEntries=evidenceDataEntries(data,snapshot);
+      const runtimeStatus=healthResult.status||snapshot.health_status||snapshot.status||'unknown';
+      const runtime=snapshot.runtime||{};
+      const runtimeDetails=[];
+      if(runtime.local_gis_backend!==undefined) runtimeDetails.push('本地 GIS：'+(runtime.local_gis_backend?'可用':'不可用'));
+      if(runtime.geopandas!==undefined) runtimeDetails.push('GeoPandas：'+(runtime.geopandas?'可用':'不可用'));
+      if(runtime.rasterio!==undefined) runtimeDetails.push('Rasterio：'+(runtime.rasterio?'可用':'不可用'));
+      if(snapshot.updated_at) runtimeDetails.push('检查时间：'+snapshot.updated_at);
+      const sources=(geometry.sources||[]).join('、')||'未声明';
+      const crs=(geometry.crs||[]).join('、')||'未声明';
+      $('evidenceSummary').innerHTML='<strong>证据完整性：'+(runtimeStatus==='degraded'||runtimeStatus==='unavailable'||geometryStatus==='no_geometry'||geometryStatus==='truncated_geometry'?'存在限制':'已形成')+'</strong><span>几何、运行时、数据质量与运行血缘均以本次响应为准</span>';
+      $('geometryEvidenceDetail').className='evidence-card '+evidenceStatusClass(geometryStatus);
+      $('geometryEvidenceDetail').innerHTML='<h4>空间几何（result.geometry）</h4><p><span class="evidence-state">状态</span>'+evidenceBadge(geometryStatus)+'</p><p>可绘制：'+(geometry.available?'是':'否')+' · 要素：'+escapeHtml(geometry.feature_count||0)+' · 来源：'+escapeHtml(sources)+'</p><p>坐标系：'+escapeHtml(crs)+'</p><p>'+escapeHtml(geometry.reason||'未提供几何说明')+'</p>'+(geometryRef?'<a class="evidence-reference" href="/artifacts/geojson/'+encodeURIComponent(String(geometryRef).split(/[\\/]/).pop())+'" target="_blank">查看或下载 GeoJSON 证据</a>':'<span class="evidence-reference">没有 GeoJSON 导出引用</span>');
+      $('provenanceEvidence').className='evidence-card '+(provenanceSteps.length?'':'neutral');
+      $('provenanceEvidence').innerHTML='<h4>运行血缘（provenance）</h4><p>执行策略：'+escapeHtml(p.execution_policy||'未知')+' · 步骤：'+provenanceSteps.length+' · 引用：'+escapeHtml((envelope.references||[]).length)+'</p>'+(provenanceSteps.length?'<ul class="evidence-list">'+provenanceSteps.slice(0,8).map(step=>'<li>'+escapeHtml(step.id||step.tool||'未命名步骤')+'：'+escapeHtml(step.tool||'未知工具')+' · '+escapeHtml(evidenceStatusLabel(step.status||'unknown'))+(step.result_ref?' · '+escapeHtml(step.result_ref):'')+'</li>').join('')+'</ul>':'<div class="evidence-empty">本次没有执行工具，因此没有可追溯的工具血缘。</div>');
+      $('runtimeEvidence').className='evidence-card '+evidenceStatusClass(runtimeStatus);
+      $('runtimeEvidence').innerHTML='<h4>运行时证据（runtime evidence）</h4><p><span class="evidence-state">数据健康</span>'+evidenceBadge(runtimeStatus)+'</p>'+(runtimeDetails.length?'<ul class="evidence-list">'+runtimeDetails.map(item=>'<li>'+escapeHtml(item)+'</li>').join('')+'</ul>':'<div class="evidence-empty">本次响应没有内嵌运行时快照；页面会尝试读取当前服务的能力快照。</div>');
+      $('dataEvidence').className='evidence-card '+(dataEntries.length?'':'neutral');
+      $('dataEvidence').innerHTML='<h4>数据证据（data evidence）</h4>'+(dataEntries.length?'<ul class="evidence-list">'+dataEntries.slice(0,10).map(([name,item])=>{ const status=item?.status||item?.quality||'unknown'; const coverage=item?.coverage||item?.bounds; const crsText=Array.isArray(item?.crs)?item.crs.join('、'):item?.crs; return '<li><strong>'+escapeHtml(name)+'</strong> '+evidenceBadge(status)+(item?.file_count!==undefined?' · 文件 '+escapeHtml(item.file_count):item?.feature_count!==undefined?' · 要素 '+escapeHtml(item.feature_count):'')+(crsText?' · CRS '+escapeHtml(crsText):'')+(coverage?' · 已有覆盖范围证据':'')+'</li>'; }).join('')+'</ul>':'<div class="evidence-empty">本次结果没有数据质量快照，不能据此推断数据已完成核验。</div>');
+      const degradations=[]; const addReason=reason=>{if(reason&&!degradations.includes(reason)) degradations.push(reason);};
+      if(data.status==='NEEDS_CLARIFICATION') addReason('请求仍在澄清，尚未执行空间工具。');
+      if(data.status==='FAILED'||data.status==='REJECTED'||data.status==='CANCELLED'||data.status==='TIMED_OUT') addReason('运行状态为'+statusName(data.status)+'，结果不能视为完整分析。');
+      if(geometryStatus==='no_geometry') addReason('GeoJSON 引用存在但没有可绘制几何，只能查看结果摘要。');
+      if(geometryStatus==='truncated_geometry') addReason('空间导出达到大小上限，地图只代表截断后的摘要。');
+      if(geometryStatus==='unknown') addReason('本次运行尚未形成空间几何证据。');
+      if(runtimeStatus==='degraded') addReason('运行时数据健康为部分可用，部分能力或数据集受到限制。');
+      if(runtimeStatus==='unavailable') addReason('运行时数据健康为不可用，不能把演示结果当作真实数据结论。');
+      dataEntries.forEach(([name,item])=>{ if(['degraded','unavailable','warning'].includes(String(item?.status||item?.quality))) addReason(name+' 数据证据显示为'+evidenceStatusLabel(item.status||item.quality)+'。'); (item?.checks||[]).filter(check=>check&&check.status&&check.status!=='passed').forEach(check=>addReason(name+'：'+(check.message||'数据检查未通过'))); });
+      (healthResult.warnings||[]).forEach(warning=>addReason(warning));
+      (data.steps||[]).forEach(step=>{if(step.status&&step.status!=='COMPLETED') addReason('工具 '+(step.tool||step.id||'未知')+' 状态为'+statusName(step.status)+'。'); const result=step.result||{}; if(result.warning) addReason(result.warning); if(result.error) addReason(result.error);});
+      $('degradationEvidence').innerHTML=degradations.length?'<div class="degradation-item"><strong>降级与限制</strong></div>'+degradations.map(item=>'<div class="degradation-item">'+escapeHtml(item)+'</div>').join(''):'<div class="degradation-item ok">未发现明确降级状态；仍应以空间几何、数据质量和来源证据共同判断结果可信范围。</div>';
+    }
+    function loadRuntimeEvidence() { if(runtimeEvidenceSnapshot||runtimeEvidencePromise) return; runtimeEvidencePromise=nativeFetch('/capabilities/runtime?max_files=3').then(response=>{if(!response.ok) throw new Error('runtime evidence unavailable');return response.json();}).then(snapshot=>{runtimeEvidenceSnapshot=snapshot;if(lastRunData) renderEvidence(lastRunData);}).catch(()=>null).finally(()=>{runtimeEvidencePromise=null;}); }
     function renderCapabilities(data) { const catalog=data.capability_catalog||{}; const items=catalog.capabilities||[]; const ready=items.filter(item=>item.dataset_gate==='ready'&&item.environment_supported).length; const unknown=items.filter(item=>item.dataset_gate==='unknown').length; $('capabilityStatus').textContent='能力目录：'+ready+' / '+items.length+' 项已通过数据门控'+(unknown?'；'+unknown+' 项待健康检查':'')+'；真实几何以运行证据为准。'; }
     function renderHealth(data) { health=data; const caps=data.capabilities||{}; const rows=[['内存演示',caps.memory_backend?'可用':'不可用',caps.memory_backend],['本地 GIS',caps.local_gis_backend?'可用':'不可用',caps.local_gis_backend],llmHealthLabel(caps)]; $('env').innerHTML=rows.map(x=>'<div class="'+(x[2]?'':'bad')+'">'+x[0]+'：'+x[1]+'</div>').join(''); renderCapabilities(data); }
     async function loadHealth() { try { const response=await fetch('/health'); renderHealth(await response.json()); } catch(e) { $('env').innerHTML='<div class="bad">无法读取运行环境状态</div>'; $('capabilityStatus').textContent='能力目录暂不可用。'; } }
@@ -455,7 +568,7 @@
     async function loadHistory() { try { const [historyResponse,metricsResponse]=await Promise.all([fetch('/runs?limit=20'),fetch('/metrics')]); if(!historyResponse.ok) throw new Error('历史任务读取失败'); const data=await historyResponse.json(); const metricsData=metricsResponse.ok?await metricsResponse.json():null; if(metricsData) $('runtimeMetrics').textContent='累计运行 '+metricsData.run_count+' 次 · 总令牌 '+(metricsData.total_tokens||0); const runs=data.runs||[]; $('historyList').innerHTML=runs.length?runs.map(item=>'<div class="history-item"><button type="button" data-history-request="'+escapeHtml(item.request||'')+'">'+escapeHtml(item.request||'未命名任务')+'</button><small>'+escapeHtml(statusName(item.status||'未知'))+' · '+escapeHtml(item.run_id||'')+'</small></div>').join(''):'<div class="muted">暂无历史任务。</div>'; $('historyList').querySelectorAll('[data-history-request]').forEach(button=>button.addEventListener('click',()=>sendChat(button.getAttribute('data-history-request')))); } catch(error) { $('historyList').innerHTML='<div class="muted">历史任务暂不可用。</div>'; $('runtimeMetrics').textContent='运行指标暂不可用。'; } }
     function validateSelection(request) { const caps=health.capabilities||{}; const needsRaster=/DEM|dem|高程|坡度|土地利用|地类|建设适宜性|适宜建设|建设候选/.test(request); if($('backend').value==='local'&&!caps.local_gis_backend) throw new Error('当前服务不是 GIS 环境。本地 GIS 后端需要用 scripts/start_console.ps1 -Mode gis 启动。'); if(needsRaster&&$('backend').value==='memory') throw new Error('该任务需要真实栅格像元，请将空间后端切换为“本地 GIS”。当前“内存演示”只返回占位结果。'); if($('planner').value==='openai'&&!caps.live_llm_configured) throw new Error('当前服务没有可用的大模型配置。请先配置 config/openai.local.json 或环境变量。'); if($('planner').value==='openai'&&!caps.live_llm_network) throw new Error('当前服务进程不能访问大模型网络。请从允许出站网络的终端重新启动服务，或先切回规则规划器。'); }
     async function retryRun(runId) { setStatus('EXECUTING'); $('subtitle').textContent='正在从失败步骤恢复，已完成步骤不会重复执行。'; try { const response=await fetch('/runs/'+encodeURIComponent(runId)+'/retry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'重试失败'); renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } }
-    function renderRun(data) { updateResultPanels(data); genericResult(data); setStatus(data.status); const envelope=data.result||{}; $('title').textContent=envelope.title||data.plan?.goal||statusName(data.status); $('subtitle').textContent=envelope.summary||data.resolved_request||data.request; $('decisionMode').textContent=decisionMode(data); $('answer').textContent=envelope.summary||data.answer||'暂无最终答案。'; $('answer').className='answer'+(envelope.summary||data.answer?'':' muted'); $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; renderClarification(data); $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); rasterStats(data); healthStats(data); buildabilityStats(data); steps(data); provenance(data); trace(data); const links=[]; const rasterResult=(data.steps||[]).map(s=>s.result||{}).find(x=>x.statistics&&x.bounds); if(rasterResult) rasterPreview(rasterResult); if(data.status==='FAILED'&&data.run_id) links.push('<button class="retry-action" type="button" onclick="retryRun(\''+escapeHtml(data.run_id)+'\')">重试失败步骤</button>'); if(data.artifact_ref)links.push('<a href="/artifacts/runs/'+encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())+'" target="_blank">打开 JSON 运行记录</a>'); if(data.geojson_ref) { links.push('<a download href="/artifacts/geojson/'+encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())+'">下载 GeoJSON</a>'); loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); }
+    function renderRun(data) { lastRunData=data; updateResultPanels(data); genericResult(data); setStatus(data.status); const envelope=data.result||{}; $('title').textContent=envelope.title||data.plan?.goal||statusName(data.status); $('subtitle').textContent=envelope.summary||data.resolved_request||data.request; $('decisionMode').textContent=decisionMode(data); $('answer').textContent=envelope.summary||data.answer||'暂无最终答案。'; $('answer').className='answer'+(envelope.summary||data.answer?'':' muted'); $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; renderClarification(data); $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); rasterStats(data); healthStats(data); buildabilityStats(data); steps(data); provenance(data); trace(data); const links=[]; const rasterResult=(data.steps||[]).map(s=>s.result||{}).find(x=>x.statistics&&x.bounds); if(rasterResult) rasterPreview(rasterResult); if(data.status==='FAILED'&&data.run_id) links.push('<button class="retry-action" type="button" onclick="retryRun(\''+escapeHtml(data.run_id)+'\')">重试失败步骤</button>'); if(data.artifact_ref)links.push('<a href="/artifacts/runs/'+encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())+'" target="_blank">打开 JSON 运行记录</a>'); if(data.geojson_ref) { links.push('<a download href="/artifacts/geojson/'+encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())+'">下载 GeoJSON</a>'); loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); loadRuntimeEvidence(); }
     async function sendChat(text) { const request=(text ?? $('prompt').value).trim(); if(!request) return; const button=$('send'); button.disabled=true; $('prompt').value=''; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); appendMessage('user',request); setStatus('PLANNING'); $('title').textContent='正在分析'; $('subtitle').textContent='规划器和运行时正在处理请求。'; $('error').innerHTML=''; try { validateSelection(request); const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,spatial_context:selectedSpatialContext,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'请求失败'); renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } finally { button.disabled=false; $('prompt').focus(); } }
     const baseRenderRun = renderRun; renderRun = data => { baseRenderRun(data); compositeStats(data); overviewStats(data); };
     $('send').addEventListener('click',()=>sendChat());

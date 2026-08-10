@@ -4,6 +4,7 @@ import json
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Tuple
@@ -72,7 +73,9 @@ class AgentService:
                 else self._runtime(planner, backend).get_run(run_id)
             )
             if existing is not None:
-                return _format_result(existing, _normalize_spatial_context(spatial_context))
+                payload = _format_result(existing, _normalize_spatial_context(spatial_context))
+                self._attach_async_observability(payload, run_id)
+                return payload
         if self._conversation_store is not None:
             self._conversation_store.ensure_session(session_id)
         normalized_context = _normalize_spatial_context(spatial_context)
@@ -119,6 +122,9 @@ class AgentService:
             result.geojson_ref = payload["geojson_ref"]
         if self._state_store is not None:
             self._state_store.save(result)
+        self._attach_async_observability(payload, payload.get("run_id"))
+        # Mark the durable job terminal only after every final snapshot read
+        # is complete. Pollers use this marker as the worker quiescence boundary.
         self._finalize_async_job(payload)
         return payload
 
@@ -153,13 +159,13 @@ class AgentService:
             if self._state_store is not None:
                 existing_result = self._state_store.get(run_id)
                 if existing_result is not None and not self._state_store.get_async_job(run_id):
-                    return _async_response(run_id, existing_result.status.value, True)
+                    return self._async_submission_response(run_id, existing_result.status.value, True)
                 job = self._state_store.create_async_job(
                     idempotency_key, run_id, job_payload
                 )
                 created = bool(job.pop("created", False))
                 if not created:
-                    return _async_response(
+                    return self._async_submission_response(
                         job["run_id"], _async_status(self._state_store, job), True
                     )
                 self._state_store.save(
@@ -174,32 +180,47 @@ class AgentService:
                     # Another worker may claim the just-created job between the
                     # INSERT and this claim. The caller is still the first
                     # accepted submission, so preserve idempotent=false.
-                    return _async_response(run_id, "QUEUED", False)
+                    return self._async_submission_response(run_id, "QUEUED", False)
             else:
                 job = self._async_jobs.get(idempotency_key)
                 if job is not None:
-                    return _async_response(run_id=job["run_id"], status=job["status"], reused=True)
+                    return self._async_submission_response(
+                        run_id=job["run_id"], status=job["status"], reused=True
+                    )
+                submitted_at = time.time()
                 job = {
                     "run_id": run_id,
                     "payload": job_payload,
                     "status": "QUEUED",
+                    "created_at": submitted_at,
+                    "started_at": None,
+                    "finished_at": None,
+                    "queue_wait_ms": None,
+                    "run_duration_ms": None,
+                    "failure_category": None,
+                    "recovery_count": 0,
+                    "cancel_requested_at": None,
+                    "last_event": "submitted",
                 }
                 self._async_jobs[idempotency_key] = job
 
             self._async_executor.submit(self._run_async_job, job_payload)
-        return _async_response(run_id, "QUEUED", False)
+        return self._async_submission_response(run_id, "QUEUED", False)
 
     def _run_async_job(self, job_payload: Dict[str, Any]) -> None:
         run_id = job_payload["run_id"]
         kwargs = dict(job_payload)
         kwargs.pop("run_id", None)
         completed = False
+        failure_category = None
+        self._mark_async_started(run_id)
         try:
             payload = self.run(run_id=run_id, _force_run_id=True, **kwargs)
             status = str(payload.get("status") or "FAILED")
             completed = True
         except Exception as exc:
             status = "FAILED"
+            failure_category = _failure_category(status, str(exc), source="worker")
             if self._state_store is not None:
                 result = self._state_store.get(run_id)
                 if result is None:
@@ -215,21 +236,21 @@ class AgentService:
                     result.error = str(exc)
                 self._state_store.save(result)
         if self._state_store is not None and not completed:
-            self._state_store.finish_async_job(run_id, status, os.getpid())
-        else:
-            with self._async_lock:
-                for job in self._async_jobs.values():
-                    if job.get("run_id") == run_id:
-                        job["status"] = status
-                        break
+            self._state_store.finish_async_job(run_id, status, os.getpid(), failure_category)
+        elif self._state_store is None:
+            self._finish_memory_async_job(run_id, status, failure_category)
 
     def _finalize_async_job(self, payload: Dict[str, Any]) -> None:
+        run_id = payload.get("run_id")
+        status = str(payload.get("status") or "FAILED")
+        failure_category = _failure_category(status, payload.get("error"))
         if self._state_store is None:
+            self._finish_memory_async_job(run_id, status, failure_category)
             return
-        job = self._state_store.get_async_job(payload.get("run_id"))
+        job = self._state_store.get_async_job(run_id)
         if job and job.get("owner_pid") == os.getpid():
             self._state_store.finish_async_job(
-                payload["run_id"], str(payload.get("status") or "FAILED"), os.getpid()
+                run_id, status, os.getpid(), failure_category
             )
 
     def _recover_async_jobs(self) -> None:
@@ -248,6 +269,87 @@ class AgentService:
             ):
                 continue
             self._async_executor.submit(self._run_async_job, job["payload"])
+
+    def _mark_async_started(self, run_id: str) -> None:
+        """SQLite claims record the start atomically; memory mode needs the same data."""
+        if self._state_store is not None:
+            return
+        now = time.time()
+        with self._async_lock:
+            for job in self._async_jobs.values():
+                if job.get("run_id") != run_id:
+                    continue
+                job["status"] = "RUNNING"
+                job["started_at"] = job.get("started_at") or now
+                if job.get("queue_wait_ms") is None:
+                    job["queue_wait_ms"] = max(0, (now - job["created_at"]) * 1000)
+                job["last_event"] = "started"
+                return
+
+    def _finish_memory_async_job(
+        self, run_id: str, status: str, failure_category: str = None
+    ) -> None:
+        finished_at = time.time()
+        with self._async_lock:
+            for job in self._async_jobs.values():
+                if job.get("run_id") != run_id:
+                    continue
+                job["status"] = status
+                job["finished_at"] = finished_at
+                started_at = job.get("started_at")
+                if started_at is not None:
+                    job["run_duration_ms"] = max(0, (finished_at - started_at) * 1000)
+                job["failure_category"] = failure_category
+                job["last_event"] = _async_event(status)
+                return
+
+    def get_async_observability(self, run_id: str) -> Dict[str, Any]:
+        """Return a bounded lifecycle summary with no request or error text."""
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("run_id must be a non-empty string")
+        job = self._state_store.get_async_job(run_id) if self._state_store else None
+        if job is None:
+            with self._async_lock:
+                job = next(
+                    (item for item in self._async_jobs.values() if item.get("run_id") == run_id),
+                    None,
+                )
+        if job is None:
+            raise ValueError("async run not found: " + run_id)
+        result = self._state_store.get(run_id) if self._state_store else self._memory_run(run_id)
+        return _build_async_observability(job, result)
+
+    def _async_submission_response(self, run_id: str, status: str, reused: bool) -> Dict[str, Any]:
+        response = _async_response(run_id, status, reused)
+        try:
+            response["async_observability"] = self.get_async_observability(run_id)
+        except ValueError:
+            pass
+        return response
+
+    def _attach_async_observability(self, payload: Dict[str, Any], run_id: str) -> None:
+        if not run_id:
+            return
+        try:
+            payload["async_observability"] = self.get_async_observability(run_id)
+        except ValueError:
+            return
+
+    def _mark_memory_cancel_requested(self, run_id: str) -> None:
+        with self._async_lock:
+            for job in self._async_jobs.values():
+                if job.get("run_id") == run_id and job.get("status") in {"QUEUED", "RUNNING"}:
+                    job["status"] = "CANCEL_REQUESTED"
+                    job["cancel_requested_at"] = time.time()
+                    job["last_event"] = "cancel_requested"
+                    return
+
+    def _memory_run(self, run_id: str):
+        for runtime in self._runtimes.values():
+            result = runtime.get_run(run_id)
+            if result is not None:
+                return result
+        return None
 
     def retry(
         self,
@@ -303,6 +405,8 @@ class AgentService:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
         result = self._runtime(planner, backend).cancel(run_id)
+        if self._state_store is None:
+            self._mark_memory_cancel_requested(run_id)
         return {
             "run_id": run_id,
             "status": "CANCEL_REQUESTED",
@@ -329,7 +433,7 @@ class AgentService:
             if (
                 result.status in _TERMINAL_RUN_STATUSES
                 and job is not None
-                and job.get("status") in {"QUEUED", "RUNNING"}
+                and job.get("status") in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}
             ):
                 time.sleep(0.005)
                 continue
@@ -345,6 +449,7 @@ class AgentService:
         payload.pop("_geometry_evidence", None)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
+        self._attach_async_observability(payload, run_id)
         return payload
 
     def list_runs(self, limit: int = 20) -> Dict:
@@ -389,7 +494,39 @@ class AgentService:
     def metrics(self) -> Dict:
         if self._state_store is not None:
             return self._state_store.metrics()
-        return self._artifact_store.metrics()
+        metrics = self._artifact_store.metrics()
+        metrics["async_jobs"] = self._memory_async_metrics()
+        return metrics
+
+    def _memory_async_metrics(self) -> Dict[str, Any]:
+        with self._async_lock:
+            jobs = list(self._async_jobs.values())
+        status_counts: Dict[str, int] = {}
+        failure_categories: Dict[str, int] = {}
+        queue_waits = []
+        run_durations = []
+        recovered_jobs = 0
+        for job in jobs:
+            observation = _build_async_observability(job)
+            status = observation["status"]
+            status_counts[status] = status_counts.get(status, 0) + 1
+            category = observation.get("failure_category")
+            if category:
+                failure_categories[category] = failure_categories.get(category, 0) + 1
+            if observation.get("queue_wait_ms") is not None:
+                queue_waits.append(observation["queue_wait_ms"])
+            if observation.get("run_duration_ms") is not None:
+                run_durations.append(observation["run_duration_ms"])
+            if observation.get("recovered"):
+                recovered_jobs += 1
+        return {
+            "count": len(jobs),
+            "status_counts": status_counts,
+            "failure_categories": failure_categories,
+            "recovered_jobs": recovered_jobs,
+            "queue_wait_ms": _duration_summary(queue_waits),
+            "run_duration_ms": _duration_summary(run_durations),
+        }
 
     def compare_buildability(
         self,
@@ -498,10 +635,156 @@ def _async_fingerprint(payload: Dict[str, Any]) -> str:
 
 
 def _async_status(state_store: SQLiteStateStore, job: Dict[str, Any]) -> str:
+    if job.get("status") == "CANCEL_REQUESTED":
+        return "CANCEL_REQUESTED"
     result = state_store.get(job["run_id"])
     if result is not None:
         return result.status.value
     return "QUEUED" if job.get("status") in {"QUEUED", "RUNNING"} else str(job.get("status"))
+
+
+def _build_async_observability(job: Dict[str, Any], result: AgentRunResult = None) -> Dict[str, Any]:
+    """Build a request-free lifecycle contract for polling and metrics consumers."""
+    status = str(job.get("status") or "UNKNOWN")
+    result_status = result.status.value if result is not None else None
+    if result_status in {item.value for item in _TERMINAL_RUN_STATUSES}:
+        status = result_status
+    now = time.time()
+    created_at = _as_float(job.get("created_at"))
+    started_at = _as_float(job.get("started_at"))
+    finished_at = _as_float(job.get("finished_at"))
+    queue_wait_ms = _as_float(job.get("queue_wait_ms"))
+    if queue_wait_ms is None and created_at is not None:
+        queue_end = started_at or (finished_at if finished_at is not None else now)
+        queue_wait_ms = max(0, (queue_end - created_at) * 1000)
+    run_duration_ms = _as_float(job.get("run_duration_ms"))
+    if run_duration_ms is None and started_at is not None:
+        run_end = finished_at if finished_at is not None else now
+        run_duration_ms = max(0, (run_end - started_at) * 1000)
+    total_duration_ms = None
+    if created_at is not None:
+        total_end = finished_at if finished_at is not None else now
+        total_duration_ms = max(0, (total_end - created_at) * 1000)
+    failure_category = job.get("failure_category")
+    if not failure_category and status != "COMPLETED":
+        failure_category = _failure_category(
+            status, result.error if result is not None else None
+        )
+    recovery_count = int(job.get("recovery_count") or 0)
+    phase = {
+        "QUEUED": "queued",
+        "RUNNING": "running",
+        "CANCEL_REQUESTED": "cancelling",
+        "COMPLETED": "completed",
+        "FAILED": "failed",
+        "CANCELLED": "cancelled",
+        "TIMED_OUT": "timed_out",
+        "REJECTED": "rejected",
+        "NEEDS_CLARIFICATION": "clarification",
+    }.get(status, "unknown")
+    return {
+        "schema_version": 1,
+        "run_id": job.get("run_id"),
+        "status": status,
+        "phase": phase,
+        "failure_category": failure_category,
+        "request_fingerprint": _async_fingerprint(job.get("payload") or {}),
+        "last_event": job.get("last_event"),
+        "queue_wait_ms": _round_ms(queue_wait_ms),
+        "run_duration_ms": _round_ms(run_duration_ms),
+        "total_duration_ms": _round_ms(total_duration_ms),
+        "timestamps": {
+            "submitted_at": _epoch_to_iso(created_at),
+            "started_at": _epoch_to_iso(started_at),
+            "finished_at": _epoch_to_iso(finished_at),
+            "cancel_requested_at": _epoch_to_iso(_as_float(job.get("cancel_requested_at"))),
+        },
+        "recovered": recovery_count > 0,
+        "recovery_count": recovery_count,
+        "cancel_requested": _as_float(job.get("cancel_requested_at")) is not None,
+    }
+
+
+def _failure_category(status: str, error: str = None, source: str = None) -> str:
+    """Classify failures using bounded labels; never return the source error."""
+    status = str(status or "").upper()
+    if status == "COMPLETED":
+        return None
+    if status in {"CANCELLED", "CANCEL_REQUESTED"}:
+        return "cancelled"
+    if status == "TIMED_OUT":
+        return "timeout"
+    if status == "NEEDS_CLARIFICATION":
+        return "clarification"
+    if status == "REJECTED":
+        return "rejected"
+    if source == "worker":
+        return "worker_exception"
+    text = str(error or "").lower()
+    if any(token in text for token in ("timeout", "timed out", "超时")):
+        return "timeout"
+    if any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
+        return "provider"
+    if any(token in text for token in ("planner", "plan", "schema", "规划")):
+        return "planning"
+    if any(token in text for token in ("tool", "backend", "dataset", "raster", "栅格", "数据")):
+        return "tool"
+    if status == "FAILED":
+        return "execution"
+    return None
+
+
+def _async_event(status: str) -> str:
+    return {
+        "QUEUED": "submitted",
+        "RUNNING": "started",
+        "CANCEL_REQUESTED": "cancel_requested",
+        "COMPLETED": "completed",
+        "FAILED": "failed",
+        "CANCELLED": "cancelled",
+        "TIMED_OUT": "timed_out",
+    }.get(str(status), "finished")
+
+
+def _as_float(value):
+    try:
+        return None if value is None else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _round_ms(value):
+    return None if value is None else round(max(0, float(value)), 3)
+
+
+def _epoch_to_iso(value):
+    value = _as_float(value)
+    if value is None:
+        return None
+    return datetime.fromtimestamp(value, timezone.utc).isoformat()
+
+
+def _duration_summary(values):
+    if not values:
+        return {"count": 0, "total_ms": 0.0, "average_ms": None, "max_ms": None}
+    total = sum(values)
+    return {
+        "count": len(values),
+        "total_ms": round(total, 3),
+        "average_ms": round(total / len(values), 3),
+        "max_ms": round(max(values), 3),
+    }
+
+
+def _empty_async_metrics():
+    return {
+        "count": 0,
+        "status_counts": {},
+        "failure_categories": {},
+        "recovered_jobs": 0,
+        "queue_wait_ms": _duration_summary([]),
+        "run_duration_ms": _duration_summary([]),
+    }
 
 
 def _async_response(run_id: str, status: str, reused: bool) -> Dict[str, Any]:

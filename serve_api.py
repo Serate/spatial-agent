@@ -38,6 +38,14 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path.startswith("/runs/"):
             parts = parsed.path.strip("/").split("/")
+            if len(parts) == 3 and parts[1] and parts[2] in ("observability", "async"):
+                try:
+                    result = self.service.get_async_observability(parts[1])
+                except ValueError as exc:
+                    self._write_json(404, {"error": str(exc)})
+                else:
+                    self._write_json(200, result)
+                return
             if len(parts) == 2 and parts[1]:
                 query = parse_qs(parsed.query)
                 try:

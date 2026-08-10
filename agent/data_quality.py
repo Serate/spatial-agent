@@ -57,6 +57,10 @@ def dataset_health_report(
         item["dataset"]: list(item.get("usable_for", [])) for item in reports
     }
     dataset_statuses = {item["dataset"]: item["status"] for item in reports}
+    provenance = {
+        item["dataset"]: dict(item.get("provenance") or {})
+        for item in reports
+    }
     alignment = relationships.get("dem_land_use") or {}
     if alignment.get("status") == "ready":
         for name in ("dem", "land_use"):
@@ -76,6 +80,7 @@ def dataset_health_report(
         "optional_datasets": list(OPTIONAL_DATASETS),
         "updated_at": updated_at,
         "datasets": reports,
+        "provenance": provenance,
         "relationships": relationships,
         "capabilities": capabilities,
         "capability_catalog": capability_catalog(
@@ -126,7 +131,7 @@ def _health_for_entry(
     max_files: int,
 ) -> Dict[str, Any]:
     if entry is None or not entry.files:
-        return {
+        return _attach_provenance({
             "dataset": name,
             "status": "unavailable",
             "kind": entry.kind if entry else None,
@@ -134,19 +139,27 @@ def _health_for_entry(
             "checks": [{"name": "files", "status": "failed", "message": "没有匹配到配置文件"}],
             "usable_for": [],
             "metrics": {"checked_files": 0},
-        }
+        }, entry)
     if entry.kind == "raster":
-        return _health_raster(entry, max_files)
+        return _attach_provenance(_health_raster(entry, max_files), entry)
     if entry.kind == "vector":
-        return _health_vector(entry, max_files)
-    return {
+        return _attach_provenance(_health_vector(entry, max_files), entry)
+    return _attach_provenance({
         "dataset": name,
         "status": "degraded",
         "kind": entry.kind,
         "file_count": len(entry.files),
         "checks": [{"name": "kind", "status": "failed", "message": "不支持的数据类型"}],
         "metrics": {"checked_files": 0},
-    }
+    }, entry)
+
+
+def _attach_provenance(
+    report: Dict[str, Any], entry: Optional[DatasetEntry]
+) -> Dict[str, Any]:
+    """Expose only catalog provenance, never resolved paths or raw config."""
+    report["provenance"] = dict(entry.provenance) if entry is not None else {}
+    return report
 
 
 def _health_raster(entry: DatasetEntry, max_files: int) -> Dict[str, Any]:

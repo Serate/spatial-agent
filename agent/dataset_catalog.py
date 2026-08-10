@@ -1,8 +1,32 @@
 import glob
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
+
+
+PROVENANCE_FIELDS = ("source", "version", "attribution", "license")
+_MAX_PROVENANCE_VALUE_LENGTH = 256
+
+
+def controlled_provenance(metadata: Optional[Mapping[str, Any]]) -> Dict[str, str]:
+    """Return only bounded, explicitly supported dataset provenance fields."""
+    if not isinstance(metadata, Mapping):
+        return {}
+    result: Dict[str, str] = {}
+    for field in PROVENANCE_FIELDS:
+        value = metadata.get(field)
+        if value is None or isinstance(value, (dict, list, tuple, set)):
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+        text = re.sub(r"[\x00-\x1f\x7f]+", " ", text)
+        text = " ".join(text.split())
+        if text:
+            result[field] = text[:_MAX_PROVENANCE_VALUE_LENGTH]
+    return result
 
 
 @dataclass(frozen=True)
@@ -12,9 +36,24 @@ class DatasetEntry:
     format: str
     role: str
     files: List[str]
+    source: Optional[str] = None
+    version: Optional[str] = None
+    attribution: Optional[str] = None
+    license: Optional[str] = None
+
+    @property
+    def provenance(self) -> Dict[str, str]:
+        return controlled_provenance(
+            {
+                "source": self.source,
+                "version": self.version,
+                "attribution": self.attribution,
+                "license": self.license,
+            }
+        )
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "name": self.name,
             "kind": self.kind,
             "format": self.format,
@@ -22,6 +61,8 @@ class DatasetEntry:
             "files": list(self.files),
             "file_count": len(self.files),
         }
+        result.update(self.provenance)
+        return result
 
 
 class DatasetCatalog:
@@ -44,6 +85,10 @@ class DatasetCatalog:
                 format=definition["format"],
                 role=definition.get("role", ""),
                 files=files,
+                source=definition.get("source"),
+                version=definition.get("version"),
+                attribution=definition.get("attribution"),
+                license=definition.get("license"),
             )
         return cls(root, entries)
 

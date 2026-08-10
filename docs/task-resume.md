@@ -4,8 +4,8 @@ This document is a handoff note for continuing development of the Spatial Agent 
 
 ## 当前全局执行规则
 
-- 当前 goal 的最大并发度为 4。
-- 任一阶段最多启动 4 个并行子任务；公共契约由主线统一集成。
+- 当前 goal 的最大并发度为 3。
+- 任一阶段最多启动 3 个并行子任务；公共契约由主线统一集成。
 
 ## Project
 
@@ -45,7 +45,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 ## Development Loop
 
 - Overall loop: global planning -> parallelizable implementation -> integrated testing -> global replanning.
-- A large milestone may be split into independent sub-tasks, with a maximum concurrency of five.
+- A large milestone may be split into independent sub-tasks, with a maximum concurrency of three.
 - Each completed milestone must update `docs/milestones.md`, refresh this handoff document, and create one GitHub commit/version.
 - Parallel work must converge through the shared tool schema, runtime contract, focused tests, full regression, and GIS/browser verification.
 
@@ -434,7 +434,7 @@ Prefer small, explainable increments over large rewrites.
 - 将能力目录中的环境要求接入评测 optional gating，区分 planner/tool 成功和真实 GIS 能力完成。
 - 增加生产 SQLite 会话、运行、重试、取消和结果引用的跨进程契约矩阵。
 - 细化真实 artifact 几何、边界几何、无几何演示和截断不可绘制等证据状态，并接入 Console 与全局报告。
-- 大阶段按依赖拆分后最多并行 4 路，集成后运行全量、GIS、浏览器和部署验收，再基于全局结果规划下一阶段。
+- 大阶段按依赖拆分后最多并行 3 路，集成后运行全量、GIS、浏览器和部署验收，再基于全局结果规划下一阶段。
 
 - M59.2 验证：内存导出为 `no_geometry`，真实 GIS 建设筛选为 `real_geometry`、101 个要素；离线 207 个测试、GIS 197 个测试、smoke、全局评测、生产 acceptance 和浏览器烟测通过。
 
@@ -443,7 +443,7 @@ Prefer small, explainable increments over large rewrites.
 - 将能力目录扩展为带数据覆盖、CRS、质量等级和更新时间的运行时能力快照。
 - 完成生产 SQLite 的重试、取消、会话清空和结果引用跨进程矩阵，覆盖异常重启和重复请求。
 - 将真实几何证据状态接入评测报告、答案组合和地图渲染，明确截断与不可绘制原因。
-- 按依赖最多拆分 4 路并行任务，集成后重新验收真实模型、GIS 数据和部署链路。
+- 按依赖最多拆分 3 路并行任务，集成后重新验收真实模型、GIS 数据和部署链路。
 
 ### M60 当前进展与验证边界
 
@@ -455,7 +455,7 @@ Prefer small, explainable increments over large rewrites.
 
 ### M60 并行执行规则（历史）
 
-- M60 当时最大并行度为 5；当前全局规则已调整为最大并发度 4。只有依赖独立、修改边界清晰且可单独验收的子任务才并行。
+- M60 当时最大并行度为 5；当前全局规则已调整为最大并发度 3。只有依赖独立、修改边界清晰且可单独验收的子任务才并行。
 - 推荐五路：运行时能力快照、SQLite 异步可靠性、几何证据、评测/答案契约、部署与 Console 验收。
 - 所有并行任务必须遵守统一工具 schema、runtime 状态、result envelope、能力目录和测试夹具；公共契约变更由集成阶段统一合并。
 - 每路先做聚焦测试，集成后统一执行离线、GIS、HTTP/浏览器、Docker 和可选真实模型验证；阶段版本只在联合验收通过后创建。
@@ -523,14 +523,22 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - Chrome CDP 总览面板、行政区/道路/水体颜色分层、真实 GIS 建设适宜性地图（59 条路径、洪山区选区）、会话恢复和清空工作区 smoke 均通过。
 - M66 已具备阶段版本收口证据；后续进入 M67 全局规划。
 
-## M67 下一阶段规划
+## M67 当前实现与验证
 
-- 产品能力：把受控总览扩展为可配置、多工具空间工作流，补强开放式问题的澄清、约束表达和结果证据选择。
-- 数据质量：提供可复现的武汉道路/水体生产数据卷，增加数据版本、来源归因和跨栅格 CRS/覆盖质量证据。
-- 真实模型：建立脱敏回放、结构化计划修复、工具选择准确率、token/延迟和 provider 暂态分类评测。
-- 部署可靠性：深化多 worker SQLite 观测、超时/取消/重试、数据卷启动诊断和能力级 readiness。
-- 用户体验：继续简化 Console，按 agent 结果动态组织答案、轨迹、证据和地图，并清楚展示降级原因。
+- 数据目录和 runtime 能力快照已暴露受控 provenance；旧数据配置和无 provenance 配置保持兼容。
+- 脱敏模型回放评测已接入全局评测，覆盖 8 步空间总览工具覆盖、依赖 DAG、结果类型、中文答案、token/延迟和 provider 错误分类。
+- 异步作业观测已接入服务与 SQLite，包括生命周期、队列/执行耗时、失败分类、取消和重启接管；新增两个单独观测入口。
+- Console 结果证据面板按响应动态显示几何、运行时数据、provenance 和降级状态；总览地图支持行政区、道路和水体三色分层。
+- M67 专项 22 项、离线全量 293 项（35 项跳过）、GIS 全量 293 项（9 项跳过）、smoke、全局评测、Docker 和串行 Chrome CDP 验收通过。
+
+## M68 全局规划
+
+1. 产品能力：配置化空间工作流、结构化约束和证据选择。
+2. 数据质量：可复现道路/水体数据卷、provenance 校验和跨栅格覆盖/对齐报告。
+3. 真实模型：开放式空间问答、澄清、失败修复的脱敏回放与可选 live 基线。
+4. 部署可靠性：SQLite 升级、多 worker 观测一致性、取消/超时边界和滚动重启恢复。
+5. 用户体验：统一动态答案、轨迹、证据和地图工作区，减少空面板并解释降级状态。
 
 ## 持续目标扩展
 
-每个大阶段必须从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度做全局规划；可独立的工作拆成最多 4 路并行，公共 schema、runtime、result envelope 和能力目录由主线统一集成。阶段完成后必须有专项测试、全量回归、真实 GIS/浏览器/部署证据、中文问题记录、里程碑更新和 GitHub 版本，再依据全局结果规划下一阶段。
+每个大阶段必须从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度做全局规划；可独立的工作拆成最多 3 路并行，公共 schema、runtime、result envelope 和能力目录由主线统一集成。阶段完成后必须有专项测试、全量回归、真实 GIS/浏览器/部署证据、中文问题记录、里程碑更新和 GitHub 版本，再依据全局结果规划下一阶段。

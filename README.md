@@ -12,6 +12,7 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 - 数据质量预检：检查可读性、CRS、覆盖关系和几何质量，并在分析结果中保留证据。
 - 证据驱动执行：健康报告声明数据可支持的操作；明确不可用时在下游工具前停止并解释原因。
 - 可观测结果：中文答案、TaskPlan、执行轨迹、步骤结果、provenance、GeoJSON summary 和 JSON artifact。
+- 异步运行观测：提供生命周期、排队/执行耗时、失败分类、取消和重启恢复状态，并聚合到 `/metrics`。
 - Web Console：中文对话界面、会话切换、异步运行、结果面板、栅格覆盖范围和 GeoJSON 空间预览。
 - 生产基线：Docker、Docker Compose、SQLite 持久化、健康检查和只读 GIS 数据挂载。
 
@@ -111,6 +112,10 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 - `POST /runs`
 - `POST /runs/async`
 - `GET /runs/{run_id}`
+- `GET /runs/{run_id}/observability`
+- `GET /runs/{run_id}/async`
+- `GET /capabilities/runtime`
+- `GET /metrics`
 - `POST /runs/{run_id}/cancel`
 - `POST /runs/{run_id}/retry`
 - `GET /sessions`
