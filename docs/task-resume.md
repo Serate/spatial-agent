@@ -654,3 +654,16 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 增加 nodata、边界范围、重采样策略、派生输出 manifest 与源绑定的联动校验和发布报告。
 - 把统一证据摘要接入总览/比较/约束地图工作区，补真实配置浏览器 smoke；执行真实能力快照驱动的模型澄清、计划修复和 live GIS 基线。
 - Docker 恢复后完成当前版本数据卷、readiness、重启恢复、多 worker 与 FastAPI production acceptance。
+
+### M74 验收结果
+
+- 分析就绪报告新增并校验 `derivation`：DEM `bilinear`、土地利用 `nearest`，nodata `-9999/0`，边界源 CRS `EPSG:4490`、13 个行政区；非法土地利用策略会进入 `not_ready`。
+- M74 专项 2 项、离线全量 381 项（42 项跳过）、GIS 全量 381 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉报告和 readiness 已返回派生策略、边界证据、`analysis-ready-v1`、`aligned`；源绑定 verifier 14 个文件、0 mismatch。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用旧容器或离线结果替代。
+
+### M75 全局下一步
+
+- 增加派生输出 manifest 一致性报告，区分 metadata、源绑定 SHA-256 和输出文件 SHA-256 证据。
+- 将完整性摘要接入地图/轨迹/答案和真实配置浏览器 smoke；执行真实能力快照驱动的模型澄清、计划修复和 live GIS 基线。
+- Docker 恢复后验收当前版本数据卷、readiness、重启恢复、多 worker 和 FastAPI production 接口。

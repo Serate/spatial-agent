@@ -215,6 +215,9 @@ def _analysis_ready_health(
             reported = Path(str(outputs.get(name))).name
             if configured and configured != reported:
                 errors.append(f"{name} 派生输出与配置文件不匹配")
+    derivation = payload.get("derivation")
+    if isinstance(derivation, dict):
+        errors.extend(_validate_analysis_derivation(derivation))
     checks.append({
         "name": "schema",
         "status": "passed" if not errors else "failed",
@@ -244,6 +247,8 @@ def _analysis_ready_health(
             "source_pixel_read": bool((payload.get("evidence") or {}).get("pixels_read", False)),
         },
     }
+    if isinstance(derivation, dict):
+        result["derivation"] = _safe_analysis_derivation(derivation)
     source_binding = payload.get("source_binding")
     if isinstance(source_binding, dict):
         result["source_binding"] = _safe_source_binding(source_binding)
@@ -333,6 +338,61 @@ def _safe_source_binding(binding: Mapping[str, Any]) -> Dict[str, Any]:
     if isinstance(missing, list) and missing:
         result["missing_datasets"] = [str(item)[:64] for item in missing[:20]]
         result["status"] = "degraded"
+    return result
+
+
+def _validate_analysis_derivation(derivation: Mapping[str, Any]) -> List[str]:
+    errors: List[str] = []
+    resampling = derivation.get("resampling")
+    if not isinstance(resampling, Mapping):
+        errors.append("缺少派生重采样策略")
+    else:
+        if resampling.get("dem") != "bilinear":
+            errors.append("DEM 派生必须使用 bilinear 重采样")
+        if resampling.get("land_use") != "nearest":
+            errors.append("土地利用派生必须使用 nearest 重采样")
+    nodata = derivation.get("nodata")
+    if not isinstance(nodata, Mapping):
+        errors.append("缺少派生 nodata 策略")
+    else:
+        for name in ("dem", "land_use"):
+            value = nodata.get(name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                errors.append(f"{name} nodata 值无效")
+    boundary = derivation.get("boundary")
+    if not isinstance(boundary, Mapping):
+        errors.append("缺少派生边界范围证据")
+    else:
+        if not isinstance(boundary.get("source_crs"), str) or not boundary["source_crs"].strip():
+            errors.append("派生边界 source_crs 无效")
+        count = boundary.get("district_count")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+            errors.append("派生边界 district_count 无效")
+    return errors
+
+
+def _safe_analysis_derivation(derivation: Mapping[str, Any]) -> Dict[str, Any]:
+    resampling = derivation.get("resampling") or {}
+    nodata = derivation.get("nodata") or {}
+    boundary = derivation.get("boundary") or {}
+    result: Dict[str, Any] = {
+        "resampling": {
+            "dem": str(resampling.get("dem", ""))[:24],
+            "land_use": str(resampling.get("land_use", ""))[:24],
+        },
+        "nodata": {},
+        "boundary": {
+            "scope": str(boundary.get("scope", ""))[:160],
+            "source_crs": str(boundary.get("source_crs", ""))[:80],
+        },
+    }
+    for name in ("dem", "land_use"):
+        value = nodata.get(name)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
+            result["nodata"][name] = float(value)
+    count = boundary.get("district_count")
+    if isinstance(count, int) and not isinstance(count, bool) and count > 0:
+        result["boundary"]["district_count"] = count
     return result
 
 

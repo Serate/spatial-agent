@@ -406,3 +406,14 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M74 下一步
 
 进入 M74，优先完成 nodata/边界/重采样/派生输出一致性报告，再做真实模型基线、浏览器 smoke 和 Docker 生产验收。
+
+## M74 当前完成状态
+
+- 分析就绪报告与健康检查已支持 `derivation` 策略：DEM `bilinear`、土地利用 `nearest`、nodata、源 CRS、武汉 13 区边界和行政区数量；非法新报告会阻止必需 readiness。
+- M74 专项 2 项通过；离线全量 381 项通过、42 项跳过；GIS 全量 381 项通过、9 项跳过；Smoke、严格全局评测 8/8 和脱敏模型回放 2/2 通过。
+- 真实武汉配置返回派生策略和边界证据且 `data_readiness=ready`；源绑定 verifier 14/14、0 mismatch。
+- M74 已具备提交推送条件；Docker Linux engine、生产 acceptance、live provider 和真实配置浏览器 smoke 仍未验证，`.idea/`、本机配置和真实数据不提交。
+
+## M75 下一步
+
+进入 M75，优先校验派生输出 manifest 与三类完整性证据的关系，再进行动态地图/结果集成、真实模型基线、浏览器 smoke 和 Docker 生产验收。

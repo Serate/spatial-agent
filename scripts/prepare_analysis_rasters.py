@@ -138,6 +138,15 @@ def build_analysis_rasters(
             "land_use": {"file_count": len(land_use_entry.files), "provenance": land_use_entry.provenance},
         },
         "source_binding": build_source_binding(catalog),
+        "derivation": {
+            "resampling": {"dem": "bilinear", "land_use": "nearest"},
+            "nodata": {"dem": -9999.0, "land_use": 0},
+            "boundary": {
+                "scope": "Wuhan 13 district union bounding grid",
+                "source_crs": source_crs,
+                "district_count": len(selected),
+            },
+        },
         "outputs": {
             "dem": dem_path.name,
             "land_use": land_use_path.name,
