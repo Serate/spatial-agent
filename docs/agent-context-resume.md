@@ -417,3 +417,15 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M75 下一步
 
 进入 M75，优先校验派生输出 manifest 与三类完整性证据的关系，再进行动态地图/结果集成、真实模型基线、浏览器 smoke 和 Docker 生产验收。
+
+## M75 当前完成状态
+
+- 健康报告、能力快照、比较结果和 Console 已增加 `analysis_ready.output_manifest`，比对报告输出与 manifest basename，并显示 metadata/完整 SHA-256 证据层级。
+- M75 专项 4 项通过；离线全量 385 项通过、42 项跳过；GIS 全量 385 项通过、9 项跳过；Smoke、严格全局评测 8/8 和脱敏模型回放 2/2 通过。
+- 真实武汉派生 DEM/土地利用输出与 manifest 匹配，`output_manifest.status=ready`、`data_readiness=ready`，但运行时完整哈希仍为 false，源/输出完整校验通过显式 verifier 获取。
+- 修复 manifest 健康摘要丢失文件名导致输出一致性误报 unavailable 的问题；只保留 basename，避免泄露绝对路径。
+- M75 已具备提交推送条件；Docker Linux engine、生产 acceptance、live provider 和真实配置浏览器 smoke 仍未验证，`.idea/`、本机配置和真实数据不提交。
+
+## M76 下一步
+
+进入 M76，优先完成动态地图/结果证据浏览器 smoke，再推进三层发布校验、真实模型基线和 Docker 生产 acceptance。

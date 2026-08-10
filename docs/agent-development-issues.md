@@ -2241,3 +2241,17 @@ Windows conda 验收命令应优先输出 ASCII 安全摘要，并把完整结�
 ### 处理与预防
 
 遇到该失败时，先单独运行目标测试、单独运行 `test_m11` 和完整 GIS 套件复跑，并记录 `artifact_ref`、`geojson_ref`、SQLite job status 与 worker 是否已完成；不能只根据一次嵌套 smoke 失败提交业务修复。涉及 SQLite 或 artifact 的全量验收继续保持串行，嵌套 smoke 不与外层全量测试并行运行。
+
+## Manifest 健康摘要缺少文件名导致派生输出一致性误报
+
+### 现象
+
+M75 将分析就绪报告的 DEM/土地利用输出与 manifest 做一致性比对时，真实配置的 manifest 本身为 `ready`，但 `analysis_ready.output_manifest` 被报告为 `unavailable`，原因是健康检查只返回 manifest 状态摘要，没有保留 manifest 中的文件条目。
+
+### 根因
+
+manifest 完整校验函数返回的是面向健康探针的摘要；输出一致性检查需要的只是受控文件 basename，却误把缺少原始 `datasets` 映射当成 manifest 内容缺失。两种响应形状的边界没有在契约中明确。
+
+### 修复与预防
+
+健康摘要新增 `dataset_file_names`，只保留每个数据集最多 10 个 basename，不暴露绝对路径、文件哈希或机器目录；输出一致性检查兼容该摘要并继续区分 `metadata` 与 `sha256`。测试同时覆盖完整 manifest 映射、basename 摘要和文件失配，真实武汉配置验证输出匹配 `ready`。

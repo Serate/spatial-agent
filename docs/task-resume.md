@@ -667,3 +667,17 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 增加派生输出 manifest 一致性报告，区分 metadata、源绑定 SHA-256 和输出文件 SHA-256 证据。
 - 将完整性摘要接入地图/轨迹/答案和真实配置浏览器 smoke；执行真实能力快照驱动的模型澄清、计划修复和 live GIS 基线。
 - Docker 恢复后验收当前版本数据卷、readiness、重启恢复、多 worker 和 FastAPI production 接口。
+
+### M75 验收结果
+
+- 健康报告将 `analysis_ready.outputs` 与 manifest 中的受控文件名关联，返回 `output_manifest` 匹配状态、核验模式、完整哈希状态和 mismatch 数；能力快照、比较响应与 Console 已同步展示。
+- M75 专项 4 项、离线全量 385 项（42 项跳过）、GIS 全量 385 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉输出 `dem_aligned.tif`、`land_use_aligned.tif` 均与 manifest 匹配，`output_manifest=ready`、`data_readiness=ready`；运行时 manifest 仍是 metadata-only，完整哈希通过 verifier 单独证明。
+- 修复 manifest 健康摘要缺少 basename 导致输出一致性误报 unavailable 的问题，详见中文开发问题日志。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成。
+
+### M76 全局下一步
+
+- 完成动态地图/结果工作区的完整性、源绑定、输出 manifest、几何证据统一展示和真实配置浏览器 smoke。
+- 建立 metadata、源绑定 SHA-256、输出 SHA-256 三层发布校验，并执行真实能力快照驱动的模型澄清/修复/live GIS 基线。
+- Docker 恢复后验收当前版本数据卷、readiness、重启恢复、多 worker 和 FastAPI production 接口。

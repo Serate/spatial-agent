@@ -1092,6 +1092,13 @@ def _analysis_ready_summary(payload: Dict[str, Any]) -> Dict[str, Any] | None:
             "datasets": list(evidence["source_binding"].get("datasets") or [])[:10],
             "status": evidence["source_binding"].get("status", "recorded"),
         }} if isinstance(evidence.get("source_binding"), dict) else {}),
+        **({"output_manifest": {
+            "status": evidence["output_manifest"].get("status", "unknown"),
+            "verification_mode": evidence["output_manifest"].get("verification_mode", "metadata"),
+            "hashes_verified": bool(evidence["output_manifest"].get("hashes_verified", False)),
+            "verified_files": int(evidence["output_manifest"].get("verified_files") or 0),
+            "mismatch_count": int(evidence["output_manifest"].get("mismatch_count") or 0),
+        }} if isinstance(evidence.get("output_manifest"), dict) else {}),
     }
 
 

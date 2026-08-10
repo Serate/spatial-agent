@@ -291,6 +291,15 @@ def runtime_capability_catalog(
         source_binding = analysis_ready.get("source_binding")
         if isinstance(source_binding, Mapping):
             snapshot["analysis_ready"]["source_binding"] = _safe_source_binding_summary(source_binding)
+        output_manifest = analysis_ready.get("output_manifest")
+        if isinstance(output_manifest, Mapping):
+            snapshot["analysis_ready"]["output_manifest"] = {
+                "status": str(output_manifest.get("status", "unknown"))[:20],
+                "verification_mode": str(output_manifest.get("verification_mode", "metadata"))[:20],
+                "hashes_verified": bool(output_manifest.get("hashes_verified", False)),
+                "verified_files": int(output_manifest.get("verified_files") or 0),
+                "mismatch_count": int(output_manifest.get("mismatch_count") or 0),
+            }
         for name in ("dem", "land_use"):
             if name in snapshot["data_evidence"]:
                 snapshot["data_evidence"][name]["analysis_ready"] = {

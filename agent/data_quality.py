@@ -129,6 +129,10 @@ def dataset_health_report(
     if catalog.manifest_path:
         result["manifest"] = _manifest_health(catalog)
     manifest = result.get("manifest")
+    if isinstance(analysis_ready, dict) and isinstance(manifest, dict):
+        analysis_ready["output_manifest"] = _analysis_output_manifest_summary(
+            analysis_ready, manifest
+        )
     manifest_ready = (
         not catalog.manifest_required
         or (isinstance(manifest, dict) and manifest.get("status") == "ready")
@@ -396,6 +400,60 @@ def _safe_analysis_derivation(derivation: Mapping[str, Any]) -> Dict[str, Any]:
     return result
 
 
+def _analysis_output_manifest_summary(
+    analysis_ready: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> Dict[str, Any]:
+    """Tie report output names to manifest entries without exposing paths."""
+
+    expected = analysis_ready.get("outputs") or {}
+    manifest_datasets = manifest.get("datasets")
+    mismatches: List[str] = []
+    outputs: Dict[str, Any] = {}
+    if not isinstance(manifest_datasets, Mapping):
+        file_names = manifest.get("dataset_file_names")
+        if isinstance(file_names, Mapping):
+            manifest_datasets = {
+                name: {"files": [{"path": value} for value in values]}
+                for name, values in file_names.items()
+                if isinstance(values, list)
+            }
+        else:
+            return {
+                "status": "unavailable",
+                "verification_mode": manifest.get("verification_mode", "metadata"),
+                "hashes_verified": bool(manifest.get("hashes_verified", False)),
+                "mismatch_count": 1,
+                "mismatches": ["manifest datasets are unavailable"],
+                "outputs": {},
+            }
+    for name in ("dem", "land_use"):
+        reported = Path(str(expected.get(name, ""))).name if expected.get(name) else ""
+        entry = manifest_datasets.get(name) or {}
+        files = entry.get("files") if isinstance(entry, Mapping) else None
+        manifest_names = [
+            Path(str(item.get("path", ""))).name
+            for item in (files or [])
+            if isinstance(item, Mapping)
+        ]
+        matched = bool(reported) and manifest_names == [reported]
+        if not matched:
+            mismatches.append(f"{name} output does not match manifest")
+        outputs[name] = {
+            "reported": reported,
+            "manifest": manifest_names[:3],
+            "matched": matched,
+        }
+    return {
+        "status": "ready" if not mismatches and manifest.get("status") == "ready" else "degraded",
+        "verification_mode": manifest.get("verification_mode", "metadata"),
+        "hashes_verified": bool(manifest.get("hashes_verified", False)),
+        "verified_files": int(manifest.get("verified_files") or 0),
+        "mismatch_count": len(mismatches),
+        "mismatches": mismatches[:20],
+        "outputs": outputs,
+    }
+
+
 def _manifest_health(catalog: DatasetCatalog) -> Dict[str, Any]:
     path = Path(catalog.manifest_path)
     if not path.is_file():
@@ -421,6 +479,15 @@ def _manifest_health(catalog: DatasetCatalog) -> Dict[str, Any]:
         }
     verification["path_configured"] = True
     verification["required"] = catalog.manifest_required
+    verification["dataset_file_names"] = {
+        str(name)[:64]: [
+            Path(str(item.get("path", ""))).name[:160]
+            for item in (entry.get("files") or [])[:10]
+            if isinstance(item, Mapping) and item.get("path")
+        ]
+        for name, entry in (manifest.get("datasets") or {}).items()
+        if isinstance(entry, Mapping)
+    }
     return verification
 
 
