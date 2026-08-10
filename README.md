@@ -149,6 +149,26 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/data-adapter-plan.md`](docs/data-adapter-plan.md)：真实空间数据接入计划。
 
 数据 manifest 可用 `scripts\dataset_manifest.py` 显式生成和校验；健康接口只做轻量 manifest 检查，完整 SHA-256 校验不会隐式发生。
+武汉本地配置可以进一步绑定 manifest（输出文件应放在仓库外或保持被 Git 忽略）：
+
+```powershell
+python scripts\dataset_manifest.py `
+  --config config\datasets.wuhan.local.example.json `
+  --output D:\tmp\wuhan-gis\wuhan.manifest.json
+python scripts\bind_dataset_manifest.py `
+  --config config\datasets.wuhan.local.example.json `
+  --manifest D:\tmp\wuhan-gis\wuhan.manifest.json `
+  --output D:\tmp\wuhan-gis\datasets.wuhan.local.json
+python scripts\dataset_manifest.py `
+  --config D:\tmp\wuhan-gis\datasets.wuhan.local.json `
+  --verify D:\tmp\wuhan-gis\wuhan.manifest.json `
+  --evidence-output D:\tmp\wuhan-gis\wuhan.manifest.verification.json
+scripts\start_console.ps1 -Mode gis `
+  -DatasetConfig D:\tmp\wuhan-gis\datasets.wuhan.local.json `
+  -RequireDatasetManifest
+```
+
+`/capabilities/runtime` 会显示 manifest 是否已绑定、轻量检查状态和校验模式；`-RequireDatasetManifest` 会让生产 readiness 在必需 manifest 缺失或不匹配时返回未就绪。
 
 ## 数据与合规边界
 

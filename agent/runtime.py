@@ -144,11 +144,16 @@ class AgentRuntime:
         )
         self._state_store.save(result)
         try:
+            # Check controls around planning as well as tool dispatch. A
+            # direct-answer plan has no step boundary where cancellation or
+            # timeout would otherwise be observed.
+            self._check_control(result.run_id, deadline)
             plan = (
                 self._planner.plan(resolved_request, workflow)
                 if workflow is not None
                 else self._planner.plan(resolved_request)
             )
+            self._check_control(result.run_id, deadline)
             if workflow is not None:
                 _validate_runtime_workflow_plan(plan, workflow)
             result.planner_metrics = self._planner_metrics()

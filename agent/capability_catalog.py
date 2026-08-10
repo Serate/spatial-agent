@@ -251,6 +251,17 @@ def runtime_capability_catalog(
     snapshot["optional_health_status"] = health_report.get(
         "optional_status", "unknown"
     )
+    manifest = health_report.get("manifest")
+    if isinstance(manifest, Mapping):
+        snapshot["manifest"] = {
+            "status": manifest.get("status", "unknown"),
+            "required": bool(manifest.get("required", False)),
+            "verification_mode": manifest.get("verification_mode", "metadata"),
+            "hashes_verified": bool(manifest.get("hashes_verified", False)),
+            "verified_files": int(manifest.get("verified_files") or 0),
+            "mismatch_count": int(manifest.get("mismatch_count") or 0),
+        }
+    snapshot["data_readiness"] = health_report.get("data_readiness", "ready")
     return snapshot
 
 

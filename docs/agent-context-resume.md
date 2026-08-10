@@ -339,4 +339,14 @@ M69 最多启动 3 路并行子任务；并行任务不得各自修改公共 sch
 - Console 已从 `/workflows` 动态渲染约束/证据编辑器；`workflow` 已贯通同步/异步 `/runs`、Planner、Runtime、内存状态和 SQLite 恢复，生成计划会再次按模板校验。
 - 联合 DEM/土地利用像元工具已要求显式 `grid_alignment=aligned`；仅文件覆盖关系为 ready 或网格不一致时，Runtime 在 dispatch 前阻止工具并给出中文原因。
 - 新增兼容性修复：无工作流请求不再向旧 Runtime 替身传递 `workflow=None`，异步几何证据矩阵和 `scripts/smoke_check.py` 已恢复通过。
-- M69 尚未完成：武汉真实数据 manifest 正式绑定、SQLite 多 worker 组合矩阵、Docker 新镜像和可选 live provider 验收。
+- M69.2 已完成武汉 manifest 正式绑定入口、完整哈希校验和 SQLite 多 worker 可靠性矩阵；M69 仍待 Docker 新镜像、生产 readiness/acceptance 和可选 live provider 验收。
+
+## M69.2 当前进展
+
+- `DatasetCatalog` 支持必需 manifest 配置；`scripts/bind_dataset_manifest.py` 生成仓库外的正式本地绑定配置。
+- manifest 健康检查显式标记 `verification_mode=metadata`；完整 `sha256` 校验由 `scripts/dataset_manifest.py --verify` 执行，并可用 `--evidence-output` 保存安全摘要。
+- `/capabilities/runtime` 暴露 manifest 状态、校验模式、已核对文件数和 `data_readiness`；生产 readiness 可用 `SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST=1` 开启门控。
+- 本机真实武汉数据 manifest 已核验 16 个文件且 `hashes_verified=true`；manifest、绑定配置和 evidence 位于 `D:\tmp\wuhan-gis`，不得提交。
+- SQLite 矩阵已覆盖 3 worker 幂等提交、超时终态重放、取消/超时重启接管和滚动重启指纹复用；并修复直答计划绕过取消/超时控制检查的问题。
+- 离线全量 363 项（35 项跳过）、GIS 全量 363 项（9 项跳过）、smoke、全局严格评测和真实本地 DEM/道路/水体调用均通过。
+- 当前工作区只允许保留用户未跟踪 `.idea/`；M69.2 进入文档审查、提交推送阶段。Docker Linux engine 缺失和 FastAPI 生产依赖缺失仍是外部验收边界。

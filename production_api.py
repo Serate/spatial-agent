@@ -50,6 +50,7 @@ def liveness() -> Dict[str, str]:
 def readiness(response: Response) -> Dict[str, Any]:
     status = environment_status()
     required_gis = os.environ.get("SPATIAL_AGENT_REQUIRE_GIS", "0").lower() in ("1", "true", "yes")
+    required_manifest = os.environ.get("SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST", "0").lower() in ("1", "true", "yes")
     ready = True
     if required_gis and (
         not status["capabilities"]["local_gis_backend"]
@@ -57,6 +58,14 @@ def readiness(response: Response) -> Dict[str, Any]:
         or not status["data"]["proj_data_available"]
     ):
         ready = False
+    if required_manifest:
+        snapshot = runtime_capability_snapshot(max_files=1)
+        manifest = snapshot.get("manifest") or {}
+        status["dataset_manifest"] = manifest
+        if snapshot.get("data_readiness") != "ready":
+            ready = False
+    else:
+        status["dataset_manifest"] = {"required": False, "status": "not_required"}
     if not ready:
         response.status_code = 503
     status["status"] = "ready" if ready else "not_ready"

@@ -111,6 +111,17 @@ def dataset_health_report(
     }
     if catalog.manifest_path:
         result["manifest"] = _manifest_health(catalog)
+    manifest = result.get("manifest")
+    if catalog.manifest_required:
+        result["data_readiness"] = (
+            "ready"
+            if isinstance(manifest, dict) and manifest.get("status") == "ready"
+            else "not_ready"
+        )
+    elif isinstance(manifest, dict) and manifest.get("status") != "ready":
+        result["data_readiness"] = "degraded"
+    else:
+        result["data_readiness"] = "ready"
     return result
 
 
@@ -120,6 +131,9 @@ def _manifest_health(catalog: DatasetCatalog) -> Dict[str, Any]:
         return {
             "status": "unavailable",
             "path_configured": True,
+            "required": catalog.manifest_required,
+            "verification_mode": "metadata",
+            "hashes_verified": False,
             "mismatches": ["manifest file does not exist"],
         }
     try:
@@ -129,9 +143,13 @@ def _manifest_health(catalog: DatasetCatalog) -> Dict[str, Any]:
         return {
             "status": "unavailable",
             "path_configured": True,
+            "required": catalog.manifest_required,
+            "verification_mode": "metadata",
+            "hashes_verified": False,
             "mismatches": [str(exc)[:240]],
         }
     verification["path_configured"] = True
+    verification["required"] = catalog.manifest_required
     return verification
 
 

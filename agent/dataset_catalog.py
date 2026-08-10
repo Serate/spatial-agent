@@ -73,10 +73,12 @@ class DatasetCatalog:
         root: str,
         entries: Mapping[str, DatasetEntry],
         manifest_path: Optional[str] = None,
+        manifest_required: bool = False,
     ):
         self.root = str(Path(root))
         self._entries = dict(entries)
         self.manifest_path = str(manifest_path) if manifest_path else None
+        self.manifest_required = bool(manifest_required)
 
     @classmethod
     def from_json(cls, path: str) -> "DatasetCatalog":
@@ -96,7 +98,15 @@ class DatasetCatalog:
                 attribution=definition.get("attribution"),
                 license=definition.get("license"),
             )
-        manifest_path = payload.get("manifest")
+        manifest_value = payload.get("manifest")
+        manifest_required = bool(payload.get("manifest_required", False))
+        if isinstance(manifest_value, Mapping):
+            manifest_path = manifest_value.get("path")
+            manifest_required = bool(
+                manifest_value.get("required", manifest_required)
+            )
+        else:
+            manifest_path = manifest_value
         if isinstance(manifest_path, str) and manifest_path.strip():
             manifest_candidate = Path(manifest_path)
             if not manifest_candidate.is_absolute():
@@ -104,7 +114,12 @@ class DatasetCatalog:
             manifest_path = str(manifest_candidate)
         else:
             manifest_path = None
-        return cls(root, entries, manifest_path=manifest_path)
+        return cls(
+            root,
+            entries,
+            manifest_path=manifest_path,
+            manifest_required=manifest_required,
+        )
 
     def get(self, name: str) -> Optional[DatasetEntry]:
         return self._entries.get(name)
@@ -125,6 +140,7 @@ class DatasetCatalog:
         }
         if self.manifest_path:
             result["manifest_configured"] = True
+            result["manifest_required"] = self.manifest_required
         return result
 
 

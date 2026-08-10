@@ -578,6 +578,22 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 
 ### M69 尚未完成与下一步
 
-1. 将武汉道路、水体、DEM、土地利用和行政区 manifest 绑定到正式本地配置并执行完整哈希核验。
-2. 补齐 SQLite 多 worker 的超时、取消、幂等和滚动重启组合矩阵，并保留不同状态后端的一致结果契约。
+1. 将武汉道路、水体、DEM、土地利用和行政区 manifest 绑定到正式本地配置并执行完整哈希核验。（代码入口、本机绑定配置和完整证据已完成。）
+2. 补齐 SQLite 多 worker 的超时、取消、幂等和滚动重启组合矩阵，并保留不同状态后端的一致结果契约。（M69.2 专项已完成。）
 3. Docker Desktop 恢复后构建新镜像、执行 readiness/production acceptance/容器重启恢复；再做可选 live provider 验收。
+
+### M69.2 当前进展
+
+- `DatasetCatalog` 已支持必需 manifest 的结构化配置；`scripts/bind_dataset_manifest.py` 可从已提交模板生成被忽略的本地绑定配置。
+- `scripts/dataset_manifest.py --verify ... --evidence-output ...` 执行完整 SHA-256 校验并生成不含机器绝对路径的安全证据摘要；健康检查保持 metadata-only。
+- runtime capability snapshot 增加 `manifest` 和 `data_readiness` 证据；生产 `/health/ready` 可通过 `SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST=1` 启用门控。
+- 本机真实武汉配置在 `D:\tmp\wuhan-gis\datasets.wuhan.local.json`，manifest 16 个文件，SHA-256 核验通过；这些文件均不在仓库中。
+- M69.2 下一步先完成 SQLite 多 worker 可靠性组合测试，再串行执行全量离线/GIS/HTTP/部署验收。
+
+### M69.2 验收结果
+
+- manifest 专项 6 项通过；SQLite 多 worker 矩阵 5 项通过；既有取消、幂等、崩溃接管和观测回归 14 项通过（1 项生产 FastAPI 依赖缺失跳过）。
+- 全量离线 363 项通过、35 项跳过；GIS 全量 363 项通过、9 项跳过；`scripts/smoke_check.py` 和 `scripts/evaluate_global.py --strict` 通过，执行场景 8/8、脱敏模型回放 2/2。
+- 真实武汉配置下行政区/道路/水体可读且几何有效；DEM 与土地利用均完整读取但 CRS 混合，像元对齐状态为 `grid_mismatch`，联合像元工具继续在 dispatch 前阻止。
+- Docker 新镜像、readiness、production acceptance 和容器重启恢复仍待宿主机 Docker Linux engine 恢复；当前 `docker info` 报 `dockerDesktopLinuxEngine` named pipe 不存在。
+- M69.2 代码尚未提交推送；下一步是审查 diff、收口中文文档并创建阶段提交/版本。

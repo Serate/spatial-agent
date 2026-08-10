@@ -283,8 +283,13 @@ TaskPlan schema 和 ToolRegistry。可通过 `POST /workflows/{template_id}/vali
 
 ~~~powershell
 python scripts\dataset_manifest.py --config config\datasets.wuhan.local.example.json --output outputs\wuhan.manifest.json
-python scripts\dataset_manifest.py --config config\datasets.wuhan.local.example.json --verify outputs\wuhan.manifest.json
+python scripts\bind_dataset_manifest.py --config config\datasets.wuhan.local.example.json --manifest outputs\wuhan.manifest.json --output outputs\datasets.wuhan.local.json
+python scripts\dataset_manifest.py --config outputs\datasets.wuhan.local.json --verify outputs\wuhan.manifest.json --evidence-output outputs\wuhan.manifest.verification.json
 ~~~
+
+绑定脚本会生成 `manifest_required=true` 的本地配置；该配置和 manifest 不应提交到仓库。生产 readiness 通过
+`SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST=1` 开启必需绑定门控。运行时 readiness 只验证 manifest 文件、相对路径、文件大小和 provenance，
+`verification_mode=metadata` 表示没有在请求期间读取大文件；发布前的 `verification_mode=sha256` 且 `hashes_verified=true` 的显式证据文件才表示完整哈希核验通过。
 
 ## Error Responses
 

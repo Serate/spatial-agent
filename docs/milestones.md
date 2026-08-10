@@ -276,6 +276,16 @@ M69 最多拆分 3 路可独立验收的子任务：工作流编辑与计划契�
 - 验证：M69.1 专项 22 项通过；工作流浏览器交互通过；`scripts/smoke_check.py` 通过，内嵌离线全量 355 项（35 项跳过）；默认不访问真实模型。
 - 外部环境仍未提供 Docker Linux engine，因此新镜像、readiness、生产 acceptance 和 live provider 不纳入本子阶段通过证据。
 
+### M69.2：武汉 manifest 正式绑定与完整性证据（进行中）
+
+- `DatasetCatalog` 支持字符串或结构化 manifest 配置，并支持 `manifest_required`；本地绑定配置由 `scripts/bind_dataset_manifest.py` 生成，不把机器路径写入仓库。
+- manifest 校验明确区分启动时 metadata 检查与显式 SHA-256 检查；缺少哈希时完整校验失败，不再把元数据结果误报为完整性证据。
+- runtime capability snapshot 暴露 manifest 状态、校验模式、已核对文件数和 `data_readiness`；生产入口可通过 `SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST=1` 阻止缺失或不匹配的必需 manifest。
+- 当前本机武汉真实数据已生成 16 个文件的 manifest，完整 SHA-256 核验 `ready`，并输出到仓库外的 verification evidence；DEM/土地利用像元网格仍因真实元数据不一致保持门控。
+- SQLite 多 worker 组合矩阵新增 3 worker 幂等提交、超时终态重放、取消/超时重启接管和滚动重启结果复用；同时修复直答计划绕过取消/超时检查的问题。
+- 离线全量 363 项通过（35 项跳过），GIS 全量 363 项通过（9 项跳过），Smoke 和全局严格评测通过；真实武汉 manifest 16 文件完整 SHA-256 通过，真实 DEM 元数据和道路/水体摘要调用通过。
+- Docker Linux engine 仍因宿主机 `dockerDesktopLinuxEngine` named pipe 缺失无法获得新镜像/容器验收证据；FastAPI 生产依赖在当前 GIS Python 中未安装，生产入口测试按环境跳过。
+
 ## M65：生产异步、模型执行一致性与总览结果体验（已完成）
 
 - 增加录制模型响应回归，验证空间总览 8 步计划、依赖 DAG、`$from` 绑定和 ToolRegistry 实际执行；默认测试不访问网络。

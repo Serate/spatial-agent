@@ -8,6 +8,7 @@ not unexpectedly read multi-gigabyte rasters on every request.
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
@@ -87,11 +88,16 @@ def verify_dataset_manifest(
         if not isinstance(expected_files, list):
             mismatches.append(f"{name}.files must be an array")
             continue
-        expected_by_path = {
-            item.get("path"): item
-            for item in expected_files
-            if isinstance(item, Mapping) and isinstance(item.get("path"), str)
-        }
+        expected_by_path = {}
+        for item in expected_files:
+            if not isinstance(item, Mapping) or not isinstance(item.get("path"), str):
+                mismatches.append(f"{name}.files contains an invalid entry")
+                continue
+            path = item["path"]
+            if Path(path).is_absolute() or path.startswith("../") and not _is_safe_relative_path(path):
+                mismatches.append(f"{name}/{path} is not a safe relative path")
+                continue
+            expected_by_path[path] = item
         actual_by_path = {
             _relative_path(catalog.root, path): path for path in entry.files
         }
@@ -101,21 +107,30 @@ def verify_dataset_manifest(
             mismatches.append(f"{name} file not in manifest: {path}")
         for path in sorted(set(expected_by_path) & set(actual_by_path)):
             expected_file = expected_by_path[path]
+            expected_hash = expected_file.get("sha256")
+            if verify_hashes and not _is_sha256(expected_hash):
+                mismatches.append(f"{name}/{path}.sha256 is missing or invalid")
             current = _file_fingerprint(
                 catalog.root,
                 actual_by_path[path],
-                include_hash=verify_hashes and bool(expected_file.get("sha256")),
+                include_hash=verify_hashes and _is_sha256(expected_hash),
             )
             for field in ("exists", "size_bytes"):
                 if expected_file.get(field) != current.get(field):
                     mismatches.append(f"{name}/{path}.{field} differs")
-            if verify_hashes and expected_file.get("sha256") != current.get("sha256"):
+            if verify_hashes and expected_hash != current.get("sha256"):
                 mismatches.append(f"{name}/{path}.sha256 differs")
             if current.get("exists"):
                 verified_files += 1
 
     status = "ready" if not mismatches else "degraded"
-    return _verification(status, mismatches, verified_files=verified_files, hashes_verified=verify_hashes)
+    return _verification(
+        status,
+        mismatches,
+        verified_files=verified_files,
+        hashes_verified=verify_hashes and not mismatches,
+        verification_requested=verify_hashes,
+    )
 
 
 def load_manifest(path: str | os.PathLike[str]) -> Dict[str, Any]:
@@ -157,13 +172,26 @@ def _verification(
     *,
     verified_files: int = 0,
     hashes_verified: bool = False,
+    verification_requested: bool = False,
 ) -> Dict[str, Any]:
     issues = list(mismatches)
     return {
         "status": status,
-        "metadata_only": True,
+        "metadata_only": not verification_requested,
+        "verification_mode": "sha256" if verification_requested else "metadata",
         "hashes_verified": hashes_verified,
         "verified_files": verified_files,
         "mismatch_count": len(issues),
         "mismatches": issues[:50],
     }
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value) is not None
+
+
+def _is_safe_relative_path(value: str) -> bool:
+    # Catalog entries may intentionally point to a sibling data volume, so
+    # ``..`` is valid here.  The manifest is only compared with resolved
+    # catalog entries; reject rooted paths and control characters instead.
+    return "\x00" not in value and not Path(value).is_absolute()

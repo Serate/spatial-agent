@@ -2155,3 +2155,39 @@ DEM 与土地利用文件存在空间覆盖关系时，健康报告的 `dem_land
 ### 预防
 
 所有涉及 DEM 与土地利用联合像元运算的能力，必须同时检查文件覆盖、像元网格和 CRS 证据；测试应区分 `overlap=ready` 与 `grid_alignment=aligned` 两种状态，不能只断言外层覆盖状态。
+
+## Manifest 完整哈希校验不能混入启动健康检查
+
+### 现象
+
+武汉真实数据包含多个 DEM/土地利用栅格和较大的 GeoPackage。若每次 `/health/ready` 或运行时能力请求都重新计算 SHA-256，会把大文件读取成本放进普通请求，并可能造成多个 worker 同时扫描数据卷；若只看 manifest 文件存在，又容易把“有记录”误认为“当前文件已完整核验”。
+
+### 根因
+
+数据可读性、manifest 路径/大小/provenance 一致性和当前文件内容的 SHA-256 一致性是三个不同证据层级。启动探针需要快速、稳定的轻量检查，而发布或换数动作需要显式的完整哈希检查。原有校验结果没有清晰区分失败的哈希检查和 metadata-only 检查。
+
+### 修复
+
+`DatasetCatalog` 增加结构化 manifest 配置和 `manifest_required` 语义；`scripts/bind_dataset_manifest.py` 从已提交模板生成被忽略的本地绑定配置。`scripts/dataset_manifest.py --verify` 保持显式 SHA-256 入口，并支持 `--evidence-output` 输出不含绝对路径的证据摘要。健康/runtime 检查返回 `verification_mode`、`hashes_verified`、`verified_files` 和 `data_readiness`；生产入口通过 `SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST=1` 开启必需 manifest 门控。
+
+### 预防
+
+发布新数据卷时先运行完整校验并保存 evidence，再启动带 `manifest_required` 的服务；readiness 中 `verification_mode=metadata` 只能证明绑定和轻量元数据一致，不能表述为完整哈希通过。manifest 路径保持相对路径或本地配置路径，原始数据、机器配置和 evidence 不提交到仓库。
+
+## 直答计划绕过异步取消和超时检查
+
+### 现象
+
+SQLite 作业在 worker 崩溃后被新 worker 接管时，数据库中已经存在取消标记，但请求“你好”等无需工具的直答任务仍可能最终变成 `COMPLETED`，而不是 `CANCELLED`。工具型任务因为在步骤边界检查控制标记，通常不会暴露这个问题。
+
+### 根因
+
+Runtime 原先只在工具步骤开始前检查 `cancel` 和 deadline。Planner 返回 `direct_answer` 后会直接设置完成状态并返回，没有任何步骤边界，因此直答路径绕过了异步控制协议。
+
+### 修复
+
+在规划前和规划后各执行一次统一控制检查；取消或超时会进入既有 `RunCancelled`/`RunTimedOut` 状态处理，SQLite 的终态、失败分类、幂等重放和重启接管保持一致。M69 SQLite 组合矩阵新增直答取消接管回归，已验证 `CANCELLED`。
+
+### 预防
+
+控制检查必须覆盖规划、直答、工具 dispatch 和重试等所有可产生终态的路径，不能把“没有工具步骤”当作不需要取消/超时语义。新增 Planner 输出类型时，应至少加入异步取消、deadline 和服务重启后的状态矩阵。

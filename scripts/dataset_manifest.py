@@ -22,12 +22,28 @@ def main() -> int:
     parser.add_argument("--config", required=True, help="dataset catalog JSON")
     parser.add_argument("--output", help="manifest output path")
     parser.add_argument("--verify", metavar="MANIFEST", help="verify an existing manifest with SHA-256")
+    parser.add_argument(
+        "--evidence-output",
+        help="write the full verification evidence JSON when using --verify",
+    )
     parser.add_argument("--max-files", type=int, help="limit files per dataset when building")
     args = parser.parse_args()
     catalog = DatasetCatalog.from_json(args.config)
     if args.verify:
         result = verify_dataset_manifest(catalog, load_manifest(args.verify), verify_hashes=True)
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        if args.evidence_output:
+            evidence = {
+                "config": Path(args.config).name,
+                "manifest": Path(args.verify).name,
+                "verification": result,
+            }
+            evidence_path = Path(args.evidence_output)
+            evidence_path.parent.mkdir(parents=True, exist_ok=True)
+            evidence_path.write_text(
+                json.dumps(evidence, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
         return 0 if result["status"] == "ready" else 1
     if not args.output:
         parser.error("--output is required when --verify is not used")

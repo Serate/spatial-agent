@@ -2,12 +2,22 @@ param(
   [ValidateSet("memory", "gis")]
   [string]$Mode = "memory",
   [string]$HostName = "127.0.0.1",
-  [int]$Port = 8088
+  [int]$Port = 8088,
+  [string]$DatasetConfig = "",
+  [switch]$RequireDatasetManifest
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
+
+if ($DatasetConfig) {
+  $resolvedDatasetConfig = (Resolve-Path -LiteralPath $DatasetConfig -ErrorAction Stop).Path
+  $env:SPATIAL_AGENT_DATASET_CONFIG = $resolvedDatasetConfig
+}
+if ($RequireDatasetManifest) {
+  $env:SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST = "1"
+}
 
 $existing = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($existing) {
