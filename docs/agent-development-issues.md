@@ -2227,3 +2227,17 @@ Windows 当前终端和 conda 转发层仍使用 GBK 编码，而 Python JSON �
 ### 预防
 
 Windows conda 验收命令应优先输出 ASCII 安全摘要，并把完整结果写入 UTF-8 JSON 文件；遇到 conda 的编码异常时，先区分“子进程执行失败”和“输出转发失败”，不要直接判定 GIS 代码回归。
+
+## GIS 全量套件中的嵌套 smoke 偶发丢失 artifact 引用
+
+### 现象
+
+在 `spatial-agent-gis` 环境执行完整 `unittest discover` 时，`test_m11_smoke_check` 的嵌套 smoke 曾偶发失败：`test_sync_async_poll_and_restart_preserve_no_geometry_envelope_and_refs` 在异步终态响应中观察到 `artifact_ref` 为空。该次失败只出现一次，真实 GIS 数据测试和业务 smoke 仍通过。
+
+### 根因判断
+
+当前证据不足以证明业务代码确定性回归。目标测试在 GIS 环境单独连续执行 5 次通过，`test_m11` 单独执行通过，独立 smoke 通过，完整 GIS 套件再次执行也通过。现象更符合全量套件启动嵌套测试时的异步 SQLite/artifact 终态观察竞争，而不是 Rasterio、GeoPandas 或 M71 比较证据逻辑错误。
+
+### 处理与预防
+
+遇到该失败时，先单独运行目标测试、单独运行 `test_m11` 和完整 GIS 套件复跑，并记录 `artifact_ref`、`geojson_ref`、SQLite job status 与 worker 是否已完成；不能只根据一次嵌套 smoke 失败提交业务修复。涉及 SQLite 或 artifact 的全量验收继续保持串行，嵌套 smoke 不与外层全量测试并行运行。

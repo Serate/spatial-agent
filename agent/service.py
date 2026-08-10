@@ -613,13 +613,19 @@ class AgentService:
                 "valid_pixel_count": statistics.get("valid_pixel_count"),
                 "candidate_ratio": statistics.get("candidate_ratio"),
                 "error": statistics.get("error") or result.get("error"),
+                "analysis_ready": _analysis_ready_summary(result),
             })
+        evidence = next(
+            (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
+            None,
+        )
         return {
             "admin_name": admin_name,
             "thresholds": list(scenario.thresholds),
             "scenario": scenario.to_dict(),
             "spatial_context": normalized_context,
             "results": rows,
+            **({"analysis_ready": evidence} if evidence else {}),
         }
 
     def compare_buildability_regions(
@@ -650,6 +656,12 @@ class AgentService:
             "slope_limit_degrees": threshold_value,
             "scenario": scenario.to_dict(),
             "results": rows,
+            **({
+                "analysis_ready": next(
+                    (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
+                    None,
+                )
+            } if any(row.get("analysis_ready") for row in rows) else {}),
         }
 
     def _runtime(self, planner: str, backend: str):
@@ -1050,6 +1062,30 @@ def _exported_geometry_evidence(geojson_ref):
         evidence["reason"] = "GeoJSON 摘要达到大小上限，空间要素已截断"
         evidence["truncated"] = True
     return len([item for item in features if item.get("geometry")]), evidence
+
+
+def _analysis_ready_summary(payload: Dict[str, Any]) -> Dict[str, Any] | None:
+    """Keep comparison responses tied to the same bounded health evidence."""
+    health = next(
+        (
+            step.get("result") or {}
+            for step in payload.get("steps", [])
+            if step.get("tool") == "get_dataset_health_report"
+        ),
+        {},
+    )
+    evidence = health.get("analysis_ready")
+    if not isinstance(evidence, dict):
+        return None
+    return {
+        "status": evidence.get("status", "unknown"),
+        "required": bool(evidence.get("required", False)),
+        "derived_version": str(evidence.get("derived_version", "unknown"))[:128],
+        "target_grid": dict(evidence.get("target_grid") or {}),
+        "grid_alignment": dict(evidence.get("grid_alignment") or {}),
+        "verification_mode": evidence.get("verification_mode", "metadata"),
+        "data_readiness": health.get("data_readiness", "unknown"),
+    }
 
 
 def _format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Dict[str, Any]:

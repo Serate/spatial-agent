@@ -612,3 +612,18 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 将分析就绪版本证据贯通空间总览、道路/水体约束筛选和多区域比较，确保多工作流的答案、轨迹、GeoJSON 和地图引用一致。
 - 增加派生报告/manifest 变更检测、nodata 与重采样证据，以及真实能力快照驱动的开放式问题脱敏回放。
 - Docker Linux engine 恢复后进行新镜像、readiness、重启恢复和生产 FastAPI 矩阵；Console 补绑定真实配置的浏览器 smoke。
+
+### M71 验收结果
+
+- `/comparisons` 和 `/region-comparisons` 的总体响应与每个结果行均保留 `analysis_ready`：派生版本 `analysis-ready-v1`、目标 CRS `EPSG:32649`、30 米分辨率和 `aligned` 状态。
+- 道路/水体约束建设筛选真实 GIS 调用完成，答案显示 500 米道路阈值、161 个满足道路约束样本和 14 个水体排除样本，并引用同一分析就绪证据。
+- M71 专项 3 项通过；离线全量 373 项通过、42 项跳过；GIS 全量 373 项通过、9 项跳过；Smoke、严格全局评测 8/8 和脱敏模型回放 2/2 通过。
+- 真实绑定配置下阈值比较返回洪山区 15°/20° 候选 22,800/23,172 个；多区域 20° 比较返回洪山区 23,172 个、江夏区 59,045 个候选像元。
+- GIS 首次全量运行的嵌套 smoke 曾出现一次 artifact 引用缺失，但目标测试 5/5、独立 smoke 和完整 GIS 复跑通过；详见中文开发问题日志。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用旧容器或离线测试代替。
+
+### M72 全局下一步
+
+- 统一空间总览、比较、约束筛选和动态 Console 的证据引用与地图图层状态，增加真实配置浏览器 smoke。
+- 增加源数据/派生层版本绑定、变更检测、nodata/边界/重采样报告，区分 metadata readiness 与完整哈希校验。
+- 用真实能力快照驱动开放式问题澄清、计划修复和可选 live GIS 模型基线；Docker 恢复后完成生产镜像、readiness、重启恢复和 FastAPI acceptance。

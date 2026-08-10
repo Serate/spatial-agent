@@ -371,3 +371,15 @@ M69 最多启动 3 路并行子任务；并行任务不得各自修改公共 sch
 5. 用户体验：继续精简 Console 证据区，把数据版本、目标网格、候选统计、几何状态和降级原因做成可扫描的结果摘要，并补真实配置浏览器 smoke。
 
 M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 和 Console 证据由主线统一集成。阶段验收顺序保持“离线全量 -> Smoke -> GIS 全量 -> 全局评测 -> 部署/浏览器”，完成后提交并推送版本。
+
+## M71 当前完成状态
+
+- `/comparisons`、`/region-comparisons` 和道路/水体约束答案已统一传播 `analysis_ready` 证据；Console 比较结果显示派生版本、目标网格、分辨率和对齐状态。
+- M71 专项 3 项通过；离线全量 373 项通过、42 项跳过；GIS 全量 373 项通过、9 项跳过；Smoke、严格全局评测 8/8 和脱敏模型回放 2/2 通过。
+- 真实武汉分析就绪绑定配置验证：`analysis-ready-v1`、`EPSG:32649`、30 米、4562×5277、`aligned`；洪山区 20° 候选 23,172 个，江夏区 20° 候选 59,045 个；道路/水体约束完成并返回版本证据。
+- GIS 全量第一次运行中嵌套 smoke 出现一次异步 artifact 引用缺失，单测重复、单独 smoke 和完整复跑均通过；该验收时序问题已写入 `docs/agent-development-issues.md`。
+- M71 已具备提交推送条件；`.idea/`、本机配置、真实派生数据和 evidence 仍不得提交。Docker Linux engine、生产 acceptance、浏览器真实配置 smoke 和 live provider 仍未验证。
+
+## M72 下一步
+
+进入 M72，全局推进结果证据统一、源数据/派生数据变更检测、真实能力快照驱动的模型回放、Docker/生产 acceptance 和真实配置浏览器 smoke；继续遵循最多 3 路并行与“整体规划 -> 实现 -> 测试 -> 全局重规划”循环。

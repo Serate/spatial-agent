@@ -311,6 +311,7 @@ class AnswerComposer:
         constraints = result.get("constraint_summary") or {}
         ratio = statistics.get("candidate_ratio")
         ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.2f}%"
+        analysis_note = _analysis_ready_note(health)
         health_note = ""
         if health.get("status") and health.get("status") != "ready":
             alignment = (health.get("relationships") or {}).get("dem_land_use") or {}
@@ -327,6 +328,7 @@ class AnswerComposer:
             f"满足道路距离约束 {constraints.get('eligible_features', 0)} 个，"
             f"因水体排除 {constraints.get('water_excluded_features', 0)} 个。"
             f"道路距离阈值 {constraints.get('road_distance_m', '未知')} 米。"
+            f"{analysis_note + '。' if analysis_note else ''}"
             "矢量约束只作用于有限候选几何样本，不代表全像元精确适宜性或法定规划结论。"
         )
 
