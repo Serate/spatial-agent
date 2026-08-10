@@ -41,7 +41,12 @@ class AgentService:
         self._conversation_store = (
             SQLiteConversationStore(self._state_db_path) if self._state_db_path else None
         )
-        self._async_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="spatial-agent")
+        self._memory_session_lock = Lock()
+        self._memory_sessions: Dict[str, Dict[str, Any]] = {}
+        self._async_worker_count = _async_worker_count()
+        self._async_executor = ThreadPoolExecutor(
+            max_workers=self._async_worker_count, thread_name_prefix="spatial-agent"
+        )
         self._async_lock = Lock()
         self._async_jobs: Dict[str, Dict[str, Any]] = {}
         self._recover_async_jobs()
@@ -78,6 +83,8 @@ class AgentService:
                 return payload
         if self._conversation_store is not None:
             self._conversation_store.ensure_session(session_id)
+        else:
+            self._ensure_memory_session(session_id)
         normalized_context = _normalize_spatial_context(spatial_context)
         runtime = self._runtime(planner, backend)
         result = runtime.run(
@@ -461,17 +468,32 @@ class AgentService:
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
         if self._state_store is None:
-            return {"runs": []}
+            records = []
+            for runtime in self._runtimes.values():
+                records.extend(runtime._state_store.list_runs(limit=limit, session_id=session_id))
+            records = _dedupe_run_records(records)
+            return {"runs": records[:limit]}
         return {"runs": self._state_store.list_runs(limit=limit, session_id=session_id)}
 
     def list_sessions(self, limit: int = 50) -> Dict:
         if self._conversation_store is None:
-            return {"sessions": []}
+            if limit < 1:
+                raise ValueError("limit must be positive")
+            with self._memory_session_lock:
+                sessions = list(self._memory_sessions.values())
+            return {"sessions": sessions[-limit:][::-1]}
         return {"sessions": self._conversation_store.list_sessions(limit=limit)}
 
     def create_session(self) -> Dict:
         if self._conversation_store is None:
-            raise ValueError("session persistence is not configured")
+            with self._memory_session_lock:
+                number = 1
+                while "conversation-{}".format(number) in self._memory_sessions:
+                    number += 1
+                session_id = "conversation-{}".format(number)
+                session = {"session_id": session_id, "display_name": "对话{}".format(number)}
+                self._memory_sessions[session_id] = session
+                return dict(session)
         return self._conversation_store.create_session()
 
     def clear_session(self, session_id: str) -> Dict:
@@ -479,6 +501,9 @@ class AgentService:
         cleared_runs = self._state_store.clear_session_runs(session_id) if self._state_store else 0
         if self._conversation_store:
             self._conversation_store.clear_session(session_id)
+        else:
+            for runtime in self._runtimes.values():
+                cleared_runs += runtime._state_store.clear_session_runs(session_id)
         for runtime in self._runtimes.values():
             runtime.clear_session(session_id)
         return {"session_id": session_id, "cleared_runs": cleared_runs}
@@ -487,13 +512,29 @@ class AgentService:
         _validate_session_id(session_id)
         cleared_runs = self._state_store.clear_session_runs(session_id) if self._state_store else 0
         deleted = self._conversation_store.delete_session(session_id) if self._conversation_store else False
+        if self._conversation_store is None:
+            for runtime in self._runtimes.values():
+                cleared_runs += runtime._state_store.clear_session_runs(session_id)
+            with self._memory_session_lock:
+                deleted = self._memory_sessions.pop(session_id, None) is not None
         for runtime in self._runtimes.values():
             runtime.clear_session(session_id)
         return {"session_id": session_id, "deleted": deleted, "cleared_runs": cleared_runs}
 
+    def _ensure_memory_session(self, session_id: str) -> None:
+        with self._memory_session_lock:
+            if session_id in self._memory_sessions:
+                return
+            self._memory_sessions[session_id] = {
+                "session_id": session_id,
+                "display_name": _memory_session_display_name(session_id),
+            }
+
     def metrics(self) -> Dict:
         if self._state_store is not None:
-            return self._state_store.metrics()
+            metrics = self._state_store.metrics()
+            metrics.setdefault("async_jobs", {})["worker_count"] = self._async_worker_count
+            return metrics
         metrics = self._artifact_store.metrics()
         metrics["async_jobs"] = self._memory_async_metrics()
         return metrics
@@ -521,6 +562,7 @@ class AgentService:
                 recovered_jobs += 1
         return {
             "count": len(jobs),
+            "worker_count": self._async_worker_count,
             "status_counts": status_counts,
             "failure_categories": failure_categories,
             "recovered_jobs": recovered_jobs,
@@ -779,12 +821,44 @@ def _duration_summary(values):
 def _empty_async_metrics():
     return {
         "count": 0,
+        "worker_count": 4,
         "status_counts": {},
         "failure_categories": {},
         "recovered_jobs": 0,
         "queue_wait_ms": _duration_summary([]),
         "run_duration_ms": _duration_summary([]),
     }
+
+
+def _async_worker_count() -> int:
+    raw = os.environ.get("SPATIAL_AGENT_ASYNC_WORKERS", "4")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("SPATIAL_AGENT_ASYNC_WORKERS must be an integer from 1 to 16") from exc
+    if value < 1 or value > 16:
+        raise ValueError("SPATIAL_AGENT_ASYNC_WORKERS must be an integer from 1 to 16")
+    return value
+
+
+def _memory_session_display_name(session_id: str) -> str:
+    if session_id.startswith("conversation-"):
+        suffix = session_id[len("conversation-"):]
+        if suffix.isdigit():
+            return "对话" + suffix
+    return session_id
+
+
+def _dedupe_run_records(records):
+    seen = set()
+    result = []
+    for record in records:
+        run_id = record.get("run_id")
+        if run_id in seen:
+            continue
+        seen.add(run_id)
+        result.append(record)
+    return result
 
 
 def _async_response(run_id: str, status: str, reused: bool) -> Dict[str, Any]:

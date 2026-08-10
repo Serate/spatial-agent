@@ -3,6 +3,8 @@
 from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
+from .workflow_templates import workflow_template_catalog
+
 
 DATASET_TOOL_CAPABILITIES = {
     "admin_areas": ["get_dataset_schema", "range_query"],
@@ -188,6 +190,7 @@ def capability_catalog(
         "dataset_groups": {
             name: list(datasets) for name, datasets in DATASET_GROUPS.items()
         },
+        "workflow_templates": workflow_template_catalog(),
     }
 
 

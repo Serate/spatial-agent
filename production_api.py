@@ -15,6 +15,7 @@ from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
+from agent.workflow_templates import workflow_template_catalog
 
 
 app = FastAPI(title="Spatial Agent", version="0.1.0")
@@ -175,6 +176,11 @@ def delete_session(session_id: str):
 @app.get("/metrics")
 def metrics():
     return service.metrics()
+
+
+@app.get("/workflows")
+def workflows():
+    return {"templates": workflow_template_catalog()}
 
 
 @app.get("/runs/{run_id}")

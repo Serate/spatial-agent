@@ -542,3 +542,21 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 ## 持续目标扩展
 
 每个大阶段必须从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度做全局规划；可独立的工作拆成最多 3 路并行，公共 schema、runtime、result envelope 和能力目录由主线统一集成。阶段完成后必须有专项测试、全量回归、真实 GIS/浏览器/部署证据、中文问题记录、里程碑更新和 GitHub 版本，再依据全局结果规划下一阶段。
+
+## M68 已完成
+
+- 受控工作流模板目录位于 `agent/workflow_templates.py`，提供模板目录、模板校验、计划校验和依赖 DAG 校验；能力目录与 `GET /workflows` 已接入。
+- `agent/raster_alignment.py` 提供 metadata-only DEM/土地利用对齐报告；健康报告和 runtime 快照保留 `relationships.dem_land_use.grid_alignment`，明确不读取像元。
+- SQLite 旧 schema 生命周期字段迁移、异步 worker 配置（`SPATIAL_AGENT_ASYNC_WORKERS`，1-16，默认 4）和内存会话 CRUD/历史恢复已完成。
+- M68 专项 47 项，另加 smoke 回归 1 项；离线全量 340 项（35 项跳过）、GIS 全量 340 项（9 项跳过）、`scripts/smoke_check.py` 和 `scripts/evaluate_global.py --strict` 均通过；全局评测 8/8 执行场景通过、3 个可选场景跳过。
+- Docker Desktop 仍不可用：`dockerDesktopLinuxEngine` named pipe 不存在，`docker info` 无法连接；新镜像、容器 readiness 和 production acceptance 保留为外部环境待办，不能引用旧容器作为 M68 证据。
+
+## M69 下一步
+
+从项目整体推进三个可并行方向，最多并发 3：
+
+1. 工作流编辑与计划契约：把模板校验扩展为版本化约束编辑、计划修订和 Console 交互，保持 Planner/Runtime/ToolRegistry 的统一边界。
+2. 数据 manifest 与对齐门控：为武汉道路、水体、DEM、土地利用和行政区建立可复现 manifest、校验命令、版本/provenance 检查及像元级对齐前置诊断。
+3. 模型回放与可靠性矩阵：覆盖开放式澄清补全、非法计划修复、失败重试、多 worker 取消/超时/滚动重启，并保留可选 live provider 基线。
+
+主线集成后再做动态 Console 结果工作区统一、全量离线/GIS/HTTP/串行浏览器验收；Docker Desktop 恢复后补新镜像和 production acceptance，阶段通过后提交并推送一个版本。

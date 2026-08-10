@@ -8,6 +8,7 @@ from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
+from agent.workflow_templates import workflow_template_catalog
 
 
 class AgentApiHandler(BaseHTTPRequestHandler):
@@ -25,6 +26,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/capabilities":
             self._write_json(200, capability_catalog(environment="unknown"))
+            return
+        if parsed.path == "/workflows":
+            self._write_json(200, {"templates": workflow_template_catalog()})
             return
         if parsed.path == "/capabilities/runtime":
             query = parse_qs(parsed.query)

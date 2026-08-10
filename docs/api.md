@@ -262,6 +262,12 @@ runs can be cooperatively cancelled with `POST /runs/{run_id}/cancel`.
 模型响应或凭据。`GET /metrics` 的 `async_jobs` 汇总状态数量、失败分类和耗时
 统计，可用于部署监控但不能替代具体运行结果。
 
+`GET /workflows` 返回当前受控工作流模板目录。模板只描述允许的工具、结果类型、
+最大步骤数和必填约束；客户端不能通过该接口直接执行任意工具，实际计划仍必须经过
+TaskPlan schema 和 ToolRegistry。生产异步 worker 数量可通过
+`SPATIAL_AGENT_ASYNC_WORKERS` 配置为 1 到 16，默认值为 4，实际值可从
+`metrics.async_jobs.worker_count` 读取。
+
 ## Error Responses
 
 Invalid or empty request:

@@ -2083,3 +2083,57 @@ live 测试按工具名查找关键步骤，结果契约断言计划声明的 `o
 ### 预防
 
 浏览器 smoke 要么串行复用单页面，要么为每个任务创建独立 CDP page/profile；不能仅因为后端请求互不相同就并行启动共享页面脚本。失败时先记录页面 URL、状态文本和请求 ID，再区分验收器竞争与产品回归。
+
+## 全量测试与 smoke 并行访问 SQLite 导致锁竞争
+
+### 现象
+
+M68 集成验证时，同时运行外部 `unittest discover` 和会在内部再次运行全量测试的 `scripts/smoke_check.py`，其中一个测试进程在 `PRAGMA journal_mode = WAL` 处报 `sqlite3.OperationalError: database is locked`，并造成多 worker 异步测试超时；单独串行执行时没有该失败。
+
+### 根因
+
+两条验收命令不是纯只读检查：测试会创建或迁移 SQLite 状态库，smoke 脚本还会嵌套启动单元测试。并行进程可能同时初始化同一个默认状态路径，SQLite 的 WAL 模式切换和 schema 初始化窗口会互相阻塞。该错误属于验收编排竞争，不能直接归因于异步业务实现。
+
+### 修复
+
+停止并行的重复测试进程，按“全量单元测试 -> smoke（内部测试只执行一次） -> 全局评测 -> 其他部署/浏览器验收”顺序串行执行；生产多 worker 契约仍单独使用临时数据库验证。
+
+### 预防
+
+涉及 SQLite、artifact 或共享输出目录的验收命令必须声明是否会写状态；有嵌套测试的脚本不能与外部全量测试并行。若需要并行，必须为每个进程提供隔离的 `SPATIAL_AGENT_STATE_DB`、artifact root 和输出目录，并在结果中记录隔离路径。
+
+## Docker Desktop 服务项缺失阻断生产验收
+
+### 现象
+
+M68 代码验收完成后执行 Docker Compose 重建时，Docker CLI 报 Linux engine named pipe `dockerDesktopLinuxEngine` 不存在；尝试启动 `com.docker.service` 又报无法打开该服务项。此时不能获得新镜像、容器或 production acceptance 结果。
+
+### 根因
+
+Docker CLI、Compose 文件和镜像构建配置存在，并不代表 Docker Desktop 服务已经注册、WSL2 Linux engine 已启动或当前会话可访问 engine named pipe。服务项缺失属于宿主机安装/启动状态，和项目 Dockerfile、国内镜像源及应用代码是不同故障层。
+
+### 修复
+
+先检查 `Get-Service com.docker.service`、Docker Desktop GUI/WSL2 状态和 `docker info`；只有 `docker info` 能返回 Server 信息后才重建 Compose。当前机器缺少可启动的服务项，未把旧容器响应当作 M68 部署证据。
+
+### 预防
+
+部署验收必须把 Docker CLI 可执行、Docker Desktop 服务已注册、Linux engine 可用、镜像构建成功、容器 readiness 和业务接口验证分成独立检查；任一前置失败都要报告具体层级，不能用已有旧镜像或页面 200 代替新版本证据。
+
+## 内存模式前端会话 fallback 与后端会话 API 不一致
+
+### 现象
+
+本地内存模式的 Console 可以通过前端 fallback 创建“对话1”，但 `POST /sessions` 返回 `session persistence is not configured`，`GET /sessions/{session_id}/runs` 也始终为空；浏览器会话恢复 smoke 因此无法恢复选中的会话。SQLite/生产模式没有该问题。
+
+### 根因
+
+前端为了支持无 SQLite 的开发模式已经生成了临时会话选项，但 `AgentService` 只在内存中保存 Runtime 的多轮澄清状态，没有提供内存会话注册表、运行历史查询、清空和删除语义，导致 UI fallback 与 HTTP 契约分裂。
+
+### 修复
+
+内存服务增加受控会话注册表，自动登记运行使用的 session ID，并实现创建、列表、运行历史、清空和删除；`InMemoryStateStore` 增加按 session 查询和清理运行快照。SQLite 路径保持原有持久化实现，前端现在可在 memory 和 production 两种模式使用同一会话接口。
+
+### 预防
+
+任何前端 fallback 都必须有对应的后端契约测试；浏览器验收至少覆盖 memory 和 SQLite 两种状态后端的会话创建、切换、历史恢复与清空，不能只验证生产数据库路径。

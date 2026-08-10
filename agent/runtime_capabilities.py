@@ -42,6 +42,7 @@ def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
         if isinstance(item, Mapping) and item.get("dataset")
     }
     snapshot["data_provenance"] = data_provenance
+    snapshot["relationships"] = health.get("relationships", {})
     for capability in snapshot.get("capabilities", []):
         evidence = capability.get("runtime_evidence", {})
         datasets = evidence.get("datasets", {}) if isinstance(evidence, dict) else {}

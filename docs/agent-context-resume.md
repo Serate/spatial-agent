@@ -312,3 +312,21 @@ git -c safe.directory=D:/Project/job/ai-agent check-ignore -v config/openai.loca
 - 开发采用“整体规划 -> 可并行实现 -> 集成测试 -> 整体重规划”循环；可并行子任务最多 3 个。
 - 每个阶段完成后更新 docs/milestones.md、恢复文档，并创建一个 GitHub 版本；私有配置和原始数据不得提交。
 - 全局 goal：持续执行“整体规划 -> 最多 3 路可并行实现 -> 统一集成测试 -> 全局重规划”，阶段验收通过后提交并推送版本；规划必须覆盖产品能力、数据质量、真实模型、部署可靠性和用户体验。
+
+## M68 收尾状态
+
+- 已实现受控工作流模板和严格计划校验：工具 allowlist、结果类型、必需条件、步骤上限、依赖 DAG 均在 `agent/workflow_templates.py` 统一验证；能力目录和 `/workflows` API 已接入。
+- 已实现 metadata-only 栅格对齐证据：`agent/raster_alignment.py` 检查 CRS、分辨率、原点、范围、尺寸、旋转和覆盖关系；健康报告/runtime 快照暴露 `grid_alignment`，不读取 DEM/土地利用像元。
+- 已实现 SQLite 生命周期字段迁移、异步 worker 数量配置和内存会话创建/列表/历史恢复/清空/删除。
+- 验证通过：M68 专项 47 项，另加 smoke 回归 1 项；离线全量 340 项（35 项跳过）；GIS 全量 340 项（9 项跳过）；全局评测严格模式 8/8 执行场景通过、3 项可选场景跳过。
+- Docker Desktop 当前仍无法连接 Linux engine：`dockerDesktopLinuxEngine` named pipe 不存在，`com.docker.service` 服务项不可用。该宿主环境问题已写入开发问题日志，新镜像/容器 readiness/production acceptance 尚无 M68 证据。
+
+## M69 全局规划
+
+1. 产品能力：版本化工作流模板、可编辑结构化约束、计划修订和动态 Console 结果工作区。
+2. 数据质量：武汉全量数据 manifest、下载/哈希校验、provenance 版本锁定与像元级对齐前置门控。
+3. 真实模型：开放式多轮澄清、非法计划修复、失败重试的脱敏回放和可选 live 基线。
+4. 部署可靠性：SQLite 迁移与多 worker 的超时、取消、幂等、滚动重启组合验收；Docker 恢复后补生产镜像验收。
+5. 用户体验：答案、轨迹、证据和地图互相引用，并明确展示数据版本、对齐状态和降级原因。
+
+M69 最多启动 3 路并行子任务；并行任务不得各自修改公共 schema 或 result envelope，必须由主线统一集成。每阶段完成后更新本文件、`docs/task-resume.md`、`docs/milestones.md` 和中文开发问题日志，并提交推送一个 GitHub 版本。

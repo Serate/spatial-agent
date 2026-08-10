@@ -26,6 +26,38 @@ class InMemoryStateStore:
         with self._lock:
             return self._runs.get(run_id)
 
+    def list_runs(self, limit: int = 20, session_id: Optional[str] = None):
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._lock:
+            values = list(self._runs.values())
+        if session_id:
+            values = [item for item in values if item.session_id == session_id]
+        values = list(reversed(values[-limit:]))
+        return [
+            {
+                "run_id": item.run_id,
+                "session_id": item.session_id,
+                "status": item.status.value,
+                "request": item.request,
+                "answer": item.answer,
+                "error": item.error,
+                "planner_metrics": item.planner_metrics,
+            }
+            for item in values
+        ]
+
+    def clear_session_runs(self, session_id: str) -> int:
+        with self._lock:
+            run_ids = [
+                run_id for run_id, item in self._runs.items()
+                if item.session_id == session_id
+            ]
+            for run_id in run_ids:
+                self._runs.pop(run_id, None)
+                self._cancelled.discard(run_id)
+        return len(run_ids)
+
     def request_cancel(self, run_id: str) -> None:
         with self._lock:
             self._cancelled.add(run_id)

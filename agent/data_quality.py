@@ -11,6 +11,7 @@ from .capability_catalog import (
     capability_catalog,
 )
 from .errors import ToolError
+from .raster_alignment import raster_alignment_report
 
 
 HEALTH_DATASETS = ("admin_areas", "dem", "land_use", "roads", "water")
@@ -52,6 +53,17 @@ def dataset_health_report(
     if dem_entry is not None and land_use_entry is not None:
         relationships["dem_land_use"] = _raster_alignment_summary(
             dem_entry, land_use_entry, max_files
+        )
+        dem_report = next(
+            (item for item in reports if item.get("dataset") == "dem"), {}
+        )
+        land_use_report = next(
+            (item for item in reports if item.get("dataset") == "land_use"), {}
+        )
+        dem_metadata = (dem_report.get("metadata_samples") or [None])[0]
+        land_use_metadata = (land_use_report.get("metadata_samples") or [None])[0]
+        relationships["dem_land_use"]["grid_alignment"] = raster_alignment_report(
+            dem_metadata or {}, land_use_metadata or {}
         )
     capabilities = {
         item["dataset"]: list(item.get("usable_for", [])) for item in reports
@@ -173,6 +185,7 @@ def _health_raster(entry: DatasetEntry, max_files: int) -> Dict[str, Any]:
     bounds = None
     errors = []
     dimensions = []
+    metadata_samples = []
     checked = 0
     for path in entry.files[:max_files]:
         try:
@@ -183,6 +196,19 @@ def _health_raster(entry: DatasetEntry, max_files: int) -> Dict[str, Any]:
                     crs_values.add(str(src.crs))
                 current = [float(src.bounds.left), float(src.bounds.bottom), float(src.bounds.right), float(src.bounds.top)]
                 bounds = _merge_bounds(bounds, current)
+                metadata_samples.append(
+                    {
+                        "crs": str(src.crs) if src.crs else None,
+                        "bounds": current,
+                        "width": int(src.width),
+                        "height": int(src.height),
+                        "pixel_size": [abs(float(src.transform.a)), abs(float(src.transform.e))],
+                        "transform": [
+                            float(src.transform.a), float(src.transform.b), float(src.transform.c),
+                            float(src.transform.d), float(src.transform.e), float(src.transform.f),
+                        ],
+                    }
+                )
         except Exception as exc:  # a health report must describe bad files, not hide them
             errors.append({"path": str(path), "message": str(exc)[:240]})
     if errors:
@@ -204,6 +230,7 @@ def _health_raster(entry: DatasetEntry, max_files: int) -> Dict[str, Any]:
         "crs_values": sorted(crs_values),
         "bounds": bounds,
         "dimensions": dimensions[:max_files],
+        "metadata_samples": metadata_samples[:max_files],
         "errors": errors,
         "usable_for": list(DATASET_CAPABILITIES.get(entry.name, [])),
         "checks": checks,
