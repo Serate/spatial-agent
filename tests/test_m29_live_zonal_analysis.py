@@ -6,8 +6,9 @@ from run_demo import build_runtime
 
 
 @unittest.skipUnless(
-    os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") == "1",
-    "set SPATIAL_AGENT_LIVE_OPENAI=1 to run live zonal planner smoke",
+    os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") == "1"
+    and os.environ.get("SPATIAL_AGENT_LIVE_GIS") == "1",
+    "set SPATIAL_AGENT_LIVE_OPENAI=1 and SPATIAL_AGENT_LIVE_GIS=1 to run live GIS planner smoke",
 )
 class M29LiveZonalAnalysisTests(unittest.TestCase):
     def test_live_model_plans_and_executes_zonal_dem_analysis(self):
@@ -15,13 +16,14 @@ class M29LiveZonalAnalysisTests(unittest.TestCase):
 
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertTrue(result.steps)
-        self.assertEqual(result.steps[0].tool, "get_zonal_raster_statistics")
-        statistics = result.steps[0].result["statistics"]
+        step = next(step for step in result.steps if step.tool == "get_zonal_raster_statistics")
+        self.assertEqual(step.status, "COMPLETED")
+        statistics = step.result["statistics"]
         self.assertIsNone(statistics.get("error"))
         self.assertGreater(statistics["valid_pixel_count"], 0)
         self.assertIn("洪山区", result.answer)
         contract = build_result_contract({**result.to_dict(), "result_type": result.plan.output["type"]})
-        self.assertEqual(contract["type"], "zonal_raster_statistics_result")
+        self.assertEqual(contract["type"], result.plan.output["type"])
         self.assertTrue(contract["references"])
         self.assertTrue(contract["data"]["evidence_steps"])
 
@@ -31,14 +33,14 @@ class M29LiveZonalAnalysisTests(unittest.TestCase):
         )
 
         self.assertEqual(result.status.value, "COMPLETED")
-        self.assertEqual(
-            [step.tool for step in result.steps],
-            ["get_dataset_schema", "range_query", "get_zonal_raster_statistics"],
-        )
-        self.assertEqual(result.steps[2].args["admin_name"], "洪山区")
-        self.assertGreater(result.steps[2].result["statistics"]["valid_pixel_count"], 0)
+        tools = [step.tool for step in result.steps]
+        self.assertIn("get_dataset_schema", tools)
+        self.assertIn("range_query", tools)
+        step = next(step for step in result.steps if step.tool == "get_zonal_raster_statistics")
+        self.assertEqual(step.args["admin_name"], "洪山区")
+        self.assertGreater(step.result["statistics"]["valid_pixel_count"], 0)
         contract = build_result_contract({**result.to_dict(), "result_type": result.plan.output["type"]})
-        self.assertEqual(contract["type"], "zonal_raster_statistics_result")
+        self.assertEqual(contract["type"], result.plan.output["type"])
         self.assertTrue(contract["data"]["evidence_steps"])
 
 

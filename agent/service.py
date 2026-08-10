@@ -113,6 +113,7 @@ class AgentService:
             )
             payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
             payload["result"] = build_result_contract(payload)
+            result.geometry_evidence = payload["_geometry_evidence"]
             payload.pop("_geometry_feature_count", None)
             payload.pop("_geometry_evidence", None)
             result.geojson_ref = payload["geojson_ref"]
@@ -290,6 +291,7 @@ class AgentService:
             )
             payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
             payload["result"] = build_result_contract(payload)
+            result.geometry_evidence = payload["_geometry_evidence"]
             payload.pop("_geometry_feature_count", None)
             payload.pop("_geometry_evidence", None)
             result.geojson_ref = payload["geojson_ref"]
@@ -335,8 +337,12 @@ class AgentService:
         if result is None:
             raise ValueError("run not found: " + run_id)
         payload = result.to_dict()
+        explicit_geometry = payload.pop("geometry_evidence", None)
+        if explicit_geometry is not None:
+            payload["_geometry_evidence"] = explicit_geometry
         payload["result_type"] = _result_type(payload)
         payload["result"] = build_result_contract(payload)
+        payload.pop("_geometry_evidence", None)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         return payload
@@ -665,9 +671,13 @@ def _exported_geometry_evidence(geojson_ref):
 
 def _format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Dict[str, Any]:
     payload = result.to_dict()
+    explicit_geometry = payload.pop("geometry_evidence", None)
+    if explicit_geometry is not None:
+        payload["_geometry_evidence"] = explicit_geometry
     payload["spatial_context"] = spatial_context
     payload["result_type"] = _result_type(payload)
     payload["result"] = build_result_contract(payload)
+    payload.pop("_geometry_evidence", None)
     payload["trace_summary"] = format_trace(result)
     payload["provenance"] = build_provenance(payload)
     return payload

@@ -2,6 +2,12 @@
 
 本文档用于在新对话中恢复 Spatial Agent 项目的开发上下文。新对话开始后，应先阅读本文档，再检查 Git 状态和相关文件，然后继续当前任务。
 
+## 当前全局执行规则
+
+- 全局 goal 持续执行“整体规划 -> 可并行实现 -> 集成测试 -> 整体重规划”循环。
+- 当前最大并发度为 4，任一阶段最多启动 4 个并行子任务。
+- 并行任务必须在共享 schema、runtime 状态、result envelope 和能力目录上统一集成。
+
 ## 项目定位
 
 Spatial Agent 是一个面向求职展示的 AI Agent Runtime 项目，空间数据只是业务载体。核心展示点是：
@@ -188,7 +194,7 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 2. 深化异步幂等、异常重启恢复、状态观测和真实模型超时/重试指标。
 3. 扩展开放式空间问答的意图、澄清和多工具编排，并让 Console 按结果类型动态展示。
 
-大阶段最多拆分 5 路并行；仅将边界清晰、可独立测试且不同时修改同一公共契约的任务并行执行。推荐拆分为能力快照、SQLite 可靠性、几何证据、评测/答案契约、部署/Console 验收五路；所有任务必须在共享 schema、runtime 状态、result envelope 和能力目录上统一集成。
+大阶段最多拆分 4 路并行；仅将边界清晰、可独立测试且不同时修改同一公共契约的任务并行执行。所有任务必须在共享 schema、runtime 状态、result envelope 和能力目录上统一集成。
 
 ## M61 当前实现状态
 
@@ -215,7 +221,15 @@ M50 期间修复了两个问题：Rasterio `from_bounds` 在当前 Windows GIS �
 - 已新增脱敏录制模型响应回归，验证空间总览 8 步计划、依赖 DAG、结果绑定和 ToolRegistry 实际执行，默认不访问网络。
 - 已增加多 worker 异步提交、独立轮询、幂等和 claim 后崩溃恢复测试；修复首次提交被误标为幂等复用，以及 Windows 已退出 worker 被误判为存活的问题。
 - Console 已增加 `spatial_overview_result` 紧凑摘要面板；已有多区域对比服务能力纳入本阶段验收。
-- M65 尚未完成全量和联合验收，完成后必须更新五维全局规划、提交并推送一个版本。
+- M65 已完成全量离线/GIS、Smoke、Docker 重建和 production acceptance，已推送 `1fbc4cc`；浏览器当时仅因未启动 Chrome CDP 未执行。
+
+## M66 当前进展
+
+- M66-E 已加入开放式空间澄清和跨区域对比全局评测契约，并推送 `ed56e26`。
+- M66-A 已增加真实 GIS 空间总览 live 端到端测试；必须同时开启 `SPATIAL_AGENT_LIVE_OPENAI=1`、`SPATIAL_AGENT_LIVE_GIS=1` 并使用 `spatial-agent-gis` 环境。测试验证 `spatial_overview_result`、8 类工具覆盖、全部步骤完成和中文答案，最多容忍 provider 暂态失败重试 3 次。
+- M66-C 已修复异步轮询/服务重启丢失最终 `geometry_evidence` 的问题，新增同步/异步/重启证据矩阵。
+- M66-D 已增加隔离 Chrome CDP 启动脚本、总览面板/地图分层 smoke 以及 `CDP_URL`/`CONSOLE_URL` 配置；待实际启动 CDP 后执行。
+- M66 已完成最终全量、Docker 和浏览器联合验收；下一阶段为 M67，按产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度推进。
 
 M16 的真实模型路径仍保持可选，不阻塞离线和 GIS 回归：
 
@@ -278,6 +292,6 @@ git -c safe.directory=D:/Project/job/ai-agent check-ignore -v config/openai.loca
 - 新增 Agent 工具时，同时更新 schema、adapter、planner guidance、answer composer、测试和文档。
 - 真实模型失败时，先判断是网络、provider、模型输出、plan 校验还是 backend 执行问题。
 - 新遇到的 Agent 开发问题，记录到 docs/agent-development-issues.md。
-- 开发采用“整体规划 -> 可并行实现 -> 集成测试 -> 整体重规划”循环；可并行子任务最多 5 个。
+- 开发采用“整体规划 -> 可并行实现 -> 集成测试 -> 整体重规划”循环；可并行子任务最多 4 个。
 - 每个阶段完成后更新 docs/milestones.md、恢复文档，并创建一个 GitHub 版本；私有配置和原始数据不得提交。
-- 全局 goal：持续执行“整体规划 -> 最多 5 路可并行实现 -> 统一集成测试 -> 全局重规划”，阶段验收通过后提交并推送版本；规划必须覆盖产品能力、数据质量、真实模型、部署可靠性和用户体验。
+- 全局 goal：持续执行“整体规划 -> 最多 4 路可并行实现 -> 统一集成测试 -> 全局重规划”，阶段验收通过后提交并推送版本；规划必须覆盖产品能力、数据质量、真实模型、部署可靠性和用户体验。

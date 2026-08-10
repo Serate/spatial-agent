@@ -3,7 +3,8 @@
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const consoleUrl = process.env.CONSOLE_URL || "http://127.0.0.1:8088/";
 const mapRequest = process.env.MAP_REQUEST || "分析洪山区建设适宜性，坡度不超过20度";
-const response = await fetch("http://127.0.0.1:9222/json/list");
+const cdpUrl = process.env.CDP_URL || "http://127.0.0.1:9222";
+const response = await fetch(`${cdpUrl}/json/list`);
 const pages = await response.json();
 const page = pages.find(item => item.type === "page");
 if (!page) throw new Error("Chrome CDP page was not found");
@@ -31,7 +32,15 @@ await new Promise(resolve => { socket.onopen = resolve; });
 await command("Page.enable");
 await command("Runtime.enable");
 await command("Page.navigate", {url: consoleUrl});
-await sleep(1500);
+for (let attempt = 0; attempt < 60; attempt++) {
+  const ready = await command("Runtime.evaluate", {
+    expression: "typeof $ === 'function' && typeof sendChat === 'function'",
+    returnByValue: true,
+  });
+  if (ready.result?.result?.value) break;
+  await sleep(250);
+  if (attempt === 59) throw new Error("Console 页面脚本未就绪");
+}
 const sendResult = await command("Runtime.evaluate", {
   expression: "(async()=>{ $('backend').value='local'; const response=await nativeFetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request:"+JSON.stringify(mapRequest)+",planner:'rule',backend:'local',session_id:'browser-map',export_artifact:true,export_geojson:true})}); const data=await response.json(); renderRun(data); })()",
   awaitPromise: true,

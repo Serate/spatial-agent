@@ -1,0 +1,76 @@
+import json
+import os
+import subprocess
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class M66DataVolumeContractTests(unittest.TestCase):
+    def test_container_catalog_declares_core_data_under_container_root(self):
+        config = json.loads(
+            (ROOT / "config" / "datasets.container.example.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(config["root"], "/data")
+        self.assertEqual(
+            set(config["datasets"]), {"admin_areas", "dem", "land_use"}
+        )
+        self.assertTrue(config["datasets"]["admin_areas"]["path"])
+        self.assertTrue(config["datasets"]["dem"]["glob"].startswith("extracted/"))
+        self.assertTrue(
+            config["datasets"]["land_use"]["glob"].startswith("extracted/")
+        )
+
+    def test_compose_separates_read_only_data_from_writable_outputs(self):
+        compose = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
+        self.assertIn("${SPATIAL_AGENT_HOST_DATASET_ROOT:-./data}:/data:ro", compose)
+        self.assertIn("./outputs:/app/outputs", compose)
+        self.assertNotIn("/data:rw", compose)
+
+    def test_docker_runtime_points_at_container_catalog_and_requires_gis(self):
+        dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("SPATIAL_AGENT_DATASET_CONFIG=/app/config/datasets.container.example.json", dockerfile)
+        self.assertIn("SPATIAL_AGENT_DATASET_ROOT=/data", dockerfile)
+        self.assertIn("SPATIAL_AGENT_REQUIRE_GIS=1", dockerfile)
+        self.assertIn('"--workers", "2"', dockerfile)
+
+    def test_acceptance_checks_core_and_reports_optional_dataset_gap(self):
+        script = (ROOT / "scripts" / "production_acceptance.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function Assert-DataVolumeHealth", script)
+        for dataset in ("admin_areas", "dem", "land_use", "roads", "water"):
+            self.assertIn(f'"{dataset}"', script)
+        self.assertIn("core data volume is unavailable", script)
+        self.assertIn("optional_missing_datasets", script)
+        self.assertIn("core_ready_optional_partial", script)
+
+    @unittest.skipUnless(
+        os.environ.get("SPATIAL_AGENT_RUN_M66_PRODUCTION") == "1",
+        "set SPATIAL_AGENT_RUN_M66_PRODUCTION=1 for a live Docker acceptance",
+    )
+    def test_live_production_acceptance(self):
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(ROOT / "scripts" / "production_acceptance.ps1"),
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

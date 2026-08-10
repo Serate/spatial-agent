@@ -38,6 +38,71 @@ function Assert-RuntimeCapabilitySnapshot($snapshot) {
   }
 }
 
+function Get-DatasetEvidence($snapshot, [string]$dataset) {
+  if ($null -eq $snapshot.data_evidence) {
+    throw "runtime dataset evidence is missing"
+  }
+  $property = $snapshot.data_evidence.PSObject.Properties[$dataset]
+  if ($null -eq $property -or $null -eq $property.Value) {
+    throw "runtime dataset evidence missing: $dataset"
+  }
+  $evidence = $property.Value
+  if ([string]::IsNullOrWhiteSpace([string]$evidence.status)) {
+    throw "runtime dataset status missing: $dataset"
+  }
+  if ($null -eq $evidence.file_count -or $null -eq $evidence.checked_files) {
+    throw "runtime dataset file metrics missing: $dataset"
+  }
+  return $evidence
+}
+
+function Assert-DataVolumeHealth($snapshot) {
+  $coreDatasets = @("admin_areas", "dem", "land_use")
+  $optionalDatasets = @("roads", "water")
+  $coreMissing = @()
+  $optionalMissing = @()
+  $evidenceByDataset = @{}
+
+  foreach ($dataset in $coreDatasets) {
+    $evidence = Get-DatasetEvidence $snapshot $dataset
+    $evidenceByDataset[$dataset] = $evidence
+    if ($evidence.status -eq "unavailable" -or [int]$evidence.checked_files -lt 1) {
+      $coreMissing += $dataset
+    }
+  }
+  foreach ($dataset in $optionalDatasets) {
+    $evidence = Get-DatasetEvidence $snapshot $dataset
+    $evidenceByDataset[$dataset] = $evidence
+    if ($evidence.status -eq "unavailable" -or [int]$evidence.checked_files -lt 1) {
+      $optionalMissing += $dataset
+    }
+  }
+
+  # Core data is required for a meaningful production GIS acceptance. Roads
+  # and water are optional capabilities and remain an explicit reported gap.
+  if ($coreMissing.Count -gt 0) {
+    throw "core data volume is unavailable: $($coreMissing -join ', ')"
+  }
+
+  $coreHealth = [string]$snapshot.core_health_status
+  if ($coreHealth -notin @("ready", "degraded")) {
+    throw "core data health is not usable: $coreHealth"
+  }
+
+  $optionalHealth = [string]$snapshot.optional_health_status
+  if ($optionalHealth -notin @("ready", "degraded", "unavailable", "unknown")) {
+    throw "optional data health is invalid: $optionalHealth"
+  }
+
+  return [pscustomobject]@{
+    core_health = $coreHealth
+    optional_health = $optionalHealth
+    core_missing = @($coreMissing)
+    optional_missing = @($optionalMissing)
+    status = if ($optionalMissing.Count -gt 0) { "core_ready_optional_partial" } else { "ready" }
+  }
+}
+
 $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
 $capabilityCatalog = Get-Json "$BaseUrl/capabilities"
@@ -46,6 +111,7 @@ if ($live.status -ne "ok") { throw "liveness failed" }
 if ($ready.status -ne "ready") { throw "readiness failed: $($ready.status)" }
 if ($capabilityCatalog.version -ne "1.0" -or @($capabilityCatalog.capabilities).Count -lt 1) { throw "capability catalog failed" }
 Assert-RuntimeCapabilitySnapshot $runtimeCapabilities
+$dataVolume = Assert-DataVolumeHealth $runtimeCapabilities
 
 $sessionId = "production-acceptance-" + [guid]::NewGuid().ToString("N")
 $greeting = ([char]0x4F60) + ([char]0x597D)
@@ -74,6 +140,11 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   readiness = $ready.status
   capability_count = @($capabilityCatalog.capabilities).Count
   runtime_health = $runtimeCapabilities.health_status
+  data_volume_status = $dataVolume.status
+  core_data_health = $dataVolume.core_health
+  optional_data_health = $dataVolume.optional_health
+  core_missing_datasets = @($dataVolume.core_missing)
+  optional_missing_datasets = @($dataVolume.optional_missing)
   runtime_capability_count = @($runtimeCapabilities.capabilities).Count
   runtime_updated_at = $runtimeCapabilities.updated_at
   async_status = $final.status

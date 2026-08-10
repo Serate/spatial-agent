@@ -61,6 +61,8 @@ class AgentRunResult:
     clarification: Optional[Dict[str, Any]] = None
     artifact_ref: Optional[str] = None
     geojson_ref: Optional[str] = None
+    # Final bounded GeoJSON evidence persisted for async polling/recovery.
+    geometry_evidence: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
