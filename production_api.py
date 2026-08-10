@@ -105,6 +105,7 @@ def run(payload: Dict[str, Any]):
             geojson_max_features=payload.get("geojson_max_features", 100),
             timeout_seconds=payload.get("timeout_seconds"),
             spatial_context=payload.get("spatial_context"),
+            workflow=payload.get("workflow"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -125,6 +126,7 @@ def run_async(payload: Dict[str, Any]):
             geojson_max_features=payload.get("geojson_max_features", 100),
             timeout_seconds=payload.get("timeout_seconds"),
             spatial_context=payload.get("spatial_context"),
+            workflow=payload.get("workflow"),
             idempotency_key=payload.get("idempotency_key"),
         )
     except ValueError as exc:

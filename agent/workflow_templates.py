@@ -372,6 +372,60 @@ def normalize_workflow_evidence(
     return values
 
 
+def normalize_workflow_selection(
+    template_id: str,
+    constraints: Optional[Mapping[str, Any]] = None,
+    evidence: Optional[Iterable[str]] = None,
+) -> Dict[str, Any]:
+    """Normalize the user-selected template before a run is queued."""
+
+    template = get_workflow_template(template_id)
+    normalized_constraints = normalize_workflow_constraints(
+        template, {} if constraints is None else constraints
+    )
+    return {
+        "template_id": template["id"],
+        "template_version": template["version"],
+        "constraints": normalized_constraints,
+        "evidence": normalize_workflow_evidence(template, evidence),
+    }
+
+
+def workflow_request_hint(request: str, workflow: Optional[Mapping[str, Any]]) -> str:
+    """Add bounded, human-readable workflow context to the planner input."""
+
+    if not workflow:
+        return request
+    if not isinstance(workflow, Mapping):
+        raise WorkflowTemplateError("workflow must be an object")
+    constraints = workflow.get("constraints", {})
+    if not isinstance(constraints, Mapping):
+        raise WorkflowTemplateError("workflow.constraints must be an object")
+    template_id = workflow.get("template_id", "")
+    parts = []
+    if constraints.get("admin_name"):
+        parts.append("行政区=" + str(constraints["admin_name"]))
+    if constraints.get("dataset"):
+        parts.append("数据集=" + str(constraints["dataset"]))
+    if constraints.get("slope_limit_degrees") is not None:
+        parts.append("坡度不超过{}度".format(constraints["slope_limit_degrees"]))
+    if constraints.get("road_distance_m") is not None:
+        parts.append("道路距离{}米".format(constraints["road_distance_m"]))
+    if constraints.get("exclude_water"):
+        parts.append("排除水体")
+    if constraints.get("include_geometry") is False:
+        parts.append("不需要空间几何导出")
+    if not parts:
+        return request
+    label = {
+        "admin_boundary_query": "行政区边界查询",
+        "raster_metadata": "栅格元数据查询",
+        "spatial_overview": "区域空间总览",
+        "constrained_buildability": "道路与水体约束筛选",
+    }.get(str(template_id), "受控空间工作流")
+    return "{}\n[{}参数：{}]".format(request.strip(), label, "；".join(parts))
+
+
 def validate_workflow_plan(
     template: str | Mapping[str, Any],
     plan: Mapping[str, Any],

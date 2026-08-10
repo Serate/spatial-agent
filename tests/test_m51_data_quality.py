@@ -130,14 +130,9 @@ class RealDataQualityTests(unittest.TestCase):
         alignment = result["relationships"]["dem_land_use"]
         self.assertEqual(alignment["status"], "ready")
         self.assertGreater(alignment["overlapping_pairs"], 0)
-        self.assertIn(
-            "get_zonal_buildability_analysis",
-            result["capabilities"]["dem"],
-        )
-        self.assertIn(
-            "get_zonal_buildability_analysis",
-            result["capabilities"]["land_use"],
-        )
+        self.assertEqual(alignment["grid_alignment"]["status"], "grid_mismatch")
+        self.assertNotIn("get_zonal_buildability_analysis", result["capabilities"]["dem"])
+        self.assertNotIn("get_zonal_buildability_analysis", result["capabilities"]["land_use"])
 
 
 if __name__ == "__main__":

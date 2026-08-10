@@ -3,13 +3,14 @@ from threading import Lock
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .answer_composer import AnswerComposer
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .planner import Planner
 from .tools import ToolRegistry
+from .workflow_templates import WorkflowTemplateError, validate_workflow_plan
 
 
 class InMemoryStateStore:
@@ -127,6 +128,7 @@ class AgentRuntime:
         session_id: str = "default",
         timeout_seconds: Optional[float] = None,
         run_id: Optional[str] = None,
+        workflow: Optional[Mapping[str, Any]] = None,
     ) -> AgentRunResult:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
@@ -138,10 +140,17 @@ class AgentRuntime:
             request=request,
             session_id=session_id,
             resolved_request=resolved_request,
+            workflow=dict(workflow) if workflow is not None else None,
         )
         self._state_store.save(result)
         try:
-            plan = self._planner.plan(resolved_request)
+            plan = (
+                self._planner.plan(resolved_request, workflow)
+                if workflow is not None
+                else self._planner.plan(resolved_request)
+            )
+            if workflow is not None:
+                _validate_runtime_workflow_plan(plan, workflow)
             result.planner_metrics = self._planner_metrics()
             if plan.output.get("type") == "direct_answer":
                 result.plan = plan
@@ -382,7 +391,28 @@ class AgentRuntime:
             None,
         )
         if health is None:
+            if tool in _PIXEL_ALIGNMENT_TOOLS:
+                raise ToolError(
+                    "像元级对齐门控阻止工具 {}：缺少 DEM/土地利用网格对齐证据".format(tool)
+                )
             return
+        if tool in _PIXEL_ALIGNMENT_TOOLS:
+            alignment = (
+                (health.get("relationships") or {})
+                .get("dem_land_use", {})
+                .get("grid_alignment")
+            )
+            # In-memory demos intentionally have no raster geometry. Preserve
+            # their explanatory placeholder, but never run real joint pixels
+            # when an explicit health report says the grids are incompatible.
+            if isinstance(alignment, dict) and alignment.get("status") not in {"aligned"}:
+                status = alignment.get("status") or "unknown"
+                reason = alignment.get("reason") or "未提供对齐原因"
+                raise ToolError(
+                    "像元级对齐门控阻止工具 {}：DEM/土地利用网格状态为 {}；{}".format(
+                        tool, status, reason
+                    )
+                )
         reports = {item.get("dataset"): item for item in health.get("datasets", [])}
         for dataset in _required_health_datasets(tool, arguments):
             report = reports.get(dataset) or {}
@@ -414,6 +444,38 @@ class AgentRuntime:
                 step.error = "blocked by failed step {}: {}".format(
                     failed_step_id, reason
                 )
+
+def _validate_runtime_workflow_plan(
+    plan: TaskPlan, workflow: Mapping[str, Any]
+) -> None:
+    """Recheck planner output against the selected workflow before execution."""
+
+    try:
+        template_id = workflow["template_id"]
+        constraints = workflow["constraints"]
+        evidence = workflow["evidence"]
+    except (KeyError, TypeError) as exc:
+        raise WorkflowTemplateError("workflow selection is incomplete") from exc
+    payload = {
+        "template_id": template_id,
+        "template_version": workflow.get("template_version"),
+        "goal": plan.goal,
+        "constraints": constraints,
+        "evidence": evidence,
+        "steps": [
+            {
+                "id": step.id,
+                "tool": step.tool,
+                "args": step.args,
+                "depends_on": list(step.depends_on),
+            }
+            for step in plan.steps
+        ],
+        "output": dict(plan.output),
+        "assumptions": list(plan.assumptions),
+    }
+    validate_workflow_plan(template_id, payload)
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -456,3 +518,9 @@ def _required_health_datasets(tool: str, arguments: Dict[str, Any]) -> Set[str]:
             required.add("water")
         return required
     return set()
+
+
+_PIXEL_ALIGNMENT_TOOLS = {
+    "get_zonal_buildability_analysis",
+    "get_zonal_constrained_buildability_analysis",
+}

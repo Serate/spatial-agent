@@ -12,6 +12,7 @@ from typing import Any, Dict, Mapping, Optional, Protocol
 from .errors import ClarificationNeeded, PlanningError, RequestRejected
 from .models import TaskPlan
 from .plan_schema import parse_task_plan, task_plan_schema
+from .workflow_templates import workflow_request_hint
 
 
 class LLMClient(Protocol):
@@ -26,9 +27,10 @@ class LLMPlanner:
         self._client = client
         self._allowed_tools = tuple(allowed_tools)
 
-    def plan(self, request: str) -> TaskPlan:
+    def plan(self, request: str, workflow: Optional[Mapping[str, Any]] = None) -> TaskPlan:
         if not request.strip():
             raise ClarificationNeeded("empty spatial analysis request")
+        request = workflow_request_hint(request, workflow)
         messages = [
             {
                 "role": "system",

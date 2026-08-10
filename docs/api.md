@@ -49,7 +49,12 @@ Request body:
   "request": "查询洪山区行政区边界",
   "session_id": "demo",
   "planner": "rule",
-  "backend": "local"
+  "backend": "local",
+  "workflow": {
+    "template_id": "raster_metadata",
+    "constraints": {"dataset": "dem"},
+    "evidence": ["summary", "metadata"]
+  }
 }
 ~~~
 
@@ -61,6 +66,7 @@ Fields:
 | session_id | no | default | Conversation scope for clarification state. |
 | planner | no | rule | rule for deterministic demos, openai for LLM planning. |
 | backend | no | memory | memory for deterministic tests, local for configured local spatial data. |
+| workflow | no | none | Optional selection from `/workflows`; validated before planning and persisted in the run snapshot. |
 | export_artifact | no | false | When true, writes a small run summary artifact and returns artifact_ref. |
 | export_geojson | no | false | When true, writes a bounded GeoJSON summary and returns geojson_ref. |
 | timeout_seconds | no | none | Optional cooperative run budget; Runtime stops at a step boundary after the budget is exceeded. |
@@ -74,6 +80,8 @@ For a multi-source terrain overview, use `分析洪山区的高程、坡度和�
 For the demo construction screening workflow, use `分析洪山区建设适宜性，坡度不超过20度`. The planner combines administrative lookup, DEM elevation, derived slope, land-use classes, and a bounded buildability screening. The result reports candidate pixel ratio and can export a limited candidate-area GeoJSON; it is an auditable demo screen, not a legal planning or permit conclusion.
 
 For administrative-area raster analysis, use a request such as `分析洪山区DEM高程概况`. The planner selects `get_zonal_raster_statistics`, which resolves the named area, converts its CRS for each raster file, and computes masked statistics only where the geometry intersects the raster.
+
+When `workflow` is supplied, its template, structured constraints, and evidence selection are normalized before planning. The generated plan is validated again against the same template before any tool executes. Joint DEM/land-use pixel tools are blocked when explicit `grid_alignment` evidence is not `aligned`; a file overlap report alone is insufficient.
 
 ## POST /runs/{run_id}/retry
 

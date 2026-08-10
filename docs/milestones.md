@@ -267,6 +267,15 @@ M69 最多拆分 3 路可独立验收的子任务：工作流编辑与计划契�
 - 新增 `agent/dataset_manifest.py` 和 `scripts/dataset_manifest.py`，支持相对路径、文件大小、SHA-256、数据类型和受控 provenance 的确定性 manifest；配置 manifest 后健康检查执行轻量路径/大小/provenance 校验。
 - 全局评测新增脱敏多轮模型回放，覆盖澄清补全和非法计划修复；当前 M69 相关专项测试和全局回放已通过，尚未完成 Console 动态编辑、武汉 manifest 生产配置、可靠性组合矩阵及 Docker/live 验收。
 
+### M69.1：工作流运行绑定与像元对齐门控（已完成）
+
+- Console 通过 `GET /workflows` 动态生成工作流下拉、约束字段和证据选项；发送前调用模板校验接口，用户选择的 `land_use` 等参数会实际改变 Planner 生成的工具参数。
+- `workflow` 运行上下文贯通开发/生产 HTTP、同步/异步提交、Planner、Runtime、内存状态和 SQLite 服务重启恢复；运行前按模板重新校验工具 allowlist、结果类型和依赖 DAG。
+- 联合 DEM/土地利用像元工具增加 `grid_alignment=aligned` 门控，修复文件覆盖 ready 被误当作像元可对齐的问题；对应问题已记录在中文开发问题日志。
+- 修复无工作流请求向旧 Runtime 替身传递 `workflow=None` 的兼容性回归，异步几何证据与 smoke 全量回归恢复。
+- 验证：M69.1 专项 22 项通过；工作流浏览器交互通过；`scripts/smoke_check.py` 通过，内嵌离线全量 355 项（35 项跳过）；默认不访问真实模型。
+- 外部环境仍未提供 Docker Linux engine，因此新镜像、readiness、生产 acceptance 和 live provider 不纳入本子阶段通过证据。
+
 ## M65：生产异步、模型执行一致性与总览结果体验（已完成）
 
 - 增加录制模型响应回归，验证空间总览 8 步计划、依赖 DAG、`$from` 绑定和 ToolRegistry 实际执行；默认测试不访问网络。

@@ -59,6 +59,8 @@ class AgentRunResult:
     answer: Optional[str] = None
     error: Optional[str] = None
     clarification: Optional[Dict[str, Any]] = None
+    # Normalized workflow selection retained for async polling and restart recovery.
+    workflow: Optional[Dict[str, Any]] = None
     artifact_ref: Optional[str] = None
     geojson_ref: Optional[str] = None
     # Final bounded GeoJSON evidence persisted for async polling/recovery.
@@ -70,4 +72,6 @@ class AgentRunResult:
         for key in ("artifact_ref", "geojson_ref"):
             if data.get(key) is None:
                 data.pop(key, None)
+        if data.get("workflow") is None:
+            data.pop("workflow", None)
         return data

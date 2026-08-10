@@ -336,4 +336,7 @@ M69 最多启动 3 路并行子任务；并行任务不得各自修改公共 sch
 - 工作流模板契约已支持版本、结构化约束和证据选择；开发/生产 HTTP 均支持 validate/revise，计划修订仍经过统一模板、TaskPlan 和 DAG 校验。
 - 数据 manifest 支持确定性文件记录、SHA-256 显式验证和受控 provenance；配置 manifest 时健康检查默认只做路径/大小/provenance 轻量校验。
 - 脱敏模型回放已加入全局评测，覆盖多轮澄清和失败计划修复，当前两条回放均通过。
-- M69 尚未完成：Console 动态工作流编辑、武汉真实数据 manifest 绑定、像元级对齐执行门控、SQLite 多 worker 组合矩阵、Docker 新镜像和可选 live provider 验收。
+- Console 已从 `/workflows` 动态渲染约束/证据编辑器；`workflow` 已贯通同步/异步 `/runs`、Planner、Runtime、内存状态和 SQLite 恢复，生成计划会再次按模板校验。
+- 联合 DEM/土地利用像元工具已要求显式 `grid_alignment=aligned`；仅文件覆盖关系为 ready 或网格不一致时，Runtime 在 dispatch 前阻止工具并给出中文原因。
+- 新增兼容性修复：无工作流请求不再向旧 Runtime 替身传递 `workflow=None`，异步几何证据矩阵和 `scripts/smoke_check.py` 已恢复通过。
+- M69 尚未完成：武汉真实数据 manifest 正式绑定、SQLite 多 worker 组合矩阵、Docker 新镜像和可选 live provider 验收。

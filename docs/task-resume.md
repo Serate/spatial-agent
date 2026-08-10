@@ -567,3 +567,17 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 开发服务和生产 FastAPI 已提供 `/workflows/{template_id}/validate`、`/workflows/{template_id}/revise`；接口只校验契约，不直接执行工具。
 - 新增 `agent/dataset_manifest.py`、`scripts/dataset_manifest.py` 和 M69 manifest 测试；完整哈希校验是显式动作，健康报告只做轻量检查。
 - 新增脱敏模型回放套件并接入全局评测：澄清补全、非法计划修复各 1 条，均通过；当前尚未完成 Console 编辑器、武汉 manifest 实际绑定、多 worker 组合矩阵、Docker 和 live provider 验收。
+
+### M69 工作流与对齐子阶段已完成
+
+- Console 从 `GET /workflows` 动态加载模板，折叠式设置区渲染结构化约束和证据选项；发送前调用 `/validate`，归一化 `workflow` 随同步/异步 `/runs` 提交。
+- `AgentService`、Planner、Runtime、内存状态和 SQLite 快照统一传播模板版本、约束和证据；生成计划在 ToolRegistry 执行前再次经过模板 allowlist、结果类型和 DAG 校验。
+- 像元联合工具 `get_zonal_buildability_analysis` 与 `get_zonal_constrained_buildability_analysis` 增加显式 `grid_alignment=aligned` 前置门控；只存在文件覆盖关系或网格不一致时不会 dispatch 真实联合像元工具。
+- 修复新增 `workflow=None` 关键字破坏旧 Runtime 替身导致异步几何证据失败的问题；无工作流请求保持旧方法调用兼容。
+- 子阶段验证：工作流/对齐专项 22 项通过，浏览器工作流交互通过，`scripts/smoke_check.py` 通过并包含离线全量 355 项（35 项跳过）。
+
+### M69 尚未完成与下一步
+
+1. 将武汉道路、水体、DEM、土地利用和行政区 manifest 绑定到正式本地配置并执行完整哈希核验。
+2. 补齐 SQLite 多 worker 的超时、取消、幂等和滚动重启组合矩阵，并保留不同状态后端的一致结果契约。
+3. Docker Desktop 恢复后构建新镜像、执行 readiness/production acceptance/容器重启恢复；再做可选 live provider 验收。

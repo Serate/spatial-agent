@@ -75,7 +75,8 @@ def dataset_health_report(
         for item in reports
     }
     alignment = relationships.get("dem_land_use") or {}
-    if alignment.get("status") == "ready":
+    grid_alignment = alignment.get("grid_alignment") or {}
+    if alignment.get("status") == "ready" and grid_alignment.get("status") == "aligned":
         for name in ("dem", "land_use"):
             if name in capabilities and reports[names.index(name)]["status"] != "unavailable":
                 capabilities[name].append("get_zonal_buildability_analysis")

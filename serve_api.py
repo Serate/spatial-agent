@@ -162,6 +162,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     geojson_max_features=payload.get("geojson_max_features", 100),
                     timeout_seconds=payload.get("timeout_seconds"),
                     spatial_context=payload.get("spatial_context"),
+                    workflow=payload.get("workflow"),
                     idempotency_key=payload.get("idempotency_key"),
                 )
             elif is_session_create:
@@ -216,6 +217,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     geojson_max_features=payload.get("geojson_max_features", 100),
                     timeout_seconds=payload.get("timeout_seconds"),
                     spatial_context=payload.get("spatial_context"),
+                    workflow=payload.get("workflow"),
                 )
         except (ValueError, WorkflowTemplateError) as exc:
             self._write_json(400, {"error": str(exc)})

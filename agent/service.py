@@ -18,6 +18,7 @@ from run_demo import build_runtime
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.models import AgentRunResult, RunStatus
 from result_contract import build_result_contract
+from agent.workflow_templates import normalize_workflow_selection
 
 
 _TERMINAL_RUN_STATUSES = {
@@ -62,6 +63,7 @@ class AgentService:
         geojson_max_features: int = 100,
         timeout_seconds: float = None,
         spatial_context: Dict[str, Any] = None,
+        workflow: Dict[str, Any] = None,
         run_id: str = None,
         _force_run_id: bool = False,
     ) -> Dict:
@@ -69,6 +71,7 @@ class AgentService:
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
+        workflow_context = _normalize_workflow_payload(workflow)
         if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
             raise ValueError("run_id must be a non-empty string")
         if run_id is not None and not _force_run_id:
@@ -87,11 +90,15 @@ class AgentService:
             self._ensure_memory_session(session_id)
         normalized_context = _normalize_spatial_context(spatial_context)
         runtime = self._runtime(planner, backend)
+        runtime_kwargs = {
+            "session_id": session_id,
+            "timeout_seconds": timeout_seconds,
+            "run_id": run_id,
+        }
+        if workflow_context is not None:
+            runtime_kwargs["workflow"] = workflow_context
         result = runtime.run(
-            _contextualize_request(request, normalized_context),
-            session_id=session_id,
-            timeout_seconds=timeout_seconds,
-            run_id=run_id,
+            _contextualize_request(request, normalized_context), **runtime_kwargs
         )
         payload = result.to_dict()
         payload["spatial_context"] = normalized_context
@@ -144,6 +151,8 @@ class AgentService:
             raise ValueError("session_id must be a non-empty string")
         planner = kwargs.get("planner", "rule")
         backend = kwargs.get("backend", "memory")
+        kwargs = dict(kwargs)
+        kwargs["workflow"] = _normalize_workflow_payload(kwargs.get("workflow"))
         self._runtime(planner, backend)
         run_id = kwargs.get("run_id")
         if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
@@ -181,6 +190,7 @@ class AgentService:
                         status=RunStatus.PLANNING,
                         request=request,
                         session_id=session_id,
+                        workflow=job_payload.get("workflow"),
                     )
                 )
                 if not self._state_store.claim_async_job(run_id, os.getpid()):
@@ -666,6 +676,7 @@ def _async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         "geojson_max_features": kwargs.get("geojson_max_features", 100),
         "timeout_seconds": kwargs.get("timeout_seconds"),
         "spatial_context": kwargs.get("spatial_context"),
+        "workflow": kwargs.get("workflow"),
     }
 
 
@@ -907,6 +918,21 @@ def _runtime_key(planner: str, backend: str) -> Tuple[str, str]:
 def _validate_session_id(session_id: str) -> None:
     if not isinstance(session_id, str) or not session_id.strip():
         raise ValueError("session_id must be a non-empty string")
+
+
+def _normalize_workflow_payload(workflow: Dict[str, Any]) -> Dict[str, Any] | None:
+    if workflow is None:
+        return None
+    if not isinstance(workflow, dict):
+        raise ValueError("workflow must be an object")
+    template_id = workflow.get("template_id")
+    if not isinstance(template_id, str) or not template_id.strip():
+        raise ValueError("workflow.template_id must be a non-empty string")
+    return normalize_workflow_selection(
+        template_id.strip(),
+        workflow.get("constraints", {}),
+        workflow.get("evidence"),
+    )
 
 
 def _normalize_spatial_context(context: Dict[str, Any]) -> Dict[str, Any]:

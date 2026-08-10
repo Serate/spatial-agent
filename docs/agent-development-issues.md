@@ -2137,3 +2137,21 @@ Docker CLI、Compose 文件和镜像构建配置存在，并不代表 Docker Des
 ### 预防
 
 任何前端 fallback 都必须有对应的后端契约测试；浏览器验收至少覆盖 memory 和 SQLite 两种状态后端的会话创建、切换、历史恢复与清空，不能只验证生产数据库路径。
+
+## 文件覆盖关系 ready 不能代替像元网格对齐
+
+### 现象
+
+DEM 与土地利用文件存在空间覆盖关系时，健康报告的 `dem_land_use.status` 为 `ready`，但两个栅格可能使用不同 CRS、分辨率、原点或尺寸。旧能力目录仍可能把建设候选筛选标记为可用，运行时也可能在未验证像元网格的情况下进入联合分析。
+
+### 根因
+
+文件级覆盖检查回答的是“是否存在相交文件”，像元级分析需要更严格的 `grid_alignment` 证据。两者位于同一关系对象中，若只读取外层 `status` 就会把覆盖证据误当成可直接逐像元运算的证据。
+
+### 修复
+
+能力目录现在只有在 `dem_land_use.status=ready` 且 `grid_alignment.status=aligned` 时才声明建设筛选能力；Runtime 对 `get_zonal_buildability_analysis` 和 `get_zonal_constrained_buildability_analysis` 增加像元级对齐前置门控。显式网格不一致时，在工具 dispatch 前以中文失败并保留健康步骤；内存演示没有真实网格证据时继续返回原有可解释占位结果。
+
+### 预防
+
+所有涉及 DEM 与土地利用联合像元运算的能力，必须同时检查文件覆盖、像元网格和 CRS 证据；测试应区分 `overlap=ready` 与 `grid_alignment=aligned` 两种状态，不能只断言外层覆盖状态。
