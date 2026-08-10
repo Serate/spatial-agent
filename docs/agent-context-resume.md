@@ -383,3 +383,15 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M72 下一步
 
 进入 M72，全局推进结果证据统一、源数据/派生数据变更检测、真实能力快照驱动的模型回放、Docker/生产 acceptance 和真实配置浏览器 smoke；继续遵循最多 3 路并行与“整体规划 -> 实现 -> 测试 -> 全局重规划”循环。
+
+## M72 当前完成状态
+
+- 新增 `agent/analysis_ready_binding.py` 和 `scripts/verify_analysis_ready.py`；分析就绪报告现在记录行政区/DEM/土地利用源数据的 SHA-256 绑定指纹，换数后可在发布前显式检测变更。
+- 健康报告展示受控源绑定摘要，不暴露逐文件哈希，也不在普通 readiness 请求中执行大文件完整校验；旧报告保持兼容。
+- M72 专项 3 项通过；离线全量 375 项通过、42 项跳过；GIS 全量 375 项通过、9 项跳过；Smoke、严格全局评测 8/8 和脱敏模型回放 2/2 通过。
+- 真实武汉源绑定 verifier 通过 14 个文件，`mismatch_count=0`，指纹为 `sha256:b648973f4707b9cb63ecfeb9c680c692dd34cd491ec8e8fed2b4ffbea6584f5f`；运行时 manifest 仍诚实标记为 metadata-only。
+- M72 已具备提交推送条件；`.idea/`、本机配置、真实派生数据和 evidence 不得提交。Docker Linux engine、生产 acceptance、live provider 和真实配置浏览器 smoke 仍未验证。
+
+## M73 下一步
+
+进入 M73，优先把源绑定/派生版本接入发布能力快照和完整结果证据，再推进真实模型回放、浏览器 smoke 与 Docker 生产验收；继续按全局循环推进。

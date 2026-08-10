@@ -244,6 +244,9 @@ def _analysis_ready_health(
             "source_pixel_read": bool((payload.get("evidence") or {}).get("pixels_read", False)),
         },
     }
+    source_binding = payload.get("source_binding")
+    if isinstance(source_binding, dict):
+        result["source_binding"] = _safe_source_binding(source_binding)
     return result
 
 
@@ -312,6 +315,25 @@ def _safe_analysis_alignment(alignment: Any) -> Dict[str, Any]:
         "pixels_read": bool(alignment.get("pixels_read", False)),
         "reason": str(alignment.get("reason", ""))[:240],
     }
+
+
+def _safe_source_binding(binding: Mapping[str, Any]) -> Dict[str, Any]:
+    """Expose binding identity while keeping per-file hashes out of responses."""
+
+    result = {
+        "binding_version": binding.get("binding_version"),
+        "fingerprint": str(binding.get("fingerprint", ""))[:80],
+        "verification_mode": str(binding.get("verification_mode", "sha256"))[:20],
+        "datasets": sorted(
+            str(name)[:64] for name in (binding.get("datasets") or {}).keys()
+        ),
+        "status": "recorded" if binding.get("fingerprint") else "invalid",
+    }
+    missing = binding.get("missing_datasets")
+    if isinstance(missing, list) and missing:
+        result["missing_datasets"] = [str(item)[:64] for item in missing[:20]]
+        result["status"] = "degraded"
+    return result
 
 
 def _manifest_health(catalog: DatasetCatalog) -> Dict[str, Any]:

@@ -18,6 +18,7 @@ from typing import Any, Iterable, Mapping
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
+from agent.analysis_ready_binding import build_source_binding
 from agent.dataset_catalog import DatasetCatalog
 from agent.raster_alignment import raster_alignment_report
 
@@ -136,6 +137,7 @@ def build_analysis_rasters(
             "dem": {"file_count": len(dem_entry.files), "provenance": dem_entry.provenance},
             "land_use": {"file_count": len(land_use_entry.files), "provenance": land_use_entry.provenance},
         },
+        "source_binding": build_source_binding(catalog),
         "outputs": {
             "dem": dem_path.name,
             "land_use": land_use_path.name,
@@ -232,7 +234,12 @@ def _raster_metadata(rasterio, path: Path) -> dict[str, Any]:
         }
 
 
-def _write_analysis_config(source_config: Path, output_config: Path, output_dir: Path) -> None:
+def _write_analysis_config(
+    source_config: Path,
+    output_config: Path,
+    output_dir: Path,
+    source_binding: dict[str, Any] | None = None,
+) -> None:
     payload = json.loads(source_config.read_text(encoding="utf-8"))
     for name, filename in (("dem", "dem_aligned.tif"), ("land_use", "land_use_aligned.tif")):
         definition = dict(payload["datasets"][name])
@@ -250,6 +257,12 @@ def _write_analysis_config(source_config: Path, output_config: Path, output_dir:
         "report": report_reference.replace("\\", "/"),
         "required": True,
     }
+    if source_binding:
+        payload["analysis_ready"]["source_binding"] = {
+            "binding_version": source_binding.get("binding_version"),
+            "fingerprint": source_binding.get("fingerprint"),
+            "datasets": sorted((source_binding.get("datasets") or {}).keys()),
+        }
     output_config.parent.mkdir(parents=True, exist_ok=True)
     output_config.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
@@ -270,7 +283,12 @@ def main() -> int:
         resolution=args.resolution,
     )
     if args.config_output:
-        _write_analysis_config(Path(args.config), Path(args.config_output), Path(args.output_dir))
+        _write_analysis_config(
+            Path(args.config),
+            Path(args.config_output),
+            Path(args.output_dir),
+            source_binding=report.get("source_binding"),
+        )
     print(json.dumps({"status": report["status"], "grid_alignment": report["grid_alignment"]["status"], "output_dir": str(Path(args.output_dir))}, ensure_ascii=False))
     return 0 if report["status"] == "ready" else 1
 

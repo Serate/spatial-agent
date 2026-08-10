@@ -311,6 +311,26 @@ M71 最多拆分 3 路并行；公共 schema、result envelope、provenance 和 
 
 M72 最多拆分 3 路并行；数据质量、真实模型和部署验收分别保持边界，公共 result envelope、能力快照与 Console 由主线统一集成。阶段验收仍按“专项 -> 离线全量 -> Smoke -> GIS/live -> 全局评测 -> 部署/浏览器”串行收口。
 
+### M72：源数据绑定与派生变更核验（已完成）
+
+- 新增 `agent/analysis_ready_binding.py`，在生成分析就绪栅格时为行政区、DEM、土地利用源文件建立确定性的 SHA-256 绑定指纹。
+- 新增 `scripts/verify_analysis_ready.py`，发布或换数时显式重算源文件指纹；源文件被修改、缺失或绑定版本不兼容时返回 `degraded`/`unavailable`，不把旧派生层继续当作可复现输入。
+- `analysis-ready-report.json` 记录源绑定；健康报告只展示版本、指纹、数据集名称和 `recorded` 状态，不在普通 readiness 请求中重新读取大文件，也不向 API 暴露逐文件哈希。
+- 派生配置保留有限源绑定元数据；旧 M70 报告和旧配置保持兼容，未包含绑定时不会被误判为新版本完整核验。
+- 新增 M72 专项 3 项；离线全量 375 项通过、42 项跳过；GIS 全量 375 项通过、9 项跳过；Smoke 和严格全局评测 8/8 通过，脱敏模型回放 2/2 通过。
+- 真实武汉源配置已重新生成分析就绪报告并通过显式 SHA-256 verifier：14 个源文件、`verified_files=14`、`mismatch_count=0`，指纹为 `sha256:b648973f4707b9cb63ecfeb9c680c692dd34cd491ec8e8fed2b4ffbea6584f5f`。
+- 当前运行时绑定 manifest 仍明确是 `verification_mode=metadata`、`hashes_verified=false`；完整哈希通过 verifier 单独证明。Docker Linux engine、生产 acceptance、真实模型 live 和真实配置浏览器 smoke 继续保留为后续边界。
+
+## M73 全局规划
+
+1. 产品能力：把源绑定、派生版本、GeoJSON 几何和地图图层状态统一纳入总览/比较/约束结果 envelope，补真实配置浏览器 smoke。
+2. 数据质量：将源绑定核验结果接入发布检查与能力快照，补 nodata、边界范围、重采样策略和 derived output manifest 的联动校验。
+3. 真实模型：基于真实能力快照执行开放式问题澄清、非法计划修复和 live GIS 模型基线，区分 provider 错误、计划校验和后端门控失败。
+4. 部署可靠性：Docker Linux engine 恢复后构建当前版本，执行数据卷、manifest/analysis-ready readiness、重启恢复、多 worker 与 FastAPI production acceptance。
+5. 用户体验：继续保持结果面板按类型动态出现，缩短证据摘要并让数据版本、几何状态和降级原因可直接追溯到轨迹步骤。
+
+M73 最多拆分 3 路并行；源绑定/能力快照、模型回放、部署验收各自保持边界，公共结果契约由主线统一集成。
+
 ### M69 当前实现进展
 
 - 工作流模板已增加语义版本、约束规格（字符串/数值/整数/布尔/枚举及边界）、证据选项和默认选择；计划校验输出模板版本、归一化约束与证据。

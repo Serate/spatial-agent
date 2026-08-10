@@ -627,3 +627,17 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 统一空间总览、比较、约束筛选和动态 Console 的证据引用与地图图层状态，增加真实配置浏览器 smoke。
 - 增加源数据/派生层版本绑定、变更检测、nodata/边界/重采样报告，区分 metadata readiness 与完整哈希校验。
 - 用真实能力快照驱动开放式问题澄清、计划修复和可选 live GIS 模型基线；Docker 恢复后完成生产镜像、readiness、重启恢复和 FastAPI acceptance。
+
+### M72 验收结果
+
+- 新增源数据绑定模块和 `scripts/verify_analysis_ready.py`；分析就绪报告为行政区、DEM、土地利用源文件记录确定性 SHA-256 指纹，源文件变更或缺失会在显式 verifier 中被标记。
+- 健康报告只输出绑定版本、指纹和数据集摘要，保留 `verification_mode=metadata` 与 `hashes_verified=false` 的运行时边界；不将普通 readiness 误报为完整哈希校验。
+- M72 专项 3 项、离线全量 375 项（42 项跳过）、GIS 全量 375 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉 `analysis-ready-report.json` 的源绑定 verifier 通过 14 个文件、0 个 mismatch，指纹 `sha256:b648973f4707b9cb63ecfeb9c680c692dd34cd491ec8e8fed2b4ffbea6584f5f`。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用旧容器或离线结果替代。
+
+### M73 全局下一步
+
+- 将源绑定与派生版本接入能力快照、发布检查、总览/比较/约束结果和地图证据；补 nodata、边界、重采样与输出 manifest 联动校验。
+- 基于真实能力快照执行模型澄清/计划修复回放和可选 live GIS 基线，并区分 provider、计划、工具门控和后端错误。
+- Docker 恢复后完成当前版本生产镜像、数据卷、readiness、重启恢复、多 worker 和 FastAPI acceptance；同时补真实配置浏览器 smoke。
