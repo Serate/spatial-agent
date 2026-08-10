@@ -597,3 +597,18 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 真实武汉配置下行政区/道路/水体可读且几何有效；DEM 与土地利用均完整读取但 CRS 混合，像元对齐状态为 `grid_mismatch`，联合像元工具继续在 dispatch 前阻止。
 - Docker 新镜像、readiness、production acceptance 和容器重启恢复仍待宿主机 Docker Linux engine 恢复；当前 `docker info` 报 `dockerDesktopLinuxEngine` named pipe 不存在。
 - M69.2 代码尚未提交推送；下一步是审查 diff、收口中文文档并创建阶段提交/版本。
+
+### M70 当前任务
+
+- 新增 `scripts/prepare_analysis_rasters.py`：保持原始栅格只读，按武汉 13 区融合边界生成固定 `EPSG:32649`/30 米目标网格，并输出 DEM、土地利用和 metadata-only 对齐报告。
+- 本机真实派生层位于 `D:\tmp\wuhan-gis\analysis-ready`，派生配置为 `D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`；这些文件不提交。
+- 派生层 manifest 已完成 5 个数据项的完整 SHA-256 校验；真实建设候选请求已返回 576,040 个有效像元、23,172 个候选像元和可导出真实几何。
+- M70 已完成：分析就绪流水线、目标网格/派生版本证据、runtime/Console/中文答案和失败路径均已接入；M70 专项 19 项、离线全量 369 项、GIS 全量 369 项、Smoke 和严格全局评测均通过。
+- M70 真实验收：绑定配置下 `analysis_ready=ready`、`data_readiness=ready`、目标网格 `EPSG:32649`/30 米/4562×5277、对齐 `aligned`；洪山区建设候选执行得到 576,040 个有效像元和 23,172 个候选像元。
+- M70 还保留外部边界：Docker Linux engine 未恢复，生产容器新镜像和 FastAPI 生产入口验收不能宣称通过；真实派生文件、配置、manifest 和 evidence 均位于 `D:\tmp\wuhan-gis`，不提交。
+
+### M71 全局下一步
+
+- 将分析就绪版本证据贯通空间总览、道路/水体约束筛选和多区域比较，确保多工作流的答案、轨迹、GeoJSON 和地图引用一致。
+- 增加派生报告/manifest 变更检测、nodata 与重采样证据，以及真实能力快照驱动的开放式问题脱敏回放。
+- Docker Linux engine 恢复后进行新镜像、readiness、重启恢复和生产 FastAPI 矩阵；Console 补绑定真实配置的浏览器 smoke。

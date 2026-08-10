@@ -146,6 +146,7 @@ def capability_catalog(
     environment: str = "unknown",
     dataset_capabilities: Mapping[str, Iterable[str]] | None = None,
     dataset_statuses: Mapping[str, str] | None = None,
+    analysis_ready: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Return a JSON-safe snapshot; callers cannot mutate the source contract."""
     has_dataset_gate = dataset_capabilities is not None
@@ -167,7 +168,19 @@ def capability_catalog(
         entry["dataset_gate"] = (
             "unknown" if not has_dataset_gate else "ready" if not missing else "missing"
         )
+        analysis_required = bool((analysis_ready or {}).get("required", False))
+        analysis_status = (analysis_ready or {}).get("status")
+        needs_analysis_ready = item["id"] in {
+            "buildability_screening",
+            "constrained_buildability_screening",
+        }
+        if needs_analysis_ready and analysis_required and analysis_status != "ready":
+            entry["dataset_gate"] = "missing"
         entry["missing_datasets"] = missing
+        if needs_analysis_ready and analysis_required and analysis_status != "ready":
+            entry["missing_datasets"] = sorted(
+                set(entry["missing_datasets"]) | {"analysis_ready"}
+            )
         entry["data_layer"] = _capability_data_layer(entry["datasets"])
         entry["capability_status"] = _capability_status(
             entry["datasets"], dataset_statuses
@@ -180,6 +193,8 @@ def capability_catalog(
                 or entry["capability_status"] not in {"unavailable", "unknown"}
             )
         )
+        if needs_analysis_ready and analysis_required and analysis_status != "ready":
+            entry["available"] = False
         capabilities.append(entry)
     return {
         "version": "1.0",
@@ -222,6 +237,7 @@ def runtime_capability_catalog(
         environment=environment,
         dataset_capabilities=dataset_capabilities if isinstance(dataset_capabilities, Mapping) else None,
         dataset_statuses=dataset_statuses,
+        analysis_ready=health_report.get("analysis_ready") if isinstance(health_report.get("analysis_ready"), Mapping) else None,
     )
     evidence = {}
     for name, item in dataset_reports.items():
@@ -262,6 +278,29 @@ def runtime_capability_catalog(
             "mismatch_count": int(manifest.get("mismatch_count") or 0),
         }
     snapshot["data_readiness"] = health_report.get("data_readiness", "ready")
+    analysis_ready = health_report.get("analysis_ready")
+    if isinstance(analysis_ready, Mapping):
+        snapshot["analysis_ready"] = {
+            "status": analysis_ready.get("status", "unknown"),
+            "required": bool(analysis_ready.get("required", False)),
+            "derived_version": str(analysis_ready.get("derived_version", "unknown"))[:128],
+            "target_grid": deepcopy(analysis_ready.get("target_grid") or {}),
+            "grid_alignment": deepcopy(analysis_ready.get("grid_alignment") or {}),
+            "verification_mode": analysis_ready.get("verification_mode", "metadata"),
+        }
+        for name in ("dem", "land_use"):
+            if name in snapshot["data_evidence"]:
+                snapshot["data_evidence"][name]["analysis_ready"] = {
+                    "status": analysis_ready.get("status", "unknown"),
+                    "derived_version": snapshot["analysis_ready"]["derived_version"],
+                    "target_grid": deepcopy(snapshot["analysis_ready"]["target_grid"]),
+                    "grid_alignment": deepcopy(snapshot["analysis_ready"]["grid_alignment"]),
+                }
+    else:
+        snapshot["analysis_ready"] = {
+            "status": "not_configured",
+            "required": False,
+        }
     return snapshot
 
 

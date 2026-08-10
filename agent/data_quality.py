@@ -1,8 +1,9 @@
 """Bounded health checks for configured local spatial datasets."""
 
 from datetime import datetime, timezone
+import math
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 from .dataset_catalog import DatasetCatalog, DatasetEntry
 from .dataset_manifest import load_manifest, verify_dataset_manifest
@@ -74,9 +75,23 @@ def dataset_health_report(
         item["dataset"]: dict(item.get("provenance") or {})
         for item in reports
     }
+    analysis_ready = _analysis_ready_health(
+        catalog, dem_entry=dem_entry, land_use_entry=land_use_entry
+    )
+    analysis_ready_ok = (
+        not catalog.analysis_ready_required
+        or (
+            isinstance(analysis_ready, dict)
+            and analysis_ready.get("status") == "ready"
+        )
+    )
     alignment = relationships.get("dem_land_use") or {}
     grid_alignment = alignment.get("grid_alignment") or {}
-    if alignment.get("status") == "ready" and grid_alignment.get("status") == "aligned":
+    if (
+        alignment.get("status") == "ready"
+        and grid_alignment.get("status") == "aligned"
+        and analysis_ready_ok
+    ):
         for name in ("dem", "land_use"):
             if name in capabilities and reports[names.index(name)]["status"] != "unavailable":
                 capabilities[name].append("get_zonal_buildability_analysis")
@@ -96,11 +111,13 @@ def dataset_health_report(
         "datasets": reports,
         "provenance": provenance,
         "relationships": relationships,
+        **({"analysis_ready": analysis_ready} if analysis_ready is not None else {}),
         "capabilities": capabilities,
         "capability_catalog": capability_catalog(
             environment="local",
             dataset_capabilities=capabilities,
             dataset_statuses=dataset_statuses,
+            analysis_ready=analysis_ready,
         ),
         "metrics": {
             "backend": "catalog_health",
@@ -112,10 +129,14 @@ def dataset_health_report(
     if catalog.manifest_path:
         result["manifest"] = _manifest_health(catalog)
     manifest = result.get("manifest")
-    if catalog.manifest_required:
+    manifest_ready = (
+        not catalog.manifest_required
+        or (isinstance(manifest, dict) and manifest.get("status") == "ready")
+    )
+    if catalog.manifest_required or catalog.analysis_ready_required:
         result["data_readiness"] = (
             "ready"
-            if isinstance(manifest, dict) and manifest.get("status") == "ready"
+            if manifest_ready and analysis_ready_ok
             else "not_ready"
         )
     elif isinstance(manifest, dict) and manifest.get("status") != "ready":
@@ -123,6 +144,174 @@ def dataset_health_report(
     else:
         result["data_readiness"] = "ready"
     return result
+
+
+def _analysis_ready_health(
+    catalog: DatasetCatalog,
+    *,
+    dem_entry: Optional[DatasetEntry],
+    land_use_entry: Optional[DatasetEntry],
+) -> Optional[Dict[str, Any]]:
+    """Validate the bounded report for a reproducible common raster grid.
+
+    The report is a release-time artifact. Health checks only read its JSON
+    metadata and compare output basenames with the configured derived files;
+    they never expose its local path or read raster pixels.
+    """
+    report_path = catalog.analysis_ready_report_path
+    if not report_path:
+        return None
+    base = {
+        "required": catalog.analysis_ready_required,
+        "verification_mode": "metadata",
+        "metadata_only": True,
+        "pixels_read": False,
+    }
+    path = Path(report_path)
+    if not path.is_file():
+        return {
+            **base,
+            "status": "unavailable",
+            "checks": [{"name": "report", "status": "failed", "message": "分析就绪报告不存在"}],
+            "errors": ["analysis-ready report does not exist"],
+        }
+    try:
+        payload = __import__("json").loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            **base,
+            "status": "degraded",
+            "checks": [{"name": "report", "status": "failed", "message": "分析就绪报告不是有效 JSON"}],
+            "errors": [str(exc)[:240]],
+        }
+    if not isinstance(payload, dict):
+        return {
+            **base,
+            "status": "degraded",
+            "checks": [{"name": "schema", "status": "failed", "message": "分析就绪报告结构无效"}],
+            "errors": ["analysis-ready report must be an object"],
+        }
+    target = payload.get("target_grid")
+    alignment = payload.get("grid_alignment")
+    outputs = payload.get("outputs")
+    errors: List[str] = []
+    checks = []
+    if not isinstance(target, dict):
+        errors.append("缺少目标网格")
+    else:
+        required_grid = ("crs", "resolution", "bounds", "width", "height")
+        missing = [name for name in required_grid if name not in target]
+        if missing:
+            errors.append("目标网格缺少字段：" + "、".join(missing))
+        else:
+            errors.extend(_validate_analysis_target(target))
+    if not isinstance(alignment, dict) or alignment.get("status") != "aligned":
+        errors.append("派生栅格网格未标记为 aligned")
+    if not isinstance(outputs, dict) or not outputs.get("dem") or not outputs.get("land_use"):
+        errors.append("缺少 DEM/土地利用派生输出记录")
+    else:
+        for name, entry in (("dem", dem_entry), ("land_use", land_use_entry)):
+            configured = Path(entry.files[0]).name if entry and len(entry.files) == 1 else None
+            reported = Path(str(outputs.get(name))).name
+            if configured and configured != reported:
+                errors.append(f"{name} 派生输出与配置文件不匹配")
+    checks.append({
+        "name": "schema",
+        "status": "passed" if not errors else "failed",
+        "message": "目标网格、对齐状态和派生输出已核对" if not errors else "分析就绪报告核对失败",
+    })
+    safe_target = _safe_analysis_target(target)
+    safe_alignment = _safe_analysis_alignment(alignment)
+    result = {
+        **base,
+        "status": "ready" if not errors else "degraded",
+        "derived_version": str(
+            payload.get("derived_version")
+            or (dem_entry.version if dem_entry else "")
+            or "unknown"
+        )[:128],
+        "target_grid": safe_target,
+        "grid_alignment": safe_alignment,
+        "outputs": {
+            name: Path(str(outputs[name])).name
+            for name in ("dem", "land_use")
+            if isinstance(outputs, dict) and outputs.get(name)
+        },
+        "checks": checks,
+        "errors": errors,
+        "evidence": {
+            "boundary_scope": str((payload.get("evidence") or {}).get("boundary_scope", ""))[:160],
+            "source_pixel_read": bool((payload.get("evidence") or {}).get("pixels_read", False)),
+        },
+    }
+    return result
+
+
+def _safe_analysis_target(target: Any) -> Dict[str, Any]:
+    if not isinstance(target, dict):
+        return {}
+    result: Dict[str, Any] = {}
+    if target.get("crs") is not None:
+        result["crs"] = str(target["crs"])[:80]
+    for name in ("resolution", "bounds"):
+        value = target.get(name)
+        if isinstance(value, list) and len(value) <= 4:
+            try:
+                result[name] = [float(item) for item in value]
+            except (TypeError, ValueError):
+                pass
+    for name in ("width", "height"):
+        try:
+            value = int(target[name])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if value > 0:
+            result[name] = value
+    return result
+
+
+def _validate_analysis_target(target: Mapping[str, Any]) -> List[str]:
+    errors: List[str] = []
+    if not isinstance(target.get("crs"), str) or not target["crs"].strip():
+        errors.append("目标网格 CRS 无效")
+    resolution = target.get("resolution")
+    if not isinstance(resolution, list) or len(resolution) != 2:
+        errors.append("目标网格分辨率必须包含两个正数")
+    else:
+        try:
+            values = [float(value) for value in resolution]
+            if any(not math.isfinite(value) or value <= 0 for value in values):
+                errors.append("目标网格分辨率必须为正数")
+        except (TypeError, ValueError):
+            errors.append("目标网格分辨率必须为数字")
+    bounds = target.get("bounds")
+    if not isinstance(bounds, list) or len(bounds) != 4:
+        errors.append("目标网格范围必须包含四个数字")
+    else:
+        try:
+            left, bottom, right, top = [float(value) for value in bounds]
+            if any(not math.isfinite(value) for value in (left, bottom, right, top)):
+                errors.append("目标网格范围包含非有限数字")
+            elif right <= left or top <= bottom:
+                errors.append("目标网格范围必须具有正面积")
+        except (TypeError, ValueError):
+            errors.append("目标网格范围必须为数字")
+    for name in ("width", "height"):
+        value = target.get(name)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            errors.append(f"目标网格{name}必须为正整数")
+    return errors
+
+
+def _safe_analysis_alignment(alignment: Any) -> Dict[str, Any]:
+    if not isinstance(alignment, dict):
+        return {"status": "unknown"}
+    return {
+        "status": str(alignment.get("status", "unknown"))[:40],
+        "metadata_only": bool(alignment.get("metadata_only", True)),
+        "pixels_read": bool(alignment.get("pixels_read", False)),
+        "reason": str(alignment.get("reason", ""))[:240],
+    }
 
 
 def _manifest_health(catalog: DatasetCatalog) -> Dict[str, Any]:

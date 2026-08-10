@@ -350,3 +350,24 @@ M69 最多启动 3 路并行子任务；并行任务不得各自修改公共 sch
 - SQLite 矩阵已覆盖 3 worker 幂等提交、超时终态重放、取消/超时重启接管和滚动重启指纹复用；并修复直答计划绕过取消/超时控制检查的问题。
 - 离线全量 363 项（35 项跳过）、GIS 全量 363 项（9 项跳过）、smoke、全局严格评测和真实本地 DEM/道路/水体调用均通过。
 - 当前工作区只允许保留用户未跟踪 `.idea/`；M69.2 进入文档审查、提交推送阶段。Docker Linux engine 缺失和 FastAPI 生产依赖缺失仍是外部验收边界。
+
+## M70 已完成
+
+- 新增 `scripts/prepare_analysis_rasters.py`，按武汉 13 区边界生成固定目标网格，将原始 DEM/土地利用重投影为同一 CRS、分辨率、原点、范围和尺寸；原始数据保持只读。
+- 本机真实输出目标为 `EPSG:32649`、30 米、4562×5277，`analysis-ready-report.json` 标记 `grid_alignment=aligned`；派生 manifest 5 项完整 SHA-256 已通过。
+- 派生配置下真实建设适宜性执行完成：有效像元 576,040、候选像元 23,172、候选比例 0.040226，GeoJSON 导出包含真实候选要素。
+- `DatasetCatalog`、健康报告和 `data_readiness` 已支持必需的分析就绪报告；缺失报告、非法 JSON、网格未对齐和派生输出失配都会阻止联合像元能力。
+- runtime capability snapshot、Console 数据证据和中文答案已显示派生版本、目标 CRS、分辨率和对齐状态；真实建设候选答案已引用 `analysis-ready-v1`、`EPSG:32649`、30 米和 `aligned`。
+- 新增 SQLite WAL 初始化锁重试，解决 GIS conda 环境多 worker 初始化竞态；Windows conda 中文 JSON 输出编码问题已记录并通过 ASCII 验收摘要规避。
+- M70 专项 19 项通过；离线全量 369 项通过、41 项跳过；GIS 全量 369 项通过、9 项跳过；Smoke 通过；严格全局评测 8/8 场景、脱敏模型回放 2/2 通过。
+- 真实武汉分析就绪配置位于 `D:\tmp\wuhan-gis`，派生文件、配置、manifest 和 evidence 均不得提交。Docker Linux engine 仍是外部部署验收边界。
+
+## M71 全局重规划
+
+1. 产品能力：把真实分析就绪数据纳入空间总览、道路/水体约束和多区域比较，统一返回候选像元、有限几何和数据版本证据。
+2. 数据质量：为派生报告、manifest 和原始来源建立版本绑定/变更检测，补充 nodata、边界范围和重采样策略的可审计证据。
+3. 真实模型：增加基于真实能力快照的开放式问题澄清与脱敏回放，验证模型能选择分析就绪工作流且不会绕过门控。
+4. 部署可靠性：恢复 Docker Linux engine 后构建新镜像并执行 manifest/analysis-ready readiness、容器重启和多 worker 验收；FastAPI 依赖可用时补生产入口矩阵。
+5. 用户体验：继续精简 Console 证据区，把数据版本、目标网格、候选统计、几何状态和降级原因做成可扫描的结果摘要，并补真实配置浏览器 smoke。
+
+M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 和 Console 证据由主线统一集成。阶段验收顺序保持“离线全量 -> Smoke -> GIS 全量 -> 全局评测 -> 部署/浏览器”，完成后提交并推送版本。

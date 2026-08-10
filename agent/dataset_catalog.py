@@ -74,11 +74,19 @@ class DatasetCatalog:
         entries: Mapping[str, DatasetEntry],
         manifest_path: Optional[str] = None,
         manifest_required: bool = False,
+        analysis_ready_report_path: Optional[str] = None,
+        analysis_ready_required: bool = False,
     ):
         self.root = str(Path(root))
         self._entries = dict(entries)
         self.manifest_path = str(manifest_path) if manifest_path else None
         self.manifest_required = bool(manifest_required)
+        self.analysis_ready_report_path = (
+            str(analysis_ready_report_path)
+            if analysis_ready_report_path
+            else None
+        )
+        self.analysis_ready_required = bool(analysis_ready_required)
 
     @classmethod
     def from_json(cls, path: str) -> "DatasetCatalog":
@@ -114,11 +122,30 @@ class DatasetCatalog:
             manifest_path = str(manifest_candidate)
         else:
             manifest_path = None
+        analysis_value = payload.get("analysis_ready")
+        analysis_required = False
+        if isinstance(analysis_value, Mapping):
+            analysis_path = analysis_value.get("report") or analysis_value.get("path")
+            analysis_required = bool(analysis_value.get("required", False))
+        else:
+            analysis_path = analysis_value
+        analysis_required = bool(
+            payload.get("analysis_ready_required", analysis_required)
+        )
+        if isinstance(analysis_path, str) and analysis_path.strip():
+            analysis_candidate = Path(analysis_path)
+            if not analysis_candidate.is_absolute():
+                analysis_candidate = Path(path).parent / analysis_candidate
+            analysis_path = str(analysis_candidate)
+        else:
+            analysis_path = None
         return cls(
             root,
             entries,
             manifest_path=manifest_path,
             manifest_required=manifest_required,
+            analysis_ready_report_path=analysis_path,
+            analysis_ready_required=analysis_required,
         )
 
     def get(self, name: str) -> Optional[DatasetEntry]:
@@ -141,6 +168,9 @@ class DatasetCatalog:
         if self.manifest_path:
             result["manifest_configured"] = True
             result["manifest_required"] = self.manifest_required
+        if self.analysis_ready_report_path:
+            result["analysis_ready_configured"] = True
+            result["analysis_ready_required"] = self.analysis_ready_required
         return result
 
 

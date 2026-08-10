@@ -170,6 +170,24 @@ scripts\start_console.ps1 -Mode gis `
 
 `/capabilities/runtime` 会显示 manifest 是否已绑定、轻量检查状态和校验模式；`-RequireDatasetManifest` 会让生产 readiness 在必需 manifest 缺失或不匹配时返回未就绪。
 
+当原始 DEM 与土地利用栅格存在 CRS 或像元网格差异时，先生成分析就绪派生层，再绑定其 manifest：
+
+```powershell
+python scripts\prepare_analysis_rasters.py `
+  --config config\datasets.wuhan.local.example.json `
+  --output-dir D:\tmp\wuhan-gis\analysis-ready `
+  --config-output D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.json
+python scripts\dataset_manifest.py `
+  --config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.json `
+  --output D:\tmp\wuhan-gis\analysis-ready\analysis.manifest.json
+python scripts\bind_dataset_manifest.py `
+  --config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.json `
+  --manifest D:\tmp\wuhan-gis\analysis-ready\analysis.manifest.json `
+  --output D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json
+```
+
+该流水线使用武汉 13 区边界确定目标范围，默认生成 `EPSG:32649`、30 米共同网格；原始数据只读保留，派生层仍是 demo 分析证据，不代表法定规划结论。
+
 ## 数据与合规边界
 
 武汉道路和水体演示数据来自 OpenStreetMap，遵循 ODbL provenance 要求；真实栅格和行政区数据由本地配置引用。所有空间结果均为 demo 分析，不能替代法定数据、规划审批或专业测绘结论。

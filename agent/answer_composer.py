@@ -90,6 +90,9 @@ class AnswerComposer:
                 f"DEM/土地利用覆盖关系：{alignment.get('status', '未知')}，"
                 f"重叠文件对 {alignment.get('overlapping_pairs', 0)} 对"
             )
+        analysis_note = _analysis_ready_note(result)
+        if analysis_note:
+            details.append(analysis_note)
         return f"数据健康检查完成：整体状态为{labels.get(status, status)}。" + "；".join(details) + (f"。{suffix}" if suffix else "。")
 
     def _compose_spatial_overview_result(self, steps: Iterable[StepRun]) -> str:
@@ -105,6 +108,9 @@ class AnswerComposer:
         parts = [f"{area}空间总览已完成。"]
         if health:
             parts.append(f"数据健康状态：{health.get('status', '未知')}。")
+            analysis_note = _analysis_ready_note(health)
+            if analysis_note:
+                parts.append(analysis_note + "。")
         for label, item in (("高程", raster), ("坡度", slope), ("土地利用", land_use)):
             statistics = item.get("statistics") or {}
             if statistics.get("error"):
@@ -147,6 +153,7 @@ class AnswerComposer:
         )
 
     def _compose_buildability_result(self, steps: Iterable[StepRun]) -> str:
+        health = _first_result(steps, "get_dataset_health_report") or {}
         result = _first_result(steps, "get_zonal_buildability_analysis")
         statistics = (result or {}).get("statistics", {})
         area = (result or {}).get("admin_name", "指定区域")
@@ -156,11 +163,13 @@ class AnswerComposer:
         ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.2f}%"
         reference = (result or {}).get("result_ref")
         suffix = f"结果引用：{reference}。" if reference else ""
+        analysis_note = _analysis_ready_note(health)
         return (
             f"{area}建设候选演示筛选：候选像元 {statistics.get('candidate_pixel_count', 0)} 个，"
             f"有效像元 {statistics.get('valid_pixel_count', 0)} 个，候选比例 {ratio_text}，"
             f"坡度阈值 {statistics.get('slope_limit_degrees', '未知')} 度。"
-            f"{suffix}以上结果仅用于演示，不代表法定建设适宜性或规划许可结论。"
+            f"{suffix}{analysis_note + '。' if analysis_note else ''}"
+            "以上结果仅用于演示，不代表法定建设适宜性或规划许可结论。"
         )
 
     def _compose_terrain_land_use_result(self, steps: Iterable[StepRun]) -> str:
@@ -177,6 +186,9 @@ class AnswerComposer:
                 f"数据预检为{ {'degraded': '部分可用', 'unavailable': '不可用'}.get(health.get('status'), health.get('status')) }，"
                 f"DEM/土地利用重叠文件对 {alignment.get('overlapping_pairs', 0)} 对。"
             )
+        analysis_note = _analysis_ready_note(health)
+        if analysis_note:
+            parts.append(analysis_note + "。")
         errors = [
             item.get("statistics", {}).get("error", "")
             for item in (elevation, slope, land_use, buildability)
@@ -456,3 +468,21 @@ def _join_names(names: Iterable[Any]) -> str:
 
 def _zh(value: str) -> str:
     return value
+
+
+def _analysis_ready_note(health: Dict[str, Any]) -> str:
+    evidence = health.get("analysis_ready") or {}
+    if not evidence:
+        return ""
+    labels = {"ready": "已就绪", "degraded": "部分可用", "unavailable": "不可用"}
+    status = labels.get(evidence.get("status"), evidence.get("status", "未知"))
+    target = evidence.get("target_grid") or {}
+    crs = target.get("crs", "未知 CRS")
+    resolution = target.get("resolution") or []
+    resolution_text = "×".join(str(value) for value in resolution) if resolution else "未知分辨率"
+    version = evidence.get("derived_version", "未知版本")
+    alignment = (evidence.get("grid_alignment") or {}).get("status", "未知")
+    return (
+        f"分析就绪派生层{status}（版本 {version}，目标 CRS {crs}，"
+        f"分辨率 {resolution_text} 米，对齐状态 {alignment}）"
+    )

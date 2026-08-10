@@ -291,6 +291,14 @@ python scripts\dataset_manifest.py --config outputs\datasets.wuhan.local.json --
 `SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST=1` 开启必需绑定门控。运行时 readiness 只验证 manifest 文件、相对路径、文件大小和 provenance，
 `verification_mode=metadata` 表示没有在请求期间读取大文件；发布前的 `verification_mode=sha256` 且 `hashes_verified=true` 的显式证据文件才表示完整哈希核验通过。
 
+如果源 DEM 与土地利用数据的 CRS、原点或尺寸不一致，可先生成分析就绪派生层：
+
+~~~powershell
+python scripts\prepare_analysis_rasters.py --config config\datasets.wuhan.local.example.json --output-dir D:\tmp\wuhan-gis\analysis-ready --config-output D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.json
+~~~
+
+脚本按武汉 13 个行政区融合边界生成固定目标网格，分别以双线性和最近邻重投影 DEM/分类栅格，并写出 `analysis-ready-report.json`。只有报告中的 `grid_alignment.status=aligned` 且派生 manifest 完整校验通过时，才应在本地配置中启用联合像元建设筛选。
+
 ## Error Responses
 
 Invalid or empty request:

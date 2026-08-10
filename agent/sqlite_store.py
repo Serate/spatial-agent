@@ -20,6 +20,22 @@ _ASYNC_JOB_SELECT = """
 """
 
 
+def _connect_sqlite(path: Path) -> sqlite3.Connection:
+    """Open SQLite with a retry for concurrent WAL mode initialization."""
+    for attempt in range(6):
+        connection = sqlite3.connect(str(path), timeout=30)
+        connection.execute("PRAGMA busy_timeout = 30000")
+        try:
+            connection.execute("PRAGMA journal_mode = WAL")
+            return connection
+        except sqlite3.OperationalError as exc:
+            connection.close()
+            if "locked" not in str(exc).lower() or attempt == 5:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+    raise RuntimeError("SQLite connection retry exhausted")
+
+
 class SQLiteStateStore:
     """Persist run snapshots so retry and lookup survive worker restarts."""
 
@@ -375,10 +391,7 @@ class SQLiteStateStore:
             )
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(str(self._path), timeout=30)
-        connection.execute("PRAGMA busy_timeout = 30000")
-        connection.execute("PRAGMA journal_mode = WAL")
-        return connection
+        return _connect_sqlite(self._path)
 
     @contextmanager
     def _connection(self):
@@ -542,10 +555,7 @@ class SQLiteConversationStore:
             )
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(str(self._path), timeout=30)
-        connection.execute("PRAGMA busy_timeout = 30000")
-        connection.execute("PRAGMA journal_mode = WAL")
-        return connection
+        return _connect_sqlite(self._path)
 
     @contextmanager
     def _connection(self):

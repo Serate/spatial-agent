@@ -574,6 +574,7 @@
     const evidenceBadge=status=>'<span class="evidence-status '+evidenceStatusClass(status)+'">'+escapeHtml(evidenceStatusLabel(status))+'</span>';
     const evidenceText=value=>Array.isArray(value)?value.join('、'):value===null||value===undefined||value===''?'-':typeof value==='object'?JSON.stringify(value):String(value);
     function evidenceDataEntries(data, snapshot) { const envelope=data.result||{}; const explicit=data.data_evidence||envelope.data_evidence||snapshot.data_evidence; if(explicit&&typeof explicit==='object'&&!Array.isArray(explicit)) return Object.entries(explicit); const healthResult=((data.steps||[]).find(step=>step.tool==='get_dataset_health_report')||{}).result||{}; return (healthResult.datasets||[]).filter(item=>item&&item.dataset).map(item=>[item.dataset,item]); }
+    function analysisReadyText(item) { const ready=item?.analysis_ready; if(!ready||ready.status==='not_configured') return ''; const grid=ready.target_grid||{}; const resolution=Array.isArray(grid.resolution)?grid.resolution.join('×')+' 米':'未知分辨率'; return ' · 分析就绪 '+evidenceStatusLabel(ready.status)+' · '+(ready.derived_version||'未知版本')+' · '+(grid.crs||'未知 CRS')+' · '+resolution; }
     function runtimeDataEvidence(data, snapshot) { const envelope=data.result||{}; return data.runtime_evidence||envelope.runtime_evidence||snapshot||{}; }
     function renderEvidence(data) {
       const envelope=data.result||{};
@@ -591,6 +592,8 @@
       if(runtime.local_gis_backend!==undefined) runtimeDetails.push('本地 GIS：'+(runtime.local_gis_backend?'可用':'不可用'));
       if(runtime.geopandas!==undefined) runtimeDetails.push('GeoPandas：'+(runtime.geopandas?'可用':'不可用'));
       if(runtime.rasterio!==undefined) runtimeDetails.push('Rasterio：'+(runtime.rasterio?'可用':'不可用'));
+      const analysisReady=healthResult.analysis_ready||snapshot.analysis_ready||{};
+      if(analysisReady.status&&analysisReady.status!=='not_configured') runtimeDetails.push('分析就绪派生层：'+evidenceStatusLabel(analysisReady.status)+' · '+(analysisReady.derived_version||'未知版本')+' · '+((analysisReady.target_grid||{}).crs||'未知 CRS'));
       if(snapshot.updated_at) runtimeDetails.push('检查时间：'+snapshot.updated_at);
       const sources=(geometry.sources||[]).join('、')||'未声明';
       const crs=(geometry.crs||[]).join('、')||'未声明';
@@ -602,7 +605,7 @@
       $('runtimeEvidence').className='evidence-card '+evidenceStatusClass(runtimeStatus);
       $('runtimeEvidence').innerHTML='<h4>运行时证据（runtime evidence）</h4><p><span class="evidence-state">数据健康</span>'+evidenceBadge(runtimeStatus)+'</p>'+(runtimeDetails.length?'<ul class="evidence-list">'+runtimeDetails.map(item=>'<li>'+escapeHtml(item)+'</li>').join('')+'</ul>':'<div class="evidence-empty">本次响应没有内嵌运行时快照；页面会尝试读取当前服务的能力快照。</div>');
       $('dataEvidence').className='evidence-card '+(dataEntries.length?'':'neutral');
-      $('dataEvidence').innerHTML='<h4>数据证据（data evidence）</h4>'+(dataEntries.length?'<ul class="evidence-list">'+dataEntries.slice(0,10).map(([name,item])=>{ const status=item?.status||item?.quality||'unknown'; const coverage=item?.coverage||item?.bounds; const crsText=Array.isArray(item?.crs)?item.crs.join('、'):item?.crs; return '<li><strong>'+escapeHtml(name)+'</strong> '+evidenceBadge(status)+(item?.file_count!==undefined?' · 文件 '+escapeHtml(item.file_count):item?.feature_count!==undefined?' · 要素 '+escapeHtml(item.feature_count):'')+(crsText?' · CRS '+escapeHtml(crsText):'')+(coverage?' · 已有覆盖范围证据':'')+'</li>'; }).join('')+'</ul>':'<div class="evidence-empty">本次结果没有数据质量快照，不能据此推断数据已完成核验。</div>');
+      $('dataEvidence').innerHTML='<h4>数据证据（data evidence）</h4>'+(dataEntries.length?'<ul class="evidence-list">'+dataEntries.slice(0,10).map(([name,item])=>{ const status=item?.status||item?.quality||'unknown'; const coverage=item?.coverage||item?.bounds; const crsText=Array.isArray(item?.crs)?item.crs.join('、'):item?.crs; return '<li><strong>'+escapeHtml(name)+'</strong> '+evidenceBadge(status)+(item?.file_count!==undefined?' · 文件 '+escapeHtml(item.file_count):item?.feature_count!==undefined?' · 要素 '+escapeHtml(item.feature_count):'')+(crsText?' · CRS '+escapeHtml(crsText):'')+(coverage?' · 已有覆盖范围证据':'')+analysisReadyText(item)+'</li>'; }).join('')+'</ul>':'<div class="evidence-empty">本次结果没有数据质量快照，不能据此推断数据已完成核验。</div>');
       const degradations=[]; const addReason=reason=>{if(reason&&!degradations.includes(reason)) degradations.push(reason);};
       if(data.status==='NEEDS_CLARIFICATION') addReason('请求仍在澄清，尚未执行空间工具。');
       if(data.status==='FAILED'||data.status==='REJECTED'||data.status==='CANCELLED'||data.status==='TIMED_OUT') addReason('运行状态为'+statusName(data.status)+'，结果不能视为完整分析。');
@@ -611,6 +614,7 @@
       if(geometryStatus==='unknown') addReason('本次运行尚未形成空间几何证据。');
       if(runtimeStatus==='degraded') addReason('运行时数据健康为部分可用，部分能力或数据集受到限制。');
       if(runtimeStatus==='unavailable') addReason('运行时数据健康为不可用，不能把演示结果当作真实数据结论。');
+      if(['degraded','unavailable'].includes(String(analysisReady.status))) addReason('分析就绪派生层'+evidenceStatusLabel(analysisReady.status)+'，联合像元结果不能视为完整可复现证据。');
       dataEntries.forEach(([name,item])=>{ if(['degraded','unavailable','warning'].includes(String(item?.status||item?.quality))) addReason(name+' 数据证据显示为'+evidenceStatusLabel(item.status||item.quality)+'。'); (item?.checks||[]).filter(check=>check&&check.status&&check.status!=='passed').forEach(check=>addReason(name+'：'+(check.message||'数据检查未通过'))); });
       (healthResult.warnings||[]).forEach(warning=>addReason(warning));
       (data.steps||[]).forEach(step=>{if(step.status&&step.status!=='COMPLETED') addReason('工具 '+(step.tool||step.id||'未知')+' 状态为'+statusName(step.status)+'。'); const result=step.result||{}; if(result.warning) addReason(result.warning); if(result.error) addReason(result.error);});
