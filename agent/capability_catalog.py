@@ -288,6 +288,9 @@ def runtime_capability_catalog(
             "grid_alignment": deepcopy(analysis_ready.get("grid_alignment") or {}),
             "verification_mode": analysis_ready.get("verification_mode", "metadata"),
         }
+        source_binding = analysis_ready.get("source_binding")
+        if isinstance(source_binding, Mapping):
+            snapshot["analysis_ready"]["source_binding"] = _safe_source_binding_summary(source_binding)
         for name in ("dem", "land_use"):
             if name in snapshot["data_evidence"]:
                 snapshot["data_evidence"][name]["analysis_ready"] = {
@@ -296,12 +299,26 @@ def runtime_capability_catalog(
                     "target_grid": deepcopy(snapshot["analysis_ready"]["target_grid"]),
                     "grid_alignment": deepcopy(snapshot["analysis_ready"]["grid_alignment"]),
                 }
+                if "source_binding" in snapshot["analysis_ready"]:
+                    snapshot["data_evidence"][name]["analysis_ready"]["source_binding"] = deepcopy(
+                        snapshot["analysis_ready"]["source_binding"]
+                    )
     else:
         snapshot["analysis_ready"] = {
             "status": "not_configured",
             "required": False,
         }
     return snapshot
+
+
+def _safe_source_binding_summary(binding: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        "binding_version": binding.get("binding_version"),
+        "fingerprint": str(binding.get("fingerprint", ""))[:80],
+        "verification_mode": str(binding.get("verification_mode", "sha256"))[:20],
+        "datasets": sorted(str(name)[:64] for name in (binding.get("datasets") or [])),
+        "status": str(binding.get("status", "recorded"))[:20],
+    }
 
 
 def _capability_data_layer(datasets: Iterable[str]) -> str:

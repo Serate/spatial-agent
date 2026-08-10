@@ -641,3 +641,16 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 将源绑定与派生版本接入能力快照、发布检查、总览/比较/约束结果和地图证据；补 nodata、边界、重采样与输出 manifest 联动校验。
 - 基于真实能力快照执行模型澄清/计划修复回放和可选 live GIS 基线，并区分 provider、计划、工具门控和后端错误。
 - Docker 恢复后完成当前版本生产镜像、数据卷、readiness、重启恢复、多 worker 和 FastAPI acceptance；同时补真实配置浏览器 smoke。
+
+### M73 验收结果
+
+- 运行时能力快照、数据证据、比较结果和 Console 统一传播 `analysis_ready.source_binding`，包含绑定版本、SHA-256 指纹、核验模式、源数据集和状态；不暴露逐文件哈希。
+- M73 专项 3 项、兼容回归 17 项、离线全量 379 项（42 项跳过）、GIS 全量 379 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉快照验证 `data_readiness=ready`、`analysis-ready-v1`、`EPSG:32649`、`aligned` 和源绑定指纹 `sha256:b648973f4707b9cb63ecfeb9c680c692dd34cd491ec8e8fed2b4ffbea6584f5f`；manifest 仍明确为 metadata-only。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用离线或旧容器结果替代。
+
+### M74 全局下一步
+
+- 增加 nodata、边界范围、重采样策略、派生输出 manifest 与源绑定的联动校验和发布报告。
+- 把统一证据摘要接入总览/比较/约束地图工作区，补真实配置浏览器 smoke；执行真实能力快照驱动的模型澄清、计划修复和 live GIS 基线。
+- Docker 恢复后完成当前版本数据卷、readiness、重启恢复、多 worker 与 FastAPI production acceptance。

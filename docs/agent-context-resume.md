@@ -395,3 +395,14 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M73 下一步
 
 进入 M73，优先把源绑定/派生版本接入发布能力快照和完整结果证据，再推进真实模型回放、浏览器 smoke 与 Docker 生产验收；继续按全局循环推进。
+
+## M73 当前完成状态
+
+- 运行时能力快照、DEM/土地利用数据证据、比较摘要和 Console 现在统一传播受控 `source_binding`；只展示版本、指纹、核验模式、数据集和状态。
+- M73 专项 3 项、兼容回归 17 项通过；离线全量 379 项通过、42 项跳过；GIS 全量 379 项通过、9 项跳过；Smoke、严格全局评测 8/8 和脱敏模型回放 2/2 通过。
+- 真实武汉能力快照返回 `analysis-ready-v1`、`EPSG:32649`、`aligned`、源绑定指纹 `sha256:b648973f4707b9cb63ecfeb9c680c692dd34cd491ec8e8fed2b4ffbea6584f5f`，`data_readiness=ready`；运行时 manifest 仍为 metadata-only。
+- M73 已具备提交推送条件；Docker Linux engine、生产 acceptance、live provider 和真实配置浏览器 smoke 仍未验证，`.idea/`、本机配置和真实数据不提交。
+
+## M74 下一步
+
+进入 M74，优先完成 nodata/边界/重采样/派生输出一致性报告，再做真实模型基线、浏览器 smoke 和 Docker 生产验收。

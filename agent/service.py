@@ -1085,6 +1085,13 @@ def _analysis_ready_summary(payload: Dict[str, Any]) -> Dict[str, Any] | None:
         "grid_alignment": dict(evidence.get("grid_alignment") or {}),
         "verification_mode": evidence.get("verification_mode", "metadata"),
         "data_readiness": health.get("data_readiness", "unknown"),
+        **({"source_binding": {
+            "binding_version": evidence["source_binding"].get("binding_version"),
+            "fingerprint": str(evidence["source_binding"].get("fingerprint", ""))[:80],
+            "verification_mode": evidence["source_binding"].get("verification_mode", "sha256"),
+            "datasets": list(evidence["source_binding"].get("datasets") or [])[:10],
+            "status": evidence["source_binding"].get("status", "recorded"),
+        }} if isinstance(evidence.get("source_binding"), dict) else {}),
     }
 
 
