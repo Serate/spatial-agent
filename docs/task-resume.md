@@ -740,3 +740,20 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 从产品/架构闭环出发，把 lineage 接入异步观测、比较 API、失败重试和会话历史。
 - 在稳定结果契约上扩展真实模型建设筛选、道路水体约束和跨区域比较 live 验收，分层判断计划、门控、后端和答案。
 - Docker 恢复后做生产 acceptance；武汉数据 provenance、对齐和发布报告继续作为产品与部署证据层维护，不作为唯一阶段中心。
+
+### M76.2.4 当前完成状态
+
+- `result_contract.py` 提供统一的运行 lineage、历史 lineage 和比较集合 lineage 构造；同步结果、异步观测、会话历史、阈值比较和多区域比较均保留可回溯 `run_id` 与受控证据引用。
+- `AgentRunResult` 持久化 `retry_count`，失败重试在同一运行 ID 下保留重试状态；未发生重试时不生成随机引用，保证同步/异步结果归一化一致。
+- M76.2.4 新增 4 项专项（内存/SQLite、开发 HTTP、比较和重试）通过；离线全量 401 项通过、42 项跳过；GIS 全量 401 项通过、9 项跳过；严格全局评测 8/8、脱敏回放 2/2、Smoke 通过。
+- 修复 Windows `OpenProcess` 查询失败被误判为 worker 已退出，造成 SQLite job 重复接管和 `async_jobs=COMPLETED`/`agent_runs=PLANNING` 撕裂的问题；三 worker 精确场景连续 12 次通过，详见中文开发问题日志。
+- Docker Linux engine、生产镜像、真实数据卷 readiness、FastAPI production acceptance 和容器重启证据仍未获得，不能用离线/GIS 结果替代。
+
+### M76.3 全局规划
+
+1. 产品与体验：让 Console 的会话历史、比较结果和失败重试直接消费 lineage，支持从结果行回到完整运行、轨迹、地图和发布证据。
+2. 架构与部署：把 lineage/observability 契约在开发 HTTP 与生产 FastAPI 中做版本化一致性验收；Docker 恢复后完成当前版本的数据卷、readiness、多 worker、重启和生产接口矩阵。
+3. 真实模型：在统一证据契约上增加建设筛选、道路/水体约束和跨区域比较 live 基线，分别记录模型计划、能力门控、后端执行、答案质量和安全 token/延迟指标。
+4. 数据与测试：继续以 provenance、栅格对齐、输出 manifest 和发布报告作为跨工作流证据层，补换数失配、截断、失败重试和生产恢复的端到端回归，不把单个数据修复作为阶段中心。
+
+M76.3 先按产品、架构/部署、真实模型三条边界拆分，公共 result envelope、能力目录和证据索引由主线统一集成；最大并发度保持 3。规划执行前仍必须先复盘七维全局能力矩阵。

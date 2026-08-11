@@ -273,6 +273,7 @@ class AgentRuntime:
         result.status = RunStatus.EXECUTING
         result.error = None
         result.answer = None
+        result.retry_count = int(getattr(result, "retry_count", 0) or 0) + 1
         with self._control_lock:
             self._cancelled_runs.discard(run_id)
         clear_cancel = getattr(self._state_store, "clear_cancel", None)

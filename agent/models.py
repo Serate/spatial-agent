@@ -65,6 +65,8 @@ class AgentRunResult:
     geojson_ref: Optional[str] = None
     # Final bounded GeoJSON evidence persisted for async polling/recovery.
     geometry_evidence: Optional[Dict[str, Any]] = None
+    # Number of in-place retries performed for this run.
+    retry_count: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

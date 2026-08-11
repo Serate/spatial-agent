@@ -17,7 +17,12 @@ from agent.trace_formatter import format_trace
 from run_demo import build_runtime
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.models import AgentRunResult, RunStatus
-from result_contract import build_result_contract
+from result_contract import (
+    build_comparison_lineage,
+    build_history_lineage,
+    build_lineage_index,
+    build_result_contract,
+)
 from agent.workflow_templates import normalize_workflow_selection
 
 
@@ -180,6 +185,7 @@ class AgentService:
                 )
                 created = bool(job.pop("created", False))
                 if not created:
+                    self._ensure_async_run_snapshot(job)
                     return self._async_submission_response(
                         job["run_id"], _async_status(self._state_store, job), True
                     )
@@ -286,6 +292,23 @@ class AgentService:
                 continue
             self._async_executor.submit(self._run_async_job, job["payload"])
 
+    def _ensure_async_run_snapshot(self, job: Dict[str, Any]) -> None:
+        """Close the idempotent-submit window before a caller starts polling."""
+        if self._state_store is None or not isinstance(job, dict):
+            return
+        if str(job.get("status") or "") not in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}:
+            return
+        payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
+        self._state_store.ensure_run_snapshot(
+            AgentRunResult(
+                run_id=str(job.get("run_id") or ""),
+                status=RunStatus.PLANNING,
+                request=str(payload.get("request") or ""),
+                session_id=payload.get("session_id"),
+                workflow=payload.get("workflow"),
+            )
+        )
+
     def _mark_async_started(self, run_id: str) -> None:
         """SQLite claims record the start atomically; memory mode needs the same data."""
         if self._state_store is not None:
@@ -333,7 +356,15 @@ class AgentService:
         if job is None:
             raise ValueError("async run not found: " + run_id)
         result = self._state_store.get(run_id) if self._state_store else self._memory_run(run_id)
-        return _build_async_observability(job, result)
+        lineage = None
+        if result is not None:
+            result_payload = result.to_dict()
+            explicit_geometry = result_payload.pop("geometry_evidence", None)
+            if explicit_geometry is not None:
+                result_payload["_geometry_evidence"] = explicit_geometry
+            result_payload["trace_summary"] = format_trace(result)
+            lineage = build_lineage_index(result_payload)
+        return _build_async_observability(job, result, lineage=lineage)
 
     def _async_submission_response(self, run_id: str, status: str, reused: bool) -> Dict[str, Any]:
         response = _async_response(run_id, status, reused)
@@ -469,8 +500,10 @@ class AgentService:
 
     def list_runs(self, limit: int = 20) -> Dict:
         if self._state_store is not None:
-            return {"runs": self._state_store.list_runs(limit=limit)}
-        return {"runs": self._artifact_store.list_runs(limit=limit)}
+            records = self._state_store.list_runs(limit=limit)
+        else:
+            records = self._artifact_store.list_runs(limit=limit)
+        return {"runs": _attach_history_lineage(records)}
 
     def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:
         if not isinstance(session_id, str) or not session_id.strip():
@@ -480,8 +513,10 @@ class AgentService:
             for runtime in self._runtimes.values():
                 records.extend(runtime._state_store.list_runs(limit=limit, session_id=session_id))
             records = _dedupe_run_records(records)
-            return {"runs": records[:limit]}
-        return {"runs": self._state_store.list_runs(limit=limit, session_id=session_id)}
+            return {"runs": _attach_history_lineage(records[:limit])}
+        return {"runs": _attach_history_lineage(
+            self._state_store.list_runs(limit=limit, session_id=session_id)
+        )}
 
     def list_sessions(self, limit: int = 50) -> Dict:
         if self._conversation_store is None:
@@ -605,6 +640,7 @@ class AgentService:
             tool_result = step.get("result") or {}
             statistics = tool_result.get("statistics") or {}
             rows.append({
+                "run_id": result.get("run_id"),
                 "slope_limit_degrees": value,
                 "status": result.get("status"),
                 "candidate_pixel_count": statistics.get("candidate_pixel_count"),
@@ -612,6 +648,7 @@ class AgentService:
                 "candidate_ratio": statistics.get("candidate_ratio"),
                 "error": statistics.get("error") or result.get("error"),
                 "analysis_ready": _analysis_ready_summary(result),
+                "lineage": (result.get("result") or {}).get("lineage"),
             })
         evidence = next(
             (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
@@ -623,6 +660,7 @@ class AgentService:
             "scenario": scenario.to_dict(),
             "spatial_context": normalized_context,
             "results": rows,
+            "lineage": build_comparison_lineage(rows, "buildability_threshold_comparison"),
             **({"analysis_ready": evidence} if evidence else {}),
         }
 
@@ -654,6 +692,7 @@ class AgentService:
             "slope_limit_degrees": threshold_value,
             "scenario": scenario.to_dict(),
             "results": rows,
+            "lineage": build_comparison_lineage(rows, "buildability_region_comparison"),
             **({
                 "analysis_ready": next(
                     (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
@@ -706,7 +745,11 @@ def _async_status(state_store: SQLiteStateStore, job: Dict[str, Any]) -> str:
     return "QUEUED" if job.get("status") in {"QUEUED", "RUNNING"} else str(job.get("status"))
 
 
-def _build_async_observability(job: Dict[str, Any], result: AgentRunResult = None) -> Dict[str, Any]:
+def _build_async_observability(
+    job: Dict[str, Any],
+    result: AgentRunResult = None,
+    lineage: Dict[str, Any] = None,
+) -> Dict[str, Any]:
     """Build a request-free lifecycle contract for polling and metrics consumers."""
     status = str(job.get("status") or "UNKNOWN")
     result_status = result.status.value if result is not None else None
@@ -745,7 +788,7 @@ def _build_async_observability(job: Dict[str, Any], result: AgentRunResult = Non
         "REJECTED": "rejected",
         "NEEDS_CLARIFICATION": "clarification",
     }.get(status, "unknown")
-    return {
+    observation = {
         "schema_version": 1,
         "run_id": job.get("run_id"),
         "status": status,
@@ -766,6 +809,9 @@ def _build_async_observability(job: Dict[str, Any], result: AgentRunResult = Non
         "recovery_count": recovery_count,
         "cancel_requested": _as_float(job.get("cancel_requested_at")) is not None,
     }
+    if isinstance(lineage, dict):
+        observation["lineage"] = lineage
+    return observation
 
 
 def _failure_category(status: str, error: str = None, source: str = None) -> str:
@@ -882,6 +928,16 @@ def _dedupe_run_records(records):
     return result
 
 
+def _attach_history_lineage(records):
+    """Attach only navigational evidence indexes to compact history records."""
+    enriched = []
+    for record in records or []:
+        item = dict(record or {})
+        item["lineage"] = build_history_lineage(item)
+        enriched.append(item)
+    return enriched
+
+
 def _async_response(run_id: str, status: str, reused: bool) -> Dict[str, Any]:
     return {
         "run_id": run_id,
@@ -898,16 +954,21 @@ def _process_is_alive(pid: int) -> bool:
 
             process = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))
             if not process:
-                return False
+                # Access-denied is not evidence that a worker exited. Treat
+                # that case as alive so a second service cannot replay a job
+                # while the original worker may still be writing its snapshot.
+                error_code = ctypes.windll.kernel32.GetLastError()
+                return error_code == 5  # ERROR_ACCESS_DENIED
             try:
                 exit_code = ctypes.c_ulong()
                 if not ctypes.windll.kernel32.GetExitCodeProcess(process, ctypes.byref(exit_code)):
-                    return False
+                    return True
                 return exit_code.value == 259  # STILL_ACTIVE
             finally:
                 ctypes.windll.kernel32.CloseHandle(process)
         except (AttributeError, OSError, TypeError, ValueError):
-            return False
+            # A transient API failure must not trigger duplicate execution.
+            return True
     try:
         os.kill(int(pid), 0)
     except PermissionError:

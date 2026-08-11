@@ -58,7 +58,11 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         references.append({"kind": "geojson", "ref": payload["geojson_ref"]})
 
     geometry_evidence = _geometry_evidence(payload, geometry_sources)
-    lineage = _lineage(payload, steps, geometry_evidence)
+    lineage = build_lineage_index(
+        payload,
+        steps=steps,
+        geometry_evidence=geometry_evidence,
+    )
     return {
         "type": result_type,
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
@@ -80,12 +84,24 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _lineage(
+def build_lineage_index(
     payload: Dict[str, Any],
-    steps: List[Any],
-    geometry_evidence: Dict[str, Any],
+    steps: List[Any] = None,
+    geometry_evidence: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
-    """Expose a stable index for the UI to navigate one run's evidence."""
+    """Build the bounded evidence index shared by every run-facing entry point."""
+    steps = steps if isinstance(steps, list) else (
+        payload.get("steps") if isinstance(payload.get("steps"), list) else []
+    )
+    if not isinstance(geometry_evidence, dict):
+        geometry_sources = {
+            str((step.get("result") or {}).get("geometry_source"))
+            for step in steps
+            if isinstance(step, dict)
+            and isinstance(step.get("result"), dict)
+            and (step.get("result") or {}).get("geometry_source")
+        }
+        geometry_evidence = _geometry_evidence(payload, geometry_sources)
     run_id = str(payload.get("run_id") or "")
     artifact_ref = _basename_ref(payload.get("artifact_ref"))
     geojson_ref = _basename_ref(payload.get("geojson_ref"))
@@ -109,6 +125,10 @@ def _lineage(
             "scope": "configured_data_volume",
         }
     )
+    try:
+        retry_count = max(0, int(payload.get("retry_count") or 0))
+    except (TypeError, ValueError):
+        retry_count = 0
     return {
         "run_id": run_id or None,
         "answer": {"available": bool(payload.get("answer") or payload.get("error"))},
@@ -122,12 +142,56 @@ def _lineage(
             "ref": geojson_ref,
             "status": geometry_evidence.get("status", "unknown"),
         },
+        "retry": {
+            "available": retry_count > 0,
+            "count": retry_count,
+            "ref": run_id if retry_count > 0 else None,
+        },
         "map_layers": _map_layers(steps, geometry_evidence),
         "release_evidence": {
             "available": True,
             "ref": "/release-evidence?max_files=10",
             "scope": "configured_data_volume",
         },
+        "references": references,
+    }
+
+
+def build_history_lineage(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a safe index for compact session/run history records."""
+    payload = dict(record or {})
+    lineage = build_lineage_index(payload, steps=[], geometry_evidence={
+        "status": "unknown",
+        "reason": "历史摘要需打开运行详情查看空间证据",
+        "feature_count": 0,
+        "truncated": False,
+        "sources": [],
+    })
+    lineage["trace"]["available"] = False
+    lineage["trace"]["deferred"] = bool(lineage.get("run_id"))
+    return lineage
+
+
+def build_comparison_lineage(rows: List[Dict[str, Any]], kind: str) -> Dict[str, Any]:
+    """Index the child runs behind a comparison without duplicating their payloads."""
+    run_ids = []
+    references = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict) or not row.get("run_id"):
+            continue
+        run_id = str(row["run_id"])
+        if run_id in run_ids:
+            continue
+        run_ids.append(run_id)
+        references.extend([
+            {"kind": "run", "ref": run_id},
+            {"kind": "lineage", "ref": run_id},
+        ])
+    return {
+        "schema_version": 1,
+        "kind": str(kind),
+        "run_ids": run_ids,
+        "row_count": len(rows) if isinstance(rows, list) else 0,
         "references": references,
     }
 

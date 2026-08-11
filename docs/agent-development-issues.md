@@ -2325,3 +2325,31 @@ goal 生命周期状态与项目恢复规则由不同机制维护。goal objecti
 ### 处理与预防
 
 将新增约束同步写入 `docs/agent-context-resume.md`、`docs/task-resume.md` 和 `docs/milestones.md` 的当前规则区，并在中文问题日志中记录接口限制。后续每次重规划先输出产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据七维能力矩阵，再确定阶段目标；具体数据修复必须标记为系统级目标的支撑任务。不能为了修改 objective 而虚假结束当前 goal，也不能把历史阶段中的局部任务当成当前全局目标。
+
+## Windows 进程查询失败导致 SQLite 异步任务重复接管
+
+### 现象
+
+全量离线验收的三 worker SQLite 幂等场景偶发出现同一 job 被恢复两次：`recovery_count=2`，`async_jobs.status=COMPLETED`，但 `agent_runs` 仍为 `PLANNING`。结果历史、轮询和 lineage 可能读到不同终态；单独运行该测试通常通过，放在大套件后更容易暴露。
+
+### 根因
+
+Windows `_process_is_alive` 使用 `OpenProcess` 查询 owner PID。原实现把无法打开进程、查询 API 瞬态失败或权限异常统一返回 `False`，恢复逻辑遂把仍在工作的 worker 当成已退出并允许另一个服务接管。两个 worker 随后都进入 `AgentRuntime.run`，后启动者会先写入 `PLANNING`，旧 owner 或新 owner 的完成顺序又可能覆盖运行快照。
+
+### 修复与预防
+
+明确获得已退出/无效 PID 时才返回 `False`；`OpenProcess` 返回访问拒绝或进程信息查询 API 失败时保守返回 `True`，避免重复执行。显式模拟死进程的 recovery 测试仍覆盖接管路径；三 worker 精确场景连续 20 次通过，离线全量 401 项和 GIS 全量 401 项均通过。异步验收必须同时检查 job 生命周期、`agent_runs` 终态、恢复次数和 lineage，不能只看 HTTP 200 或单个状态字段。
+
+## SQLite 幂等重复提交先于运行快照写入
+
+### 现象
+
+多个 worker 同时提交同一个幂等键时，重复提交方可以先拿到 canonical `run_id`，但原 worker 还没有把 `AgentRunResult(PLANNING)` 写入 `agent_runs`。重复提交方立即轮询会短暂得到 `run not found`；在全量测试中还可能表现为 worker 超时或 exit code 非零。
+
+### 根因
+
+`async_jobs` 的幂等插入和 `agent_runs` 初始快照写入是两个事务窗口。原实现只在“创建 job”的 worker 中写快照，复用已有 job 的 worker 直接返回；SQLite 已经能证明 job 存在，但不能证明对应的运行快照已经可读。
+
+### 修复与预防
+
+`SQLiteStateStore.ensure_run_snapshot` 使用 `INSERT OR IGNORE`，重复提交路径在返回前补齐缺失的 PLANNING 快照，不覆盖任何并发 worker 已写入的终态。三 worker 幂等场景连续 20 次通过；后续异步验收必须同时覆盖“job 已存在、run snapshot 尚未存在”的窗口，并验证不会覆盖 COMPLETED/FAILED 快照。

@@ -58,6 +58,18 @@ class SQLiteStateStore:
                 (result.run_id, payload),
             )
 
+    def ensure_run_snapshot(self, result: AgentRunResult) -> None:
+        """Create the initial snapshot without overwriting a concurrent result."""
+        payload = json.dumps(result.to_dict(), ensure_ascii=True)
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO agent_runs (run_id, payload, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                """,
+                (result.run_id, payload),
+            )
+
     def get(self, run_id: str) -> Optional[AgentRunResult]:
         with self._connection() as connection:
             row = connection.execute(

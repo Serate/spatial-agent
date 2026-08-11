@@ -479,3 +479,11 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M76.2.4 下一步
 
 必须先进行全局能力重规划，再推进实现：产品/架构闭环扩展到异步观测、比较、重试和会话；真实模型扩展到建设筛选/道路水体约束/跨区域比较；Docker 恢复后做生产 acceptance；数据 provenance、对齐和发布报告作为支撑证据层维护。最大并发度保持 3。
+
+## M76.2.4 完成状态与 M76.3 规划
+
+- 运行 lineage 已贯通完整结果、异步观测、比较结果、失败 retry 和会话历史；`retry_count` 与运行 ID 一起持久化，历史仅输出安全导航索引。
+- M76.2.4 验证：离线 401 通过/42 跳过，GIS 401 通过/9 跳过，严格全局 8/8，脱敏回放 2/2，Smoke 和开发 HTTP lineage 验收通过。
+- Windows worker 存活探测误判导致的 SQLite 重复接管已修复；明确查询权限/API 异常时保守视为存活，显式退出进程仍可 recovery。
+- M76.3 从全局推进 Console lineage 导航、开发/生产契约版本化、Docker production acceptance 和真实模型建设/比较基线；数据 provenance/对齐/manifest 只作为跨系统证据层。
+- Docker Linux engine、容器生产 acceptance 和 FastAPI production 证据仍未验证。
