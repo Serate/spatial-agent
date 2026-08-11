@@ -94,6 +94,14 @@ node scripts/console_map_smoke.js
 
 两条脚本必须串行使用同一个 CDP 页面；前者验证总览、三色图层和证据卡，后者验证真实候选几何、地图选择和清空工作区。
 
+发布报告也可以直接下载验证：
+
+```powershell
+Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8091/release-evidence?max_files=10' -OutFile D:\tmp\wuhan-gis\release-evidence.json
+```
+
+该请求会执行完整 SHA-256，适合换数或发布前检查，不应作为高频 liveness 探针。
+
 ## 常见失败判定
 
 - `无法连接 Chrome CDP`：先运行 `console_cdp_start.ps1`，或检查 `CDP_URL` 是否指向实际端口。

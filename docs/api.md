@@ -401,6 +401,20 @@ Troubleshooting notes from the M16 setup:
 - Cancellation is cooperative: the cancel request is persisted, and Runtime stops at the next safe step boundary. It does not forcibly terminate a running third-party GIS or provider call.
 - Artifact export writes a compact run summary only, not raw spatial datasets.
 
+## Release Evidence
+
+`GET /release-evidence?max_files=10` runs the explicit publication checks and returns a bounded JSON report with three independent layers:
+
+- `metadata`: runtime data readiness, analysis-ready target grid and lightweight health checks;
+- `source_binding`: SHA-256 verification of the source files recorded before derivation;
+- `output_manifest`: SHA-256 verification of the current derived DEM/land-use outputs and basename matches.
+
+The endpoint may read large files and is intended for release or data-change validation, not frequent liveness probes. It never returns absolute paths or individual file hashes. A `metadata` readiness result is deliberately not presented as a completed SHA-256 publication check. The same report can be generated offline with:
+
+```powershell
+python scripts/release_evidence.py --config <dataset-config.json> --output <release-evidence.json>
+```
+
 ## Artifact Viewer
 
 Render an exported artifact as a standalone HTML file:

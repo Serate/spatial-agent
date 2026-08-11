@@ -404,6 +404,22 @@ M76 最多拆分 3 路并行；浏览器/结果展示、真实模型和部署验
 
 M76.2 仍最多拆分 3 路并行；发布报告和 result envelope 由主线统一，真实模型与 Docker 验收分别隔离。
 
+### M76.2.1：三层发布校验报告（已完成）
+
+- 新增 `agent/release_evidence.py` 和 `scripts/release_evidence.py`，显式编排 metadata、源绑定 SHA-256、当前派生输出 SHA-256 三层校验；报告只输出受控摘要，不输出绝对路径或逐文件哈希。
+- 开发 HTTP 与生产 FastAPI 均提供 `GET /release-evidence`；Console 发布完整性卡片提供下载链接。缺失配置、manifest、源绑定和输出失配均返回结构化状态与 mismatch，不伪装成 ready。
+- 正确处理派生配置的源层/派生层分离：从原始 source binding 重建源文件视图，再用当前 catalog 校验派生输出。
+- M76.2.1 专项 6 项、离线全量 391 项（42 项跳过）、GIS 全量 391 项（9 项跳过）、Smoke、严格全局评测 8/8、真实 API 报告和真实配置浏览器 smoke 均通过。
+- 真实武汉报告：总体 `ready`；source SHA-256 14 个文件、manifest 5 个文件、派生输出 SHA-256 2 个文件，均 0 mismatch。运行时 readiness 仍保持 metadata-only 语义。
+
+### M76.2.2 全局下一步
+
+1. 真实模型：执行真实能力快照驱动的开放式澄清、非法计划修复和 live GIS 总览基线，沉淀安全的 provider/计划/工具/后端错误分类及 token/延迟指标。
+2. 部署可靠性：Docker Linux engine 恢复后构建当前版本，验收生产数据卷、`/health/ready`、发布报告、重启恢复、多 worker 和 FastAPI acceptance。
+3. 用户体验：把发布报告的运行 ID、答案、轨迹、GeoJSON 和地图图层引用贯通，并补换数、失配、截断和失败状态的浏览器验收。
+
+M76.2.2 仍最多拆分 3 路并行；真实模型、生产部署和 Console 体验边界清晰，公共 result envelope 由主线统一。
+
 ### M69 当前实现进展
 
 - 工作流模板已增加语义版本、约束规格（字符串/数值/整数/布尔/枚举及边界）、证据选项和默认选择；计划校验输出模板版本、归一化约束与证据。

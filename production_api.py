@@ -15,6 +15,7 @@ from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
+from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
     WorkflowTemplateError,
     get_workflow_template,
@@ -89,6 +90,13 @@ def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
     if max_files < 1 or max_files > 10:
         raise HTTPException(status_code=400, detail="max_files must be between 1 and 10")
     return runtime_capability_snapshot(max_files=max_files)
+
+
+@app.get("/release-evidence")
+def release_evidence(max_files: int = 10) -> Dict[str, Any]:
+    if max_files < 1 or max_files > 10:
+        raise HTTPException(status_code=400, detail="max_files must be between 1 and 10")
+    return release_evidence_snapshot(max_files=max_files)
 
 
 @app.get("/")

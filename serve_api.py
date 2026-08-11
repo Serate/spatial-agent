@@ -8,6 +8,7 @@ from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
+from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
     WorkflowTemplateError,
     get_workflow_template,
@@ -47,6 +48,16 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 if max_files < 1 or max_files > 10:
                     raise ValueError("max_files must be between 1 and 10")
                 self._write_json(200, runtime_capability_snapshot(max_files=max_files))
+            except ValueError as exc:
+                self._write_json(400, {"error": str(exc)})
+            return
+        if parsed.path == "/release-evidence":
+            query = parse_qs(parsed.query)
+            try:
+                max_files = int(query.get("max_files", [10])[0])
+                if max_files < 1 or max_files > 10:
+                    raise ValueError("max_files must be between 1 and 10")
+                self._write_json(200, release_evidence_snapshot(max_files=max_files))
             except ValueError as exc:
                 self._write_json(400, {"error": str(exc)})
             return

@@ -441,3 +441,15 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M76.2 下一步
 
 继续建立可下载的 metadata/源绑定 SHA-256/输出 SHA-256 三层发布报告，贯通运行 ID、答案、轨迹和地图；随后执行真实模型澄清/计划修复/live GIS 基线。Docker Linux engine 恢复后再进行当前版本生产 acceptance。最大并发度保持 3。
+
+## M76.2.1 当前完成状态
+
+- 新增 `agent/release_evidence.py`、`scripts/release_evidence.py` 和 `GET /release-evidence`；报告显式分离 metadata、源绑定 SHA-256、输出 manifest SHA-256 和全量 manifest 状态。
+- 开发 HTTP、生产 FastAPI 和 Console 下载链接已统一接入；报告只显示受控摘要，不暴露绝对路径或逐文件哈希。
+- 真实武汉报告总体 `ready`：源绑定 14 文件、manifest 5 文件、派生输出 2 文件均完整 SHA-256 通过，0 mismatch；运行时 readiness 仍保持 metadata-only。
+- 修复并记录派生配置直接验证源绑定的误报：源层从原始 binding 重建，输出层从当前派生 catalog 验证。
+- M76.2.1 专项 6 项、离线全量 391 项（42 项跳过）、GIS 全量 391 项（9 项跳过）、Smoke、严格全局评测 8/8、真实 API 和浏览器 smoke 通过。
+
+## M76.2.2 下一步
+
+开始真实能力快照驱动的模型澄清/计划修复/live GIS 基线；Docker Linux engine 恢复后进行生产 acceptance。随后贯通发布报告与运行 ID、答案、轨迹、地图和 GeoJSON，并覆盖换数失配状态。最大并发度保持 3。

@@ -696,3 +696,17 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 输出可下载的三层发布校验报告，接入运行 ID、轨迹、答案和地图证据，并明确启动轻量检查与完整 SHA-256 verifier 的差异。
 - 执行真实能力快照驱动的澄清、计划修复和 live GIS 总览基线，记录安全的 provider/计划/工具/后端错误分类及 token/延迟。
 - Docker 恢复后完成当前版本生产数据卷、readiness、重启、多 worker 和 FastAPI acceptance。
+
+### M76.2.1 验收结果
+
+- 新增三层发布报告模块和脚本，分别输出 metadata、源绑定 SHA-256、派生输出 SHA-256 和全量 manifest 摘要；输出不包含绝对路径或逐文件哈希。
+- 开发 HTTP、生产 FastAPI 和 Console 下载链接均已接入 `/release-evidence`；缺失配置和 provenance/输出失配具备结构化失败状态。
+- M76.2.1 专项 6 项、离线全量 391 项（42 项跳过）、GIS 全量 391 项（9 项跳过）、Smoke、严格全局评测 8/8 通过。
+- 真实武汉报告总体 `ready`：源绑定 14 文件、manifest 5 文件、输出 2 文件完整 SHA-256 均通过，修复派生 catalog 误验源 binding 的集成问题。
+- 新代码端口的真实武汉总览和建设候选浏览器 smoke 通过；真实报告 API 返回 `ready`、`output_manifest.hashes_verified=true`。
+
+### M76.2.2 全局下一步
+
+- 执行真实模型的能力快照驱动澄清、计划修复、live GIS 总览和 token/延迟/错误分层验收。
+- Docker 恢复后完成生产数据卷、readiness、发布报告、重启、多 worker 和 FastAPI acceptance。
+- 继续贯通运行 ID 与发布报告、答案、轨迹、地图和 GeoJSON，并覆盖数据换数后的 degraded/unavailable 浏览器状态。
