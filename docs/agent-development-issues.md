@@ -2297,3 +2297,17 @@ M76.2.2 真实武汉 live 基线第一次运行中，空间总览模型计划已
 ### 修复与预防
 
 live baseline 只对 provider 暂态错误自动重试，并记录每次的错误分类、步骤状态和安全指标；工具门控、计划校验和后端执行失败单独报告。若再次出现，应优先保存失败步骤的分类、数据健康状态、进程环境和 GIS 原生错误上下文，再判断是否需要业务修复。所有复验继续使用 `spatial-agent-gis` 环境并保持串行。
+
+## Result envelope 在导出和恢复前构建会丢失 lineage
+
+### 现象
+
+M76.2.3 为 result envelope 增加运行 ID、轨迹、artifact、GeoJSON 和地图图层索引后，同步结果看起来完整，但异步轮询/服务重启后的 envelope 中 `trace.available` 变为 false；同步、异步结果比较因此失败，嵌套 smoke 也会失败。
+
+### 根因
+
+服务原先在生成 `trace_summary`、artifact 和 GeoJSON 之前就构建 result envelope。恢复路径从 `AgentRunResult` 重新格式化时也先构建 envelope，再补 trace；新增 lineage 读取的是构建时的 payload，而不是最终运行状态。
+
+### 修复与预防
+
+同步、retry、`get_run` 和恢复格式化路径现在都先准备 trace/provenance、artifact/GeoJSON 与显式几何证据，再构建一次最终 envelope；临时几何证据只在构建后移除。跨入口验收必须比较同步、异步轮询、重启和 retry 的最终 envelope，并对每次运行必然不同的 run/artifact/GeoJSON 标识做明确归一化。

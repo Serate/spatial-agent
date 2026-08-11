@@ -75,7 +75,7 @@ const runSnapshot = await evaluate(`(async()=>{
   for(let i=0;i<120;i++){
     await new Promise(resolve=>setTimeout(resolve,250));
     const panel=document.querySelector('.overview-result');
-    if(panel?.classList.contains('is-visible') || $('status')?.textContent==='失败') break;
+    if((panel?.classList.contains('is-visible') && $('lineageEvidence')?.textContent.includes('运行 ID')) || $('status')?.textContent==='失败') break;
   }
   return JSON.stringify({
     status:$('status')?.textContent||'',
@@ -83,12 +83,16 @@ const runSnapshot = await evaluate(`(async()=>{
     panel:Boolean(document.querySelector('.overview-result.is-visible')),
     stats:$('overviewStats')?.textContent||'',
     evidence:$('overviewEvidence')?.textContent||'',
+    lineage:$('lineageEvidence')?.textContent||'',
     error:$('error')?.textContent||''
   });
 })()`);
 const run = JSON.parse(runSnapshot || "{}");
 if (!run.panel) {
   throw new Error(`空间总览面板未显示：${JSON.stringify(run)}`);
+}
+if (!run.lineage.includes('运行 ID')) {
+  throw new Error('结果证据索引未显示运行 ID: ' + run.lineage);
 }
 if (!run.stats.includes("工具步骤") || !run.stats.includes("数据来源") || !run.stats.includes("空间要素")) {
   throw new Error(`空间总览摘要缺少公共指标：${JSON.stringify(run)}`);

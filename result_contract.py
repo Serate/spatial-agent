@@ -1,5 +1,6 @@
 """Build the bounded result envelope shared by API clients and the Console."""
 
+from pathlib import Path
 from typing import Any, Dict, List
 
 
@@ -57,6 +58,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         references.append({"kind": "geojson", "ref": payload["geojson_ref"]})
 
     geometry_evidence = _geometry_evidence(payload, geometry_sources)
+    lineage = _lineage(payload, steps, geometry_evidence)
     return {
         "type": result_type,
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
@@ -64,6 +66,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "data": {"evidence_steps": evidence_steps},
         "clarification": payload.get("clarification"),
         "references": references,
+        "lineage": lineage,
         "geometry": {
             "available": geometry_evidence["status"] in {"real_geometry", "boundary_geometry"},
             "status": geometry_evidence["status"],
@@ -75,6 +78,100 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             "crs": sorted(geometry_crs),
         },
     }
+
+
+def _lineage(
+    payload: Dict[str, Any],
+    steps: List[Any],
+    geometry_evidence: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Expose a stable index for the UI to navigate one run's evidence."""
+    run_id = str(payload.get("run_id") or "")
+    artifact_ref = _basename_ref(payload.get("artifact_ref"))
+    geojson_ref = _basename_ref(payload.get("geojson_ref"))
+    references = []
+    if run_id:
+        references.extend(
+            [
+                {"kind": "run", "ref": run_id},
+                {"kind": "answer", "ref": run_id},
+                {"kind": "trace", "ref": run_id},
+            ]
+        )
+    if artifact_ref:
+        references.append({"kind": "artifact", "ref": artifact_ref})
+    if geojson_ref:
+        references.append({"kind": "geojson", "ref": geojson_ref})
+    references.append(
+        {
+            "kind": "release_evidence",
+            "ref": "/release-evidence?max_files=10",
+            "scope": "configured_data_volume",
+        }
+    )
+    return {
+        "run_id": run_id or None,
+        "answer": {"available": bool(payload.get("answer") or payload.get("error"))},
+        "trace": {
+            "available": bool(payload.get("trace_summary")),
+            "step_count": len(steps),
+        },
+        "artifact": {"available": bool(artifact_ref), "ref": artifact_ref},
+        "geojson": {
+            "available": bool(geojson_ref),
+            "ref": geojson_ref,
+            "status": geometry_evidence.get("status", "unknown"),
+        },
+        "map_layers": _map_layers(steps, geometry_evidence),
+        "release_evidence": {
+            "available": True,
+            "ref": "/release-evidence?max_files=10",
+            "scope": "configured_data_volume",
+        },
+        "references": references,
+    }
+
+
+def _basename_ref(value: Any) -> str | None:
+    if not value:
+        return None
+    return Path(str(value)).name or None
+
+
+def _map_layers(steps: List[Any], geometry_evidence: Dict[str, Any]) -> List[Dict[str, Any]]:
+    layers = []
+    seen = set()
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        dataset = result.get("dataset")
+        source = result.get("geometry_source")
+        if not dataset and not source:
+            continue
+        key = (str(dataset or ""), str(source or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        layers.append(
+            {
+                "id": "|".join(item for item in key if item) or "空间图层",
+                "dataset": dataset,
+                "source": source,
+                "result_ref": result.get("result_ref"),
+            }
+        )
+    if not layers and geometry_evidence.get("sources"):
+        layers.extend(
+            {
+                "id": str(source),
+                "dataset": None,
+                "source": str(source),
+                "result_ref": None,
+            }
+            for source in geometry_evidence["sources"]
+        )
+    return layers[:20]
 
 
 def _geometry_evidence(payload: Dict[str, Any], geometry_sources) -> Dict[str, Any]:

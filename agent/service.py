@@ -103,7 +103,6 @@ class AgentService:
         payload = result.to_dict()
         payload["spatial_context"] = normalized_context
         payload["result_type"] = _result_type(payload)
-        payload["result"] = build_result_contract(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         if export_artifact:
@@ -129,11 +128,11 @@ class AgentService:
                 geometry_features=geometry_features or None,
             )
             payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
-            payload["result"] = build_result_contract(payload)
             result.geometry_evidence = payload["_geometry_evidence"]
-            payload.pop("_geometry_feature_count", None)
-            payload.pop("_geometry_evidence", None)
             result.geojson_ref = payload["geojson_ref"]
+        payload["result"] = build_result_contract(payload)
+        payload.pop("_geometry_feature_count", None)
+        payload.pop("_geometry_evidence", None)
         if self._state_store is not None:
             self._state_store.save(result)
         self._attach_async_observability(payload, payload.get("run_id"))
@@ -382,10 +381,9 @@ class AgentService:
         runtime = self._runtime(planner, backend)
         result = runtime.retry_failed(run_id)
         payload = result.to_dict()
-        payload["result_type"] = _result_type(payload)
-        payload["result"] = build_result_contract(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
+        payload["result_type"] = _result_type(payload)
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
             result.artifact_ref = payload["artifact_ref"]
@@ -409,11 +407,11 @@ class AgentService:
                 geometry_features=geometry_features or None,
             )
             payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
-            payload["result"] = build_result_contract(payload)
             result.geometry_evidence = payload["_geometry_evidence"]
-            payload.pop("_geometry_feature_count", None)
-            payload.pop("_geometry_evidence", None)
             result.geojson_ref = payload["geojson_ref"]
+        payload["result"] = build_result_contract(payload)
+        payload.pop("_geometry_feature_count", None)
+        payload.pop("_geometry_evidence", None)
         if self._state_store is not None:
             self._state_store.save(result)
         return payload
@@ -461,11 +459,11 @@ class AgentService:
         explicit_geometry = payload.pop("geometry_evidence", None)
         if explicit_geometry is not None:
             payload["_geometry_evidence"] = explicit_geometry
+        payload["trace_summary"] = format_trace(result)
+        payload["provenance"] = build_provenance(payload)
         payload["result_type"] = _result_type(payload)
         payload["result"] = build_result_contract(payload)
         payload.pop("_geometry_evidence", None)
-        payload["trace_summary"] = format_trace(result)
-        payload["provenance"] = build_provenance(payload)
         self._attach_async_observability(payload, run_id)
         return payload
 
@@ -1117,9 +1115,9 @@ def _format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> D
     if explicit_geometry is not None:
         payload["_geometry_evidence"] = explicit_geometry
     payload["spatial_context"] = spatial_context
+    payload["trace_summary"] = format_trace(result)
+    payload["provenance"] = build_provenance(payload)
     payload["result_type"] = _result_type(payload)
     payload["result"] = build_result_contract(payload)
     payload.pop("_geometry_evidence", None)
-    payload["trace_summary"] = format_trace(result)
-    payload["provenance"] = build_provenance(payload)
     return payload

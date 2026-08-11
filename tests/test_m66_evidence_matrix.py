@@ -86,6 +86,25 @@ def _canonical_envelope(payload):
         else reference
         for reference in envelope["references"]
     ]
+    lineage = envelope.get("lineage") or {}
+    if lineage:
+        lineage["run_id"] = "<run>"
+        for key in ("artifact", "geojson"):
+            item = lineage.get(key) or {}
+            if item.get("ref"):
+                item["ref"] = "<artifact>" if key == "artifact" else "<geojson>"
+        lineage["references"] = [
+            {
+                **reference,
+                "ref": (
+                    "<artifact>" if reference.get("kind") == "artifact"
+                    else "<geojson>" if reference.get("kind") == "geojson"
+                    else "<run>" if reference.get("kind") in {"run", "answer", "trace"}
+                    else reference.get("ref")
+                ),
+            }
+            for reference in lineage.get("references", [])
+        ]
     return envelope
 
 
