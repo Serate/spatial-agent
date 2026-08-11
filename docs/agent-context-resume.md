@@ -453,3 +453,14 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M76.2.2 下一步
 
 开始真实能力快照驱动的模型澄清/计划修复/live GIS 基线；Docker Linux engine 恢复后进行生产 acceptance。随后贯通发布报告与运行 ID、答案、轨迹、地图和 GeoJSON，并覆盖换数失配状态。最大并发度保持 3。
+
+## M76.2.2 当前完成状态
+
+- 新增 `evaluation/live_baseline.py` 与 `scripts/live_baseline.py`，live 入口显式 opt-in；输出为脱敏结构化报告，不包含 API key、绝对路径、URL、原始模型响应或错误正文。
+- 真实武汉能力快照：`health=ready`、`data_readiness=ready`、`analysis_ready=ready`、`derived_version=analysis-ready-v1`、`grid_alignment=aligned`，本地 GIS 依赖可用。
+- 真实模型基线 2/2：未注册地下管线三维风险请求进入结构化澄清；“分析洪山区空间概况”完成 8 步真实 GIS 计划，包含道路和水体两次 `get_zonal_vector_summary` 调用，计划质量和中文答案通过。
+- 脱敏澄清/计划修复回放 2/2；离线 394（42 跳过）、GIS 394（9 跳过）、Smoke、严格全局评测 8/8 通过；live 两请求合计 5051 token，延迟 3706.899–11176.822 ms，provider 错误 0，重试 0。
+
+## M76.2.3 下一步
+
+从项目全局推进部署可靠性、结果引用闭环和真实模型能力扩展：Docker 恢复后执行生产 acceptance；Console 覆盖换数失配/截断/失败重试状态；真实模型在稳定结果证据契约后扩展建设筛选与跨区域比较。最大并发度保持 3。

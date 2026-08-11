@@ -420,6 +420,22 @@ M76.2 仍最多拆分 3 路并行；发布报告和 result envelope 由主线统
 
 M76.2.2 仍最多拆分 3 路并行；真实模型、生产部署和 Console 体验边界清晰，公共 result envelope 由主线统一。
 
+### M76.2.2：真实模型与 GIS 基线（已完成）
+
+- 新增 `evaluation/live_baseline.py` 和 `scripts/live_baseline.py`。入口必须显式使用 `--allow-network`，并设置 live 模型/GIS 环境变量；默认单元测试和 CI 不访问网络。
+- 基线从真实运行时能力快照读取数据就绪状态、分析就绪版本、目标网格对齐状态和能力工具清单；报告只保留受控状态，不输出配置路径、原始模型响应、URL、错误正文或密钥。
+- 真实武汉验收：能力快照 `health=ready`、`data_readiness=ready`、`analysis_ready=ready`、`grid_alignment=aligned`；地下管线三维风险请求正确返回结构化澄清；空间总览 8 步真实 GIS 执行完成，结果类型为 `spatial_overview_result`，工具覆盖、依赖 DAG 和中文答案均通过。
+- 计划修复/澄清脱敏回放 2/2 通过；live 两个请求 2/2 通过，合计 5051 token，延迟 3706.899–11176.822 ms，provider 错误 0，重试 0。
+- M76.2.2 专项 3 项、离线全量 394 项（42 项跳过）、GIS 全量 394 项（9 项跳过）、Smoke、严格全局评测 8/8 和最终 live 基线均通过。
+
+### M76.2.3 全局下一步
+
+1. 部署可靠性：Docker Linux engine 恢复后构建当前提交，执行真实数据卷、`/health/ready`、发布证据、重启恢复、多 worker 和 FastAPI acceptance；宿主机不可用时保持分层未验证状态。
+2. 产品能力与体验：贯通运行 ID、发布报告、答案、轨迹、GeoJSON 和地图图层，补充换数后 degraded/unavailable、几何截断和失败重试的 Console 浏览器验收。
+3. 真实模型：把 live 基线纳入可选阶段验收，保留能力快照驱动澄清、计划质量和安全 provider 指标；扩展到真实建设筛选与跨区域比较前先定义工具多重调用和结果证据契约。
+
+M76.2.3 仍最多拆分 3 路并行；Docker、Console 和真实模型验收保持边界，运行 ID/result envelope 与数据证据由主线统一集成。
+
 ### M69 当前实现进展
 
 - 工作流模板已增加语义版本、约束规格（字符串/数值/整数/布尔/枚举及边界）、证据选项和默认选择；计划校验输出模板版本、归一化约束与证据。

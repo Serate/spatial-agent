@@ -710,3 +710,17 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 执行真实模型的能力快照驱动澄清、计划修复、live GIS 总览和 token/延迟/错误分层验收。
 - Docker 恢复后完成生产数据卷、readiness、发布报告、重启、多 worker 和 FastAPI acceptance。
 - 继续贯通运行 ID 与发布报告、答案、轨迹、地图和 GeoJSON，并覆盖数据换数后的 degraded/unavailable 浏览器状态。
+
+### M76.2.2 当前完成状态
+
+- 新增 opt-in live baseline：`scripts/live_baseline.py --allow-network`；真实请求复用正常 `LLMPlanner -> TaskPlan -> ToolRegistry -> SpatialBackend` 链路。
+- 真实能力快照显示武汉分析就绪数据为 `ready`，目标网格为 `EPSG:32649`/30 米且 `aligned`；报告移除绝对路径和私有 provenance，只保留能力、数据状态和运行时依赖摘要。
+- 真实模型对未注册的地下管线三维风险问题返回 `NEEDS_CLARIFICATION` 且不执行工具；真实武汉空间总览返回 8 步合法计划并完成真实行政区、DEM、坡度、土地利用、道路和水体链路。
+- 计划修复/澄清脱敏回放 2/2；live 基线 2/2；离线全量 394（跳过 42）、GIS 全量 394（跳过 9）、Smoke、严格全局评测 8/8 均通过。
+- 最终 live 指标：两次请求共 5051 token，延迟范围 3706.899–11176.822 ms，provider 错误分类为 0，重试 0。安全报告写入仓库外 `D:\tmp\wuhan-gis`，不提交真实配置和数据。
+
+### M76.2.3 全局下一步
+
+- Docker Linux engine 恢复后完成当前版本生产 acceptance，并逐层记录宿主机、镜像、readiness、重启、多 worker 和 FastAPI 证据。
+- 统一运行 ID 到答案、轨迹、发布报告、GeoJSON 和地图图层的引用，覆盖数据换数失配、几何截断和失败/重试状态。
+- 继续扩展真实模型可选基线到建设筛选和跨区域比较；先为同名工具多次调用、结果证据和能力门控补充稳定契约。
