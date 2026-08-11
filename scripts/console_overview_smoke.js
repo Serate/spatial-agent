@@ -123,4 +123,14 @@ for (const color of ["#087f8c", "#d97706", "#2563eb"]) {
     throw new Error(`地图缺少颜色 ${color}：${JSON.stringify(layers.colors)}`);
   }
 }
+
+const releaseSnapshot = await evaluate(`(()=>{
+  const fixture={analysis_ready:{status:'ready',derived_version:'analysis-ready-v1',verification_mode:'metadata',grid_alignment:{status:'aligned'},source_binding:{status:'recorded',fingerprint:'sha256:test-source'},output_manifest:{status:'ready',verification_mode:'metadata',hashes_verified:false,mismatch_count:0,outputs:{dem:{reported:'dem_aligned.tif',manifest:['dem_aligned.tif'],matched:true},land_use:{reported:'land_use_aligned.tif',manifest:['land_use_aligned.tif'],matched:true}}}},result:{geometry:{status:'boundary_geometry',available:true,feature_count:1,sources:['geojson'],crs:['EPSG:4326']}}};
+  renderEvidence(fixture);
+  return JSON.stringify({text:document.querySelector('#releaseEvidence')?.textContent||'',className:document.querySelector('#releaseEvidence')?.className||''});
+})()`);
+const release = JSON.parse(releaseSnapshot || "{}");
+if (!release.text.includes("发布完整性") || !release.text.includes("源绑定 SHA-256") || !release.text.includes("输出 manifest") || !release.text.includes("dem_aligned.tif")) {
+  throw new Error(`发布完整性证据卡缺少三层摘要：${JSON.stringify(release)}`);
+}
 socket.close();

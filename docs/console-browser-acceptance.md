@@ -78,6 +78,22 @@ $env:CONSOLE_BACKEND = 'local'
 node scripts/console_overview_smoke.js
 ```
 
+## M76.1 发布完整性补充
+
+结果证据区的“发布完整性”卡片将分析就绪信息拆成三层：元数据/目标网格、源绑定 SHA-256、输出 manifest。输出 manifest 只展示派生输出 basename、manifest basename 和是否匹配；`metadata` 只表示轻量启动检查，不能显示为完整 SHA-256 已通过。真实配置下还应看到 `output_manifest=ready`、`verification_mode=metadata` 和 `hashes_verified=false` 的组合。
+
+`console_overview_smoke.js` 会用脱敏 fixture 验证三层卡片，并在真实 GIS 配置下验证几何状态和地图图层。真实验收命令：
+
+```powershell
+$env:CONSOLE_URL = 'http://127.0.0.1:8091/'
+$env:CONSOLE_BACKEND = 'local'
+node scripts/console_overview_smoke.js
+$env:MAP_REQUEST = '分析洪山区建设适宜性，坡度不超过20度'
+node scripts/console_map_smoke.js
+```
+
+两条脚本必须串行使用同一个 CDP 页面；前者验证总览、三色图层和证据卡，后者验证真实候选几何、地图选择和清空工作区。
+
 ## 常见失败判定
 
 - `无法连接 Chrome CDP`：先运行 `console_cdp_start.ps1`，或检查 `CDP_URL` 是否指向实际端口。

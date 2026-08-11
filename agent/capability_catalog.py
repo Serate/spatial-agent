@@ -293,13 +293,28 @@ def runtime_capability_catalog(
             snapshot["analysis_ready"]["source_binding"] = _safe_source_binding_summary(source_binding)
         output_manifest = analysis_ready.get("output_manifest")
         if isinstance(output_manifest, Mapping):
-            snapshot["analysis_ready"]["output_manifest"] = {
+            safe_output_manifest = {
                 "status": str(output_manifest.get("status", "unknown"))[:20],
                 "verification_mode": str(output_manifest.get("verification_mode", "metadata"))[:20],
                 "hashes_verified": bool(output_manifest.get("hashes_verified", False)),
                 "verified_files": int(output_manifest.get("verified_files") or 0),
                 "mismatch_count": int(output_manifest.get("mismatch_count") or 0),
             }
+            output_matches = output_manifest.get("outputs")
+            if isinstance(output_matches, Mapping):
+                safe_output_manifest["outputs"] = {
+                    str(name)[:32]: {
+                        "reported": str(item.get("reported", ""))[:160],
+                        "manifest": [
+                            str(value)[:160]
+                            for value in (item.get("manifest") or [])[:3]
+                        ],
+                        "matched": bool(item.get("matched", False)),
+                    }
+                    for name, item in output_matches.items()
+                    if isinstance(item, Mapping)
+                }
+            snapshot["analysis_ready"]["output_manifest"] = safe_output_manifest
         for name in ("dem", "land_use"):
             if name in snapshot["data_evidence"]:
                 snapshot["data_evidence"][name]["analysis_ready"] = {
@@ -311,6 +326,10 @@ def runtime_capability_catalog(
                 if "source_binding" in snapshot["analysis_ready"]:
                     snapshot["data_evidence"][name]["analysis_ready"]["source_binding"] = deepcopy(
                         snapshot["analysis_ready"]["source_binding"]
+                    )
+                if "output_manifest" in snapshot["analysis_ready"]:
+                    snapshot["data_evidence"][name]["analysis_ready"]["output_manifest"] = deepcopy(
+                        snapshot["analysis_ready"]["output_manifest"]
                     )
     else:
         snapshot["analysis_ready"] = {

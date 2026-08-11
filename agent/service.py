@@ -1098,6 +1098,15 @@ def _analysis_ready_summary(payload: Dict[str, Any]) -> Dict[str, Any] | None:
             "hashes_verified": bool(evidence["output_manifest"].get("hashes_verified", False)),
             "verified_files": int(evidence["output_manifest"].get("verified_files") or 0),
             "mismatch_count": int(evidence["output_manifest"].get("mismatch_count") or 0),
+            "outputs": {
+                str(name)[:32]: {
+                    "reported": str(item.get("reported", ""))[:160],
+                    "manifest": [str(value)[:160] for value in (item.get("manifest") or [])[:3]],
+                    "matched": bool(item.get("matched", False)),
+                }
+                for name, item in (evidence["output_manifest"].get("outputs") or {}).items()
+                if isinstance(item, dict)
+            },
         }} if isinstance(evidence.get("output_manifest"), dict) else {}),
     }
 

@@ -287,11 +287,16 @@
     .evidence-card.unavailable .evidence-state::before { background:#c45a5a; }
     .evidence-list { margin:6px 0 0; padding-left:17px; color:#607277; font-size:12px; line-height:1.55; }
     .evidence-list li { overflow-wrap:anywhere; }
+    .release-evidence { margin-top:10px; }
+    .release-evidence-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:8px; }
+    .release-evidence-grid > div { min-width:0; padding:8px 9px; border:1px solid rgba(220,233,231,.9); border-radius:7px; background:rgba(255,255,255,.52); }
+    .release-evidence-grid p { margin:4px 0 0; overflow-wrap:anywhere; }
+    .release-output-list { margin-top:9px; }
     .evidence-reference { display:block; margin-top:5px; color:#50727a; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11px; overflow-wrap:anywhere; }
     .degradation-list { margin:5px 0 0; padding-left:17px; color:#875b19; font-size:12px; line-height:1.5; }
     .evidence-empty { color:#829196; font-size:12px; line-height:1.55; }
     .evidence-result .evidence-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-    @media (max-width:900px) { .evidence-result .evidence-grid { grid-template-columns:1fr; } }
+    @media (max-width:900px) { .evidence-result .evidence-grid { grid-template-columns:1fr; } .release-evidence-grid { grid-template-columns:1fr; } }
     .result-empty { grid-column:1/-1; min-height:420px; display:flex; align-items:center; justify-content:center; padding:40px; color:#85969b; font-size:14px; text-align:center; border:1px dashed rgba(113,145,150,.35); border-radius:10px; background:rgba(247,251,251,.42); }
     .suggestions { grid-column:1/-1; border-top:1px solid rgba(219,228,231,.7); padding-top:6px; }
     .suggestions summary { color:#42616a; cursor:pointer; font-size:11px; font-weight:800; list-style:none; }
@@ -390,7 +395,7 @@
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><pre id="genericResult"></pre></section>
         <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
-        <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="geometryEvidenceDetail" class="evidence-card"></div><div id="provenanceEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="runtimeEvidence" class="evidence-card"></div><div id="dataEvidence" class="evidence-card"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
+        <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="geometryEvidenceDetail" class="evidence-card"></div><div id="provenanceEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="runtimeEvidence" class="evidence-card"></div><div id="dataEvidence" class="evidence-card"></div></div><div id="releaseEvidence" class="evidence-card release-evidence"></div><div id="degradationEvidence" class="degradation-list"></div></section>
         <section class="panel result-panel raster-result"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
         <section class="panel result-panel health-result"><h3>数据健康检查</h3><div id="healthStats" class="muted"></div></section>
         <section class="panel result-panel overview-result"><h3>空间总览摘要</h3><div id="overviewStats" class="metric-grid"></div><div id="overviewEvidence" class="distribution-note"></div></section>
@@ -439,6 +444,7 @@
       $('provenanceEvidence').innerHTML = '';
       $('runtimeEvidence').innerHTML = '';
       $('dataEvidence').innerHTML = '';
+      $('releaseEvidence').innerHTML = '';
       $('degradationEvidence').innerHTML = '';
       lastRunData = null;
       $('healthStats').innerHTML = '';
@@ -574,7 +580,8 @@
     const evidenceBadge=status=>'<span class="evidence-status '+evidenceStatusClass(status)+'">'+escapeHtml(evidenceStatusLabel(status))+'</span>';
     const evidenceText=value=>Array.isArray(value)?value.join('、'):value===null||value===undefined||value===''?'-':typeof value==='object'?JSON.stringify(value):String(value);
     function evidenceDataEntries(data, snapshot) { const envelope=data.result||{}; const explicit=data.data_evidence||envelope.data_evidence||snapshot.data_evidence; if(explicit&&typeof explicit==='object'&&!Array.isArray(explicit)) return Object.entries(explicit); const healthResult=((data.steps||[]).find(step=>step.tool==='get_dataset_health_report')||{}).result||{}; return (healthResult.datasets||[]).filter(item=>item&&item.dataset).map(item=>[item.dataset,item]); }
-    function analysisReadyBindingText(ready) { const binding=ready?.source_binding; const output=ready?.output_manifest; let text=''; if(binding&&binding.fingerprint) text+=' · 源绑定 '+evidenceStatusLabel(binding.status||'recorded')+' · '+binding.fingerprint; if(output&&output.status) text+=' · 输出 manifest '+evidenceStatusLabel(output.status)+' · '+(output.hashes_verified?'SHA-256 已核验':'metadata'); return text; }
+    const verificationModeLabel=mode=>({metadata:'metadata 元数据',sha256:'SHA-256 完整核验'}[String(mode||'')]||String(mode||'未知核验方式'));
+    function analysisReadyBindingText(ready) { const binding=ready?.source_binding; const output=ready?.output_manifest; let text=''; if(binding&&binding.fingerprint) text+=' · 源绑定 '+(binding.status==='recorded'?'已记录':evidenceStatusLabel(binding.status))+' · '+binding.fingerprint; if(output&&output.status) text+=' · 输出 manifest '+evidenceStatusLabel(output.status)+' · '+verificationModeLabel(output.verification_mode)+(output.hashes_verified?' · SHA-256 已核验':''); return text; }
     function analysisReadyText(item) { const ready=item?.analysis_ready; if(!ready||ready.status==='not_configured') return ''; const grid=ready.target_grid||{}; const resolution=Array.isArray(grid.resolution)?grid.resolution.join('×')+' 米':'未知分辨率'; return ' · 分析就绪 '+evidenceStatusLabel(ready.status)+' · '+(ready.derived_version||'未知版本')+' · '+(grid.crs||'未知 CRS')+' · '+resolution+analysisReadyBindingText(ready); }
     function runtimeDataEvidence(data, snapshot) { const envelope=data.result||{}; return data.runtime_evidence||envelope.runtime_evidence||snapshot||{}; }
     function renderEvidence(data) {
@@ -593,7 +600,7 @@
       if(runtime.local_gis_backend!==undefined) runtimeDetails.push('本地 GIS：'+(runtime.local_gis_backend?'可用':'不可用'));
       if(runtime.geopandas!==undefined) runtimeDetails.push('GeoPandas：'+(runtime.geopandas?'可用':'不可用'));
       if(runtime.rasterio!==undefined) runtimeDetails.push('Rasterio：'+(runtime.rasterio?'可用':'不可用'));
-      const analysisReady=healthResult.analysis_ready||snapshot.analysis_ready||{};
+      const analysisReady=healthResult.analysis_ready||data.analysis_ready||snapshot.analysis_ready||{};
       if(analysisReady.status&&analysisReady.status!=='not_configured') runtimeDetails.push('分析就绪派生层：'+evidenceStatusLabel(analysisReady.status)+' · '+(analysisReady.derived_version||'未知版本')+' · '+((analysisReady.target_grid||{}).crs||'未知 CRS')+analysisReadyBindingText(analysisReady));
       if(snapshot.updated_at) runtimeDetails.push('检查时间：'+snapshot.updated_at);
       const sources=(geometry.sources||[]).join('、')||'未声明';
@@ -607,6 +614,12 @@
       $('runtimeEvidence').innerHTML='<h4>运行时证据（runtime evidence）</h4><p><span class="evidence-state">数据健康</span>'+evidenceBadge(runtimeStatus)+'</p>'+(runtimeDetails.length?'<ul class="evidence-list">'+runtimeDetails.map(item=>'<li>'+escapeHtml(item)+'</li>').join('')+'</ul>':'<div class="evidence-empty">本次响应没有内嵌运行时快照；页面会尝试读取当前服务的能力快照。</div>');
       $('dataEvidence').className='evidence-card '+(dataEntries.length?'':'neutral');
       $('dataEvidence').innerHTML='<h4>数据证据（data evidence）</h4>'+(dataEntries.length?'<ul class="evidence-list">'+dataEntries.slice(0,10).map(([name,item])=>{ const status=item?.status||item?.quality||'unknown'; const coverage=item?.coverage||item?.bounds; const crsText=Array.isArray(item?.crs)?item.crs.join('、'):item?.crs; return '<li><strong>'+escapeHtml(name)+'</strong> '+evidenceBadge(status)+(item?.file_count!==undefined?' · 文件 '+escapeHtml(item.file_count):item?.feature_count!==undefined?' · 要素 '+escapeHtml(item.feature_count):'')+(crsText?' · CRS '+escapeHtml(crsText):'')+(coverage?' · 已有覆盖范围证据':'')+analysisReadyText(item)+'</li>'; }).join('')+'</ul>':'<div class="evidence-empty">本次结果没有数据质量快照，不能据此推断数据已完成核验。</div>');
+      const sourceBinding=analysisReady.source_binding||{};
+      const outputManifest=analysisReady.output_manifest||{};
+      const outputRows=Object.entries(outputManifest.outputs||{}).map(([name,item])=>'<li><strong>'+escapeHtml(name)+'</strong> '+(item.matched?'已匹配':'未匹配')+(item.reported?' · 输出 '+escapeHtml(item.reported):'')+(item.manifest?.length?' · manifest '+escapeHtml(item.manifest.join('、')):'')+'</li>').join('');
+      const releaseStatus=[analysisReady.status,sourceBinding.status,outputManifest.status].some(status=>['unavailable','degraded'].includes(String(status)))?'degraded':(analysisReady.status||sourceBinding.status||outputManifest.status||'unknown');
+      $('releaseEvidence').className='evidence-card release-evidence '+evidenceStatusClass(releaseStatus);
+      $('releaseEvidence').innerHTML='<h4>发布完整性（metadata / source / output）</h4><div class="release-evidence-grid"><div><span class="evidence-state">元数据与网格</span>'+evidenceBadge(analysisReady.status||'unknown')+'<p>'+escapeHtml(analysisReady.derived_version||'未形成分析就绪版本')+' · '+escapeHtml((analysisReady.grid_alignment||{}).status||'未检查')+' · '+escapeHtml(verificationModeLabel(analysisReady.verification_mode))+'</p></div><div><span class="evidence-state">源绑定 SHA-256</span>'+evidenceBadge(sourceBinding.status||'unknown')+'<p>'+escapeHtml(sourceBinding.fingerprint||'未形成源数据指纹')+'</p></div><div><span class="evidence-state">输出 manifest</span>'+evidenceBadge(outputManifest.status||'unknown')+'<p>'+escapeHtml(verificationModeLabel(outputManifest.verification_mode))+' · '+(outputManifest.hashes_verified?'完整哈希已核验':'运行时未执行完整哈希')+' · mismatch '+escapeHtml(outputManifest.mismatch_count??'-')+'</p></div></div>'+(outputRows?'<ul class="evidence-list release-output-list">'+outputRows+'</ul>':'<div class="evidence-empty">没有输出文件匹配摘要。</div>');
       const degradations=[]; const addReason=reason=>{if(reason&&!degradations.includes(reason)) degradations.push(reason);};
       if(data.status==='NEEDS_CLARIFICATION') addReason('请求仍在澄清，尚未执行空间工具。');
       if(data.status==='FAILED'||data.status==='REJECTED'||data.status==='CANCELLED'||data.status==='TIMED_OUT') addReason('运行状态为'+statusName(data.status)+'，结果不能视为完整分析。');
@@ -616,6 +629,9 @@
       if(runtimeStatus==='degraded') addReason('运行时数据健康为部分可用，部分能力或数据集受到限制。');
       if(runtimeStatus==='unavailable') addReason('运行时数据健康为不可用，不能把演示结果当作真实数据结论。');
       if(['degraded','unavailable'].includes(String(analysisReady.status))) addReason('分析就绪派生层'+evidenceStatusLabel(analysisReady.status)+'，联合像元结果不能视为完整可复现证据。');
+      if(['degraded','unavailable'].includes(String(sourceBinding.status))) addReason('源数据 SHA-256 绑定'+evidenceStatusLabel(sourceBinding.status)+'，不能确认派生层仍对应当前来源。');
+      if(['degraded','unavailable'].includes(String(outputManifest.status))) addReason('派生输出 manifest'+evidenceStatusLabel(outputManifest.status)+'，输出文件与发布记录存在一致性限制。');
+      if(outputManifest.status==='ready'&&outputManifest.verification_mode==='metadata'&&!outputManifest.hashes_verified) addReason('输出 manifest 当前仅完成 metadata 核验；发布前仍需显式执行输出文件 SHA-256 verifier。');
       dataEntries.forEach(([name,item])=>{ if(['degraded','unavailable','warning'].includes(String(item?.status||item?.quality))) addReason(name+' 数据证据显示为'+evidenceStatusLabel(item.status||item.quality)+'。'); (item?.checks||[]).filter(check=>check&&check.status&&check.status!=='passed').forEach(check=>addReason(name+'：'+(check.message||'数据检查未通过'))); });
       (healthResult.warnings||[]).forEach(warning=>addReason(warning));
       (data.steps||[]).forEach(step=>{if(step.status&&step.status!=='COMPLETED') addReason('工具 '+(step.tool||step.id||'未知')+' 状态为'+statusName(step.status)+'。'); const result=step.result||{}; if(result.warning) addReason(result.warning); if(result.error) addReason(result.error);});

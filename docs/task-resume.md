@@ -681,3 +681,18 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 - 完成动态地图/结果工作区的完整性、源绑定、输出 manifest、几何证据统一展示和真实配置浏览器 smoke。
 - 建立 metadata、源绑定 SHA-256、输出 SHA-256 三层发布校验，并执行真实能力快照驱动的模型澄清/修复/live GIS 基线。
 - Docker 恢复后验收当前版本数据卷、readiness、重启恢复、多 worker 和 FastAPI production 接口。
+
+### M76.1 验收结果
+
+- Console 结果证据区新增“发布完整性”卡片，按元数据/目标网格、源绑定 SHA-256、输出 manifest 三层显示状态，同时保留几何证据的可绘制/截断边界。
+- 能力快照和比较响应保留输出文件的受控 basename 匹配摘要；不会输出绝对路径、逐文件哈希或私有数据配置。
+- M76.1 专项 3 项通过；离线全量 388 项（42 项跳过）、GIS 全量 388 项（9 项跳过）；Smoke、严格全局评测 8/8 通过。
+- 内存总览浏览器 smoke、真实武汉 GIS 总览浏览器 smoke 和真实 GIS 建设候选地图 smoke 通过；真实总览 79 个要素、几何截断状态和行政区/道路/水体三色图层均通过。
+- 真实运行时快照为 `health=ready`、`data_readiness=ready`、`analysis_ready=ready`、`output_manifest=ready`，但 `verification_mode=metadata`、`hashes_verified=false` 仍明确保留。
+- GIS 全量首次运行出现既有 artifact 引用竞态，目标测试连续 5 次和完整 GIS 复跑通过；详见中文开发问题日志，不能把一次套件时序失败当作 M76 代码失败。
+
+### M76.2 下一阶段
+
+- 输出可下载的三层发布校验报告，接入运行 ID、轨迹、答案和地图证据，并明确启动轻量检查与完整 SHA-256 verifier 的差异。
+- 执行真实能力快照驱动的澄清、计划修复和 live GIS 总览基线，记录安全的 provider/计划/工具/后端错误分类及 token/延迟。
+- Docker 恢复后完成当前版本生产数据卷、readiness、重启、多 worker 和 FastAPI acceptance。

@@ -429,3 +429,15 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 ## M76 下一步
 
 进入 M76，优先完成动态地图/结果证据浏览器 smoke，再推进三层发布校验、真实模型基线和 Docker 生产 acceptance。
+
+## M76.1 当前完成状态
+
+- Console 已增加“发布完整性”证据卡，统一展示元数据/目标网格、源绑定 SHA-256、输出 manifest 匹配和几何证据；能力快照与比较 API 传播受控输出 basename 匹配摘要。
+- M76.1 专项 3 项、离线全量 388 项（42 项跳过）、GIS 全量 388 项（9 项跳过）、Smoke、严格全局评测 8/8 通过。
+- 内存总览、真实武汉 GIS 总览和建设候选地图浏览器 smoke 均通过；真实总览 79 个空间要素，GeoJSON 截断状态正常显示，行政区/道路/水体三色图层通过。
+- 真实配置快照：`health=ready`、`data_readiness=ready`、`analysis_ready=ready`、`output_manifest=ready`；运行时继续明确 `verification_mode=metadata`、`hashes_verified=false`，完整 SHA-256 仍由显式 verifier 证明。
+- GIS 全量首次出现既有异步 artifact 引用竞态，目标测试连续 5 次、GIS smoke 和完整复跑均通过；不把该一次性时序现象归因于本次证据展示改动。
+
+## M76.2 下一步
+
+继续建立可下载的 metadata/源绑定 SHA-256/输出 SHA-256 三层发布报告，贯通运行 ID、答案、轨迹和地图；随后执行真实模型澄清/计划修复/live GIS 基线。Docker Linux engine 恢复后再进行当前版本生产 acceptance。最大并发度保持 3。

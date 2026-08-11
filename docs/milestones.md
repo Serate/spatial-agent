@@ -387,6 +387,23 @@ M75 最多拆分 3 路并行；数据质量、真实模型和部署验收保持�
 
 M76 最多拆分 3 路并行；浏览器/结果展示、真实模型和部署验收保持边界，数据证据与公共 result envelope 由主线统一集成。
 
+### M76.1：结果区三层发布证据与真实 GIS 浏览器验收（已完成）
+
+- Console 新增“发布完整性”证据卡，统一显示元数据/目标网格、源绑定 SHA-256、输出 manifest 和几何结果的边界状态；输出文件只显示受控 basename，不泄露本机路径或逐文件哈希。
+- 运行时能力快照的 DEM/土地利用数据证据和比较 API 均保留输出 manifest 的 `reported`、`manifest`、`matched` 摘要，Console 可直接定位每个派生输出是否与发布记录匹配。
+- `scripts/console_overview_smoke.js` 增加三层发布证据 fixture；内存总览浏览器 smoke、真实武汉 GIS 总览 smoke 和真实 GIS 建设候选地图 smoke 均通过。真实 GIS 总览产生 79 个空间要素并明确标记 GeoJSON 截断状态。
+- M76.1 专项 3 项、离线全量 388 项（42 项跳过）、GIS 全量 388 项（9 项跳过）、Smoke、严格全局评测 8/8 均通过；真实配置 `health=ready`、`data_readiness=ready`、输出 manifest `ready`，运行时仍诚实标记为 metadata-only。
+- GIS 全量首次执行再次出现一次既有异步 artifact 引用时序失败；目标测试单独及连续 5 次、GIS smoke、完整复跑均通过，未修改业务逻辑掩盖该验收竞争。
+
+### M76.2 全局下一步
+
+1. 数据质量：增加显式发布报告，把 metadata、源绑定 SHA-256、派生输出 SHA-256、nodata 与边界覆盖证据汇总为可下载 artifact，并区分启动 readiness 与发布校验。
+2. 真实模型：用真实能力快照执行开放式澄清、非法计划修复和 live GIS 总览，记录 provider 错误、计划校验、工具门控、后端失败和 token/延迟指标。
+3. 部署可靠性：Docker Linux engine 恢复后构建当前版本，验收数据卷、readiness、重启恢复、多 worker、FastAPI 和发布报告接口。
+4. 用户体验：让发布证据、轨迹步骤、答案、地图图层和 GeoJSON 下载引用同一个运行 ID，并补失败/截断/换数后的浏览器状态验收。
+
+M76.2 仍最多拆分 3 路并行；发布报告和 result envelope 由主线统一，真实模型与 Docker 验收分别隔离。
+
 ### M69 当前实现进展
 
 - 工作流模板已增加语义版本、约束规格（字符串/数值/整数/布尔/枚举及边界）、证据选项和默认选择；计划校验输出模板版本、归一化约束与证据。
