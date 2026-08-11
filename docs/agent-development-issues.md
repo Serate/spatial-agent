@@ -2311,3 +2311,17 @@ M76.2.3 为 result envelope 增加运行 ID、轨迹、artifact、GeoJSON 和地
 ### 修复与预防
 
 同步、retry、`get_run` 和恢复格式化路径现在都先准备 trace/provenance、artifact/GeoJSON 与显式几何证据，再构建一次最终 envelope；临时几何证据只在构建后移除。跨入口验收必须比较同步、异步轮询、重启和 retry 的最终 envelope，并对每次运行必然不同的 run/artifact/GeoJSON 标识做明确归一化。
+
+## Goal 内容更新不能只依赖阶段备注
+
+### 现象
+
+用户要求给持续开发 goal 增加“规划下一阶段时顾全项目整体、不要陷入数据细节”的约束，但当前 goal 工具只能读取 goal，或将当前 goal 标记为 `complete`/`blocked`，不能编辑一个仍在执行中的 objective。只在对话中口头补充，后续新对话可能仍只看到旧 objective。
+
+### 根因
+
+goal 生命周期状态与项目恢复规则由不同机制维护。goal objective 是外部状态，仓库文档才是当前项目执行约束的可审计载体；如果只更新某个阶段标题或最近任务说明，约束不会稳定传播到后续阶段规划。
+
+### 处理与预防
+
+将新增约束同步写入 `docs/agent-context-resume.md`、`docs/task-resume.md` 和 `docs/milestones.md` 的当前规则区，并在中文问题日志中记录接口限制。后续每次重规划先输出产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据七维能力矩阵，再确定阶段目标；具体数据修复必须标记为系统级目标的支撑任务。不能为了修改 objective 而虚假结束当前 goal，也不能把历史阶段中的局部任务当成当前全局目标。
