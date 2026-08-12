@@ -681,4 +681,5 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         artifact_ref=payload.get("artifact_ref"),
         geojson_ref=payload.get("geojson_ref"),
         geometry_evidence=payload.get("geometry_evidence"),
+        context_evidence=payload.get("context_evidence"),
     )

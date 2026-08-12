@@ -1,4 +1,5 @@
 import uuid
+import inspect
 from threading import Lock
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -7,6 +8,7 @@ from typing import Any, Dict, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .answer_composer import AnswerComposer
+from .context_engineering import ContextBuilder, ContextPacket
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .planner import Planner
 from .tools import ToolRegistry
@@ -109,6 +111,7 @@ class AgentRuntime:
         state_store: Optional[InMemoryStateStore] = None,
         conversation_store: Optional[InMemoryConversationStore] = None,
         answer_composer: Optional[AnswerComposer] = None,
+        context_builder: Optional[ContextBuilder] = None,
         max_steps: int = 12,
         max_retries: int = 2,
     ):
@@ -117,6 +120,7 @@ class AgentRuntime:
         self._state_store = state_store or InMemoryStateStore()
         self._conversation_store = conversation_store or InMemoryConversationStore()
         self._answer_composer = answer_composer or AnswerComposer()
+        self._context_builder = context_builder or ContextBuilder()
         self._max_steps = max_steps
         self._max_retries = max_retries
         self._control_lock = Lock()
@@ -142,17 +146,22 @@ class AgentRuntime:
             resolved_request=resolved_request,
             workflow=dict(workflow) if workflow is not None else None,
         )
+        context_packet = self._context_builder.build(
+            request=request,
+            resolved_request=resolved_request,
+            session_id=session_id,
+            workflow=workflow,
+            available_tools=self._registry.names,
+            planner_kind=type(self._planner).__name__,
+        )
+        result.context_evidence = context_packet.evidence
         self._state_store.save(result)
         try:
             # Check controls around planning as well as tool dispatch. A
             # direct-answer plan has no step boundary where cancellation or
             # timeout would otherwise be observed.
             self._check_control(result.run_id, deadline)
-            plan = (
-                self._planner.plan(resolved_request, workflow)
-                if workflow is not None
-                else self._planner.plan(resolved_request)
-            )
+            plan = self._plan(resolved_request, workflow, context_packet)
             self._check_control(result.run_id, deadline)
             if workflow is not None:
                 _validate_runtime_workflow_plan(plan, workflow)
@@ -320,6 +329,28 @@ class AgentRuntime:
     def _planner_metrics(self) -> Optional[Dict]:
         metrics = getattr(self._planner, "metrics", None)
         return metrics() if callable(metrics) else None
+
+    def _plan(
+        self,
+        request: str,
+        workflow: Optional[Mapping[str, Any]],
+        context_packet: ContextPacket,
+    ) -> TaskPlan:
+        """Pass context to capable planners while preserving old Planner adapters."""
+        method = self._planner.plan
+        try:
+            parameters = inspect.signature(method).parameters
+        except (TypeError, ValueError):
+            parameters = {}
+        accepts_context = "context" in parameters or any(
+            item.kind == inspect.Parameter.VAR_KEYWORD for item in parameters.values()
+        )
+        kwargs = {}
+        if workflow is not None:
+            kwargs["workflow"] = workflow
+        if accepts_context:
+            kwargs["context"] = context_packet.payload
+        return method(request, **kwargs)
 
     def _validate_plan(self, plan: TaskPlan) -> None:
         if len(plan.steps) == 0:

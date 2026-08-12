@@ -8,7 +8,12 @@ from .workflow_templates import workflow_request_hint
 
 
 class Planner(Protocol):
-    def plan(self, request: str, workflow: Optional[Mapping[str, Any]] = None) -> TaskPlan:
+    def plan(
+        self,
+        request: str,
+        workflow: Optional[Mapping[str, Any]] = None,
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> TaskPlan:
         ...
 
 
@@ -39,7 +44,12 @@ class RuleBasedPlanner:
     BUILDABILITY_SLOPE_PATTERN = re.compile(r"\u5761\u5ea6(?:\u4e0d\u8d85\u8fc7|\u4e0d\u5927\u4e8e|\u5c0f\u4e8e|\u4f4e\u4e8e|\u9608\u503c\u4e3a)\s*(\d+(?:\.\d+)?)\s*\u5ea6")
     HEALTH_TERMS = ("\u6570\u636e\u8d28\u91cf", "\u6570\u636e\u5065\u5eb7", "\u6570\u636e\u68c0\u67e5", "\u6570\u636e\u53ef\u7528", "\u662f\u5426\u53ef\u7528", "\u53ef\u7528\u6027", "\u6570\u636e\u72b6\u6001", "\u6570\u636e\u5b8c\u6574\u6027", "\u6570\u636e\u8bca\u65ad")
 
-    def plan(self, request: str, workflow: Optional[Mapping[str, Any]] = None) -> TaskPlan:
+    def plan(
+        self,
+        request: str,
+        workflow: Optional[Mapping[str, Any]] = None,
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> TaskPlan:
         request = workflow_request_hint(request, workflow)
         if not request.strip():
             raise ClarificationNeeded("empty spatial analysis request")

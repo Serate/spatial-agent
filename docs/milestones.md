@@ -474,6 +474,24 @@ M76.2.4 仍最多拆分 3 路并行；规划先按全局能力矩阵排序，再
 
 M76.3 仍最多拆分 3 路并行；先做全局能力矩阵，再拆分实现，任何局部数据问题都必须绑定到上述系统级目标。
 
+### M76.3.1：Harness 与上下文工程（已完成）
+
+- 新增 `agent/context_engineering.py`，提供版本化、限长、结构化裁剪、敏感字段过滤和请求哈希；超长上下文在对象层裁剪，保持 JSON 合法。
+- `AgentRuntime` 统一构建上下文并把安全摘要写入 `AgentRunResult.context_evidence`；LLMPlanner 以独立的可信运行时元数据接收上下文，旧 Planner 签名继续兼容。
+- 上下文摘要已贯通内存、SQLite 恢复、artifact、result envelope 和 Console；前端显示版本、长度和是否发生预算裁剪，不展示原始上下文。
+- M76.3.1 专项 7 项通过；离线全量 408 项通过、42 项跳过；Smoke 通过。GIS 全量、Docker Linux engine、FastAPI production acceptance 和新的 live 模型基线尚未在本子阶段重新验证。
+- 本阶段完成 Harness/上下文工程的最小闭环，但还没有把会话摘要、能力快照和工具结果按意图纳入上下文，也没有完成上下文成本与污染评测。
+
+### M77 全局规划
+
+1. 产品与体验：历史、比较和 retry 结果点击后打开原运行详情，直接定位答案、轨迹、地图、GeoJSON、发布报告和上下文证据，不重新调用模型。
+2. 架构与 Harness：版本化 HTTP/result/observability 契约，建立跨同步、异步、SQLite 恢复、artifact 和 Console 的一致性验收入口。
+3. 上下文与真实模型：按意图受控加入会话摘要、能力快照和工具结果；增加上下文不足、污染、超长、成本和 token 评测，并在稳定契约上扩展建设筛选、道路/水体约束和跨区域比较 baseline。
+4. 数据质量：继续使用 provenance、栅格对齐、manifest 和发布报告作为上下文与结果的证据来源，覆盖换数失配和降级状态，不把单个数据集作为阶段中心。
+5. 部署可靠性：Docker Linux engine 恢复后执行当前版本数据卷、readiness、多 worker、重启恢复和 FastAPI production acceptance；保留宿主机不可用时的分层证据。
+
+M77 最多拆分 3 路并行；上下文/result envelope/Console 集成由主线统一，真实模型与部署验收保持边界。阶段验收仍按离线 -> Smoke -> GIS -> 全局评测 -> 浏览器/生产入口顺序执行。
+
 ### M69 当前实现进展
 
 - 工作流模板已增加语义版本、约束规格（字符串/数值/整数/布尔/枚举及边界）、证据选项和默认选择；计划校验输出模板版本、归一化约束与证据。

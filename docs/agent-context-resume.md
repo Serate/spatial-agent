@@ -488,3 +488,24 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 - Windows worker 存活探测误判导致的 SQLite 重复接管已修复；明确查询权限/API 异常时保守视为存活，显式退出进程仍可 recovery。
 - M76.3 从全局推进 Console lineage 导航、开发/生产契约版本化、Docker production acceptance 和真实模型建设/比较基线；数据 provenance/对齐/manifest 只作为跨系统证据层。
 - Docker Linux engine、容器生产 acceptance 和 FastAPI production 证据仍未验证。
+
+### M76.3.1：Harness 与上下文工程（已完成）
+
+- 新增 `agent/context_engineering.py` 的 `ContextBuilder` 和 `ContextPacket`，定义 `spatial-agent.context.v1`，统一生成有字符预算的结构化 Planner 上下文。
+- 上下文构建包含请求/追问状态、会话绑定、工作流、可用工具和 Planner 类型；按工具目录、工作流、Planner 元数据、请求内容的顺序结构化裁剪，最终 JSON 始终可解析。
+- 过滤 `api_key`、`authorization`、`password`、`secret`、`token` 等敏感键，并限制深度、条目数和字符串长度。持久化只保留 `context_evidence`，包括版本、预算、长度、裁剪状态、section 大小和请求哈希。
+- `AgentRuntime` 通过签名探测兼容带 `context` 和旧版 Planner；`LLMPlanner` 把上下文作为可信运行时元数据传给模型，但计划仍必须经过 TaskPlan 校验、工作流门控和 ToolRegistry。
+- `context_evidence` 已传播到 `AgentRunResult`、SQLite 恢复、artifact、result envelope 和 Console。M76.3.1 专项 7 项、离线全量 408 项通过（42 项跳过）、Smoke 通过。
+- 未验证项：GIS 全量、Docker Linux engine/生产 acceptance、FastAPI production、真实模型新增 baseline。恢复时必须分层执行，不能将离线结果替代这些证据。
+
+### M77 全局规划
+
+先复盘产品、架构/Harness、数据质量、真实模型、部署可靠性、前端体验、测试证据七维能力矩阵，再进入下一轮：
+
+1. 让 Console 历史、比较和 retry 结果通过 lineage 打开原运行详情，贯通答案、轨迹、地图、GeoJSON、发布报告和上下文证据。
+2. 建立开发 HTTP 与生产 FastAPI 的 result/observability 契约 Harness，覆盖同步、异步、SQLite 恢复、幂等、取消、超时和重试。
+3. 按请求意图受控扩展会话摘要、运行时能力快照和工具结果上下文，增加上下文不足、污染、超长、成本和 token 评测；再扩展真实建设筛选、道路/水体约束和跨区域比较 baseline。
+4. 继续维护 provenance、栅格对齐、manifest 和发布报告，重点验证换数失配、降级、几何截断和证据引用一致性。
+5. Docker Linux engine 恢复后执行当前版本生产数据卷、readiness、多 worker、重启和 FastAPI acceptance；宿主机仍不可用时保留明确的未验证状态。
+
+M77 最多并行 3 个边界清晰的子任务。公共 result envelope、上下文契约和 Console 集成由主线统一；每阶段仍执行“全局盘点 -> 实现 -> 分层测试 -> 全局重规划”，完成后提交并推送版本。

@@ -2353,3 +2353,17 @@ Windows `_process_is_alive` 使用 `OpenProcess` 查询 owner PID。原实现把
 ### 修复与预防
 
 `SQLiteStateStore.ensure_run_snapshot` 使用 `INSERT OR IGNORE`，重复提交路径在返回前补齐缺失的 PLANNING 快照，不覆盖任何并发 worker 已写入的终态。三 worker 幂等场景连续 20 次通过；后续异步验收必须同时覆盖“job 已存在、run snapshot 尚未存在”的窗口，并验证不会覆盖 COMPLETED/FAILED 快照。
+
+## 上下文预算直接截断序列化 JSON
+
+### 现象
+
+上下文工程为模型输入设置字符预算时，如果先把上下文序列化为 JSON，再直接截取字符串，超长请求会得到不完整的 JSON。模型客户端可能因此无法解析上下文，问题会被误判为 provider 或模型输出故障。
+
+### 根因
+
+字符预算属于结构化上下文的边界约束，不能在序列化结果上做无结构截断。原实现先生成完整 JSON，超出预算后直接切字符串，可能截断字符串、转义序列或对象闭合符。
+
+### 修复与预防
+
+`ContextBuilder` 现在按优先级先省略工具目录、工作流和 Planner 元数据，再对请求字段做结构化裁剪，并用二分搜索保证最终序列化结果仍是合法 JSON；运行证据只记录 schema、长度、裁剪状态和请求哈希，不保存原始上下文。测试同时验证预算上限、JSON 可解析、敏感字段剔除和 Planner 消费上下文。后续所有上下文压缩器都必须在结构化对象层操作，并把 `truncated` 纳入可观测证据。

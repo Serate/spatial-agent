@@ -758,3 +758,15 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 4. 数据与测试：继续以 provenance、栅格对齐、输出 manifest 和发布报告作为跨工作流证据层，补换数失配、截断、失败重试和生产恢复的端到端回归，不把单个数据修复作为阶段中心。
 
 M76.3 先按产品、架构/部署、真实模型三条边界拆分，公共 result envelope、能力目录和证据索引由主线统一集成；最大并发度保持 3。规划执行前仍必须先复盘七维全局能力矩阵。
+
+### M76.3.1 当前完成状态：Harness 与上下文工程
+
+- `ContextBuilder` 为 Planner 请求提供版本化结构化上下文，包含请求、会话绑定、工作流、可用工具和 Planner 类型；上下文预算通过结构化省略与二分裁剪实现。
+- 敏感键过滤、长度限制、请求 SHA-256、section 大小、输入长度和裁剪状态形成安全 `context_evidence`；原始上下文不写入运行结果、artifact 或前端。
+- `AgentRuntime` 支持带上下文 Planner 与旧签名 Planner；`LLMPlanner` 将上下文标记为可信运行时元数据，仍由 TaskPlan schema 和 ToolRegistry 作为执行边界。
+- 上下文证据已接入 `AgentRunResult`、SQLite、artifact、result envelope 和 Console，覆盖同步与恢复读取。
+- 验证：M76.3.1 专项 7 项、离线全量 408 项通过（42 项跳过）、Smoke 通过。GIS、Docker、FastAPI production 和 live 模型未重新执行，不能宣称本阶段已验证。
+
+### M77 下一阶段
+
+先按七维能力矩阵复盘，再实现：历史/比较/retry 的 lineage 详情导航；HTTP 与生产结果/观测契约一致性 Harness；按意图受控扩展会话摘要、能力快照和工具结果上下文；上下文污染、超长、成本和 token 评测；Docker 恢复后的生产 acceptance；以及建设筛选、道路/水体约束、跨区域比较的可选 live baseline。最多 3 路并行，公共契约由主线集成。

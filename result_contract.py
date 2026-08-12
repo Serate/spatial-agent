@@ -69,6 +69,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
         "data": {"evidence_steps": evidence_steps},
         "clarification": payload.get("clarification"),
+        "context": payload.get("context_evidence") or {"available": False},
         "references": references,
         "lineage": lineage,
         "geometry": {
