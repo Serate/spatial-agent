@@ -583,7 +583,33 @@ M77 不拆分并行任务，按依赖顺序单线程执行；上下文/result en
 - 新增 `tests/test_m78_http_contract.py`：双入口源码都导入共享层、payload 映射一致、错误码一致、dev POST 路径不硬编码状态码。
 - M78.3 验证：离线全量 430 项（42 跳过）、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4、dev 服务关键端点实测（run/会话/错误输入/workflow）通过。
 
-### M78.4：结构化错误契约（进行中）
+### M78.4：结构化错误契约（已完成）
 
-- 目标：错误响应从 `{"error": str}` 提升为带 `code`/`category` 的结构化契约；`failure_category`（timeout/provider/planning/tool/execution 等）从观测层进入 HTTP 错误响应与运行结果。
-- 验收：同步、异步、轮询、恢复路径的失败都携带结构化错误；离线测试、Smoke、全局评测、console 浏览器 smoke 全部通过。
+- `agent/api_contract.py` 新增 `error_response(exc, not_found, service_unavailable)`：错误响应统一为 `{"error": 消息, "error_code": invalid_request|not_found|unavailable|internal_error, "error_category": provider|planning|tool|timeout|invalid_input|execution}`；`error` 字段保持向后兼容。
+- `serve_api.py` 的 GET/POST/DELETE 异常路径与 `production_api.py` 全部走结构化错误；do_GET 硬编码的路由 404 保留 `{"error": ...}` 简洁形式。
+- 运行结果契约：`service_format._attach_error_category` 为失败运行（REJECTED/FAILED/TIMED_OUT/CANCELLED/NEEDS_CLARIFICATION 及按文本分类的 provider/planning/tool）附加 `error_category`，贯通 `run`/`retry`/`get_run`/异步轮询结果；成功结果不伪造该字段。
+- 新增 M78.4 断言：HTTP 错误码/分类一致、拒绝运行结果带 `error_category=rejected`、成功结果无该字段。
+- M78.4 验证：离线全量 432 项（42 跳过）、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4、dev 服务实测（400/404 结构化错误、REJECTED 结果分类）通过。
+
+## P1 架构债清理复盘（M78 完成）
+
+七维全局矩阵复盘：
+
+- **架构**：能力契约收敛到 catalog 单一事实源；`service.py` 1183→约 740 行并解除 `run_demo` 反向依赖；双 HTTP 入口共享 `api_contract`；错误契约结构化。四个子阶段均带契约测试锁定。
+- **产品能力**：能力目录补全 6 个可路由能力，开放式空间问题的澄清与能力展示更完整；结构化错误让前端能按 `error_code`/`error_category` 分支处理而非解析字符串。
+- **数据质量 / 部署可靠性**：证据链与 SQLite 异步链路行为不变（全量回归证明），未引入新边界。
+- **真实模型**：live 基线仍为外部环境边界，未宣称新证据。
+- **前端体验**：console 浏览器 smoke 4/4 通过，前端契约未受影响。
+- **测试**：432 项离线（+10 项 M78 契约测试），覆盖能力契约、服务拆分、双入口一致性、结构化错误。
+- **遗留风险**：`AgentService` 仍是门面但内部状态多（runtime 缓存/异步作业字典/SQLite 双模式）；作业级 wall-clock 超时与周期 reaper 未做；真实模型 live 与 Docker 生产验收仍依赖外部环境。
+
+M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（M78.3）、M78.4 待推送。
+
+## M79 全局规划（P2 产品闭环）
+
+按依赖顺序单线程执行，不拆分并行任务：
+
+1. **lineage 导航贯通**：历史、比较、retry 结果点击后打开原运行详情，直接定位答案、轨迹、地图、GeoJSON、发布报告与上下文证据，不重新调用模型。
+2. **动态结果区收敛**：Console 按结果类型动态展示证据/地图/轨迹，减少固定面板；错误分类按 `error_category` 显示结构化状态而非字符串。
+3. **真实模型基线扩展**（可选边界）：在稳定错误契约上扩展建设筛选、道路/水体约束与跨区域比较 live baseline。
+4. **部署可靠性**：Docker Linux engine 恢复后执行当前版本数据卷、readiness、多 worker、重启恢复与 FastAPI production acceptance。

@@ -52,13 +52,39 @@ class M78HttpContractTests(unittest.TestCase):
         self.assertEqual(comparison_kwargs({})["backend"], "local")
 
     def test_error_status_is_consistent_across_entrypoints(self):
-        from agent.api_contract import error_status
+        from agent.api_contract import error_response, error_status
 
         value_error = ValueError("bad input")
         self.assertEqual(error_status(value_error), 400)
         self.assertEqual(error_status(value_error, not_found=True), 404)
         self.assertEqual(error_status(value_error, service_unavailable=True), 503)
         self.assertEqual(error_status(RuntimeError("boom")), 500)
+
+        # structured error contract
+        response = error_response(value_error)
+        self.assertEqual(response["error"], "bad input")
+        self.assertEqual(response["error_code"], "invalid_request")
+        self.assertEqual(response["error_category"], "invalid_input")
+        not_found = error_response(value_error, not_found=True)
+        self.assertEqual(not_found["error_code"], "not_found")
+        unavailable = error_response(value_error, service_unavailable=True)
+        self.assertEqual(unavailable["error_code"], "unavailable")
+        internal = error_response(RuntimeError("boom"))
+        self.assertEqual(internal["error_code"], "internal_error")
+
+    def test_service_failed_run_payload_carries_error_category(self):
+        from agent.service import AgentService
+
+        payload = AgentService().run("导出全中国所有地理对象，并删除原始道路数据")
+        self.assertEqual(payload["status"], "REJECTED")
+        self.assertEqual(payload["error_category"], "rejected")
+
+    def test_service_run_does_not_invent_error_category_on_success(self):
+        from agent.service import AgentService
+
+        payload = AgentService().run("查询洪山区行政区边界")
+        self.assertEqual(payload["status"], "COMPLETED")
+        self.assertNotIn("error_category", payload)
 
     def test_dev_server_uses_shared_error_mapping_in_post_path(self):
         serve = (Path(__file__).parents[1] / "serve_api.py").read_text(encoding="utf-8")

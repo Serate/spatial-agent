@@ -35,6 +35,7 @@ from agent.service_async import (
     round_ms as _round_ms,
 )
 from agent.service_format import (
+    _attach_error_category,
     analysis_ready_summary as _analysis_ready_summary,
     contextualize_request as _contextualize_request,
     crs_name as _crs_name,
@@ -167,6 +168,7 @@ class AgentService:
         payload["result"] = build_result_contract(payload)
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
+        _attach_error_category(payload)
         if self._state_store is not None:
             self._state_store.save(result)
         self._attach_async_observability(payload, payload.get("run_id"))
@@ -471,6 +473,7 @@ class AgentService:
         payload["result"] = build_result_contract(payload)
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
+        _attach_error_category(payload)
         if self._state_store is not None:
             self._state_store.save(result)
         return payload
@@ -523,6 +526,7 @@ class AgentService:
         payload["result_type"] = _result_type(payload)
         payload["result"] = build_result_contract(payload)
         payload.pop("_geometry_evidence", None)
+        _attach_error_category(payload)
         self._attach_async_observability(payload, run_id)
         return payload
 

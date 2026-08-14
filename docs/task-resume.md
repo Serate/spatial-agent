@@ -45,9 +45,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M77 通用请求建模与组合式空间分析（request_model / capability_routing / rule_planning 拆分、`spatial_analysis_result` 结果类型、异步提交不预初始化 runtime、Console 设计系统改版）
-- Last pushed commit: `3fa42da` feat: add bounded context engineering harness
-- Current work: M77 收口待提交（工作树含 M77 重构 + 前端改版，验收已通过：离线 417 项、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4）
+- Latest completed milestone: M78 架构债清理（P1）：能力契约收敛、service.py 拆分与分层修复、双 HTTP 入口统一、结构化错误契约
+- Last pushed commit: `5255e0b` refactor: unify dev and production HTTP entry points（M78.4 已提交待推送）
+- Current work: M79 产品闭环规划（lineage 导航贯通、动态结果区收敛）
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Development Loop

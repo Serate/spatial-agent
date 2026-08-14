@@ -16,7 +16,7 @@ from agent.api_contract import (
     async_run_kwargs,
     cancel_kwargs,
     comparison_kwargs,
-    error_body,
+    error_response,
     error_status,
     region_comparison_kwargs,
     retry_kwargs,
@@ -40,12 +40,18 @@ WEB_ROOT = Path(__file__).parent / "web"
 
 @app.exception_handler(HTTPException)
 def http_exception_handler(request, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content=error_body(exc.detail))
+    body = {"error": str(exc.detail)}
+    # Preserve the structured contract when the detail is already a payload.
+    if isinstance(exc.detail, dict):
+        body = exc.detail
+    return JSONResponse(status_code=exc.status_code, content=body)
 
 
 def _raise_for(exc: Exception, *, not_found: bool = False, service_unavailable: bool = False):
     status = error_status(exc, not_found=not_found, service_unavailable=service_unavailable)
-    raise HTTPException(status_code=status, detail=error_body(exc)["error"]) from exc
+    raise HTTPException(status_code=status, detail=error_response(
+        exc, not_found=not_found, service_unavailable=service_unavailable
+    )) from exc
 
 
 @app.get("/health/live")

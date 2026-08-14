@@ -141,8 +141,54 @@ def error_status(
     return 500
 
 
+_ERROR_CODE_BY_STATUS = {
+    400: "invalid_request",
+    404: "not_found",
+    503: "unavailable",
+    500: "internal_error",
+}
+
+
+def error_response(
+    exc: Exception,
+    *,
+    not_found: bool = False,
+    service_unavailable: bool = False,
+) -> Dict[str, Any]:
+    """Build the structured error contract for an endpoint failure.
+
+    ``error`` keeps the human-readable message (backward compatible);
+    ``error_code`` is a stable machine-readable category derived from the
+    mapped HTTP status; ``error_category`` classifies the failure using the
+    same bounded labels as the async observability layer.
+    """
+    status = error_status(exc, not_found=not_found, service_unavailable=service_unavailable)
+    return {
+        "error": str(exc),
+        "error_code": _ERROR_CODE_BY_STATUS.get(status, "internal_error"),
+        "error_category": failure_category_for_error(exc),
+    }
+
+
 def error_body(exc: Exception) -> Dict[str, str]:
+    """Backward-compatible alias returning only the message body."""
     return {"error": str(exc)}
+
+
+def failure_category_for_error(exc: Exception) -> str | None:
+    """Reuse the async failure taxonomy for HTTP-level failures."""
+    text = str(exc or "").lower()
+    if any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
+        return "provider"
+    if any(token in text for token in ("planner", "plan", "schema", "规划")):
+        return "planning"
+    if any(token in text for token in ("tool", "backend", "dataset", "raster", "栅格", "数据")):
+        return "tool"
+    if any(token in text for token in ("timeout", "timed out", "超时")):
+        return "timeout"
+    if isinstance(exc, ValueError):
+        return "invalid_input"
+    return "execution"
 
 
 def dispatch(service: AgentService, action: str, run_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:

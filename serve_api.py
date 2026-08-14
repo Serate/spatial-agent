@@ -8,7 +8,7 @@ from agent.api_contract import (
     async_run_kwargs,
     cancel_kwargs,
     comparison_kwargs,
-    error_body,
+    error_response,
     error_status,
     region_comparison_kwargs,
     retry_kwargs,
@@ -56,7 +56,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     raise ValueError("max_files must be between 1 and 10")
                 self._write_json(200, runtime_capability_snapshot(max_files=max_files))
             except ValueError as exc:
-                self._write_json(400, {"error": str(exc)})
+                self._write_json(400, error_response(exc))
             return
         if parsed.path == "/release-evidence":
             query = parse_qs(parsed.query)
@@ -66,7 +66,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     raise ValueError("max_files must be between 1 and 10")
                 self._write_json(200, release_evidence_snapshot(max_files=max_files))
             except ValueError as exc:
-                self._write_json(400, {"error": str(exc)})
+                self._write_json(400, error_response(exc))
             return
         if parsed.path.startswith("/runs/"):
             parts = parsed.path.strip("/").split("/")
@@ -74,7 +74,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 try:
                     result = self.service.get_async_observability(parts[1])
                 except ValueError as exc:
-                    self._write_json(404, {"error": str(exc)})
+                    self._write_json(404, error_response(exc, not_found=True))
                 else:
                     self._write_json(200, result)
                 return
@@ -87,7 +87,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                         backend=query.get("backend", ["memory"])[0],
                     )
                 except ValueError as exc:
-                    self._write_json(404, {"error": str(exc)})
+                    self._write_json(404, error_response(exc, not_found=True))
                 else:
                     self._write_json(200, result)
                 return
@@ -164,10 +164,10 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             else:
                 result = self.service.run(**run_kwargs(payload))
         except (ValueError, WorkflowTemplateError) as exc:
-            self._write_json(error_status(exc), error_body(exc))
+            self._write_json(error_status(exc), error_response(exc))
             return
         except Exception as exc:
-            self._write_json(error_status(exc), error_body(exc))
+            self._write_json(error_status(exc), error_response(exc))
             return
         self._write_json(200, result)
 
@@ -180,10 +180,10 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             session_id = parsed.path[len("/sessions/") :].strip("/")
             result = self.service.delete_session(session_id)
         except ValueError as exc:
-            self._write_json(400, {"error": str(exc)})
+            self._write_json(400, error_response(exc))
             return
         except Exception as exc:
-            self._write_json(500, {"error": str(exc)})
+            self._write_json(500, error_response(exc))
             return
         self._write_json(200, result)
 

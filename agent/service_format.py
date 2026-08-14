@@ -161,7 +161,42 @@ def format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Di
     payload["result_type"] = result_type(payload)
     payload["result"] = build_result_contract(payload)
     payload.pop("_geometry_evidence", None)
+    _attach_error_category(payload)
     return payload
+
+
+def _attach_error_category(payload: Dict[str, Any]) -> None:
+    """Add a bounded, machine-readable error category to failed results.
+
+    The ``error`` string stays backward compatible; ``error_category`` uses
+    the same bounded taxonomy as the async observability layer.
+    """
+    status = str(payload.get("status") or "")
+    if status == "COMPLETED" or payload.get("error_category") is not None:
+        return
+    error = payload.get("error")
+    if not error:
+        return
+    text = str(error).lower()
+    category = None
+    if status in {"CANCELLED", "TIMED_OUT"}:
+        category = "timeout" if status == "TIMED_OUT" else "cancelled"
+    elif status == "REJECTED":
+        category = "rejected"
+    elif status == "NEEDS_CLARIFICATION":
+        category = "clarification"
+    elif any(token in text for token in ("timeout", "timed out", "超时")):
+        category = "timeout"
+    elif any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
+        category = "provider"
+    elif any(token in text for token in ("planner", "plan", "schema", "规划")):
+        category = "planning"
+    elif any(token in text for token in ("tool", "backend", "dataset", "raster", "栅格", "数据")):
+        category = "tool"
+    elif status == "FAILED":
+        category = "execution"
+    if category:
+        payload["error_category"] = category
 
 
 def analysis_ready_summary(payload: Dict[str, Any]) -> Dict[str, Any] | None:
