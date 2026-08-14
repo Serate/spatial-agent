@@ -174,6 +174,32 @@ class M79LineageNavigationTests(unittest.TestCase):
                 sorted(row["run_id"] for row in rows),
             )
 
+    def test_comparison_child_runs_persist_artifacts_for_restart_navigation(self):
+        # M79.2 support item: comparison child runs now export artifacts so the
+        # per-row 详情 navigation survives a process restart (memory mode).
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = ArtifactStore(str(Path(tmpdir) / "runs"))
+            service = AgentService(artifact_store=store)
+            comparison = service.compare_buildability("洪山区", [15, 20], backend="memory")
+            rows = comparison["results"]
+            self.assertGreaterEqual(len(rows), 2)
+            for row in rows:
+                run_id = row["run_id"]
+                artifact = store.read_run(run_id)
+                self.assertIsNotNone(artifact, f"child run {run_id} artifact missing")
+                self.assertEqual(artifact["status"], row["status"])
+                self.assertEqual(artifact["status"], "COMPLETED")
+                self.assertIn("建设适宜性", artifact["request"])
+
+            # A restarted service (fresh memory, shared artifact store) can open
+            # each comparison child detail without re-invoking the model.
+            restarted = AgentService(artifact_store=store)
+            for row in rows:
+                detail = restarted.get_run(row["run_id"])
+                self.assertEqual(detail["run_id"], row["run_id"])
+                self.assertEqual(detail["status"], "COMPLETED")
+                self.assertIn("result", detail)
+
     def test_retry_keeps_run_id_and_marks_lineage_retry(self):
         registry_instance, _ = _registry()
         runtime = AgentRuntime(FailurePlanner(), registry_instance, max_retries=0)

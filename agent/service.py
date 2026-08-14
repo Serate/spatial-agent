@@ -716,6 +716,7 @@ class AgentService:
                 planner=planner,
                 backend=backend,
                 spatial_context=normalized_context,
+                export_artifact=True,
             )
             step = next((item for item in result.get("steps", []) if item.get("tool") == "get_zonal_buildability_analysis"), {})
             tool_result = step.get("result") or {}

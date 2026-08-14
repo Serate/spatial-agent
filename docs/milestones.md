@@ -690,3 +690,35 @@ M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（
 2. **比较子运行持久化（支撑项）**：比较接口子运行开启 artifact 导出，使比较行的详情导航跨重启可用。
 3. **真实模型基线扩展**（可选边界）：建设筛选、道路/水体约束与跨区域比较 live baseline。
 4. **部署可靠性**（部分已完成）：Docker Linux engine 已恢复，当前版本镜像构建、readiness、production acceptance、重启恢复与多 worker 一致性已实测通过（M79.1.5）；后续随版本推进复验。
+
+## M79.2：动态结果区收敛（已完成）
+
+### 实现内容
+
+- **前端**（`web/index.html`）
+  - 结构化错误分类徽标：`errorCategoryLabels` 映射（provider/planning/tool/timeout/invalid_input/execution/cancelled/rejected/clarification → 中文标签），`errorCategoryBadge(category)` 在错误块内渲染分类徽章（按分类配色 CSS），`renderRun` 从 `data.error_category || data.result.error_category` 取值；成功结果不渲染错误徽标。
+  - 结果区收敛：各统计面板的「等待…」误导性占位改为「本次结果未包含 XX 面板所需数据。」；比较面板初始/重置后显示可操作提示（「设置坡度阈值后点击「对比」生成结果。」），`resetConversationView` 恢复提示而非清空。
+- **后端**（`agent/service.py`）：`compare_buildability` 子运行开启 `export_artifact=True`，比较行的详情导航跨重启可用（含失败子运行同样落盘，状态如实保留）。
+
+### 验收证据（轻量验证纪律）
+
+- 新增 `tests/test_m79_result_zone.py`（5 项前端契约）：错误徽标/分类标签覆盖服务端 taxonomy、result_type 驱动面板、无「等待」占位残留、比较面板提示。
+- `tests/test_m79_lineage_navigation.py` 新增比较子运行持久化测试（memory 后端走通 + 重启后 artifact 回退导航）。
+- 相关测试 26 项通过（M79 两个测试文件 + M67 前端契约 + M78 HTTP 契约）。
+- 新增 `scripts/console_error_badge_smoke.js`：tool/rejected 徽标渲染、成功结果无徽标、比较提示持久；浏览器 smoke（error badge/session/health/overview）全部通过。
+- 生产容器重建后 readiness 与比较接口实测（见下）。
+
+### M79.2 复盘（七维全局矩阵）
+
+- **产品能力**：错误从字符串升级为结构化分类徽标，前端可按 `error_category` 分支；面板空态不再误导为「等待」。
+- **架构**：错误分类契约（M78.4 产物）首次被前端消费；比较子运行与主运行同样落盘，lineage 完整性提升。
+- **数据质量**：比较子运行 artifact 含失败状态与步骤摘要，不伪造成功。
+- **真实模型**：live 路径不受影响；错误徽标对 openai planner 的失败分类同样生效（数据来自服务端契约）。
+- **部署可靠性**：生产容器重建后复验；比较详情导航跨重启可用（artifact 回退）。
+- **前端体验**：错误徽章按分类配色，面板占位文案可操作；浏览器 smoke 5 类通过。
+- **测试**：+6 项（前端契约 5 + 后端比较持久化 1）+ 1 个浏览器 smoke；沿用轻量验证（相关测试而非全量）。
+
+**遗留风险**
+- `resultViewRegistry` 仍按工具推断部分面板（无结果类型注册时），后续可收敛为纯结果类型驱动。
+- 比较子运行 artifact 会进入 `/runs` 历史列表（内存模式），会话隔离仍靠 `comparison-*` 前缀区分。
+- 真实模型 live 基线扩展与 Docker 复验随版本推进。

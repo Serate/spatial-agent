@@ -45,12 +45,13 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M79.1 lineage 导航贯通（P2 产品闭环第一阶段）+ M79.1.5 部署可靠性实测（Docker Linux engine 恢复）
-- Last pushed commit: `94d175f` feat: lineage navigation opens original run detail without re-running (M79.1)；M79.1.5 修复待提交推送
-- Current work: M79.2 动态结果区收敛（Console 按 result_type 动态组合面板 + error_category 结构化错误展示；比较子运行持久化支撑项）
+- Latest completed milestone: M79.2 动态结果区收敛（error_category 结构化徽标 + 面板空态收敛 + 比较子运行持久化）
+- Last pushed commit: `0335e9b` fix: production async deadlock and container SQLite mode regression (M79.1.5)；M79.2 待提交推送
+- Current work: M79.2 已收口，下一步 M79.3 真实模型基线扩展（可选边界）/ 部署复验
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
+- M79.2 收敛：error_category 徽标 + 面板空态收敛 + 比较子运行 artifact 持久化；相关测试 26 项、浏览器 smoke（error badge/session/health/overview）通过；生产容器重建后比较子运行落盘实测通过。
 
 ## Development Loop
 
