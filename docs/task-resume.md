@@ -45,13 +45,14 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M79.2 动态结果区收敛（error_category 结构化徽标 + 面板空态收敛 + 比较子运行持久化）
-- Last pushed commit: `0335e9b` fix: production async deadlock and container SQLite mode regression (M79.1.5)；M79.2 待提交推送
-- Current work: M79.2 已收口，下一步 M79.3 真实模型基线扩展（可选边界）/ 部署复验
+- Latest completed milestone: M79.3 真实模型 live 基线扩展（建设筛选 + 道路/水体约束 + 跨区域比较）与部署复验
+- Last pushed commit: M79.3 待提交；此前 `b6b2a5d`（M79.2）
+- Current work: M79.3 已收口，下一步按 M79.4 规划（见 milestones）
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
 - M79.2 收敛：error_category 徽标 + 面板空态收敛 + 比较子运行 artifact 持久化；相关测试 26 项、浏览器 smoke（error badge/session/health/overview）通过；生产容器重建后比较子运行落盘实测通过。
+- M79.3 基线扩展：live baseline 扩至 5 case（澄清 + 总览 + 建设筛选 + 道路/水体约束 + 跨区域比较）5/5 通过（deepseek-v4-flash，19,375 tokens）；实测发现并修复 3 个真实模型问题（admin 前缀贪婪匹配、buildability result_type prompt 契约、vector_summary max_files 参数名）；相关测试 51 项 + 浏览器 smoke 4 类通过；容器内 live 复验（建设筛选 COMPLETED + 区域比较洪山 22,800/江夏 58,419 与宿主机一致）。
 
 ## Development Loop
 

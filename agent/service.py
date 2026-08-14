@@ -729,6 +729,16 @@ class AgentService:
                 "valid_pixel_count": statistics.get("valid_pixel_count"),
                 "candidate_ratio": statistics.get("candidate_ratio"),
                 "error": statistics.get("error") or result.get("error"),
+                "planner_metrics": result.get("planner_metrics"),
+                "actual_tools": [step.get("tool") for step in result.get("steps", []) if isinstance(step, dict)],
+                "failed_steps": [
+                    {
+                        "tool": step.get("tool"),
+                        "error": step.get("error"),
+                    }
+                    for step in result.get("steps", [])
+                    if isinstance(step, dict) and step.get("status") == "FAILED"
+                ],
                 "analysis_ready": _analysis_ready_summary(result),
                 "lineage": (result.get("result") or {}).get("lineage"),
             })

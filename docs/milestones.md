@@ -722,3 +722,53 @@ M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（
 - `resultViewRegistry` 仍按工具推断部分面板（无结果类型注册时），后续可收敛为纯结果类型驱动。
 - 比较子运行 artifact 会进入 `/runs` 历史列表（内存模式），会话隔离仍靠 `comparison-*` 前缀区分。
 - 真实模型 live 基线扩展与 Docker 复验随版本推进。
+
+## M79.3 全局规划（下一阶段）
+
+1. **真实模型基线扩展**（可选边界）：在稳定错误契约上扩展建设筛选、道路/水体约束与跨区域比较 live baseline，分别记录模型计划、工具门控、后端执行和答案证据。
+2. **部署可靠性**：当前版本镜像重建 + readiness + production acceptance + 容器内 live 复验（数据卷边界如实报告）。
+
+## M79.3：真实模型 live 基线扩展与部署复验（已完成）
+
+### 实现内容
+
+- **`evaluation/live_baseline.py`**：DEFAULT_LIVE_CASES 扩至 5 case——新增 `buildability`（建设筛选）、`constrained_buildability`（道路/水体约束）、`region_comparison`（跨区域比较）；`run_live_baseline` 支持 `service_factory` 分派比较 case；比较证据聚合行级 token/延迟/候选统计；`_capability_tools` 覆盖两个建设能力的期望工具。
+- **`agent/service.py`**：`compare_buildability` 行增加 `planner_metrics`/`actual_tools`/`failed_steps`，使 live 基线可聚合子运行 token/延迟并记录失败分层。
+- **`scripts/live_baseline.py`**：支持 `--case-ids` 子集选择，构造 `AgentService` 提供比较场景。
+- **`tests/test_m79_live_baseline.py`**（+7 项离线）：建设/约束 kind 计划质量、比较 case 的 service 分派与聚合、service_unavailable 降级、admin 前缀解析回归。
+
+### 实测发现并修复的 3 个真实模型问题
+
+1. **admin 前缀贪婪匹配**（`agent/request_model.py`）：`_ADMIN_PREFIXES` 缺「筛选/过滤/挑选/筛出/选出」等动词，`parse_spatial_request('筛选洪山区…')` 把 admin_name 解析为「筛选洪山区」→ rule 计划器 range_query 查不到行政区 → `$.admin_name must be a string` 失败。修复：补全动词前缀（含「筛选」家族），回归测试覆盖建设筛选与含水体约束两条请求。
+2. **buildability result_type prompt 契约缺失**（`agent/llm_planner.py`）：live 模型对建设筛选输出 `spatial_analysis_plan`/`construction_screening` 而非契约的 `buildability_result`/`constrained_buildability_result`（spatial_overview 有明确契约所以通过）。修复：system prompt 显式声明两个建设能力的输出类型必须值 + health preflight 步骤 MUST 依赖（对齐门控会拒绝缺失 health 的计划）。
+3. **vector_summary 参数名不匹配**（`agent/llm_planner.py`）：live 模型按通用惯例给 `get_zonal_vector_summary` 传 `max_files`，但该工具 schema 属性是 `max_features` → `$ has unknown fields: max_files`（spatial-overview 三次 live 失败根因，rule 版因传 `max_features` 而幸免）。修复：prompt 显式声明 vector_summary 接受 `max_features (not max_files)`。
+
+### 验收证据（轻量验证纪律）
+
+- 相关测试 51 项通过（M79 三个测试文件 + M76 baseline + M62 intent/prompt + M67 + M78），未跑全量。
+- **Live baseline 5/5 通过**（宿主机 GIS env + wuhan-gis analysis-ready 数据卷 + deepseek-v4-flash，报告存 `D:\tmp\wuhan-gis\m79-live-baseline.json` 不入库）：
+  - capability-clarification：NEEDS_CLARIFICATION（1,951 tokens）
+  - spatial-overview：COMPLETED 8 步（3,514 tokens）
+  - buildability-screening：COMPLETED `buildability_result`（3,005 tokens）
+  - constrained-buildability：COMPLETED `constrained_buildability_result`（2,856 tokens）
+  - region-comparison：COMPLETED 洪山 22,800 / 江夏 58,419 候选像元（8,049 tokens）
+  - 合计 19,375 tokens、0 provider 错误、0 重试、pass_rate 1.0。
+- 浏览器 smoke 4 类通过（health/error badge/session/overview，overview 8 工具步骤 + 地图三色渲染）。
+- 生产容器重建后 production acceptance 通过（readiness ready、16 能力、幂等 true、`core_ready_optional_partial` 如实）。
+- **容器内 live 复验**：镜像已含全部修复（prompt 契约/前缀解析验证通过）；完整数据挂载下建设筛选 COMPLETED（`buildability_result`）+ 区域比较洪山 22,800/江夏 58,419 与宿主机一致（跨环境结果一致性强）。
+- **容器数据卷边界如实报告**：生产数据卷 `D:/dataset/agent` 无 analysis-ready 对齐派生层 → 建设类工具被像元级对齐门控如实阻止（`grid_mismatch`），不伪造结果；这是数据准备边界而非代码缺陷（宿主机 wuhan-gis 有对齐层）。
+
+### M79.3 复盘（七维全局矩阵）
+
+- **产品能力**：建设筛选、道路/水体约束、跨区域比较三条真实模型链路全部可验证；live 基线成为版本质量闸门。
+- **架构**：live baseline 统一 runtime 单请求 + service 比较两种执行面，token/延迟证据走同一脱敏管道；比较行携带 planner_metrics 不破坏结果契约。
+- **数据质量**：容器内无对齐层时建设工具如实 gate（grid_mismatch），不伪造候选像元；宿主机对齐层结果跨环境一致。
+- **真实模型**：deepseek-v4-flash 三个真实契约缺陷被 live 实测暴露并修复（参数名、result_type、健康前置）；5/5 case 稳定通过。
+- **部署可靠性**：镜像重建 + production acceptance + 容器内 live 复验通过；数据卷边界如实分层报告。
+- **前端体验**：无前端改动；浏览器 smoke 4 类通过（现有契约保持）。
+- **测试**：+7 项离线（M79.3）+2 项 prompt 契约（M62）+3 项 admin 解析回归；沿用轻量验证（51 项相关而非全量）。
+
+**遗留风险**
+- 容器生产数据卷无 roads/water 与 analysis-ready 派生层，建设类 live 在容器默认挂载下会如实 gate；若要在生产容器直接演示建设筛选需准备对齐派生层数据卷。
+- live baseline 每次运行消耗真实 token（本阶段 19,375），不纳入 CI；报告存仓库外。
+- 区域比较仅覆盖 2 区域 × 1 阈值；更多区域/阈值组合留作后续扩展。

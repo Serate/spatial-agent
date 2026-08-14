@@ -51,6 +51,14 @@ class M62SpatialIntentTests(unittest.TestCase):
         prompt = planner._system_prompt()
         self.assertIn("spatial_overview_result", prompt)
         self.assertIn("get_zonal_vector_summary", prompt)
+        self.assertIn("max_features (not max_files)", prompt)
+
+    def test_llm_guidance_names_buildability_contracts(self):
+        planner = LLMPlanner(object(), [])
+        prompt = planner._system_prompt()
+        self.assertIn('output type must be "buildability_result"', prompt)
+        self.assertIn('output type must be "constrained_buildability_result"', prompt)
+        self.assertIn("MUST be get_dataset_health_report", prompt)
 
 
 if __name__ == "__main__":

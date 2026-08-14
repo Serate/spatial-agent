@@ -37,6 +37,24 @@ DEFAULT_LIVE_CASES = (
         "expected_status": "COMPLETED",
         "kind": "spatial_overview",
     },
+    {
+        "id": "live-gis-buildability-screening",
+        "request": "筛选洪山区坡度不超过15度的建设候选区域",
+        "expected_status": "COMPLETED",
+        "kind": "buildability",
+    },
+    {
+        "id": "live-gis-constrained-buildability",
+        "request": "筛选洪山区坡度不超过15度、距道路1000米内、排除水体的建设候选区域",
+        "expected_status": "COMPLETED",
+        "kind": "constrained_buildability",
+    },
+    {
+        "id": "live-gis-region-comparison",
+        "request": {"admin_names": ["洪山区", "江夏区"], "threshold": 15},
+        "expected_status": "COMPLETED",
+        "kind": "region_comparison",
+    },
 )
 
 
@@ -47,6 +65,7 @@ def run_live_baseline(
     attempts_per_case: int = 3,
     cases: Iterable[Mapping[str, Any]] = DEFAULT_LIVE_CASES,
     runtime_factory: Callable[[str, str], Any] = build_runtime,
+    service_factory: Callable[[], Any] | None = None,
     snapshot_provider: Callable[[int], Mapping[str, Any]] = runtime_capability_snapshot,
     replay_evaluator: Callable[[str | Path], Mapping[str, Any]] = evaluate_model_replay_suite_file,
     replay_fixture: str | Path = DEFAULT_MODEL_REPLAY_FIXTURE,
@@ -62,13 +81,16 @@ def run_live_baseline(
     safe_snapshot = _safe_capability_snapshot(snapshot)
     replay = dict(replay_evaluator(replay_fixture))
     runtime = runtime_factory("openai", backend)
+    service = service_factory() if service_factory is not None else None
     results = []
     for case in cases:
         results.append(
             _run_case(
                 runtime,
+                service,
                 case,
                 safe_snapshot,
+                backend=backend,
                 attempts_per_case=attempts_per_case,
             )
         )
@@ -100,12 +122,19 @@ def run_live_baseline(
 
 def _run_case(
     runtime: Any,
+    service: Any,
     case: Mapping[str, Any],
     snapshot: Mapping[str, Any],
     *,
+    backend: str,
     attempts_per_case: int,
 ) -> Dict[str, Any]:
     case_id = str(case.get("id") or "unnamed")
+    kind = str(case.get("kind") or "")
+    if kind == "region_comparison":
+        return _run_comparison_case(
+            service, case, snapshot, backend=backend, attempts_per_case=attempts_per_case
+        )
     request = str(case.get("request") or "")
     expected_status = str(case.get("expected_status") or "COMPLETED")
     candidates = []
@@ -124,6 +153,147 @@ def _run_case(
     ]
     selected["expected_status"] = expected_status
     return selected
+
+
+def _run_comparison_case(
+    service: Any,
+    case: Mapping[str, Any],
+    snapshot: Mapping[str, Any],
+    *,
+    backend: str,
+    attempts_per_case: int,
+) -> Dict[str, Any]:
+    """Run the opt-in cross-region comparison baseline through the service layer."""
+    case_id = str(case.get("id") or "unnamed")
+    expected_status = str(case.get("expected_status") or "COMPLETED")
+    if service is None:
+        return {
+            "case_id": case_id,
+            "kind": "region_comparison",
+            "status": "SKIPPED",
+            "status_match": False,
+            "error_class": "service_unavailable",
+            "metrics": sanitize_provider_metrics({}),
+            "actual_tools": [],
+            "failed_steps": [],
+            "result_type": None,
+            "plan_quality": None,
+            "answer_chinese": False,
+            "passed": False,
+            "reason": "region_comparison requires service_factory",
+        }
+    request = case.get("request") or {}
+    if not isinstance(request, Mapping):
+        request = {}
+    admin_names = list(request.get("admin_names") or [])
+    threshold = float(request.get("threshold") or 20.0)
+    candidates = []
+    for attempt in range(attempts_per_case):
+        try:
+            result = service.compare_buildability_regions(
+                admin_names=admin_names,
+                threshold=threshold,
+                planner="openai",
+                backend=backend,
+            )
+        except Exception:
+            candidates.append({
+                "case_id": case_id,
+                "kind": "region_comparison",
+                "attempt": attempt + 1,
+                "status": "FAILED",
+                "status_match": False,
+                "error_class": "service_error",
+                "metrics": sanitize_provider_metrics({}),
+                "actual_tools": [],
+                "failed_steps": [],
+                "result_type": None,
+                "plan_quality": None,
+                "answer_chinese": False,
+                "passed": False,
+            })
+            continue
+        evidence = _comparison_evidence(result, case, attempt + 1)
+        candidates.append(evidence)
+        if evidence["passed"]:
+            break
+    selected = next((item for item in candidates if item["passed"]), candidates[-1])
+    selected["attempt_count"] = len(candidates)
+    selected["transient_attempts"] = [
+        item["error_class"]
+        for item in candidates
+        if item["error_class"] in {"provider_transient", "network", "timeout", "rate_limited"}
+    ]
+    selected["expected_status"] = expected_status
+    return selected
+
+
+def _comparison_evidence(
+    result: Mapping[str, Any],
+    case: Mapping[str, Any],
+    attempt: int,
+) -> Dict[str, Any]:
+    """Keep bounded, credential-free evidence for one comparison run."""
+    rows = result.get("results") or []
+    statuses = [str(row.get("status") or "") for row in rows if isinstance(row, Mapping)]
+    passed = bool(rows) and all(status == "COMPLETED" for status in statuses)
+    token_total = 0
+    latency_values = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            continue
+        metrics = sanitize_provider_metrics(row.get("planner_metrics") or {})
+        token_total += int(metrics["token_usage"].get("total_tokens") or 0)
+        latency = metrics["latency"].get("latency_ms")
+        if latency is not None:
+            latency_values.append(float(latency))
+    metrics = sanitize_provider_metrics({})
+    metrics["token_usage"]["total_tokens"] = token_total
+    metrics["latency"] = {
+        "status": "valid" if latency_values else "missing",
+        "latency_ms": round(sum(latency_values) / len(latency_values), 3) if latency_values else None,
+    }
+    return {
+        "case_id": str(case.get("id") or "unnamed"),
+        "kind": "region_comparison",
+        "request": {"admin_names": [str(row.get("admin_name")) for row in rows if isinstance(row, Mapping)] or result.get("admin_names") or [], "slope_limit_degrees": result.get("slope_limit_degrees")},
+        "attempt": attempt,
+        "status": "COMPLETED" if passed else "FAILED",
+        "status_match": passed,
+        "error_class": "none" if passed else _comparison_error_class(rows),
+        "metrics": metrics,
+        "actual_tools": sorted({str(tool) for row in rows for tool in (row.get("actual_tools") or []) if isinstance(row, Mapping)}),
+        "failed_steps": [
+            {"tool": str(step.get("tool")), "error_class": _step_error_class(step.get("error"))}
+            for row in rows
+            if isinstance(row, Mapping)
+            for step in (row.get("failed_steps") or [])
+            if isinstance(step, Mapping)
+        ],
+        "result_type": "buildability_comparison",
+        "plan_quality": None,
+        "answer_chinese": False,
+        "rows": [
+            {
+                "admin_name": str(row.get("admin_name")),
+                "status": str(row.get("status")),
+                "candidate_pixel_count": row.get("candidate_pixel_count"),
+                "candidate_ratio": row.get("candidate_ratio"),
+            }
+            for row in rows
+            if isinstance(row, Mapping)
+        ],
+        "passed": passed,
+    }
+
+
+def _comparison_error_class(rows: list) -> str:
+    statuses = [str(row.get("status") or "") for row in rows if isinstance(row, Mapping)]
+    if any(status == "NEEDS_CLARIFICATION" for status in statuses):
+        return "clarification"
+    if any(status == "REJECTED" for status in statuses):
+        return "policy_rejection"
+    return "backend_execution"
 
 
 def _result_evidence(
@@ -145,6 +315,22 @@ def _result_evidence(
             plan,
             expected_tools=expected_tools,
             expected_result_type="spatial_overview_result",
+            answer=result.answer,
+        )
+    elif kind == "buildability" and plan:
+        expected_tools = _capability_tools(snapshot, "buildability_screening")
+        quality = evaluate_plan_quality(
+            plan,
+            expected_tools=expected_tools,
+            expected_result_type="buildability_result",
+            answer=result.answer,
+        )
+    elif kind == "constrained_buildability" and plan:
+        expected_tools = _capability_tools(snapshot, "constrained_buildability_screening")
+        quality = evaluate_plan_quality(
+            plan,
+            expected_tools=expected_tools,
+            expected_result_type="constrained_buildability_result",
             answer=result.answer,
         )
     status_match = status == str(case.get("expected_status") or "COMPLETED")
@@ -247,6 +433,16 @@ def _capability_tools(snapshot: Mapping[str, Any], capability_id: str) -> list[s
                 if capability_id == "spatial_overview" and normalized.count("get_zonal_vector_summary") == 1:
                     normalized.append("get_zonal_vector_summary")
                 return normalized
+    if capability_id == "buildability_screening":
+        return [
+            "get_dataset_health_report",
+            "get_zonal_buildability_analysis",
+        ]
+    if capability_id == "constrained_buildability_screening":
+        return [
+            "get_dataset_health_report",
+            "get_zonal_constrained_buildability_analysis",
+        ]
     return [
         "get_dataset_health_report",
         "get_dataset_schema",
