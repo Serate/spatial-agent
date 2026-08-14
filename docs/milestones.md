@@ -656,3 +656,37 @@ M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（
 2. **比较子运行持久化（支撑项）**：比较接口子运行开启 artifact 导出，使比较行的详情导航跨重启可用。
 3. **真实模型基线扩展**（可选边界）：建设筛选、道路/水体约束与跨区域比较 live baseline。
 4. **部署可靠性**：Docker Linux engine 恢复后执行当前版本数据卷、readiness、多 worker、重启恢复与 FastAPI production acceptance。
+
+## M79.1.5：部署可靠性实测（Docker Linux engine 恢复后）
+
+按用户要求启动 Docker Desktop 实测部署链路（此前多阶段该边界一直标记为外部待办）。engine 就绪（server 29.6.2）后，层缓存重建镜像 → `docker compose up -d --force-recreate` → healthy → 完整验收链，**实测发现并修复两个真实生产缺陷**：
+
+### 缺陷 1：内存模式重复异步提交永久死锁
+
+- 现象：`production_acceptance.ps1` 的重复幂等提交（第二次 `POST /runs/async`）无限挂起（30s/60s 客户端超时均无响应、无 uvicorn 日志），首次提交正常。
+- 根因：`run_async` 在 `with self._async_lock:`（非重入 `threading.Lock`）**内部** return，`_async_submission_response` → `get_async_observability` 在同线程再次获取同一把锁 → 永久死锁。M61 幂等测试只用 SQLite 模式，内存重复路径从未被覆盖（测试盲区）。
+- 修复（`agent/service.py`）：锁内只记录 `(run_id, status, reused)` 元组，锁外统一调用 `_async_submission_response`；同时新增 `AgentService.close()`（executor 确定性收尾，消除测试中 SQLite 文件句柄竞态导致的 WinError 32）。
+
+### 缺陷 2：生产容器运行在内存模式（SPATIAL_AGENT_STATE_DB 配置回归）
+
+- 现象：即使修复死锁，2 个 uvicorn worker 的内存字典互不可见 → 重复提交落到另一 worker 时返回**新** run_id（幂等失效）、轮询 `GET /runs/{id}` 404（与 `docs/api.md` 声明的「生产 SQLite 模式支撑多 worker」矛盾）。
+- 根因：Dockerfile/env 未设 `SPATIAL_AGENT_STATE_DB`，`AgentService()` 走内存模式（`outputs/spatial-agent.db` 是旧容器遗留文件）。
+- 修复（`Dockerfile`）：ENV 增加 `SPATIAL_AGENT_STATE_DB=/app/outputs/spatial-agent.db`，生产镜像强制 SQLite 模式。
+
+### 回归测试与验收证据
+
+- 新增 `tests/test_m79_production_reliability.py`（5 项）：内存重复提交不死锁（看门狗防挂死）、env 驱动 SQLite 选择、SQLite 跨服务实例运行可见、跨实例幂等、Dockerfile 配置契约（防止该配置回归再次静默发生）。
+- 离线全量 446 项（42 跳过，+5）、Smoke、严格全局评测 8/8 通过。
+- `scripts/production_acceptance.ps1` 通过：`readiness=ready`、16 项能力、`runtime_health=ready`、核心数据 `ready`、可选 roads/water `unavailable`（`core_ready_optional_partial` 如实报告）、**`async_duplicate_idempotent=true`**。
+- 真实 GIS 分析在容器内 COMPLETED：洪山区 DEM 区域统计（有效像元 576,016、均值 26.533、NoData 67.41%）。
+- **容器重启恢复通过**：`docker restart` 后 healthy，`GET /runs/{id}` 返回完整 COMPLETED 快照，会话历史可见；重启后重跑 production_acceptance 再次通过。
+- 真实模型 live 在容器内通过：planner=openai、deepseek-v4-flash、1662 tokens、3046ms、中文回答完整。
+- Console 由生产容器托管（含 M79.1 lineage 前端，`openRunDetail` 就位）。
+- 遗留：`D:/dataset/agent` 数据卷无 roads/water（可选层缺口如实报告）；实时模型 token 消耗未纳入 CI。
+
+## M79.2 全局规划（更新）
+
+1. **动态结果区收敛**：Console 按 `result.result_type` 动态组合证据/地图/轨迹/统计面板，错误状态按 `error_category` 显示结构化徽标而非解析字符串；消除固定面板的空白与误导。
+2. **比较子运行持久化（支撑项）**：比较接口子运行开启 artifact 导出，使比较行的详情导航跨重启可用。
+3. **真实模型基线扩展**（可选边界）：建设筛选、道路/水体约束与跨区域比较 live baseline。
+4. **部署可靠性**（部分已完成）：Docker Linux engine 已恢复，当前版本镜像构建、readiness、production acceptance、重启恢复与多 worker 一致性已实测通过（M79.1.5）；后续随版本推进复验。

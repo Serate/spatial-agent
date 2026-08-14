@@ -210,58 +210,65 @@ class AgentService:
             run_id = str(uuid.uuid4())
         job_payload["run_id"] = run_id
 
+        early = None  # (run_id, status, reused) built under the lock, responded after it.
         with self._async_lock:
             if self._state_store is not None:
                 existing_result = self._state_store.get(run_id)
                 if existing_result is not None and not self._state_store.get_async_job(run_id):
-                    return self._async_submission_response(run_id, existing_result.status.value, True)
-                job = self._state_store.create_async_job(
-                    idempotency_key, run_id, job_payload
-                )
-                created = bool(job.pop("created", False))
-                if not created:
-                    self._ensure_async_run_snapshot(job)
-                    return self._async_submission_response(
-                        job["run_id"], _async_status(self._state_store, job), True
+                    early = (run_id, existing_result.status.value, True)
+                else:
+                    job = self._state_store.create_async_job(
+                        idempotency_key, run_id, job_payload
                     )
-                self._state_store.save(
-                    AgentRunResult(
-                        run_id=run_id,
-                        status=RunStatus.PLANNING,
-                        request=request,
-                        session_id=session_id,
-                        workflow=job_payload.get("workflow"),
-                    )
-                )
-                if not self._state_store.claim_async_job(run_id, os.getpid()):
-                    # Another worker may claim the just-created job between the
-                    # INSERT and this claim. The caller is still the first
-                    # accepted submission, so preserve idempotent=false.
-                    return self._async_submission_response(run_id, "QUEUED", False)
+                    created = bool(job.pop("created", False))
+                    if not created:
+                        self._ensure_async_run_snapshot(job)
+                        early = (job["run_id"], _async_status(self._state_store, job), True)
+                    else:
+                        self._state_store.save(
+                            AgentRunResult(
+                                run_id=run_id,
+                                status=RunStatus.PLANNING,
+                                request=request,
+                                session_id=session_id,
+                                workflow=job_payload.get("workflow"),
+                            )
+                        )
+                        if not self._state_store.claim_async_job(run_id, os.getpid()):
+                            # Another worker may claim the just-created job between the
+                            # INSERT and this claim. The caller is still the first
+                            # accepted submission, so preserve idempotent=false.
+                            early = (run_id, "QUEUED", False)
+                        else:
+                            self._async_executor.submit(self._run_async_job, job_payload)
             else:
                 job = self._async_jobs.get(idempotency_key)
                 if job is not None:
-                    return self._async_submission_response(
-                        run_id=job["run_id"], status=job["status"], reused=True
-                    )
-                submitted_at = time.time()
-                job = {
-                    "run_id": run_id,
-                    "payload": job_payload,
-                    "status": "QUEUED",
-                    "created_at": submitted_at,
-                    "started_at": None,
-                    "finished_at": None,
-                    "queue_wait_ms": None,
-                    "run_duration_ms": None,
-                    "failure_category": None,
-                    "recovery_count": 0,
-                    "cancel_requested_at": None,
-                    "last_event": "submitted",
-                }
-                self._async_jobs[idempotency_key] = job
-
-            self._async_executor.submit(self._run_async_job, job_payload)
+                    early = (job["run_id"], job["status"], True)
+                else:
+                    submitted_at = time.time()
+                    job = {
+                        "run_id": run_id,
+                        "payload": job_payload,
+                        "status": "QUEUED",
+                        "created_at": submitted_at,
+                        "started_at": None,
+                        "finished_at": None,
+                        "queue_wait_ms": None,
+                        "run_duration_ms": None,
+                        "failure_category": None,
+                        "recovery_count": 0,
+                        "cancel_requested_at": None,
+                        "last_event": "submitted",
+                    }
+                    self._async_jobs[idempotency_key] = job
+                    self._async_executor.submit(self._run_async_job, job_payload)
+        if early is not None:
+            # Never respond while holding _async_lock: get_async_observability
+            # re-acquires the same non-reentrant lock and would deadlock on a
+            # duplicate memory-mode submission (production issue found via the
+            # container acceptance chain).
+            return self._async_submission_response(early[0], early[1], early[2])
         return self._async_submission_response(run_id, "QUEUED", False)
 
     def _run_async_job(self, job_payload: Dict[str, Any]) -> None:
@@ -647,6 +654,14 @@ class AgentService:
         metrics = self._artifact_store.metrics()
         metrics["async_jobs"] = self._memory_async_metrics()
         return metrics
+
+    def close(self) -> None:
+        """Shut down the async executor, draining queued and in-flight jobs.
+
+        Lets callers (tests, server teardown) release SQLite file handles
+        deterministically instead of racing the worker threads.
+        """
+        self._async_executor.shutdown(wait=True)
 
     def _memory_async_metrics(self) -> Dict[str, Any]:
         with self._async_lock:

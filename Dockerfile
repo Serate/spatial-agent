@@ -38,6 +38,7 @@ ENV PATH=/opt/conda/envs/spatial-agent-gis/bin:/opt/conda/envs/spatial-agent-gis
     PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
     SPATIAL_AGENT_DATASET_CONFIG=/app/config/datasets.container.example.json \
     SPATIAL_AGENT_DATASET_ROOT=/data \
+    SPATIAL_AGENT_STATE_DB=/app/outputs/spatial-agent.db \
     SPATIAL_AGENT_REQUIRE_GIS=1 \
     PYTHONUNBUFFERED=1
 
