@@ -1112,3 +1112,37 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 ### 验收标准
 
 - 相关测试 + 全量离线回归；容器重建后 `GET /memory` 与记忆注入在真实数据下工作；前端记忆卡片 smoke；live baseline 可选复跑。
+
+## M80.2：长期记忆（已完成）
+
+### 实现内容
+
+- **`agent/memory.py`（新增）**：`FactMemory`——`remember()` 从 COMPLETED 运行提取结构化结论（result_type + admin_names + 截断摘要 + allowlist 标量 facts）；`recall()`（session 作用域，关键词过滤，最新优先）/ `recall_global()`（仅显式契约用）；`context_section()`（受控注入：只带 result_type/admin_names/短摘要，不含原始错误/URL/key）；`evidence()`（本次记忆沉淀数）；内存/SQLite 双模式；`SPATIAL_AGENT_MEMORY_ENABLED`（默认 1）可关闭。
+- **`agent/sqlite_store.py`**：新增 `memory_facts` 表（run_id 主键 + session 索引）+ `insert_memory_fact` / `list_memory_facts`（session 或全局）/ `delete_memory_facts`。
+- **`agent/context_engineering.py`**：`ContextBuilder.build` 新增 `memory_section`，注入「memory」小节（预算内，超预算时最后被省略）。
+- **`agent/runtime.py`**：COMPLETED 后 `_remember(result)` 沉淀记忆；规划前注入同 session 的 `memory.context_section`。
+- **`agent/runtime_factory.py` / `agent/service_state.py`**：`build_runtime` 透传 `memory`；`ServiceState` 持有 `FactMemory`（SQLite 模式绑定 ConversationStore）。
+- **`agent/service.py`**：新增 `list_memory(session_id, query, limit, global_scope)`；`run` 响应带 `memory_evidence`。
+- **HTTP**：`serve_api.py` + `production_api.py` 新增 `GET /memory?session_id=&query=&limit=&global=`。
+- **前端**：结果证据区新增「长期记忆」卡片（沉淀条数 + 注入说明；关闭时显示提示）。
+- **测试**：`tests/test_m80_memory.py`（+11 项）——fact 提取 allowlist、仅 COMPLETED 记忆、session/全局检索、关键词过滤、上下文受控注入、开关关闭、SQLite 往返+清理、service 记忆、HTTP `/memory`；`test_m45_console_browser` +1（记忆卡片契约）。
+
+### 验收证据
+
+- 专项 11/11 通过；相关回归 67 项通过。
+- **全量离线 510 项通过（42 跳过）**；严格全局评测 8/8 通过。
+- 修复 1 个本阶段接口变更引起的测试替身（`test_m60` 的 `_build_retry_runtime` 未接收新 `memory` 参数）；发现并修复 `service.py` 缺少 `Optional` 导入（容器启动崩溃，重建后 healthy）。
+- 容器内真实链路：两次运行 session_facts 1→2；`GET /memory?session_id=demo-memory` 返回 2 条结论（洪山区空间总览，facts 含 valid_pixel_count 576040 / mean 26.532 / nodata 0.674 等，摘要为中文结论）。
+- 前端记忆卡片契约测试通过。
+
+### 复盘（七维矩阵，M80.2）
+
+- **产品能力**：长期记忆成为可演示能力——同会话后续请求自动获得既往结论上下文，跨会话检索有显式契约。
+- **架构**：记忆是独立模块（内存/SQLite 双模式），挂在 Runtime 写、ContextBuilder 注入、Service 读的既有边界上；注入严格 session 作用域，不引入跨会话隐私泄漏。
+- **数据质量**：facts 走 allowlist 标量（候选数/比例/均值/NoData 等），来源为真实步骤结果；不存原始错误/路径/key。
+- **真实模型**：记忆注入进入 planner context（LLM 路径同样受益）；live 复跑留作可选。
+- **部署可靠性**：SQLite `memory_facts` 持久化 + 索引；容器重建后 `/memory` 与记忆链路工作正常。
+- **前端体验**：证据区新增记忆卡片，受控展示沉淀/注入信息。
+- **测试**：+12 项（记忆 11 + 前端契约 1）；修复 1 个测试替身；全量 510 项转绿。
+
+**遗留**：记忆检索为关键词过滤（无向量/语义检索）；全局检索仅显式 API 使用，未接入任何自动注入；`memory_evidence` 目前只含沉淀条数，未含"本次注入了哪几条"明细（避免泄露跨会话）。这些留作后续扩展。

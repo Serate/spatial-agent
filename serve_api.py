@@ -107,6 +107,20 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/metrics":
             self._write_json(200, self.service.metrics())
             return
+        if parsed.path == "/memory":
+            query = parse_qs(parsed.query)
+            try:
+                result = self.service.list_memory(
+                    session_id=query.get("session_id", [None])[0],
+                    query=query.get("query", [None])[0],
+                    limit=int(query.get("limit", ["20"])[0]),
+                    global_scope=query.get("global", ["0"])[0] in ("1", "true", "yes"),
+                )
+            except ValueError as exc:
+                self._write_json(400, error_response(exc))
+            else:
+                self._write_json(200, result)
+            return
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")
             return

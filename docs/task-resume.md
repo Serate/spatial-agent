@@ -47,7 +47,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: M79.5 生产容器真实模型证据 + 约束敏感性矩阵（容器内 live 6/6 / 约束矩阵 road_distance 单调 / ServiceState 方法体收敛）
 - Last pushed commit: `f30a1ed`（M79.5）
-- Current work: M80.2 长期记忆进行中——跨会话可检索的结论记忆（fact memory）：新增 agent/memory.py + SQLite memory_facts 表 + ContextBuilder 注入既往结论 + GET /memory 契约 + 前端记忆卡片；规划已写入 docs/milestones.md。
+- Current work: M80.2 长期记忆已完成——新增 agent/memory.py（fact memory，内存/SQLite 双模式）+ SQLite memory_facts 表 + ContextBuilder 注入既往结论 + GET /memory 双入口 + 前端记忆卡片；11 项专项 + 全量 510 项通过；容器内真实链路验证（两次运行沉淀 2 条记忆）。下一步按 M80.3（标准可观测性）规划。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。

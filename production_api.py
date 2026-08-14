@@ -7,7 +7,7 @@ dev server in serve_api.py.
 
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -194,6 +194,24 @@ def delete_session(session_id: str):
 @app.get("/metrics")
 def metrics():
     return service.metrics()
+
+
+@app.get("/memory")
+def memory(
+    session_id: Optional[str] = None,
+    query: Optional[str] = None,
+    limit: int = 20,
+    global_scope: bool = False,
+):
+    try:
+        return service.list_memory(
+            session_id=session_id,
+            query=query,
+            limit=limit,
+            global_scope=global_scope,
+        )
+    except ValueError as exc:
+        _raise_for(exc)
 
 
 @app.get("/workflows")

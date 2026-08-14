@@ -9,6 +9,7 @@ from typing import Any, Dict, Mapping, Optional, Set
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .answer_composer import AnswerComposer
 from .context_engineering import ContextBuilder, ContextPacket
+from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .planner import Planner
 from .replanning import (
@@ -123,6 +124,7 @@ class AgentRuntime:
         max_steps: int = 12,
         max_retries: int = 2,
         replan_policy: Optional[ReplanningPolicy] = None,
+        memory: Optional[FactMemory] = None,
     ):
         self._planner = planner
         self._registry = registry
@@ -133,6 +135,7 @@ class AgentRuntime:
         self._max_steps = max_steps
         self._max_retries = max_retries
         self._replan_policy = replan_policy or ReplanningPolicy()
+        self._memory = memory
         self._control_lock = Lock()
         self._cancelled_runs: Set[str] = set()
 
@@ -156,6 +159,11 @@ class AgentRuntime:
             resolved_request=resolved_request,
             workflow=dict(workflow) if workflow is not None else None,
         )
+        memory_section = (
+            self._memory.context_section(session_id)
+            if self._memory is not None
+            else None
+        )
         context_packet = self._context_builder.build(
             request=request,
             resolved_request=resolved_request,
@@ -164,6 +172,7 @@ class AgentRuntime:
             available_tools=self._registry.names,
             planner_kind=type(self._planner).__name__,
             spatial_request=parse_spatial_request(resolved_request).as_context_dict(),
+            memory_section=memory_section,
         )
         result.context_evidence = context_packet.evidence
         self._state_store.save(result)
@@ -183,6 +192,7 @@ class AgentRuntime:
                 result.answer = str(plan.output.get("message", ""))
                 self._conversation_store.clear_pending(session_id)
                 self._conversation_store.save_completed(session_id, resolved_request)
+                self._remember(result)
                 self._state_store.save(result)
                 return result
             self._validate_plan(plan)
@@ -231,6 +241,7 @@ class AgentRuntime:
                     index += 1
             result.status = RunStatus.COMPLETED
             result.answer = self._answer_composer.compose(result)
+            self._remember(result)
             self._conversation_store.clear_pending(session_id)
             self._conversation_store.save_completed(session_id, resolved_request)
         except ClarificationNeeded as exc:
@@ -584,6 +595,11 @@ class AgentRuntime:
                 f"数据预检阻止工具 {tool}：数据集 {dataset} 不可用；"
                 f"当前可用能力：{capability_text}。请切换到本地 GIS 后端或补充数据配置。"
             )
+
+    def _remember(self, result: AgentRunResult) -> None:
+        """Persist one bounded memory fact for a completed run."""
+        if self._memory is not None:
+            self._memory.remember(result)
 
     def _check_control(self, run_id: str, deadline: Optional[float]) -> None:
         with self._control_lock:

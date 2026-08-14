@@ -79,6 +79,16 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("compareConstrained()", source)
         self.assertIn("monotonic_eligible_features", source)
 
+    def test_console_exposes_long_term_memory_card(self):
+        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('id="memoryEvidence"', source)
+        self.assertIn("data.memory_evidence", source)
+        self.assertIn("长期记忆", source)
+        self.assertIn("memory-evidence", source)
+
     def test_console_uses_async_runs_and_exposes_cancel_control(self):
         source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
             encoding="utf-8"

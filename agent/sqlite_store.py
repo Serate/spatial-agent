@@ -599,6 +599,70 @@ class SQLiteConversationStore:
             ).fetchone()
         return row[0] if row else None
 
+    def insert_memory_fact(self, fact: Dict[str, Any]) -> None:
+        """Persist one bounded memory fact (M80.2)."""
+        with self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO memory_facts (run_id, session_id, result_type, admin_names, summary, facts, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(run_id) DO UPDATE SET
+                    session_id=excluded.session_id,
+                    result_type=excluded.result_type,
+                    admin_names=excluded.admin_names,
+                    summary=excluded.summary,
+                    facts=excluded.facts,
+                    created_at=excluded.created_at
+                """,
+                (
+                    fact.get("run_id"),
+                    fact.get("session_id"),
+                    fact.get("result_type"),
+                    json.dumps(list(fact.get("admin_names") or []), ensure_ascii=False),
+                    fact.get("summary"),
+                    json.dumps(fact.get("facts") or {}, ensure_ascii=False),
+                    fact.get("created_at", time.time()),
+                ),
+            )
+
+    def list_memory_facts(
+        self, session_id: Optional[str] = None, limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """Return memory facts, newest first; session_id=None means global."""
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._connection() as connection:
+            if session_id is None:
+                rows = connection.execute(
+                    "SELECT run_id, session_id, result_type, admin_names, summary, facts, created_at "
+                    "FROM memory_facts ORDER BY created_at DESC, run_id DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT run_id, session_id, result_type, admin_names, summary, facts, created_at "
+                    "FROM memory_facts WHERE session_id = ? ORDER BY created_at DESC, run_id DESC LIMIT ?",
+                    (session_id, limit),
+                ).fetchall()
+        return [
+            {
+                "run_id": row[0],
+                "session_id": row[1],
+                "result_type": row[2],
+                "admin_names": json.loads(row[3] or "[]"),
+                "summary": row[4],
+                "facts": json.loads(row[5] or "{}"),
+                "created_at": row[6],
+            }
+            for row in rows
+        ]
+
+    def delete_memory_facts(self, session_id: str) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                "DELETE FROM memory_facts WHERE session_id = ?", (session_id,)
+            )
+
     def _initialize(self) -> None:
         with self._connection() as connection:
             connection.executescript(
@@ -618,6 +682,17 @@ class SQLiteConversationStore:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS memory_facts (
+                    run_id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    result_type TEXT NOT NULL,
+                    admin_names TEXT NOT NULL DEFAULT '[]',
+                    summary TEXT NOT NULL DEFAULT '',
+                    facts TEXT NOT NULL DEFAULT '{}',
+                    created_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_memory_facts_session
+                    ON memory_facts(session_id, created_at DESC);
                 """
             )
 

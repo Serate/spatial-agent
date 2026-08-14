@@ -22,6 +22,7 @@ def build_runtime(
     backend_name: str = "memory",
     state_store=None,
     conversation_store=None,
+    memory=None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
     if backend_name == "local":
@@ -46,4 +47,5 @@ def build_runtime(
         registry,
         state_store=state_store,
         conversation_store=conversation_store,
+        memory=memory,
     )

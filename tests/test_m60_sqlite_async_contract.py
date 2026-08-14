@@ -36,7 +36,7 @@ class _ProcessRecreatedAdapter:
         raise AssertionError(name)
 
 
-def _build_retry_runtime(_planner_name, _backend_name, state_store=None, conversation_store=None):
+def _build_retry_runtime(_planner_name, _backend_name, state_store=None, conversation_store=None, memory=None):
     definitions = {
         name: {
             "name": name,
@@ -49,6 +49,7 @@ def _build_retry_runtime(_planner_name, _backend_name, state_store=None, convers
         ToolRegistry(definitions, _ProcessRecreatedAdapter()),
         state_store=state_store,
         conversation_store=conversation_store,
+        memory=memory,
         max_retries=0,
     )
 

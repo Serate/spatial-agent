@@ -850,7 +850,7 @@
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><pre id="genericResult"></pre></section>
         <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
-        <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="dataEvidence" class="evidence-card"></div><div id="releaseEvidence" class="evidence-card release-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
+        <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="dataEvidence" class="evidence-card"></div><div id="releaseEvidence" class="evidence-card release-evidence"></div></div><div class="evidence-grid"><div id="memoryEvidence" class="evidence-card memory-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
         <section class="panel result-panel raster-result"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
         <section class="panel result-panel health-result"><h3>数据健康检查</h3><div id="healthStats" class="muted"></div></section>
         <section class="panel result-panel overview-result"><h3>空间总览摘要</h3><div id="overviewStats" class="metric-grid"></div><div id="overviewEvidence" class="distribution-note"></div></section>
@@ -908,6 +908,7 @@
       $('runtimeEvidence').innerHTML = '';
       $('dataEvidence').innerHTML = '';
       $('releaseEvidence').innerHTML = '';
+      $('memoryEvidence').innerHTML = '';
       $('degradationEvidence').innerHTML = '';
       lastRunData = null;
       $('healthStats').innerHTML = '';
@@ -1084,6 +1085,7 @@
       const releaseStatus=[analysisReady.status,sourceBinding.status,outputManifest.status].some(status=>['unavailable','degraded'].includes(String(status)))?'degraded':(analysisReady.status||sourceBinding.status||outputManifest.status||'unknown');
       $('releaseEvidence').className='evidence-card release-evidence '+evidenceStatusClass(releaseStatus);
       $('releaseEvidence').innerHTML='<h4>发布完整性（metadata / source / output）</h4><div class="release-evidence-grid"><div><span class="evidence-state">元数据与网格</span>'+evidenceBadge(analysisReady.status||'unknown')+'<p>'+escapeHtml(analysisReady.derived_version||'未形成分析就绪版本')+' · '+escapeHtml((analysisReady.grid_alignment||{}).status||'未检查')+' · '+escapeHtml(verificationModeLabel(analysisReady.verification_mode))+'</p></div><div><span class="evidence-state">源绑定 SHA-256</span>'+evidenceBadge(sourceBinding.status||'unknown')+'<p>'+escapeHtml(sourceBinding.fingerprint||'未形成源数据指纹')+'</p></div><div><span class="evidence-state">输出 manifest</span>'+evidenceBadge(outputManifest.status||'unknown')+'<p>'+escapeHtml(verificationModeLabel(outputManifest.verification_mode))+' · '+(outputManifest.hashes_verified?'完整哈希已核验':'运行时未执行完整哈希')+' · mismatch '+escapeHtml(outputManifest.mismatch_count??'-')+'</p></div></div>'+(outputRows?'<ul class="evidence-list release-output-list">'+outputRows+'</ul>':'<div class="evidence-empty">没有输出文件匹配摘要。</div>')+'<a class="evidence-reference" href="/release-evidence?max_files=10" target="_blank">下载完整三层发布报告</a>';
+      const mem=data.memory_evidence||{}; $('memoryEvidence').className='evidence-card memory-evidence'+(mem.enabled?'':' neutral'); $('memoryEvidence').innerHTML='<h4>长期记忆（fact memory）</h4>'+(mem.enabled?('<p>本会话已沉淀 <b>'+escapeHtml(mem.session_fact_count||0)+'</b> 条结论记忆；后续同会话请求会把既往结论注入规划器上下文（受控、不跨会话）。</p>'):'<div class="evidence-empty">长期记忆已关闭（SPATIAL_AGENT_MEMORY_ENABLED=0）。</div>');
       const degradations=[]; const addReason=reason=>{if(reason&&!degradations.includes(reason)) degradations.push(reason);};
       if(data.status==='NEEDS_CLARIFICATION') addReason('请求仍在澄清，尚未执行空间工具。');
       if(data.status==='FAILED'||data.status==='REJECTED'||data.status==='CANCELLED'||data.status==='TIMED_OUT') addReason('运行状态为'+statusName(data.status)+'，结果不能视为完整分析。');

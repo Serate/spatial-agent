@@ -3,7 +3,7 @@ import json
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from agent.artifact_store import ArtifactStore
 from agent.geojson_exporter import export_run_summary
@@ -209,6 +209,9 @@ class AgentService:
         if self._state.persistent:
             self._state.save_run(result)
         self._attach_async_observability(payload, payload.get("run_id"))
+        payload["memory_evidence"] = self._state.memory.evidence(
+            str(payload.get("session_id") or "default")
+        )
         # Mark the durable job terminal only after every final snapshot read
         # is complete. Pollers use this marker as the worker quiescence boundary.
         self._finalize_async_job(payload)
@@ -695,6 +698,37 @@ class AgentService:
         """
         self._state.stop_reaper()
         self._async_executor.shutdown(wait=True)
+
+    def list_memory(
+        self,
+        session_id: Optional[str] = None,
+        query: Optional[str] = None,
+        limit: int = 20,
+        global_scope: bool = False,
+    ) -> Dict:
+        """Return bounded memory facts (session-scoped or explicit global)."""
+        if global_scope:
+            facts = self._state.memory.recall_global(query=query, limit=limit)
+        else:
+            if not isinstance(session_id, str) or not session_id.strip():
+                raise ValueError("session_id must be a non-empty string")
+            facts = self._state.memory.recall(session_id=session_id, query=query, limit=limit)
+        return {
+            "memory_enabled": self._state.memory.enabled,
+            "global_scope": bool(global_scope),
+            "fact_count": len(facts),
+            "facts": [
+                {
+                    "run_id": fact.get("run_id"),
+                    "session_id": fact.get("session_id"),
+                    "result_type": fact.get("result_type"),
+                    "admin_names": list(fact.get("admin_names") or []),
+                    "summary": fact.get("summary"),
+                    "facts": dict(fact.get("facts") or {}),
+                }
+                for fact in facts
+            ],
+        }
 
     def _memory_async_metrics(self) -> Dict[str, Any]:
         with self._async_lock:
