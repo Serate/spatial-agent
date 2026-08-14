@@ -1218,3 +1218,30 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 3. **observability stdout 污染**（M80.3 引入）：emitter 默认写 stdout 污染 smoke_check 纯 JSON 输出 → 改为默认只计数、显式 log 文件或 STDOUT=1 才输出。
 
 **验证**：`SPATIAL_AGENT_DATASET_CONFIG` 指向不存在路径（模拟 CI 无数据）→ 全量 515 项通过；本地有数据环境同样 515 项通过；`python scripts/smoke_check.py` 退出码 0；严格全局评测 8/8。
+
+## M80.4：LLM-as-judge 答案评判（进行中）
+
+### 目标与边界
+
+当前 `evaluate_plan_quality` 的 `chinese_answer` 只检查中文存在性（是否含中文字符），无质量评判。M80.4 新增**答案质量评判器**：默认用确定性启发式（离线、可测），可选用真实模型做 LLM-as-judge（opt-in、脱敏），与结构化契约评测并行，**不替代**结构化评测。
+
+- **评判维度**（4 维，每维 0-5 分 + passed 判定）：
+  - `completeness`：答案是否覆盖请求的核心要素（区域名、指标、结论）。
+  - `groundedness`：答案中的数字/结论是否与证据步骤（step results）一致（如候选像元数匹配）。
+  - `clarity`：中文可读性（无乱码、结构清晰、长度合理）。
+  - `explanatory`：是否说明数据来源/方法/限制（演示筛选非规划许可等 disclaimer）。
+- **启发式评判**（默认）：确定性规则，从 answer + steps 提取数字并交叉核对、检查中文字符/乱码模式/免责声明关键词——**不访问网络、不耗 token**，可进 CI。
+- **LLM-as-judge**（可选）：`SPATIAL_AGENT_JUDGE_LLM=1` 时用 deepseek（复用 `OpenAIPlannerClient`）对答案按 4 维打分，prompt 只含答案与受控证据摘要（无原始 provider 数据），结果脱敏（只保留分数与一句话理由，不复制原文）。
+- **挂载**：`evaluation/model_evaluation.py` 的 `evaluate_plan_quality` 附加 `answer_judge` 维度（启发式默认跑）；`evaluation/live_baseline.py` 可选加 judge 汇总。
+- **测试**：启发式评判器纯函数测试（好答案高分/坏答案低分/数字不符降 groundedness/乱码降 clarity）；judge 结果契约测试。
+
+### 实现计划（单线程）
+
+1. **`evaluation/answer_judge.py`（新增）**：`heuristic_answer_judge(answer, steps, request)` 确定性评判 + `llm_answer_judge(answer, steps, request, client)` 可选模型评判 + 脱敏结果构造。
+2. **`evaluation/model_evaluation.py`**：`evaluate_plan_quality` 附加 `answer_judge`（启发式，默认）；live baseline 报告含 judge 汇总。
+3. **测试**：`tests/test_m80_answer_judge.py`（新增）——4 维启发式判定、数字一致性、乱码检测、judge 结果契约、LLM 路径（recorded client）。
+4. **验收**：相关测试 + 全量离线回归 + CI 绿；live judge 可选复跑。
+
+### 验收标准
+
+- 专项测试通过；全量离线转绿；CI 绿；judge 结果不改变既有 passed 语义（只附加维度）。
