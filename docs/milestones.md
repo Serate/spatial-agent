@@ -566,3 +566,16 @@ M77 不拆分并行任务，按依赖顺序单线程执行；上下文/result en
 - `agent/rule_planning.py` 的 builder 注册表与路由 id 同步；`test_m77_request_model.py` 断言更新。
 - 新增 `tests/test_m78_capability_contract.py` 契约测试：路由 id ⊆ catalog id、builder 覆盖每个路由 id、无孤儿 builder、全局评测用例的 `capability_id` 全部存在于 catalog。
 - M78.1 验证：离线全量 422 项（42 跳过）、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4 通过。
+
+### M78.2：service.py 拆分与分层修复（已完成）
+
+- 新建 `agent/runtime_factory.py` 承载 `build_runtime`（planner/backend → AgentRuntime），`run_demo.py` 改为 re-export，`agent/service.py` 不再导入根目录 demo 脚本，**分层倒挂消除**（`agent/` 包内 0 处 `from run_demo import`）。
+- 按职责拆分辅助层：`agent/service_async.py`（异步作业观测契约、failure 分类、进程存活、时序工具）、`agent/service_format.py`（结果 envelope、几何证据、请求/工作流归一化）、`agent/service_sessions.py`（会话校验、历史 lineage、runtime key）。
+- `agent/service.py` 从 1183 行减至约 730 行，`AgentService` 保留为门面：公开方法签名与行为不变，内部委托给上述模块。
+- 新增 `tests/test_m78_service_split.py` 契约测试：agent 包不导入 run_demo、门面委托到聚焦模块、runtime_factory 共享、公开方法齐全。
+- M78.2 验证：离线全量 426 项（42 跳过）、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4 通过。
+
+### M78.3：双 HTTP 入口统一（进行中）
+
+- 目标：`serve_api.py`（标准库）与 `production_api.py`（FastAPI）的端点参数映射、异常映射大量重复且错误码不一致（如 create_session 503 vs 400），收敛为共享的请求处理层。
+- 验收：两个入口行为一致（同一错误输入返回相同状态码与错误结构）；离线测试、Smoke、全局评测、console 浏览器 smoke 全部通过。

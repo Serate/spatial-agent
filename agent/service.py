@@ -1,29 +1,58 @@
 import os
-import hashlib
 import json
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-from pathlib import Path
 from threading import Lock
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 from agent.artifact_store import ArtifactStore
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
+from agent.runtime_factory import build_runtime
 from agent.scenario import BuildabilityComparisonScenario
 from agent.trace_formatter import format_trace
-from run_demo import build_runtime
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.models import AgentRunResult, RunStatus
 from result_contract import (
     build_comparison_lineage,
-    build_history_lineage,
     build_lineage_index,
     build_result_contract,
 )
-from agent.workflow_templates import normalize_workflow_selection
+
+from agent.service_async import (
+    build_async_observability as _build_async_observability,
+    async_event as _async_event,
+    async_fingerprint as _async_fingerprint,
+    async_response as _async_response,
+    async_status as _async_status,
+    async_worker_count as _async_worker_count,
+    as_float as _as_float,
+    duration_summary as _duration_summary,
+    epoch_to_iso as _epoch_to_iso,
+    failure_category_for as _failure_category,
+    process_is_alive as _process_is_alive,
+    round_ms as _round_ms,
+)
+from agent.service_format import (
+    analysis_ready_summary as _analysis_ready_summary,
+    contextualize_request as _contextualize_request,
+    crs_name as _crs_name,
+    exported_geometry_evidence as _exported_geometry_evidence,
+    format_result as _format_result,
+    normalize_spatial_context as _normalize_spatial_context,
+    normalize_workflow_payload as _normalize_workflow_payload,
+    result_type as _result_type,
+    tag_geometry_features as _tag_geometry_features,
+)
+from agent.service_sessions import (
+    async_job_payload as _async_job_payload,
+    attach_history_lineage as _attach_history_lineage,
+    dedupe_run_records as _dedupe_run_records,
+    memory_session_display_name as _memory_session_display_name,
+    runtime_key as _runtime_key,
+    validate_session_id as _validate_session_id,
+)
 
 
 _TERMINAL_RUN_STATUSES = {
@@ -710,474 +739,3 @@ class AgentService:
                 conversation_store=self._conversation_store,
             )
         return self._runtimes[key]
-
-
-def _async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
-    """Keep the persisted submission limited to arguments accepted by run()."""
-    return {
-        "request": kwargs.get("request", ""),
-        "session_id": kwargs.get("session_id", "default"),
-        "planner": kwargs.get("planner", "rule"),
-        "backend": kwargs.get("backend", "memory"),
-        "export_artifact": bool(kwargs.get("export_artifact", False)),
-        "export_geojson": bool(kwargs.get("export_geojson", False)),
-        "geojson_max_features": kwargs.get("geojson_max_features", 100),
-        "timeout_seconds": kwargs.get("timeout_seconds"),
-        "spatial_context": kwargs.get("spatial_context"),
-        "workflow": kwargs.get("workflow"),
-    }
-
-
-def _async_fingerprint(payload: Dict[str, Any]) -> str:
-    serialized = json.dumps(
-        payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")
-    )
-    return "request:" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-
-def _async_status(state_store: SQLiteStateStore, job: Dict[str, Any]) -> str:
-    if job.get("status") == "CANCEL_REQUESTED":
-        return "CANCEL_REQUESTED"
-    result = state_store.get(job["run_id"])
-    if result is not None:
-        return result.status.value
-    return "QUEUED" if job.get("status") in {"QUEUED", "RUNNING"} else str(job.get("status"))
-
-
-def _build_async_observability(
-    job: Dict[str, Any],
-    result: AgentRunResult = None,
-    lineage: Dict[str, Any] = None,
-) -> Dict[str, Any]:
-    """Build a request-free lifecycle contract for polling and metrics consumers."""
-    status = str(job.get("status") or "UNKNOWN")
-    result_status = result.status.value if result is not None else None
-    if result_status in {item.value for item in _TERMINAL_RUN_STATUSES}:
-        status = result_status
-    now = time.time()
-    created_at = _as_float(job.get("created_at"))
-    started_at = _as_float(job.get("started_at"))
-    finished_at = _as_float(job.get("finished_at"))
-    queue_wait_ms = _as_float(job.get("queue_wait_ms"))
-    if queue_wait_ms is None and created_at is not None:
-        queue_end = started_at or (finished_at if finished_at is not None else now)
-        queue_wait_ms = max(0, (queue_end - created_at) * 1000)
-    run_duration_ms = _as_float(job.get("run_duration_ms"))
-    if run_duration_ms is None and started_at is not None:
-        run_end = finished_at if finished_at is not None else now
-        run_duration_ms = max(0, (run_end - started_at) * 1000)
-    total_duration_ms = None
-    if created_at is not None:
-        total_end = finished_at if finished_at is not None else now
-        total_duration_ms = max(0, (total_end - created_at) * 1000)
-    failure_category = job.get("failure_category")
-    if not failure_category and status != "COMPLETED":
-        failure_category = _failure_category(
-            status, result.error if result is not None else None
-        )
-    recovery_count = int(job.get("recovery_count") or 0)
-    phase = {
-        "QUEUED": "queued",
-        "RUNNING": "running",
-        "CANCEL_REQUESTED": "cancelling",
-        "COMPLETED": "completed",
-        "FAILED": "failed",
-        "CANCELLED": "cancelled",
-        "TIMED_OUT": "timed_out",
-        "REJECTED": "rejected",
-        "NEEDS_CLARIFICATION": "clarification",
-    }.get(status, "unknown")
-    observation = {
-        "schema_version": 1,
-        "run_id": job.get("run_id"),
-        "status": status,
-        "phase": phase,
-        "failure_category": failure_category,
-        "request_fingerprint": _async_fingerprint(job.get("payload") or {}),
-        "last_event": job.get("last_event"),
-        "queue_wait_ms": _round_ms(queue_wait_ms),
-        "run_duration_ms": _round_ms(run_duration_ms),
-        "total_duration_ms": _round_ms(total_duration_ms),
-        "timestamps": {
-            "submitted_at": _epoch_to_iso(created_at),
-            "started_at": _epoch_to_iso(started_at),
-            "finished_at": _epoch_to_iso(finished_at),
-            "cancel_requested_at": _epoch_to_iso(_as_float(job.get("cancel_requested_at"))),
-        },
-        "recovered": recovery_count > 0,
-        "recovery_count": recovery_count,
-        "cancel_requested": _as_float(job.get("cancel_requested_at")) is not None,
-    }
-    if isinstance(lineage, dict):
-        observation["lineage"] = lineage
-    return observation
-
-
-def _failure_category(status: str, error: str = None, source: str = None) -> str:
-    """Classify failures using bounded labels; never return the source error."""
-    status = str(status or "").upper()
-    if status == "COMPLETED":
-        return None
-    if status in {"CANCELLED", "CANCEL_REQUESTED"}:
-        return "cancelled"
-    if status == "TIMED_OUT":
-        return "timeout"
-    if status == "NEEDS_CLARIFICATION":
-        return "clarification"
-    if status == "REJECTED":
-        return "rejected"
-    if source == "worker":
-        return "worker_exception"
-    text = str(error or "").lower()
-    if any(token in text for token in ("timeout", "timed out", "超时")):
-        return "timeout"
-    if any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
-        return "provider"
-    if any(token in text for token in ("planner", "plan", "schema", "规划")):
-        return "planning"
-    if any(token in text for token in ("tool", "backend", "dataset", "raster", "栅格", "数据")):
-        return "tool"
-    if status == "FAILED":
-        return "execution"
-    return None
-
-
-def _async_event(status: str) -> str:
-    return {
-        "QUEUED": "submitted",
-        "RUNNING": "started",
-        "CANCEL_REQUESTED": "cancel_requested",
-        "COMPLETED": "completed",
-        "FAILED": "failed",
-        "CANCELLED": "cancelled",
-        "TIMED_OUT": "timed_out",
-    }.get(str(status), "finished")
-
-
-def _as_float(value):
-    try:
-        return None if value is None else float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _round_ms(value):
-    return None if value is None else round(max(0, float(value)), 3)
-
-
-def _epoch_to_iso(value):
-    value = _as_float(value)
-    if value is None:
-        return None
-    return datetime.fromtimestamp(value, timezone.utc).isoformat()
-
-
-def _duration_summary(values):
-    if not values:
-        return {"count": 0, "total_ms": 0.0, "average_ms": None, "max_ms": None}
-    total = sum(values)
-    return {
-        "count": len(values),
-        "total_ms": round(total, 3),
-        "average_ms": round(total / len(values), 3),
-        "max_ms": round(max(values), 3),
-    }
-
-
-def _empty_async_metrics():
-    return {
-        "count": 0,
-        "worker_count": 4,
-        "status_counts": {},
-        "failure_categories": {},
-        "recovered_jobs": 0,
-        "queue_wait_ms": _duration_summary([]),
-        "run_duration_ms": _duration_summary([]),
-    }
-
-
-def _async_worker_count() -> int:
-    raw = os.environ.get("SPATIAL_AGENT_ASYNC_WORKERS", "4")
-    try:
-        value = int(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("SPATIAL_AGENT_ASYNC_WORKERS must be an integer from 1 to 16") from exc
-    if value < 1 or value > 16:
-        raise ValueError("SPATIAL_AGENT_ASYNC_WORKERS must be an integer from 1 to 16")
-    return value
-
-
-def _memory_session_display_name(session_id: str) -> str:
-    if session_id.startswith("conversation-"):
-        suffix = session_id[len("conversation-"):]
-        if suffix.isdigit():
-            return "对话" + suffix
-    return session_id
-
-
-def _dedupe_run_records(records):
-    seen = set()
-    result = []
-    for record in records:
-        run_id = record.get("run_id")
-        if run_id in seen:
-            continue
-        seen.add(run_id)
-        result.append(record)
-    return result
-
-
-def _attach_history_lineage(records):
-    """Attach only navigational evidence indexes to compact history records."""
-    enriched = []
-    for record in records or []:
-        item = dict(record or {})
-        item["lineage"] = build_history_lineage(item)
-        enriched.append(item)
-    return enriched
-
-
-def _async_response(run_id: str, status: str, reused: bool) -> Dict[str, Any]:
-    return {
-        "run_id": run_id,
-        "status": status,
-        "idempotent": bool(reused),
-        "reused": bool(reused),
-    }
-
-
-def _process_is_alive(pid: int) -> bool:
-    if os.name == "nt":
-        try:
-            import ctypes
-
-            process = ctypes.windll.kernel32.OpenProcess(0x1000, False, int(pid))
-            if not process:
-                # Access-denied is not evidence that a worker exited. Treat
-                # that case as alive so a second service cannot replay a job
-                # while the original worker may still be writing its snapshot.
-                error_code = ctypes.windll.kernel32.GetLastError()
-                return error_code == 5  # ERROR_ACCESS_DENIED
-            try:
-                exit_code = ctypes.c_ulong()
-                if not ctypes.windll.kernel32.GetExitCodeProcess(process, ctypes.byref(exit_code)):
-                    return True
-                return exit_code.value == 259  # STILL_ACTIVE
-            finally:
-                ctypes.windll.kernel32.CloseHandle(process)
-        except (AttributeError, OSError, TypeError, ValueError):
-            # A transient API failure must not trigger duplicate execution.
-            return True
-    try:
-        os.kill(int(pid), 0)
-    except PermissionError:
-        return True
-    except (ProcessLookupError, OSError, ValueError):
-        return False
-    return True
-
-
-def _runtime_key(planner: str, backend: str) -> Tuple[str, str]:
-    if planner not in ("rule", "openai"):
-        raise ValueError("planner must be one of: rule, openai")
-    if backend not in ("memory", "local"):
-        raise ValueError("backend must be one of: memory, local")
-    return planner, backend
-
-
-def _validate_session_id(session_id: str) -> None:
-    if not isinstance(session_id, str) or not session_id.strip():
-        raise ValueError("session_id must be a non-empty string")
-
-
-def _normalize_workflow_payload(workflow: Dict[str, Any]) -> Dict[str, Any] | None:
-    if workflow is None:
-        return None
-    if not isinstance(workflow, dict):
-        raise ValueError("workflow must be an object")
-    template_id = workflow.get("template_id")
-    if not isinstance(template_id, str) or not template_id.strip():
-        raise ValueError("workflow.template_id must be a non-empty string")
-    return normalize_workflow_selection(
-        template_id.strip(),
-        workflow.get("constraints", {}),
-        workflow.get("evidence"),
-    )
-
-
-def _normalize_spatial_context(context: Dict[str, Any]) -> Dict[str, Any]:
-    if context is None:
-        return {}
-    if not isinstance(context, dict):
-        raise ValueError("spatial_context must be an object")
-    normalized = {}
-    for key in ("admin_name", "source", "crs", "geometry_type"):
-        value = context.get(key)
-        if isinstance(value, str) and value.strip():
-            normalized[key] = value.strip()[:160]
-    if context.get("geometry_available") is True:
-        normalized["geometry_available"] = True
-    return normalized
-
-
-def _contextualize_request(request: str, context: Dict[str, Any]) -> str:
-    admin_name = context.get("admin_name")
-    if not admin_name:
-        return request
-    return f"{request}（当前地图选中区域：{admin_name}）"
-
-
-def _tag_geometry_features(features, source=None, crs=None, source_crs=None, dataset=None):
-    """Keep CRS/source beside each feature when result collections are merged."""
-    tagged = []
-    crs_name = _crs_name(crs)
-    for feature in features or []:
-        if not isinstance(feature, dict):
-            continue
-        properties = dict(feature.get("properties") or {})
-        if source:
-            properties["geometry_source"] = source
-        if crs_name:
-            properties["geometry_crs"] = crs_name
-        if source_crs:
-            properties["geometry_source_crs"] = source_crs
-        if dataset:
-            properties["dataset"] = dataset
-        tagged.append({**feature, "properties": properties})
-    return tagged
-
-
-def _result_type(payload: Dict) -> str:
-    return str(((payload.get("plan") or {}).get("output") or {}).get("type") or "unknown")
-
-
-def _crs_name(crs):
-    if isinstance(crs, str):
-        return crs
-    if isinstance(crs, dict):
-        return (crs.get("properties") or {}).get("name")
-    if isinstance(crs, list) and len(crs) == 1:
-        return _crs_name(crs[0])
-    return None
-
-
-def _geometry_evidence_for_features(features):
-    features = [
-        item for item in features or []
-        if isinstance(item, dict) and item.get("geometry")
-    ]
-    if not features:
-        return {
-            "status": "no_geometry",
-            "reason": "导出摘要没有可绘制空间要素",
-            "feature_count": 0,
-            "truncated": False,
-        }
-    sources = {
-        str((item.get("properties") or {}).get("geometry_source"))
-        for item in features
-        if (item.get("properties") or {}).get("geometry_source")
-    }
-    status = "boundary_geometry" if sources == {"geojson"} else "real_geometry"
-    return {
-        "status": status,
-        "reason": "导出摘要包含可绘制空间要素",
-        "feature_count": len(features),
-        "truncated": any(
-            bool((item.get("properties") or {}).get("geometry_truncated"))
-            for item in features
-        ),
-        "sources": sorted(sources),
-    }
-
-
-def _exported_geometry_evidence(geojson_ref):
-    """Measure the bounded artifact, not the pre-truncation feature list."""
-    path = Path(str(geojson_ref))
-    if not path.exists():
-        return 0, {
-            "status": "unknown",
-            "reason": "GeoJSON 导出文件不存在",
-            "feature_count": 0,
-            "truncated": False,
-            "sources": [],
-        }
-    try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return 0, {
-            "status": "unknown",
-            "reason": "GeoJSON 导出文件无法读取",
-            "feature_count": 0,
-            "truncated": False,
-            "sources": [],
-        }
-    features = [item for item in document.get("features", []) if isinstance(item, dict)]
-    evidence = _geometry_evidence_for_features(features)
-    truncated = bool((document.get("properties") or {}).get("geometry_truncated"))
-    if truncated:
-        evidence["status"] = "truncated_geometry"
-        evidence["reason"] = "GeoJSON 摘要达到大小上限，空间要素已截断"
-        evidence["truncated"] = True
-    return len([item for item in features if item.get("geometry")]), evidence
-
-
-def _analysis_ready_summary(payload: Dict[str, Any]) -> Dict[str, Any] | None:
-    """Keep comparison responses tied to the same bounded health evidence."""
-    health = next(
-        (
-            step.get("result") or {}
-            for step in payload.get("steps", [])
-            if step.get("tool") == "get_dataset_health_report"
-        ),
-        {},
-    )
-    evidence = health.get("analysis_ready")
-    if not isinstance(evidence, dict):
-        return None
-    return {
-        "status": evidence.get("status", "unknown"),
-        "required": bool(evidence.get("required", False)),
-        "derived_version": str(evidence.get("derived_version", "unknown"))[:128],
-        "target_grid": dict(evidence.get("target_grid") or {}),
-        "grid_alignment": dict(evidence.get("grid_alignment") or {}),
-        "verification_mode": evidence.get("verification_mode", "metadata"),
-        "data_readiness": health.get("data_readiness", "unknown"),
-        **({"source_binding": {
-            "binding_version": evidence["source_binding"].get("binding_version"),
-            "fingerprint": str(evidence["source_binding"].get("fingerprint", ""))[:80],
-            "verification_mode": evidence["source_binding"].get("verification_mode", "sha256"),
-            "datasets": list(evidence["source_binding"].get("datasets") or [])[:10],
-            "status": evidence["source_binding"].get("status", "recorded"),
-        }} if isinstance(evidence.get("source_binding"), dict) else {}),
-        **({"output_manifest": {
-            "status": evidence["output_manifest"].get("status", "unknown"),
-            "verification_mode": evidence["output_manifest"].get("verification_mode", "metadata"),
-            "hashes_verified": bool(evidence["output_manifest"].get("hashes_verified", False)),
-            "verified_files": int(evidence["output_manifest"].get("verified_files") or 0),
-            "mismatch_count": int(evidence["output_manifest"].get("mismatch_count") or 0),
-            "outputs": {
-                str(name)[:32]: {
-                    "reported": str(item.get("reported", ""))[:160],
-                    "manifest": [str(value)[:160] for value in (item.get("manifest") or [])[:3]],
-                    "matched": bool(item.get("matched", False)),
-                }
-                for name, item in (evidence["output_manifest"].get("outputs") or {}).items()
-                if isinstance(item, dict)
-            },
-        }} if isinstance(evidence.get("output_manifest"), dict) else {}),
-    }
-
-
-def _format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Dict[str, Any]:
-    payload = result.to_dict()
-    explicit_geometry = payload.pop("geometry_evidence", None)
-    if explicit_geometry is not None:
-        payload["_geometry_evidence"] = explicit_geometry
-    payload["spatial_context"] = spatial_context
-    payload["trace_summary"] = format_trace(result)
-    payload["provenance"] = build_provenance(payload)
-    payload["result_type"] = _result_type(payload)
-    payload["result"] = build_result_contract(payload)
-    payload.pop("_geometry_evidence", None)
-    return payload

@@ -1,47 +1,7 @@
 import argparse
 import json
-import os
-from pathlib import Path
 
-from agent.llm_planner import LLMPlanner, OpenAIPlannerClient
-from agent.openai_config import load_openai_config
-from agent.planner import RuleBasedPlanner
-from agent.runtime import AgentRuntime
-from agent.dataset_catalog import DatasetCatalog
-from agent.spatial_backend import HybridSpatialBackend, InMemorySpatialBackend, SpatialToolAdapter
-from agent.tools import ToolRegistry
-
-
-def build_runtime(
-    planner_name: str,
-    backend_name: str = "memory",
-    state_store=None,
-    conversation_store=None,
-) -> AgentRuntime:
-    root = Path(__file__).parent
-    if backend_name == "local":
-        catalog_path = os.environ.get(
-            "SPATIAL_AGENT_DATASET_CONFIG",
-            str(root / "config" / "datasets.local.example.json"),
-        )
-        catalog = DatasetCatalog.from_json(catalog_path)
-        adapter = SpatialToolAdapter(HybridSpatialBackend(catalog))
-    else:
-        adapter = SpatialToolAdapter(InMemorySpatialBackend())
-    registry = ToolRegistry.from_json(
-        str(root / "tools" / "schema" / "tool-definitions.json"),
-        adapter,
-    )
-    if planner_name == "openai":
-        planner = LLMPlanner(OpenAIPlannerClient(**load_openai_config()), registry.names)
-    else:
-        planner = RuleBasedPlanner()
-    return AgentRuntime(
-        planner,
-        registry,
-        state_store=state_store,
-        conversation_store=conversation_store,
-    )
+from agent.runtime_factory import build_runtime
 
 
 def parse_args():
