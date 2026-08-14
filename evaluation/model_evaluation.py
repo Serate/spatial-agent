@@ -17,6 +17,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 from agent.llm_planner import LLMPlanner
 from agent.runtime import AgentRuntime
 from agent.tools import DemoSpatialAdapter, ToolRegistry
+from evaluation.answer_judge import heuristic_answer_judge
 
 
 ROOT = Path(__file__).parents[1]
@@ -243,6 +244,9 @@ def evaluate_plan_quality(
         "dependency_dag": dag,
         "result_type_match": result_type,
         "chinese_answer": chinese_answer,
+        "answer_judge": heuristic_answer_judge(
+            answer_text, steps, request=plan.get("goal")
+        ),
     }
 
 

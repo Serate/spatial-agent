@@ -1245,3 +1245,37 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 ### 验收标准
 
 - 专项测试通过；全量离线转绿；CI 绿；judge 结果不改变既有 passed 语义（只附加维度）。
+
+## M80.4：LLM-as-judge 答案评判（已完成）
+
+### 实现内容
+
+- **`evaluation/answer_judge.py`（新增）**：
+  - `heuristic_answer_judge()`：确定性 4 维评判（completeness/groundedness/clarity/explanatory，各 0-5 + passed），**离线、无 token、CI 安全**。
+    - completeness：答案是否覆盖请求核心要素（区域名/数据集/指标词）。
+    - groundedness：答案数字与证据步骤（statistics/constraint_summary）数量级一致性（0.1-10 倍内 5 分，10-100 倍 3 分，更离谱 1 分）。
+    - clarity：中文存在性 + 乱码检测（U+FFFD/转义序列）+ 长度。
+    - explanatory：是否含免责声明（演示/不代表规划许可）与方法/数据说明。
+  - `llm_answer_judge()`：可选 LLM-as-judge（`SPATIAL_AGENT_JUDGE_LLM=1`），复用 `OpenAIPlannerClient`，prompt 只含答案 + 受控证据摘要；结果脱敏（分数 + 一句话理由，不复制原文）；模型调用失败时回退启发式。
+  - `answer_judge_report()`：公共入口（默认启发式，开启 + 有 client 时 LLM）。
+- **`evaluation/model_evaluation.py`**：`evaluate_plan_quality` 附加 `answer_judge` 维度（启发式默认跑）——**附加语义**，不改变既有 passed 判定。
+- **测试**：`tests/test_m80_answer_judge.py`（+11 项）——好答案四维高分、空答案 0 分、数字矛盾降 groundedness、乱码降 clarity、请求要素匹配、免责声明检测、默认启发式、LLM 脱敏回退、recorded client 打分、分数钳制、evaluate_plan_quality 附加维度。
+
+### 验收证据
+
+- 专项 11/11 通过；评测相关回归 54 项通过。
+- **全量离线 526 项通过（42 跳过）**；严格全局评测 8/8 通过。
+- **live LLM-as-judge 验证**：真实 deepseek（opencode 网关）对示例答案评分——completeness 4 / groundedness 5 / clarity 5 / explanatory 4，passed=true（脱敏：分数 + 一句话理由）。
+- CI 命令 smoke_check 退出码 0（judge 为纯函数，不引入 stdout/环境依赖）。
+
+### 复盘（七维矩阵，M80.4）
+
+- **产品能力**：答案质量从"是否有中文"升级为四维可量化评判，且可切换真实模型 judge。
+- **架构**：judge 是独立评估模块（纯函数 + 可选 client），挂在既有评测管线（evaluate_plan_quality 附加维度），不侵入 runtime 主路径。
+- **数据质量**：groundedness 用证据数字交叉核对，答案与真实统计不一致会被扣分。
+- **真实模型**：LLM-as-judge 可选路径用真实 deepseek 验证通过；失败自动回退启发式，不破坏评测。
+- **部署可靠性**：启发式默认离线可进 CI；LLM 路径 opt-in 不消耗 CI token。
+- **前端体验**：无前端改动（评测侧能力）。
+- **测试**：+11 项；全量 526 项转绿。
+
+**遗留**：judge 分数尚未展示到前端/报告可视化（当前在评测 JSON 中）；LLM-as-judge 未接入 live baseline 汇总（可后续加 judge case）。M80 主线 A1/A2/B6/D13 全部完成。
