@@ -40,6 +40,7 @@ class ContextBuilder:
         workflow: Optional[Mapping[str, Any]] = None,
         available_tools: Optional[Iterable[str]] = None,
         planner_kind: Optional[str] = None,
+        spatial_request: Optional[Mapping[str, Any]] = None,
     ) -> ContextPacket:
         original = self._text(request)
         resolved = self._text(resolved_request) or original
@@ -53,6 +54,8 @@ class ContextBuilder:
             "workflow": self._safe_value(workflow or {}),
             "available_tools": self._safe_value(list(available_tools or [])),
         }
+        if spatial_request:
+            sections["spatial_request"] = self._safe_value(spatial_request)
         if planner_kind:
             sections["planner"] = {"kind": self._text(planner_kind)}
 

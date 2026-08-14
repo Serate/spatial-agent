@@ -27,6 +27,19 @@ class ContextAwarePlanner:
         )
 
 
+class SpatialContextPlanner:
+    def __init__(self):
+        self.context = None
+
+    def plan(self, request, context=None):
+        self.context = context
+        return TaskPlan(
+            goal="inspect spatial context",
+            steps=[PlanStep("schema", "get_dataset_schema", {"dataset": "roads"})],
+            output={"type": "spatial_result"},
+        )
+
+
 class LegacyPlanner:
     def plan(self, request):
         return TaskPlan(
@@ -77,6 +90,18 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertEqual(planner.context["schema_version"], CONTEXT_SCHEMA_VERSION)
         self.assertEqual(result.context_evidence["schema_version"], CONTEXT_SCHEMA_VERSION)
         self.assertNotIn("sections", result.context_evidence)
+
+    def test_runtime_adds_structured_spatial_request_facts_to_context(self):
+        planner = SpatialContextPlanner()
+        result = AgentRuntime(planner, registry()).run(
+            "请对洪山区进行综合空间分析，统计DEM高程和坡度不超过20度"
+        )
+        spatial_request = planner.context["sections"]["spatial_request"]
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(spatial_request["admin_name"], "洪山区")
+        self.assertIn("elevation", spatial_request["tasks"])
+        self.assertEqual(spatial_request["constraints"]["slope_max"], 20.0)
+        self.assertNotIn("text", spatial_request)
 
     def test_legacy_planner_remains_a_valid_harness_adapter(self):
         result = AgentRuntime(LegacyPlanner(), registry()).run("查询道路数据")

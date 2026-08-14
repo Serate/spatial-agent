@@ -66,6 +66,20 @@ _CAPABILITIES = (
         "geometry": "optional",
     },
     {
+        "id": "spatial_analysis",
+        "label": "组合式空间分析",
+        "datasets": ["admin_areas", "dem", "land_use", "roads", "water"],
+        "tools": [
+            "get_dataset_health_report", "get_dataset_schema", "range_query",
+            "get_zonal_raster_statistics", "get_zonal_slope_statistics",
+            "get_zonal_land_use_distribution", "get_zonal_vector_summary",
+            "get_zonal_buildability_analysis", "get_zonal_constrained_buildability_analysis",
+        ],
+        "result_types": ["spatial_analysis_result"],
+        "environments": ["local", "production"],
+        "geometry": "available_when_artifact_contains_features",
+    },
+    {
         "id": "admin_boundary_query",
         "label": "行政区边界查询",
         "datasets": ["admin_areas"],

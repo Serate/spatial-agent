@@ -4,9 +4,14 @@ This document is a handoff note for continuing development of the Spatial Agent 
 
 ## 当前全局执行规则
 
-- 当前 goal 的最大并发度为 3。
+当前总体目标已重组为建设通用、可组合、可解释的空间智能体：请求理解、空间实体、任务意图、数据需求、约束条件和输出证据必须形成独立中间表示，再由能力目录和 Tool Registry 动态组合多工具 DAG。具体行政区或单个分析问句只能作为回归样例，不能成为架构中心。
+
+后续实现优先解决通用请求建模、能力发现、组合编排和统一结果契约。RuleBasedPlanner、LLMPlanner 与澄清流程共享 `TaskPlan`、工作流校验、执行门控、result envelope 和恢复协议。任何局部工具、数据或前端修复都必须说明其服务的系统级目标。
+
+- 当前 goal 的最大并发度为 1。
+- 该规则优先于历史阶段记录中的并行度；后文旧阶段数字仅用于记录当时的执行事实。
 - 阶段规划的总体参考见 `docs/agent-project-direction.md`，必须先确认完整 Agent 闭环和面试展示能力。
-- 任一阶段最多启动 3 个并行子任务；公共契约由主线统一集成。
+- 任一阶段不启动并行子任务；所有任务按依赖顺序完成，公共契约由主线统一集成。
 - 阶段规划不得从最近一次数据报错或局部页面现象直接开始；必须先复盘产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据，并把局部任务挂到明确的系统级目标下。
 - 每次重规划记录全局缺口、阶段排序依据、跨模块依赖和验收证据；如果某项数据修复只是支撑条件，应明确标注为支撑任务，不能把它写成阶段唯一目标。
 
@@ -40,17 +45,17 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M61 data health, async reliability, and model observability baseline
-- Latest pushed commits: `ac38f3a` async reliability, `85b1ce4` data health and model reliability
-- Current milestone: M61 deployment revalidation and next global planning
+- Latest completed milestone: M77 通用请求建模与组合式空间分析（request_model / capability_routing / rule_planning 拆分、`spatial_analysis_result` 结果类型、异步提交不预初始化 runtime、Console 设计系统改版）
+- Last pushed commit: `3fa42da` feat: add bounded context engineering harness
+- Current work: M77 收口待提交（工作树含 M77 重构 + 前端改版，验收已通过：离线 417 项、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4）
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 
 ## Development Loop
 
-- Overall loop: global planning -> parallelizable implementation -> integrated testing -> global replanning.
-- A large milestone may be split into independent sub-tasks, with a maximum concurrency of three.
+- Overall loop: global planning -> sequential implementation -> integrated testing -> global replanning.
+- A large milestone is executed as one dependency-ordered task stream; current maximum concurrency is one.
 - Each completed milestone must update `docs/milestones.md`, refresh this handoff document, and create one GitHub commit/version.
-- Parallel work must converge through the shared tool schema, runtime contract, focused tests, full regression, and GIS/browser verification.
+- Shared tool schema, runtime contract, focused tests, full regression, and GIS/browser verification are integrated by the single mainline.
 
 ## Completed Milestones
 
@@ -544,7 +549,7 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 
 ## 持续目标扩展
 
-每个大阶段必须从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度做全局规划；可独立的工作拆成最多 3 路并行，公共 schema、runtime、result envelope 和能力目录由主线统一集成。阶段完成后必须有专项测试、全量回归、真实 GIS/浏览器/部署证据、中文问题记录、里程碑更新和 GitHub 版本，再依据全局结果规划下一阶段。
+每个大阶段必须从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度做全局规划；当前所有工作按单线程顺序执行，公共 schema、runtime、result envelope 和能力目录由主线统一集成。阶段完成后必须有专项测试、全量回归、真实 GIS/浏览器/部署证据、中文问题记录、里程碑更新和 GitHub 版本，再依据全局结果规划下一阶段。
 
 ## M68 已完成
 
@@ -757,7 +762,7 @@ M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签�
 3. 真实模型：在统一证据契约上增加建设筛选、道路/水体约束和跨区域比较 live 基线，分别记录模型计划、能力门控、后端执行、答案质量和安全 token/延迟指标。
 4. 数据与测试：继续以 provenance、栅格对齐、输出 manifest 和发布报告作为跨工作流证据层，补换数失配、截断、失败重试和生产恢复的端到端回归，不把单个数据修复作为阶段中心。
 
-M76.3 先按产品、架构/部署、真实模型三条边界拆分，公共 result envelope、能力目录和证据索引由主线统一集成；最大并发度保持 3。规划执行前仍必须先复盘七维全局能力矩阵。
+M76.3 按产品、架构/部署、真实模型的依赖顺序单线程执行，公共 result envelope、能力目录和证据索引由主线统一集成；当前最大并发度为 1。规划执行前仍必须先复盘七维全局能力矩阵。
 
 ### M76.3.1 当前完成状态：Harness 与上下文工程
 
@@ -769,4 +774,4 @@ M76.3 先按产品、架构/部署、真实模型三条边界拆分，公共 res
 
 ### M77 下一阶段
 
-先按七维能力矩阵复盘，再实现：历史/比较/retry 的 lineage 详情导航；HTTP 与生产结果/观测契约一致性 Harness；按意图受控扩展会话摘要、能力快照和工具结果上下文；上下文污染、超长、成本和 token 评测；Docker 恢复后的生产 acceptance；以及建设筛选、道路/水体约束、跨区域比较的可选 live baseline。最多 3 路并行，公共契约由主线集成。
+先按七维能力矩阵复盘，再按依赖顺序实现：历史/比较/retry 的 lineage 详情导航；HTTP 与生产结果/观测契约一致性 Harness；按意图受控扩展会话摘要、能力快照和工具结果上下文；上下文污染、超长、成本和 token 评测；Docker 恢复后的生产 acceptance；以及建设筛选、道路/水体约束、跨区域比较的可选 live baseline。当前不启动并行任务，公共契约由主线集成。

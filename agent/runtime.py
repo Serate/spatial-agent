@@ -11,6 +11,7 @@ from .answer_composer import AnswerComposer
 from .context_engineering import ContextBuilder, ContextPacket
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .planner import Planner
+from .request_model import parse_spatial_request
 from .tools import ToolRegistry
 from .workflow_templates import WorkflowTemplateError, validate_workflow_plan
 
@@ -153,6 +154,7 @@ class AgentRuntime:
             workflow=workflow,
             available_tools=self._registry.names,
             planner_kind=type(self._planner).__name__,
+            spatial_request=parse_spatial_request(resolved_request).as_context_dict(),
         )
         result.context_evidence = context_packet.evidence
         self._state_store.save(result)

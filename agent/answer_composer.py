@@ -14,6 +14,8 @@ class AnswerComposer:
         has_buildability = _first_result(result.steps, "get_zonal_buildability_analysis") is not None
         has_health = _first_result(result.steps, "get_dataset_health_report") is not None
         output_type = result.plan.output.get("type") if result.plan else None
+        if output_type == "spatial_analysis_result":
+            return self._compose_spatial_analysis_result(result.steps)
         if output_type == "spatial_overview_result":
             return self._compose_spatial_overview_result(result.steps)
         if has_elevation and (has_slope or has_land_use or has_buildability):
@@ -122,6 +124,57 @@ class AnswerComposer:
             label = "道路" if dataset == "roads" else "水体" if dataset == "water" else dataset
             parts.append(f"{label}摘要包含 {item.get('count', 0)} 个要素。")
         parts.append("以上是可用数据的事实汇总；缺失或降级数据不代表法定规划结论。")
+        return "".join(parts)
+
+    def _compose_spatial_analysis_result(self, steps: Iterable[StepRun]) -> str:
+        """Summarize a composed run from the results that actually completed."""
+        health = _first_result(steps, "get_dataset_health_report") or {}
+        area = "指定区域"
+        for step in steps:
+            if step.result and step.result.get("admin_name"):
+                area = step.result["admin_name"]
+                break
+        labels = {
+            "get_zonal_raster_statistics": "高程",
+            "get_zonal_slope_statistics": "坡度",
+            "get_zonal_land_use_distribution": "土地利用",
+            "get_zonal_buildability_analysis": "建设候选",
+            "get_zonal_constrained_buildability_analysis": "道路/水体约束建设候选",
+            "get_zonal_vector_summary": "道路或水体",
+        }
+        completed = [step for step in steps if step.status == "COMPLETED"]
+        failed = [step for step in steps if step.status == "FAILED"]
+        blocked = [step for step in steps if step.status == "BLOCKED"]
+        parts = [f"{area}组合式空间分析已完成 {len(completed)} 个工具步骤。"]
+        if failed:
+            failures = "、".join(
+                f"{step.tool}：{step.error or '执行失败'}" for step in failed[:4]
+            )
+            parts.append(f"{len(failed)} 个步骤失败（{failures}）。")
+        if blocked:
+            parts.append(f"{len(blocked)} 个后续步骤因依赖失败而未执行。")
+        if health:
+            parts.append(f"数据健康状态：{health.get('status', '未知')}。")
+        for step in completed:
+            label = labels.get(step.tool)
+            if not label or not step.result:
+                continue
+            if step.tool == "get_zonal_vector_summary":
+                summary = step.result.get("summary") or {}
+                parts.append(f"{step.result.get('dataset', label)}摘要返回 {summary.get('matched_features', step.result.get('count', 0))} 个要素。")
+            elif step.tool in {"get_zonal_raster_statistics", "get_zonal_slope_statistics", "get_zonal_land_use_distribution"}:
+                stats = step.result.get("statistics") or {}
+                if stats.get("error"):
+                    parts.append(f"{label}：{stats['error']}。")
+                else:
+                    parts.append(f"{label}返回 {stats.get('valid_pixel_count', 0)} 个有效像元统计。")
+            elif step.tool == "get_zonal_constrained_buildability_analysis":
+                summary = step.result.get("constraint_summary") or {}
+                parts.append(f"{label}满足道路约束 {summary.get('eligible_features', 0)} 个样本，水体排除 {summary.get('water_excluded_features', 0)} 个。")
+            else:
+                stats = step.result.get("statistics") or {}
+                parts.append(f"{label}返回 {stats.get('candidate_pixel_count', 0)} 个候选像元。")
+        parts.append("以上为按请求组合的事实汇总；建设候选仅为演示筛选，不代表法定规划结论。")
         return "".join(parts)
 
     def _compose_slope_result(self, steps: Iterable[StepRun]) -> str:

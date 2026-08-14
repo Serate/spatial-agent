@@ -157,7 +157,6 @@ class AgentService:
         backend = kwargs.get("backend", "memory")
         kwargs = dict(kwargs)
         kwargs["workflow"] = _normalize_workflow_payload(kwargs.get("workflow"))
-        self._runtime(planner, backend)
         run_id = kwargs.get("run_id")
         if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
             raise ValueError("run_id must be a non-empty string")

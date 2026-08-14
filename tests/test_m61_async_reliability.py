@@ -10,12 +10,12 @@ from agent.service import AgentService
 from agent.sqlite_store import SQLiteStateStore
 
 
-def _wait_for_terminal(service, run_id, timeout=3.0):
+def _wait_for_terminal(service, run_id, planner="rule", backend="memory", timeout=3.0):
     deadline = time.monotonic() + timeout
     snapshot = None
     while time.monotonic() < deadline:
         try:
-            snapshot = service.get_run(run_id)
+            snapshot = service.get_run(run_id, planner=planner, backend=backend)
         except ValueError:
             pass
         if snapshot and snapshot["status"] not in {"PLANNING", "EXECUTING"}:
@@ -36,6 +36,30 @@ def _wait_for_job_terminal(service, run_id, timeout=3.0):
 
 
 class M61AsyncReliabilityTests(unittest.TestCase):
+    def test_submission_returns_before_slow_runtime_initialization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = AgentService(state_db_path=str(Path(directory) / "state.db"))
+            original_runtime = service._runtime
+
+            def delayed_runtime(planner, backend):
+                if backend == "local":
+                    time.sleep(0.4)
+                return original_runtime(planner, backend)
+
+            with patch.object(service, "_runtime", side_effect=delayed_runtime):
+                started = time.monotonic()
+                queued = service.run_async(
+                    request="查询洪山区行政区边界",
+                    session_id="slow-runtime-submit",
+                    planner="rule",
+                    backend="local",
+                )
+                elapsed = time.monotonic() - started
+                self.assertLess(elapsed, 0.2)
+
+            result = _wait_for_terminal(service, queued["run_id"], backend="local")
+            self.assertNotIn(result["status"], {"PLANNING", "EXECUTING"})
+
     def test_concurrent_duplicate_submissions_share_one_run_id(self):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(state_db_path=str(Path(directory) / "state.db"))
