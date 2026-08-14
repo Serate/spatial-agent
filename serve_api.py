@@ -4,6 +4,17 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+from agent.api_contract import (
+    async_run_kwargs,
+    cancel_kwargs,
+    comparison_kwargs,
+    error_body,
+    error_status,
+    region_comparison_kwargs,
+    retry_kwargs,
+    run_kwargs,
+    workflow_action_result,
+)
 from agent.environment_status import environment_status
 from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
@@ -11,10 +22,6 @@ from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
     WorkflowTemplateError,
-    get_workflow_template,
-    normalize_workflow_constraints,
-    normalize_workflow_evidence,
-    revise_workflow_plan,
     workflow_template_catalog,
 )
 
@@ -132,70 +139,18 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json()
             if workflow_action is not None:
-                template = get_workflow_template(workflow_template_id)
-                if workflow_action == "validate":
-                    constraints = normalize_workflow_constraints(template, payload.get("constraints", {}))
-                    evidence = normalize_workflow_evidence(template, payload.get("evidence"))
-                    plan = payload.get("plan")
-                    if plan is not None:
-                        from agent.workflow_templates import validate_workflow_plan
-                        plan = validate_workflow_plan(template, plan)
-                    result = {
-                        "valid": True,
-                        "template": template,
-                        "constraints": constraints,
-                        "evidence": evidence,
-                    }
-                    if plan is not None:
-                        result["plan"] = plan
-                else:
-                    plan = payload.get("plan")
-                    if not isinstance(plan, dict):
-                        raise WorkflowTemplateError("revise requires a plan object")
-                    result = {
-                        "valid": True,
-                        "template": template,
-                        "plan": revise_workflow_plan(
-                            template,
-                            plan,
-                            constraints=payload.get("constraints"),
-                            evidence=payload.get("evidence"),
-                        ),
-                    }
+                result = workflow_action_result(workflow_template_id, workflow_action, payload)
             elif is_async_run:
-                result = self.service.run_async(
-                    request=payload.get("request", ""),
-                    session_id=payload.get("session_id", "default"),
-                    planner=payload.get("planner", "rule"),
-                    backend=payload.get("backend", "memory"),
-                    export_artifact=bool(payload.get("export_artifact", False)),
-                    export_geojson=bool(payload.get("export_geojson", False)),
-                    geojson_max_features=payload.get("geojson_max_features", 100),
-                    timeout_seconds=payload.get("timeout_seconds"),
-                    spatial_context=payload.get("spatial_context"),
-                    workflow=payload.get("workflow"),
-                    idempotency_key=payload.get("idempotency_key"),
-                )
+                result = self.service.run_async(**async_run_kwargs(payload))
             elif is_session_create:
                 result = self.service.create_session()
             elif is_session_clear:
                 session_id = parsed.path[len("/sessions/") : -len("/clear")].strip("/")
                 result = self.service.clear_session(session_id)
             elif is_comparison:
-                result = self.service.compare_buildability(
-                    admin_name=payload.get("admin_name", ""),
-                    thresholds=payload.get("thresholds", []),
-                    planner=payload.get("planner", "rule"),
-                    backend=payload.get("backend", "local"),
-                    spatial_context=payload.get("spatial_context"),
-                )
+                result = self.service.compare_buildability(**comparison_kwargs(payload))
             elif is_region_comparison:
-                result = self.service.compare_buildability_regions(
-                    admin_names=payload.get("admin_names", []),
-                    threshold=payload.get("threshold", 20),
-                    planner=payload.get("planner", "rule"),
-                    backend=payload.get("backend", "local"),
-                )
+                result = self.service.compare_buildability_regions(**region_comparison_kwargs(payload))
             elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")
                 expected_action = "retry" if is_retry else "cancel"
@@ -203,38 +158,16 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     self._write_json(404, {"error": "not found"})
                     return
                 if is_cancel:
-                    result = self.service.cancel(
-                        run_id=parts[1],
-                        planner=payload.get("planner", "rule"),
-                        backend=payload.get("backend", "memory"),
-                    )
+                    result = self.service.cancel(run_id=parts[1], **cancel_kwargs(payload))
                 else:
-                    result = self.service.retry(
-                        run_id=parts[1],
-                        planner=payload.get("planner", "rule"),
-                        backend=payload.get("backend", "memory"),
-                        export_artifact=bool(payload.get("export_artifact", False)),
-                        export_geojson=bool(payload.get("export_geojson", False)),
-                        geojson_max_features=payload.get("geojson_max_features", 100),
-                    )
+                    result = self.service.retry(run_id=parts[1], **retry_kwargs(payload))
             else:
-                result = self.service.run(
-                    request=payload.get("request", ""),
-                    session_id=payload.get("session_id", "default"),
-                    planner=payload.get("planner", "rule"),
-                    backend=payload.get("backend", "memory"),
-                    export_artifact=bool(payload.get("export_artifact", False)),
-                    export_geojson=bool(payload.get("export_geojson", False)),
-                    geojson_max_features=payload.get("geojson_max_features", 100),
-                    timeout_seconds=payload.get("timeout_seconds"),
-                    spatial_context=payload.get("spatial_context"),
-                    workflow=payload.get("workflow"),
-                )
+                result = self.service.run(**run_kwargs(payload))
         except (ValueError, WorkflowTemplateError) as exc:
-            self._write_json(400, {"error": str(exc)})
+            self._write_json(error_status(exc), error_body(exc))
             return
         except Exception as exc:
-            self._write_json(500, {"error": str(exc)})
+            self._write_json(error_status(exc), error_body(exc))
             return
         self._write_json(200, result)
 

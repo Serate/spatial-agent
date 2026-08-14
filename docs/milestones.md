@@ -575,7 +575,15 @@ M77 不拆分并行任务，按依赖顺序单线程执行；上下文/result en
 - 新增 `tests/test_m78_service_split.py` 契约测试：agent 包不导入 run_demo、门面委托到聚焦模块、runtime_factory 共享、公开方法齐全。
 - M78.2 验证：离线全量 426 项（42 跳过）、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4 通过。
 
-### M78.3：双 HTTP 入口统一（进行中）
+### M78.3：双 HTTP 入口统一（已完成）
 
-- 目标：`serve_api.py`（标准库）与 `production_api.py`（FastAPI）的端点参数映射、异常映射大量重复且错误码不一致（如 create_session 503 vs 400），收敛为共享的请求处理层。
-- 验收：两个入口行为一致（同一错误输入返回相同状态码与错误结构）；离线测试、Smoke、全局评测、console 浏览器 smoke 全部通过。
+- 新增 `agent/api_contract.py` 共享请求处理层：`run_kwargs`/`async_run_kwargs`/`retry_kwargs`/`cancel_kwargs`/`comparison_kwargs`/`region_comparison_kwargs` 统一 payload 归一化，`workflow_action_result` 统一 workflow validate/revise（原两份实现完全重复），`error_status`/`error_body` 统一异常→状态码映射。
+- `serve_api.py` 与 `production_api.py` 的 POST 路径全部委托共享层；错误码收敛（create_session 统一 503，get_run/observability 统一 404，其余 ValueError 400，未知异常 500）。
+- 保留 production 特有的 `/health/ready` GIS/manifest 门控与 artifact 安全路由；默认环境无 FastAPI 时 production 入口测试继续按环境跳过。
+- 新增 `tests/test_m78_http_contract.py`：双入口源码都导入共享层、payload 映射一致、错误码一致、dev POST 路径不硬编码状态码。
+- M78.3 验证：离线全量 430 项（42 跳过）、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4、dev 服务关键端点实测（run/会话/错误输入/workflow）通过。
+
+### M78.4：结构化错误契约（进行中）
+
+- 目标：错误响应从 `{"error": str}` 提升为带 `code`/`category` 的结构化契约；`failure_category`（timeout/provider/planning/tool/execution 等）从观测层进入 HTTP 错误响应与运行结果。
+- 验收：同步、异步、轮询、恢复路径的失败都携带结构化错误；离线测试、Smoke、全局评测、console 浏览器 smoke 全部通过。
