@@ -123,11 +123,14 @@ const compareRunIds = JSON.parse(compareSnapshot || "[]");
 if (compareRunIds.length < 2 || compareRunIds.some(id => !id)) {
   throw new Error(`比较详情入口缺少 run_id：${compareSnapshot}`);
 }
+// 比较按钮本身会为每个阈值创建子运行（M79.2 起子运行持久化进 /runs），
+// 因此 run_count 在比较后会增长。断言的是「点击详情入口不再额外产生运行」。
+const countBeforeDetailClick = await runCount();
 await evaluate(`document.querySelector('#compareResults .compare-detail')?.click()`);
 await sleep(800);
 const countAfterCompare = await runCount();
-if (countAfterCompare !== countCreated) {
-  throw new Error(`打开比较详情不应重新执行模型：run_count ${countCreated} -> ${countAfterCompare}`);
+if (countAfterCompare !== countBeforeDetailClick) {
+  throw new Error(`打开比较详情不应重新执行模型：run_count ${countBeforeDetailClick} -> ${countAfterCompare}`);
 }
 const afterCompareOpen = await evaluate(`JSON.stringify({runId:$('lineageEvidence')?.textContent.match(/运行 ID：([0-9a-zA-Z-]+)/)?.[1]||'',linked:Boolean(document.querySelector('#messages .msg-linked'))})`, true);
 const compared = JSON.parse(afterCompareOpen || "{}");

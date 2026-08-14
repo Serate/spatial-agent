@@ -842,3 +842,43 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 - **测试**：+7 项（reaper 专项）；沿用轻量验证。
 
 **遗留**：`AgentService` 方法体仍通过属性委托访问 `ServiceState`（未全部改为方法调用），属渐进收敛；后续可继续把 read/write 路径收进 `ServiceState` 方法。
+
+## M79.4.3：多区域 × 多阈值比较矩阵（已完成）
+
+### 实现内容
+
+- **`evaluation/live_baseline.py`**：新增 `comparison_matrix` case kind——多区域（3+）× 多阈值（3），对每区域调 `service.compare_buildability(admin_name, thresholds)`（一次覆盖全部阈值），`_matrix_evidence` 聚合 token/延迟并**断言 candidate_ratio 随阈值单调不减**（坡度上限放宽只能增加候选）。
+- **`tests/test_m79_live_baseline.py`**（+3 项）：矩阵证据聚合、非单调失败（error_class=monotonicity）、service 分派。
+
+### 验收证据
+
+- Live baseline 扩至 **6 case 全部通过**（pass_rate 1.0，47,102 tokens，0 错误 0 重试）：
+  - comparison-matrix：洪山 0.0371→0.0402→0.0405 / 江夏 0.0250→0.0263→0.0264 / 武昌 0.0261→0.0299→0.0303，**三个区域均单调**，monotonic=True。
+- 容器内 rule 复验同构数据（thresholds [10,20,30] 三区域单调一致）。
+- 相关测试 51 项通过；浏览器 smoke 5 类全过。
+
+## M79.4.4：前端纯结果类型驱动（已完成）
+
+### 实现内容
+
+- **`web/index.html`**：`resultViewRegistry` 补全全部 16 个 catalog result_types（新增 buildability_result/constrained_buildability_result/buildability_comparison/spatial_analysis_result/zonal_vector_summary_result/vector_result/spatial_relation_result/spatial_result 等显式注册）；`updateResultPanels` 移除「未注册类型按工具推断」兜底（`registeredViews === undefined` 分支、hasRasterTool/hasCompositeTool/hasHealthTool 推断全部删除），改为**纯结果类型驱动**（`views.has(...)` 决定面板）；建设/比较面板由结果类型而非工具决定。
+- **`tests/test_m79_result_zone.py`**：更新面板契约断言（纯结果类型驱动 marker + 移除工具推断 marker）+ 新增「registry 覆盖全部 catalog result_types」测试（防新结果类型漏注册）。
+- **`scripts/console_lineage_smoke.js`**：修正过时断言——比较按钮本身为每阈值创建子运行（M79.2 起子运行持久化进 /runs，run_count 比较后增长是预期），改为断言「点击详情入口不额外产生运行」（记录点击前 count）。
+
+### 验收证据
+
+- 相关测试 51 项通过；浏览器 smoke 5 类全过（health/error badge/session/overview/lineage）。
+- production acceptance 全绿（数据卷 ready、幂等 true）。
+- 前端契约：registry 覆盖全部 catalog 类型；无工具推断兜底残留。
+
+### 复盘（七维矩阵，第 3+4 项）
+
+- **产品能力**：比较矩阵提供跨区域×跨阈值的完整敏感性视图；前端面板完全由结果契约驱动，消除工具推断歧义。
+- **架构**：result_type 成为前端面板的唯一事实源；registry 与 capability catalog 双向校验（测试锁定覆盖）。
+- **数据质量**：矩阵单调性在真实数据与 live 模型下均成立（3 区域 × 3 阈值）。
+- **真实模型**：comparison-matrix live 30,546 tokens，9 次真实 buildability 子运行全部 COMPLETED 且单调。
+- **部署可靠性**：容器重建后 production acceptance 全绿。
+- **前端体验**：面板决策收敛到注册表，新结果类型漏注册会被测试捕获。
+- **测试**：+3 项（矩阵）+1 项（registry 覆盖）；修正 1 个过时 smoke 断言。
+
+**遗留**：比较矩阵断言单调性基于每个区域独立行；若未来加入权重/约束参数（road_distance_m 等），单调性断言需按参数维度重新定义。M79.4 四项全部完成，面试演示闭环收口。

@@ -36,12 +36,35 @@ class M79ResultZoneContractTests(unittest.TestCase):
         for marker in (
             "resultViewRegistry",
             "setResultPanel('.result-panel', false)",
-            "registeredViews === undefined",
-            "hasRun && outputType === 'spatial_overview_result'",
+            "Pure result-type driven panel selection",
+            "registeredViews || []",
+            "views.has('overview')",
+            "views.has('buildability')",
             "setResultPanel('.map-result'",
             "setResultPanel('.generic-result'",
         ):
             self.assertIn(marker, self.html)
+        # Tool inference fallback must be gone: no unregistered-type tool sniffing.
+        self.assertNotIn("registeredViews === undefined", self.html)
+        self.assertNotIn("hasRasterTool) views.add('raster'", self.html)
+
+    def test_result_registry_covers_all_catalog_result_types(self):
+        # Every catalog result_type must have an explicit registry entry so no
+        # result silently falls back to tool inference.
+        import json
+        import sys
+
+        sys.path.insert(0, str(ROOT))
+        from agent.capability_catalog import capability_catalog
+
+        catalog_types = set()
+        for capability in capability_catalog()["capabilities"]:
+            catalog_types.update(capability.get("result_types", []))
+        registry_start = self.html.index("const resultViewRegistry = {")
+        registry_end = self.html.index("};", registry_start)
+        registry_block = self.html[registry_start:registry_end]
+        for result_type in sorted(catalog_types):
+            self.assertIn(result_type + ":", registry_block)
 
     def test_no_misleading_waiting_placeholders_remain(self):
         # Terminal results must not claim they are still "waiting".

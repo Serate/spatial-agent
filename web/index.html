@@ -881,9 +881,16 @@
       zonal_raster_statistics_result: ['raster'],
       dataset_health_result: ['health'],
       terrain_land_use_analysis_result: ['raster', 'composite'],
-      spatial_overview_result: ['health', 'raster', 'composite'],
+      spatial_overview_result: ['health', 'raster', 'composite', 'overview'],
+      spatial_analysis_result: ['raster', 'composite'],
+      buildability_result: ['raster', 'buildability', 'compare'],
+      constrained_buildability_result: ['buildability', 'compare'],
+      buildability_comparison: ['buildability', 'compare'],
+      zonal_vector_summary_result: ['vector'],
+      vector_result: ['vector'],
+      spatial_relation_result: ['vector'],
+      spatial_result: ['vector'],
       admin_area_result: [],
-      geojson: [],
       direct_answer: []
     };
     function resetResultWorkspace() {
@@ -906,9 +913,10 @@
     }
     function updateResultPanels(data) {
       const steps = data.steps || [];
-      const tools = new Set(steps.map(step => step.tool));
       const envelope = data.result || {};
       geometryEvidence(data);
+      // Pure result-type driven panel selection: the registered result type
+      // decides which panels appear; tool presence no longer infers panels.
       const outputType = envelope.type || data.result_type || data.plan?.output?.type || '';
       const registeredViews = resultViewRegistry[outputType];
       const views = new Set(registeredViews || []);
@@ -916,29 +924,21 @@
       $('resultEmpty').style.display = hasRun ? 'none' : 'flex';
       setResultPanel('.common-result', hasRun);
       setResultPanel('.evidence-result', hasRun);
-      const hasToolResult = names => steps.some(step => names.includes(step.tool) && step.result && !step.result.error);
-      const hasRasterTool = ['get_raster_metadata', 'get_raster_statistics', 'get_zonal_raster_statistics'].some(tool => tools.has(tool));
-      const hasCompositeTool = ['get_zonal_slope_statistics', 'get_zonal_land_use_distribution'].some(tool => tools.has(tool));
-      const hasHealthTool = tools.has('get_dataset_health_report');
-      const hasRasterResult = hasToolResult(['get_raster_metadata', 'get_raster_statistics', 'get_zonal_raster_statistics']);
-      const hasCompositeResult = hasToolResult(['get_zonal_slope_statistics', 'get_zonal_land_use_distribution']);
-      const hasHealthResult = hasToolResult(['get_dataset_health_report']);
-      if (registeredViews === undefined) {
-        if (hasRasterTool) views.add('raster');
-        if (hasCompositeTool) views.add('composite');
-      }
-      const hasBuildability = tools.has('get_zonal_buildability_analysis');
-      setResultPanel('.raster-result', hasRun && (hasRasterResult || (outputType !== 'spatial_overview_result' && hasRasterTool)));
-      setResultPanel('.health-result', hasRun && (hasHealthResult || (outputType !== 'spatial_overview_result' && hasHealthTool)));
-      setResultPanel('.overview-result', hasRun && outputType === 'spatial_overview_result');
-      setResultPanel('.composite-result', hasRun && (hasCompositeResult || (outputType !== 'spatial_overview_result' && hasCompositeTool)));
-      setResultPanel('.buildability-result', hasRun && hasBuildability);
-      setResultPanel('.compare-result', hasRun && hasBuildability);
+      const hasRasterResult = steps.some(step => ['get_raster_metadata', 'get_raster_statistics', 'get_zonal_raster_statistics'].includes(step.tool) && step.result && !step.result.error);
+      const hasCompositeResult = steps.some(step => ['get_zonal_slope_statistics', 'get_zonal_land_use_distribution'].includes(step.tool) && step.result && !step.result.error);
+      const hasHealthResult = steps.some(step => step.tool === 'get_dataset_health_report' && step.result && !step.result.error);
+      const hasBuildabilityResult = steps.some(step => step.tool === 'get_zonal_buildability_analysis' && step.result && !step.result.error);
+      setResultPanel('.raster-result', hasRun && (views.has('raster') || hasRasterResult));
+      setResultPanel('.health-result', hasRun && (views.has('health') || hasHealthResult));
+      setResultPanel('.overview-result', hasRun && views.has('overview'));
+      setResultPanel('.composite-result', hasRun && (views.has('composite') || hasCompositeResult));
+      setResultPanel('.buildability-result', hasRun && (views.has('buildability') || hasBuildabilityResult));
+      setResultPanel('.compare-result', hasRun && views.has('compare'));
       const geometry = envelope.geometry || {};
       const hasDrawableGeometry = Boolean(envelope.geometry?.available) && Number(geometry.feature_count || 0) > 0;
-      const hasRasterBounds = hasRasterTool && steps.some(step => step.result && Array.isArray(step.result.bounds));
+      const hasRasterBounds = steps.some(step => step.result && Array.isArray(step.result.bounds));
       setResultPanel('.map-result', hasRun && (hasDrawableGeometry || hasRasterBounds));
-      const knownResult = views.size > 0 || hasBuildability || hasHealthTool || hasRasterTool || hasCompositeTool || outputType === 'direct_answer' || outputType === 'admin_area_result' || outputType === 'geojson';
+      const knownResult = views.size > 0 || outputType === 'direct_answer' || outputType === 'admin_area_result';
       setResultPanel('.generic-result', hasRun && steps.length > 0 && !knownResult);
     }
     function genericResult(data) {

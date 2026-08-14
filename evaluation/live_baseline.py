@@ -55,6 +55,12 @@ DEFAULT_LIVE_CASES = (
         "expected_status": "COMPLETED",
         "kind": "region_comparison",
     },
+    {
+        "id": "live-gis-comparison-matrix",
+        "request": {"admin_names": ["洪山区", "江夏区", "武昌区"], "thresholds": [10, 20, 30]},
+        "expected_status": "COMPLETED",
+        "kind": "comparison_matrix",
+    },
 )
 
 
@@ -134,6 +140,10 @@ def _run_case(
     if kind == "region_comparison":
         return _run_comparison_case(
             service, case, snapshot, backend=backend, attempts_per_case=attempts_per_case
+        )
+    if kind == "comparison_matrix":
+        return _run_comparison_matrix_case(
+            service, case, backend=backend, attempts_per_case=attempts_per_case
         )
     request = str(case.get("request") or "")
     expected_status = str(case.get("expected_status") or "COMPLETED")
@@ -294,6 +304,188 @@ def _comparison_error_class(rows: list) -> str:
     if any(status == "REJECTED" for status in statuses):
         return "policy_rejection"
     return "backend_execution"
+
+
+def _run_comparison_matrix_case(
+    service: Any,
+    case: Mapping[str, Any],
+    *,
+    backend: str,
+    attempts_per_case: int,
+) -> Dict[str, Any]:
+    """Run the opt-in multi-region x multi-threshold comparison matrix.
+
+    Each region runs one ``compare_buildability`` call covering all thresholds,
+    so the evidence can assert that candidate ratio is monotonic non-decreasing
+    with the slope limit (a wider slope allowance can only add candidates).
+    """
+    case_id = str(case.get("id") or "unnamed")
+    expected_status = str(case.get("expected_status") or "COMPLETED")
+    if service is None:
+        return {
+            "case_id": case_id,
+            "kind": "comparison_matrix",
+            "status": "SKIPPED",
+            "status_match": False,
+            "error_class": "service_unavailable",
+            "metrics": sanitize_provider_metrics({}),
+            "actual_tools": [],
+            "failed_steps": [],
+            "result_type": None,
+            "plan_quality": None,
+            "answer_chinese": False,
+            "passed": False,
+            "reason": "comparison_matrix requires service_factory",
+        }
+    request = case.get("request") or {}
+    if not isinstance(request, Mapping):
+        request = {}
+    admin_names = list(request.get("admin_names") or [])
+    thresholds = list(request.get("thresholds") or [])
+    candidates = []
+    for attempt in range(attempts_per_case):
+        try:
+            by_region = {}
+            for admin_name in admin_names:
+                result = service.compare_buildability(
+                    admin_name=admin_name,
+                    thresholds=thresholds,
+                    planner="openai",
+                    backend=backend,
+                )
+                by_region[admin_name] = list(result.get("results") or [])
+        except Exception:
+            candidates.append({
+                "case_id": case_id,
+                "kind": "comparison_matrix",
+                "attempt": attempt + 1,
+                "status": "FAILED",
+                "status_match": False,
+                "error_class": "service_error",
+                "metrics": sanitize_provider_metrics({}),
+                "actual_tools": [],
+                "failed_steps": [],
+                "result_type": None,
+                "plan_quality": None,
+                "answer_chinese": False,
+                "passed": False,
+            })
+            continue
+        evidence = _matrix_evidence(by_region, case, attempt + 1)
+        candidates.append(evidence)
+        if evidence["passed"]:
+            break
+    selected = next((item for item in candidates if item["passed"]), candidates[-1])
+    selected["attempt_count"] = len(candidates)
+    selected["transient_attempts"] = [
+        item["error_class"]
+        for item in candidates
+        if item["error_class"] in {"provider_transient", "network", "timeout", "rate_limited"}
+    ]
+    selected["expected_status"] = expected_status
+    return selected
+
+
+def _matrix_evidence(
+    by_region: Mapping[str, Any],
+    case: Mapping[str, Any],
+    attempt: int,
+) -> Dict[str, Any]:
+    """Build bounded matrix evidence and assert monotonic candidate ratio."""
+    all_rows = []
+    token_total = 0
+    latency_values = []
+    monotonic = True
+    for admin_name, rows in by_region.items():
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            all_rows.append(row)
+            metrics = sanitize_provider_metrics(row.get("planner_metrics") or {})
+            token_total += int(metrics["token_usage"].get("total_tokens") or 0)
+            latency = metrics["latency"].get("latency_ms")
+            if latency is not None:
+                latency_values.append(float(latency))
+        ratios = [
+            float(row.get("candidate_ratio"))
+            for row in rows
+            if isinstance(row, Mapping)
+            and row.get("status") == "COMPLETED"
+            and row.get("candidate_ratio") is not None
+        ]
+        if len(ratios) >= 2 and any(
+            later < earlier for earlier, later in zip(ratios, ratios[1:])
+        ):
+            monotonic = False
+    statuses = [str(row.get("status") or "") for row in all_rows if isinstance(row, Mapping)]
+    passed = bool(all_rows) and all(status == "COMPLETED" for status in statuses) and monotonic
+    metrics = sanitize_provider_metrics({})
+    metrics["token_usage"]["total_tokens"] = token_total
+    metrics["latency"] = {
+        "status": "valid" if latency_values else "missing",
+        "latency_ms": round(sum(latency_values) / len(latency_values), 3) if latency_values else None,
+    }
+    return {
+        "case_id": str(case.get("id") or "unnamed"),
+        "kind": "comparison_matrix",
+        "request": {
+            "admin_names": list(by_region),
+            "thresholds": sorted({
+                float(row.get("slope_limit_degrees"))
+                for rows in by_region.values()
+                for row in rows
+                if isinstance(row, Mapping) and row.get("slope_limit_degrees") is not None
+            }),
+        },
+        "attempt": attempt,
+        "status": "COMPLETED" if passed else "FAILED",
+        "status_match": passed,
+        "error_class": "none" if passed else _matrix_error_class(by_region),
+        "metrics": metrics,
+        "actual_tools": sorted({
+            str(tool)
+            for rows in by_region.values()
+            for row in rows
+            if isinstance(row, Mapping)
+            for tool in (row.get("actual_tools") or [])
+        }),
+        "failed_steps": [
+            {"tool": str(step.get("tool")), "error_class": _step_error_class(step.get("error"))}
+            for rows in by_region.values()
+            for row in rows
+            if isinstance(row, Mapping)
+            for step in (row.get("failed_steps") or [])
+            if isinstance(step, Mapping)
+        ],
+        "result_type": "buildability_comparison",
+        "plan_quality": None,
+        "answer_chinese": False,
+        "monotonic_ratio": monotonic,
+        "regions": {
+            str(name): [
+                {
+                    "slope_limit_degrees": row.get("slope_limit_degrees"),
+                    "status": str(row.get("status")),
+                    "candidate_pixel_count": row.get("candidate_pixel_count"),
+                    "candidate_ratio": row.get("candidate_ratio"),
+                }
+                for row in rows
+                if isinstance(row, Mapping)
+            ]
+            for name, rows in by_region.items()
+        },
+        "passed": passed,
+    }
+
+
+def _matrix_error_class(by_region: Mapping[str, Any]) -> str:
+    for rows in by_region.values():
+        statuses = [str(row.get("status") or "") for row in rows if isinstance(row, Mapping)]
+        if any(status == "NEEDS_CLARIFICATION" for status in statuses):
+            return "clarification"
+        if any(status == "REJECTED" for status in statuses):
+            return "policy_rejection"
+    return "monotonicity" if by_region else "backend_execution"
 
 
 def _result_evidence(

@@ -6,7 +6,9 @@ from agent.request_model import parse_spatial_request
 from evaluation.live_baseline import (
     _capability_tools,
     _comparison_evidence,
+    _matrix_evidence,
     _run_comparison_case,
+    _run_comparison_matrix_case,
     run_live_baseline,
 )
 
@@ -202,6 +204,113 @@ class M79LiveBaselineExtensionTests(unittest.TestCase):
     def test_admin_parsing_keeps_plain_overview(self):
         parsed = parse_spatial_request("分析洪山区空间概况")
         self.assertEqual(parsed.admin_name, "洪山区")
+
+    def test_comparison_matrix_evidence_asserts_monotonic_ratio(self):
+        by_region = {
+            "洪山区": [
+                {
+                    "admin_name": "洪山区",
+                    "slope_limit_degrees": 10,
+                    "status": "COMPLETED",
+                    "candidate_pixel_count": 100,
+                    "candidate_ratio": 0.1,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 10}, "latency_ms": 4, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_buildability_analysis"],
+                    "failed_steps": [],
+                },
+                {
+                    "admin_name": "洪山区",
+                    "slope_limit_degrees": 20,
+                    "status": "COMPLETED",
+                    "candidate_pixel_count": 150,
+                    "candidate_ratio": 0.15,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 11}, "latency_ms": 5, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_buildability_analysis"],
+                    "failed_steps": [],
+                },
+            ],
+            "江夏区": [
+                {
+                    "admin_name": "江夏区",
+                    "slope_limit_degrees": 10,
+                    "status": "COMPLETED",
+                    "candidate_pixel_count": 60,
+                    "candidate_ratio": 0.05,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 9}, "latency_ms": 3, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_buildability_analysis"],
+                    "failed_steps": [],
+                },
+                {
+                    "admin_name": "江夏区",
+                    "slope_limit_degrees": 20,
+                    "status": "COMPLETED",
+                    "candidate_pixel_count": 90,
+                    "candidate_ratio": 0.08,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 12}, "latency_ms": 6, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_buildability_analysis"],
+                    "failed_steps": [],
+                },
+            ],
+        }
+        evidence = _matrix_evidence(by_region, {"id": "matrix"}, 1)
+        self.assertTrue(evidence["passed"])
+        self.assertTrue(evidence["monotonic_ratio"])
+        self.assertEqual(evidence["metrics"]["token_usage"]["total_tokens"], 42)
+        self.assertEqual(len(evidence["regions"]), 2)
+
+    def test_comparison_matrix_evidence_fails_on_non_monotonic(self):
+        by_region = {
+            "洪山区": [
+                {
+                    "admin_name": "洪山区",
+                    "slope_limit_degrees": 10,
+                    "status": "COMPLETED",
+                    "candidate_ratio": 0.2,
+                },
+                {
+                    "admin_name": "洪山区",
+                    "slope_limit_degrees": 20,
+                    "status": "COMPLETED",
+                    "candidate_ratio": 0.1,
+                },
+            ],
+        }
+        evidence = _matrix_evidence(by_region, {"id": "matrix"}, 1)
+        self.assertFalse(evidence["passed"])
+        self.assertFalse(evidence["monotonic_ratio"])
+        self.assertEqual(evidence["error_class"], "monotonicity")
+
+    def test_comparison_matrix_case_via_service(self):
+        class FakeService:
+            def compare_buildability(self, admin_name, thresholds, planner, backend):
+                return {
+                    "admin_name": admin_name,
+                    "thresholds": list(thresholds),
+                    "results": [
+                        {
+                            "admin_name": admin_name,
+                            "slope_limit_degrees": threshold,
+                            "status": "COMPLETED",
+                            "candidate_pixel_count": 100 + int(threshold),
+                            "candidate_ratio": 0.1 + threshold / 1000,
+                            "planner_metrics": {"status": "success", "usage": {"total_tokens": 5}, "latency_ms": 2, "attempts": 1, "retries": 0},
+                            "actual_tools": ["get_zonal_buildability_analysis"],
+                            "failed_steps": [],
+                        }
+                        for threshold in thresholds
+                    ],
+                }
+
+        evidence = _run_comparison_matrix_case(
+            FakeService(),
+            {"id": "matrix", "request": {"admin_names": ["洪山区", "江夏区"], "thresholds": [10, 20]}, "expected_status": "COMPLETED", "kind": "comparison_matrix"},
+            backend="memory",
+            attempts_per_case=2,
+        )
+        self.assertTrue(evidence["passed"])
+        self.assertEqual(evidence["status"], "COMPLETED")
+        self.assertTrue(evidence["monotonic_ratio"])
+        self.assertEqual(len(evidence["regions"]), 2)
 
 
 if __name__ == "__main__":
