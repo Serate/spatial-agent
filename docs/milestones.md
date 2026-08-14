@@ -1208,3 +1208,13 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 - **测试**：+5 项；全量 515 项转绿；CI 命令复验通过。
 
 **遗留**：observability 事件目前只进日志/内存计数，未接外部追踪后端（Jaeger/OTLP）；`GET /observability/health` 无鉴权（demo 项目可接受）。
+
+## CI 修复（M80.3 附随）
+
+GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从 M79.1 起持续失败。根因两类，均已修复并验证：
+
+1. **测试默认 `backend="local"` 依赖本地数据集**：`test_m79_lineage_navigation` 的两个测试（comparison/region 子运行 run_id 契约）用 `AgentService()` 默认 backend="local"，CI 干净环境无 `D:\dataset\agent` → `admin_areas dataset has no files`。修复：显式 `backend="memory"`（测的是 run_id/lineage 契约，与 GIS 无关）。
+2. **`runtime_capability_snapshot` 降级路径契约不完整**：config 存在但数据缺失（CI 是 example 配置指向本地绝对路径）时走降级返回，缺 `data_evidence`/`runtime_evidence`/`updated_at`，导致 `test_m59` 失败。修复：降级路径改用 `runtime_capability_catalog({}, environment=...)` 统一构造（空健康快照，契约字段完整），并补 `updated_at`。
+3. **observability stdout 污染**（M80.3 引入）：emitter 默认写 stdout 污染 smoke_check 纯 JSON 输出 → 改为默认只计数、显式 log 文件或 STDOUT=1 才输出。
+
+**验证**：`SPATIAL_AGENT_DATASET_CONFIG` 指向不存在路径（模拟 CI 无数据）→ 全量 515 项通过；本地有数据环境同样 515 项通过；`python scripts/smoke_check.py` 退出码 0；严格全局评测 8/8。

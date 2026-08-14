@@ -149,7 +149,7 @@ class M79LineageNavigationTests(unittest.TestCase):
     def test_comparison_rows_carry_run_ids_for_navigation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AgentService(artifact_store=ArtifactStore(str(Path(tmpdir) / "runs")))
-            comparison = service.compare_buildability("洪山区", [15, 20])
+            comparison = service.compare_buildability("洪山区", [15, 20], backend="memory")
             rows = comparison["results"]
             self.assertGreaterEqual(len(rows), 2)
             run_ids = [row.get("run_id") for row in rows]
@@ -165,7 +165,7 @@ class M79LineageNavigationTests(unittest.TestCase):
     def test_region_comparison_rows_keep_child_run_ids(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             service = AgentService(artifact_store=ArtifactStore(str(Path(tmpdir) / "runs")))
-            comparison = service.compare_buildability_regions(["洪山区", "江夏区"], threshold=20)
+            comparison = service.compare_buildability_regions(["洪山区", "江夏区"], threshold=20, backend="memory")
             rows = comparison["results"]
             self.assertEqual(len(rows), 2)
             self.assertTrue(all(row.get("run_id") for row in rows))

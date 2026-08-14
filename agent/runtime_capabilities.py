@@ -1,10 +1,11 @@
 """Build an explicit, bounded runtime capability snapshot on demand."""
 
 import os
+import time
 from pathlib import Path
 from typing import Any, Dict, Mapping
 
-from .capability_catalog import capability_catalog, runtime_capability_catalog
+from .capability_catalog import runtime_capability_catalog
 from .data_quality import dataset_health_report
 from .dataset_catalog import DatasetCatalog, controlled_provenance
 from .environment_status import environment_status
@@ -17,24 +18,24 @@ def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
         os.environ.get("SPATIAL_AGENT_DATASET_CONFIG", "config/datasets.local.example.json")
     )
     if not config_path.is_file():
-        return {
-            **capability_catalog(environment=environment),
-            "health_status": "unavailable",
-            "error": "dataset capability config not found",
-            "config_path": str(config_path),
-            "data_provenance": {},
-        }
+        snapshot = runtime_capability_catalog({}, environment=environment)
+        snapshot["health_status"] = "unavailable"
+        snapshot["error"] = "dataset capability config not found"
+        snapshot["config_path"] = str(config_path)
+        snapshot["data_provenance"] = {}
+        snapshot["updated_at"] = _utc_timestamp()
+        return snapshot
     try:
         catalog = DatasetCatalog.from_json(str(config_path))
         health = dataset_health_report(catalog, max_files=max_files)
     except Exception as exc:
-        return {
-            **capability_catalog(environment=environment),
-            "health_status": "unavailable",
-            "error": str(exc)[:240],
-            "config_path": str(config_path),
-            "data_provenance": {},
-        }
+        snapshot = runtime_capability_catalog({}, environment=environment)
+        snapshot["health_status"] = "unavailable"
+        snapshot["error"] = str(exc)[:240]
+        snapshot["config_path"] = str(config_path)
+        snapshot["data_provenance"] = {}
+        snapshot["updated_at"] = _utc_timestamp()
+        return snapshot
     snapshot = runtime_capability_catalog(health, environment=environment)
     data_provenance = {
         str(item.get("dataset")): controlled_provenance(item.get("provenance"))
@@ -56,3 +57,7 @@ def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
         "rasterio": status["dependencies"]["rasterio"],
     }
     return snapshot
+
+
+def _utc_timestamp() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
