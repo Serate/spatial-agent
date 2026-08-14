@@ -68,6 +68,17 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("/region-comparisons", source)
         self.assertIn("compareRegions()", source)
 
+    def test_console_exposes_constrained_distance_comparison(self):
+        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('id="constrainedCompareButton"', source)
+        self.assertIn('id="constrainedRoadDistances"', source)
+        self.assertIn("/constrained-comparisons", source)
+        self.assertIn("compareConstrained()", source)
+        self.assertIn("monotonic_eligible_features", source)
+
     def test_console_uses_async_runs_and_exposes_cancel_control(self):
         source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
             encoding="utf-8"

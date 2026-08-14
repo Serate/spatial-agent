@@ -6,9 +6,11 @@ from agent.request_model import parse_spatial_request
 from evaluation.live_baseline import (
     _capability_tools,
     _comparison_evidence,
+    _constrained_matrix_evidence,
     _matrix_evidence,
     _run_comparison_case,
     _run_comparison_matrix_case,
+    _run_constrained_matrix_case,
     run_live_baseline,
 )
 
@@ -311,6 +313,135 @@ class M79LiveBaselineExtensionTests(unittest.TestCase):
         self.assertEqual(evidence["status"], "COMPLETED")
         self.assertTrue(evidence["monotonic_ratio"])
         self.assertEqual(len(evidence["regions"]), 2)
+
+    def test_constrained_matrix_evidence_asserts_monotonic_eligible(self):
+        by_region = {
+            "洪山区": [
+                {
+                    "admin_name": "洪山区",
+                    "road_distance_m": 200.0,
+                    "status": "COMPLETED",
+                    "candidate_features": 200,
+                    "eligible_features": 100,
+                    "water_excluded_features": 14,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 10}, "latency_ms": 4, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_constrained_buildability_analysis"],
+                    "failed_steps": [],
+                },
+                {
+                    "admin_name": "洪山区",
+                    "road_distance_m": 500.0,
+                    "status": "COMPLETED",
+                    "candidate_features": 200,
+                    "eligible_features": 150,
+                    "water_excluded_features": 14,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 11}, "latency_ms": 5, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_constrained_buildability_analysis"],
+                    "failed_steps": [],
+                },
+            ],
+            "江夏区": [
+                {
+                    "admin_name": "江夏区",
+                    "road_distance_m": 200.0,
+                    "status": "COMPLETED",
+                    "candidate_features": 300,
+                    "eligible_features": 80,
+                    "water_excluded_features": 6,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 9}, "latency_ms": 3, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_constrained_buildability_analysis"],
+                    "failed_steps": [],
+                },
+                {
+                    "admin_name": "江夏区",
+                    "road_distance_m": 500.0,
+                    "status": "COMPLETED",
+                    "candidate_features": 300,
+                    "eligible_features": 90,
+                    "water_excluded_features": 6,
+                    "planner_metrics": {"status": "success", "usage": {"total_tokens": 12}, "latency_ms": 6, "attempts": 1, "retries": 0},
+                    "actual_tools": ["get_zonal_constrained_buildability_analysis"],
+                    "failed_steps": [],
+                },
+            ],
+        }
+        evidence = _constrained_matrix_evidence(by_region, {"id": "constrained-matrix"}, 1)
+        self.assertTrue(evidence["passed"])
+        self.assertTrue(evidence["monotonic_eligible_features"])
+        self.assertEqual(evidence["metrics"]["token_usage"]["total_tokens"], 42)
+        self.assertEqual(len(evidence["regions"]), 2)
+        self.assertEqual(evidence["result_type"], "constrained_buildability_comparison")
+
+    def test_constrained_matrix_evidence_fails_on_non_monotonic(self):
+        by_region = {
+            "洪山区": [
+                {
+                    "admin_name": "洪山区",
+                    "road_distance_m": 200.0,
+                    "status": "COMPLETED",
+                    "eligible_features": 150,
+                },
+                {
+                    "admin_name": "洪山区",
+                    "road_distance_m": 500.0,
+                    "status": "COMPLETED",
+                    "eligible_features": 100,
+                },
+            ],
+        }
+        evidence = _constrained_matrix_evidence(by_region, {"id": "constrained-matrix"}, 1)
+        self.assertFalse(evidence["passed"])
+        self.assertFalse(evidence["monotonic_eligible_features"])
+        self.assertEqual(evidence["error_class"], "monotonicity")
+
+    def test_constrained_matrix_case_via_service(self):
+        class FakeService:
+            def compare_constrained_buildability(self, admin_name, road_distances, slope_limit_degrees, planner, backend):
+                return {
+                    "admin_name": admin_name,
+                    "slope_limit_degrees": slope_limit_degrees,
+                    "road_distances": list(road_distances),
+                    "results": [
+                        {
+                            "admin_name": admin_name,
+                            "road_distance_m": distance,
+                            "status": "COMPLETED",
+                            "candidate_features": 200,
+                            "eligible_features": 100 + int(distance) // 10,
+                            "water_excluded_features": 14,
+                            "planner_metrics": {"status": "success", "usage": {"total_tokens": 5}, "latency_ms": 2, "attempts": 1, "retries": 0},
+                            "actual_tools": ["get_zonal_constrained_buildability_analysis"],
+                            "failed_steps": [],
+                        }
+                        for distance in road_distances
+                    ],
+                }
+
+        evidence = _run_constrained_matrix_case(
+            FakeService(),
+            {"id": "constrained-matrix", "request": {"admin_names": ["洪山区", "江夏区"], "road_distances": [200, 500], "slope_limit_degrees": 15}, "expected_status": "COMPLETED", "kind": "constrained_matrix"},
+            backend="memory",
+            attempts_per_case=2,
+        )
+        self.assertTrue(evidence["passed"])
+        self.assertEqual(evidence["status"], "COMPLETED")
+        self.assertTrue(evidence["monotonic_eligible_features"])
+        self.assertEqual(len(evidence["regions"]), 2)
+
+    def test_constrained_matrix_case_requires_service(self):
+        with patch("evaluation.live_baseline.runtime_capability_snapshot", return_value={
+            "environment": "local", "health_status": "ready", "data_readiness": "ready",
+            "capabilities": [], "data_evidence": {}, "runtime": {},
+        }):
+            report = run_live_baseline(
+                runtime_factory=lambda planner, backend: type("Runtime", (), {"run": lambda self, request, session_id: None})(),
+                service_factory=None,
+                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2},
+                cases=[{"id": "constrained-matrix", "request": {"admin_names": ["洪山区", "江夏区"], "road_distances": [200, 500]}, "expected_status": "COMPLETED", "kind": "constrained_matrix"}],
+            )
+        self.assertFalse(report["passed"])
+        self.assertEqual(report["cases"][0]["status"], "SKIPPED")
+        self.assertEqual(report["cases"][0]["error_class"], "service_unavailable")
 
 
 if __name__ == "__main__":

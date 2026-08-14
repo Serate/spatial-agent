@@ -905,3 +905,90 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 1. **生产容器内真实模型完整复跑**（M79.4 遗留 1，最高优先级）：在 production 容器（完整数据卷 `/data:ro` + 容器配置）内直接执行 `scripts/live_baseline.py`，用真实 deepseek-v4-flash 跑全量 6 case（含 comparison_matrix），产出"生产容器 + 完整数据卷 + 真实模型"三位一体的 live 证据，与宿主机 live baseline 结果对照。容器内已具备条件（openai key/model/wire/base 已注入、live 脚本随镜像 COPY、外网可达）；需在容器内设置 live 门控变量并验证报告落盘。
 2. **约束参数维度比较矩阵**（M79.4 遗留 2）：把比较矩阵从单一坡度阈值维度扩展到约束参数敏感性（road_distance_m 单调性：道路距离放宽 → 满足道路约束候选数单调不减），服务层新增约束比较入口，live baseline 增加约束矩阵 case，前端复用比较面板展示。
 3. **AgentService 方法体收敛**（M79.4 遗留 3，纯架构债）：把 service.py 中仍通过属性委托的读/写路径收进 `ServiceState` 方法；仅在主线功能稳定后作为收尾项执行，不引入行为变化。
+
+## M79.5.1：生产容器内真实模型完整复跑（已完成）
+
+### 实现内容
+
+- 无代码改动：直接在 production 容器（完整数据卷 `/data:ro` + 容器配置）内执行 `scripts/live_baseline.py --allow-network --backend local`，用真实 deepseek-v4-flash 跑全量 6 case；独立 state db（`/tmp/live-baseline-container.db`）避免与生产 uvicorn 争用 SQLite；报告落盘到挂载卷 `outputs/live-baseline-container.json`。
+- 容器内已验证具备 live 前置条件（OPENAI_API_KEY/MODEL/WIRE/BASE 已注入、live 脚本随镜像 COPY、外网可达 api.deepseek.com）。
+
+### 验收证据
+
+- 容器内 6/6 全部通过（47,207 tokens，0 错误 0 重试，pass_rate 1.0）：
+  - 澄清 NEEDS_CLARIFICATION（2,216 tokens）、空间总览 COMPLETED（8 工具全覆盖）、建设筛选 COMPLETED、约束筛选 COMPLETED。
+  - 区域比较：洪山 22,800 / 江夏 58,419 候选像元，与宿主机 live 基线完全一致。
+  - 比较矩阵：洪山 0.0371→0.0402→0.0405、江夏 0.0250→0.0263→0.0264、武昌 0.0261→0.0299→0.0303，三区域全单调。
+- 宿主机 live baseline（47,102 tokens）与容器内（47,207 tokens）证据一致，"生产容器 + 完整数据卷 + 真实模型"三位一体成立。
+
+### 复盘（七维矩阵，第 1 项）
+
+- **产品能力**：面试演示可在生产容器上直接演示真实模型全链路（含比较矩阵）。
+- **架构**：live baseline 复用统一 runtime 边界，容器内与宿主机同一套代码路径。
+- **数据质量**：容器完整数据卷（analysis-ready + roads/water）下结果与宿主机一致。
+- **真实模型**：容器内真实模型 6/6；比较矩阵单调性与宿主机一致。
+- **部署可靠性**：容器内网络/密钥注入/报告挂载全部验证；独立 state db 避免与生产争用。
+- **前端体验**：无前端改动。
+- **测试**：沿用轻量验证；容器内报告为本次新增证据（仓库外挂载卷）。
+
+## M79.5.2：约束参数维度比较矩阵（已完成）
+
+### 实现内容
+
+- **`agent/scenario.py`**：新增 `ConstrainedBuildabilityComparisonScenario`（admin_name + slope_limit_degrees + road_distances 1-6 个非负值，自动排序去重）。
+- **`agent/service.py`**：新增 `compare_constrained_buildability(admin_name, road_distances, slope_limit_degrees, planner, backend, spatial_context)`——对同一区域遍历 road_distance_m 跑约束筛选，提取 `constraint_summary.eligible_features`，输出 `monotonic_eligible_features`（道路距离放宽 → 满足道路约束候选数单调不减，这是几何必然：距离放宽只增不减候选，水体排除与距离无关）。
+- **`evaluation/live_baseline.py`**：新增 `constrained_matrix` case kind（多区域 × 多 road_distance），`_run_constrained_matrix_case` + `_constrained_matrix_evidence` 聚合 token/延迟并断言 eligible_features 单调不减。
+- **HTTP**：`agent/api_contract.py` 新增 `constrained_comparison_kwargs`；`serve_api.py` 与 `production_api.py` 新增 `POST /constrained-comparisons` 路由。
+- **前端**：比较面板新增「道路距离对比」控件组（`constrainedCompareButton`），渲染道路距离/候选几何样本/满足道路约束/水体排除表格 + 单调性徽标，复用 `comparisonDetailCell` 详情导航。
+- **`scripts/console_constrained_smoke.js`（新增）**：CDP 浏览器 smoke——真实点击「道路距离对比」断言 3 行表格 + 单调徽标 ok。
+- **测试**：`test_m57_scenario.py` +4（场景归一化/非法输入/服务层场景）；`test_m79_live_baseline.py` +4（矩阵证据单调、非单调失败、case via service、requires service）；`test_m45_console_browser.py` +1（约束控件契约）。
+
+### 验收证据
+
+- 相关测试 92 项通过（含 M79 全套 + scenario + console 契约 + HTTP 契约 + service split + lineage）。
+- 容器重建后 healthy；rule planner 约束矩阵：洪山 200m→125、500m→161、1000m→180，`monotonic_eligible_features=True`，water_excluded 恒定 14。
+- 容器内真实模型 constrained_matrix live：洪山 125→161→180、江夏 166→189→189，6 个子运行全 COMPLETED，单调 True，21,415 tokens。
+- 浏览器 smoke：`constrained smoke PASS: rows=3 monotonicBadge=true`。
+
+### 复盘（七维矩阵，第 2 项）
+
+- **产品能力**：约束敏感性分析成为可演示能力——道路距离参数变化下候选数如何单调变化。
+- **架构**：约束比较走统一 scenario 校验 + service 方法 + 双入口路由 + 前端复用比较面板，无新状态面。
+- **数据质量**：eligible/water_excluded 来自真实 roads/water 数据卷；单调性在 rule 与 live 下均成立。
+- **真实模型**：constrained_matrix live 6/6 子运行 COMPLETED 且单调，与 rule 证据一致。
+- **部署可靠性**：`POST /constrained-comparisons` 在 dev 与 production 双入口契约一致。
+- **前端体验**：复用比较面板布局，新增单调性徽标与道路距离维度列。
+- **测试**：+9 项离线 + 1 浏览器 smoke；沿用轻量验证。
+
+**遗留**：约束矩阵目前固定 exclude_water=True；若未来把水体排除作为可切换参数，单调性断言需按参数组合重新定义（与坡度矩阵同样的维度扩展空间）。
+
+## M79.5.3：AgentService 方法体收敛（已完成）
+
+### 实现内容
+
+- **`agent/service_state.py`**：新增 9 个薄方法把 SQLite 读写路径收进 `ServiceState`——`save_run`/`get_run`/`create_async_job`/`claim_async_job`（含 recover 分支）/`finish_async_job`/`ensure_run_snapshot`/`list_runs`（含 session 过滤）/`store_metrics`；复用既有 `recover_async_jobs`/`async_job`/`clear_session_runs`。
+- **`agent/service.py`**：`self._state_store.xxx` 散落调用全部改为 `self._state.xxx`（25 处），`if self._state_store is not None` 分支统一改为 `self._state.persistent`；保留 `_state_store` property 作为兼容访问器（测试与 `_async_status` 仍引用）与 `_async_status(self._state_store, ...)`（persistent 分支内语义不变）。
+
+### 验收证据
+
+- 相关测试 58 项通过（reaper 7 + async reliability + observability + session lifecycle + memory sessions + async config + integration + sqlite matrix + production reliability + service split + API）。
+- 全量相关 92 项通过；行为零变化（纯方法调用迁移）。
+
+### 复盘（七维矩阵，第 3 项）
+
+- **产品能力**：无用户可见变化（纯内部重构）。
+- **架构**：facade 不再直接触碰 SQLite store，所有持久化读写路径集中在 `ServiceState`；`persistent` 成为唯一模式判断，M78 架构债完全闭合。
+- **数据质量/真实模型/部署/前端**：无影响（行为不变，相关测试证明）。
+- **测试**：沿用轻量验证（58 项收敛面相关测试）。
+
+## M79.5 全局复盘（七维矩阵）
+
+- **产品能力**：生产容器可直接演示真实模型全链路（含比较矩阵与约束敏感性）；约束矩阵新增道路距离维度，面试演示覆盖"坡度阈值 × 区域 × 约束参数"三层敏感性。
+- **架构**：约束比较走统一 scenario + service + 双入口路由 + 前端复用面板；ServiceState 收敛全部持久化读写路径，facade 只剩 `persistent` 模式判断。
+- **数据质量**：约束单调性在真实 roads/water 数据卷与真实模型下均成立（洪山 125→161→180、江夏 166→189→189）。
+- **真实模型**：容器内 6/6 全量复跑 + constrained_matrix 6/6 子运行全单调，与宿主机/rule 证据一致。
+- **部署可靠性**：容器重建后 healthy；`/constrained-comparisons` 双入口契约一致；live 独立 state db 不争用生产 SQLite。
+- **前端体验**：约束对比面板 + 单调性徽标；浏览器 smoke 通过。
+- **测试**：+10 项离线（scenario 4 + live baseline 4 + console 1 + 服务层收敛验证）+ 1 浏览器 smoke；相关 92 项通过，沿用轻量验证。
+
+**遗留**：约束矩阵 exclude_water 固定为 True（参数组合扩展留待后续）；M79.4 遗留 3 项（容器内真实模型复跑、约束参数维度、ServiceState 方法体收敛）全部闭合。

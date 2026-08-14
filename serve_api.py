@@ -8,6 +8,7 @@ from agent.api_contract import (
     async_run_kwargs,
     cancel_kwargs,
     comparison_kwargs,
+    constrained_comparison_kwargs,
     error_response,
     error_status,
     region_comparison_kwargs,
@@ -126,6 +127,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_async_run = parsed.path == "/runs/async"
         is_comparison = parsed.path == "/comparisons"
         is_region_comparison = parsed.path == "/region-comparisons"
+        is_constrained_comparison = parsed.path == "/constrained-comparisons"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
         workflow_action = None
@@ -134,7 +136,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_session_create and not is_session_clear and workflow_action is None:
+        if parsed.path != "/runs" and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_session_create and not is_session_clear and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
@@ -152,6 +154,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 result = self.service.compare_buildability(**comparison_kwargs(payload))
             elif is_region_comparison:
                 result = self.service.compare_buildability_regions(**region_comparison_kwargs(payload))
+            elif is_constrained_comparison:
+                result = self.service.compare_constrained_buildability(**constrained_comparison_kwargs(payload))
             elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")
                 expected_action = "retry" if is_retry else "cancel"

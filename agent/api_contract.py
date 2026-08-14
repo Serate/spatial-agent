@@ -81,6 +81,17 @@ def region_comparison_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def constrained_comparison_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "admin_name": payload.get("admin_name", ""),
+        "road_distances": payload.get("road_distances", []),
+        "slope_limit_degrees": payload.get("slope_limit_degrees", 15.0),
+        "planner": payload.get("planner", "rule"),
+        "backend": payload.get("backend", "local"),
+        "spatial_context": payload.get("spatial_context"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Workflow validate/revise: one implementation for both entry points.
 # ---------------------------------------------------------------------------

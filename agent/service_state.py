@@ -290,6 +290,67 @@ class ServiceState:
         return self._state_store.list_recoverable_async_jobs(owner_pid)
 
     # ------------------------------------------------------------------ #
+    # Run snapshots and async job persistence (SQLite mode)
+    # ------------------------------------------------------------------ #
+    # These thin methods keep the persistent-store read/write paths inside
+    # ServiceState so the facade never branches on ``_state_store is None``
+    # itself. Memory-mode behavior is unchanged: callers decide fallbacks.
+
+    def save_run(self, result: Any) -> None:
+        if self._state_store is not None:
+            self._state_store.save(result)
+
+    def get_run(self, run_id: str) -> Optional[Any]:
+        if self._state_store is None:
+            return None
+        return self._state_store.get(run_id)
+
+    def create_async_job(self, idempotency_key: str, run_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        if self._state_store is None:
+            return {"created": False}
+        return self._state_store.create_async_job(idempotency_key, run_id, payload)
+
+    def claim_async_job(
+        self,
+        run_id: str,
+        owner_pid: int,
+        recover: bool = False,
+        previous_owner_pid: Optional[int] = None,
+    ) -> bool:
+        if self._state_store is None:
+            return False
+        if recover:
+            return self._state_store.claim_async_job(
+                run_id,
+                owner_pid,
+                recover=True,
+                previous_owner_pid=previous_owner_pid,
+            )
+        return self._state_store.claim_async_job(run_id, owner_pid)
+
+    def finish_async_job(
+        self, run_id: str, status: str, owner_pid: int, failure_category: str = None
+    ) -> None:
+        if self._state_store is not None:
+            self._state_store.finish_async_job(run_id, status, owner_pid, failure_category)
+
+    def ensure_run_snapshot(self, result: Any) -> None:
+        if self._state_store is not None:
+            self._state_store.ensure_run_snapshot(result)
+
+    def list_runs(self, limit: int = 20, session_id: str = None) -> list:
+        if self._state_store is None:
+            return []
+        if session_id is None:
+            return self._state_store.list_runs(limit=limit)
+        return self._state_store.list_runs(limit=limit, session_id=session_id)
+
+    def store_metrics(self) -> Optional[Dict[str, Any]]:
+        if self._state_store is None:
+            return None
+        return self._state_store.metrics()
+
+    # ------------------------------------------------------------------ #
     # Wall-clock timeout + reaper
     # ------------------------------------------------------------------ #
 

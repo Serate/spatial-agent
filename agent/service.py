@@ -9,7 +9,7 @@ from agent.artifact_store import ArtifactStore
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime
-from agent.scenario import BuildabilityComparisonScenario
+from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
@@ -143,8 +143,8 @@ class AgentService:
             raise ValueError("run_id must be a non-empty string")
         if run_id is not None and not _force_run_id:
             existing = (
-                self._state_store.get(run_id)
-                if self._state_store is not None
+                self._state.get_run(run_id)
+                if self._state.persistent
                 else self._runtime(planner, backend).get_run(run_id)
             )
             if existing is not None:
@@ -206,8 +206,8 @@ class AgentService:
             # references (geojson_ref, result_type, session_id) that lineage
             # navigation needs after the in-memory store is gone.
             self._artifact_store.write_run(payload)
-        if self._state_store is not None:
-            self._state_store.save(result)
+        if self._state.persistent:
+            self._state.save_run(result)
         self._attach_async_observability(payload, payload.get("run_id"))
         # Mark the durable job terminal only after every final snapshot read
         # is complete. Pollers use this marker as the worker quiescence boundary.
@@ -244,12 +244,12 @@ class AgentService:
 
         early = None  # (run_id, status, reused) built under the lock, responded after it.
         with self._async_lock:
-            if self._state_store is not None:
-                existing_result = self._state_store.get(run_id)
-                if existing_result is not None and not self._state_store.get_async_job(run_id):
+            if self._state.persistent:
+                existing_result = self._state.get_run(run_id)
+                if existing_result is not None and not self._state.async_job(run_id):
                     early = (run_id, existing_result.status.value, True)
                 else:
-                    job = self._state_store.create_async_job(
+                    job = self._state.create_async_job(
                         idempotency_key, run_id, job_payload
                     )
                     created = bool(job.pop("created", False))
@@ -257,7 +257,7 @@ class AgentService:
                         self._ensure_async_run_snapshot(job)
                         early = (job["run_id"], _async_status(self._state_store, job), True)
                     else:
-                        self._state_store.save(
+                        self._state.save_run(
                             AgentRunResult(
                                 run_id=run_id,
                                 status=RunStatus.PLANNING,
@@ -266,7 +266,7 @@ class AgentService:
                                 workflow=job_payload.get("workflow"),
                             )
                         )
-                        if not self._state_store.claim_async_job(run_id, os.getpid()):
+                        if not self._state.claim_async_job(run_id, os.getpid()):
                             # Another worker may claim the just-created job between the
                             # INSERT and this claim. The caller is still the first
                             # accepted submission, so preserve idempotent=false.
@@ -317,8 +317,8 @@ class AgentService:
         except Exception as exc:
             status = "FAILED"
             failure_category = _failure_category(status, str(exc), source="worker")
-            if self._state_store is not None:
-                result = self._state_store.get(run_id)
+            if self._state.persistent:
+                result = self._state.get_run(run_id)
                 if result is None:
                     result = AgentRunResult(
                         run_id=run_id,
@@ -330,34 +330,34 @@ class AgentService:
                 elif result.status in {RunStatus.CREATED, RunStatus.PLANNING, RunStatus.EXECUTING}:
                     result.status = RunStatus.FAILED
                     result.error = str(exc)
-                self._state_store.save(result)
-        if self._state_store is not None and not completed:
-            self._state_store.finish_async_job(run_id, status, os.getpid(), failure_category)
-        elif self._state_store is None:
+                self._state.save_run(result)
+        if self._state.persistent and not completed:
+            self._state.finish_async_job(run_id, status, os.getpid(), failure_category)
+        elif not self._state.persistent:
             self._finish_memory_async_job(run_id, status, failure_category)
 
     def _finalize_async_job(self, payload: Dict[str, Any]) -> None:
         run_id = payload.get("run_id")
         status = str(payload.get("status") or "FAILED")
         failure_category = _failure_category(status, payload.get("error"))
-        if self._state_store is None:
+        if not self._state.persistent:
             self._finish_memory_async_job(run_id, status, failure_category)
             return
-        job = self._state_store.get_async_job(run_id)
+        job = self._state.async_job(run_id)
         if job and job.get("owner_pid") == os.getpid():
-            self._state_store.finish_async_job(
+            self._state.finish_async_job(
                 run_id, status, os.getpid(), failure_category
             )
 
     def _recover_async_jobs(self) -> None:
-        if self._state_store is None:
+        if not self._state.persistent:
             return
-        for job in self._state_store.list_recoverable_async_jobs(os.getpid()):
+        for job in self._state.recover_async_jobs(os.getpid()):
             run_id = job["run_id"]
             owner_pid = job.get("owner_pid")
             if owner_pid and owner_pid != os.getpid() and _process_is_alive(owner_pid):
                 continue
-            if not self._state_store.claim_async_job(
+            if not self._state.claim_async_job(
                 run_id,
                 os.getpid(),
                 recover=True,
@@ -368,12 +368,12 @@ class AgentService:
 
     def _ensure_async_run_snapshot(self, job: Dict[str, Any]) -> None:
         """Close the idempotent-submit window before a caller starts polling."""
-        if self._state_store is None or not isinstance(job, dict):
+        if not self._state.persistent or not isinstance(job, dict):
             return
         if str(job.get("status") or "") not in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}:
             return
         payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
-        self._state_store.ensure_run_snapshot(
+        self._state.ensure_run_snapshot(
             AgentRunResult(
                 run_id=str(job.get("run_id") or ""),
                 status=RunStatus.PLANNING,
@@ -385,7 +385,7 @@ class AgentService:
 
     def _mark_async_started(self, run_id: str) -> None:
         """SQLite claims record the start atomically; memory mode needs the same data."""
-        if self._state_store is not None:
+        if self._state.persistent:
             return
         now = time.time()
         with self._async_lock:
@@ -420,7 +420,7 @@ class AgentService:
         """Return a bounded lifecycle summary with no request or error text."""
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
-        job = self._state_store.get_async_job(run_id) if self._state_store else None
+        job = self._state.async_job(run_id) if self._state.persistent else None
         if job is None:
             with self._async_lock:
                 job = next(
@@ -429,7 +429,7 @@ class AgentService:
                 )
         if job is None:
             raise ValueError("async run not found: " + run_id)
-        result = self._state_store.get(run_id) if self._state_store else self._memory_run(run_id)
+        result = self._state.get_run(run_id) if self._state.persistent else self._memory_run(run_id)
         lineage = None
         if result is not None:
             result_payload = result.to_dict()
@@ -523,15 +523,15 @@ class AgentService:
             # references (geojson_ref, result_type, session_id) that lineage
             # navigation needs after the in-memory store is gone.
             self._artifact_store.write_run(payload)
-        if self._state_store is not None:
-            self._state_store.save(result)
+        if self._state.persistent:
+            self._state.save_run(result)
         return payload
 
     def cancel(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
         result = self._runtime(planner, backend).cancel(run_id)
-        if self._state_store is None:
+        if not self._state.persistent:
             self._mark_memory_cancel_requested(run_id)
         return {
             "run_id": run_id,
@@ -549,13 +549,13 @@ class AgentService:
         # still owns the SQLite file.
         for _ in range(1000):
             result = (
-                self._state_store.get(run_id)
-                if self._state_store is not None
+                self._state.get_run(run_id)
+                if self._state.persistent
                 else self._runtime(planner, backend).get_run(run_id)
             )
-            if result is None or self._state_store is None:
+            if result is None or not self._state.persistent:
                 break
-            job = self._state_store.get_async_job(run_id)
+            job = self._state.async_job(run_id)
             if (
                 result.status in _TERMINAL_RUN_STATUSES
                 and job is not None
@@ -564,13 +564,13 @@ class AgentService:
                 time.sleep(0.005)
                 continue
             break
-        if result is None and self._state_store is None:
+        if result is None and not self._state.persistent:
             # Lineage navigation is backend-agnostic: a run created under a
             # different planner/backend (e.g. a comparison child run) is still
             # found by scanning every live runtime before falling back to the
             # durable artifact.
             result = self._memory_run(run_id)
-        if result is None and self._state_store is None:
+        if result is None and not self._state.persistent:
             # Durable lineage navigation: after a process restart the in-memory
             # run store is gone, but the exported artifact survives on disk.
             # Serve a degraded detail (answer/trace/provenance/context) from the
@@ -604,8 +604,8 @@ class AgentService:
         return payload
 
     def list_runs(self, limit: int = 20) -> Dict:
-        if self._state_store is not None:
-            records = self._state_store.list_runs(limit=limit)
+        if self._state.persistent:
+            records = self._state.list_runs(limit=limit)
         else:
             records = self._artifact_store.list_runs(limit=limit)
         return {"runs": _attach_history_lineage(records)}
@@ -613,14 +613,14 @@ class AgentService:
     def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
-        if self._state_store is None:
+        if not self._state.persistent:
             records = []
             for runtime in self._runtimes.values():
                 records.extend(runtime._state_store.list_runs(limit=limit, session_id=session_id))
             records = _dedupe_run_records(records)
             return {"runs": _attach_history_lineage(records[:limit])}
         return {"runs": _attach_history_lineage(
-            self._state_store.list_runs(limit=limit, session_id=session_id)
+            self._state.list_runs(limit=limit, session_id=session_id)
         )}
 
     def list_sessions(self, limit: int = 50) -> Dict:
@@ -646,7 +646,7 @@ class AgentService:
 
     def clear_session(self, session_id: str) -> Dict:
         _validate_session_id(session_id)
-        cleared_runs = self._state_store.clear_session_runs(session_id) if self._state_store else 0
+        cleared_runs = self._state.clear_session_runs(session_id)
         if self._conversation_store:
             self._conversation_store.clear_session(session_id)
         else:
@@ -658,7 +658,7 @@ class AgentService:
 
     def delete_session(self, session_id: str) -> Dict:
         _validate_session_id(session_id)
-        cleared_runs = self._state_store.clear_session_runs(session_id) if self._state_store else 0
+        cleared_runs = self._state.clear_session_runs(session_id)
         deleted = self._conversation_store.delete_session(session_id) if self._conversation_store else False
         if self._conversation_store is None:
             for runtime in self._runtimes.values():
@@ -679,8 +679,8 @@ class AgentService:
             }
 
     def metrics(self) -> Dict:
-        if self._state_store is not None:
-            metrics = self._state_store.metrics()
+        if self._state.persistent:
+            metrics = self._state.store_metrics()
             metrics.setdefault("async_jobs", {})["worker_count"] = self._async_worker_count
             return metrics
         metrics = self._artifact_store.metrics()
@@ -828,3 +828,110 @@ class AgentService:
 
     def _runtime(self, planner: str, backend: str):
         return self._state.runtime(planner, backend)
+
+    def compare_constrained_buildability(
+        self,
+        admin_name: str,
+        road_distances,
+        slope_limit_degrees: float = 15.0,
+        planner: str = "rule",
+        backend: str = "local",
+        spatial_context: Dict[str, Any] = None,
+    ) -> Dict:
+        """Compare eligible constrained candidates across road distances.
+
+        A wider road distance can only keep or add candidates, so the number of
+        eligible features must be monotonic non-decreasing as ``road_distance_m``
+        grows. The response keeps this invariant explicit for the live baseline.
+        """
+        normalized_context = _normalize_spatial_context(spatial_context)
+        context_admin_name = normalized_context.get("admin_name")
+        if context_admin_name:
+            admin_name = context_admin_name
+        scenario = ConstrainedBuildabilityComparisonScenario.for_road_distances(
+            admin_name, slope_limit_degrees, road_distances
+        )
+        admin_name = scenario.admin_name
+        rows = []
+        for distance in scenario.road_distances:
+            result = self.run(
+                f"筛选{admin_name}坡度不超过{scenario.slope_limit_degrees:g}度、"
+                f"距道路{distance:g}米内、排除水体的建设候选区域",
+                session_id=f"constrained-compare-{admin_name}-{distance:g}",
+                planner=planner,
+                backend=backend,
+                spatial_context=normalized_context,
+                export_artifact=True,
+            )
+            step = next(
+                (
+                    item
+                    for item in result.get("steps", [])
+                    if item.get("tool") == "get_zonal_constrained_buildability_analysis"
+                ),
+                {},
+            )
+            tool_result = step.get("result") or {}
+            constraint_summary = tool_result.get("constraint_summary") or {}
+            statistics = tool_result.get("statistics") or {}
+            rows.append({
+                "run_id": result.get("run_id"),
+                "road_distance_m": distance,
+                "slope_limit_degrees": scenario.slope_limit_degrees,
+                "status": result.get("status"),
+                "candidate_features": constraint_summary.get("candidate_features"),
+                "eligible_features": constraint_summary.get("eligible_features"),
+                "water_excluded_features": constraint_summary.get("water_excluded_features"),
+                "candidate_pixel_count": statistics.get("candidate_pixel_count"),
+                "candidate_ratio": statistics.get("candidate_ratio"),
+                "error": (
+                    constraint_summary.get("error")
+                    or statistics.get("error")
+                    or result.get("error")
+                ),
+                "planner_metrics": result.get("planner_metrics"),
+                "actual_tools": [
+                    step.get("tool")
+                    for step in result.get("steps", [])
+                    if isinstance(step, dict)
+                ],
+                "failed_steps": [
+                    {
+                        "tool": step.get("tool"),
+                        "error": step.get("error"),
+                    }
+                    for step in result.get("steps", [])
+                    if isinstance(step, dict) and step.get("status") == "FAILED"
+                ],
+                "analysis_ready": _analysis_ready_summary(result),
+                "lineage": (result.get("result") or {}).get("lineage"),
+            })
+        eligible = [
+            row.get("eligible_features")
+            for row in rows
+            if row.get("status") == "COMPLETED"
+            and row.get("eligible_features") is not None
+        ]
+        monotonic = (
+            len(eligible) >= 2
+            and all(
+                later >= earlier
+                for earlier, later in zip(eligible, eligible[1:])
+            )
+        )
+        evidence = next(
+            (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
+            None,
+        )
+        return {
+            "admin_name": admin_name,
+            "slope_limit_degrees": scenario.slope_limit_degrees,
+            "road_distances": list(scenario.road_distances),
+            "scenario": scenario.to_dict(),
+            "results": rows,
+            "monotonic_eligible_features": monotonic,
+            "lineage": build_comparison_lineage(
+                rows, "constrained_buildability_road_distance_comparison"
+            ),
+            **({"analysis_ready": evidence} if evidence else {}),
+        }

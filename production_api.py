@@ -16,6 +16,7 @@ from agent.api_contract import (
     async_run_kwargs,
     cancel_kwargs,
     comparison_kwargs,
+    constrained_comparison_kwargs,
     error_response,
     error_status,
     region_comparison_kwargs,
@@ -245,6 +246,14 @@ def compare(payload: Dict[str, Any]):
 def compare_regions(payload: Dict[str, Any]):
     try:
         return service.compare_buildability_regions(**region_comparison_kwargs(payload))
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/constrained-comparisons")
+def compare_constrained(payload: Dict[str, Any]):
+    try:
+        return service.compare_constrained_buildability(**constrained_comparison_kwargs(payload))
     except Exception as exc:
         _raise_for(exc)
 

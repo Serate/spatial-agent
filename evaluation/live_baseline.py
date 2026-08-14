@@ -61,6 +61,16 @@ DEFAULT_LIVE_CASES = (
         "expected_status": "COMPLETED",
         "kind": "comparison_matrix",
     },
+    {
+        "id": "live-gis-constrained-matrix",
+        "request": {
+            "admin_names": ["洪山区", "江夏区"],
+            "slope_limit_degrees": 15,
+            "road_distances": [200, 500, 1000],
+        },
+        "expected_status": "COMPLETED",
+        "kind": "constrained_matrix",
+    },
 )
 
 
@@ -143,6 +153,10 @@ def _run_case(
         )
     if kind == "comparison_matrix":
         return _run_comparison_matrix_case(
+            service, case, backend=backend, attempts_per_case=attempts_per_case
+        )
+    if kind == "constrained_matrix":
+        return _run_constrained_matrix_case(
             service, case, backend=backend, attempts_per_case=attempts_per_case
         )
     request = str(case.get("request") or "")
@@ -479,6 +493,192 @@ def _matrix_evidence(
 
 
 def _matrix_error_class(by_region: Mapping[str, Any]) -> str:
+    for rows in by_region.values():
+        statuses = [str(row.get("status") or "") for row in rows if isinstance(row, Mapping)]
+        if any(status == "NEEDS_CLARIFICATION" for status in statuses):
+            return "clarification"
+        if any(status == "REJECTED" for status in statuses):
+            return "policy_rejection"
+    return "monotonicity" if by_region else "backend_execution"
+
+
+def _run_constrained_matrix_case(
+    service: Any,
+    case: Mapping[str, Any],
+    *,
+    backend: str,
+    attempts_per_case: int,
+) -> Dict[str, Any]:
+    """Run the opt-in road-distance sensitivity matrix.
+
+    Each region runs one ``compare_constrained_buildability`` call covering all
+    road distances, so the evidence can assert that eligible constrained
+    candidates are monotonic non-decreasing as the road distance widens (a
+    wider distance can only keep or add candidates).
+    """
+    case_id = str(case.get("id") or "unnamed")
+    expected_status = str(case.get("expected_status") or "COMPLETED")
+    if service is None:
+        return {
+            "case_id": case_id,
+            "kind": "constrained_matrix",
+            "status": "SKIPPED",
+            "status_match": False,
+            "error_class": "service_unavailable",
+            "metrics": sanitize_provider_metrics({}),
+            "actual_tools": [],
+            "failed_steps": [],
+            "result_type": None,
+            "plan_quality": None,
+            "answer_chinese": False,
+            "passed": False,
+            "reason": "constrained_matrix requires service_factory",
+        }
+    request = case.get("request") or {}
+    if not isinstance(request, Mapping):
+        request = {}
+    admin_names = list(request.get("admin_names") or [])
+    road_distances = list(request.get("road_distances") or [])
+    slope_limit_degrees = request.get("slope_limit_degrees", 15.0)
+    candidates = []
+    for attempt in range(attempts_per_case):
+        try:
+            by_region = {}
+            for admin_name in admin_names:
+                result = service.compare_constrained_buildability(
+                    admin_name=admin_name,
+                    road_distances=road_distances,
+                    slope_limit_degrees=slope_limit_degrees,
+                    planner="openai",
+                    backend=backend,
+                )
+                by_region[admin_name] = list(result.get("results") or [])
+        except Exception:
+            candidates.append({
+                "case_id": case_id,
+                "kind": "constrained_matrix",
+                "attempt": attempt + 1,
+                "status": "FAILED",
+                "status_match": False,
+                "error_class": "service_error",
+                "metrics": sanitize_provider_metrics({}),
+                "actual_tools": [],
+                "failed_steps": [],
+                "result_type": None,
+                "plan_quality": None,
+                "answer_chinese": False,
+                "passed": False,
+            })
+            continue
+        evidence = _constrained_matrix_evidence(by_region, case, attempt + 1)
+        candidates.append(evidence)
+        if evidence["passed"]:
+            break
+    selected = next((item for item in candidates if item["passed"]), candidates[-1])
+    selected["attempt_count"] = len(candidates)
+    selected["transient_attempts"] = [
+        item["error_class"]
+        for item in candidates
+        if item["error_class"] in {"provider_transient", "network", "timeout", "rate_limited"}
+    ]
+    selected["expected_status"] = expected_status
+    return selected
+
+
+def _constrained_matrix_evidence(
+    by_region: Mapping[str, Any],
+    case: Mapping[str, Any],
+    attempt: int,
+) -> Dict[str, Any]:
+    """Build bounded constrained-matrix evidence and assert monotonic eligible features."""
+    all_rows = []
+    token_total = 0
+    latency_values = []
+    monotonic = True
+    for admin_name, rows in by_region.items():
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            all_rows.append(row)
+            metrics = sanitize_provider_metrics(row.get("planner_metrics") or {})
+            token_total += int(metrics["token_usage"].get("total_tokens") or 0)
+            latency = metrics["latency"].get("latency_ms")
+            if latency is not None:
+                latency_values.append(float(latency))
+        eligible = [
+            float(row.get("eligible_features"))
+            for row in rows
+            if isinstance(row, Mapping)
+            and row.get("status") == "COMPLETED"
+            and row.get("eligible_features") is not None
+        ]
+        if len(eligible) >= 2 and any(
+            later < earlier for earlier, later in zip(eligible, eligible[1:])
+        ):
+            monotonic = False
+    statuses = [str(row.get("status") or "") for row in all_rows if isinstance(row, Mapping)]
+    passed = bool(all_rows) and all(status == "COMPLETED" for status in statuses) and monotonic
+    metrics = sanitize_provider_metrics({})
+    metrics["token_usage"]["total_tokens"] = token_total
+    metrics["latency"] = {
+        "status": "valid" if latency_values else "missing",
+        "latency_ms": round(sum(latency_values) / len(latency_values), 3) if latency_values else None,
+    }
+    return {
+        "case_id": str(case.get("id") or "unnamed"),
+        "kind": "constrained_matrix",
+        "request": {
+            "admin_names": list(by_region),
+            "road_distances": sorted({
+                float(row.get("road_distance_m"))
+                for rows in by_region.values()
+                for row in rows
+                if isinstance(row, Mapping) and row.get("road_distance_m") is not None
+            }),
+        },
+        "attempt": attempt,
+        "status": "COMPLETED" if passed else "FAILED",
+        "status_match": passed,
+        "error_class": "none" if passed else _constrained_matrix_error_class(by_region),
+        "metrics": metrics,
+        "actual_tools": sorted({
+            str(tool)
+            for rows in by_region.values()
+            for row in rows
+            if isinstance(row, Mapping)
+            for tool in (row.get("actual_tools") or [])
+        }),
+        "failed_steps": [
+            {"tool": str(step.get("tool")), "error_class": _step_error_class(step.get("error"))}
+            for rows in by_region.values()
+            for row in rows
+            if isinstance(row, Mapping)
+            for step in (row.get("failed_steps") or [])
+            if isinstance(step, Mapping)
+        ],
+        "result_type": "constrained_buildability_comparison",
+        "plan_quality": None,
+        "answer_chinese": False,
+        "monotonic_eligible_features": monotonic,
+        "regions": {
+            str(name): [
+                {
+                    "road_distance_m": row.get("road_distance_m"),
+                    "status": str(row.get("status")),
+                    "candidate_features": row.get("candidate_features"),
+                    "eligible_features": row.get("eligible_features"),
+                    "water_excluded_features": row.get("water_excluded_features"),
+                }
+                for row in rows
+                if isinstance(row, Mapping)
+            ]
+            for name, rows in by_region.items()
+        },
+        "passed": passed,
+    }
+
+
+def _constrained_matrix_error_class(by_region: Mapping[str, Any]) -> str:
     for rows in by_region.values():
         statuses = [str(row.get("status") or "") for row in rows if isinstance(row, Mapping)]
         if any(status == "NEEDS_CLARIFICATION" for status in statuses):
