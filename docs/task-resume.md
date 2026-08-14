@@ -46,8 +46,8 @@ The project should not be framed as a simple GIS script. The core point is a tes
 ## Current Status
 
 - Latest completed milestone: M79.5 生产容器真实模型证据 + 约束敏感性矩阵（容器内 live 6/6 / 约束矩阵 road_distance 单调 / ServiceState 方法体收敛）
-- Last pushed commit: `7bd612a`（docs: M79.4 global review and M79.5 plan）
-- Current work: M79.5 三项已全部完成待收口提交（M79.5.1 容器内真实模型 live 6/6=47,207 tokens；M79.5.2 constrained_matrix live 6/6 子运行单调 + `/constrained-comparisons` 双入口 + 前端道路距离对比面板；M79.5.3 ServiceState 收敛 25 处 store 调用）。下一步按 M80 规划。
+- Last pushed commit: `f30a1ed`（M79.5）
+- Current work: M79.5 已收口；M80 全局规划（通往完整 Agent 系统差距清单）已写入 docs/milestones.md——主线建议 A1 自适应重规划 → A2 长期记忆 → B6 标准可观测性 → D13 LLM-as-judge 答案评判；等待用户确认从哪项开始执行。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
