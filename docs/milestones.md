@@ -603,7 +603,7 @@ M77 不拆分并行任务，按依赖顺序单线程执行；上下文/result en
 - **测试**：432 项离线（+10 项 M78 契约测试），覆盖能力契约、服务拆分、双入口一致性、结构化错误。
 - **遗留风险**：`AgentService` 仍是门面但内部状态多（runtime 缓存/异步作业字典/SQLite 双模式）；作业级 wall-clock 超时与周期 reaper 未做；真实模型 live 与 Docker 生产验收仍依赖外部环境。
 
-M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（M78.3）、M78.4 待推送。
+M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（M78.3）、`b7988ae`（M78.4）。
 
 ## M79 全局规划（P2 产品闭环）
 
@@ -612,4 +612,47 @@ M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（
 1. **lineage 导航贯通**：历史、比较、retry 结果点击后打开原运行详情，直接定位答案、轨迹、地图、GeoJSON、发布报告与上下文证据，不重新调用模型。
 2. **动态结果区收敛**：Console 按结果类型动态展示证据/地图/轨迹，减少固定面板；错误分类按 `error_category` 显示结构化状态而非字符串。
 3. **真实模型基线扩展**（可选边界）：在稳定错误契约上扩展建设筛选、道路/水体约束与跨区域比较 live baseline。
+4. **部署可靠性**：Docker Linux engine 恢复后执行当前版本数据卷、readiness、多 worker、重启恢复与 FastAPI production acceptance。
+
+## M79.1：lineage 导航贯通（已完成）
+
+### 实现内容
+
+- **后端**
+  - `agent/artifact_store.py`：artifact 新增持久化字段 `session_id`/`result_type`/`clarification`/`retry_count`/`geojson_ref`/`artifact_ref`；新增 `read_run(run_id)` 单条读取。`run()`/`retry()` 在 payload 完成后刷新 artifact，使落盘文件携带最终导航引用。
+  - `agent/service.py`：`get_run()` 增加三级详情回退——指定 planner/backend 的 runtime → 扫描全部 live runtime（后端无关查找，覆盖比较子运行）→ artifact 降级详情（进程重启后仍可打开答案/轨迹/provenance/上下文，不重新调用模型）。
+- **前端**（`web/index.html`，无构建步骤）
+  - 历史列表主按钮改为打开原运行详情（`GET /runs/{id}`，不重跑模型），新增「重跑」副按钮显式标注会再次调用模型。
+  - `appendMessage(role, text, runId)` 支持可点击回源消息；`openRunDetail(runId)` 拉取详情、切换会话、渲染答案/轨迹/地图/证据。
+  - 阈值比较与多区域比较表格新增「详情」列，每行携带子运行 `run_id`。
+  - `renderRun` 对重试结果显示「第 N 次重试后的运行详情（沿用原运行 ID）」徽标。
+
+### 验收证据
+
+- 新增 `tests/test_m79_lineage_navigation.py`（9 项）：artifact 持久化字段、`read_run`、重启后 artifact 降级详情、历史记录导航字段、历史 lineage deferred、比较/多区域子运行 `run_id`、retry 保持 `run_id` 且 `lineage.retry` 标记。
+- 新增 `scripts/console_lineage_smoke.js`：历史主按钮打开详情 `run_count` 不变、可点击消息回到同一 `run_id`、比较详情入口携带 `run_id` 且打开后不重跑。
+- 离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8（0 失败）、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控（`geopandas is required`），与既往记录一致。
+
+## M79.1 复盘（七维全局矩阵）
+
+- **产品能力**：历史/比较/retry 三处入口均可一键回到原运行详情（答案、轨迹、地图、GeoJSON、发布证据、上下文），且打开详情零模型调用——可回溯演示从被动展示变为主动导航。
+- **架构**：详情读取按「指定 runtime → 全 runtime 扫描 → artifact 降级」三级回退，后端无关、跨进程可用；artifact 升级为 durable lineage 层。
+- **数据质量**：artifact 摘要字段扩展（session_id/result_type/geojson_ref），仍不含原始上下文与原始工具参数（test_m35 `args` 不落盘断言通过）。
+- **真实模型**：无新增 live 依赖；`get_run` 不触发规划，导航对 openai planner 同样生效。
+- **部署可靠性**：memory 模式服务重启后历史详情仍可打开（artifact 回退），补强了 SQLite 之外的恢复路径；SQLite 模式本就持久化。
+- **前端体验**：历史区分「打开详情 / 重跑」两个明确动作，消息可点击回源，比较表逐行可导航；浏览器 smoke 5/5。
+- **测试**：+9 项离线 + 1 个浏览器 smoke；同时修正 smoke 脚本正则过宽问题。
+
+**遗留风险**
+- 比较子运行默认不导出 artifact，进程重启后比较行的详情入口只能命中 live runtime；历史列表（artifact 导出）才是持久导航。
+- artifact 降级详情只有步骤摘要（无完整结果与几何要素），地图预览在降级态不可用——有意的「降级详情」语义，前端已展示原因。
+- `AgentService` 内部状态多的架构债（M78 遗留）未在本阶段处理。
+
+## M79.2 全局规划（下一阶段）
+
+按依赖顺序单线程执行：
+
+1. **动态结果区收敛**：Console 按 `result.result_type` 动态组合证据/地图/轨迹/统计面板，错误状态按 `error_category` 显示结构化徽标而非解析字符串；消除固定面板的空白与误导。
+2. **比较子运行持久化（支撑项）**：比较接口子运行开启 artifact 导出，使比较行的详情导航跨重启可用。
+3. **真实模型基线扩展**（可选边界）：建设筛选、道路/水体约束与跨区域比较 live baseline。
 4. **部署可靠性**：Docker Linux engine 恢复后执行当前版本数据卷、readiness、多 worker、重启恢复与 FastAPI production acceptance。

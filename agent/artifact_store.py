@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 class ArtifactStore:
@@ -20,6 +20,8 @@ class ArtifactStore:
             "status": payload.get("status"),
             "request": payload.get("request"),
             "resolved_request": payload.get("resolved_request"),
+            "session_id": payload.get("session_id"),
+            "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
             "context_evidence": payload.get("context_evidence"),
             "plan": _plan_summary(payload.get("plan")),
@@ -28,9 +30,30 @@ class ArtifactStore:
             "answer": payload.get("answer"),
             "trace_summary": payload.get("trace_summary", []),
             "error": payload.get("error"),
+            "clarification": payload.get("clarification"),
+            "retry_count": payload.get("retry_count", 0),
+            "geojson_ref": payload.get("geojson_ref"),
+            "artifact_ref": path.as_posix(),
         }
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
+
+    def read_run(self, run_id: str) -> Optional[Dict]:
+        """Read a single persisted run artifact, or None when it is missing.
+
+        Used by the service to serve a degraded run detail (answer, trace,
+        provenance, context) from the durable artifact after the in-memory
+        store has been lost, without re-invoking the model.
+        """
+        if not isinstance(run_id, str) or not run_id:
+            return None
+        path = self._root / (run_id + ".json")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        payload.setdefault("run_id", run_id)
+        return payload
 
     def list_runs(self, limit: int = 20) -> List[Dict]:
         if limit < 1:

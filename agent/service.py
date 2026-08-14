@@ -169,6 +169,11 @@ class AgentService:
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
+        if export_artifact:
+            # Refresh the durable artifact so it carries the final navigational
+            # references (geojson_ref, result_type, session_id) that lineage
+            # navigation needs after the in-memory store is gone.
+            self._artifact_store.write_run(payload)
         if self._state_store is not None:
             self._state_store.save(result)
         self._attach_async_observability(payload, payload.get("run_id"))
@@ -474,6 +479,11 @@ class AgentService:
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
+        if export_artifact:
+            # Refresh the durable artifact so it carries the final navigational
+            # references (geojson_ref, result_type, session_id) that lineage
+            # navigation needs after the in-memory store is gone.
+            self._artifact_store.write_run(payload)
         if self._state_store is not None:
             self._state_store.save(result)
         return payload
@@ -515,6 +525,30 @@ class AgentService:
                 time.sleep(0.005)
                 continue
             break
+        if result is None and self._state_store is None:
+            # Lineage navigation is backend-agnostic: a run created under a
+            # different planner/backend (e.g. a comparison child run) is still
+            # found by scanning every live runtime before falling back to the
+            # durable artifact.
+            result = self._memory_run(run_id)
+        if result is None and self._state_store is None:
+            # Durable lineage navigation: after a process restart the in-memory
+            # run store is gone, but the exported artifact survives on disk.
+            # Serve a degraded detail (answer/trace/provenance/context) from the
+            # artifact instead of requiring the model to re-run the request.
+            payload = (
+                self._artifact_store.read_run(run_id)
+                if self._artifact_store is not None
+                else None
+            )
+            if payload is not None:
+                payload["trace_summary"] = payload.get("trace_summary") or []
+                payload["provenance"] = payload.get("provenance") or build_provenance(payload)
+                payload["result_type"] = _result_type(payload)
+                payload["result"] = build_result_contract(payload)
+                _attach_error_category(payload)
+                self._attach_async_observability(payload, run_id)
+                return payload
         if result is None:
             raise ValueError("run not found: " + run_id)
         payload = result.to_dict()

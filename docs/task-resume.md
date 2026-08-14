@@ -45,10 +45,11 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M78 架构债清理（P1）：能力契约收敛、service.py 拆分与分层修复、双 HTTP 入口统一、结构化错误契约
-- Last pushed commit: `5255e0b` refactor: unify dev and production HTTP entry points（M78.4 已提交待推送）
-- Current work: M79 产品闭环规划（lineage 导航贯通、动态结果区收敛）
+- Latest completed milestone: M79.1 lineage 导航贯通（P2 产品闭环第一阶段）：历史/比较/retry 一键打开原运行详情且不重跑模型；artifact 增加 durable 导航字段并支持 `read_run`；`get_run` 三级回退（指定 runtime → 全 runtime 扫描 → artifact 降级详情）
+- Last pushed commit: `b7988ae` feat: structured error contract for HTTP and run results（M78.4 已推送）；M79.1 待提交推送
+- Current work: M79.2 动态结果区收敛（Console 按 result_type 动态组合面板 + error_category 结构化错误展示；比较子运行持久化支撑项）
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
+- M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 
 ## Development Loop
 
