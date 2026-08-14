@@ -1026,3 +1026,25 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 ### 建议执行顺序（按作品集价值）
 
 **M80 主线建议：A1（自适应重规划）→ A2（记忆）→ B6（可观测性）→ D13（答案评判）**，每项一个阶段，单线程推进；A3/A4、B8、C10 作为可选加分项，B5/B7/D12/D14 按需穿插；C11 明确不做。具体从哪一项开始由用户确认后写入阶段规划再执行。
+
+## M80.1：执行中自适应重规划（进行中）
+
+### 目标与边界
+
+当前 `AgentRuntime.run()` 一次规划后顺序执行：步骤失败 → fail-fast + 剩余步骤 BLOCKED（`retry_failed` 只重跑失败步骤，不重规划）。A1 让运行时在**单次 run 内部**观察步骤失败/门控结果，触发受控的剩余步骤重规划，且不破坏统一边界：
+
+- **触发条件**：步骤 ToolError 耗尽重试后仍失败（`_execute_step` 抛错），或 preflight 门控失败；且本轮重规划次数未达上限（`SPATIAL_AGENT_REPLAN_LIMIT`，默认 1）。
+- **重规划输入**：已执行步骤结果摘要 + 失败步骤工具/参数/错误分类（受控摘要，不传原始 provider 文本）。
+- **重规划输出**：planner 基于上述反馈生成**剩余步骤的替代计划**；新步骤合并回原计划（原已完成步骤保留，失败步骤标记 FAILED，剩余步骤被替换/追加），继续执行。
+- **边界保障**：重规划新步骤仍过 `_validate_plan`（工具注册、依赖向前、步数上限）与 preflight 门控；planner 仍只能选注册工具；`replan_events` 记录受控证据（触发步骤、失败分类、新步骤数、耗时），不含原始错误文本/URL/key。
+- **离线可测**：`_RecordedModelClient` 响应队列（`pop(0)`）天然支持录制多条 planner 响应 → 单次 run 内"第一条计划 + 失败 + 第二条重规划"可在离线夹具中复现，不访问网络。
+
+### 实现计划（单线程）
+
+1. **`agent/replanning.py`（新增）**：`ReplanningPolicy`（触发判定、剩余步数/重规划上限、失败摘要构造、计划合并）。
+2. **`agent/runtime.py`**：执行循环捕获步骤失败 → 构造反馈 → 调 `self._planner.plan(request, context=反馈)` 重规划 → 合并 → 继续执行；`AgentRunResult` 新增 `replan_events` 字段。
+3. **`agent/models.py`**：`AgentRunResult.replan_events: List[Dict]`（默认空）；序列化兼容。
+4. **`evaluation/model_evaluation.py`**：`_RecordedModelClient` 队列已支持多响应；新增重规划夹具路径与质量断言（重规划后 COMPLETED、工具仍注册、replan_events 存在）。
+5. **`agent/rule_planning.py`**：RuleBasedPlanner 在带反馈 context 时给出确定性重规划（如：失败步骤替换为降级工具/参数修正），保证 rule 路径也可离线验证。
+6. **测试**：`tests/test_m80_replanning.py`（新增）——失败后重规划 COMPLETED、超限不重规划、重规划步骤过校验、rule 与 recorded-LLM 两条路径、replan_events 契约。
+7. **验收**：相关测试 + 浏览器/前端无改动确认 + 容器重建回归 + live baseline 可选复跑。
