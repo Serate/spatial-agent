@@ -28,6 +28,7 @@ from agent.workflow_templates import (
 
 class AgentApiHandler(BaseHTTPRequestHandler):
     service = AgentService()
+    service.start_reaper()
     artifact_root = Path("outputs/runs")
     geojson_root = Path("outputs/geojson")
     web_root = Path(__file__).parent / "web"

@@ -168,6 +168,22 @@ class SQLiteStateStore:
             ).fetchall()
         return [_async_job_from_row(row) for row in rows]
 
+    def list_active_async_jobs(self) -> List[Dict[str, Any]]:
+        """Return every non-terminal job for the wall-clock timeout reaper."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT idempotency_key, run_id, payload, status, owner_pid, updated_at,
+                       created_at, started_at, finished_at, queue_wait_ms,
+                       run_duration_ms, failure_category, recovery_count,
+                       cancel_requested_at, last_event
+                FROM async_jobs
+                WHERE status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')
+                ORDER BY created_at, run_id
+                """
+            ).fetchall()
+        return [_async_job_from_row(row) for row in rows]
+
     def finish_async_job(
         self,
         run_id: str,
@@ -199,6 +215,45 @@ class SQLiteStateStore:
                 (
                     status, finished_at, finished_at, failure_category,
                     status, status, status, status, run_id, owner_pid,
+                ),
+            )
+
+    def finish_async_job_by_run_id(
+        self,
+        run_id: str,
+        status: str,
+        failure_category: Optional[str] = None,
+    ) -> None:
+        """Mark a job terminal regardless of owner (used by the timeout reaper).
+
+        A job that was never claimed has owner_pid NULL, so the owner-scoped
+        update would silently no-op. The reaper must still expose a terminal
+        status to pollers.
+        """
+        finished_at = time.time()
+        with self._connection() as connection:
+            connection.execute(
+                """
+                UPDATE async_jobs
+                   SET status = ?, updated_at = CURRENT_TIMESTAMP,
+                       finished_at = ?,
+                       run_duration_ms = CASE
+                           WHEN started_at IS NULL THEN NULL
+                           ELSE MAX(0, (? - started_at) * 1000)
+                       END,
+                       failure_category = ?,
+                       last_event = CASE
+                           WHEN ? = 'COMPLETED' THEN 'completed'
+                           WHEN ? = 'CANCELLED' THEN 'cancelled'
+                           WHEN ? = 'TIMED_OUT' THEN 'timed_out'
+                           WHEN ? = 'FAILED' THEN 'failed'
+                           ELSE 'finished'
+                       END
+                 WHERE run_id = ?
+                """,
+                (
+                    status, finished_at, finished_at, failure_category,
+                    status, status, status, status, run_id,
                 ),
             )
 

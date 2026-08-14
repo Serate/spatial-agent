@@ -812,3 +812,33 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 - **测试**：+1 项配置契约；沿用轻量验证（相关 80 项而非全量）。
 
 **遗留**：真实模型 live baseline 尚未在容器内完整数据卷上复跑（buildability/constrained live 需真实 token，留到第 3 项比较矩阵一并验证）。
+
+## M79.4.2：AgentService 状态收敛 + 作业级 wall-clock 超时与 reaper（已完成）
+
+### 实现内容
+
+- **`agent/service_state.py`（新增）**：收敛 `AgentService` 的三块内存状态面（runtime 缓存、内存会话、内存异步作业）与 SQLite 双模式 store 引用为单一 `ServiceState`；增加：
+  - 作业级 **wall-clock 超时**：`SPATIAL_AGENT_ASYNC_TIMEOUT_SECONDS`（默认 300s），`expired_run_ids()` 检测 QUEUED/RUNNING/CANCEL_REQUESTED 超龄作业。
+  - **周期 reaper**：`start_reaper()`/`stop_reaper()`，daemon 线程按 `SPATIAL_AGENT_REAPER_INTERVAL_SECONDS`（默认 5s）扫描超龄作业 → `expire_job()` 标记 `TIMED_OUT` + `request_cancel()`（协作式让 worker 在 checkpoint 停止）。
+- **`agent/service.py`**：改为持有 `ServiceState`，外部方法契约（run/run_async/get_run/compare 等签名）不变；内部状态访问通过只读属性委托，`_runtime()` 委托 `ServiceState.runtime()`（保留 planner/backend 校验）。
+- **`agent/sqlite_store.py`**：新增 `list_active_async_jobs()`（reaper 扫描）与 `finish_async_job_by_run_id()`（未 claim 作业 owner_pid=NULL 时也能标记终态）。
+- **`serve_api.py` / `production_api.py`**：HTTP 入口显式 `service.start_reaper()`（测试创建 service 不自动启动 reaper，避免 daemon 线程干扰临时目录清理）。
+- **`tests/test_m79_reaper.py`（+7 项）**：超时 env 解析、内存作业过期检测、reaper 周期标记、新鲜作业不受影响、facade 校验保留、SQLite 已 claim/未 claim 作业超时标记。
+
+### 验收证据（轻量验证纪律）
+
+- 相关测试 89 项通过（reaper 7 + M79 三文件 + M10 API + M42/M60/M61/M67 异步 + M68 会话 + M78 HTTP 契约），未跑全量。
+- 生产容器重建后 healthy；reaper 在生产入口显式启用。
+- 状态收敛后外部行为不变：幂等、跨实例可见、会话生命周期、比较子运行、HTTP 契约全部保持（既有测试证明）。
+
+### 复盘（七维矩阵，第 2 项）
+
+- **产品能力**：异步作业不再无限挂起——wall-clock 超时 + reaper 提供最终一致终态。
+- **架构**：三块内存状态 + SQLite 双模式收敛为单一 `ServiceState`，散落的 `if state_store is None` 分支集中；M78 架构债（作业级超时/周期 reaper）闭合。
+- **数据质量**：无影响（状态层不触碰数据）。
+- **真实模型**：无影响（live 路径复用同一 runtime 缓存）。
+- **部署可靠性**：生产入口显式启用 reaper；未 claim 作业也能被标记终态（owner 无关更新）。
+- **前端体验**：无前端改动。
+- **测试**：+7 项（reaper 专项）；沿用轻量验证。
+
+**遗留**：`AgentService` 方法体仍通过属性委托访问 `ServiceState`（未全部改为方法调用），属渐进收敛；后续可继续把 read/write 路径收进 `ServiceState` 方法。

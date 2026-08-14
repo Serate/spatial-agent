@@ -3,7 +3,6 @@ import json
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from threading import Lock
 from typing import Any, Dict
 
 from agent.artifact_store import ArtifactStore
@@ -11,6 +10,7 @@ from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime
 from agent.scenario import BuildabilityComparisonScenario
+from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.models import AgentRunResult, RunStatus
@@ -51,7 +51,6 @@ from agent.service_sessions import (
     attach_history_lineage as _attach_history_lineage,
     dedupe_run_records as _dedupe_run_records,
     memory_session_display_name as _memory_session_display_name,
-    runtime_key as _runtime_key,
     validate_session_id as _validate_session_id,
 )
 
@@ -70,22 +69,55 @@ class AgentService:
     """Application boundary for running Agent sessions from a CLI or HTTP API."""
 
     def __init__(self, artifact_store: ArtifactStore = None, state_db_path: str = None):
-        self._runtimes = {}
         self._artifact_store = artifact_store or ArtifactStore()
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
-        self._state_store = SQLiteStateStore(self._state_db_path) if self._state_db_path else None
-        self._conversation_store = (
-            SQLiteConversationStore(self._state_db_path) if self._state_db_path else None
+        self._state = ServiceState(
+            state_db_path=self._state_db_path,
+            runtime_factory=build_runtime,
         )
-        self._memory_session_lock = Lock()
-        self._memory_sessions: Dict[str, Dict[str, Any]] = {}
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(
             max_workers=self._async_worker_count, thread_name_prefix="spatial-agent"
         )
-        self._async_lock = Lock()
-        self._async_jobs: Dict[str, Dict[str, Any]] = {}
         self._recover_async_jobs()
+
+    def start_reaper(self) -> None:
+        """Start the periodic wall-clock timeout reaper (production entry points)."""
+        self._state.start_reaper()
+
+    # ------------------------------------------------------------------ #
+    # Legacy state accessors: ownership lives in ServiceState; these keep
+    # the facade methods readable while every mutation goes through the
+    # converged state object.
+    # ------------------------------------------------------------------ #
+
+    @property
+    def _state_store(self):
+        return self._state.state_store
+
+    @property
+    def _conversation_store(self):
+        return self._state.conversation_store
+
+    @property
+    def _runtimes(self):
+        return self._state.runtimes()
+
+    @property
+    def _memory_sessions(self):
+        return self._state.sessions_view
+
+    @property
+    def _memory_session_lock(self):
+        return self._state.session_lock
+
+    @property
+    def _async_jobs(self):
+        return self._state.jobs_view
+
+    @property
+    def _async_lock(self):
+        return self._state.jobs_lock
 
     def run(
         self,
@@ -119,10 +151,10 @@ class AgentService:
                 payload = _format_result(existing, _normalize_spatial_context(spatial_context))
                 self._attach_async_observability(payload, run_id)
                 return payload
-        if self._conversation_store is not None:
-            self._conversation_store.ensure_session(session_id)
+        if self._state.conversation_store is not None:
+            self._state.conversation_store.ensure_session(session_id)
         else:
-            self._ensure_memory_session(session_id)
+            self._state.ensure_session(session_id)
         normalized_context = _normalize_spatial_context(spatial_context)
         runtime = self._runtime(planner, backend)
         runtime_kwargs = {
@@ -656,11 +688,12 @@ class AgentService:
         return metrics
 
     def close(self) -> None:
-        """Shut down the async executor, draining queued and in-flight jobs.
+        """Shut down the async executor and reaper, draining in-flight jobs.
 
         Lets callers (tests, server teardown) release SQLite file handles
         deterministically instead of racing the worker threads.
         """
+        self._state.stop_reaper()
         self._async_executor.shutdown(wait=True)
 
     def _memory_async_metrics(self) -> Dict[str, Any]:
@@ -794,12 +827,4 @@ class AgentService:
         }
 
     def _runtime(self, planner: str, backend: str):
-        key = _runtime_key(planner, backend)
-        if key not in self._runtimes:
-            self._runtimes[key] = build_runtime(
-                planner,
-                backend,
-                state_store=self._state_store,
-                conversation_store=self._conversation_store,
-            )
-        return self._runtimes[key]
+        return self._state.runtime(planner, backend)

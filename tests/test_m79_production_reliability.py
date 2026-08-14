@@ -53,12 +53,18 @@ class M79ProductionReliabilityTests(unittest.TestCase):
             db = str(Path(directory) / "state.db")
             with mock.patch.dict(os.environ, {"SPATIAL_AGENT_STATE_DB": db}):
                 service = AgentService()
-                self.assertIsNotNone(service._state_store)
-                self.assertIsNotNone(service._conversation_store)
+                try:
+                    self.assertIsNotNone(service._state_store)
+                    self.assertIsNotNone(service._conversation_store)
+                finally:
+                    service.close()
             with mock.patch.dict(os.environ, {}, clear=False):
                 os.environ.pop("SPATIAL_AGENT_STATE_DB", None)
                 memory_service = AgentService()
-                self.assertIsNone(memory_service._state_store)
+                try:
+                    self.assertIsNone(memory_service._state_store)
+                finally:
+                    memory_service.close()
 
     def test_sqlite_run_is_visible_across_service_instances(self):
         # Multi-worker equivalent: each Uvicorn worker owns a memory-mode

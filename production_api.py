@@ -32,6 +32,7 @@ from agent.workflow_templates import workflow_template_catalog
 
 app = FastAPI(title="Spatial Agent Production API")
 service = AgentService()
+service.start_reaper()
 
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))
 GEOJSON_ROOT = Path(os.environ.get("SPATIAL_AGENT_GEOJSON_ROOT", "outputs/geojson"))
