@@ -1146,3 +1146,31 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 - **测试**：+12 项（记忆 11 + 前端契约 1）；修复 1 个测试替身；全量 510 项转绿。
 
 **遗留**：记忆检索为关键词过滤（无向量/语义检索）；全局检索仅显式 API 使用，未接入任何自动注入；`memory_evidence` 目前只含沉淀条数，未含"本次注入了哪几条"明细（避免泄露跨会话）。这些留作后续扩展。
+
+## M80.3：标准可观测性（进行中）
+
+### 目标与边界
+
+现有观测面已较全（`/metrics` 聚合、async observability、trace_summary、SQLite 持久化）。M80.3 补齐**结构化运行日志 + 轻量 span 链路**（OpenTelemetry 风格但不引入依赖），让每次运行的执行轨迹以机器可读的 JSON-lines 输出，可被标准日志采集/追踪系统消费。
+
+- **日志输出**：结构化 JSON-lines（每事件一行 JSON），默认 stdout，`SPATIAL_AGENT_OBSERVABILITY_LOG` 可指向文件；`SPATIAL_AGENT_OBSERVABILITY=0` 可关闭。
+- **span 模型**（OpenTelemetry 概念映射，纯 Python 实现）：
+  - run 级 span：`trace_id`（= run_id）、`span_id`、`name`（planner kind + result_type）、`status`（COMPLETED/FAILED/…）、`duration_ms`、`attributes`（session_id/backend/error_category/replan_count/memory_fact_count）。
+  - step 级 span：`parent_span_id`（= run span）、`name`（工具名）、`status`、`duration_ms`、`attributes`（attempts/latency/error_category/result_type）。
+  - 事件字段**受控**：不含原始错误文本、URL、key、逐文件路径、provider 响应。
+- **挂载点**：`AgentRuntime.run()` 结束处发 run 级事件 + 每个 step 完成/失败处发 step 级事件（复用既有 `_execute_step` 的 StepRun 状态）；`AgentRuntime` 构造可注入 `ObservabilityEmitter`（默认 stdout emitter，测试可注入收集器）。
+- **契约**：事件 schema 版本 `spatial-agent.observability.v1`；`GET /observability/health`（可选）返回日志开关与事件计数（进程内），供前端/验收确认。
+- **不引入**：不新增 otel 依赖、不改造既有 metrics 接口、不写敏感字段。
+
+### 实现计划（单线程）
+
+1. **`agent/observability.py`（新增）**：`ObservabilityEmitter`（emit_run / emit_step，JSON-lines 序列化，字段 allowlist，开关 env）；`CollectingEmitter`（测试用内存收集）。
+2. **`agent/runtime.py`**：`__init__` 接受 `observability`；`run()` 结束处 emit run 事件；`_execute_step` 成功/失败处 emit step 事件。
+3. **`agent/runtime_factory.py` / `agent/service_state.py`**：透传 emitter（HTTP 服务默认 stdout emitter）。
+4. **`serve_api.py` / `production_api.py`**：可选 `GET /observability/health`（开关 + 进程内事件计数）。
+5. **测试**：`tests/test_m80_observability.py`（新增）——事件字段受控（无敏感）、JSON 可解析、span 父子关系、开关关闭无输出、HTTP health。
+6. **验收**：相关测试 + 全量离线回归 + 容器重建后观察结构化日志输出 + 前端无改动确认。
+
+### 验收标准
+
+- 专项测试通过；全量离线转绿；容器日志中出现 JSON-lines run/step 事件且无敏感字段；`GET /observability/health` 返回开关状态。
