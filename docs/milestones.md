@@ -1307,3 +1307,32 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 4. **D13 收尾**：judge 分数前端可视化 + live baseline judge 汇总。
 
 具体从哪一项开始由用户确认后写入阶段规划再执行。
+
+## M81.1：成本治理与并发配额（进行中）
+
+### 目标与边界
+
+真实模型调用消耗 token 且并发不可控。M81.1 补三层治理（全部 env 可配、默认关闭不改变现有行为）：
+
+1. **会话级 token 预算**：`SPATIAL_AGENT_TOKEN_BUDGET`（默认 0=不限）——同一 session 累计 planner token 超限后，该会话后续 run 在规划前拒绝（`TOKEN_BUDGET_EXCEEDED`，错误类别 `budget`），不访问 provider。
+2. **单次运行 token 上限**：`SPATIAL_AGENT_RUN_TOKEN_CAP`（默认 0=不限）——单次 run 的 planner 总 token 超限时终止运行并标记 `budget_exceeded`（结果保留已完成步骤证据）。
+3. **并发配额**：`SPATIAL_AGENT_MAX_CONCURRENT`（默认 0=不限）——同步 `run()` 的并发信号量；超过配额返回 `CONCURRENCY_LIMITED`（HTTP 429 语义），不排队不阻塞。
+
+- **计量**：`ServiceState` 新增 `TokenBudget`（会话累计表 + 单次运行 cap 检查），从 `result.planner_metrics.usage.total_tokens` 累加（rule planner 无 usage 则 0）。
+- **挂载**：`run()` 入口检查会话预算；`run()` 完成累加会话预算 + 检查单次 cap；`run_async` 提交前同样检查。
+- **契约**：`error_category=budget` / `concurrency_limited` 进入既有错误分类；`/metrics` 增加 `budget` 摘要（会话数、已耗 token、上限）。
+- **测试**：预算未超正常、超限拒绝、单次 cap 终止、并发配额、rule 路径不受影响、env 解析。
+
+### 实现计划（单线程）
+
+1. **`agent/cost_governance.py`（新增）**：`TokenBudget`（会话累计 + 单次 cap + 并发信号量），env 解析（0=不限）。
+2. **`agent/service_state.py`**：持有 `TokenBudget`；`run()`/`run_async()` 前置检查 + 完成后累加。
+3. **`agent/service.py`**：run 流程接入预算检查；错误分类扩展 budget/concurrency_limited。
+4. **`agent/service_format.py`**：error_category 扩展。
+5. **HTTP**：429 映射（concurrency_limited）+ `/metrics` budget 摘要。
+6. **测试**：`tests/test_m81_cost_governance.py`（新增）。
+7. **验收**：相关测试 + 全量回归 + CI 绿；容器内验证预算生效。
+
+### 验收标准
+
+- 专项测试通过；全量离线转绿；CI 绿；预算/并发默认关闭时行为零变化（既有测试证明）。

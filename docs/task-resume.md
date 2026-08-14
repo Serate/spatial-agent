@@ -47,7 +47,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: M79.5 生产容器真实模型证据 + 约束敏感性矩阵（容器内 live 6/6 / 约束矩阵 road_distance 单调 / ServiceState 方法体收敛）
 - Last pushed commit: `f30a1ed`（M79.5）
-- Current work: M80 主线四项全部完成（A1 自适应重规划/A2 长期记忆/B6 标准可观测/D13 LLM-as-judge），CI 持续绿，全量 526 项通过；M80 全局复盘 + M81 规划已写入 docs/milestones.md（候选：B5 成本治理与并发配额 / A3 工具动态扩展 / C9 流式输出 / D13 收尾）。等待用户确认 M81 起始项。
+- Current work: M81.1 成本治理与并发配额进行中——会话级 token 预算（SPATIAL_AGENT_TOKEN_BUDGET）+ 单次运行 cap（SPATIAL_AGENT_RUN_TOKEN_CAP）+ 并发配额（SPATIAL_AGENT_MAX_CONCURRENT），默认关闭零变化；新增 agent/cost_governance.py（TokenBudget）+ service 接入 + budget/concurrency 错误分类 + /metrics 摘要；规划已写入 docs/milestones.md。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
