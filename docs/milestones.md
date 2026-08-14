@@ -1279,3 +1279,31 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 - **测试**：+11 项；全量 526 项转绿。
 
 **遗留**：judge 分数尚未展示到前端/报告可视化（当前在评测 JSON 中）；LLM-as-judge 未接入 live baseline 汇总（可后续加 judge case）。M80 主线 A1/A2/B6/D13 全部完成。
+
+## M80 全局复盘（七维矩阵）
+
+- **产品能力**：Agent 具备执行中自适应重规划（观察失败→重排剩余步骤）、跨会话长期记忆（fact memory + 同会话注入）、标准可观测性（JSON-lines + span 链路）、答案质量评判（4 维启发式 + 可选 LLM judge）——四项核心 Agent 能力补齐。
+- **架构**：四项均为独立模块（replanning/memory/observability/answer_judge），挂在 Runtime/评测既有边界上，不引入重依赖（纯标准库），不破坏既有契约（judge 附加维度、memory 注入受控、replan 回退 fail-fast）。
+- **数据质量**：groundedness 用证据数字交叉核对答案；记忆 facts allowlist 标量；observability 事件受控字段。
+- **真实模型**：A1 有 recorded-LLM 离线双响应重规划 + 容器 live 验证；D13 有真实 deepseek judge 验证（四维评分）；live 全链路（容器内 6/6 + 约束矩阵）此前已建立。
+- **部署可靠性**：**CI 修复**（测试默认 local backend 依赖本地数据 + 快照降级契约 + observability stdout 污染三类根因），CI 从持续失败转为持续绿；容器重建 healthy；observability 日志文件挂载卷。
+- **前端体验**：重规划提示徽标 + 长期记忆卡片（受控展示）；observability/judge 为后端评测侧能力，无前端侵入。
+- **测试**：+42 项（replan 15 + memory 12 + observability 5 + judge 11 + 前端契约等）；全量 526 项通过；严格评测 8/8；CI 绿。
+
+**M80 遗留缺口（供 M81 规划）**
+1. **A3 工具动态扩展**（M80 可选加分项未做）：受控的"按需发现/注册"工具演示。
+2. **B5 并发配额与成本治理**：真实模型 token 预算熔断（单次/会话 token 上限，超限降级或拒绝）。
+3. **C9 流式输出**：SSE 流式步骤进度/结果增量渲染（当前同步/轮询）。
+4. **D12 CI 常态化评测**：脱敏回放已进 CI（smoke 跑全量）；live 报告归档对比未自动化。
+5. judge 分数前端可视化；LLM-as-judge 接入 live baseline 汇总。
+
+## M81 全局规划（候选方向，待用户确认）
+
+按七维复盘收敛 M80 遗留，按依赖顺序单线程执行。建议主线（按作品集价值）：
+
+1. **B5 成本治理与并发配额**（真实模型可控性）：单次运行/会话 token 预算熔断 + 并发上限，超限降级为 rule 或拒绝——面试可讲"真实模型成本可控"。
+2. **A3 工具动态扩展**（受控）：按需发现/注册工具的受控演示（仍过 ToolRegistry/schema 校验）。
+3. **C9 流式输出**（体验）：SSE 流式步骤/结果增量渲染。
+4. **D13 收尾**：judge 分数前端可视化 + live baseline judge 汇总。
+
+具体从哪一项开始由用户确认后写入阶段规划再执行。
