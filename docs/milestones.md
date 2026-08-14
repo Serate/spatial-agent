@@ -1174,3 +1174,37 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 ### 验收标准
 
 - 专项测试通过；全量离线转绿；容器日志中出现 JSON-lines run/step 事件且无敏感字段；`GET /observability/health` 返回开关状态。
+
+## M80.3：标准可观测性（已完成）
+
+### 实现内容
+
+- **`agent/observability.py`（新增）**：
+  - `ObservabilityEmitter`：JSON-lines 结构化事件（schema `spatial-agent.observability.v1`），OpenTelemetry 风格字段（trace_id=run_id、span_id、parent_span_id、name、status、duration_ms、timestamp），纯标准库实现。
+  - run 级事件 attributes：session_id/result_type/error_category/replan_count/memory_fact_count；step 级：attempts/error_category（`failure_category` 分类）。
+  - **受控字段**：仅 allowlist 标量，不写原始错误文本/URL/key/路径；`_attribute_ok` 拒绝超长字符串。
+  - **输出策略**：默认只计数不写任何流（保护 CLI stdout 纯 JSON 契约）；`SPATIAL_AGENT_OBSERVABILITY_LOG=<path>` 写文件、`SPATIAL_AGENT_OBSERVABILITY_STDOUT=1` 显式写 stdout、`SPATIAL_AGENT_OBSERVABILITY=0` 关闭。
+  - `CollectingEmitter`：测试用内存收集（验证线格式）。
+- **`agent/runtime.py`**：`__init__` 接受 `observability`；run() 开始时登记 run span_id，结尾 emit run 事件（用同一 span_id 作为 run 事件 span，step 事件以它为 parent）；`_execute_step` 成功/失败/preflight 门控处 emit step 事件。
+- **`agent/runtime_factory.py` / `agent/service_state.py`**：`build_runtime` 透传 emitter；`ServiceState` 持有 `ObservabilityEmitter`。
+- **HTTP**：`serve_api.py` + `production_api.py` 新增 `GET /observability/health`（开关 + 进程内事件计数）。
+- **`Dockerfile`**：`SPATIAL_AGENT_OBSERVABILITY_LOG=/app/outputs/observability.log`（挂载卷可查看结构化日志）。
+- **测试**：`tests/test_m80_observability.py`（+5 项）——开关、run 事件无敏感字段、step 父子 span、禁用无输出、runtime 全链路事件。
+
+### 验收证据
+
+- 专项 5/5 通过；相关回归 78 项通过。
+- **全量离线 515 项通过（42 跳过）**；严格全局评测 8/8 通过。
+- **CI 修复（重要）**：M80.3 初版 emitter 默认写 stdout，污染了 `scripts/smoke_check.py` 的纯 JSON 输出（CI 命令 `python scripts/smoke_check.py` 全失败，GitHub 持续告警）。修复为「默认只计数、不写任何流；显式 log 文件或 STDOUT=1 才输出」——`smoke_check.py` 退出码 0、输出保持纯 JSON，CI 命令本地复验绿。Dockerfile 配置日志文件路径，容器内仍可观测。
+
+### 复盘（七维矩阵，M80.3）
+
+- **产品能力**：执行轨迹以标准 JSON-lines + span 模型输出，可被日志采集/追踪系统消费。
+- **架构**：observability 是独立模块（纯标准库），挂在 Runtime 既有边界（run/step 生命周期），不引入 otel 依赖、不改 metrics 接口。
+- **数据质量**：事件字段受控（allowlist 标量 + 分类），无敏感字段泄漏。
+- **真实模型**：planner 名称进入 run 事件 name，LLM 路径同样被观测。
+- **部署可靠性**：日志文件挂载卷可查；CI 命令恢复纯 JSON 契约（这是本阶段修复的关键回归）。
+- **前端体验**：无前端改动（observability 是后端/运维侧能力）。
+- **测试**：+5 项；全量 515 项转绿；CI 命令复验通过。
+
+**遗留**：observability 事件目前只进日志/内存计数，未接外部追踪后端（Jaeger/OTLP）；`GET /observability/health` 无鉴权（demo 项目可接受）。

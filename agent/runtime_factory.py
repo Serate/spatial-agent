@@ -23,6 +23,7 @@ def build_runtime(
     state_store=None,
     conversation_store=None,
     memory=None,
+    observability=None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
     if backend_name == "local":
@@ -48,4 +49,5 @@ def build_runtime(
         state_store=state_store,
         conversation_store=conversation_store,
         memory=memory,
+        observability=observability,
     )

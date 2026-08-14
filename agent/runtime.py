@@ -11,6 +11,7 @@ from .answer_composer import AnswerComposer
 from .context_engineering import ContextBuilder, ContextPacket
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
+from .observability import ObservabilityEmitter
 from .planner import Planner
 from .replanning import (
     ReplanningPolicy,
@@ -125,6 +126,7 @@ class AgentRuntime:
         max_retries: int = 2,
         replan_policy: Optional[ReplanningPolicy] = None,
         memory: Optional[FactMemory] = None,
+        observability: Optional[ObservabilityEmitter] = None,
     ):
         self._planner = planner
         self._registry = registry
@@ -136,8 +138,10 @@ class AgentRuntime:
         self._max_retries = max_retries
         self._replan_policy = replan_policy or ReplanningPolicy()
         self._memory = memory
+        self._observability = observability
         self._control_lock = Lock()
         self._cancelled_runs: Set[str] = set()
+        self._run_span_ids: Dict[str, str] = {}
 
     def run(
         self,
@@ -151,8 +155,11 @@ class AgentRuntime:
             raise ToolError("timeout_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
         resolved_request = self._resolve_request(request, session_id)
+        resolved_run_id = run_id or str(uuid.uuid4())
+        run_span_id = uuid.uuid4().hex[:16]
+        self._run_span_ids[resolved_run_id] = run_span_id
         result = AgentRunResult(
-            run_id=run_id or str(uuid.uuid4()),
+            run_id=resolved_run_id,
             status=RunStatus.PLANNING,
             request=request,
             session_id=session_id,
@@ -266,6 +273,7 @@ class AgentRuntime:
         if result.planner_metrics is None:
             result.planner_metrics = self._planner_metrics()
         self._state_store.save(result)
+        self._emit_run_event(result)
         return result
 
     def clear_session(self, session_id: str) -> None:
@@ -431,6 +439,7 @@ class AgentRuntime:
             step_run.status = "FAILED"
             step_run.error = str(exc)
             step_run.finished_at = _utc_now()
+            self._emit_step_event(run_id, step_run)
             raise
         resolved_args = _resolve_result_references(step.args, completed_results)
         self._check_control(run_id, deadline)
@@ -446,6 +455,7 @@ class AgentRuntime:
                 step_run.status = "COMPLETED"
                 step_run.finished_at = _utc_now()
                 step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
+                self._emit_step_event(run_id, step_run)
                 return
             except ToolError as exc:
                 step_run.error = str(exc)
@@ -453,10 +463,12 @@ class AgentRuntime:
                     step_run.status = "FAILED"
                     step_run.finished_at = _utc_now()
                     step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
+                    self._emit_step_event(run_id, step_run)
                     raise
         step_run.status = "FAILED"
         step_run.finished_at = _utc_now()
         step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
+        self._emit_step_event(run_id, step_run)
 
     def _try_replan(
         self,
@@ -601,6 +613,55 @@ class AgentRuntime:
         if self._memory is not None:
             self._memory.remember(result)
 
+    def _emit_run_event(self, result: AgentRunResult) -> None:
+        if self._observability is None:
+            return
+        span_id = self._run_span_ids.get(result.run_id)
+        run_category = _run_error_category(result)
+        attributes = {
+            "session_id": result.session_id,
+            "result_type": _result_type_for_observability(result),
+            "error_category": run_category,
+            "replan_count": len(result.replan_events),
+            "memory_fact_count": len(self._memory.recall(session_id=result.session_id or "default"))
+            if self._memory is not None
+            else 0,
+        }
+        attributes = {key: value for key, value in attributes.items() if value is not None}
+        self._observability.emit_run(
+            run_id=result.run_id,
+            session_id=result.session_id,
+            name="{}:{}".format(type(self._planner).__name__, _result_type_for_observability(result)),
+            status=result.status.value,
+            duration_ms=_run_duration_ms(result),
+            attributes=attributes,
+            span_id=span_id,
+        )
+        if span_id:
+            self._run_span_ids.pop(result.run_id, None)
+
+    def _emit_step_event(
+        self,
+        run_id: str,
+        step_run: StepRun,
+    ) -> None:
+        if self._observability is None:
+            return
+        parent_span_id = self._run_span_ids.get(run_id)
+        attributes = {
+            "attempts": step_run.attempts,
+            "error_category": failure_category(step_run.error),
+        }
+        attributes = {key: value for key, value in attributes.items() if value is not None}
+        self._observability.emit_step(
+            run_id=run_id,
+            parent_span_id=parent_span_id,
+            name=step_run.tool,
+            status=step_run.status,
+            duration_ms=step_run.latency_ms,
+            attributes=attributes,
+        )
+
     def _check_control(self, run_id: str, deadline: Optional[float]) -> None:
         with self._control_lock:
             is_cancel_requested = getattr(self._state_store, "is_cancel_requested", None)
@@ -708,3 +769,34 @@ _PIXEL_ALIGNMENT_TOOLS = {
     "get_zonal_buildability_analysis",
     "get_zonal_constrained_buildability_analysis",
 }
+
+
+def _result_type_for_observability(result: AgentRunResult) -> str:
+    plan = result.plan
+    if plan is not None:
+        output_type = (plan.output or {}).get("type")
+        if output_type:
+            return str(output_type)
+    return "unknown"
+
+
+def _run_duration_ms(result: AgentRunResult) -> Optional[float]:
+    values = [step.latency_ms for step in result.steps if step.latency_ms is not None]
+    if not values:
+        return None
+    return round(sum(float(value) for value in values), 3)
+
+
+def _run_error_category(result: AgentRunResult) -> Optional[str]:
+    status = result.status
+    if status == RunStatus.COMPLETED:
+        return None
+    if status == RunStatus.CANCELLED:
+        return "cancelled"
+    if status == RunStatus.TIMED_OUT:
+        return "timeout"
+    if status == RunStatus.REJECTED:
+        return "rejected"
+    if status == RunStatus.NEEDS_CLARIFICATION:
+        return "clarification"
+    return failure_category(result.error)

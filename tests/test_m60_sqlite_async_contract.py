@@ -36,7 +36,7 @@ class _ProcessRecreatedAdapter:
         raise AssertionError(name)
 
 
-def _build_retry_runtime(_planner_name, _backend_name, state_store=None, conversation_store=None, memory=None):
+def _build_retry_runtime(_planner_name, _backend_name, state_store=None, conversation_store=None, memory=None, observability=None):
     definitions = {
         name: {
             "name": name,
@@ -50,6 +50,7 @@ def _build_retry_runtime(_planner_name, _backend_name, state_store=None, convers
         state_store=state_store,
         conversation_store=conversation_store,
         memory=memory,
+        observability=observability,
         max_retries=0,
     )
 

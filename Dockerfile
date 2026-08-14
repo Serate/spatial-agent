@@ -40,6 +40,7 @@ ENV PATH=/opt/conda/envs/spatial-agent-gis/bin:/opt/conda/envs/spatial-agent-gis
     SPATIAL_AGENT_DATASET_ROOT=/data \
     SPATIAL_AGENT_STATE_DB=/app/outputs/spatial-agent.db \
     SPATIAL_AGENT_REQUIRE_GIS=1 \
+    SPATIAL_AGENT_OBSERVABILITY_LOG=/app/outputs/observability.log \
     PYTHONUNBUFFERED=1
 
 RUN mkdir -p /app/outputs/runs /app/outputs/geojson /data \

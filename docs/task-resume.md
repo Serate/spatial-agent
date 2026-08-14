@@ -47,7 +47,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: M79.5 生产容器真实模型证据 + 约束敏感性矩阵（容器内 live 6/6 / 约束矩阵 road_distance 单调 / ServiceState 方法体收敛）
 - Last pushed commit: `f30a1ed`（M79.5）
-- Current work: M80.3 标准可观测性进行中——结构化 JSON-lines 运行日志 + 轻量 span 链路（OpenTelemetry 风格，无依赖）：新增 agent/observability.py（ObservabilityEmitter/CollectingEmitter）+ runtime 挂载 + GET /observability/health；规划已写入 docs/milestones.md。
+- Current work: M80.3 标准可观测性已完成——新增 agent/observability.py（JSON-lines + span 模型，纯标准库）+ runtime 挂载 + GET /observability/health + Dockerfile 日志文件；修复 CI 失败（emitter 默认写 stdout 污染 smoke_check 纯 JSON 输出，改为默认只计数）；5 项专项 + 全量 515 项通过 + CI 命令复验绿。下一步按 M80.4（LLM-as-judge 答案评判）规划。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。

@@ -214,6 +214,16 @@ def memory(
         _raise_for(exc)
 
 
+@app.get("/observability/health")
+def observability_health():
+    state = service._state.observability
+    return {
+        "schema_version": "spatial-agent.observability.v1",
+        "enabled": state.enabled,
+        "event_count": state.event_count,
+    }
+
+
 @app.get("/workflows")
 def workflows():
     return {"templates": workflow_template_catalog()}

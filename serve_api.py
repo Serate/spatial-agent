@@ -121,6 +121,14 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             else:
                 self._write_json(200, result)
             return
+        if parsed.path == "/observability/health":
+            state = self.service._state.observability
+            self._write_json(200, {
+                "schema_version": "spatial-agent.observability.v1",
+                "enabled": state.enabled,
+                "event_count": state.event_count,
+            })
+            return
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")
             return

@@ -21,6 +21,7 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 from agent.memory import FactMemory
+from agent.observability import ObservabilityEmitter
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.service_sessions import runtime_key as _runtime_key
 
@@ -84,6 +85,7 @@ class ServiceState:
             SQLiteConversationStore(state_db_path) if state_db_path else None
         )
         self._memory = FactMemory(sqlite_conversation_store=self._conversation_store)
+        self._observability = ObservabilityEmitter()
         self._runtime_factory = runtime_factory
         self._runtimes: Dict[str, Any] = {}
         self._runtime_lock = threading.Lock()
@@ -117,6 +119,10 @@ class ServiceState:
         return self._memory
 
     @property
+    def observability(self) -> ObservabilityEmitter:
+        return self._observability
+
+    @property
     def timeout_seconds(self) -> float:
         return self._timeout_seconds
 
@@ -138,6 +144,7 @@ class ServiceState:
                 state_store=self._state_store,
                 conversation_store=self._conversation_store,
                 memory=self._memory,
+                observability=self._observability,
             )
             self._runtimes[key] = runtime
             return runtime
