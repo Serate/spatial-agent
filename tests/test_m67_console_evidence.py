@@ -40,7 +40,6 @@ class M67ConsoleEvidenceContractTests(unittest.TestCase):
             "geometry.sources",
             "geometry.crs",
             "geometry.geojson_ref||data.geojson_ref",
-            "hasToolResult",
             "hasRasterResult",
             "hasHealthResult",
             "hasCompositeResult",

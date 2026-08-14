@@ -11,6 +11,13 @@ from .answer_composer import AnswerComposer
 from .context_engineering import ContextBuilder, ContextPacket
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .planner import Planner
+from .replanning import (
+    ReplanningPolicy,
+    build_replan_event,
+    failure_category,
+    merge_replanned_plan,
+    rule_replan_plan,
+)
 from .request_model import parse_spatial_request
 from .tools import ToolRegistry
 from .workflow_templates import WorkflowTemplateError, validate_workflow_plan
@@ -115,6 +122,7 @@ class AgentRuntime:
         context_builder: Optional[ContextBuilder] = None,
         max_steps: int = 12,
         max_retries: int = 2,
+        replan_policy: Optional[ReplanningPolicy] = None,
     ):
         self._planner = planner
         self._registry = registry
@@ -124,6 +132,7 @@ class AgentRuntime:
         self._context_builder = context_builder or ContextBuilder()
         self._max_steps = max_steps
         self._max_retries = max_retries
+        self._replan_policy = replan_policy or ReplanningPolicy()
         self._control_lock = Lock()
         self._cancelled_runs: Set[str] = set()
 
@@ -185,10 +194,18 @@ class AgentRuntime:
             ]
             completed: Set[str] = set()
             completed_results: Dict[str, Dict[str, Any]] = {}
-            for index, (step_run, step) in enumerate(zip(result.steps, plan.steps)):
+            replan_count = 0
+            index = 0
+            while index < len(result.steps):
+                step_run = result.steps[index]
+                step = result.plan.steps[index]
                 try:
                     self._check_control(result.run_id, deadline)
                     self._execute_step(result.run_id, deadline, step_run, step, completed, completed_results)
+                    completed.add(step.id)
+                    if step_run.result is not None:
+                        completed_results[step.id] = step_run.result
+                    index += 1
                 except RunCancelled as exc:
                     self._block_remaining_steps(result.steps, index, step.id, str(exc))
                     raise
@@ -196,11 +213,22 @@ class AgentRuntime:
                     self._block_remaining_steps(result.steps, index, step.id, str(exc))
                     raise
                 except Exception as exc:
-                    self._block_remaining_steps(result.steps, index + 1, step.id, str(exc))
-                    raise
-                completed.add(step.id)
-                if step_run.result is not None:
-                    completed_results[step.id] = step_run.result
+                    if not self._try_replan(
+                        result,
+                        resolved_request,
+                        index,
+                        step_run,
+                        step,
+                        exc,
+                        completed,
+                        completed_results,
+                        replan_count,
+                        deadline,
+                    ):
+                        self._block_remaining_steps(result.steps, index + 1, step.id, str(exc))
+                        raise
+                    replan_count += 1
+                    index += 1
             result.status = RunStatus.COMPLETED
             result.answer = self._answer_composer.compose(result)
             self._conversation_store.clear_pending(session_id)
@@ -419,6 +447,99 @@ class AgentRuntime:
         step_run.finished_at = _utc_now()
         step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
 
+    def _try_replan(
+        self,
+        result: AgentRunResult,
+        request: str,
+        index: int,
+        step_run: StepRun,
+        step: PlanStep,
+        exc: Exception,
+        completed: Set[str],
+        completed_results: Dict[str, Dict[str, Any]],
+        replan_count: int,
+        deadline: Optional[float],
+    ) -> bool:
+        """Attempt one adaptive replan round after a failed step.
+
+        Returns True when a valid replacement plan was merged and execution can
+        continue; False when the run must fail fast (policy denies, budget
+        exhausted, or replanning itself failed).
+        """
+        if not self._replan_policy.should_replan(
+            replan_count=replan_count,
+            step_status=step_run.status,
+            step_error=str(exc),
+        ):
+            return False
+        completed_steps = [
+            {"id": step_id, "tool": self._tool_for_step(result.plan, step_id)}
+            for step_id in completed
+        ]
+        failed_payload = {
+            "id": step.id,
+            "tool": step.tool,
+            "args": dict(step.args),
+            "error_category": failure_category(str(exc)),
+        }
+        feedback = self._replan_policy.feedback_payload(
+            request=request,
+            completed_steps=completed_steps,
+            failed_step=failed_payload,
+            remaining_tools=self._registry.names,
+            output_type=(result.plan.output or {}).get("type"),
+        )
+        started = perf_counter()
+        try:
+            if getattr(self._planner, "capability_rules", None) is not None:
+                replacement = rule_replan_plan(failed_payload, completed_results)
+            else:
+                replacement = self._planner.plan(
+                    request, context=_replan_context(feedback)
+                )
+            merged = merge_replanned_plan(
+                result.plan, replacement, failed_step_id=step.id
+            )
+            # Validate the merged plan only: replacement steps may legitimately
+            # depend on original steps that survive in the merged plan, which
+            # a standalone validation of the replacement would reject.
+            self._validate_plan(merged)
+            # Rebuild step runs to match the merged plan: keep runs for steps
+            # that still exist (completed ones keep their results, the failed
+            # step keeps its FAILED state), create fresh runs for new steps.
+            old_by_id = {item.id: item for item in result.steps}
+            rebuilt: List[StepRun] = []
+            new_step_ids: List[str] = []
+            for item in merged.steps:
+                previous = old_by_id.get(item.id)
+                if previous is not None:
+                    rebuilt.append(previous)
+                else:
+                    fresh = StepRun(item.id, item.tool, item.args, list(item.depends_on))
+                    rebuilt.append(fresh)
+                    new_step_ids.append(item.id)
+            result.plan = merged
+            result.steps = rebuilt
+            result.replan_events.append(
+                build_replan_event(
+                    failed_step_id=step.id,
+                    failed_tool=step.tool,
+                    failure_category=failure_category(str(exc)),
+                    new_step_ids=new_step_ids,
+                    latency_ms=(perf_counter() - started) * 1000,
+                )
+            )
+            return True
+        except Exception:
+            # Replanning failed; the caller falls back to fail-fast.
+            return False
+
+    def _tool_for_step(self, plan: TaskPlan, step_id: str) -> Optional[str]:
+        for item in plan.steps:
+            if item.id == step_id:
+                return item.tool
+        return None
+
     def _enforce_preflight_policy(
         self,
         tool: str,
@@ -514,6 +635,14 @@ def _validate_runtime_workflow_plan(
         "assumptions": list(plan.assumptions),
     }
     validate_workflow_plan(template_id, payload)
+
+
+def _replan_context(feedback: Mapping[str, Any]) -> Dict[str, Any]:
+    """Wrap replan feedback in the same trusted-context shape planners expect."""
+    return {
+        "feedback": feedback,
+        "note": "Adaptive replan: revise only the remaining steps needed to finish the request.",
+    }
 
 
 def _utc_now() -> str:

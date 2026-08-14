@@ -32,6 +32,7 @@ class ArtifactStore:
             "error": payload.get("error"),
             "clarification": payload.get("clarification"),
             "retry_count": payload.get("retry_count", 0),
+            "replan_events": payload.get("replan_events") or [],
             "geojson_ref": payload.get("geojson_ref"),
             "artifact_ref": path.as_posix(),
         }

@@ -69,6 +69,8 @@ class AgentRunResult:
     context_evidence: Optional[Dict[str, Any]] = None
     # Number of in-place retries performed for this run.
     retry_count: int = 0
+    # Bounded adaptive-replanning evidence (M80.1): one entry per replan round.
+    replan_events: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)

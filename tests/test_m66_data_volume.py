@@ -17,13 +17,17 @@ class M66DataVolumeContractTests(unittest.TestCase):
         )
         self.assertEqual(config["root"], "/data")
         self.assertEqual(
-            set(config["datasets"]), {"admin_areas", "dem", "land_use"}
+            set(config["datasets"]),
+            {"admin_areas", "dem", "land_use", "roads", "water"},
         )
         self.assertTrue(config["datasets"]["admin_areas"]["path"])
-        self.assertTrue(config["datasets"]["dem"]["glob"].startswith("extracted/"))
-        self.assertTrue(
-            config["datasets"]["land_use"]["glob"].startswith("extracted/")
-        )
+        # M79.4.1: the container catalog points core rasters at the
+        # analysis-ready aligned derivatives instead of the raw tiles.
+        self.assertIn("dem", config["datasets"]["dem"].get("path") or config["datasets"]["dem"].get("glob") or "")
+        self.assertIn("analysis-ready", config["datasets"]["dem"].get("path") or "")
+        self.assertIn("analysis-ready", config["datasets"]["land_use"].get("path") or "")
+        self.assertIn("wuhan-osm.gpkg", config["datasets"]["roads"].get("path") or "")
+        self.assertIn("wuhan-osm.gpkg", config["datasets"]["water"].get("path") or "")
 
     def test_compose_separates_read_only_data_from_writable_outputs(self):
         compose = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")

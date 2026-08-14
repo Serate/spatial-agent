@@ -1048,3 +1048,39 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 5. **`agent/rule_planning.py`**：RuleBasedPlanner 在带反馈 context 时给出确定性重规划（如：失败步骤替换为降级工具/参数修正），保证 rule 路径也可离线验证。
 6. **测试**：`tests/test_m80_replanning.py`（新增）——失败后重规划 COMPLETED、超限不重规划、重规划步骤过校验、rule 与 recorded-LLM 两条路径、replan_events 契约。
 7. **验收**：相关测试 + 浏览器/前端无改动确认 + 容器重建回归 + live baseline 可选复跑。
+
+## M80.1：执行中自适应重规划（已完成）
+
+### 实现内容
+
+- **`agent/replanning.py`（新增）**：
+  - `ReplanningPolicy`：触发判定（仅步骤 FAILED 且未超预算）、预算 `SPATIAL_AGENT_REPLAN_LIMIT`（默认 1）、受控反馈 payload（已执行步骤摘要 + 失败步骤工具/参数/错误分类 + 可用工具 + 结果类型，不含原始错误文本/URL/key）。
+  - `failure_category()`：稳定小分类（tool_gate / tool_validation / reference / backend_execution / unknown）。
+  - `merge_replanned_plan()`：原计划保留到失败步骤为止（失败步骤之后的旧步骤被替换计划接管），重规划步骤追加并做 id 去冲突 + 依赖重写（引用保留原步骤则指向真实 id，引用被丢弃步骤则移除）。
+  - `rule_replan_plan()`：确定性降级——constrained 失败→plain buildability；buildability（联合像元）失败→坡度+土地利用拆分；其他→健康摘要，保证 rule 路径离线可验证。
+  - `build_replan_event()`：受控证据（失败步骤/工具/分类/新步骤数/耗时），不含原始错误。
+- **`agent/runtime.py`**：执行循环从 for 改为 while，步骤失败（非取消/超时）时调 `_try_replan`：rule 路径走 `rule_replan_plan`，模型路径走 `self._planner.plan(request, context=_replan_context(feedback))`；合并后仅对 merged 计划做 `_validate_plan`（重规划步骤可合法依赖保留的原步骤）；重建 `result.steps` 与 merged 对齐；`replan_events` 记录每轮重规划。重规划失败或预算耗尽时回退 fail-fast（原行为不变）。
+- **`agent/models.py`**：`AgentRunResult.replan_events: List[Dict]`（默认空）。
+- **`agent/artifact_store.py` / `agent/sqlite_store.py`**：持久化往返保留 `replan_events`。
+- **`web/index.html`**：运行链接区新增重规划提示（`replan-note`：重规划次数 + 失败步骤 + 新增步数）。
+- **测试**：`tests/test_m80_replanning.py`（+15 项）——策略判定/预算/分类/合并重写/rule 三条降级路径/rule 运行时降级/recorded-LLM 双响应重规划/预算耗尽 fail-fast/持久化往返。
+
+### 验收证据
+
+- 相关测试 15/15 通过；运行时/评测/服务/前端契约回归 45 项通过。
+- **全量离线 498 项通过（42 跳过）**；严格全局评测 8/8 通过。
+- 修复 2 个**既有过期基线断言**（与本阶段无关但在全量中暴露）：`test_m67_console_evidence` 断言已移除的 `hasToolResult`（M79.4.4 遗留）；`test_m66_data_volume` 仍断言容器目录只有 3 个核心数据集与 `extracted/` glob（M79.4.1 遗留，已改为 analysis-ready + roads/water 契约）。
+- 容器重建后 healthy；正常 rule 运行 COMPLETED（7 步）；replanning 模块容器内导入与分类验证通过。
+- 浏览器/前端：replan 提示仅在 `replan_events` 存在时显示，正常运行无变化（smoke 语义不变）。
+
+### 复盘（七维矩阵，M80.1）
+
+- **产品能力**：执行中自适应重规划成为真实能力——步骤失败后由规划器基于执行反馈重排剩余步骤（模型路径）或确定性降级（rule 路径），而非直接 fail-fast。
+- **架构**：重规划仍是 Planner→Runtime→ToolRegistry 统一边界内的能力；新计划必须过 `_validate_plan` 与 preflight；`replan_events` 是受控证据，不引入新状态面（存于既有结果契约）。
+- **数据质量**：无数据层改动；约束/建设降级链在真实工具 schema 下由测试验证。
+- **真实模型**：recorded-LLM 双响应离线复现"首计划失败→模型重规划→完成"；live 未跑（本阶段以离线契约为主，live 复跑留作可选）。
+- **部署可靠性**：容器重建后 healthy，正常路径零变化；重规划预算可经 env 调优。
+- **前端体验**：仅新增受控提示（有重规划才显示），正常界面无变化。
+- **测试**：+15 项（含 recorded-LLM 与 rule 双路径）；修复 2 个既有过期断言，全量 498 项转绿。
+
+**遗留**：live 模型重规划未在真实 provider 上复跑（需真实 token，留作可选验收）；重规划预算默认 1（可经 `SPATIAL_AGENT_REPLAN_LIMIT` 调大）；`rule_replan_plan` 的降级链目前覆盖 constrained/buildability/fallback 三类，更多工具的降级策略留作后续。
