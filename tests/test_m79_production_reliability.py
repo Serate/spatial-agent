@@ -112,6 +112,31 @@ class M79ProductionReliabilityTests(unittest.TestCase):
         self.assertIn("uvicorn", dockerfile)
         self.assertIn("--workers", dockerfile)
 
+    def test_container_config_template_includes_full_demo_datasets(self):
+        # M79.4 config contract: the production container config must expose the
+        # analysis-ready aligned layers and roads/water so buildability,
+        # constrained buildability, and region comparison are demonstrable in
+        # the container instead of failing the alignment/data gate.
+        import json
+
+        path = (
+            Path(__file__).parents[1]
+            / "config"
+            / "datasets.container.example.json"
+        )
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        datasets = payload.get("datasets") or {}
+        self.assertIn("admin_areas", datasets)
+        self.assertIn("roads", datasets)
+        self.assertIn("water", datasets)
+        self.assertIn("analysis-ready", str(datasets.get("dem", {}).get("path", "")))
+        self.assertIn("analysis-ready", str(datasets.get("land_use", {}).get("path", "")))
+        self.assertEqual(datasets.get("roads", {}).get("path"), "wuhan-osm.gpkg")
+        self.assertEqual(datasets.get("water", {}).get("path"), "wuhan-osm.gpkg")
+        analysis_ready = payload.get("analysis_ready") or {}
+        self.assertTrue(analysis_ready.get("required", False))
+        self.assertIn("/data/analysis-ready", str(analysis_ready.get("report", "")))
+
 
 if __name__ == "__main__":
     unittest.main()

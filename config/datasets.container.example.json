@@ -13,23 +13,49 @@
     },
     "dem": {
       "kind": "raster",
-      "format": "img",
-      "glob": "extracted/ASTGTM_*/*.img",
-      "role": "ASTER DEM tiles",
-      "source": "ASTER GDEM",
-      "version": "v3",
+      "format": "tif",
+      "path": "analysis-ready/dem_aligned.tif",
+      "role": "ASTER DEM analysis-ready aligned derivative",
+      "source": "Spatial Agent reproducible aligned derivative",
+      "version": "v3-analysis-ready",
       "attribution": "NASA/METI",
       "license": "ASTER GDEM data policy"
     },
     "land_use": {
       "kind": "raster",
       "format": "tif",
-      "glob": "extracted/N*_2025LC030/**/*.tif",
-      "role": "2025 land use tiles",
-      "version": "2025",
-      "source": "本地土地利用演示栅格",
+      "path": "analysis-ready/land_use_aligned.tif",
+      "role": "2025 land use analysis-ready aligned derivative",
+      "source": "Spatial Agent reproducible aligned derivative",
+      "version": "2025-analysis-ready",
       "attribution": "请替换为实际数据提供方",
       "license": "待核验"
+    },
+    "roads": {
+      "kind": "vector",
+      "format": "gpkg",
+      "path": "wuhan-osm.gpkg",
+      "role": "OSM Wuhan roads clipped to the 13-district boundary",
+      "source": "OpenStreetMap Overpass extract",
+      "version": "2026-08-08-overpass-extract",
+      "attribution": "© OpenStreetMap contributors",
+      "license": "ODbL 1.0"
+    },
+    "water": {
+      "kind": "vector",
+      "format": "gpkg",
+      "path": "wuhan-osm.gpkg",
+      "role": "OSM Wuhan water ways clipped to the 13-district boundary",
+      "source": "OpenStreetMap Overpass extract",
+      "version": "2026-08-08-overpass-extract",
+      "attribution": "© OpenStreetMap contributors",
+      "license": "ODbL 1.0"
     }
-  }
+  },
+  "analysis_ready": {
+    "report": "/data/analysis-ready/analysis-ready-report.json",
+    "required": true
+  },
+  "manifest": "/data/analysis-ready/analysis.manifest.json",
+  "manifest_required": true
 }

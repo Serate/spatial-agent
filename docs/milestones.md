@@ -772,3 +772,43 @@ M78 已推送版本：`8e391e7`（M78.1）、`853d55c`（M78.2）、`5255e0b`（
 - 容器生产数据卷无 roads/water 与 analysis-ready 派生层，建设类 live 在容器默认挂载下会如实 gate；若要在生产容器直接演示建设筛选需准备对齐派生层数据卷。
 - live baseline 每次运行消耗真实 token（本阶段 19,375），不纳入 CI；报告存仓库外。
 - 区域比较仅覆盖 2 区域 × 1 阈值；更多区域/阈值组合留作后续扩展。
+
+## M79.4 全局规划（面试演示闭环收口）
+
+M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线、部署可靠性）已全部完成。下一阶段按七维复盘收敛遗留短板，按依赖顺序单线程执行：
+
+1. **生产容器完整数据卷**（最高优先级，面试演示直接短板）：把宿主机已有的 analysis-ready 对齐派生层（`D:\tmp\wuhan-gis\analysis-ready`）与 roads/water（`wuhan-osm.gpkg`）引入生产挂载与数据配置，使容器内建设筛选/约束筛选/区域比较**默认可演示**，而不是 gate 报错（`grid_mismatch` / 可选层缺失）。
+2. **AgentService 状态收敛**（M78 架构债）：把 runtime 缓存 / 异步作业字典 / SQLite 双模式收敛为独立状态模块；补作业级 wall-clock 超时与周期 reaper。
+3. **多区域 × 多阈值比较矩阵**（真实模型扩展）：live baseline 区域比较扩到 3+ 区域 × 2+ 阈值，验证候选比例随阈值单调变化。
+4. **前端纯结果类型驱动**（收尾）：`resultViewRegistry` 去掉工具推断兜底，完全按 `result_type` 注册面板。
+
+## M79.4.1：生产容器完整数据卷（已完成）
+
+### 实现内容
+
+- **数据**（仓库外）：把宿主机已有的 analysis-ready 对齐派生层（`dem_aligned.tif`、`land_use_aligned.tif`、`analysis-ready-report.json`）与 `wuhan-osm.gpkg`（roads/water 共用）复制到生产数据根 `D:\dataset\agent`，并用 `scripts/dataset_manifest.py` 重新生成 manifest（路径相对 `/data`：`analysis-ready/dem_aligned.tif`、`wuhan-osm.gpkg` 等），校验 mismatch=0。
+- **配置**（`config/datasets.container.example.json`）：dem/land_use 从原始瓦片 glob 改为 analysis-ready 派生层路径；新增 roads/water（指向 `wuhan-osm.gpkg`）；新增 `analysis_ready`（`/data/analysis-ready/analysis-ready-report.json`，required）与 `manifest`（`/data/analysis-ready/analysis.manifest.json`，required）绝对路径段。
+- **测试**（`tests/test_m79_production_reliability.py` +1 项）：容器配置模板契约测试——必须含 roads/water、analysis-ready 派生层路径、analysis_ready.required、`/data/analysis-ready` 报告路径，防止配置回归。
+
+### 验收证据（轻量验证纪律）
+
+- 宿主机 health：`readiness=ready`、`analysis=ready`、`grid=aligned`、`manifest=ready`、5 数据集全 ready。
+- 生产容器重建后：`/health/ready` ready、`data_readiness=ready`、`analysis_ready=ready`、`buildability_screening` 与 `constrained_buildability_screening` 均 `available=true, capability_status=ready`。
+- **容器内实测（rule planner，真实数据）**：
+  - 建设筛选 COMPLETED：洪山区 22,800 候选像元（valid 576,040）——不再 `grid_mismatch` gate。
+  - 约束筛选 COMPLETED：候选 200 几何样本 → 满足道路约束 180 → 水体排除 14（roads/water 真实参与）。
+  - 区域比较 COMPLETED：洪山 22,800（ratio 0.0396）/ 江夏 58,419（ratio 0.0260），与宿主机 live baseline 一致。
+- **production acceptance 数据卷状态升级**：`data_volume_status` 从 `core_ready_optional_partial` → **`ready`**，`optional_data_health` 从 `unavailable` → **`ready`**，`optional_missing_datasets` 为空。
+- 相关测试 48+32 项通过（1 live 门控跳过符合预期）；浏览器 smoke health/overview 通过。
+
+### 复盘（七维矩阵，第 1 项）
+
+- **产品能力**：面试演示短板消除——生产容器默认挂载即可演示建设筛选/约束筛选/区域比较，不再出现 gate 报错。
+- **架构**：容器配置模板成为完整数据契约（core + optional + analysis-ready + manifest），防回归测试锁定。
+- **数据质量**：对齐派生层 + roads/water 进入生产数据根；manifest 重新生成并校验（mismatch 0）。
+- **真实模型**：live 路径不受影响（容器内 rule 验证 + 宿主机 live 基线一致）。
+- **部署可靠性**：production acceptance 数据卷状态正式升为全 `ready`；容器重建后 healthy。
+- **前端体验**：无前端改动；浏览器 smoke 通过。
+- **测试**：+1 项配置契约；沿用轻量验证（相关 80 项而非全量）。
+
+**遗留**：真实模型 live baseline 尚未在容器内完整数据卷上复跑（buildability/constrained live 需真实 token，留到第 3 项比较矩阵一并验证）。

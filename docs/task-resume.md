@@ -46,8 +46,8 @@ The project should not be framed as a simple GIS script. The core point is a tes
 ## Current Status
 
 - Latest completed milestone: M79.3 真实模型 live 基线扩展（建设筛选 + 道路/水体约束 + 跨区域比较）与部署复验
-- Last pushed commit: M79.3 待提交；此前 `b6b2a5d`（M79.2）
-- Current work: M79.3 已收口，下一步按 M79.4 规划（见 milestones）
+- Last pushed commit: `d51d519`（docs: agent 设计大方面框架）；M79.3 代码 `66f033b`
+- Current work: M79.4 面试演示闭环收口（M79.4.1 生产容器完整数据卷已完成：数据卷状态升为全 ready；下一步 AgentService 状态收敛）
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
