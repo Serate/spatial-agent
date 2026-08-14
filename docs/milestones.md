@@ -882,3 +882,26 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 - **测试**：+3 项（矩阵）+1 项（registry 覆盖）；修正 1 个过时 smoke 断言。
 
 **遗留**：比较矩阵断言单调性基于每个区域独立行；若未来加入权重/约束参数（road_distance_m 等），单调性断言需按参数维度重新定义。M79.4 四项全部完成，面试演示闭环收口。
+
+## M79.4 全局复盘（七维矩阵）
+
+- **产品能力**：面试演示闭环收口——生产容器默认数据卷即可演示建设筛选/约束筛选/区域比较/比较矩阵；异步作业有 wall-clock 超时与 reaper 兜底，不会无限挂起。
+- **架构**：`ServiceState` 收敛 runtime 缓存/内存会话/内存异步作业/SQLite 双模式；前端面板完全由 `resultViewRegistry` 结果类型契约驱动，去掉工具推断兜底；容器配置模板成为完整数据契约。
+- **数据质量**：analysis-ready 对齐派生层 + roads/water 进入生产数据根，manifest 重生成 mismatch=0；比较矩阵单调性在真实数据与 live 模型下均成立（3 区域 × 3 阈值全单调）。
+- **真实模型**：live baseline 扩至 6 case 全部通过（47,102 tokens，0 错误 0 重试），含 comparison_matrix 9 次真实 buildability 子运行；容器内 rule 复验与宿主机 live 证据一致。
+- **部署可靠性**：生产容器数据卷状态 `ready`；reaper 由 HTTP 入口显式启用；production acceptance 全绿、幂等 true；容器 healthy。
+- **前端体验**：registry 覆盖全部 16 个 catalog 结果类型；浏览器 smoke 5 类全过（health/error badge/session/overview/lineage）。
+- **测试**：+10 项新测试（reaper 7 + 矩阵 3 + registry 覆盖 + 容器配置契约），修正 1 个过时 smoke 断言；沿用轻量验证（相关 51 项而非全量）。
+
+**M79.4 遗留缺口（供 M79.5 规划）**
+1. 生产容器内只有 rule planner 证据；真实模型 live baseline 尚未在容器完整数据卷上复跑（宿主机 live 证据 + 容器 rule 证据已分别成立，但"生产容器 + 完整数据卷 + 真实模型"三位一体证据缺失）。
+2. 比较矩阵只覆盖坡度阈值单一参数维度；约束参数（road_distance_m 等）的敏感性尚无矩阵证据。
+3. `AgentService` 方法体仍通过属性委托访问 `ServiceState`（渐进架构债，非功能缺口）。
+
+## M79.5 全局规划（生产容器真实模型证据 + 约束敏感性矩阵）
+
+按七维复盘收敛 M79.4 遗留缺口，按依赖顺序单线程执行：
+
+1. **生产容器内真实模型完整复跑**（M79.4 遗留 1，最高优先级）：在 production 容器（完整数据卷 `/data:ro` + 容器配置）内直接执行 `scripts/live_baseline.py`，用真实 deepseek-v4-flash 跑全量 6 case（含 comparison_matrix），产出"生产容器 + 完整数据卷 + 真实模型"三位一体的 live 证据，与宿主机 live baseline 结果对照。容器内已具备条件（openai key/model/wire/base 已注入、live 脚本随镜像 COPY、外网可达）；需在容器内设置 live 门控变量并验证报告落盘。
+2. **约束参数维度比较矩阵**（M79.4 遗留 2）：把比较矩阵从单一坡度阈值维度扩展到约束参数敏感性（road_distance_m 单调性：道路距离放宽 → 满足道路约束候选数单调不减），服务层新增约束比较入口，live baseline 增加约束矩阵 case，前端复用比较面板展示。
+3. **AgentService 方法体收敛**（M79.4 遗留 3，纯架构债）：把 service.py 中仍通过属性委托的读/写路径收进 `ServiceState` 方法；仅在主线功能稳定后作为收尾项执行，不引入行为变化。
