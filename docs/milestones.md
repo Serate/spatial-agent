@@ -1084,3 +1084,31 @@ M79 全局规划 4 项（lineage 导航、动态结果区、真实模型基线�
 - **测试**：+15 项（含 recorded-LLM 与 rule 双路径）；修复 2 个既有过期断言，全量 498 项转绿。
 
 **遗留**：live 模型重规划未在真实 provider 上复跑（需真实 token，留作可选验收）；重规划预算默认 1（可经 `SPATIAL_AGENT_REPLAN_LIMIT` 调大）；`rule_replan_plan` 的降级链目前覆盖 constrained/buildability/fallback 三类，更多工具的降级策略留作后续。
+
+## M80.2：长期记忆（进行中）
+
+### 目标与边界
+
+当前记忆只有 session 内 pending clarification + last completed request（`ConversationStore`），无跨会话历史。M80.2 新增**跨会话可检索的结论记忆（fact memory）**：每次 COMPLETED 运行沉淀一条结构化结论摘要，支持按区域/结果类型/关键词检索，并作为受控上下文注入后续 planner 调用。
+
+- **记忆条目**：`{run_id, session_id, result_type, admin_names[], summary(截断 200 字), facts{结构化指标键值}, created_at}`。来源为 result contract 已有字段（result_type/answer/admin_name/statistics），**不复制原始错误、URL、key、逐文件路径**。
+- **写入时机**：`AgentRuntime.run()` COMPLETED 后（与 `save_completed` 同位置）；`ServiceState` 持有记忆存储引用。
+- **检索**：按 session 检索（仅本会话历史）+ 全局检索（跨会话，受控注入——默认仅注入**同 session 的既往结论**，全局检索仅通过显式 API/评测使用，避免跨会话隐私泄漏）。
+- **注入**：`ContextBuilder` 新增可选 `memory_sections`——planner 上下文追加「既往结论」小节（受预算截断，`memory` 标识为可信元数据而非指令）。
+- **持久化**：SQLite 新表 `memory_facts`（内存模式用内存 dict，行为一致）；`SPATIAL_AGENT_MEMORY_ENABLED`（默认 1）可关闭。
+- **契约**：`GET /memory?session_id=...`（受控检索）；运行结果带 `memory_evidence`（本次沉淀的记忆条目数 + 注入的检索数，受控摘要）。
+
+### 实现计划（单线程）
+
+1. **`agent/memory.py`（新增）**：`FactMemory`——`remember(result, ...)` 提取结构化结论、`recall(session_id, query, limit)` 检索、`list_facts`、受控 evidence 构造；内存/SQLite 双模式（仿 `ConversationStore`）。
+2. **`agent/sqlite_store.py`**：新增 `memory_facts` 表 + CRUD（`insert_memory_fact` / `list_memory_facts` / `list_memory_facts_by_session`）。
+3. **`agent/context_engineering.py`**：`ContextBuilder.build` 新增 `memory_sections` 参数，注入「既往结论」小节（预算内）。
+4. **`agent/runtime.py`**：COMPLETED 后 `self._memory.remember(result)`；planner 调用前注入同 session 记忆。
+5. **`agent/service_state.py` / `agent/service.py`**：持有 `FactMemory`；新增 `list_memory(session_id, ...)`；`format_result` 带 `memory_evidence`。
+6. **HTTP**：`serve_api.py` / `production_api.py` 新增 `GET /memory`；`api_contract` 参数校验。
+7. **前端**：结果证据区新增「长期记忆」卡片（本次记忆沉淀 + 注入历史数），受控展示。
+8. **测试**：`tests/test_m80_memory.py`（新增）——remember 提取、session/全局检索、注入上下文、SQLite 往返、开关关闭、契约/HTTP。
+
+### 验收标准
+
+- 相关测试 + 全量离线回归；容器重建后 `GET /memory` 与记忆注入在真实数据下工作；前端记忆卡片 smoke；live baseline 可选复跑。
