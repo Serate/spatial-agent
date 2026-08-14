@@ -130,10 +130,10 @@ class CapabilityRouter:
 
 DEFAULT_ROUTES: Tuple[CapabilityRoute, ...] = (
     CapabilityRoute("dataset_health", 10, all_signals=("health",)),
-    CapabilityRoute("composed_spatial_analysis", 20, require_admin=True, min_task_count=3, all_signals=("composition",)),
-    CapabilityRoute("constrained_buildability", 30, all_tasks=("buildability",), any_tasks=VECTOR_TASKS),
+    CapabilityRoute("spatial_analysis", 20, require_admin=True, min_task_count=3, all_signals=("composition",)),
+    CapabilityRoute("constrained_buildability_screening", 30, all_tasks=("buildability",), any_tasks=VECTOR_TASKS),
     CapabilityRoute(
-        "terrain_land_use",
+        "zonal_terrain_land_use",
         40,
         require_admin=True,
         any_task_groups=(("buildability",), RASTER_TASKS),
@@ -148,7 +148,7 @@ DEFAULT_ROUTES: Tuple[CapabilityRoute, ...] = (
     CapabilityRoute("spatial_overview", 60, require_admin=True, all_signals=("overview",)),
     CapabilityRoute("legacy_road_slope", 65, all_tasks=("roads", "slope"), all_constraints=("slope_value",), any_signals=("relation",)),
     CapabilityRoute("vector_relation", 80, all_tasks=VECTOR_TASKS, any_signals=("relation",)),
-    CapabilityRoute("zonal_vector_summary", 90, require_admin=True, any_tasks=VECTOR_TASKS, no_signals=("relation",)),
+    CapabilityRoute("vector_summary", 90, require_admin=True, any_tasks=VECTOR_TASKS, no_signals=("relation",)),
     CapabilityRoute("vector_query", 100, any_tasks=VECTOR_TASKS, no_tasks=("slope",), no_signals=("relation",)),
     CapabilityRoute("zonal_raster_statistics", 110, require_admin=True, any_tasks=RASTER_TASKS, all_signals=("raster_statistics",), no_signals=("raster_metadata",)),
     CapabilityRoute("raster_metadata", 120, any_tasks=RASTER_TASKS, all_signals=("raster_metadata",)),

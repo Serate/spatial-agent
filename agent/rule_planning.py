@@ -34,14 +34,14 @@ class RuleBasedPlanComposer:
         self.router = router or CapabilityRouter()
         self._builders: Dict[str, Builder] = {
             "dataset_health": self._build_health,
-            "composed_spatial_analysis": self._build_composed,
-            "constrained_buildability": self._build_constrained,
-            "terrain_land_use": self._build_terrain,
+            "spatial_analysis": self._build_composed,
+            "constrained_buildability_screening": self._build_constrained,
+            "zonal_terrain_land_use": self._build_terrain,
             "admin_raster_composite": self._build_admin_raster_composite,
             "spatial_overview": self._build_overview,
             "legacy_road_slope": self._build_legacy_road_slope,
             "vector_relation": self._build_vector_relation,
-            "zonal_vector_summary": self._build_zonal_vector,
+            "vector_summary": self._build_zonal_vector,
             "vector_query": self._build_vector_query,
             "zonal_raster_statistics": self._build_zonal_raster,
             "raster_metadata": self._build_raster_metadata,

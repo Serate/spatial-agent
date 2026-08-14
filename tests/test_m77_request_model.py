@@ -53,7 +53,7 @@ class M77SpatialRequestTests(unittest.TestCase):
         parsed = parse_spatial_request(COMPLEX_REQUEST)
         selected = CapabilityRouter().select(COMPLEX_REQUEST, parsed)
 
-        self.assertEqual(selected[0].capability_id, "composed_spatial_analysis")
+        self.assertEqual(selected[0].capability_id, "spatial_analysis")
         self.assertIn("composition", selected[0].signals)
         self.assertIn("buildability", selected[0].tasks)
 
@@ -64,7 +64,7 @@ class M77SpatialRequestTests(unittest.TestCase):
 
         self.assertIn("buildability", parsed.tasks)
         self.assertEqual(parsed.admin_name, "洪山区")
-        self.assertEqual(selected[0].capability_id, "terrain_land_use")
+        self.assertEqual(selected[0].capability_id, "zonal_terrain_land_use")
 
     def test_runtime_completes_composed_request_and_composes_actual_results(self):
         from run_demo import build_runtime

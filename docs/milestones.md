@@ -547,3 +547,22 @@ M77 不拆分并行任务，按依赖顺序单线程执行；上下文/result en
 - 修复 Windows 已退出 worker 被误判为存活、导致重启恢复跳过的问题；增加 claim 后崩溃、服务重启接管回归测试。
 - Console 为 `spatial_overview_result` 增加紧凑摘要面板，显示步骤数、数据来源数、空间要素数和几何证据状态；已有多区域对比能力纳入全局验收，不重复定义新协议。
 - M65 专项测试、全量离线/GIS、Docker 和 production acceptance 已通过，并已推送 `1fbc4cc`。
+
+## M78 全局规划：架构债清理（P1）
+
+承接 M77 通用化重组，本阶段清理架构债，目标是让"可替换、可测试、可观测"的声明与代码实际一致，按依赖顺序单线程执行，不拆分并行任务：
+
+1. **能力契约对齐（M78.1）**：`capability_routing` 的路由 id 与 `capability_catalog` 的能力 id 对不上（`composed_spatial_analysis`/`terrain_land_use`/`zonal_vector_summary`/`constrained_buildability` 等与 catalog 的 `spatial_analysis`/`zonal_terrain_land_use`/`vector_summary`/`constrained_buildability_screening` 漂移，且 `dataset_health`/`raster_statistics`/`legacy_road_slope`/`admin_raster_composite`/`vector_relation`/`vector_query` 未在 catalog 声明）。统一为 catalog 单一事实源：路由只消费 catalog 能力 id，缺失能力补 catalog 声明，全局评测按 catalog id 校验。
+2. **service.py 拆分（M78.2）**：`agent/service.py`（约 1183 行）是上帝对象，且反向依赖根目录 `run_demo.py` 的 `build_runtime`（分层倒挂）。按职责拆分为 runtime 工厂（`agent/runtime_factory.py`，供 run_demo/HTTP/评测共用）、同步运行、异步作业与恢复、会话、对比、观测、格式化与几何证据模块；`AgentService` 保留为门面。
+3. **双 HTTP 入口统一（M78.3）**：`serve_api.py`（标准库）与 `production_api.py`（FastAPI）的端点参数映射、异常映射大量重复，且错误码不一致（如 create_session 503 vs 400）。收敛为共享的请求处理层（参数归一化 + 错误分类），两个入口只做框架适配；消除重复实现。
+4. **结构化错误契约（M78.4）**：错误响应目前只有 `{"error": str}`，无错误码/分类；`failure_category`（timeout/provider/planning/tool/execution）只存在于观测层。提升为统一结构化错误契约（HTTP 错误响应与运行结果都带 `error.code`/`error.category`），并覆盖同步、异步、轮询与恢复路径。
+
+阶段验收纪律不变：每个子阶段完成全量离线测试、Smoke、严格全局评测、console 浏览器 smoke，更新 milestones/task-resume 文档后提交推送；Docker Linux engine 与真实模型 live 保持外部边界，不宣称新证据。
+
+### M78.1：能力契约对齐（已完成）
+
+- `agent/capability_catalog.py` 补齐 6 个实际可路由但未声明的能力：`dataset_health`、`raster_statistics`、`vector_query`、`vector_relation`、`legacy_road_slope`、`admin_raster_composite`（含工具、结果类型、环境和数据层声明）。
+- `agent/capability_routing.py` 的 4 个漂移 id 收敛到 catalog 命名：`composed_spatial_analysis -> spatial_analysis`、`terrain_land_use -> zonal_terrain_land_use`、`zonal_vector_summary -> vector_summary`、`constrained_buildability -> constrained_buildability_screening`。
+- `agent/rule_planning.py` 的 builder 注册表与路由 id 同步；`test_m77_request_model.py` 断言更新。
+- 新增 `tests/test_m78_capability_contract.py` 契约测试：路由 id ⊆ catalog id、builder 覆盖每个路由 id、无孤儿 builder、全局评测用例的 `capability_id` 全部存在于 catalog。
+- M78.1 验证：离线全量 422 项（42 跳过）、Smoke、严格全局评测 8/8、console 浏览器 smoke 4/4 通过。
