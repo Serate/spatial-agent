@@ -11,6 +11,7 @@ from agent.cost_governance import (
     RunTokenCapExceeded,
     extract_tokens as _extract_tokens,
 )
+from agent.errors import ToolError
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime
@@ -777,6 +778,67 @@ class AgentService:
                 }
                 for fact in facts
             ],
+        }
+
+    def register_tool(
+        self,
+        name: str,
+        definition: Dict[str, Any],
+        handler,
+    ) -> Dict:
+        """Register one dynamic tool on every live runtime (M81.2)."""
+        if not isinstance(definition, dict):
+            raise ValueError("definition must be an object")
+        registered = None
+        for runtime in self._state.runtimes().values():
+            registry = getattr(runtime, "_registry", None)
+            if registry is not None and hasattr(registry, "register_tool"):
+                registered = registry.register_tool(name, definition, handler)
+        if registered is None:
+            # No runtime built yet; register lazily by touching the default one.
+            runtime = self._runtime("rule", "memory")
+            registered = runtime._registry.register_tool(name, definition, handler)
+        return registered
+
+    def list_dynamic_tools(self) -> Dict:
+        tools = []
+        for runtime in self._state.runtimes().values():
+            registry = getattr(runtime, "_registry", None)
+            if registry is not None and hasattr(registry, "dynamic_tools"):
+                for item in registry.dynamic_tools():
+                    if item not in tools:
+                        tools.append(item)
+        return {"dynamic_tools": tools, "count": len(tools)}
+
+    @staticmethod
+    def estimate_area_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Dynamic demo tool: estimate area from admin feature coordinates.
+
+        Pure computation over the passed polygon coordinates; no data access,
+        no side effects. Demonstrates a runtime-registered capability that is
+        still schema-validated and dispatched through the ToolRegistry.
+        """
+        import math
+
+        coordinates = arguments.get("coordinates")
+        if not isinstance(coordinates, list) or len(coordinates) < 3:
+            raise ToolError("estimate_area requires a polygon ring with 3+ points")
+        ring = []
+        for point in coordinates:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                raise ToolError("estimate_area points must be [lon, lat] pairs")
+            ring.append((float(point[0]), float(point[1])))
+        # Planar shoelace approximation on lon/lat; demo only, not geodesic.
+        area = 0.0
+        for index in range(len(ring)):
+            x1, y1 = ring[index]
+            x2, y2 = ring[(index + 1) % len(ring)]
+            area += x1 * y2 - x2 * y1
+        area = abs(area) / 2.0
+        return {
+            "estimated_area_degrees": area,
+            "vertices": len(ring),
+            "warning": "平面经纬度估算，仅用于演示动态工具；不代表精确面积。",
         }
 
     def _memory_async_metrics(self) -> Dict[str, Any]:

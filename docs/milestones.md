@@ -1397,3 +1397,34 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 ### 验收标准
 
 - 专项测试通过；全量离线转绿；CI 绿；注册不改既有工具行为（既有工具测试证明）。
+
+## M81.2：工具动态扩展（已完成）
+
+### 实现内容
+
+- **`agent/tools.py`**：`ToolRegistry.register_tool(name, definition, handler)`——受控注册：
+  - 校验：name 必须匹配 `^[a-z][a-z0-9_]*$`、未与既有工具重复、definition 必含 object 类型 `input_schema`、handler 必须 callable。
+  - 分发：`invoke` 优先动态 handler（与 static adapter 路径并列）；handler 返回值必须 dict；`_validate` schema 校验对动态工具同样生效。
+  - `dynamic_tools()`：返回受控摘要（name + description）。
+  - `names` 动态反映新增工具（planner allowed_tools 天然感知）。
+- **`agent/service.py`**：`register_tool`（注册到所有 live runtime，未构建时惰性建默认 runtime）+ `list_dynamic_tools`；`estimate_area_handler` 演示工具（平面 shoelace 面积估算，纯计算无副作用，带演示 disclaimer）。
+- **HTTP**：`serve_api.py` + `production_api.py` 的 `GET /tools/dynamic` + `POST /tools`（注册 estimate_area 演示）。
+- **测试**：`tests/test_m81_dynamic_tools.py`（+10 项）——注册校验（非法名/重复/坏 definition/非 callable）、动态 handler 分发 + schema 校验、静态工具不受影响、dynamic_tools 摘要、service 注册 + estimate_area 调用/坏输入、HTTP 注册/列表。
+
+### 验收证据
+
+- 专项 10/10 通过；相关回归 79 项通过。
+- **全量离线 547 项通过（42 跳过）**；严格全局评测 8/8 通过；`python scripts/smoke_check.py` 退出码 0。
+- 既有静态工具行为零变化（既有工具测试全部保持通过）。
+
+### 复盘（七维矩阵，M81.2）
+
+- **产品能力**：Agent 可按需获得新能力（受控注册动态工具），演示"工具集不是写死的"。
+- **架构**：动态注册在 ToolRegistry 内部完成，仍走统一 `_validate` 分发；不绕过任何既有边界；静态工具路径不变。
+- **数据质量**：无数据层影响（estimate_area 纯计算）。
+- **真实模型**：planner allowed_tools 动态感知新工具（LLM 路径可选用动态工具）。
+- **部署可靠性**：双入口契约一致；进程内注册（重启回归静态集，符合演示边界）。
+- **前端体验**：无前端改动（`GET /tools/dynamic` 可被能力面板消费，后续可选）。
+- **测试**：+10 项；全量 547 项转绿。
+
+**遗留**：动态工具不持久化（重启重置）；`POST /tools` 固定绑定 estimate_area handler（未支持任意 handler 上传，避免任意代码执行风险——当前是受控演示）；前端未消费 `/tools/dynamic`。

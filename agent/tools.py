@@ -1,9 +1,12 @@
 import json
+import re
 from pathlib import Path
-from typing import Any, Dict, Mapping, Protocol
+from typing import Any, Callable, Dict, Mapping, Optional, Protocol
 
 from .errors import ToolError
 from .spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
+
+_TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 class ToolAdapter(Protocol):
@@ -17,6 +20,7 @@ class ToolRegistry:
     def __init__(self, definitions: Mapping[str, Mapping[str, Any]], adapter: ToolAdapter):
         self._definitions = dict(definitions)
         self._adapter = adapter
+        self._dynamic_handlers: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
 
     @classmethod
     def from_json(cls, path: str, adapter: ToolAdapter) -> "ToolRegistry":
@@ -28,15 +32,79 @@ class ToolRegistry:
     def names(self):
         return tuple(self._definitions.keys())
 
+    def register_tool(
+        self,
+        name: str,
+        definition: Mapping[str, Any],
+        handler: Callable[[Dict[str, Any]], Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Register one dynamic tool (M81.2).
+
+        Validation keeps the boundary controlled: the name must be a fresh
+        identifier, the definition must carry an object input_schema, and the
+        handler must be callable and return a dict. Registered tools still go
+        through ``invoke`` -> ``_validate`` like any static tool.
+        """
+        if not isinstance(name, str) or not _TOOL_NAME_RE.match(name):
+            raise ToolError("dynamic tool name must be a lowercase identifier")
+        if name in self._definitions:
+            raise ToolError("tool already registered: " + name)
+        if not isinstance(definition, Mapping) or not isinstance(
+            definition.get("input_schema"), Mapping
+        ):
+            raise ToolError("dynamic tool definition must include an input_schema")
+        if definition.get("input_schema", {}).get("type") != "object":
+            raise ToolError("dynamic tool input_schema must be an object schema")
+        if not callable(handler):
+            raise ToolError("dynamic tool handler must be callable")
+        entry = dict(definition)
+        entry["name"] = name
+        entry["dynamic"] = True
+        self._definitions[name] = entry
+        self._dynamic_handlers[name] = handler
+        return {
+            "name": name,
+            "dynamic": True,
+            "description": str(definition.get("description") or ""),
+            "input_schema": definition["input_schema"],
+        }
+
+    def dynamic_tools(self) -> list:
+        """Return bounded summaries of the dynamically registered tools."""
+        return [
+            {
+                "name": name,
+                "description": str(
+                    (self._definitions.get(name) or {}).get("description") or ""
+                ),
+            }
+            for name in sorted(self._dynamic_handlers)
+        ]
+
     def invoke(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         definition = self._definitions.get(name)
         if definition is None:
             raise ToolError("Unknown tool: " + name)
         schema = definition.get("input_schema", {})
         self._validate(arguments, schema, "$")
+        handler = self._dynamic_handlers.get(name)
+        if handler is not None:
+            try:
+                result = handler(arguments)
+            except ToolError:
+                raise
+            except Exception as exc:
+                raise ToolError("Tool execution failed: " + str(exc)) from exc
+            if not isinstance(result, dict):
+                raise ToolError("Tool must return an object: " + name)
+            return result
         try:
             result = self._adapter.invoke(name, arguments)
-        except ToolError:
+        except ToolError as exc:
+            if "does not implement" in str(exc) and name in self._definitions:
+                # A static definition without an adapter implementation is a
+                # configuration error, not a dynamic tool.
+                raise
             raise
         except Exception as exc:
             raise ToolError("Tool execution failed: " + str(exc)) from exc

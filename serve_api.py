@@ -129,6 +129,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 "event_count": state.event_count,
             })
             return
+        if parsed.path == "/tools/dynamic":
+            self._write_json(200, self.service.list_dynamic_tools())
+            return
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")
             return
@@ -150,6 +153,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_comparison = parsed.path == "/comparisons"
         is_region_comparison = parsed.path == "/region-comparisons"
         is_constrained_comparison = parsed.path == "/constrained-comparisons"
+        is_tool_register = parsed.path == "/tools"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
         workflow_action = None
@@ -158,13 +162,19 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_session_create and not is_session_clear and workflow_action is None:
+        if parsed.path != "/runs" and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_tool_register and not is_session_create and not is_session_clear and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
             if workflow_action is not None:
                 result = workflow_action_result(workflow_template_id, workflow_action, payload)
+            elif is_tool_register:
+                result = self.service.register_tool(
+                    name=payload.get("name", ""),
+                    definition=payload.get("definition", {}),
+                    handler=AgentService.estimate_area_handler,
+                )
             elif is_async_run:
                 result = self.service.run_async(**async_run_kwargs(payload))
             elif is_session_create:

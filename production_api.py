@@ -224,6 +224,23 @@ def observability_health():
     }
 
 
+@app.get("/tools/dynamic")
+def list_dynamic_tools():
+    return service.list_dynamic_tools()
+
+
+@app.post("/tools")
+def register_tool(payload: Dict[str, Any]):
+    try:
+        return service.register_tool(
+            name=payload.get("name", ""),
+            definition=payload.get("definition", {}),
+            handler=AgentService.estimate_area_handler,
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
 @app.get("/workflows")
 def workflows():
     return {"templates": workflow_template_catalog()}
