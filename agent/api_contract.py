@@ -8,6 +8,7 @@ those decisions in one place so the two servers cannot drift apart.
 
 from typing import Any, Dict, Tuple
 
+from agent.cost_governance import BudgetExceeded, ConcurrencyLimited
 from agent.service import AgentService
 from agent.workflow_templates import (
     WorkflowTemplateError,
@@ -143,6 +144,8 @@ def error_status(
     The dev server and FastAPI entry point previously disagreed on several
     codes (e.g. create_session 503 vs 400). This is the single decision point.
     """
+    if isinstance(exc, (BudgetExceeded, ConcurrencyLimited)):
+        return 429
     if isinstance(exc, (ValueError, WorkflowTemplateError)):
         if not_found:
             return 404
@@ -155,6 +158,7 @@ def error_status(
 _ERROR_CODE_BY_STATUS = {
     400: "invalid_request",
     404: "not_found",
+    429: "rate_limited",
     503: "unavailable",
     500: "internal_error",
 }
@@ -188,6 +192,10 @@ def error_body(exc: Exception) -> Dict[str, str]:
 
 def failure_category_for_error(exc: Exception) -> str | None:
     """Reuse the async failure taxonomy for HTTP-level failures."""
+    if isinstance(exc, BudgetExceeded):
+        return "budget"
+    if isinstance(exc, ConcurrencyLimited):
+        return "concurrency_limited"
     text = str(exc or "").lower()
     if any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
         return "provider"

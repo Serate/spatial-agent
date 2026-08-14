@@ -20,6 +20,7 @@ import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
+from agent.cost_governance import TokenBudget
 from agent.memory import FactMemory
 from agent.observability import ObservabilityEmitter
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
@@ -86,6 +87,7 @@ class ServiceState:
         )
         self._memory = FactMemory(sqlite_conversation_store=self._conversation_store)
         self._observability = ObservabilityEmitter()
+        self._cost = TokenBudget()
         self._runtime_factory = runtime_factory
         self._runtimes: Dict[str, Any] = {}
         self._runtime_lock = threading.Lock()
@@ -121,6 +123,10 @@ class ServiceState:
     @property
     def observability(self) -> ObservabilityEmitter:
         return self._observability
+
+    @property
+    def cost(self) -> TokenBudget:
+        return self._cost
 
     @property
     def timeout_seconds(self) -> float:

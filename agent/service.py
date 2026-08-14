@@ -6,6 +6,11 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, Optional
 
 from agent.artifact_store import ArtifactStore
+from agent.cost_governance import (
+    ConcurrencyLimited,
+    RunTokenCapExceeded,
+    extract_tokens as _extract_tokens,
+)
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime
@@ -156,12 +161,54 @@ class AgentService:
         else:
             self._state.ensure_session(session_id)
         normalized_context = _normalize_spatial_context(spatial_context)
+        cost = self._state.cost
+        cost.acquire_concurrency()
+        try:
+            cost.check_budget(session_id)
+            result = self._run_governed(
+                request,
+                session_id,
+                planner,
+                backend,
+                normalized_context,
+                runtime_kwargs={
+                    "session_id": session_id,
+                    "timeout_seconds": timeout_seconds,
+                    "run_id": run_id,
+                },
+                workflow_context=workflow_context,
+                export_artifact=export_artifact,
+                export_geojson=export_geojson,
+                geojson_max_features=geojson_max_features,
+            )
+        finally:
+            cost.release_concurrency()
+        payload = result
+        cost.charge(session_id, _extract_tokens(payload.get("planner_metrics")))
+        try:
+            cost.check_run_cap(_extract_tokens(payload.get("planner_metrics")))
+        except RunTokenCapExceeded as exc:
+            payload["status"] = "FAILED"
+            payload["error"] = str(exc)
+            payload["error_category"] = "budget"
+            _attach_error_category(payload)
+        return payload
+
+    def _run_governed(
+        self,
+        request: str,
+        session_id: str,
+        planner: str,
+        backend: str,
+        normalized_context: Dict[str, Any],
+        *,
+        runtime_kwargs: Dict[str, Any],
+        workflow_context: Optional[Dict[str, Any]],
+        export_artifact: bool,
+        export_geojson: bool,
+        geojson_max_features: int,
+    ) -> Dict:
         runtime = self._runtime(planner, backend)
-        runtime_kwargs = {
-            "session_id": session_id,
-            "timeout_seconds": timeout_seconds,
-            "run_id": run_id,
-        }
         if workflow_context is not None:
             runtime_kwargs["workflow"] = workflow_context
         result = runtime.run(
@@ -236,6 +283,7 @@ class AgentService:
             not isinstance(idempotency_key, str) or not idempotency_key.strip()
         ):
             raise ValueError("idempotency_key must be a non-empty string")
+        self._state.cost.check_budget(session_id)
 
         job_payload = _async_job_payload(kwargs)
         if run_id:
@@ -685,9 +733,10 @@ class AgentService:
         if self._state.persistent:
             metrics = self._state.store_metrics()
             metrics.setdefault("async_jobs", {})["worker_count"] = self._async_worker_count
-            return metrics
-        metrics = self._artifact_store.metrics()
-        metrics["async_jobs"] = self._memory_async_metrics()
+        else:
+            metrics = self._artifact_store.metrics()
+            metrics["async_jobs"] = self._memory_async_metrics()
+        metrics["cost_governance"] = self._state.cost.summary()
         return metrics
 
     def close(self) -> None:

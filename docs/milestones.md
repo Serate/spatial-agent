@@ -1336,3 +1336,36 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 ### 验收标准
 
 - 专项测试通过；全量离线转绿；CI 绿；预算/并发默认关闭时行为零变化（既有测试证明）。
+
+## M81.1：成本治理与并发配额（已完成）
+
+### 实现内容
+
+- **`agent/cost_governance.py`（新增）**：`TokenBudget` 三层治理（全部 env 可配，默认 0=不限，行为零变化）：
+  - 会话级预算 `SPATIAL_AGENT_TOKEN_BUDGET`：同一 session 累计 planner token 超限后 `check_budget` 抛 `BudgetExceeded`，run/run_async 在规划前拒绝，不访问 provider。
+  - 单次运行 cap `SPATIAL_AGENT_RUN_TOKEN_CAP`：run 完成后 `check_run_cap` 超限标记 `budget_exceeded`（保留已完成步骤证据）。
+  - 并发配额 `SPATIAL_AGENT_MAX_CONCURRENT`：`BoundedSemaphore` 门控同步 run()，超限抛 `ConcurrencyLimited`（不排队）。
+  - `extract_tokens()`：从 planner_metrics.usage.total_tokens 提取（rule planner 无 usage → 0）；`summary()` 供 /metrics。
+- **`agent/service.py`**：run() 入口 `acquire_concurrency`（try/finally 释放）+ `check_budget`；run 完成 `charge` + `check_run_cap`；run_async 提交前 `check_budget`；`_run_governed` 抽出 run 主体（保持原 payload 构造/artifact/geojson/memory_evidence 全流程）；metrics 增加 `cost_governance` 摘要。
+- **`agent/service_state.py`**：持有 `TokenBudget`。
+- **`agent/api_contract.py`**：`BudgetExceeded`/`ConcurrencyLimited` → HTTP 429（error_code `rate_limited`）；`failure_category_for_error` → `budget` / `concurrency_limited`。
+- **测试**：`tests/test_m81_cost_governance.py`（+11 项）——env 解析默认关/非法值、预算累计与超限、单次 cap、并发信号量、token 提取、summary、service 零 token 计费、预算拒绝、HTTP 429 映射。
+
+### 验收证据
+
+- 专项 11/11 通过；相关回归 72 项通过。
+- **全量离线 537 项通过（42 跳过）**；严格全局评测 8/8 通过；`python scripts/smoke_check.py` 退出码 0。
+- 默认关闭（env 未设）时行为零变化——既有 526 项测试全部保持通过（无回归）。
+- 并发/预算错误映射 HTTP 429 + `budget`/`concurrency_limited` 分类进入既有错误契约。
+
+### 复盘（七维矩阵，M81.1）
+
+- **产品能力**：真实模型成本可控——会话 token 熔断、单次运行上限、并发配额，面试可讲"真实模型治理"。
+- **架构**：`cost_governance` 是独立模块，挂在 Service 边界（run 入口/完成），不侵入 Runtime/Planner；默认关闭零变化。
+- **数据质量**：无数据层影响（治理不触碰数据）。
+- **真实模型**：token 从 planner_metrics.usage 提取（真实 provider 计量），rule 路径 0 token 不受影响。
+- **部署可靠性**：HTTP 429 + 错误分类贯通双入口；/metrics 暴露预算摘要。
+- **前端体验**：无前端改动（治理是服务端能力；429 由既有 error 展示）。
+- **测试**：+11 项；全量 537 项转绿。
+
+**遗留**：预算未持久化（重启后会话 ledger 重置，内存模式）；LLM-as-judge/live 未接入预算联动（live 路径的 planner token 已计入会话 ledger，天然受控）；并发配额只限同步 run（异步已有 worker 池）。
