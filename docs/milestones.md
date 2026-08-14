@@ -1369,3 +1369,31 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 - **测试**：+11 项；全量 537 项转绿。
 
 **遗留**：预算未持久化（重启后会话 ledger 重置，内存模式）；LLM-as-judge/live 未接入预算联动（live 路径的 planner token 已计入会话 ledger，天然受控）；并发配额只限同步 run（异步已有 worker 池）。
+
+## M81.2：工具动态扩展（进行中）
+
+### 目标与边界
+
+工具集当前静态注册（`ToolRegistry.from_json`），运行时不可新增。M81.2 增加**受控的工具动态注册**：运行时按需注册新工具，仍经过 ToolRegistry schema 校验与统一分发，不绕过任何既有边界。
+
+- **`ToolRegistry.register_tool(name, definition, handler)`**：
+  - 校验：name 非空/合法标识符/未重复；definition 必含 `input_schema`（object 类型）；handler 必须 callable。
+  - 分发：`invoke` 优先 adapter（既有工具路径不变）；adapter 抛 `does not implement` 时查动态 handler；handler 返回必须 dict。
+  - 查询：`dynamic_tools()` 列出已注册动态工具（name + 摘要），供能力/评测消费。
+- **演示工具**：`estimate_area`——基于行政区矢量要素（range_query 结果）估算区域面积（纯计算、无副作用、无真实数据依赖），演示"Agent 按需获得新能力"。
+- **挂载**：`AgentService.register_tool(name, definition, handler)` 委托到 runtime registry；`GET /tools/dynamic`（列动态工具）+ `POST /tools`（受控注册 demo）。
+- **边界保障**：注册不改既有工具行为；动态工具同样过 `_validate`；`registry.names` 动态反映新增工具（planner allowed_tools 天然感知）；不落持久化（进程内注册，重启回归静态集）。
+- **测试**：注册校验（非法名/重复/缺 schema/非 callable）、分发（adapter 优先 + handler 回退 + 返回校验）、动态 names、服务层注册 + HTTP 契约、演示 estimate_area。
+
+### 实现计划（单线程）
+
+1. **`agent/tools.py`**：`ToolRegistry.register_tool` + `dynamic_tools` + invoke handler 回退。
+2. **`agent/service.py`**：`register_tool` 委托 + `list_dynamic_tools`。
+3. **HTTP**：`serve_api.py` + `production_api.py` 的 `GET /tools/dynamic` + `POST /tools`；`api_contract` 参数校验。
+4. **演示 handler**：`estimate_area`（挂在 service 层，调用 range_query 结果计算）。
+5. **测试**：`tests/test_m81_dynamic_tools.py`（新增）。
+6. **验收**：相关测试 + 全量回归 + CI 绿 + 容器内演示注册/调用。
+
+### 验收标准
+
+- 专项测试通过；全量离线转绿；CI 绿；注册不改既有工具行为（既有工具测试证明）。
