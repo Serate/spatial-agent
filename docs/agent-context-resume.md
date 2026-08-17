@@ -607,6 +607,17 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 - Console 有显式“预览计划”按钮、`renderPlanPreview()` 和 `renderPlanDag()`；前端只展示 Runtime 的节点、依赖和参数键。
 - M81.7 专项 5 项通过；复杂空间分析 preview 为 9 节点/8 条边；Python 编译、内嵌 JS 语法和 `git diff --check` 均通过。
 
-## 下一阶段 M81.8
+## M81.7 阶段规划（已执行）
 
 先补四入口 preview envelope 一致性 Harness，再补复杂 `spatial_analysis` 脱敏 LLM 回放和 preview fingerprint/plan version。真实模型、真实 GIS 与 Docker 仍只通过显式 profile 验证；默认 quick 保持 3 个核心 tripwire，当前最大并发度为 1。
+
+## M81.8 当前完成状态
+
+- `tests/fixtures/m81_spatial_analysis_model.json` 已通过正常 LLM Planner 回放链路，精确匹配 `spatial_analysis` 9 步蓝图、结果引用和输出类型。
+- Service preview 与开发 HTTP `/runs/preview` 的状态、计划、DAG、上下文证据、计划证据和安全门控逐字段一致；生产 FastAPI 路由和共享 `preview_kwargs` 有静态契约证据。
+- 目标/相关回归 41 项、精简 `stage`、Python 编译和 `git diff --check` 通过。当前环境未安装 `fastapi`，没有宣称 production runtime acceptance。
+- 当前 DeepSeek 配置为 `deepseek-v4-flash`、Chat Completions、`https://opencode.ai/zen/go/v1` 网关；`config/openai.local.json` 不含 key，当前进程没有 `OPENAI_API_KEY`，真实 live 需显式注入。
+
+## 下一阶段 M81.9
+
+设计 preview fingerprint/plan version，验证预览与执行计划一致性；在显式 live 配置下运行单个真实 DeepSeek 规划样例；为生产 FastAPI 补最小可选 acceptance，并再次进行七维全局复盘。默认 quick/stage 继续离线，最大并发度为 1。

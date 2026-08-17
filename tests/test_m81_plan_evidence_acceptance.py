@@ -8,6 +8,7 @@ from pathlib import Path
 
 from agent.artifact_store import ArtifactStore
 from agent.service import AgentService
+from evaluation.model_evaluation import evaluate_model_fixture_file
 from serve_api import AgentApiHandler
 
 
@@ -20,6 +21,57 @@ COMPLEX_REQUEST = (
 
 
 class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
+    def test_preview_envelope_matches_direct_service_and_http_entry(self):
+        request_payload = {
+            "request": COMPLEX_REQUEST,
+            "session_id": "preview-cross-entry",
+            "planner": "rule",
+            "backend": "memory",
+        }
+        direct = AgentService().preview(**request_payload)
+
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            http = _post_json(server.server_address[1], request_payload, "/runs/preview")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        fields = (
+            "status",
+            "result_type",
+            "plan",
+            "dag",
+            "context_evidence",
+            "plan_evidence",
+            "execution",
+            "spatial_context",
+        )
+        self.assertEqual({field: direct.get(field) for field in fields}, {field: http.get(field) for field in fields})
+        self.assertNotIn("run_id", direct)
+        self.assertNotIn("artifact_ref", http)
+
+        production_source = (ROOT / "production_api.py").read_text(encoding="utf-8")
+        self.assertIn('@app.post("/runs/preview")', production_source)
+        self.assertIn("service.preview(**preview_kwargs(payload))", production_source)
+
+    def test_spatial_analysis_model_fixture_matches_exact_blueprint(self):
+        report = evaluate_model_fixture_file(ROOT / "tests" / "fixtures" / "m81_spatial_analysis_model.json")
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["status"], "COMPLETED")
+        quality = report["plan_quality"]
+        self.assertTrue(quality["workflow_template_match"]["passed"])
+        self.assertIn("spatial_analysis", quality["workflow_template_match"]["exact_template_ids"])
+        self.assertEqual(len(report["actual_tools"]), 9)
+        self.assertEqual(report["safety"]["token_usage"]["total_tokens"], 2990)
+
     def test_service_preview_returns_complex_dag_without_execution_artifacts(self):
         payload = AgentService().preview(
             COMPLEX_REQUEST,

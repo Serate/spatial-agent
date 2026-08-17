@@ -45,9 +45,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M81.7 计划预览与 DAG 展示（只规划不执行的 Runtime/Service preview、开发/生产 HTTP 路由和 Console DAG）。
+- Latest completed milestone: M81.8 跨入口预览一致性与复杂模型回放（preview envelope Harness、`spatial_analysis` 脱敏 LLM exact fixture）。
 - Last pushed commit: 以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
-- Current work: M81.7 已完成——复杂综合请求 preview 返回 9 节点/8 条边，且没有运行 ID、工具结果或 artifact；下一阶段进入 M81.8：四入口 preview envelope Harness、`spatial_analysis` 脱敏 LLM 回放和 preview fingerprint/plan version。
+- Current work: M81.8 已完成——Service 与开发 HTTP preview 逐字段一致，生产 FastAPI 路由完成静态契约，复杂模型 fixture 精确匹配 9 步 `spatial_analysis` 蓝图；下一阶段进入 M81.9：preview fingerprint、单个真实 DeepSeek live 规划样例和生产 FastAPI acceptance。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
@@ -834,4 +834,12 @@ M81.7 已完成计划预览与 DAG 展示。`AgentRuntime.preview()` 和 `AgentS
 
 专项验收为 `tests.test_m81_plan_evidence_acceptance` 5 项通过；复杂综合空间请求返回 9 个节点、8 条依赖。预览响应没有 `run_id`、`artifact_ref` 或执行步骤结果，并带有 `execution.planned_only/tool_execution/artifact_export` 安全标记。内嵌 JavaScript 已抽取检查语法，未运行真实模型、真实 GIS 或私有数据。
 
-下一步按全局维度进入 M81.8：先做 Service/开发 HTTP/生产 FastAPI/Console 的 preview envelope 一致性 Harness，再补 `spatial_analysis` 脱敏 LLM 计划回放和 preview fingerprint/plan version 设计，最后从产品、架构、数据、模型、部署、体验、测试七维重新规划。当前并发度仍为 1，新增验证不进入默认 `quick`。
+M81.7 阶段规划（已执行）：先做 Service/开发 HTTP/生产 FastAPI/Console 的 preview envelope 一致性 Harness，再补 `spatial_analysis` 脱敏 LLM 计划回放和 preview fingerprint/plan version 设计。当前并发度仍为 1，新增验证不进入默认 `quick`。
+
+### M81.8 当前完成状态
+
+已完成跨入口 preview Harness 和复杂模型脱敏回放。目标/相关回归 41 项、精简 `stage`、Python 编译和 `git diff --check` 通过。生产 FastAPI 因当前 Python 环境未安装 `fastapi` 只完成静态契约验证，不能宣称生产运行时 acceptance 已通过。当前 DeepSeek 配置为 `deepseek-v4-flash` + Chat Completions 网关，配置文件不含 key，当前进程也未注入 `OPENAI_API_KEY`；真实调用仍需显式配置和 live profile。
+
+### M81.9 下一步
+
+先设计 preview fingerprint/plan version，再做单个真实 DeepSeek 规划样例和可选 FastAPI acceptance，最后按七维能力矩阵重新规划。当前并发度为 1，默认 quick/stage 不访问网络。

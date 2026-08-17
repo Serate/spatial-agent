@@ -2535,3 +2535,17 @@ quick 和 smoke_check.py 已经精简后，普通 stage 仍然运行 quick、smo
 ### 处理与预防
 
 新增 `AgentRuntime.preview()` 和 `AgentService.preview()`，在 Runtime/Service 边界复用上下文、Planner、模板校验和计划证据，但不调用 `ToolRegistry`、不写状态、不导出 artifact。开发 HTTP 与生产 FastAPI 统一提供 `POST /runs/preview`，响应显式带 `execution.planned_only`、`tool_execution` 和 `artifact_export`。Console 只渲染响应中的 `plan`/`dag`，执行结果仍使用正式运行 envelope。后续若需要预览与执行关联，应增加受控 plan fingerprint/version，不能把 preview payload 伪装成 `AgentRunResult`。
+
+## 配置文件有 DeepSeek 模型但进程没有可用 API key
+
+### 现象
+
+本地 `config/openai.local.json` 可以显示 `deepseek-v4-flash` 和 Chat Completions 配置，但服务选择 `planner=openai` 时仍可能在真正发请求前失败。检查当前进程发现 `OPENAI_API_KEY` 未注入，配置文件也不保存 key；同时当前 base URL 是 `https://opencode.ai/zen/go/v1` 网关，不是 `https://api.deepseek.com` 直连。
+
+### 根因
+
+模型名称、协议和 provider 地址只是客户端配置，不等于运行时已经具备认证和网络能力。`load_openai_config()` 优先读取环境变量，再读取忽略的本地配置；如果 key 只存在于另一个 PowerShell、IDE 或 Docker 环境，当前服务进程不会自动继承。网关可用也不能证明官方 DeepSeek endpoint、账户权限或模型权限可用。
+
+### 处理与预防
+
+保持 key 只通过环境变量、私有配置挂载或部署 secret 注入，不写入仓库。启动 live 服务前先检查 `/health` 的 `live_llm_configured` 和 `live_llm_network`，再用显式 `SPATIAL_AGENT_LIVE_OPENAI=1` 运行最小 smoke；记录 provider、wire API、模型输出校验和 token/延迟分类。默认 rule planner、CI 和 stage 不访问网络；诊断时必须区分“没有 key”“网络受限”“网关拒绝”“模型返回非法 TaskPlan”四类问题。

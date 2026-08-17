@@ -1,0 +1,123 @@
+{
+  "schema_version": "m81-model-fixture-v1",
+  "fixture_id": "m81-spatial-analysis-redacted",
+  "request": "请对洪山区进行综合空间分析：查询行政区边界，统计DEM高程与坡度，分析土地利用分布，汇总道路和水体，并筛选坡度不超过20度、距离道路不超过1000米且排除水体的建设候选区域。",
+  "expected": {
+    "expected_status": "COMPLETED",
+    "expected_result_type": "spatial_analysis_result",
+    "expected_template_id": "spatial_analysis",
+    "expected_tools": [
+      "get_dataset_health_report",
+      "get_dataset_schema",
+      "range_query",
+      "get_zonal_raster_statistics",
+      "get_zonal_slope_statistics",
+      "get_zonal_land_use_distribution",
+      "get_zonal_vector_summary",
+      "get_zonal_vector_summary",
+      "get_zonal_constrained_buildability_analysis"
+    ]
+  },
+  "provider": {
+    "status": "success",
+    "metrics": {
+      "status": "success",
+      "attempts": 1,
+      "retries": 0,
+      "latency_ms": 842.7,
+      "usage": {
+        "input_tokens": 2480,
+        "output_tokens": 510,
+        "total_tokens": 2990
+      }
+    }
+  },
+  "response": {
+    "goal": "compose a multi-task spatial analysis DAG from request facts",
+    "steps": [
+      {
+        "id": "dataset-health",
+        "tool": "get_dataset_health_report",
+        "args": {"dataset": "all", "max_files": 10},
+        "depends_on": []
+      },
+      {
+        "id": "schema-admin",
+        "tool": "get_dataset_schema",
+        "args": {"dataset": "admin_areas"},
+        "depends_on": ["dataset-health"]
+      },
+      {
+        "id": "filter-admin",
+        "tool": "range_query",
+        "args": {
+          "dataset": "admin_areas",
+          "conditions": [{"field": "name", "operator": "eq", "value": "洪山区"}],
+          "limit": 100
+        },
+        "depends_on": ["schema-admin"]
+      },
+      {
+        "id": "composed-elevation",
+        "tool": "get_zonal_raster_statistics",
+        "args": {
+          "dataset": "dem",
+          "admin_name": {"$from": "filter-admin", "path": "first_name"},
+          "max_files": 10
+        },
+        "depends_on": ["filter-admin"]
+      },
+      {
+        "id": "composed-slope",
+        "tool": "get_zonal_slope_statistics",
+        "args": {
+          "admin_name": {"$from": "filter-admin", "path": "first_name"},
+          "max_files": 10
+        },
+        "depends_on": ["filter-admin"]
+      },
+      {
+        "id": "composed-land-use",
+        "tool": "get_zonal_land_use_distribution",
+        "args": {
+          "admin_name": {"$from": "filter-admin", "path": "first_name"},
+          "max_files": 10
+        },
+        "depends_on": ["filter-admin"]
+      },
+      {
+        "id": "composed-roads",
+        "tool": "get_zonal_vector_summary",
+        "args": {
+          "dataset": "roads",
+          "admin_name": {"$from": "filter-admin", "path": "first_name"},
+          "max_features": 10000
+        },
+        "depends_on": ["filter-admin"]
+      },
+      {
+        "id": "composed-water",
+        "tool": "get_zonal_vector_summary",
+        "args": {
+          "dataset": "water",
+          "admin_name": {"$from": "filter-admin", "path": "first_name"},
+          "max_features": 10000
+        },
+        "depends_on": ["filter-admin"]
+      },
+      {
+        "id": "composed-buildability",
+        "tool": "get_zonal_constrained_buildability_analysis",
+        "args": {
+          "admin_name": {"$from": "filter-admin", "path": "first_name"},
+          "slope_limit_degrees": 20.0,
+          "road_distance_m": 1000.0,
+          "exclude_water": true,
+          "max_files": 10
+        },
+        "depends_on": ["filter-admin"]
+      }
+    ],
+    "output": {"type": "spatial_analysis_result", "summary": true}
+  }
+}

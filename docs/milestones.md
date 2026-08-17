@@ -1650,9 +1650,41 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 - **前端体验**：增加显式预览动作和紧凑 DAG 展示，执行结果仍由动态结果区负责。
 - **测试证据**：专项测试保持 5 项，不扩大 quick；阶段门禁继续使用精简 profile。
 
-### M81.8 全局规划
+### M81.8 阶段规划（已执行）
 
 1. **跨入口预览一致性**：补 CLI/Service、开发 HTTP、生产 FastAPI 和 Console 对同一 preview envelope 的一致性 Harness，明确规划状态、DAG、证据和错误分类。
 2. **模型计划质量**：增加 `spatial_analysis` 脱敏 LLM fixture，验证复杂蓝图的工具 allowlist、步骤依赖、结果引用和输出类型；仅在必要时运行真实 live case。
 3. **预览与执行关联**：设计受控 preview fingerprint 或 plan version，使用户能识别执行是否使用了刚刚预览的计划，同时不把预览伪装成运行记录。
 4. **整体产品闭环复盘**：检查开放式问题、澄清、动态结果、地图证据、恢复、部署和测试七维是否仍由同一 Runtime 契约贯通，再决定是否进入新的 GIS 能力扩展。
+
+## M81.8：跨入口预览一致性与复杂模型回放（已完成）
+
+### 实现内容
+
+- 新增 `m81_spatial_analysis_model.json` 脱敏模型 fixture，使用正常 `LLMPlanner -> TaskPlan parser -> AgentRuntime -> ToolRegistry` 链路回放复杂综合空间分析。
+- fixture 验证 `spatial_analysis` 的 9 步工具序列、依赖关系、`$from` 结果引用、约束绑定、输出类型和中文答案；要求模板 exact match，而不是只比较工具集合。
+- 新增 preview 跨入口 Harness：直接 `AgentService.preview()` 与开发 HTTP `POST /runs/preview` 逐字段比较状态、计划、DAG、上下文证据、计划证据、安全门控和空间上下文。
+- 生产 FastAPI 保持同一 `preview_kwargs` 和 `/runs/preview` 路由；当前开发环境缺少 `fastapi`，因此用源码契约验证，不把可选依赖伪装成运行时通过。
+
+### 验收证据
+
+- M81.8 目标及相关回归 **41 项通过**；`python scripts/test_profile.py --profile stage` 通过。
+- `spatial_analysis` 脱敏 fixture exact template match 通过，9 个工具步骤和 2990 个脱敏 token 指标被验证。
+- Python 编译和 `git diff --check` 通过；本轮没有访问真实模型、提交私有 key 或读取真实 GIS 数据。
+
+### 复盘（七维矩阵）
+
+- **产品能力**：复杂开放式空间问题同时具备执行前计划证据和模型计划质量证据。
+- **架构**：preview 仍由 Runtime/Service 深模块提供，入口层不重复编排；生产路由与开发路由共享参数契约。
+- **数据质量**：模型回放使用 Demo adapter，不把脱敏计划误报为真实武汉数据结论；真实数据证据继续由 GIS profile 负责。
+- **真实模型**：真实模型输出的离线代表样例已能精确遵守 `spatial_analysis` 蓝图；live 仍受 provider、key 和网络条件控制。
+- **部署可靠性**：FastAPI 路由存在且共享 contract，但当前宿主缺少 `fastapi`，运行时 production acceptance 仍是部署环境验收项。
+- **前端体验**：Console 已消费统一 preview 结构，复杂计划可以在执行前查看节点和依赖。
+- **测试证据**：新增目标测试不进入默认 quick；stage 保持精简，生产可选依赖缺失被明确记录而非隐藏。
+
+### M81.9 全局规划
+
+1. 设计 preview fingerprint/plan version，并允许执行请求显式携带已预览计划的受控指纹，验证“预览计划”和“实际执行计划”是否一致。
+2. 在真实 DeepSeek 可用配置下运行单个 `live-short` 复杂规划样例，分别记录 provider、计划校验、工具门控和后端错误分类；不把网关成功等同于直连 DeepSeek 成功。
+3. 补生产 FastAPI 依赖环境的最小 acceptance，覆盖 `/runs/preview`、`/runs`、readiness 和错误响应，仍不进入默认 CI。
+4. 完成全局七维复盘，评估是否需要继续增强开放式 RequestFacts/能力发现，或进入新的可替换工具/后端能力。
