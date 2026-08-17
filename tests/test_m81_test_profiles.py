@@ -53,7 +53,7 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in payload["commands"]], ["service_smoke"])
         self.assertEqual(payload["commands"][0]["env"], {})
 
-    def test_stage_profile_adds_smoke_and_global_evaluation(self):
+    def test_stage_profile_uses_small_acceptance_examples(self):
         completed = subprocess.run(
             [
                 sys.executable,
@@ -71,8 +71,37 @@ class M81TestProfileTests(unittest.TestCase):
 
         self.assertEqual(
             [item["name"] for item in payload["commands"]],
+            ["core_contract_tripwires", "stage_acceptance_examples"],
+        )
+        stage_args = payload["commands"][1]["command"]
+        self.assertIn("--cases", stage_args)
+        self.assertTrue(stage_args[stage_args.index("--cases") + 1].endswith("stage-acceptance.json"))
+        self.assertIn("--no-model-evaluation", stage_args)
+        self.assertIn("--no-model-replay", stage_args)
+
+    def test_full_stage_profile_keeps_the_heavy_gate_explicit(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "test_profile.py"),
+                "--profile",
+                "full-stage",
+                "--dry-run",
+            ],
+            cwd=str(ROOT),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(completed.stdout)
+
+        self.assertEqual(
+            [item["name"] for item in payload["commands"]],
             ["core_contract_tripwires", "service_smoke", "strict_global_offline_evaluation"],
         )
+        global_args = payload["commands"][2]["command"]
+        self.assertNotIn("--no-model-evaluation", global_args)
+        self.assertNotIn("--no-model-replay", global_args)
 
     def test_gis_core_profile_is_sampled_not_full_modules(self):
         completed = subprocess.run(

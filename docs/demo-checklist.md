@@ -42,17 +42,16 @@ scripts\start_console.ps1 -Mode gis -Port 8088
 ## 自动化回归
 
 ```powershell
-python -m unittest discover -s tests
 python scripts\test_profile.py --profile quick
 python scripts\test_profile.py --profile smoke
-python scripts\evaluate_planner.py --planner rule --backend memory
+python scripts\test_profile.py --profile stage
 ```
 
-核心流程整体验收：
+需要完整矩阵时再显式运行：
 
 ```powershell
-& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest tests.test_m44_core_workflows
-& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\evaluate_planner.py --planner rule --backend memory --cases evaluation/cases/core-workflows.json --strict
+python scripts\test_profile.py --profile full-stage
+python -m unittest discover -s tests
 ```
 
 ## 失败恢复演示

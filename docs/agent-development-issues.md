@@ -2507,3 +2507,17 @@ M81.4 将 workflow template 摘要注入 Planner 上下文后，复杂空间请�
 ### 修复与预防
 
 `ContextBuilder` 将结构化安全裁剪深度从 3 放宽到 5，并调整预算省略顺序：先省略已在 system prompt 中重复出现的 `available_tools`，尽量保留 `workflow_templates`。新增测试覆盖模板摘要、Planner 上下文注入、LLMPlanner 接收模板上下文、plan evidence、SQLite 恢复和前端显示。后续新增 Planner 上下文 section 时，必须先判断该 section 是否是计划契约核心；不能只按体积大小裁掉最关键的契约信息。
+
+## Stage profile 隐式重型化会让阶段验收再次膨胀
+
+### 现象
+
+quick 和 smoke_check.py 已经精简后，普通 stage 仍然运行 quick、smoke 和 strict global evaluation，而 evaluate_global.py --strict 默认还会附带脱敏模型计划评测和多轮模型回放。用户从阶段验收入口测试时，仍会感觉测试例过多，且失败定位会被服务 smoke、全局 acceptance 和模型回放混在一起。
+
+### 根因
+
+测试 profile 只把日常 quick 收窄了，但没有继续区分普通阶段最小验收和发布前重型门禁。stage 同时承担普通阶段收口和完整离线评测职责，导致 profile 名称看起来轻量，实际执行范围仍偏大。
+
+### 修复与预防
+
+新增 evaluation/cases/stage-acceptance.json，普通 stage 只运行 quick tripwire 加 3 个代表性离线验收场景；旧式重型门禁改名为显式 full-stage。evaluate_global.py 增加 --no-model-replay，让轻量 stage 能同时跳过模型计划评测和多轮回放。后续新增验收先判断属于 quick、smoke、stage acceptance、full-stage、GIS/live/Docker 还是专项测试，不能把发布前重型证据塞回普通 stage。

@@ -1593,6 +1593,31 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 - **前端体验**：Console 已可显示复杂请求的 exact template 计划来源，后续可基于该蓝图做执行前计划预览。
 - **测试证据**：新增复杂请求跨入口 Harness，默认 quick 未膨胀。
 
+## M81.6.1：阶段测试例再精简（已完成）
+
+### 实现内容
+
+- **小型 stage acceptance**：新增 `evaluation/cases/stage-acceptance.json`，只保留通用问答、复杂空间分析模板、未注册空间问题澄清 3 个代表场景。
+- **重型门禁显式化**：`scripts/test_profile.py --profile stage` 改为 `quick + stage_acceptance_examples`；旧式 `quick + smoke + strict global evaluation + 脱敏模型评测/回放` 改为显式 `full-stage`。
+- **评测开关**：`scripts/evaluate_global.py` 新增 `--no-model-replay`，让小型 stage 可以同时跳过模型计划评测和多轮回放。
+- **文档同步**：README、`docs/test-strategy.md`、`docs/demo-checklist.md`、恢复文档和中文问题日志同步更新，完整矩阵仍保留为按风险触发入口。
+
+### 验收证据
+
+- `python -m unittest tests.test_m81_test_profiles tests.test_m11_smoke_check -v`：profile/smoke 契约通过。
+- `python scripts/test_profile.py --profile stage`：quick + 3 个离线 acceptance 场景通过。
+- `python scripts/test_profile.py --profile full-stage --dry-run`：重型门禁保持可发现但不作为默认阶段入口。
+
+### 复盘（七维矩阵，M81.6.1）
+
+- **产品能力**：不新增 GIS 功能，降低 demo 开发和验收摩擦。
+- **架构**：测试 profile 成为显式执行契约，stage 与 full-stage 分离，避免入口职责再次混杂。
+- **数据质量**：默认 stage 仍只用内存后端；真实数据留在 `gis-core` / `live-short`。
+- **真实模型**：普通 stage 不运行脱敏模型回放；模型质量验证保留在 `full-stage` 或目标测试。
+- **部署可靠性**：Docker acceptance 仍独立，不进入普通 stage。
+- **前端体验**：无前端改动。
+- **测试证据**：普通阶段门禁从多层评测收敛为 3 个代表 acceptance 场景，完整回归仍可按风险显式运行。
+
 ## M81.7 全局规划（下一阶段）
 
 1. **计划预览接口**：增加只规划不执行或轻量预览接口，输出模板 DAG、依赖、参数来源、预计 evidence 和安全门控，不触发 GIS 重计算。

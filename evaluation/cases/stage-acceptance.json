@@ -1,0 +1,47 @@
+[
+  {
+    "id": "stage-conversation-greeting",
+    "surface": "runtime",
+    "category": "通用问答",
+    "input": "你好",
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "direct_answer",
+    "capability_id": "conversation",
+    "expected_tools": [],
+    "verification": "不调用空间工具，返回能力介绍"
+  },
+  {
+    "id": "stage-spatial-analysis",
+    "surface": "runtime",
+    "category": "复杂空间分析",
+    "input": "请对洪山区进行综合空间分析：查询行政区边界，统计DEM高程与坡度，分析土地利用分布，汇总道路和水体，并筛选坡度不超过20度、距离道路不超过1000米且排除水体的建设候选区域。",
+    "backend": "memory",
+    "expected_status": "COMPLETED",
+    "expected_result_type": "spatial_analysis_result",
+    "capability_id": "spatial_analysis",
+    "expected_tools": [
+      "get_dataset_health_report",
+      "get_dataset_schema",
+      "range_query",
+      "get_zonal_raster_statistics",
+      "get_zonal_slope_statistics",
+      "get_zonal_land_use_distribution",
+      "get_zonal_vector_summary",
+      "get_zonal_vector_summary",
+      "get_zonal_constrained_buildability_analysis"
+    ],
+    "verification": "覆盖模板 DAG、同名道路/水体工具调用、栅格统计和约束建设筛选"
+  },
+  {
+    "id": "stage-unsupported-spatial-domain",
+    "surface": "runtime",
+    "category": "边界澄清",
+    "input": "分析洪山区空气质量变化",
+    "backend": "memory",
+    "expected_status": "NEEDS_CLARIFICATION",
+    "expected_result_type": null,
+    "expected_tools": [],
+    "verification": "不把未注册空间能力伪装成已支持的 GIS 分析"
+  }
+]

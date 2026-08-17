@@ -38,11 +38,21 @@ python scripts\test_profile.py --profile smoke
 python scripts\test_profile.py --profile stage
 ~~~
 
-覆盖范围是在 `quick + smoke` 基础上增加严格全局离线评测：
+覆盖范围是在 `quick` 基础上增加 3 个代表性离线验收场景：通用问答、复杂空间分析模板、未注册空间问题澄清。它不运行服务 smoke、不运行完整全局矩阵，也不运行脱敏模型回放。
 
 ~~~powershell
-python scripts\evaluate_global.py --strict
+python scripts\evaluate_global.py --cases evaluation/cases/stage-acceptance.json --strict --no-model-evaluation --no-model-replay
 ~~~
+
+### full-stage
+
+只有在改动共享 Runtime、HTTP/SQLite 契约、模型评测或阶段发布前需要更强证据时运行：
+
+~~~powershell
+python scripts\test_profile.py --profile full-stage
+~~~
+
+覆盖范围：`quick + smoke + evaluation/cases/global-acceptance.json + 脱敏模型评测 + 多轮模型回放`。这是显式重型入口，不作为日常或普通阶段默认门禁。
 
 ## 真实环境验收
 
@@ -86,6 +96,7 @@ python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0
 以下命令仍保留，但不是日常默认：
 
 ~~~powershell
+python scripts\test_profile.py --profile full-stage
 python -m unittest discover -s tests -v
 python scripts\smoke_check.py --with-unit-tests
 python scripts\live_baseline.py --allow-network --backend local

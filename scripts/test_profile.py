@@ -61,7 +61,7 @@ def main() -> int:
     parser.add_argument(
         "--profile",
         action="append",
-        choices=("quick", "smoke", "stage", "gis-core", "live-short", "docker"),
+        choices=("quick", "smoke", "stage", "full-stage", "gis-core", "live-short", "docker"),
         default=None,
         help="profile to run; repeatable; default: quick",
     )
@@ -107,8 +107,12 @@ def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
             "commands": [c.as_dict() for c in _smoke_commands()],
         },
         "stage": {
-            "purpose": "quick gate plus service smoke and strict global offline evaluation",
+            "purpose": "minimal phase gate: quick tripwires plus three offline acceptance cases",
             "commands": [c.as_dict() for c in _stage_commands()],
+        },
+        "full-stage": {
+            "purpose": "explicit heavy phase gate: quick, service smoke, full global evaluation, and model replay",
+            "commands": [c.as_dict() for c in _full_stage_commands()],
         },
         "gis-core": {
             "purpose": "sampled real-data GIS gate; run with the GIS Python environment",
@@ -134,6 +138,8 @@ def _commands_for_profiles(profiles: Iterable[str], args: argparse.Namespace) ->
             commands.extend(_smoke_commands())
         elif profile == "stage":
             commands.extend(_stage_commands())
+        elif profile == "full-stage":
+            commands.extend(_full_stage_commands())
         elif profile == "gis-core":
             commands.extend(_gis_core_commands())
         elif profile == "live-short":
@@ -170,6 +176,24 @@ def _smoke_commands() -> List[ProfileCommand]:
 
 
 def _stage_commands() -> List[ProfileCommand]:
+    return [
+        *_quick_commands(),
+        ProfileCommand(
+            "stage_acceptance_examples",
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "evaluate_global.py"),
+                "--cases",
+                str(ROOT / "evaluation" / "cases" / "stage-acceptance.json"),
+                "--strict",
+                "--no-model-evaluation",
+                "--no-model-replay",
+            ],
+        ),
+    ]
+
+
+def _full_stage_commands() -> List[ProfileCommand]:
     return [
         *_quick_commands(),
         *_smoke_commands(),

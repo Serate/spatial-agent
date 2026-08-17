@@ -820,3 +820,10 @@ M76.3 按产品、架构/部署、真实模型的依赖顺序单线程执行，�
 - 将 `plan_evidence` 接入更多 HTTP/前端验收样例，证明 CLI、HTTP 和 Console 对同一复杂请求看到一致的计划来源、步骤状态和 artifact 引用。
 - 评估是否将更多复杂 composer 路径逐步模板化，优先处理 `spatial_analysis` 这种已有工作流契约但还没有 `step_blueprint` 的组合能力。
 - 保持默认 `quick` 不膨胀；新增验证优先放在脱敏回放、`smoke`、`stage` 或专项测试，只有最核心契约 tripwire 才进入 quick。真实 GIS/live 仍作为可选验收。
+
+### M81.6.1 当前完成状态：阶段测试例再精简
+
+- `stage` profile 已从 `quick + smoke + 完整全局评测 + 模型回放` 收敛为 `quick + evaluation/cases/stage-acceptance.json`。
+- 新增 `full-stage` profile 保留旧式重型阶段门禁，用于共享 Runtime、HTTP/SQLite、模型评测或发布前强验证。
+- `evaluate_global.py` 新增 `--no-model-replay`，可在小型 stage 中显式跳过多轮模型回放。
+- 默认验证建议：日常 `quick`，需要服务边界时 `smoke`，普通阶段 `stage`；完整 discover、full-stage、GIS/live/Docker 都按风险显式触发。

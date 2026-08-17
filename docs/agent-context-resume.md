@@ -544,7 +544,7 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 3. 让前端/HTTP 能展示模板计划预览、工具 DAG、执行状态和 result lineage，而不是按工具名猜测结果类型。
 4. 增加离线脱敏回放和 planner 契约测试；默认 CI 不访问真实模型或私有数据。
 5. Docker/GIS/live 仍作为可选分层验收，不得替代离线契约测试。
-6. 测试策略继续保持 profile 化：日常只跑 3 个核心契约 tripwire 的 `quick`，服务 smoke 按需跑 `smoke`，阶段收口跑 `stage`，真实验收按改动范围选择抽样 `gis-core`、`live-short` 或 `docker`。完整 unittest/GIS/live 只按风险触发。
+6. 测试策略继续保持 profile 化：日常只跑 3 个核心契约 tripwire 的 `quick`，服务 smoke 按需跑 `smoke`，普通阶段收口跑小型 `stage`（quick + 3 个离线 acceptance 场景）；需要旧式重型阶段门禁时显式运行 `full-stage`。真实验收按改动范围选择抽样 `gis-core`、`live-short` 或 `docker`。完整 unittest/GIS/live 只按风险触发。
 
 ## M81.4 当前完成状态：模板上下文与计划来源证据
 
@@ -558,7 +558,7 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 ## M81.4.1 当前完成状态：测试入口再精简
 
 - `scripts/test_profile.py` 的默认 `quick` 已进一步收敛为 3 个核心契约 tripwire，不再包含服务 smoke。
-- 服务 smoke 独立为 `smoke` profile；`stage` 运行 `quick + smoke + strict global evaluation`。
+- 服务 smoke 独立为 `smoke` profile；普通 `stage` 运行 `quick + 3 个离线 acceptance 场景`，旧式 `quick + smoke + strict global evaluation + 脱敏模型评测/回放` 改为显式 `full-stage`。
 - `scripts/smoke_check.py` 默认只运行服务 smoke，完整 `unittest discover` 改为显式 `--with-unit-tests`。
 - `gis-core` 抽样从 4 个真实 GIS 用例降为 3 个，保留行政区、Rasterio metadata 和 analysis-ready 门控。
 - 验证：M81 profile/smoke 专项 6 项通过；`quick`、`smoke`、`stage` profile 均通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
@@ -588,6 +588,13 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 - 复杂请求的 `plan_evidence.matched_template_ids` 与 `exact_template_ids` 均命中 `spatial_analysis`，`template_context_available=true`。
 - 新增复杂请求跨入口 Harness：直接服务调用、HTTP POST、HTTP run detail、session history 和 artifact 的 result envelope、计划证据、步骤序列和 trace 可用性一致。
 - 验证：M81/M68/M77 目标测试 33 项通过；`stage` profile 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+
+## M81.6.1 当前完成状态：阶段测试例再精简
+
+- `evaluation/cases/stage-acceptance.json` 新增 3 个代表性离线验收场景：通用问答、复杂空间分析模板、未注册空间问题澄清。
+- `scripts/test_profile.py --profile stage` 现在只运行 quick tripwire 加小型 stage acceptance；旧式重型阶段门禁改为 `--profile full-stage`。
+- `scripts/evaluate_global.py` 新增 `--no-model-replay`，stage 可同时跳过脱敏模型评测和多轮回放，避免普通阶段验收隐式扩大测试例数量。
+- README、测试策略和演示清单已同步，完整 discover / full-stage / live / Docker 仍保留为按风险触发的显式入口。
 
 ## M81.7 下一阶段
 

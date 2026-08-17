@@ -7,7 +7,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from evaluation.global_runner import run_global_cases
-from evaluation.model_evaluation import DEFAULT_MODEL_FIXTURE
+from evaluation.model_evaluation import DEFAULT_MODEL_FIXTURE, DEFAULT_MODEL_REPLAY_FIXTURE
 from evaluation.runner import load_cases
 
 
@@ -29,6 +29,11 @@ def main() -> int:
         action="store_true",
         help="跳过离线模型计划质量评测",
     )
+    parser.add_argument(
+        "--no-model-replay",
+        action="store_true",
+        help="跳过离线多轮模型回放评测",
+    )
     args = parser.parse_args()
     report = run_global_cases(
         load_cases(args.cases),
@@ -36,6 +41,7 @@ def main() -> int:
         backend=args.backend,
         include_optional=args.include_optional,
         model_fixture=None if args.no_model_evaluation else args.model_fixture,
+        model_replay_fixture=None if args.no_model_replay else DEFAULT_MODEL_REPLAY_FIXTURE,
     )
     encoded = json.dumps(report, ensure_ascii=False, indent=2)
     print(encoded)
