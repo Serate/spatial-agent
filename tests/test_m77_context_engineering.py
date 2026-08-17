@@ -9,6 +9,8 @@ from agent.models import PlanStep, TaskPlan
 from agent.runtime import AgentRuntime
 from agent.sqlite_store import SQLiteStateStore
 from agent.tools import DemoSpatialAdapter, ToolRegistry
+from agent.workflow_templates import workflow_template_context_summary
+from result_contract import build_result_contract
 
 
 ROOT = Path(__file__).parents[1]
@@ -76,6 +78,7 @@ class M77ContextEngineeringTests(unittest.TestCase):
             session_id="session-1",
             workflow={"template_id": "demo", "api_key": "must-not-appear", "constraints": {"x": "y"}},
             available_tools=["tool-" + str(i) for i in range(100)],
+            workflow_templates=workflow_template_context_summary(),
         )
         self.assertLessEqual(len(packet.rendered), 512)
         self.assertEqual(packet.evidence["schema_version"], CONTEXT_SCHEMA_VERSION)
@@ -83,12 +86,27 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertNotIn("must-not-appear", packet.rendered)
         json.loads(packet.rendered)
 
+    def test_builder_includes_workflow_template_context_when_budget_allows(self):
+        packet = ContextBuilder(max_chars=12000).build(
+            request="查询DEM栅格元数据",
+            available_tools=registry().names,
+            workflow_templates=workflow_template_context_summary(),
+        )
+
+        templates = packet.payload["sections"]["workflow_templates"]
+        self.assertIn("workflow_templates", packet.evidence["section_names"])
+        self.assertEqual(templates["schema_version"], "spatial-agent.workflow_templates.v1")
+        self.assertTrue(any(item["id"] == "raster_metadata" for item in templates["templates"]))
+
     def test_runtime_passes_context_to_capable_planner_and_records_evidence(self):
         planner = ContextAwarePlanner()
         result = AgentRuntime(planner, registry()).run("查询道路数据", session_id="m77")
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(planner.context["schema_version"], CONTEXT_SCHEMA_VERSION)
+        self.assertIn("workflow_templates", planner.context["sections"])
         self.assertEqual(result.context_evidence["schema_version"], CONTEXT_SCHEMA_VERSION)
+        self.assertEqual(result.plan_evidence["planner_kind"], "ContextAwarePlanner")
+        self.assertTrue(result.plan_evidence["template_context_available"])
         self.assertNotIn("sections", result.context_evidence)
 
     def test_runtime_adds_structured_spatial_request_facts_to_context(self):
@@ -113,21 +131,35 @@ class M77ContextEngineeringTests(unittest.TestCase):
         planner = LLMPlanner(client, registry().names)
         planner.plan(
             "查询道路数据",
-            context={"schema_version": CONTEXT_SCHEMA_VERSION, "sections": {"request": {"original": "查询道路数据"}}},
+            context={
+                "schema_version": CONTEXT_SCHEMA_VERSION,
+                "sections": {
+                    "request": {"original": "查询道路数据"},
+                    "workflow_templates": workflow_template_context_summary(),
+                },
+            },
         )
         self.assertIn("Trusted runtime context", client.messages[1]["content"])
         self.assertIn(CONTEXT_SCHEMA_VERSION, client.messages[1]["content"])
+        self.assertIn("raster_metadata", client.messages[1]["content"])
+        self.assertIn("workflow_templates", client.messages[0]["content"])
 
     def test_result_contract_exposes_only_context_evidence(self):
         result = AgentRuntime(ContextAwarePlanner(), registry()).run("查询道路数据")
         payload = result.to_dict()
         self.assertIn("context_evidence", payload)
+        self.assertIn("plan_evidence", payload)
         self.assertNotIn("sections", payload["context_evidence"])
+        self.assertNotIn("sections", payload["plan_evidence"])
+        contract = build_result_contract({**payload, "result_type": result.plan.output["type"]})
+        self.assertEqual(contract["planning"]["planner_kind"], "ContextAwarePlanner")
 
     def test_console_surfaces_context_budget_evidence(self):
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn("const contextEvidence=envelope.context||data.context_evidence||{}", html)
+        self.assertIn("const planEvidence=envelope.planning||data.plan_evidence||{}", html)
         self.assertIn("上下文工程", html)
+        self.assertIn("计划来源", html)
 
     def test_sqlite_recovery_preserves_context_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -139,6 +171,10 @@ class M77ContextEngineeringTests(unittest.TestCase):
             self.assertEqual(
                 restored.context_evidence["request_sha256"],
                 result.context_evidence["request_sha256"],
+            )
+            self.assertEqual(
+                restored.plan_evidence["planner_kind"],
+                result.plan_evidence["planner_kind"],
             )
 
 

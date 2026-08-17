@@ -72,6 +72,12 @@ class LLMPlanner:
             "Use only registered tools: "
             + tools
             + ". "
+            "Trusted runtime context may include workflow_templates, a compact catalog of "
+            "template ids, required constraints, result types, allowed tools, and step_blueprint "
+            "shapes. When a template fits the request, prefer that template contract: emit the "
+            "same tool DAG, result type, argument names, dependencies, and result references after "
+            "binding the user constraints. Do not output the template object itself; always output "
+            "a normal TaskPlan with goal, steps, and output. "
             "Allowed datasets: roads, water, slope, admin_areas, dem, land_use. "
             "For DEM or land use value statistics, use tool get_raster_statistics with "
             "args {\"dataset\":\"dem\",\"max_files\":3}. "

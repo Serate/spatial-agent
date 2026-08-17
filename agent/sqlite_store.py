@@ -812,5 +812,6 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         geojson_ref=payload.get("geojson_ref"),
         geometry_evidence=payload.get("geometry_evidence"),
         context_evidence=payload.get("context_evidence"),
+        plan_evidence=payload.get("plan_evidence"),
         replan_events=payload.get("replan_events") or [],
     )

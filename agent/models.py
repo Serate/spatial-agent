@@ -67,6 +67,8 @@ class AgentRunResult:
     geometry_evidence: Optional[Dict[str, Any]] = None
     # Safe summary of the planner context; raw context is never persisted here.
     context_evidence: Optional[Dict[str, Any]] = None
+    # Safe summary of how the TaskPlan was produced and matched to templates.
+    plan_evidence: Optional[Dict[str, Any]] = None
     # Number of in-place retries performed for this run.
     retry_count: int = 0
     # Bounded adaptive-replanning evidence (M80.1): one entry per replan round.

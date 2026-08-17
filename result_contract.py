@@ -70,6 +70,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "data": {"evidence_steps": evidence_steps},
         "clarification": payload.get("clarification"),
         "context": payload.get("context_evidence") or {"available": False},
+        "planning": payload.get("plan_evidence") or {"available": False},
         "references": references,
         "lineage": lineage,
         "geometry": {

@@ -1478,3 +1478,37 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 3. **前端计划预览**：基于模板蓝图和最终 `result.lineage` 显示计划 DAG、工具状态和结果引用，减少页面按工具名推断。
 4. **评测与 CI**：增加脱敏 LLM 回放/离线 planner 案例，验证模型输出与模板 allowlist/result type/DAG 一致；默认 CI 仍不访问网络。
 5. **保留边界**：暂不扩展新 GIS 数据功能，除非它服务于模板化 planner、Runtime 可观测或跨入口验收。
+
+## M81.4：模板上下文与计划来源证据（已完成）
+
+### 实现内容
+
+- **模板上下文接口**：`agent/workflow_templates.py` 新增 `workflow_template_context_summary()`，为 Planner 提供受控模板摘要，不暴露完整原始目录实现细节。
+- **上下文工程**：`ContextBuilder` 增加 `workflow_templates` section，预算裁剪优先保留模板契约；安全裁剪深度从 3 放宽到 5，避免核心数组被裁成不可匹配占位。
+- **LLM Planner**：system prompt 明确说明可信上下文可能包含 `workflow_templates`，模型应优先按模板 DAG、result type、参数名、依赖和 result reference 生成普通 `TaskPlan`。
+- **计划证据**：`AgentRuntime` 新增 `plan_evidence`，记录 planner kind、source、输出类型、步骤数、工具序列、模板上下文状态、workflow 约束和匹配模板；该证据已接入 `AgentRunResult`、SQLite、artifact、`result.planning` 和 Console。
+- **前端证据**：Console 运行时证据卡显示“计划来源”，和上下文工程、运行血缘、几何、数据质量、发布证据一起展示。
+
+### 验收证据
+
+- M68/M77/M2 目标测试 **53 项通过**。
+- `python scripts/test_profile.py --profile quick` 通过。
+- `python scripts/test_profile.py --profile stage` 通过。
+- `git diff --check` 通过，仅有 Windows LF/CRLF 提示。
+
+### 复盘（七维矩阵，M81.4）
+
+- **产品能力**：用户和前端能看到“为什么调用这些工具”的计划来源证据。
+- **架构**：模板目录通过一个小接口供 Planner 使用，Runtime 统一归档证据；Planner 仍只输出 `TaskPlan`。
+- **数据质量**：无新增真实数据依赖；数据门控仍由既有工具和后端负责。
+- **真实模型**：LLMPlanner 已具备模板上下文入口，但仍需下一阶段用脱敏回放和可选 live 验证真实模型稳定遵守模板。
+- **部署可靠性**：新增字段可通过 SQLite 和 artifact 恢复；默认 CI/quick/stage 不访问真实模型或私有数据。
+- **前端体验**：证据区显示计划来源，减少页面按工具名猜测执行意图。
+- **测试证据**：新增模板摘要、上下文注入、LLM 上下文、plan evidence、SQLite 恢复和 Console 字符串测试；默认 quick 仍保持 5 个核心样例 + 服务 smoke。
+
+## M81.5 全局规划（下一阶段）
+
+- 增加脱敏 LLM 回放，验证模型输出匹配模板 allowlist、result type、DAG 和 result reference。
+- 将 `plan_evidence` 纳入 HTTP/Console 端到端验收，证明 CLI、HTTP 和前端对同一复杂请求的一致性。
+- 评估并优先模板化 `spatial_analysis` 等仍由 composer 手写的复杂组合路径。
+- 保持测试分层：默认 quick 不膨胀，真实 GIS/live 仍按风险作为可选验收。

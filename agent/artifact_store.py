@@ -24,6 +24,7 @@ class ArtifactStore:
             "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
             "context_evidence": payload.get("context_evidence"),
+            "plan_evidence": payload.get("plan_evidence"),
             "plan": _plan_summary(payload.get("plan")),
             "steps": [_step_summary(step) for step in payload.get("steps", [])],
             "provenance": payload.get("provenance"),

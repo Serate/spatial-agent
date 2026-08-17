@@ -539,3 +539,16 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 4. 增加离线脱敏回放和 planner 契约测试；默认 CI 不访问真实模型或私有数据。
 5. Docker/GIS/live 仍作为可选分层验收，不得替代离线契约测试。
 6. 测试策略继续保持 profile 化：日常只跑 5 个核心契约样例 + 服务 smoke 的 `quick`，阶段收口跑 `stage`，真实验收按改动范围选择抽样 `gis-core`、`live-short` 或 `docker`。完整 unittest/GIS/live 只按风险触发。
+
+## M81.4 当前完成状态：模板上下文与计划来源证据
+
+- `workflow_template_context_summary()` 已作为模板目录对 Planner 的安全上下文接口，输出 template id、约束、result type、allowed tools、step blueprint 形状和输出类型。
+- `ContextBuilder` 已注入 `workflow_templates` section，并调整预算裁剪顺序：先省略重复的 `available_tools`，尽量保留模板契约；安全裁剪深度放宽到 5。
+- `LLMPlanner` prompt 已要求真实模型优先按模板契约输出普通 `TaskPlan`，减少依赖手写工具编排说明。
+- `AgentRuntime` 已记录 `plan_evidence`，并通过 SQLite、artifact、result envelope 与 Console 传播；前端证据区显示计划来源。
+- 验证：M68/M77/M2 目标测试 53 项通过；`quick` 与 `stage` profile 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+- 新增中文问题日志：上下文预算裁剪不能先丢模板契约。
+
+## M81.5 下一阶段
+
+从项目整体看，下一阶段继续把 Planner 契约从“上下文可见”推进到“离线可验收”：增加脱敏 LLM 回放，验证真实模型计划匹配模板 allowlist、result type、DAG 和 result reference；同时让 HTTP/Console 验收覆盖 `plan_evidence`，并评估把 `spatial_analysis` 等复杂 composer 路径模板化。默认 `quick` 仍保持精简，不因新增专项回归膨胀。

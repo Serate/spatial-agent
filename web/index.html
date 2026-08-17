@@ -1048,6 +1048,7 @@
       const geometry=envelope.geometry||data.geometry_evidence||{};
       const lineage=envelope.lineage||{};
       const contextEvidence=envelope.context||data.context_evidence||{};
+      const planEvidence=envelope.planning||data.plan_evidence||{};
       const geometryStatus=geometry.status||'unknown';
       const geometryRef=geometry.geojson_ref||data.geojson_ref;
       const p=data.provenance||{};
@@ -1065,6 +1066,7 @@
       if(analysisReady.status&&analysisReady.status!=='not_configured') runtimeDetails.push('分析就绪派生层：'+evidenceStatusLabel(analysisReady.status)+' · '+(analysisReady.derived_version||'未知版本')+' · '+((analysisReady.target_grid||{}).crs||'未知 CRS')+analysisReadyBindingText(analysisReady));
       if(snapshot.updated_at) runtimeDetails.push('检查时间：'+snapshot.updated_at);
       if(contextEvidence.available) runtimeDetails.push('上下文工程：'+escapeHtml(contextEvidence.schema_version||'已构建')+' · '+escapeHtml(contextEvidence.input_chars||0)+' 字符'+(contextEvidence.truncated?' · 已按预算裁剪':' · 未裁剪'));
+      if(planEvidence.available) runtimeDetails.push('计划来源：'+escapeHtml(planEvidence.source||'未知')+' · '+escapeHtml(planEvidence.planner_kind||'未知规划器')+' · '+escapeHtml(planEvidence.step_count||0)+' 步'+((planEvidence.exact_template_ids||[]).length?' · 模板 '+escapeHtml((planEvidence.exact_template_ids||[]).join('、')):''));
       const sources=(geometry.sources||[]).join('、')||'未声明';
       const crs=(geometry.crs||[]).join('、')||'未声明';
       $('evidenceSummary').innerHTML='<strong>证据完整性：'+(runtimeStatus==='degraded'||runtimeStatus==='unavailable'||geometryStatus==='no_geometry'||geometryStatus==='truncated_geometry'?'存在限制':'已形成')+'</strong><span>几何、运行时、数据质量与运行血缘均以本次响应为准</span>';

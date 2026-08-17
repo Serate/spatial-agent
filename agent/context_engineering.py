@@ -42,6 +42,7 @@ class ContextBuilder:
         planner_kind: Optional[str] = None,
         spatial_request: Optional[Mapping[str, Any]] = None,
         memory_section: Optional[Mapping[str, Any]] = None,
+        workflow_templates: Optional[Mapping[str, Any]] = None,
     ) -> ContextPacket:
         original = self._text(request)
         resolved = self._text(resolved_request) or original
@@ -53,6 +54,7 @@ class ContextBuilder:
             },
             "session": {"bound": bool(session_id)},
             "workflow": self._safe_value(workflow or {}),
+            "workflow_templates": self._safe_value(workflow_templates or {}),
             "available_tools": self._safe_value(list(available_tools or [])),
         }
         if spatial_request:
@@ -89,7 +91,7 @@ class ContextBuilder:
         if len(rendered) <= self.max_chars:
             return rendered, False
         truncated = False
-        for name in ("available_tools", "workflow", "planner", "memory"):
+        for name in ("available_tools", "workflow", "planner", "memory", "workflow_templates"):
             if len(rendered) <= self.max_chars:
                 break
             if name in sections:
@@ -140,7 +142,7 @@ class ContextBuilder:
         )
 
     def _safe_value(self, value: Any, depth: int = 0) -> Any:
-        if depth > 3:
+        if depth > 5:
             return "[omitted:depth]"
         if isinstance(value, Mapping):
             safe = {}

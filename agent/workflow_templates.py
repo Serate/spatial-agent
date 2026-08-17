@@ -317,6 +317,63 @@ def workflow_template_catalog() -> Dict[str, Dict[str, Any]]:
     return copy.deepcopy(WORKFLOW_TEMPLATE_CATALOG)
 
 
+def workflow_template_context_summary(max_templates: Optional[int] = None) -> Dict[str, Any]:
+    """Return a compact template catalog for planner context.
+
+    This is the public context seam for planners: it exposes the small
+    interface they need (ids, constraints, result types, allowed tools, and
+    blueprint shape) without requiring them to know the full template schema or
+    every literal argument value. The raw catalog remains owned by this module.
+    """
+
+    if max_templates is not None and max_templates < 1:
+        raise ValueError("max_templates must be positive")
+    catalog = validate_workflow_template_catalog()
+    templates = []
+    for index, template_id in enumerate(sorted(catalog)):
+        if max_templates is not None and index >= max_templates:
+            break
+        template = catalog[template_id]
+        steps = template.get("step_blueprint", [])
+        templates.append(
+            {
+                "id": template["id"],
+                "version": template["version"],
+                "label": template["label"],
+                "goal_template": template.get("goal_template"),
+                "allowed_tools": list(template["allowed_tools"]),
+                "result_types": list(template["result_types"]),
+                "required_constraints": list(template["required_constraints"]),
+                "constraint_specs": [
+                    _constraint_context_summary(spec)
+                    for spec in template.get("constraint_specs", [])
+                ],
+                "evidence_options": list(template.get("evidence_options", [])),
+                "default_evidence": list(template.get("default_evidence", [])),
+                "max_steps": template["max_steps"],
+                "has_blueprint": bool(steps),
+                "step_blueprint": [
+                    {
+                        "id": step["id"],
+                        "tool": step["tool"],
+                        "depends_on": list(step.get("depends_on", [])),
+                        "arg_keys": sorted(step.get("args", {}).keys()),
+                        "arg_shape": _argument_context_shape(step.get("args", {})),
+                    }
+                    for step in steps
+                ],
+                "output_type": (template.get("output_template") or {}).get("type"),
+            }
+        )
+    return {
+        "schema_version": "spatial-agent.workflow_templates.v1",
+        "template_count": len(catalog),
+        "returned_count": len(templates),
+        "omitted_count": max(0, len(catalog) - len(templates)),
+        "templates": templates,
+    }
+
+
 def validate_workflow_template_catalog(
     catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
     *,
@@ -958,6 +1015,37 @@ def _normalize_constraint_specs(
     if missing_specs:
         raise WorkflowTemplateError("required constraints missing specs: " + ", ".join(missing_specs))
     return normalized
+
+
+def _constraint_context_summary(spec: Mapping[str, Any]) -> Dict[str, Any]:
+    summary = {
+        "name": spec["name"],
+        "label": spec.get("label", spec["name"]),
+        "type": spec["type"],
+        "required": bool(spec.get("required")),
+    }
+    for key in ("choices", "default", "min", "max", "min_length", "max_length"):
+        if key in spec:
+            summary[key] = copy.deepcopy(spec[key])
+    return summary
+
+
+def _argument_context_shape(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        if set(value) == {"$constraint"}:
+            return {"binds_constraint": str(value.get("$constraint"))}
+        if set(value) == {"$result_ref"}:
+            ref = value.get("$result_ref") if isinstance(value.get("$result_ref"), Mapping) else {}
+            return {
+                "binds_result": str(ref.get("step") or ""),
+                "path": str(ref.get("path") or ""),
+            }
+        return {str(key): _argument_context_shape(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_argument_context_shape(item) for item in value[:4]]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 def _normalize_step_blueprint(

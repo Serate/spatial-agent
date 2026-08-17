@@ -96,6 +96,9 @@ class M77SpatialRequestTests(unittest.TestCase):
 
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(result.plan.output["type"], "spatial_analysis_result")
+        self.assertEqual(result.plan_evidence["source"], "rule")
+        self.assertIn("spatial_analysis", result.plan_evidence["matched_template_ids"])
+        self.assertTrue(result.plan_evidence["template_context_available"])
         self.assertEqual(len(result.steps), 9)
         self.assertTrue(all(step.status == "COMPLETED" for step in result.steps))
         self.assertIn("已完成 9 个工具步骤", result.answer)

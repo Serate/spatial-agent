@@ -797,3 +797,20 @@ M76.3 按产品、架构/部署、真实模型的依赖顺序单线程执行，�
 4. 离线回放与 CI：增加脱敏模型回放和 planner 契约测试，默认不访问网络、不依赖私有数据。
 5. 暂不扩展单个 GIS 功能，除非它服务于模板化 planner、Runtime 可观测或跨入口验收。
 6. 每阶段记录实际运行 profile；完整 unittest、完整 live baseline 和容器内 live 只在对应共享契约、真实模型评测或部署数据卷改动时运行。
+
+### M81.4 当前完成状态：模板上下文与计划来源证据
+
+- `agent/workflow_templates.py` 新增 `workflow_template_context_summary()`，向 Planner 暴露受控、可裁剪的模板摘要：template id、约束、result type、allowed tools、step blueprint 形状和输出类型。
+- `ContextBuilder` 新增 `workflow_templates` section；预算裁剪优先省略重复的 `available_tools`，尽量保留模板契约，并把安全裁剪深度放宽到 5，避免把 `allowed_tools`/`result_types` 裁成不可用占位。
+- `LLMPlanner` prompt 已明确要求真实模型优先使用 `workflow_templates` 中的模板契约，按模板 DAG、参数名、依赖和 result type 输出普通 `TaskPlan`。
+- `AgentRuntime` 新增 `plan_evidence`：记录 planner kind、source、output type、step count、工具序列、template context 状态、外部 workflow 约束和匹配/精确匹配模板；SQLite、artifact、result envelope 和 Console 均已传播。
+- Console 证据区现在显示“计划来源”，同一响应中可同时看到上下文工程、计划来源、运行血缘、几何、数据质量和发布证据。
+- 验证：M68/M77/M2 目标测试 53 项通过；`python scripts/test_profile.py --profile quick` 通过；`python scripts/test_profile.py --profile stage` 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+- 新增中文问题日志：上下文预算裁剪不能先丢模板契约。
+
+### M81.5 下一阶段规划
+
+- 增加脱敏 LLM 回放，验证真实模型输出能稳定匹配模板 allowlist、result type、DAG 和 result reference。
+- 将 `plan_evidence` 接入更多 HTTP/前端验收样例，证明 CLI、HTTP 和 Console 对同一复杂请求看到一致的计划来源、步骤状态和 artifact 引用。
+- 评估是否将更多复杂 composer 路径逐步模板化，优先处理 `spatial_analysis` 这种已有工作流契约但还没有 `step_blueprint` 的组合能力。
+- 保持默认 `quick` 不膨胀；新增验证优先放在脱敏回放或专项测试，只有核心契约才进入 quick。真实 GIS/live 仍作为可选验收。

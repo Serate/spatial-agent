@@ -10,6 +10,7 @@ from agent.workflow_templates import (
     validate_workflow_template,
     validate_workflow_template_catalog,
     workflow_template_catalog,
+    workflow_template_context_summary,
 )
 
 
@@ -50,6 +51,20 @@ class M68WorkflowTemplateTests(unittest.TestCase):
         ])
         self.assertTrue(all("label" in item for item in second.values()))
         self.assertTrue(all(any("\u4e00" <= char <= "\u9fff" for char in item["label"]) for item in second.values()))
+
+    def test_context_summary_is_bounded_and_contains_blueprint_shapes(self):
+        summary = workflow_template_context_summary(max_templates=3)
+        encoded = json.dumps(summary, ensure_ascii=False, allow_nan=False)
+
+        self.assertLess(len(encoded), 8000)
+        self.assertEqual(summary["schema_version"], "spatial-agent.workflow_templates.v1")
+        self.assertEqual(summary["returned_count"], 3)
+        self.assertGreaterEqual(summary["omitted_count"], 1)
+        first = summary["templates"][0]
+        self.assertIn("allowed_tools", first)
+        self.assertIn("constraint_specs", first)
+        if first["has_blueprint"]:
+            self.assertIn("arg_shape", first["step_blueprint"][0])
 
     def test_builtin_template_can_validate_and_be_loaded_by_id(self):
         template = get_workflow_template("spatial_overview")

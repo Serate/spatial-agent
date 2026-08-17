@@ -22,7 +22,11 @@ from .replanning import (
 )
 from .request_model import parse_spatial_request
 from .tools import ToolRegistry
-from .workflow_templates import WorkflowTemplateError, validate_workflow_plan
+from .workflow_templates import (
+    WorkflowTemplateError,
+    validate_workflow_plan,
+    workflow_template_context_summary,
+)
 
 
 class InMemoryStateStore:
@@ -180,6 +184,7 @@ class AgentRuntime:
             planner_kind=type(self._planner).__name__,
             spatial_request=parse_spatial_request(resolved_request).as_context_dict(),
             memory_section=memory_section,
+            workflow_templates=workflow_template_context_summary(),
         )
         result.context_evidence = context_packet.evidence
         self._state_store.save(result)
@@ -189,6 +194,12 @@ class AgentRuntime:
             # timeout would otherwise be observed.
             self._check_control(result.run_id, deadline)
             plan = self._plan(resolved_request, workflow, context_packet)
+            result.plan_evidence = _build_plan_evidence(
+                plan,
+                workflow,
+                context_packet,
+                planner_kind=type(self._planner).__name__,
+            )
             self._check_control(result.run_id, deadline)
             if workflow is not None:
                 _validate_runtime_workflow_plan(plan, workflow)
@@ -712,6 +723,128 @@ def _validate_runtime_workflow_plan(
         "assumptions": list(plan.assumptions),
     }
     validate_workflow_plan(template_id, payload)
+
+
+def _build_plan_evidence(
+    plan: TaskPlan,
+    workflow: Optional[Mapping[str, Any]],
+    context_packet: ContextPacket,
+    *,
+    planner_kind: str,
+) -> Dict[str, Any]:
+    """Build a bounded, persisted explanation of the planning source."""
+
+    output_type = str((plan.output or {}).get("type") or "unknown")
+    tool_names = [step.tool for step in plan.steps]
+    sections = (context_packet.payload or {}).get("sections", {})
+    if not isinstance(sections, Mapping):
+        sections = {}
+    templates_section = sections.get("workflow_templates")
+    templates_available = (
+        isinstance(templates_section, Mapping)
+        and not templates_section.get("omitted")
+        and isinstance(templates_section.get("templates"), list)
+    )
+    evidence: Dict[str, Any] = {
+        "available": True,
+        "planner_kind": planner_kind,
+        "source": _planner_source(planner_kind, workflow),
+        "output_type": output_type,
+        "step_count": len(plan.steps),
+        "tool_names": tool_names,
+        "unique_tools": _unique(tool_names),
+        "context_schema_version": context_packet.evidence.get("schema_version"),
+        "context_sections": list(context_packet.evidence.get("section_names") or []),
+        "template_context_available": templates_available,
+        "template_context_truncated": bool(context_packet.evidence.get("truncated")),
+    }
+    if isinstance(workflow, Mapping):
+        evidence["workflow_template_id"] = workflow.get("template_id")
+        evidence["workflow_template_version"] = workflow.get("template_version")
+        evidence["workflow_constraints"] = _safe_small_mapping(workflow.get("constraints"))
+        evidence["workflow_evidence"] = list(workflow.get("evidence") or [])
+    matched, exact = _matched_template_ids(
+        templates_section if isinstance(templates_section, Mapping) else {},
+        output_type=output_type,
+        tool_names=tool_names,
+        step_count=len(plan.steps),
+    )
+    evidence["matched_template_ids"] = matched
+    evidence["exact_template_ids"] = exact
+    return evidence
+
+
+def _planner_source(planner_kind: str, workflow: Optional[Mapping[str, Any]]) -> str:
+    if isinstance(workflow, Mapping) and workflow.get("template_id"):
+        return "workflow_selection"
+    lowered = planner_kind.lower()
+    if "llm" in lowered or "openai" in lowered:
+        return "llm"
+    return "rule"
+
+
+def _matched_template_ids(
+    templates_section: Mapping[str, Any],
+    *,
+    output_type: str,
+    tool_names: list[str],
+    step_count: int,
+) -> tuple[list[str], list[str]]:
+    matched: list[str] = []
+    exact: list[str] = []
+    templates = templates_section.get("templates")
+    if not isinstance(templates, list):
+        return matched, exact
+    for template in templates:
+        if not isinstance(template, Mapping):
+            continue
+        template_id = template.get("id")
+        if not isinstance(template_id, str) or not template_id:
+            continue
+        result_types = template.get("result_types") or []
+        allowed_tools = set(template.get("allowed_tools") or [])
+        try:
+            max_steps = int(template.get("max_steps") or 0)
+        except (TypeError, ValueError):
+            max_steps = 0
+        if output_type not in result_types:
+            continue
+        if max_steps and step_count > max_steps:
+            continue
+        if any(tool not in allowed_tools for tool in tool_names):
+            continue
+        matched.append(template_id)
+        blueprint_tools = [
+            step.get("tool")
+            for step in template.get("step_blueprint") or []
+            if isinstance(step, Mapping)
+        ]
+        if blueprint_tools and blueprint_tools == tool_names:
+            exact.append(template_id)
+    return matched, exact
+
+
+def _safe_small_mapping(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    result: Dict[str, Any] = {}
+    for key, item in list(value.items())[:12]:
+        if isinstance(item, (str, int, float, bool)) or item is None:
+            result[str(key)[:80]] = item
+        else:
+            result[str(key)[:80]] = str(item)[:160]
+    return result
+
+
+def _unique(values: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
 
 
 def _replan_context(feedback: Mapping[str, Any]) -> Dict[str, Any]:

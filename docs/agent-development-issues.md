@@ -2451,3 +2451,17 @@ M81.3 将行政区边界、栅格元数据、空间总览和约束建设筛选�
 ### 修复与预防
 
 `scripts/test_profile.py` 的 `quick` profile 改为少量核心契约样例加服务 smoke，`gis-core` 也改为真实 GIS 抽样用例。完整 unittest、完整 GIS 和完整 live 仍保留，但只在改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时按需运行。新增测试时先判断它属于默认代表样例、阶段验收还是专项诊断，不要默认塞入 `quick`。
+
+## 上下文预算裁剪不能先丢模板契约
+
+### 现象
+
+M81.4 将 workflow template 摘要注入 Planner 上下文后，复杂空间请求的 `plan_evidence.matched_template_ids` 为空。单独调用模板匹配 helper 可以识别 `spatial_analysis`，但 Runtime 实际运行时模板上下文被标记为不可用或无法匹配。
+
+### 根因
+
+`workflow_templates` 摘要约 7k 字符，和 `available_tools`、空间请求事实一起进入默认 8k 上下文预算时容易超限。原裁剪顺序会优先省略模板上下文，且通用安全裁剪深度过浅时还会把模板中的 `allowed_tools`、`result_types` 等数组裁成 `[omitted:depth]`。这会让 LLMPlanner 和 plan evidence 都失去最关键的模板契约。
+
+### 修复与预防
+
+`ContextBuilder` 将结构化安全裁剪深度从 3 放宽到 5，并调整预算省略顺序：先省略已在 system prompt 中重复出现的 `available_tools`，尽量保留 `workflow_templates`。新增测试覆盖模板摘要、Planner 上下文注入、LLMPlanner 接收模板上下文、plan evidence、SQLite 恢复和前端显示。后续新增 Planner 上下文 section 时，必须先判断该 section 是否是计划契约核心；不能只按体积大小裁掉最关键的契约信息。
