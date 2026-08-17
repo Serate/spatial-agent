@@ -128,7 +128,7 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 ## 测试与验证
 
-日常开发默认使用精简 profile，避免每次改动都跑完整矩阵：
+日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行少量核心契约样例和服务 smoke；`stage` 在此基础上增加严格全局离线评测：
 
 ~~~powershell
 python scripts\test_profile.py --profile quick
@@ -148,7 +148,7 @@ python scripts\test_profile.py --profile live-short --dataset-config D:\tmp\wuha
 python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0.1:8088
 ~~~
 
-完整全量回归仍保留，但不作为每次本地开发默认项：
+完整全量回归仍保留，但只在改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时按需运行：
 
 ~~~powershell
 python -m unittest discover -s tests -v

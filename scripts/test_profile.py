@@ -20,6 +20,28 @@ from typing import Dict, Iterable, List, Sequence
 
 
 ROOT = Path(__file__).parents[1]
+QUICK_CORE_TESTS = (
+    "tests.test_m68_workflow_templates.M68WorkflowTemplateTests."
+    "test_template_compiler_binds_constraints_and_result_references",
+    "tests.test_m68_workflow_templates.M68WorkflowTemplateTests."
+    "test_plan_rejects_tool_outside_template_allowlist",
+    "tests.test_m69_workflow_runtime.M69WorkflowRuntimeTests."
+    "test_plan_is_rejected_when_selected_template_does_not_allow_it",
+    "tests.test_m77_request_model.M77SpatialRequestTests."
+    "test_rule_planner_uses_template_compiler_for_stable_workflows",
+    "tests.test_m77_request_model.M77SpatialRequestTests."
+    "test_runtime_completes_composed_request_and_composes_actual_results",
+)
+GIS_CORE_TESTS = (
+    "tests.test_m6_geojson_admin_backend.M6GeoJSONAdminBackendTests."
+    "test_range_query_filters_by_county_name",
+    "tests.test_m15_raster_metadata.M15LocalRasterMetadataTests."
+    "test_reads_dem_raster_metadata_without_array_processing",
+    "tests.test_m15_raster_metadata.M15LocalRasterMetadataTests."
+    "test_computes_real_zonal_slope_from_dem",
+    "tests.test_m70_analysis_ready.M70AnalysisReadyRasterTests."
+    "test_valid_analysis_ready_report_is_exposed_and_required",
+)
 SHORT_LIVE_CASES = (
     "live-gis-spatial-overview",
     "live-gis-constrained-buildability",
@@ -83,7 +105,7 @@ def main() -> int:
 def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
     return {
         "quick": {
-            "purpose": "fast development gate for template planner/runtime edits",
+            "purpose": "minimal development gate: five core contracts plus service smoke",
             "commands": [c.as_dict() for c in _quick_commands()],
         },
         "stage": {
@@ -91,7 +113,7 @@ def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
             "commands": [c.as_dict() for c in _stage_commands()],
         },
         "gis-core": {
-            "purpose": "small real-data GIS contract gate; run with the GIS Python environment",
+            "purpose": "sampled real-data GIS gate; run with the GIS Python environment",
             "commands": [c.as_dict() for c in _gis_core_commands()],
         },
         "live-short": {
@@ -126,14 +148,12 @@ def _commands_for_profiles(profiles: Iterable[str], args: argparse.Namespace) ->
 def _quick_commands() -> List[ProfileCommand]:
     return [
         ProfileCommand(
-            "unit_template_runtime_request",
+            "core_contract_examples",
             [
                 sys.executable,
                 "-m",
                 "unittest",
-                "tests.test_m68_workflow_templates",
-                "tests.test_m69_workflow_runtime",
-                "tests.test_m77_request_model",
+                *QUICK_CORE_TESTS,
                 "-v",
             ],
         ),
@@ -158,15 +178,12 @@ def _stage_commands() -> List[ProfileCommand]:
 def _gis_core_commands() -> List[ProfileCommand]:
     return [
         ProfileCommand(
-            "gis_core_contracts",
+            "gis_core_examples",
             [
                 sys.executable,
                 "-m",
                 "unittest",
-                "tests.test_m6_geojson_admin_backend",
-                "tests.test_m15_raster_metadata",
-                "tests.test_m70_analysis_ready",
-                "tests.test_m77_request_model",
+                *GIS_CORE_TESTS,
                 "-v",
             ],
         )

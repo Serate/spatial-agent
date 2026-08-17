@@ -2437,3 +2437,17 @@ M81.3 将行政区边界、栅格元数据、空间总览和约束建设筛选�
 ### 修复与预防
 
 新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`。默认使用 `quick` profile（模板/工作流/runtime/request + 非嵌套服务 smoke），阶段收口使用 `stage`，真实数据使用 `gis-core`，真实模型只跑 `live-short` 两个代表 case，Docker 只跑 production acceptance。完整 unittest、完整 live baseline、比较矩阵和容器内 live 只在对应共享契约、真实模型评测、数据卷或部署改动时执行。阶段文档必须记录实际运行的 profile 和数据配置，尤其 live GIS 应显式设置 analysis-ready `SPATIAL_AGENT_DATASET_CONFIG`，避免把数据准备问题误判为模型或代码问题。
+
+## 测试文件按里程碑堆叠会让默认门禁失控
+
+### 现象
+
+项目已有 500+ 个历史测试用例，按里程碑文件持续累加。如果默认 profile 仍按整模块执行，开发阶段会被大量历史场景拖慢，真实问题也容易被无关失败淹没。
+
+### 根因
+
+测试资产和默认门禁没有分层。历史测试适合作为专项诊断和完整回归，但日常开发只需要证明当前共享契约没有断裂；把整模块测试塞进 `quick` 会把“代表性验证”退化为“小型全量”。
+
+### 修复与预防
+
+`scripts/test_profile.py` 的 `quick` profile 改为少量核心契约样例加服务 smoke，`gis-core` 也改为真实 GIS 抽样用例。完整 unittest、完整 GIS 和完整 live 仍保留，但只在改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时按需运行。新增测试时先判断它属于默认代表样例、阶段验收还是专项诊断，不要默认塞入 `quick`。

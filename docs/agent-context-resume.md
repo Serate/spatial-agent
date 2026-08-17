@@ -525,7 +525,7 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 - `agent/rule_planning.py` 中行政区边界查询、栅格元数据、空间总览和道路/水体约束建设筛选已改为模板编译路径；RuleBasedPlanner 只绑定 RequestFacts 到模板约束，不再为这些稳定 DAG 手写步骤。
 - Planner 内部自然语言 evidence 是软偏好，按模板支持项过滤；外部 workflow 选择仍保持严格校验。该问题已记录到中文开发问题日志。
 - 验证：M68/M69/M77 专项 32 项通过；`python scripts/test_profile.py --profile quick` 通过；`python scripts/smoke_check.py` 通过，内嵌离线全量 550 项通过、42 项跳过；服务 smoke 通过。
-- 新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`：后续默认用 `quick` / `stage` 做开发和阶段门禁；真实 GIS、真实模型和 Docker 分别使用 `gis-core`、`live-short`、`docker` profile，不再默认跑完整 live 矩阵。
+- 新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`：后续默认用 `quick` / `stage` 做开发和阶段门禁；`quick` 已收敛为 5 个核心契约样例 + 服务 smoke，`gis-core` 只跑真实 GIS 抽样用例；真实模型和 Docker 分别使用 `live-short`、`docker` profile，不再默认跑完整 live 矩阵。
 - 本轮真实验收已确认：GIS Python 全量 550 项通过、9 项跳过；使用 analysis-ready 配置的精简 live 两个代表 case 2/2 通过，token 合计约 6,939；未显式设置 analysis-ready 配置时 constrained case 会因 raw 栅格 `grid_mismatch` 被正确门控。
 - `git diff --check` 通过，仅有 Windows LF/CRLF 提示。
 
@@ -538,4 +538,4 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 3. 让前端/HTTP 能展示模板计划预览、工具 DAG、执行状态和 result lineage，而不是按工具名猜测结果类型。
 4. 增加离线脱敏回放和 planner 契约测试；默认 CI 不访问真实模型或私有数据。
 5. Docker/GIS/live 仍作为可选分层验收，不得替代离线契约测试。
-6. 测试策略继续保持 profile 化：日常只跑 `quick`，阶段收口跑 `stage`，真实验收按改动范围选择 `gis-core`、`live-short` 或 `docker`。
+6. 测试策略继续保持 profile 化：日常只跑 5 个核心契约样例 + 服务 smoke 的 `quick`，阶段收口跑 `stage`，真实验收按改动范围选择抽样 `gis-core`、`live-short` 或 `docker`。完整 unittest/GIS/live 只按风险触发。

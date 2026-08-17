@@ -1458,6 +1458,7 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 - `python scripts/smoke_check.py` 通过；其中内嵌离线全量 **550 项通过，42 项跳过**，服务 smoke 通过。
 - `git diff --check` 通过，仅有既有 Windows LF/CRLF 提示。
 - 新增 `scripts/test_profile.py`、`tests/test_m81_test_profiles.py` 和 `docs/test-strategy.md`，把阶段验收从完整矩阵收敛为可执行 profile：`quick`、`stage`、`gis-core`、`live-short`、`docker`。
+- M81.3 后补充收敛：`quick` 不再整模块跑 M68/M69/M77，只保留 5 个核心契约样例 + 服务 smoke；`gis-core` 改为真实 GIS 抽样用例。完整 unittest/GIS/live 仍保留为按风险触发的专项矩阵。
 - 真实环境抽样验收：GIS Python 全量 550 项通过、9 项跳过；analysis-ready 配置下 `live-short` 两个代表 case 2/2 通过，token 合计约 6,939，未发生 provider 错误或重试。
 
 ### 复盘（七维矩阵，M81.3）

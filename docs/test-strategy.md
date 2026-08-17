@@ -2,6 +2,8 @@
 
 本项目默认测试策略从“每次跑完整矩阵”调整为“少量代表性 profile + 按需扩展矩阵”。目标是让开发反馈更快，同时保留真实 GIS、真实大模型和 Docker 生产验收的证据。
 
+当前原则：默认入口只跑代表性用例，不再按里程碑整模块执行。历史测试继续保留为专项诊断资产，但不能把 500+ 用例当成本地开发默认门禁。
+
 ## 默认门禁
 
 ### quick
@@ -14,10 +16,10 @@ python scripts\test_profile.py --profile quick
 
 覆盖范围：
 
-- 工作流模板、模板编译、计划校验和 DAG 校验。
-- workflow runtime 边界、外部工作流选择和模板 allowlist 错误。
-- RequestFacts、CapabilityRouter、RuleBasedPlanner 模板绑定。
-- 服务 smoke，但设置 `SPATIAL_AGENT_SMOKE_NESTED=1`，不嵌套完整 unittest。
+ 5 个核心契约样例：模板编译、模板 allowlist 拒绝、workflow runtime 拒绝、RuleBasedPlanner 模板绑定、Runtime 组合执行。
+ 1 个服务 smoke：道路坡度、DEM 元数据、澄清追问和后续回答；设置 `SPATIAL_AGENT_SMOKE_NESTED=1`，不嵌套完整 unittest。
+
+`quick` 的目标是快速发现共享契约是否断裂，不负责证明每个历史里程碑都仍完整覆盖。
 
 ### stage
 
@@ -43,7 +45,7 @@ python scripts\evaluate_global.py --strict
 python scripts\test_profile.py --profile gis-core
 ~~~
 
-该 profile 不替代完整 GIS 全量，但能快速覆盖行政区 GeoJSON、Rasterio 元数据、analysis-ready 门控和模板化 Planner 关键路径。
+该 profile 不替代完整 GIS 全量，但能快速覆盖行政区 GeoJSON、Rasterio 元数据、analysis-ready 门控和模板化 Planner 关键路径。它同样采用抽样用例，不再整模块跑真实 GIS 测试。
 
 ### live-short
 
@@ -80,7 +82,7 @@ python scripts\smoke_check.py
 python scripts\live_baseline.py --allow-network --backend local
 ~~~
 
-只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。
+只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。即使需要完整矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。
 
 ## 记录规则
 
