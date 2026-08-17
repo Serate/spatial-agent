@@ -128,13 +128,35 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 ## 测试与验证
 
-```powershell
+日常开发默认使用精简 profile，避免每次改动都跑完整矩阵：
+
+~~~powershell
+python scripts\test_profile.py --profile quick
+python scripts\test_profile.py --profile stage
+~~~
+
+真实 GIS、真实模型和 Docker 作为阶段验收或专项验证运行：
+
+~~~powershell
+# 真实 GIS 核心契约；需使用 spatial-agent-gis 环境
+python scripts\test_profile.py --profile gis-core
+
+# 精简 live：只跑空间总览 + 道路/水体约束建设筛选两个代表 case
+python scripts\test_profile.py --profile live-short --dataset-config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json --live-output D:\tmp\wuhan-gis\live-short.json
+
+# Docker production acceptance；要求容器已启动
+python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0.1:8088
+~~~
+
+完整全量回归仍保留，但不作为每次本地开发默认项：
+
+~~~powershell
 python -m unittest discover -s tests -v
 python scripts\smoke_check.py
 python scripts\evaluate_global.py --strict
-```
+~~~
 
-GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控制台的 `scripts/start_console.ps1 -Mode gis` 会自动设置它们。阶段历史和每阶段验证记录见 [`docs/milestones.md`](docs/milestones.md)。
+GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控制台的 `scripts/start_console.ps1 -Mode gis` 会自动设置它们。测试分层策略见 [`docs/test-strategy.md`](docs/test-strategy.md)，阶段历史和每阶段验证记录见 [`docs/milestones.md`](docs/milestones.md)。
 
 ## 项目文档
 
@@ -142,6 +164,7 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/demo-checklist.md`](docs/demo-checklist.md)：离线、GIS、模型和失败路径演示清单。
 - [`docs/spatial-agent-design.md`](docs/spatial-agent-design.md)：系统设计与模块边界。
 - [`docs/core-acceptance.md`](docs/core-acceptance.md)：核心空间流程验收标准。
+- [`docs/test-strategy.md`](docs/test-strategy.md)：精简测试 profile、真实验收和扩展矩阵边界。
 - [`evaluation/cases/global-acceptance.json`](evaluation/cases/global-acceptance.json)：全局场景验收矩阵。
 - [`docs/agent-context-resume.md`](docs/agent-context-resume.md)：新对话恢复上下文。
 - [`docs/task-resume.md`](docs/task-resume.md)：当前任务和下一阶段规划。

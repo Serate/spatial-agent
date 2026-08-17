@@ -3,6 +3,7 @@ import unittest
 from agent.capability_routing import CapabilityRouter
 from agent.planner import RuleBasedPlanner
 from agent.request_model import parse_spatial_request
+from agent.workflow_templates import compile_workflow_plan
 
 
 COMPLEX_REQUEST = (
@@ -65,6 +66,28 @@ class M77SpatialRequestTests(unittest.TestCase):
         self.assertIn("buildability", parsed.tasks)
         self.assertEqual(parsed.admin_name, "洪山区")
         self.assertEqual(selected[0].capability_id, "zonal_terrain_land_use")
+
+    def test_rule_planner_uses_template_compiler_for_stable_workflows(self):
+        plan = RuleBasedPlanner().plan("查询洪山区行政区边界")
+        compiled = compile_workflow_plan(
+            "admin_boundary_query",
+            {"admin_name": "洪山区"},
+        )
+
+        self.assertEqual(plan.goal, compiled["goal"])
+        self.assertEqual(plan.output, compiled["output"])
+        self.assertEqual(
+            [(step.id, step.tool, step.args, step.depends_on) for step in plan.steps],
+            [
+                (
+                    step["id"],
+                    step["tool"],
+                    step["args"],
+                    step.get("depends_on", []),
+                )
+                for step in compiled["steps"]
+            ],
+        )
 
     def test_runtime_completes_composed_request_and_composes_actual_results(self):
         from run_demo import build_runtime

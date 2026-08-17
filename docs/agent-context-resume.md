@@ -517,3 +517,25 @@ M71 仍最多 3 路并行；公共 schema、result envelope、数据 provenance 
 5. Docker Linux engine 恢复后执行当前版本生产数据卷、readiness、多 worker、重启和 FastAPI acceptance；宿主机仍不可用时保留明确的未验证状态。
 
 M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行。公共 result envelope、上下文契约和 Console 集成由主线统一；每阶段仍执行“全局盘点 -> 实现 -> 分层测试 -> 全局重规划”，完成后提交并推送版本。
+
+## M81.3 当前完成状态：模板蓝图驱动的确定性 Planner
+
+- 当前 goal 已明确为建设可测试、可观测、可替换的通用 Agent Runtime；空间 GIS 只是业务载体。
+- `agent/workflow_templates.py` 新增 `goal_template`、`step_blueprint`、`output_template` 和 `compile_workflow_plan`，可以从声明式工作流模板生成完整 `TaskPlan`，并复用既有工具 allowlist、结果类型、约束、evidence 和 DAG 校验。
+- `agent/rule_planning.py` 中行政区边界查询、栅格元数据、空间总览和道路/水体约束建设筛选已改为模板编译路径；RuleBasedPlanner 只绑定 RequestFacts 到模板约束，不再为这些稳定 DAG 手写步骤。
+- Planner 内部自然语言 evidence 是软偏好，按模板支持项过滤；外部 workflow 选择仍保持严格校验。该问题已记录到中文开发问题日志。
+- 验证：M68/M69/M77 专项 32 项通过；`python scripts/test_profile.py --profile quick` 通过；`python scripts/smoke_check.py` 通过，内嵌离线全量 550 项通过、42 项跳过；服务 smoke 通过。
+- 新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`：后续默认用 `quick` / `stage` 做开发和阶段门禁；真实 GIS、真实模型和 Docker 分别使用 `gis-core`、`live-short`、`docker` profile，不再默认跑完整 live 矩阵。
+- 本轮真实验收已确认：GIS Python 全量 550 项通过、9 项跳过；使用 analysis-ready 配置的精简 live 两个代表 case 2/2 通过，token 合计约 6,939；未显式设置 analysis-ready 配置时 constrained case 会因 raw 栅格 `grid_mismatch` 被正确门控。
+- `git diff --check` 通过，仅有 Windows LF/CRLF 提示。
+
+## M81.4 下一阶段
+
+从项目整体看，下一阶段不要继续添加单个 GIS 功能，而应把 LLMPlanner、模板蓝图、能力目录和可观测证据统一起来：
+
+1. 让 LLMPlanner 消费 workflow template 蓝图/约束/result type，减少 prompt 中手写工具编排。
+2. 在运行结果中记录 plan 来源、template_id、约束和安全模板证据，支撑前端解释与评测。
+3. 让前端/HTTP 能展示模板计划预览、工具 DAG、执行状态和 result lineage，而不是按工具名猜测结果类型。
+4. 增加离线脱敏回放和 planner 契约测试；默认 CI 不访问真实模型或私有数据。
+5. Docker/GIS/live 仍作为可选分层验收，不得替代离线契约测试。
+6. 测试策略继续保持 profile 化：日常只跑 `quick`，阶段收口跑 `stage`，真实验收按改动范围选择 `gis-core`、`live-short` 或 `docker`。

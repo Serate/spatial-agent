@@ -1428,3 +1428,52 @@ GitHub CI（`python scripts/smoke_check.py`，windows-latest + Python 3.11）从
 - **测试**：+10 项；全量 547 项转绿。
 
 **遗留**：动态工具不持久化（重启重置）；`POST /tools` 固定绑定 estimate_area handler（未支持任意 handler 上传，避免任意代码执行风险——当前是受控演示）；前端未消费 `/tools/dynamic`。
+
+## M81.3：模板蓝图驱动的确定性 Planner（已完成）
+
+### 目标与边界
+
+M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”的核心目标。M68 已有工作流模板目录和计划校验，但模板主要承担 allowlist/约束/证据校验；RuleBasedPlanner 仍在 `rule_planning.py` 中用多个 `_build_*` 方法手写稳定 DAG。M81.3 将可声明的固定工作流推进为“模板蓝图 -> 可校验 TaskPlan”的路径，Planner 只负责把 RequestFacts 绑定到模板约束。
+
+### 实现内容
+
+- **`agent/workflow_templates.py`**：
+  - 模板目录新增 `goal_template`、`step_blueprint`、`output_template`。
+  - 新增 `compile_workflow_plan(template, constraints, evidence=...)`，把模板蓝图渲染为完整 plan，并复用既有 `validate_workflow_plan` 校验工具 allowlist、结果类型、依赖 DAG、约束和 evidence。
+  - 支持受控占位符：`{"$constraint": "name"}` 绑定结构化约束，`{"$result_ref": {"step": "...", "path": "..."}}` 生成 Runtime 已支持的步骤结果引用。
+  - 模板校验提前拒绝坏蓝图：未知字段、重复 step id、未知依赖、自依赖、循环依赖、工具不在模板 allowlist。
+- **`agent/rule_planning.py`**：
+  - 新增 `_template_plan`，将编译后的 JSON plan 转为 `TaskPlan`。
+  - 行政区边界查询、栅格元数据、空间总览、道路/水体约束建设筛选改由模板编译生成。
+  - Planner 内部从自然语言抽取出的 evidence 只作为软偏好，会按模板支持项过滤；外部 workflow 选择仍保持严格 evidence 校验。
+  - 栅格数据集选择收敛为 `_raster_dataset`，显式支持 `dem`、`land_use` 和 `slope`。
+- **测试**：
+  - `tests/test_m68_workflow_templates.py` 新增模板编译、占位符渲染和坏蓝图拒绝测试。
+  - `tests/test_m77_request_model.py` 新增 RuleBasedPlanner 与模板编译器输出一致性测试。
+  - M69 workflow runtime 回归验证：外部选择的模板不允许 planner 计划时，仍优先返回“tool is not allowed by template”。
+
+### 验收证据
+
+- M68/M69/M77 专项 **32 项通过**。
+- `python scripts/smoke_check.py` 通过；其中内嵌离线全量 **550 项通过，42 项跳过**，服务 smoke 通过。
+- `git diff --check` 通过，仅有既有 Windows LF/CRLF 提示。
+- 新增 `scripts/test_profile.py`、`tests/test_m81_test_profiles.py` 和 `docs/test-strategy.md`，把阶段验收从完整矩阵收敛为可执行 profile：`quick`、`stage`、`gis-core`、`live-short`、`docker`。
+- 真实环境抽样验收：GIS Python 全量 550 项通过、9 项跳过；analysis-ready 配置下 `live-short` 两个代表 case 2/2 通过，token 合计约 6,939，未发生 provider 错误或重试。
+
+### 复盘（七维矩阵，M81.3）
+
+- **产品能力**：稳定工作流可以从模板直接生成可执行计划，便于后续前端/HTTP 暴露“可解释的工作流”而不是隐藏在 planner 分支里。
+- **架构**：RequestFacts、CapabilityRouter、WorkflowTemplate、TaskPlan 和 Runtime 的责任边界更清晰；RuleBasedPlanner 开始退化为模板绑定器。
+- **数据质量**：无新增数据依赖；模板生成仍走既有 ToolRegistry 和后端数据健康门控。
+- **真实模型**：LLMPlanner 尚未统一消费模板蓝图，下一阶段需要把 prompt 中的硬编码工具编排替换为模板/能力目录上下文。
+- **部署可靠性**：模板蓝图在执行前复用同一计划校验，不新增部署状态；默认离线/CI 不依赖真实模型或私有数据。
+- **前端体验**：前端暂未直接展示蓝图 DAG；但已有 `/workflows` 可继续消费模板目录，下一步可做工作流计划预览。
+- **测试证据**：新增模板编译与 planner 一致性回归；Smoke 内嵌全量转绿；新增 profile 化测试入口，日常开发不再默认跑完整 live/矩阵。
+
+## M81.4 全局规划（下一阶段）
+
+1. **LLM Planner 与模板契约统一**：让 LLMPlanner 的上下文显式包含可用 workflow template 蓝图/约束/result type，使真实模型优先选择模板化计划，而不是依赖 prompt 中的手写工具步骤说明。
+2. **Plan source 与可观测性**：在 `TaskPlan` 或运行 evidence 中记录 plan 来源（template/llm/direct/replan）、template_id、约束和裁剪后的模板证据，方便前端和评测解释“为什么调用这些工具”。
+3. **前端计划预览**：基于模板蓝图和最终 `result.lineage` 显示计划 DAG、工具状态和结果引用，减少页面按工具名推断。
+4. **评测与 CI**：增加脱敏 LLM 回放/离线 planner 案例，验证模型输出与模板 allowlist/result type/DAG 一致；默认 CI 仍不访问网络。
+5. **保留边界**：暂不扩展新 GIS 数据功能，除非它服务于模板化 planner、Runtime 可观测或跨入口验收。

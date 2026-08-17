@@ -71,6 +71,7 @@ WORKFLOW_TEMPLATE_CATALOG = {
         "id": "admin_boundary_query",
         "version": "1.0.0",
         "label": "行政区边界查询",
+        "goal_template": "query admin area boundary by name",
         "allowed_tools": ["get_dataset_schema", "range_query"],
         "result_types": ["admin_area_result"],
         "max_steps": 2,
@@ -80,11 +81,33 @@ WORKFLOW_TEMPLATE_CATALOG = {
         ],
         "evidence_options": ["summary", "geometry", "trace"],
         "default_evidence": ["summary", "geometry", "trace"],
+        "step_blueprint": [
+            {
+                "id": "schema-admin",
+                "tool": "get_dataset_schema",
+                "args": {"dataset": "admin_areas"},
+                "depends_on": [],
+            },
+            {
+                "id": "filter-admin",
+                "tool": "range_query",
+                "args": {
+                    "dataset": "admin_areas",
+                    "conditions": [
+                        {"field": "name", "operator": "eq", "value": {"$constraint": "admin_name"}}
+                    ],
+                    "limit": 100,
+                },
+                "depends_on": ["schema-admin"],
+            },
+        ],
+        "output_template": {"type": "admin_area_result", "summary": True},
     },
     "raster_metadata": {
         "id": "raster_metadata",
         "version": "1.0.0",
         "label": "栅格元数据查询",
+        "goal_template": "inspect raster dataset metadata",
         "allowed_tools": ["get_raster_metadata"],
         "result_types": ["raster_metadata_result"],
         "max_steps": 1,
@@ -94,11 +117,21 @@ WORKFLOW_TEMPLATE_CATALOG = {
         ],
         "evidence_options": ["summary", "metadata", "trace"],
         "default_evidence": ["summary", "metadata", "trace"],
+        "step_blueprint": [
+            {
+                "id": "raster-metadata",
+                "tool": "get_raster_metadata",
+                "args": {"dataset": {"$constraint": "dataset"}, "max_files": 3},
+                "depends_on": [],
+            },
+        ],
+        "output_template": {"type": "raster_metadata_result", "summary": True},
     },
     "spatial_overview": {
         "id": "spatial_overview",
         "version": "1.0.0",
         "label": "区域空间总览",
+        "goal_template": "build a cross-source spatial overview for an administrative area",
         "allowed_tools": [
             "get_dataset_health_report",
             "get_dataset_schema",
@@ -117,6 +150,63 @@ WORKFLOW_TEMPLATE_CATALOG = {
         ],
         "evidence_options": ["summary", "geometry", "data_health", "trace"],
         "default_evidence": ["summary", "geometry", "data_health", "trace"],
+        "step_blueprint": [
+            {
+                "id": "dataset-health",
+                "tool": "get_dataset_health_report",
+                "args": {"dataset": "all", "max_files": 10},
+                "depends_on": [],
+            },
+            {
+                "id": "schema-admin",
+                "tool": "get_dataset_schema",
+                "args": {"dataset": "admin_areas"},
+                "depends_on": ["dataset-health"],
+            },
+            {
+                "id": "filter-admin",
+                "tool": "range_query",
+                "args": {
+                    "dataset": "admin_areas",
+                    "conditions": [
+                        {"field": "name", "operator": "eq", "value": {"$constraint": "admin_name"}}
+                    ],
+                    "limit": 100,
+                },
+                "depends_on": ["schema-admin"],
+            },
+            {
+                "id": "overview-elevation",
+                "tool": "get_zonal_raster_statistics",
+                "args": {"dataset": "dem", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "overview-slope",
+                "tool": "get_zonal_slope_statistics",
+                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "overview-land-use",
+                "tool": "get_zonal_land_use_distribution",
+                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "overview-roads",
+                "tool": "get_zonal_vector_summary",
+                "args": {"dataset": "roads", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "overview-water",
+                "tool": "get_zonal_vector_summary",
+                "args": {"dataset": "water", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
+                "depends_on": ["filter-admin"],
+            },
+        ],
+        "output_template": {"type": "spatial_overview_result", "summary": True},
     },
     "spatial_analysis": {
         "id": "spatial_analysis",
@@ -149,6 +239,7 @@ WORKFLOW_TEMPLATE_CATALOG = {
         "id": "constrained_buildability",
         "version": "1.0.0",
         "label": "道路与水体约束筛选",
+        "goal_template": "screen construction candidates with raster and vector constraints",
         "allowed_tools": [
             "get_dataset_health_report",
             "get_zonal_constrained_buildability_analysis",
@@ -164,6 +255,27 @@ WORKFLOW_TEMPLATE_CATALOG = {
         ],
         "evidence_options": ["summary", "geometry", "data_health", "trace"],
         "default_evidence": ["summary", "geometry", "data_health", "trace"],
+        "step_blueprint": [
+            {
+                "id": "dataset-health",
+                "tool": "get_dataset_health_report",
+                "args": {"dataset": "all", "max_files": 10},
+                "depends_on": [],
+            },
+            {
+                "id": "constrained-buildability",
+                "tool": "get_zonal_constrained_buildability_analysis",
+                "args": {
+                    "admin_name": {"$constraint": "admin_name"},
+                    "slope_limit_degrees": {"$constraint": "slope_limit_degrees"},
+                    "road_distance_m": {"$constraint": "road_distance_m"},
+                    "exclude_water": {"$constraint": "exclude_water"},
+                    "max_files": 10,
+                },
+                "depends_on": ["dataset-health"],
+            },
+        ],
+        "output_template": {"type": "constrained_buildability_result", "summary": True},
     },
 }
 
@@ -179,6 +291,9 @@ _TEMPLATE_KEYS = {
     "constraint_specs",
     "evidence_options",
     "default_evidence",
+    "goal_template",
+    "step_blueprint",
+    "output_template",
 }
 _REQUIRED_TEMPLATE_KEYS = {
     "id",
@@ -190,6 +305,7 @@ _REQUIRED_TEMPLATE_KEYS = {
 }
 _PLAN_KEYS = {"template_id", "template_version", "goal", "constraints", "evidence", "steps", "output", "assumptions"}
 _STEP_KEYS = {"id", "tool", "args", "depends_on"}
+_STEP_BLUEPRINT_KEYS = _STEP_KEYS
 _CONSTRAINT_SPEC_KEYS = {"name", "label", "type", "required", "min", "max", "min_length", "max_length", "choices", "default"}
 _CHINESE_LABEL = re.compile(r"[\u3400-\u9fff]")
 _SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -325,11 +441,25 @@ def validate_workflow_template(
     )
     if not set(default_evidence).issubset(evidence_options):
         raise WorkflowTemplateError("template.default_evidence contains an unknown option")
+    goal_template = _text(
+        template.get("goal_template", "execute " + template_id),
+        "template.goal_template",
+    )
+    step_blueprint = _normalize_step_blueprint(
+        template.get("step_blueprint", []),
+        tool_names,
+        max_steps,
+    )
+    output_template = _normalize_output_template(
+        template.get("output_template", {"type": result_types[0], "summary": True}),
+        result_types,
+    )
 
     return {
         "id": template_id,
         "version": version,
         "label": label,
+        "goal_template": goal_template,
         "allowed_tools": tool_names,
         "result_types": result_types,
         "max_steps": max_steps,
@@ -337,7 +467,62 @@ def validate_workflow_template(
         "constraint_specs": constraint_specs,
         "evidence_options": evidence_options,
         "default_evidence": default_evidence,
+        "step_blueprint": step_blueprint,
+        "output_template": output_template,
     }
+
+
+def compile_workflow_plan(
+    template: str | Mapping[str, Any],
+    constraints: Mapping[str, Any],
+    *,
+    evidence: Optional[Iterable[str]] = None,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    goal: Optional[str] = None,
+    output_overrides: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Render a declarative workflow template into a validated plan object.
+
+    The compiler is intentionally small: natural-language interpretation remains
+    in request_model, routing remains in capability_routing, and Runtime still
+    validates and dispatches every tool.  This function only binds structured
+    constraints to a template-owned DAG blueprint.
+    """
+
+    template_definition = _resolve_template(template, catalog)
+    normalized_template = validate_workflow_template(template_definition)
+    normalized_constraints = normalize_workflow_constraints(
+        normalized_template, constraints
+    )
+    step_blueprint = normalized_template.get("step_blueprint", [])
+    if not step_blueprint:
+        raise WorkflowTemplateError(
+            "template does not define a step_blueprint: " + normalized_template["id"]
+        )
+    steps = [
+        {
+            "id": step["id"],
+            "tool": step["tool"],
+            "args": _render_template_value(step["args"], normalized_constraints),
+            "depends_on": list(step.get("depends_on", [])),
+        }
+        for step in step_blueprint
+    ]
+    output = _render_template_value(
+        normalized_template["output_template"], normalized_constraints
+    )
+    if output_overrides:
+        output.update(copy.deepcopy(dict(output_overrides)))
+    plan = {
+        "template_id": normalized_template["id"],
+        "template_version": normalized_template["version"],
+        "goal": goal or normalized_template["goal_template"],
+        "constraints": normalized_constraints,
+        "evidence": normalize_workflow_evidence(normalized_template, evidence),
+        "steps": steps,
+        "output": output,
+    }
+    return validate_workflow_plan(normalized_template, plan)
 
 
 def normalize_workflow_constraints(
@@ -773,6 +958,115 @@ def _normalize_constraint_specs(
     if missing_specs:
         raise WorkflowTemplateError("required constraints missing specs: " + ", ".join(missing_specs))
     return normalized
+
+
+def _normalize_step_blueprint(
+    raw_steps: Any,
+    allowed_tools: List[str],
+    max_steps: int,
+) -> List[Dict[str, Any]]:
+    if raw_steps is None:
+        return []
+    if not isinstance(raw_steps, list):
+        raise WorkflowTemplateError("template.step_blueprint must be an array")
+    if len(raw_steps) > max_steps:
+        raise WorkflowTemplateError("template.step_blueprint exceeds template.max_steps")
+    normalized: List[Dict[str, Any]] = []
+    step_ids: Set[str] = set()
+    for index, raw_step in enumerate(raw_steps):
+        path = "template.step_blueprint[{}]".format(index)
+        if not isinstance(raw_step, Mapping):
+            raise WorkflowTemplateError(path + " must be an object")
+        unknown = sorted(set(raw_step) - _STEP_BLUEPRINT_KEYS)
+        if unknown:
+            raise WorkflowTemplateError(path + " has unknown fields: " + ", ".join(unknown))
+        for key in ("id", "tool", "args"):
+            if key not in raw_step:
+                raise WorkflowTemplateError(path + " missing required field: " + key)
+        step_id = _text(raw_step["id"], path + ".id")
+        if step_id in step_ids:
+            raise WorkflowTemplateError("duplicate step id: " + step_id)
+        step_ids.add(step_id)
+        tool = _text(raw_step["tool"], path + ".tool")
+        if tool not in allowed_tools:
+            raise WorkflowTemplateError("template step uses a tool outside allowed_tools: " + tool)
+        args = raw_step["args"]
+        if not isinstance(args, Mapping):
+            raise WorkflowTemplateError(path + ".args must be an object")
+        depends_on = raw_step.get("depends_on", [])
+        if not isinstance(depends_on, list) or not all(
+            isinstance(item, str) and item.strip() for item in depends_on
+        ):
+            raise WorkflowTemplateError(path + ".depends_on must be an array of strings")
+        if len(set(depends_on)) != len(depends_on):
+            raise WorkflowTemplateError(path + ".depends_on contains duplicate ids")
+        normalized.append(
+            {
+                "id": step_id,
+                "tool": tool,
+                "args": copy.deepcopy(dict(args)),
+                "depends_on": list(depends_on),
+            }
+        )
+    graph: Dict[str, List[str]] = {}
+    for step in normalized:
+        dependencies = step["depends_on"]
+        unknown_dependencies = sorted(set(dependencies) - step_ids)
+        if unknown_dependencies:
+            raise WorkflowTemplateError(
+                "template step {} depends on unknown step: {}".format(
+                    step["id"], ", ".join(unknown_dependencies)
+                )
+            )
+        if step["id"] in dependencies:
+            raise WorkflowTemplateError("template step cannot depend on itself: " + step["id"])
+        graph[step["id"]] = dependencies
+    _assert_acyclic(graph)
+    return normalized
+
+
+def _normalize_output_template(
+    raw_output: Any,
+    result_types: List[str],
+) -> Dict[str, Any]:
+    if not isinstance(raw_output, Mapping):
+        raise WorkflowTemplateError("template.output_template must be an object")
+    output = copy.deepcopy(dict(raw_output))
+    result_type = output.get("type")
+    if not isinstance(result_type, str) or not result_type.strip():
+        raise WorkflowTemplateError("template.output_template.type must be a non-empty string")
+    if result_type not in result_types:
+        raise WorkflowTemplateError("template.output_template.type is not allowed by template")
+    return output
+
+
+def _render_template_value(value: Any, constraints: Mapping[str, Any]) -> Any:
+    if isinstance(value, list):
+        return [_render_template_value(item, constraints) for item in value]
+    if isinstance(value, Mapping):
+        if set(value) == {"$constraint"}:
+            name = value["$constraint"]
+            if not isinstance(name, str) or not name:
+                raise WorkflowTemplateError("$constraint placeholder requires a name")
+            if name not in constraints:
+                raise WorkflowTemplateError("missing compiled workflow constraint: " + name)
+            return copy.deepcopy(constraints[name])
+        if set(value) == {"$result_ref"}:
+            ref = value["$result_ref"]
+            if not isinstance(ref, Mapping):
+                raise WorkflowTemplateError("$result_ref placeholder must be an object")
+            step = ref.get("step")
+            path = ref.get("path")
+            if not isinstance(step, str) or not step.strip():
+                raise WorkflowTemplateError("$result_ref.step must be a non-empty string")
+            if not isinstance(path, str) or not path.strip():
+                raise WorkflowTemplateError("$result_ref.path must be a non-empty string")
+            return {"$from": step.strip(), "path": path.strip()}
+        return {
+            key: _render_template_value(item, constraints)
+            for key, item in value.items()
+        }
+    return copy.deepcopy(value)
 
 
 def _normalize_constraint_value(value: Any, spec: Mapping[str, Any]) -> Any:

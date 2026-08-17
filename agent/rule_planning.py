@@ -13,6 +13,7 @@ from .errors import ClarificationNeeded
 from .models import PlanStep, TaskPlan
 from .request_model import SpatialRequest
 from .spatial_intent import clarification_details, clarification_message, classify_spatial_intent
+from .workflow_templates import compile_workflow_plan, get_workflow_template
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,56 @@ class RuleBasedPlanComposer:
     @staticmethod
     def _has(text: str, terms: Iterable[str]) -> bool:
         return contains_any(text, terms)
+
+    def _template_plan(
+        self,
+        template_id: str,
+        constraints: Mapping[str, object],
+        *,
+        evidence: Optional[Iterable[str]] = None,
+    ) -> TaskPlan:
+        selected_evidence = self._template_evidence(template_id, evidence)
+        compiled = compile_workflow_plan(
+            template_id,
+            constraints,
+            evidence=selected_evidence,
+        )
+        steps = [
+            PlanStep(
+                str(step["id"]),
+                str(step["tool"]),
+                dict(step["args"]),
+                list(step.get("depends_on", [])),
+            )
+            for step in compiled["steps"]
+        ]
+        return TaskPlan(
+            str(compiled["goal"]),
+            steps,
+            dict(compiled["output"]),
+            list(compiled.get("assumptions", [])),
+        )
+
+    @staticmethod
+    def _template_evidence(
+        template_id: str,
+        evidence: Optional[Iterable[str]],
+    ) -> Optional[List[str]]:
+        if evidence is None:
+            return None
+        allowed = set(get_workflow_template(template_id).get("evidence_options", []))
+        selected = [item for item in evidence if item in allowed]
+        return selected or None
+
+    @staticmethod
+    def _raster_dataset(spatial: SpatialRequest) -> str:
+        if "elevation" in spatial.tasks:
+            return "dem"
+        if "land_use" in spatial.tasks:
+            return "land_use"
+        if "slope" in spatial.tasks:
+            return "slope"
+        return "dem"
 
     def _build_health(self, facts: PlanningFacts) -> TaskPlan:
         datasets = set(facts.spatial.datasets)
@@ -124,14 +175,16 @@ class RuleBasedPlanComposer:
         distance = parsed.constraints.get("road_distance_max")
         if has_road and distance is None:
             raise ClarificationNeeded("missing road distance, for example: within 500 meters of roads")
-        return TaskPlan("screen construction candidates with raster and vector constraints", [
-            PlanStep("dataset-health", "get_dataset_health_report", {"dataset": "all", "max_files": 10}),
-            PlanStep("constrained-buildability", "get_zonal_constrained_buildability_analysis", {
-                "admin_name": parsed.admin_name, "slope_limit_degrees": float(parsed.constraints.get("slope_max", 15.0)),
+        return self._template_plan(
+            "constrained_buildability",
+            {
+                "admin_name": parsed.admin_name,
+                "slope_limit_degrees": float(parsed.constraints.get("slope_max", 15.0)),
                 "road_distance_m": float(distance if distance is not None else 500.0),
-                "exclude_water": bool(parsed.constraints.get("exclude_water") or "water" in parsed.tasks), "max_files": 10,
-            }, ["dataset-health"]),
-        ], {"type": "constrained_buildability_result", "summary": True})
+                "exclude_water": bool(parsed.constraints.get("exclude_water") or "water" in parsed.tasks),
+            },
+            evidence=parsed.evidence,
+        )
 
     def _build_terrain(self, facts: PlanningFacts) -> TaskPlan:
         parsed = facts.spatial
@@ -160,16 +213,11 @@ class RuleBasedPlanComposer:
         return TaskPlan("resolve administrative area and analyze raster statistics", steps, {"type": "zonal_raster_statistics_result", "summary": True})
 
     def _build_overview(self, facts: PlanningFacts) -> TaskPlan:
-        ref = self._admin_ref()
-        steps = self._admin_steps(facts.spatial.admin_name or "")
-        steps.extend([
-            PlanStep("overview-elevation", "get_zonal_raster_statistics", {"dataset": "dem", "admin_name": ref, "max_files": 10}, ["filter-admin"]),
-            PlanStep("overview-slope", "get_zonal_slope_statistics", {"admin_name": ref, "max_files": 10}, ["filter-admin"]),
-            PlanStep("overview-land-use", "get_zonal_land_use_distribution", {"admin_name": ref, "max_files": 10}, ["filter-admin"]),
-            PlanStep("overview-roads", "get_zonal_vector_summary", {"dataset": "roads", "admin_name": ref, "max_features": 10000}, ["filter-admin"]),
-            PlanStep("overview-water", "get_zonal_vector_summary", {"dataset": "water", "admin_name": ref, "max_features": 10000}, ["filter-admin"]),
-        ])
-        return TaskPlan("build a cross-source spatial overview for an administrative area", steps, {"type": "spatial_overview_result", "summary": True})
+        return self._template_plan(
+            "spatial_overview",
+            {"admin_name": facts.spatial.admin_name or ""},
+            evidence=facts.spatial.evidence,
+        )
 
     def _build_zonal_vector(self, facts: PlanningFacts) -> TaskPlan:
         dataset = "water" if "water" in facts.spatial.tasks else "roads"
@@ -210,16 +258,20 @@ class RuleBasedPlanComposer:
         return TaskPlan("analyze raster value statistics", [PlanStep("raster-statistics", "get_raster_statistics", {"dataset": dataset, "max_files": 3})], {"type": "raster_statistics_result", "summary": True})
 
     def _build_raster_metadata(self, facts: PlanningFacts) -> TaskPlan:
-        dataset = "dem" if "elevation" in facts.spatial.tasks else "land_use"
-        return TaskPlan("inspect raster dataset metadata", [PlanStep("raster-metadata", "get_raster_metadata", {"dataset": dataset, "max_files": 3})], {"type": "raster_metadata_result", "summary": True})
+        return self._template_plan(
+            "raster_metadata",
+            {"dataset": self._raster_dataset(facts.spatial)},
+            evidence=facts.spatial.evidence,
+        )
 
     def _build_admin_boundary(self, facts: PlanningFacts) -> TaskPlan:
         if not facts.spatial.admin_name:
             raise ClarificationNeeded("missing admin area name, for example: 洪山区")
-        return TaskPlan("query admin area boundary by name", [
-            PlanStep("schema-admin", "get_dataset_schema", {"dataset": "admin_areas"}),
-            PlanStep("filter-admin", "range_query", {"dataset": "admin_areas", "conditions": [{"field": "name", "operator": "eq", "value": facts.spatial.admin_name}], "limit": 100}, ["schema-admin"]),
-        ], {"type": "admin_area_result", "summary": True})
+        return self._template_plan(
+            "admin_boundary_query",
+            {"admin_name": facts.spatial.admin_name},
+            evidence=facts.spatial.evidence,
+        )
 
     def _build_legacy_road_slope(self, facts: PlanningFacts) -> TaskPlan:
         slope = int(float(self._SLOPE_PATTERN.search(facts.request).group(1)))

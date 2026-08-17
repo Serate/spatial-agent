@@ -45,9 +45,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M79.5 生产容器真实模型证据 + 约束敏感性矩阵（容器内 live 6/6 / 约束矩阵 road_distance 单调 / ServiceState 方法体收敛）
-- Last pushed commit: `f30a1ed`（M79.5）
-- Current work: M81.2 工具动态扩展已完成——ToolRegistry.register_tool（受控注册 + handler 分发 + schema 校验 + dynamic_tools 摘要）+ 演示 estimate_area + GET /tools/dynamic + POST /tools 双入口；10 项专项 + 全量 547 项通过。M81 剩余：C9 流式输出 / D13 收尾（judge 前端可视化）。
+- Latest completed milestone: M81.3 模板蓝图驱动的确定性 Planner（工作流模板生成可校验 TaskPlan，RuleBasedPlanner 绑定 RequestFacts 到模板）。
+- Last pushed commit: M81.3 阶段提交后以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
+- Current work: M81.3 已完成——工作流模板增加 goal/step/output 蓝图与 `compile_workflow_plan`，边界查询、栅格元数据、空间总览和约束建设筛选改由模板编译生成；新增 `scripts/test_profile.py` 精简测试 profile。M68/M69/M77 专项 32 项、quick profile、Smoke（内含全量 550 项）、真实 GIS 全量和 analysis-ready live-short 均已验证。下一阶段优先统一 LLMPlanner 与模板/能力目录契约，减少 prompt 中的硬编码工具编排。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
@@ -779,3 +779,21 @@ M76.3 按产品、架构/部署、真实模型的依赖顺序单线程执行，�
 ### M77 下一阶段
 
 先按七维能力矩阵复盘，再按依赖顺序实现：历史/比较/retry 的 lineage 详情导航；HTTP 与生产结果/观测契约一致性 Harness；按意图受控扩展会话摘要、能力快照和工具结果上下文；上下文污染、超长、成本和 token 评测；Docker 恢复后的生产 acceptance；以及建设筛选、道路/水体约束、跨区域比较的可选 live baseline。当前不启动并行任务，公共契约由主线集成。
+
+### M81.3 当前完成状态：模板蓝图驱动的确定性 Planner
+
+- 工作流模板从“校验契约”推进为“声明式 DAG 蓝图”：`goal_template`、`step_blueprint`、`output_template` 和 `compile_workflow_plan` 已接入。
+- `compile_workflow_plan` 支持受控 `$constraint` 与 `$result_ref` 占位符，生成后仍走 `validate_workflow_plan`，继续校验工具 allowlist、result type、约束、evidence 和 DAG。
+- RuleBasedPlanner 的行政区边界、栅格元数据、空间总览、道路/水体约束建设筛选已改为模板编译路径；复杂组合式分析仍保留在 composer，后续再逐步模板化。
+- Planner 内部 evidence 按模板能力过滤，外部 workflow evidence 继续严格校验；对应问题已写入中文开发问题日志。
+- 验证：M68/M69/M77 专项 32 项通过；`python scripts/test_profile.py --profile quick` 通过；Smoke 通过，内嵌离线全量 550 项通过、42 项跳过；真实 GIS 全量 550 项通过、9 项跳过；analysis-ready 配置下 `live-short` 两个代表 case 2/2 通过；服务 smoke 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+- 精简测试策略已固化：`quick` 用于日常开发，`stage` 增加严格全局离线评测，`gis-core` 覆盖真实数据核心契约，`live-short` 只跑空间总览和约束建设筛选两个真实模型 case，`docker` 只做 production acceptance。
+
+### M81.4 下一阶段规划
+
+1. LLMPlanner 与模板契约统一：把 workflow template 蓝图、约束、result type 和工具 allowlist 纳入模型上下文，减少 prompt 内手写工具编排。
+2. 计划来源可观测：记录 plan 来源、template_id、约束、模板证据和裁剪状态，让答案、trace、artifact 和前端能解释计划来源。
+3. 前端计划预览：基于模板蓝图和最终执行状态展示 DAG、工具状态和 result lineage，避免按工具名推断。
+4. 离线回放与 CI：增加脱敏模型回放和 planner 契约测试，默认不访问网络、不依赖私有数据。
+5. 暂不扩展单个 GIS 功能，除非它服务于模板化 planner、Runtime 可观测或跨入口验收。
+6. 每阶段记录实际运行 profile；完整 unittest、完整 live baseline 和容器内 live 只在对应共享契约、真实模型评测或部署数据卷改动时运行。

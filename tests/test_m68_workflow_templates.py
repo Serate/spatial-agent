@@ -4,6 +4,7 @@ import unittest
 from agent.workflow_templates import (
     WORKFLOW_TEMPLATE_CATALOG,
     WorkflowTemplateError,
+    compile_workflow_plan,
     get_workflow_template,
     validate_workflow_plan,
     validate_workflow_template,
@@ -193,6 +194,29 @@ class M68WorkflowTemplateTests(unittest.TestCase):
             )["output"]["type"],
             "custom_result",
         )
+
+    def test_template_compiler_binds_constraints_and_result_references(self):
+        plan = compile_workflow_plan("spatial_overview", {"admin_name": "洪山区"})
+
+        self.assertEqual(plan["template_id"], "spatial_overview")
+        self.assertEqual(plan["constraints"]["admin_name"], "洪山区")
+        self.assertEqual(len(plan["steps"]), 8)
+        self.assertEqual(
+            plan["steps"][2]["args"]["conditions"][0]["value"],
+            "洪山区",
+        )
+        self.assertEqual(
+            plan["steps"][3]["args"]["admin_name"],
+            {"$from": "filter-admin", "path": "first_name"},
+        )
+        self.assertEqual(plan["output"]["type"], "spatial_overview_result")
+
+    def test_template_compiler_rejects_bad_blueprints_before_runtime(self):
+        template = get_workflow_template("admin_boundary_query")
+        template["step_blueprint"][1]["tool"] = "get_raster_metadata"
+
+        with self.assertRaisesRegex(WorkflowTemplateError, "outside allowed_tools"):
+            validate_workflow_template(template)
 
 
 if __name__ == "__main__":

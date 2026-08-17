@@ -2409,3 +2409,31 @@ goal 生命周期状态和仓库执行规则属于两个独立的状态来源。
 ### 处理与预防
 
 已将当前有效规则改为并发度 1，并保留历史阶段的真实记录。M77 及后续任务按“全局盘点 -> 顺序实现 -> 集成测试 -> 全局重规划”执行，不启动并行子任务。goal objective 不能编辑时，不伪造完成状态；新对话优先以恢复文档中的当前有效规则为准。
+
+## Planner 内部 evidence 软偏好不应提前覆盖模板 allowlist 错误
+
+### 现象
+
+M81.3 将行政区边界、栅格元数据、空间总览和约束建设筛选改为模板蓝图编译后，离线全量中的 workflow runtime 回归失败。测试选择了 `admin_boundary_query` 工作流，但请求文本是“查询 DEM 栅格元数据”；预期运行时先报告 `tool is not allowed by template`，实际先报 `unknown evidence options: geometry`。Smoke 因内嵌全量单测同步失败。
+
+### 根因
+
+`parse_spatial_request` 会把“边界/区域/地图/几何”等词抽取为 evidence 偏好。用户选择的 workflow evidence 是严格契约，应该被模板校验拒绝；但 Planner 内部从自然语言抽出的 evidence 只是软偏好。如果把该软偏好原样传入 `raster_metadata` 模板编译，模板会先因为不支持 `geometry` 失败，掩盖了真正重要的“Planner 生成的工具不属于用户选择模板 allowlist”错误。
+
+### 修复与预防
+
+`RuleBasedPlanComposer._template_plan` 在调用 `compile_workflow_plan` 前按模板 `evidence_options` 过滤内部 evidence；如果过滤后为空，则回落到模板默认 evidence。外部 workflow 选择仍由 `normalize_workflow_selection` 和 `validate_workflow_plan` 严格校验，不允许静默过滤。新增/调整 planner 模板化路径时，应区分“用户显式选择的 workflow 契约”和“自然语言解析得到的展示偏好”，错误优先级应先揭示工具 allowlist、结果类型和 DAG 等执行边界问题。
+
+## 完整 live/全量矩阵不适合作为默认开发门禁
+
+### 现象
+
+随着真实 GIS、真实模型、比较矩阵和 Docker acceptance 增多，阶段测试如果默认跑完整 unittest、完整 GIS、完整 live baseline 和容器内 live，会造成反馈过慢、token 消耗高，也容易把问题混在大量无关场景里。例如 M81.3 精简 live 初次失败时，真正原因是未显式绑定 analysis-ready 配置导致 raw 栅格 `grid_mismatch`，而不是模板编译或模型规划错误。
+
+### 根因
+
+项目已经从单一 demo 演进为多入口 Agent Runtime，测试目标不同：日常开发需要快速验证共享契约，阶段收口需要离线全局评测，真实 GIS/LLM/Docker 需要分层证明环境与数据可用。如果把所有层级混成一个默认门禁，既浪费时间和 token，也降低错误定位质量。
+
+### 修复与预防
+
+新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`。默认使用 `quick` profile（模板/工作流/runtime/request + 非嵌套服务 smoke），阶段收口使用 `stage`，真实数据使用 `gis-core`，真实模型只跑 `live-short` 两个代表 case，Docker 只跑 production acceptance。完整 unittest、完整 live baseline、比较矩阵和容器内 live 只在对应共享契约、真实模型评测、数据卷或部署改动时执行。阶段文档必须记录实际运行的 profile 和数据配置，尤其 live GIS 应显式设置 analysis-ready `SPATIAL_AGENT_DATASET_CONFIG`，避免把数据准备问题误判为模型或代码问题。
