@@ -2466,6 +2466,20 @@ M81.3 将行政区边界、栅格元数据、空间总览和约束建设筛选�
 
 `smoke_check.py` 默认只运行服务 smoke，完整 unittest 改为显式 `--with-unit-tests`；`quick` 进一步收敛为 3 个核心契约 tripwire，服务 smoke 独立成 `smoke` profile，`stage` 再组合 `quick + smoke + strict global evaluation`。后续新增测试时必须先判断它属于核心 tripwire、服务 smoke、阶段评测还是专项诊断，不能通过 smoke 或 quick 间接恢复全量默认门禁。
 
+## 模板族匹配不能替代蓝图精确匹配
+
+### 现象
+
+脱敏模型回放需要证明真实模型计划既属于某个 workflow template 的工具边界，又真正遵守模板 DAG 和 result reference。如果只把输出类型和工具集合匹配作为“模板通过”，模型可能省略 `{"$from": "...", "path": "..."}` 结果引用，仍被误判为符合模板。
+
+### 根因
+
+模板契约有两层语义：一层是模板族匹配，包括 result type、allowed tools 和 max steps；另一层是 step blueprint 精确匹配，包括 step id、工具顺序、依赖、参数键和 result reference 形状。把两层混成一个布尔值，会让评测无法区分“工具边界正确但 DAG/引用不完整”和“完全符合模板”。
+
+### 修复与预防
+
+模型评测新增 `workflow_template_match`，同时输出 `matched_template_ids` 和 `exact_template_ids`。fixture 显式指定 `expected_template_id` 且模板有 blueprint 时，必须进入 exact 才通过；普通回放仍允许只验证模板族匹配。后续所有模板化 planner 验收都应分别检查 allowlist/result type 和 blueprint/result reference，不能用工具名称集合替代完整计划质量。
+
 ## 上下文预算裁剪不能先丢模板契约
 
 ### 现象

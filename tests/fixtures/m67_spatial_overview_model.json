@@ -5,6 +5,7 @@
   "expected": {
     "expected_status": "COMPLETED",
     "expected_result_type": "spatial_overview_result",
+    "expected_template_id": "spatial_overview",
     "expected_tools": [
       "get_dataset_health_report",
       "get_dataset_schema",

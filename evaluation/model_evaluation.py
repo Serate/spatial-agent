@@ -17,6 +17,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 from agent.llm_planner import LLMPlanner
 from agent.runtime import AgentRuntime
 from agent.tools import DemoSpatialAdapter, ToolRegistry
+from agent.workflow_templates import workflow_template_context_summary
 from evaluation.answer_judge import heuristic_answer_judge
 
 
@@ -97,6 +98,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
                     plan,
                     expected_tools=expected.get("expected_tools") or [],
                     expected_result_type=expected.get("expected_result_type"),
+                    expected_template_id=expected.get("expected_template_id"),
                     answer=result.answer,
                 )
             turn_results.append({
@@ -157,12 +159,14 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
             "tool_coverage": _empty_quality("no plan"),
             "dependency_dag": _empty_quality("no plan"),
             "result_type_match": _empty_quality("no plan"),
+            "workflow_template_match": _empty_quality("no plan"),
             "chinese_answer": _empty_quality("no answer"),
         },
         "plan_quality": {
             "tool_coverage": _empty_quality("no plan"),
             "dependency_dag": _empty_quality("no plan"),
             "result_type_match": _empty_quality("no plan"),
+            "workflow_template_match": _empty_quality("no plan"),
             "chinese_answer": _empty_quality("no answer"),
         },
         "safety": safety,
@@ -187,6 +191,7 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
             plan_payload,
             expected_tools=expected_tools,
             expected_result_type=expected_result_type,
+            expected_template_id=expected.get("expected_template_id"),
             answer=result.answer,
         )
         report["status"] = result.status.value
@@ -214,6 +219,7 @@ def evaluate_plan_quality(
     expected_tools: Iterable[str],
     expected_result_type: Optional[str],
     answer: Optional[str],
+    expected_template_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Measure the quality properties that are stable across model providers."""
     steps = plan.get("steps") if isinstance(plan, Mapping) else None
@@ -230,6 +236,12 @@ def evaluate_plan_quality(
         "actual": actual_type,
         "expected": expected_result_type,
     }
+    template_match = _workflow_template_match(
+        plan,
+        output_type=actual_type,
+        tool_names=actual_tools,
+        expected_template_id=expected_template_id,
+    )
     answer_text = answer if isinstance(answer, str) else ""
     chinese_count = len(_CHINESE_RE.findall(answer_text))
     chinese_answer = {
@@ -237,12 +249,19 @@ def evaluate_plan_quality(
         "chinese_char_count": chinese_count,
         "answer_length": len(answer_text),
     }
-    passed = bool(coverage["passed"] and dag["passed"] and type_passed and chinese_answer["passed"])
+    passed = bool(
+        coverage["passed"]
+        and dag["passed"]
+        and type_passed
+        and template_match["passed"]
+        and chinese_answer["passed"]
+    )
     return {
         "passed": passed,
         "tool_coverage": coverage,
         "dependency_dag": dag,
         "result_type_match": result_type,
+        "workflow_template_match": template_match,
         "chinese_answer": chinese_answer,
         "answer_judge": heuristic_answer_judge(
             answer_text, steps, request=plan.get("goal")
@@ -455,6 +474,134 @@ def _has_cycle(graph: Mapping[str, List[str]]) -> bool:
 def _result_type(plan: Mapping[str, Any]) -> str:
     output = plan.get("output") if isinstance(plan, Mapping) else None
     return str(output.get("type") or "unknown") if isinstance(output, Mapping) else "unknown"
+
+
+def _workflow_template_match(
+    plan: Mapping[str, Any],
+    *,
+    output_type: str,
+    tool_names: List[str],
+    expected_template_id: Optional[str],
+) -> Dict[str, Any]:
+    summary = workflow_template_context_summary()
+    templates = summary.get("templates") if isinstance(summary, Mapping) else []
+    steps = plan.get("steps") if isinstance(plan, Mapping) else None
+    steps = steps if isinstance(steps, list) else []
+    matched: List[str] = []
+    exact: List[str] = []
+    issues_by_template: Dict[str, List[str]] = {}
+    relevant_templates = []
+    for template in templates if isinstance(templates, list) else []:
+        if not isinstance(template, Mapping):
+            continue
+        template_id = template.get("id")
+        if not isinstance(template_id, str) or not template_id:
+            continue
+        if expected_template_id and template_id != expected_template_id:
+            continue
+        relevant_templates.append(template)
+        issues = _template_match_issues(template, steps, output_type, tool_names)
+        issues_by_template[template_id] = issues
+        hard_issues = [issue for issue in issues if not issue.startswith("blueprint_")]
+        if not hard_issues:
+            matched.append(template_id)
+        if not issues:
+            exact.append(template_id)
+    requires_exact = _template_has_blueprint(relevant_templates, expected_template_id)
+    if expected_template_id:
+        passed = expected_template_id in (exact if requires_exact else matched)
+    else:
+        passed = bool(matched) or not _has_relevant_template(templates, output_type)
+    return {
+        "passed": passed,
+        "expected_template_id": expected_template_id,
+        "matched_template_ids": matched,
+        "exact_template_ids": exact,
+        "output_type": output_type,
+        "tool_names": tool_names,
+        "issues": issues_by_template,
+        "template_count": len(relevant_templates),
+        "requires_exact_blueprint": requires_exact,
+    }
+
+
+def _template_match_issues(
+    template: Mapping[str, Any],
+    steps: List[Any],
+    output_type: str,
+    tool_names: List[str],
+) -> List[str]:
+    issues: List[str] = []
+    if output_type not in (template.get("result_types") or []):
+        issues.append("result_type")
+    allowed_tools = set(template.get("allowed_tools") or [])
+    if any(tool not in allowed_tools for tool in tool_names):
+        issues.append("allowed_tools")
+    try:
+        max_steps = int(template.get("max_steps") or 0)
+    except (TypeError, ValueError):
+        max_steps = 0
+    if max_steps and len(steps) > max_steps:
+        issues.append("max_steps")
+    blueprint = template.get("step_blueprint") or []
+    if blueprint:
+        if len(blueprint) != len(steps):
+            issues.append("blueprint_step_count")
+        for index, blueprint_step in enumerate(blueprint):
+            if index >= len(steps) or not isinstance(blueprint_step, Mapping):
+                continue
+            actual_step = steps[index]
+            if not isinstance(actual_step, Mapping):
+                issues.append("blueprint_step")
+                continue
+            if actual_step.get("id") != blueprint_step.get("id"):
+                issues.append("blueprint_step_id")
+            if actual_step.get("tool") != blueprint_step.get("tool"):
+                issues.append("blueprint_tool")
+            actual_depends = actual_step.get("depends_on") or []
+            blueprint_depends = blueprint_step.get("depends_on") or []
+            if list(actual_depends) != list(blueprint_depends):
+                issues.append("blueprint_dependency")
+            expected_arg_keys = sorted(blueprint_step.get("arg_keys") or [])
+            actual_args = actual_step.get("args") if isinstance(actual_step.get("args"), Mapping) else {}
+            if expected_arg_keys and sorted(actual_args.keys()) != expected_arg_keys:
+                issues.append("blueprint_arg_keys")
+            expected_refs = sorted(_result_refs_from_shape(blueprint_step.get("arg_shape")))
+            actual_refs = sorted(_find_references(actual_args))
+            if expected_refs != actual_refs:
+                issues.append("blueprint_result_ref")
+    return list(dict.fromkeys(issues))
+
+
+def _template_has_blueprint(templates: List[Mapping[str, Any]], template_id: Optional[str]) -> bool:
+    if not template_id:
+        return False
+    for template in templates:
+        if template.get("id") == template_id:
+            return bool(template.get("step_blueprint"))
+    return False
+
+
+def _result_refs_from_shape(value: Any):
+    if isinstance(value, Mapping):
+        if set(value) == {"binds_result", "path"} and value.get("binds_result"):
+            yield str(value["binds_result"]), value.get("path")
+            return
+        for item in value.values():
+            yield from _result_refs_from_shape(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _result_refs_from_shape(item)
+
+
+def _has_relevant_template(templates: Any, output_type: str) -> bool:
+    if not isinstance(templates, list):
+        return False
+    return any(
+        isinstance(template, Mapping)
+        and output_type in (template.get("result_types") or [])
+        for template in templates
+    )
 
 
 def _empty_quality(reason: str) -> Dict[str, Any]:

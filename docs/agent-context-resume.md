@@ -564,6 +564,18 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 - 验证：M81 profile/smoke 专项 6 项通过；`quick`、`smoke`、`stage` profile 均通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
 - 新增中文问题日志：Smoke 默认嵌套全量测试会绕过 profile 分层。
 
-## M81.5 下一阶段
+## M81.5 阶段规划（已执行）
 
 从项目整体看，下一阶段继续把 Planner 契约从“上下文可见”推进到“离线可验收”：增加脱敏 LLM 回放，验证真实模型计划匹配模板 allowlist、result type、DAG 和 result reference；同时让 HTTP/Console 验收覆盖 `plan_evidence`，并评估把 `spatial_analysis` 等复杂 composer 路径模板化。默认 `quick` 只保留 3 个核心 tripwire，不因新增专项回归膨胀。
+
+## M81.5 当前完成状态：模板计划证据离线验收
+
+- `evaluation/model_evaluation.py` 新增 `workflow_template_match` 质量维度，脱敏模型回放现在验证模板 result type、工具 allowlist、max steps、DAG 和 result references。
+- 评测报告区分 `matched_template_ids` 与 `exact_template_ids`；指定 `expected_template_id` 且模板有 blueprint 时，必须 exact 匹配才算通过。
+- `tests/fixtures/m67_spatial_overview_model.json` 已要求 `spatial_overview` 精确匹配；新增反例测试覆盖缺失 result reference 的失败路径。
+- 新增 `tests/test_m81_plan_evidence_acceptance.py`，验证开发 HTTP 响应的顶层 `plan_evidence`、`result.planning` 和 artifact 计划证据一致；Console 静态验收确认显示“计划来源”和 exact template。
+- 验证：M67/M81 目标测试 11 项通过；`stage` profile 通过；默认 `quick` 未膨胀。
+
+## M81.6 下一阶段
+
+从项目整体看，下一阶段应把复杂 composer 路径纳入模板化与跨入口 Harness：先评估 `spatial_analysis` 是否补蓝图或拆为子模板，再做 CLI/HTTP/artifact/历史恢复/Console 的 result envelope 一致性验收。真实 GIS/live 只在复杂路径模板化后作为可选验收运行。

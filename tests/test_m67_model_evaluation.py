@@ -32,6 +32,15 @@ class M67ModelEvaluationTests(unittest.TestCase):
         self.assertTrue(report["plan_quality"]["tool_coverage"]["passed"])
         self.assertTrue(report["plan_quality"]["dependency_dag"]["passed"])
         self.assertTrue(report["plan_quality"]["result_type_match"]["passed"])
+        self.assertTrue(report["plan_quality"]["workflow_template_match"]["passed"])
+        self.assertIn(
+            "spatial_overview",
+            report["plan_quality"]["workflow_template_match"]["matched_template_ids"],
+        )
+        self.assertIn(
+            "spatial_overview",
+            report["plan_quality"]["workflow_template_match"]["exact_template_ids"],
+        )
         self.assertTrue(report["plan_quality"]["chinese_answer"]["passed"])
         self.assertEqual(report["safety"]["provider_error"]["class"], "none")
         self.assertEqual(report["safety"]["token_usage"]["total_tokens"], 1440)
@@ -112,6 +121,30 @@ class M67ModelEvaluationTests(unittest.TestCase):
         self.assertEqual(coverage["missing"], ["query"])
         self.assertEqual(coverage["unexpected"], ["health"])
         self.assertFalse(coverage["passed"])
+
+    def test_template_contract_reports_missing_result_references(self):
+        fixture = load_model_fixture(FIXTURE_PATH)
+        plan = copy.deepcopy(fixture["response"])
+        for step in plan["steps"]:
+            if step["id"] == "overview-elevation":
+                step["args"]["admin_name"] = "洪山区"
+
+        quality = evaluate_plan_quality(
+            plan,
+            expected_tools=fixture["expected"]["expected_tools"],
+            expected_result_type=fixture["expected"]["expected_result_type"],
+            expected_template_id="spatial_overview",
+            answer="这是中文结果。",
+        )
+
+        template_match = quality["workflow_template_match"]
+        self.assertFalse(template_match["passed"])
+        self.assertIn("spatial_overview", template_match["matched_template_ids"])
+        self.assertNotIn("spatial_overview", template_match["exact_template_ids"])
+        self.assertIn(
+            "blueprint_result_ref",
+            template_match["issues"]["spatial_overview"],
+        )
 
     def test_safe_metrics_and_provider_errors_are_allowlisted_and_classified(self):
         metrics = sanitize_provider_metrics(

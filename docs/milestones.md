@@ -1533,9 +1533,36 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 - **前端体验**：无前端改动。
 - **测试证据**：默认门禁从“单测 + smoke”缩短为 3 个核心 tripwire；阶段门禁仍能覆盖服务 smoke 和全局离线评测。
 
-## M81.5 全局规划（下一阶段）
+## M81.5：模板计划证据离线验收（已完成）
 
-- 增加脱敏 LLM 回放，验证模型输出匹配模板 allowlist、result type、DAG 和 result reference。
-- 将 `plan_evidence` 纳入 HTTP/Console 端到端验收，证明 CLI、HTTP 和前端对同一复杂请求的一致性。
-- 评估并优先模板化 `spatial_analysis` 等仍由 composer 手写的复杂组合路径。
-- 保持测试分层：默认 quick 不膨胀，服务 smoke 与阶段验收分离，真实 GIS/live 仍按风险作为可选验收。
+### 实现内容
+
+- **脱敏模型回放**：`evaluation/model_evaluation.py` 新增 `workflow_template_match` 质量维度，评估真实模型计划是否匹配 workflow template 的 result type、工具 allowlist、max steps、DAG 和 result references。
+- **模板匹配分层**：评测报告区分 `matched_template_ids` 和 `exact_template_ids`。前者证明输出类型、工具边界和步数属于模板族；后者证明 step blueprint、依赖和 result reference 形状完全一致。
+- **严格 fixture**：`m67_spatial_overview_model.json` 增加 `expected_template_id: spatial_overview`，要求空间总览脱敏模型回放精确匹配 8 步模板蓝图。
+- **HTTP/Console 验收**：新增 `tests/test_m81_plan_evidence_acceptance.py`，通过开发 HTTP server 执行行政区边界请求，验证顶层 `plan_evidence`、`result.planning` 和 artifact 中的模板计划证据一致；静态验收 Console 使用 `result.planning` 并显示 exact template。
+- **默认门禁保持精简**：新增验收不进入 `quick`，阶段验证继续使用 `stage` 和目标测试。
+
+### 验收证据
+
+- `python -m unittest tests.test_m67_model_evaluation tests.test_m81_plan_evidence_acceptance -v`：11 项通过。
+- `python scripts/test_profile.py --profile stage`：quick、smoke、严格全局离线评测均通过。
+- 严格全局离线评测包含默认脱敏模型 fixture，已验证 `workflow_template_match` 通过。
+
+### 复盘（七维矩阵，M81.5）
+
+- **产品能力**：计划来源不只是页面展示字段，而是能被离线评测、HTTP 响应和 artifact 共同验证。
+- **架构**：RuleBasedPlanner 与 LLMPlanner 继续共享 `TaskPlan`；模板契约验收在评测层复用公开模板摘要，不依赖 Runtime 私有 helper。
+- **数据质量**：无新增真实 GIS 数据依赖；真实数据仍留在 `gis-core` / `live-short` 分层验收。
+- **真实模型**：默认不访问网络，但用脱敏回放证明真实模型计划必须遵守模板 allowlist、result type、DAG 和 result references。
+- **部署可靠性**：artifact 持久化包含 `plan_evidence`，跨进程或前端恢复时有同一证据来源。
+- **前端体验**：Console 显示“计划来源”和 exact template，不再只能看到“完成了几步”。
+- **测试证据**：新增目标测试覆盖回放、HTTP、artifact 和 Console 静态契约；默认 quick 没有膨胀。
+
+## M81.6 全局规划（下一阶段）
+
+1. **复杂 composer 模板化评估**：优先分析 `spatial_analysis`，决定是否补 `step_blueprint` 或拆成可组合子模板，减少复杂路径手写 DAG。
+2. **计划预览与可解释 DAG**：让 HTTP/Console 能在执行前或执行中展示模板 DAG、依赖和参数来源，而不是只在完成后显示 plan evidence。
+3. **跨入口一致性 Harness**：把 CLI、HTTP、artifact、历史恢复和 Console 的 result envelope 做更系统的一致性验收，覆盖复杂空间请求。
+4. **可选真实验收**：仅在模板化复杂路径后再运行 `gis-core` 或 `live-short`，验证真实武汉数据和真实模型没有偏离离线契约。
+5. **测试边界**：继续保持 `quick` 只跑 3 个核心 tripwire；新增验证进入目标测试或 `stage`，不恢复默认全量。
