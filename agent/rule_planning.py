@@ -71,12 +71,14 @@ class RuleBasedPlanComposer:
         constraints: Mapping[str, object],
         *,
         evidence: Optional[Iterable[str]] = None,
+        output_overrides: Optional[Mapping[str, object]] = None,
     ) -> TaskPlan:
         selected_evidence = self._template_evidence(template_id, evidence)
         compiled = compile_workflow_plan(
             template_id,
             constraints,
             evidence=selected_evidence,
+            output_overrides=output_overrides,
         )
         steps = [
             PlanStep(
@@ -143,6 +145,17 @@ class RuleBasedPlanComposer:
 
     def _build_composed(self, facts: PlanningFacts) -> TaskPlan:
         parsed = facts.spatial
+        if self._can_use_full_spatial_analysis_template(parsed):
+            return self._template_plan(
+                "spatial_analysis",
+                self._spatial_analysis_constraints(parsed),
+                evidence=parsed.evidence,
+                output_overrides={
+                    "requested_tasks": list(parsed.tasks),
+                    "constraints": dict(parsed.constraints),
+                    "evidence": list(parsed.evidence),
+                },
+            )
         area_ref = self._admin_ref()
         steps = self._admin_steps(parsed.admin_name or "")
         if "elevation" in parsed.tasks:
@@ -166,6 +179,20 @@ class RuleBasedPlanComposer:
             "compose a multi-task spatial analysis DAG from request facts", steps,
             {"type": "spatial_analysis_result", "summary": True, "requested_tasks": list(parsed.tasks), "constraints": dict(parsed.constraints), "evidence": list(parsed.evidence)},
         )
+
+    @staticmethod
+    def _can_use_full_spatial_analysis_template(parsed: SpatialRequest) -> bool:
+        full_tasks = {"elevation", "slope", "land_use", "roads", "water", "buildability"}
+        return bool(parsed.admin_name and full_tasks.issubset(set(parsed.tasks)))
+
+    @staticmethod
+    def _spatial_analysis_constraints(parsed: SpatialRequest) -> Dict[str, object]:
+        return {
+            "admin_name": parsed.admin_name or "",
+            "slope_limit_degrees": float(parsed.constraints.get("slope_max", 15.0)),
+            "road_distance_m": float(parsed.constraints.get("road_distance_max", 1000.0)),
+            "exclude_water": bool(parsed.constraints.get("exclude_water", "water" in parsed.tasks)),
+        }
 
     def _build_constrained(self, facts: PlanningFacts) -> TaskPlan:
         parsed = facts.spatial

@@ -89,6 +89,40 @@ class M77SpatialRequestTests(unittest.TestCase):
             ],
         )
 
+    def test_rule_planner_uses_template_compiler_for_full_spatial_analysis(self):
+        parsed = parse_spatial_request(COMPLEX_REQUEST)
+        plan = RuleBasedPlanner().plan(COMPLEX_REQUEST)
+        compiled = compile_workflow_plan(
+            "spatial_analysis",
+            {
+                "admin_name": "洪山区",
+                "slope_limit_degrees": 20.0,
+                "road_distance_m": 1000.0,
+                "exclude_water": True,
+            },
+            evidence=parsed.evidence,
+            output_overrides={
+                "requested_tasks": list(parsed.tasks),
+                "constraints": dict(parsed.constraints),
+                "evidence": list(parsed.evidence),
+            },
+        )
+
+        self.assertEqual(plan.goal, compiled["goal"])
+        self.assertEqual(plan.output, compiled["output"])
+        self.assertEqual(
+            [(step.id, step.tool, step.args, step.depends_on) for step in plan.steps],
+            [
+                (
+                    step["id"],
+                    step["tool"],
+                    step["args"],
+                    step.get("depends_on", []),
+                )
+                for step in compiled["steps"]
+            ],
+        )
+
     def test_runtime_completes_composed_request_and_composes_actual_results(self):
         from run_demo import build_runtime
 
@@ -98,6 +132,7 @@ class M77SpatialRequestTests(unittest.TestCase):
         self.assertEqual(result.plan.output["type"], "spatial_analysis_result")
         self.assertEqual(result.plan_evidence["source"], "rule")
         self.assertIn("spatial_analysis", result.plan_evidence["matched_template_ids"])
+        self.assertIn("spatial_analysis", result.plan_evidence["exact_template_ids"])
         self.assertTrue(result.plan_evidence["template_context_available"])
         self.assertEqual(len(result.steps), 9)
         self.assertTrue(all(step.status == "COMPLETED" for step in result.steps))

@@ -1566,3 +1566,36 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 3. **跨入口一致性 Harness**：把 CLI、HTTP、artifact、历史恢复和 Console 的 result envelope 做更系统的一致性验收，覆盖复杂空间请求。
 4. **可选真实验收**：仅在模板化复杂路径后再运行 `gis-core` 或 `live-short`，验证真实武汉数据和真实模型没有偏离离线契约。
 5. **测试边界**：继续保持 `quick` 只跑 3 个核心 tripwire；新增验证进入目标测试或 `stage`，不恢复默认全量。
+
+## M81.6：复杂空间分析蓝图化与跨入口一致性（已完成）
+
+### 实现内容
+
+- **`spatial_analysis` 蓝图化**：`agent/workflow_templates.py` 为组合式空间分析补充 9 步 `step_blueprint`，覆盖数据健康、行政区解析、高程、坡度、土地利用、道路、水体和道路/水体约束建设筛选。
+- **Planner 接入**：`RuleBasedPlanComposer._build_composed` 对完整综合空间分析请求改用 `compile_workflow_plan("spatial_analysis", ...)` 生成 `TaskPlan`；局部组合请求仍保留旧 composer 兜底，避免过度调用未请求工具。
+- **Context 压缩**：`workflow_template_context_summary(..., compact=True)` 为 Runtime Planner 上下文提供紧凑模板摘要，保留 id、goal、allowed tools、result types、required constraints、evidence、max steps 和 blueprint step/dependency/arg keys；评测默认摘要仍保留 `arg_shape`。
+- **计划证据恢复**：新增蓝图后 `spatial_analysis` 复杂请求的 `plan_evidence.matched_template_ids` 与 `exact_template_ids` 均命中 `spatial_analysis`，且 `template_context_available=true`。
+- **跨入口 Harness**：`tests/test_m81_plan_evidence_acceptance.py` 增加复杂请求一致性验收，比较直接服务调用、HTTP POST、HTTP run detail、session history 和 artifact 的 result envelope、计划证据、步骤序列、trace 与 artifact 可用性。
+
+### 验收证据
+
+- `python -m unittest tests.test_m81_plan_evidence_acceptance tests.test_m68_workflow_templates tests.test_m77_request_model -v`：33 项通过。
+- `python scripts/test_profile.py --profile stage`：quick、smoke、严格全局离线评测均通过。
+- `git diff --check` 通过，仅有 Windows LF/CRLF 提示。
+
+### 复盘（七维矩阵，M81.6）
+
+- **产品能力**：用户的复杂综合请求不再只是 composer 手写 DAG，已能映射到可解释模板蓝图。
+- **架构**：模板目录继续作为深模块接口，Planner 只绑定 RequestFacts 到模板约束；局部组合仍通过兜底实现，避免把 optional step 复杂度提前暴露到模板接口。
+- **数据质量**：未新增真实数据依赖；真实武汉数据验收仍由 `gis-core` / `live-short` 分层处理。
+- **真实模型**：LLMPlanner 上下文现在能看到更紧凑的复杂模板 DAG，默认仍不访问网络。
+- **部署可靠性**：复杂请求的 HTTP、artifact、history 与直接服务调用共享一致 result envelope 和 plan evidence。
+- **前端体验**：Console 已可显示复杂请求的 exact template 计划来源，后续可基于该蓝图做执行前计划预览。
+- **测试证据**：新增复杂请求跨入口 Harness，默认 quick 未膨胀。
+
+## M81.7 全局规划（下一阶段）
+
+1. **计划预览接口**：增加只规划不执行或轻量预览接口，输出模板 DAG、依赖、参数来源、预计 evidence 和安全门控，不触发 GIS 重计算。
+2. **前端 DAG 展示**：Console 根据预览/执行结果渲染统一 DAG，而不是仅在证据卡显示模板名。
+3. **LLM 模板遵守回放扩展**：增加 `spatial_analysis` 脱敏模型计划 fixture，验证真实模型也能精确遵守复杂蓝图。
+4. **可选真实验收**：模板预览和 LLM 回放稳定后，再运行 `live-short` 或新增单个 live case；默认 CI 仍离线。

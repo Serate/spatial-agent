@@ -142,7 +142,7 @@ class ContextBuilder:
         )
 
     def _safe_value(self, value: Any, depth: int = 0) -> Any:
-        if depth > 5:
+        if depth > 6:
             return "[omitted:depth]"
         if isinstance(value, Mapping):
             safe = {}

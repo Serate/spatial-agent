@@ -2480,6 +2480,20 @@ M81.3 将行政区边界、栅格元数据、空间总览和约束建设筛选�
 
 模型评测新增 `workflow_template_match`，同时输出 `matched_template_ids` 和 `exact_template_ids`。fixture 显式指定 `expected_template_id` 且模板有 blueprint 时，必须进入 exact 才通过；普通回放仍允许只验证模板族匹配。后续所有模板化 planner 验收都应分别检查 allowlist/result type 和 blueprint/result reference，不能用工具名称集合替代完整计划质量。
 
+## 模板蓝图增长会挤出 Planner 上下文
+
+### 现象
+
+M81.6 给 `spatial_analysis` 增加 9 步蓝图后，完整 `workflow_template_context_summary` 超过 10KB。Runtime 仍按 8KB 上下文预算构造 Planner payload，导致 `workflow_templates` section 被裁剪为 `{"omitted": true}`，复杂请求的 `plan_evidence.matched_template_ids` 和 `exact_template_ids` 变为空。
+
+### 根因
+
+评测和 Runtime 对模板摘要的需要不同：评测需要 `arg_shape` 来验证 result reference 精确形状；Runtime 计划上下文和计划证据匹配只需要模板 id、工具 allowlist、result type、max steps、step id/tool/dependencies/arg keys 等紧凑契约。使用同一个完整摘要会把非必要详情带入模型上下文预算。
+
+### 修复与预防
+
+`workflow_template_context_summary` 增加 `compact` 和 `include_arg_shape` 参数。评测默认保留完整摘要；Runtime 使用 `compact=True, include_arg_shape=False`，将模板上下文压缩到约 5.7KB，保留计划匹配必需字段并避免预算裁剪。同时 `ContextBuilder` 的安全深度放宽到 6，确保 compact 摘要里的 `step_blueprint[].arg_keys` 不被裁成 `[omitted:depth]`，否则 `exact_template_ids` 会再次失效。后续新增模板字段时，必须区分“评测精确证据”和“Planner 运行上下文”，不能把所有调试信息默认塞进模型上下文。
+
 ## 上下文预算裁剪不能先丢模板契约
 
 ### 现象

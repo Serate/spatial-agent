@@ -45,9 +45,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M81.5 模板计划证据离线验收（脱敏模型回放、HTTP、artifact、Console 均验证 plan_evidence）。
+- Latest completed milestone: M81.6 复杂空间分析蓝图化与跨入口一致性（`spatial_analysis` 精确模板匹配，复杂请求跨直接服务/HTTP/artifact/history 验收）。
 - Last pushed commit: M81.3 阶段提交后以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
-- Current work: M81.5 已完成——脱敏 LLM 回放新增 `workflow_template_match`，严格验证 `spatial_overview` 的模板 allowlist、result type、DAG 和 result references；HTTP 响应、`result.planning`、artifact 与 Console 计划来源展示已有目标验收。下一阶段进入 M81.6：评估并逐步模板化 `spatial_analysis` 等复杂 composer 路径，同时扩展跨入口一致性 Harness。
+- Current work: M81.6 已完成——`spatial_analysis` 增加 9 步模板蓝图，完整综合请求由 `compile_workflow_plan` 生成计划，`plan_evidence` 精确命中 `spatial_analysis`；复杂请求直接服务调用、HTTP POST、HTTP detail、session history 和 artifact 的 result envelope 已有一致性验收。下一阶段进入 M81.7：计划预览接口、Console DAG 展示和 `spatial_analysis` 脱敏 LLM 回放扩展。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。

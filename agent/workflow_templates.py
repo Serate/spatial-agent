@@ -212,6 +212,7 @@ WORKFLOW_TEMPLATE_CATALOG = {
         "id": "spatial_analysis",
         "version": "1.0.0",
         "label": "组合式空间分析",
+        "goal_template": "compose a multi-task spatial analysis DAG from request facts",
         "allowed_tools": [
             "get_dataset_health_report",
             "get_dataset_schema",
@@ -234,6 +235,75 @@ WORKFLOW_TEMPLATE_CATALOG = {
         ],
         "evidence_options": ["summary", "geometry", "data_health", "trace"],
         "default_evidence": ["summary", "geometry", "data_health", "trace"],
+        "step_blueprint": [
+            {
+                "id": "dataset-health",
+                "tool": "get_dataset_health_report",
+                "args": {"dataset": "all", "max_files": 10},
+                "depends_on": [],
+            },
+            {
+                "id": "schema-admin",
+                "tool": "get_dataset_schema",
+                "args": {"dataset": "admin_areas"},
+                "depends_on": ["dataset-health"],
+            },
+            {
+                "id": "filter-admin",
+                "tool": "range_query",
+                "args": {
+                    "dataset": "admin_areas",
+                    "conditions": [
+                        {"field": "name", "operator": "eq", "value": {"$constraint": "admin_name"}}
+                    ],
+                    "limit": 100,
+                },
+                "depends_on": ["schema-admin"],
+            },
+            {
+                "id": "composed-elevation",
+                "tool": "get_zonal_raster_statistics",
+                "args": {"dataset": "dem", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "composed-slope",
+                "tool": "get_zonal_slope_statistics",
+                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "composed-land-use",
+                "tool": "get_zonal_land_use_distribution",
+                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "composed-roads",
+                "tool": "get_zonal_vector_summary",
+                "args": {"dataset": "roads", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "composed-water",
+                "tool": "get_zonal_vector_summary",
+                "args": {"dataset": "water", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
+                "depends_on": ["filter-admin"],
+            },
+            {
+                "id": "composed-buildability",
+                "tool": "get_zonal_constrained_buildability_analysis",
+                "args": {
+                    "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}},
+                    "slope_limit_degrees": {"$constraint": "slope_limit_degrees"},
+                    "road_distance_m": {"$constraint": "road_distance_m"},
+                    "exclude_water": {"$constraint": "exclude_water"},
+                    "max_files": 10,
+                },
+                "depends_on": ["filter-admin"],
+            },
+        ],
+        "output_template": {"type": "spatial_analysis_result", "summary": True},
     },
     "constrained_buildability": {
         "id": "constrained_buildability",
@@ -317,7 +387,12 @@ def workflow_template_catalog() -> Dict[str, Dict[str, Any]]:
     return copy.deepcopy(WORKFLOW_TEMPLATE_CATALOG)
 
 
-def workflow_template_context_summary(max_templates: Optional[int] = None) -> Dict[str, Any]:
+def workflow_template_context_summary(
+    max_templates: Optional[int] = None,
+    *,
+    include_arg_shape: bool = True,
+    compact: bool = False,
+) -> Dict[str, Any]:
     """Return a compact template catalog for planner context.
 
     This is the public context seam for planners: it exposes the small
@@ -335,36 +410,43 @@ def workflow_template_context_summary(max_templates: Optional[int] = None) -> Di
             break
         template = catalog[template_id]
         steps = template.get("step_blueprint", [])
-        templates.append(
+        step_summary = [
             {
-                "id": template["id"],
-                "version": template["version"],
-                "label": template["label"],
-                "goal_template": template.get("goal_template"),
-                "allowed_tools": list(template["allowed_tools"]),
-                "result_types": list(template["result_types"]),
-                "required_constraints": list(template["required_constraints"]),
-                "constraint_specs": [
-                    _constraint_context_summary(spec)
-                    for spec in template.get("constraint_specs", [])
-                ],
-                "evidence_options": list(template.get("evidence_options", [])),
-                "default_evidence": list(template.get("default_evidence", [])),
-                "max_steps": template["max_steps"],
-                "has_blueprint": bool(steps),
-                "step_blueprint": [
-                    {
-                        "id": step["id"],
-                        "tool": step["tool"],
-                        "depends_on": list(step.get("depends_on", [])),
-                        "arg_keys": sorted(step.get("args", {}).keys()),
-                        "arg_shape": _argument_context_shape(step.get("args", {})),
-                    }
-                    for step in steps
-                ],
-                "output_type": (template.get("output_template") or {}).get("type"),
+                "id": step["id"],
+                "tool": step["tool"],
+                "depends_on": list(step.get("depends_on", [])),
+                "arg_keys": sorted(step.get("args", {}).keys()),
             }
-        )
+            for step in steps
+        ]
+        if include_arg_shape:
+            for item, step in zip(step_summary, steps):
+                item["arg_shape"] = _argument_context_shape(step.get("args", {}))
+        template_summary = {
+            "id": template["id"],
+            "goal_template": template.get("goal_template"),
+            "allowed_tools": list(template["allowed_tools"]),
+            "result_types": list(template["result_types"]),
+            "required_constraints": list(template["required_constraints"]),
+            "evidence_options": list(template.get("evidence_options", [])),
+            "max_steps": template["max_steps"],
+            "has_blueprint": bool(steps),
+            "step_blueprint": step_summary,
+            "output_type": (template.get("output_template") or {}).get("type"),
+        }
+        if not compact:
+            template_summary.update(
+                {
+                    "version": template["version"],
+                    "label": template["label"],
+                    "constraint_specs": [
+                        _constraint_context_summary(spec)
+                        for spec in template.get("constraint_specs", [])
+                    ],
+                    "default_evidence": list(template.get("default_evidence", [])),
+                }
+            )
+        templates.append(template_summary)
     return {
         "schema_version": "spatial-agent.workflow_templates.v1",
         "template_count": len(catalog),

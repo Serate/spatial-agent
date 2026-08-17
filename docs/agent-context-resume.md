@@ -579,3 +579,16 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 ## M81.6 下一阶段
 
 从项目整体看，下一阶段应把复杂 composer 路径纳入模板化与跨入口 Harness：先评估 `spatial_analysis` 是否补蓝图或拆为子模板，再做 CLI/HTTP/artifact/历史恢复/Console 的 result envelope 一致性验收。真实 GIS/live 只在复杂路径模板化后作为可选验收运行。
+
+## M81.6 当前完成状态：复杂空间分析蓝图化与跨入口一致性
+
+- `spatial_analysis` 已补充 9 步模板蓝图：数据健康、行政区 schema/query、高程、坡度、土地利用、道路、水体和约束建设筛选。
+- 完整综合空间分析请求现在由 `RuleBasedPlanComposer` 绑定 RequestFacts 到 `compile_workflow_plan("spatial_analysis", ...)`；局部组合请求仍保留 composer 兜底，避免 optional step 复杂度扩散。
+- Runtime Planner 上下文改用 compact 模板摘要，避免新增复杂蓝图后 `workflow_templates` 被 8KB 预算裁掉；评测默认摘要仍保留 `arg_shape` 做 exact result reference 验收。
+- 复杂请求的 `plan_evidence.matched_template_ids` 与 `exact_template_ids` 均命中 `spatial_analysis`，`template_context_available=true`。
+- 新增复杂请求跨入口 Harness：直接服务调用、HTTP POST、HTTP run detail、session history 和 artifact 的 result envelope、计划证据、步骤序列和 trace 可用性一致。
+- 验证：M81/M68/M77 目标测试 33 项通过；`stage` profile 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+
+## M81.7 下一阶段
+
+从项目整体看，下一阶段应做计划预览和 DAG 展示：新增只规划不执行的轻量预览接口，让 Console 能在执行前/执行中展示模板 DAG、依赖、参数来源和 evidence；随后补 `spatial_analysis` 脱敏 LLM 回放，验证真实模型也能精确遵守复杂蓝图。

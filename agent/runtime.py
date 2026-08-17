@@ -184,7 +184,10 @@ class AgentRuntime:
             planner_kind=type(self._planner).__name__,
             spatial_request=parse_spatial_request(resolved_request).as_context_dict(),
             memory_section=memory_section,
-            workflow_templates=workflow_template_context_summary(),
+            workflow_templates=workflow_template_context_summary(
+                include_arg_shape=False,
+                compact=True,
+            ),
         )
         result.context_evidence = context_packet.evidence
         self._state_store.save(result)
@@ -768,6 +771,15 @@ def _build_plan_evidence(
         output_type=output_type,
         tool_names=tool_names,
         step_count=len(plan.steps),
+        steps=[
+            {
+                "id": step.id,
+                "tool": step.tool,
+                "depends_on": list(step.depends_on),
+                "arg_keys": sorted(step.args.keys()),
+            }
+            for step in plan.steps
+        ],
     )
     evidence["matched_template_ids"] = matched
     evidence["exact_template_ids"] = exact
@@ -789,6 +801,7 @@ def _matched_template_ids(
     output_type: str,
     tool_names: list[str],
     step_count: int,
+    steps: list[Mapping[str, Any]] | None = None,
 ) -> tuple[list[str], list[str]]:
     matched: list[str] = []
     exact: list[str] = []
@@ -814,14 +827,33 @@ def _matched_template_ids(
         if any(tool not in allowed_tools for tool in tool_names):
             continue
         matched.append(template_id)
-        blueprint_tools = [
-            step.get("tool")
+        blueprint_steps = [
+            step
             for step in template.get("step_blueprint") or []
             if isinstance(step, Mapping)
         ]
-        if blueprint_tools and blueprint_tools == tool_names:
+        if blueprint_steps and _blueprint_steps_match(blueprint_steps, steps or []):
             exact.append(template_id)
     return matched, exact
+
+
+def _blueprint_steps_match(
+    blueprint_steps: list[Mapping[str, Any]],
+    actual_steps: list[Mapping[str, Any]],
+) -> bool:
+    if len(blueprint_steps) != len(actual_steps):
+        return False
+    for expected, actual in zip(blueprint_steps, actual_steps):
+        if actual.get("id") != expected.get("id"):
+            return False
+        if actual.get("tool") != expected.get("tool"):
+            return False
+        if list(actual.get("depends_on") or []) != list(expected.get("depends_on") or []):
+            return False
+        expected_arg_keys = sorted(expected.get("arg_keys") or [])
+        if expected_arg_keys and sorted(actual.get("arg_keys") or []) != expected_arg_keys:
+            return False
+    return True
 
 
 def _safe_small_mapping(value: Any) -> Dict[str, Any]:
