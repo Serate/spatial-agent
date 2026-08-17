@@ -21,6 +21,7 @@ from agent.api_contract import (
     error_status,
     region_comparison_kwargs,
     retry_kwargs,
+    preview_kwargs,
     run_kwargs,
     workflow_action_result,
 )
@@ -131,6 +132,14 @@ def console_index():
 def run(payload: Dict[str, Any]):
     try:
         return service.run(**run_kwargs(payload))
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/runs/preview")
+def preview(payload: Dict[str, Any]):
+    try:
+        return service.preview(**preview_kwargs(payload))
     except Exception as exc:
         _raise_for(exc)
 

@@ -195,6 +195,45 @@ class AgentService:
             _attach_error_category(payload)
         return payload
 
+    def preview(
+        self,
+        request: str,
+        session_id: str = "default",
+        planner: str = "rule",
+        backend: str = "memory",
+        timeout_seconds: float = None,
+        spatial_context: Dict[str, Any] = None,
+        workflow: Dict[str, Any] = None,
+    ) -> Dict:
+        if not isinstance(request, str) or not request.strip():
+            raise ValueError("request must be a non-empty string")
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        workflow_context = _normalize_workflow_payload(workflow)
+        normalized_context = _normalize_spatial_context(spatial_context)
+        cost = self._state.cost
+        cost.acquire_concurrency()
+        try:
+            cost.check_budget(session_id)
+            payload = self._runtime(planner, backend).preview(
+                _contextualize_request(request, normalized_context),
+                session_id=session_id,
+                timeout_seconds=timeout_seconds,
+                workflow=workflow_context,
+            )
+        finally:
+            cost.release_concurrency()
+        payload["spatial_context"] = normalized_context
+        payload["result_type"] = _result_type(payload)
+        cost.charge(session_id, _extract_tokens(payload.get("planner_metrics")))
+        try:
+            cost.check_run_cap(_extract_tokens(payload.get("planner_metrics")))
+        except RunTokenCapExceeded as exc:
+            payload["status"] = "FAILED"
+            payload["error"] = str(exc)
+            payload["error_category"] = "budget"
+        return payload
+
     def _run_governed(
         self,
         request: str,

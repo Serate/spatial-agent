@@ -599,3 +599,14 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 ## M81.7 下一阶段
 
 从项目整体看，下一阶段应做计划预览和 DAG 展示：新增只规划不执行的轻量预览接口，让 Console 能在执行前/执行中展示模板 DAG、依赖、参数来源和 evidence；随后补 `spatial_analysis` 脱敏 LLM 回放，验证真实模型也能精确遵守复杂蓝图。
+
+## M81.7 当前完成状态：计划预览与 DAG 展示
+
+- `AgentRuntime.preview()` 复用上下文、Planner、模板校验和计划证据，但只返回 `TaskPlan`/DAG，不执行 `ToolRegistry`、不保存 `AgentRunResult`、不生成 artifact。
+- `AgentService.preview()` 复用成本治理和请求上下文；`agent/api_contract.py`、`serve_api.py`、`production_api.py` 已共享 `POST /runs/preview` 的参数边界。
+- Console 有显式“预览计划”按钮、`renderPlanPreview()` 和 `renderPlanDag()`；前端只展示 Runtime 的节点、依赖和参数键。
+- M81.7 专项 5 项通过；复杂空间分析 preview 为 9 节点/8 条边；Python 编译、内嵌 JS 语法和 `git diff --check` 均通过。
+
+## 下一阶段 M81.8
+
+先补四入口 preview envelope 一致性 Harness，再补复杂 `spatial_analysis` 脱敏 LLM 回放和 preview fingerprint/plan version。真实模型、真实 GIS 与 Docker 仍只通过显式 profile 验证；默认 quick 保持 3 个核心 tripwire，当前最大并发度为 1。

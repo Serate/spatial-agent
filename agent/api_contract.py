@@ -39,6 +39,18 @@ def run_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def preview_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "request": payload.get("request", ""),
+        "session_id": payload.get("session_id", "default"),
+        "planner": payload.get("planner", "rule"),
+        "backend": payload.get("backend", "memory"),
+        "timeout_seconds": payload.get("timeout_seconds"),
+        "spatial_context": payload.get("spatial_context"),
+        "workflow": payload.get("workflow"),
+    }
+
+
 def async_run_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         **run_kwargs(payload),

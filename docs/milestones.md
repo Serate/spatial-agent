@@ -1624,3 +1624,35 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 2. **前端 DAG 展示**：Console 根据预览/执行结果渲染统一 DAG，而不是仅在证据卡显示模板名。
 3. **LLM 模板遵守回放扩展**：增加 `spatial_analysis` 脱敏模型计划 fixture，验证真实模型也能精确遵守复杂蓝图。
 4. **可选真实验收**：模板预览和 LLM 回放稳定后，再运行 `live-short` 或新增单个 live case；默认 CI 仍离线。
+
+## M81.7：计划预览与 DAG 展示（已完成）
+
+### 实现内容
+
+- `AgentRuntime.preview()` 复用同一上下文构建、Planner、工作流校验和计划证据逻辑，只规划不执行 ToolRegistry，不保存运行结果，也不导出 artifact。
+- Service、开发 HTTP 和生产 FastAPI 均提供 `POST /runs/preview`，共享 payload 归一化；预览结果包含 `TaskPlan`、DAG 节点/边、上下文证据、计划证据、规划指标和执行安全门控。
+- Console 增加显式“预览计划”入口和 DAG 面板；前端只渲染 Runtime 返回的结构化计划，不自行决定工具顺序或区域参数。
+- 预览结果与已执行运行使用不同边界：没有 `run_id`、工具步骤结果或 artifact 引用，避免用户把计划误认为事实结果。
+
+### 验收证据
+
+- `tests.test_m81_plan_evidence_acceptance`：5 项通过，覆盖复杂 9 步 DAG、预览无执行/无 artifact、开发 HTTP 路由和 Console 静态契约。
+- Python 模块导入/编译通过；内嵌 Console JavaScript 抽取后 `node --check` 通过；`git diff --check` 通过。
+- 预览接口不进入默认 `quick`，不调用真实模型、真实 GIS 或私有数据；真实 LLM/GIS 仍通过显式 profile 验证。
+
+### 复盘（七维矩阵）
+
+- **产品能力**：用户可以在执行前理解目标、工具节点和依赖，复杂空间问题不再只有执行后的黑盒轨迹。
+- **架构**：预览位于 Runtime/Service seam，HTTP 和 Console 只消费结构化结果；计划与执行结果保持清晰边界。
+- **数据质量**：预览不会触发 GIS 重计算，真实数据证据仍只在执行阶段产生。
+- **真实模型**：rule planner 已完成离线预览契约；`spatial_analysis` 脱敏 LLM 回放和 live 验收保留为后续风险触发项。
+- **部署可靠性**：开发 HTTP 与生产 FastAPI 共享 preview payload contract；预览没有持久化副作用。
+- **前端体验**：增加显式预览动作和紧凑 DAG 展示，执行结果仍由动态结果区负责。
+- **测试证据**：专项测试保持 5 项，不扩大 quick；阶段门禁继续使用精简 profile。
+
+### M81.8 全局规划
+
+1. **跨入口预览一致性**：补 CLI/Service、开发 HTTP、生产 FastAPI 和 Console 对同一 preview envelope 的一致性 Harness，明确规划状态、DAG、证据和错误分类。
+2. **模型计划质量**：增加 `spatial_analysis` 脱敏 LLM fixture，验证复杂蓝图的工具 allowlist、步骤依赖、结果引用和输出类型；仅在必要时运行真实 live case。
+3. **预览与执行关联**：设计受控 preview fingerprint 或 plan version，使用户能识别执行是否使用了刚刚预览的计划，同时不把预览伪装成运行记录。
+4. **整体产品闭环复盘**：检查开放式问题、澄清、动态结果、地图证据、恢复、部署和测试七维是否仍由同一 Runtime 契约贯通，再决定是否进入新的 GIS 能力扩展。

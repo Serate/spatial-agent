@@ -170,25 +170,7 @@ class AgentRuntime:
             resolved_request=resolved_request,
             workflow=dict(workflow) if workflow is not None else None,
         )
-        memory_section = (
-            self._memory.context_section(session_id)
-            if self._memory is not None
-            else None
-        )
-        context_packet = self._context_builder.build(
-            request=request,
-            resolved_request=resolved_request,
-            session_id=session_id,
-            workflow=workflow,
-            available_tools=self._registry.names,
-            planner_kind=type(self._planner).__name__,
-            spatial_request=parse_spatial_request(resolved_request).as_context_dict(),
-            memory_section=memory_section,
-            workflow_templates=workflow_template_context_summary(
-                include_arg_shape=False,
-                compact=True,
-            ),
-        )
+        context_packet = self._build_context_packet(request, resolved_request, session_id, workflow)
         result.context_evidence = context_packet.evidence
         self._state_store.save(result)
         try:
@@ -290,6 +272,73 @@ class AgentRuntime:
         self._emit_run_event(result)
         return result
 
+    def preview(
+        self,
+        request: str,
+        session_id: str = "default",
+        timeout_seconds: Optional[float] = None,
+        workflow: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Plan a request and return a bounded DAG preview without dispatching tools."""
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            raise ToolError("timeout_seconds must be positive")
+        resolved_request = self._resolve_request(request, session_id)
+        context_packet = self._build_context_packet(request, resolved_request, session_id, workflow)
+        payload: Dict[str, Any] = {
+            "status": "PLANNING",
+            "request": request,
+            "resolved_request": resolved_request,
+            "session_id": session_id,
+            "workflow": dict(workflow) if workflow is not None else None,
+            "context_evidence": context_packet.evidence,
+            "execution": {
+                "planned_only": True,
+                "tool_execution": False,
+                "artifact_export": False,
+            },
+        }
+        try:
+            plan = self._plan(resolved_request, workflow, context_packet)
+            if workflow is not None:
+                _validate_runtime_workflow_plan(plan, workflow)
+            if plan.output.get("type") != "direct_answer":
+                self._validate_plan(plan)
+            plan_payload = _plan_to_dict(plan)
+            payload.update({
+                "status": "PLANNED",
+                "plan": plan_payload,
+                "dag": _plan_dag(plan),
+                "plan_evidence": _build_plan_evidence(
+                    plan,
+                    workflow,
+                    context_packet,
+                    planner_kind=type(self._planner).__name__,
+                ),
+                "planner_metrics": self._planner_metrics(),
+            })
+        except ClarificationNeeded as exc:
+            payload.update({
+                "status": RunStatus.NEEDS_CLARIFICATION.value,
+                "error": str(exc),
+                "clarification": exc.details,
+                "planner_metrics": self._planner_metrics(),
+            })
+        except RequestRejected as exc:
+            payload.update({
+                "status": RunStatus.REJECTED.value,
+                "error": str(exc),
+                "planner_metrics": self._planner_metrics(),
+            })
+        except Exception as exc:
+            payload.update({
+                "status": RunStatus.FAILED.value,
+                "error": str(exc),
+                "planner_metrics": self._planner_metrics(),
+            })
+        if payload.get("workflow") is None:
+            payload.pop("workflow", None)
+        return payload
+
     def clear_session(self, session_id: str) -> None:
         """Clear runtime-only clarification state for a conversation."""
         self._conversation_store.clear_pending(session_id)
@@ -378,6 +427,33 @@ class AgentRuntime:
 
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict:
         return self._registry.export_result(result_ref, max_features=max_features)
+
+    def _build_context_packet(
+        self,
+        request: str,
+        resolved_request: str,
+        session_id: str,
+        workflow: Optional[Mapping[str, Any]],
+    ) -> ContextPacket:
+        memory_section = (
+            self._memory.context_section(session_id)
+            if self._memory is not None
+            else None
+        )
+        return self._context_builder.build(
+            request=request,
+            resolved_request=resolved_request,
+            session_id=session_id,
+            workflow=workflow,
+            available_tools=self._registry.names,
+            planner_kind=type(self._planner).__name__,
+            spatial_request=parse_spatial_request(resolved_request).as_context_dict(),
+            memory_section=memory_section,
+            workflow_templates=workflow_template_context_summary(
+                include_arg_shape=False,
+                compact=True,
+            ),
+        )
 
     def _resolve_request(self, request: str, session_id: str) -> str:
         pending = self._conversation_store.get_pending(session_id)
@@ -726,6 +802,46 @@ def _validate_runtime_workflow_plan(
         "assumptions": list(plan.assumptions),
     }
     validate_workflow_plan(template_id, payload)
+
+
+def _plan_to_dict(plan: TaskPlan) -> Dict[str, Any]:
+    return {
+        "goal": plan.goal,
+        "steps": [
+            {
+                "id": step.id,
+                "tool": step.tool,
+                "args": dict(step.args),
+                "depends_on": list(step.depends_on),
+            }
+            for step in plan.steps
+        ],
+        "output": dict(plan.output),
+        "assumptions": list(plan.assumptions),
+    }
+
+
+def _plan_dag(plan: TaskPlan) -> Dict[str, Any]:
+    nodes = [
+        {
+            "id": step.id,
+            "tool": step.tool,
+            "depends_on": list(step.depends_on),
+            "arg_keys": sorted(step.args.keys()),
+        }
+        for step in plan.steps
+    ]
+    edges = [
+        {"from": dependency, "to": step.id}
+        for step in plan.steps
+        for dependency in step.depends_on
+    ]
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+    }
 
 
 def _build_plan_evidence(

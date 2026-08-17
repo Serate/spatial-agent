@@ -580,6 +580,14 @@
     .step-status.failed, .step-status.rejected { color: var(--red); background: var(--red-soft); border-color: rgba(179, 64, 47, .22); }
     .step-status.blocked, .step-status.cancelled, .step-status.timed_out { color: var(--amber-deep); background: var(--amber-soft); border-color: rgba(224, 154, 91, .26); }
     .step-deps { margin-top: 6px; color: var(--teal-deep); font-size: 11.5px; }
+    .plan-preview { display: grid; gap: 10px; }
+    .plan-preview-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+    .plan-preview-status { color: var(--teal-deep); font-size: 12px; font-weight: 700; }
+    .plan-dag { display: grid; gap: 6px; }
+    .plan-dag-node { border: 1px solid var(--line-soft); background: rgba(255,255,255,.04); padding: 8px 10px; border-radius: 6px; }
+    .plan-dag-node strong { display: block; font-size: 12px; }
+    .plan-dag-node small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .plan-dag-edge { color: var(--muted); font-size: 11px; padding-left: 10px; }
     .step-result {
       margin-top: 8px;
       padding: 9px 11px;
@@ -843,11 +851,13 @@
         <div id="messages" class="messages" aria-live="polite"></div>
         <div class="composer">
           <textarea id="prompt" placeholder="例如：查询DEM栅格元数据"></textarea>
+          <button id="previewPlan" type="button">预览计划</button>
           <button id="send">发送</button>
         </div>
       </section>
       <div class="grid" aria-label="分析结果工作区">
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
+        <section class="panel result-panel plan-preview-result"><h3>计划预览</h3><div id="planPreview" class="plan-preview muted">点击“预览计划”查看工具 DAG；预览不会执行工具。</div></section>
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><pre id="genericResult"></pre></section>
         <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
         <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="dataEvidence" class="evidence-card"></div><div id="releaseEvidence" class="evidence-card release-evidence"></div></div><div class="evidence-grid"><div id="memoryEvidence" class="evidence-card memory-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
@@ -900,6 +910,7 @@
     function resetResultWorkspace() {
       $('resultEmpty').style.display = 'flex';
       setResultPanel('.result-panel', false);
+      $('planPreview').innerHTML = '点击“预览计划”查看工具 DAG；预览不会执行工具。';
       $('genericResult').textContent = '';
       $('evidenceSummary').innerHTML = '';
       $('geometryEvidenceDetail').innerHTML = '';
@@ -950,6 +961,42 @@
       const payload = data.result || { result_type: data.result_type || data.plan?.output?.type || 'unknown', steps: (data.steps || []).map(step => ({ tool: step.tool, status: step.status, error: step.error || null })) };
       $('genericResult').textContent = JSON.stringify(payload, null, 2);
     }
+    function planDagFromPlan(plan) {
+      const nodes=(plan?.steps||[]).map(step=>({id:step.id,tool:step.tool,depends_on:step.depends_on||[],arg_keys:Object.keys(step.args||{})}));
+      return {nodes,edges:nodes.flatMap(node=>(node.depends_on||[]).map(source=>({from:source,to:node.id})))};
+    }
+    function renderPlanDag(data) {
+      const plan=data.plan||{};
+      const dag=data.dag||planDagFromPlan(plan);
+      const nodes=Array.isArray(dag.nodes)?dag.nodes:[];
+      const status=data.status||'PLANNED';
+      const exact=(data.plan_evidence||{}).exact_template_ids||[];
+      const source=(data.plan_evidence||{}).source||'未知';
+      const summary=nodes.length?'共 '+nodes.length+' 个节点 · '+(dag.edges||[]).length+' 条依赖':'无工具节点（直接回答或等待澄清）';
+      $('planPreview').innerHTML='<div class="plan-preview-head"><span class="plan-preview-status">'+escapeHtml(statusName(status))+'</span><small>'+escapeHtml(summary)+'</small></div><div class="muted">'+escapeHtml(plan.goal||data.error||'尚未生成任务计划。')+'</div>'+(exact.length?'<div class="distribution-note">模板：'+escapeHtml(exact.join('、'))+' · 来源：'+escapeHtml(source)+'</div>':'')+'<div class="plan-dag">'+nodes.map(node=>'<div class="plan-dag-node"><strong>'+escapeHtml(node.id)+' · '+escapeHtml(node.tool)+'</strong><small>依赖：'+escapeHtml((node.depends_on||[]).join('、')||'无')+' · 参数：'+escapeHtml((node.arg_keys||[]).join('、')||'无')+'</small></div>').join('')+'</div>';
+      setResultPanel('.plan-preview-result', true);
+    }
+    function renderPlanPreview(data) { if(data&&((data.plan&&data.plan.steps)||data.dag||data.error)) renderPlanDag(data); }
+    async function previewPlan() {
+      const request=$('prompt').value.trim();
+      if(!request) return;
+      const button=$('previewPlan');
+      button.disabled=true;
+      try {
+        validateSelection(request);
+        const workflow=await validateWorkflowSelection();
+        const response=await nativeFetch('/runs/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,workflow,spatial_context:selectedSpatialContext})});
+        const data=await response.json();
+        if(!response.ok) throw new Error(data.error||'计划预览失败');
+        renderPlanPreview(data);
+        setStatus(data.status);
+      } catch(error) {
+        $('planPreview').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';
+        setResultPanel('.plan-preview-result', true);
+      } finally {
+        button.disabled=false;
+      }
+    }
     let lastRunData = null;
     let runtimeEvidenceSnapshot = null;
     let runtimeEvidencePromise = null;
@@ -962,7 +1009,7 @@
     function setCancelState(active) { $('cancelRun').hidden=!active; $('cancelRun').disabled=false; }
     async function cancelActiveRun() { if(!activeRunId) return; $('cancelRun').disabled=true; try { const response=await nativeFetch('/runs/'+encodeURIComponent(activeRunId)+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planner:activeRunParams.planner||'rule',backend:activeRunParams.backend||'memory'})}); if(!response.ok) throw new Error('取消请求失败'); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; $('cancelRun').disabled=false; } }
     window.fetch = async (input, init) => { if(input==='/runs' && init?.method==='POST') { const payload=JSON.parse(init.body||'{}'); const queuedResponse=await nativeFetch('/runs/async',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!queuedResponse.ok) return queuedResponse; const queued=await queuedResponse.json(); activeRunId=queued.run_id; activeRunParams=payload; setCancelState(true); let data=queued; for(let attempt=0; attempt<600 && ['QUEUED','PLANNING','EXECUTING'].includes(data.status); attempt++) { await sleep(250); const response=await nativeFetch('/runs/'+encodeURIComponent(queued.run_id)+'?planner='+encodeURIComponent(payload.planner||'rule')+'&backend='+encodeURIComponent(payload.backend||'memory')); if(response.ok) data=await response.json(); } activeRunId=null; activeRunParams={}; setCancelState(false); return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}}); } return nativeFetch(input,init); };
-    const statusNames={IDLE:'待机',PLANNING:'规划中',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
+    const statusNames={IDLE:'待机',PLANNING:'规划中',PLANNED:'计划已生成',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
     const errorCategoryLabels={provider:'模型服务错误',planning:'规划错误',tool:'工具执行错误',timeout:'执行超时',invalid_input:'无效输入',execution:'执行错误',cancelled:'已取消',rejected:'请求已拒绝',clarification:'需要澄清'};
     function errorCategoryBadge(category) { if(!category) return ''; const key=String(category).toLowerCase(); return '<span class="error-category '+key+'" title="结构化错误分类：'+escapeHtml(key)+'">'+escapeHtml(errorCategoryLabels[key]||category)+'</span>'; }
     let health={capabilities:{}};
@@ -1114,10 +1161,11 @@
     async function loadHistory() { try { const [historyResponse,metricsResponse]=await Promise.all([fetch('/runs?limit=20'),fetch('/metrics')]); if(!historyResponse.ok) throw new Error('历史任务读取失败'); const data=await historyResponse.json(); const metricsData=metricsResponse.ok?await metricsResponse.json():null; if(metricsData) $('runtimeMetrics').textContent='累计运行 '+metricsData.run_count+' 次 · 总令牌 '+(metricsData.total_tokens||0); const runs=data.runs||[]; $('historyList').innerHTML=runs.length?runs.map(item=>{ const runId=escapeHtml(item.run_id||''); const request=escapeHtml(item.request||'未命名任务'); const mainAction=runId?'data-history-run="'+runId+'"':'data-history-request="'+request+'"'; const mainTitle=runId?'打开该次运行的完整详情（不重新执行模型）':'重新执行该请求'; return '<div class="history-item"><div class="history-item-main"><button type="button" class="history-open" '+mainAction+' title="'+mainTitle+'">'+request+'</button>'+(runId?'<button type="button" class="history-rerun" data-history-request="'+request+'" title="重新执行该请求（会再次调用模型）">重跑</button>':'')+'</div><small>'+escapeHtml(statusName(item.status||'未知'))+' · '+runId+'</small></div>'; }).join(''):'<div class="muted">暂无历史任务。</div>'; $('historyList').querySelectorAll('[data-history-run]').forEach(button=>button.addEventListener('click',()=>openRunDetail(button.getAttribute('data-history-run')))); $('historyList').querySelectorAll('[data-history-request]').forEach(button=>button.addEventListener('click',()=>sendChat(button.getAttribute('data-history-request')))); } catch(error) { $('historyList').innerHTML='<div class="muted">历史任务暂不可用。</div>'; $('runtimeMetrics').textContent='运行指标暂不可用。'; } }
     function validateSelection(request) { const caps=health.capabilities||{}; const needsRaster=/DEM|dem|高程|坡度|土地利用|地类|建设适宜性|适宜建设|建设候选/.test(request); if($('backend').value==='local'&&!caps.local_gis_backend) throw new Error('当前服务不是 GIS 环境。本地 GIS 后端需要用 scripts/start_console.ps1 -Mode gis 启动。'); if(needsRaster&&$('backend').value==='memory') throw new Error('该任务需要真实栅格像元，请将空间后端切换为“本地 GIS”。当前“内存演示”只返回占位结果。'); if($('planner').value==='openai'&&!caps.live_llm_configured) throw new Error('当前服务没有可用的大模型配置。请先配置 config/openai.local.json 或环境变量。'); if($('planner').value==='openai'&&!caps.live_llm_network) throw new Error('当前服务进程不能访问大模型网络。请从允许出站网络的终端重新启动服务，或先切回规则规划器。'); }
     async function retryRun(runId) { setStatus('EXECUTING'); $('subtitle').textContent='正在从失败步骤恢复，已完成步骤不会重复执行。'; try { const response=await fetch('/runs/'+encodeURIComponent(runId)+'/retry',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'重试失败'); renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } }
-    function renderRun(data) { lastRunData=data; updateResultPanels(data); genericResult(data); setStatus(data.status); const envelope=data.result||{}; $('title').textContent=envelope.title||data.plan?.goal||statusName(data.status); $('subtitle').textContent=envelope.summary||data.resolved_request||data.request; $('decisionMode').textContent=decisionMode(data); $('answer').textContent=envelope.summary||data.answer||'暂无最终答案。'; $('answer').className='answer'+(envelope.summary||data.answer?'':' muted'); const errorCategory=data.error_category||(data.result||{}).error_category; $('error').innerHTML=data.error?('<div class="error">'+errorCategoryBadge(errorCategory)+escapeHtml(data.error)+'</div>'):''; renderClarification(data); $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); rasterStats(data); healthStats(data); buildabilityStats(data); steps(data); provenance(data); trace(data); renderEvidence(data); const links=[]; const retryLineage=(data.result||{}).lineage?.retry; if(retryLineage?.available) links.push('<span class="retry-note">本结果为第 '+escapeHtml(retryLineage.count)+' 次重试后的运行详情（沿用原运行 ID，未重新规划）</span>'); const replanEvents=(data.replan_events||[]).filter(item=>item&&item.failed_step_id); if(replanEvents.length) links.push('<span class="retry-note replan-note">执行中自适应重规划 '+escapeHtml(replanEvents.length)+' 次：失败步骤 '+escapeHtml(replanEvents.map(item=>item.failed_step_id).join('、'))+' 后由规划器重排剩余步骤完成（'+escapeHtml(replanEvents.map(item=>'新增 '+String((item.replanned_step_ids||[]).length)+' 步').join('、'))+'）</span>'); const rasterResult=(data.steps||[]).map(s=>s.result||{}).find(x=>x.statistics&&x.bounds); if(rasterResult) rasterPreview(rasterResult); if(data.status==='FAILED'&&data.run_id) links.push('<button class="retry-action" type="button" onclick="retryRun(\''+escapeHtml(data.run_id)+'\')">重试失败步骤</button>'); if(data.artifact_ref)links.push('<a href="/artifacts/runs/'+encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())+'" target="_blank">打开 JSON 运行记录</a>'); if(data.geojson_ref) { links.push('<a download href="/artifacts/geojson/'+encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())+'">下载 GeoJSON</a>'); loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); loadRuntimeEvidence(); }
+    function renderRun(data) { lastRunData=data; updateResultPanels(data); renderPlanPreview(data); genericResult(data); setStatus(data.status); const envelope=data.result||{}; $('title').textContent=envelope.title||data.plan?.goal||statusName(data.status); $('subtitle').textContent=envelope.summary||data.resolved_request||data.request; $('decisionMode').textContent=decisionMode(data); $('answer').textContent=envelope.summary||data.answer||'暂无最终答案。'; $('answer').className='answer'+(envelope.summary||data.answer?'':' muted'); const errorCategory=data.error_category||(data.result||{}).error_category; $('error').innerHTML=data.error?('<div class="error">'+errorCategoryBadge(errorCategory)+escapeHtml(data.error)+'</div>'):''; renderClarification(data); $('goal').textContent=data.plan?.goal||'尚未生成任务计划。'; metrics(data); rasterStats(data); healthStats(data); buildabilityStats(data); steps(data); provenance(data); trace(data); renderEvidence(data); const links=[]; const retryLineage=(data.result||{}).lineage?.retry; if(retryLineage?.available) links.push('<span class="retry-note">本结果为第 '+escapeHtml(retryLineage.count)+' 次重试后的运行详情（沿用原运行 ID，未重新规划）</span>'); const replanEvents=(data.replan_events||[]).filter(item=>item&&item.failed_step_id); if(replanEvents.length) links.push('<span class="retry-note replan-note">执行中自适应重规划 '+escapeHtml(replanEvents.length)+' 次：失败步骤 '+escapeHtml(replanEvents.map(item=>item.failed_step_id).join('、'))+' 后由规划器重排剩余步骤完成（'+escapeHtml(replanEvents.map(item=>'新增 '+String((item.replanned_step_ids||[]).length)+' 步').join('、'))+'）</span>'); const rasterResult=(data.steps||[]).map(s=>s.result||{}).find(x=>x.statistics&&x.bounds); if(rasterResult) rasterPreview(rasterResult); if(data.status==='FAILED'&&data.run_id) links.push('<button class="retry-action" type="button" onclick="retryRun(\''+escapeHtml(data.run_id)+'\')">重试失败步骤</button>'); if(data.artifact_ref)links.push('<a href="/artifacts/runs/'+encodeURIComponent(data.artifact_ref.split(/[\\/]/).pop())+'" target="_blank">打开 JSON 运行记录</a>'); if(data.geojson_ref) { links.push('<a download href="/artifacts/geojson/'+encodeURIComponent(data.geojson_ref.split(/[\\/]/).pop())+'">下载 GeoJSON</a>'); loadGeoJSON(data.geojson_ref); } $('links').innerHTML=links.join(''); loadRuntimeEvidence(); }
     async function sendChat(text) { const request=(text ?? $('prompt').value).trim(); if(!request) return; const button=$('send'); button.disabled=true; $('prompt').value=''; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); appendMessage('user',request); setStatus('PLANNING'); $('title').textContent='正在分析'; $('subtitle').textContent='规划器和运行时正在处理请求。'; $('error').innerHTML=''; try { validateSelection(request); const workflow=await validateWorkflowSelection(); const response=await fetch('/runs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({request,session_id:$('session').value,planner:$('planner').value,backend:$('backend').value,workflow,spatial_context:selectedSpatialContext,export_artifact:true,export_geojson:true})}); const data=await response.json(); if(!response.ok) throw new Error(data.error||'请求失败'); renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } catch(e) { setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } finally { button.disabled=false; $('prompt').focus(); } }
     const baseRenderRun = renderRun; renderRun = data => { baseRenderRun(data); compositeStats(data); overviewStats(data); };
     $('send').addEventListener('click',()=>sendChat());
+    $('previewPlan').addEventListener('click',previewPlan);
     $('prompt').addEventListener('keydown',event=>{ if(event.key==='Enter'&&!event.shiftKey){ event.preventDefault(); sendChat(); } });
     $('session').addEventListener('change',restoreSession);
     $('newSession').addEventListener('click',newSession);

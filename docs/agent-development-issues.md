@@ -2521,3 +2521,17 @@ quick 和 smoke_check.py 已经精简后，普通 stage 仍然运行 quick、smo
 ### 修复与预防
 
 新增 evaluation/cases/stage-acceptance.json，普通 stage 只运行 quick tripwire 加 3 个代表性离线验收场景；旧式重型门禁改名为显式 full-stage。evaluate_global.py 增加 --no-model-replay，让轻量 stage 能同时跳过模型计划评测和多轮回放。后续新增验收先判断属于 quick、smoke、stage acceptance、full-stage、GIS/live/Docker 还是专项测试，不能把发布前重型证据塞回普通 stage。
+
+## 计划预览不能复用执行结果边界
+
+### 现象
+
+为让用户在复杂空间请求执行前查看工具 DAG，如果直接调用完整 `run()`，会提前执行 GIS 工具、生成运行 ID 或 artifact，前端还可能把预览误显示为已经完成的结果；如果前端自行根据工具名称拼 DAG，又会与 Planner 的真实计划产生漂移。
+
+### 根因
+
+计划生成和工具执行虽然共享同一 Runtime，但它们的副作用和证据语义不同。预览只应证明“当前请求会如何规划”，不能声称已经获得空间数据结果；DAG 的节点顺序、依赖和参数来源也必须来自统一 `TaskPlan`，不能由页面重复编排。
+
+### 处理与预防
+
+新增 `AgentRuntime.preview()` 和 `AgentService.preview()`，在 Runtime/Service 边界复用上下文、Planner、模板校验和计划证据，但不调用 `ToolRegistry`、不写状态、不导出 artifact。开发 HTTP 与生产 FastAPI 统一提供 `POST /runs/preview`，响应显式带 `execution.planned_only`、`tool_execution` 和 `artifact_export`。Console 只渲染响应中的 `plan`/`dag`，执行结果仍使用正式运行 envelope。后续若需要预览与执行关联，应增加受控 plan fingerprint/version，不能把 preview payload 伪装成 `AgentRunResult`。

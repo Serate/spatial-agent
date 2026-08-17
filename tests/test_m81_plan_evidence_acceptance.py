@@ -20,6 +20,27 @@ COMPLEX_REQUEST = (
 
 
 class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
+    def test_service_preview_returns_complex_dag_without_execution_artifacts(self):
+        payload = AgentService().preview(
+            COMPLEX_REQUEST,
+            session_id="preview-complex",
+            planner="rule",
+            backend="memory",
+        )
+
+        self.assertEqual(payload["status"], "PLANNED")
+        self.assertEqual(payload["result_type"], "spatial_analysis_result")
+        self.assertEqual(len(payload["plan"]["steps"]), 9)
+        self.assertEqual(payload["dag"]["node_count"], 9)
+        self.assertEqual(payload["dag"]["edge_count"], 8)
+        self.assertNotIn("run_id", payload)
+        self.assertNotIn("artifact_ref", payload)
+        self.assertNotIn("steps", payload)
+        self.assertEqual(
+            payload["execution"],
+            {"planned_only": True, "tool_execution": False, "artifact_export": False},
+        )
+
     def test_http_result_and_artifact_share_template_planning_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             local_artifact_root = Path(directory) / "runs"
@@ -132,6 +153,38 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
         self.assertIn("const planEvidence=envelope.planning||data.plan_evidence||{}", source)
         self.assertIn("计划来源", source)
         self.assertIn("exact_template_ids", source)
+        self.assertIn("/runs/preview", source)
+        self.assertIn("renderPlanDag", source)
+        self.assertIn("planPreview", source)
+
+    def test_http_preview_route_returns_planned_only_payload(self):
+        class TestHandler(AgentApiHandler):
+            service = AgentService()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            payload = _post_json(
+                server.server_address[1],
+                {
+                    "request": "查询洪山区行政区边界",
+                    "session_id": "preview-http",
+                    "planner": "rule",
+                    "backend": "memory",
+                },
+                "/runs/preview",
+            )
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+        self.assertEqual(payload["status"], "PLANNED")
+        self.assertEqual(payload["result_type"], "admin_area_result")
+        self.assertNotIn("run_id", payload)
+        self.assertNotIn("artifact_ref", payload)
+        self.assertFalse(payload["execution"]["tool_execution"])
 
 
 def _get_json(port, path):
