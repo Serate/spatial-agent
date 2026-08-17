@@ -43,7 +43,8 @@ scripts\start_console.ps1 -Mode gis -Port 8088
 
 ```powershell
 python -m unittest discover -s tests
-python scripts\smoke_check.py
+python scripts\test_profile.py --profile quick
+python scripts\test_profile.py --profile smoke
 python scripts\evaluate_planner.py --planner rule --backend memory
 ```
 

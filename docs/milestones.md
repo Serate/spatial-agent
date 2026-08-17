@@ -1458,7 +1458,7 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 - `python scripts/smoke_check.py` 通过；其中内嵌离线全量 **550 项通过，42 项跳过**，服务 smoke 通过。
 - `git diff --check` 通过，仅有既有 Windows LF/CRLF 提示。
 - 新增 `scripts/test_profile.py`、`tests/test_m81_test_profiles.py` 和 `docs/test-strategy.md`，把阶段验收从完整矩阵收敛为可执行 profile：`quick`、`stage`、`gis-core`、`live-short`、`docker`。
-- M81.3 后补充收敛：`quick` 不再整模块跑 M68/M69/M77，只保留 5 个核心契约样例 + 服务 smoke；`gis-core` 改为真实 GIS 抽样用例。完整 unittest/GIS/live 仍保留为按风险触发的专项矩阵。
+- M81.3 后补充收敛，M81.4.1 再次收窄默认门禁：`quick` 不再整模块跑 M68/M69/M77，只保留 3 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；`gis-core` 改为真实 GIS 抽样用例。完整 unittest/GIS/live 仍保留为按风险触发的专项矩阵。
 - 真实环境抽样验收：GIS Python 全量 550 项通过、9 项跳过；analysis-ready 配置下 `live-short` 两个代表 case 2/2 通过，token 合计约 6,939，未发生 provider 错误或重试。
 
 ### 复盘（七维矩阵，M81.3）
@@ -1504,11 +1504,38 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 - **真实模型**：LLMPlanner 已具备模板上下文入口，但仍需下一阶段用脱敏回放和可选 live 验证真实模型稳定遵守模板。
 - **部署可靠性**：新增字段可通过 SQLite 和 artifact 恢复；默认 CI/quick/stage 不访问真实模型或私有数据。
 - **前端体验**：证据区显示计划来源，减少页面按工具名猜测执行意图。
-- **测试证据**：新增模板摘要、上下文注入、LLM 上下文、plan evidence、SQLite 恢复和 Console 字符串测试；默认 quick 仍保持 5 个核心样例 + 服务 smoke。
+- **测试证据**：新增模板摘要、上下文注入、LLM 上下文、plan evidence、SQLite 恢复和 Console 字符串测试；默认 quick 已收窄为 3 个核心 tripwire，服务 smoke 作为独立 profile 或 stage 的一部分运行。
+
+## M81.4.1：测试入口再精简（已完成）
+
+### 实现内容
+
+- `scripts/test_profile.py`：`quick` 从“5 个核心样例 + 服务 smoke”收窄为 3 个核心契约 tripwire；新增独立 `smoke` profile；`stage` 改为组合 `quick + smoke + strict global evaluation`。
+- `scripts/smoke_check.py`：默认只运行服务 smoke，完整 `unittest discover` 改为显式 `--with-unit-tests`，避免绕过 profile 分层。
+- `gis-core` 抽样从 4 个真实 GIS 用例降为 3 个，保留行政区、Rasterio metadata 和 analysis-ready 门控，移除较重的坡度像素计算抽样。
+- README、测试策略、恢复文档和中文问题日志已同步，明确完整矩阵只在风险触发时运行。
+
+### 验收证据
+
+- `python -m unittest tests.test_m81_test_profiles tests.test_m11_smoke_check -v`：6 项通过。
+- `python scripts/test_profile.py --profile quick`：3 项核心 tripwire 通过。
+- `python scripts/test_profile.py --profile smoke`：服务 smoke 通过，不嵌套完整 unittest。
+- `python scripts/test_profile.py --profile stage`：quick、smoke、严格全局离线评测均通过。
+- `git diff --check` 通过，仅有既有 Windows LF/CRLF 提示。
+
+### 复盘（七维矩阵，M81.4.1）
+
+- **产品能力**：没有新增 GIS 功能，但让开发者能更快验证核心 Agent 契约，降低测试摩擦。
+- **架构**：测试入口职责更清晰，quick、smoke、stage、gis-core、live-short、docker 分层互不混淆。
+- **数据质量**：真实数据验收仍保留在 `gis-core` 和 `live-short`，默认开发路径不依赖本地 GIS 数据。
+- **真实模型**：live 仍为显式可选，不进入默认或 stage。
+- **部署可靠性**：Docker acceptance 仍独立，避免和本地单测混跑。
+- **前端体验**：无前端改动。
+- **测试证据**：默认门禁从“单测 + smoke”缩短为 3 个核心 tripwire；阶段门禁仍能覆盖服务 smoke 和全局离线评测。
 
 ## M81.5 全局规划（下一阶段）
 
 - 增加脱敏 LLM 回放，验证模型输出匹配模板 allowlist、result type、DAG 和 result reference。
 - 将 `plan_evidence` 纳入 HTTP/Console 端到端验收，证明 CLI、HTTP 和前端对同一复杂请求的一致性。
 - 评估并优先模板化 `spatial_analysis` 等仍由 composer 手写的复杂组合路径。
-- 保持测试分层：默认 quick 不膨胀，真实 GIS/live 仍按风险作为可选验收。
+- 保持测试分层：默认 quick 不膨胀，服务 smoke 与阶段验收分离，真实 GIS/live 仍按风险作为可选验收。

@@ -2436,7 +2436,7 @@ M81.3 将行政区边界、栅格元数据、空间总览和约束建设筛选�
 
 ### 修复与预防
 
-新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`。默认使用 `quick` profile（模板/工作流/runtime/request + 非嵌套服务 smoke），阶段收口使用 `stage`，真实数据使用 `gis-core`，真实模型只跑 `live-short` 两个代表 case，Docker 只跑 production acceptance。完整 unittest、完整 live baseline、比较矩阵和容器内 live 只在对应共享契约、真实模型评测、数据卷或部署改动时执行。阶段文档必须记录实际运行的 profile 和数据配置，尤其 live GIS 应显式设置 analysis-ready `SPATIAL_AGENT_DATASET_CONFIG`，避免把数据准备问题误判为模型或代码问题。
+新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`。默认使用 `quick` profile（3 个核心契约 tripwire），服务 smoke 独立使用 `smoke` profile，阶段收口使用 `stage`（quick + smoke + strict global evaluation），真实数据使用 `gis-core`，真实模型只跑 `live-short` 两个代表 case，Docker 只跑 production acceptance。完整 unittest、完整 live baseline、比较矩阵和容器内 live 只在对应共享契约、真实模型评测、数据卷或部署改动时执行。阶段文档必须记录实际运行的 profile 和数据配置，尤其 live GIS 应显式设置 analysis-ready `SPATIAL_AGENT_DATASET_CONFIG`，避免把数据准备问题误判为模型或代码问题。
 
 ## 测试文件按里程碑堆叠会让默认门禁失控
 
@@ -2450,7 +2450,21 @@ M81.3 将行政区边界、栅格元数据、空间总览和约束建设筛选�
 
 ### 修复与预防
 
-`scripts/test_profile.py` 的 `quick` profile 改为少量核心契约样例加服务 smoke，`gis-core` 也改为真实 GIS 抽样用例。完整 unittest、完整 GIS 和完整 live 仍保留，但只在改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时按需运行。新增测试时先判断它属于默认代表样例、阶段验收还是专项诊断，不要默认塞入 `quick`。
+`scripts/test_profile.py` 的 `quick` profile 改为 3 个核心契约 tripwire，服务 smoke 独立为 `smoke` profile，`stage` 再组合 quick、smoke 和严格全局离线评测；`gis-core` 也改为真实 GIS 抽样用例。完整 unittest、完整 GIS 和完整 live 仍保留，但只在改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时按需运行。新增测试时先判断它属于核心 tripwire、服务 smoke、阶段验收还是专项诊断，不要默认塞入 `quick`。
+
+## Smoke 默认嵌套全量测试会绕过 profile 分层
+
+### 现象
+
+即使 `scripts/test_profile.py` 已经把 `quick` profile 收敛为少量代表样例，直接运行 `scripts/smoke_check.py` 仍会默认嵌套完整 `unittest discover`。用户从 README 或旧恢复文档按 smoke 命令验证时，会再次触发 500+ 历史测试，感觉“测试例太多”，也会让服务 smoke 与完整回归的边界不清晰。
+
+### 根因
+
+`smoke_check.py` 早期同时承担“完整单测 + 服务冒烟”的 CI 入口职责。后续虽然增加了 profile 分层，但只在 `quick` profile 里通过环境变量跳过嵌套全量；脚本自身默认行为没有同步调整，导致绕开 profile 入口时仍然执行重型矩阵。
+
+### 修复与预防
+
+`smoke_check.py` 默认只运行服务 smoke，完整 unittest 改为显式 `--with-unit-tests`；`quick` 进一步收敛为 3 个核心契约 tripwire，服务 smoke 独立成 `smoke` profile，`stage` 再组合 `quick + smoke + strict global evaluation`。后续新增测试时必须先判断它属于核心 tripwire、服务 smoke、阶段评测还是专项诊断，不能通过 smoke 或 quick 间接恢复全量默认门禁。
 
 ## 上下文预算裁剪不能先丢模板契约
 

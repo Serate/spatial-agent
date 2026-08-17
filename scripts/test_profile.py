@@ -1,9 +1,9 @@
 """Run bounded Spatial Agent validation profiles.
 
 The project has grown enough that "run every possible test" is no longer a
-good default during normal development.  This entrypoint keeps the common
-profiles explicit and small while preserving heavier GIS/live/Docker checks as
-opt-in gates.
+good default during normal development.  This entrypoint keeps the default gate
+very small while preserving service, GIS, live, Docker, and full regression
+checks as explicit opt-in gates.
 """
 
 from __future__ import annotations
@@ -23,12 +23,8 @@ ROOT = Path(__file__).parents[1]
 QUICK_CORE_TESTS = (
     "tests.test_m68_workflow_templates.M68WorkflowTemplateTests."
     "test_template_compiler_binds_constraints_and_result_references",
-    "tests.test_m68_workflow_templates.M68WorkflowTemplateTests."
-    "test_plan_rejects_tool_outside_template_allowlist",
     "tests.test_m69_workflow_runtime.M69WorkflowRuntimeTests."
     "test_plan_is_rejected_when_selected_template_does_not_allow_it",
-    "tests.test_m77_request_model.M77SpatialRequestTests."
-    "test_rule_planner_uses_template_compiler_for_stable_workflows",
     "tests.test_m77_request_model.M77SpatialRequestTests."
     "test_runtime_completes_composed_request_and_composes_actual_results",
 )
@@ -37,8 +33,6 @@ GIS_CORE_TESTS = (
     "test_range_query_filters_by_county_name",
     "tests.test_m15_raster_metadata.M15LocalRasterMetadataTests."
     "test_reads_dem_raster_metadata_without_array_processing",
-    "tests.test_m15_raster_metadata.M15LocalRasterMetadataTests."
-    "test_computes_real_zonal_slope_from_dem",
     "tests.test_m70_analysis_ready.M70AnalysisReadyRasterTests."
     "test_valid_analysis_ready_report_is_exposed_and_required",
 )
@@ -67,7 +61,7 @@ def main() -> int:
     parser.add_argument(
         "--profile",
         action="append",
-        choices=("quick", "stage", "gis-core", "live-short", "docker"),
+        choices=("quick", "smoke", "stage", "gis-core", "live-short", "docker"),
         default=None,
         help="profile to run; repeatable; default: quick",
     )
@@ -105,11 +99,15 @@ def main() -> int:
 def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
     return {
         "quick": {
-            "purpose": "minimal development gate: five core contracts plus service smoke",
+            "purpose": "minimal development gate: three core contract tripwires",
             "commands": [c.as_dict() for c in _quick_commands()],
         },
+        "smoke": {
+            "purpose": "service smoke only; no nested unittest discovery",
+            "commands": [c.as_dict() for c in _smoke_commands()],
+        },
         "stage": {
-            "purpose": "quick gate plus strict global offline evaluation",
+            "purpose": "quick gate plus service smoke and strict global offline evaluation",
             "commands": [c.as_dict() for c in _stage_commands()],
         },
         "gis-core": {
@@ -132,6 +130,8 @@ def _commands_for_profiles(profiles: Iterable[str], args: argparse.Namespace) ->
     for profile in profiles:
         if profile == "quick":
             commands.extend(_quick_commands())
+        elif profile == "smoke":
+            commands.extend(_smoke_commands())
         elif profile == "stage":
             commands.extend(_stage_commands())
         elif profile == "gis-core":
@@ -148,7 +148,7 @@ def _commands_for_profiles(profiles: Iterable[str], args: argparse.Namespace) ->
 def _quick_commands() -> List[ProfileCommand]:
     return [
         ProfileCommand(
-            "core_contract_examples",
+            "core_contract_tripwires",
             [
                 sys.executable,
                 "-m",
@@ -157,17 +157,22 @@ def _quick_commands() -> List[ProfileCommand]:
                 "-v",
             ],
         ),
+    ]
+
+
+def _smoke_commands() -> List[ProfileCommand]:
+    return [
         ProfileCommand(
-            "service_smoke_without_nested_full_suite",
+            "service_smoke",
             [sys.executable, str(ROOT / "scripts" / "smoke_check.py")],
-            {"SPATIAL_AGENT_SMOKE_NESTED": "1"},
-        ),
+        )
     ]
 
 
 def _stage_commands() -> List[ProfileCommand]:
     return [
         *_quick_commands(),
+        *_smoke_commands(),
         ProfileCommand(
             "strict_global_offline_evaluation",
             [sys.executable, str(ROOT / "scripts" / "evaluate_global.py"), "--strict"],

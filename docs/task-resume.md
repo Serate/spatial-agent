@@ -45,9 +45,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M81.3 模板蓝图驱动的确定性 Planner（工作流模板生成可校验 TaskPlan，RuleBasedPlanner 绑定 RequestFacts 到模板）。
+- Latest completed milestone: M81.4.1 测试入口再精简（quick 仅保留 3 个核心 tripwire，服务 smoke 独立为 profile）。
 - Last pushed commit: M81.3 阶段提交后以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
-- Current work: M81.3 已完成——工作流模板增加 goal/step/output 蓝图与 `compile_workflow_plan`，边界查询、栅格元数据、空间总览和约束建设筛选改由模板编译生成；`scripts/test_profile.py` 已收敛为精简测试 profile。`quick` 现在只跑 5 个核心契约样例 + 服务 smoke，`stage` 增加严格全局离线评测；真实 GIS 和 live-short 仍为可选阶段验收。下一阶段优先统一 LLMPlanner 与模板/能力目录契约，减少 prompt 中的硬编码工具编排。
+- Current work: M81.4.1 已完成——`scripts/test_profile.py` 的默认 `quick` 只跑 3 个核心契约 tripwire，服务 smoke 独立为 `smoke` profile，`stage` 运行 `quick + smoke + strict global evaluation`；`scripts/smoke_check.py` 默认不再嵌套完整 unittest，完整矩阵改为显式 `--with-unit-tests`。下一阶段继续 M81.5：脱敏 LLM 回放、HTTP/Console plan evidence 验收和复杂 composer 模板化评估。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
@@ -244,10 +244,16 @@ Do not commit raw datasets from D:\dataset\agent.
 
 ## Standard Validation
 
-Run smoke check:
+Run quick profile:
 
 ~~~powershell
-& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\smoke_check.py
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\test_profile.py --profile quick
+~~~
+
+Run service smoke:
+
+~~~powershell
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\test_profile.py --profile smoke
 ~~~
 
 Run all non-GIS tests:
@@ -787,7 +793,7 @@ M76.3 按产品、架构/部署、真实模型的依赖顺序单线程执行，�
 - RuleBasedPlanner 的行政区边界、栅格元数据、空间总览、道路/水体约束建设筛选已改为模板编译路径；复杂组合式分析仍保留在 composer，后续再逐步模板化。
 - Planner 内部 evidence 按模板能力过滤，外部 workflow evidence 继续严格校验；对应问题已写入中文开发问题日志。
 - 验证：M68/M69/M77 专项 32 项通过；`python scripts/test_profile.py --profile quick` 通过；Smoke 通过，内嵌离线全量 550 项通过、42 项跳过；真实 GIS 全量 550 项通过、9 项跳过；analysis-ready 配置下 `live-short` 两个代表 case 2/2 通过；服务 smoke 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
-- 精简测试策略已固化：`quick` 用于日常开发，只跑 5 个核心契约样例 + 服务 smoke；`stage` 增加严格全局离线评测，`gis-core` 使用真实数据抽样用例，`live-short` 只跑空间总览和约束建设筛选两个真实模型 case，`docker` 只做 production acceptance。完整 unittest/GIS/live 只在对应共享契约或部署数据改动时按需运行。
+- 精简测试策略继续收敛：`quick` 用于日常开发，只跑 3 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；`stage` 运行 `quick + smoke + strict global evaluation`，`gis-core` 使用真实数据抽样用例，`live-short` 只跑空间总览和约束建设筛选两个真实模型 case，`docker` 只做 production acceptance。完整 unittest/GIS/live 只在对应共享契约或部署数据改动时按需运行。
 
 ### M81.4 下一阶段规划
 
@@ -813,4 +819,4 @@ M76.3 按产品、架构/部署、真实模型的依赖顺序单线程执行，�
 - 增加脱敏 LLM 回放，验证真实模型输出能稳定匹配模板 allowlist、result type、DAG 和 result reference。
 - 将 `plan_evidence` 接入更多 HTTP/前端验收样例，证明 CLI、HTTP 和 Console 对同一复杂请求看到一致的计划来源、步骤状态和 artifact 引用。
 - 评估是否将更多复杂 composer 路径逐步模板化，优先处理 `spatial_analysis` 这种已有工作流契约但还没有 `step_blueprint` 的组合能力。
-- 保持默认 `quick` 不膨胀；新增验证优先放在脱敏回放或专项测试，只有核心契约才进入 quick。真实 GIS/live 仍作为可选验收。
+- 保持默认 `quick` 不膨胀；新增验证优先放在脱敏回放、`smoke`、`stage` 或专项测试，只有最核心契约 tripwire 才进入 quick。真实 GIS/live 仍作为可选验收。

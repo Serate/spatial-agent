@@ -2,7 +2,7 @@
 
 本项目默认测试策略从“每次跑完整矩阵”调整为“少量代表性 profile + 按需扩展矩阵”。目标是让开发反馈更快，同时保留真实 GIS、真实大模型和 Docker 生产验收的证据。
 
-当前原则：默认入口只跑代表性用例，不再按里程碑整模块执行。历史测试继续保留为专项诊断资产，但不能把 500+ 用例当成本地开发默认门禁。
+当前原则：默认入口只跑极少量代表性用例，不再按里程碑整模块执行。历史测试继续保留为专项诊断资产，但不能把 500+ 用例当成本地开发默认门禁。
 
 ## 默认门禁
 
@@ -16,10 +16,19 @@ python scripts\test_profile.py --profile quick
 
 覆盖范围：
 
- 5 个核心契约样例：模板编译、模板 allowlist 拒绝、workflow runtime 拒绝、RuleBasedPlanner 模板绑定、Runtime 组合执行。
- 1 个服务 smoke：道路坡度、DEM 元数据、澄清追问和后续回答；设置 `SPATIAL_AGENT_SMOKE_NESTED=1`，不嵌套完整 unittest。
+- 3 个核心契约 tripwire：模板编译、workflow runtime 拒绝、Runtime 组合执行。
 
 `quick` 的目标是快速发现共享契约是否断裂，不负责证明每个历史里程碑都仍完整覆盖。
+
+### smoke
+
+服务 smoke 与 quick 分离，按需运行：
+
+~~~powershell
+python scripts\test_profile.py --profile smoke
+~~~
+
+覆盖范围：道路坡度、DEM 元数据、澄清追问和后续回答。`scripts/smoke_check.py` 默认只跑服务 smoke，不再嵌套完整 unittest。
 
 ### stage
 
@@ -29,7 +38,7 @@ python scripts\test_profile.py --profile quick
 python scripts\test_profile.py --profile stage
 ~~~
 
-覆盖范围是在 `quick` 基础上增加严格全局离线评测：
+覆盖范围是在 `quick + smoke` 基础上增加严格全局离线评测：
 
 ~~~powershell
 python scripts\evaluate_global.py --strict
@@ -45,7 +54,7 @@ python scripts\evaluate_global.py --strict
 python scripts\test_profile.py --profile gis-core
 ~~~
 
-该 profile 不替代完整 GIS 全量，但能快速覆盖行政区 GeoJSON、Rasterio 元数据、analysis-ready 门控和模板化 Planner 关键路径。它同样采用抽样用例，不再整模块跑真实 GIS 测试。
+该 profile 不替代完整 GIS 全量，但能快速覆盖行政区 GeoJSON、Rasterio 元数据和 analysis-ready 门控。它同样采用抽样用例，不再整模块跑真实 GIS 测试。
 
 ### live-short
 
@@ -78,7 +87,7 @@ python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0
 
 ~~~powershell
 python -m unittest discover -s tests -v
-python scripts\smoke_check.py
+python scripts\smoke_check.py --with-unit-tests
 python scripts\live_baseline.py --allow-network --backend local
 ~~~
 

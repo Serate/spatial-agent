@@ -128,10 +128,11 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 ## 测试与验证
 
-日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行少量核心契约样例和服务 smoke；`stage` 在此基础上增加严格全局离线评测：
+日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行 3 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；`stage` 在 `quick + smoke` 基础上增加严格全局离线评测：
 
 ~~~powershell
 python scripts\test_profile.py --profile quick
+python scripts\test_profile.py --profile smoke
 python scripts\test_profile.py --profile stage
 ~~~
 
@@ -152,7 +153,7 @@ python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0
 
 ~~~powershell
 python -m unittest discover -s tests -v
-python scripts\smoke_check.py
+python scripts\smoke_check.py --with-unit-tests
 python scripts\evaluate_global.py --strict
 ~~~
 

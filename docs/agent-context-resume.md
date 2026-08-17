@@ -284,10 +284,16 @@ feat: add openai planner local config
 & 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest discover -s tests -v
 ~~~
 
-Smoke check：
+Quick profile：
 
 ~~~powershell
-& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\smoke_check.py
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\test_profile.py --profile quick
+~~~
+
+Service smoke：
+
+~~~powershell
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\test_profile.py --profile smoke
 ~~~
 
 GIS 回归：
@@ -525,7 +531,7 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 - `agent/rule_planning.py` 中行政区边界查询、栅格元数据、空间总览和道路/水体约束建设筛选已改为模板编译路径；RuleBasedPlanner 只绑定 RequestFacts 到模板约束，不再为这些稳定 DAG 手写步骤。
 - Planner 内部自然语言 evidence 是软偏好，按模板支持项过滤；外部 workflow 选择仍保持严格校验。该问题已记录到中文开发问题日志。
 - 验证：M68/M69/M77 专项 32 项通过；`python scripts/test_profile.py --profile quick` 通过；`python scripts/smoke_check.py` 通过，内嵌离线全量 550 项通过、42 项跳过；服务 smoke 通过。
-- 新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`：后续默认用 `quick` / `stage` 做开发和阶段门禁；`quick` 已收敛为 5 个核心契约样例 + 服务 smoke，`gis-core` 只跑真实 GIS 抽样用例；真实模型和 Docker 分别使用 `live-short`、`docker` profile，不再默认跑完整 live 矩阵。
+- 新增 `scripts/test_profile.py` 和 `docs/test-strategy.md`：后续默认用 `quick` / `smoke` / `stage` 做分层门禁；`quick` 已进一步收敛为 3 个核心契约 tripwire，服务 smoke 独立为 `smoke` profile，`gis-core` 只跑真实 GIS 抽样用例；真实模型和 Docker 分别使用 `live-short`、`docker` profile，不再默认跑完整 live 矩阵。
 - 本轮真实验收已确认：GIS Python 全量 550 项通过、9 项跳过；使用 analysis-ready 配置的精简 live 两个代表 case 2/2 通过，token 合计约 6,939；未显式设置 analysis-ready 配置时 constrained case 会因 raw 栅格 `grid_mismatch` 被正确门控。
 - `git diff --check` 通过，仅有 Windows LF/CRLF 提示。
 
@@ -538,7 +544,7 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 3. 让前端/HTTP 能展示模板计划预览、工具 DAG、执行状态和 result lineage，而不是按工具名猜测结果类型。
 4. 增加离线脱敏回放和 planner 契约测试；默认 CI 不访问真实模型或私有数据。
 5. Docker/GIS/live 仍作为可选分层验收，不得替代离线契约测试。
-6. 测试策略继续保持 profile 化：日常只跑 5 个核心契约样例 + 服务 smoke 的 `quick`，阶段收口跑 `stage`，真实验收按改动范围选择抽样 `gis-core`、`live-short` 或 `docker`。完整 unittest/GIS/live 只按风险触发。
+6. 测试策略继续保持 profile 化：日常只跑 3 个核心契约 tripwire 的 `quick`，服务 smoke 按需跑 `smoke`，阶段收口跑 `stage`，真实验收按改动范围选择抽样 `gis-core`、`live-short` 或 `docker`。完整 unittest/GIS/live 只按风险触发。
 
 ## M81.4 当前完成状态：模板上下文与计划来源证据
 
@@ -549,6 +555,15 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 - 验证：M68/M77/M2 目标测试 53 项通过；`quick` 与 `stage` profile 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
 - 新增中文问题日志：上下文预算裁剪不能先丢模板契约。
 
+## M81.4.1 当前完成状态：测试入口再精简
+
+- `scripts/test_profile.py` 的默认 `quick` 已进一步收敛为 3 个核心契约 tripwire，不再包含服务 smoke。
+- 服务 smoke 独立为 `smoke` profile；`stage` 运行 `quick + smoke + strict global evaluation`。
+- `scripts/smoke_check.py` 默认只运行服务 smoke，完整 `unittest discover` 改为显式 `--with-unit-tests`。
+- `gis-core` 抽样从 4 个真实 GIS 用例降为 3 个，保留行政区、Rasterio metadata 和 analysis-ready 门控。
+- 验证：M81 profile/smoke 专项 6 项通过；`quick`、`smoke`、`stage` profile 均通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+- 新增中文问题日志：Smoke 默认嵌套全量测试会绕过 profile 分层。
+
 ## M81.5 下一阶段
 
-从项目整体看，下一阶段继续把 Planner 契约从“上下文可见”推进到“离线可验收”：增加脱敏 LLM 回放，验证真实模型计划匹配模板 allowlist、result type、DAG 和 result reference；同时让 HTTP/Console 验收覆盖 `plan_evidence`，并评估把 `spatial_analysis` 等复杂 composer 路径模板化。默认 `quick` 仍保持精简，不因新增专项回归膨胀。
+从项目整体看，下一阶段继续把 Planner 契约从“上下文可见”推进到“离线可验收”：增加脱敏 LLM 回放，验证真实模型计划匹配模板 allowlist、result type、DAG 和 result reference；同时让 HTTP/Console 验收覆盖 `plan_evidence`，并评估把 `spatial_analysis` 等复杂 composer 路径模板化。默认 `quick` 只保留 3 个核心 tripwire，不因新增专项回归膨胀。

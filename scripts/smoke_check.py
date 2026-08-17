@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import subprocess
@@ -16,9 +17,17 @@ ROAD_SLOPE_QUERY = "\u67e5\u8be2\u8ddd\u79bb\u4e3b\u5e72\u9053500\u7c73\u4ee5\u5
 DEM_METADATA_QUERY = "\u67e5\u8be2DEM\u6805\u683c\u5143\u6570\u636e"
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Run the Spatial Agent service smoke.")
+    parser.add_argument(
+        "--with-unit-tests",
+        action="store_true",
+        help="also run full unittest discovery before the service smoke",
+    )
+    args = parser.parse_args(argv)
+
     checks = []
-    if os.environ.get("SPATIAL_AGENT_SMOKE_NESTED") != "1":
+    if args.with_unit_tests and os.environ.get("SPATIAL_AGENT_SMOKE_NESTED") != "1":
         checks.append(_run_unit_tests())
     checks.append(_run_service_smoke())
     report = {

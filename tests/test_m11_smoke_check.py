@@ -20,6 +20,7 @@ class M11SmokeCheckTests(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "ok")
         self.assertTrue(all(check["ok"] for check in payload["checks"]))
+        self.assertEqual([check["name"] for check in payload["checks"]], ["agent_service_smoke"])
 
 
 if __name__ == "__main__":
