@@ -2679,3 +2679,17 @@ M88 之前，`vector_result`、`zonal_vector_summary_result` 和 `spatial_relati
 ### 处理与预防
 
 `result_contract.py` 新增 `vector` view：`range_query` 输出 `vector_query`，`get_zonal_vector_summary` 输出 `zonal_vector_summary`，`spatial_join` 输出 `spatial_relation`；只暴露有界 metrics、rows、分类 table 和 result_ref，不内联原始几何。Console 结构化结果区优先渲染 `resultViewPanels(data).vector` 和 `renderViewTable(view.table)`，没有 vector view 时才回退 JSON。后续 table/chart 也应先扩展 backend view model 和 result contract 测试，再让前端渲染结构化 payload，不能在页面端按工具名重建业务语义。
+
+## Artifact viewer 不能只渲染 view metrics
+
+### 现象
+
+M88 后 `result.views.panels.vector` 已经包含 `rows` 和 `table`，Console 能展示数据集、行政区和分类计数，但 artifact viewer 的 `Result Views` 区块仍只渲染 metrics/note。这样 artifact 虽然保留了 payload，却不能作为可复现展示面，用户打开 HTML 时仍看不到矢量分类表。
+
+### 根因
+
+Artifact viewer 是 Console 之外的独立展示入口。如果它只跟进 schema 名和 metric card，而没有通用 rows/table 渲染，就会让 `result.views` 的一部分展示语义只在浏览器 Console 生效，跨入口一致性不完整。
+
+### 处理与预防
+
+`agent/artifact_viewer.py` 增加通用 `_view_rows()` 和 `_view_table()`，对任意 panel 的 rows/table 做 HTML escape、行列裁剪和自包含渲染。M17 测试覆盖矢量分类 table 和 `<water>` escape。后续新增 chart 或更复杂 view payload 时，artifact viewer 也要同步消费同一 `result.views` contract，不能只在 Console 里实现可视化。

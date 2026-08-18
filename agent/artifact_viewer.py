@@ -35,8 +35,9 @@ h1 {{ margin:0 0 8px; font-size:28px; }} h2 {{ margin:0 0 14px; font-size:17px; 
 section {{ background:#fff; border:1px solid #d9e0e6; border-radius:8px; padding:20px; margin-top:16px; }}
 .prompt {{ font-size:18px; line-height:1.5; }} .answer {{ line-height:1.6; white-space:pre-wrap; }}
 .error {{ color:#a61b1b; white-space:pre-wrap; }}
-.view-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }}
-.metric {{ border:1px solid #e5e9ed; border-radius:8px; padding:12px; background:#f8fafc; }}
+.view-grid,.view-rows {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }}
+.metric,.view-row {{ border:1px solid #e5e9ed; border-radius:8px; padding:12px; background:#f8fafc; }}
+.view-row small {{ display:block; color:#5f6b76; margin-bottom:4px; }} .view-row b {{ word-break:break-word; }}
 .metric b {{ display:block; font-size:18px; margin-bottom:4px; }} .panel-kind {{ color:#5f6b76; font-size:12px; }}
 table {{ width:100%; border-collapse:collapse; }} th,td {{ text-align:left; padding:11px 10px; border-top:1px solid #e5e9ed; vertical-align:top; }} th {{ color:#5f6b76; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }}
 code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:0; padding-left:20px; line-height:1.7; }}
@@ -87,13 +88,17 @@ def _view_panel(panel_name: str, panel: Dict[str, Any]) -> str:
     kind = html.escape(str(panel.get("kind") or "unknown"))
     metrics = panel.get("metrics") if isinstance(panel.get("metrics"), list) else []
     metric_html = "".join(_metric_card(metric) for metric in metrics[:12])
+    row_html = _view_rows(panel.get("rows"))
+    table_html = _view_table(panel.get("table"))
     note = panel.get("note")
     note_html = '<p class="muted">{}</p>'.format(html.escape(str(note))) if note else ""
-    return '<article><h3>{}</h3><div class="panel-kind"><code>{}</code> · {}</div><div class="view-grid">{}</div>{}</article>'.format(
+    return '<article><h3>{}</h3><div class="panel-kind"><code>{}</code> · {}</div><div class="view-grid">{}</div>{}{}{}</article>'.format(
         title,
         name,
         kind,
         metric_html or '<div class="muted">No metrics</div>',
+        row_html,
+        table_html,
         note_html,
     )
 
@@ -104,6 +109,61 @@ def _metric_card(metric: Any) -> str:
     label = html.escape(str(metric.get("label") or "Metric"))
     value = html.escape(str(metric.get("value") if metric.get("value") is not None else "-"))
     return '<div class="metric"><b>{}</b><span>{}</span></div>'.format(value, label)
+
+
+def _view_rows(rows: Any) -> str:
+    if not isinstance(rows, list):
+        return ""
+    items = []
+    for row in rows[:16]:
+        if isinstance(row, dict):
+            label = row.get("label") or "Field"
+            value = row.get("value") if row.get("value") is not None else "-"
+        elif isinstance(row, (list, tuple)) and len(row) >= 2:
+            label, value = row[0], row[1]
+        else:
+            continue
+        items.append(
+            '<div class="view-row"><small>{}</small><b>{}</b></div>'.format(
+                html.escape(str(label))[:160],
+                html.escape(str(value))[:320],
+            )
+        )
+    return '<div class="view-rows">{}</div>'.format("".join(items)) if items else ""
+
+
+def _view_table(table: Any) -> str:
+    if not isinstance(table, dict):
+        return ""
+    rows = table.get("rows") if isinstance(table.get("rows"), list) else []
+    if not rows:
+        return ""
+    columns = table.get("columns") if isinstance(table.get("columns"), list) else []
+    normalized_rows = [_normalize_table_row(row) for row in rows[:50]]
+    column_count = min(12, max(len(columns), *(len(row) for row in normalized_rows)))
+    if column_count <= 0:
+        return ""
+    if not columns:
+        columns = ["Column {}".format(index + 1) for index in range(column_count)]
+    header = "".join("<th>{}</th>".format(html.escape(str(col))[:160]) for col in columns[:column_count])
+    body = "".join(
+        "<tr>{}</tr>".format(
+            "".join(
+                "<td>{}</td>".format(html.escape(str(row[index] if index < len(row) else "-"))[:320])
+                for index in range(column_count)
+            )
+        )
+        for row in normalized_rows
+    )
+    return '<table><thead><tr>{}</tr></thead><tbody>{}</tbody></table>'.format(header, body)
+
+
+def _normalize_table_row(row: Any) -> list[Any]:
+    if isinstance(row, dict):
+        return list(row.values())[:12]
+    if isinstance(row, (list, tuple)):
+        return list(row)[:12]
+    return [row]
 
 
 def _step_row(step: Any) -> str:

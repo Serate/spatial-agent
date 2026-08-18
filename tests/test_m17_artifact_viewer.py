@@ -72,6 +72,45 @@ class M17ArtifactViewerTests(unittest.TestCase):
         self.assertIn("文件数", html)
         self.assertIn("EPSG:4326", html)
 
+    def test_render_uses_view_rows_and_table_payloads(self):
+        html = render_artifact_html(
+            {
+                "run_id": "run-vector-table",
+                "status": "COMPLETED",
+                "request": "统计道路类型",
+                "plan": {"goal": "summarize vector data"},
+                "result": {
+                    "views": {
+                        "schema_version": "spatial-agent.views.v1",
+                        "panels": {
+                            "vector": {
+                                "kind": "zonal_vector_summary",
+                                "title": "区域矢量摘要",
+                                "metrics": [{"label": "相交要素", "value": 12}],
+                                "rows": [
+                                    {"label": "数据集", "value": "roads"},
+                                    {"label": "行政区", "value": "洪山区"},
+                                ],
+                                "table": {
+                                    "columns": ["类别", "数量"],
+                                    "rows": [["primary", 7], ["<water>", 5]],
+                                },
+                            }
+                        },
+                    }
+                },
+                "steps": [],
+                "trace_summary": [],
+            }
+        )
+
+        self.assertIn("数据集", html)
+        self.assertIn("roads", html)
+        self.assertIn("类别", html)
+        self.assertIn("primary", html)
+        self.assertNotIn("<water>", html)
+        self.assertIn("&lt;water&gt;", html)
+
 
 if __name__ == "__main__":
     unittest.main()

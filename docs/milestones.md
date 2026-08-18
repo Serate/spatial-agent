@@ -1980,3 +1980,24 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 视角规划 M89，继续把 table/chart 通用展示 payload 下沉到 `result.views`，不要回到页面端按工具名拼内容。
 2. 补齐 artifact viewer 对 table payload 的结构化渲染，让 artifact 成为可复现展示面，而不是只显示 metric 摘要。
 3. 在通用 view contract 稳定后，安排小型真实 GIS + live LLM + Docker acceptance，验证真实模型、真实数据和生产入口都保留 planning/lineage/degradation/workspace/views。
+
+## M89：Artifact Viewer 渲染 Rows/Table View（已完成）
+
+### 实现内容
+
+- `agent/artifact_viewer.py` 的 `Result Views` 区块通用渲染 view `rows` 和 `table` payload，不再只显示 metrics/note。
+- rows/table 渲染保持自包含、dependency-free，并继续做 HTML escape、行列数量裁剪和长文本裁剪。
+- 新增 M17 测试覆盖矢量分类 table、rows 和 HTML escape，确保 artifact 展示能力跟上 Console 的 `result.views` payload。
+
+### 验收证据
+
+- M17 artifact viewer 目标测试 4 项通过。
+- M17/M46/M79/M81 相关回归 30 项通过，覆盖 artifact viewer、result envelope、Console 静态契约和跨入口一致性 Harness。
+- Python 编译、quick profile、stage profile、production acceptance PowerShell parser 和 `git diff --check` 均通过；diff check 仅有 Windows LF/CRLF 提示。
+- 阶段默认验证保持离线；真实 Docker/GIS/live LLM 仍作为后续显式 acceptance。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 展示短板重新规划 M90：在 chart view contract、真实 GIS/live LLM/Docker 小型 acceptance、前端结果区体验之间排序。
+2. 保持原则：新增展示能力先扩展 backend `result.views` 和跨入口证据，再让 Console/artifact 渲染；不回到页面端按工具名推断业务语义。
+3. 默认 quick/stage 继续离线；真实 GIS、Docker 和 live LLM 只作为显式 acceptance 路径。

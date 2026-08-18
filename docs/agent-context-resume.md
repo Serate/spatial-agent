@@ -682,3 +682,7 @@ M88 已完成矢量结果 view contract：`result_contract.py` 在 `spatial-agen
 M88 验证：M46/M79 目标测试 17 项通过；M17/M46/M79/M81/M76/M66 相关回归 42 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage 和 production acceptance PowerShell parser 均通过。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
 
 下一阶段 M89 需要先做全局盘点：继续把 table/chart 通用展示 payload 下沉到 `result.views`，补齐 artifact viewer 对 table payload 的渲染，并在 result envelope 稳定后做小型真实 GIS + live LLM + Docker acceptance。
+
+M89 已完成 artifact viewer 的 rows/table view 渲染：`agent/artifact_viewer.py` 的 `Result Views` 区块通用渲染 view `rows` 和 `table` payload，保留 HTML escape、行列裁剪和自包含样式。新增 M17 测试覆盖矢量分类 table、rows 和 HTML escape。M17 目标测试 4 项通过；M17/M46/M79/M81 相关回归 30 项通过。
+
+M89 验证：Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。下一阶段规划要从全局 Agent Runtime 展示短板出发，在 chart view contract 与真实 GIS/live LLM/Docker 小型 acceptance 之间排序。
