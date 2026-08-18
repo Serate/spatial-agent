@@ -71,6 +71,8 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("sync_degradation_status", script)
         self.assertIn("sync_workspace_panels", script)
         self.assertIn("sync_view_panels", script)
+        self.assertIn("$viewPanelNames", script)
+        self.assertIn("IsNullOrWhiteSpace", script)
         self.assertIn("export_artifact = $true", script)
         self.assertIn("/artifacts/runs/", script)
         self.assertIn("sync_selected_capability", script)

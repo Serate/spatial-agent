@@ -2707,3 +2707,31 @@ M90 之前，阈值对比、多区域对比和道路距离约束对比的 endpoi
 ### 处理与预防
 
 新增 `build_comparison_views()`，由后端统一生成 `views.panels.chart`，包含 `kind=comparison_chart`、`chart_type=bar`、`encodings`、有界 `series.points`、`table` 和 `metrics`。三个 comparison service 返回同一 views schema；Console 优先渲染 chart view，旧 rows 表格只做 fallback；artifact viewer 同步渲染 chart series。后续新增任何趋势图、敏感性图或矩阵图，都应先扩展 backend view model 和测试，再让展示入口消费该 payload。
+
+## 生产验收不能把空 view panel 误判为契约错误
+
+### 现象
+
+M91 运行 Docker production acceptance 时，同步内存 admin boundary 请求返回 `COMPLETED`，但 `result.workspace.panels` 与 `result.views.panels` 都为空。旧 `Assert-ViewEvidence` 遍历 PowerShell `PSObject.Properties.Name` 时得到空属性名，随后报错 `sync run view panel not declared by workspace:`。
+
+### 根因
+
+空 `views.panels` 是合法结果：有些内存演示后端或降级路径没有可展示的结果专属 panel，只保留 answer、trace、planning、degradation 等通用证据。生产验收脚本把 PowerShell 的空属性名当成真实 panel 名，等价于在验收层制造了一个不存在的业务契约。
+
+### 处理与预防
+
+`production_acceptance.ps1` 先用 `IsNullOrWhiteSpace` 过滤 `$viewPanelNames`，再验证每个非空 view panel 是否出现在 `result.workspace.panels`；验收摘要 `sync_view_panels` 同样过滤空名。`tests/test_m66_data_volume.py` 增加静态门禁。后续生产验收只能拒绝“存在但未声明”的 view panel，不能要求每个结果都必须有专属 view panel，更不能为了脚本通过让后端伪造空展示面板。
+
+## PowerShell 中文 JSON 请求体会影响生产手工验收
+
+### 现象
+
+M91 手工验证生产 `/runs` 时，直接在 PowerShell 字符串里写 `查询洪山区行政区边界` 曾导致请求进入后端后变成 mojibake，Planner 无法识别行政区和任务意图，返回 `NEEDS_CLARIFICATION`。同一请求改用 JSON unicode escape 后正常返回 `admin_area_result`、GeoJSON/map view 和 1 个行政区要素。
+
+### 根因
+
+问题发生在手工 CLI 请求构造层，不是 Planner、ToolRegistry 或 GIS backend 的语义错误。Windows PowerShell、控制台代码页和 JSON body 编码不一致时，中文请求在到达 HTTP 服务前已经被破坏；如果把这种结果当作模型或规则 Planner 问题，会误导后续修复方向。
+
+### 处理与预防
+
+生产手工验收中文请求优先使用 JSON unicode escape，或显式用 UTF-8 编码构造请求体。文档和验收记录必须区分“编码导致的输入损坏”和“Planner 不能理解请求”。后续若新增 CLI/API smoke 脚本，应统一提供 UTF-8-safe 的请求构造函数，而不是在每个手工命令里直接拼中文 JSON。

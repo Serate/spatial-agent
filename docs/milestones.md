@@ -2023,3 +2023,25 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 角度规划 M91：优先做小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致。
 2. MCP 暂不进入核心 Runtime seam；后续如工具来源继续增长，应作为 `MCPToolProvider` adapter 接入 ToolRegistry，而不是替代 ToolRegistry/CapabilityCatalog/WorkflowTemplate。
 3. 若真实 acceptance 暂时受环境阻塞，则先补显式 ToolProvider adapter 设计文档和接口测试，不能回到单工具堆规则。
+
+## M91：真实入口小型 Acceptance 与 View 验收修复（已完成）
+
+### 实现内容
+
+- `scripts/production_acceptance.ps1` 的 `Assert-ViewEvidence` 过滤空 view panel 名，避免把合法空 `views.panels` 误判为“未由 workspace 声明的 panel”。
+- 验收摘要中的 `sync_view_panels` 同样过滤空属性名，保留真实契约：非空 view panel 必须出现在 `result.workspace.panels` 中。
+- `tests/test_m66_data_volume.py` 增加静态门禁，防止生产验收脚本回退到未过滤空 panel 名的实现。
+
+### 验收证据
+
+- `tests.test_m66_data_volume` 6 项通过（1 项 live Docker acceptance 按环境门控跳过）。
+- production acceptance PowerShell parser 通过。
+- Docker production acceptance 通过：liveness ok、readiness ready、runtime/data/core/optional health 均 ready、核心/可选缺失数据集为空、同步运行 `COMPLETED`、artifact 可用、异步运行 `COMPLETED`、重复提交幂等为 true。
+- 真实本地 GIS 生产抽样通过：`查询洪山区行政区边界` 返回 `admin_area_result`，GeoJSON/map view 可用，`feature_count=1`。
+- 真实 LLM 生产抽样通过：`planner=openai` 的 `查询DEM栅格元数据` 返回 `raster_metadata_result`，1 个工具步骤，`workspace.panels=[raster,map]`，`views.panels=[raster,map]`。
+
+### 下一阶段规划
+
+1. 从项目整体规划 M92：工具数量增长后，优先深化 ToolRegistry/ToolProvider 接口，而不是把 MCP 放进核心 Runtime seam。
+2. 设计 `ToolProvider` 抽象：内置工具先作为 `NativeToolProvider`，未来 `MCPToolProvider` 只负责把外部工具转成 ToolRegistry 可校验定义。
+3. 验收重点放在 schema 校验、参数校验、权限/数据依赖、统一 dispatch、trace、degradation、workspace/views 和 artifact 一致性，避免工具来源变多后重新分散业务契约。

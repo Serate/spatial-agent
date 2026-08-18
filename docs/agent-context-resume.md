@@ -690,3 +690,13 @@ M89 验证：Python 编译、quick、stage、production acceptance PowerShell pa
 M90 已完成对比图 chart view contract：`result_contract.py` 新增 `build_comparison_views()`，阈值对比、多区域对比和道路距离约束对比统一返回 `spatial-agent.views.v1` 的 `chart` panel，包含 metrics、bar chart series、encodings、table 和 note。Console 的 comparison 面板优先渲染 `resultViewPanels(data).chart` / `renderChartView(view)`，旧 rows 表格仅作兼容 fallback；artifact viewer 同步渲染 `comparison_chart` series。M46/M57/M79/M17 目标测试 29 项通过；M17/M46/M57/M79/M81/M76/M66 相关回归 51 项通过（1 项 live Docker acceptance 跳过）。
 
 M90 验证：Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。下一阶段应优先做小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致；MCP 只作为未来 ToolProvider adapter 方向，不替代 ToolRegistry 核心 seam。
+
+## M91 当前完成状态
+
+M91 已完成小型真实入口验收。Docker production 容器使用当前代码和 `.env.production` 重建后 healthy，`scripts/production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088` 通过；验收摘要为 liveness ok、readiness ready、runtime/data/core/optional health 均 ready、核心/可选缺失数据集为空、同步运行 `COMPLETED`、artifact 可用、异步运行 `COMPLETED`、重复提交幂等为 true。生产验收脚本修复了空 view panel 误判：`views.panels` 为空是合法状态，脚本现在过滤空属性名后只校验非空 view panel 是否由 workspace 声明。
+
+真实本地 GIS 抽样通过：生产 `/runs` 请求 `查询洪山区行政区边界`（rule planner + local backend + artifact/GeoJSON）返回 `admin_area_result`，`geometry.available=true`、`feature_count=1`、`workspace.panels=[map]`，`views.panels.map.kind=map` 且 `mode=geojson`。真实 LLM 抽样通过：`planner=openai` 请求 `查询DEM栅格元数据` 返回 `COMPLETED`、`raster_metadata_result`、1 个工具步骤、`workspace.panels=[raster,map]`、`views.panels=[raster,map]`，不输出任何密钥或私有配置。
+
+M91 验证：`tests.test_m66_data_volume` 6 项通过（1 项 live Docker acceptance 按门控跳过），production acceptance PowerShell parser 通过，Docker production acceptance 通过。PowerShell 直接写中文 JSON 请求体可能产生 mojibake，后续 CLI/生产手工验收优先使用 JSON unicode escape 或显式 UTF-8 body。
+
+下一阶段 M92 需要从全局 Agent Runtime 视角规划工具管理深化：保留 ToolRegistry 作为核心执行 seam，抽象 `ToolProvider` 以支持内置工具和未来 MCP adapter；MCP 只能作为外部工具来源适配层接入 ToolRegistry/CapabilityCatalog/WorkflowTemplate，不能替代 schema 校验、dispatch、trace、degradation、workspace 和 views 契约。

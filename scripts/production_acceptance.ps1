@@ -229,7 +229,8 @@ function Assert-ViewEvidence($payload, [string]$surface) {
     throw "$surface views panels missing"
   }
   $workspacePanels = @($payload.result.workspace.panels)
-  foreach ($panel in @($views.panels.PSObject.Properties.Name)) {
+  $viewPanelNames = @($views.panels.PSObject.Properties.Name | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+  foreach ($panel in $viewPanelNames) {
     if ($panel -notin $workspacePanels) {
       throw "$surface view panel not declared by workspace: $panel"
     }
@@ -363,7 +364,7 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   sync_artifact_available = -not [string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)
   sync_degradation_status = $syncRun.result.degradation.status
   sync_workspace_panels = @($syncRun.result.workspace.panels)
-  sync_view_panels = @($syncRun.result.views.panels.PSObject.Properties.Name)
+  sync_view_panels = @($syncRun.result.views.panels.PSObject.Properties.Name | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
   invalid_request_status = $invalid.status_code
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status
