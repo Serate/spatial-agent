@@ -217,6 +217,25 @@ function Assert-WorkspaceEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-ViewEvidence($payload, [string]$surface) {
+  if ($null -eq $payload.result -or $null -eq $payload.result.views) {
+    throw "$surface result views envelope missing"
+  }
+  $views = $payload.result.views
+  if ($views.schema_version -ne "spatial-agent.views.v1") {
+    throw "$surface views schema mismatch: $($views.schema_version)"
+  }
+  if ($null -eq $views.panels) {
+    throw "$surface views panels missing"
+  }
+  $workspacePanels = @($payload.result.workspace.panels)
+  foreach ($panel in @($views.panels.PSObject.Properties.Name)) {
+    if ($panel -notin $workspacePanels) {
+      throw "$surface view panel not declared by workspace: $panel"
+    }
+  }
+}
+
 $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
 $capabilityCatalog = Get-Json "$BaseUrl/capabilities"
@@ -262,6 +281,7 @@ if ($syncRun.plan_evidence.plan_fingerprint_match -ne $true) {
 Assert-PlanningEvidence $syncRun "sync run"
 Assert-DegradationEvidence $syncRun "sync run"
 Assert-WorkspaceEvidence $syncRun "sync run"
+Assert-ViewEvidence $syncRun "sync run"
 if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
   throw "sync run artifact_ref missing"
 }
@@ -284,6 +304,12 @@ if ($null -eq $artifact.result -or $null -eq $artifact.result.workspace) {
 }
 if ($artifact.result.workspace.schema_version -ne $syncRun.result.workspace.schema_version) {
   throw "artifact workspace schema mismatch"
+}
+if ($null -eq $artifact.result.views) {
+  throw "artifact views evidence missing"
+}
+if ($artifact.result.views.schema_version -ne $syncRun.result.views.schema_version) {
+  throw "artifact views schema mismatch"
 }
 
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
@@ -337,6 +363,7 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   sync_artifact_available = -not [string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)
   sync_degradation_status = $syncRun.result.degradation.status
   sync_workspace_panels = @($syncRun.result.workspace.panels)
+  sync_view_panels = @($syncRun.result.views.panels.PSObject.Properties.Name)
   invalid_request_status = $invalid.status_code
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status

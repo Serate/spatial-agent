@@ -88,6 +88,80 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertIn("数据来源", [item["label"] for item in overview["metrics"]])
         self.assertEqual(result["views"]["panels"]["map"]["mode"], "geojson")
 
+    def test_view_model_summarizes_complex_result_panels(self):
+        from result_contract import build_result_contract
+
+        health = build_result_contract({
+            "run_id": "health-view",
+            "status": "COMPLETED",
+            "result_type": "dataset_health_result",
+            "answer": "已完成",
+            "steps": [
+                {
+                    "id": "health",
+                    "tool": "get_dataset_health_report",
+                    "status": "COMPLETED",
+                    "result": {
+                        "status": "degraded",
+                        "core_status": "ready",
+                        "optional_status": "degraded",
+                        "warning": "道路数据缺失",
+                        "datasets": [
+                            {"dataset": "dem", "status": "ready", "file_count": 2, "usable_for": ["get_raster_statistics"]},
+                            {"dataset": "roads", "status": "degraded", "feature_count": 0, "checks": [{"status": "warning", "message": "empty"}]},
+                        ],
+                    },
+                }
+            ],
+        })
+        health_view = health["views"]["panels"]["health"]
+        self.assertEqual(health_view["kind"], "dataset_health")
+        self.assertIn("核心数据", [item["label"] for item in health_view["metrics"]])
+        self.assertEqual(len(health_view["rows"]), 2)
+
+        composite = build_result_contract({
+            "run_id": "composite-view",
+            "status": "COMPLETED",
+            "result_type": "spatial_analysis_result",
+            "answer": "已完成",
+            "steps": [
+                {"id": "elevation", "tool": "get_zonal_raster_statistics", "status": "COMPLETED", "result": {"dataset": "dem", "statistics": {"mean": 42}}},
+                {"id": "slope", "tool": "get_zonal_slope_statistics", "status": "COMPLETED", "result": {"dataset": "slope", "statistics": {"mean": 12}}},
+                {"id": "land", "tool": "get_zonal_land_use_distribution", "status": "COMPLETED", "result": {"dataset": "land_use", "statistics": {"category_count": 3, "categories": [{"value": 11, "share": 0.7}]}}},
+            ],
+        })
+        composite_view = composite["views"]["panels"]["composite"]
+        self.assertEqual(composite_view["kind"], "spatial_composite")
+        self.assertIn("坡度均值（度）", [item["label"] for item in composite_view["metrics"]])
+        self.assertEqual(composite_view["categories"][0]["value"], 11)
+
+        buildability = build_result_contract({
+            "run_id": "buildability-view",
+            "status": "COMPLETED",
+            "result_type": "constrained_buildability_result",
+            "answer": "已完成",
+            "steps": [
+                {
+                    "id": "buildability",
+                    "tool": "get_zonal_buildability_analysis",
+                    "status": "COMPLETED",
+                    "result": {
+                        "statistics": {
+                            "candidate_ratio": 0.25,
+                            "candidate_pixel_count": 120,
+                            "valid_pixel_count": 480,
+                            "slope_limit_degrees": 20,
+                        },
+                        "rules": {"warning": "演示筛选"},
+                    },
+                }
+            ],
+        })
+        buildability_view = buildability["views"]["panels"]["buildability"]
+        self.assertEqual(buildability_view["kind"], "buildability_screening")
+        self.assertIn("候选像元比例", [item["label"] for item in buildability_view["metrics"]])
+        self.assertEqual(buildability_view["coverage"]["candidate_ratio"], 0.25)
+
     def test_workspace_contract_covers_all_catalog_result_types(self):
         from agent.capability_catalog import capability_catalog
         from result_contract import build_result_contract

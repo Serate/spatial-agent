@@ -236,6 +236,15 @@ def _view_model(
     overview_view = _overview_view(steps, geometry_evidence)
     if overview_view and ("overview" in workspace_panels or result_type == "spatial_overview_result"):
         panels["overview"] = overview_view
+    health_view = _health_view(steps)
+    if health_view and "health" in workspace_panels:
+        panels["health"] = health_view
+    composite_view = _composite_view(steps)
+    if composite_view and "composite" in workspace_panels:
+        panels["composite"] = composite_view
+    buildability_view = _buildability_view(steps)
+    if buildability_view and "buildability" in workspace_panels:
+        panels["buildability"] = buildability_view
     map_view = _map_view(steps, geometry_evidence, geojson_ref)
     if map_view and ("map" in workspace_panels or map_view.get("mode") != "none"):
         panels["map"] = map_view
@@ -430,6 +439,157 @@ def _map_view(
                 "reason": "工具结果包含栅格范围，可绘制覆盖范围预览。",
             }
     return None
+
+
+def _health_view(steps: List[Any]) -> Dict[str, Any] | None:
+    step, result = _first_step_result(steps, tool="get_dataset_health_report")
+    if not result:
+        return None
+    labels = {
+        "ready": "可用",
+        "degraded": "部分可用",
+        "unavailable": "不可用",
+        "warning": "警告",
+        "unknown": "未知",
+    }
+    rows = []
+    for item in result.get("datasets") or []:
+        if not isinstance(item, dict):
+            continue
+        count = ""
+        if item.get("feature_count") is not None:
+            count = "{} 个要素".format(item.get("feature_count"))
+        elif item.get("file_count") is not None:
+            count = "{} 个文件".format(item.get("file_count"))
+        details = []
+        for check in item.get("checks") or []:
+            if isinstance(check, dict) and check.get("status") != "passed" and check.get("message"):
+                details.append(str(check["message"]))
+        if not details:
+            details.append("基础检查通过")
+        usable_for = [str(tool) for tool in (item.get("usable_for") or [])[:8]]
+        rows.append({
+            "dataset": item.get("dataset"),
+            "status": item.get("status") or item.get("quality") or "unknown",
+            "status_label": labels.get(str(item.get("status") or item.get("quality") or "unknown"), str(item.get("status") or item.get("quality") or "未知")),
+            "count": count,
+            "detail": "；".join(details[:3])[:240],
+            "usable_for": usable_for,
+        })
+    relationships = result.get("relationships") if isinstance(result.get("relationships"), dict) else {}
+    alignment = relationships.get("dem_land_use") if isinstance(relationships.get("dem_land_use"), dict) else None
+    return {
+        "kind": "dataset_health",
+        "source_step_id": step.get("id") if step else None,
+        "source_tool": step.get("tool") if step else None,
+        "title": "数据健康检查",
+        "status": result.get("status") or "unknown",
+        "metrics": [
+            _view_metric("整体状态", labels.get(str(result.get("status") or "unknown"), result.get("status") or "未知")),
+            _view_metric("核心数据", labels.get(str(result.get("core_status") or "unknown"), result.get("core_status") or "未检查")),
+            _view_metric("可选数据", labels.get(str(result.get("optional_status") or "unknown"), result.get("optional_status") or "未检查")),
+            _view_metric("数据集", len(rows)),
+        ],
+        "rows": rows[:40],
+        "alignment": {
+            "label": "DEM/土地利用覆盖关系",
+            "status": alignment.get("status") if alignment else None,
+            "status_label": labels.get(str(alignment.get("status")) if alignment else "unknown", str(alignment.get("status")) if alignment else "未知"),
+            "overlapping_pairs": alignment.get("overlapping_pairs") if alignment else None,
+        } if alignment else None,
+        "note": str(result.get("warning") or "健康检查不代表数据的法定权威性。")[:320],
+    }
+
+
+def _composite_view(steps: List[Any]) -> Dict[str, Any] | None:
+    _, elevation = _first_step_result(steps, tool="get_zonal_raster_statistics")
+    _, slope = _first_step_result(steps, tool="get_zonal_slope_statistics")
+    _, land = _first_step_result(steps, tool="get_zonal_land_use_distribution")
+    elevation_stats = elevation.get("statistics") if isinstance(elevation.get("statistics"), dict) else {}
+    slope_stats = slope.get("statistics") if isinstance(slope.get("statistics"), dict) else {}
+    land_stats = land.get("statistics") if isinstance(land.get("statistics"), dict) else {}
+    if not elevation_stats and not slope_stats and not land_stats:
+        return None
+    metrics = []
+    if elevation_stats and not elevation_stats.get("error"):
+        metrics.append(_view_metric("高程均值（米）", elevation_stats.get("mean")))
+    if slope_stats and not slope_stats.get("error"):
+        metrics.append(_view_metric("坡度均值（度）", slope_stats.get("mean")))
+    if land_stats and not land_stats.get("error"):
+        metrics.append(_view_metric("土地利用类别", land_stats.get("category_count", len(land_stats.get("categories") or []))))
+    categories = []
+    for item in (land_stats.get("categories") or [])[:12]:
+        if not isinstance(item, dict):
+            continue
+        categories.append({
+            "value": item.get("value"),
+            "label": "{} 类".format(item.get("value")),
+            "share": item.get("share"),
+            "count": item.get("count"),
+        })
+    return {
+        "kind": "spatial_composite",
+        "title": "综合空间分析",
+        "metrics": metrics,
+        "categories": categories,
+        "note": "土地利用类别按栅格编码统计，未对编码进行人为语义映射。" if categories else "综合分析结果由高程、坡度与土地利用步骤汇总生成。",
+    }
+
+
+def _buildability_view(steps: List[Any]) -> Dict[str, Any] | None:
+    step, result = _first_step_result(steps, tool="get_zonal_buildability_analysis")
+    if not result:
+        for candidate_step in steps:
+            if not isinstance(candidate_step, dict):
+                continue
+            candidate = candidate_step.get("result") if isinstance(candidate_step.get("result"), dict) else {}
+            statistics = candidate.get("statistics") if isinstance(candidate.get("statistics"), dict) else {}
+            if "candidate_ratio" in statistics or "candidate_pixel_count" in statistics:
+                step, result = candidate_step, candidate
+                break
+    if not result:
+        return None
+    statistics = result.get("statistics") if isinstance(result.get("statistics"), dict) else {}
+    if statistics.get("error"):
+        return {
+            "kind": "buildability_screening",
+            "source_step_id": step.get("id") if step else None,
+            "source_tool": step.get("tool") if step else None,
+            "title": "建设适宜性筛选",
+            "error": str(statistics.get("error"))[:320],
+            "metrics": [],
+        }
+    ratio = statistics.get("candidate_ratio")
+    try:
+        ratio_display = "{:.2f}%".format(float(ratio) * 100)
+    except (TypeError, ValueError):
+        ratio_display = "-"
+    return {
+        "kind": "buildability_screening",
+        "source_step_id": step.get("id") if step else None,
+        "source_tool": step.get("tool") if step else None,
+        "title": "建设适宜性筛选",
+        "metrics": [
+            _view_metric("候选像元比例", ratio_display),
+            _view_metric("候选像元", statistics.get("candidate_pixel_count", 0)),
+            _view_metric("坡度阈值", "{}°".format(statistics.get("slope_limit_degrees")) if statistics.get("slope_limit_degrees") is not None else "-"),
+        ],
+        "coverage": {
+            "candidate_ratio": ratio,
+            "candidate_pixel_count": statistics.get("candidate_pixel_count", 0),
+            "valid_pixel_count": statistics.get("valid_pixel_count", 0),
+        },
+        "note": str((result.get("rules") or {}).get("warning") or "仅用于演示筛选，不代表规划许可结论。")[:320] if isinstance(result.get("rules"), dict) else "仅用于演示筛选，不代表规划许可结论。",
+    }
+
+
+def _first_step_result(steps: List[Any], *, tool: str) -> tuple[Dict[str, Any] | None, Dict[str, Any]]:
+    for step in steps:
+        if not isinstance(step, dict) or step.get("tool") != tool:
+            continue
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        return step, result
+    return None, {}
 
 
 def _bounds_from_result(result: Dict[str, Any]) -> List[float] | None:

@@ -58,13 +58,22 @@ class M79ResultZoneContractTests(unittest.TestCase):
             "function resultViewPanels(data)",
             "const view=resultViewPanels(data).raster",
             "const view=resultViewPanels(data).overview",
+            "const view=resultViewPanels(data).health",
+            "const view=resultViewPanels(data).composite",
+            "const view=resultViewPanels(data).buildability",
             "renderMetricGrid(view.metrics||[])",
             "view.kind==='raster_metadata'",
             "view.kind==='spatial_overview'",
+            "view.kind==='dataset_health'",
+            "view.kind==='spatial_composite'",
+            "view.kind==='buildability_screening'",
         ):
             self.assertIn(marker, self.html)
         self.assertNotIn("const steps=data.steps||[]; const datasets=new Set()", self.html)
         self.assertNotIn("map(s=>s.result||{}).find(x=>x.statistics||x.metadata)", self.html)
+        self.assertNotIn("const find=tool=>((data.steps||[]).find(s=>s.tool===tool)||{}).result||{}", self.html)
+        self.assertNotIn("find(s=>s.tool==='get_dataset_health_report')", self.html)
+        self.assertNotIn("find(s=>s.tool==='get_zonal_buildability_analysis')", self.html)
 
     def test_backend_workspace_contract_covers_all_catalog_result_types(self):
         import json

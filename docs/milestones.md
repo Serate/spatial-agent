@@ -1898,3 +1898,25 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 视角规划 M85，优先补齐剩余复杂面板的 backend view model，包括 health、composite、buildability、vector/table/chart，而不是继续在前端按工具结果写分支。
 2. 将 `views` 纳入 artifact、HTTP run detail、session recovery 和 production acceptance 的结构化证据，确保 CLI/API/Console 看到同一套展示数据。
 3. 在 `workspace/degradation/planning/lineage/views` 五类 result envelope 证据稳定后，再安排一个小型真实 GIS + live LLM + Docker acceptance，验证真实模型和真实数据路径没有回退。
+
+## M85：复杂结果面板 View Model 收敛（已完成）
+
+### 实现内容
+
+- `result.views.panels` 扩展 `dataset_health`、`spatial_composite` 和 `buildability_screening` 三类 view model，把健康检查、综合分析和建设筛选的 metrics、rows、categories、coverage、note 都收敛到后端 result contract。
+- Console 的 `healthStats`、`compositeStats` 和 `buildabilityStats` 改为消费 `resultViewPanels(data)`，删除按工具名扫描 `steps` 的页面端业务聚合；前端只负责渲染后端 view payload。
+- `production_acceptance.ps1` 新增 `Assert-ViewEvidence`，检查同步响应和 artifact 都包含 `spatial-agent.views.v1`，并验证 view panel 不越过 workspace 声明。
+- M46/M79/M66 静态契约测试覆盖复杂面板 view model、前端去工具名扫描和生产验收 views schema。
+
+### 验收证据
+
+- M46/M79 目标测试 16 项通过。
+- M46/M79/M81/M76/M66 相关回归 38 项通过（1 项 live Docker acceptance 跳过），覆盖 result envelope、Console 静态契约、artifact/recovery、production acceptance 静态门禁。
+- Python 编译、quick profile、stage profile、production acceptance PowerShell parser 和 `git diff --check` 均通过；diff check 仅有 Windows LF/CRLF 提示。
+- 阶段默认验证保持离线；真实 Docker/GIS/live LLM 仍作为后续显式 acceptance。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 视角规划 M86，不再围绕页面局部追加指标；优先补 `views` 在 artifact/run detail/session recovery 的跨入口一致性 Harness，并检查 CLI/HTTP/Console 对同一复杂请求的 view panels 是否一致。
+2. 评估 vector/table/chart 通用 view contract，避免为每种 GIS 结果写新的 DOM 专用分支。
+3. 在 result envelope 五类证据稳定后，安排小型真实 GIS + live LLM + Docker acceptance，验证真实模型、真实数据和生产入口都保留 planning/lineage/degradation/workspace/views。

@@ -881,3 +881,9 @@ M84 已完成后端结果视图模型契约：`result_contract.py` 输出 `spati
 M84 验证：M46/M79 目标测试 15 项通过；M46/M79/M81/M76/M66 相关回归 37 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage 和 `git diff --check` 通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
 
 下一阶段 M85 需要先做全局盘点：优先把 health、composite、buildability、vector/table/chart 等剩余复杂面板继续下沉到 backend view model，并把 `views` 纳入 artifact、HTTP run detail、session recovery 和 production acceptance 证据。等 `workspace/degradation/planning/lineage/views` 五类 result envelope 证据稳定后，再做小型真实 GIS + live LLM + Docker acceptance。
+
+M85 已完成复杂结果面板 view model 收敛：`result.views.panels` 扩展 `dataset_health`、`spatial_composite` 和 `buildability_screening`，把健康检查、综合分析和建设筛选的 metrics、rows、categories、coverage、note 下沉到后端 result contract。Console 的 `healthStats`、`compositeStats` 和 `buildabilityStats` 改为消费 `resultViewPanels(data)`，删除按工具名扫描 `steps` 的页面端业务聚合。`production_acceptance.ps1` 新增 `Assert-ViewEvidence`，同步响应和 artifact 都必须包含 `spatial-agent.views.v1`，且 view panel 不能越过 workspace 声明。
+
+M85 验证：M46/M79 目标测试 16 项通过；M46/M79/M81/M76/M66 相关回归 38 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。
+
+下一阶段 M86 需要先做全局盘点：优先补 `views` 在 CLI/HTTP/artifact/run detail/session recovery/Console 的跨入口一致性 Harness，并评估 vector/table/chart 通用 view contract。真实 GIS、live LLM 和 Docker production acceptance 仍作为显式验收路径。
