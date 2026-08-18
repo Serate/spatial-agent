@@ -863,3 +863,9 @@ M82.3 已完成 CLI/HTTP/artifact/session 跨入口 Harness：`run_demo.py` 改�
 M82.4 已完成生产入口 M82 证据门禁：`scripts/production_acceptance.ps1` 新增 `Assert-PlanningEvidence`，同步生产运行现在检查 `capability_discovery`、`capability_catalog`、选中能力、候选能力、能力目录后端和 plan identity 在 `plan_evidence` / `result.planning` / artifact 中一致；同步运行启用 `export_artifact=true` 并读取 `/artifacts/runs/{name}` 校验 artifact 证据。目标测试 16 项通过（2 项 live Docker / FastAPI 跳过），PowerShell parser、quick、stage、编译和 diff check 通过。
 
 下一步从项目整体继续：进入真实数据降级矩阵（空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断），并把降级结果接入 result envelope / answer / trace 的一致性 Harness。当前并发度为 1，默认 quick/stage 不访问网络，真实 GIS/Docker/live 模型只作为显式验收路径。
+
+M82.5 已完成结构化降级矩阵：`result_contract.py` 输出 `spatial-agent.degradation.v1`，在 `result.degradation` 与 `result.data.degradations` 中统一暴露运行状态、几何证据、工具错误、数据健康、analysis-ready、source binding 和 output manifest 限制。`ArtifactStore` 刷新 artifact 时保存 `result` 与顶层 `degradation`，artifact recovery 能恢复同一矩阵；Console 优先读取后端矩阵，旧响应才走前端兼容推断；production acceptance 新增 `Assert-DegradationEvidence` 和 `sync_degradation_status`。
+
+M82.5 验证：M76/M76.2.4/M81/M66 目标测试 26 项通过（1 项 live Docker acceptance 跳过），`production_acceptance.ps1` PowerShell parser 通过。抽样复杂内存综合空间分析为 `COMPLETED + result.degradation.status=degraded`，明确列出内存后端、DEM/土地利用像元、道路/水体几何和约束建设筛选限制。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段需要先做项目全局盘点，再规划 M83。建议方向：结果类型与前端动态工作区 contract，让不同 `result.type` 决定可视化、表格、地图、证据和 artifact 展示；同时继续保持 Rule/LLM Planner、ToolRegistry、Result envelope 和生产入口的一致性，不围绕单一 GIS 样例堆页面分支。

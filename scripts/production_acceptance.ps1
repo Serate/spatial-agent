@@ -161,6 +161,40 @@ function Assert-PlanningEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-DegradationEvidence($payload, [string]$surface) {
+  if ($null -eq $payload.result -or $null -eq $payload.result.degradation) {
+    throw "$surface result degradation envelope missing"
+  }
+  $degradation = $payload.result.degradation
+  if ($degradation.schema_version -ne "spatial-agent.degradation.v1") {
+    throw "$surface degradation schema mismatch: $($degradation.schema_version)"
+  }
+  if ($degradation.status -notin @("none", "warning", "degraded", "unavailable")) {
+    throw "$surface degradation status invalid: $($degradation.status)"
+  }
+  $items = @($degradation.items)
+  if ([int]$degradation.item_count -ne $items.Count) {
+    throw "$surface degradation item_count mismatch"
+  }
+  if ($degradation.status -ne "none" -and $items.Count -lt 1) {
+    throw "$surface degradation items missing"
+  }
+  foreach ($item in $items) {
+    if ([string]::IsNullOrWhiteSpace([string]$item.code)) {
+      throw "$surface degradation item code missing"
+    }
+    if ($item.severity -notin @("warning", "degraded", "unavailable")) {
+      throw "$surface degradation item severity invalid: $($item.severity)"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$item.message)) {
+      throw "$surface degradation item message missing"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$item.source)) {
+      throw "$surface degradation item source missing"
+    }
+  }
+}
+
 $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
 $capabilityCatalog = Get-Json "$BaseUrl/capabilities"
@@ -204,6 +238,7 @@ if ($syncRun.plan_evidence.plan_fingerprint_match -ne $true) {
   throw "sync run did not match preview fingerprint"
 }
 Assert-PlanningEvidence $syncRun "sync run"
+Assert-DegradationEvidence $syncRun "sync run"
 if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
   throw "sync run artifact_ref missing"
 }
@@ -214,6 +249,12 @@ if ($artifact.plan_evidence.selected_capability_id -ne $syncRun.plan_evidence.se
 }
 if ($artifact.plan_evidence.capability_catalog_available -ne $true) {
   throw "artifact capability catalog evidence missing"
+}
+if ($null -eq $artifact.degradation -or $null -eq $artifact.result -or $null -eq $artifact.result.degradation) {
+  throw "artifact degradation evidence missing"
+}
+if ($artifact.degradation.status -ne $syncRun.result.degradation.status) {
+  throw "artifact degradation status mismatch"
 }
 
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
@@ -265,6 +306,7 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   sync_selected_capability = $syncRun.plan_evidence.selected_capability_id
   sync_capability_catalog_environment = $syncRun.plan_evidence.capability_catalog_environment
   sync_artifact_available = -not [string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)
+  sync_degradation_status = $syncRun.result.degradation.status
   invalid_request_status = $invalid.status_code
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status

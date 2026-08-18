@@ -1829,3 +1829,26 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 进入真实数据降级矩阵：设计可离线/可选 GIS 的 fixture 和 acceptance，覆盖空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断。
 2. 将降级矩阵结果接入 result envelope / answer / trace 的一致性 Harness，证明“明确降级”不是只在工具错误字符串里出现。
 3. 再安排真实 LLM 质量基线，重点验证 open-ended Planner 在能力目录、模板 exact 和降级场景中的行为。
+
+## M82.5：结构化降级矩阵（已完成）
+
+### 实现内容
+
+- result_contract.py 新增 spatial-agent.degradation.v1，在 result.degradation 和 result.data.degradations 中输出有界降级矩阵：status、item_count 和 {code, severity, message, source} 项。
+- 降级矩阵由后端统一派生，覆盖运行未完成、需要澄清、几何缺失/截断、工具步骤错误、工具结果中的 statistics.error / summary.error、数据健康 degraded/unavailable、data_readiness=not_ready、analysis-ready、source binding 和 output manifest 限制。
+- ArtifactStore 在最终刷新 artifact 时写入 result 和顶层 degradation，artifact fallback recovery 能继续返回同一套降级矩阵。
+- Console 证据区优先读取 result.degradation；旧响应没有结构化矩阵时才保留浏览器端兼容推断，避免前端成为降级判断源头。
+- production_acceptance.ps1 新增 Assert-DegradationEvidence，生产同步响应和 artifact 都要带同一 schema 的降级证据，并在报告中输出 sync_degradation_status。
+
+### 验收证据
+
+- M76/M76.2.4/M81/M66 目标测试 26 项通过（1 项 live Docker acceptance 跳过）。
+- production_acceptance.ps1 通过 PowerShell parser 语法解析。
+- 抽样复杂内存后端综合空间分析返回 status=COMPLETED 但 result.degradation.status=degraded，包含内存演示后端、DEM 像元、土地利用像元、道路/水体几何和约束建设筛选限制，artifact 同步保留该矩阵。
+- 本阶段未启动 Docker production acceptance、真实 GIS 或 live LLM；默认验证继续保持离线。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 角度重新盘点产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据，避免只围绕单个降级样例继续堆分支。
+2. 规划 M83 时优先补“结果类型与前端动态工作区”的通用 contract：让不同 result.type 决定可视化、表格、地图、证据和 artifact 展示，而不是页面硬编码局部场景。
+3. 在 M83 后再安排可选 GIS/Docker/live 验收，把真实武汉数据和真实大模型作为 acceptance，不进入默认 quick/stage。

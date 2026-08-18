@@ -2605,3 +2605,17 @@ M82.3 扩展 CLI/HTTP/artifact 跨入口 Harness 后，复杂空间分析请求�
 ### 处理与预防
 
 Runtime 现在只把选中能力传入 `capability_context_summary()`，目录详情聚焦选中能力；候选能力列表继续由 `capability_discovery.candidate_ids` 提供。跨入口 Harness 同时断言 `capability_discovery`、`capability_catalog`、`workflow_templates` 和 `plan_identity` 在 CLI、HTTP、artifact、run detail 与 recovery 中一致。后续新增 Planner 上下文时，优先级顺序应保持：模板 DAG 契约 > 选中能力工具边界 > 候选解释证据 > 其他辅助摘要。
+
+## 降级说明不能由前端临时推断
+
+### 现象
+
+复杂空间分析在内存演示后端下可以显示 `COMPLETED` 和“已完成 9 个工具步骤”，但 DEM、坡度、土地利用、道路、水体和建设候选结果实际都是数据或几何不可用。旧 Console 只能在浏览器端扫描 geometry、runtime snapshot、health result 和步骤错误字符串临时拼“降级与限制”，artifact、HTTP run detail 和 CLI 没有同一套结构化降级证据。
+
+### 根因
+
+“工具步骤完成”和“分析结果可信”是两层不同语义。Runtime 只统一了执行状态、lineage 和 planning evidence，却没有把数据缺失、派生层未就绪、GeoJSON 截断和工具结果中的业务错误提升为 result envelope 契约。前端临时推断会造成入口不一致：页面能提示限制，CLI/artifact/recovery 可能仍只看到自然语言答案。
+
+### 处理与预防
+
+新增 `spatial-agent.degradation.v1`，由 `result_contract.py` 在后端统一生成 `result.degradation` 与 `result.data.degradations`，覆盖运行状态、几何证据、工具步骤/结果错误、数据健康、analysis-ready、source binding 和 output manifest。Artifact 同步保存 `result` 与顶层 `degradation`，production acceptance 检查同步响应和 artifact 的降级证据；Console 优先渲染后端矩阵，旧响应才走兼容推断。后续新增结果类型或数据质量信号时，先扩展 result contract，再让前端按结构化字段展示，不能把可信度判断散落在页面逻辑里。

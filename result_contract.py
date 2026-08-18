@@ -63,16 +63,26 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         steps=steps,
         geometry_evidence=geometry_evidence,
     )
+    degradation = _degradation_matrix(
+        payload,
+        steps=steps,
+        geometry_evidence=geometry_evidence,
+        result_type=result_type,
+    )
     return {
         "type": result_type,
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
-        "data": {"evidence_steps": evidence_steps},
+        "data": {
+            "evidence_steps": evidence_steps,
+            "degradations": degradation["items"],
+        },
         "clarification": payload.get("clarification"),
         "context": payload.get("context_evidence") or {"available": False},
         "planning": payload.get("plan_evidence") or {"available": False},
         "references": references,
         "lineage": lineage,
+        "degradation": degradation,
         "geometry": {
             "available": geometry_evidence["status"] in {"real_geometry", "boundary_geometry"},
             "status": geometry_evidence["status"],
@@ -277,6 +287,351 @@ def _geometry_evidence(payload: Dict[str, Any], geometry_sources) -> Dict[str, A
     }
 
 
+_SEVERITY_RANK = {
+    "none": 0,
+    "warning": 1,
+    "degraded": 2,
+    "unavailable": 3,
+}
+
+_STATUS_LABEL = {
+    "ready": "可用",
+    "passed": "通过",
+    "warning": "警告",
+    "degraded": "部分可用",
+    "unavailable": "不可用",
+    "not_ready": "未就绪",
+    "unknown": "未知",
+}
+
+_RUN_STATUS_LABEL = {
+    "NEEDS_CLARIFICATION": "需要澄清",
+    "FAILED": "失败",
+    "REJECTED": "已拒绝",
+    "CANCELLED": "已取消",
+    "TIMED_OUT": "超时",
+}
+
+_SPATIAL_RESULT_TYPES = {
+    "spatial_analysis_result",
+    "spatial_overview_result",
+    "terrain_land_use_analysis_result",
+    "admin_area_result",
+    "zonal_raster_statistics_result",
+    "raster_statistics_result",
+}
+
+
+def _degradation_matrix(
+    payload: Dict[str, Any],
+    *,
+    steps: List[Any],
+    geometry_evidence: Dict[str, Any],
+    result_type: str,
+) -> Dict[str, Any]:
+    explicit = payload.get("degradation")
+    if not isinstance(explicit, dict) and isinstance(payload.get("result"), dict):
+        explicit = payload["result"].get("degradation")
+    if isinstance(explicit, dict):
+        return _sanitize_degradation(explicit)
+
+    items: List[Dict[str, str]] = []
+    seen = set()
+
+    def add(code: str, severity: str, message: str, source: str) -> None:
+        severity = severity if severity in _SEVERITY_RANK else "warning"
+        code = str(code or "degradation")[:96]
+        message = str(message or "结果存在降级或限制。")[:320]
+        source = str(source or "result")[:160]
+        key = (code, message, source)
+        if key in seen:
+            return
+        seen.add(key)
+        items.append({
+            "code": code,
+            "severity": severity,
+            "message": message,
+            "source": source,
+        })
+
+    run_status = str(payload.get("status") or "")
+    if run_status == "NEEDS_CLARIFICATION":
+        add(
+            "run_needs_clarification",
+            "warning",
+            "请求仍在澄清阶段，尚未形成完整执行结果。",
+            "run.status",
+        )
+    elif run_status in {"FAILED", "REJECTED", "CANCELLED", "TIMED_OUT"}:
+        add(
+            "run_not_completed",
+            "unavailable",
+            "运行状态为{}，结果不能视为完整分析。".format(
+                _RUN_STATUS_LABEL.get(run_status, run_status)
+            ),
+            "run.status",
+        )
+
+    geometry_status = str(geometry_evidence.get("status") or "unknown")
+    if geometry_status == "truncated_geometry":
+        add(
+            "geometry_truncated",
+            "warning",
+            str(geometry_evidence.get("reason") or "空间导出达到大小上限，地图只代表截断后的摘要。"),
+            "result.geometry",
+        )
+    elif geometry_status == "no_geometry":
+        add(
+            "geometry_empty",
+            "warning",
+            str(geometry_evidence.get("reason") or "结果没有可绘制空间要素，只能查看摘要。"),
+            "result.geometry",
+        )
+    elif geometry_status == "unknown" and result_type in _SPATIAL_RESULT_TYPES and steps:
+        add(
+            "geometry_unknown",
+            "warning",
+            str(geometry_evidence.get("reason") or "本次运行尚未形成空间几何证据。"),
+            "result.geometry",
+        )
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        step_id = str(step.get("id") or step.get("tool") or "step")[:80]
+        source = "step:{}".format(step_id)
+        step_status = str(step.get("status") or "")
+        if step_status and step_status != "COMPLETED":
+            severity = "unavailable" if step_status in {"FAILED", "ERROR"} else "warning"
+            add(
+                "tool_step_not_completed:{}".format(step_id),
+                severity,
+                "工具 {} 状态为{}。".format(
+                    step.get("tool") or step_id,
+                    _RUN_STATUS_LABEL.get(step_status, step_status),
+                ),
+                source,
+            )
+        if step.get("error"):
+            add(
+                "tool_step_error:{}".format(step_id),
+                "unavailable",
+                str(step.get("error")),
+                source,
+            )
+
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        _add_result_degradations(result, add, source, step_id)
+
+    status = "none"
+    for item in items:
+        if _SEVERITY_RANK[item["severity"]] > _SEVERITY_RANK[status]:
+            status = item["severity"]
+    return {
+        "schema_version": "spatial-agent.degradation.v1",
+        "available": True,
+        "status": status,
+        "item_count": len(items),
+        "items": items[:40],
+    }
+
+
+def _add_result_degradations(result: Dict[str, Any], add, source: str, step_id: str) -> None:
+    result_status = str(result.get("status") or "")
+    if result_status in {"warning", "degraded", "unavailable"}:
+        add(
+            "data_health_{}".format(result_status),
+            _status_severity(result_status),
+            "数据健康状态为{}。{}".format(
+                _STATUS_LABEL.get(result_status, result_status),
+                " " + str(result.get("warning")) if result.get("warning") else "",
+            ),
+            source,
+        )
+    data_readiness = str(result.get("data_readiness") or "")
+    if data_readiness and data_readiness != "ready":
+        add(
+            "data_readiness_{}".format(data_readiness),
+            "unavailable" if data_readiness == "not_ready" else _status_severity(data_readiness),
+            "数据就绪状态为{}。".format(_STATUS_LABEL.get(data_readiness, data_readiness)),
+            source,
+        )
+
+    for dataset in result.get("datasets") or []:
+        if not isinstance(dataset, dict):
+            continue
+        dataset_status = str(dataset.get("status") or dataset.get("quality") or "")
+        if dataset_status not in {"warning", "degraded", "unavailable"}:
+            continue
+        dataset_name = str(dataset.get("dataset") or "dataset")[:64]
+        details = _dataset_limit_details(dataset)
+        add(
+            "dataset_{}:{}".format(dataset_status, dataset_name),
+            _status_severity(dataset_status),
+            "{} 数据集状态为{}。{}".format(
+                dataset_name,
+                _STATUS_LABEL.get(dataset_status, dataset_status),
+                details,
+            ),
+            source,
+        )
+
+    analysis_ready = result.get("analysis_ready") if isinstance(result.get("analysis_ready"), dict) else {}
+    analysis_status = str(analysis_ready.get("status") or "")
+    if analysis_status in {"warning", "degraded", "unavailable"}:
+        add(
+            "analysis_ready_{}".format(analysis_status),
+            _status_severity(analysis_status),
+            "分析就绪派生层状态为{}，联合像元结果不能视为完整可复现证据。".format(
+                _STATUS_LABEL.get(analysis_status, analysis_status)
+            ),
+            source,
+        )
+    source_binding = analysis_ready.get("source_binding")
+    if isinstance(source_binding, dict):
+        binding_status = str(source_binding.get("status") or "")
+        if binding_status in {"warning", "degraded", "unavailable"}:
+            add(
+                "source_binding_{}".format(binding_status),
+                _status_severity(binding_status),
+                "源数据绑定状态为{}，不能确认派生层仍对应当前来源。".format(
+                    _STATUS_LABEL.get(binding_status, binding_status)
+                ),
+                source,
+            )
+    output_manifest = analysis_ready.get("output_manifest")
+    if isinstance(output_manifest, dict):
+        manifest_status = str(output_manifest.get("status") or "")
+        if manifest_status in {"warning", "degraded", "unavailable"}:
+            add(
+                "output_manifest_{}".format(manifest_status),
+                _status_severity(manifest_status),
+                "派生输出 manifest 状态为{}，输出文件与发布记录存在一致性限制。".format(
+                    _STATUS_LABEL.get(manifest_status, manifest_status)
+                ),
+                source,
+            )
+        elif (
+            manifest_status == "ready"
+            and output_manifest.get("verification_mode") == "metadata"
+            and not output_manifest.get("hashes_verified")
+        ):
+            add(
+                "output_manifest_metadata_only",
+                "warning",
+                "输出 manifest 当前仅完成 metadata 核验；发布前仍需显式执行输出文件 SHA-256 verifier。",
+                source,
+            )
+
+    for key in ("manifest", "source_binding", "output_manifest"):
+        evidence = result.get(key)
+        if not isinstance(evidence, dict):
+            continue
+        status = str(evidence.get("status") or "")
+        if status in {"warning", "degraded", "unavailable"}:
+            add(
+                "{}_{}".format(key, status),
+                _status_severity(status),
+                "{} 状态为{}。".format(key, _STATUS_LABEL.get(status, status)),
+                source,
+            )
+
+    for container_name in ("statistics", "summary"):
+        container = result.get(container_name)
+        if isinstance(container, dict) and container.get("error"):
+            add(
+                "tool_result_error:{}".format(step_id),
+                "degraded",
+                str(container.get("error")),
+                source + ".{}".format(container_name),
+            )
+    if result.get("error"):
+        add(
+            "tool_result_error:{}".format(step_id),
+            "degraded",
+            str(result.get("error")),
+            source,
+        )
+    if result.get("warning"):
+        add(
+            "tool_result_warning:{}".format(step_id),
+            "warning",
+            str(result.get("warning")),
+            source,
+        )
+
+    for check in result.get("checks") or []:
+        if not isinstance(check, dict):
+            continue
+        check_status = str(check.get("status") or "")
+        if check_status and check_status != "passed":
+            add(
+                "check_{}:{}".format(check_status, str(check.get("name") or "check")[:48]),
+                _status_severity(check_status),
+                str(check.get("message") or "数据检查未通过。"),
+                source,
+            )
+
+
+def _dataset_limit_details(dataset: Dict[str, Any]) -> str:
+    details = []
+    for error in dataset.get("errors") or []:
+        if error:
+            details.append(str(error))
+    for check in dataset.get("checks") or []:
+        if (
+            isinstance(check, dict)
+            and check.get("status")
+            and check.get("status") != "passed"
+            and check.get("message")
+        ):
+            details.append(str(check["message"]))
+    return "；".join(details[:3])[:240]
+
+
+def _status_severity(status: str) -> str:
+    if status == "unavailable":
+        return "unavailable"
+    if status == "degraded":
+        return "degraded"
+    return "warning"
+
+
+def _sanitize_degradation(value: Dict[str, Any]) -> Dict[str, Any]:
+    items = []
+    seen = set()
+    for item in value.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        severity = str(item.get("severity") or "warning")
+        if severity not in _SEVERITY_RANK:
+            severity = "warning"
+        normalized = {
+            "code": str(item.get("code") or "degradation")[:96],
+            "severity": severity,
+            "message": str(item.get("message") or "结果存在降级或限制。")[:320],
+            "source": str(item.get("source") or "result")[:160],
+        }
+        key = (normalized["code"], normalized["message"], normalized["source"])
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(normalized)
+    status = str(value.get("status") or "none")
+    if status not in _SEVERITY_RANK:
+        status = "none"
+    for item in items:
+        if _SEVERITY_RANK[item["severity"]] > _SEVERITY_RANK[status]:
+            status = item["severity"]
+    return {
+        "schema_version": str(value.get("schema_version") or "spatial-agent.degradation.v1")[:80],
+        "available": True,
+        "status": status,
+        "item_count": len(items),
+        "items": items[:40],
+    }
+
+
 def _step_summary(result: Dict[str, Any], error: Any) -> Dict[str, Any]:
     summary: Dict[str, Any] = {}
     for key in ("dataset", "admin_name", "count", "file_count", "result_ref", "crs"):
@@ -293,6 +648,15 @@ def _step_summary(result: Dict[str, Any], error: Any) -> Dict[str, Any]:
             value = statistics.get(key)
             if isinstance(value, (str, int, float, bool)):
                 summary[key] = value
+        if statistics.get("error"):
+            summary["error"] = str(statistics["error"])
+    detail = result.get("summary")
+    if isinstance(detail, dict) and detail.get("error"):
+        summary["error"] = str(detail["error"])
+    if result.get("error"):
+        summary["error"] = str(result["error"])
+    if result.get("warning"):
+        summary["warning"] = str(result["warning"])
     if error:
         summary["error"] = str(error)
     return summary

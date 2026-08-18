@@ -58,10 +58,13 @@ class M66DataVolumeContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("function Assert-PlanningEvidence", script)
+        self.assertIn("function Assert-DegradationEvidence", script)
         self.assertIn("capability_discovery_available", script)
         self.assertIn("capability_catalog_available", script)
         self.assertIn("selected_capability_id", script)
         self.assertIn("capability_catalog_environment", script)
+        self.assertIn("spatial-agent.degradation.v1", script)
+        self.assertIn("sync_degradation_status", script)
         self.assertIn("export_artifact = $true", script)
         self.assertIn("/artifacts/runs/", script)
         self.assertIn("sync_selected_capability", script)

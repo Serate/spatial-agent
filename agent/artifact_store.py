@@ -32,6 +32,8 @@ class ArtifactStore:
             "trace_summary": payload.get("trace_summary", []),
             "error": payload.get("error"),
             "clarification": payload.get("clarification"),
+            "result": payload.get("result"),
+            "degradation": _degradation_summary(payload),
             "retry_count": payload.get("retry_count", 0),
             "replan_events": payload.get("replan_events") or [],
             "geojson_ref": payload.get("geojson_ref"),
@@ -130,3 +132,13 @@ def _step_summary(step):
         "result": result_summary,
         "error": step.get("error"),
     }
+
+
+def _degradation_summary(payload):
+    result = payload.get("result")
+    if isinstance(result, dict) and isinstance(result.get("degradation"), dict):
+        return result["degradation"]
+    degradation = payload.get("degradation")
+    if isinstance(degradation, dict):
+        return degradation
+    return None

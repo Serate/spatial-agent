@@ -679,6 +679,8 @@
       font-size: 12px;
       line-height: 1.55;
     }
+    .degradation-item.warning, .degradation-item.degraded { border-left-color: var(--amber); background: var(--amber-soft); color: #7a5a33; }
+    .degradation-item.unavailable { border-left-color: var(--danger); background: #fff3f3; color: #9b1c1c; }
     .degradation-item.ok { border-left-color: #3ba57f; background: var(--green-soft); color: #2d5c48; }
 
     /* ---------- Map ---------- */
@@ -1102,8 +1104,8 @@
     async function loadGeoJSON(ref) { try { const name=ref.split(/[\\/]/).pop(); const response=await fetch('/artifacts/geojson/'+encodeURIComponent(name)); if(!response.ok) throw new Error('GeoJSON 下载失败（HTTP '+response.status+'）'); mapPreview(await response.json()); } catch(error) { destroyMap(); $('map').innerHTML='<div class="map-empty">空间预览加载失败：'+escapeHtml(error.message)+'</div>'; } }
     function llmHealthLabel(caps) { if(caps.live_llm) return ['真实大模型','可用',true]; if(caps.live_llm_configured) return ['真实大模型','网络受限',false]; return ['真实大模型','未配置',false]; }
     function geometryEvidence(data) { const geometry=(data.result||{}).geometry||{}; const labels={real_geometry:'真实空间要素可绘制',boundary_geometry:'行政区边界可绘制',no_geometry:'无可绘制几何（仅结果摘要）',truncated_geometry:'几何摘要已截断，不保证可完整绘制',unknown:'尚未形成空间几何证据'}; $('geometryEvidence').textContent='空间证据：'+(labels[geometry.status]||labels.unknown)+(geometry.feature_count?' · '+geometry.feature_count+' 个要素':'')+(geometry.reason?'；'+geometry.reason:''); }
-    const evidenceStatusNames={ready:'可用',degraded:'部分可用',unavailable:'不可用',passed:'通过',warning:'警告',real_geometry:'真实几何',boundary_geometry:'边界几何',no_geometry:'无几何',truncated_geometry:'已截断',unknown:'未知'};
-    const evidenceStatusClass=status=>({passed:'ready',warning:'degraded',real_geometry:'real_geometry',boundary_geometry:'boundary_geometry',no_geometry:'no_geometry',truncated_geometry:'truncated_geometry',ready:'ready',degraded:'degraded',unavailable:'unavailable',unknown:'unknown'}[String(status||'unknown')]||'unknown');
+    const evidenceStatusNames={ready:'可用',degraded:'部分可用',unavailable:'不可用',passed:'通过',warning:'警告',none:'无降级',real_geometry:'真实几何',boundary_geometry:'边界几何',no_geometry:'无几何',truncated_geometry:'已截断',unknown:'未知'};
+    const evidenceStatusClass=status=>({passed:'ready',warning:'degraded',none:'ready',real_geometry:'real_geometry',boundary_geometry:'boundary_geometry',no_geometry:'no_geometry',truncated_geometry:'truncated_geometry',ready:'ready',degraded:'degraded',unavailable:'unavailable',unknown:'unknown'}[String(status||'unknown')]||'unknown');
     const evidenceStatusLabel=status=>evidenceStatusNames[String(status||'unknown')]||String(status||'未知');
     const evidenceBadge=status=>'<span class="evidence-status '+evidenceStatusClass(status)+'">'+escapeHtml(evidenceStatusLabel(status))+'</span>';
     const evidenceText=value=>Array.isArray(value)?value.join('、'):value===null||value===undefined||value===''?'-':typeof value==='object'?JSON.stringify(value):String(value);
@@ -1160,6 +1162,12 @@
       $('releaseEvidence').className='evidence-card release-evidence '+evidenceStatusClass(releaseStatus);
       $('releaseEvidence').innerHTML='<h4>发布完整性（metadata / source / output）</h4><div class="release-evidence-grid"><div><span class="evidence-state">元数据与网格</span>'+evidenceBadge(analysisReady.status||'unknown')+'<p>'+escapeHtml(analysisReady.derived_version||'未形成分析就绪版本')+' · '+escapeHtml((analysisReady.grid_alignment||{}).status||'未检查')+' · '+escapeHtml(verificationModeLabel(analysisReady.verification_mode))+'</p></div><div><span class="evidence-state">源绑定 SHA-256</span>'+evidenceBadge(sourceBinding.status||'unknown')+'<p>'+escapeHtml(sourceBinding.fingerprint||'未形成源数据指纹')+'</p></div><div><span class="evidence-state">输出 manifest</span>'+evidenceBadge(outputManifest.status||'unknown')+'<p>'+escapeHtml(verificationModeLabel(outputManifest.verification_mode))+' · '+(outputManifest.hashes_verified?'完整哈希已核验':'运行时未执行完整哈希')+' · mismatch '+escapeHtml(outputManifest.mismatch_count??'-')+'</p></div></div>'+(outputRows?'<ul class="evidence-list release-output-list">'+outputRows+'</ul>':'<div class="evidence-empty">没有输出文件匹配摘要。</div>')+'<a class="evidence-reference" href="/release-evidence?max_files=10" target="_blank">下载完整三层发布报告</a>';
       const mem=data.memory_evidence||{}; $('memoryEvidence').className='evidence-card memory-evidence'+(mem.enabled?'':' neutral'); $('memoryEvidence').innerHTML='<h4>长期记忆（fact memory）</h4>'+(mem.enabled?('<p>本会话已沉淀 <b>'+escapeHtml(mem.session_fact_count||0)+'</b> 条结论记忆；后续同会话请求会把既往结论注入规划器上下文（受控、不跨会话）。</p>'):'<div class="evidence-empty">长期记忆已关闭（SPATIAL_AGENT_MEMORY_ENABLED=0）。</div>');
+      const degradationMatrix=envelope.degradation||{};
+      const degradationItems=Array.isArray(degradationMatrix.items)?degradationMatrix.items:[];
+      if(degradationMatrix.available){
+        $('degradationEvidence').innerHTML=degradationItems.length?'<div class="degradation-item '+escapeHtml(degradationMatrix.status||'warning')+'"><strong>降级与限制</strong> · '+escapeHtml(evidenceStatusLabel(degradationMatrix.status||'warning'))+' · '+escapeHtml(degradationMatrix.item_count||degradationItems.length)+' 项</div>'+degradationItems.map(item=>'<div class="degradation-item '+escapeHtml(item.severity||'warning')+'"><strong>'+escapeHtml(evidenceStatusLabel(item.severity||'warning'))+'</strong> · '+escapeHtml(item.message||'结果存在降级或限制。')+(item.source?' <small>('+escapeHtml(item.source)+')</small>':'')+'</div>').join(''):'<div class="degradation-item ok">后端结构化降级矩阵未发现明确降级状态；仍应以空间几何、数据质量和来源证据共同判断结果可信范围。</div>';
+        return;
+      }
       const degradations=[]; const addReason=reason=>{if(reason&&!degradations.includes(reason)) degradations.push(reason);};
       if(data.status==='NEEDS_CLARIFICATION') addReason('请求仍在澄清，尚未执行空间工具。');
       if(data.status==='FAILED'||data.status==='REJECTED'||data.status==='CANCELLED'||data.status==='TIMED_OUT') addReason('运行状态为'+statusName(data.status)+'，结果不能视为完整分析。');
