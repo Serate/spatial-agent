@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -220,6 +222,9 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
                     server.server_address[1],
                     "/artifacts/runs/" + artifact_name,
                 )
+                recovered = AgentService(
+                    artifact_store=ArtifactStore(str(local_artifact_root))
+                ).get_run(http_run["run_id"], planner="rule", backend="memory")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -229,10 +234,70 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(_normalized_contract(direct), _normalized_contract(http_run))
         self.assertEqual(_normalized_contract(http_run), _normalized_contract(http_detail))
+        self.assertEqual(_normalized_contract(http_run), _normalized_contract(recovered))
         self.assertIn("spatial_analysis", http_run["plan_evidence"]["exact_template_ids"])
         self.assertIn("spatial_analysis", http_run["result"]["planning"]["exact_template_ids"])
+        self.assertEqual(http_run["plan_evidence"]["selected_capability_id"], "spatial_analysis")
+        self.assertTrue(http_run["plan_evidence"]["capability_catalog_available"])
+        self.assertIn("spatial_analysis", http_run["plan_evidence"]["capability_catalog_ids"])
         self.assertEqual(artifact["plan_evidence"], http_run["plan_evidence"])
         self.assertEqual(history["runs"][0]["lineage"]["run_id"], http_run["run_id"])
+
+    def test_cli_http_and_artifact_share_runtime_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            local_artifact_root = Path(directory) / "runs"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "run_demo.py"),
+                    COMPLEX_REQUEST,
+                    "--session-id",
+                    "cli-complex",
+                    "--planner",
+                    "rule",
+                    "--backend",
+                    "memory",
+                    "--export-artifact",
+                    "--artifact-root",
+                    str(local_artifact_root),
+                ],
+                cwd=str(ROOT),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            cli_run = json.loads(completed.stdout)
+            cli_artifact = json.loads(Path(cli_run["artifact_ref"]).read_text(encoding="utf-8"))
+
+            class TestHandler(AgentApiHandler):
+                service = AgentService(artifact_store=ArtifactStore(str(local_artifact_root)))
+                artifact_root = local_artifact_root
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                http_run = _post_json(
+                    server.server_address[1],
+                    {
+                        "request": COMPLEX_REQUEST,
+                        "session_id": "http-complex",
+                        "planner": "rule",
+                        "backend": "memory",
+                        "export_artifact": True,
+                    },
+                    "/runs",
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+                TestHandler.service._async_executor.shutdown(wait=True)
+
+        self.assertEqual(_normalized_contract(cli_run), _normalized_contract(http_run))
+        self.assertEqual(cli_artifact["plan_evidence"], cli_run["plan_evidence"])
+        self.assertTrue(cli_run["result"]["lineage"]["artifact"]["available"])
+        self.assertEqual(cli_run["result"]["planning"]["capability_catalog_ids"], cli_run["plan_evidence"]["capability_catalog_ids"])
 
     def test_console_uses_result_planning_evidence(self):
         source = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
@@ -240,7 +305,9 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
         self.assertIn("const planEvidence=envelope.planning||data.plan_evidence||{}", source)
         self.assertIn("计划来源", source)
         self.assertIn("能力发现", source)
+        self.assertIn("能力目录", source)
         self.assertIn("capability_candidate_ids", source)
+        self.assertIn("capability_catalog_ids", source)
         self.assertIn("exact_template_ids", source)
         self.assertIn("/runs/preview", source)
         self.assertIn("renderPlanDag", source)
@@ -331,6 +398,15 @@ def _normalized_contract(payload):
         "result_type": payload["result"]["type"],
         "result_title": payload["result"]["title"],
         "planning_source": payload["result"]["planning"]["source"],
+        "plan_identity_version": payload["result"]["planning"]["plan_identity"]["version"],
+        "selected_capability": payload["result"]["planning"]["selected_capability_id"],
+        "capability_candidates": payload["result"]["planning"]["capability_candidate_ids"],
+        "capability_catalog_available": payload["result"]["planning"]["capability_catalog_available"],
+        "capability_catalog_ids": payload["result"]["planning"]["capability_catalog_ids"],
+        "capability_catalog_environment": payload["result"]["planning"]["capability_catalog_environment"],
+        "capability_catalog_tool_schema_count": payload["result"]["planning"]["capability_catalog_tool_schema_count"],
+        "context_has_capability_discovery": "capability_discovery" in payload["context_evidence"]["section_names"],
+        "context_has_capability_catalog": "capability_catalog" in payload["context_evidence"]["section_names"],
         "exact_templates": payload["result"]["planning"]["exact_template_ids"],
         "matched_templates": payload["result"]["planning"]["matched_template_ids"],
         "step_tools": [step["tool"] for step in payload["steps"]],

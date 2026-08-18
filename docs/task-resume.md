@@ -858,4 +858,6 @@ M82.1 已完成能力发现上下文：`CapabilityRouter.discover()` 输出 `spa
 
 M82.2 已完成 Planner 能力目录摘要：新增 `spatial-agent.capability-catalog-context.v1`，只展开候选能力范围内的能力目录、数据门控、后端支持、analysis-ready 摘要和工具参数形状；`ToolRegistry.definition_summary()` 暴露只读 schema 摘要，Runtime factory 将 backend_name 注入 Runtime，`plan_evidence` 记录能力目录可用性、后端和工具 schema 数量。默认上下文预算提高到 12,000 字符。M59/M77/M81 目标测试 37 项通过（1 项因缺少 FastAPI 依赖跳过）。
 
-下一步从项目整体继续：补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness，验证 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace 和 artifact 一致；随后再推进稳定 DAG 模板化、真实数据降级矩阵和真实模型质量基线。当前并发度为 1，默认 quick/stage 不访问网络，真实 GIS/Docker/live 模型只作为显式验收路径。
+M82.3 已完成 CLI/HTTP/artifact/session 跨入口 Harness：`run_demo.py` 改为复用 `AgentService.run()` 输出统一 payload，新增 `--export-artifact`、`--artifact-root`、`--export-geojson`；M81 Harness 覆盖 direct service、CLI、开发 HTTP、run detail、artifact fallback recovery、session history 和 Console 静态证据，断言 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace、artifact 一致。Console 已显示“能力目录”。目标测试 18 项通过（1 项 GIS 跳过），M59/M77/M81 回归 38 项通过（1 项 FastAPI 跳过）。
+
+下一步从项目整体继续：补生产 FastAPI/可选 Docker 的同字段 contract gate，然后进入真实数据降级矩阵（空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断）和真实模型质量基线。当前并发度为 1，默认 quick/stage 不访问网络，真实 GIS/Docker/live 模型只作为显式验收路径。

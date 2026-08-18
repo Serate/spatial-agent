@@ -637,4 +637,6 @@ M82.1 已完成开放式能力发现的第一层接口：`CapabilityRouter.disco
 
 M82.2 已完成 Planner 能力目录摘要：`capability_context_summary()` 输出 `spatial-agent.capability-catalog-context.v1`，只展开候选能力范围内的能力目录、数据门控、后端支持、analysis-ready 摘要和工具参数形状；`ToolRegistry.definition_summary()` 暴露只读 schema 摘要，不暴露 handler 或绕过 Registry；Runtime factory 将 memory/local backend_name 注入 Runtime，`plan_evidence` 记录能力目录可用性、后端、能力 id 和工具 schema 数量。默认 `ContextBuilder` 预算提高到 12,000 字符。M59/M77/M81 目标测试 37 项通过（1 项因缺少 FastAPI 依赖跳过）。
 
-下一步从项目整体继续，不陷入单个区域或单个数据细节：补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness，验证 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace 和 artifact 一致；随后再推进稳定 DAG 模板化、真实数据降级矩阵和真实模型质量基线。当前最大并发度仍为 1；默认 quick/stage 离线，真实 GIS/Docker/live 模型只按显式验收运行。
+M82.3 已完成 CLI/HTTP/artifact/session 跨入口 Harness：`run_demo.py` 改为复用 `AgentService.run()` 输出统一 payload，CLI 与 HTTP/Service 共享 `result` envelope、中文答案、`trace_summary`、`provenance`、`plan_evidence` 和可选 artifact 引用；新增 `--export-artifact`、`--artifact-root`、`--export-geojson`。M81 Harness 已覆盖 direct service、CLI、开发 HTTP、run detail、artifact fallback recovery、session history 和 Console 静态证据，断言 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace、artifact 一致。复杂请求下能力目录详情收紧为“选中能力详情”，候选排序仍由 `capability_discovery` 提供。目标测试 18 项通过（1 项 GIS 跳过），M59/M77/M81 回归 38 项通过（1 项 FastAPI 跳过）。
+
+下一步从项目整体继续，不陷入单个区域或单个数据细节：补生产 FastAPI/可选 Docker 的同字段 contract gate，然后进入真实数据降级矩阵和真实模型质量基线。当前最大并发度仍为 1；默认 quick/stage 离线，真实 GIS/Docker/live 模型只按显式验收运行。

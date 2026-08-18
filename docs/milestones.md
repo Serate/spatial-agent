@@ -1786,3 +1786,25 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 补跨入口 Harness，验证 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace、artifact 和 session recovery 在 CLI/HTTP/生产/Console 中一致。
 2. 再评估需要下沉到 `WorkflowTemplate` 的剩余稳定 DAG，避免继续在 composer 或 prompt 中堆分支。
 3. 在 Harness 稳定后再安排真实数据降级矩阵和真实模型质量基线。
+
+## M82.3：CLI/HTTP/artifact/session 跨入口 Harness（已完成）
+
+### 实现内容
+
+- `run_demo.py` 改为复用 `AgentService.run()` 输出统一 payload，CLI 现在与 HTTP/Service 共享 `result` envelope、中文答案、`trace_summary`、`provenance`、`plan_evidence` 和可选 artifact 引用；`build_runtime` re-export 保持兼容。
+- CLI 新增 `--export-artifact`、`--artifact-root` 和 `--export-geojson` 参数，支持在命令行验收中导出同一结构化 artifact。
+- M81 跨入口 Harness 扩展为 direct service、CLI、开发 HTTP、run detail、artifact fallback recovery、session history 和 Console 静态证据的统一断言，重点覆盖 `capability_discovery`、`capability_catalog`、`workflow_templates` 和 `plan_identity`。
+- Console 运行证据区新增“能力目录”行，显示后端、选中能力目录 id 和工具 schema 摘要数量。
+- Runtime 的 Planner 能力目录详情从“多个候选能力”收紧为“选中能力详情”；候选排序仍由 `capability_discovery` 提供，避免复杂请求再次挤掉模板契约。
+
+### 验收证据
+
+- M81/M9/M78 目标测试 18 项通过（1 项本地 GIS 依赖跳过），覆盖 CLI follow-up 兼容、CLI/HTTP/artifact 契约一致、Service split 边界不回退。
+- M59/M77/M81 回归 38 项通过（1 项 FastAPI 依赖跳过），确认能力目录摘要、上下文注入、复杂模板 exact 和跨入口契约仍稳定。
+- 本轮尚未运行 Docker production acceptance、真实 GIS 或 live LLM；下一阶段按显式验收路径处理。
+
+### 下一阶段规划
+
+1. 补生产 FastAPI/可选 Docker 的同字段 contract gate，确认 M82 新增证据在生产入口与开发 HTTP 一致。
+2. 开始真实数据降级矩阵：空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断。
+3. 再做真实模型质量基线，将 live 结果与脱敏/模板 exact 证据对齐。

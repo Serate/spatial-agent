@@ -2590,4 +2590,18 @@ Compose 的 `env_file` 会把变量传入容器运行环境，但不会用于 Co
 
 ### 处理与预防
 
-`CapabilityDiscovery.as_context_dict()` 改为紧凑摘要：顶层保留 signals、tasks、constraints，候选列表只保留 capability id 与 priority；`ContextBuilder` 裁剪顺序调整为先裁剪 `capability_discovery`，最后才裁剪 `workflow_templates`。M82.2 增加能力目录摘要时继续收紧为“只展开候选能力”，并把默认上下文预算提高到 12,000 字符；显式小预算测试仍覆盖裁剪行为。后续新增 Planner 上下文 section 必须先评估预算优先级：稳定执行契约和模板蓝图优先级高于解释性候选证据；目标测试要同时检查新证据存在和模板 exact 未回退。
+`CapabilityDiscovery.as_context_dict()` 改为紧凑摘要：顶层保留 signals、tasks、constraints，候选列表只保留 capability id 与 priority；`ContextBuilder` 裁剪顺序调整为先裁剪 `capability_discovery`，最后才裁剪 `workflow_templates`。M82.2 增加能力目录摘要时继续收紧为“只展开候选能力”，并把默认上下文预算提高到 12,000 字符；显式小预算测试仍覆盖裁剪行为。M82.3 进一步确认复杂请求只能详细展开“选中能力”，候选排序交给 `capability_discovery`。后续新增 Planner 上下文 section 必须先评估预算优先级：稳定执行契约和模板蓝图优先级高于解释性候选证据；目标测试要同时检查新证据存在和模板 exact 未回退。
+
+## 复杂请求的能力目录上下文不能展开所有候选能力
+
+### 现象
+
+M82.3 扩展 CLI/HTTP/artifact 跨入口 Harness 后，复杂空间分析请求在 Service 和 HTTP 中能正常执行并精确匹配 `spatial_analysis` 模板，但 `result.planning.capability_catalog_ids` 缺失。检查 `context_evidence` 发现 `capability_catalog` section 被上下文预算裁剪，导致跨入口结果无法稳定证明 Planner 同时看到了能力目录和工具 schema 摘要。
+
+### 根因
+
+复杂请求会产生多个候选能力。如果能力目录摘要同时展开多个候选能力及其工具 schema，即使默认上下文预算已提高到 12,000 字符，也会和 `workflow_templates`、RequestFacts、能力发现证据争用预算。对 Planner 来说，候选排序已经由 `capability_discovery` 提供；能力目录真正需要详细展开的是“当前选中能力”的数据门控、后端支持和工具参数边界。
+
+### 处理与预防
+
+Runtime 现在只把选中能力传入 `capability_context_summary()`，目录详情聚焦选中能力；候选能力列表继续由 `capability_discovery.candidate_ids` 提供。跨入口 Harness 同时断言 `capability_discovery`、`capability_catalog`、`workflow_templates` 和 `plan_identity` 在 CLI、HTTP、artifact、run detail 与 recovery 中一致。后续新增 Planner 上下文时，优先级顺序应保持：模板 DAG 契约 > 选中能力工具边界 > 候选解释证据 > 其他辅助摘要。

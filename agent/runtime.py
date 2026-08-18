@@ -468,9 +468,11 @@ class AgentRuntime:
         capability_catalog = capability_context_summary(
             catalog=build_capability_catalog(environment=self._backend_name or "unknown"),
             tool_definitions=self._registry.definition_summary(),
-            selected_capability_ids=[item.capability_id for item in capability_discovery.candidates],
-            max_capabilities=8,
-            max_tools=12,
+            selected_capability_ids=[
+                item.capability_id for item in capability_discovery.candidates[:1]
+            ],
+            max_capabilities=1,
+            max_tools=8,
         )
         return self._context_builder.build(
             request=request,
