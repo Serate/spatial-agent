@@ -105,10 +105,13 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertEqual(planner.context["schema_version"], CONTEXT_SCHEMA_VERSION)
         self.assertIn("workflow_templates", planner.context["sections"])
         self.assertIn("capability_discovery", planner.context["sections"])
+        self.assertIn("capability_catalog", planner.context["sections"])
         self.assertEqual(result.context_evidence["schema_version"], CONTEXT_SCHEMA_VERSION)
         self.assertEqual(result.plan_evidence["planner_kind"], "ContextAwarePlanner")
         self.assertTrue(result.plan_evidence["template_context_available"])
         self.assertTrue(result.plan_evidence["capability_discovery_available"])
+        self.assertTrue(result.plan_evidence["capability_catalog_available"])
+        self.assertEqual(result.plan_evidence["capability_catalog_environment"], "unknown")
         self.assertIn("vector_query", result.plan_evidence["capability_candidate_ids"])
         self.assertNotIn("sections", result.context_evidence)
 
@@ -129,6 +132,12 @@ class M77ContextEngineeringTests(unittest.TestCase):
             "spatial-agent.capability-discovery.v1",
         )
         self.assertIn("zonal_raster_statistics", capability_discovery["candidate_ids"])
+        capability_catalog = planner.context["sections"]["capability_catalog"]
+        self.assertEqual(
+            capability_catalog["schema_version"],
+            "spatial-agent.capability-catalog-context.v1",
+        )
+        self.assertIn("get_zonal_raster_statistics", capability_catalog["tool_schemas"])
 
     def test_legacy_planner_remains_a_valid_harness_adapter(self):
         result = AgentRuntime(LegacyPlanner(), registry()).run("查询道路数据")
@@ -154,6 +163,7 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertIn("spatial_analysis_result", client.messages[0]["content"])
         self.assertIn("sections.spatial_request.tasks", client.messages[0]["content"])
         self.assertIn("workflow_templates", client.messages[0]["content"])
+        self.assertIn("capability_catalog", client.messages[0]["content"])
 
     def test_result_contract_exposes_only_context_evidence(self):
         result = AgentRuntime(ContextAwarePlanner(), registry()).run("查询道路数据")

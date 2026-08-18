@@ -8,6 +8,11 @@ from typing import Any, Dict, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .answer_composer import AnswerComposer
+from .capability_catalog import (
+    CAPABILITY_CONTEXT_SCHEMA_VERSION,
+    capability_catalog as build_capability_catalog,
+    capability_context_summary,
+)
 from .capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION, CapabilityRouter
 from .context_engineering import ContextBuilder, ContextPacket
 from .memory import FactMemory
@@ -133,6 +138,7 @@ class AgentRuntime:
         replan_policy: Optional[ReplanningPolicy] = None,
         memory: Optional[FactMemory] = None,
         observability: Optional[ObservabilityEmitter] = None,
+        backend_name: str = "unknown",
     ):
         self._planner = planner
         self._registry = registry
@@ -145,6 +151,7 @@ class AgentRuntime:
         self._replan_policy = replan_policy or ReplanningPolicy()
         self._memory = memory
         self._observability = observability
+        self._backend_name = backend_name
         self._control_lock = Lock()
         self._cancelled_runs: Set[str] = set()
         self._run_span_ids: Dict[str, str] = {}
@@ -458,6 +465,13 @@ class AgentRuntime:
             resolved_request,
             spatial_request,
         )
+        capability_catalog = capability_context_summary(
+            catalog=build_capability_catalog(environment=self._backend_name or "unknown"),
+            tool_definitions=self._registry.definition_summary(),
+            selected_capability_ids=[item.capability_id for item in capability_discovery.candidates],
+            max_capabilities=8,
+            max_tools=12,
+        )
         return self._context_builder.build(
             request=request,
             resolved_request=resolved_request,
@@ -467,6 +481,7 @@ class AgentRuntime:
             planner_kind=type(self._planner).__name__,
             spatial_request=spatial_request.as_context_dict(),
             capability_discovery=capability_discovery.as_context_dict(),
+            capability_catalog=capability_catalog,
             memory_section=memory_section,
             workflow_templates=workflow_template_context_summary(
                 include_arg_shape=False,
@@ -892,6 +907,12 @@ def _build_plan_evidence(
         and capability_section.get("schema_version") == CAPABILITY_DISCOVERY_SCHEMA_VERSION
         and not capability_section.get("omitted")
     )
+    capability_catalog_section = sections.get("capability_catalog")
+    capability_catalog_available = (
+        isinstance(capability_catalog_section, Mapping)
+        and capability_catalog_section.get("schema_version") == CAPABILITY_CONTEXT_SCHEMA_VERSION
+        and not capability_catalog_section.get("omitted")
+    )
     evidence: Dict[str, Any] = {
         "available": True,
         "planner_kind": planner_kind,
@@ -905,6 +926,7 @@ def _build_plan_evidence(
         "template_context_available": templates_available,
         "template_context_truncated": bool(context_packet.evidence.get("truncated")),
         "capability_discovery_available": capability_available,
+        "capability_catalog_available": capability_catalog_available,
         "plan_identity": build_plan_identity(
             plan,
             request=str(request_section.get("original") or ""),
@@ -932,6 +954,22 @@ def _build_plan_evidence(
             [str(item) for item in signals[:16]]
             if isinstance(signals, list)
             else []
+        )
+    if capability_catalog_available and isinstance(capability_catalog_section, Mapping):
+        catalog_capabilities = capability_catalog_section.get("capabilities")
+        tool_schemas = capability_catalog_section.get("tool_schemas")
+        evidence["capability_catalog_environment"] = capability_catalog_section.get("environment")
+        evidence["capability_catalog_ids"] = (
+            [
+                str(item.get("id"))
+                for item in catalog_capabilities[:8]
+                if isinstance(item, Mapping) and item.get("id")
+            ]
+            if isinstance(catalog_capabilities, list)
+            else []
+        )
+        evidence["capability_catalog_tool_schema_count"] = (
+            len(tool_schemas) if isinstance(tool_schemas, Mapping) else 0
         )
     matched, exact = _matched_template_ids(
         templates_section if isinstance(templates_section, Mapping) else {},

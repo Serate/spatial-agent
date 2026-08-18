@@ -50,4 +50,5 @@ def build_runtime(
         conversation_store=conversation_store,
         memory=memory,
         observability=observability,
+        backend_name=backend_name,
     )

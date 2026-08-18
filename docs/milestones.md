@@ -1765,3 +1765,24 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 将能力发现从“候选能力列表”推进为 Planner 可消费的能力目录摘要：工具 schema、数据门控、后端支持状态、版本与安全边界。
 2. 继续模板化稳定 DAG，优先处理仍留在 composer 中且已具备稳定工具序列的组合能力。
 3. 补跨入口 Harness，确认 capability discovery、workflow template、plan identity、trace 和 artifact 在 CLI/HTTP/生产/Console/session recovery 中一致。
+
+## M82.2：Planner 能力目录摘要（已完成）
+
+### 实现内容
+
+- 新增 `spatial-agent.capability-catalog-context.v1`，从现有 `capability_catalog` 生成候选能力范围内的紧凑 Planner 上下文，包含数据集、工具、result type、环境支持、数据门控、缺失数据、geometry 语义和 analysis-ready 摘要。
+- `ToolRegistry.definition_summary()` 提供只读工具参数摘要：required args、参数类型、enum、上下限、side effect、approval 和输出必填字段；仍不暴露可执行 handler 或绕过 Registry。
+- `AgentRuntime` 接收 `backend_name`，Runtime factory 将 memory/local 传入；Planner 上下文和 `plan_evidence` 现在能说明能力目录是否可用、当前后端、能力 id 和工具 schema 数量。
+- `LLMPlanner` prompt 明确：`capability_catalog` 用于能力/数据/后端/参数边界判断，`workflow_templates` 仍是更强的执行 DAG 契约。
+- 默认 `ContextBuilder` 预算从 8,000 提高到 12,000 字符；显式小预算测试仍覆盖裁剪行为。目录摘要只展开候选能力，不填充无关能力，避免再次挤掉模板契约。
+
+### 验收证据
+
+- M59/M77/M81 目标测试 37 项通过（1 项因缺少 FastAPI 依赖跳过），覆盖能力目录摘要、工具 schema 摘要、Runtime 上下文注入、计划证据和 LLM prompt。
+- 本轮仍未运行真实 GIS、Docker production acceptance 或 live 模型；这些保持为后续显式验收路径。
+
+### 下一阶段规划
+
+1. 补跨入口 Harness，验证 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace、artifact 和 session recovery 在 CLI/HTTP/生产/Console 中一致。
+2. 再评估需要下沉到 `WorkflowTemplate` 的剩余稳定 DAG，避免继续在 composer 或 prompt 中堆分支。
+3. 在 Harness 稳定后再安排真实数据降级矩阵和真实模型质量基线。

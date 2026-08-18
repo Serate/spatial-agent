@@ -6,6 +6,9 @@ from typing import Any, Dict, Iterable, Mapping
 from .workflow_templates import workflow_template_catalog
 
 
+CAPABILITY_CONTEXT_SCHEMA_VERSION = "spatial-agent.capability-catalog-context.v1"
+
+
 DATASET_TOOL_CAPABILITIES = {
     "admin_areas": ["get_dataset_schema", "range_query"],
     "dem": [
@@ -290,6 +293,64 @@ def capability_suggestions() -> list[Dict[str, str]]:
     ]
 
 
+def capability_context_summary(
+    *,
+    catalog: Mapping[str, Any] | None = None,
+    tool_definitions: Mapping[str, Mapping[str, Any]] | None = None,
+    selected_capability_ids: Iterable[str] | None = None,
+    max_capabilities: int = 10,
+    max_tools: int = 16,
+) -> Dict[str, Any]:
+    """Return a compact planner-facing capability catalog summary."""
+    source = catalog or capability_catalog()
+    capabilities = [
+        item for item in source.get("capabilities", [])
+        if isinstance(item, Mapping) and item.get("id")
+    ]
+    selected = [str(item) for item in (selected_capability_ids or []) if item]
+    selected_index = {capability_id: index for index, capability_id in enumerate(selected)}
+    if selected_index:
+        candidates = [
+            item for item in capabilities
+            if str(item.get("id")) in selected_index
+        ]
+        ordered = sorted(
+            candidates,
+            key=lambda item: selected_index.get(str(item.get("id")), len(selected_index)),
+        )[:max_capabilities]
+    else:
+        ordered = capabilities[:max_capabilities]
+    capability_items = [_capability_context_item(item) for item in ordered]
+    tool_names = []
+    seen_tools = set()
+    for item in capability_items:
+        for tool_name in item["tools"]:
+            if tool_name not in seen_tools:
+                tool_names.append(tool_name)
+                seen_tools.add(tool_name)
+    tool_schema_source = tool_definitions or {}
+    tool_schemas = {
+        name: _safe_tool_schema_summary(tool_schema_source[name])
+        for name in tool_names[:max_tools]
+        if name in tool_schema_source and isinstance(tool_schema_source[name], Mapping)
+    }
+    analysis_ready = source.get("analysis_ready")
+    return {
+        "schema_version": CAPABILITY_CONTEXT_SCHEMA_VERSION,
+        "catalog_version": source.get("version"),
+        "environment": source.get("environment", "unknown"),
+        "health_status": source.get("health_status", "unknown"),
+        "data_readiness": source.get("data_readiness", "unknown"),
+        "analysis_ready": _safe_analysis_ready_summary(analysis_ready),
+        "capability_count": len(capabilities),
+        "selected_capability_ids": [item for item in selected if item],
+        "capabilities": capability_items,
+        "tool_schemas": tool_schemas,
+        "tool_schema_count": len(tool_schemas),
+        "dataset_groups": deepcopy(source.get("dataset_groups") or {}),
+    }
+
+
 def runtime_capability_catalog(
     health_report: Mapping[str, Any],
     *,
@@ -410,6 +471,76 @@ def runtime_capability_catalog(
             "required": False,
         }
     return snapshot
+
+
+def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
+    return {
+        "id": str(item.get("id", "")),
+        "label": str(item.get("label", ""))[:80],
+        "datasets": [str(value) for value in item.get("datasets", [])],
+        "tools": [str(value) for value in item.get("tools", [])],
+        "result_types": [str(value) for value in item.get("result_types", [])],
+        "environment_supported": bool(item.get("environment_supported", False)),
+        "dataset_gate": str(item.get("dataset_gate", "unknown")),
+        "capability_status": str(item.get("capability_status", "unknown")),
+        "available": bool(item.get("available", False)),
+        "missing_datasets": [str(value) for value in item.get("missing_datasets", [])],
+        "geometry": str(item.get("geometry", "unknown"))[:80],
+    }
+
+
+def _safe_tool_schema_summary(definition: Mapping[str, Any]) -> Dict[str, Any]:
+    input_schema = definition.get("input_schema")
+    output_schema = definition.get("output_schema")
+    if not isinstance(input_schema, Mapping):
+        input_schema = {}
+    if not isinstance(output_schema, Mapping):
+        output_schema = {}
+    properties = input_schema.get("properties")
+    if not isinstance(properties, Mapping):
+        properties = {}
+    return {
+        "description": str(definition.get("description", ""))[:180],
+        "side_effect": str(definition.get("side_effect", "unknown"))[:32],
+        "requires_approval": bool(definition.get("requires_approval", False)),
+        "required": [str(value) for value in input_schema.get("required", [])],
+        "arguments": {
+            str(name): _safe_schema_property(prop)
+            for name, prop in properties.items()
+            if isinstance(prop, Mapping)
+        },
+        "additional_properties": input_schema.get("additionalProperties", True),
+        "output_required": [str(value) for value in output_schema.get("required", [])],
+    }
+
+
+def _safe_schema_property(prop: Mapping[str, Any]) -> Dict[str, Any]:
+    summary: Dict[str, Any] = {"type": str(prop.get("type", "any"))}
+    if "enum" in prop and isinstance(prop.get("enum"), list):
+        summary["enum"] = [str(value) for value in prop.get("enum", [])[:16]]
+    for key in ("minimum", "maximum", "minItems", "maxItems", "minLength", "maxLength"):
+        if key in prop:
+            summary[key] = prop.get(key)
+    return summary
+
+
+def _safe_analysis_ready_summary(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {"status": "not_configured", "required": False}
+    target_grid = value.get("target_grid")
+    if not isinstance(target_grid, Mapping):
+        target_grid = {}
+    grid_alignment = value.get("grid_alignment")
+    if not isinstance(grid_alignment, Mapping):
+        grid_alignment = {}
+    return {
+        "status": str(value.get("status", "unknown"))[:32],
+        "required": bool(value.get("required", False)),
+        "derived_version": str(value.get("derived_version", "unknown"))[:80],
+        "crs": str(target_grid.get("crs", "unknown"))[:80],
+        "grid_alignment_status": str(grid_alignment.get("status", "unknown"))[:32],
+        "verification_mode": str(value.get("verification_mode", "metadata"))[:32],
+    }
 
 
 def _safe_source_binding_summary(binding: Mapping[str, Any]) -> Dict[str, Any]:

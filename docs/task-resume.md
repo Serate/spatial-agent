@@ -856,4 +856,6 @@ M81.7 阶段规划（已执行）：先做 Service/开发 HTTP/生产 FastAPI/Co
 
 M82.1 已完成能力发现上下文：`CapabilityRouter.discover()` 输出 `spatial-agent.capability-discovery.v1`，Runtime 将 `capability_discovery` 注入 Planner 受信上下文，`plan_evidence` 和 Console 显示选中能力与候选能力。目标测试 27 项通过。实现中发现新增上下文 section 会挤掉 `workflow_templates` 的预算风险，已通过紧凑摘要和裁剪顺序修复，并写入中文问题日志。
 
-下一步从项目整体继续：把能力发现扩展为能力目录摘要（工具 schema、数据门控、后端支持、版本与安全边界），继续把稳定 DAG 模板化，并补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness。当前并发度为 1，默认 quick/stage 不访问网络，真实 GIS/Docker/live 模型只作为显式验收路径。
+M82.2 已完成 Planner 能力目录摘要：新增 `spatial-agent.capability-catalog-context.v1`，只展开候选能力范围内的能力目录、数据门控、后端支持、analysis-ready 摘要和工具参数形状；`ToolRegistry.definition_summary()` 暴露只读 schema 摘要，Runtime factory 将 backend_name 注入 Runtime，`plan_evidence` 记录能力目录可用性、后端和工具 schema 数量。默认上下文预算提高到 12,000 字符。M59/M77/M81 目标测试 37 项通过（1 项因缺少 FastAPI 依赖跳过）。
+
+下一步从项目整体继续：补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness，验证 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace 和 artifact 一致；随后再推进稳定 DAG 模板化、真实数据降级矩阵和真实模型质量基线。当前并发度为 1，默认 quick/stage 不访问网络，真实 GIS/Docker/live 模型只作为显式验收路径。

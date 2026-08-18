@@ -635,4 +635,6 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 
 M82.1 已完成开放式能力发现的第一层接口：`CapabilityRouter.discover()` 输出版本化、JSON-safe 的 `spatial-agent.capability-discovery.v1`，Runtime 将 `capability_discovery` 注入 Planner 受信上下文，并在 `plan_evidence` / Console 运行证据中显示选中能力、候选能力、候选数量和信号。保持 `select()` 兼容，未改变现有 RuleBasedPlanner 路由行为。M77/M81 目标测试 27 项通过。
 
-下一步从项目整体继续，不陷入单个区域或单个数据细节：将能力发现扩展为能力目录摘要（工具 schema、数据门控、后端支持状态、版本、安全边界），继续把稳定 DAG 从 composer 下沉到 `WorkflowTemplate`，并补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness。当前最大并发度仍为 1；默认 quick/stage 离线，真实 GIS/Docker/live 模型只按显式验收运行。
+M82.2 已完成 Planner 能力目录摘要：`capability_context_summary()` 输出 `spatial-agent.capability-catalog-context.v1`，只展开候选能力范围内的能力目录、数据门控、后端支持、analysis-ready 摘要和工具参数形状；`ToolRegistry.definition_summary()` 暴露只读 schema 摘要，不暴露 handler 或绕过 Registry；Runtime factory 将 memory/local backend_name 注入 Runtime，`plan_evidence` 记录能力目录可用性、后端、能力 id 和工具 schema 数量。默认 `ContextBuilder` 预算提高到 12,000 字符。M59/M77/M81 目标测试 37 项通过（1 项因缺少 FastAPI 依赖跳过）。
+
+下一步从项目整体继续，不陷入单个区域或单个数据细节：补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness，验证 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace 和 artifact 一致；随后再推进稳定 DAG 模板化、真实数据降级矩阵和真实模型质量基线。当前最大并发度仍为 1；默认 quick/stage 离线，真实 GIS/Docker/live 模型只按显式验收运行。

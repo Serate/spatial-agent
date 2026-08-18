@@ -22,7 +22,7 @@ class ContextPacket:
 class ContextBuilder:
     """Build deterministic, bounded context without leaking private settings."""
 
-    def __init__(self, max_chars: int = 8000, max_items: int = 24, max_string_chars: int = 1200):
+    def __init__(self, max_chars: int = 12000, max_items: int = 24, max_string_chars: int = 1200):
         if max_chars < 512:
             raise ValueError("max_chars must be at least 512")
         if max_items < 1 or max_string_chars < 80:
@@ -42,6 +42,7 @@ class ContextBuilder:
         planner_kind: Optional[str] = None,
         spatial_request: Optional[Mapping[str, Any]] = None,
         capability_discovery: Optional[Mapping[str, Any]] = None,
+        capability_catalog: Optional[Mapping[str, Any]] = None,
         memory_section: Optional[Mapping[str, Any]] = None,
         workflow_templates: Optional[Mapping[str, Any]] = None,
     ) -> ContextPacket:
@@ -62,6 +63,8 @@ class ContextBuilder:
             sections["spatial_request"] = self._safe_value(spatial_request)
         if capability_discovery:
             sections["capability_discovery"] = self._safe_value(capability_discovery)
+        if capability_catalog:
+            sections["capability_catalog"] = self._safe_value(capability_catalog)
         if planner_kind:
             sections["planner"] = {"kind": self._text(planner_kind)}
         if memory_section:
@@ -99,6 +102,7 @@ class ContextBuilder:
             "workflow",
             "planner",
             "memory",
+            "capability_catalog",
             "capability_discovery",
             "workflow_templates",
         ):

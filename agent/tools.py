@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Any, Callable, Dict, Mapping, Optional, Protocol
+from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Protocol
 
 from .errors import ToolError
 from .spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
@@ -80,6 +80,54 @@ class ToolRegistry:
             }
             for name in sorted(self._dynamic_handlers)
         ]
+
+    def definition_summary(
+        self,
+        tool_names: Iterable[str] | None = None,
+        *,
+        max_tools: int = 32,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Return bounded, read-only tool definition summaries for planning context."""
+        names = list(tool_names) if tool_names is not None else sorted(self._definitions)
+        summary: Dict[str, Dict[str, Any]] = {}
+        for name in names:
+            if len(summary) >= max_tools:
+                break
+            definition = self._definitions.get(name)
+            if not isinstance(definition, Mapping):
+                continue
+            input_schema = definition.get("input_schema")
+            output_schema = definition.get("output_schema")
+            properties = (
+                input_schema.get("properties", {})
+                if isinstance(input_schema, Mapping)
+                else {}
+            )
+            summary[name] = {
+                "description": str(definition.get("description") or "")[:180],
+                "side_effect": str(definition.get("side_effect") or "unknown")[:32],
+                "requires_approval": bool(definition.get("requires_approval", False)),
+                "dynamic": bool(definition.get("dynamic", False)),
+                "input_schema": {
+                    "required": list(input_schema.get("required", []))
+                    if isinstance(input_schema, Mapping)
+                    else [],
+                    "properties": {
+                        str(key): _schema_property_summary(value)
+                        for key, value in properties.items()
+                        if isinstance(value, Mapping)
+                    } if isinstance(properties, Mapping) else {},
+                    "additionalProperties": input_schema.get("additionalProperties", True)
+                    if isinstance(input_schema, Mapping)
+                    else True,
+                },
+                "output_schema": {
+                    "required": list(output_schema.get("required", []))
+                    if isinstance(output_schema, Mapping)
+                    else [],
+                },
+            }
+        return summary
 
     def invoke(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         definition = self._definitions.get(name)
@@ -161,6 +209,16 @@ class ToolRegistry:
             raise ToolError(path + " is below the minimum")
         if "maximum" in schema and value > schema["maximum"]:
             raise ToolError(path + " is above the maximum")
+
+
+def _schema_property_summary(schema: Mapping[str, Any]) -> Dict[str, Any]:
+    summary: Dict[str, Any] = {"type": str(schema.get("type", "any"))}
+    if isinstance(schema.get("enum"), list):
+        summary["enum"] = [str(value) for value in schema.get("enum", [])[:16]]
+    for key in ("minimum", "maximum", "minItems", "maxItems", "minLength", "maxLength"):
+        if key in schema:
+            summary[key] = schema.get(key)
+    return summary
 
 
 class DemoSpatialAdapter(SpatialToolAdapter):

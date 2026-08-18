@@ -2590,4 +2590,4 @@ Compose 的 `env_file` 会把变量传入容器运行环境，但不会用于 Co
 
 ### 处理与预防
 
-`CapabilityDiscovery.as_context_dict()` 改为紧凑摘要：顶层保留 signals、tasks、constraints，候选列表只保留 capability id 与 priority；`ContextBuilder` 裁剪顺序调整为先裁剪 `capability_discovery`，最后才裁剪 `workflow_templates`。后续新增 Planner 上下文 section 必须先评估预算优先级：稳定执行契约和模板蓝图优先级高于解释性候选证据；目标测试要同时检查新证据存在和模板 exact 未回退。
+`CapabilityDiscovery.as_context_dict()` 改为紧凑摘要：顶层保留 signals、tasks、constraints，候选列表只保留 capability id 与 priority；`ContextBuilder` 裁剪顺序调整为先裁剪 `capability_discovery`，最后才裁剪 `workflow_templates`。M82.2 增加能力目录摘要时继续收紧为“只展开候选能力”，并把默认上下文预算提高到 12,000 字符；显式小预算测试仍覆盖裁剪行为。后续新增 Planner 上下文 section 必须先评估预算优先级：稳定执行契约和模板蓝图优先级高于解释性候选证据；目标测试要同时检查新证据存在和模板 exact 未回退。

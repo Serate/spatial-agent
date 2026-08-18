@@ -4,7 +4,11 @@ import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 
-from agent.capability_catalog import capability_catalog, capability_suggestions
+from agent.capability_catalog import (
+    capability_catalog,
+    capability_context_summary,
+    capability_suggestions,
+)
 from agent.data_quality import dataset_health_report
 from agent.dataset_catalog import DatasetCatalog
 from agent.service import AgentService
@@ -42,6 +46,37 @@ class M59CapabilityCatalogTests(unittest.TestCase):
         suggestions = capability_suggestions()
         self.assertEqual(suggestions[0], {"id": "conversation", "label": "通用对话"})
         self.assertTrue(any(item["id"] == "buildability_screening" for item in suggestions))
+
+    def test_capability_context_summary_is_compact_and_tool_schema_aware(self):
+        catalog = capability_catalog(environment="memory")
+        summary = capability_context_summary(
+            catalog=catalog,
+            tool_definitions={
+                "range_query": {
+                    "description": "query",
+                    "side_effect": "none",
+                    "requires_approval": False,
+                    "input_schema": {
+                        "required": ["dataset", "conditions", "limit"],
+                        "properties": {
+                            "dataset": {"type": "string", "enum": ["admin_areas"]},
+                            "limit": {"type": "integer", "minimum": 1, "maximum": 10000},
+                        },
+                        "additionalProperties": False,
+                    },
+                    "output_schema": {"required": ["result_ref"]},
+                }
+            },
+            selected_capability_ids=["admin_boundary_query"],
+            max_capabilities=2,
+        )
+
+        self.assertEqual(summary["schema_version"], "spatial-agent.capability-catalog-context.v1")
+        self.assertEqual(summary["environment"], "memory")
+        self.assertEqual(summary["capabilities"][0]["id"], "admin_boundary_query")
+        self.assertIn("range_query", summary["tool_schemas"])
+        self.assertIn("conditions", summary["tool_schemas"]["range_query"]["required"])
+        json.dumps(summary, ensure_ascii=False)
 
     def test_catalog_without_health_evidence_marks_dataset_gate_unknown(self):
         item = next(
