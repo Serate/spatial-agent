@@ -15,6 +15,7 @@ def render_artifact_html(artifact: Dict[str, Any]) -> str:
     goal = html.escape(str(plan.get("goal") or "No plan generated"))
     steps = artifact.get("steps") or []
     step_rows = "".join(_step_row(step) for step in steps)
+    views_html = _views_section(artifact)
     trace_rows = "".join(
         "<li>" + html.escape(str(line)) + "</li>"
         for line in artifact.get("trace_summary", [])
@@ -34,6 +35,9 @@ h1 {{ margin:0 0 8px; font-size:28px; }} h2 {{ margin:0 0 14px; font-size:17px; 
 section {{ background:#fff; border:1px solid #d9e0e6; border-radius:8px; padding:20px; margin-top:16px; }}
 .prompt {{ font-size:18px; line-height:1.5; }} .answer {{ line-height:1.6; white-space:pre-wrap; }}
 .error {{ color:#a61b1b; white-space:pre-wrap; }}
+.view-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }}
+.metric {{ border:1px solid #e5e9ed; border-radius:8px; padding:12px; background:#f8fafc; }}
+.metric b {{ display:block; font-size:18px; margin-bottom:4px; }} .panel-kind {{ color:#5f6b76; font-size:12px; }}
 table {{ width:100%; border-collapse:collapse; }} th,td {{ text-align:left; padding:11px 10px; border-top:1px solid #e5e9ed; vertical-align:top; }} th {{ color:#5f6b76; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }}
 code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:0; padding-left:20px; line-height:1.7; }}
 @media (max-width:640px) {{ header {{ display:block; }} table {{ display:block; overflow-x:auto; white-space:nowrap; }} }}
@@ -41,6 +45,7 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
 <header><div><div class="muted">Spatial Agent run</div><h1>{title}</h1><div class="muted">{request}</div></div><div class="status">{status}</div></header>
 <section><h2>Plan</h2><div class="prompt">{goal}</div></section>
 <section><h2>Planner Metrics</h2><code>{metrics}</code></section>
+{views_html}
 <section><h2>Tool Steps</h2><table><thead><tr><th>Tool</th><th>Status</th><th>Attempts</th><th>Latency</th><th>Result</th></tr></thead><tbody>{step_rows}</tbody></table>{detail}</section>
 <section><h2>Answer</h2><div class="answer">{answer}</div></section>
 <section><h2>Trace</h2><ul>{trace_rows}</ul></section>
@@ -50,11 +55,55 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
         request=request,
         goal=goal,
         metrics=metrics_text,
+        views_html=views_html,
         step_rows=step_rows or '<tr><td colspan="5" class="muted">No tool steps</td></tr>',
         detail=detail,
         answer=answer,
         trace_rows=trace_rows or '<li class="muted">No trace entries</li>',
     )
+
+
+def _views_section(artifact: Dict[str, Any]) -> str:
+    result = artifact.get("result") if isinstance(artifact.get("result"), dict) else {}
+    views = result.get("views") if isinstance(result.get("views"), dict) else {}
+    panels = views.get("panels") if isinstance(views.get("panels"), dict) else {}
+    if not panels:
+        return ""
+    schema = html.escape(str(views.get("schema_version") or "unknown"))
+    panel_html = "".join(
+        _view_panel(panel_name, panel)
+        for panel_name, panel in sorted(panels.items())
+        if isinstance(panel, dict)
+    )
+    return '<section><h2>Result Views</h2><div class="muted">{}</div>{}</section>'.format(
+        schema,
+        panel_html or '<p class="muted">No view panels</p>',
+    )
+
+
+def _view_panel(panel_name: str, panel: Dict[str, Any]) -> str:
+    title = html.escape(str(panel.get("title") or panel_name))
+    name = html.escape(str(panel_name))
+    kind = html.escape(str(panel.get("kind") or "unknown"))
+    metrics = panel.get("metrics") if isinstance(panel.get("metrics"), list) else []
+    metric_html = "".join(_metric_card(metric) for metric in metrics[:12])
+    note = panel.get("note")
+    note_html = '<p class="muted">{}</p>'.format(html.escape(str(note))) if note else ""
+    return '<article><h3>{}</h3><div class="panel-kind"><code>{}</code> · {}</div><div class="view-grid">{}</div>{}</article>'.format(
+        title,
+        name,
+        kind,
+        metric_html or '<div class="muted">No metrics</div>',
+        note_html,
+    )
+
+
+def _metric_card(metric: Any) -> str:
+    if not isinstance(metric, dict):
+        return ""
+    label = html.escape(str(metric.get("label") or "Metric"))
+    value = html.escape(str(metric.get("value") if metric.get("value") is not None else "-"))
+    return '<div class="metric"><b>{}</b><span>{}</span></div>'.format(value, label)
 
 
 def _step_row(step: Any) -> str:

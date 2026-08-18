@@ -1939,3 +1939,22 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 视角规划 M87，优先设计 vector/table/chart 通用 view contract，而不是为单个 GIS 工具继续写页面分支。
 2. 将 artifact viewer 和任何后续展示入口统一迁移到 `result.views`，让 artifact 既是审计记录，也是可复现展示 payload。
 3. 在通用 view contract 稳定后，安排小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致。
+
+## M87：Artifact Viewer 消费 Result Views（已完成）
+
+### 实现内容
+
+- `agent/artifact_viewer.py` 新增 `Result Views` 区块，直接读取 artifact 中的 `result.views.panels`，渲染 schema、panel 名、kind、metrics 和 note。
+- Artifact viewer 继续保持自包含、无前端依赖、HTML escape 安全边界；没有 views 的旧 artifact 仍按原有 Plan / Tool Steps / Answer / Trace 展示。
+- `tests/test_m17_artifact_viewer.py` 新增 views 渲染测试，确认 artifact HTML 能展示 `spatial-agent.views.v1`、panel kind 和 metric 内容。
+
+### 验收证据
+
+- M17 artifact viewer 目标测试 3 项通过。
+- `agent/artifact_viewer.py` Python 语法编译通过。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 视角规划 M88，优先设计 vector/table/chart 通用 view contract，补齐非栅格/非建设类结果的可复现展示 payload。
+2. 将通用 view contract 纳入跨入口 Harness，确保 Console、artifact viewer、CLI/HTTP artifact 对同一 result type 使用同一 view model。
+3. 在 vector/table/chart contract 稳定后，再安排小型真实 GIS + live LLM + Docker acceptance。

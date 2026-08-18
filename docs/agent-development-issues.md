@@ -2646,7 +2646,7 @@ M83 以后 Console 已经由后端 `result.workspace.panels` 决定哪些结果�
 
 ### 处理与预防
 
-新增 `spatial-agent.views.v1`，由 `result_contract.py` 统一输出 `result.views.panels`：先覆盖 `raster_metadata`、`raster_statistics`、`spatial_overview` 和 `map` view，再扩展 `dataset_health`、`spatial_composite` 和 `buildability_screening`，包含有界 metrics、来源 step、说明、分布、覆盖率、rows/categories/coverage 和栅格/GeoJSON 预览证据。Console 改为消费 `resultViewPanels(data)` 和 `renderMetricGrid()`，栅格、总览、健康检查、综合分析和建设筛选都不再扫描 `steps` 或工具名自行推断指标。Production acceptance 增加 `Assert-ViewEvidence`，同步响应与 artifact 都必须保留同一 views schema。后续新增 vector/table/chart 展示时，应先扩展 backend view model 和 result contract 测试，再让前端按结构化 view 渲染，不能把面板内部语义继续散落到页面逻辑。
+新增 `spatial-agent.views.v1`，由 `result_contract.py` 统一输出 `result.views.panels`：先覆盖 `raster_metadata`、`raster_statistics`、`spatial_overview` 和 `map` view，再扩展 `dataset_health`、`spatial_composite` 和 `buildability_screening`，包含有界 metrics、来源 step、说明、分布、覆盖率、rows/categories/coverage 和栅格/GeoJSON 预览证据。Console 改为消费 `resultViewPanels(data)` 和 `renderMetricGrid()`，栅格、总览、健康检查、综合分析和建设筛选都不再扫描 `steps` 或工具名自行推断指标。Production acceptance 增加 `Assert-ViewEvidence`，同步响应与 artifact 都必须保留同一 views schema；artifact viewer 也改为渲染 `result.views.panels`，让 artifact 成为可复现展示 payload。后续新增 vector/table/chart 展示时，应先扩展 backend view model 和 result contract 测试，再让前端按结构化 view 渲染，不能把面板内部语义继续散落到页面逻辑。
 
 ## Artifact fallback 恢复不能重建丢失展示契约
 

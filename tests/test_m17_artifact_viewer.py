@@ -37,6 +37,41 @@ class M17ArtifactViewerTests(unittest.TestCase):
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", html)
         self.assertIn("Run failed: bad input", html)
 
+    def test_render_uses_result_views_for_panel_payloads(self):
+        html = render_artifact_html(
+            {
+                "run_id": "run-views",
+                "status": "COMPLETED",
+                "request": "查询DEM栅格元数据",
+                "plan": {"goal": "inspect raster metadata"},
+                "result": {
+                    "views": {
+                        "schema_version": "spatial-agent.views.v1",
+                        "panels": {
+                            "raster": {
+                                "kind": "raster_metadata",
+                                "title": "dem · 元数据",
+                                "metrics": [
+                                    {"label": "文件数", "value": 2},
+                                    {"label": "CRS", "value": "EPSG:4326"},
+                                ],
+                                "note": "样本：dem.tif",
+                            }
+                        },
+                    }
+                },
+                "steps": [],
+                "trace_summary": [],
+            }
+        )
+
+        self.assertIn("Result Views", html)
+        self.assertIn("spatial-agent.views.v1", html)
+        self.assertIn("raster", html)
+        self.assertIn("raster_metadata", html)
+        self.assertIn("文件数", html)
+        self.assertIn("EPSG:4326", html)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -893,3 +893,7 @@ M86 已完成 `views` 跨入口一致性 Harness：`tests/test_m81_plan_evidence
 M86 验证：M81 目标 Harness 9 项通过。阶段收口还需运行 M46/M79/M81/M76/M66 相关回归、Python 编译、quick、stage、PowerShell parser、`git diff --check`，通过后提交推送。
 
 下一阶段 M87 需要先做全局盘点：评估并设计 vector/table/chart 通用 view contract，让新结果类型优先扩展 result envelope，而不是继续增加页面 DOM 专用分支；同时考虑把 artifact viewer 也改为消费 `result.views`。
+
+M87 已完成 artifact viewer 消费 `result.views`：`agent/artifact_viewer.py` 新增 `Result Views` 区块，从 artifact 的 `result.views.panels` 渲染 schema、panel 名、kind、metrics 和 note；旧 artifact 没有 views 时仍按原有 Plan / Tool Steps / Answer / Trace 展示。`tests/test_m17_artifact_viewer.py` 新增 views 渲染测试，M17 目标测试 3 项通过，`agent/artifact_viewer.py` Python 编译通过。
+
+下一阶段 M88 需要先做全局盘点：优先设计 vector/table/chart 通用 view contract，补齐非栅格/非建设类结果的可复现展示 payload，并把该 contract 纳入 Console、artifact viewer、CLI/HTTP artifact 的一致性 Harness。
