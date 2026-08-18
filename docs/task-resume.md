@@ -887,3 +887,9 @@ M85 已完成复杂结果面板 view model 收敛：`result.views.panels` 扩展
 M85 验证：M46/M79 目标测试 16 项通过；M46/M79/M81/M76/M66 相关回归 38 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。
 
 下一阶段 M86 需要先做全局盘点：优先补 `views` 在 CLI/HTTP/artifact/run detail/session recovery/Console 的跨入口一致性 Harness，并评估 vector/table/chart 通用 view contract。真实 GIS、live LLM 和 Docker production acceptance 仍作为显式验收路径。
+
+M86 已完成 `views` 跨入口一致性 Harness：`tests/test_m81_plan_evidence_acceptance.py` 的 `_normalized_contract()` 纳入 `result.views.schema_version`、view panel 集合和 panel kind，直接比较 direct service、HTTP `/runs`、HTTP run detail、CLI、artifact 和 artifact fallback recovery。红测发现 `AgentService.get_run()` 从 artifact fallback 恢复时会重新 `build_result_contract()`，在缺少完整 `steps` 时把 `views.panels` 重建为空；现已在恢复路径保留 artifact 中已有的 `result.views`，旧 artifact 仍可重建基础 envelope，新 artifact 不丢展示契约。
+
+M86 验证：M81 目标 Harness 9 项通过。阶段收口还需运行 M46/M79/M81/M76/M66 相关回归、Python 编译、quick、stage、PowerShell parser、`git diff --check`，通过后提交推送。
+
+下一阶段 M87 需要先做全局盘点：评估并设计 vector/table/chart 通用 view contract，让新结果类型优先扩展 result envelope，而不是继续增加页面 DOM 专用分支；同时考虑把 artifact viewer 也改为消费 `result.views`。

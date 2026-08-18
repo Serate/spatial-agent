@@ -680,10 +680,13 @@ class AgentService:
                 else None
             )
             if payload is not None:
+                artifact_result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
                 payload["trace_summary"] = payload.get("trace_summary") or []
                 payload["provenance"] = payload.get("provenance") or build_provenance(payload)
                 payload["result_type"] = _result_type(payload)
                 payload["result"] = build_result_contract(payload)
+                if isinstance(artifact_result.get("views"), dict):
+                    payload["result"]["views"] = artifact_result["views"]
                 _attach_error_category(payload)
                 self._attach_async_observability(payload, run_id)
                 return payload

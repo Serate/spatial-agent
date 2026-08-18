@@ -2647,3 +2647,21 @@ M83 以后 Console 已经由后端 `result.workspace.panels` 决定哪些结果�
 ### 处理与预防
 
 新增 `spatial-agent.views.v1`，由 `result_contract.py` 统一输出 `result.views.panels`：先覆盖 `raster_metadata`、`raster_statistics`、`spatial_overview` 和 `map` view，再扩展 `dataset_health`、`spatial_composite` 和 `buildability_screening`，包含有界 metrics、来源 step、说明、分布、覆盖率、rows/categories/coverage 和栅格/GeoJSON 预览证据。Console 改为消费 `resultViewPanels(data)` 和 `renderMetricGrid()`，栅格、总览、健康检查、综合分析和建设筛选都不再扫描 `steps` 或工具名自行推断指标。Production acceptance 增加 `Assert-ViewEvidence`，同步响应与 artifact 都必须保留同一 views schema。后续新增 vector/table/chart 展示时，应先扩展 backend view model 和 result contract 测试，再让前端按结构化 view 渲染，不能把面板内部语义继续散落到页面逻辑。
+
+## Artifact fallback 恢复不能重建丢失展示契约
+
+### 现象
+
+M86 将 `result.views` 纳入 direct service、HTTP `/runs`、HTTP run detail、CLI、artifact 和 artifact fallback recovery 的跨入口一致性 Harness 后，发现普通 HTTP 运行和 artifact 中都有 `views.panels`，但重启/新服务通过 artifact fallback 恢复同一 run detail 时，`result.views.panels` 变为空。
+
+### 根因
+
+artifact fallback 读取的是持久化运行记录，其中已经包含最终 `result` envelope；但 `AgentService.get_run()` 旧逻辑会再次调用 `build_result_contract(payload)`。当 artifact payload 不再携带足够完整的原始工具 `steps` 或几何中间态时，重新构建只能得到基础 envelope，无法恢复原来由工具结果派生出的 panel view payload。
+
+### 诊断
+
+运行 `tests.test_m81_plan_evidence_acceptance`，比较 `_normalized_contract(http_run)` 与 `_normalized_contract(recovered)`。如果只有 recovered 的 `view_panels` / `view_kinds` 为空，而 HTTP 和 artifact 正常，问题就在 artifact fallback 恢复路径。
+
+### 修复与预防
+
+`AgentService.get_run()` 在 artifact fallback 路径中先保存 artifact 里的 `result`，重建基础 contract 后，如果原 artifact 已有 `result.views`，则保留该 views envelope。这样旧 artifact 仍能重建基础结果，新 artifact 不会丢失展示契约。后续新增任何 result envelope 子契约时，都要把 direct/HTTP/detail/CLI/artifact/recovery 加入同一 normalization Harness，不能只验证同步响应或 artifact 文件本身。

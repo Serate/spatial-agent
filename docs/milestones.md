@@ -1920,3 +1920,22 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 视角规划 M86，不再围绕页面局部追加指标；优先补 `views` 在 artifact/run detail/session recovery 的跨入口一致性 Harness，并检查 CLI/HTTP/Console 对同一复杂请求的 view panels 是否一致。
 2. 评估 vector/table/chart 通用 view contract，避免为每种 GIS 结果写新的 DOM 专用分支。
 3. 在 result envelope 五类证据稳定后，安排小型真实 GIS + live LLM + Docker acceptance，验证真实模型、真实数据和生产入口都保留 planning/lineage/degradation/workspace/views。
+
+## M86：Views 跨入口一致性恢复（已完成）
+
+### 实现内容
+
+- M81 跨入口 Harness 的 `_normalized_contract()` 纳入 `result.views.schema_version`、view panel 集合和 panel kind，直接比较 direct service、HTTP `/runs`、HTTP run detail、CLI 和 artifact fallback recovery。
+- HTTP/artifact 断言扩展为 `artifact.result.views == run.result.views`，CLI artifact 也必须保留同一套 views envelope。
+- 修复 `AgentService.get_run()` 的 artifact fallback 恢复路径：当 artifact 已包含最终 `result.views` 时，恢复详情保留该结构化展示契约，避免因缺少完整 `steps` 重新 build 出空 view panels。
+
+### 验收证据
+
+- M81 目标 Harness 9 项通过，覆盖 preview、complex contract、CLI/HTTP/artifact、run detail 和 artifact fallback recovery。
+- 阶段默认验证仍保持离线；完整相关回归和 profile 验收在提交前执行。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 视角规划 M87，优先设计 vector/table/chart 通用 view contract，而不是为单个 GIS 工具继续写页面分支。
+2. 将 artifact viewer 和任何后续展示入口统一迁移到 `result.views`，让 artifact 既是审计记录，也是可复现展示 payload。
+3. 在通用 view contract 稳定后，安排小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致。

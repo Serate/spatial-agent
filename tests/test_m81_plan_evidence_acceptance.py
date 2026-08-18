@@ -177,6 +177,8 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
             artifact["plan_evidence"]["exact_template_ids"],
             planning["exact_template_ids"],
         )
+        self.assertEqual(artifact["result"]["views"], run["result"]["views"])
+        self.assertEqual(run["result"]["views"]["schema_version"], "spatial-agent.views.v1")
 
     def test_complex_request_has_consistent_contract_across_service_http_and_artifact(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -241,6 +243,8 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
         self.assertTrue(http_run["plan_evidence"]["capability_catalog_available"])
         self.assertIn("spatial_analysis", http_run["plan_evidence"]["capability_catalog_ids"])
         self.assertEqual(artifact["plan_evidence"], http_run["plan_evidence"])
+        self.assertEqual(artifact["result"]["views"], http_run["result"]["views"])
+        self.assertEqual(recovered["result"]["views"], http_run["result"]["views"])
         self.assertEqual(history["runs"][0]["lineage"]["run_id"], http_run["run_id"])
 
     def test_cli_http_and_artifact_share_runtime_contract(self):
@@ -296,6 +300,7 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(_normalized_contract(cli_run), _normalized_contract(http_run))
         self.assertEqual(cli_artifact["plan_evidence"], cli_run["plan_evidence"])
+        self.assertEqual(cli_artifact["result"]["views"], cli_run["result"]["views"])
         self.assertTrue(cli_run["result"]["lineage"]["artifact"]["available"])
         self.assertEqual(cli_run["result"]["planning"]["capability_catalog_ids"], cli_run["plan_evidence"]["capability_catalog_ids"])
 
@@ -413,6 +418,13 @@ def _normalized_contract(payload):
         "step_statuses": [step["status"] for step in payload["steps"]],
         "trace_step_count": len(payload["trace_summary"]),
         "artifact_available": payload["result"]["lineage"]["artifact"]["available"],
+        "workspace_panels": payload["result"]["workspace"]["panels"],
+        "views_schema": payload["result"]["views"]["schema_version"],
+        "view_panels": sorted(payload["result"]["views"].get("panels", {}).keys()),
+        "view_kinds": {
+            key: value.get("kind")
+            for key, value in sorted(payload["result"]["views"].get("panels", {}).items())
+        },
         "answer_has_summary": "已完成 9 个工具步骤" in payload.get("answer", ""),
     }
 
