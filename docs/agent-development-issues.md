@@ -2665,3 +2665,17 @@ artifact fallback 读取的是持久化运行记录，其中已经包含最终 `
 ### 修复与预防
 
 `AgentService.get_run()` 在 artifact fallback 路径中先保存 artifact 里的 `result`，重建基础 contract 后，如果原 artifact 已有 `result.views`，则保留该 views envelope。这样旧 artifact 仍能重建基础结果，新 artifact 不会丢失展示契约。后续新增任何 result envelope 子契约时，都要把 direct/HTTP/detail/CLI/artifact/recovery 加入同一 normalization Harness，不能只验证同步响应或 artifact 文件本身。
+
+## 矢量结果不能回退为原始 JSON 展示
+
+### 现象
+
+M88 之前，`vector_result`、`zonal_vector_summary_result` 和 `spatial_relation_result` 虽然已经由后端 workspace contract 打开结构化结果区，但面板内部没有后端 view payload。Console 只能显示整个 result envelope 的 JSON fallback，用户会看到技术字段而不是要素数、数据集、行政区、分类计数等可读结果；artifact viewer 和 HTTP/CLI 也缺少同一套可复现展示语义。
+
+### 根因
+
+矢量查询、区域矢量摘要和空间关系结果属于同一类“表格/摘要型空间结果”，但此前没有收敛到 `result.views.panels`。如果前端为了好看再扫描 `steps` 或工具名生成表格，就会重新制造第二套业务契约，且不同入口仍然不一致。
+
+### 处理与预防
+
+`result_contract.py` 新增 `vector` view：`range_query` 输出 `vector_query`，`get_zonal_vector_summary` 输出 `zonal_vector_summary`，`spatial_join` 输出 `spatial_relation`；只暴露有界 metrics、rows、分类 table 和 result_ref，不内联原始几何。Console 结构化结果区优先渲染 `resultViewPanels(data).vector` 和 `renderViewTable(view.table)`，没有 vector view 时才回退 JSON。后续 table/chart 也应先扩展 backend view model 和 result contract 测试，再让前端渲染结构化 payload，不能在页面端按工具名重建业务语义。

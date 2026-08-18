@@ -61,12 +61,15 @@ class M79ResultZoneContractTests(unittest.TestCase):
             "const view=resultViewPanels(data).health",
             "const view=resultViewPanels(data).composite",
             "const view=resultViewPanels(data).buildability",
+            "const view=resultViewPanels(data).vector",
             "renderMetricGrid(view.metrics||[])",
             "view.kind==='raster_metadata'",
             "view.kind==='spatial_overview'",
             "view.kind==='dataset_health'",
             "view.kind==='spatial_composite'",
             "view.kind==='buildability_screening'",
+            "view.kind==='vector_query'||view.kind==='zonal_vector_summary'||view.kind==='spatial_relation'",
+            "renderViewTable(view.table)",
         ):
             self.assertIn(marker, self.html)
         self.assertNotIn("const steps=data.steps||[]; const datasets=new Set()", self.html)

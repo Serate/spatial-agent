@@ -1958,3 +1958,25 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 视角规划 M88，优先设计 vector/table/chart 通用 view contract，补齐非栅格/非建设类结果的可复现展示 payload。
 2. 将通用 view contract 纳入跨入口 Harness，确保 Console、artifact viewer、CLI/HTTP artifact 对同一 result type 使用同一 view model。
 3. 在 vector/table/chart contract 稳定后，再安排小型真实 GIS + live LLM + Docker acceptance。
+
+## M88：矢量结果 View Contract（已完成）
+
+### 实现内容
+
+- `result_contract.py` 在 `spatial-agent.views.v1` 下新增 `vector` panel，覆盖 `range_query`、`get_zonal_vector_summary` 和 `spatial_join` 三类输出。
+- `vector_query`、`zonal_vector_summary` 和 `spatial_relation` view model 只暴露有界 metrics、rows、分类 table 和 result_ref，不内联原始几何，保持 artifact/GeoJSON 作为详细要素出口。
+- `zonal_vector_summary_result`、`zonal_vector_result`、`vector_result`、`spatial_relation_result` 和 `spatial_result` 都由后端 workspace/view contract 驱动结构化结果展示。
+- Console 的结构化结果区优先消费 `resultViewPanels(data).vector`，渲染 metric grid、rows 和 `renderViewTable(view.table)`；没有 vector view 时才保留 JSON fallback。
+
+### 验收证据
+
+- M46/M79 目标测试 17 项通过。
+- M17/M46/M79/M81/M76/M66 相关回归 42 项通过（1 项 live Docker acceptance 跳过），覆盖 artifact viewer、result envelope、Console 静态契约、跨入口 consistency、lineage/degradation 和生产静态门禁。
+- Python 编译、quick profile、stage profile 和 production acceptance PowerShell parser 均通过。
+- 阶段默认验证保持离线；真实 Docker/GIS/live LLM 仍作为后续显式 acceptance。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 视角规划 M89，继续把 table/chart 通用展示 payload 下沉到 `result.views`，不要回到页面端按工具名拼内容。
+2. 补齐 artifact viewer 对 table payload 的结构化渲染，让 artifact 成为可复现展示面，而不是只显示 metric 摘要。
+3. 在通用 view contract 稳定后，安排小型真实 GIS + live LLM + Docker acceptance，验证真实模型、真实数据和生产入口都保留 planning/lineage/degradation/workspace/views。

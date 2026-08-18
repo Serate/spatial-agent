@@ -18,6 +18,7 @@ TITLE_BY_TYPE = {
     "constrained_buildability_result": "约束建设候选筛选",
     "dataset_health_result": "数据健康检查",
     "zonal_vector_summary_result": "区域矢量摘要",
+    "zonal_vector_result": "区域矢量摘要",
     "vector_result": "矢量结果",
     "spatial_relation_result": "空间关系",
     "spatial_result": "空间结果",
@@ -38,6 +39,7 @@ WORKSPACE_PANELS_BY_TYPE = {
     "buildability_comparison": ["buildability", "compare"],
     "constrained_buildability_result": ["buildability", "compare"],
     "zonal_vector_summary_result": ["vector"],
+    "zonal_vector_result": ["vector"],
     "vector_result": ["vector"],
     "spatial_relation_result": ["vector"],
     "spatial_result": ["vector"],
@@ -245,6 +247,12 @@ def _view_model(
     buildability_view = _buildability_view(steps)
     if buildability_view and "buildability" in workspace_panels:
         panels["buildability"] = buildability_view
+    vector_view = _vector_view(steps)
+    if vector_view and (
+        "vector" in workspace_panels
+        or result_type in {"zonal_vector_summary_result", "zonal_vector_result", "vector_result", "spatial_relation_result", "spatial_result"}
+    ):
+        panels["vector"] = vector_view
     map_view = _map_view(steps, geometry_evidence, geojson_ref)
     if map_view and ("map" in workspace_panels or map_view.get("mode") != "none"):
         panels["map"] = map_view
@@ -583,6 +591,99 @@ def _buildability_view(steps: List[Any]) -> Dict[str, Any] | None:
     }
 
 
+def _vector_view(steps: List[Any]) -> Dict[str, Any] | None:
+    for tool, builder in (
+        ("get_zonal_vector_summary", _zonal_vector_summary_view),
+        ("spatial_join", _spatial_relation_view),
+        ("range_query", _vector_query_view),
+    ):
+        step, result = _first_step_result(steps, tool=tool)
+        if result:
+            return builder(step or {}, result)
+    return None
+
+
+def _vector_query_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    args = step.get("args") if isinstance(step.get("args"), dict) else {}
+    metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
+    dataset = _first_present(result.get("dataset"), args.get("dataset"))
+    count = _first_present(result.get("count"), metrics.get("returned_features"), metrics.get("feature_count"))
+    rows = [
+        _view_row("数据集", dataset),
+        _view_row("结果引用", result.get("result_ref")),
+    ]
+    if metrics.get("source") is not None:
+        rows.append(_view_row("来源", metrics.get("source")))
+    return {
+        "kind": "vector_query",
+        "source_step_id": step.get("id"),
+        "source_tool": step.get("tool"),
+        "title": "矢量查询结果",
+        "metrics": [
+            _view_metric("要素数", count),
+            _view_metric("CRS", _first_present(result.get("crs"), metrics.get("crs"))),
+            _view_metric("后端", metrics.get("backend")),
+        ],
+        "rows": rows[:8],
+        "note": "矢量结果只保留摘要、引用和可展示指标；原始几何通过 artifact/GeoJSON 引用查看。"[:320],
+    }
+
+
+def _zonal_vector_summary_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    args = step.get("args") if isinstance(step.get("args"), dict) else {}
+    summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
+    category_counts = summary.get("category_counts") if isinstance(summary.get("category_counts"), dict) else {}
+    rows = [
+        _view_row("数据集", _first_present(result.get("dataset"), args.get("dataset"))),
+        _view_row("行政区", _first_present(result.get("admin_name"), args.get("admin_name"))),
+    ]
+    table_rows = sorted(
+        ([str(label), count] for label, count in category_counts.items()),
+        key=lambda item: (-_numeric_sort_value(item[1]), item[0]),
+    )[:20]
+    return {
+        "kind": "zonal_vector_summary",
+        "source_step_id": step.get("id"),
+        "source_tool": step.get("tool"),
+        "title": "区域矢量摘要",
+        "metrics": [
+            _view_metric("相交要素", _first_present(summary.get("matched_features"), summary.get("feature_count"), result.get("count"))),
+            _view_metric("返回几何", summary.get("returned_features")),
+            _view_metric("已命名要素", summary.get("named_features")),
+        ],
+        "rows": rows[:8],
+        "table": {
+            "columns": ["类别", "数量"],
+            "rows": table_rows,
+        },
+        "note": "分类表按数量降序展示，最多保留 20 类；不直接内联原始几何。"[:320],
+    }
+
+
+def _spatial_relation_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    args = step.get("args") if isinstance(step.get("args"), dict) else {}
+    metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
+    rows = [
+        _view_row("左侧数据集", _first_present(result.get("left_dataset"), args.get("left_dataset"))),
+        _view_row("右侧数据集", _first_present(result.get("right_dataset"), args.get("right_dataset"))),
+        _view_row("结果引用", result.get("result_ref")),
+        _view_row("CRS", _first_present(result.get("crs"), metrics.get("crs"))),
+    ]
+    return {
+        "kind": "spatial_relation",
+        "source_step_id": step.get("id"),
+        "source_tool": step.get("tool"),
+        "title": "空间关系结果",
+        "metrics": [
+            _view_metric("关系要素", _first_present(result.get("count"), metrics.get("returned_features"), metrics.get("feature_count"))),
+            _view_metric("关系", _first_present(result.get("relation"), args.get("relation"))),
+            _view_metric("距离", _distance_label(_first_present(result.get("distance_m"), args.get("distance_m")))),
+        ],
+        "rows": [row for row in rows if row.get("value") != "-"][:8],
+        "note": "空间关系结果展示有界摘要；详细要素应通过结果引用导出。"[:320],
+    }
+
+
 def _first_step_result(steps: List[Any], *, tool: str) -> tuple[Dict[str, Any] | None, Dict[str, Any]]:
     for step in steps:
         if not isinstance(step, dict) or step.get("tool") != tool:
@@ -607,6 +708,42 @@ def _view_metric(label: str, value: Any) -> Dict[str, Any]:
         "label": str(label)[:80],
         "value": "-" if value is None else value,
     }
+
+
+def _view_row(label: str, value: Any) -> Dict[str, Any]:
+    if value is None or value == "":
+        display = "-"
+    elif isinstance(value, (int, float, bool)):
+        display = value
+    else:
+        display = str(value)[:220]
+    return {
+        "label": str(label)[:80],
+        "value": display,
+    }
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _numeric_sort_value(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _distance_label(value: Any) -> Any:
+    if value is None or value == "":
+        return None
+    try:
+        return "{} 米".format(int(float(value)))
+    except (TypeError, ValueError):
+        return value
 
 
 def build_lineage_index(

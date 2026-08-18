@@ -162,6 +162,63 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertIn("候选像元比例", [item["label"] for item in buildability_view["metrics"]])
         self.assertEqual(buildability_view["coverage"]["candidate_ratio"], 0.25)
 
+    def test_view_model_summarizes_vector_panels(self):
+        from result_contract import build_result_contract
+
+        vector = build_result_contract({
+            "run_id": "vector-view",
+            "status": "COMPLETED",
+            "result_type": "vector_result",
+            "answer": "已完成",
+            "steps": [
+                {
+                    "id": "query",
+                    "tool": "range_query",
+                    "status": "COMPLETED",
+                    "result": {
+                        "dataset": "roads",
+                        "count": 4,
+                        "crs": "EPSG:4326",
+                        "result_ref": "memory://roads/query",
+                        "metrics": {"backend": "in_memory", "source": "demo"},
+                    },
+                }
+            ],
+        })
+
+        view = vector["views"]["panels"]["vector"]
+        self.assertEqual(view["kind"], "vector_query")
+        self.assertIn("要素数", [item["label"] for item in view["metrics"]])
+        self.assertEqual(view["rows"][0]["label"], "数据集")
+
+        zonal = build_result_contract({
+            "run_id": "zonal-vector-view",
+            "status": "COMPLETED",
+            "result_type": "zonal_vector_summary_result",
+            "answer": "已完成",
+            "steps": [
+                {
+                    "id": "zonal-vector",
+                    "tool": "get_zonal_vector_summary",
+                    "status": "COMPLETED",
+                    "result": {
+                        "dataset": "roads",
+                        "admin_name": "洪山区",
+                        "summary": {
+                            "matched_features": 12,
+                            "returned_features": 8,
+                            "named_features": 3,
+                            "category_counts": {"primary": 5, "secondary": 7},
+                        },
+                    },
+                }
+            ],
+        })
+        zonal_view = zonal["views"]["panels"]["vector"]
+        self.assertEqual(zonal_view["kind"], "zonal_vector_summary")
+        self.assertEqual(zonal_view["table"]["columns"], ["类别", "数量"])
+        self.assertEqual(zonal_view["table"]["rows"][0], ["secondary", 7])
+
     def test_workspace_contract_covers_all_catalog_result_types(self):
         from agent.capability_catalog import capability_catalog
         from result_contract import build_result_contract

@@ -451,8 +451,53 @@
       border-radius: var(--radius-sm);
       background: var(--surface-soft);
       color: var(--ink-soft);
+      font: 12.5px/1.55 var(--font-ui);
+      white-space: normal;
+    }
+    #genericResult.raw-json {
       font: 11.5px/1.6 var(--font-mono);
       white-space: pre-wrap;
+    }
+    .view-rows {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .view-row {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xs);
+      padding: 8px 10px;
+      background: rgba(255,255,255,.03);
+    }
+    .view-row small {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .view-row b {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink);
+      font-weight: 650;
+      word-break: break-word;
+    }
+    .view-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+    .view-table th,
+    .view-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .view-table th {
+      color: var(--muted);
+      font-weight: 650;
     }
     .trace-result { grid-column: 1 / -1; }
     @keyframes panel-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -860,7 +905,7 @@
       <div class="grid" aria-label="分析结果工作区">
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
         <section class="panel result-panel plan-preview-result"><h3>计划预览</h3><div id="planPreview" class="plan-preview muted">点击“预览计划”查看工具 DAG；预览不会执行工具。</div></section>
-        <section class="panel result-panel generic-result"><h3>结构化结果</h3><pre id="genericResult"></pre></section>
+        <section class="panel result-panel generic-result"><h3>结构化结果</h3><div id="genericResult" class="raw-json"></div></section>
         <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
         <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="dataEvidence" class="evidence-card"></div><div id="releaseEvidence" class="evidence-card release-evidence"></div></div><div class="evidence-grid"><div id="memoryEvidence" class="evidence-card memory-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
         <section class="panel result-panel raster-result"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
@@ -941,11 +986,21 @@
       setResultPanel('.generic-result', hasRun && (views.has('generic') || (!workspace.schema_version && steps.length > 0 && outputType !== 'direct_answer')));
     }
     function genericResult(data) {
+      const view=resultViewPanels(data).vector;
+      if(view&&(view.kind==='vector_query'||view.kind==='zonal_vector_summary'||view.kind==='spatial_relation')) {
+        $('genericResult').className = 'structured-view';
+        const rows = (view.rows||[]).map(row=>'<div class="view-row"><small>'+escapeHtml(row.label||'字段')+'</small><b>'+escapeHtml(row.value??'-')+'</b></div>').join('');
+        const table=renderViewTable(view.table);
+        $('genericResult').innerHTML = '<div class="stat-context"><strong>'+escapeHtml(view.title||'矢量结果')+'</strong><span>'+escapeHtml(view.kind||'vector')+'</span></div><div class="metric-grid">'+renderMetricGrid(view.metrics||[])+'</div>'+(rows?'<div class="view-rows">'+rows+'</div>':'')+table+(view.note?'<div class="distribution-note">'+escapeHtml(view.note)+'</div>':'');
+        return;
+      }
       const payload = data.result || { result_type: data.result_type || data.plan?.output?.type || 'unknown', steps: (data.steps || []).map(step => ({ tool: step.tool, status: step.status, error: step.error || null })) };
+      $('genericResult').className = 'raw-json';
       $('genericResult').textContent = JSON.stringify(payload, null, 2);
     }
     function resultViewPanels(data) { return (((data.result||{}).views||{}).panels)||{}; }
     function renderMetricGrid(metrics) { return (metrics||[]).map(item=>'<div class="metric"><b>'+escapeHtml(item.value??'-')+'</b><small>'+escapeHtml(item.label||'指标')+'</small></div>').join(''); }
+    function renderViewTable(table) { if(!table||!Array.isArray(table.rows)||!table.rows.length) return ''; const columns=Array.isArray(table.columns)?table.columns:[]; return '<table class="view-table"><thead><tr>'+columns.map(col=>'<th>'+escapeHtml(col)+'</th>').join('')+'</tr></thead><tbody>'+table.rows.map(row=>'<tr>'+(Array.isArray(row)?row:[row]).map(cell=>'<td>'+escapeHtml(cell??'-')+'</td>').join('')+'</tr>').join('')+'</tbody></table>'; }
     function metricValue(metrics,label) { const item=(metrics||[]).find(x=>x&&x.label===label); return item?item.value:undefined; }
     function planDagFromPlan(plan) {
       const nodes=(plan?.steps||[]).map(step=>({id:step.id,tool:step.tool,depends_on:step.depends_on||[],arg_keys:Object.keys(step.args||{})}));

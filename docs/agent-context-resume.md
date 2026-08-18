@@ -676,3 +676,9 @@ M86 验证：M81 目标 Harness 9 项通过。阶段收口还需运行 M46/M79/M
 M87 已完成 artifact viewer 消费 `result.views`：`agent/artifact_viewer.py` 新增 `Result Views` 区块，从 artifact 的 `result.views.panels` 渲染 schema、panel 名、kind、metrics 和 note；旧 artifact 没有 views 时仍按原有 Plan / Tool Steps / Answer / Trace 展示。`tests/test_m17_artifact_viewer.py` 新增 views 渲染测试，M17 目标测试 3 项通过，`agent/artifact_viewer.py` Python 编译通过。
 
 下一阶段 M88 需要先做全局盘点：优先设计 vector/table/chart 通用 view contract，补齐非栅格/非建设类结果的可复现展示 payload，并把该 contract 纳入 Console、artifact viewer、CLI/HTTP artifact 的一致性 Harness。
+
+M88 已完成矢量结果 view contract：`result_contract.py` 在 `spatial-agent.views.v1` 下新增 `vector` panel，覆盖 `range_query`、`get_zonal_vector_summary` 和 `spatial_join` 三类矢量输出，统一生成 metrics、rows 和可选 table，且不内联原始几何。Console 的结构化结果区改为优先渲染 `resultViewPanels(data).vector`，支持 `vector_query`、`zonal_vector_summary` 和 `spatial_relation`；没有后端 vector view 时才回退 JSON。
+
+M88 验证：M46/M79 目标测试 17 项通过；M17/M46/M79/M81/M76/M66 相关回归 42 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage 和 production acceptance PowerShell parser 均通过。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M89 需要先做全局盘点：继续把 table/chart 通用展示 payload 下沉到 `result.views`，补齐 artifact viewer 对 table payload 的渲染，并在 result envelope 稳定后做小型真实 GIS + live LLM + Docker acceptance。
