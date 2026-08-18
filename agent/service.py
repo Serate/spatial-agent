@@ -21,6 +21,7 @@ from agent.trace_formatter import format_trace
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.models import AgentRunResult, RunStatus
 from result_contract import (
+    build_comparison_views,
     build_comparison_lineage,
     build_lineage_index,
     build_result_contract,
@@ -980,6 +981,22 @@ class AgentService:
             "scenario": scenario.to_dict(),
             "spatial_context": normalized_context,
             "results": rows,
+            "views": build_comparison_views(
+                rows,
+                "buildability_threshold_comparison",
+                title="建设适宜性阈值对比",
+                x_field="slope_limit_degrees",
+                x_label="坡度阈值",
+                y_field="candidate_pixel_count",
+                y_label="候选像元",
+                table_columns=[
+                    ("坡度", "slope_limit_degrees"),
+                    ("候选像元", "candidate_pixel_count"),
+                    ("候选比例", "candidate_ratio"),
+                    ("状态", "status"),
+                ],
+                note="坡度阈值越高，候选像元通常应保持不减；本图用于展示筛选敏感性。",
+            ),
             "lineage": build_comparison_lineage(rows, "buildability_threshold_comparison"),
             **({"analysis_ready": evidence} if evidence else {}),
         }
@@ -1012,6 +1029,22 @@ class AgentService:
             "slope_limit_degrees": threshold_value,
             "scenario": scenario.to_dict(),
             "results": rows,
+            "views": build_comparison_views(
+                rows,
+                "buildability_region_comparison",
+                title="多区域建设适宜性对比",
+                x_field="admin_name",
+                x_label="行政区",
+                y_field="candidate_pixel_count",
+                y_label="候选像元",
+                table_columns=[
+                    ("行政区", "admin_name"),
+                    ("候选像元", "candidate_pixel_count"),
+                    ("候选比例", "candidate_ratio"),
+                    ("状态", "status"),
+                ],
+                note="同一坡度阈值下对比不同区域的候选规模。",
+            ),
             "lineage": build_comparison_lineage(rows, "buildability_region_comparison"),
             **({
                 "analysis_ready": next(
@@ -1125,6 +1158,23 @@ class AgentService:
             "scenario": scenario.to_dict(),
             "results": rows,
             "monotonic_eligible_features": monotonic,
+            "views": build_comparison_views(
+                rows,
+                "constrained_buildability_road_distance_comparison",
+                title="道路距离约束对比",
+                x_field="road_distance_m",
+                x_label="道路距离",
+                y_field="eligible_features",
+                y_label="满足道路约束",
+                table_columns=[
+                    ("道路距离", "road_distance_m"),
+                    ("满足道路约束", "eligible_features"),
+                    ("水体排除", "water_excluded_features"),
+                    ("候选几何样本", "candidate_features"),
+                    ("状态", "status"),
+                ],
+                note="道路距离放宽时，满足道路约束的候选数应单调不减；水体排除仅作演示约束。",
+            ),
             "lineage": build_comparison_lineage(
                 rows, "constrained_buildability_road_distance_comparison"
             ),

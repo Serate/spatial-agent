@@ -909,3 +909,11 @@ M89 已完成 artifact viewer 的 rows/table view 渲染：`agent/artifact_viewe
 M89 验证：M17 目标测试 4 项通过；M17/M46/M79/M81 相关回归 30 项通过；Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
 
 下一阶段 M90 需要先做全局盘点：从全局上评估 chart view contract 与真实 GIS/live LLM/Docker 小型 acceptance 哪个更能补面试展示短板；不要被单一页面或单一数据集细节带偏。
+
+M90 已完成对比图 chart view contract：`result_contract.py` 新增 `build_comparison_views()`，把阈值对比、多区域对比和道路距离约束对比统一生成为 `spatial-agent.views.v1` 的 `chart` panel，包含有界 metrics、bar chart series、encodings、table 和 note。`AgentService.compare_buildability()`、`compare_buildability_regions()`、`compare_constrained_buildability()` 均返回顶层 `views.panels.chart`，不再让前端独自定义对比图语义。
+
+Console 的对比面板现在优先消费 `resultViewPanels(data).chart` 和 `renderChartView(view)`，旧 `results` 表格只作为兼容 fallback。`agent/artifact_viewer.py` 同步渲染 `comparison_chart` series，并继续保留 rows/table 渲染、HTML escape 和数量裁剪。
+
+M90 验证：M46/M57/M79/M17 目标测试 29 项通过；M17/M46/M57/M79/M81/M76/M66 相关回归 51 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M91 需要先做全局盘点：在 result views 的 metrics/table/chart/map 展示契约基本稳定后，优先安排小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致；MCP 只作为后续 ToolProvider adapter 方向，不应替代当前 ToolRegistry 核心 seam。

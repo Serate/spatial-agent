@@ -111,6 +111,46 @@ class M17ArtifactViewerTests(unittest.TestCase):
         self.assertNotIn("<water>", html)
         self.assertIn("&lt;water&gt;", html)
 
+    def test_render_uses_view_chart_payloads(self):
+        html = render_artifact_html(
+            {
+                "run_id": "run-chart",
+                "status": "COMPLETED",
+                "request": "对比建设候选",
+                "plan": {"goal": "compare buildability"},
+                "result": {
+                    "views": {
+                        "schema_version": "spatial-agent.views.v1",
+                        "panels": {
+                            "chart": {
+                                "kind": "comparison_chart",
+                                "title": "建设适宜性阈值对比",
+                                "metrics": [{"label": "场景数", "value": 2}],
+                                "series": [
+                                    {
+                                        "name": "候选像元",
+                                        "points": [
+                                            {"label": "10°", "y": 100},
+                                            {"label": "20°", "y": 150},
+                                        ],
+                                    }
+                                ],
+                                "table": {"columns": ["坡度", "候选像元"], "rows": [[10, 100], [20, 150]]},
+                            }
+                        },
+                    }
+                },
+                "steps": [],
+                "trace_summary": [],
+            }
+        )
+
+        self.assertIn("comparison_chart", html)
+        self.assertIn("chart-row", html)
+        self.assertIn("10°", html)
+        self.assertIn("150", html)
+        self.assertIn("候选像元", html)
+
 
 if __name__ == "__main__":
     unittest.main()

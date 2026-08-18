@@ -62,6 +62,7 @@ class M79ResultZoneContractTests(unittest.TestCase):
             "const view=resultViewPanels(data).composite",
             "const view=resultViewPanels(data).buildability",
             "const view=resultViewPanels(data).vector",
+            "const view=resultViewPanels(data).chart",
             "renderMetricGrid(view.metrics||[])",
             "view.kind==='raster_metadata'",
             "view.kind==='spatial_overview'",
@@ -69,6 +70,9 @@ class M79ResultZoneContractTests(unittest.TestCase):
             "view.kind==='spatial_composite'",
             "view.kind==='buildability_screening'",
             "view.kind==='vector_query'||view.kind==='zonal_vector_summary'||view.kind==='spatial_relation'",
+            "view.kind==='comparison_chart'",
+            "renderChartView(view)",
+            "renderComparisonPayload",
             "renderViewTable(view.table)",
         ):
             self.assertIn(marker, self.html)

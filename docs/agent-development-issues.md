@@ -2693,3 +2693,17 @@ Artifact viewer 是 Console 之外的独立展示入口。如果它只跟进 sch
 ### 处理与预防
 
 `agent/artifact_viewer.py` 增加通用 `_view_rows()` 和 `_view_table()`，对任意 panel 的 rows/table 做 HTML escape、行列裁剪和自包含渲染。M17 测试覆盖矢量分类 table 和 `<water>` escape。后续新增 chart 或更复杂 view payload 时，artifact viewer 也要同步消费同一 `result.views` contract，不能只在 Console 里实现可视化。
+
+## 对比图不能由前端独自定义业务语义
+
+### 现象
+
+M90 之前，阈值对比、多区域对比和道路距离约束对比的 endpoint 直接返回 `results` rows，Console 负责计算峰值、拼表格和绘制条形条。虽然运行结果可用，但 chart/table 的展示语义没有进入 `result.views`，artifact viewer、HTTP 客户端和后续跨入口验收无法复用同一套图形 payload。
+
+### 根因
+
+比较型结果本质上也是 Agent 输出语义：x/y 字段、series、table 列、指标和单调性说明都应由 Runtime/Service 边界统一给出。如果继续由页面扫描 rows 自行推断，Console 会再次成为第二套业务契约，和 result envelope 的方向相反。
+
+### 处理与预防
+
+新增 `build_comparison_views()`，由后端统一生成 `views.panels.chart`，包含 `kind=comparison_chart`、`chart_type=bar`、`encodings`、有界 `series.points`、`table` 和 `metrics`。三个 comparison service 返回同一 views schema；Console 优先渲染 chart view，旧 rows 表格只做 fallback；artifact viewer 同步渲染 chart series。后续新增任何趋势图、敏感性图或矩阵图，都应先扩展 backend view model 和测试，再让展示入口消费该 payload。

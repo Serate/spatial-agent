@@ -38,6 +38,9 @@ section {{ background:#fff; border:1px solid #d9e0e6; border-radius:8px; padding
 .view-grid,.view-rows {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }}
 .metric,.view-row {{ border:1px solid #e5e9ed; border-radius:8px; padding:12px; background:#f8fafc; }}
 .view-row small {{ display:block; color:#5f6b76; margin-bottom:4px; }} .view-row b {{ word-break:break-word; }}
+.chart-view {{ display:grid; gap:8px; margin:14px 0; }} .chart-row {{ display:grid; grid-template-columns:minmax(90px,150px) minmax(120px,1fr) auto; gap:10px; align-items:center; }}
+.chart-label {{ color:#334155; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }} .chart-track {{ height:10px; border-radius:999px; background:#e5e9ed; overflow:hidden; }}
+.chart-fill {{ display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#0f766e,#d97706); }} .chart-value {{ color:#17202a; font-size:12px; white-space:nowrap; }}
 .metric b {{ display:block; font-size:18px; margin-bottom:4px; }} .panel-kind {{ color:#5f6b76; font-size:12px; }}
 table {{ width:100%; border-collapse:collapse; }} th,td {{ text-align:left; padding:11px 10px; border-top:1px solid #e5e9ed; vertical-align:top; }} th {{ color:#5f6b76; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }}
 code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:0; padding-left:20px; line-height:1.7; }}
@@ -66,7 +69,7 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
 
 def _views_section(artifact: Dict[str, Any]) -> str:
     result = artifact.get("result") if isinstance(artifact.get("result"), dict) else {}
-    views = result.get("views") if isinstance(result.get("views"), dict) else {}
+    views = result.get("views") if isinstance(result.get("views"), dict) else (artifact.get("views") if isinstance(artifact.get("views"), dict) else {})
     panels = views.get("panels") if isinstance(views.get("panels"), dict) else {}
     if not panels:
         return ""
@@ -89,15 +92,17 @@ def _view_panel(panel_name: str, panel: Dict[str, Any]) -> str:
     metrics = panel.get("metrics") if isinstance(panel.get("metrics"), list) else []
     metric_html = "".join(_metric_card(metric) for metric in metrics[:12])
     row_html = _view_rows(panel.get("rows"))
+    chart_html = _view_chart(panel)
     table_html = _view_table(panel.get("table"))
     note = panel.get("note")
     note_html = '<p class="muted">{}</p>'.format(html.escape(str(note))) if note else ""
-    return '<article><h3>{}</h3><div class="panel-kind"><code>{}</code> · {}</div><div class="view-grid">{}</div>{}{}{}</article>'.format(
+    return '<article><h3>{}</h3><div class="panel-kind"><code>{}</code> · {}</div><div class="view-grid">{}</div>{}{}{}{}</article>'.format(
         title,
         name,
         kind,
         metric_html or '<div class="muted">No metrics</div>',
         row_html,
+        chart_html,
         table_html,
         note_html,
     )
@@ -156,6 +161,44 @@ def _view_table(table: Any) -> str:
         for row in normalized_rows
     )
     return '<table><thead><tr>{}</tr></thead><tbody>{}</tbody></table>'.format(header, body)
+
+
+def _view_chart(panel: Dict[str, Any]) -> str:
+    if not isinstance(panel, dict) or panel.get("kind") != "comparison_chart":
+        return ""
+    series = panel.get("series") if isinstance(panel.get("series"), list) else []
+    points = []
+    for item in series[:1]:
+        if isinstance(item, dict) and isinstance(item.get("points"), list):
+            points.extend(point for point in item["points"] if isinstance(point, dict))
+    values = []
+    for point in points:
+        try:
+            values.append(float(point.get("y")))
+        except (TypeError, ValueError):
+            pass
+    maximum = max(values) if values else 1.0
+    rows = []
+    for point in points[:50]:
+        try:
+            value = float(point.get("y"))
+        except (TypeError, ValueError):
+            continue
+        width = max(2.0, min(100.0, value / maximum * 100 if maximum else 0))
+        rows.append(
+            '<div class="chart-row"><span class="chart-label">{}</span><span class="chart-track"><i class="chart-fill" style="width:{:.2f}%"></i></span><span class="chart-value">{}</span></div>'.format(
+                html.escape(str(point.get("label") or point.get("x") or "-"))[:160],
+                width,
+                html.escape(_compact_chart_value(value)),
+            )
+        )
+    return '<div class="chart-view">{}</div>'.format("".join(rows)) if rows else ""
+
+
+def _compact_chart_value(value: float) -> str:
+    if float(value).is_integer():
+        return str(int(value))
+    return "{:.4g}".format(value)
 
 
 def _normalize_table_row(row: Any) -> list[Any]:

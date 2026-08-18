@@ -219,6 +219,44 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertEqual(zonal_view["table"]["columns"], ["类别", "数量"])
         self.assertEqual(zonal_view["table"]["rows"][0], ["secondary", 7])
 
+    def test_comparison_views_build_chart_panel(self):
+        from result_contract import build_comparison_views
+
+        views = build_comparison_views(
+            [
+                {
+                    "run_id": "run-10",
+                    "slope_limit_degrees": 10,
+                    "candidate_pixel_count": 100,
+                    "candidate_ratio": 0.1,
+                    "status": "COMPLETED",
+                },
+                {
+                    "run_id": "run-20",
+                    "slope_limit_degrees": 20,
+                    "candidate_pixel_count": 150,
+                    "candidate_ratio": 0.15,
+                    "status": "COMPLETED",
+                },
+            ],
+            "buildability_threshold_comparison",
+            title="建设适宜性阈值对比",
+            x_field="slope_limit_degrees",
+            x_label="坡度阈值",
+            y_field="candidate_pixel_count",
+            y_label="候选像元",
+            table_columns=[("坡度", "slope_limit_degrees"), ("候选像元", "candidate_pixel_count")],
+        )
+
+        self.assertEqual(views["schema_version"], "spatial-agent.views.v1")
+        chart = views["panels"]["chart"]
+        self.assertEqual(chart["kind"], "comparison_chart")
+        self.assertEqual(chart["chart_type"], "bar")
+        self.assertEqual(chart["encodings"]["x"]["field"], "slope_limit_degrees")
+        self.assertEqual(chart["series"][0]["points"][1]["label"], "20°")
+        self.assertEqual(chart["table"]["columns"], ["坡度", "候选像元"])
+        self.assertEqual(chart["table"]["rows"][0], [10, 100])
+
     def test_workspace_contract_covers_all_catalog_result_types(self):
         from agent.capability_catalog import capability_catalog
         from result_contract import build_result_contract

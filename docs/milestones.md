@@ -2001,3 +2001,25 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 展示短板重新规划 M90：在 chart view contract、真实 GIS/live LLM/Docker 小型 acceptance、前端结果区体验之间排序。
 2. 保持原则：新增展示能力先扩展 backend `result.views` 和跨入口证据，再让 Console/artifact 渲染；不回到页面端按工具名推断业务语义。
 3. 默认 quick/stage 继续离线；真实 GIS、Docker 和 live LLM 只作为显式 acceptance 路径。
+
+## M90：Comparison Chart View Contract（已完成）
+
+### 实现内容
+
+- `result_contract.py` 新增 `build_comparison_views()`，为比较型结果生成 `spatial-agent.views.v1` 的 `chart` panel，包含 metrics、bar chart series、encodings、table 和 note。
+- `AgentService.compare_buildability()`、`compare_buildability_regions()`、`compare_constrained_buildability()` 均返回顶层 `views.panels.chart`；结果对比不再只靠前端扫描 rows 构造图表。
+- Console 的比较面板优先消费 `resultViewPanels(data).chart` 和 `renderChartView(view)`；旧 `results` 表格保留为兼容 fallback。
+- `agent/artifact_viewer.py` 同步渲染 `comparison_chart` series，并继续支持 rows/table、HTML escape 和数量裁剪。
+
+### 验收证据
+
+- M46/M57/M79/M17 目标测试 29 项通过。
+- M17/M46/M57/M79/M81/M76/M66 相关回归 51 项通过（1 项 live Docker acceptance 跳过），覆盖 result contract、service comparison、Console 静态契约、artifact viewer、跨入口 consistency、lineage/degradation 和生产静态门禁。
+- Python 编译、quick profile、stage profile、production acceptance PowerShell parser 和 `git diff --check` 均通过；diff check 仅有 Windows LF/CRLF 提示。
+- 阶段默认验证保持离线；真实 Docker/GIS/live LLM 仍作为后续显式 acceptance。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 角度规划 M91：优先做小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致。
+2. MCP 暂不进入核心 Runtime seam；后续如工具来源继续增长，应作为 `MCPToolProvider` adapter 接入 ToolRegistry，而不是替代 ToolRegistry/CapabilityCatalog/WorkflowTemplate。
+3. 若真实 acceptance 暂时受环境阻塞，则先补显式 ToolProvider adapter 设计文档和接口测试，不能回到单工具堆规则。

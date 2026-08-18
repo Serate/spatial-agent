@@ -34,6 +34,9 @@ class M57ScenarioTests(unittest.TestCase):
         self.assertEqual(thresholds["scenario"]["admin_names"], ["洪山区"])
         self.assertEqual(regions["scenario"]["admin_names"], ["洪山区", "江夏区"])
         self.assertEqual(regions["scenario"]["thresholds"], [20.0])
+        self.assertEqual(thresholds["views"]["panels"]["chart"]["kind"], "comparison_chart")
+        self.assertEqual(regions["views"]["panels"]["chart"]["encodings"]["x"]["field"], "admin_name")
+        self.assertEqual(thresholds["views"]["panels"]["chart"]["table"]["columns"][0], "坡度")
 
     def test_scenario_rejects_out_of_range_threshold(self):
         with self.assertRaises(ValueError):
@@ -72,6 +75,10 @@ class M57ScenarioTests(unittest.TestCase):
         self.assertEqual(result["road_distances"], [200.0, 500.0])
         self.assertIn("monotonic_eligible_features", result)
         self.assertEqual(len(result["results"]), 2)
+        chart = result["views"]["panels"]["chart"]
+        self.assertEqual(chart["kind"], "comparison_chart")
+        self.assertEqual(chart["encodings"]["x"]["field"], "road_distance_m")
+        self.assertEqual(chart["table"]["columns"][0], "道路距离")
 
 
 if __name__ == "__main__":

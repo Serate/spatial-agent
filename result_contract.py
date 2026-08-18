@@ -858,6 +858,98 @@ def build_comparison_lineage(rows: List[Dict[str, Any]], kind: str) -> Dict[str,
     }
 
 
+def build_comparison_views(
+    rows: List[Dict[str, Any]],
+    kind: str,
+    *,
+    title: str,
+    x_field: str,
+    x_label: str,
+    y_field: str,
+    y_label: str,
+    table_columns: List[tuple[str, str]] = None,
+    note: str = "",
+) -> Dict[str, Any]:
+    """Build bounded chart/table views for comparison endpoints."""
+    safe_rows = [row for row in rows if isinstance(row, dict)][:50]
+    points = []
+    for row in safe_rows:
+        y_value = row.get(y_field)
+        try:
+            numeric_y = float(y_value)
+        except (TypeError, ValueError):
+            numeric_y = None
+        points.append({
+            "x": _first_present(row.get(x_field), "-"),
+            "y": numeric_y,
+            "label": _comparison_label(row.get(x_field), x_label),
+            "run_id": row.get("run_id"),
+            "status": row.get("status"),
+        })
+    completed = len([row for row in safe_rows if str(row.get("status") or "") == "COMPLETED"])
+    values = [point["y"] for point in points if point.get("y") is not None]
+    columns = table_columns or [(x_label, x_field), (y_label, y_field), ("状态", "status")]
+    return {
+        "schema_version": "spatial-agent.views.v1",
+        "panels": {
+            "chart": {
+                "kind": "comparison_chart",
+                "chart_type": "bar",
+                "comparison_kind": str(kind)[:120],
+                "title": str(title)[:160],
+                "metrics": [
+                    _view_metric("场景数", len(safe_rows)),
+                    _view_metric("完成数", completed),
+                    _view_metric("最大值", max(values) if values else None),
+                ],
+                "encodings": {
+                    "x": {"field": str(x_field)[:80], "label": str(x_label)[:80]},
+                    "y": {"field": str(y_field)[:80], "label": str(y_label)[:80]},
+                },
+                "series": [
+                    {
+                        "name": str(y_label)[:80],
+                        "points": points[:50],
+                    }
+                ],
+                "table": {
+                    "columns": [label for label, _ in columns[:12]],
+                    "rows": [[_comparison_cell(row.get(field)) for _, field in columns[:12]] for row in safe_rows],
+                },
+                "note": str(note or "对比图由后端 result views 生成；详细子运行可通过 run_id 查看。")[:320],
+            }
+        },
+    }
+
+
+def _comparison_label(value: Any, x_label: str) -> str:
+    if value is None or value == "":
+        return "-"
+    if "坡度" in x_label:
+        return "{}°".format(_format_compact_number(value))
+    if "距离" in x_label:
+        return "{} 米".format(_format_compact_number(value))
+    return str(value)[:120]
+
+
+def _comparison_cell(value: Any) -> Any:
+    if value is None or value == "":
+        return "-"
+    if isinstance(value, float):
+        return round(value, 6)
+    if isinstance(value, (int, bool)):
+        return value
+    return str(value)[:180]
+
+
+def _format_compact_number(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)[:80]
+    return "{:g}".format(number)
+
+
 def _basename_ref(value: Any) -> str | None:
     if not value:
         return None
