@@ -12,6 +12,7 @@ from .context_engineering import ContextBuilder, ContextPacket
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .observability import ObservabilityEmitter
+from .plan_identity import build_plan_identity
 from .planner import Planner
 from .replanning import (
     ReplanningPolicy,
@@ -154,6 +155,7 @@ class AgentRuntime:
         timeout_seconds: Optional[float] = None,
         run_id: Optional[str] = None,
         workflow: Optional[Mapping[str, Any]] = None,
+        expected_plan_fingerprint: Optional[str] = None,
     ) -> AgentRunResult:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
@@ -185,6 +187,14 @@ class AgentRuntime:
                 context_packet,
                 planner_kind=type(self._planner).__name__,
             )
+            if expected_plan_fingerprint is not None:
+                actual_fingerprint = (result.plan_evidence.get("plan_identity") or {}).get("fingerprint")
+                result.plan_evidence["expected_plan_fingerprint"] = str(expected_plan_fingerprint)
+                result.plan_evidence["plan_fingerprint_match"] = (
+                    str(expected_plan_fingerprint) == str(actual_fingerprint)
+                )
+                if not result.plan_evidence["plan_fingerprint_match"]:
+                    raise ToolError("preview plan fingerprint mismatch")
             self._check_control(result.run_id, deadline)
             if workflow is not None:
                 _validate_runtime_workflow_plan(plan, workflow)
@@ -304,16 +314,18 @@ class AgentRuntime:
             if plan.output.get("type") != "direct_answer":
                 self._validate_plan(plan)
             plan_payload = _plan_to_dict(plan)
+            plan_evidence = _build_plan_evidence(
+                plan,
+                workflow,
+                context_packet,
+                planner_kind=type(self._planner).__name__,
+            )
             payload.update({
                 "status": "PLANNED",
                 "plan": plan_payload,
                 "dag": _plan_dag(plan),
-                "plan_evidence": _build_plan_evidence(
-                    plan,
-                    workflow,
-                    context_packet,
-                    planner_kind=type(self._planner).__name__,
-                ),
+                "plan_evidence": plan_evidence,
+                "plan_identity": dict(plan_evidence["plan_identity"]),
                 "planner_metrics": self._planner_metrics(),
             })
         except ClarificationNeeded as exc:
@@ -864,6 +876,9 @@ def _build_plan_evidence(
         and not templates_section.get("omitted")
         and isinstance(templates_section.get("templates"), list)
     )
+    request_section = sections.get("request")
+    if not isinstance(request_section, Mapping):
+        request_section = {}
     evidence: Dict[str, Any] = {
         "available": True,
         "planner_kind": planner_kind,
@@ -876,6 +891,13 @@ def _build_plan_evidence(
         "context_sections": list(context_packet.evidence.get("section_names") or []),
         "template_context_available": templates_available,
         "template_context_truncated": bool(context_packet.evidence.get("truncated")),
+        "plan_identity": build_plan_identity(
+            plan,
+            request=str(request_section.get("original") or ""),
+            resolved_request=str(request_section.get("resolved") or ""),
+            workflow=workflow,
+            planner_kind=planner_kind,
+        ),
     }
     if isinstance(workflow, Mapping):
         evidence["workflow_template_id"] = workflow.get("template_id")

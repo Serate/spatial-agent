@@ -142,6 +142,8 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertIn("Trusted runtime context", client.messages[1]["content"])
         self.assertIn(CONTEXT_SCHEMA_VERSION, client.messages[1]["content"])
         self.assertIn("raster_metadata", client.messages[1]["content"])
+        self.assertIn("spatial_analysis_result", client.messages[0]["content"])
+        self.assertIn("sections.spatial_request.tasks", client.messages[0]["content"])
         self.assertIn("workflow_templates", client.messages[0]["content"])
 
     def test_result_contract_exposes_only_context_evidence(self):

@@ -159,6 +159,8 @@ def format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Di
     payload["trace_summary"] = format_trace(result)
     payload["provenance"] = build_provenance(payload)
     payload["result_type"] = result_type(payload)
+    if isinstance(payload.get("plan_evidence"), dict) and payload["plan_evidence"].get("plan_identity"):
+        payload["plan_identity"] = dict(payload["plan_evidence"]["plan_identity"])
     payload["result"] = build_result_contract(payload)
     payload.pop("_geometry_evidence", None)
     _attach_error_category(payload)

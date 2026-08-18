@@ -82,6 +82,8 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "PLANNED")
         self.assertEqual(payload["result_type"], "spatial_analysis_result")
+        self.assertEqual(payload["plan_identity"]["version"], "spatial-agent.plan-identity.v1")
+        self.assertTrue(payload["plan_identity"]["fingerprint"].startswith("sha256:"))
         self.assertEqual(len(payload["plan"]["steps"]), 9)
         self.assertEqual(payload["dag"]["node_count"], 9)
         self.assertEqual(payload["dag"]["edge_count"], 8)
@@ -92,6 +94,39 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
             payload["execution"],
             {"planned_only": True, "tool_execution": False, "artifact_export": False},
         )
+
+    def test_execution_can_require_preview_fingerprint_before_tool_dispatch(self):
+        service = AgentService()
+        preview = service.preview(
+            "查询洪山区行政区边界",
+            session_id="fingerprint-session",
+            planner="rule",
+            backend="memory",
+        )
+        expected = preview["plan_identity"]["fingerprint"]
+
+        completed = service.run(
+            "查询洪山区行政区边界",
+            session_id="fingerprint-session",
+            planner="rule",
+            backend="memory",
+            preview_fingerprint=expected,
+        )
+        self.assertEqual(completed["status"], "COMPLETED")
+        self.assertTrue(completed["plan_evidence"]["plan_fingerprint_match"])
+        self.assertEqual(completed["plan_identity"], preview["plan_identity"])
+
+        rejected = service.run(
+            "查询洪山区行政区边界",
+            session_id="fingerprint-mismatch",
+            planner="rule",
+            backend="memory",
+            preview_fingerprint="sha256:not-the-preview-plan",
+        )
+        self.assertEqual(rejected["status"], "FAILED")
+        self.assertIn("preview plan fingerprint mismatch", rejected["error"])
+        self.assertEqual(rejected["steps"], [])
+        self.assertFalse(rejected["plan_evidence"]["plan_fingerprint_match"])
 
     def test_http_result_and_artifact_share_template_planning_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -208,6 +243,10 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
         self.assertIn("/runs/preview", source)
         self.assertIn("renderPlanDag", source)
         self.assertIn("planPreview", source)
+        self.assertIn("计划身份", source)
+        self.assertIn("plan_fingerprint_match", source)
+        self.assertIn("matchingPreviewFingerprint", source)
+        self.assertIn("preview_fingerprint", source)
 
     def test_http_preview_route_returns_planned_only_payload(self):
         class TestHandler(AgentApiHandler):
@@ -227,6 +266,17 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
                 },
                 "/runs/preview",
             )
+            execution = _post_json(
+                server.server_address[1],
+                {
+                    "request": "查询洪山区行政区边界",
+                    "session_id": "preview-http",
+                    "planner": "rule",
+                    "backend": "memory",
+                    "preview_fingerprint": payload["plan_identity"]["fingerprint"],
+                },
+                "/runs",
+            )
         finally:
             server.shutdown()
             server.server_close()
@@ -237,6 +287,8 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
         self.assertNotIn("run_id", payload)
         self.assertNotIn("artifact_ref", payload)
         self.assertFalse(payload["execution"]["tool_execution"])
+        self.assertEqual(execution["status"], "COMPLETED")
+        self.assertTrue(execution["plan_evidence"]["plan_fingerprint_match"])
 
 
 def _get_json(port, path):

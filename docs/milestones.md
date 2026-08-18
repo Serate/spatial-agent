@@ -1682,9 +1682,66 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 - **前端体验**：Console 已消费统一 preview 结构，复杂计划可以在执行前查看节点和依赖。
 - **测试证据**：新增目标测试不进入默认 quick；stage 保持精简，生产可选依赖缺失被明确记录而非隐藏。
 
-### M81.9 全局规划
+## M81.9：计划身份与真实模型质量验收（已完成）
 
-1. 设计 preview fingerprint/plan version，并允许执行请求显式携带已预览计划的受控指纹，验证“预览计划”和“实际执行计划”是否一致。
-2. 在真实 DeepSeek 可用配置下运行单个 `live-short` 复杂规划样例，分别记录 provider、计划校验、工具门控和后端错误分类；不把网关成功等同于直连 DeepSeek 成功。
-3. 补生产 FastAPI 依赖环境的最小 acceptance，覆盖 `/runs/preview`、`/runs`、readiness 和错误响应，仍不进入默认 CI。
-4. 完成全局七维复盘，评估是否需要继续增强开放式 RequestFacts/能力发现，或进入新的可替换工具/后端能力。
+### 实现内容
+
+- 新增 `agent/plan_identity.py`，基于请求、解析后的请求、工作流、Planner 类型和结构化 TaskPlan 生成 credential-free 的 `sha256` fingerprint，版本为 `spatial-agent.plan-identity.v1`。
+- preview 返回 `plan_identity`；执行请求可通过 `preview_fingerprint` 显式要求计划一致，Runtime 在任何 ToolRegistry dispatch 前校验，不一致直接失败且不执行工具；同步/异步 API 参数均保留该字段。
+- 修正 LLM Planner 对复合空间请求的模板优先级，真实 DeepSeek 现在能精确匹配 `spatial_analysis` 9 步蓝图。
+
+### 验收证据
+
+- fingerprint 一致/不一致两条执行路径和相关 Runtime/HTTP/异步测试通过；目标回归 38 项通过，Python 编译和 `git diff --check` 通过。
+- 真实直连 DeepSeek Chat Completions：DEM 元数据请求 `COMPLETED`、`raster_metadata_result`、3412 tokens；修复后的洪山区复合 preview `PLANNED`、9 步、matched/exact 均为 `spatial_analysis`；修复后的实际执行 `COMPLETED`、9/9 步完成、`spatial_analysis_result`。
+- 真实调用使用临时环境变量，未写入 key、配置文件或仓库；默认 CI/stage 仍不访问网络。
+
+### 复盘（七维矩阵）
+
+- **产品能力**：用户可以把执行明确绑定到刚刚预览的计划，复杂模型结果不再只以“执行成功”判断质量。
+- **架构**：plan identity 位于 Runtime/Service seam，入口仅传递 fingerprint；异步快照复用同一字段，未新增页面编排逻辑。
+- **数据质量**：本轮真实模型执行使用内存 Demo backend，验证的是计划质量，不把它宣称为武汉真实 GIS 证据。
+- **真实模型**：真实 DeepSeek 已完成最小元数据和复杂复合请求验证；网关与官方直连仍按 provider 分开记录。
+- **部署可靠性**：生产 FastAPI 路由代码存在，但当前宿主没有 `fastapi`，运行时 acceptance 尚未完成。
+- **前端体验**：preview identity 已在结构化响应中可用，后续可在执行结果显示是否复用了预览计划。
+- **测试证据**：新增验证保持在专项/目标测试，不扩大默认 quick/stage。
+
+### M81.10 全局规划
+
+1. 在安装 `requirements-prod.txt` 的隔离环境或生产容器中补 FastAPI 最小 acceptance，覆盖 `/runs/preview`、`/runs`、readiness 和错误响应，仍不进入默认 CI。
+2. 将 `plan_identity` 接入 Console 执行结果和 artifact/lineage，显示预览与执行的匹配状态，不暴露原始上下文。
+3. 对真实 GIS backend 运行一个带 `preview_fingerprint` 的 live-short 样例，分别记录模型计划、数据门控、后端和几何证据。
+4. 完成产品、架构、数据、模型、部署、体验、测试七维全局复盘，决定下一阶段是扩展通用 RequestFacts/能力发现，还是进入新的可替换工具/后端能力。
+
+## M81.10：生产 FastAPI 与预览绑定验收（已完成）
+
+### 实现内容
+
+- `scripts/production_acceptance.ps1` 扩展为生产入口契约门禁，覆盖 liveness、readiness、runtime capabilities、核心/可选数据卷、`/runs/preview`、带 `preview_fingerprint` 的 `/runs`、错误响应 envelope、异步提交/幂等/轮询。
+- Console 现在在计划预览和结果证据中显示 `spatial-agent.plan-identity.v1`、短 fingerprint 和“预览匹配”状态；预览后执行同一请求会自动携带 `preview_fingerprint`。
+- 生产容器使用当前代码重建，并明确使用 `--env-file .env.production` 让数据卷变量参与 Compose 插值；私有 key 和本地配置仍由 `.dockerignore` / `.gitignore` 排除。
+
+### 验收证据
+
+- 生产容器 acceptance 通过：`readiness=ready`、`runtime_health=ready`、核心/可选数据均 `ready`、`preview_status=PLANNED`、`sync_preview_fingerprint_match=true`、错误响应 `400/invalid_request`、异步幂等完成。
+- 真实本地 GIS backend 样例通过：`/runs/preview` 2 步，执行 `COMPLETED`，`admin_area_result`，fingerprint 匹配，artifact 与 GeoJSON 均导出。
+- 当前 DeepSeek-compatible 中转配置 smoke 通过：`deepseek-v4-flash`、Chat Completions、`status=COMPLETED`、`raster_metadata_result`、1 个工具步骤、3546 tokens、无重试。
+- Console inline JavaScript 语法检查通过；M81 plan evidence 目标测试 8 项通过。阶段收口复跑 `quick`、`stage`、production acceptance 和 `git diff --check` 通过后提交版本。
+
+### 复盘（七维矩阵）
+
+- **产品能力**：用户可以先看计划 DAG，再执行并确认实际运行是否复用了预览计划。
+- **架构**：预览、执行、artifact、Console 和生产 API 共享同一 plan identity，不在页面侧重复编排。
+- **数据质量**：生产验收先验证真实武汉数据卷可见性和 readiness，避免把空数据卷下的服务健康误认为 GIS 可用。
+- **真实模型**：中转大模型链路可用；默认 quick/stage 仍离线，真实模型只作为显式 live/smoke 证据。
+- **部署可靠性**：Docker production acceptance 覆盖数据卷、同步/异步 API 和错误 envelope；Compose 插值陷阱已记录。
+- **前端体验**：计划身份和匹配状态进入结果证据区，用户能区分“只预览”“已执行但未绑定”“执行与预览一致”。
+- **测试证据**：生产验收和专项测试增强，但默认 quick 保持 3 个核心 tripwire，不扩大日常反馈面。
+
+## M82 全局规划（下一阶段）
+
+1. **开放式 RequestFacts 与能力发现**：把更多空间问法抽取为统一实体、约束、证据偏好和输出意图，减少 prompt 或 rule composer 中的专用表达判断。
+2. **模板与工具可替换性**：继续把稳定 DAG 从代码 composer 下沉到 `WorkflowTemplate`，并为动态工具注册增加能力目录发现、版本和安全边界证据。
+3. **跨入口 Harness**：用同一复杂请求覆盖 CLI、开发 HTTP、生产 FastAPI、Console、artifact 和 session recovery 的 result envelope、trace、lineage、plan identity 一致性。
+4. **真实数据降级矩阵**：补空数据卷、缺道路/水体、栅格未对齐、GeoJSON 截断、后端不可用的代表性生产/本地 GIS 验收。
+5. **真实模型质量基线**：保留精简 live smoke，增加脱敏回放与 live 差异报告，重点检查模板 exact、澄清质量、token/延迟和 provider 错误分类。

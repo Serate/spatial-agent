@@ -61,4 +61,5 @@ def async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         "timeout_seconds": kwargs.get("timeout_seconds"),
         "spatial_context": kwargs.get("spatial_context"),
         "workflow": kwargs.get("workflow"),
+        "preview_fingerprint": kwargs.get("preview_fingerprint"),
     }

@@ -36,6 +36,7 @@ def run_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "timeout_seconds": payload.get("timeout_seconds"),
         "spatial_context": payload.get("spatial_context"),
         "workflow": payload.get("workflow"),
+        "preview_fingerprint": payload.get("preview_fingerprint"),
     }
 
 

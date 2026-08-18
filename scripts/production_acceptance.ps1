@@ -4,9 +4,35 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.Net.Http
 
 function Get-Json($url) {
   return Invoke-RestMethod -Method Get -Uri $url -TimeoutSec 5
+}
+
+function Post-Json($url, $body) {
+  $payload = $body | ConvertTo-Json -Depth 12
+  $payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
+  return Invoke-RestMethod -Method Post -Uri $url -ContentType "application/json; charset=utf-8" -Body $payloadBytes -TimeoutSec 10
+}
+
+function Post-JsonExpectError($url, $body) {
+  $payload = $body | ConvertTo-Json -Depth 12
+  $client = New-Object System.Net.Http.HttpClient
+  try {
+    $contentObject = New-Object System.Net.Http.StringContent($payload, [System.Text.Encoding]::UTF8, "application/json")
+    $response = $client.PostAsync($url, $contentObject).GetAwaiter().GetResult()
+    $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    if ([int]$response.StatusCode -lt 400) {
+      throw "request unexpectedly succeeded"
+    }
+    return [pscustomobject]@{
+      status_code = [int]$response.StatusCode
+      payload = $content | ConvertFrom-Json
+    }
+  } finally {
+    $client.Dispose()
+  }
 }
 
 function Assert-RuntimeCapabilitySnapshot($snapshot) {
@@ -114,12 +140,52 @@ Assert-RuntimeCapabilitySnapshot $runtimeCapabilities
 $dataVolume = Assert-DataVolumeHealth $runtimeCapabilities
 
 $sessionId = "production-acceptance-" + [guid]::NewGuid().ToString("N")
+$adminRequest = ([char]0x67E5) + ([char]0x8BE2) + ([char]0x6D2A) + ([char]0x5C71) + ([char]0x533A) + ([char]0x884C) + ([char]0x653F) + ([char]0x533A) + ([char]0x8FB9) + ([char]0x754C)
+$preview = Post-Json "$BaseUrl/runs/preview" @{
+  request = $adminRequest
+  session_id = $sessionId
+  planner = "rule"
+  backend = "memory"
+}
+if ($preview.status -ne "PLANNED") { throw "preview failed: $($preview.status)" }
+if ($preview.execution.planned_only -ne $true -or $preview.execution.tool_execution -ne $false) {
+  throw "preview execution flags invalid"
+}
+if ($preview.PSObject.Properties.Name -contains "run_id") { throw "preview must not allocate run_id" }
+if ($null -eq $preview.plan_identity -or [string]::IsNullOrWhiteSpace([string]$preview.plan_identity.fingerprint)) {
+  throw "preview plan identity missing"
+}
+if (-not ([string]$preview.plan_identity.fingerprint).StartsWith("sha256:")) {
+  throw "preview fingerprint must be sha256"
+}
+
+$syncRun = Post-Json "$BaseUrl/runs" @{
+  request = $adminRequest
+  session_id = $sessionId
+  planner = "rule"
+  backend = "memory"
+  preview_fingerprint = $preview.plan_identity.fingerprint
+}
+if ($syncRun.status -ne "COMPLETED") { throw "sync run failed: $($syncRun.error)" }
+if ($syncRun.plan_evidence.plan_fingerprint_match -ne $true) {
+  throw "sync run did not match preview fingerprint"
+}
+
+$invalid = Post-JsonExpectError "$BaseUrl/runs" @{
+  request = $adminRequest
+  planner = "rule"
+  backend = "invalid-backend"
+}
+if ($invalid.status_code -ne 400) { throw "invalid backend status mismatch: $($invalid.status_code)" }
+if ($invalid.payload.error_code -ne "invalid_request" -or $invalid.payload.error_category -ne "tool") {
+  throw "invalid backend error envelope mismatch"
+}
+
 $greeting = ([char]0x4F60) + ([char]0x597D)
-$payload = @{ request = $greeting; session_id = $sessionId; planner = "rule"; backend = "memory" } | ConvertTo-Json
-$payloadBytes = [System.Text.Encoding]::UTF8.GetBytes($payload)
-$queued = Invoke-RestMethod -Method Post -Uri "$BaseUrl/runs/async" -ContentType "application/json; charset=utf-8" -Body $payloadBytes -TimeoutSec 5
+$asyncPayload = @{ request = $greeting; session_id = $sessionId; planner = "rule"; backend = "memory" }
+$queued = Post-Json "$BaseUrl/runs/async" $asyncPayload
 if (-not $queued.run_id -or $queued.status -ne "QUEUED") { throw "async submission failed" }
-$duplicate = Invoke-RestMethod -Method Post -Uri "$BaseUrl/runs/async" -ContentType "application/json; charset=utf-8" -Body $payloadBytes -TimeoutSec 5
+$duplicate = Post-Json "$BaseUrl/runs/async" $asyncPayload
 if ($duplicate.run_id -ne $queued.run_id -or -not $duplicate.idempotent) { throw "async duplicate submission was not idempotent" }
 
 $final = $null
@@ -147,6 +213,12 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   optional_missing_datasets = @($dataVolume.optional_missing)
   runtime_capability_count = @($runtimeCapabilities.capabilities).Count
   runtime_updated_at = $runtimeCapabilities.updated_at
+  preview_status = $preview.status
+  preview_fingerprint_version = $preview.plan_identity.version
+  sync_status = $syncRun.status
+  sync_preview_fingerprint_match = $syncRun.plan_evidence.plan_fingerprint_match
+  invalid_request_status = $invalid.status_code
+  invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status
   async_duplicate_idempotent = $duplicate.idempotent
   run_id = $queued.run_id

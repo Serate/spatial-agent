@@ -2549,3 +2549,31 @@ quick 和 smoke_check.py 已经精简后，普通 stage 仍然运行 quick、smo
 ### 处理与预防
 
 保持 key 只通过环境变量、私有配置挂载或部署 secret 注入，不写入仓库。启动 live 服务前先检查 `/health` 的 `live_llm_configured` 和 `live_llm_network`，再用显式 `SPATIAL_AGENT_LIVE_OPENAI=1` 运行最小 smoke；记录 provider、wire API、模型输出校验和 token/延迟分类。默认 rule planner、CI 和 stage 不访问网络；诊断时必须区分“没有 key”“网络受限”“网关拒绝”“模型返回非法 TaskPlan”四类问题。
+
+## 真实模型将复合空间分析误路由为单独建设筛选
+
+### 现象
+
+真实 `deepseek-v4-flash` 对“洪山区综合空间分析 + 建设候选筛选”第一次返回了 9 步可执行计划，但输出类型是 `constrained_buildability_result`，区域参数使用了字面量，roads/water 的 `max_features` 变成 100，建设步骤还额外依赖了健康步骤。因此它能通过基础 TaskPlan 和 ToolRegistry 执行，却没有精确遵守 `spatial_analysis` 蓝图，`plan_evidence.exact_template_ids` 为空。
+
+### 根因
+
+LLM Planner 的提示词先描述了“道路/水体约束建设筛选”的独立能力，模型把复合请求中的最后一个意图当成主能力；虽然运行时上下文提供了 `workflow_templates` 和 RequestFacts，但没有明确声明完整任务集合的模板优先级和参数形状。
+
+### 处理与预防
+
+在 `LLMPlanner` 的 system prompt 中以结构化 `sections.spatial_request.tasks` 作为判定条件：当任务同时包含 `admin_boundary/elevation/slope/land_use/roads/water/buildability` 时，必须输出 `spatial_analysis_result`，使用 9 个固定蓝图 step id/tool、`$from` 结果引用、道路/水体 `max_features=10000` 和 `filter-admin` 依赖；单独建设筛选规则不再覆盖复合工作流。修复后真实 DeepSeek preview 返回 `spatial_analysis` 的 matched/exact 双命中，真实执行 9/9 完成。后续真实模型验收必须同时检查“可执行”和“模板 exact”，不能只看 status=COMPLETED。
+
+## Docker Compose 的 env_file 不参与 volume 变量插值
+
+### 现象
+
+生产容器使用 `.env.production` 注入了 `SPATIAL_AGENT_HOST_DATASET_ROOT=D:/dataset/agent`，但运行 `docker compose -f docker-compose.prod.yml up -d --build` 后，容器内 `/data` 为空，production acceptance 报告 `admin_areas`、`dem`、`land_use` 核心数据卷不可用。检查 `docker compose config` 发现 volume source 被展开为仓库内空目录 `D:\\Project\\job\\ai-agent\\data`。
+
+### 根因
+
+Compose 的 `env_file` 会把变量传入容器运行环境，但不会用于 Compose 文件自身的变量插值。也就是说，`volumes: ${SPATIAL_AGENT_HOST_DATASET_ROOT:-./data}:/data:ro` 在没有同名进程环境或显式 `--env-file` 的情况下会回退到 `./data`，即使容器里最终能看到 `SPATIAL_AGENT_HOST_DATASET_ROOT`。
+
+### 处理与预防
+
+生产重建必须使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`，或在调用 Compose 的进程环境中显式设置 `SPATIAL_AGENT_HOST_DATASET_ROOT`。production acceptance 已扩展核心数据卷检查，先验证 `/data` 中行政区、DEM、土地利用、道路和水体均可用，再运行 preview、同步执行、错误响应和异步幂等验收。后续不能只看容器环境变量，要同时检查 Compose 展开后的 bind source 和容器内文件可见性。

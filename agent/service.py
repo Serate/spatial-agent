@@ -138,6 +138,7 @@ class AgentService:
         spatial_context: Dict[str, Any] = None,
         workflow: Dict[str, Any] = None,
         run_id: str = None,
+        preview_fingerprint: str = None,
         _force_run_id: bool = False,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
@@ -147,6 +148,10 @@ class AgentService:
         workflow_context = _normalize_workflow_payload(workflow)
         if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
             raise ValueError("run_id must be a non-empty string")
+        if preview_fingerprint is not None and (
+            not isinstance(preview_fingerprint, str) or not preview_fingerprint.strip()
+        ):
+            raise ValueError("preview_fingerprint must be a non-empty string")
         if run_id is not None and not _force_run_id:
             existing = (
                 self._state.get_run(run_id)
@@ -176,6 +181,7 @@ class AgentService:
                     "session_id": session_id,
                     "timeout_seconds": timeout_seconds,
                     "run_id": run_id,
+                    "expected_plan_fingerprint": preview_fingerprint,
                 },
                 workflow_context=workflow_context,
                 export_artifact=export_artifact,
@@ -185,6 +191,8 @@ class AgentService:
         finally:
             cost.release_concurrency()
         payload = result
+        if isinstance(payload.get("plan_evidence"), dict) and payload["plan_evidence"].get("plan_identity"):
+            payload["plan_identity"] = dict(payload["plan_evidence"]["plan_identity"])
         cost.charge(session_id, _extract_tokens(payload.get("planner_metrics")))
         try:
             cost.check_run_cap(_extract_tokens(payload.get("planner_metrics")))

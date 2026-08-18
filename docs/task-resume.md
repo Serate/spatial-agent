@@ -840,6 +840,18 @@ M81.7 阶段规划（已执行）：先做 Service/开发 HTTP/生产 FastAPI/Co
 
 已完成跨入口 preview Harness 和复杂模型脱敏回放。目标/相关回归 41 项、精简 `stage`、Python 编译和 `git diff --check` 通过。生产 FastAPI 因当前 Python 环境未安装 `fastapi` 只完成静态契约验证，不能宣称生产运行时 acceptance 已通过。当前 DeepSeek 配置为 `deepseek-v4-flash` + Chat Completions 网关，配置文件不含 key，当前进程也未注入 `OPENAI_API_KEY`；真实调用仍需显式配置和 live profile。
 
-### M81.9 下一步
+### M81.9 当前完成状态
 
-先设计 preview fingerprint/plan version，再做单个真实 DeepSeek 规划样例和可选 FastAPI acceptance，最后按七维能力矩阵重新规划。当前并发度为 1，默认 quick/stage 不访问网络。
+已完成 `spatial-agent.plan-identity.v1` fingerprint：preview 返回身份，执行可携带 `preview_fingerprint`，Runtime 在工具 dispatch 前拒绝不匹配计划；异步 payload 也保留该字段。真实直连 DeepSeek 的元数据请求和修正后的 9 步复合空间分析 preview/执行均成功，后者 matched/exact 均命中 `spatial_analysis`。本轮相关回归 38 项通过。
+
+生产 FastAPI 运行时 acceptance 尚未完成，因为当前宿主 Python 未安装 `fastapi`；不要把源码静态契约当成运行时证据。下一阶段 M81.10 先在生产依赖环境中补 `/runs/preview`、`/runs`、readiness 和错误响应验收，再接入 Console/artifact 的预览匹配显示。当前并发度为 1，默认 quick/stage 不访问网络。
+
+### M81.10 当前完成状态
+
+生产 FastAPI acceptance 已在 Docker 生产容器中跑通，覆盖 readiness、runtime capability、真实武汉数据卷、`/runs/preview`、带 `preview_fingerprint` 的 `/runs`、错误响应 envelope 和异步幂等。Console 已显示计划身份与预览匹配状态，并在预览后执行同一请求时自动携带 fingerprint。真实本地 GIS backend 的行政区边界 preview -> execute 样例完成并导出 artifact/GeoJSON；当前 DeepSeek-compatible 中转 smoke 完成 `raster_metadata_result`，3546 tokens，无重试。
+
+生产部署注意：`.env.production` 作为 `env_file` 只注入容器，不参与 Compose 文件中的 volume 插值；重建必须使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`，否则 `/data` 会回退到仓库空目录并导致核心数据不可用。
+
+### M82 下一步
+
+按七维全局规划继续：开放式 RequestFacts 与能力发现、稳定 DAG 模板化、CLI/HTTP/生产/Console/artifact/session recovery 跨入口 Harness、真实数据降级矩阵和真实模型质量基线。当前并发度为 1，默认 quick/stage 不访问网络。

@@ -618,6 +618,19 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 - 目标/相关回归 41 项、精简 `stage`、Python 编译和 `git diff --check` 通过。当前环境未安装 `fastapi`，没有宣称 production runtime acceptance。
 - 当前 DeepSeek 配置为 `deepseek-v4-flash`、Chat Completions、`https://opencode.ai/zen/go/v1` 网关；`config/openai.local.json` 不含 key，当前进程没有 `OPENAI_API_KEY`，真实 live 需显式注入。
 
-## 下一阶段 M81.9
+## M81.9 当前完成状态
 
-设计 preview fingerprint/plan version，验证预览与执行计划一致性；在显式 live 配置下运行单个真实 DeepSeek 规划样例；为生产 FastAPI 补最小可选 acceptance，并再次进行七维全局复盘。默认 quick/stage 继续离线，最大并发度为 1。
+已完成 `agent/plan_identity.py` 和 `preview_fingerprint` 执行前校验；preview 与执行结果共享 `spatial-agent.plan-identity.v1` fingerprint，不匹配时不 dispatch 工具。真实 DeepSeek 元数据请求和修复后的 9 步 `spatial_analysis` preview/执行均通过，相关回归 38 项通过。
+
+当前宿主没有 `fastapi`，生产 FastAPI 仅有源码契约证据，运行时 acceptance 留到 M81.10。下一阶段先补生产依赖环境 acceptance，再把匹配状态接入 Console/artifact，并用真实 GIS backend 运行带 fingerprint 的 live-short。默认 quick/stage 离线，最大并发度为 1。
+
+
+## M81.10 当前完成状态
+
+生产 FastAPI acceptance 已补齐运行时证据：当前代码容器重建后通过 `/health/live`、`/health/ready`、runtime capabilities、真实数据卷、`/runs/preview`、带 `preview_fingerprint` 的 `/runs`、错误响应 envelope 和异步幂等验收。Console 已显示计划身份和预览匹配状态，预览后执行同一请求会自动携带 fingerprint。真实本地 GIS backend 的行政区边界 preview -> fingerprint -> execute 样例通过，artifact 和 GeoJSON 均导出；当前 DeepSeek-compatible 中转 smoke 通过，`raster_metadata_result`、3546 tokens、无重试。
+
+发现并记录生产部署问题：`env_file` 不参与 Compose volume 变量插值，必须使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build` 或显式进程环境，否则 `/data` 会挂到仓库空目录。当前私有 `config/openai.local.json` 和 Windows 用户级环境变量保存中转 key，均不得提交；默认 quick/stage 仍离线。
+
+## 下一阶段 M82
+
+从项目整体推进开放式 RequestFacts/能力发现、更多稳定 DAG 模板化、跨入口 Harness、真实数据降级矩阵和真实模型质量基线。继续保持最大并发度 1，先做七维全局复盘，再按依赖顺序实现。
