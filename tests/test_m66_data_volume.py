@@ -53,6 +53,19 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("optional_missing_datasets", script)
         self.assertIn("core_ready_optional_partial", script)
 
+    def test_acceptance_checks_m82_planning_evidence_and_artifact(self):
+        script = (ROOT / "scripts" / "production_acceptance.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function Assert-PlanningEvidence", script)
+        self.assertIn("capability_discovery_available", script)
+        self.assertIn("capability_catalog_available", script)
+        self.assertIn("selected_capability_id", script)
+        self.assertIn("capability_catalog_environment", script)
+        self.assertIn("export_artifact = $true", script)
+        self.assertIn("/artifacts/runs/", script)
+        self.assertIn("sync_selected_capability", script)
+
     @unittest.skipUnless(
         os.environ.get("SPATIAL_AGENT_RUN_M66_PRODUCTION") == "1",
         "set SPATIAL_AGENT_RUN_M66_PRODUCTION=1 for a live Docker acceptance",

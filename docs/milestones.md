@@ -1808,3 +1808,24 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 补生产 FastAPI/可选 Docker 的同字段 contract gate，确认 M82 新增证据在生产入口与开发 HTTP 一致。
 2. 开始真实数据降级矩阵：空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断。
 3. 再做真实模型质量基线，将 live 结果与脱敏/模板 exact 证据对齐。
+
+## M82.4：生产入口 M82 证据门禁（已完成）
+
+### 实现内容
+
+- `scripts/production_acceptance.ps1` 新增 `Assert-PlanningEvidence`，生产同步运行现在检查 `capability_discovery`、`capability_catalog`、选中能力、候选能力、能力目录 id、能力目录后端和 plan identity 在 `plan_evidence` 与 `result.planning` 中一致。
+- 生产同步运行启用 `export_artifact=true`，验收脚本通过 `/artifacts/runs/{name}` 读取 artifact，并确认 artifact 中的 `plan_evidence` 保留选中能力与能力目录证据。
+- 验收输出新增 `sync_selected_capability`、`sync_capability_catalog_environment` 和 `sync_artifact_available`，便于 Docker production acceptance 报告直接暴露 M82 证据状态。
+- `tests/test_m66_data_volume.py` 增加静态契约测试，防止生产验收脚本回退为只检查 readiness / preview fingerprint。
+
+### 验收证据
+
+- M66/M63/M81 目标测试 16 项通过（2 项因 live Docker / FastAPI 依赖跳过）。
+- `production_acceptance.ps1` 通过 PowerShell parser 语法解析；`quick`、`stage`、Python 编译和 `git diff --check` 通过（仅 Windows LF/CRLF 提示）。
+- 本阶段没有启动 Docker production acceptance，也没有访问真实 GIS 或 live LLM；脚本门禁已就绪，运行证据留到显式 Docker/GIS 阶段。
+
+### 下一阶段规划
+
+1. 进入真实数据降级矩阵：设计可离线/可选 GIS 的 fixture 和 acceptance，覆盖空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断。
+2. 将降级矩阵结果接入 result envelope / answer / trace 的一致性 Harness，证明“明确降级”不是只在工具错误字符串里出现。
+3. 再安排真实 LLM 质量基线，重点验证 open-ended Planner 在能力目录、模板 exact 和降级场景中的行为。

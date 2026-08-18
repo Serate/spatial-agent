@@ -129,6 +129,38 @@ function Assert-DataVolumeHealth($snapshot) {
   }
 }
 
+function Assert-PlanningEvidence($payload, [string]$surface) {
+  if ($null -eq $payload.plan_evidence) { throw "$surface plan_evidence missing" }
+  if ($null -eq $payload.result -or $null -eq $payload.result.planning) {
+    throw "$surface result planning envelope missing"
+  }
+  $planning = $payload.result.planning
+  if ($payload.plan_evidence.capability_discovery_available -ne $true) {
+    throw "$surface capability discovery evidence missing"
+  }
+  if ($payload.plan_evidence.capability_catalog_available -ne $true) {
+    throw "$surface capability catalog evidence missing"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$payload.plan_evidence.selected_capability_id)) {
+    throw "$surface selected capability missing"
+  }
+  if (@($payload.plan_evidence.capability_candidate_ids).Count -lt 1) {
+    throw "$surface capability candidates missing"
+  }
+  if (@($payload.plan_evidence.capability_catalog_ids).Count -lt 1) {
+    throw "$surface capability catalog ids missing"
+  }
+  if ($planning.selected_capability_id -ne $payload.plan_evidence.selected_capability_id) {
+    throw "$surface result planning selected capability mismatch"
+  }
+  if ($planning.capability_catalog_environment -ne $payload.plan_evidence.capability_catalog_environment) {
+    throw "$surface capability catalog environment mismatch"
+  }
+  if ($planning.plan_identity.fingerprint -ne $payload.plan_evidence.plan_identity.fingerprint) {
+    throw "$surface plan identity mismatch"
+  }
+}
+
 $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
 $capabilityCatalog = Get-Json "$BaseUrl/capabilities"
@@ -165,10 +197,23 @@ $syncRun = Post-Json "$BaseUrl/runs" @{
   planner = "rule"
   backend = "memory"
   preview_fingerprint = $preview.plan_identity.fingerprint
+  export_artifact = $true
 }
 if ($syncRun.status -ne "COMPLETED") { throw "sync run failed: $($syncRun.error)" }
 if ($syncRun.plan_evidence.plan_fingerprint_match -ne $true) {
   throw "sync run did not match preview fingerprint"
+}
+Assert-PlanningEvidence $syncRun "sync run"
+if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
+  throw "sync run artifact_ref missing"
+}
+$artifactName = Split-Path -Leaf ([string]$syncRun.artifact_ref)
+$artifact = Get-Json "$BaseUrl/artifacts/runs/$artifactName"
+if ($artifact.plan_evidence.selected_capability_id -ne $syncRun.plan_evidence.selected_capability_id) {
+  throw "artifact selected capability mismatch"
+}
+if ($artifact.plan_evidence.capability_catalog_available -ne $true) {
+  throw "artifact capability catalog evidence missing"
 }
 
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
@@ -217,6 +262,9 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   preview_fingerprint_version = $preview.plan_identity.version
   sync_status = $syncRun.status
   sync_preview_fingerprint_match = $syncRun.plan_evidence.plan_fingerprint_match
+  sync_selected_capability = $syncRun.plan_evidence.selected_capability_id
+  sync_capability_catalog_environment = $syncRun.plan_evidence.capability_catalog_environment
+  sync_artifact_available = -not [string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)
   invalid_request_status = $invalid.status_code
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status

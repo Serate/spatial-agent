@@ -639,4 +639,6 @@ M82.2 已完成 Planner 能力目录摘要：`capability_context_summary()` 输�
 
 M82.3 已完成 CLI/HTTP/artifact/session 跨入口 Harness：`run_demo.py` 改为复用 `AgentService.run()` 输出统一 payload，CLI 与 HTTP/Service 共享 `result` envelope、中文答案、`trace_summary`、`provenance`、`plan_evidence` 和可选 artifact 引用；新增 `--export-artifact`、`--artifact-root`、`--export-geojson`。M81 Harness 已覆盖 direct service、CLI、开发 HTTP、run detail、artifact fallback recovery、session history 和 Console 静态证据，断言 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace、artifact 一致。复杂请求下能力目录详情收紧为“选中能力详情”，候选排序仍由 `capability_discovery` 提供。目标测试 18 项通过（1 项 GIS 跳过），M59/M77/M81 回归 38 项通过（1 项 FastAPI 跳过）。
 
-下一步从项目整体继续，不陷入单个区域或单个数据细节：补生产 FastAPI/可选 Docker 的同字段 contract gate，然后进入真实数据降级矩阵和真实模型质量基线。当前最大并发度仍为 1；默认 quick/stage 离线，真实 GIS/Docker/live 模型只按显式验收运行。
+M82.4 已完成生产入口 M82 证据门禁：`scripts/production_acceptance.ps1` 新增 `Assert-PlanningEvidence`，生产同步运行启用 `export_artifact=true`，并检查 `capability_discovery`、`capability_catalog`、选中能力、候选能力、能力目录后端和 plan identity 在 `plan_evidence`、`result.planning` 与 artifact 中一致。M66/M63/M81 目标测试 16 项通过（2 项 live Docker / FastAPI 跳过），PowerShell parser、quick、stage、编译和 diff check 通过。尚未启动 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一步从项目整体继续，不陷入单个区域或单个数据细节：进入真实数据降级矩阵，覆盖空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断，并把降级结果接入 result envelope / answer / trace 的一致性 Harness。当前最大并发度仍为 1；默认 quick/stage 离线，真实 GIS/Docker/live 模型只按显式验收运行。
