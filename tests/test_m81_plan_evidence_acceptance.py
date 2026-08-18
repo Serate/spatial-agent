@@ -239,6 +239,8 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
 
         self.assertIn("const planEvidence=envelope.planning||data.plan_evidence||{}", source)
         self.assertIn("计划来源", source)
+        self.assertIn("能力发现", source)
+        self.assertIn("capability_candidate_ids", source)
         self.assertIn("exact_template_ids", source)
         self.assertIn("/runs/preview", source)
         self.assertIn("renderPlanDag", source)

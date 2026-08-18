@@ -2577,3 +2577,17 @@ Compose 的 `env_file` 会把变量传入容器运行环境，但不会用于 Co
 ### 处理与预防
 
 生产重建必须使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`，或在调用 Compose 的进程环境中显式设置 `SPATIAL_AGENT_HOST_DATASET_ROOT`。production acceptance 已扩展核心数据卷检查，先验证 `/data` 中行政区、DEM、土地利用、道路和水体均可用，再运行 preview、同步执行、错误响应和异步幂等验收。后续不能只看容器环境变量，要同时检查 Compose 展开后的 bind source 和容器内文件可见性。
+
+## 新增能力发现上下文挤掉模板契约
+
+### 现象
+
+在 M82.1 增加 `capability_discovery` section 后，复杂空间分析的运行仍能生成计划和执行工具，但 `plan_evidence.matched_template_ids` / `exact_template_ids` 变为空。目标测试显示 `workflow_templates` 被上下文预算裁剪掉，导致后续计划证据无法证明复杂 DAG 精确匹配 `spatial_analysis` 模板。
+
+### 根因
+
+`ContextBuilder` 的 8KB 默认预算此前刚好容纳 compact 模板摘要。新增能力发现时，如果在候选能力里重复展开 signals、tasks、constraints，序列化上下文会超过预算；旧裁剪顺序先丢 `workflow_templates`，于是为了给 Planner 增加一个新信号，反而移除了更稳定、更重要的模板契约。
+
+### 处理与预防
+
+`CapabilityDiscovery.as_context_dict()` 改为紧凑摘要：顶层保留 signals、tasks、constraints，候选列表只保留 capability id 与 priority；`ContextBuilder` 裁剪顺序调整为先裁剪 `capability_discovery`，最后才裁剪 `workflow_templates`。后续新增 Planner 上下文 section 必须先评估预算优先级：稳定执行契约和模板蓝图优先级高于解释性候选证据；目标测试要同时检查新证据存在和模板 exact 未回退。

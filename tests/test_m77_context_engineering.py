@@ -104,9 +104,12 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(planner.context["schema_version"], CONTEXT_SCHEMA_VERSION)
         self.assertIn("workflow_templates", planner.context["sections"])
+        self.assertIn("capability_discovery", planner.context["sections"])
         self.assertEqual(result.context_evidence["schema_version"], CONTEXT_SCHEMA_VERSION)
         self.assertEqual(result.plan_evidence["planner_kind"], "ContextAwarePlanner")
         self.assertTrue(result.plan_evidence["template_context_available"])
+        self.assertTrue(result.plan_evidence["capability_discovery_available"])
+        self.assertIn("vector_query", result.plan_evidence["capability_candidate_ids"])
         self.assertNotIn("sections", result.context_evidence)
 
     def test_runtime_adds_structured_spatial_request_facts_to_context(self):
@@ -120,6 +123,12 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertIn("elevation", spatial_request["tasks"])
         self.assertEqual(spatial_request["constraints"]["slope_max"], 20.0)
         self.assertNotIn("text", spatial_request)
+        capability_discovery = planner.context["sections"]["capability_discovery"]
+        self.assertEqual(
+            capability_discovery["schema_version"],
+            "spatial-agent.capability-discovery.v1",
+        )
+        self.assertIn("zonal_raster_statistics", capability_discovery["candidate_ids"])
 
     def test_legacy_planner_remains_a_valid_harness_adapter(self):
         result = AgentRuntime(LegacyPlanner(), registry()).run("查询道路数据")

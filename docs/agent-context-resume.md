@@ -633,4 +633,6 @@ M77 及后续阶段不启动并行子任务，所有工作按依赖顺序执行�
 
 ## 下一阶段 M82
 
-从项目整体推进开放式 RequestFacts/能力发现、更多稳定 DAG 模板化、跨入口 Harness、真实数据降级矩阵和真实模型质量基线。继续保持最大并发度 1，先做七维全局复盘，再按依赖顺序实现。
+M82.1 已完成开放式能力发现的第一层接口：`CapabilityRouter.discover()` 输出版本化、JSON-safe 的 `spatial-agent.capability-discovery.v1`，Runtime 将 `capability_discovery` 注入 Planner 受信上下文，并在 `plan_evidence` / Console 运行证据中显示选中能力、候选能力、候选数量和信号。保持 `select()` 兼容，未改变现有 RuleBasedPlanner 路由行为。M77/M81 目标测试 27 项通过。
+
+下一步从项目整体继续，不陷入单个区域或单个数据细节：将能力发现扩展为能力目录摘要（工具 schema、数据门控、后端支持状态、版本、安全边界），继续把稳定 DAG 从 composer 下沉到 `WorkflowTemplate`，并补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness。当前最大并发度仍为 1；默认 quick/stage 离线，真实 GIS/Docker/live 模型只按显式验收运行。

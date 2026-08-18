@@ -5,9 +5,12 @@ does not build TaskPlan objects; plan composition lives in rule_planning.
 """
 
 from dataclasses import dataclass, field
-from typing import Iterable, List, Mapping, Sequence, Tuple
+from typing import Any, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .request_model import SpatialRequest
+
+
+CAPABILITY_DISCOVERY_SCHEMA_VERSION = "spatial-agent.capability-discovery.v1"
 
 
 SIGNAL_TERMS: Mapping[str, Tuple[str, ...]] = {
@@ -107,6 +110,50 @@ class CapabilityMatch:
     priority: int
     signals: Tuple[str, ...] = field(default_factory=tuple)
     tasks: Tuple[str, ...] = field(default_factory=tuple)
+    constraints: Tuple[str, ...] = field(default_factory=tuple)
+
+    def as_context_dict(self) -> Mapping[str, Any]:
+        return {
+            "capability_id": self.capability_id,
+            "priority": self.priority,
+            "signals": list(self.signals),
+            "tasks": list(self.tasks),
+            "constraints": list(self.constraints),
+        }
+
+
+@dataclass(frozen=True)
+class CapabilityDiscovery:
+    """Planner-facing, JSON-safe capability discovery evidence."""
+
+    signals: Tuple[str, ...]
+    tasks: Tuple[str, ...]
+    constraints: Tuple[str, ...]
+    admin_name: Optional[str]
+    candidates: Tuple[CapabilityMatch, ...] = field(default_factory=tuple)
+
+    @property
+    def selected(self) -> Optional[CapabilityMatch]:
+        return self.candidates[0] if self.candidates else None
+
+    def as_context_dict(self, *, max_candidates: int = 8) -> Mapping[str, Any]:
+        selected = self.selected
+        candidates = self.candidates[:max_candidates]
+        return {
+            "schema_version": CAPABILITY_DISCOVERY_SCHEMA_VERSION,
+            "available": True,
+            "signals": list(self.signals),
+            "tasks": list(self.tasks),
+            "constraints": list(self.constraints),
+            "admin_name": self.admin_name,
+            "selected_capability_id": selected.capability_id if selected else None,
+            "candidate_ids": [item.capability_id for item in candidates],
+            "candidate_count": len(self.candidates),
+            "candidates": [
+                {"capability_id": item.capability_id, "priority": item.priority}
+                for item in candidates
+            ],
+        }
 
 
 class CapabilityRouter:
@@ -120,11 +167,22 @@ class CapabilityRouter:
         return [route.capability_id for route in self._routes]
 
     def select(self, text: str, spatial: SpatialRequest) -> Tuple[CapabilityMatch, ...]:
+        return self.discover(text, spatial).candidates
+
+    def discover(self, text: str, spatial: SpatialRequest) -> CapabilityDiscovery:
         signals = request_signals(text, spatial)
-        return tuple(
-            CapabilityMatch(route.capability_id, route.priority, signals, spatial.tasks)
+        constraints = tuple(sorted(spatial.constraints))
+        candidates = tuple(
+            CapabilityMatch(route.capability_id, route.priority, signals, spatial.tasks, constraints)
             for route in self._routes
             if route.matches(text, spatial)
+        )
+        return CapabilityDiscovery(
+            signals=signals,
+            tasks=spatial.tasks,
+            constraints=constraints,
+            admin_name=spatial.admin_name,
+            candidates=candidates,
         )
 
 

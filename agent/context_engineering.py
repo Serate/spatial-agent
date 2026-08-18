@@ -41,6 +41,7 @@ class ContextBuilder:
         available_tools: Optional[Iterable[str]] = None,
         planner_kind: Optional[str] = None,
         spatial_request: Optional[Mapping[str, Any]] = None,
+        capability_discovery: Optional[Mapping[str, Any]] = None,
         memory_section: Optional[Mapping[str, Any]] = None,
         workflow_templates: Optional[Mapping[str, Any]] = None,
     ) -> ContextPacket:
@@ -59,6 +60,8 @@ class ContextBuilder:
         }
         if spatial_request:
             sections["spatial_request"] = self._safe_value(spatial_request)
+        if capability_discovery:
+            sections["capability_discovery"] = self._safe_value(capability_discovery)
         if planner_kind:
             sections["planner"] = {"kind": self._text(planner_kind)}
         if memory_section:
@@ -91,7 +94,14 @@ class ContextBuilder:
         if len(rendered) <= self.max_chars:
             return rendered, False
         truncated = False
-        for name in ("available_tools", "workflow", "planner", "memory", "workflow_templates"):
+        for name in (
+            "available_tools",
+            "workflow",
+            "planner",
+            "memory",
+            "capability_discovery",
+            "workflow_templates",
+        ):
             if len(rendered) <= self.max_chars:
                 break
             if name in sections:

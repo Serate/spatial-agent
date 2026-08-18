@@ -8,6 +8,7 @@ from typing import Any, Dict, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .answer_composer import AnswerComposer
+from .capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION, CapabilityRouter
 from .context_engineering import ContextBuilder, ContextPacket
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
@@ -452,6 +453,11 @@ class AgentRuntime:
             if self._memory is not None
             else None
         )
+        spatial_request = parse_spatial_request(resolved_request)
+        capability_discovery = CapabilityRouter().discover(
+            resolved_request,
+            spatial_request,
+        )
         return self._context_builder.build(
             request=request,
             resolved_request=resolved_request,
@@ -459,7 +465,8 @@ class AgentRuntime:
             workflow=workflow,
             available_tools=self._registry.names,
             planner_kind=type(self._planner).__name__,
-            spatial_request=parse_spatial_request(resolved_request).as_context_dict(),
+            spatial_request=spatial_request.as_context_dict(),
+            capability_discovery=capability_discovery.as_context_dict(),
             memory_section=memory_section,
             workflow_templates=workflow_template_context_summary(
                 include_arg_shape=False,
@@ -879,6 +886,12 @@ def _build_plan_evidence(
     request_section = sections.get("request")
     if not isinstance(request_section, Mapping):
         request_section = {}
+    capability_section = sections.get("capability_discovery")
+    capability_available = (
+        isinstance(capability_section, Mapping)
+        and capability_section.get("schema_version") == CAPABILITY_DISCOVERY_SCHEMA_VERSION
+        and not capability_section.get("omitted")
+    )
     evidence: Dict[str, Any] = {
         "available": True,
         "planner_kind": planner_kind,
@@ -891,6 +904,7 @@ def _build_plan_evidence(
         "context_sections": list(context_packet.evidence.get("section_names") or []),
         "template_context_available": templates_available,
         "template_context_truncated": bool(context_packet.evidence.get("truncated")),
+        "capability_discovery_available": capability_available,
         "plan_identity": build_plan_identity(
             plan,
             request=str(request_section.get("original") or ""),
@@ -904,6 +918,21 @@ def _build_plan_evidence(
         evidence["workflow_template_version"] = workflow.get("template_version")
         evidence["workflow_constraints"] = _safe_small_mapping(workflow.get("constraints"))
         evidence["workflow_evidence"] = list(workflow.get("evidence") or [])
+    if capability_available and isinstance(capability_section, Mapping):
+        candidate_ids = capability_section.get("candidate_ids")
+        signals = capability_section.get("signals")
+        evidence["selected_capability_id"] = capability_section.get("selected_capability_id")
+        evidence["capability_candidate_ids"] = (
+            [str(item) for item in candidate_ids[:8]]
+            if isinstance(candidate_ids, list)
+            else []
+        )
+        evidence["capability_candidate_count"] = capability_section.get("candidate_count")
+        evidence["capability_signals"] = (
+            [str(item) for item in signals[:16]]
+            if isinstance(signals, list)
+            else []
+        )
     matched, exact = _matched_template_ids(
         templates_section if isinstance(templates_section, Mapping) else {},
         output_type=output_type,

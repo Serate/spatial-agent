@@ -1745,3 +1745,23 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 3. **跨入口 Harness**：用同一复杂请求覆盖 CLI、开发 HTTP、生产 FastAPI、Console、artifact 和 session recovery 的 result envelope、trace、lineage、plan identity 一致性。
 4. **真实数据降级矩阵**：补空数据卷、缺道路/水体、栅格未对齐、GeoJSON 截断、后端不可用的代表性生产/本地 GIS 验收。
 5. **真实模型质量基线**：保留精简 live smoke，增加脱敏回放与 live 差异报告，重点检查模板 exact、澄清质量、token/延迟和 provider 错误分类。
+
+## M82.1：能力发现上下文与计划证据（已完成）
+
+### 实现内容
+
+- 新增 `spatial-agent.capability-discovery.v1`，`CapabilityRouter.discover()` 在保持 `select()` 兼容的同时输出 JSON-safe 的信号、任务、约束、候选能力和选中能力。
+- `AgentRuntime` 构建 Planner 上下文时只解析一次 RequestFacts，并把 `capability_discovery` 作为受信上下文注入；`plan_evidence` 同步暴露 `selected_capability_id`、候选能力、候选数量和匹配信号。
+- `ContextBuilder` 的预算裁剪顺序调整为优先保留稳定 `workflow_templates`，能力发现摘要保持紧凑，避免新增上下文挤掉模板契约。
+- Console 运行证据区显示“能力发现”，用户能看到 Runtime 选择的能力和候选能力列表。
+
+### 验收证据
+
+- M77/M81 目标测试 27 项通过，覆盖能力发现 JSON-safe、Runtime 上下文注入、计划证据透出、Console 静态证据和复杂请求跨入口契约。
+- 本轮暂未运行真实 GIS、Docker production acceptance 或 live 模型；默认 quick/stage 仍保持离线边界，后续阶段再按风险显式运行。
+
+### 下一阶段规划
+
+1. 将能力发现从“候选能力列表”推进为 Planner 可消费的能力目录摘要：工具 schema、数据门控、后端支持状态、版本与安全边界。
+2. 继续模板化稳定 DAG，优先处理仍留在 composer 中且已具备稳定工具序列的组合能力。
+3. 补跨入口 Harness，确认 capability discovery、workflow template、plan identity、trace 和 artifact 在 CLI/HTTP/生产/Console/session recovery 中一致。

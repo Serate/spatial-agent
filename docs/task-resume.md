@@ -854,4 +854,6 @@ M81.7 阶段规划（已执行）：先做 Service/开发 HTTP/生产 FastAPI/Co
 
 ### M82 下一步
 
-按七维全局规划继续：开放式 RequestFacts 与能力发现、稳定 DAG 模板化、CLI/HTTP/生产/Console/artifact/session recovery 跨入口 Harness、真实数据降级矩阵和真实模型质量基线。当前并发度为 1，默认 quick/stage 不访问网络。
+M82.1 已完成能力发现上下文：`CapabilityRouter.discover()` 输出 `spatial-agent.capability-discovery.v1`，Runtime 将 `capability_discovery` 注入 Planner 受信上下文，`plan_evidence` 和 Console 显示选中能力与候选能力。目标测试 27 项通过。实现中发现新增上下文 section 会挤掉 `workflow_templates` 的预算风险，已通过紧凑摘要和裁剪顺序修复，并写入中文问题日志。
+
+下一步从项目整体继续：把能力发现扩展为能力目录摘要（工具 schema、数据门控、后端支持、版本与安全边界），继续把稳定 DAG 模板化，并补 CLI/HTTP/生产/Console/artifact/session recovery 的跨入口 Harness。当前并发度为 1，默认 quick/stage 不访问网络，真实 GIS/Docker/live 模型只作为显式验收路径。

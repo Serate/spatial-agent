@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from agent.capability_routing import CapabilityRouter
@@ -57,6 +58,18 @@ class M77SpatialRequestTests(unittest.TestCase):
         self.assertEqual(selected[0].capability_id, "spatial_analysis")
         self.assertIn("composition", selected[0].signals)
         self.assertIn("buildability", selected[0].tasks)
+
+    def test_capability_router_discovers_json_safe_candidates(self):
+        parsed = parse_spatial_request(COMPLEX_REQUEST)
+        discovery = CapabilityRouter().discover(COMPLEX_REQUEST, parsed)
+        payload = discovery.as_context_dict()
+
+        self.assertEqual(payload["schema_version"], "spatial-agent.capability-discovery.v1")
+        self.assertEqual(payload["selected_capability_id"], "spatial_analysis")
+        self.assertEqual(payload["candidate_ids"][0], "spatial_analysis")
+        self.assertIn("composition", payload["signals"])
+        self.assertIn("slope_max", payload["constraints"])
+        json.dumps(payload, ensure_ascii=False)
 
     def test_buildability_variant_uses_generic_route(self):
         request = "洪山区有哪些地方适合建设"
@@ -131,6 +144,8 @@ class M77SpatialRequestTests(unittest.TestCase):
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(result.plan.output["type"], "spatial_analysis_result")
         self.assertEqual(result.plan_evidence["source"], "rule")
+        self.assertEqual(result.plan_evidence["selected_capability_id"], "spatial_analysis")
+        self.assertIn("spatial_analysis", result.plan_evidence["capability_candidate_ids"])
         self.assertIn("spatial_analysis", result.plan_evidence["matched_template_ids"])
         self.assertIn("spatial_analysis", result.plan_evidence["exact_template_ids"])
         self.assertTrue(result.plan_evidence["template_context_available"])
