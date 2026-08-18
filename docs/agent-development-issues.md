@@ -2619,3 +2619,17 @@ Runtime 现在只把选中能力传入 `capability_context_summary()`，目录�
 ### 处理与预防
 
 新增 `spatial-agent.degradation.v1`，由 `result_contract.py` 在后端统一生成 `result.degradation` 与 `result.data.degradations`，覆盖运行状态、几何证据、工具步骤/结果错误、数据健康、analysis-ready、source binding 和 output manifest。Artifact 同步保存 `result` 与顶层 `degradation`，production acceptance 检查同步响应和 artifact 的降级证据；Console 优先渲染后端矩阵，旧响应才走兼容推断。后续新增结果类型或数据质量信号时，先扩展 result contract，再让前端按结构化字段展示，不能把可信度判断散落在页面逻辑里。
+
+## 前端 result-type 注册表会变成第二套业务契约
+
+### 现象
+
+Console 虽然已经按 result type 控制结果区，但页面内部维护了一份 result type 到 raster/health/composite/map 等 panel 的映射，并且还会按工具名扫描步骤来推断某些面板是否出现。这样后端能力目录、工作流模板和 result envelope 是一套契约，前端又有另一套局部契约；新增 result type 时容易出现后端已支持、前端未注册，或工具刚好出现导致页面显示不该显示的面板。
+
+### 根因
+
+结果展示的“哪些区域应该出现”属于 Agent Runtime 的输出语义，而不是浏览器页面的业务判断。前端可以知道 panel 名到 DOM 的映射，但不应该根据 result type、tool name 或步骤错误去重新推理结果形态。否则 CLI、HTTP、artifact、run detail 和 Console 对同一次运行会看到不同的展示结构。
+
+### 处理与预防
+
+新增 `spatial-agent.workspace.v1`，由 `result_contract.py` 统一输出 `result.workspace`：包含注册状态、通用 panel、结果专属 panel、主 panel 和地图可用性。Console 删除前端 result-type registry，不再按工具名推断面板；它只把后端给出的 panel 名映射到已有 DOM 区域，工具结果只负责填充已打开的 panel。Production acceptance 检查同步响应与 artifact 的 workspace schema。后续继续把 panel 内部 metrics/table/chart/map payload 结构化，减少前端扫描 `steps` 生成展示内容。

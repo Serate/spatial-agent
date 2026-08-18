@@ -195,6 +195,28 @@ function Assert-DegradationEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-WorkspaceEvidence($payload, [string]$surface) {
+  if ($null -eq $payload.result -or $null -eq $payload.result.workspace) {
+    throw "$surface result workspace envelope missing"
+  }
+  $workspace = $payload.result.workspace
+  if ($workspace.schema_version -ne "spatial-agent.workspace.v1") {
+    throw "$surface workspace schema mismatch: $($workspace.schema_version)"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$workspace.result_type)) {
+    throw "$surface workspace result_type missing"
+  }
+  if ($null -eq $workspace.common_panels -or @($workspace.common_panels).Count -lt 1) {
+    throw "$surface workspace common panels missing"
+  }
+  if ($null -eq $workspace.panels) {
+    throw "$surface workspace panels missing"
+  }
+  if ($null -eq $workspace.map -or [string]::IsNullOrWhiteSpace([string]$workspace.map.mode)) {
+    throw "$surface workspace map evidence missing"
+  }
+}
+
 $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
 $capabilityCatalog = Get-Json "$BaseUrl/capabilities"
@@ -239,6 +261,7 @@ if ($syncRun.plan_evidence.plan_fingerprint_match -ne $true) {
 }
 Assert-PlanningEvidence $syncRun "sync run"
 Assert-DegradationEvidence $syncRun "sync run"
+Assert-WorkspaceEvidence $syncRun "sync run"
 if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
   throw "sync run artifact_ref missing"
 }
@@ -255,6 +278,12 @@ if ($null -eq $artifact.degradation -or $null -eq $artifact.result -or $null -eq
 }
 if ($artifact.degradation.status -ne $syncRun.result.degradation.status) {
   throw "artifact degradation status mismatch"
+}
+if ($null -eq $artifact.result -or $null -eq $artifact.result.workspace) {
+  throw "artifact workspace evidence missing"
+}
+if ($artifact.result.workspace.schema_version -ne $syncRun.result.workspace.schema_version) {
+  throw "artifact workspace schema mismatch"
 }
 
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
@@ -307,6 +336,7 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   sync_capability_catalog_environment = $syncRun.plan_evidence.capability_catalog_environment
   sync_artifact_available = -not [string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)
   sync_degradation_status = $syncRun.result.degradation.status
+  sync_workspace_panels = @($syncRun.result.workspace.panels)
   invalid_request_status = $invalid.status_code
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status

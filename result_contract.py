@@ -12,8 +12,45 @@ TITLE_BY_TYPE = {
     "raster_statistics_result": "栅格统计",
     "zonal_raster_statistics_result": "区域栅格统计",
     "terrain_land_use_analysis_result": "综合空间分析",
+    "spatial_analysis_result": "综合空间分析",
+    "buildability_result": "建设适宜性筛选",
+    "buildability_comparison": "建设适宜性对比",
+    "constrained_buildability_result": "约束建设候选筛选",
+    "dataset_health_result": "数据健康检查",
+    "zonal_vector_summary_result": "区域矢量摘要",
+    "vector_result": "矢量结果",
+    "spatial_relation_result": "空间关系",
+    "spatial_result": "空间结果",
     "unknown": "空间分析结果",
 }
+
+WORKSPACE_PANELS_BY_TYPE = {
+    "direct_answer": [],
+    "spatial_overview_result": ["overview"],
+    "spatial_analysis_result": ["raster", "composite"],
+    "terrain_land_use_analysis_result": ["raster", "composite"],
+    "admin_area_result": [],
+    "raster_metadata_result": ["raster"],
+    "raster_statistics_result": ["raster"],
+    "zonal_raster_statistics_result": ["raster"],
+    "dataset_health_result": ["health"],
+    "buildability_result": ["raster", "buildability", "compare"],
+    "buildability_comparison": ["buildability", "compare"],
+    "constrained_buildability_result": ["buildability", "compare"],
+    "zonal_vector_summary_result": ["vector"],
+    "vector_result": ["vector"],
+    "spatial_relation_result": ["vector"],
+    "spatial_result": ["vector"],
+}
+
+COMMON_WORKSPACE_PANELS = [
+    "answer",
+    "evidence",
+    "metrics",
+    "steps",
+    "provenance",
+    "trace",
+]
 
 GEOMETRY_STATUS = {
     "real_geometry",
@@ -69,6 +106,12 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         geometry_evidence=geometry_evidence,
         result_type=result_type,
     )
+    workspace = _workspace_contract(
+        result_type,
+        steps=steps,
+        geometry_evidence=geometry_evidence,
+        geojson_ref=payload.get("geojson_ref"),
+    )
     return {
         "type": result_type,
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
@@ -83,6 +126,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "references": references,
         "lineage": lineage,
         "degradation": degradation,
+        "workspace": workspace,
         "geometry": {
             "available": geometry_evidence["status"] in {"real_geometry", "boundary_geometry"},
             "status": geometry_evidence["status"],
@@ -94,6 +138,78 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             "crs": sorted(geometry_crs),
         },
     }
+
+
+def _workspace_contract(
+    result_type: str,
+    *,
+    steps: List[Any],
+    geometry_evidence: Dict[str, Any],
+    geojson_ref: Any = None,
+) -> Dict[str, Any]:
+    registered = result_type in WORKSPACE_PANELS_BY_TYPE
+    panels = list(WORKSPACE_PANELS_BY_TYPE.get(result_type, []))
+    map_evidence = _workspace_map(steps, geometry_evidence, geojson_ref)
+    if map_evidence["available"] and "map" not in panels:
+        panels.append("map")
+    if not registered and steps:
+        panels.append("generic")
+    return {
+        "schema_version": "spatial-agent.workspace.v1",
+        "result_type": result_type,
+        "registered_type": registered,
+        "primary_panel": panels[0] if panels else "answer",
+        "common_panels": list(COMMON_WORKSPACE_PANELS),
+        "panels": panels[:12],
+        "map": map_evidence,
+    }
+
+
+def _workspace_map(
+    steps: List[Any],
+    geometry_evidence: Dict[str, Any],
+    geojson_ref: Any,
+) -> Dict[str, Any]:
+    status = str(geometry_evidence.get("status") or "unknown")
+    if status in {"real_geometry", "boundary_geometry"} and geojson_ref:
+        return {
+            "available": True,
+            "mode": "geojson",
+            "reason": str(geometry_evidence.get("reason") or "GeoJSON 空间要素可绘制")[:240],
+        }
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        if _has_bounds(result):
+            return {
+                "available": True,
+                "mode": "raster_bounds",
+                "reason": "工具结果包含栅格范围，可绘制覆盖范围预览。",
+            }
+    return {
+        "available": False,
+        "mode": "none",
+        "reason": str(geometry_evidence.get("reason") or "本次结果没有可绘制空间范围")[:240],
+    }
+
+
+def _has_bounds(result: Dict[str, Any]) -> bool:
+    bounds = result.get("bounds")
+    if _is_bounds(bounds):
+        return True
+    metadata = result.get("metadata")
+    if isinstance(metadata, dict) and _is_bounds(metadata.get("bounds")):
+        return True
+    return False
+
+
+def _is_bounds(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and len(value) == 4
+        and all(isinstance(item, (int, float)) for item in value)
+    )
 
 
 def build_lineage_index(

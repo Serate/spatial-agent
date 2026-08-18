@@ -32,39 +32,47 @@ class M79ResultZoneContractTests(unittest.TestCase):
         for label in ("模型服务错误", "规划错误", "工具执行错误", "执行超时", "无效输入", "执行错误", "请求已拒绝", "需要澄清"):
             self.assertIn(label, self.html)
 
-    def test_result_zone_panels_are_driven_by_result_type_registry(self):
+    def test_result_zone_panels_are_driven_by_backend_workspace_contract(self):
         for marker in (
-            "resultViewRegistry",
+            "workspacePanelSelectors",
             "setResultPanel('.result-panel', false)",
-            "Pure result-type driven panel selection",
-            "registeredViews || []",
-            "views.has('overview')",
-            "views.has('buildability')",
-            "setResultPanel('.map-result'",
+            "Backend workspace contract decides result-specific panels",
+            "const workspace=envelope.workspace||{}",
+            "Array.isArray(workspace.panels)?workspace.panels:[]",
+            "Object.entries(workspacePanelSelectors)",
+            "views.has(view)",
             "setResultPanel('.generic-result'",
         ):
             self.assertIn(marker, self.html)
-        # Tool inference fallback must be gone: no unregistered-type tool sniffing.
+        # Tool inference fallback must be gone: the backend result workspace
+        # decides panels, while tool results only populate already-open panels.
         self.assertNotIn("registeredViews === undefined", self.html)
-        self.assertNotIn("hasRasterTool) views.add('raster'", self.html)
+        self.assertNotIn("hasRasterResult", self.html)
+        self.assertNotIn("hasCompositeResult", self.html)
+        self.assertNotIn("hasHealthResult", self.html)
+        self.assertNotIn("hasBuildabilityResult", self.html)
+        self.assertNotIn("resultViewRegistry", self.html)
 
-    def test_result_registry_covers_all_catalog_result_types(self):
-        # Every catalog result_type must have an explicit registry entry so no
-        # result silently falls back to tool inference.
+    def test_backend_workspace_contract_covers_all_catalog_result_types(self):
         import json
         import sys
 
         sys.path.insert(0, str(ROOT))
         from agent.capability_catalog import capability_catalog
+        from result_contract import build_result_contract
 
         catalog_types = set()
         for capability in capability_catalog()["capabilities"]:
             catalog_types.update(capability.get("result_types", []))
-        registry_start = self.html.index("const resultViewRegistry = {")
-        registry_end = self.html.index("};", registry_start)
-        registry_block = self.html[registry_start:registry_end]
         for result_type in sorted(catalog_types):
-            self.assertIn(result_type + ":", registry_block)
+            payload = build_result_contract({
+                "run_id": "workspace-" + result_type,
+                "status": "COMPLETED",
+                "result_type": result_type,
+                "answer": "已完成",
+                "steps": [],
+            })
+            self.assertTrue(payload["workspace"]["registered_type"], result_type)
 
     def test_no_misleading_waiting_placeholders_remain(self):
         # Terminal results must not claim they are still "waiting".

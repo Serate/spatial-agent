@@ -869,3 +869,9 @@ M82.5 已完成结构化降级矩阵：`result_contract.py` 输出 `spatial-agen
 M82.5 验证：M76/M76.2.4/M81/M66 目标测试 26 项通过（1 项 live Docker acceptance 跳过），`production_acceptance.ps1` PowerShell parser 通过。抽样复杂内存综合空间分析为 `COMPLETED + result.degradation.status=degraded`，明确列出内存后端、DEM/土地利用像元、道路/水体几何和约束建设筛选限制。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
 
 下一阶段需要先做项目全局盘点，再规划 M83。建议方向：结果类型与前端动态工作区 contract，让不同 `result.type` 决定可视化、表格、地图、证据和 artifact 展示；同时继续保持 Rule/LLM Planner、ToolRegistry、Result envelope 和生产入口的一致性，不围绕单一 GIS 样例堆页面分支。
+
+M83 已完成后端驱动的动态工作区契约：`result_contract.py` 输出 `spatial-agent.workspace.v1`，在 `result.workspace` 中声明 `result_type`、`registered_type`、`primary_panel`、`common_panels`、`panels` 和 `map` 证据；覆盖能力目录中的全部 `result_types`。Console 删除前端 result-type registry，不再按工具名推断面板，只把 workspace panel 名映射到 DOM 区域；工具结果只填充已选中的 panel。`renderRun` 去掉后置 monkey patch，栅格元数据面板现在能显示元数据摘要。production acceptance 新增 `Assert-WorkspaceEvidence` 和 `sync_workspace_panels`。
+
+M83 验证：M46/M79/M81/M76 目标测试 29 项通过；M66 生产静态门禁 6 项通过（1 项 live Docker acceptance 跳过）；PowerShell parser、quick、stage 和 Python 编译通过，`git diff --check` 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M84 建议继续全局规划，不陷入页面局部：把 panel 内部 metrics/table/chart/map payload 逐步变成后端 view model，减少前端继续扫描 `steps` 填内容；稳定后再做 Docker/GIS/live 小型 acceptance。

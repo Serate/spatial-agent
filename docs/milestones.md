@@ -1852,3 +1852,26 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Agent Runtime 角度重新盘点产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据，避免只围绕单个降级样例继续堆分支。
 2. 规划 M83 时优先补“结果类型与前端动态工作区”的通用 contract：让不同 result.type 决定可视化、表格、地图、证据和 artifact 展示，而不是页面硬编码局部场景。
 3. 在 M83 后再安排可选 GIS/Docker/live 验收，把真实武汉数据和真实大模型作为 acceptance，不进入默认 quick/stage。
+
+## M83：后端驱动的动态工作区契约（已完成）
+
+### 实现内容
+
+- result_contract.py 新增 spatial-agent.workspace.v1，在 result.workspace 中输出 result_type、registered_type、primary_panel、common_panels、panels 和 map 证据。
+- 后端维护 result type 到工作区 panel 的映射，覆盖能力目录中的全部 result_types；地图面板由后端根据 GeoJSON 几何或栅格 bounds 证据决定。
+- Console 删除前端 result-type registry，不再通过工具名推断 raster/health/composite/buildability/map 面板；前端只把 workspace panel 名映射到 DOM 区域，工具结果只负责填充已选中的 panel。
+- renderRun 去掉后置 monkey patch，所有结果面板填充集中在同一渲染流程；raster metadata 现在能在栅格面板中显示文件数、尺寸、波段、像元大小、CRS 和样本文件。
+- production_acceptance.ps1 新增 Assert-WorkspaceEvidence，生产同步响应和 artifact 都要保留同一 workspace schema，并输出 sync_workspace_panels。
+
+### 验收证据
+
+- M46/M79/M81/M76 目标测试 29 项通过。
+- M66 生产静态门禁 6 项通过（1 项 live Docker acceptance 跳过），production_acceptance.ps1 PowerShell parser 通过。
+- quick 和 stage profile 均通过；Python 编译通过；git diff --check 仅有 Windows LF/CRLF 提示。
+- 本阶段未运行 Docker production acceptance、真实 GIS 或 live LLM；真实入口保持为后续显式验收路径。
+
+### 下一阶段规划
+
+1. 继续从全局 Agent Runtime 视角规划 M84，不围绕单个页面细节扩展。
+2. 建议下一阶段做 result artifact/view model 的更深 contract：把 panel 内部的 metrics/table/chart/map payload 也逐步结构化，减少前端继续扫描 steps 填内容。
+3. 在 view model 稳定后，再跑一次 Docker/GIS/live 的小型 acceptance，验证真实数据和真实模型路径仍能输出 workspace、degradation、planning、lineage 四类证据。
