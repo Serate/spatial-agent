@@ -24,6 +24,11 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertTrue(result["workspace"]["registered_type"])
         self.assertIn("raster", result["workspace"]["panels"])
         self.assertIn("evidence", result["workspace"]["common_panels"])
+        self.assertEqual(result["views"]["schema_version"], "spatial-agent.views.v1")
+        raster_view = result["views"]["panels"]["raster"]
+        self.assertEqual(raster_view["kind"], "raster_metadata")
+        self.assertEqual(raster_view["source_step_id"], "raster-metadata")
+        self.assertIn("文件数", [item["label"] for item in raster_view["metrics"]])
         self.assertIn("文件数", result["summary"])
         self.assertEqual(result["data"]["evidence_steps"][0]["tool"], "get_raster_metadata")
         self.assertNotIn("metadata", result["data"]["evidence_steps"][0]["summary"])
@@ -53,6 +58,35 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertIn("raster", result["workspace"]["panels"])
         self.assertIn("map", result["workspace"]["panels"])
         self.assertEqual(result["workspace"]["map"]["mode"], "raster_bounds")
+        self.assertEqual(result["views"]["panels"]["raster"]["kind"], "raster_statistics")
+        self.assertEqual(result["views"]["panels"]["map"]["mode"], "raster_bounds")
+        self.assertEqual(result["views"]["panels"]["map"]["bounds"], [114.0, 30.0, 115.0, 31.0])
+
+    def test_view_model_summarizes_overview_panel_without_frontend_step_scans(self):
+        from result_contract import build_result_contract
+
+        result = build_result_contract({
+            "run_id": "overview-view",
+            "status": "COMPLETED",
+            "result_type": "spatial_overview_result",
+            "answer": "已完成",
+            "steps": [
+                {"id": "admin", "tool": "range_query", "status": "COMPLETED", "result": {"dataset": "admin_areas", "result_ref": "memory://admin"}},
+                {"id": "roads", "tool": "get_zonal_vector_summary", "status": "COMPLETED", "result": {"dataset": "roads", "summary": {"feature_count": 12}}},
+            ],
+            "_geometry_evidence": {
+                "status": "real_geometry",
+                "reason": "导出摘要包含真实空间要素",
+                "feature_count": 13,
+                "sources": ["geojson"],
+            },
+            "geojson_ref": "outputs/geojson/overview.geojson",
+        })
+
+        overview = result["views"]["panels"]["overview"]
+        self.assertEqual(overview["kind"], "spatial_overview")
+        self.assertIn("数据来源", [item["label"] for item in overview["metrics"]])
+        self.assertEqual(result["views"]["panels"]["map"]["mode"], "geojson")
 
     def test_workspace_contract_covers_all_catalog_result_types(self):
         from agent.capability_catalog import capability_catalog
@@ -71,6 +105,10 @@ class M46ResultContractTests(unittest.TestCase):
                     self.assertEqual(
                         result["workspace"]["schema_version"],
                         "spatial-agent.workspace.v1",
+                    )
+                    self.assertEqual(
+                        result["views"]["schema_version"],
+                        "spatial-agent.views.v1",
                     )
                     self.assertTrue(result["workspace"]["registered_type"])
 

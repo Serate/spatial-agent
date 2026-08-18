@@ -53,6 +53,19 @@ class M79ResultZoneContractTests(unittest.TestCase):
         self.assertNotIn("hasBuildabilityResult", self.html)
         self.assertNotIn("resultViewRegistry", self.html)
 
+    def test_panel_contents_prefer_backend_view_model(self):
+        for marker in (
+            "function resultViewPanels(data)",
+            "const view=resultViewPanels(data).raster",
+            "const view=resultViewPanels(data).overview",
+            "renderMetricGrid(view.metrics||[])",
+            "view.kind==='raster_metadata'",
+            "view.kind==='spatial_overview'",
+        ):
+            self.assertIn(marker, self.html)
+        self.assertNotIn("const steps=data.steps||[]; const datasets=new Set()", self.html)
+        self.assertNotIn("map(s=>s.result||{}).find(x=>x.statistics||x.metadata)", self.html)
+
     def test_backend_workspace_contract_covers_all_catalog_result_types(self):
         import json
         import sys

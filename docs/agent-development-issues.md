@@ -2633,3 +2633,17 @@ Console 虽然已经按 result type 控制结果区，但页面内部维护了�
 ### 处理与预防
 
 新增 `spatial-agent.workspace.v1`，由 `result_contract.py` 统一输出 `result.workspace`：包含注册状态、通用 panel、结果专属 panel、主 panel 和地图可用性。Console 删除前端 result-type registry，不再按工具名推断面板；它只把后端给出的 panel 名映射到已有 DOM 区域，工具结果只负责填充已打开的 panel。Production acceptance 检查同步响应与 artifact 的 workspace schema。后续继续把 panel 内部 metrics/table/chart/map payload 结构化，减少前端扫描 `steps` 生成展示内容。
+
+## 面板内部指标不能由前端扫描 steps 推断
+
+### 现象
+
+M83 以后 Console 已经由后端 `result.workspace.panels` 决定哪些结果面板出现，但面板内部内容仍由浏览器扫描 `steps` 生成：栅格面板查找 `statistics/metadata`，空间总览面板临时统计 dataset 集合和 geometry 状态。这样虽然面板开关是后端契约，指标、说明、地图 bounds 仍是前端第二套业务判断。
+
+### 根因
+
+“哪些面板出现”和“每个面板显示什么”是同一类结果语义。如果只把前者下沉到 Runtime，后者留在页面里按工具结果猜测，CLI、HTTP、artifact、run detail 和 Console 仍可能不一致；新增工具或 result type 时，前端容易因为字段形状相似而展示错误指标，或者 artifact 中缺少可复现的展示数据。
+
+### 处理与预防
+
+新增 `spatial-agent.views.v1`，由 `result_contract.py` 统一输出 `result.views.panels`：目前覆盖 `raster_metadata`、`raster_statistics`、`spatial_overview` 和 `map` view，包含有界 metrics、来源 step、说明、分布、覆盖率和栅格/GeoJSON 预览证据。Console 改为消费 `resultViewPanels(data)` 和 `renderMetricGrid()`，栅格/总览不再扫描 `steps` 自行推断指标。后续新增 health、composite、buildability、vector/table/chart 展示时，应先扩展 backend view model 和 result contract 测试，再让前端按结构化 view 渲染，不能把面板内部语义继续散落到页面逻辑。

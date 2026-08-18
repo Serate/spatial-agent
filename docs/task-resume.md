@@ -875,3 +875,9 @@ M83 已完成后端驱动的动态工作区契约：`result_contract.py` 输出 
 M83 验证：M46/M79/M81/M76 目标测试 29 项通过；M66 生产静态门禁 6 项通过（1 项 live Docker acceptance 跳过）；PowerShell parser、quick、stage 和 Python 编译通过，`git diff --check` 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
 
 下一阶段 M84 建议继续全局规划，不陷入页面局部：把 panel 内部 metrics/table/chart/map payload 逐步变成后端 view model，减少前端继续扫描 `steps` 填内容；稳定后再做 Docker/GIS/live 小型 acceptance。
+
+M84 已完成后端结果视图模型契约：`result_contract.py` 输出 `spatial-agent.views.v1`，在 `result.views.panels` 中统一给出栅格元数据、栅格统计、空间总览和地图预览所需的有界 view model。Console 的 raster/overview 面板改为消费 `resultViewPanels(data)`，共享 `renderMetricGrid()`，不再扫描 `steps` 自行生成栅格/总览指标；栅格 bounds 预览也改用后端 map view。M46/M79 红测覆盖 `raster_metadata`、`raster_statistics`、`spatial_overview` 与 `raster_bounds/geojson` map view。
+
+M84 验证：M46/M79 目标测试 15 项通过；M46/M79/M81/M76/M66 相关回归 37 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage 和 `git diff --check` 通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M85 需要先做全局盘点：优先把 health、composite、buildability、vector/table/chart 等剩余复杂面板继续下沉到 backend view model，并把 `views` 纳入 artifact、HTTP run detail、session recovery 和 production acceptance 证据。等 `workspace/degradation/planning/lineage/views` 五类 result envelope 证据稳定后，再做小型真实 GIS + live LLM + Docker acceptance。

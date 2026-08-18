@@ -1875,3 +1875,26 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 继续从全局 Agent Runtime 视角规划 M84，不围绕单个页面细节扩展。
 2. 建议下一阶段做 result artifact/view model 的更深 contract：把 panel 内部的 metrics/table/chart/map payload 也逐步结构化，减少前端继续扫描 steps 填内容。
 3. 在 view model 稳定后，再跑一次 Docker/GIS/live 的小型 acceptance，验证真实数据和真实模型路径仍能输出 workspace、degradation、planning、lineage 四类证据。
+
+## M84：后端结果视图模型契约（已完成）
+
+### 实现内容
+
+- `result_contract.py` 新增 `spatial-agent.views.v1`，在 `result.views.panels` 中输出由后端决定的面板内容 view model。
+- 栅格面板新增 `raster_metadata` 与 `raster_statistics` view，包含有界 metrics、标题、来源 step、样本说明、分布与覆盖率摘要；地图 view 支持 GeoJSON 与栅格 bounds 两种模式。
+- 空间总览面板新增 `spatial_overview` view，统一输出工具步骤数、数据来源数、空间要素数、空间证据状态与说明。
+- Console 新增 `resultViewPanels()` 与 `renderMetricGrid()`，栅格和空间总览面板优先消费 `result.views.panels`，不再扫描 `steps` 自行推断面板内部指标；栅格 bounds 预览也改用后端 map view。
+- M46/M79 合约测试扩展为所有能力目录 result type 都必须带 `spatial-agent.views.v1`，并断言前端已移除栅格/总览的局部 step scan。
+
+### 验收证据
+
+- M46/M79 目标测试 15 项通过。
+- M46/M79/M81/M76/M66 相关回归 37 项通过（1 项 live Docker acceptance 跳过）。
+- Python 编译、quick profile、stage profile 和 `git diff --check` 均通过；`git diff --check` 仅输出 Windows LF/CRLF 提示。
+- 本阶段未运行 Docker production acceptance、真实 GIS 或 live LLM；默认 quick/stage 继续保持离线边界。
+
+### 下一阶段规划
+
+1. 从全局 Agent Runtime 视角规划 M85，优先补齐剩余复杂面板的 backend view model，包括 health、composite、buildability、vector/table/chart，而不是继续在前端按工具结果写分支。
+2. 将 `views` 纳入 artifact、HTTP run detail、session recovery 和 production acceptance 的结构化证据，确保 CLI/API/Console 看到同一套展示数据。
+3. 在 `workspace/degradation/planning/lineage/views` 五类 result envelope 证据稳定后，再安排一个小型真实 GIS + live LLM + Docker acceptance，验证真实模型和真实数据路径没有回退。

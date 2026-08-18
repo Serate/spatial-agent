@@ -112,6 +112,13 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         geometry_evidence=geometry_evidence,
         geojson_ref=payload.get("geojson_ref"),
     )
+    views = _view_model(
+        result_type,
+        steps=steps,
+        geometry_evidence=geometry_evidence,
+        geojson_ref=payload.get("geojson_ref"),
+        workspace=workspace,
+    )
     return {
         "type": result_type,
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
@@ -127,6 +134,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "lineage": lineage,
         "degradation": degradation,
         "workspace": workspace,
+        "views": views,
         "geometry": {
             "available": geometry_evidence["status"] in {"real_geometry", "boundary_geometry"},
             "status": geometry_evidence["status"],
@@ -210,6 +218,235 @@ def _is_bounds(value: Any) -> bool:
         and len(value) == 4
         and all(isinstance(item, (int, float)) for item in value)
     )
+
+
+def _view_model(
+    result_type: str,
+    *,
+    steps: List[Any],
+    geometry_evidence: Dict[str, Any],
+    geojson_ref: Any = None,
+    workspace: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    panels: Dict[str, Any] = {}
+    workspace_panels = set((workspace or {}).get("panels") or [])
+    raster_view = _raster_view(steps)
+    if raster_view and ("raster" in workspace_panels or result_type in {"raster_metadata_result", "raster_statistics_result", "zonal_raster_statistics_result"}):
+        panels["raster"] = raster_view
+    overview_view = _overview_view(steps, geometry_evidence)
+    if overview_view and ("overview" in workspace_panels or result_type == "spatial_overview_result"):
+        panels["overview"] = overview_view
+    map_view = _map_view(steps, geometry_evidence, geojson_ref)
+    if map_view and ("map" in workspace_panels or map_view.get("mode") != "none"):
+        panels["map"] = map_view
+    return {
+        "schema_version": "spatial-agent.views.v1",
+        "panels": panels,
+    }
+
+
+def _raster_view(steps: List[Any]) -> Dict[str, Any] | None:
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        if isinstance(result.get("metadata"), dict) and not isinstance(result.get("statistics"), dict):
+            return _raster_metadata_view(step, result)
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        if _is_raster_statistics_step(step, result):
+            return _raster_statistics_view(step, result)
+    return None
+
+
+def _is_raster_statistics_step(step: Dict[str, Any], result: Dict[str, Any]) -> bool:
+    if not isinstance(result.get("statistics"), dict):
+        return False
+    if step.get("tool") in {"get_raster_statistics", "get_zonal_raster_statistics", "get_zonal_slope_statistics"}:
+        return True
+    statistics = result.get("statistics") or {}
+    return any(key in statistics for key in ("minimum", "maximum", "mean", "standard_deviation", "nodata_ratio"))
+
+
+def _raster_metadata_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+    metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
+    crs_values = metadata.get("crs_values")
+    if isinstance(crs_values, list) and crs_values:
+        crs = "、".join(str(item) for item in crs_values[:6])
+    else:
+        crs = metadata.get("crs") or result.get("crs") or "未声明"
+    pixel = metadata.get("pixel_size")
+    if isinstance(pixel, list):
+        pixel_value = " × ".join(str(item) for item in pixel[:2])
+    else:
+        pixel_value = pixel or "-"
+    width = metadata.get("width")
+    height = metadata.get("height")
+    size = "{} × {}".format(width if width is not None else 0, height if height is not None else 0)
+    sample_files = [str(item) for item in (result.get("sample_files") or [])[:3]]
+    sample_text = "、".join(sample_files) if sample_files else "无样本文件"
+    return {
+        "kind": "raster_metadata",
+        "source_step_id": step.get("id"),
+        "source_tool": step.get("tool"),
+        "title": "{} · 元数据".format(result.get("dataset") or "栅格"),
+        "subtitle": str(result.get("role") or result.get("format") or "metadata")[:120],
+        "dataset": result.get("dataset"),
+        "metrics": [
+            _view_metric("文件数", result.get("file_count", 0)),
+            _view_metric("抽样文件", metrics.get("probed_files", len(sample_files))),
+            _view_metric("宽×高", size),
+            _view_metric("波段数", metadata.get("band_count", 0)),
+            _view_metric("像元大小", pixel_value),
+            _view_metric("CRS", crs),
+        ],
+        "note": "样本：{}".format(sample_text)[:320],
+    }
+
+
+def _raster_statistics_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    statistics = result.get("statistics") if isinstance(result.get("statistics"), dict) else {}
+    if statistics.get("error"):
+        return {
+            "kind": "raster_statistics",
+            "source_step_id": step.get("id"),
+            "source_tool": step.get("tool"),
+            "title": "{} · 统计".format(result.get("dataset") or "栅格"),
+            "dataset": result.get("dataset"),
+            "error": str(statistics.get("error"))[:320],
+            "metrics": [],
+        }
+    nodata_ratio = statistics.get("nodata_ratio")
+    try:
+        nodata_display = "{:.3f}%".format(float(nodata_ratio) * 100)
+    except (TypeError, ValueError):
+        nodata_display = "-"
+    title = "{} · {}".format(result.get("admin_name"), result.get("dataset") or "栅格") if result.get("admin_name") else str(result.get("dataset") or "栅格")
+    distribution = statistics.get("distribution") if isinstance(statistics.get("distribution"), dict) else {}
+    bins = distribution.get("bins") if isinstance(distribution.get("bins"), list) else []
+    coverage = {
+        "valid_pixel_count": statistics.get("valid_pixel_count", 0),
+        "nodata_ratio": nodata_ratio,
+    }
+    return {
+        "kind": "raster_statistics",
+        "source_step_id": step.get("id"),
+        "source_tool": step.get("tool"),
+        "title": title,
+        "dataset": result.get("dataset"),
+        "bounds": _bounds_from_result(result),
+        "crs": result.get("crs"),
+        "metrics": [
+            _view_metric("最小值", statistics.get("minimum")),
+            _view_metric("最大值", statistics.get("maximum")),
+            _view_metric("平均值", statistics.get("mean")),
+            _view_metric("标准差", statistics.get("standard_deviation")),
+            _view_metric("有效像元", statistics.get("valid_pixel_count", 0)),
+            _view_metric("NoData比例", nodata_display),
+        ],
+        "distribution": {
+            "sample_count": distribution.get("sample_count", 0),
+            "bins": bins[:30],
+        } if bins else None,
+        "coverage": coverage,
+        "analysis": {
+            "analyzed_files": (result.get("metrics") or {}).get("analyzed_files", 0) if isinstance(result.get("metrics"), dict) else 0,
+            "file_count": result.get("file_count", 0),
+        },
+    }
+
+
+def _overview_view(steps: List[Any], geometry_evidence: Dict[str, Any]) -> Dict[str, Any]:
+    datasets = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        dataset = result.get("dataset")
+        if dataset:
+            datasets.append(str(dataset))
+        for item in result.get("datasets") or []:
+            if isinstance(item, dict) and item.get("dataset"):
+                datasets.append(str(item["dataset"]))
+            elif isinstance(item, str):
+                datasets.append(item)
+    unique_datasets = sorted(set(datasets))
+    status = str(geometry_evidence.get("status") or "unknown")
+    status_label = {
+        "truncated_geometry": "已截断",
+        "real_geometry": "可绘制",
+        "boundary_geometry": "边界可绘制",
+        "no_geometry": "无几何",
+        "unknown": "摘要",
+    }.get(status, status)
+    return {
+        "kind": "spatial_overview",
+        "source_step_id": None,
+        "title": "空间总览摘要",
+        "metrics": [
+            _view_metric("工具步骤", len([step for step in steps if isinstance(step, dict)])),
+            _view_metric("数据来源", len(unique_datasets) or "-"),
+            _view_metric("空间要素", geometry_evidence.get("feature_count", 0)),
+            _view_metric("空间证据", status_label),
+        ],
+        "datasets": unique_datasets[:20],
+        "note": "行政区、道路、水体图层使用不同颜色；{}".format(
+            geometry_evidence.get("reason") or "空间证据由最终结果生成。"
+        )[:320],
+    }
+
+
+def _map_view(
+    steps: List[Any],
+    geometry_evidence: Dict[str, Any],
+    geojson_ref: Any,
+) -> Dict[str, Any] | None:
+    status = str(geometry_evidence.get("status") or "unknown")
+    if status in {"real_geometry", "boundary_geometry"} and geojson_ref:
+        return {
+            "kind": "map",
+            "mode": "geojson",
+            "geojson_ref": geojson_ref,
+            "reason": str(geometry_evidence.get("reason") or "GeoJSON 空间要素可绘制")[:240],
+            "feature_count": geometry_evidence.get("feature_count", 0),
+        }
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        result = step.get("result") if isinstance(step.get("result"), dict) else {}
+        bounds = _bounds_from_result(result)
+        if bounds:
+            metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+            return {
+                "kind": "map",
+                "mode": "raster_bounds",
+                "bounds": bounds,
+                "dataset": result.get("dataset"),
+                "crs": result.get("crs") or metadata.get("crs"),
+                "source_step_id": step.get("id"),
+                "reason": "工具结果包含栅格范围，可绘制覆盖范围预览。",
+            }
+    return None
+
+
+def _bounds_from_result(result: Dict[str, Any]) -> List[float] | None:
+    bounds = result.get("bounds")
+    if _is_bounds(bounds):
+        return [float(item) for item in bounds]
+    metadata = result.get("metadata")
+    if isinstance(metadata, dict) and _is_bounds(metadata.get("bounds")):
+        return [float(item) for item in metadata["bounds"]]
+    return None
+
+
+def _view_metric(label: str, value: Any) -> Dict[str, Any]:
+    return {
+        "label": str(label)[:80],
+        "value": "-" if value is None else value,
+    }
 
 
 def build_lineage_index(
