@@ -1050,6 +1050,15 @@ M105 增加了一个脱敏的 `open_region_query` 模型回放：将“查询江
 
 M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 `AgentService` 执行“查询江夏区道路与水体分布”，返回 `zonal_vector_summary_result`，生成 5 个工具步骤，workspace/views 均为 `vector`，真实命中道路 10,051 个、水体 1,189 个，0 次重试。该请求没有使用总览或建设筛选的固定模板，仍经过同一 Planner、ToolRegistry 和结果格式化层。
 
+## M107 已完成
+
+- GitHub Actions 最近失败的具体步骤已定位为 `Run stage contract profile`；smoke 成功，完整 unittest 因 job fail-fast 被跳过。
+- `scripts/test_profile.py` 与 CI workflow 已统一使用 UTF-8 子进程环境和显式解码，并增加中文子进程输出回归；stage profile 本身保留，不为绕过失败而删除。
+- 本地验证：smoke 通过、stage 通过、离线全量 629 项通过、42 项按环境跳过。
+- GitHub Actions 原始日志接口返回 403（当前凭据无 repository admin 权限），因此记录了 job step/annotation 证据和本地等价复现，未声称已读取原始异常堆栈。
+
+下一阶段 M108 从全局角度先确认 CI 修复后的远程 run，再推进生产入口矩阵、开放式能力组合与动态 Console 验收；默认 CI 继续不访问真实模型、私有配置、原始 GIS 数据或 Docker，ToolRegistry 仍是唯一执行 seam。
+
 本轮同时确认内部 `AgentRuntime.run()` 返回的是内部 `AgentRunResult`，外部 result envelope 由 Service/HTTP/CLI 格式化层生成；该边界已记录到中文问题文档。Docker Linux engine 和 Chrome CDP 宿主阻塞仍未改变，生产 FastAPI 和动态浏览器验收继续保持未宣称状态。
 
 ### M107 全局规划

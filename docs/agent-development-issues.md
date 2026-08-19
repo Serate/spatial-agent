@@ -2943,3 +2943,19 @@ M106 真实模型 + 本地 GIS 开放式查询中，直接调用 `AgentRuntime.r
 ### 处理与预防
 
 真实入口验收必须通过 `AgentService`、HTTP 或 CLI，并检查 `result.type`、`result.workspace`、`result.views` 和 lineage；Runtime 单测只验证内部状态机和 `AgentRunResult`。如果未来要求 Runtime 直接输出外部 envelope，应先明确新的接口契约并同步 artifact/recovery/前端，而不能在验收脚本中拼接字段路径。
+
+## Windows CI 的 stage profile 被子进程输出编码阻塞
+
+### 现象
+
+GitHub Actions 的 CI run 在服务 smoke 成功后，于 `Run stage contract profile` 失败，完整离线 unittest 因前一步失败而被跳过。GitHub check 可确认失败步骤和退出码，但当前凭据没有读取 Actions 原始日志的权限；本地使用 Python 3.14 运行同一 profile 则通过。stage 报告包含中文验收类别，且由 profile runner 通过 `subprocess.run(..., text=True)` 捕获子进程输出。
+
+### 根因
+
+Windows runner 的默认 locale/stdio 编码不应被当作 Python 子进程 JSON 输出的契约。stage runner 原先没有显式指定 `encoding`，子进程也没有统一使用 UTF-8；在 Python 3.11 的 GitHub Windows 环境中，locale 差异可能在报告捕获或输出阶段将一个业务通过的 stage 误判为进程失败。这个问题属于 CI harness 的跨平台编码边界，不是 Agent Runtime、Planner 或空间数据失败。
+
+### 处理与预防
+
+`scripts/test_profile.py` 现在为子进程设置 `PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`，并以 UTF-8（带替换错误处理）捕获 stdout/stderr；GitHub workflow 同时在 job 级声明这两个环境变量。`tests/test_m81_test_profiles.py` 增加中文子进程输出回归。stage profile 仍保留，因为它提供少量代表性 Runtime 契约验收，不能为了绕过 CI 失败而删除。
+
+以后 CI/测试 harness 只要跨进程读取机器可读输出，就必须显式指定编码并覆盖至少一个非 ASCII 回归；报告输出编码问题要与业务测试失败分开诊断。Actions 日志不可读时，应至少先读取 job steps/check annotations，再用本地等价命令复现，不能仅凭 “All jobs have failed” 删除门禁。

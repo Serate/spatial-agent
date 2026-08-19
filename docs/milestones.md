@@ -2352,3 +2352,17 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 
 - Docker Linux engine 仍无法连接 named pipe，Chrome CDP headless 仍以退出码 13 失败；FastAPI/Docker 和动态浏览器验收未宣称通过。
 - M107 将从全局角度推进生产入口矩阵、更多开放式表达与未注册能力澄清、真实数据证据边界和动态 Console 验收；MCP 仍只在出现真实远程工具来源时实现 adapter。
+
+## M107：修复 Windows CI stage 编码边界（已完成）
+
+### 实现与验收
+
+- 保留 stage 契约 profile；修复 `scripts/test_profile.py` 子进程的 UTF-8 环境和 stdout/stderr 显式解码，并在 CI job 级固定 Python UTF-8 环境。
+- 增加中文子进程输出回归，避免 Windows locale 差异把 stage 通过误判为失败。
+- 本地 smoke、stage 和离线全量 629 项通过、42 项按环境跳过；GitHub 最新失败 run 的 job steps 已确认失败点为 stage，原始日志受 GitHub 权限限制暂不可读。
+
+### 下一阶段全局规划
+
+1. 推送本修复并确认 GitHub Actions 的 stage 与完整离线回归均执行成功。
+2. 从产品、架构、真实模型、数据、部署和前端整体检查 CI 是否覆盖正确边界，继续保持默认 CI 离线且可复现。
+3. Docker engine 恢复后执行 FastAPI/readiness、SQLite/artifact/recovery 和真实数据卷联合验收；没有真实远程工具来源时不引入 MCP 运行时依赖。

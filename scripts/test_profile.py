@@ -278,12 +278,20 @@ def _docker_commands(args: argparse.Namespace) -> List[ProfileCommand]:
 def _run_command(command: ProfileCommand) -> Dict[str, object]:
     env = os.environ.copy()
     env.update(command.env)
+    # GitHub's Windows runner can use a legacy locale while the child Python
+    # process emits UTF-8 JSON (the stage acceptance report contains Chinese
+    # case labels).  Make both sides explicit so a locale mismatch cannot
+    # turn a passing profile into a UnicodeDecodeError.
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
     completed = subprocess.run(
         list(command.command),
         cwd=str(ROOT),
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return {
         "name": command.name,

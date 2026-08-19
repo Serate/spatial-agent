@@ -816,3 +816,15 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - Docker Linux engine named pipe 和隔离 Chrome CDP 退出码 13 的宿主限制保持未解决，当前版本 FastAPI/Docker 与动态浏览器证据不能宣称通过。
 
 下一阶段 M107 从全局角度优先做生产入口矩阵、更多开放式表达/未注册能力澄清、真实数据证据边界和动态 Console 验收；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M107 已完成
+
+- GitHub Actions 失败步骤已通过 run/job 元数据定位为 `Run stage contract profile`；smoke 成功，离线 unittest 因前一步失败而跳过。原始 Actions 日志读取返回 403，未把摘要当作完整堆栈。
+- 修复 CI harness 的 Windows 编码边界：profile 子进程显式使用 `PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8` 和 UTF-8 捕获；workflow job 同样声明环境；新增中文子进程输出回归。
+- 本地验证：smoke 通过、stage 通过、离线全量 629 项通过、42 项按环境跳过。stage profile 继续作为代表性契约门禁保留。
+
+### M108 全局规划
+
+1. 先确认修复后的 GitHub Actions 远程 run，确保 stage 后完整离线 unittest 真正执行。
+2. 从整体 Agent Runtime 盘点 CI、HTTP/CLI/artifact/recovery、真实模型回放、数据质量和 Console 结果证据的一致性，避免只修一个局部测试。
+3. Docker engine 恢复后执行当前版本 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和真实数据卷验收；无真实外部工具来源时不引入 MCP 运行时依赖。

@@ -9,6 +9,19 @@ ROOT = Path(__file__).parents[1]
 
 
 class M81TestProfileTests(unittest.TestCase):
+    def test_profile_runner_handles_utf8_child_output(self):
+        from scripts.test_profile import ProfileCommand, _run_command
+
+        result = _run_command(
+            ProfileCommand(
+                "utf8_output",
+                [sys.executable, "-c", "print('中文阶段输出')"],
+            )
+        )
+
+        self.assertTrue(result["ok"])
+        self.assertIn("中文阶段输出", result["stdout_tail"])
+
     def test_quick_profile_is_bounded_to_core_tripwires(self):
         completed = subprocess.run(
             [
