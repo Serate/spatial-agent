@@ -120,7 +120,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         geometry_evidence=geometry_evidence,
         result_type=result_type,
     )
-    replanning = build_replanning_evidence(payload.get("replan_events"))
+    replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
     workspace = _workspace_contract(
         result_type,
         steps=steps,
@@ -227,6 +227,19 @@ def _bounded_replan_token(value: Any) -> str:
     if not isinstance(value, (str, int, float)) or isinstance(value, bool):
         return ""
     return str(value).strip()[:96]
+
+
+def _replanning_events_from_payload(payload: Dict[str, Any]) -> Any:
+    """Read current and legacy artifact locations without duplicating policy."""
+    events = payload.get("replan_events")
+    if isinstance(events, list):
+        return events
+    nested_result = payload.get("result")
+    if isinstance(nested_result, dict):
+        nested = nested_result.get("replanning")
+        if isinstance(nested, dict) and isinstance(nested.get("events"), list):
+            return nested["events"]
+    return []
 
 
 def _workspace_contract(
@@ -870,7 +883,7 @@ def build_lineage_index(
         retry_count = max(0, int(payload.get("retry_count") or 0))
     except (TypeError, ValueError):
         retry_count = 0
-    replanning = build_replanning_evidence(payload.get("replan_events"))
+    replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
     return {
         "run_id": run_id or None,
         "answer": {"available": bool(payload.get("answer") or payload.get("error"))},

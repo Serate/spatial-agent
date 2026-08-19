@@ -771,6 +771,10 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 生产 acceptance 已新增 `Assert-ReplanningEvidence`，同步结果与 artifact 校验 `spatial-agent.replanning.v1`、事件边界和 lineage 计数一致。full-stage、strict offline evaluation、smoke、PowerShell 解析和离线全量 625 项（42 项按环境跳过）通过；M101 相关回归 10 项通过。Docker Linux engine 仍无法连接，下一阶段 M102 优先用当前版本重建容器并复验 readiness、真实数据卷和跨入口证据；没有真实外部工具来源时不引入 MCP 运行时依赖。
 
+## M102 已完成
+
+`result_contract.py` 现在兼容顶层 `replan_events` 与旧/外部 artifact 的嵌套 `result.replanning.events`，并继续统一有界归一化。M102 相关回归 30 项、离线全量 627 项（42 项按环境跳过）和 GIS core 31 项通过。Docker Linux engine 仍无法连接，下一阶段 M103 优先重建当前版本容器并验收 readiness、真实数据卷及 HTTP/artifact/recovery/Console；没有真实外部工具来源时不引入 MCP 运行时依赖。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。

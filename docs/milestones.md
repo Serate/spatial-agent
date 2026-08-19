@@ -2257,3 +2257,22 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. M102 在 Docker engine 恢复后重建当前版本，执行 readiness、真实数据卷、同步/异步、artifact、失败和重规划证据 acceptance。
 2. 同时复验生产 Console 的动态 workspace、views、trace 和地图证据，确认 HTTP/artifact/recovery 一致。
 3. 如果宿主环境继续阻塞，补充脱敏重规划/开放式能力组合的跨入口回放；仍不引入没有真实外部工具来源支撑的 MCP。
+
+## M102：重规划证据的历史 artifact 恢复兼容（已完成）
+
+### 实现内容
+
+- `result_contract.py` 增加重规划事件读取 seam：兼容当前顶层 `replan_events` 与旧/外部 artifact 的嵌套 `result.replanning.events`。
+- 恢复后的 `result.replanning` 和 `result.lineage.replanning` 继续经过统一有界校验，不让历史 payload 绕过结果契约。
+- 新增 artifact round-trip 与 legacy nested result 回归，并记录中文问题预防规则。
+
+### 当前验收证据
+
+- M102 相关回归 30 项通过；离线全量 627 项通过、42 项按环境跳过；GIS core 31 项通过。
+- Docker Linux engine 仍无法连接 `dockerDesktopLinuxEngine` named pipe，尚未执行当前版本的容器 production acceptance；不能引用旧容器结果。
+
+### 下一阶段全局规划
+
+1. M103 在 Docker engine 恢复后重建当前版本，完成 readiness、真实数据卷、同步/异步、artifact、失败和重规划证据 acceptance。
+2. 同时复验 Console 动态 workspace、views、trace 和地图证据，确认 HTTP/artifact/recovery 一致。
+3. 若宿主环境继续阻塞，继续扩展脱敏模型回放和跨入口恢复矩阵；MCP 仍只在出现真实外部工具来源时实现 adapter。

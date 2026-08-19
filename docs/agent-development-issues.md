@@ -2887,3 +2887,17 @@ M99 增加了 `result.replanning` 和 `result.lineage.replanning`，但生产 ac
 ### 处理与预防
 
 M101 新增 `Assert-ReplanningEvidence`，生产同步结果和 artifact 必须校验 schema、事件数量、字段边界和 lineage 计数一致；静态契约测试同时检查函数和调用点。以后新增 `result.*` 版本化证据时，必须同步更新生产 acceptance、artifact/recovery 验证和至少一个跨入口测试，不能只修改结果构造器。
+
+## 旧 artifact 只保留嵌套结果时重规划证据可能丢失
+
+### 现象
+
+当前运行结果同时保留顶层 `replan_events` 和嵌套 `result.replanning`。如果旧 artifact 或外部结果生产者只保存嵌套结果，恢复入口重新构造 result envelope 时只读取顶层字段，可能把已有的重规划事件重建为空。
+
+### 根因
+
+结果契约演进过程中，顶层兼容字段和版本化 envelope 的生命周期不一定同步。恢复逻辑若只依赖当前 Runtime 的写入形状，就会把 artifact 结构当成固定实现细节，削弱可替换存储和历史恢复能力。
+
+### 处理与预防
+
+M102 在 `result_contract.py` 增加统一读取 seam：优先读取顶层 `replan_events`，缺失时回退到 `result.replanning.events`，之后仍经过同一有界归一化。新增 artifact round-trip 和 legacy nested result 回归，确保恢复后的 result 与 lineage 证据一致。后续版本化字段迁移必须同时设计当前写入、旧 payload 回退和 artifact/recovery 测试，不能只更新 writer。

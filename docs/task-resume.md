@@ -1000,3 +1000,7 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 ## M101 已完成
 
 生产 acceptance 新增 `Assert-ReplanningEvidence`，同步运行和 artifact 必须携带并保持一致的 `spatial-agent.replanning.v1` 与 lineage 计数。full-stage、strict offline evaluation、smoke、PowerShell 解析和离线全量 625 项通过、42 项跳过；M101 相关回归 10 项通过。Docker engine 仍不可用，下一阶段 M102 优先进行当前版本容器 readiness、真实数据卷及 HTTP/artifact/recovery/Console 联合验收。
+
+## M102 已完成
+
+重规划结果契约现在兼容当前顶层 `replan_events` 和旧 artifact 的嵌套 `result.replanning.events`，历史恢复不会因字段位置变化丢失证据。M102 相关回归 30 项、离线全量 627 项（42 项按环境跳过）和 GIS core 31 项通过。Docker engine 仍不可用，下一阶段 M103 优先进行当前版本容器 readiness、真实数据卷和 HTTP/artifact/recovery/Console 联合验收。
