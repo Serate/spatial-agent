@@ -1072,3 +1072,17 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 - M81 复杂空间分析跨入口回归已改用 Harness；新增 M108 专项 4 项，连同既有跨入口验收共 13 项通过。
 - 修复异步服务在 Runtime 中间 `COMPLETED` 快照与 artifact/GeoJSON 最终引用之间的轮询竞态；50 次 targeted loop 全部通过。
 - 下一步运行 full-stage、离线全量和 CI，再将 Harness 证据接入 release/production acceptance；Docker 恢复后继续真实部署和动态前端验收。
+
+## M108 已完成 / M109 已完成
+
+- Contract Harness 已统一 CLI、HTTP、artifact 和 recovery 的稳定结果投影与比较，并忽略运行 id、路径、时间等传输字段。
+- 异步 artifact/GeoJSON 轮询竞态已修复；50 次 targeted loop 全部通过。
+- 新增脱敏 `open_capability_query` 回放，使用“请概括江夏区的道路和水体分布”验证非固定模板的开放式多工具能力。计划包含道路/水体 schema 与分区矢量汇总两个 DAG 分支，结果类型为 `zonal_vector_summary_result`。
+- M109 回放 4/4、full-stage 和离线全量 634 项通过，42 项按环境跳过；没有访问真实模型、私有配置或原始 GIS 数据。
+- Docker Linux engine 与动态 Chrome CDP 的宿主限制仍保持记录；本回放不替代真实 GIS、Docker 或浏览器证据。
+
+### 下一阶段
+
+1. Docker engine 恢复后重建当前版本，完成 FastAPI/readiness、真实数据卷、SQLite 多 worker、artifact/recovery 和跨入口 acceptance。
+2. 从全局 Agent Runtime 角度扩展结构化澄清、能力发现和受控失败修复，继续复用 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry 和 Result contract。
+3. 恢复可控浏览器后验收动态 workspace、views、地图、轨迹和会话清空；没有真实远程工具来源时不引入 MCP 运行时依赖。

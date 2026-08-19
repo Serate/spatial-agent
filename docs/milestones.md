@@ -2386,3 +2386,29 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 运行 full-stage、离线全量和 CI，确认 Harness 没有扩大默认测试边界。
 2. 将 Harness 证据接入 release/production acceptance 的统一契约矩阵。
 3. Docker 恢复后继续进行真实部署、数据卷和前端动态验收。
+
+## M108 已完成
+
+- Contract Harness 已统一 CLI、HTTP、artifact 和 recovery 的稳定结果投影与比较；运行 id、路径和时间等传输字段不参与一致性判断。
+- 复杂空间分析跨入口回归已改用 Harness；异步 artifact/GeoJSON 轮询竞态已修复，50 次 targeted loop 全部通过。
+- full-stage、严格离线评测、smoke、Python 编译和 `git diff --check` 通过；完整离线测试 634 项通过、42 项按环境跳过。
+- Docker Linux engine 仍无法连接 `dockerDesktopLinuxEngine` named pipe，当前版本 FastAPI/Docker production acceptance 和动态浏览器 smoke 未宣称通过。
+
+### M109 全局规划
+
+1. 产品与模型：增加一条非“空间总览/建设筛选”固定模板的开放式多工具回放，验证能力目录、TaskPlan、DAG、结果类型和中文答案的通用闭环。
+2. 架构与测试：回放必须继续经过 LLMPlanner 计划校验和 ToolRegistry，不新增区域专用分支；默认保持离线、脱敏和可重复。
+3. 部署与数据：Docker 恢复后继续做当前版本 FastAPI/readiness、真实数据卷、artifact/recovery 和跨入口 acceptance；回放不能替代真实 GIS 证据。
+4. 工具来源：没有真实远程工具来源时不引入 MCP 运行时依赖，继续以 ToolRegistry 作为唯一执行边界。
+
+## M109 已完成
+
+- 新增脱敏 `open_capability_query` 回放：“请概括江夏区的道路和水体分布”。该请求不是固定总览或建设筛选模板，包含道路/水体 schema 查询和分区矢量汇总两个并行分支。
+- 回放验证 4 个注册工具步骤、依赖 DAG、`zonal_vector_summary_result`、中文答案以及无计划修复；没有增加区域专用规则或真实模型/私有数据依赖。
+- M109 专项回放 4/4 通过；full-stage 通过；离线全量 634 项通过、42 项按环境跳过。
+
+### 下一阶段全局规划
+
+1. 生产与部署：Docker engine 恢复后重建当前版本，完成 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和真实数据卷的跨入口验收。
+2. 产品与模型：扩展开放式请求的结构化澄清、能力发现和受控失败修复，保持统一 RequestFacts/CapabilityCatalog/WorkflowTemplate 边界。
+3. 数据与体验：验证真实数据 provenance、覆盖/对齐降级和 Console 动态 workspace/views/地图/轨迹；不以脱敏回放替代真实环境验收。

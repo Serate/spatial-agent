@@ -105,6 +105,38 @@
           }
         }
       ]
+    },
+    {
+      "fixture_id": "open-vector-distribution",
+      "replay_type": "open_capability_query",
+      "expected_repair_count": 0,
+      "expected_final_status": "COMPLETED",
+      "provider_metrics": {
+        "usage": {"input_tokens": 640, "output_tokens": 190, "total_tokens": 830},
+        "latency_ms": 210,
+        "attempts": 1,
+        "retries": 0
+      },
+      "turns": [
+        {
+          "request": "请概括江夏区的道路和水体分布",
+          "response": {
+            "goal": "summarize roads and water features inside an administrative area",
+            "steps": [
+              {"id": "schema-roads", "tool": "get_dataset_schema", "args": {"dataset": "roads"}, "depends_on": []},
+              {"id": "schema-water", "tool": "get_dataset_schema", "args": {"dataset": "water"}, "depends_on": []},
+              {"id": "roads", "tool": "get_zonal_vector_summary", "args": {"dataset": "roads", "admin_name": "江夏区", "max_features": 10000}, "depends_on": ["schema-roads"]},
+              {"id": "water", "tool": "get_zonal_vector_summary", "args": {"dataset": "water", "admin_name": "江夏区", "max_features": 10000}, "depends_on": ["schema-water"]}
+            ],
+            "output": {"type": "zonal_vector_summary_result", "summary": true}
+          },
+          "expected": {
+            "expected_status": "COMPLETED",
+            "expected_tools": ["get_dataset_schema", "get_dataset_schema", "get_zonal_vector_summary", "get_zonal_vector_summary"],
+            "expected_result_type": "zonal_vector_summary_result"
+          }
+        }
+      ]
     }
   ]
 }
