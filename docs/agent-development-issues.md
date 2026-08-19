@@ -3121,3 +3121,17 @@ provenance 在 GIS-only 阶段通过固定字段白名单快速实现，随着 D
 ### 修复与预防
 
 M119 为 provenance 增加版本和 `domain_id`，并只自动提取 bounded numeric `*_count` 作为通用摘要；任意文本和原始 payload 仍不自动复制。以后新增领域应优先提供安全的 evidence projection，不能把完整工具结果塞进 provenance。
+
+## 迁移领域 view builder 时容易误删公共对比视图依赖
+
+### 现象
+
+M122 将 `result_contract.py` 中的 GIS view builder 整段迁移到 `domains/gis/views.py` 后，GIS 和 Text 主路径可以正常导入，但公共的比较结果 view 仍调用 `_first_present`、`_view_metric` 等小函数；如果把这些函数和 GIS 实现一起删除，比较接口会在运行时出现 `NameError`。
+
+### 根因
+
+早期 GIS view builder 与通用 comparison view 共用同一文件和若干无类型归属的小工具。文件位置掩盖了真实依赖关系，按连续代码块迁移时容易把“通用 view primitive”误判为 GIS 实现。
+
+### 修复与预防
+
+M122 将 GIS builder 整体下沉后，在公共 `result_contract.py` 仅保留 comparison 所需的 `_first_present`、`_view_metric` 和几何范围校验等通用 primitive；GIS 领域 view 自己保留其内部的 row/metric helper。新增跨领域 view smoke 和全量回归，覆盖 GIS result、Text generic result 与 comparison result。以后迁移领域实现前应先用调用点反向检查依赖，将公共 primitive 与领域 builder 分开测试，不能依据文件连续区间直接删除。

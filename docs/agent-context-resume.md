@@ -976,3 +976,18 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M122
 
 移动 GIS view builder 实现到 `domains/gis`，让前端完全以结构化 result views/workspace 驱动，并在真实依赖可用后执行生产验收矩阵。
+
+## 当前进度：M122 已完成
+
+- `domains/gis/views.py` 现在拥有 GIS raster、overview、health、composite、buildability、vector 和 map view builder；`domains/gis/result_registry.py` 直接通过 `ResultContractRegistry` 注册。
+- 公共 `result_contract.py` 只保留通用 envelope、workspace/geometry evidence、lineage、comparison views 和通用 view primitive；不再定义 GIS `_view_model`/面板实现。
+- `tests/test_m122_domain_views.py` 覆盖 GIS view 物理归属和 Text generic Console smoke；Text 结果的 workspace 只有 `generic`，views 为空，不需要前端领域分支。
+- 当前验证：离线全量 653 项通过、42 项按环境跳过；quick、full-stage、compileall、`git diff --check` 通过。
+- FastAPI、Docker、真实 GIS 数据和 live LLM 未因本阶段离线通过而被宣称完成；仍需在对应宿主环境执行生产矩阵。
+
+## 当前 M123 全局规划
+
+1. 审计前端静态 GIS controls、比较接口和 GIS 兼容 fallback，保留 GIS Domain Pack 深度但继续缩小公共层领域知识。
+2. 增加 Domain-owned view metadata/renderer seam，前端只依据结构化 view kind/schema/metadata 渲染。
+3. 用第二个非 GIS Domain Pack 回放验证 Service、HTTP、artifact、Console generic 结果一致性，并接入 Contract Harness。
+4. Docker/FastAPI/真实模型/真实数据可用后执行跨入口生产验收；数据集只能作为领域证据，不能成为公共 Runtime 分支。

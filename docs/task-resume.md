@@ -1236,3 +1236,17 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 将 GIS view builder 代码移动到 `domains/gis`。
 2. 前端继续只消费 result views/workspace，补 Text generic views smoke。
 3. 真实依赖可用后执行 Docker/FastAPI/数据/模型生产验收。
+
+## M122 已完成
+
+- GIS view builder 已物理迁移到 `domains/gis/views.py`，GIS registry 直接注册该实现；公共 `result_contract.py` 不再包含 GIS view 构造逻辑。
+- 前端继续由 `result.views`/`result.workspace` 控制结果面板；新增 `tests/test_m122_domain_views.py` 验证 Text generic workspace 不触发 GIS 页面分支。
+- 全量离线测试 653 项通过（42 项按环境跳过），quick、full-stage、compileall、`git diff --check` 通过。
+- 当前工作树仍需在提交前确认没有私有配置、API key、原始 GIS 数据；FastAPI/Docker/真实模型/真实 GIS 验收仍属于环境条件路径。
+
+### M123 全局规划
+
+1. 继续从项目整体审计前端静态 GIS controls、专用 comparison HTTP 入口和 GIS 兼容 fallback，优先识别公共层仍然泄漏的领域知识。
+2. 设计并实现 Domain-owned view metadata/renderer seam，让前端只消费通用 view kind、schema 和 renderer metadata。
+3. 增加第二个非 GIS Domain Pack 回放与 Service/HTTP/artifact/Console generic contract harness，证明扩展不需要复制 GIS 页面。
+4. 在 Docker/FastAPI/真实数据/真实模型恢复后执行生产验收矩阵；继续保持单线程开发、离线 CI 和中文问题记录。

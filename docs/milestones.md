@@ -2580,6 +2580,20 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 将前端静态 GIS 结果面板逐步收敛为 result views/workspace 驱动，并补 Text generic views smoke。
 3. Docker/FastAPI/真实数据/真实模型可用后执行生产矩阵；所有数据集继续作为可替换 Domain evidence，而非 Runtime 前置条件。
 
+## M122 已完成：GIS 视图实现下沉与跨领域前端 smoke
+
+- 新增 `domains/gis/views.py`，迁移 raster、overview、health、composite、buildability、vector 和 map view builder；`domains/gis/result_registry.py` 直接注册 GIS 实现。
+- 公共 `result_contract.py` 不再实现 GIS view builder，只保留通用结果 envelope、workspace/geometry evidence、lineage、对比视图和通用 view primitive。
+- 新增 `tests/test_m122_domain_views.py`：验证 GIS registry 的物理归属、Text 结果只使用 generic workspace，以及 Console 不为 Text Domain 增加领域专用分支。
+- 全量离线测试 653 项通过（42 项按环境跳过），quick、full-stage、compileall 和 `git diff --check` 通过；真实 GIS、FastAPI、Docker 和 live LLM 仍未在当前宿主重新验收。
+
+### M123 全局规划
+
+1. 从全局产品能力审计前端静态 GIS controls、Service 专用 comparison 入口和默认 GIS 兼容路径，区分必须保留的 GIS Domain Pack 能力与应下沉的 Domain adapter。
+2. 为 Domain Pack 增加可声明的 workspace view renderer metadata，使前端能够按 view kind/metadata 扩展，而不是持续增加 GIS 面板选择器。
+3. 建立第二个非 GIS 领域的真实跨入口回放（Service、HTTP、artifact、Console generic），并将结果一致性纳入 Contract Harness；默认 CI 继续不依赖网络和私有数据。
+4. Docker/FastAPI/真实 GIS 数据/真实模型可用后，执行生产验收矩阵；任何数据集问题都作为 Domain evidence 处理，不能修改公共 Runtime 规则。
+
 ## M120 已完成：Domain-owned view builder seam
 
 - `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。
