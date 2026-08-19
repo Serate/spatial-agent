@@ -68,6 +68,20 @@ class M125DomainPreflightTests(unittest.TestCase):
 
         preflight_tool(DomainPack(), "answer", {}, {})
 
+    def test_gis_answer_composer_implementation_is_domain_owned(self):
+        implementation = (ROOT / "domains" / "gis" / "composer.py").read_text(
+            encoding="utf-8"
+        )
+        compatibility = (ROOT / "agent" / "answer_composer.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("class AnswerComposer", implementation)
+        self.assertNotIn("class AnswerComposer", compatibility)
+        from agent.answer_composer import AnswerComposer as LegacyComposer
+        from domains.gis.composer import AnswerComposer
+
+        self.assertIs(LegacyComposer, AnswerComposer)
+
 
 if __name__ == "__main__":
     unittest.main()

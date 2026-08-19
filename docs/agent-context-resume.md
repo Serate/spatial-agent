@@ -11,6 +11,7 @@
 - 每次规划下一阶段必须先做项目全局盘点，覆盖产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据；不能被最近一次数据细节或局部 bug 带偏，数据任务只能作为整体目标下的实现手段。
 - 规划门槛：先写出上述七个维度的现状、缺口、依赖和验收证据，再确定阶段目标与顺序任务；任何单个数据集、工具错误、模型调用或页面缺陷都必须说明它服务于哪个系统级目标，不能直接替代阶段规划。
 - 重规划输出至少回答：本阶段如何提升完整 Agent 闭环、哪些架构/契约需要先稳定、哪些风险会阻塞真实部署，以及完成后用什么跨入口证据重新评估全局；只有完成这一步，才允许进入实现拆分。
+- 阶段应组织为较完整的纵向切片，通常同时覆盖架构 seam、跨入口能力、测试证据、文档和部署影响，避免每个小改动单独成阶段；开发中只运行必要的快速/专项检查，阶段收尾再统一运行一次代表性专项与一次全量回归。
 
 ## 项目定位
 
@@ -1033,3 +1034,16 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## M125.2 规划
 
 先完成 GIS composer/provider 的物理归属和兼容测试，再把 Action 错误、trace、artifact/recovery 纳入统一结果契约；随后复验第二非 GIS Domain Pack、生产 HTTP/FastAPI、Docker、真实数据和可选真实模型路径。
+
+## M125.2 收尾状态
+
+- GIS Composer 已迁移到 `domains/gis/composer.py`，`agent/answer_composer.py` 仅为兼容 shim；归属测试和旧导入回归通过。
+- Action 执行返回 `domain_id` 与 `spatial-agent.action-execution.v1`，包含输入已校验、完成状态和有界耗时；结构化 ActionContractError 暴露 `action_id` 与 `action_error_code`。
+- Composer、Action、HTTP 与既有 Domain/治理回归 25 项通过；最近一次迁移后的全量离线 663 项通过、42 项按环境跳过；compileall、quick/full-stage、Node 页面语法、diff check 通过。
+- 用户已要求后续阶段合并更多纵向任务、减少重复测试：开发期只做必要专项，阶段末统一专项+全量；当前最大并发度仍为 1。
+
+## M126 全局规划
+
+1. 继续迁移 GIS data-quality、analysis-ready、release evidence provider，保留有界 HTTP/旧 artifact 兼容。
+2. 将 Action execution evidence 接入统一 trace/result/artifact，并用第二个非 GIS Domain Pack 回放成功、校验失败和恢复读取路径。
+3. 全局复验 Console、FastAPI、Docker、真实数据、可选真实模型、部署和降级证据；完成阶段后再统一运行测试矩阵并推送版本。

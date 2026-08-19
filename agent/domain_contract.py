@@ -191,10 +191,22 @@ def execute_domain_action(
     action_id = str(action_id or "").strip()
     declared = {item.get("id") for item in domain_action_catalog(domain_pack).get("actions", [])}
     if action_id not in declared:
-        raise ValueError("unknown domain action: " + action_id)
+        from .action_contract import ActionContractError
+
+        raise ActionContractError(
+            "unknown domain action: " + action_id,
+            action_id=action_id,
+            code="action_not_declared",
+        )
     method = getattr(domain_pack, "execute_action", None)
     if not callable(method):
-        raise ValueError("domain action execution is unavailable")
+        from .action_contract import ActionContractError
+
+        raise ActionContractError(
+            "domain action execution is unavailable",
+            action_id=action_id,
+            code="action_execution_unavailable",
+        )
     if not isinstance(payload, Mapping):
         raise ValueError("action payload must be an object")
     raw_specs = getattr(domain_pack, "action_specs", lambda: ())()
@@ -213,9 +225,12 @@ def execute_domain_action(
             )
             break
     if selected is not None and selected.input_schema:
-        from .action_contract import validate_action_payload
+        from .action_contract import ActionContractError, validate_action_payload
 
-        validate_action_payload(dict(payload), selected.input_schema)
+        try:
+            validate_action_payload(dict(payload), selected.input_schema)
+        except ValueError as exc:
+            raise ActionContractError(str(exc), action_id=action_id) from exc
     return method(action_id, dict(payload), context=context)
 
 

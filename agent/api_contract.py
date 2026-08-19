@@ -191,11 +191,18 @@ def error_response(
     same bounded labels as the async observability layer.
     """
     status = error_status(exc, not_found=not_found, service_unavailable=service_unavailable)
-    return {
+    response = {
         "error": str(exc),
         "error_code": _ERROR_CODE_BY_STATUS.get(status, "internal_error"),
         "error_category": failure_category_for_error(exc),
     }
+    action_id = getattr(exc, "action_id", None)
+    if action_id:
+        response["action_id"] = str(action_id)[:96]
+        response["action_error_code"] = str(
+            getattr(exc, "code", "action_error")
+        )[:96]
+    return response
 
 
 def error_body(exc: Exception) -> Dict[str, str]:
@@ -214,7 +221,7 @@ def failure_category_for_error(exc: Exception) -> str | None:
         return "provider"
     if any(token in text for token in ("planner", "plan", "schema", "规划")):
         return "planning"
-    if any(token in text for token in ("tool", "backend", "dataset", "raster", "栅格", "数据")):
+    if any(token in text for token in ("tool", "action", "backend", "dataset", "raster", "栅格", "数据")):
         return "tool"
     if any(token in text for token in ("timeout", "timed out", "超时")):
         return "timeout"

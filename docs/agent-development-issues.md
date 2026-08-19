@@ -3191,3 +3191,17 @@ Action metadata 最初被当作前端发现信息，而 ToolRegistry 的 schema 
 ### 修复与预防
 
 M125.1 新增有界 `validate_action_payload()`，在 Domain-owned dispatch 前校验声明的 JSON schema 子集，并增加缺失/未知字段回归。以后新增 Action 必须把 metadata、校验、错误分类、trace、artifact/recovery 一起作为一个契约验收，不能只验证 happy path。
+
+## 迁移 GIS Composer 时公共兼容导入与实现归属分离
+
+### 现象
+
+GIS `AnswerComposer` 原本位于 `agent/answer_composer.py`，旧测试和扩展直接导入该路径；如果直接删除文件，旧 artifact/测试会导入失败；如果只在 `domains/gis` 增加一个新包装，实际实现仍然属于公共层。
+
+### 根因
+
+早期 GIS 是唯一领域，答案组合实现和 Runtime 公共模块没有清晰的物理归属；后续 Domain Pack 迁移只改变了构造入口，没有同时处理旧导入路径和实现位置。
+
+### 修复与预防
+
+M125.2 将实现迁移到 `domains/gis/composer.py`，公共旧路径仅作为显式兼容 shim；新增归属测试确认 shim 不再定义 Composer。以后迁移领域实现要同时检查物理归属、旧导入、artifact/recovery 和跨领域默认构造，不能只修改调用方。

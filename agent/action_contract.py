@@ -5,6 +5,15 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 
+class ActionContractError(ValueError):
+    """A bounded, machine-identifiable action contract failure."""
+
+    def __init__(self, message: str, *, action_id: str, code: str = "action_invalid_input"):
+        super().__init__(message)
+        self.action_id = str(action_id)[:96]
+        self.code = str(code)[:96]
+
+
 def validate_action_payload(
     value: Any,
     schema: Mapping[str, Any] | None,
@@ -71,4 +80,4 @@ def validate_action_payload(
         raise ValueError(path + " must be a boolean")
 
 
-__all__ = ["validate_action_payload"]
+__all__ = ["ActionContractError", "validate_action_payload"]

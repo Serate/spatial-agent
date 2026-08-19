@@ -1286,3 +1286,7 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 ## 下一小阶段 M125.2
 
 继续物理收敛 GIS AnswerComposer、数据健康/analysis-ready legacy provider 和 release evidence；补 Action 的结构化错误、观测、artifact/recovery 契约，并以非 GIS Domain Pack 验证完整跨入口闭环。
+
+## 当前阶段节奏调整
+
+后续阶段将合并更多相互依赖的纵向任务，至少同时覆盖一个架构 seam、一个跨入口结果契约和对应文档/部署影响；开发中只做必要的专项回归，阶段完成时统一执行一次专项验收和一次全量测试，避免频繁重复长时间测试。

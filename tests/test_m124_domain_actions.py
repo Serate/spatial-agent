@@ -9,6 +9,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from agent.artifact_store import ArtifactStore
+from agent.api_contract import error_response
 from agent.service import AgentService
 from domains.text.runtime import build_text_runtime
 from evaluation.contract_harness import compare_results
@@ -69,8 +70,26 @@ class M124DomainActionTests(unittest.TestCase):
                 actions["actions"][0]["input_schema"]["required"],
                 ["admin_name", "thresholds"],
             )
-            with self.assertRaises(ValueError):
+            execution = service.execute_action(
+                "gis.buildability_threshold_comparison",
+                {
+                    "admin_name": "洪山区",
+                    "thresholds": [20],
+                    "planner": "rule",
+                    "backend": "memory",
+                },
+                backend="memory",
+            )
+            self.assertEqual(execution["domain_id"], "gis")
+            self.assertTrue(execution["action_execution"]["input_validated"])
+            self.assertEqual(execution["action_execution"]["status"], "COMPLETED")
+            with self.assertRaises(ValueError) as unknown_error:
                 service.execute_action("gis.not_declared", {}, backend="memory")
+            self.assertEqual(unknown_error.exception.action_id, "gis.not_declared")
+            self.assertEqual(
+                error_response(unknown_error.exception)["action_error_code"],
+                "action_not_declared",
+            )
             with self.assertRaisesRegex(ValueError, "missing required fields"):
                 service.execute_action(
                     "gis.buildability_threshold_comparison",

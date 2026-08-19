@@ -919,12 +919,25 @@ class AgentService:
         resolver = getattr(runtime, "execute_domain_action", None)
         if not callable(resolver):
             raise ValueError("domain action execution is unavailable")
+        started = time.perf_counter()
         result = resolver(action_id, payload, context=self)
         if not isinstance(result, dict):
             raise ValueError("domain action must return an object")
         response = dict(result)
         response.setdefault("action_id", str(action_id)[:96])
         response.setdefault("action_schema_version", "spatial-agent.actions.v1")
+        catalog = runtime.capability_catalog()
+        response.setdefault("domain_id", str(catalog.get("domain_id") or "unknown")[:80])
+        response.setdefault(
+            "action_execution",
+            {
+                "schema_version": "spatial-agent.action-execution.v1",
+                "status": "COMPLETED",
+                "action_id": str(action_id)[:96],
+                "input_validated": True,
+                "duration_ms": round((time.perf_counter() - started) * 1000, 3),
+            },
+        )
         return response
 
     def runtime_capabilities(

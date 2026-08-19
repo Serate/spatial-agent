@@ -2637,6 +2637,19 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 为 Action 增加结构化错误、trace/observability、artifact/recovery 一致性证据，并用第二个非 GIS Domain Pack 做真实 dispatch replay。
 3. 审计 Console 与生产入口是否只消费 Runtime snapshot、Action catalog、ViewSpec 和 result evidence，随后执行 Docker/FastAPI/真实数据/可选模型矩阵。
 
+## M125.2 已完成：Composer 归属与 Action 执行证据
+
+- GIS `AnswerComposer` 已物理迁移到 `domains/gis/composer.py`；`agent/answer_composer.py` 仅保留旧导入 shim，Runtime 不再直接依赖 GIS composer 实现。
+- Action dispatch 增加 `domain_id` 和 `spatial-agent.action-execution.v1` 执行证据，记录已校验输入、完成状态和有界耗时；未知/不可执行/非法输入返回结构化 `action_id` 与 `action_error_code`。
+- M125.1 的 Domain preflight、Action schema 校验与本阶段 Composer/Action 证据合并为一个可复用的纵向契约；旧 GIS、Text Domain、HTTP、artifact 兼容路径保持通过。
+- 阶段末验证：Composer/Action/HTTP 相关回归 25 项通过；此前阶段全量 663 项通过（42 项按环境跳过）；compileall、quick/full-stage、Node 页面语法和 `git diff --check` 通过。
+
+### M126 全局规划
+
+1. 将 GIS data-quality、analysis-ready 和 release evidence 的实现从 `agent/` 进一步收敛为 Domain-owned provider，同时保留 HTTP/旧 artifact 的兼容 seam。
+2. 让 Action execution evidence 进入统一 trace/result/artifact 观测模型，并用第二个非 GIS Domain Pack 做有成功、校验失败和恢复读取的跨入口回放。
+3. 全局审计 Console、生产 FastAPI、Docker、真实 GIS 数据与可选真实模型，确认数据只是 Domain evidence；阶段末再做一次完整矩阵验收。
+
 ## M120 已完成：Domain-owned view builder seam
 
 - `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。

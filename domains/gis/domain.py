@@ -33,7 +33,7 @@ class GisDomainPack:
         return execute_action(action_id, payload, service=context)
 
     def answer_composer(self) -> Any:
-        from agent.answer_composer import AnswerComposer
+        from .composer import AnswerComposer
 
         return AnswerComposer()
 
