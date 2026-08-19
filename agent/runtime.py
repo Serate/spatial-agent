@@ -190,6 +190,13 @@ class AgentRuntime:
         """Return the result metadata registry selected by this Domain Pack."""
         return self._result_registry
 
+    def capability_catalog(self) -> Mapping[str, Any]:
+        """Return the selected Domain Pack's bounded capability catalog."""
+        catalog = self._domain_pack.capability_catalog(
+            environment=self._backend_name or "unknown"
+        )
+        return dict(catalog) if isinstance(catalog, Mapping) else {}
+
     def run(
         self,
         request: str,

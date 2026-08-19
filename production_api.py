@@ -26,7 +26,6 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.environment_status import environment_status
-from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
@@ -94,8 +93,11 @@ def health() -> Dict[str, Any]:
 
 
 @app.get("/capabilities")
-def capabilities() -> Dict[str, Any]:
-    return capability_catalog(environment="unknown")
+def capabilities(
+    planner: str = "rule",
+    backend: str = "memory",
+) -> Dict[str, Any]:
+    return service.capabilities(planner=planner, backend=backend)
 
 
 @app.get("/capabilities/runtime")

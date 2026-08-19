@@ -2514,3 +2514,16 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 将 `/capabilities` 与 `/capabilities/runtime` 的领域目录来源改为实际 Runtime/Domain Pack，保留 GIS 数据健康作为 GIS pack 的可选 runtime evidence。
 2. 用 Text Domain Pack 与 GIS Domain Pack 做 HTTP/Service capability snapshot 契约测试，避免生产入口直接导入 GIS catalog。
 3. 继续审计 provenance、failure/replanning 和前端动态结果消费；只有跨入口证据稳定后再做 Docker/真实 GIS 验收。
+
+## M116 已完成：HTTP 能力目录复用 Runtime
+
+- `AgentRuntime.capability_catalog()` 和 `AgentService.capabilities()` 已成为能力目录读取 seam，实际返回选中 Domain Pack 的 catalog 与 backend environment。
+- 开发 HTTP `/capabilities` 和生产 FastAPI `/capabilities` 不再直接导入 GIS catalog；支持通过 `planner`/`backend` 选择 Runtime，保留统一 JSON 目录契约。
+- 新增 Text Domain Pack 的 Service/HTTP 能力目录回归，确认 HTTP 入口只返回文本能力，不泄漏 GIS 能力；`/capabilities/runtime` 的 GIS 数据健康探针仍保持独立兼容路径。
+- M116 定向 18 项、`full-stage`、离线全量回归、编译和 `git diff --check` 通过。
+
+### M117 全局规划
+
+1. 为 `/capabilities/runtime` 增加 Domain Pack 可选 runtime evidence seam：通用部分包含 provider/tool governance，GIS 才附加数据健康、覆盖和 provenance。
+2. 补 production FastAPI 与开发 HTTP 的 Text/GIS capability snapshot 契约测试；依赖缺失时保持显式跳过，不把旧宿主环境当作生产证据。
+3. 继续审计 provenance、failure/replanning 和前端动态结果消费，随后再安排 Docker/真实 GIS/真实模型验收。

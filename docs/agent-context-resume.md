@@ -915,3 +915,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M116
 
 改造 HTTP capability snapshot，使其通过实际 Runtime/Domain Pack 提供目录；补 Text/GIS 双入口契约测试，并将 GIS 数据健康限制在可选领域证据层。最大并发度保持 1。
+
+## 当前进度：M116 已完成
+
+- 普通 `/capabilities` 已经通过 `Service -> Runtime -> Domain Pack` 获取目录；开发 HTTP 与生产 FastAPI 不再直接依赖公共 GIS catalog。
+- Text Domain Pack 的 Service/HTTP 目录返回只包含 `text_summary`，跨入口回归通过；GIS `/capabilities/runtime` 数据健康路径暂保持兼容并等待独立抽象。
+- M116 定向 18 项、full-stage、离线全量回归、compileall、diff check 通过。
+
+## 下一阶段 M117
+
+抽象 runtime capability snapshot：通用 provider/tool governance 由 Runtime 提供，GIS 数据健康/覆盖/provenance 作为 Domain Pack 可选 evidence；补 production/development HTTP 双领域契约测试。

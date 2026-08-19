@@ -3079,3 +3079,17 @@ M115 为让 Service 使用 Domain Pack 的 result registry，最初在所有 Ser
 ### 修复与预防
 
 Service 现在通过有界的可选能力读取函数获取 registry；缺少该方法时将 `None` 交给 `build_result_contract()`，由兼容默认 registry 处理。以后扩展 Runtime/Domain Pack seam 时，必须至少用一个旧式最小 fake Runtime 覆盖同步、异步、重试、详情和 artifact 路径，不能只测试新实现。
+
+## HTTP 能力目录绕过 Runtime 直接导入 GIS catalog
+
+### 现象
+
+Service 已支持注入 Text Domain Pack，但开发 HTTP `/capabilities` 和生产 FastAPI `/capabilities` 仍直接调用公共 GIS `capability_catalog()`。因此同一个应用的执行入口可以使用非 GIS Domain Pack，能力目录入口却返回 GIS 能力。
+
+### 根因
+
+能力目录最初被当作静态 GIS 配置，HTTP 模块直接导入函数；Domain Pack 引入后，目录实际已经是 Runtime 的领域状态（domain、backend、可用能力），但入口没有沿用 Service/Runtime seam。
+
+### 修复与预防
+
+M116 增加 `AgentRuntime.capability_catalog()` 和 `AgentService.capabilities()`，两个 HTTP 入口通过它读取实际 Domain Pack，并支持 planner/backend 参数；GIS 数据健康探针保留为独立的 `/capabilities/runtime` 兼容路径。以后新增 HTTP 能力入口必须使用 Service/Runtime，不能直接导入任一领域的 catalog 常量。

@@ -862,6 +862,14 @@ class AgentService:
         metrics["cost_governance"] = self._state.cost.summary()
         return metrics
 
+    def capabilities(
+        self,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Return the capability catalog owned by the selected Domain Pack."""
+        return self._runtime(planner, backend).capability_catalog()
+
     def close(self) -> None:
         """Shut down the async executor and reaper, draining in-flight jobs.
 

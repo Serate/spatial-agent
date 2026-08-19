@@ -1166,3 +1166,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 让 HTTP capability endpoints 读取实际 Runtime/Domain Pack，而不是直接调用 GIS catalog。
 2. 增加 Text/GIS capability snapshot 的 Service/HTTP 契约回归，并将 GIS data health 作为可选领域证据。
 3. 继续处理 provenance/failure/replanning/前端领域泄漏，再安排真实 Docker/GIS 验收。
+
+## M116 已完成
+
+- `AgentRuntime.capability_catalog()` 与 `AgentService.capabilities()` 已接通；开发 HTTP 和生产 FastAPI 的普通 `/capabilities` 均从实际 Runtime/Domain Pack 取目录。
+- Text Domain Pack 的 Service/HTTP 能力目录回归通过，HTTP 结果不再包含 GIS capability；生产/开发模块不再直接导入 GIS catalog。
+- M116 定向 18 项、full-stage、离线全量回归、编译和 diff check 通过。
+
+### M117 下一步
+
+1. 抽象 `/capabilities/runtime` 的通用 provider/governance snapshot 与 Domain Pack 可选数据 evidence。
+2. 补生产 FastAPI 与开发 HTTP 的双领域 snapshot 契约测试。
+3. 继续处理 provenance、failure/replanning、前端动态展示，再进行 Docker/GIS/live model 验收。

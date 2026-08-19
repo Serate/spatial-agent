@@ -18,7 +18,6 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.environment_status import environment_status
-from agent.capability_catalog import capability_catalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
@@ -43,7 +42,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             self._write_json(200, payload)
             return
         if parsed.path == "/capabilities":
-            self._write_json(200, capability_catalog(environment="unknown"))
+            query = parse_qs(parsed.query)
+            planner = query.get("planner", ["rule"])[0]
+            backend = query.get("backend", ["memory"])[0]
+            if self.service is None:
+                self._write_json(503, {"error": "service unavailable"})
+            else:
+                self._write_json(200, self.service.capabilities(planner=planner, backend=backend))
             return
         if parsed.path == "/workflows":
             self._write_json(200, {"templates": workflow_template_catalog()})
