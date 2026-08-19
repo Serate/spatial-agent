@@ -2987,3 +2987,17 @@ M108 新增 `evaluation/contract_harness.py`，以 `normalize_result`、`compare
 ### 处理与预防
 
 M108 让 `AgentService.get_run()` 根据 async job 原始请求判断是否要求 artifact/GeoJSON；如果运行已完成但所要求的引用尚未出现在快照中，继续等待最终化窗口（有界 5 秒）后再返回。新增逻辑只影响持久化异步且明确请求导出的运行，不改变同步或不导出的结果。以后新增异步结果引用时，必须把“请求要求的引用、运行终态、最终快照和轮询响应”作为一个原子可观察契约测试，不能只校验 worker 最终状态。
+
+## PowerShell 生产验收直接调用 Python Harness 的边界
+
+### 现象
+
+M110 将生产 `production_acceptance.ps1` 接入统一 Contract Harness 时，直接执行 `scripts/contract_harness_check.py` 最初无法导入仓库内的 `evaluation` 包；同时，PowerShell 把对象数组通过普通管道传给 `ConvertTo-Json` 时，可能将多个 payload 序列化为多个 JSON 文档，而不是一个可供 Python 读取的 JSON 数组。
+
+### 根因
+
+直接执行位于 `scripts/` 下的 Python 文件时，Python 默认把脚本目录而不是仓库根目录放在导入路径中。PowerShell 管道会枚举数组，`ConvertTo-Json` 的输入形状因此取决于调用方式；这两个边界问题都不是 Agent Runtime 业务失败，却会让生产验收在真正请求 API 之前失败或无法比较结果。
+
+### 处理与预防
+
+M110 在 `contract_harness_check.py` 中显式加入仓库根目录导入路径，并支持单个 JSON 数组文件；PowerShell 使用 UTF-8 临时文件和 `ConvertTo-Json -InputObject @($payloads)`，再由同一 Python Harness 比较同步结果与 artifact。新增了等价、差异、真实 Service/artifact 和脚本调用回归。以后跨语言验收必须显式固定导入根目录、UTF-8 编码和 JSON 容器形状，不能假设 shell 管道会保留数组边界。

@@ -1086,3 +1086,16 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. Docker engine 恢复后重建当前版本，完成 FastAPI/readiness、真实数据卷、SQLite 多 worker、artifact/recovery 和跨入口 acceptance。
 2. 从全局 Agent Runtime 角度扩展结构化澄清、能力发现和受控失败修复，继续复用 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry 和 Result contract。
 3. 恢复可控浏览器后验收动态 workspace、views、地图、轨迹和会话清空；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M110 已完成
+
+- 新增 `scripts/contract_harness_check.py`，生产 acceptance 通过同一 `evaluation/contract_harness.py` 比较同步结果与 artifact，不再在 PowerShell 中复制结果投影逻辑。
+- PowerShell 使用 UTF-8 临时 JSON 数组并显式固定 Python 仓库导入根目录；真实 Service/artifact、等价结果和差异结果回归通过。
+- M110 专项 4 项、full-stage 和完整离线测试 638 项通过、42 项按环境跳过；PowerShell parser 和 `git diff --check` 通过。
+- Docker Linux engine 仍不可用，因此当前版本的 FastAPI/Docker production acceptance 仍待真实环境重建后执行。
+
+### 下一阶段
+
+1. Docker 恢复后执行当前版本 readiness、数据卷、同步/异步、SQLite 恢复和跨入口 production acceptance。
+2. 从整体 Runtime 继续扩展结构化澄清、能力发现和受控失败修复，复用 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry 与 Result contract。
+3. 之后进行真实武汉 GIS、可选真实模型和动态 Console 验收；没有真实远程工具来源时不引入 MCP 运行时依赖。

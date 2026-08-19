@@ -35,6 +35,31 @@ function Post-JsonExpectError($url, $body) {
   }
 }
 
+function Invoke-ContractHarness($payloads, [string]$surface) {
+  if ($null -eq $payloads -or @($payloads).Count -lt 2) {
+    throw "$surface contract comparison requires at least two payloads"
+  }
+  $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("spatial-agent-contract-" + [guid]::NewGuid().ToString("N") + ".json")
+  try {
+    $json = ConvertTo-Json -InputObject @($payloads) -Depth 50 -Compress
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($tempPath, $json, $utf8)
+    $python = if ([string]::IsNullOrWhiteSpace([string]$env:SPATIAL_AGENT_PYTHON)) { "python" } else { $env:SPATIAL_AGENT_PYTHON }
+    $checker = Join-Path $PSScriptRoot "contract_harness_check.py"
+    $output = & $python $checker --input $tempPath
+    if ($LASTEXITCODE -ne 0) {
+      throw "$surface contract harness failed: $($output -join "`n")"
+    }
+    $report = ($output -join "`n") | ConvertFrom-Json
+    if ($null -eq $report -or $report.status -ne "ok") {
+      throw "$surface contract harness returned an invalid report"
+    }
+    return $report
+  } finally {
+    Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Assert-RuntimeCapabilitySnapshot($snapshot) {
   if ($null -eq $snapshot) { throw "runtime capability snapshot is empty" }
   if ($snapshot.version -ne "1.0") { throw "runtime capability version mismatch: $($snapshot.version)" }
@@ -434,6 +459,7 @@ if ($artifact.result.views.schema_version -ne $syncRun.result.views.schema_versi
   throw "artifact views schema mismatch"
 }
 Assert-ReplanningEvidence $artifact "artifact"
+$syncArtifactContract = Invoke-ContractHarness -payloads @($syncRun, $artifact) -surface "sync/artifact"
 
 $failureRun = Post-Json "$BaseUrl/runs" @{
   request = $adminRequest
@@ -504,6 +530,7 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   sync_degradation_status = $syncRun.result.degradation.status
   sync_workspace_panels = @($syncRun.result.workspace.panels)
   sync_view_panels = @($syncRun.result.views.panels.PSObject.Properties.Name | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+  sync_artifact_contract = $syncArtifactContract.status
   failure_contract_status = $failureRun.failure.status
   failure_contract_phase = $failureRun.failure.phase
   invalid_request_status = $invalid.status_code

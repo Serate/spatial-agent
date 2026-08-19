@@ -847,3 +847,16 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 1. Docker engine 恢复后重建当前版本，完成 FastAPI/readiness、真实数据卷、SQLite 多 worker、artifact/recovery 和跨入口 acceptance。
 2. 从全局 Agent Runtime 角度扩展结构化澄清、能力发现和受控失败修复，继续复用 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry 和 Result contract。
 3. 恢复可控浏览器后验收动态 workspace、views、地图、轨迹和会话清空；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M110 已完成
+
+- 新增 `scripts/contract_harness_check.py`，生产 `production_acceptance.ps1` 通过同一 `evaluation/contract_harness.py` 比较同步运行结果与 artifact 的稳定契约。
+- 新增等价、差异、真实 Service/artifact 和生产脚本调用回归；PowerShell parser、full-stage 和离线全量 638 项通过、42 项跳过。
+- M110 记录了跨语言边界：直接执行 scripts 下的 Python 文件需显式加入仓库根目录；PowerShell JSON 数组需使用 `ConvertTo-Json -InputObject` 并固定 UTF-8。
+- Docker Linux engine 仍无法连接 `dockerDesktopLinuxEngine` named pipe；当前版本 FastAPI/Docker production acceptance 和动态浏览器 smoke 未宣称通过。
+
+## M111 下一步
+
+1. Docker engine 恢复后重建当前版本，执行 readiness、真实数据卷、同步/异步、SQLite 重启恢复和 production acceptance。
+2. 从全局 Agent Runtime 角度扩展结构化澄清、能力发现和受控失败修复，不增加区域专用分支。
+3. 恢复可控浏览器后完成动态 workspace、views、地图、轨迹和会话清空验收；无真实远程工具来源时不引入 MCP 运行时依赖。

@@ -2412,3 +2412,18 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 生产与部署：Docker engine 恢复后重建当前版本，完成 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和真实数据卷的跨入口验收。
 2. 产品与模型：扩展开放式请求的结构化澄清、能力发现和受控失败修复，保持统一 RequestFacts/CapabilityCatalog/WorkflowTemplate 边界。
 3. 数据与体验：验证真实数据 provenance、覆盖/对齐降级和 Console 动态 workspace/views/地图/轨迹；不以脱敏回放替代真实环境验收。
+
+## M110：生产入口复用统一结果契约（已完成）
+
+### 实现与验收
+
+- 新增 `scripts/contract_harness_check.py`，将生产入口的多个公开结果交给 `evaluation/contract_harness.py` 统一归一化和比较。
+- `scripts/production_acceptance.ps1` 现在比较同步运行结果与 artifact 的稳定契约，覆盖结果类型、答案、RequestFacts、规划证据、工具治理、步骤、trace、workspace、views 和 artifact 可用性；不重复维护第二套字段投影。
+- 新增 M110 专项 4 项，包含等价结果、差异路径、真实 Service/artifact payload 和 PowerShell 调用 seam；PowerShell parser、full-stage 和离线回归均通过。
+- 完整离线测试 638 项通过、42 项按环境跳过。Docker Linux engine 仍不可用，当前版本 production acceptance 仍未宣称真实容器通过。
+
+### 下一阶段全局规划
+
+1. 部署可靠性：Docker engine 恢复后重建当前版本，执行 readiness、核心/可选数据卷、同步/异步、SQLite 重启恢复和生产 acceptance，确认新 Harness 在真实 HTTP/artifact 边界工作。
+2. 产品能力：扩展开放式请求的结构化澄清、能力发现和受控失败修复，不增加区域专用分支。
+3. 数据与前端：补真实武汉数据 provenance/对齐降级和动态 Console workspace/views/地图/轨迹验收；真实模型继续作为显式 live 路径。
