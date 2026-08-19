@@ -13,6 +13,7 @@ from agent.artifact_store import ArtifactStore
 from agent.geojson_exporter import export_run_summary
 from agent.models import AgentRunResult
 from agent.provenance import build_provenance
+from agent.failure_contract import failure_from_payload
 from agent.trace_formatter import format_trace
 from agent.workflow_templates import normalize_workflow_selection
 from result_contract import build_result_contract
@@ -152,6 +153,12 @@ def normalize_workflow_payload(workflow: Dict[str, Any]) -> Dict[str, Any] | Non
 
 def format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Dict[str, Any]:
     payload = result.to_dict()
+    if payload.get("failure") is None:
+        failure = failure_from_payload(payload)
+        if failure is not None:
+            payload["failure"] = failure
+            payload.setdefault("error_category", failure["category"])
+            payload.setdefault("error_code", failure["code"])
     explicit_geometry = payload.pop("geometry_evidence", None)
     if explicit_geometry is not None:
         payload["_geometry_evidence"] = explicit_geometry

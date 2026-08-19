@@ -97,6 +97,32 @@ function Assert-RuntimeCapabilitySnapshot($snapshot) {
   }
 }
 
+function Assert-FailureEvidence($payload, [string]$surface) {
+  if ($null -eq $payload -or $payload.status -eq "COMPLETED") { return }
+  if ($null -eq $payload.failure) { throw "$surface failure evidence missing" }
+  if ($payload.failure.schema_version -ne "spatial-agent.failure.v1") {
+    throw "$surface failure schema mismatch"
+  }
+  if ($payload.failure.status -ne $payload.status) {
+    throw "$surface failure status mismatch"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$payload.failure.category)) {
+    throw "$surface failure category missing"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$payload.failure.code)) {
+    throw "$surface failure code missing"
+  }
+  if ($payload.failure.phase -notin @("planning", "execution", "control", "persistence", "unknown")) {
+    throw "$surface failure phase invalid"
+  }
+  if ($null -eq $payload.result -or $null -eq $payload.result.failure) {
+    throw "$surface result failure evidence missing"
+  }
+  if ($payload.result.failure.schema_version -ne "spatial-agent.failure.v1") {
+    throw "$surface result failure schema mismatch"
+  }
+}
+
 function Get-DatasetEvidence($snapshot, [string]$dataset) {
   if ($null -eq $snapshot.data_evidence) {
     throw "runtime dataset evidence is missing"
@@ -373,6 +399,20 @@ if ($artifact.result.views.schema_version -ne $syncRun.result.views.schema_versi
   throw "artifact views schema mismatch"
 }
 
+$failureRun = Post-Json "$BaseUrl/runs" @{
+  request = $adminRequest
+  session_id = "acceptance-failure-contract"
+  planner = "rule"
+  backend = "memory"
+  preview_fingerprint = "sha256:acceptance-mismatch"
+  export_artifact = $true
+}
+if ($failureRun.status -ne "FAILED") { throw "failure contract run unexpectedly succeeded" }
+Assert-FailureEvidence $failureRun "sync failure run"
+$failureArtifactName = Split-Path -Leaf ([string]$failureRun.artifact_ref)
+$failureArtifact = Get-Json "$BaseUrl/artifacts/runs/$failureArtifactName"
+Assert-FailureEvidence $failureArtifact "failure artifact"
+
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
   request = $adminRequest
   planner = "rule"
@@ -428,6 +468,8 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   sync_degradation_status = $syncRun.result.degradation.status
   sync_workspace_panels = @($syncRun.result.workspace.panels)
   sync_view_panels = @($syncRun.result.views.panels.PSObject.Properties.Name | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+  failure_contract_status = $failureRun.failure.status
+  failure_contract_phase = $failureRun.failure.phase
   invalid_request_status = $invalid.status_code
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status

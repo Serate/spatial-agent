@@ -67,6 +67,8 @@ class AgentRunResult:
     answer: Optional[str] = None
     error: Optional[str] = None
     error_category: Optional[str] = None
+    error_code: Optional[str] = None
+    failure: Optional[Dict[str, Any]] = None
     clarification: Optional[Dict[str, Any]] = None
     # Normalized workflow selection retained for async polling and restart recovery.
     workflow: Optional[Dict[str, Any]] = None
@@ -91,6 +93,10 @@ class AgentRunResult:
                 data.pop(key, None)
         if data.get("error_category") is None:
             data.pop("error_category", None)
+        if data.get("error_code") is None:
+            data.pop("error_code", None)
+        if data.get("failure") is None:
+            data.pop("failure", None)
         if data.get("workflow") is None:
             data.pop("workflow", None)
         if data.get("request_facts") is None:

@@ -15,6 +15,7 @@ from .capability_catalog import (
 )
 from .capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION, CapabilityRouter
 from .context_engineering import ContextBuilder, ContextPacket
+from .failure_contract import build_failure_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .observability import ObservabilityEmitter
@@ -290,23 +291,25 @@ class AgentRuntime:
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
             result.clarification = exc.details
+            _record_run_failure(result, exc, phase="planning")
             self._conversation_store.save_pending(session_id, resolved_request, result.error)
         except RequestRejected as exc:
             result.status = RunStatus.REJECTED
             result.error = str(exc)
+            _record_run_failure(result, exc, phase="planning")
             self._conversation_store.clear_pending(session_id)
         except RunCancelled as exc:
             result.status = RunStatus.CANCELLED
             result.error = str(exc)
+            _record_run_failure(result, exc, phase="control")
         except RunTimedOut as exc:
             result.status = RunStatus.TIMED_OUT
             result.error = str(exc)
+            _record_run_failure(result, exc, phase="control")
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
-            category = getattr(exc, "category", None)
-            if category:
-                result.error_category = str(category)[:64]
+            _record_run_failure(result, exc)
             result.answer = self._answer_composer.compose_failure(result)
         if result.planner_metrics is None:
             result.planner_metrics = self._planner_metrics()
@@ -1334,6 +1337,42 @@ def _run_duration_ms(result: AgentRunResult) -> Optional[float]:
     if not values:
         return None
     return round(sum(float(value) for value in values), 3)
+
+
+def _record_run_failure(
+    result: AgentRunResult,
+    exc: Exception,
+    *,
+    phase: Optional[str] = None,
+) -> None:
+    """Promote the final failure classification to the run-level contract."""
+    failed_steps = [
+        step
+        for step in reversed(result.steps)
+        if step.status == "FAILED" or step.error
+    ]
+    failed_step = failed_steps[0] if failed_steps else None
+    category = (
+        getattr(exc, "category", None)
+        or (failed_step.error_category if failed_step else None)
+        or _run_error_category(result)
+    )
+    code = getattr(exc, "code", None) or (failed_step.error_code if failed_step else None)
+    retryable = getattr(exc, "retryable", None)
+    if retryable is None and failed_step is not None:
+        retryable = failed_step.retryable
+    result.error_category = str(category)[:64] if category else None
+    result.error_code = str(code)[:96] if code else None
+    result.failure = build_failure_evidence(
+        status=result.status.value,
+        category=result.error_category,
+        code=result.error_code,
+        phase=phase,
+        retryable=retryable,
+    )
+    # Keep the legacy top-level fields aligned with the canonical evidence.
+    result.error_category = result.failure["category"]
+    result.error_code = result.failure["code"]
 
 
 def _run_error_category(result: AgentRunResult) -> Optional[str]:

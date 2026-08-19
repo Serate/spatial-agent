@@ -969,3 +969,12 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 - Docker Linux engine 仍无法连接，因此没有把旧容器或未执行的 Docker acceptance 当作 M96 证据；live LLM 仍为可选门控。
 
 下一阶段从全局角度优先安排当前版本的 Docker/真实入口复验（环境恢复时）以及“失败观察 -> 受控重规划 -> 结果证据”组合验收；没有真实远程工具来源时不实现 MCP 运行时依赖。
+
+## M97 已完成
+
+- 已新增 `spatial-agent.failure.v1`，运行级 failure evidence 统一包含 `status/category/code/phase/retryable`，不携带 provider 原始错误、URL 或密钥。
+- 已贯通 Runtime、result envelope、HTTP、artifact、SQLite recovery 和 production acceptance；旧运行 payload 可通过 `failure_from_payload()` 安全归一化。
+- M97 专项 4 项和离线全量 616 项通过、42 项按环境跳过；quick、stage、GIS core、编译、PowerShell 解析和 diff check 通过。
+- Docker Linux engine 仍不可用，未宣称当前版本 Docker production acceptance；live LLM 仍按环境门控。
+
+下一阶段从全局角度安排 Docker/真实模型复验或更深的计划修复/动态能力扩展；MCP 仍只作为未来真实外部工具来源的 adapter。

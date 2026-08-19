@@ -743,6 +743,14 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 下一步：先从全局七维矩阵安排当前版本真实入口/部署复验和失败重规划组合验收，再根据是否出现真实外部工具来源决定 MCP adapter；不得为使用 MCP 而改变 ToolRegistry 核心 seam。
 
+## M97 已完成
+
+- 新增 `agent/failure_contract.py` 与 `spatial-agent.failure.v1`，Runtime 运行级失败证据统一记录 status、category、code、phase、retryable，原始错误仍只保留在兼容的人读字段中。
+- 失败证据已贯通 result envelope、HTTP/service、artifact、SQLite recovery；生产 acceptance 有预览指纹不匹配的失败样例门禁。
+- M97 专项 4 项通过；离线全量 616 项通过、42 项按环境跳过；quick/stage、GIS core、编译、PowerShell 解析和 diff check 通过。本阶段已准备提交推送。
+
+下一步：完成阶段推送后，从全局七维矩阵重新评估 Docker/真实模型验收、计划修复与动态能力扩展；Docker Linux engine 恢复后再执行当前版本 production acceptance。MCP 继续保持未来真实远程工具来源的 adapter。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。

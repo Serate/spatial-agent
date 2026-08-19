@@ -812,6 +812,8 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         answer=payload.get("answer"),
         error=payload.get("error"),
         error_category=payload.get("error_category"),
+        error_code=payload.get("error_code"),
+        failure=payload.get("failure"),
         clarification=payload.get("clarification"),
         workflow=payload.get("workflow"),
         artifact_ref=payload.get("artifact_ref"),

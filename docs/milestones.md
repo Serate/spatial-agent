@@ -2161,3 +2161,21 @@ M95 已把请求理解、工具治理、计划证据和执行结果连接为同�
 - 部署/体验/测试：runtime capability 与 acceptance 可发现 provider 合同失败；非 Native 回放覆盖 adapter 变更风险，前端无需新增硬编码面板。
 
 下一阶段应优先处理真实部署证据与失败后的可控修复/重规划组合验收，再评估是否存在值得实现的真实外部工具来源；在没有该来源前不实现 MCP 运行时依赖。
+
+## M97：运行级失败证据与恢复链路一致性（已完成）
+
+### 实现内容
+
+- 新增 `agent/failure_contract.py` 和 `spatial-agent.failure.v1`，统一输出无敏感原文的 `status/category/code/phase/retryable`。
+- Runtime 在规划澄清、拒绝、取消、超时、工具/provider 失败和重规划耗尽时生成运行级 failure evidence；旧 `error` 字符串继续兼容。
+- `result_contract.py`、HTTP/service formatting、artifact、SQLite recovery 和生产 acceptance 贯通相同 failure 证据；旧 payload 可安全补齐默认 code/phase。
+- 生产 acceptance 增加预览指纹不匹配的失败样例，验证同步失败运行和 artifact 均能被机器读取。
+
+### 当前证据
+
+- M97 专项 4 项通过；离线全量 616 项通过、42 项按环境跳过；M96 provider 回放、M33 失败状态、M37 取消超时、M42 SQLite 和成本治理回归通过。
+- quick、stage、GIS core、Python 编译、PowerShell 解析和 `git diff --check` 均通过；Docker Linux engine 仍不可用，真实生产 acceptance 不能在当前宿主环境宣称。
+
+### 全局重规划入口
+
+M97 已把失败的机器契约接入完整运行链路。下一阶段从全局七维矩阵决定优先做 Docker/真实模型验收，还是更深的计划修复与动态能力扩展；没有真实外部工具来源时不引入 MCP 运行时依赖。

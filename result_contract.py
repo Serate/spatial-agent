@@ -130,7 +130,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         geojson_ref=payload.get("geojson_ref"),
         workspace=workspace,
     )
-    return {
+    contract = {
         "type": result_type,
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
@@ -158,6 +158,9 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             "crs": sorted(geometry_crs),
         },
     }
+    if isinstance(payload.get("failure"), dict):
+        contract["failure"] = dict(payload["failure"])
+    return contract
 
 
 def _workspace_contract(

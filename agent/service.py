@@ -12,6 +12,7 @@ from agent.cost_governance import (
     extract_tokens as _extract_tokens,
 )
 from agent.errors import ToolError
+from agent.failure_contract import build_failure_evidence, failure_from_payload
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime
@@ -201,6 +202,15 @@ class AgentService:
             payload["status"] = "FAILED"
             payload["error"] = str(exc)
             payload["error_category"] = "budget"
+            payload["error_code"] = "budget_exceeded"
+            payload["failure"] = build_failure_evidence(
+                status="FAILED",
+                category="budget",
+                code="budget_exceeded",
+                phase="control",
+            )
+            if isinstance(payload.get("result"), dict):
+                payload["result"]["failure"] = dict(payload["failure"])
             _attach_error_category(payload)
         return payload
 
@@ -268,6 +278,15 @@ class AgentService:
         payload["result_type"] = _result_type(payload)
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
+        if payload.get("failure") is None:
+            failure = failure_from_payload(payload)
+            if failure is not None:
+                payload["failure"] = failure
+                payload.setdefault("error_category", failure["category"])
+                payload.setdefault("error_code", failure["code"])
+                result.failure = dict(failure)
+                result.error_category = payload["error_category"]
+                result.error_code = payload["error_code"]
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
             result.artifact_ref = payload["artifact_ref"]
@@ -426,10 +445,20 @@ class AgentService:
                         request=str(kwargs.get("request") or ""),
                         session_id=kwargs.get("session_id"),
                         error=str(exc),
+                        error_category=failure_category,
+                        error_code=getattr(exc, "code", None),
                     )
                 elif result.status in {RunStatus.CREATED, RunStatus.PLANNING, RunStatus.EXECUTING}:
                     result.status = RunStatus.FAILED
                     result.error = str(exc)
+                    result.error_category = failure_category
+                    result.error_code = getattr(exc, "code", None)
+                result.failure = build_failure_evidence(
+                    status=result.status.value,
+                    category=result.error_category or failure_category,
+                    code=result.error_code,
+                    retryable=getattr(exc, "retryable", None),
+                )
                 self._state.save_run(result)
         if self._state.persistent and not completed:
             self._state.finish_async_job(run_id, status, os.getpid(), failure_category)

@@ -2821,3 +2821,17 @@ Provider 是工具来源适配器，不应决定 Runtime 如何解释工具定�
 ### 处理与预防
 
 M96 在 `ToolRegistry` 构造时统一调用 `validate_tool_definitions()`，校验工具名、输入/输出 object schema、name 与目录 key、一组治理字段和正数有限 timeout，并生成 `spatial-agent.tool-provider-contract.v1` 安全证据。provider 健康、runtime capability、Planner plan evidence 和生产 acceptance 都保留该合同状态；非 Native provider 的回放仍经过同一 Registry、权限、timeout、StepRun governance 和结果契约。后续实现 `MCPToolProvider` 时必须先通过同一合同，不能把协议客户端直接暴露给 Planner 或 Runtime。
+
+## 运行级失败只保留字符串会使恢复入口无法解释失败
+
+### 现象
+
+M95 之前，StepRun 已经有 `error_category` 和 `error_code`，但运行级结果主要只有向后兼容的 `error` 字符串。同步结果、HTTP 响应、异步轮询、SQLite 恢复和 artifact 可能只能通过文本猜测失败发生在规划、执行还是控制阶段；真实 provider 的 retryable 属性也无法稳定传递到运行级证据。
+
+### 根因
+
+步骤失败和运行失败是两个层次。Runtime 可能先遇到工具门控、再触发重规划，或者在规划、取消、超时阶段直接结束。如果每个入口自己从错误文本推断分类，字符串措辞变化就会造成前端状态、恢复策略和评测结果不一致。错误原文还可能包含 provider URL、token 或本地路径，不适合作为跨入口机器契约。
+
+### 处理与预防
+
+M97 新增 `spatial-agent.failure.v1`，运行级 `failure` 只保存 status、category、code、phase 和 retryable，不复制原始错误文本；旧 `error` 字段继续保留给人读。Runtime、service formatting、result envelope、artifact、SQLite recovery、HTTP 和生产 acceptance 共用该结构，并为旧运行 payload 提供安全 normalization。后续新增失败状态必须先定义机器 code/category/phase，再补前端文案或重规划策略，不能让入口解析错误字符串。

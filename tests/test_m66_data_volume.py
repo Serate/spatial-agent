@@ -83,6 +83,8 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("runtime_tool_provider_health", script)
         self.assertIn("spatial-agent.request-facts.v1", script)
         self.assertIn("spatial-agent.execution-policy.v1", script)
+        self.assertIn("function Assert-FailureEvidence", script)
+        self.assertIn("spatial-agent.failure.v1", script)
         self.assertIn("artifact request facts evidence missing", script)
 
     @unittest.skipUnless(
