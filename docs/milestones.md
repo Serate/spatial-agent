@@ -2217,3 +2217,23 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 完成 quick、stage、离线全量和静态门禁，确认新增结果字段不破坏旧 artifact 与历史运行恢复。
 2. Docker engine 恢复后，用当前版本执行 readiness、同步/异步、失败恢复、真实 GIS 和可选 live LLM acceptance。
 3. 若宿主环境继续阻塞，则补充脱敏模型回放的开放式能力组合与失败重规划矩阵；没有真实外部工具来源时不引入 MCP 运行时依赖。
+
+## M100：真实 GIS Live Profile 数据配置前置校验（已完成）
+
+### 实现内容
+
+- `scripts/test_profile.py` 的 `live-short` 本地 GIS 模式现在要求显式提供 `--dataset-config` 或 `SPATIAL_AGENT_DATASET_CONFIG`。
+- 缺少正式数据配置时，profile 在启动模型/空间工具前直接失败并给出明确提示，不再静默回退到示例数据。
+- 增加 profile 回归测试，并在中文问题日志中记录配置缺失与真实数据不可用的区分方法。
+
+### 当前验收证据
+
+- M100 profile 回归 8 项通过；离线全量 625 项通过、42 项按环境跳过；quick 通过。
+- M99 的真实 GIS core、真实模型 planner smoke 和显式绑定武汉分析就绪配置的 live GIS 总览继续通过。
+- Docker Linux engine 仍无法连接 `dockerDesktopLinuxEngine` named pipe，当前版本 production acceptance 仍待宿主环境恢复。
+
+### 下一阶段全局规划
+
+1. M101 先从全局七维矩阵复验 Docker/HTTP/SQLite/artifact/Console 的当前版本部署证据。
+2. Docker 恢复前继续维护脱敏模型回放、开放式能力组合和失败重规划矩阵，不增加单区域规则。
+3. MCP 仍保持未来真实远程工具来源的 adapter；没有实际外部工具来源时不引入运行时依赖。

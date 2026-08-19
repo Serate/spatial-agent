@@ -992,3 +992,7 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 自适应重规划此前只有顶层 `replan_events`，没有进入统一 `result` envelope 和 lineage。本阶段新增 `spatial-agent.replanning.v1`，由 `result_contract.py` 对事件做有界归一化，生成 `result.replanning` 与 `result.lineage.replanning`；trace 增加重规划说明，Console 优先读取 envelope，旧字段只作 fallback。M99 专项及相关回归 36 项通过；离线全量 624 项通过、42 项按环境跳过，真实 GIS core 31 项、真实模型 planner smoke 和显式绑定武汉配置的 live GIS 总览均通过。Docker engine 仍不可用，不能宣称当前版本 production acceptance。MCP 仍只作为未来真实外部工具来源的 adapter，不进入核心 Runtime。
 
 下一阶段从全局七维矩阵规划 M100：优先在 Docker engine 恢复后重建当前版本并执行 production acceptance；若继续受宿主环境阻塞，则推进开放式能力组合、失败重规划和跨入口恢复的脱敏回放，不引入没有真实外部工具来源支撑的 MCP。
+
+## M100 已完成
+
+`live-short` 本地 GIS profile 现在要求显式的 `--dataset-config` 或 `SPATIAL_AGENT_DATASET_CONFIG`，缺少时在启动模型前直接失败，避免回退示例配置造成 roads/water 数据门控的误判。M100 profile 回归 8 项通过，离线全量 625 项通过、42 项按环境跳过；M99 的真实 GIS/live 证据保持通过。Docker Linux engine 仍不可用，下一阶段 M101 优先做当前版本 Docker/HTTP/SQLite/artifact/Console 部署复验。

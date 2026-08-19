@@ -143,7 +143,7 @@ def _commands_for_profiles(profiles: Iterable[str], args: argparse.Namespace) ->
         elif profile == "gis-core":
             commands.extend(_gis_core_commands())
         elif profile == "live-short":
-            commands.extend(_live_short_commands(args))
+            commands.extend(_live_short_commands(args, require_dataset_config=True))
         elif profile == "docker":
             commands.extend(_docker_commands(args))
         else:
@@ -219,7 +219,9 @@ def _gis_core_commands() -> List[ProfileCommand]:
     ]
 
 
-def _live_short_commands(args: argparse.Namespace) -> List[ProfileCommand]:
+def _live_short_commands(
+    args: argparse.Namespace, *, require_dataset_config: bool = False
+) -> List[ProfileCommand]:
     env = {
         "SPATIAL_AGENT_LIVE_OPENAI": "1",
         "OPENAI_TIMEOUT_SECONDS": os.environ.get("OPENAI_TIMEOUT_SECONDS", "45"),
@@ -227,6 +229,11 @@ def _live_short_commands(args: argparse.Namespace) -> List[ProfileCommand]:
     if args.live_backend == "local":
         env["SPATIAL_AGENT_LIVE_GIS"] = "1"
     configured = args.dataset_config or os.environ.get("SPATIAL_AGENT_DATASET_CONFIG")
+    if require_dataset_config and args.live_backend == "local" and not configured:
+        raise ValueError(
+            "live-short local requires --dataset-config or "
+            "SPATIAL_AGENT_DATASET_CONFIG"
+        )
     if configured:
         env["SPATIAL_AGENT_DATASET_CONFIG"] = configured
     return [

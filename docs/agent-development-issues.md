@@ -2872,4 +2872,4 @@ M99 新增 `spatial-agent.replanning.v1`，由 `result_contract.py` 统一校验
 
 ### 处理与预防
 
-真实 GIS 验收必须显式设置 `SPATIAL_AGENT_DATASET_CONFIG`，或使用 `scripts/test_profile.py --profile live-short --dataset-config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`。验收记录同时保留 planner、backend、dataset config 和数据健康状态；不能因为模型请求失败就放宽 roads/water 数据门控，也不能把缺少配置的失败算作当前代码回归。
+真实 GIS 验收必须显式设置 `SPATIAL_AGENT_DATASET_CONFIG`，或使用 `scripts/test_profile.py --profile live-short --dataset-config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`。M100 让 `live-short` 的本地 GIS 模式在启动前拒绝缺少该配置的命令，避免回退到示例数据。验收记录同时保留 planner、backend、dataset config 和数据健康状态；不能因为模型请求失败就放宽 roads/water 数据门控，也不能把缺少配置的失败算作当前代码回归。

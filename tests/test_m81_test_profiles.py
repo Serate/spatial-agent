@@ -159,6 +159,22 @@ class M81TestProfileTests(unittest.TestCase):
             "D:/tmp/wuhan-gis/datasets.wuhan.analysis-ready.bound.json",
         )
 
+    def test_live_short_local_requires_explicit_dataset_config(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "test_profile.py"),
+                "--profile",
+                "live-short",
+                "--dry-run",
+            ],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("requires --dataset-config", completed.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
