@@ -865,6 +865,9 @@ class AgentRuntime:
             "session_id": result.session_id,
             "result_type": _result_type_for_observability(result),
             "error_category": run_category,
+            "error_code": (result.failure or {}).get("code") or result.error_code,
+            "failure_phase": (result.failure or {}).get("phase"),
+            "failure_retryable": (result.failure or {}).get("retryable"),
             "replan_count": len(result.replan_events),
             "memory_fact_count": len(self._memory.recall(session_id=result.session_id or "default"))
             if self._memory is not None

@@ -538,6 +538,7 @@
     .error-category.rejected { background: #ececec; color: #5f6b70; }
     .error-category.clarification { background: #fdf3e3; color: #9a6a1e; }
     .error-category.unknown { background: #ececec; color: #5f6b70; }
+    .failure-evidence { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 999px; background: #eef2f7; color: #536273; font-size: 11px; font-weight: 600; vertical-align: 1px; }
     .clarification-box {
       display: grid;
       gap: 7px;
@@ -1082,7 +1083,8 @@
     window.fetch = async (input, init) => { if(input==='/runs' && init?.method==='POST') { const payload=JSON.parse(init.body||'{}'); const queuedResponse=await nativeFetch('/runs/async',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!queuedResponse.ok) return queuedResponse; const queued=await queuedResponse.json(); activeRunId=queued.run_id; activeRunParams=payload; setCancelState(true); let data=queued; for(let attempt=0; attempt<600 && ['QUEUED','PLANNING','EXECUTING'].includes(data.status); attempt++) { await sleep(250); const response=await nativeFetch('/runs/'+encodeURIComponent(queued.run_id)+'?planner='+encodeURIComponent(payload.planner||'rule')+'&backend='+encodeURIComponent(payload.backend||'memory')); if(response.ok) data=await response.json(); } activeRunId=null; activeRunParams={}; setCancelState(false); return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}}); } return nativeFetch(input,init); };
     const statusNames={IDLE:'待机',PLANNING:'规划中',PLANNED:'计划已生成',EXECUTING:'执行中',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
     const errorCategoryLabels={provider:'模型服务错误',planning:'规划错误',tool:'工具执行错误',timeout:'执行超时',invalid_input:'无效输入',execution:'执行错误',cancelled:'已取消',rejected:'请求已拒绝',clarification:'需要澄清'};
-    function errorCategoryBadge(category) { if(!category) return ''; const key=String(category).toLowerCase(); return '<span class="error-category '+key+'" title="结构化错误分类：'+escapeHtml(key)+'">'+escapeHtml(errorCategoryLabels[key]||category)+'</span>'; }
+    function failureEvidenceBadge(failure) { if(!failure) return ''; const phase=String(failure.phase||'unknown'); const code=String(failure.code||'unknown'); const retryable=failure.retryable===true?'可重试':'不可重试'; return '<span class="failure-evidence" title="版本化失败证据：'+escapeHtml(String(failure.schema_version||''))+'">阶段：'+escapeHtml(phase)+' · 错误码：'+escapeHtml(code)+' · '+retryable+'</span>'; }
+    function errorCategoryBadge(category) { if(!category) return ''; const key=String(category).toLowerCase(); const failure=(typeof lastRunData!=='undefined'&&lastRunData)?(lastRunData.failure||(lastRunData.result||{}).failure):null; return '<span class="error-category '+key+'" title="结构化错误分类：'+escapeHtml(key)+'">'+escapeHtml(errorCategoryLabels[key]||category)+'</span>'+failureEvidenceBadge(failure); }
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
     function setStatus(value) { const el=$('status'); el.textContent=statusName(value); el.className='badge '+String(value).toLowerCase(); }

@@ -978,3 +978,11 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 - Docker Linux engine 仍不可用，未宣称当前版本 Docker production acceptance；live LLM 仍按环境门控。
 
 下一阶段从全局角度安排 Docker/真实模型复验或更深的计划修复/动态能力扩展；MCP 仍只作为未来真实外部工具来源的 adapter。
+
+## M98 已完成
+
+- observability run span 已消费 failure 的 `error_code`、`failure_phase`、`failure_retryable`；allowlist 仍拒绝原始错误和敏感字段。
+- 异步 worker 异常写入 SQLite 后，轮询/恢复保留 `spatial-agent.failure.v1`；Console 增加通用失败证据徽章。
+- M98 专项 3 项、M80 observability 回归 6 项、Console 回归 2 项通过；离线全量 620 项通过、42 项按环境跳过；quick、stage、GIS core、编译、PowerShell 解析和 diff check 通过。
+
+下一阶段优先做当前版本真实 Docker/LLM/GIS 入口验收；Docker 恢复前可继续做脱敏模型计划修复与开放式能力组合回放。MCP 仍只作为未来真实外部工具来源的 adapter。

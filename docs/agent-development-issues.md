@@ -2835,3 +2835,13 @@ M95 之前，StepRun 已经有 `error_category` 和 `error_code`，但运行级�
 ### 处理与预防
 
 M97 新增 `spatial-agent.failure.v1`，运行级 `failure` 只保存 status、category、code、phase 和 retryable，不复制原始错误文本；旧 `error` 字段继续保留给人读。Runtime、service formatting、result envelope、artifact、SQLite recovery、HTTP 和生产 acceptance 共用该结构，并为旧运行 payload 提供安全 normalization。后续新增失败状态必须先定义机器 code/category/phase，再补前端文案或重规划策略，不能让入口解析错误字符串。
+
+## 失败契约落盘但不进入 trace 和前端仍然不可观测
+
+### 现象
+
+M97 已将 `failure` 写入运行结果、artifact 和 SQLite，但 JSON-lines run span 只保留旧的 `error_category`，Console 也只显示人读错误文本和分类徽章。排查异步 worker 或 provider 故障时，仍需打开原始 JSON 才能知道错误码、阶段和是否可重试。
+
+### 处理与预防
+
+M98 将 `error_code`、`failure_phase`、`failure_retryable` 加入 observability 的 allowlist，并由 Runtime 从版本化 failure evidence 填充；原始错误文本仍被禁止进入事件。Console 增加受限 failure badge，显示阶段、错误码和可重试性。以后新增机器契约字段必须同时检查持久化、trace 和至少一个用户可读消费面，不能只增加后端字段。

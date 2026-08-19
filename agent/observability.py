@@ -6,9 +6,9 @@ OpenTelemetry concepts (trace_id, span_id, parent_span_id, name, status,
 duration) but is implemented with the standard library only.
 
 Events are bounded and credential-free: attributes only carry allowlisted
-fields (session id, backend, error category, replan count, memory fact count,
-step attempts/latency/result type). Raw error text, provider responses, URLs,
-keys, and file paths are never emitted.
+fields (session id, backend, error category/code/phase/retryability, replan
+count, memory fact count, step attempts/latency/result type). Raw error text,
+provider responses, URLs, keys, and file paths are never emitted.
 """
 
 from __future__ import annotations
@@ -32,6 +32,9 @@ _RUN_ALLOWED_ATTRIBUTES = {
     "planner",
     "result_type",
     "error_category",
+    "error_code",
+    "failure_phase",
+    "failure_retryable",
     "replan_count",
     "memory_fact_count",
 }

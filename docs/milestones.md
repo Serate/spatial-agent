@@ -2179,3 +2179,20 @@ M95 已把请求理解、工具治理、计划证据和执行结果连接为同�
 ### 全局重规划入口
 
 M97 已把失败的机器契约接入完整运行链路。下一阶段从全局七维矩阵决定优先做 Docker/真实模型验收，还是更深的计划修复与动态能力扩展；没有真实外部工具来源时不引入 MCP 运行时依赖。
+
+## M98：失败证据的异步、Trace 与 Console 闭环（已完成）
+
+### 实现内容
+
+- observability run event 在原有错误分类之外增加有界 `error_code`、`failure_phase` 和 `failure_retryable`，仍不输出原始 provider 错误、URL 或密钥。
+- 异步 worker 异常写入 SQLite 后，轮询/重启恢复结果继续返回同一 `spatial-agent.failure.v1`；增加异常 worker 回归验证。
+- Console 消费 result envelope 或顶层 failure evidence，显示阶段、错误码和可重试性；用通用 badge 方式展示，不按具体 GIS 结果类型硬编码。
+
+### 验收证据
+
+- M98 专项 3 项、M80 observability 回归 6 项、Console 回归 2 项通过；M97 及全量回归保持通过。
+- 离线全量 620 项通过、42 项按环境跳过；quick、stage、GIS core、Python 编译、PowerShell 解析和 `git diff --check` 均通过。Docker Linux engine 仍不可用，未宣称 Docker production acceptance。
+
+### 全局复盘与下一阶段入口
+
+M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/失败证据 -> trace/前端/恢复”的核心 Runtime 闭环。下一阶段从七维矩阵优先安排当前代码的真实 Docker/LLM/GIS 入口验收；若宿主环境仍阻塞，则推进模型计划修复和开放式能力组合的脱敏回放，不引入没有真实工具来源支撑的 MCP 依赖。

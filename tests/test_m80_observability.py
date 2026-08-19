@@ -83,6 +83,27 @@ class M80ObservabilityUnitTests(unittest.TestCase):
         self.assertNotIn("secret_key", event.get("attributes", {}))
         self.assertNotIn("error_category", event.get("attributes", {}))
 
+    def test_run_failure_attributes_are_allowlisted(self):
+        emitter = CollectingEmitter()
+        emitter.emit_run(
+            run_id="run-failure",
+            session_id=None,
+            name="planner:type",
+            status="FAILED",
+            duration_ms=1.0,
+            attributes={
+                "error_code": "upstream_timeout",
+                "failure_phase": "execution",
+                "failure_retryable": True,
+                "raw_error": "secret provider response",
+            },
+        )
+        attributes = emitter.events[0]["attributes"]
+        self.assertEqual(attributes["error_code"], "upstream_timeout")
+        self.assertEqual(attributes["failure_phase"], "execution")
+        self.assertTrue(attributes["failure_retryable"])
+        self.assertNotIn("raw_error", attributes)
+
     def test_step_event_has_parent_span(self):
         emitter = CollectingEmitter()
         emitter.emit_run(

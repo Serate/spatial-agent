@@ -751,6 +751,14 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 下一步：完成阶段推送后，从全局七维矩阵重新评估 Docker/真实模型验收、计划修复与动态能力扩展；Docker Linux engine 恢复后再执行当前版本 production acceptance。MCP 继续保持未来真实远程工具来源的 adapter。
 
+## M98 已完成
+
+- observability run event 已增加安全的 `error_code`、`failure_phase`、`failure_retryable`；异步 worker 异常及 SQLite 恢复保持同一 failure evidence。
+- Console 通过通用 `failureEvidenceBadge()` 消费顶层或 result envelope 的 `spatial-agent.failure.v1`，显示阶段、错误码和可重试性。
+- M98 专项 3 项、M80 observability 回归 6 项、Console 回归 2 项通过；离线全量 620 项通过、42 项按环境跳过；quick、stage、GIS core、编译、PowerShell 解析和 diff check 通过。Docker Linux engine 仍不可用，不能宣称真实容器验收。
+
+下一步：先完成 M98 最终验收和推送，再从全局七维矩阵安排真实 Docker/LLM/GIS 入口或脱敏模型计划修复回放。MCP 继续保持未来真实远程工具来源的 adapter。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。
