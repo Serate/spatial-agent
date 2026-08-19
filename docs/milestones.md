@@ -2237,3 +2237,23 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. M101 先从全局七维矩阵复验 Docker/HTTP/SQLite/artifact/Console 的当前版本部署证据。
 2. Docker 恢复前继续维护脱敏模型回放、开放式能力组合和失败重规划矩阵，不增加单区域规则。
 3. MCP 仍保持未来真实远程工具来源的 adapter；没有实际外部工具来源时不引入运行时依赖。
+
+## M101：生产验收契约跟随结果证据演进（已完成）
+
+### 实现内容
+
+- `scripts/production_acceptance.ps1` 新增 `Assert-ReplanningEvidence`，校验 `result.replanning` 的版本、事件边界、可用性/数量一致性和 `result.lineage.replanning` 计数。
+- 生产同步运行和 artifact 均执行重规划证据门禁，避免结果契约新增字段后 Docker acceptance 仍然漏检。
+- 静态 PowerShell 契约测试覆盖新增函数和调用标记；不改变默认离线测试和 MCP 架构决策。
+
+### 当前验收证据
+
+- full-stage、strict offline evaluation、smoke、PowerShell 解析和全量 625 项测试通过，42 项按环境跳过。
+- M101 相关生产脚本/结果契约回归 10 项通过。
+- Docker Linux engine 仍无法连接 `dockerDesktopLinuxEngine` named pipe，因此尚未执行当前版本的容器 production acceptance；不能引用旧容器结果。
+
+### 下一阶段全局规划
+
+1. M102 在 Docker engine 恢复后重建当前版本，执行 readiness、真实数据卷、同步/异步、artifact、失败和重规划证据 acceptance。
+2. 同时复验生产 Console 的动态 workspace、views、trace 和地图证据，确认 HTTP/artifact/recovery 一致。
+3. 如果宿主环境继续阻塞，补充脱敏重规划/开放式能力组合的跨入口回放；仍不引入没有真实外部工具来源支撑的 MCP。

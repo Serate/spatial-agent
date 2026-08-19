@@ -123,6 +123,40 @@ function Assert-FailureEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-ReplanningEvidence($payload, [string]$surface) {
+  if ($null -eq $payload -or $null -eq $payload.result -or $null -eq $payload.result.replanning) {
+    throw "$surface result replanning envelope missing"
+  }
+  $replanning = $payload.result.replanning
+  if ($replanning.schema_version -ne "spatial-agent.replanning.v1") {
+    throw "$surface replanning schema mismatch"
+  }
+  $events = @($replanning.events)
+  if ([int]$replanning.count -ne $events.Count) {
+    throw "$surface replanning count mismatch"
+  }
+  if (($replanning.available -eq $true) -ne ($events.Count -gt 0)) {
+    throw "$surface replanning availability mismatch"
+  }
+  foreach ($event in $events) {
+    if ([string]::IsNullOrWhiteSpace([string]$event.failed_step_id)) {
+      throw "$surface replanning failed step missing"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$event.failed_tool)) {
+      throw "$surface replanning failed tool missing"
+    }
+    if ($null -eq $event.replanned_step_ids -or @($event.replanned_step_ids).Count -gt 24) {
+      throw "$surface replanning replacement steps invalid"
+    }
+  }
+  if ($null -eq $payload.result.lineage -or $null -eq $payload.result.lineage.replanning) {
+    throw "$surface replanning lineage missing"
+  }
+  if ([int]$payload.result.lineage.replanning.count -ne [int]$replanning.count) {
+    throw "$surface replanning lineage count mismatch"
+  }
+}
+
 function Get-DatasetEvidence($snapshot, [string]$dataset) {
   if ($null -eq $snapshot.data_evidence) {
     throw "runtime dataset evidence is missing"
@@ -360,6 +394,7 @@ Assert-PlanningEvidence $syncRun "sync run"
 Assert-DegradationEvidence $syncRun "sync run"
 Assert-WorkspaceEvidence $syncRun "sync run"
 Assert-ViewEvidence $syncRun "sync run"
+Assert-ReplanningEvidence $syncRun "sync run"
 if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
   throw "sync run artifact_ref missing"
 }
@@ -398,6 +433,7 @@ if ($null -eq $artifact.result.views) {
 if ($artifact.result.views.schema_version -ne $syncRun.result.views.schema_version) {
   throw "artifact views schema mismatch"
 }
+Assert-ReplanningEvidence $artifact "artifact"
 
 $failureRun = Post-Json "$BaseUrl/runs" @{
   request = $adminRequest

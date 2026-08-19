@@ -2873,3 +2873,17 @@ M99 新增 `spatial-agent.replanning.v1`，由 `result_contract.py` 统一校验
 ### 处理与预防
 
 真实 GIS 验收必须显式设置 `SPATIAL_AGENT_DATASET_CONFIG`，或使用 `scripts/test_profile.py --profile live-short --dataset-config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`。M100 让 `live-short` 的本地 GIS 模式在启动前拒绝缺少该配置的命令，避免回退到示例数据。验收记录同时保留 planner、backend、dataset config 和数据健康状态；不能因为模型请求失败就放宽 roads/water 数据门控，也不能把缺少配置的失败算作当前代码回归。
+
+## 生产验收脚本落后于结果契约会漏掉新证据
+
+### 现象
+
+M99 增加了 `result.replanning` 和 `result.lineage.replanning`，但生产 acceptance 最初只检查 planning、degradation、workspace、views 和 failure。即使生产入口丢失重规划证据，静态 acceptance 也可能继续通过。
+
+### 根因
+
+结果契约是持续演进的；如果每次新增版本化证据只补单元测试而不更新生产验收，Docker、HTTP、artifact 和恢复链路的门禁会出现覆盖空洞。前端或单元测试通过不能证明生产脚本实际读取了同一字段。
+
+### 处理与预防
+
+M101 新增 `Assert-ReplanningEvidence`，生产同步结果和 artifact 必须校验 schema、事件数量、字段边界和 lineage 计数一致；静态契约测试同时检查函数和调用点。以后新增 `result.*` 版本化证据时，必须同步更新生产 acceptance、artifact/recovery 验证和至少一个跨入口测试，不能只修改结果构造器。

@@ -86,6 +86,10 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("function Assert-FailureEvidence", script)
         self.assertIn("spatial-agent.failure.v1", script)
         self.assertIn("artifact request facts evidence missing", script)
+        self.assertIn("function Assert-ReplanningEvidence", script)
+        self.assertIn("spatial-agent.replanning.v1", script)
+        self.assertIn("replanning lineage count mismatch", script)
+        self.assertIn("result replanning envelope missing", script)
 
     @unittest.skipUnless(
         os.environ.get("SPATIAL_AGENT_RUN_M66_PRODUCTION") == "1",

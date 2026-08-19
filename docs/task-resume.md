@@ -996,3 +996,7 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 ## M100 已完成
 
 `live-short` 本地 GIS profile 现在要求显式的 `--dataset-config` 或 `SPATIAL_AGENT_DATASET_CONFIG`，缺少时在启动模型前直接失败，避免回退示例配置造成 roads/water 数据门控的误判。M100 profile 回归 8 项通过，离线全量 625 项通过、42 项按环境跳过；M99 的真实 GIS/live 证据保持通过。Docker Linux engine 仍不可用，下一阶段 M101 优先做当前版本 Docker/HTTP/SQLite/artifact/Console 部署复验。
+
+## M101 已完成
+
+生产 acceptance 新增 `Assert-ReplanningEvidence`，同步运行和 artifact 必须携带并保持一致的 `spatial-agent.replanning.v1` 与 lineage 计数。full-stage、strict offline evaluation、smoke、PowerShell 解析和离线全量 625 项通过、42 项跳过；M101 相关回归 10 项通过。Docker engine 仍不可用，下一阶段 M102 优先进行当前版本容器 readiness、真实数据卷及 HTTP/artifact/recovery/Console 联合验收。
