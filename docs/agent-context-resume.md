@@ -867,8 +867,20 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - 修复分类结果到最终 clarification 的字段丢失；Service、HTTP、result envelope 和开放式计划预览回归通过。
 - Docker Linux engine 仍无法连接 `dockerDesktopLinuxEngine` named pipe；真实 FastAPI/Docker 和动态浏览器验收继续保持未宣称状态。
 
-## M112 下一步
+## M112 已完成
 
-1. Docker engine 恢复后重建当前版本，执行 readiness、数据卷、同步/异步、SQLite 恢复、artifact 和生产 acceptance。
-2. 从全局 Agent Runtime 角度扩展非固定表达回放、结构化澄清多轮闭环和受控失败修复。
-3. 完成真实武汉 GIS、可选真实模型与动态 Console 的统一入口验收；无真实远程工具来源时不引入 MCP 运行时依赖。
+- 已新增 `DomainPack` seam，Runtime、runtime factory 和 planner context 可由领域包提供 catalog、discovery 和 workflow context；默认 GIS 行为保持兼容。
+- GIS 数据集名称、工具映射、能力定义、数据分组、GIS discovery 和 workflow context 已迁入 `domains/gis`；公共 catalog 构造器已参数化，旧 GIS 常量只保留兼容别名。
+- 非 GIS fake pack 与非 GIS catalog builder 回归通过，证明 Runtime 不需要知道 `dem`、`land_use`、`roads`、`water` 或洪山区。
+- M112 专项 3 项和 `full-stage` 通过，编译/diff check 通过；M69 三 worker SQLite 用例单独连续 20 次通过。完整离线套件偶发同一既有 SQLite 并发用例，按开发问题记录处理，不能作为 M112 领域解耦失败。
+
+### 当前真实边界
+
+项目仍是“通用 Agent Runtime + GIS Domain Pack”，不是已经支持任意领域的成品平台。结果 composer、data quality、部分 workflow/result view 和 production capability endpoint 仍包含 GIS 语义；下一阶段必须按全局七维矩阵继续识别并收敛这些领域泄漏，再补独立 adapter/replay。
+
+### M113 下一步
+
+1. 跨领域 contract/replay：验证非 GIS adapter 也能经过同一 RequestFacts、TaskPlan、ToolRegistry、result envelope、trace 和 artifact。
+2. 领域泄漏审查：检查 workflow、result views、provenance、failure/replanning、HTTP capability endpoint 是否需要 Domain Pack 化。
+3. 真实环境验收：Docker 恢复后复验 GIS Domain Pack 的 HTTP、SQLite、artifact、地图和 live model；保持 CI 离线。
+4. MCP 仍只作为未来真实外部工具来源的 ToolProvider adapter，不进入核心 Runtime。

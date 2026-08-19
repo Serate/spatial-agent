@@ -3015,3 +3015,25 @@ M110 在 `contract_harness_check.py` 中显式加入仓库根目录导入路径�
 ### 处理与预防
 
 M111 为澄清对象增加 `spatial-agent.clarification.v1`、有界的 `suggested_capability_details` 和 `matched_capability_details`，标签继续来自 CapabilityCatalog；Service、HTTP、result envelope 和计划预览均增加跨入口回归。以后结构化澄清新增字段必须检查“意图分类 -> Runtime 异常 -> result envelope/持久化 -> HTTP/Console”的完整链路，不能只在分类函数中增加字段。
+
+## 公共 Runtime 的能力目录写死 GIS 数据集
+
+### 现象
+
+项目的 Runtime、Planner 和 ToolRegistry 接口看起来可以复用，但新增 Domain Pack 时发现 `agent/capability_catalog.py` 同时保存 `dem`、`land_use`、`roads`、`water`、GIS 能力和 GIS workflow 语义。非 GIS 领域如果直接复用该模块，会意外获得 GIS 能力目录，或者只能复制一套 Runtime。
+
+### 根因
+
+领域目录和通用编排契约缺少清晰的 seam。早期 GIS 只是唯一业务载体，因此把数据集映射、能力定义和模板放在公共模块中很方便；随着开放式 Agent 目标明确，这些实现细节变成了核心 Runtime 的隐式依赖。只移动常量而不移动 discovery/workflow context，仍会留下同样的耦合。
+
+### 诊断
+
+用一个不含 GIS 数据集的 fake Domain Pack 注入 `AgentRuntime`，检查 planner context 的 `domain_id`、`capability_discovery`、`capability_catalog` 和 `workflow_templates`。如果 context 仍出现 GIS 能力、GIS 模板或固定数据集名，说明只是增加了适配器外壳，并没有完成领域解耦。
+
+### 修复
+
+M112 新增 `DomainPack` seam，领域包负责 capability catalog、discovery 和 workflow context；GIS 实现迁入 `domains/gis`。公共 catalog 构造器改为接收能力定义、数据分组、工具映射、workflow templates、domain id 和 analysis-ready 能力集合；默认 GIS 与旧导入名保留兼容。新增非 GIS fake pack 和非 GIS catalog builder 回归，确认 Runtime 不再注入 GIS workflow context。
+
+### 预防
+
+以后新增领域不得直接把数据集名、能力 ID 或结果模板写入 `agent/runtime.py`、通用 context builder 或公共 HTTP 逻辑。至少要提供一个不含 GIS 术语的 Domain Pack/replay，并验证 RequestFacts、TaskPlan、ToolRegistry、result envelope、trace 和 artifact 的跨领域闭环。只把数据常量挪到新目录而不检查 discovery、workflow、result views 和 provenance，不能视为完成解耦。

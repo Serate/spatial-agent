@@ -4,217 +4,19 @@ from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
 from .workflow_templates import workflow_template_catalog
+from domains.gis.catalog import (
+    GIS_CAPABILITIES,
+    GIS_DATASET_GROUPS,
+    GIS_DATASET_TOOL_CAPABILITIES,
+)
 
 
 CAPABILITY_CONTEXT_SCHEMA_VERSION = "spatial-agent.capability-catalog-context.v1"
 
 
-DATASET_TOOL_CAPABILITIES = {
-    "admin_areas": ["get_dataset_schema", "range_query"],
-    "dem": [
-        "get_raster_metadata",
-        "get_raster_statistics",
-        "get_zonal_raster_statistics",
-        "get_zonal_slope_statistics",
-    ],
-    "land_use": [
-        "get_raster_metadata",
-        "get_raster_statistics",
-        "get_zonal_raster_statistics",
-        "get_zonal_land_use_distribution",
-    ],
-    "roads": [
-        "get_dataset_schema",
-        "range_query",
-        "get_zonal_vector_summary",
-        "spatial_join",
-    ],
-    "water": [
-        "get_dataset_schema",
-        "range_query",
-        "get_zonal_vector_summary",
-        "spatial_join",
-    ],
-}
-
-# The core layer supports the default spatial workflows. Roads and water are
-# optional enrichments and must not make core capabilities unavailable.
-DATASET_GROUPS = {
-    "core": ("admin_areas", "dem", "land_use"),
-    "optional": ("roads", "water"),
-}
-
-
-_CAPABILITIES = (
-    {
-        "id": "conversation",
-        "label": "通用对话",
-        "datasets": [],
-        "tools": [],
-        "result_types": ["direct_answer"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "none",
-    },
-    {
-        "id": "spatial_overview",
-        "label": "区域空间总览",
-        "datasets": ["admin_areas", "dem", "land_use", "roads", "water"],
-        "tools": [
-            "get_dataset_health_report", "get_dataset_schema", "range_query",
-            "get_zonal_raster_statistics", "get_zonal_slope_statistics",
-            "get_zonal_land_use_distribution", "get_zonal_vector_summary",
-        ],
-        "result_types": ["spatial_overview_result"],
-        "environments": ["local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "spatial_analysis",
-        "label": "组合式空间分析",
-        "datasets": ["admin_areas", "dem", "land_use", "roads", "water"],
-        "tools": [
-            "get_dataset_health_report", "get_dataset_schema", "range_query",
-            "get_zonal_raster_statistics", "get_zonal_slope_statistics",
-            "get_zonal_land_use_distribution", "get_zonal_vector_summary",
-            "get_zonal_buildability_analysis", "get_zonal_constrained_buildability_analysis",
-        ],
-        "result_types": ["spatial_analysis_result"],
-        "environments": ["local", "production"],
-        "geometry": "available_when_artifact_contains_features",
-    },
-    {
-        "id": "admin_boundary_query",
-        "label": "行政区边界查询",
-        "datasets": ["admin_areas"],
-        "tools": ["get_dataset_schema", "range_query"],
-        "result_types": ["admin_area_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "raster_metadata",
-        "label": "栅格元数据查询",
-        "datasets": ["dem", "land_use"],
-        "tools": ["get_raster_metadata"],
-        "result_types": ["raster_metadata_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "none",
-    },
-    {
-        "id": "zonal_raster_statistics",
-        "label": "区域栅格统计",
-        "datasets": ["admin_areas", "dem", "land_use"],
-        "tools": ["get_dataset_health_report", "get_zonal_raster_statistics"],
-        "result_types": ["zonal_raster_statistics_result"],
-        "environments": ["local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "zonal_terrain_land_use",
-        "label": "区域地形与土地利用分析",
-        "datasets": ["admin_areas", "dem", "land_use"],
-        "tools": [
-            "get_dataset_health_report",
-            "get_dataset_schema",
-            "range_query",
-            "get_zonal_raster_statistics",
-            "get_zonal_slope_statistics",
-            "get_zonal_land_use_distribution",
-        ],
-        "result_types": ["terrain_land_use_analysis_result"],
-        "environments": ["local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "buildability_screening",
-        "label": "建设候选演示筛选",
-        "datasets": ["admin_areas", "dem", "land_use"],
-        "tools": ["get_dataset_health_report", "get_zonal_buildability_analysis"],
-        "result_types": ["buildability_result", "buildability_comparison"],
-        "environments": ["local", "production"],
-        "geometry": "available_when_artifact_contains_features",
-    },
-    {
-        "id": "constrained_buildability_screening",
-        "label": "道路与水体约束筛选",
-        "datasets": ["admin_areas", "dem", "land_use", "roads", "water"],
-        "tools": [
-            "get_dataset_health_report",
-            "get_zonal_constrained_buildability_analysis",
-        ],
-        "result_types": ["constrained_buildability_result"],
-        "environments": ["local", "production"],
-        "geometry": "available_when_artifact_contains_features",
-    },
-    {
-        "id": "vector_summary",
-        "label": "道路与水体区域摘要",
-        "datasets": ["admin_areas", "roads", "water"],
-        "tools": ["get_dataset_health_report", "get_zonal_vector_summary"],
-        "result_types": ["zonal_vector_summary_result"],
-        "environments": ["local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "dataset_health",
-        "label": "数据健康检查",
-        "datasets": [],
-        "tools": ["get_dataset_health_report"],
-        "result_types": ["dataset_health_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "none",
-    },
-    {
-        "id": "raster_statistics",
-        "label": "栅格值统计",
-        "datasets": ["dem", "land_use"],
-        "tools": ["get_raster_statistics"],
-        "result_types": ["raster_statistics_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "none",
-    },
-    {
-        "id": "vector_query",
-        "label": "矢量要素查询",
-        "datasets": ["roads", "water"],
-        "tools": ["get_dataset_schema", "range_query"],
-        "result_types": ["vector_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "vector_relation",
-        "label": "矢量空间关系查询",
-        "datasets": ["roads", "water"],
-        "tools": ["get_dataset_schema", "spatial_join"],
-        "result_types": ["spatial_relation_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "legacy_road_slope",
-        "label": "道路邻近高坡度查询（M0 兼容）",
-        "datasets": ["roads", "slope"],
-        "tools": ["get_dataset_schema", "range_query", "spatial_join"],
-        "result_types": ["spatial_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "optional",
-    },
-    {
-        "id": "admin_raster_composite",
-        "label": "行政区栅格复合统计",
-        "datasets": ["admin_areas", "dem", "land_use"],
-        "tools": [
-            "get_dataset_health_report",
-            "get_dataset_schema",
-            "range_query",
-            "get_zonal_raster_statistics",
-        ],
-        "result_types": ["zonal_raster_statistics_result"],
-        "environments": ["memory", "local", "production"],
-        "geometry": "optional",
-    },
-)
+DATASET_TOOL_CAPABILITIES = GIS_DATASET_TOOL_CAPABILITIES
+DATASET_GROUPS = GIS_DATASET_GROUPS
+_CAPABILITIES = GIS_CAPABILITIES
 
 
 def capability_catalog(
@@ -223,6 +25,12 @@ def capability_catalog(
     dataset_capabilities: Mapping[str, Iterable[str]] | None = None,
     dataset_statuses: Mapping[str, str] | None = None,
     analysis_ready: Mapping[str, Any] | None = None,
+    capability_definitions: Iterable[Mapping[str, Any]] | None = None,
+    dataset_tool_capabilities: Mapping[str, Iterable[str]] | None = None,
+    dataset_groups: Mapping[str, Iterable[str]] | None = None,
+    domain_id: str = "gis",
+    analysis_ready_capability_ids: Iterable[str] | None = None,
+    workflow_templates: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Return a JSON-safe snapshot; callers cannot mutate the source contract."""
     has_dataset_gate = dataset_capabilities is not None
@@ -230,8 +38,22 @@ def capability_catalog(
         name: sorted(set(values))
         for name, values in (dataset_capabilities or {}).items()
     }
+    definitions = tuple(
+        _CAPABILITIES if capability_definitions is None else capability_definitions
+    )
+    tool_capabilities = (
+        DATASET_TOOL_CAPABILITIES
+        if dataset_tool_capabilities is None
+        else dataset_tool_capabilities
+    )
+    groups = DATASET_GROUPS if dataset_groups is None else dataset_groups
+    analysis_ready_ids = set(
+        analysis_ready_capability_ids
+        if analysis_ready_capability_ids is not None
+        else {"buildability_screening", "constrained_buildability_screening"}
+    )
     capabilities = []
-    for item in _CAPABILITIES:
+    for item in definitions:
         entry = deepcopy(item)
         missing = sorted(
             dataset
@@ -246,10 +68,7 @@ def capability_catalog(
         )
         analysis_required = bool((analysis_ready or {}).get("required", False))
         analysis_status = (analysis_ready or {}).get("status")
-        needs_analysis_ready = item["id"] in {
-            "buildability_screening",
-            "constrained_buildability_screening",
-        }
+        needs_analysis_ready = item["id"] in analysis_ready_ids
         if needs_analysis_ready and analysis_required and analysis_status != "ready":
             entry["dataset_gate"] = "missing"
         entry["missing_datasets"] = missing
@@ -257,7 +76,7 @@ def capability_catalog(
             entry["missing_datasets"] = sorted(
                 set(entry["missing_datasets"]) | {"analysis_ready"}
             )
-        entry["data_layer"] = _capability_data_layer(entry["datasets"])
+        entry["data_layer"] = _capability_data_layer(entry["datasets"], groups)
         entry["capability_status"] = _capability_status(
             entry["datasets"], dataset_statuses
         )
@@ -274,14 +93,19 @@ def capability_catalog(
         capabilities.append(entry)
     return {
         "version": "1.0",
+        "domain_id": str(domain_id),
         "environment": environment,
         "capabilities": capabilities,
-        "dataset_tools": deepcopy(DATASET_TOOL_CAPABILITIES),
+        "dataset_tools": deepcopy(tool_capabilities),
         "available_dataset_tools": available,
         "dataset_groups": {
-            name: list(datasets) for name, datasets in DATASET_GROUPS.items()
+            name: list(datasets) for name, datasets in groups.items()
         },
-        "workflow_templates": workflow_template_catalog(),
+        "workflow_templates": deepcopy(
+            workflow_templates
+            if workflow_templates is not None
+            else workflow_template_catalog()
+        ),
     }
 
 
@@ -340,6 +164,7 @@ def capability_context_summary(
     analysis_ready = source.get("analysis_ready")
     result = {
         "schema_version": CAPABILITY_CONTEXT_SCHEMA_VERSION,
+        "domain_id": source.get("domain_id", "unknown"),
         "catalog_version": source.get("version"),
         "environment": source.get("environment", "unknown"),
         "health_status": source.get("health_status", "unknown"),
@@ -648,11 +473,15 @@ def _safe_source_binding_summary(binding: Mapping[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _capability_data_layer(datasets: Iterable[str]) -> str:
+def _capability_data_layer(
+    datasets: Iterable[str],
+    dataset_groups: Mapping[str, Iterable[str]] | None = None,
+) -> str:
     names = set(datasets)
+    groups_source = DATASET_GROUPS if dataset_groups is None else dataset_groups
     groups = {
         group
-        for group, members in DATASET_GROUPS.items()
+        for group, members in groups_source.items()
         if names and names.issubset(set(members))
     }
     if len(groups) == 1:

@@ -2442,3 +2442,32 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 部署可靠性：Docker engine 恢复后执行当前版本 readiness、数据卷、同步/异步、SQLite 重启恢复、artifact 和 production acceptance。
 2. 产品与模型：增加更多非固定表达的脱敏/可选 live 回放，并验证澄清到计划的多轮闭环和失败修复。
 3. 数据与前端：完成真实武汉数据 provenance/对齐降级和动态 Console workspace/views/地图/轨迹的真实入口验收。
+
+## M112：Domain Pack 与数据集解耦（已完成）
+
+### 全局判断
+
+- Runtime、Planner、TaskPlan、ToolRegistry、结果契约、观测、artifact 和 HTTP 入口已经是通用 Agent Runtime 能力。
+- 但 GIS 数据集名称、GIS 能力目录、GIS discovery 和 GIS workflow context 曾集中在 `agent` 公共模块中，导致新增领域只能复制或修改核心 Runtime。
+- 本阶段把 GIS 视为默认 Domain Pack：洪山区、DEM、土地利用、道路和水体保留为真实回归数据，不再作为 Runtime 的架构前提。
+
+### 实现内容
+
+- 新增 `DomainPack` seam，Runtime 和 `build_runtime()` 支持注入领域包；默认行为仍懒加载 GIS 包，保持现有 CLI/HTTP/Console 兼容。
+- 新增 `domains/gis`，集中持有 GIS 数据集工具映射、数据分组、能力定义、GIS discovery 和 workflow context。
+- 公共 capability catalog 构造器改为接收领域能力定义、数据分组、工具映射、workflow templates 和 domain id；旧 GIS 导入名保留为兼容别名。
+- workflow context 也改由 Domain Pack 提供，非 GIS Domain Pack 不会意外获得 GIS 模板。
+- 新增非 GIS 文本领域 fake pack 和非 GIS catalog builder 回归，验证 Runtime、能力发现和 planner context 不依赖 GIS 数据集。
+
+### 当前验收证据
+
+- M112 专项 3 项通过；`full-stage`、编译和 `git diff --check` 通过。
+- 三 worker SQLite 幂等用例单独连续 20 次通过；完整离线套件在完整资源压力下偶发该既有用例失败（643 项执行、42 项跳过、1 项失败），不涉及本阶段文件，沿用开发问题记录中的并发竞态说明。
+- 本阶段未改变真实 GIS 数据文件、模型 provider 或 Docker 依赖；Docker Linux engine 仍需恢复后验收。
+
+### 下一阶段全局规划
+
+1. 先从产品、架构、数据、模型、部署、前端和测试七个维度建立跨领域能力验收矩阵，避免继续围绕单个 GIS 数据集增加功能。
+2. 将能力目录、workflow、结果类型和数据 provenance 的领域扩展点继续收敛为可验证契约，并补一个真正独立于 GIS 的最小 adapter/replay。
+3. Docker/真实环境可用时，复验 GIS Domain Pack 的 HTTP、SQLite、artifact、地图和真实模型闭环；离线 CI 仍不依赖原始数据或 live provider。
+4. 只有出现真实远程工具来源时才实现 MCP adapter；MCP 仍不能替代 ToolRegistry、schema 校验和执行治理。

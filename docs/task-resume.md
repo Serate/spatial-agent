@@ -1111,3 +1111,20 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. Docker 恢复后执行当前版本 readiness、真实数据卷、同步/异步、SQLite 重启恢复和 production acceptance。
 2. 继续扩展非固定表达回放、结构化澄清多轮闭环和受控失败修复，不增加区域专用分支。
 3. 完成真实武汉 GIS、可选真实模型和动态 Console 入口验收。
+
+## M112 已完成：Domain Pack 与数据集解耦
+
+- 已新增 `DomainPack` 接口，`AgentRuntime`/runtime factory 可注入领域包；默认 GIS 通过懒加载保持向后兼容。
+- GIS 数据集工具映射、数据分组、能力定义、discovery 和 workflow context 已迁入 `domains/gis`；`agent/capability_catalog.py` 只保留通用构造逻辑和 GIS 兼容别名。
+- catalog 构造器支持自定义 domain id、能力定义、数据组、工具映射、workflow templates 和 analysis-ready 能力集合。
+- 非 GIS fake Domain Pack、非 GIS catalog builder 和无 GIS workflow context 的 Runtime 回归已加入 `tests/test_m112_domain_pack.py`。
+- M112 专项 3 项、`full-stage`、编译和 `git diff --check` 通过；三 worker SQLite 幂等测试单独连续 20 次通过。
+- 完整离线套件在测试顺序/资源压力下再次偶发既有 M69 三 worker 用例失败，已确认不是 M112 专项回归；不要把该单次失败误判为 Domain Pack 失败，也不要删除该并发门禁。
+
+### M113 全局重规划
+
+1. 产品：用跨领域能力示例验证“自然语言请求 -> RequestFacts -> 能力发现 -> TaskPlan -> ToolRegistry -> 结果证据”的完整闭环，而不是继续增加洪山区专用分析。
+2. 架构：补真正独立于 GIS 的最小 adapter/replay，并审查 workflow、result views、provenance 和 failure/replanning 是否仍有 GIS 字段泄漏。
+3. 数据与模型：把 GIS 数据仅作为一个 Domain Pack 做真实验收；保持脱敏模型回放和真实模型可选，不把某个数据集作为 CI 前置条件。
+4. 部署与体验：Docker 恢复后重建当前版本，验证 Domain Pack 选择、HTTP/SQLite/artifact/recovery、动态 Console workspace/views 和地图证据。
+5. 测试：继续保留 GIS core 与真实数据验收，同时新增跨领域 contract harness；最大并发度保持 1。

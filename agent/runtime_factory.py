@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .dataset_catalog import DatasetCatalog
+from .domain_contract import DomainPack
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_openai_config
 from .planner import RuleBasedPlanner
@@ -28,6 +29,7 @@ def build_runtime(
     allowed_permissions: Optional[Iterable[str]] = None,
     approved_tools: Optional[Iterable[str]] = None,
     require_dependency_evidence: Optional[bool] = None,
+    domain_pack: Optional[DomainPack] = None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
     if backend_name == "local":
@@ -66,6 +68,7 @@ def build_runtime(
         memory=memory,
         observability=observability,
         backend_name=backend_name,
+        domain_pack=domain_pack,
         allowed_permissions=allowed_permissions,
         approved_tools=approved_tools,
         require_dependency_evidence=require_dependency_evidence,

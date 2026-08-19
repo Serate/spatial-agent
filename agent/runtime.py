@@ -10,11 +10,18 @@ from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimed
 from .answer_composer import AnswerComposer
 from .capability_catalog import (
     CAPABILITY_CONTEXT_SCHEMA_VERSION,
-    capability_catalog as build_capability_catalog,
     capability_context_summary,
 )
-from .capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION, CapabilityRouter
+from .capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION
 from .context_engineering import ContextBuilder, ContextPacket
+from .domain_contract import (
+    DOMAIN_DISCOVERY_SCHEMA_VERSION,
+    DomainPack,
+    default_domain_pack,
+    discovery_context,
+    selected_capability_ids,
+    workflow_context,
+)
 from .failure_contract import build_failure_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
@@ -33,7 +40,6 @@ from .tools import ToolRegistry
 from .workflow_templates import (
     WorkflowTemplateError,
     validate_workflow_plan,
-    workflow_template_context_summary,
 )
 
 
@@ -140,6 +146,7 @@ class AgentRuntime:
         memory: Optional[FactMemory] = None,
         observability: Optional[ObservabilityEmitter] = None,
         backend_name: str = "unknown",
+        domain_pack: Optional[DomainPack] = None,
         allowed_permissions: Optional[Iterable[str]] = None,
         approved_tools: Optional[Iterable[str]] = None,
         require_dependency_evidence: bool = False,
@@ -156,6 +163,7 @@ class AgentRuntime:
         self._memory = memory
         self._observability = observability
         self._backend_name = backend_name
+        self._domain_pack = domain_pack or default_domain_pack()
         # The default grant covers the repository's read-only spatial tools.
         # Custom providers must explicitly grant their own permission names.
         self._allowed_permissions = {
@@ -514,19 +522,20 @@ class AgentRuntime:
             else None
         )
         spatial_request = request_facts or parse_spatial_request(resolved_request)
-        capability_discovery = CapabilityRouter().discover(
+        capability_discovery = self._domain_pack.discover(
             resolved_request,
             spatial_request,
         )
+        discovery_payload = discovery_context(capability_discovery)
         capability_catalog = capability_context_summary(
-            catalog=build_capability_catalog(environment=self._backend_name or "unknown"),
+            catalog=self._domain_pack.capability_catalog(
+                environment=self._backend_name or "unknown"
+            ),
             tool_definitions=self._registry.definition_summary(),
             tool_provider=self._registry.provider_info(),
             tool_provider_health=self._registry.provider_health(),
             tool_governance=self._registry.governance_summary(max_tools=8),
-            selected_capability_ids=[
-                item.capability_id for item in capability_discovery.candidates[:1]
-            ],
+            selected_capability_ids=selected_capability_ids(capability_discovery)[:1],
             max_capabilities=1,
             max_tools=8,
         )
@@ -538,13 +547,10 @@ class AgentRuntime:
             available_tools=self._registry.names,
             planner_kind=type(self._planner).__name__,
             spatial_request=spatial_request.as_context_dict(),
-            capability_discovery=capability_discovery.as_context_dict(),
+            capability_discovery=discovery_payload,
             capability_catalog=capability_catalog,
             memory_section=memory_section,
-            workflow_templates=workflow_template_context_summary(
-                include_arg_shape=False,
-                compact=True,
-            ),
+            workflow_templates=workflow_context(self._domain_pack),
         )
 
     def _resolve_request(self, request: str, session_id: str) -> str:
@@ -1027,7 +1033,10 @@ def _build_plan_evidence(
     capability_section = sections.get("capability_discovery")
     capability_available = (
         isinstance(capability_section, Mapping)
-        and capability_section.get("schema_version") == CAPABILITY_DISCOVERY_SCHEMA_VERSION
+        and capability_section.get("schema_version") in {
+            CAPABILITY_DISCOVERY_SCHEMA_VERSION,
+            DOMAIN_DISCOVERY_SCHEMA_VERSION,
+        }
         and not capability_section.get("omitted")
     )
     capability_catalog_section = sections.get("capability_catalog")
