@@ -945,3 +945,14 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M119
 
 从全局证据链审计 release evidence、provenance、failure/replanning 和前端动态消费，拆分通用/GIS evidence；Docker/FastAPI 恢复后做真实生产矩阵。
+
+## 当前进度：M119 已完成
+
+- 几何降级判断已由 `ResultTypeSpec.requires_geometry` 驱动，公共结果模块不再维护独立 GIS result type 集合。
+- provenance 已版本化并记录 `domain_id`/有界通用计数；failure/replanning 维持领域无关。
+- M119 相关回归、full-stage、离线全量 650 项（42 项按环境跳过）、compileall、diff check 通过。
+- 尚存边界：result view builder 仍识别部分 GIS tool/type，provenance 仍保留旧 GIS 字段用于兼容。
+
+## 下一阶段 M120
+
+建立 Domain Pack view builder registry，并将 provenance GIS 字段转成可选领域 evidence；补前端 Text/GIS 动态结果契约后再做真实环境矩阵。

@@ -17,6 +17,7 @@ class ResultTypeSpec:
 
     title: str | None = None
     panels: tuple[str, ...] = ()
+    requires_geometry: bool = False
 
 
 class ResultContractRegistry:
@@ -51,6 +52,10 @@ class ResultContractRegistry:
     def is_registered(self, result_type: str) -> bool:
         return self.spec(result_type) is not None
 
+    def requires_geometry(self, result_type: str) -> bool:
+        spec = self.spec(result_type)
+        return bool(spec and spec.requires_geometry)
+
     def as_context(self) -> dict[str, object]:
         """Expose only JSON-safe metadata for capability/evidence consumers."""
         return {
@@ -59,6 +64,7 @@ class ResultContractRegistry:
                     "type": result_type,
                     "title": spec.title,
                     "panels": list(spec.panels),
+                    "requires_geometry": spec.requires_geometry,
                 }
                 for result_type, spec in self._specs.items()
             ],

@@ -3107,3 +3107,17 @@ M116 增加 `AgentRuntime.capability_catalog()` 和 `AgentService.capabilities()
 ### 修复与预防
 
 M118 保留有界的旧 provider 包装：正常 HTTP 请求使用 Service/Runtime，`service=None` 的隔离 handler 才使用旧 provider；GIS 数据证据由 `GisDomainPack.runtime_evidence()` 注入。以后迁移入口时必须分别测试正常 Service、无 Service 隔离、旧 patch seam 和真实生产依赖，不能只看单一路由返回值。
+
+## Provenance 只总结 GIS 字段，非 GIS 工具缺少通用证据
+
+### 现象
+
+文本 Domain Pack 可以执行并导出 artifact，但 provenance 的 `result_summary` 原先只提取行政区、CRS、栅格统计等 GIS 字段，文本工具的 `word_count`、`char_count` 等安全计数不会进入审计证据；provenance 也没有标明结果属于哪个 Domain。
+
+### 根因
+
+provenance 在 GIS-only 阶段通过固定字段白名单快速实现，随着 Domain Pack 扩展，该白名单成为隐式领域耦合。直接复制所有结果字段又会泄漏原始文本、敏感参数或大 payload，因此不能用无界序列化解决。
+
+### 修复与预防
+
+M119 为 provenance 增加版本和 `domain_id`，并只自动提取 bounded numeric `*_count` 作为通用摘要；任意文本和原始 payload 仍不自动复制。以后新增领域应优先提供安全的 evidence projection，不能把完整工具结果塞进 provenance。

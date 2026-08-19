@@ -1,6 +1,9 @@
 from typing import Any, Dict, List
 
 
+PROVENANCE_SCHEMA_VERSION = "spatial-agent.provenance.v1"
+
+
 def build_provenance(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Build a bounded, secret-free description of how a run was produced."""
     plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
@@ -9,6 +12,7 @@ def build_provenance(payload: Dict[str, Any]) -> Dict[str, Any]:
         for item in plan.get("steps", [])
         if isinstance(item, dict) and item.get("id")
     }
+    planning = payload.get("plan_evidence") if isinstance(payload.get("plan_evidence"), dict) else {}
     entries: List[Dict[str, Any]] = []
     for step in payload.get("steps", []):
         if not isinstance(step, dict):
@@ -27,6 +31,8 @@ def build_provenance(payload: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
     return {
+        "schema_version": PROVENANCE_SCHEMA_VERSION,
+        "domain_id": str(planning.get("domain_id") or "unknown")[:80],
         "run_id": payload.get("run_id"),
         "execution_policy": "fail_fast",
         "steps": entries,
@@ -59,6 +65,18 @@ def _result_summary(result: Dict[str, Any]) -> Dict[str, Any]:
     ):
         if key in result and isinstance(result[key], (str, int, float, bool, list)):
             summary[key] = result[key]
+    # Domain-neutral evidence for custom tools.  Only bounded counters are
+    # copied automatically; arbitrary text and raw tool payloads stay out of
+    # provenance unless a Domain Pack explicitly projects them.
+    for key, value in result.items():
+        if (
+            isinstance(key, str)
+            and key.endswith("_count")
+            and len(key) <= 64
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+        ):
+            summary[key] = value
     statistics = result.get("statistics")
     if isinstance(statistics, dict):
         for key in (

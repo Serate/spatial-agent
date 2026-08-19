@@ -2552,3 +2552,17 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 将 release evidence、provenance 和 failure/replanning 中剩余 GIS 语义分为通用证据与 Domain evidence，避免 HTTP snapshot 之外继续存在旁路。
 2. 在 FastAPI 依赖和 Docker 可用时执行生产 runtime snapshot、readiness、SQLite、artifact/recovery 的真实验收；不以开发 HTTP 代替生产证据。
 3. 审计前端是否完全消费 result/workspace/views/runtime evidence，补 Text/GIS 双领域动态展示契约后，再进入真实模型与真实数据组合验收。
+
+## M119 已完成：通用证据边界收敛
+
+- `ResultTypeSpec.requires_geometry` 取代公共 `result_contract.py` 中的 GIS result type 集合；几何未知降级提示现在由 Domain Pack 的结果 metadata 决定。
+- provenance 增加版本、`domain_id` 和 Domain-neutral 的有界计数摘要；不复制任意文本或原始工具 payload，保留原有 GIS 证据兼容。
+- failure/replanning 已确认本身是通用 schema，本阶段没有为 GIS 增加额外分支；Text 结果验证不会错误生成 `geometry_unknown`。
+- M119 相关定向回归、`full-stage`、离线全量 650 项（42 项按环境跳过）、编译和 `git diff --check` 通过。
+- 当前仍有 GIS view builder/tool 判断和 provenance 中的少量兼容字段；下一阶段继续下沉，不宣称公共结果模块已经完全无 GIS 语义。
+
+### M120 全局规划
+
+1. 将 result views 的 GIS tool/result type 判断继续收敛为 Domain Pack 的 view builder registry，Text 领域保持 generic view，不增加前端类型分支。
+2. 将 provenance 中 `admin_name/crs` 等领域字段变为可选 Domain evidence，同时保留旧 artifact 读取兼容。
+3. 补前端动态 workspace/views/runtime evidence 的 Text/GIS 契约测试；Docker/FastAPI/真实模型和真实数据继续作为显式验收路径。

@@ -84,6 +84,7 @@ def build_result_contract(
         steps=steps,
         geometry_evidence=geometry_evidence,
         result_type=result_type,
+        registry=registry,
     )
     replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
     workspace = _workspace_contract(
@@ -1119,22 +1120,13 @@ _RUN_STATUS_LABEL = {
     "TIMED_OUT": "超时",
 }
 
-_SPATIAL_RESULT_TYPES = {
-    "spatial_analysis_result",
-    "spatial_overview_result",
-    "terrain_land_use_analysis_result",
-    "admin_area_result",
-    "zonal_raster_statistics_result",
-    "raster_statistics_result",
-}
-
-
 def _degradation_matrix(
     payload: Dict[str, Any],
     *,
     steps: List[Any],
     geometry_evidence: Dict[str, Any],
     result_type: str,
+    registry: ResultContractRegistry,
 ) -> Dict[str, Any]:
     explicit = payload.get("degradation")
     if not isinstance(explicit, dict) and isinstance(payload.get("result"), dict):
@@ -1194,7 +1186,7 @@ def _degradation_matrix(
             str(geometry_evidence.get("reason") or "结果没有可绘制空间要素，只能查看摘要。"),
             "result.geometry",
         )
-    elif geometry_status == "unknown" and result_type in _SPATIAL_RESULT_TYPES and steps:
+    elif geometry_status == "unknown" and registry.requires_geometry(result_type) and steps:
         add(
             "geometry_unknown",
             "warning",

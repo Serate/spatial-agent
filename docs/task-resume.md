@@ -1202,3 +1202,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 拆分 release evidence/provenance/failure/replanning 的通用与 GIS evidence 边界。
 2. Docker/FastAPI 可用后执行 readiness、runtime snapshot、SQLite、artifact/recovery 的生产验收。
 3. 补前端 Text/GIS 动态 result/workspace/views/runtime evidence 契约，再做真实模型与数据组合验收。
+
+## M119 已完成
+
+- `ResultTypeSpec.requires_geometry` 已替代公共结果模块中的 GIS 类型集合，几何降级由 Domain Pack result metadata 控制。
+- provenance 增加 schema/domain id 和有界通用计数摘要；Text 结果不会生成空间几何未知告警，failure/replanning 保持通用。
+- M119 相关回归、full-stage、离线全量 650 项（42 项跳过）、编译和 diff check 通过。
+
+### M120 下一步
+
+1. 继续把 result views 的 GIS tool/type 判断下沉为 Domain Pack view registry。
+2. 将 provenance 的 GIS 字段变成可选领域 evidence，保留旧 artifact 兼容。
+3. 补前端 Text/GIS 动态展示契约，再进行真实 Docker/FastAPI/GIS/LLM 验收。

@@ -43,11 +43,21 @@ _PANELS = {
     "spatial_result": ("vector",),
 }
 
+_GEOMETRY_TYPES = {
+    "spatial_analysis_result",
+    "spatial_overview_result",
+    "terrain_land_use_analysis_result",
+    "admin_area_result",
+    "zonal_raster_statistics_result",
+    "raster_statistics_result",
+}
+
 GIS_RESULT_REGISTRY = ResultContractRegistry(
     {
         result_type: ResultTypeSpec(
             title=_TITLES[result_type],
             panels=tuple(_PANELS.get(result_type, ())),
+            requires_geometry=result_type in _GEOMETRY_TYPES,
         )
         for result_type in _TITLES
     },
