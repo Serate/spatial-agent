@@ -27,6 +27,9 @@ class DomainPack(Protocol):
     def result_registry(self) -> Any:
         """Return result titles and workspace metadata for this domain."""
 
+    def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
+        """Return optional domain-specific runtime/data evidence."""
+
     def extract_request_facts(self, request: str) -> Any:
         """Return the domain-neutral request facts for a request."""
 
@@ -122,6 +125,15 @@ def result_registry(domain_pack: DomainPack) -> Any:
     from .result_registry import default_result_registry
 
     return default_result_registry()
+
+
+def runtime_evidence(domain_pack: DomainPack, *, max_files: int = 10) -> dict[str, Any]:
+    """Read optional bounded runtime evidence without imposing a data model."""
+    method = getattr(domain_pack, "runtime_evidence", None)
+    if not callable(method):
+        return {}
+    value = method(max_files=max_files)
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def default_domain_pack() -> DomainPack:

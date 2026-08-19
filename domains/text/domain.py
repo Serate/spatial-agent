@@ -38,6 +38,14 @@ class TextDomainPack:
             fallback_title="运行结果",
         )
 
+    def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
+        return {
+            "health_status": "ready",
+            "data_readiness": "not_applicable",
+            "data_evidence": {},
+            "data_provenance": {},
+        }
+
     def extract_request_facts(self, request: str) -> RequestFacts:
         return RequestFacts(
             text=str(request or "").strip(),

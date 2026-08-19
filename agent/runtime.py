@@ -23,6 +23,7 @@ from .domain_contract import (
     discovery_context,
     extract_request_facts,
     result_registry as resolve_result_registry,
+    runtime_evidence as resolve_runtime_evidence,
     selected_capability_ids,
     workflow_context,
 )
@@ -196,6 +197,41 @@ class AgentRuntime:
             environment=self._backend_name or "unknown"
         )
         return dict(catalog) if isinstance(catalog, Mapping) else {}
+
+    def runtime_capabilities(self, *, max_files: int = 10) -> Dict[str, Any]:
+        """Return generic provider evidence plus optional domain evidence."""
+        if not isinstance(max_files, int) or max_files < 1 or max_files > 10:
+            raise ValueError("max_files must be between 1 and 10")
+        snapshot = dict(self.capability_catalog())
+        snapshot.update({
+            "domain_id": str(getattr(self._domain_pack, "domain_id", "unknown")),
+            "runtime": {
+                "backend": self._backend_name,
+                "domain_id": str(getattr(self._domain_pack, "domain_id", "unknown")),
+            },
+            "tool_provider": self._registry.provider_info(),
+            "tool_provider_health": self._registry.provider_health(),
+            "tool_governance": self._registry.governance_summary(max_tools=32),
+            "health_status": "not_evaluated",
+            "data_readiness": "not_evaluated",
+            "data_evidence": {},
+            "data_provenance": {},
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        try:
+            evidence = resolve_runtime_evidence(
+                self._domain_pack,
+                max_files=max_files,
+            )
+        except Exception:
+            evidence = {
+                "health_status": "unavailable",
+                "evidence_error_code": "domain_runtime_evidence_unavailable",
+            }
+        for key, value in evidence.items():
+            if key not in {"capabilities", "tool_provider", "tool_provider_health", "tool_governance"}:
+                snapshot[key] = value
+        return snapshot
 
     def run(
         self,

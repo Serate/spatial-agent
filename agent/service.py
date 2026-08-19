@@ -870,6 +870,17 @@ class AgentService:
         """Return the capability catalog owned by the selected Domain Pack."""
         return self._runtime(planner, backend).capability_catalog()
 
+    def runtime_capabilities(
+        self,
+        max_files: int = 10,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Return generic runtime evidence from the selected Domain Pack."""
+        return self._runtime(planner, backend).runtime_capabilities(
+            max_files=max_files
+        )
+
     def close(self) -> None:
         """Shut down the async executor and reaper, draining in-flight jobs.
 

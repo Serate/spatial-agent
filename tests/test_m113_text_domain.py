@@ -30,6 +30,25 @@ class M113TextDomainTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in catalog["capabilities"]], ["text_summary"])
         self.assertNotIn("buildability_screening", catalog["capabilities"])
 
+    def test_runtime_capabilities_keep_domain_and_provider_evidence(self):
+        runtime = build_text_runtime()
+
+        snapshot = runtime.runtime_capabilities(max_files=1)
+
+        self.assertEqual(snapshot["domain_id"], "text")
+        self.assertEqual(snapshot["runtime"]["backend"], "memory")
+        self.assertEqual(snapshot["tool_provider"]["id"], "text-native")
+        self.assertEqual(snapshot["health_status"], "ready")
+        self.assertEqual(snapshot["data_readiness"], "not_applicable")
+
+        service = AgentService(runtime_factory=_text_runtime_factory)
+        try:
+            service_snapshot = service.runtime_capabilities(max_files=1)
+        finally:
+            service.close()
+        self.assertEqual(service_snapshot["domain_id"], "text")
+        self.assertEqual(service_snapshot["tool_provider"]["id"], "text-native")
+
     def test_http_capabilities_use_selected_domain_runtime(self):
         class TextHandler(AgentApiHandler):
             service = AgentService(runtime_factory=_text_runtime_factory)

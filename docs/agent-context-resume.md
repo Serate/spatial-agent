@@ -925,3 +925,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M117
 
 抽象 runtime capability snapshot：通用 provider/tool governance 由 Runtime 提供，GIS 数据健康/覆盖/provenance 作为 Domain Pack 可选 evidence；补 production/development HTTP 双领域契约测试。
+
+## 当前进度：M117 已完成
+
+- Runtime/Service 已提供通用 runtime capability snapshot，包含 domain、backend、provider health、tool governance 和 bounded metadata。
+- Domain Pack 可选实现 runtime evidence；Text 已验证 `not_applicable`，旧 GIS runtime snapshot 兼容保留，HTTP endpoint 迁移留给 M118。
+- M117 定向 25 项、full-stage、离线全量回归、compileall、diff check 通过。
+
+## 下一阶段 M118
+
+迁移 `/capabilities/runtime` 到新 Service/Runtime seam，并将 GIS 数据健康、manifest、对齐和 provenance 作为领域证据注入；同时补开发 HTTP/生产 FastAPI 的双领域契约测试。

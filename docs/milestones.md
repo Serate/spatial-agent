@@ -2527,3 +2527,15 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 为 `/capabilities/runtime` 增加 Domain Pack 可选 runtime evidence seam：通用部分包含 provider/tool governance，GIS 才附加数据健康、覆盖和 provenance。
 2. 补 production FastAPI 与开发 HTTP 的 Text/GIS capability snapshot 契约测试；依赖缺失时保持显式跳过，不把旧宿主环境当作生产证据。
 3. 继续审计 provenance、failure/replanning 和前端动态结果消费，随后再安排 Docker/真实 GIS/真实模型验收。
+
+## M117 已完成：通用 runtime capability snapshot seam
+
+- `AgentRuntime.runtime_capabilities()` 和 `AgentService.runtime_capabilities()` 已统一输出 Domain、backend、provider health、tool governance 和有界 runtime metadata。
+- Domain Pack 可通过可选 `runtime_evidence(max_files=...)` 提供领域数据/运行证据；Text Domain Pack 已提供 `not_applicable` 数据状态，缺少该 seam 时使用通用 `not_evaluated`，异常只返回有界错误码。
+- M117 定向 25 项、`full-stage`、离线全量回归、编译和 `git diff --check` 通过；现有 GIS `runtime_capability_snapshot()` 保持兼容，尚未宣称 HTTP runtime endpoint 已完成迁移。
+
+### M118 全局规划
+
+1. 将 `/capabilities/runtime` 接入新的 Service/Runtime snapshot，同时保留 GIS 数据健康、manifest、alignment 和 provenance 的 Domain evidence。
+2. 补开发 HTTP 与生产 FastAPI 的 runtime snapshot 双领域契约测试，验证旧 GIS 客户端字段和新通用字段同时稳定。
+3. 继续审计 provenance、failure/replanning 与前端 evidence 消费，再进行 Docker/真实 GIS/真实模型验收。

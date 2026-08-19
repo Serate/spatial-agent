@@ -1178,3 +1178,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 抽象 `/capabilities/runtime` 的通用 provider/governance snapshot 与 Domain Pack 可选数据 evidence。
 2. 补生产 FastAPI 与开发 HTTP 的双领域 snapshot 契约测试。
 3. 继续处理 provenance、failure/replanning、前端动态展示，再进行 Docker/GIS/live model 验收。
+
+## M117 已完成
+
+- 新增 `AgentRuntime.runtime_capabilities()`/`AgentService.runtime_capabilities()`，统一 provider、governance、domain、backend 和通用 runtime metadata。
+- Domain Pack 可选提供 `runtime_evidence()`；Text 已返回 `not_applicable` 数据状态，旧 Domain Pack 缺少该方法时安全降级为 `not_evaluated`。
+- M117 定向 25 项、full-stage、离线全量回归、编译和 diff check 通过；旧 GIS runtime snapshot 保持兼容，HTTP runtime endpoint 留待 M118。
+
+### M118 下一步
+
+1. 迁移 `/capabilities/runtime` 到 Service/Runtime snapshot。
+2. 为 GIS Domain Pack 接入数据健康/manifest/alignment/provenance evidence，并保留旧字段。
+3. 补开发/生产 HTTP 双领域契约测试，随后做真实环境验收。
