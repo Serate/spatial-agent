@@ -138,6 +138,8 @@ class M93ProviderGovernanceTests(unittest.TestCase):
             registry,
             replan_policy=ReplanningPolicy(limit=0),
             observability=emitter,
+            allowed_permissions={"demo:read"},
+            approved_tools={"echo"},
         ).run("调用 echo")
 
         self.assertEqual(result.status.value, "FAILED")

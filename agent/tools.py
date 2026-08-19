@@ -1,4 +1,6 @@
 import re
+from threading import Event, Thread
+from time import monotonic
 from typing import Any, Callable, Dict, Iterable, Mapping, Protocol
 
 from .errors import ToolError
@@ -228,12 +230,98 @@ class ToolRegistry:
             summary[name].update(_tool_governance_summary(name, definition))
         return summary
 
-    def invoke(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    def governance_for(self, name: str) -> Dict[str, Any]:
+        """Return the bounded governance contract for one registered tool."""
+        definition = self._definitions.get(name)
+        if not isinstance(definition, Mapping):
+            raise ToolError("Unknown tool: " + str(name))
+        return _tool_governance_summary(name, definition)
+
+    def timeout_seconds(self, name: str) -> float | None:
+        """Return a declared per-tool timeout, if the tool has one."""
+        return self.governance_for(name).get("timeout_seconds")
+
+    def data_dependencies(self, name: str, arguments: Mapping[str, Any]) -> list[str]:
+        """Resolve declared dataset dependencies against call arguments."""
+        dependencies = self.governance_for(name).get("data_dependencies") or []
+        resolved = []
+        for dependency in dependencies:
+            value = str(dependency)
+            if value.startswith("$"):
+                argument_name = value[1:]
+                argument_value = arguments.get(argument_name)
+                if isinstance(argument_value, str) and argument_value:
+                    value = argument_value
+                else:
+                    continue
+            if value not in resolved:
+                resolved.append(value)
+        return resolved
+
+    def invoke(
+        self,
+        name: str,
+        arguments: Dict[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> Dict[str, Any]:
         definition = self._definitions.get(name)
         if definition is None:
             raise ToolError("Unknown tool: " + name)
         schema = definition.get("input_schema", {})
         self._validate(arguments, schema, "$")
+        effective_timeout = timeout_seconds
+        if effective_timeout is not None:
+            try:
+                effective_timeout = float(effective_timeout)
+            except (TypeError, ValueError) as exc:
+                raise ToolError("timeout_seconds must be positive") from exc
+            if effective_timeout <= 0:
+                raise ToolError("timeout_seconds must be positive")
+        if effective_timeout is None:
+            return self._invoke_unbounded(name, arguments)
+
+        # A provider may block in native code or in a network call. A daemon
+        # thread gives the Runtime a real bounded wait without making the
+        # process wait for a stuck provider during interpreter shutdown.
+        outcome: Dict[str, Any] = {}
+        completed = Event()
+
+        def dispatch() -> None:
+            try:
+                outcome["result"] = self._invoke_unbounded(name, arguments)
+            except BaseException as exc:  # propagate the provider error on caller thread
+                outcome["error"] = exc
+            finally:
+                completed.set()
+
+        Thread(
+            target=dispatch,
+            name="spatial-agent-tool-" + str(name),
+            daemon=True,
+        ).start()
+        started = monotonic()
+        if not completed.wait(effective_timeout):
+            raise ToolError(
+                "Tool execution timed out: " + name,
+                category="timeout",
+                code="tool_timeout",
+                retryable=False,
+            )
+        error = outcome.get("error")
+        if error is not None:
+            raise error
+        result = outcome.get("result")
+        if monotonic() - started > effective_timeout:
+            raise ToolError(
+                "Tool execution timed out: " + name,
+                category="timeout",
+                code="tool_timeout",
+                retryable=False,
+            )
+        return result
+
+    def _invoke_unbounded(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         handler = self._dynamic_handlers.get(name)
         if handler is not None:
             try:

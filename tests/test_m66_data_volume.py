@@ -76,6 +76,10 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("export_artifact = $true", script)
         self.assertIn("/artifacts/runs/", script)
         self.assertIn("sync_selected_capability", script)
+        self.assertIn("runtime tool provider evidence missing", script)
+        self.assertIn("spatial-agent.tool-provider-health.v1", script)
+        self.assertIn("spatial-agent.tool-governance.v1", script)
+        self.assertIn("runtime_tool_provider_health", script)
 
     @unittest.skipUnless(
         os.environ.get("SPATIAL_AGENT_RUN_M66_PRODUCTION") == "1",

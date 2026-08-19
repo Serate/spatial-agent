@@ -4,7 +4,7 @@ from threading import Lock
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Dict, Mapping, Optional, Set
+from typing import Any, Dict, Iterable, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .answer_composer import AnswerComposer
@@ -139,6 +139,9 @@ class AgentRuntime:
         memory: Optional[FactMemory] = None,
         observability: Optional[ObservabilityEmitter] = None,
         backend_name: str = "unknown",
+        allowed_permissions: Optional[Iterable[str]] = None,
+        approved_tools: Optional[Iterable[str]] = None,
+        require_dependency_evidence: bool = False,
     ):
         self._planner = planner
         self._registry = registry
@@ -152,6 +155,19 @@ class AgentRuntime:
         self._memory = memory
         self._observability = observability
         self._backend_name = backend_name
+        # The default grant covers the repository's read-only spatial tools.
+        # Custom providers must explicitly grant their own permission names.
+        self._allowed_permissions = {
+            str(item) for item in (
+                allowed_permissions
+                if allowed_permissions is not None
+                else {"spatial_data:read"}
+            ) if str(item)
+        }
+        self._approved_tools = {
+            str(item) for item in (approved_tools or []) if str(item)
+        }
+        self._require_dependency_evidence = bool(require_dependency_evidence)
         self._control_lock = Lock()
         self._cancelled_runs: Set[str] = set()
         self._run_span_ids: Dict[str, str] = {}
@@ -565,15 +581,18 @@ class AgentRuntime:
         missing = [dependency for dependency in step.depends_on if dependency not in completed]
         if missing:
             raise ToolError("Step dependencies are not complete: " + ", ".join(missing))
+        resolved_args = _resolve_result_references(step.args, completed_results)
         try:
-            self._enforce_preflight_policy(step.tool, step.args, completed_results)
+            self._enforce_preflight_policy(step.tool, resolved_args, completed_results)
         except ToolError as exc:
             step_run.status = "FAILED"
             step_run.error = str(exc)
+            step_run.error_category = getattr(exc, "category", None) or "tool_gate"
+            step_run.error_code = getattr(exc, "code", None)
+            step_run.retryable = getattr(exc, "retryable", None)
             step_run.finished_at = _utc_now()
             self._emit_step_event(run_id, step_run)
             raise
-        resolved_args = _resolve_result_references(step.args, completed_results)
         self._check_control(run_id, deadline)
         step_run.args = resolved_args
         step_run.status = "RUNNING"
@@ -583,7 +602,18 @@ class AgentRuntime:
             self._check_control(run_id, deadline)
             step_run.attempts = attempt
             try:
-                step_run.result = self._registry.invoke(step.tool, resolved_args)
+                tool_timeout = self._registry.timeout_seconds(step.tool)
+                if deadline is not None:
+                    remaining = deadline - perf_counter()
+                    if remaining <= 0:
+                        raise RunTimedOut("run exceeded timeout_seconds")
+                    if tool_timeout is not None:
+                        tool_timeout = min(float(tool_timeout), remaining)
+                step_run.result = self._registry.invoke(
+                    step.tool,
+                    resolved_args,
+                    timeout_seconds=tool_timeout,
+                )
                 step_run.status = "COMPLETED"
                 step_run.finished_at = _utc_now()
                 step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
@@ -594,7 +624,7 @@ class AgentRuntime:
                 step_run.error_category = getattr(exc, "category", None) or failure_category(str(exc))
                 step_run.error_code = getattr(exc, "code", None)
                 step_run.retryable = getattr(exc, "retryable", None)
-                if attempt > self._max_retries:
+                if exc.retryable is False or attempt > self._max_retries:
                     step_run.status = "FAILED"
                     step_run.finished_at = _utc_now()
                     step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
@@ -704,11 +734,51 @@ class AgentRuntime:
         arguments: Dict[str, Any],
         completed_results: Dict[str, Dict[str, Any]],
     ) -> None:
+        governance = self._registry.governance_for(tool)
+        required_permissions = governance.get("permissions") or []
+        missing_permissions = [
+            permission
+            for permission in required_permissions
+            if permission not in self._allowed_permissions
+            and "*" not in self._allowed_permissions
+        ]
+        if missing_permissions:
+            raise ToolError(
+                "工具权限门控阻止 {}：缺少 {}".format(
+                    tool, ", ".join(missing_permissions)
+                ),
+                category="policy",
+                code="permission_denied",
+                retryable=False,
+            )
+        if governance.get("requires_approval") and tool not in self._approved_tools:
+            raise ToolError(
+                "工具审批门控阻止 {}：该工具需要显式审批".format(tool),
+                category="policy",
+                code="approval_required",
+                retryable=False,
+            )
+
+        required_datasets = set(self._registry.data_dependencies(tool, arguments))
+        # Keep compatibility for older definitions that predate the metadata
+        # contract; new definitions should declare dependencies in their schema.
+        required_datasets.update(_required_health_datasets(tool, arguments))
         health = next(
             (value for value in completed_results.values() if value.get("capabilities") is not None),
             None,
         )
         if health is None:
+            if (
+                self._require_dependency_evidence
+                and required_datasets
+                and tool != "get_dataset_health_report"
+            ):
+                raise ToolError(
+                    "数据依赖门控阻止工具 {}：缺少数据健康证据；请先执行 get_dataset_health_report".format(tool),
+                    category="policy",
+                    code="dependency_evidence_required",
+                    retryable=False,
+                )
             if tool in _PIXEL_ALIGNMENT_TOOLS:
                 raise ToolError(
                     "像元级对齐门控阻止工具 {}：缺少 DEM/土地利用网格对齐证据".format(tool)
@@ -732,7 +802,7 @@ class AgentRuntime:
                     )
                 )
         reports = {item.get("dataset"): item for item in health.get("datasets", [])}
-        for dataset in _required_health_datasets(tool, arguments):
+        for dataset in required_datasets:
             report = reports.get(dataset) or {}
             if report.get("status") != "unavailable":
                 continue
@@ -740,7 +810,10 @@ class AgentRuntime:
             capability_text = ", ".join(capabilities) if capabilities else "无"
             raise ToolError(
                 f"数据预检阻止工具 {tool}：数据集 {dataset} 不可用；"
-                f"当前可用能力：{capability_text}。请切换到本地 GIS 后端或补充数据配置。"
+                f"当前可用能力：{capability_text}。请切换到本地 GIS 后端或补充数据配置。",
+                category="policy",
+                code="data_unavailable",
+                retryable=False,
             )
 
     def _remember(self, result: AgentRunResult) -> None:

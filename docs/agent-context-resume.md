@@ -713,6 +713,18 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 下一阶段 M93 先从全局 Runtime 盘点 provider 健康、权限/数据依赖、超时/错误分类、trace/metrics 和 HTTP/artifact/recovery 一致性，再决定是否实现真实 `MCPToolProvider`；没有真实外部工具来源时不引入 MCP 依赖。
 
+## M94 当前完成状态
+
+- `runtime_capability_snapshot()` 和 `/capabilities/runtime` 暴露有界 `tool_provider`、`tool_provider_health`、`tool_governance`，不执行业务工具；生产 acceptance 已增加对应 schema、状态和 tool count 门禁。
+- `ToolRegistry.governance_for()`、`timeout_seconds()`、`data_dependencies()` 成为 Runtime 消费工具治理的唯一 seam；权限、审批、严格依赖证据和不可用数据均在 dispatch 前门控，并保留机器可读错误分类。
+- Registry 已真正执行声明的 per-tool timeout；run-level timeout 仍为协作式步骤边界控制，避免影响既有取消/超时状态机。12 个内置工具 schema 均声明 timeout。
+- M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 项通过；stage 通过；离线全量 605 项、42 项按环境跳过；编译、schema、PowerShell 静态门禁、diff check 通过。
+- 普通 Python 环境未执行真实 GIS profile；Docker Linux engine 仍不可用，不能把旧容器 acceptance 作为 M94 当前版本证据。
+
+### M95 全局重规划入口
+
+下一阶段先盘点 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry governance、Result envelope、trace/artifact 和 HTTP 配置的重复约束，建立“规划约束 -> 执行门控 -> 结果证据”一致性矩阵，再决定应收敛哪个公共契约。没有真实远程工具来源时不引入 MCP 运行时依赖；如未来出现远程 GIS/数据库/第三方工具，仅实现满足现有 Registry contract 的 `MCPToolProvider` adapter。当前最大并发度为 1。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。

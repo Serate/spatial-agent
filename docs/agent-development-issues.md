@@ -2769,3 +2769,17 @@ M93 在 Planner 上下文中同时展开 provider 健康、完整治理工具列
 ### 处理与预防
 
 M93 将独立 `tool_governance` section 收紧为统计摘要，权限和数据依赖只保留在选中工具 schema；ContextBuilder 默认预算调整为 16,000 字符，并按“能力发现 -> 能力目录 -> 工作流模板”的顺序裁剪，工作流模板优先级最高。新增 Planner 上下文 section 必须先检查是否与现有 schema 重复，并用复杂请求测试确认 `capability_discovery`、`capability_catalog`、`workflow_templates` 和 plan evidence 同时存在。
+
+## 工具级 timeout 不能替代 run 级协作式超时
+
+### 现象
+
+M94 为 Registry 接入 per-tool timeout 后，最初把 run 的剩余时间也传成工具 timeout。已有取消/超时测试随即出现正在执行的步骤仍为 `RUNNING`，或者工具内部 timeout 被 Runtime 当成普通失败，最终状态变成 `FAILED` 而不是 `TIMED_OUT`。
+
+### 根因
+
+两个 timeout 的职责不同：工具级 timeout 是 provider dispatch 的有界等待；run-level timeout 是 Runtime 在步骤边界检查的协作式预算。把 run 剩余预算包装成工具级 timeout，会改变原有状态机和步骤完成语义，且线程无法安全强制终止正在执行的 Python/native/provider 调用。
+
+### 处理与预防
+
+Registry 只对工具声明的 `timeout_seconds` 建立有界 dispatch 等待；Runtime 的 `timeout_seconds` 继续只在规划、步骤开始和步骤结束边界检查。若未来需要让工具 timeout 触发 run 的 `TIMED_OUT`，必须先设计统一的错误分类转换和步骤状态迁移，并增加同步/异步/取消/重启恢复矩阵，不能仅修改一个 timeout 参数的传递方式。

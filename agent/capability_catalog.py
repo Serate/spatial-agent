@@ -365,6 +365,9 @@ def runtime_capability_catalog(
     health_report: Mapping[str, Any],
     *,
     environment: str = "unknown",
+    tool_provider: Mapping[str, Any] | None = None,
+    tool_provider_health: Mapping[str, Any] | None = None,
+    tool_governance: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Attach bounded data evidence to the static capability contract."""
     dataset_reports = {
@@ -422,6 +425,15 @@ def runtime_capability_catalog(
             "mismatch_count": int(manifest.get("mismatch_count") or 0),
         }
     snapshot["data_readiness"] = health_report.get("data_readiness", "ready")
+    if isinstance(tool_provider, Mapping):
+        snapshot["tool_provider"] = _safe_tool_provider_summary(tool_provider)
+    if isinstance(tool_provider_health, Mapping):
+        snapshot["tool_provider_health"] = _safe_tool_provider_health(tool_provider_health)
+    if isinstance(tool_governance, Mapping):
+        snapshot["tool_governance"] = _safe_tool_governance(
+            tool_governance,
+            max_tools=0,
+        )
     analysis_ready = health_report.get("analysis_ready")
     if isinstance(analysis_ready, Mapping):
         snapshot["analysis_ready"] = {

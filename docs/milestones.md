@@ -2091,3 +2091,27 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从全局 Runtime 盘点真实 provider adapter 的需求，先补 provider health 的 HTTP/runtime capability 暴露和生产 acceptance 检查。
 2. 加强工具权限、数据依赖和 per-tool timeout 的实际执行门控，保证治理元数据不是只读展示。
 3. 若仍没有真实外部工具来源，继续使用 fake provider/录制回放验证 MCP seam，不引入 MCP 运行时依赖。
+
+## M94：Runtime Provider 治理执行闭环（已完成）
+
+### 实现内容
+
+- `/capabilities/runtime` 和 `runtime_capability_snapshot()` 现在输出 provider 身份、健康检查和治理摘要；能力快照不会执行业务工具，manifest 或 provider 异常只返回有界 reason code。
+- `ToolRegistry` 新增 `governance_for()`、`timeout_seconds()` 和 `data_dependencies()`，Runtime 通过这一条 Registry seam 消费权限、审批、数据依赖和 per-tool timeout，不再复制 provider 规则。
+- Runtime 在工具 dispatch 前执行权限与审批门控；可选严格依赖证据模式要求先获得数据健康报告；不可用数据返回稳定的 `policy/data_unavailable` 错误分类。
+- 工具 Registry 对声明的 per-tool timeout 实际施加有界等待；run-level timeout 仍保持原有协作式步骤边界语义，避免工具级 timeout 改变取消/超时状态机。
+- 12 个内置工具 schema 声明了有界 timeout；runtime factory 支持 `SPATIAL_AGENT_PERMISSIONS`、`SPATIAL_AGENT_APPROVED_TOOLS` 和 `SPATIAL_AGENT_REQUIRE_DEPENDENCY_EVIDENCE` 配置。
+- 生产 acceptance 检查 provider health/governance schema、provider tool count 和 runtime capability 中的 provider 证据。
+
+### 验收证据
+
+- M94 专项 8 项、M92/M93 provider 回归 11 项、M37 cancellation、M60 runtime capability、M81 跨入口 contract 共 22 项通过。
+- stage profile 通过；离线全量 605 项通过、42 项按环境跳过；之前由 timeout 接入暴露的 cancellation/step-boundary 回归已修复并通过。
+- Python 编译、工具 schema JSON、PowerShell acceptance 静态契约和 `git diff --check` 通过。
+- 当前普通 Python 环境仍未执行真实 GIS profile；Docker Linux engine 仍不可用，因此不能宣称当前 M94 版本的 Docker production acceptance。
+
+### 下一阶段规划
+
+1. 从项目全局评估 RequestFacts、能力目录、工作流模板、工具治理与结果契约的重复字段，建立统一的“计划前约束 -> 执行时门控 -> 结果证据”一致性矩阵。
+2. 完善治理配置的 HTTP/生产入口暴露与安全默认值，并将门控、timeout、provider health 纳入 trace、artifact 和跨入口 normalization Harness。
+3. 仅当出现真实远程 GIS、数据库或第三方工具来源时，按同一 Registry contract 实现 MCPToolProvider；在此前继续保持 MCP 为可替换 adapter，而不是核心依赖。

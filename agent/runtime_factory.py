@@ -7,6 +7,7 @@ factory for CLI compatibility.
 
 import os
 from pathlib import Path
+from typing import Iterable, Optional
 
 from .dataset_catalog import DatasetCatalog
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
@@ -24,6 +25,9 @@ def build_runtime(
     conversation_store=None,
     memory=None,
     observability=None,
+    allowed_permissions: Optional[Iterable[str]] = None,
+    approved_tools: Optional[Iterable[str]] = None,
+    require_dependency_evidence: Optional[bool] = None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
     if backend_name == "local":
@@ -43,6 +47,17 @@ def build_runtime(
         planner = LLMPlanner(OpenAIPlannerClient(**load_openai_config()), registry.names)
     else:
         planner = RuleBasedPlanner()
+    if allowed_permissions is None:
+        allowed_permissions = _csv_env("SPATIAL_AGENT_PERMISSIONS") or {
+            "spatial_data:read"
+        }
+    if approved_tools is None:
+        approved_tools = _csv_env("SPATIAL_AGENT_APPROVED_TOOLS")
+    if require_dependency_evidence is None:
+        require_dependency_evidence = _bool_env(
+            "SPATIAL_AGENT_REQUIRE_DEPENDENCY_EVIDENCE",
+            default=False,
+        )
     return AgentRuntime(
         planner,
         registry,
@@ -51,4 +66,19 @@ def build_runtime(
         memory=memory,
         observability=observability,
         backend_name=backend_name,
+        allowed_permissions=allowed_permissions,
+        approved_tools=approved_tools,
+        require_dependency_evidence=require_dependency_evidence,
     )
+
+
+def _csv_env(name: str) -> set[str]:
+    value = os.environ.get(name, "")
+    return {item.strip() for item in value.split(",") if item.strip()}
+
+
+def _bool_env(name: str, *, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}

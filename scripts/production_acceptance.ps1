@@ -42,6 +42,30 @@ function Assert-RuntimeCapabilitySnapshot($snapshot) {
   if ($snapshot.health_status -notin @("ready", "degraded", "unavailable", "unknown")) {
     throw "runtime capability health_status invalid: $($snapshot.health_status)"
   }
+  if ($null -eq $snapshot.tool_provider) {
+    throw "runtime tool provider evidence missing"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$snapshot.tool_provider.id)) {
+    throw "runtime tool provider id missing"
+  }
+  if ($null -eq $snapshot.tool_provider_health) {
+    throw "runtime tool provider health missing"
+  }
+  if ($snapshot.tool_provider_health.schema_version -ne "spatial-agent.tool-provider-health.v1") {
+    throw "runtime tool provider health schema mismatch"
+  }
+  if ($snapshot.tool_provider_health.status -notin @("ready", "degraded", "unavailable", "unknown")) {
+    throw "runtime tool provider health status invalid"
+  }
+  if ($null -eq $snapshot.tool_governance) {
+    throw "runtime tool governance evidence missing"
+  }
+  if ($snapshot.tool_governance.schema_version -ne "spatial-agent.tool-governance.v1") {
+    throw "runtime tool governance schema mismatch"
+  }
+  if ([int]$snapshot.tool_provider.tool_count -lt 1) {
+    throw "runtime tool provider has no registered tools"
+  }
 
   $capabilities = @($snapshot.capabilities)
   if ($capabilities.Count -lt 1) { throw "runtime capability list is empty" }
@@ -355,6 +379,9 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   optional_missing_datasets = @($dataVolume.optional_missing)
   runtime_capability_count = @($runtimeCapabilities.capabilities).Count
   runtime_updated_at = $runtimeCapabilities.updated_at
+  runtime_tool_provider = $runtimeCapabilities.tool_provider.id
+  runtime_tool_provider_health = $runtimeCapabilities.tool_provider_health.status
+  runtime_tool_count = $runtimeCapabilities.tool_provider.tool_count
   preview_status = $preview.status
   preview_fingerprint_version = $preview.plan_identity.version
   sync_status = $syncRun.status

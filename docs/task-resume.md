@@ -941,3 +941,11 @@ M93 已完成 provider 治理基础闭环：Native provider 健康检查、Regis
 M93 验证：专项 6 项、M92/M81 相关回归 14 项通过；离线全量 597 项通过、42 项按环境跳过；quick、stage、Python 编译和 `git diff --check` 通过。GIS profile 仍因当前普通 Python 环境缺少真实 GIS 依赖/数据而跳过；Docker Linux engine 仍不可用，当前版本 production acceptance 尚未执行。
 
 下一阶段 M94 从全局角度评估 provider health/runtime capability 暴露、权限/数据依赖实际门控和 per-tool timeout 执行，再决定是否需要真实 `MCPToolProvider`；没有外部工具来源时不增加 MCP 运行时依赖。
+
+## M94 当前完成状态
+
+M94 已完成 provider 治理的执行闭环：runtime capability snapshot 暴露 `tool_provider`、`tool_provider_health` 和 `tool_governance`；生产 acceptance 校验这些 schema 和 tool count。`ToolRegistry` 提供单工具治理读取接口，Runtime 在 dispatch 前执行权限、审批和可选严格数据依赖证据门控；不可用数据保留 `policy/data_unavailable` 分类。工具声明的 `timeout_seconds` 已在 Registry 真实执行，run-level timeout 仍保持步骤边界语义。12 个内置工具均声明了 timeout，runtime factory 支持权限/审批/依赖证据环境配置。
+
+M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 项通过；stage 通过；离线全量 605 项通过、42 项按环境跳过；编译、schema、PowerShell 静态契约和 diff check 通过。普通 Python 环境下真实 GIS 仍按依赖条件跳过，Docker Linux engine 仍未恢复，不能引用旧容器作为当前版本生产证据。
+
+下一阶段 M95 必须先进行全局盘点：统一 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry governance 和 Result envelope 中重复的约束字段，建立计划证据与执行门控的一致性矩阵；随后补 HTTP/生产配置与 trace/artifact normalization。没有真实外部工具来源时不实现 MCP 运行时依赖，只保留未来 `MCPToolProvider` adapter seam。当前最大并发度为 1，默认 quick/stage 离线。
