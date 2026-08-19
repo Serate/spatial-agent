@@ -3001,3 +3001,17 @@ M110 将生产 `production_acceptance.ps1` 接入统一 Contract Harness 时，�
 ### 处理与预防
 
 M110 在 `contract_harness_check.py` 中显式加入仓库根目录导入路径，并支持单个 JSON 数组文件；PowerShell 使用 UTF-8 临时文件和 `ConvertTo-Json -InputObject @($payloads)`，再由同一 Python Harness 比较同步结果与 artifact。新增了等价、差异、真实 Service/artifact 和脚本调用回归。以后跨语言验收必须显式固定导入根目录、UTF-8 编码和 JSON 容器形状，不能假设 shell 管道会保留数组边界。
+
+## 结构化澄清丢失能力目录中文标签
+
+### 现象
+
+开放式空间请求进入 `NEEDS_CLARIFICATION` 后，后端返回了能力 ID，但前端用于显示中文名称的 `suggested_capability_details` 为空；能力分类函数本身已经生成了目录详情，问题只在最终澄清对象中看不到。
+
+### 根因
+
+`classify_spatial_intent()` 返回了能力目录详情，但 `clarification_details()` 只复制了 `suggested_capabilities`、`missing` 和 `next_actions`，没有把目录详情继续传到 Runtime、result envelope 和 HTTP。前端因此只能尝试用 ID 兜底，形成了重复的能力标签映射风险。
+
+### 处理与预防
+
+M111 为澄清对象增加 `spatial-agent.clarification.v1`、有界的 `suggested_capability_details` 和 `matched_capability_details`，标签继续来自 CapabilityCatalog；Service、HTTP、result envelope 和计划预览均增加跨入口回归。以后结构化澄清新增字段必须检查“意图分类 -> Runtime 异常 -> result envelope/持久化 -> HTTP/Console”的完整链路，不能只在分类函数中增加字段。

@@ -1099,3 +1099,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. Docker 恢复后执行当前版本 readiness、数据卷、同步/异步、SQLite 恢复和跨入口 production acceptance。
 2. 从整体 Runtime 继续扩展结构化澄清、能力发现和受控失败修复，复用 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry 与 Result contract。
 3. 之后进行真实武汉 GIS、可选真实模型和动态 Console 验收；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M111 已完成
+
+- 结构化澄清增加 `spatial-agent.clarification.v1`，保留 CapabilityCatalog 的中文标签和有界候选详情，修复前端只能显示能力 ID 的问题。
+- Service 与 HTTP 的未注册空间能力澄清一致；“请概括江夏区的道路和水体分布”的计划预览在 Service 与 HTTP 之间保持一致。
+- M111 专项 2 项、空间意图/HTTP 回归通过；真实 Docker/FastAPI 仍未执行，原因是 Docker Linux engine named pipe 不可用。
+
+### 下一阶段
+
+1. Docker 恢复后执行当前版本 readiness、真实数据卷、同步/异步、SQLite 重启恢复和 production acceptance。
+2. 继续扩展非固定表达回放、结构化澄清多轮闭环和受控失败修复，不增加区域专用分支。
+3. 完成真实武汉 GIS、可选真实模型和动态 Console 入口验收。

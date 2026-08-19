@@ -2427,3 +2427,18 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 部署可靠性：Docker engine 恢复后重建当前版本，执行 readiness、核心/可选数据卷、同步/异步、SQLite 重启恢复和生产 acceptance，确认新 Harness 在真实 HTTP/artifact 边界工作。
 2. 产品能力：扩展开放式请求的结构化澄清、能力发现和受控失败修复，不增加区域专用分支。
 3. 数据与前端：补真实武汉数据 provenance/对齐降级和动态 Console workspace/views/地图/轨迹验收；真实模型继续作为显式 live 路径。
+
+## M111：开放式能力澄清与预览契约（已完成）
+
+### 实现与验收
+
+- 结构化澄清现在输出版本化 `spatial-agent.clarification.v1`，并携带来自 CapabilityCatalog 的中文能力标签、匹配能力详情、候选能力详情和有界下一步动作。
+- 修复能力分类信息在 `clarification_details` 中丢失的问题，避免 Console 只能显示能力 ID；没有新增区域或问题专用分支。
+- 新增开放式未注册能力的 Service/HTTP 澄清一致性测试，以及“江夏区道路和水体分布”计划预览的 Service/HTTP 一致性测试。
+- M111 专项 2 项、既有空间意图/HTTP 回归、full-stage 和完整离线回归通过；Docker/FastAPI 真实生产验收仍待宿主环境恢复。
+
+### 下一阶段全局规划
+
+1. 部署可靠性：Docker engine 恢复后执行当前版本 readiness、数据卷、同步/异步、SQLite 重启恢复、artifact 和 production acceptance。
+2. 产品与模型：增加更多非固定表达的脱敏/可选 live 回放，并验证澄清到计划的多轮闭环和失败修复。
+3. 数据与前端：完成真实武汉数据 provenance/对齐降级和动态 Console workspace/views/地图/轨迹的真实入口验收。

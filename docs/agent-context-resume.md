@@ -860,3 +860,15 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 1. Docker engine 恢复后重建当前版本，执行 readiness、真实数据卷、同步/异步、SQLite 重启恢复和 production acceptance。
 2. 从全局 Agent Runtime 角度扩展结构化澄清、能力发现和受控失败修复，不增加区域专用分支。
 3. 恢复可控浏览器后完成动态 workspace、views、地图、轨迹和会话清空验收；无真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M111 已完成
+
+- `agent/spatial_intent.py` 的结构化澄清现在输出 `spatial-agent.clarification.v1`、CapabilityCatalog 中文标签、匹配/候选能力详情和有界下一步动作。
+- 修复分类结果到最终 clarification 的字段丢失；Service、HTTP、result envelope 和开放式计划预览回归通过。
+- Docker Linux engine 仍无法连接 `dockerDesktopLinuxEngine` named pipe；真实 FastAPI/Docker 和动态浏览器验收继续保持未宣称状态。
+
+## M112 下一步
+
+1. Docker engine 恢复后重建当前版本，执行 readiness、数据卷、同步/异步、SQLite 恢复、artifact 和生产 acceptance。
+2. 从全局 Agent Runtime 角度扩展非固定表达回放、结构化澄清多轮闭环和受控失败修复。
+3. 完成真实武汉 GIS、可选真实模型与动态 Console 的统一入口验收；无真实远程工具来源时不引入 MCP 运行时依赖。

@@ -14,6 +14,7 @@ _HINTS = (
     ("vector_summary", ("道路", "路网", "水体", "河流", "湖泊")),
     ("constrained_buildability_screening", ("距离道路", "避开水体", "道路附近")),
 )
+_HINT_CAPABILITY_IDS = {capability_id for capability_id, _ in _HINTS}
 
 _SPATIAL_TERMS = tuple(
     sorted(
@@ -28,10 +29,17 @@ _SPATIAL_TERMS = tuple(
     )
 )
 
+CLARIFICATION_SCHEMA_VERSION = "spatial-agent.clarification.v1"
+
 
 def classify_spatial_intent(request: str) -> Dict[str, Any]:
     """Return bounded hints without claiming that a capability was executed."""
     text = str(request or "").strip()
+    suggested_details = [
+        item
+        for item in capability_suggestions()
+        if item.get("id") in _HINT_CAPABILITY_IDS
+    ]
     matched: List[str] = []
     matched_terms: List[str] = []
     for capability_id, terms in _HINTS:
@@ -44,8 +52,8 @@ def classify_spatial_intent(request: str) -> Dict[str, Any]:
         "is_spatial": is_spatial,
         "matched_capabilities": matched,
         "matched_terms": sorted(set(matched_terms), key=len, reverse=True)[:8],
-        "suggested_capabilities": [item[0] for item in _HINTS],
-        "suggested_capability_details": capability_suggestions(),
+        "suggested_capabilities": [item["id"] for item in suggested_details],
+        "suggested_capability_details": suggested_details,
     }
 
 
@@ -69,6 +77,12 @@ def clarification_message(request: str) -> str:
 def clarification_details(request: str) -> Dict[str, Any]:
     """Return UI/API-safe next actions for an unresolved spatial request."""
     intent = classify_spatial_intent(request)
+    catalog_details = [
+        item
+        for item in intent.get("suggested_capability_details", [])
+        if isinstance(item, dict) and item.get("id") and item.get("label")
+    ][:16]
+    catalog_by_id = {str(item["id"]): item for item in catalog_details}
     if intent["matched_capabilities"]:
         missing = ["区域或行政区"]
         if any(item in intent["matched_capabilities"] for item in ("zonal_raster_statistics", "zonal_terrain_land_use")):
@@ -82,10 +96,17 @@ def clarification_details(request: str) -> Dict[str, Any]:
         next_actions = ["补充" + "、".join(missing), "或从能力目录选择一个空间能力"]
         state = "unmatched_spatial_capability"
     return {
+        "schema_version": CLARIFICATION_SCHEMA_VERSION,
         "state": state,
         "is_spatial": bool(intent["is_spatial"]),
         "matched_capabilities": list(intent["matched_capabilities"]),
         "suggested_capabilities": list(intent["suggested_capabilities"]),
-        "missing": missing,
-        "next_actions": next_actions,
+        "matched_capability_details": [
+            catalog_by_id[item]
+            for item in intent["matched_capabilities"]
+            if item in catalog_by_id
+        ][:8],
+        "suggested_capability_details": catalog_details,
+        "missing": missing[:8],
+        "next_actions": next_actions[:8],
     }
