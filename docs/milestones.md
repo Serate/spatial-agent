@@ -2609,6 +2609,21 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 3. 从部署和数据质量维度复验 domain capability snapshot、降级、artifact 和 SQLite 恢复；在 Docker/FastAPI/真实数据可用时执行生产矩阵。
 4. 继续保持 Planner/Runtime/ToolRegistry 的稳定 seam，禁止为具体区域、数据集或页面显示新增公共规则。
 
+## M124 已完成：Domain-owned Action seam 与非 GIS 完整回放
+
+- 新增通用 `DomainActionSpec`、Action catalog 和显式 Domain Pack dispatch；GIS 的三个建设筛选对比动作由 `domains/gis/actions.py` 声明，未注册动作不能执行，Text Domain Pack 不泄漏 GIS action。
+- 开发 HTTP 与生产 FastAPI 均提供 `/actions` 和 `/actions/{action_id}`；原比较路由保留为兼容 wrapper，不再是前端主路径。
+- Console 先读取当前 Domain Pack 的 action catalog，再统一调用 action dispatch；比较结果继续通过既有 `ViewSpec`/chart renderer 展示，没有新增 GIS 专用公共 Runtime 分支。
+- Text Domain Pack 已完成 Service、HTTP、artifact、recovery 和 Contract Harness replay，验证 generic workspace、domain_id、结果类型和跨入口一致性。
+- M124 专项与 Console 回归 24 项、全量离线测试 659 项通过（42 项按环境跳过），Node 内联脚本语法、`git diff --check` 通过。
+
+### M125 全局规划
+
+1. 从公共 Runtime 领域泄漏审计开始，优先将 `agent/answer_composer.py`、GIS 数据健康/analysis-ready 规则和兼容 catalog 默认值收敛为 Domain Pack provider；保留显式 GIS bootstrap 与旧 artifact 读取兼容。
+2. 为 Domain action 增加通用输入 schema 校验、错误 envelope、观测和 artifact/recovery 证据，使 action 与 tool 一样具有清晰的执行契约，但不把 action 反射成任意 Service 方法。
+3. 让前端能力、action、workspace view 和结果 evidence 统一来自 Runtime snapshot；GIS 示例与控件作为可选 Domain 配置，验证 Text/第二非 GIS pack 不出现 GIS 语义。
+4. 在数据质量、真实模型、部署和用户体验维度做跨入口回归矩阵；真实武汉数据只作为 GIS Domain evidence，默认 CI 仍离线可复现。
+
 ## M120 已完成：Domain-owned view builder seam
 
 - `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。

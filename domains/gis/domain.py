@@ -8,6 +8,7 @@ from agent.capability_catalog import capability_catalog
 from agent.capability_routing import CapabilityRouter
 from agent.workflow_templates import workflow_template_catalog, workflow_template_context_summary
 from agent.request_model import parse_spatial_request
+from agent.domain_contract import domain_action_catalog
 
 from .catalog import (
     GIS_CAPABILITIES,
@@ -20,6 +21,16 @@ class GisDomainPack:
     """Provide GIS discovery/catalog behavior without embedding it in Runtime."""
 
     domain_id = "gis"
+
+    def action_specs(self):
+        from .actions import GIS_ACTION_SPECS
+
+        return GIS_ACTION_SPECS
+
+    def execute_action(self, action_id: str, payload: Mapping[str, Any], *, context: Any = None):
+        from .actions import execute_action
+
+        return execute_action(action_id, payload, service=context)
 
     def answer_composer(self) -> Any:
         from agent.answer_composer import AnswerComposer
@@ -73,6 +84,7 @@ class GisDomainPack:
             dataset_tool_capabilities=GIS_DATASET_TOOL_CAPABILITIES,
             dataset_groups=GIS_DATASET_GROUPS,
             workflow_templates=workflow_template_catalog(),
+            actions=domain_action_catalog(self),
         )
         result = dict(catalog)
         result["domain_id"] = self.domain_id

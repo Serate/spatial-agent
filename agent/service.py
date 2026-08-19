@@ -886,6 +886,47 @@ class AgentService:
         """Return the capability catalog owned by the selected Domain Pack."""
         return self._runtime(planner, backend).capability_catalog()
 
+    def actions(
+        self,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Return the bounded actions declared by the selected Domain Pack."""
+        runtime = self._runtime(planner, backend)
+        resolver = getattr(runtime, "domain_actions", None)
+        if not callable(resolver):
+            return {
+                "schema_version": "spatial-agent.actions.v1",
+                "domain_id": "unknown",
+                "actions": [],
+            }
+        value = resolver()
+        return dict(value) if isinstance(value, dict) else {
+            "schema_version": "spatial-agent.actions.v1",
+            "domain_id": "unknown",
+            "actions": [],
+        }
+
+    def execute_action(
+        self,
+        action_id: str,
+        payload: Dict[str, Any],
+        planner: str = "rule",
+        backend: str = "local",
+    ) -> Dict[str, Any]:
+        """Execute a declared Domain Pack action through the Runtime seam."""
+        runtime = self._runtime(planner, backend)
+        resolver = getattr(runtime, "execute_domain_action", None)
+        if not callable(resolver):
+            raise ValueError("domain action execution is unavailable")
+        result = resolver(action_id, payload, context=self)
+        if not isinstance(result, dict):
+            raise ValueError("domain action must return an object")
+        response = dict(result)
+        response.setdefault("action_id", str(action_id)[:96])
+        response.setdefault("action_schema_version", "spatial-agent.actions.v1")
+        return response
+
     def runtime_capabilities(
         self,
         max_files: int = 10,

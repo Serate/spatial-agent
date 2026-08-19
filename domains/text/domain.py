@@ -19,6 +19,12 @@ from .catalog import (
 class TextDomainPack:
     domain_id = "text"
 
+    def action_specs(self):
+        return ()
+
+    def execute_action(self, action_id: str, payload: Mapping[str, Any], *, context: Any = None):
+        raise ValueError("unknown text action: " + str(action_id))
+
     def answer_composer(self) -> Any:
         from .composer import TextAnswerComposer
 
@@ -65,6 +71,11 @@ class TextDomainPack:
             dataset_groups=TEXT_DATASET_GROUPS,
             analysis_ready_capability_ids=(),
             workflow_templates={},
+            actions={
+                "schema_version": "spatial-agent.actions.v1",
+                "domain_id": self.domain_id,
+                "actions": [],
+            },
         )
 
     def discover(self, request: str, request_facts: Any) -> Mapping[str, Any]:

@@ -65,7 +65,7 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         )
 
         self.assertIn('id="compareRegions"', source)
-        self.assertIn("/region-comparisons", source)
+        self.assertIn("gis.buildability_region_comparison", source)
         self.assertIn("compareRegions()", source)
 
     def test_console_exposes_constrained_distance_comparison(self):
@@ -75,7 +75,7 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
 
         self.assertIn('id="constrainedCompareButton"', source)
         self.assertIn('id="constrainedRoadDistances"', source)
-        self.assertIn("/constrained-comparisons", source)
+        self.assertIn("gis.constrained_buildability_comparison", source)
         self.assertIn("compareConstrained()", source)
         self.assertIn("monotonic_eligible_features", source)
 

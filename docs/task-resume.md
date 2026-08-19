@@ -1264,3 +1264,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 2. 增加第二个完整非 GIS Domain Pack replay，覆盖 Service、HTTP、artifact、recovery、generic Console 和 Contract Harness。
 3. 复验 Docker/FastAPI/真实 GIS 数据、SQLite 恢复、能力快照、降级证据和可选真实模型路径。
 4. 以项目整体验收重新规划下一阶段，继续保持单线程、离线 CI、不提交私有配置和中文问题记录。
+
+## 当前 M124 已完成
+
+- `DomainActionSpec`、action catalog 和显式 Domain Pack action dispatch 已接入 Runtime、Service、开发 HTTP 与生产 FastAPI。
+- GIS comparison 已通过三个 Domain-owned action 声明；旧比较路由仅作为兼容 wrapper。
+- Console 已加载 `/actions`，通过 `executeDomainAction()` 调用动作；页面不再直接调用旧 comparison 路由。
+- Text Domain Pack 的 HTTP、artifact、recovery、generic Console 和 Contract Harness replay 已通过；Text action catalog 为空且不包含 GIS 语义。
+- 验证：M124/Console 24 项通过；离线全量 659 项通过，42 项按环境跳过；Node inline script syntax、`git diff --check` 通过。
+
+## 下一阶段 M125
+
+以项目整体为基准收口公共 Runtime 的领域耦合：先迁移答案组合、数据健康和 analysis-ready 的 Domain provider，再补通用 Action schema/error/observability contract；同时让 Console 只消费 Runtime snapshot、action catalog、ViewSpec 和 result evidence。完成后用 Text/第二非 GIS Domain Pack、GIS 真实数据、artifact/recovery、HTTP/生产入口和可选真实模型做矩阵验收。

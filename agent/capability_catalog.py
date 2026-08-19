@@ -31,6 +31,7 @@ def capability_catalog(
     domain_id: str = "gis",
     analysis_ready_capability_ids: Iterable[str] | None = None,
     workflow_templates: Mapping[str, Any] | None = None,
+    actions: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Return a JSON-safe snapshot; callers cannot mutate the source contract."""
     has_dataset_gate = dataset_capabilities is not None
@@ -106,6 +107,11 @@ def capability_catalog(
             if workflow_templates is not None
             else workflow_template_catalog()
         ),
+        "actions": deepcopy(actions) if isinstance(actions, Mapping) else {
+            "schema_version": "spatial-agent.actions.v1",
+            "domain_id": str(domain_id),
+            "actions": [],
+        },
     }
 
 
@@ -176,6 +182,11 @@ def capability_context_summary(
         "tool_schemas": tool_schemas,
         "tool_schema_count": len(tool_schemas),
         "dataset_groups": deepcopy(source.get("dataset_groups") or {}),
+        "actions": deepcopy(source.get("actions") or {
+            "schema_version": "spatial-agent.actions.v1",
+            "domain_id": source.get("domain_id", "unknown"),
+            "actions": [],
+        }),
     }
     if tool_provider is not None:
         result["tool_provider"] = _safe_tool_provider_summary(tool_provider)

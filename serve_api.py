@@ -58,6 +58,15 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             else:
                 self._write_json(200, self.service.capabilities(planner=planner, backend=backend))
             return
+        if parsed.path == "/actions":
+            query = parse_qs(parsed.query)
+            planner = query.get("planner", ["rule"])[0]
+            backend = query.get("backend", ["memory"])[0]
+            if self.service is None:
+                self._write_json(503, {"error": "service unavailable"})
+            else:
+                self._write_json(200, self.service.actions(planner=planner, backend=backend))
+            return
         if parsed.path == "/workflows":
             self._write_json(200, {"templates": workflow_template_catalog()})
             return
@@ -175,6 +184,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_comparison = parsed.path == "/comparisons"
         is_region_comparison = parsed.path == "/region-comparisons"
         is_constrained_comparison = parsed.path == "/constrained-comparisons"
+        is_domain_action = parsed.path.startswith("/actions/")
         is_tool_register = parsed.path == "/tools"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
@@ -184,7 +194,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_tool_register and not is_session_create and not is_session_clear and workflow_action is None:
+        if parsed.path != "/runs" and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
@@ -212,6 +222,17 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 result = self.service.compare_buildability_regions(**region_comparison_kwargs(payload))
             elif is_constrained_comparison:
                 result = self.service.compare_constrained_buildability(**constrained_comparison_kwargs(payload))
+            elif is_domain_action:
+                action_id = parsed.path[len("/actions/") :].strip("/")
+                if not action_id:
+                    self._write_json(404, {"error": "not found"})
+                    return
+                result = self.service.execute_action(
+                    action_id,
+                    payload,
+                    planner=payload.get("planner", "rule"),
+                    backend=payload.get("backend", "local"),
+                )
             elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")
                 expected_action = "retry" if is_retry else "cancel"

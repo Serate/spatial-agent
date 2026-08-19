@@ -3149,3 +3149,17 @@ M122 将 GIS builder 整体下沉后，在公共 `result_contract.py` 仅保留 
 ### 修复与预防
 
 M123 删除 `needsRaster`、`local_gis_backend` 和固定数据集词汇的发送前预判，仅保留空请求和通用模型配置检查；具体能力、数据依赖和降级说明由 Service/Runtime 返回结构化结果。以后前端不得依据领域关键词决定请求是否可执行；如需提前提示，应消费 `/capabilities` 或 result envelope 的通用 capability/degradation 字段。
+
+## Domain Action 已接入但前端仍绕过通用 seam
+
+### 现象
+
+M124 后端已经提供 Domain-owned action catalog 和 `/actions/{action_id}`，但 Console 的三个比较按钮仍直接调用旧 comparison 路由。这样新增 Domain Pack 时，前端仍依赖 GIS 专用 URL，后端的通用 action seam 只是表面兼容层。
+
+### 根因
+
+旧 comparison 路由同时承担了 Service adapter 和页面调用契约；新增 action metadata 时只迁移了 HTTP 后端，却没有同步迁移前端的发现与 dispatch 流程。页面因而无法根据当前 Domain Pack 的 catalog 判断动作是否存在，也无法验证动作输入契约。
+
+### 修复与预防
+
+M124 让 Console 启动时读取 `/actions`，通过有界 catalog 校验动作已由当前 Domain Pack 声明，再统一 POST `/actions/{action_id}`；旧路由保留为兼容 wrapper。以后新增领域动作必须同时验证“Domain spec -> Runtime dispatch -> HTTP -> Console catalog/dispatch -> 结果 view/artifact”的链路，不能只增加一个后端 URL；动作执行也不能通过任意 Service 方法反射。

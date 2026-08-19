@@ -104,6 +104,11 @@ def capabilities(
     return service.capabilities(planner=planner, backend=backend)
 
 
+@app.get("/actions")
+def actions(planner: str = "rule", backend: str = "memory") -> Dict[str, Any]:
+    return service.actions(planner=planner, backend=backend)
+
+
 @app.get("/capabilities/runtime")
 def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
     try:
@@ -314,6 +319,19 @@ def compare_regions(payload: Dict[str, Any]):
 def compare_constrained(payload: Dict[str, Any]):
     try:
         return service.compare_constrained_buildability(**constrained_comparison_kwargs(payload))
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/actions/{action_id}")
+def execute_action(action_id: str, payload: Dict[str, Any]):
+    try:
+        return service.execute_action(
+            action_id,
+            payload,
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "local"),
+        )
     except Exception as exc:
         _raise_for(exc)
 

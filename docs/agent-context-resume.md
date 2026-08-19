@@ -1007,3 +1007,18 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 2. 增加第二个完整非 GIS Domain Pack replay，跨 Service、HTTP、artifact、recovery、generic Console 和 Contract Harness 验证。
 3. 复验能力快照、数据质量降级、SQLite 恢复以及 Docker/FastAPI/真实数据/真实模型生产路径。
 4. 继续以全局产品、架构、数据、模型、部署、前端和测试证据重规划，不因单一数据集细节改变公共 Runtime 方向。
+
+## M124 收尾状态
+
+- M124 已完成。`DomainActionSpec` 和 Domain-owned action catalog/dispatch 已接入 Runtime、Service、开发 HTTP、生产 FastAPI；GIS comparison 动作已从旧路径收敛到 `domains/gis/actions.py`。
+- Console 已先读取 `/actions`，再调用通用 `/actions/{action_id}`；旧 GIS comparison 路由仍保留兼容，但不再被前端主流程调用。
+- Text Domain Pack 已完成 HTTP、artifact、recovery、generic Console 和 Contract Harness replay；其 action catalog 为空，能力目录和 workspace 不泄漏 GIS action。
+- M124 专项与 Console 回归 24 项通过；离线全量 659 项通过、42 项按环境跳过；Node 内联脚本、`git diff --check` 通过。
+- 当前未完成的整体问题仍是公共 `agent/` 中的 GIS 兼容实现、GIS 数据健康/analysis-ready 规则和答案组合；它们应在 M125 继续下沉到 Domain provider，不应通过新增区域或数据集分支解决。
+
+## M125 全局规划
+
+1. 公共 Runtime 领域解耦：收口 answer composer、数据健康、analysis-ready、provenance/release evidence 的 Domain seam，保持显式 GIS bootstrap 和旧 artifact 兼容。
+2. Action 工程契约：增加 bounded input schema 校验、结构化错误、trace/observability、artifact/recovery 一致性，禁止任意 Service 反射 dispatch。
+3. Console 与部署：能力/action/view/evidence 全部消费 Runtime snapshot；验证非 GIS pack 的 HTTP、生产入口、SQLite、artifact 和前端 generic path。
+4. 全局验收：覆盖产品闭环、架构替换、真实数据降级、真实模型可选 live、部署可靠性、前端体验和离线 CI；保持最大并发度 1。

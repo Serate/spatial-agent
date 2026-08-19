@@ -23,6 +23,8 @@ from .domain_contract import (
     discovery_context,
     extract_request_facts,
     result_registry as resolve_result_registry,
+    domain_action_catalog,
+    execute_domain_action,
     runtime_evidence as resolve_runtime_evidence,
     selected_capability_ids,
     workflow_context,
@@ -191,6 +193,25 @@ class AgentRuntime:
         """Return the result metadata registry selected by this Domain Pack."""
         return self._result_registry
 
+    def domain_actions(self) -> Dict[str, Any]:
+        """Return the selected Domain Pack's bounded action catalog."""
+        return domain_action_catalog(self._domain_pack)
+
+    def execute_domain_action(
+        self,
+        action_id: str,
+        payload: Mapping[str, Any],
+        *,
+        context: Any = None,
+    ) -> Any:
+        """Execute a declared action through the Domain Pack seam."""
+        return execute_domain_action(
+            self._domain_pack,
+            action_id,
+            payload,
+            context=context,
+        )
+
     def capability_catalog(self) -> Mapping[str, Any]:
         """Return the selected Domain Pack's bounded capability catalog."""
         catalog = self._domain_pack.capability_catalog(
@@ -203,6 +224,7 @@ class AgentRuntime:
         if not isinstance(max_files, int) or max_files < 1 or max_files > 10:
             raise ValueError("max_files must be between 1 and 10")
         snapshot = dict(self.capability_catalog())
+        snapshot.setdefault("actions", self.domain_actions())
         snapshot.update({
             "domain_id": str(getattr(self._domain_pack, "domain_id", "unknown")),
             "runtime": {
