@@ -19,7 +19,18 @@ class RequestRejected(PlanningError):
 
 
 class ToolError(AgentError):
-    """A tool could not validate or execute a call."""
+    """A tool could not validate or execute a call.
+
+    ``category``/``code``/``retryable`` are optional governance metadata. The
+    human-readable message remains backward compatible, while the Runtime can
+    preserve a stable classification for provider-backed tools.
+    """
+
+    def __init__(self, message: str, *, category=None, code=None, retryable=None):
+        super().__init__(message)
+        self.category = str(category)[:64] if category else None
+        self.code = str(code)[:96] if code else None
+        self.retryable = bool(retryable) if retryable is not None else None
 
 
 class RunCancelled(AgentError):

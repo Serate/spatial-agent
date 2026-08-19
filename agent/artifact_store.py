@@ -129,6 +129,9 @@ def _step_summary(step):
         "depends_on": list(step.get("depends_on") or []),
         "attempts": step.get("attempts", 0),
         "latency_ms": step.get("latency_ms"),
+        "error_category": step.get("error_category"),
+        "error_code": step.get("error_code"),
+        "retryable": step.get("retryable"),
         "result": result_summary,
         "error": step.get("error"),
     }

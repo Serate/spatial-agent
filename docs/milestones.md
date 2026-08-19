@@ -2069,3 +2069,25 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. Docker 环境恢复后，用当前版本重建并执行 production acceptance，确认 provider 证据在 HTTP/artifact/recovery 入口不丢失。
 2. 从全局 Runtime 角度进入 M93：补 provider 健康、权限/数据依赖、超时/错误分类和跨入口观测契约。
 3. 只有出现真实外部工具来源时才实现 `MCPToolProvider`；不为了使用 MCP 而改变 ToolRegistry、CapabilityCatalog、WorkflowTemplate 和 Result contract 的核心 seam。
+
+## M93：Provider 治理与跨入口故障证据（已完成）
+
+### 实现内容
+
+- `NativeToolProvider` 增加健康检查；`ToolRegistry.provider_health()` 统一输出有界 provider 健康状态、检查项和 reason code，不执行业务工具，也不暴露异常原文。
+- `ToolRegistry.governance_summary()` 和工具 schema 摘要支持权限、数据依赖、审批要求和 side effect 信息；当前 12 个内置工具已声明空间数据读取权限与数据依赖。
+- 新增 `ToolProviderError` 及 `ToolError` 的 category/code/retryable 元数据。provider 错误经过 Registry 后，在 `StepRun`、SQLite、artifact、result envelope 和 observability 中保持稳定分类。
+- Planner 上下文与 `plan_evidence` 记录 provider 健康和治理摘要；治理细节只展开选中工具 schema，避免重复占用上下文预算。
+- ContextBuilder 默认预算从 12,000 调整为 16,000 字符，并将能力发现优先裁剪、能力目录次之、工作流模板最后裁剪，保证复杂请求仍保留能力目录和模板契约。
+
+### 验收证据
+
+- M93 专项 6 项、M92 provider 回归 5 项、M81 跨入口计划证据 9 项通过。
+- 离线全量 597 项通过、42 项按环境跳过；quick、stage、Python 编译和 `git diff --check` 通过。
+- 真实 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Docker Linux engine 仍不可用，因此尚未用当前代码重建生产容器，不能复用 M91 容器证据。
+
+### 下一阶段规划
+
+1. 从全局 Runtime 盘点真实 provider adapter 的需求，先补 provider health 的 HTTP/runtime capability 暴露和生产 acceptance 检查。
+2. 加强工具权限、数据依赖和 per-tool timeout 的实际执行门控，保证治理元数据不是只读展示。
+3. 若仍没有真实外部工具来源，继续使用 fake provider/录制回放验证 MCP seam，不引入 MCP 运行时依赖。

@@ -933,3 +933,11 @@ M91 验证：`tests.test_m66_data_volume` 6 项通过（1 项 live Docker accept
 M92 当前部署复验被宿主环境阻塞：`docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build` 无法连接 `dockerDesktopLinuxEngine` named pipe；`com.docker.service` 显示 Stopped，尝试启动时又无法打开该 service handle。不能把 M91 旧容器响应当作 M92 当前代码证据。离线 provider 契约和精简 profile 仍可继续验证，Docker acceptance 留作环境恢复后的显式验收。
 
 下一阶段 M93 从项目整体规划 provider 治理：在不引入 MCP 依赖的前提下，统一 provider 健康、权限/数据依赖、超时/错误分类、trace/metrics 和 HTTP/artifact/recovery 证据；完成后再决定是否需要真实外部工具 adapter。
+
+## M93 当前完成状态
+
+M93 已完成 provider 治理基础闭环：Native provider 健康检查、Registry 健康/治理摘要、权限与数据依赖元数据、ToolProviderError 分类，以及步骤、SQLite、artifact、result envelope 和 observability 的安全错误证据均已接入。内置 12 个工具声明了空间数据读取权限和数据依赖；Planner 上下文只展开选中工具 schema，避免重复治理摘要挤掉能力目录。
+
+M93 验证：专项 6 项、M92/M81 相关回归 14 项通过；离线全量 597 项通过、42 项按环境跳过；quick、stage、Python 编译和 `git diff --check` 通过。GIS profile 仍因当前普通 Python 环境缺少真实 GIS 依赖/数据而跳过；Docker Linux engine 仍不可用，当前版本 production acceptance 尚未执行。
+
+下一阶段 M94 从全局角度评估 provider health/runtime capability 暴露、权限/数据依赖实际门控和 per-tool timeout 执行，再决定是否需要真实 `MCPToolProvider`；没有外部工具来源时不增加 MCP 运行时依赖。

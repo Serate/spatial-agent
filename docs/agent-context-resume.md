@@ -712,3 +712,11 @@ M92 已完成验证：ToolProvider 专项 5 项、M59/M77/M81 相关回归 29 �
 M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDesktopLinuxEngine` named pipe；`com.docker.service` 虽显示存在但为 Stopped，启动时报无法打开 service handle。不能把 M91 旧容器响应当作 M92 当前代码证据。离线 provider 契约、quick/stage 可作为当前阶段证据，Docker acceptance 需环境恢复后重跑。
 
 下一阶段 M93 先从全局 Runtime 盘点 provider 健康、权限/数据依赖、超时/错误分类、trace/metrics 和 HTTP/artifact/recovery 一致性，再决定是否实现真实 `MCPToolProvider`；没有真实外部工具来源时不引入 MCP 依赖。
+
+## M93 当前完成状态
+
+M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。
+
+M93 还将默认 ContextBuilder 预算提高到 16,000 字符，并调整裁剪优先级，复杂请求不再因治理摘要丢失 `capability_discovery`、`capability_catalog` 或 `workflow_templates`。M93 专项 6 项、M92/M81 相关回归 14 项通过；离线全量 597 项通过、42 项按环境跳过；quick、stage、编译和 diff check 通过。
+
+M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Docker Linux engine 仍无法连接，不能把 M91 旧容器作为当前版本生产证据。下一阶段 M94 先做 provider health/runtime capability、权限/数据依赖实际门控和 per-tool timeout 的全局规划，再决定是否引入真实 MCP adapter。

@@ -6,6 +6,8 @@
       "description": "Return fields, geometry type, and spatial reference for an allowed dataset.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["$dataset"],
       "input_schema": {
         "type": "object",
         "required": ["dataset"],
@@ -33,6 +35,8 @@
       "description": "Filter an allowed dataset by a bounding box and structured attribute conditions.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["$dataset"],
       "input_schema": {
         "type": "object",
         "required": ["dataset", "conditions", "limit"],
@@ -86,6 +90,8 @@
       "description": "Join two allowed datasets using a supported spatial relation.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["$left_dataset", "$right_dataset"],
       "input_schema": {
         "type": "object",
         "required": ["left_dataset", "right_dataset", "relation"],
@@ -126,6 +132,8 @@
       "description": "Return lightweight metadata for an allowed raster dataset without reading raster arrays.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["$dataset"],
       "input_schema": {
         "type": "object",
         "required": ["dataset"],
@@ -158,6 +166,8 @@
       "description": "Compute bounded streaming statistics for an allowed raster dataset.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["$dataset"],
       "input_schema": {
         "type": "object",
         "required": ["dataset"],
@@ -189,6 +199,8 @@
       "description": "Compute raster statistics inside a named administrative area with CRS-aware masking.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["admin_areas", "$dataset"],
       "input_schema": {
         "type": "object",
         "required": ["dataset", "admin_name"],
@@ -221,6 +233,8 @@
       "description": "Derive slope in degrees from the real DEM and summarize it inside a named administrative area.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["admin_areas", "dem"],
       "input_schema": {
         "type": "object",
         "required": ["admin_name"],
@@ -241,6 +255,8 @@
       "description": "Count land-use raster classes and their shares inside a named administrative area.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["admin_areas", "land_use"],
       "input_schema": {
         "type": "object",
         "required": ["admin_name"],
@@ -261,6 +277,8 @@
       "description": "Run an auditable demo screening of construction candidate pixels using DEM-derived slope and land-use classes.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["admin_areas", "dem", "land_use"],
       "input_schema": {
         "type": "object",
         "required": ["admin_name"],
@@ -282,6 +300,8 @@
       "description": "Summarize clipped OSM roads or water features inside a named administrative area.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["admin_areas", "$dataset"],
       "input_schema": {
         "type": "object",
         "required": ["dataset", "admin_name"],
@@ -308,6 +328,8 @@
       "description": "Apply auditable demo constraints from slope, land-use candidates, road distance, and water exclusion inside an administrative area.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["admin_areas", "dem", "land_use", "roads", "water"],
       "input_schema": {
         "type": "object",
         "required": ["admin_name"],
@@ -337,6 +359,8 @@
       "description": "Check bounded readability, CRS, coverage, and basic geometry quality for configured spatial datasets.",
       "side_effect": "none",
       "requires_approval": false,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["admin_areas", "dem", "land_use", "roads", "water"],
       "input_schema": {
         "type": "object",
         "required": [],

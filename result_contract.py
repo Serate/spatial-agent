@@ -91,6 +91,12 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             "tool": step.get("tool"),
             "status": step.get("status"),
             "summary": _step_summary(result, step.get("error")),
+            "error_category": str(step.get("error_category"))[:64]
+            if step.get("error_category")
+            else None,
+            "error_code": str(step.get("error_code"))[:96]
+            if step.get("error_code")
+            else None,
         })
 
     if payload.get("geojson_ref"):

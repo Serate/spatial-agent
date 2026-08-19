@@ -283,6 +283,9 @@ class AgentRuntime:
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
+            category = getattr(exc, "category", None)
+            if category:
+                result.error_category = str(category)[:64]
             result.answer = self._answer_composer.compose_failure(result)
         if result.planner_metrics is None:
             result.planner_metrics = self._planner_metrics()
@@ -469,6 +472,8 @@ class AgentRuntime:
             catalog=build_capability_catalog(environment=self._backend_name or "unknown"),
             tool_definitions=self._registry.definition_summary(),
             tool_provider=self._registry.provider_info(),
+            tool_provider_health=self._registry.provider_health(),
+            tool_governance=self._registry.governance_summary(max_tools=8),
             selected_capability_ids=[
                 item.capability_id for item in capability_discovery.candidates[:1]
             ],
@@ -586,6 +591,9 @@ class AgentRuntime:
                 return
             except ToolError as exc:
                 step_run.error = str(exc)
+                step_run.error_category = getattr(exc, "category", None) or failure_category(str(exc))
+                step_run.error_code = getattr(exc, "code", None)
+                step_run.retryable = getattr(exc, "retryable", None)
                 if attempt > self._max_retries:
                     step_run.status = "FAILED"
                     step_run.finished_at = _utc_now()
@@ -630,7 +638,7 @@ class AgentRuntime:
             "id": step.id,
             "tool": step.tool,
             "args": dict(step.args),
-            "error_category": failure_category(str(exc)),
+            "error_category": step_run.error_category or failure_category(str(exc)),
         }
         feedback = self._replan_policy.feedback_payload(
             request=request,
@@ -674,7 +682,7 @@ class AgentRuntime:
                 build_replan_event(
                     failed_step_id=step.id,
                     failed_tool=step.tool,
-                    failure_category=failure_category(str(exc)),
+                    failure_category=step_run.error_category or failure_category(str(exc)),
                     new_step_ids=new_step_ids,
                     latency_ms=(perf_counter() - started) * 1000,
                 )
@@ -777,7 +785,7 @@ class AgentRuntime:
         parent_span_id = self._run_span_ids.get(run_id)
         attributes = {
             "attempts": step_run.attempts,
-            "error_category": failure_category(step_run.error),
+            "error_category": step_run.error_category or failure_category(step_run.error),
         }
         attributes = {key: value for key, value in attributes.items() if value is not None}
         self._observability.emit_step(
@@ -979,6 +987,39 @@ def _build_plan_evidence(
             evidence["capability_catalog_tool_provider"] = {
                 "id": str(provider.get("id", "unknown"))[:64],
                 "tool_count": int(provider.get("tool_count", 0) or 0),
+            }
+        provider_health = capability_catalog_section.get("tool_provider_health")
+        if isinstance(provider_health, Mapping):
+            evidence["capability_catalog_tool_provider_health"] = {
+                "schema_version": str(provider_health.get("schema_version", ""))[:80],
+                "provider_id": str(provider_health.get("provider_id", "unknown"))[:64],
+                "status": str(provider_health.get("status", "unknown"))[:20],
+                "tool_count": int(provider_health.get("tool_count", 0) or 0),
+                "reason_code": str(provider_health.get("reason_code"))[:96]
+                if provider_health.get("reason_code")
+                else None,
+            }
+        governance = capability_catalog_section.get("tool_governance")
+        if isinstance(governance, Mapping):
+            evidence["capability_catalog_tool_governance"] = {
+                "schema_version": str(governance.get("schema_version", ""))[:80],
+                "provider_id": str(governance.get("provider_id", "unknown"))[:64],
+                "tool_count": int(governance.get("tool_count", 0) or 0),
+                "returned_tool_count": int(governance.get("returned_tool_count", 0) or 0),
+                "requires_approval_count": int(governance.get("requires_approval_count", 0) or 0),
+                "side_effect_tool_count": int(governance.get("side_effect_tool_count", 0) or 0),
+                "tools": [
+                    {
+                        "name": str(item.get("name", ""))[:96],
+                        "side_effect": str(item.get("side_effect", "unknown"))[:32],
+                        "requires_approval": bool(item.get("requires_approval", False)),
+                        "permissions": [str(x)[:96] for x in (item.get("permissions") or [])[:8]],
+                        "data_dependencies": [str(x)[:96] for x in (item.get("data_dependencies") or [])[:8]],
+                        "timeout_seconds": item.get("timeout_seconds"),
+                    }
+                    for item in (governance.get("tools") or [])[:8]
+                    if isinstance(item, Mapping)
+                ],
             }
     matched, exact = _matched_template_ids(
         templates_section if isinstance(templates_section, Mapping) else {},

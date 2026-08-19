@@ -41,6 +41,9 @@ class StepRun:
     attempts: int = 0
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    error_category: Optional[str] = None
+    error_code: Optional[str] = None
+    retryable: Optional[bool] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     latency_ms: Optional[float] = None
@@ -58,6 +61,7 @@ class AgentRunResult:
     steps: List[StepRun] = field(default_factory=list)
     answer: Optional[str] = None
     error: Optional[str] = None
+    error_category: Optional[str] = None
     clarification: Optional[Dict[str, Any]] = None
     # Normalized workflow selection retained for async polling and restart recovery.
     workflow: Optional[Dict[str, Any]] = None
@@ -80,6 +84,8 @@ class AgentRunResult:
         for key in ("artifact_ref", "geojson_ref"):
             if data.get(key) is None:
                 data.pop(key, None)
+        if data.get("error_category") is None:
+            data.pop("error_category", None)
         if data.get("workflow") is None:
             data.pop("workflow", None)
         return data

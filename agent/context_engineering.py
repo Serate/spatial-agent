@@ -22,7 +22,7 @@ class ContextPacket:
 class ContextBuilder:
     """Build deterministic, bounded context without leaking private settings."""
 
-    def __init__(self, max_chars: int = 12000, max_items: int = 24, max_string_chars: int = 1200):
+    def __init__(self, max_chars: int = 16000, max_items: int = 24, max_string_chars: int = 1200):
         if max_chars < 512:
             raise ValueError("max_chars must be at least 512")
         if max_items < 1 or max_string_chars < 80:
@@ -102,8 +102,8 @@ class ContextBuilder:
             "workflow",
             "planner",
             "memory",
-            "capability_catalog",
             "capability_discovery",
+            "capability_catalog",
             "workflow_templates",
         ):
             if len(rendered) <= self.max_chars:

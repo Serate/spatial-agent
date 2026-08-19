@@ -2755,3 +2755,17 @@ M92 尝试用当前代码重建生产容器时，Docker CLI 报 `dockerDesktopLi
 ### 处理与预防
 
 将该问题视为宿主部署环境故障，而不是 Agent Runtime 或 ToolProvider 失败。离线测试、quick/stage 和静态契约可以继续执行，但不能把旧容器的 health、production acceptance 或 live 响应当作当前提交证据。环境恢复后必须用当前代码重建镜像，再重新执行 readiness、数据卷、同步/异步和 provider 证据验收。
+
+## Provider 治理摘要重复展开会挤掉能力目录契约
+
+### 现象
+
+M93 在 Planner 上下文中同时展开 provider 健康、完整治理工具列表和工具 schema 后，复杂空间请求虽然仍能执行，但 `capability_discovery` / `capability_catalog` 被上下文裁剪，跨入口计划证据缺少选中能力信息。
+
+### 根因
+
+治理信息和工具 schema 存在重复：权限、数据依赖和审批信息在每个工具 schema 中已经足够表达，若再把全部工具治理条目复制到独立 section，会与工作流模板争用固定上下文预算。ContextBuilder 的裁剪顺序如果不区分“执行契约”和“解释性摘要”，新增 provider 证据会破坏已有规划证据。
+
+### 处理与预防
+
+M93 将独立 `tool_governance` section 收紧为统计摘要，权限和数据依赖只保留在选中工具 schema；ContextBuilder 默认预算调整为 16,000 字符，并按“能力发现 -> 能力目录 -> 工作流模板”的顺序裁剪，工作流模板优先级最高。新增 Planner 上下文 section 必须先检查是否与现有 schema 重复，并用复杂请求测试确认 `capability_discovery`、`capability_catalog`、`workflow_templates` 和 plan evidence 同时存在。

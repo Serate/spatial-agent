@@ -298,6 +298,8 @@ def capability_context_summary(
     catalog: Mapping[str, Any] | None = None,
     tool_definitions: Mapping[str, Mapping[str, Any]] | None = None,
     tool_provider: Mapping[str, Any] | str | None = None,
+    tool_provider_health: Mapping[str, Any] | None = None,
+    tool_governance: Mapping[str, Any] | None = None,
     selected_capability_ids: Iterable[str] | None = None,
     max_capabilities: int = 10,
     max_tools: int = 16,
@@ -352,6 +354,10 @@ def capability_context_summary(
     }
     if tool_provider is not None:
         result["tool_provider"] = _safe_tool_provider_summary(tool_provider)
+    if tool_provider_health is not None:
+        result["tool_provider_health"] = _safe_tool_provider_health(tool_provider_health)
+    if tool_governance is not None:
+        result["tool_governance"] = _safe_tool_governance(tool_governance, max_tools=max_tools)
     return result
 
 
@@ -506,6 +512,45 @@ def _safe_tool_provider_summary(value: Mapping[str, Any] | str) -> Dict[str, Any
     return {"id": str(value)[:64]}
 
 
+def _safe_tool_provider_health(value: Mapping[str, Any]) -> Dict[str, Any]:
+    status = str(value.get("status", "unknown"))
+    if status not in {"ready", "degraded", "unavailable", "unknown"}:
+        status = "unknown"
+    result = {
+        "schema_version": str(value.get("schema_version") or "spatial-agent.tool-provider-health.v1")[:80],
+        "provider_id": str(value.get("provider_id", "unknown"))[:64],
+        "status": status,
+        "tool_count": max(0, int(value.get("tool_count", 0) or 0)),
+        "checks": [
+            {
+                "name": str(item.get("name", "check"))[:64],
+                "status": str(item.get("status", "unknown"))[:20],
+            }
+            for item in (value.get("checks") or [])[:12]
+            if isinstance(item, Mapping)
+        ],
+    }
+    if value.get("reason_code"):
+        result["reason_code"] = str(value["reason_code"])[:96]
+    return result
+
+
+def _safe_tool_governance(value: Mapping[str, Any], *, max_tools: int) -> Dict[str, Any]:
+    # Per-tool governance is already carried by the selected tool schema
+    # summaries. Duplicating all entries here can evict the more important
+    # capability/template sections from the bounded planner context.
+    tools = []
+    return {
+        "schema_version": str(value.get("schema_version") or "spatial-agent.tool-governance.v1")[:80],
+        "provider_id": str(value.get("provider_id", "unknown"))[:64],
+        "tool_count": max(0, int(value.get("tool_count", 0) or 0)),
+        "returned_tool_count": len(tools),
+        "requires_approval_count": max(0, int(value.get("requires_approval_count", 0) or 0)),
+        "side_effect_tool_count": max(0, int(value.get("side_effect_tool_count", 0) or 0)),
+        "tools": tools,
+    }
+
+
 def _safe_tool_schema_summary(definition: Mapping[str, Any]) -> Dict[str, Any]:
     input_schema = definition.get("input_schema")
     output_schema = definition.get("output_schema")
@@ -516,7 +561,7 @@ def _safe_tool_schema_summary(definition: Mapping[str, Any]) -> Dict[str, Any]:
     properties = input_schema.get("properties")
     if not isinstance(properties, Mapping):
         properties = {}
-    return {
+    result = {
         "description": str(definition.get("description", ""))[:180],
         "side_effect": str(definition.get("side_effect", "unknown"))[:32],
         "requires_approval": bool(definition.get("requires_approval", False)),
@@ -529,6 +574,16 @@ def _safe_tool_schema_summary(definition: Mapping[str, Any]) -> Dict[str, Any]:
         "additional_properties": input_schema.get("additionalProperties", True),
         "output_required": [str(value) for value in output_schema.get("required", [])],
     }
+    for key in ("permissions", "data_dependencies"):
+        value = definition.get(key)
+        if isinstance(value, str):
+            value = [value]
+        if isinstance(value, (list, tuple, set)):
+            result[key] = [str(item)[:96] for item in list(value)[:8]]
+    timeout = definition.get("timeout_seconds")
+    if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and timeout > 0:
+        result["timeout_seconds"] = float(timeout)
+    return result
 
 
 def _safe_schema_property(prop: Mapping[str, Any]) -> Dict[str, Any]:

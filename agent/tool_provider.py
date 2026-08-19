@@ -11,6 +11,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Mapping, Protocol
 
+from .errors import ToolError
+
+
+TOOL_PROVIDER_HEALTH_SCHEMA = "spatial-agent.tool-provider-health.v1"
+
 
 class NativeToolAdapter(Protocol):
     def invoke(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -31,6 +36,26 @@ class ToolProvider(Protocol):
         ...
 
 
+class ToolProviderError(ToolError):
+    """Safe, classified failure raised by an external tool provider."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        provider_id: str = "unknown",
+        code: str = "provider_error",
+        retryable: bool = False,
+    ):
+        self.provider_id = str(provider_id)[:64]
+        super().__init__(
+            message,
+            category="provider",
+            code=code,
+            retryable=retryable,
+        )
+
+
 class NativeToolProvider:
     """Provider for in-process adapters and repository tool definitions."""
 
@@ -41,6 +66,16 @@ class NativeToolProvider:
     @property
     def provider_id(self) -> str:
         return "native"
+
+    def health(self) -> Dict[str, Any]:
+        return {
+            "schema_version": TOOL_PROVIDER_HEALTH_SCHEMA,
+            "status": "ready",
+            "checks": [
+                {"name": "definitions", "status": "passed"},
+                {"name": "adapter", "status": "passed"},
+            ],
+        }
 
     @classmethod
     def from_json(cls, path: str, adapter: NativeToolAdapter) -> "NativeToolProvider":

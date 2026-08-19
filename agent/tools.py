@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Iterable, Mapping, Protocol
 
 from .errors import ToolError
 from .spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
-from .tool_provider import NativeToolProvider, ToolProvider
+from .tool_provider import NativeToolProvider, ToolProvider, ToolProviderError
 
 _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -54,6 +54,80 @@ class ToolRegistry:
         return {
             "id": str(getattr(self._provider, "provider_id", "unknown"))[:64],
             "tool_count": len(self._definitions),
+        }
+
+    def provider_health(self) -> Dict[str, Any]:
+        """Return bounded provider health without invoking a business tool."""
+        info = self.provider_info()
+        checker = getattr(self._provider, "health", None)
+        if not callable(checker):
+            return {
+                "schema_version": "spatial-agent.tool-provider-health.v1",
+                "provider_id": info["id"],
+                "status": "unknown",
+                "tool_count": info["tool_count"],
+                "reason_code": "health_check_not_supported",
+            }
+        try:
+            raw = checker()
+        except Exception:
+            return {
+                "schema_version": "spatial-agent.tool-provider-health.v1",
+                "provider_id": info["id"],
+                "status": "unavailable",
+                "tool_count": info["tool_count"],
+                "reason_code": "health_check_failed",
+            }
+        if not isinstance(raw, Mapping):
+            raw = {}
+        status = str(raw.get("status", "unknown"))
+        if status not in {"ready", "degraded", "unavailable", "unknown"}:
+            status = "unknown"
+        checks = []
+        for item in raw.get("checks") or []:
+            if not isinstance(item, Mapping):
+                continue
+            check_status = str(item.get("status", "unknown"))
+            if check_status not in {"passed", "warning", "failed", "unknown"}:
+                check_status = "unknown"
+            checks.append({
+                "name": str(item.get("name", "check"))[:64],
+                "status": check_status,
+            })
+        return {
+            "schema_version": "spatial-agent.tool-provider-health.v1",
+            "provider_id": info["id"],
+            "status": status,
+            "tool_count": info["tool_count"],
+            "checks": checks[:12],
+            "reason_code": str(raw.get("reason_code"))[:96]
+            if raw.get("reason_code")
+            else None,
+        }
+
+    def governance_summary(self, *, max_tools: int = 32) -> Dict[str, Any]:
+        """Expose bounded permissions and data-dependency metadata."""
+        tools = []
+        approval_count = 0
+        side_effect_count = 0
+        for name in sorted(self._definitions):
+            if len(tools) >= max(1, min(int(max_tools), 64)):
+                break
+            definition = self._definitions.get(name)
+            if not isinstance(definition, Mapping):
+                continue
+            item = _tool_governance_summary(name, definition)
+            approval_count += int(item["requires_approval"])
+            side_effect_count += int(item["side_effect"] not in {"none", "unknown"})
+            tools.append(item)
+        return {
+            "schema_version": "spatial-agent.tool-governance.v1",
+            "provider_id": self.provider_info()["id"],
+            "tool_count": len(self._definitions),
+            "returned_tool_count": len(tools),
+            "requires_approval_count": approval_count,
+            "side_effect_tool_count": side_effect_count,
+            "tools": tools,
         }
 
     def register_tool(
@@ -151,6 +225,7 @@ class ToolRegistry:
                     else [],
                 },
             }
+            summary[name].update(_tool_governance_summary(name, definition))
         return summary
 
     def invoke(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -172,6 +247,13 @@ class ToolRegistry:
             return result
         try:
             result = self._provider.invoke(name, arguments)
+        except ToolProviderError as exc:
+            raise ToolError(
+                str(exc),
+                category=exc.category or "provider",
+                code=exc.code or "provider_error",
+                retryable=exc.retryable,
+            ) from exc
         except ToolError as exc:
             if "does not implement" in str(exc) and name in self._definitions:
                 # A static definition without an adapter implementation is a
@@ -179,7 +261,11 @@ class ToolRegistry:
                 raise
             raise
         except Exception as exc:
-            raise ToolError("Tool execution failed: " + str(exc)) from exc
+            raise ToolError(
+                "Tool execution failed: " + str(exc),
+                category="provider",
+                code="provider_execution",
+            ) from exc
         if not isinstance(result, dict):
             raise ToolError("Tool must return an object: " + name)
         return result
@@ -243,6 +329,30 @@ def _schema_property_summary(schema: Mapping[str, Any]) -> Dict[str, Any]:
         if key in schema:
             summary[key] = schema.get(key)
     return summary
+
+
+def _tool_governance_summary(name: str, definition: Mapping[str, Any]) -> Dict[str, Any]:
+    def bounded_list(value: Any) -> list[str]:
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, (list, tuple, set)):
+            return []
+        return [str(item)[:96] for item in list(value)[:12] if item is not None]
+
+    dependencies = definition.get("data_dependencies")
+    if dependencies is None:
+        dependencies = definition.get("required_datasets")
+    timeout = definition.get("timeout_seconds")
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
+        timeout = None
+    return {
+        "name": str(name)[:96],
+        "side_effect": str(definition.get("side_effect") or "unknown")[:32],
+        "requires_approval": bool(definition.get("requires_approval", False)),
+        "permissions": bounded_list(definition.get("permissions")),
+        "data_dependencies": bounded_list(dependencies),
+        "timeout_seconds": float(timeout) if timeout is not None else None,
+    }
 
 
 class DemoSpatialAdapter(SpatialToolAdapter):
