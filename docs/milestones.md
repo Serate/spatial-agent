@@ -2297,3 +2297,24 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 建立 dev HTTP、production FastAPI、CLI、artifact、recovery 的统一结果契约矩阵。
 3. 从整体 Runtime 角度深化开放式请求理解、澄清、多工具编排、真实模型回放、数据 provenance 和动态 Console 证据。
 4. 继续保持 ToolRegistry 为唯一执行 seam；只有出现真实远程工具来源时才实现 `MCPToolProvider` adapter。
+
+## M104：CI 核心 Runtime 回归门禁（已完成）
+
+### 实现内容
+
+- GitHub Actions 从单独运行 `smoke_check.py` 扩展为服务 smoke、stage 契约 profile 和完整离线 unittest 回归。
+- CI 明确不访问真实模型、私有配置、原始 GIS 数据或 Docker；真实 GIS、真实模型和 Docker 继续通过显式阶段 profile 执行。
+- README 补充 CI 与阶段验收的边界，避免把离线 CI 误认为真实部署或真实数据证据。
+
+### 当前验收证据
+
+- 与 CI 等价的本地 smoke、stage 和离线全量 627 项通过、42 项按环境跳过。
+- Python 编译、`git diff --check` 和已有 HTTP/Runtime/Console 静态契约继续通过。
+- Docker Linux engine 和隔离 Chrome CDP 的宿主限制保持原样记录；本阶段没有伪造 FastAPI production 或动态浏览器通过证据。
+
+### 下一阶段全局规划
+
+1. Docker 恢复后重建当前镜像，完成 liveness/readiness、FastAPI、真实数据卷、SQLite 多 worker、artifact 和重启恢复矩阵。
+2. 以 RequestFacts、CapabilityCatalog 和 WorkflowTemplate 为公共扩展点，做跨区域、跨任务的开放式请求回放与受控澄清。
+3. 用脱敏回放和可选真实模型验证结构化计划、失败/重规划、token/延迟与工具治理证据。
+4. 在可控浏览器 CDP 环境恢复后完成动态 workspace、views、trace、地图和会话清空验收；MCP 仍只在出现真实外部工具来源时实现 adapter。

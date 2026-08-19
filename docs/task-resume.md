@@ -1021,3 +1021,14 @@ M103 完成当前版本的跨入口验收。离线全量 627 项通过、42 项�
 4. 数据与模型：继续使用真实数据和可选真实模型验收，同时保留脱敏回放、数据 provenance、CRS/栅格对齐和降级说明作为默认可重复证据。
 5. 前端与测试：恢复可控的隔离浏览器 CDP 后完成动态 workspace、views、trace、地图和清空状态 smoke；将上述证据纳入跨入口发布门禁。
 6. 工具来源：继续以 ToolRegistry 为唯一执行 seam；只有出现真实远程 GIS、数据库或第三方工具来源时，才实现满足现有合同的 `MCPToolProvider` adapter。
+
+## M104 已完成
+
+M104 从全局工程质量角度补齐 CI 门禁：GitHub Actions 现在依次执行服务 smoke、stage 契约 profile 和完整离线 unittest 回归。CI 不访问真实模型、私有配置、原始 GIS 数据或 Docker；真实 GIS、真实模型和 Docker 继续由显式阶段 profile 验收。与 CI 等价的本地 smoke、stage 和离线 627 项回归已通过，42 项按环境跳过。
+
+### M105 全局规划
+
+1. 生产入口与部署：Docker engine 恢复后重建当前镜像，执行 `/health/live`、`/health/ready`、FastAPI、SQLite 多 worker、artifact 和重启恢复矩阵。
+2. 开放式 Agent 能力：以 RequestFacts、CapabilityCatalog 和 WorkflowTemplate 为公共扩展点，增加跨区域、跨任务的开放式请求回放和受控澄清，不增加区域专用分支。
+3. 模型与工具：继续用脱敏回放和可选真实模型验证结构化计划、失败分类、token/延迟和重规划；ToolRegistry 仍是唯一 dispatch seam，暂不引入没有真实外部来源支撑的 MCP。
+4. 数据与前端：保留真实数据 provenance、对齐/覆盖降级证据，并在可控浏览器 CDP 环境恢复后完成动态 workspace、views、trace、地图和会话清空验收。

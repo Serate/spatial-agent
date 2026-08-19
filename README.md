@@ -136,6 +136,8 @@ python scripts\test_profile.py --profile smoke
 python scripts\test_profile.py --profile stage
 ~~~
 
+GitHub Actions 的默认 CI 会运行服务 smoke、stage 契约 profile 和完整离线回归；真实 GIS、真实模型与 Docker 仍是显式阶段验收，不访问 CI 外的私有配置或数据。
+
 真实 GIS、真实模型和 Docker 作为阶段验收或专项验证运行：
 
 ~~~powershell

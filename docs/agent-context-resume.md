@@ -791,3 +791,11 @@ M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`Too
 M93 还将默认 ContextBuilder 预算提高到 16,000 字符，并调整裁剪优先级，复杂请求不再因治理摘要丢失 `capability_discovery`、`capability_catalog` 或 `workflow_templates`。M93 专项 6 项、M92/M81 相关回归 14 项通过；离线全量 597 项通过、42 项按环境跳过；quick、stage、编译和 diff check 通过。
 
 M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Docker Linux engine 仍无法连接，不能把 M91 旧容器作为当前版本生产证据。下一阶段 M94 先做 provider health/runtime capability、权限/数据依赖实际门控和 per-tool timeout 的全局规划，再决定是否引入真实 MCP adapter。
+
+## M104 已完成
+
+- GitHub Actions 已从只运行 `smoke_check.py` 扩展为服务 smoke、stage 契约 profile 和完整离线 unittest 回归。
+- 本地等价验证通过：smoke、stage 和离线 627 项通过、42 项按环境跳过；CI 不依赖真实模型、私有配置、原始 GIS 数据或 Docker。
+- 当前阶段没有改变 Runtime/HTTP 运行时语义；Docker/FastAPI production acceptance 和动态浏览器 CDP 仍按宿主条件单独验收，不能用 CI 结果替代。
+
+下一阶段 M105 从全局角度优先做 Docker/FastAPI 生产矩阵、开放式请求回放和动态前端证据；ToolRegistry 继续作为唯一执行 seam，没有真实远程工具来源时不引入 MCP 运行时依赖。
