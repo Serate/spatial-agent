@@ -75,6 +75,36 @@
           }
         }
       ]
+    },
+    {
+      "fixture_id": "open-region-boundary-query",
+      "replay_type": "open_region_query",
+      "expected_repair_count": 0,
+      "expected_final_status": "COMPLETED",
+      "provider_metrics": {
+        "usage": {"input_tokens": 300, "output_tokens": 90, "total_tokens": 390},
+        "latency_ms": 150,
+        "attempts": 1,
+        "retries": 0
+      },
+      "turns": [
+        {
+          "request": "查询江夏区行政区边界",
+          "response": {
+            "goal": "查询行政区边界",
+            "steps": [
+              {"id": "schema", "tool": "get_dataset_schema", "args": {"dataset": "admin_areas"}, "depends_on": []},
+              {"id": "query", "tool": "range_query", "args": {"dataset": "admin_areas", "conditions": [{"field": "name", "operator": "eq", "value": "江夏区"}], "limit": 100}, "depends_on": ["schema"]}
+            ],
+            "output": {"type": "admin_area_result", "summary": true}
+          },
+          "expected": {
+            "expected_status": "COMPLETED",
+            "expected_tools": ["get_dataset_schema", "range_query"],
+            "expected_result_type": "admin_area_result"
+          }
+        }
+      ]
     }
   ]
 }

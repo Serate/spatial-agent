@@ -74,6 +74,20 @@ class M95RequestFactsContractTests(unittest.TestCase):
             first["result"]["request_facts"],
         )
 
+    def test_open_region_request_keeps_region_as_a_fact_not_a_rule_branch(self):
+        query = "查询江夏区行政区边界"
+        expected = parse_spatial_request(query).as_context_dict()
+        result = AgentService().run(query, session_id="open-region-facts")
+
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertEqual(expected["admin_name"], "江夏区")
+        self.assertEqual(result["request_facts"], expected)
+        self.assertEqual(result["result"]["request_facts"], expected)
+        self.assertEqual(
+            result["plan"]["steps"][1]["args"]["conditions"][0]["value"],
+            "江夏区",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

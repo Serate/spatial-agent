@@ -187,13 +187,16 @@ class M67ModelEvaluationTests(unittest.TestCase):
         report = evaluate_model_replay_suite_file(
             ROOT / "tests" / "fixtures" / "m69_model_replay_suite.json"
         )
-        self.assertEqual(report["passed"], 2)
+        self.assertEqual(report["passed"], 3)
         self.assertEqual(report["failed"], 0)
         self.assertEqual(
             {item["replay_type"] for item in report["results"]},
-            {"clarification_follow_up", "plan_repair"},
+            {"clarification_follow_up", "plan_repair", "open_region_query"},
         )
-        self.assertTrue(all(item["repair_count"] == 1 for item in report["results"]))
+        self.assertEqual(
+            {item["repair_count"] for item in report["results"]},
+            {0, 1},
+        )
 
 
 if __name__ == "__main__":

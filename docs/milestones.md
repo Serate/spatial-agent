@@ -2318,3 +2318,24 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 以 RequestFacts、CapabilityCatalog 和 WorkflowTemplate 为公共扩展点，做跨区域、跨任务的开放式请求回放与受控澄清。
 3. 用脱敏回放和可选真实模型验证结构化计划、失败/重规划、token/延迟与工具治理证据。
 4. 在可控浏览器 CDP 环境恢复后完成动态 workspace、views、trace、地图和会话清空验收；MCP 仍只在出现真实外部工具来源时实现 adapter。
+
+## M105：开放式区域请求脱敏回放（已完成）
+
+### 实现内容
+
+- 在现有模型回放套件中增加 `open_region_query`，使用“查询江夏区行政区边界”验证区域是 RequestFacts 参数，而不是硬编码的洪山区分支。
+- 回放计划仍经过 LLMPlanner 的 TaskPlan 校验、ToolRegistry dispatch、结果类型校验和中文答案组合。
+- 增加 RequestFacts 跨区域一致性测试，确认请求事实、计划参数和 result envelope 使用同一行政区值。
+
+### 当前验收证据
+
+- 脱敏回放 3/3 通过；空间意图/澄清、跨入口计划证据和 RequestFacts 相关回归通过。
+- full-stage、严格离线评测和离线全量 628 项通过、42 项按环境跳过；没有访问真实模型、私有配置或原始数据。
+- Docker Linux engine 和隔离 Chrome CDP 的宿主限制仍保持未验证状态，不用离线回放替代生产部署或动态浏览器证据。
+
+### 下一阶段全局规划
+
+1. Docker 恢复后完成 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和 dev/production 结果契约矩阵。
+2. 增加一个非固定“总览/建设筛选”表达的开放式空间请求 live/replay 基线，让澄清继续由能力目录驱动。
+3. 继续验证真实数据 provenance、对齐/覆盖和可选数据降级，区分数据证据与模型规划证据。
+4. 恢复可控 CDP 后完成动态 workspace、views、地图、轨迹和会话清空验收；没有真实外部工具来源时不实现 MCP 运行时依赖。

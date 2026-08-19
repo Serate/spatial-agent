@@ -799,3 +799,12 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - 当前阶段没有改变 Runtime/HTTP 运行时语义；Docker/FastAPI production acceptance 和动态浏览器 CDP 仍按宿主条件单独验收，不能用 CI 结果替代。
 
 下一阶段 M105 从全局角度优先做 Docker/FastAPI 生产矩阵、开放式请求回放和动态前端证据；ToolRegistry 继续作为唯一执行 seam，没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M105 已完成
+
+- 新增脱敏 `open_region_query` 回放，使用江夏区边界请求验证同一能力目录、TaskPlan、工具 DAG 和结果类型，不增加区域专用规则。
+- `RequestFacts` 跨区域参数、result envelope 和计划参数一致性测试已补齐；结构化空间澄清、Console 规划证据和 HTTP/artifact/recovery 回归继续通过。
+- 回放套件 3/3、M105 相关回归通过；full-stage、严格离线评测和离线全量 628 项通过、42 项按环境跳过。
+- Docker Linux engine named pipe 和隔离 Chrome CDP 退出码 13 的宿主限制仍未解决，当前版本真实 FastAPI/Docker 与动态浏览器证据不能宣称通过。
+
+下一阶段 M106 从全局角度优先做生产入口矩阵、非固定表达的开放式空间请求基线、真实数据证据边界和动态 Console 验收；ToolRegistry 继续是唯一执行 seam，没有真实外部工具来源时不引入 MCP。

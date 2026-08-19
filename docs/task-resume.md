@@ -1032,3 +1032,16 @@ M104 从全局工程质量角度补齐 CI 门禁：GitHub Actions 现在依次�
 2. 开放式 Agent 能力：以 RequestFacts、CapabilityCatalog 和 WorkflowTemplate 为公共扩展点，增加跨区域、跨任务的开放式请求回放和受控澄清，不增加区域专用分支。
 3. 模型与工具：继续用脱敏回放和可选真实模型验证结构化计划、失败分类、token/延迟和重规划；ToolRegistry 仍是唯一 dispatch seam，暂不引入没有真实外部来源支撑的 MCP。
 4. 数据与前端：保留真实数据 provenance、对齐/覆盖降级证据，并在可控浏览器 CDP 环境恢复后完成动态 workspace、views、trace、地图和会话清空验收。
+
+## M105 已完成
+
+M105 增加了一个脱敏的 `open_region_query` 模型回放：将“查询江夏区行政区边界”通过同一能力目录、工具 DAG、TaskPlan 和 result type 执行，证明区域名称是 RequestFacts 参数而不是区域专用规则。`RequestFacts`、result envelope 和计划参数的跨入口断言已补齐；既有结构化空间澄清、Console 规划证据和 HTTP/artifact/recovery 契约继续通过。
+
+回放套件 3/3 通过，M105 相关 RequestFacts/意图/跨入口回归通过；full-stage、严格离线评测和离线全量 628 项通过、42 项按环境跳过。Docker Linux engine 仍无法连接，Chrome CDP headless 仍受宿主退出码 13 阻塞，真实部署与动态浏览器证据保持未宣称状态。
+
+### M106 全局规划
+
+1. 部署与架构：Docker 恢复后执行当前版本 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和 dev/production 结果契约矩阵。
+2. 产品与模型：增加一个非固定“总览/建设筛选”表达的开放式空间请求 live/replay 基线，并让澄清由能力目录驱动；不把新表达写成区域分支。
+3. 数据：继续验证真实武汉数据的 provenance、对齐、覆盖和可选数据降级，明确数据证据与模型规划证据的边界。
+4. 体验与测试：恢复可控 CDP 后验收动态 workspace、views、地图、轨迹和清空状态；保持 CI 离线门禁，不引入 MCP 运行时依赖。
