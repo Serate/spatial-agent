@@ -775,6 +775,15 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 `result_contract.py` 现在兼容顶层 `replan_events` 与旧/外部 artifact 的嵌套 `result.replanning.events`，并继续统一有界归一化。M102 相关回归 30 项、离线全量 627 项（42 项按环境跳过）和 GIS core 31 项通过。Docker Linux engine 仍无法连接，下一阶段 M103 优先重建当前版本容器并验收 readiness、真实数据卷及 HTTP/artifact/recovery/Console；没有真实外部工具来源时不引入 MCP 运行时依赖。
 
+## M103 已完成
+
+- 当前版本离线全量 627 项通过、42 项按环境跳过；quick、stage、smoke、Python 编译和 `git diff --check` 通过。
+- GIS core 抽样 3/3 通过；显式绑定武汉 analysis-ready 数据配置的真实模型 + 本地 GIS `live-short` 2/2 通过，0 次重试，安全记录 token 总量 11,546，不记录密钥或模型原始响应。
+- 本地 HTTP 入口已验证健康、runtime capability、同步/异步、artifact 和统一 result envelope；`result.type`、`result.views`、`result.workspace` 与重规划证据保持在同一结果契约中。
+- Docker Linux engine 仍因 `dockerDesktopLinuxEngine` named pipe 不存在无法启动，因此没有宣称当前版本 Docker/FastAPI production acceptance。隔离 Chrome CDP headless 进程退出码 13，本轮动态浏览器 smoke 未记为通过；静态前端契约和既有浏览器测试仍通过。
+
+下一阶段 M104 从全局角度优先做当前版本 Docker/FastAPI 生产复验和跨入口结果契约矩阵，再深化开放式请求理解、数据 provenance、真实模型回放和动态前端证据。ToolRegistry 继续作为唯一执行 seam；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。

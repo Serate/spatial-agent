@@ -2276,3 +2276,24 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. M103 在 Docker engine 恢复后重建当前版本，完成 readiness、真实数据卷、同步/异步、artifact、失败和重规划证据 acceptance。
 2. 同时复验 Console 动态 workspace、views、trace 和地图证据，确认 HTTP/artifact/recovery 一致。
 3. 若宿主环境继续阻塞，继续扩展脱敏模型回放和跨入口恢复矩阵；MCP 仍只在出现真实外部工具来源时实现 adapter。
+
+## M103：当前版本跨入口与真实环境验收（已完成）
+
+### 实现与验收内容
+
+- 完成离线、GIS core、真实模型 + 本地武汉 GIS、HTTP 同步/异步、artifact 和运行时能力快照的当前版本验收。
+- 离线全量 627 项通过、42 项按环境跳过；quick、stage、smoke、Python 编译和 `git diff --check` 通过。
+- GIS core 抽样 3/3 通过；显式绑定 analysis-ready 数据配置的 `live-short` 2/2 通过，空间总览和约束建设筛选均返回预期结果类型，0 次重试，安全记录 token 总量 11,546。
+- 本地 HTTP 已验证 result envelope、workspace/views、artifact 和异步轮询；统一以 `result.type` 和 `result.views` 为结果入口，顶层字段仅作为兼容证据。
+
+### 环境限制
+
+- Docker Linux engine 当前仍无法连接 `dockerDesktopLinuxEngine` named pipe，未执行当前版本的 FastAPI/Docker production acceptance，也未引用旧容器证据。
+- 隔离 Chrome CDP headless 进程在本机退出码 13，动态 Console smoke 未计入通过；已有静态前端契约和浏览器回归在离线全量中通过。
+
+### 下一阶段全局规划
+
+1. Docker 恢复后重建当前镜像，完成 readiness、真实数据卷、同步/异步、SQLite 恢复、artifact、失败/重规划和 FastAPI acceptance。
+2. 建立 dev HTTP、production FastAPI、CLI、artifact、recovery 的统一结果契约矩阵。
+3. 从整体 Runtime 角度深化开放式请求理解、澄清、多工具编排、真实模型回放、数据 provenance 和动态 Console 证据。
+4. 继续保持 ToolRegistry 为唯一执行 seam；只有出现真实远程工具来源时才实现 `MCPToolProvider` adapter。

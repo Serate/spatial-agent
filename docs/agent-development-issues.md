@@ -2901,3 +2901,31 @@ M101 新增 `Assert-ReplanningEvidence`，生产同步结果和 artifact 必须�
 ### 处理与预防
 
 M102 在 `result_contract.py` 增加统一读取 seam：优先读取顶层 `replan_events`，缺失时回退到 `result.replanning.events`，之后仍经过同一有界归一化。新增 artifact round-trip 和 legacy nested result 回归，确保恢复后的 result 与 lineage 证据一致。后续版本化字段迁移必须同时设计当前写入、旧 payload 回退和 artifact/recovery 测试，不能只更新 writer。
+
+## HTTP 结果 envelope 的顶层兼容字段与嵌套字段容易被误读
+
+### 现象
+
+M103 本地 HTTP 验收中，响应顶层同时存在兼容字段 `result_type` 和统一的 `result` envelope。`result_type` 在顶层可直接读取，而 `result` 内使用 `type`、`views`、`workspace` 等契约字段；如果验收脚本错误读取 `result.result_type` 或 `result.result.views`，会误报“结果类型/视图缺失”。
+
+### 根因
+
+为了兼容旧客户端，运行响应保留了顶层字段；新结果契约则把跨入口证据集中在 `result` envelope。两套字段形状同时存在时，人工验收容易把兼容字段名称和 envelope 内字段名称拼接使用。
+
+### 处理与预防
+
+结果契约验收统一使用 `result.type`、`result.views`、`result.workspace`、`result.lineage` 和 `result.replanning`；只有兼容性断言才读取顶层 `result_type`、`replan_events` 等旧字段。生产 acceptance、artifact recovery 和前端消费必须保持同一读取规则，不能通过字段名称相似性推断嵌套路径。
+
+## 隔离 Chrome CDP headless 进程退出导致动态 Console 验收无法启动
+
+### 现象
+
+M103 启动独立临时 profile 的 Chrome headless CDP 时，Chrome 可执行文件存在，但进程在本机退出码 13，`127.0.0.1:9223/json/version` 未监听；应用 HTTP 服务本身可正常启动。已有 Chrome 进程存在，但没有可复用的 CDP 端口。
+
+### 根因
+
+当前没有足够证据确认是 Chrome 版本、宿主策略、启动参数还是现有浏览器进程环境导致；这是浏览器验收宿主问题，不应归类为前端运行时失败。
+
+### 处理与预防
+
+本轮不修改业务代码，也不终止用户已有 Chrome；动态浏览器 smoke 标记为未执行，静态前端契约和既有浏览器测试继续作为离线证据。后续使用隔离 profile、显式 CDP 参数或可控浏览器运行环境重新验收，并在 CDP 真正监听后才记录动态通过；不能把 CDP 启动失败当作 Console 功能通过。

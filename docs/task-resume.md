@@ -1004,3 +1004,20 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 ## M102 已完成
 
 重规划结果契约现在兼容当前顶层 `replan_events` 和旧 artifact 的嵌套 `result.replanning.events`，历史恢复不会因字段位置变化丢失证据。M102 相关回归 30 项、离线全量 627 项（42 项按环境跳过）和 GIS core 31 项通过。Docker engine 仍不可用，下一阶段 M103 优先进行当前版本容器 readiness、真实数据卷和 HTTP/artifact/recovery/Console 联合验收。
+
+## M103 已完成
+
+M103 完成当前版本的跨入口验收。离线全量 627 项通过、42 项按环境跳过；quick、stage、smoke、Python 编译和 `git diff --check` 通过。GIS Python 环境下的 GIS core 抽样 3/3 通过，覆盖行政区查询、DEM 元数据和 analysis-ready 数据报告。
+
+真实模型 + 武汉本地 GIS 的 `live-short` 2/2 通过：空间总览返回 `spatial_overview_result`、约束建设筛选返回 `constrained_buildability_result`，均为 `COMPLETED`，0 次重试；本轮安全记录 token 总量为 11,546，不保存或输出模型原始响应和密钥。数据配置显式绑定 `D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`。
+
+本地 HTTP 入口验证了健康检查、运行时能力快照、同步运行、异步提交/轮询和 artifact 引用；result envelope 的 `result.type`、`result.views`、`result.workspace` 和重规划证据保持统一，顶层兼容字段仍可读取。完整 FastAPI/Docker production acceptance 尚未执行：Docker Linux engine 仍因 `dockerDesktopLinuxEngine` named pipe 不存在而不可用。隔离 Chrome CDP 也因宿主 Chrome headless 进程退出码 13 未完成动态浏览器 smoke；前端静态契约和已有浏览器测试仍在离线全量中通过，不能把本轮动态浏览器检查记为通过。
+
+### M104 全局规划
+
+1. 部署可靠性：Docker engine 恢复后使用当前代码重建镜像，执行 readiness、核心/可选数据卷、同步/异步、SQLite 恢复、artifact、失败/重规划和 FastAPI acceptance。
+2. 架构与契约：对 dev HTTP、production FastAPI、CLI、artifact 和 recovery 做统一结果契约矩阵，明确 `result.type` 与兼容顶层字段的读取规则。
+3. 产品能力：从整体 Agent Runtime 角度扩展开放式请求理解、澄清和多工具编排，新增能力优先进入 RequestFacts、CapabilityCatalog 和 WorkflowTemplate，不增加区域专用分支。
+4. 数据与模型：继续使用真实数据和可选真实模型验收，同时保留脱敏回放、数据 provenance、CRS/栅格对齐和降级说明作为默认可重复证据。
+5. 前端与测试：恢复可控的隔离浏览器 CDP 后完成动态 workspace、views、trace、地图和清空状态 smoke；将上述证据纳入跨入口发布门禁。
+6. 工具来源：继续以 ToolRegistry 为唯一执行 seam；只有出现真实远程 GIS、数据库或第三方工具来源时，才实现满足现有合同的 `MCPToolProvider` adapter。
