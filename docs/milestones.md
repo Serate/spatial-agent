@@ -2339,3 +2339,16 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 增加一个非固定“总览/建设筛选”表达的开放式空间请求 live/replay 基线，让澄清继续由能力目录驱动。
 3. 继续验证真实数据 provenance、对齐/覆盖和可选数据降级，区分数据证据与模型规划证据。
 4. 恢复可控 CDP 后完成动态 workspace、views、地图、轨迹和会话清空验收；没有真实外部工具来源时不实现 MCP 运行时依赖。
+
+## M106：非固定表达真实模型与本地 GIS 基线（已完成）
+
+### 验收内容
+
+- 通过 CLI/HTTP 共用的 `AgentService` 执行“查询江夏区道路与水体分布”，没有使用空间总览或建设筛选固定模板。
+- 真实模型生成并完成 5 个工具步骤，结果类型为 `zonal_vector_summary_result`，workspace/views 均为 `vector`；真实数据摘要包含道路 10,051 个、水体 1,189 个，0 次重试。
+- 确认 `AgentRuntime` 内部 `AgentRunResult` 与 Service/HTTP/CLI 外部 result envelope 的职责边界，并记录验收入口规则。
+
+### 环境限制与下一阶段
+
+- Docker Linux engine 仍无法连接 named pipe，Chrome CDP headless 仍以退出码 13 失败；FastAPI/Docker 和动态浏览器验收未宣称通过。
+- M107 将从全局角度推进生产入口矩阵、更多开放式表达与未注册能力澄清、真实数据证据边界和动态 Console 验收；MCP 仍只在出现真实远程工具来源时实现 adapter。

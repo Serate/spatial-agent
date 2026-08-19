@@ -1045,3 +1045,16 @@ M105 增加了一个脱敏的 `open_region_query` 模型回放：将“查询江
 2. 产品与模型：增加一个非固定“总览/建设筛选”表达的开放式空间请求 live/replay 基线，并让澄清由能力目录驱动；不把新表达写成区域分支。
 3. 数据：继续验证真实武汉数据的 provenance、对齐、覆盖和可选数据降级，明确数据证据与模型规划证据的边界。
 4. 体验与测试：恢复可控 CDP 后验收动态 workspace、views、地图、轨迹和清空状态；保持 CI 离线门禁，不引入 MCP 运行时依赖。
+
+## M106 已完成
+
+M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 `AgentService` 执行“查询江夏区道路与水体分布”，返回 `zonal_vector_summary_result`，生成 5 个工具步骤，workspace/views 均为 `vector`，真实命中道路 10,051 个、水体 1,189 个，0 次重试。该请求没有使用总览或建设筛选的固定模板，仍经过同一 Planner、ToolRegistry 和结果格式化层。
+
+本轮同时确认内部 `AgentRuntime.run()` 返回的是内部 `AgentRunResult`，外部 result envelope 由 Service/HTTP/CLI 格式化层生成；该边界已记录到中文问题文档。Docker Linux engine 和 Chrome CDP 宿主阻塞仍未改变，生产 FastAPI 和动态浏览器验收继续保持未宣称状态。
+
+### M107 全局规划
+
+1. 部署与架构：Docker 恢复后执行 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和 dev/production 结果契约矩阵。
+2. 产品与模型：将开放式请求基线扩展为“同一能力的不同表达 + 未注册能力的结构化澄清”，用脱敏回放和可选 live 证据评估计划质量。
+3. 数据：验证真实数据 provenance、栅格对齐/覆盖和道路水体可选数据降级，确保模型规划证据与数据执行证据不混淆。
+4. 体验与工具：恢复可控 CDP 后完成动态 workspace/views/地图/轨迹/清空验收；继续保持 ToolRegistry 唯一 dispatch seam，只有真实远程工具来源出现时才实现 MCP adapter。

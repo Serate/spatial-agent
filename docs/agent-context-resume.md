@@ -808,3 +808,11 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - Docker Linux engine named pipe 和隔离 Chrome CDP 退出码 13 的宿主限制仍未解决，当前版本真实 FastAPI/Docker 与动态浏览器证据不能宣称通过。
 
 下一阶段 M106 从全局角度优先做生产入口矩阵、非固定表达的开放式空间请求基线、真实数据证据边界和动态 Console 验收；ToolRegistry 继续是唯一执行 seam，没有真实外部工具来源时不引入 MCP。
+
+## M106 已完成
+
+- 真实模型 + 武汉本地 GIS 通过 `AgentService` 完成非固定表达“查询江夏区道路与水体分布”：`zonal_vector_summary_result`、5 个工具步骤、vector workspace/views、道路 10,051 个、水体 1,189 个、0 次重试。
+- 该请求未使用空间总览或建设筛选固定模板，仍通过同一 Planner、ToolRegistry 和 Service result formatting；内部 Runtime 原始对象与外部 result envelope 的边界已记录。
+- Docker Linux engine named pipe 和隔离 Chrome CDP 退出码 13 的宿主限制保持未解决，当前版本 FastAPI/Docker 与动态浏览器证据不能宣称通过。
+
+下一阶段 M107 从全局角度优先做生产入口矩阵、更多开放式表达/未注册能力澄清、真实数据证据边界和动态 Console 验收；没有真实远程工具来源时不引入 MCP 运行时依赖。

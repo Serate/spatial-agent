@@ -2929,3 +2929,17 @@ M103 启动独立临时 profile 的 Chrome headless CDP 时，Chrome 可执行�
 ### 处理与预防
 
 本轮不修改业务代码，也不终止用户已有 Chrome；动态浏览器 smoke 标记为未执行，静态前端契约和既有浏览器测试继续作为离线证据。后续使用隔离 profile、显式 CDP 参数或可控浏览器运行环境重新验收，并在 CDP 真正监听后才记录动态通过；不能把 CDP 启动失败当作 Console 功能通过。
+
+## 直接调用 AgentRuntime 不能替代 Service/HTTP result envelope 验收
+
+### 现象
+
+M106 真实模型 + 本地 GIS 开放式查询中，直接调用 `AgentRuntime.run()` 得到的 `AgentRunResult.to_dict()` 没有 `result.type`、`workspace` 和 `views`；同一个请求通过 `AgentService.run()` 后，返回完整的 `zonal_vector_summary_result` envelope、vector workspace/views 和真实道路/水体摘要。
+
+### 根因
+
+`AgentRuntime` 是规划、执行、观测和状态的内部编排 seam，`AgentRunResult` 是内部运行对象。跨 HTTP、CLI、artifact、recovery 的用户结果由 `AgentService` 的格式化层补充 `result_contract.py`、trace、provenance、GeoJSON 和兼容字段。将内部对象误当作外部结果，会把预期的分层误报成结果契约缺失。
+
+### 处理与预防
+
+真实入口验收必须通过 `AgentService`、HTTP 或 CLI，并检查 `result.type`、`result.workspace`、`result.views` 和 lineage；Runtime 单测只验证内部状态机和 `AgentRunResult`。如果未来要求 Runtime 直接输出外部 envelope，应先明确新的接口契约并同步 artifact/recovery/前端，而不能在验收脚本中拼接字段路径。
