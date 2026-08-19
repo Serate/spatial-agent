@@ -884,3 +884,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 2. 领域泄漏审查：检查 workflow、result views、provenance、failure/replanning、HTTP capability endpoint 是否需要 Domain Pack 化。
 3. 真实环境验收：Docker 恢复后复验 GIS Domain Pack 的 HTTP、SQLite、artifact、地图和 live model；保持 CI 离线。
 4. MCP 仍只作为未来真实外部工具来源的 ToolProvider adapter，不进入核心 Runtime。
+
+## 当前进度：M113 已完成
+
+- 当前版本已用 `domains/text` 验证最小非 GIS Domain Pack 闭环：请求事实提取、能力发现、TaskPlan、ToolRegistry schema/dispatch、Runtime、Service、result envelope 和 artifact。
+- `AgentService(runtime_factory=...)` 是非 GIS 入口复用的注入 seam；`result_contract` 可输出 `text_summary_result` 和 generic workspace。
+- planning evidence 已包含通用 `domain_id`，不依赖 GIS 字段；M113 专项 3 项、M112 回归 3 项、full-stage、离线全量 646 项（42 项按环境跳过）、compileall、diff check 通过。
+
+## 下一阶段 M114
+
+进行全局领域泄漏审计：优先检查 HTTP/runtime capability 快照、结果 views/workspace、provenance、failure/replanning 和前端动态渲染，继续将 GIS 语义保留在 `domains/gis`，并补跨领域契约测试。Docker/真实数据/真实模型仍是可选验收路径，默认 CI 不依赖它们。

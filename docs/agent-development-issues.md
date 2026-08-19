@@ -3037,3 +3037,17 @@ M112 新增 `DomainPack` seam，领域包负责 capability catalog、discovery �
 ### 预防
 
 以后新增领域不得直接把数据集名、能力 ID 或结果模板写入 `agent/runtime.py`、通用 context builder 或公共 HTTP 逻辑。至少要提供一个不含 GIS 术语的 Domain Pack/replay，并验证 RequestFacts、TaskPlan、ToolRegistry、result envelope、trace 和 artifact 的跨领域闭环。只把数据常量挪到新目录而不检查 discovery、workflow、result views 和 provenance，不能视为完成解耦。
+
+## 非 GIS Domain Pack 的 planning evidence 缺少领域标识
+
+### 现象
+
+非 GIS Domain Pack 已经可以经过 Runtime 执行工具并生成 Service/artifact 结果，但 `result.planning` 没有 `domain_id`。前端或跨入口验收无法判断该计划由哪个领域能力包产生，只能从工具名称或结果类型反推领域。
+
+### 根因
+
+`domain_id` 已存在于 Domain discovery 和 CapabilityCatalog，但 `_build_plan_evidence()` 只记录了能力 ID、工具名和目录摘要，没有把领域边界投影到统一 planning evidence。该问题不是 GIS 数据错误，而是领域扩展信息在 Runtime 到 result envelope 的链路中丢失。
+
+### 修复与预防
+
+M113 将 `domain_id` 加入通用 planning evidence，优先读取 discovery，缺失时读取 capability catalog，未知领域使用 `unknown`；Runtime 不对具体领域值做分支判断。以后新增 Domain Pack 必须验证 domain id 从 discovery/catalog 贯穿 Runtime、Service、artifact 和 Contract Harness，不能只测试工具能否执行。

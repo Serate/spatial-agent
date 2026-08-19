@@ -2471,3 +2471,18 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 将能力目录、workflow、结果类型和数据 provenance 的领域扩展点继续收敛为可验证契约，并补一个真正独立于 GIS 的最小 adapter/replay。
 3. Docker/真实环境可用时，复验 GIS Domain Pack 的 HTTP、SQLite、artifact、地图和真实模型闭环；离线 CI 仍不依赖原始数据或 live provider。
 4. 只有出现真实远程工具来源时才实现 MCP adapter；MCP 仍不能替代 ToolRegistry、schema 校验和执行治理。
+
+## M113 已完成：非 GIS Domain Pack 闭环
+
+- 新增独立于 GIS 的 `domains/text` Domain Pack，包含自有 RequestFacts 提取、能力目录、discovery、Planner、ToolProvider、AnswerComposer 和 Runtime factory。
+- 文本摘要请求已通过同一条 `RequestFacts -> capability discovery -> TaskPlan -> ToolRegistry -> Runtime -> Service -> result envelope -> artifact` 链路执行；没有引入 GIS 数据集、空间模板或区域专用规则。
+- `AgentService` 支持注入自定义 `runtime_factory`，使 Service/HTTP 边界可以复用非 GIS Runtime；planning evidence 现在记录通用 `domain_id`。
+- `text_summary_result` 使用通用 workspace 的 `generic` 面板，Contract Harness 能比较 Service payload 与 artifact，证明结果契约不只服务空间结果。
+- M113 专项 3 项、M112 回归 3 项、`full-stage`、离线全量 646 项（42 项按环境跳过）、Python 编译和 `git diff --check` 通过。
+
+### M114 全局规划
+
+1. 对 Runtime、Service、HTTP capability snapshot、result views、provenance 和 failure/replanning 做一次领域泄漏审计，并将仍带 GIS 假设的部分下沉到 Domain Pack。
+2. 将数据集、实体、能力和结果类型的扩展点收敛为可校验的 Domain Pack 契约；用至少两个 GIS 数据源/区域和一个非 GIS Domain Pack 做契约测试。
+3. 恢复 Docker/真实环境后，重新验收 GIS Domain Pack 的 HTTP、SQLite、artifact/recovery、真实武汉数据和可选真实模型路径；CI 仍保持离线。
+4. 前端继续消费动态 result envelope/workspace/views，不为文本或 GIS 分别复制固定结果面板；没有真实远程工具来源时不引入 MCP 运行时依赖。

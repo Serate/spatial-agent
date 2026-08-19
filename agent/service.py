@@ -3,7 +3,7 @@ import json
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from agent.artifact_store import ArtifactStore
 from agent.cost_governance import (
@@ -76,12 +76,18 @@ _TERMINAL_RUN_STATUSES = {
 class AgentService:
     """Application boundary for running Agent sessions from a CLI or HTTP API."""
 
-    def __init__(self, artifact_store: ArtifactStore = None, state_db_path: str = None):
+    def __init__(
+        self,
+        artifact_store: ArtifactStore = None,
+        state_db_path: str = None,
+        runtime_factory: Callable[..., Any] = None,
+    ):
         self._artifact_store = artifact_store or ArtifactStore()
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
+        self._runtime_factory = runtime_factory or build_runtime
         self._state = ServiceState(
             state_db_path=self._state_db_path,
-            runtime_factory=build_runtime,
+            runtime_factory=self._runtime_factory,
         )
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(

@@ -1128,3 +1128,16 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 3. 数据与模型：把 GIS 数据仅作为一个 Domain Pack 做真实验收；保持脱敏模型回放和真实模型可选，不把某个数据集作为 CI 前置条件。
 4. 部署与体验：Docker 恢复后重建当前版本，验证 Domain Pack 选择、HTTP/SQLite/artifact/recovery、动态 Console workspace/views 和地图证据。
 5. 测试：继续保留 GIS core 与真实数据验收，同时新增跨领域 contract harness；最大并发度保持 1。
+
+## M113 已完成
+
+- 新增无 GIS 术语的 `domains/text` Domain Pack，验证自定义 RequestFacts、CapabilityCatalog、discovery、Planner、ToolProvider、AnswerComposer 和结果类型可以由同一 Runtime 编排。
+- `AgentService` 新增可注入 `runtime_factory`，文本 Runtime 可以导出 artifact；Service 结果与 artifact 使用 Contract Harness 保持一致。
+- 通用 planning evidence 增加 `domain_id`，来源优先为 Domain discovery，其次为 capability catalog；Runtime 不解析具体领域值。
+- M113 专项与 M112 回归、`full-stage`、离线全量 646 项（42 项按环境跳过）、编译和 `git diff --check` 全部通过。
+
+### M114 下一步
+
+1. 进行全局领域泄漏审计，重点检查 Service/HTTP capability、result views、provenance、failure/replanning 和前端动态 workspace。
+2. 将仍然 GIS 特有的公共契约下沉到 GIS Domain Pack，并补跨 GIS/非 GIS 的 contract harness。
+3. Docker 可用后执行真实 GIS Domain Pack 的 HTTP、SQLite、artifact/recovery、地图和 live model 验收；保留离线 CI 门禁。

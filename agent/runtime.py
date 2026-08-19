@@ -19,6 +19,7 @@ from .domain_contract import (
     DomainPack,
     default_domain_pack,
     discovery_context,
+    extract_request_facts,
     selected_capability_ids,
     workflow_context,
 )
@@ -35,7 +36,7 @@ from .replanning import (
     merge_replanned_plan,
     rule_replan_plan,
 )
-from .request_model import RequestFacts, parse_spatial_request
+from .request_model import RequestFacts
 from .tools import ToolRegistry
 from .workflow_templates import (
     WorkflowTemplateError,
@@ -194,7 +195,7 @@ class AgentRuntime:
             raise ToolError("timeout_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
         resolved_request = self._resolve_request(request, session_id)
-        request_facts = parse_spatial_request(resolved_request)
+        request_facts = extract_request_facts(self._domain_pack, resolved_request)
         resolved_run_id = run_id or str(uuid.uuid4())
         run_span_id = uuid.uuid4().hex[:16]
         self._run_span_ids[resolved_run_id] = run_span_id
@@ -336,7 +337,7 @@ class AgentRuntime:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
         resolved_request = self._resolve_request(request, session_id)
-        request_facts = parse_spatial_request(resolved_request)
+        request_facts = extract_request_facts(self._domain_pack, resolved_request)
         context_packet = self._build_context_packet(
             request, resolved_request, session_id, workflow, request_facts=request_facts
         )
@@ -521,7 +522,9 @@ class AgentRuntime:
             if self._memory is not None
             else None
         )
-        spatial_request = request_facts or parse_spatial_request(resolved_request)
+        spatial_request = request_facts or extract_request_facts(
+            self._domain_pack, resolved_request
+        )
         capability_discovery = self._domain_pack.discover(
             resolved_request,
             spatial_request,
@@ -1067,6 +1070,16 @@ def _build_plan_evidence(
             planner_kind=planner_kind,
         ),
     }
+    # Keep the selected domain visible in the generic planning envelope.  The
+    # Runtime must not import or interpret domain-specific identifiers; both
+    # discovery and the capability catalog already expose this boundary for
+    # custom Domain Packs.
+    domain_id = None
+    if isinstance(capability_section, Mapping):
+        domain_id = capability_section.get("domain_id")
+    if not domain_id and isinstance(capability_catalog_section, Mapping):
+        domain_id = capability_catalog_section.get("domain_id")
+    evidence["domain_id"] = str(domain_id)[:80] if domain_id else "unknown"
     request_facts = sections.get("spatial_request")
     if isinstance(request_facts, Mapping):
         evidence["request_facts"] = {

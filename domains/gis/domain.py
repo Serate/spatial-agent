@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from agent.capability_catalog import capability_catalog
 from agent.capability_routing import CapabilityRouter
 from agent.workflow_templates import workflow_template_catalog, workflow_template_context_summary
+from agent.request_model import parse_spatial_request
 
 from .catalog import (
     GIS_CAPABILITIES,
@@ -19,6 +20,9 @@ class GisDomainPack:
     """Provide GIS discovery/catalog behavior without embedding it in Runtime."""
 
     domain_id = "gis"
+
+    def extract_request_facts(self, request: str) -> Any:
+        return parse_spatial_request(request)
 
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
         catalog = capability_catalog(

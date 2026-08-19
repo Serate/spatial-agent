@@ -18,6 +18,9 @@ class DomainPack(Protocol):
 
     domain_id: str
 
+    def extract_request_facts(self, request: str) -> Any:
+        """Return the domain-neutral request facts for a request."""
+
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
         """Return a JSON-safe capability catalog for the runtime context."""
 
@@ -64,6 +67,16 @@ def workflow_context(domain_pack: DomainPack) -> dict[str, Any]:
         return {}
     value = method(include_arg_shape=False, compact=True)
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def extract_request_facts(domain_pack: DomainPack, request: str) -> Any:
+    """Use domain-owned request extraction, with the GIS compatibility fallback."""
+    method = getattr(domain_pack, "extract_request_facts", None)
+    if callable(method):
+        return method(request)
+    from .request_model import parse_spatial_request
+
+    return parse_spatial_request(request)
 
 
 def default_domain_pack() -> DomainPack:
