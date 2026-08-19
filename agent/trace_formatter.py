@@ -23,18 +23,21 @@ def format_trace(result: AgentRunResult) -> List[str]:
         lines.append("Run failed: " + str(result.error))
         for step in result.steps:
             lines.append(_format_step(step))
+        _append_replanning_trace(lines, result)
         return lines
 
     if result.status == RunStatus.CANCELLED:
         lines.append("Run cancelled: " + str(result.error))
         for step in result.steps:
             lines.append(_format_step(step))
+        _append_replanning_trace(lines, result)
         return lines
 
     if result.status == RunStatus.TIMED_OUT:
         lines.append("Run timed out: " + str(result.error))
         for step in result.steps:
             lines.append(_format_step(step))
+        _append_replanning_trace(lines, result)
         return lines
 
     if result.plan:
@@ -43,9 +46,29 @@ def format_trace(result: AgentRunResult) -> List[str]:
     for step in result.steps:
         lines.append(_format_step(step))
 
+    _append_replanning_trace(lines, result)
     if result.answer:
         lines.append("Final answer: " + result.answer)
     return lines
+
+
+def _append_replanning_trace(lines: List[str], result: AgentRunResult) -> None:
+    """Expose bounded replanning evidence in the human-readable trace."""
+    for event in result.replan_events[:8]:
+        if not isinstance(event, dict):
+            continue
+        failed_step = str(event.get("failed_step_id") or "unknown")[:96]
+        failed_tool = str(event.get("failed_tool") or "unknown")[:96]
+        replacement_ids = [
+            str(item)[:96]
+            for item in (event.get("replanned_step_ids") or [])[:24]
+        ]
+        replacement = ", ".join(replacement_ids) if replacement_ids else "无替代步骤"
+        lines.append(
+            "Adaptive replan: step {} ({}) failed; replacement steps: {}.".format(
+                failed_step, failed_tool, replacement
+            )
+        )
 
 
 def _format_step(step: StepRun) -> str:

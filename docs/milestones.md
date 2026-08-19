@@ -2196,3 +2196,24 @@ M97 已把失败的机器契约接入完整运行链路。下一阶段从全局�
 ### 全局复盘与下一阶段入口
 
 M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/失败证据 -> trace/前端/恢复”的核心 Runtime 闭环。下一阶段从七维矩阵优先安排当前代码的真实 Docker/LLM/GIS 入口验收；若宿主环境仍阻塞，则推进模型计划修复和开放式能力组合的脱敏回放，不引入没有真实工具来源支撑的 MCP 依赖。
+
+## M99：自适应重规划结果契约收敛（已完成）
+
+### 实现内容
+
+- 新增 `spatial-agent.replanning.v1`，将顶层 `replan_events` 归一为受限的 `result.replanning` 证据，统一表达失败步骤、失败工具、失败分类、替代步骤和有限耗时信息。
+- `result.lineage.replanning` 增加可导航的重规划摘要，HTTP、artifact recovery 和其他运行详情入口可以读取同一份计数与引用语义。
+- 可读执行轨迹增加自适应重规划说明；Console 优先消费 `result.replanning.events`，旧顶层字段仅保留兼容回退。
+- 新增契约、边界、trace 和 Console 消费测试，禁止原始异常文本穿过结果契约，并限制事件和替代步骤数量。
+
+### 当前验收证据
+
+- M99 专项与重规划、结果契约、跨入口计划证据、artifact viewer、Console 回归共 36 项通过；离线全量 624 项通过、42 项按环境跳过。
+- quick、stage、smoke、Python 编译、PowerShell 解析、`git diff --check` 和真实 GIS core 31 项通过；真实模型 planner smoke 与显式绑定武汉分析就绪配置的 live GIS 总览通过。
+- Docker Linux engine 当前仍无法连接 `dockerDesktopLinuxEngine` named pipe，尚未用当前版本重建并执行 production acceptance；不能引用旧容器作为 M99 证据。
+
+### 下一步全局规划
+
+1. 完成 quick、stage、离线全量和静态门禁，确认新增结果字段不破坏旧 artifact 与历史运行恢复。
+2. Docker engine 恢复后，用当前版本执行 readiness、同步/异步、失败恢复、真实 GIS 和可选 live LLM acceptance。
+3. 若宿主环境继续阻塞，则补充脱敏模型回放的开放式能力组合与失败重规划矩阵；没有真实外部工具来源时不引入 MCP 运行时依赖。

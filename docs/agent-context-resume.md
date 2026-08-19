@@ -759,6 +759,10 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 下一步：先完成 M98 最终验收和推送，再从全局七维矩阵安排真实 Docker/LLM/GIS 入口或脱敏模型计划修复回放。MCP 继续保持未来真实远程工具来源的 adapter。
 
+## M99 已完成
+
+新增 `spatial-agent.replanning.v1`，统一 `result.replanning`、`result.lineage.replanning`、trace 和 Console 消费；顶层 `replan_events` 保持兼容。M99 专项回归 36 项、离线全量 624 项（42 项按环境跳过）、真实 GIS core 31 项、真实模型 planner smoke 和显式绑定武汉分析就绪配置的 live GIS 总览均通过。Docker Linux engine 仍无法连接，不能宣称当前版本 production acceptance。下一阶段 M100 先从全局七维矩阵安排 Docker/真实入口复验；没有真实外部工具来源时不引入 MCP 运行时依赖。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。

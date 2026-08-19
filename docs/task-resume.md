@@ -986,3 +986,9 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 - M98 专项 3 项、M80 observability 回归 6 项、Console 回归 2 项通过；离线全量 620 项通过、42 项按环境跳过；quick、stage、GIS core、编译、PowerShell 解析和 diff check 通过。
 
 下一阶段优先做当前版本真实 Docker/LLM/GIS 入口验收；Docker 恢复前可继续做脱敏模型计划修复与开放式能力组合回放。MCP 仍只作为未来真实外部工具来源的 adapter。
+
+## M99 已完成
+
+自适应重规划此前只有顶层 `replan_events`，没有进入统一 `result` envelope 和 lineage。本阶段新增 `spatial-agent.replanning.v1`，由 `result_contract.py` 对事件做有界归一化，生成 `result.replanning` 与 `result.lineage.replanning`；trace 增加重规划说明，Console 优先读取 envelope，旧字段只作 fallback。M99 专项及相关回归 36 项通过；离线全量 624 项通过、42 项按环境跳过，真实 GIS core 31 项、真实模型 planner smoke 和显式绑定武汉配置的 live GIS 总览均通过。Docker engine 仍不可用，不能宣称当前版本 production acceptance。MCP 仍只作为未来真实外部工具来源的 adapter，不进入核心 Runtime。
+
+下一阶段从全局七维矩阵规划 M100：优先在 Docker engine 恢复后重建当前版本并执行 production acceptance；若继续受宿主环境阻塞，则推进开放式能力组合、失败重规划和跨入口恢复的脱敏回放，不引入没有真实外部工具来源支撑的 MCP。

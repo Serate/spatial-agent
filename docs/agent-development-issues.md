@@ -2845,3 +2845,31 @@ M97 已将 `failure` 写入运行结果、artifact 和 SQLite，但 JSON-lines r
 ### 处理与预防
 
 M98 将 `error_code`、`failure_phase`、`failure_retryable` 加入 observability 的 allowlist，并由 Runtime 从版本化 failure evidence 填充；原始错误文本仍被禁止进入事件。Console 增加受限 failure badge，显示阶段、错误码和可重试性。以后新增机器契约字段必须同时检查持久化、trace 和至少一个用户可读消费面，不能只增加后端字段。
+
+## 自适应重规划只保留顶层事件会造成结果入口语义分叉
+
+### 现象
+
+Runtime 已将自适应重规划写入顶层 `replan_events`，artifact 和 observability 也能记录重规划次数，但 `result` envelope 和 lineage 没有同一份版本化证据。HTTP 客户端、artifact recovery 和 Console 因而可能分别读取顶层字段或自行推断，无法用统一契约说明哪个步骤失败、替代了哪些步骤以及重规划是否发生。
+
+### 根因
+
+重规划既是执行控制事件，也是用户需要理解的结果证据。只在 `AgentRunResult` 或前端保留事件，会使结果 envelope 仍然只表达“最终成功/失败”，调用方不得不依赖实现细节；旧 artifact、异常 planner 或外部 provider 还可能提交未受限的事件字段。顶层事件没有经过结果 seam 的二次校验时，跨入口的字段边界也不一致。
+
+### 处理与预防
+
+M99 新增 `spatial-agent.replanning.v1`，由 `result_contract.py` 统一校验并限制事件数量、步骤标识、替代步骤数量、延迟和时间戳；原始异常文本不会进入该契约。`result.replanning` 与 `result.lineage.replanning` 共用这份证据，Console 优先读取 result envelope，旧顶层 `replan_events` 只作为兼容 fallback；可读 trace 同时说明自适应重规划。以后新增执行控制事件必须同时检查 result envelope、lineage、持久化恢复、trace 和前端消费面，不能只增加一个顶层列表。
+
+## Live GIS 验收未显式绑定数据配置会把数据问题误判为代码失败
+
+### 现象
+
+真实模型 + 本地 GIS 总览测试第一次运行时，连续三次在 `get_zonal_vector_summary` 的数据预检处失败，提示 `roads` 不可用。实际 `D:\tmp\wuhan-gis\wuhan-osm.gpkg` 和分析就绪 manifest 都存在；给进程显式注入正式的 `datasets.wuhan.analysis-ready.bound.json` 后，同一测试成功。
+
+### 根因
+
+`build_runtime("openai", "local")` 会从 `SPATIAL_AGENT_DATASET_CONFIG` 读取本地数据目录。手工执行 live 测试时只设置了模型/GIS live 开关，没有设置 bound 配置，于是运行时回退到仓库示例配置；示例配置没有真实道路文件，数据门控按设计拒绝工具。这个失败属于配置/数据前置条件，不是 LLM 规划、ToolRegistry 或 MCP 问题。
+
+### 处理与预防
+
+真实 GIS 验收必须显式设置 `SPATIAL_AGENT_DATASET_CONFIG`，或使用 `scripts/test_profile.py --profile live-short --dataset-config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`。验收记录同时保留 planner、backend、dataset config 和数据健康状态；不能因为模型请求失败就放宽 roads/water 数据门控，也不能把缺少配置的失败算作当前代码回归。

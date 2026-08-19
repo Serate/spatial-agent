@@ -1,6 +1,7 @@
 """Build the bounded result envelope shared by API clients and the Console."""
 
 from pathlib import Path
+import math
 from typing import Any, Dict, List
 
 
@@ -62,6 +63,8 @@ GEOMETRY_STATUS = {
     "unknown",
 }
 
+REPLANNING_SCHEMA_VERSION = "spatial-agent.replanning.v1"
+
 
 def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
     plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
@@ -117,6 +120,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         geometry_evidence=geometry_evidence,
         result_type=result_type,
     )
+    replanning = build_replanning_evidence(payload.get("replan_events"))
     workspace = _workspace_contract(
         result_type,
         steps=steps,
@@ -144,6 +148,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "planning": payload.get("plan_evidence") or {"available": False},
         "references": references,
         "lineage": lineage,
+        "replanning": replanning,
         "degradation": degradation,
         "workspace": workspace,
         "views": views,
@@ -161,6 +166,67 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(payload.get("failure"), dict):
         contract["failure"] = dict(payload["failure"])
     return contract
+
+
+def build_replanning_evidence(events: Any) -> Dict[str, Any]:
+    """Normalize bounded adaptive-replanning evidence for every result surface.
+
+    Runtime already keeps the raw event shape deliberately small. This is the
+    result-envelope seam: it validates and bounds the shape again so an old
+    artifact or custom planner cannot make HTTP, recovery, and Console
+    consumers interpret different fields. Raw exception text is excluded.
+    """
+    normalized: List[Dict[str, Any]] = []
+    for event in events if isinstance(events, list) else []:
+        if not isinstance(event, dict):
+            continue
+        failed_step_id = _bounded_replan_token(event.get("failed_step_id"))
+        failed_tool = _bounded_replan_token(event.get("failed_tool"))
+        if not failed_step_id or not failed_tool:
+            continue
+        replacement_ids = [
+            token
+            for token in (
+                _bounded_replan_token(item)
+                for item in (event.get("replanned_step_ids") or [])
+            )
+            if token
+        ][:24]
+        item: Dict[str, Any] = {
+            "failed_step_id": failed_step_id,
+            "failed_tool": failed_tool,
+            "failure_category": _bounded_replan_token(
+                event.get("failure_category")
+            ) or "unknown",
+            "replanned_step_ids": replacement_ids,
+        }
+        try:
+            latency = float(event.get("latency_ms"))
+            if math.isfinite(latency) and latency >= 0:
+                item["latency_ms"] = round(min(latency, 86_400_000), 3)
+        except (TypeError, ValueError):
+            pass
+        try:
+            occurred_at = float(event.get("occurred_at"))
+            if math.isfinite(occurred_at) and occurred_at > 0:
+                item["occurred_at"] = round(occurred_at, 3)
+        except (TypeError, ValueError):
+            pass
+        normalized.append(item)
+        if len(normalized) >= 8:
+            break
+    return {
+        "schema_version": REPLANNING_SCHEMA_VERSION,
+        "available": bool(normalized),
+        "count": len(normalized),
+        "events": normalized,
+    }
+
+
+def _bounded_replan_token(value: Any) -> str:
+    if not isinstance(value, (str, int, float)) or isinstance(value, bool):
+        return ""
+    return str(value).strip()[:96]
 
 
 def _workspace_contract(
@@ -804,6 +870,7 @@ def build_lineage_index(
         retry_count = max(0, int(payload.get("retry_count") or 0))
     except (TypeError, ValueError):
         retry_count = 0
+    replanning = build_replanning_evidence(payload.get("replan_events"))
     return {
         "run_id": run_id or None,
         "answer": {"available": bool(payload.get("answer") or payload.get("error"))},
@@ -821,6 +888,11 @@ def build_lineage_index(
             "available": retry_count > 0,
             "count": retry_count,
             "ref": run_id if retry_count > 0 else None,
+        },
+        "replanning": {
+            "available": replanning["available"],
+            "count": replanning["count"],
+            "ref": run_id if replanning["available"] else None,
         },
         "map_layers": _map_layers(steps, geometry_evidence),
         "release_evidence": {
