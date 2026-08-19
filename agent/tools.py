@@ -1,10 +1,9 @@
-import json
 import re
-from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Protocol
+from typing import Any, Callable, Dict, Iterable, Mapping, Protocol
 
 from .errors import ToolError
 from .spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
+from .tool_provider import NativeToolProvider, ToolProvider
 
 _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -17,20 +16,45 @@ class ToolAdapter(Protocol):
 class ToolRegistry:
     """A deep module that validates and dispatches all tool calls."""
 
-    def __init__(self, definitions: Mapping[str, Mapping[str, Any]], adapter: ToolAdapter):
-        self._definitions = dict(definitions)
-        self._adapter = adapter
+    def __init__(
+        self,
+        definitions: Mapping[str, Mapping[str, Any]] | None = None,
+        adapter: ToolAdapter | None = None,
+        *,
+        provider: ToolProvider | None = None,
+    ):
+        if provider is None:
+            if definitions is None or adapter is None:
+                raise TypeError("ToolRegistry requires definitions and adapter, or a provider")
+            provider = NativeToolProvider(definitions, adapter)
+        elif definitions is not None or adapter is not None:
+            raise TypeError("provide either provider or definitions/adapter, not both")
+        self._provider = provider
+        provider_definitions = provider.definitions()
+        if not isinstance(provider_definitions, Mapping):
+            raise ToolError("tool provider definitions must be an object")
+        self._definitions = dict(provider_definitions)
         self._dynamic_handlers: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
 
     @classmethod
     def from_json(cls, path: str, adapter: ToolAdapter) -> "ToolRegistry":
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-        definitions = {tool["name"]: tool for tool in payload["tools"]}
-        return cls(definitions, adapter)
+        return cls(provider=NativeToolProvider.from_json(path, adapter))
+
+    @classmethod
+    def from_provider(cls, provider: ToolProvider) -> "ToolRegistry":
+        """Build a Registry from any provider without exposing its adapter."""
+        return cls(provider=provider)
 
     @property
     def names(self):
         return tuple(self._definitions.keys())
+
+    def provider_info(self) -> Dict[str, Any]:
+        """Return safe provider identity for capability and plan evidence."""
+        return {
+            "id": str(getattr(self._provider, "provider_id", "unknown"))[:64],
+            "tool_count": len(self._definitions),
+        }
 
     def register_tool(
         self,
@@ -147,7 +171,7 @@ class ToolRegistry:
                 raise ToolError("Tool must return an object: " + name)
             return result
         try:
-            result = self._adapter.invoke(name, arguments)
+            result = self._provider.invoke(name, arguments)
         except ToolError as exc:
             if "does not implement" in str(exc) and name in self._definitions:
                 # A static definition without an adapter implementation is a
@@ -161,7 +185,7 @@ class ToolRegistry:
         return result
 
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
-        exporter = getattr(self._adapter, "export_result", None)
+        exporter = getattr(self._provider, "export_result", None)
         if not callable(exporter):
             raise ToolError("adapter does not support result export")
         return exporter(result_ref, max_features=max_features)

@@ -42,8 +42,13 @@ class M35ProvenanceTests(unittest.TestCase):
         )
         self.assertNotIn("args", json.dumps(artifact))
         serialized = json.dumps(artifact)
-        self.assertNotIn('"geometry":', serialized)
-        self.assertNotIn('"geometry_source":', serialized)
+        # Geometry is now a first-class, bounded result contract.  Raw step
+        # arguments remain excluded, while the normalized geometry evidence is
+        # intentionally persisted for Console/artifact/recovery consistency.
+        geometry = artifact["result"]["geometry"]
+        self.assertIn(geometry["status"], {"unknown", "no_geometry", "real_geometry", "boundary_geometry", "truncated_geometry"})
+        self.assertIn('"geometry":', serialized)
+        self.assertNotIn('"api_key":', serialized)
 
 
 if __name__ == "__main__":

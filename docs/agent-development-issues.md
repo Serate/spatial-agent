@@ -2735,3 +2735,23 @@ M91 手工验证生产 `/runs` 时，直接在 PowerShell 字符串里写 `查�
 ### 处理与预防
 
 生产手工验收中文请求优先使用 JSON unicode escape，或显式用 UTF-8 编码构造请求体。文档和验收记录必须区分“编码导致的输入损坏”和“Planner 不能理解请求”。后续若新增 CLI/API smoke 脚本，应统一提供 UTF-8-safe 的请求构造函数，而不是在每个手工命令里直接拼中文 JSON。
+
+## 工具数量增长不等于应立即用 MCP 替换 ToolRegistry
+
+### 判断
+
+当工具数量增加时，真正需要稳定的是工具定义、schema 校验、参数边界、权限、数据依赖、错误分类、trace 和结果契约；MCP 主要解决跨进程或跨系统发现/调用，不会自动解决这些 Runtime 语义。
+
+### 处理与预防
+
+M92 新增 `ToolProvider` seam：`NativeToolProvider` 接入现有 JSON schema 和进程内 adapter，`MCPToolProvider` 只作为未来外部来源 adapter。ToolRegistry 仍是唯一 dispatch 边界，provider 不能绕过 schema 校验、动态工具规则、degradation、workspace/views 或 artifact。只有出现实际的远程 GIS、数据库或第三方工具需求时，才实现 MCP adapter，并用同一 Registry contract 验收，避免引入一个与内部工具平行的第二套系统。
+
+## Docker 服务存在但无法打开 engine 时不能复用旧容器证据
+
+### 现象
+
+M92 尝试用当前代码重建生产容器时，Docker CLI 报 `dockerDesktopLinuxEngine` named pipe 不存在；PowerShell 查询显示 `com.docker.service` 为 Stopped，但 `Start-Service -Name com.docker.service` 又报无法打开该 service handle。
+
+### 处理与预防
+
+将该问题视为宿主部署环境故障，而不是 Agent Runtime 或 ToolProvider 失败。离线测试、quick/stage 和静态契约可以继续执行，但不能把旧容器的 health、production acceptance 或 live 响应当作当前提交证据。环境恢复后必须用当前代码重建镜像，再重新执行 readiness、数据卷、同步/异步和 provider 证据验收。

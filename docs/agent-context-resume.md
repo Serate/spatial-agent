@@ -700,3 +700,15 @@ M91 已完成小型真实入口验收。Docker production 容器使用当前代�
 M91 验证：`tests.test_m66_data_volume` 6 项通过（1 项 live Docker acceptance 按门控跳过），production acceptance PowerShell parser 通过，Docker production acceptance 通过。PowerShell 直接写中文 JSON 请求体可能产生 mojibake，后续 CLI/生产手工验收优先使用 JSON unicode escape 或显式 UTF-8 body。
 
 下一阶段 M92 需要从全局 Agent Runtime 视角规划工具管理深化：保留 ToolRegistry 作为核心执行 seam，抽象 `ToolProvider` 以支持内置工具和未来 MCP adapter；MCP 只能作为外部工具来源适配层接入 ToolRegistry/CapabilityCatalog/WorkflowTemplate，不能替代 schema 校验、dispatch、trace、degradation、workspace 和 views 契约。
+
+## M92 当前进展
+
+新增 `agent/tool_provider.py`：`ToolProvider` 是工具定义目录与 provider-specific invocation 的最小接口，`NativeToolProvider` 负责仓库 JSON schema 和进程内 adapter。`ToolRegistry` 新增 `from_provider()` 与 `provider_info()`，旧构造方式保持兼容；所有 provider 调用仍先经过 Registry 的 schema/参数校验，动态工具仍归 Registry 管理。
+
+Runtime 的能力上下文和 `plan_evidence` 增加安全的 `tool_provider` 身份/工具数量证据；这让能力目录知道 schema 来源，但不把 provider handler 或原始连接信息暴露给 Planner、artifact 或前端。MCP 暂不实现为核心依赖，后续仅作为 `MCPToolProvider` adapter 候选。
+
+M92 已完成验证：ToolProvider 专项 5 项、M59/M77/M81 相关回归 29 项、M30/M35/M66/M67/M79 相关回归 18 项通过；quick、stage 通过；离线全量 591 项通过、42 项按环境跳过；M69 多进程幂等测试连续复跑 5 次通过；Python 编译和 `git diff --check` 通过。GIS profile 的 3 项因当前普通 Python 环境缺少真实 GIS 依赖/数据而跳过，不能宣称 GIS 验收。
+
+M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDesktopLinuxEngine` named pipe；`com.docker.service` 虽显示存在但为 Stopped，启动时报无法打开 service handle。不能把 M91 旧容器响应当作 M92 当前代码证据。离线 provider 契约、quick/stage 可作为当前阶段证据，Docker acceptance 需环境恢复后重跑。
+
+下一阶段 M93 先从全局 Runtime 盘点 provider 健康、权限/数据依赖、超时/错误分类、trace/metrics 和 HTTP/artifact/recovery 一致性，再决定是否实现真实 `MCPToolProvider`；没有真实外部工具来源时不引入 MCP 依赖。

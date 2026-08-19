@@ -468,6 +468,7 @@ class AgentRuntime:
         capability_catalog = capability_context_summary(
             catalog=build_capability_catalog(environment=self._backend_name or "unknown"),
             tool_definitions=self._registry.definition_summary(),
+            tool_provider=self._registry.provider_info(),
             selected_capability_ids=[
                 item.capability_id for item in capability_discovery.candidates[:1]
             ],
@@ -973,6 +974,12 @@ def _build_plan_evidence(
         evidence["capability_catalog_tool_schema_count"] = (
             len(tool_schemas) if isinstance(tool_schemas, Mapping) else 0
         )
+        provider = capability_catalog_section.get("tool_provider")
+        if isinstance(provider, Mapping):
+            evidence["capability_catalog_tool_provider"] = {
+                "id": str(provider.get("id", "unknown"))[:64],
+                "tool_count": int(provider.get("tool_count", 0) or 0),
+            }
     matched, exact = _matched_template_ids(
         templates_section if isinstance(templates_section, Mapping) else {},
         output_type=output_type,

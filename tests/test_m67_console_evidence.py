@@ -40,9 +40,9 @@ class M67ConsoleEvidenceContractTests(unittest.TestCase):
             "geometry.sources",
             "geometry.crs",
             "geometry.geojson_ref||data.geojson_ref",
-            "hasRasterResult",
-            "hasHealthResult",
-            "hasCompositeResult",
+            "const view=resultViewPanels(data).raster",
+            "const view=resultViewPanels(data).health",
+            "const view=resultViewPanels(data).composite",
         ):
             self.assertIn(marker, self.html)
 

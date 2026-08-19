@@ -918,8 +918,18 @@ M90 验证：M46/M57/M79/M17 目标测试 29 项通过；M17/M46/M57/M79/M81/M76
 
 下一阶段 M91 需要先做全局盘点：在 result views 的 metrics/table/chart/map 展示契约基本稳定后，优先安排小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致；MCP 只作为后续 ToolProvider adapter 方向，不应替代当前 ToolRegistry 核心 seam。
 
+M92 已开始工具来源可替换性收敛：新增 `agent/tool_provider.py` 的 `ToolProvider` seam 和 `NativeToolProvider`，`ToolRegistry.from_provider()` 可以接收非 native provider；旧的 `ToolRegistry(definitions, adapter)` 与 `from_json()` 保持兼容。Registry 继续独占 schema 校验、参数校验、动态工具注册、统一 dispatch 和结果导出，provider 不获得绕过边界的权限。
+
+能力上下文和 `plan_evidence` 现在记录安全的 `tool_provider` 身份与工具数量，证明 Planner 看到的工具 schema 来自当前 Registry provider。MCP 仍未成为依赖，也没有替换 ToolRegistry；未来若接入 MCP，只实现 `MCPToolProvider` adapter。
+
+M92 当前验证：ToolProvider 专项 5 项通过；M59 capability catalog、M77 context engineering、M81 dynamic tools 相关回归 29 项通过，M30/M35/M66/M67/M79 相关回归 18 项通过；quick、stage 通过；离线全量 591 项通过、42 项按环境跳过；M69 多进程幂等测试连续复跑 5 次通过；Python 编译和 `git diff --check` 通过。GIS profile 的 3 项在当前普通 Python 环境全部按依赖条件跳过，不能宣称真实 GIS 验收。Docker production acceptance 仍等待宿主环境恢复。
+
 M91 已完成小型真实入口验收：Docker production 容器使用当前代码和 `.env.production` 重建后 healthy，`scripts/production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088` 通过，数据卷状态 `ready`、核心/可选数据均 `ready`、同步/异步运行和重复提交幂等通过。生产验收中发现内存 admin boundary 响应可以合法返回空 `workspace.panels` / `views.panels`，旧 `Assert-ViewEvidence` 会把 PowerShell 空属性名误判成未声明 view panel；已过滤空 panel 名并增加静态门禁，保持“非空 view panel 必须由 workspace 声明”的真实契约。
 
 M91 真实本地 GIS 抽样通过：生产 `/runs` 请求 `查询洪山区行政区边界`（rule planner + local backend + artifact/GeoJSON）返回 `admin_area_result`，`geometry.available=true`、`feature_count=1`、`workspace.panels=[map]`、`views.panels.map.kind=map`、`mode=geojson`。生产 live LLM 抽样通过：`planner=openai` 请求 `查询DEM栅格元数据` 返回 `COMPLETED`、`raster_metadata_result`、1 个工具步骤、`workspace.panels=[raster,map]`、`views.panels=[raster,map]`，未输出任何密钥。
 
 M91 验证：`tests.test_m66_data_volume` 6 项通过（1 项 live Docker acceptance 按门控跳过），production acceptance PowerShell parser 通过，Docker production acceptance 通过。手工 PowerShell 发送中文 JSON 时会出现编码/mojibake 风险，CLI/生产手动验收优先使用 JSON unicode escape 或显式 UTF-8 body。下一阶段 M92 从全局 Agent Runtime 角度规划：工具数量继续增加前，先把 ToolProvider/ToolRegistry 深化为可替换工具来源的接口，MCP 作为未来 adapter 接入，不替代 Runtime 核心执行 seam。
+
+M92 当前部署复验被宿主环境阻塞：`docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build` 无法连接 `dockerDesktopLinuxEngine` named pipe；`com.docker.service` 显示 Stopped，尝试启动时又无法打开该 service handle。不能把 M91 旧容器响应当作 M92 当前代码证据。离线 provider 契约和精简 profile 仍可继续验证，Docker acceptance 留作环境恢复后的显式验收。
+
+下一阶段 M93 从项目整体规划 provider 治理：在不引入 MCP 依赖的前提下，统一 provider 健康、权限/数据依赖、超时/错误分类、trace/metrics 和 HTTP/artifact/recovery 证据；完成后再决定是否需要真实外部工具 adapter。

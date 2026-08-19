@@ -2045,3 +2045,27 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从项目整体规划 M92：工具数量增长后，优先深化 ToolRegistry/ToolProvider 接口，而不是把 MCP 放进核心 Runtime seam。
 2. 设计 `ToolProvider` 抽象：内置工具先作为 `NativeToolProvider`，未来 `MCPToolProvider` 只负责把外部工具转成 ToolRegistry 可校验定义。
 3. 验收重点放在 schema 校验、参数校验、权限/数据依赖、统一 dispatch、trace、degradation、workspace/views 和 artifact 一致性，避免工具来源变多后重新分散业务契约。
+
+## M92：ToolProvider 可替换工具来源 Seam（已完成）
+
+### 实现内容
+
+- 新增 `agent/tool_provider.py`，定义最小 `ToolProvider` 接口和进程内 `NativeToolProvider`；provider 只负责定义目录和 provider-specific invocation。
+- `ToolRegistry` 新增 `from_provider()`、`provider_info()`，并将 `from_json()` 迁移到 Native provider；旧的 definitions/adapter 构造方式保持兼容。
+- Registry 仍是唯一执行 seam：provider 调用前必须通过工具 schema 和参数校验，动态工具、统一错误归一和结果导出仍由 Registry 控制。
+- Capability context 与 plan evidence 记录有界 `tool_provider` 身份和工具数量，不暴露 handler、连接信息或密钥；MCP 不作为核心依赖。
+- 更新历史回归测试以匹配当前 `result.views`、`result.geometry` 和 `preview_fingerprint` 契约，避免旧前端标记和过时的几何排除断言阻塞全量验证。
+
+### 当前验收证据
+
+- ToolProvider 专项测试 5 项通过，覆盖 Native provider、非 native provider、schema 校验先于 provider 调用、能力上下文和 plan evidence。
+- M59 capability catalog、M77 context engineering、M81 dynamic tools 相关回归 29 项通过；M30/M35/M66/M67/M79 相关回归 18 项通过。
+- quick、stage 通过；离线全量 591 项通过、42 项按环境跳过；M69 多进程幂等测试单独连续复跑 5 次通过。
+- Python 编译、`git diff --check` 和私有配置 ignore 检查通过；GIS profile 的 3 项在当前普通 Python 环境全部按依赖条件跳过，不能宣称真实 GIS 验收。
+- Docker production acceptance 被宿主机 Docker Linux engine 阻塞，不能引用 M91 旧容器作为 M92 当前代码证据。
+
+### 后续规划
+
+1. Docker 环境恢复后，用当前版本重建并执行 production acceptance，确认 provider 证据在 HTTP/artifact/recovery 入口不丢失。
+2. 从全局 Runtime 角度进入 M93：补 provider 健康、权限/数据依赖、超时/错误分类和跨入口观测契约。
+3. 只有出现真实外部工具来源时才实现 `MCPToolProvider`；不为了使用 MCP 而改变 ToolRegistry、CapabilityCatalog、WorkflowTemplate 和 Result contract 的核心 seam。

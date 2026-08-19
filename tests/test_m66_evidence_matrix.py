@@ -22,7 +22,14 @@ TERMINAL_STATUSES = {
 class _GeometryRuntime:
     """Small runtime fixture that emits one real geometry-bearing result."""
 
-    def run(self, request, session_id="default", timeout_seconds=None, run_id=None):
+    def run(
+        self,
+        request,
+        session_id="default",
+        timeout_seconds=None,
+        run_id=None,
+        expected_plan_fingerprint=None,
+    ):
         run_id = run_id or "fixture-run"
         plan = TaskPlan(
             goal="验证几何证据",

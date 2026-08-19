@@ -297,6 +297,7 @@ def capability_context_summary(
     *,
     catalog: Mapping[str, Any] | None = None,
     tool_definitions: Mapping[str, Mapping[str, Any]] | None = None,
+    tool_provider: Mapping[str, Any] | str | None = None,
     selected_capability_ids: Iterable[str] | None = None,
     max_capabilities: int = 10,
     max_tools: int = 16,
@@ -335,7 +336,7 @@ def capability_context_summary(
         if name in tool_schema_source and isinstance(tool_schema_source[name], Mapping)
     }
     analysis_ready = source.get("analysis_ready")
-    return {
+    result = {
         "schema_version": CAPABILITY_CONTEXT_SCHEMA_VERSION,
         "catalog_version": source.get("version"),
         "environment": source.get("environment", "unknown"),
@@ -349,6 +350,9 @@ def capability_context_summary(
         "tool_schema_count": len(tool_schemas),
         "dataset_groups": deepcopy(source.get("dataset_groups") or {}),
     }
+    if tool_provider is not None:
+        result["tool_provider"] = _safe_tool_provider_summary(tool_provider)
+    return result
 
 
 def runtime_capability_catalog(
@@ -487,6 +491,19 @@ def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
         "missing_datasets": [str(value) for value in item.get("missing_datasets", [])],
         "geometry": str(item.get("geometry", "unknown"))[:80],
     }
+
+
+def _safe_tool_provider_summary(value: Mapping[str, Any] | str) -> Dict[str, Any]:
+    if isinstance(value, Mapping):
+        try:
+            tool_count = max(0, int(value.get("tool_count", 0)))
+        except (TypeError, ValueError):
+            tool_count = 0
+        return {
+            "id": str(value.get("id", "unknown"))[:64],
+            "tool_count": tool_count,
+        }
+    return {"id": str(value)[:64]}
 
 
 def _safe_tool_schema_summary(definition: Mapping[str, Any]) -> Dict[str, Any]:
