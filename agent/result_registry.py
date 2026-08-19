@@ -12,12 +12,31 @@ from typing import Any, Callable, Mapping
 
 
 @dataclass(frozen=True)
+class ViewSpec:
+    """Bounded renderer metadata supplied by a Domain Pack."""
+
+    view_id: str
+    renderer: str = "generic"
+    title: str | None = None
+    schema_version: str = "spatial-agent.view.v1"
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "id": str(self.view_id)[:48],
+            "renderer": str(self.renderer or "generic")[:48],
+            "title": str(self.title)[:120] if self.title else "",
+            "schema_version": str(self.schema_version or "spatial-agent.view.v1")[:80],
+        }
+
+
+@dataclass(frozen=True)
 class ResultTypeSpec:
     """Bounded metadata needed to route a result to a workspace."""
 
     title: str | None = None
     panels: tuple[str, ...] = ()
     requires_geometry: bool = False
+    view_specs: tuple[ViewSpec, ...] = ()
 
 
 class ResultContractRegistry:
@@ -59,6 +78,12 @@ class ResultContractRegistry:
     def requires_geometry(self, result_type: str) -> bool:
         spec = self.spec(result_type)
         return bool(spec and spec.requires_geometry)
+
+    def view_specs_for(self, result_type: str) -> list[dict[str, str]]:
+        spec = self.spec(result_type)
+        if spec is None:
+            return []
+        return [item.as_dict() for item in spec.view_specs[:12] if isinstance(item, ViewSpec)]
 
     def build_views(
         self,
@@ -103,6 +128,11 @@ class ResultContractRegistry:
                     "title": spec.title,
                     "panels": list(spec.panels),
                     "requires_geometry": spec.requires_geometry,
+                    "view_specs": [
+                        item.as_dict()
+                        for item in spec.view_specs[:12]
+                        if isinstance(item, ViewSpec)
+                    ],
                 }
                 for result_type, spec in self._specs.items()
             ],

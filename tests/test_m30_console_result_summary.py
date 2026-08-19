@@ -17,7 +17,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "建设适宜性筛选",
             "function stepResult(result)",
             "function buildabilityStats(data)",
-            "请将空间后端切换为“本地 GIS”",
+            "function validateSelection(request)",
+            "请输入问题后再发送",
             "function rasterStats(data)",
             "阈值结果对比",
             "function compareBuildability()",
@@ -60,6 +61,9 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "function renderCapabilities(data)",
             "function geometryEvidence(data)",
             "空间证据：",
+            "function viewSpecMap(data)",
+            "function renderGenericView(viewId,view,spec={})",
+            "spec.renderer",
         ):
             self.assertIn(marker, self.html)
 

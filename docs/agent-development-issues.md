@@ -3135,3 +3135,17 @@ M122 将 `result_contract.py` 中的 GIS view builder 整段迁移到 `domains/g
 ### 修复与预防
 
 M122 将 GIS builder 整体下沉后，在公共 `result_contract.py` 仅保留 comparison 所需的 `_first_present`、`_view_metric` 和几何范围校验等通用 primitive；GIS 领域 view 自己保留其内部的 row/metric helper。新增跨领域 view smoke 和全量回归，覆盖 GIS result、Text generic result 与 comparison result。以后迁移领域实现前应先用调用点反向检查依赖，将公共 primitive 与领域 builder 分开测试，不能依据文件连续区间直接删除。
+
+## 前端用数据集关键词预判会阻断新增领域请求
+
+### 现象
+
+旧 Console 在发送请求前通过 `needsRaster` 正则识别 DEM、土地利用、坡度等 GIS 词汇，并在内存后端或本地 GIS 不可用时直接阻断请求。这个判断只覆盖已知 GIS 表达，新的 Domain Pack、同义表达或不需要栅格的开放式问题可能在到达 Planner/Runtime 前被错误拒绝。
+
+### 根因
+
+前端把数据依赖和后端可用性当成了页面本地规则，而不是由 Runtime 的能力目录、工具 schema 和数据健康门控决定。页面因此复制了领域语义，也可能与后端实际降级策略不一致。
+
+### 修复与预防
+
+M123 删除 `needsRaster`、`local_gis_backend` 和固定数据集词汇的发送前预判，仅保留空请求和通用模型配置检查；具体能力、数据依赖和降级说明由 Service/Runtime 返回结构化结果。以后前端不得依据领域关键词决定请求是否可执行；如需提前提示，应消费 `/capabilities` 或 result envelope 的通用 capability/degradation 字段。

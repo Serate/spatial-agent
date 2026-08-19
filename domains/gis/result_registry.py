@@ -1,6 +1,6 @@
 """Default GIS result metadata used by the backwards-compatible pack."""
 
-from agent.result_registry import ResultContractRegistry, ResultTypeSpec
+from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
 
 
 from .views import build_views
@@ -64,12 +64,47 @@ _GEOMETRY_TYPES = {
     "raster_statistics_result",
 }
 
+_VIEW_TITLES = {
+    "raster": "栅格统计",
+    "overview": "空间总览",
+    "health": "数据健康",
+    "composite": "综合分析",
+    "buildability": "建设筛选",
+    "compare": "结果对比",
+    "vector": "矢量摘要",
+    "map": "空间预览",
+    "generic": "结构化结果",
+}
+_VIEW_RENDERERS = {
+    "raster": "metrics",
+    "overview": "metrics",
+    "health": "table",
+    "composite": "metrics",
+    "buildability": "metrics",
+    "compare": "chart",
+    "vector": "table",
+    "map": "map",
+    "generic": "generic",
+}
+
+
+def _view_specs_for(result_type: str) -> tuple[ViewSpec, ...]:
+    return tuple(
+        ViewSpec(
+            view_id=panel,
+            renderer=_VIEW_RENDERERS.get(panel, "generic"),
+            title=_VIEW_TITLES.get(panel),
+        )
+        for panel in _PANELS.get(result_type, ())
+    )
+
 GIS_RESULT_REGISTRY = ResultContractRegistry(
     {
         result_type: ResultTypeSpec(
             title=_TITLES[result_type],
             panels=tuple(_PANELS.get(result_type, ())),
             requires_geometry=result_type in _GEOMETRY_TYPES,
+            view_specs=_view_specs_for(result_type),
         )
         for result_type in _TITLES
     },

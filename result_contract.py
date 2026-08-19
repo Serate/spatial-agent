@@ -231,6 +231,7 @@ def _workspace_contract(
         "primary_panel": panels[0] if panels else "answer",
         "common_panels": list(COMMON_WORKSPACE_PANELS),
         "panels": panels[:12],
+        "view_specs": registry.view_specs_for(result_type),
         "map": map_evidence,
     }
 

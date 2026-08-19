@@ -991,3 +991,19 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 2. 增加 Domain-owned view metadata/renderer seam，前端只依据结构化 view kind/schema/metadata 渲染。
 3. 用第二个非 GIS Domain Pack 回放验证 Service、HTTP、artifact、Console generic 结果一致性，并接入 Contract Harness。
 4. Docker/FastAPI/真实模型/真实数据可用后执行跨入口生产验收；数据集只能作为领域证据，不能成为公共 Runtime 分支。
+
+## 当前进度：M123 已完成
+
+- `agent/result_registry.py` 新增有界 `ViewSpec`；`result.workspace.view_specs` 和 capability context 统一暴露 Domain-owned renderer metadata。
+- GIS registry 声明各类 view 的通用 renderer；Console 对未知 panel id 使用 generic metrics/table/chart renderer，不要求新增 GIS 页面分支。
+- 前端已移除 `needsRaster`、固定 GIS 数据集关键词和本地 GIS 发送前预判，具体能力、依赖与降级由 Service/Runtime 决定。
+- 当前验证：离线全量 654 项通过、42 项按环境跳过；quick/full-stage、Node 内联脚本语法、compileall、`git diff --check` 通过。
+- M123 初次全量中既有 SQLite 多 worker 用例出现一次抖动；单用例重跑和整套重跑均通过。该宿主并发问题仍按既有问题处理，不能归因于 view metadata 改动。
+- Docker、FastAPI、真实 GIS 数据和 live LLM 仍未完成本轮生产验收。
+
+## 当前 M124 全局规划
+
+1. 将 GIS comparison endpoints/Console controls 收敛为 Domain-owned action metadata，公共层只处理通用 action contract。
+2. 增加第二个完整非 GIS Domain Pack replay，跨 Service、HTTP、artifact、recovery、generic Console 和 Contract Harness 验证。
+3. 复验能力快照、数据质量降级、SQLite 恢复以及 Docker/FastAPI/真实数据/真实模型生产路径。
+4. 继续以全局产品、架构、数据、模型、部署、前端和测试证据重规划，不因单一数据集细节改变公共 Runtime 方向。

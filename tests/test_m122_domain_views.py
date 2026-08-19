@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from domains.text.runtime import build_text_runtime
+from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
 from result_contract import build_result_contract
 
 
@@ -43,6 +44,8 @@ class M122DomainViewTests(unittest.TestCase):
             }
         )
         self.assertEqual(result["views"]["panels"]["raster"]["kind"], "raster_metadata")
+        self.assertEqual(result["workspace"]["view_specs"][0]["id"], "raster")
+        self.assertEqual(result["workspace"]["view_specs"][0]["renderer"], "metrics")
 
     def test_text_result_uses_only_generic_workspace_in_console(self):
         runtime = build_text_runtime()
@@ -61,6 +64,49 @@ class M122DomainViewTests(unittest.TestCase):
         self.assertIn("views.has('generic')", self.html)
         self.assertNotIn("text_summary_result", self.html)
         self.assertNotIn("outputType==='text_summary_result'", self.html)
+        self.assertNotIn("const needsRaster=", self.html)
+
+    def test_non_gis_domain_can_declare_a_generic_renderer_view(self):
+        registry = ResultContractRegistry(
+            {
+                "custom_result": ResultTypeSpec(
+                    title="自定义结果",
+                    panels=("insights",),
+                    view_specs=(ViewSpec("insights", "metrics", "指标"),),
+                )
+            },
+            view_builder=lambda *args, **kwargs: {
+                "schema_version": "spatial-agent.views.v1",
+                "panels": {
+                    "insights": {
+                        "kind": "summary",
+                        "metrics": [{"label": "项目数", "value": 2}],
+                    }
+                },
+            },
+        )
+        result = build_result_contract(
+            {
+                "result_type": "custom_result",
+                "status": "COMPLETED",
+                "answer": "已完成",
+                "steps": [],
+            },
+            registry=registry,
+        )
+
+        self.assertEqual(result["workspace"]["panels"], ["insights"])
+        self.assertEqual(
+            result["workspace"]["view_specs"],
+            [
+                {
+                    "id": "insights",
+                    "renderer": "metrics",
+                    "title": "指标",
+                    "schema_version": "spatial-agent.view.v1",
+                }
+            ],
+        )
 
 
 if __name__ == "__main__":

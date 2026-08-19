@@ -1250,3 +1250,17 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 2. 设计并实现 Domain-owned view metadata/renderer seam，让前端只消费通用 view kind、schema 和 renderer metadata。
 3. 增加第二个非 GIS Domain Pack 回放与 Service/HTTP/artifact/Console generic contract harness，证明扩展不需要复制 GIS 页面。
 4. 在 Docker/FastAPI/真实数据/真实模型恢复后执行生产验收矩阵；继续保持单线程开发、离线 CI 和中文问题记录。
+
+## M123 已完成
+
+- `ViewSpec` 已加入 Domain-owned result registry；`result.workspace.view_specs` 和 capability context 都提供有界 renderer metadata。
+- Console 的 generic workspace 可以消费未知 panel id，并按 metrics/table/chart renderer 展示结构化结果；Text 和自定义 registry replay 已覆盖。
+- 前端发送前不再解析 DEM、土地利用等 GIS 关键词，也不再自行判断本地 GIS 后端是否可用；请求由 Runtime 的能力和数据门控处理。
+- 全量离线 654 项通过（42 项按环境跳过），full-stage、Node 脚本语法、compileall 和 diff check 通过；真实生产依赖未宣称完成。
+
+### M124 全局规划
+
+1. 把 GIS comparison endpoints/controls 改造成 Domain-owned action metadata，避免公共 HTTP 和前端继续知道建设适宜性语义。
+2. 增加第二个完整非 GIS Domain Pack replay，覆盖 Service、HTTP、artifact、recovery、generic Console 和 Contract Harness。
+3. 复验 Docker/FastAPI/真实 GIS 数据、SQLite 恢复、能力快照、降级证据和可选真实模型路径。
+4. 以项目整体验收重新规划下一阶段，继续保持单线程、离线 CI、不提交私有配置和中文问题记录。

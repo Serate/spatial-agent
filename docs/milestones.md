@@ -2594,6 +2594,21 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 3. 建立第二个非 GIS 领域的真实跨入口回放（Service、HTTP、artifact、Console generic），并将结果一致性纳入 Contract Harness；默认 CI 继续不依赖网络和私有数据。
 4. Docker/FastAPI/真实 GIS 数据/真实模型可用后，执行生产验收矩阵；任何数据集问题都作为 Domain evidence 处理，不能修改公共 Runtime 规则。
 
+## M123 已完成：领域视图元数据与通用 Console 渲染
+
+- `agent/result_registry.py` 新增有界 `ViewSpec`，Domain Pack 可以声明 view id、renderer、标题和 schema；workspace 与 capability context 会携带相同的结构化元数据。
+- GIS registry 为 raster、overview、health、composite、buildability、vector、map 和 comparison 声明 renderer；旧 GIS view 算法仍只在 `domains/gis` 内执行。
+- Console 增加 generic metrics/table/chart renderer，对未注册的领域面板不再要求新增 GIS 页面分支；Text 与自定义 registry 回放均验证通过。
+- 删除前端 `needsRaster`、固定 DEM/土地利用关键词和本地 GIS 预判，数据依赖与降级改由 Service/Runtime 返回；Node 内联脚本语法检查通过。
+- 全量离线测试 654 项通过（42 项按环境跳过），quick/full-stage、compileall 和 `git diff --check` 通过；Docker、FastAPI、真实 GIS 数据和 live LLM 仍待环境验收。
+
+### M124 全局规划
+
+1. 将 GIS 专用比较入口和 Console comparison controls 收敛为 Domain-owned capability/action metadata，公共 HTTP/前端只处理通用 action contract。
+2. 增加第二个完整非 GIS Domain Pack replay，验证 Service、HTTP、artifact、recovery、generic Console 和 Contract Harness 的一致性，而不是只验证 registry 级别。
+3. 从部署和数据质量维度复验 domain capability snapshot、降级、artifact 和 SQLite 恢复；在 Docker/FastAPI/真实数据可用时执行生产矩阵。
+4. 继续保持 Planner/Runtime/ToolRegistry 的稳定 seam，禁止为具体区域、数据集或页面显示新增公共规则。
+
 ## M120 已完成：Domain-owned view builder seam
 
 - `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。
