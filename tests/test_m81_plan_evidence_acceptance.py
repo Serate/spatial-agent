@@ -10,6 +10,7 @@ from pathlib import Path
 
 from agent.artifact_store import ArtifactStore
 from agent.service import AgentService
+from evaluation.contract_harness import compare_results, normalize_result
 from evaluation.model_evaluation import evaluate_model_fixture_file
 from serve_api import AgentApiHandler
 
@@ -234,9 +235,8 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
                 direct_service._async_executor.shutdown(wait=True)
                 TestHandler.service._async_executor.shutdown(wait=True)
 
-        self.assertEqual(_normalized_contract(direct), _normalized_contract(http_run))
-        self.assertEqual(_normalized_contract(http_run), _normalized_contract(http_detail))
-        self.assertEqual(_normalized_contract(http_run), _normalized_contract(recovered))
+        self.assertTrue(normalize_result(direct).equivalent_to(normalize_result(http_run)))
+        self.assertEqual(compare_results([http_run, http_detail, recovered]), [])
         self.assertIn("spatial_analysis", http_run["plan_evidence"]["exact_template_ids"])
         self.assertIn("spatial_analysis", http_run["result"]["planning"]["exact_template_ids"])
         self.assertEqual(http_run["plan_evidence"]["selected_capability_id"], "spatial_analysis")
@@ -298,7 +298,7 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
                 thread.join(timeout=2)
                 TestHandler.service._async_executor.shutdown(wait=True)
 
-        self.assertEqual(_normalized_contract(cli_run), _normalized_contract(http_run))
+        self.assertEqual(compare_results([cli_run, http_run]), [])
         self.assertEqual(cli_artifact["plan_evidence"], cli_run["plan_evidence"])
         self.assertEqual(cli_artifact["result"]["views"], cli_run["result"]["views"])
         self.assertTrue(cli_run["result"]["lineage"]["artifact"]["available"])
@@ -395,44 +395,6 @@ def _post_json(port, payload, path):
         return payload
     finally:
         connection.close()
-
-
-def _normalized_contract(payload):
-    return {
-        "status": payload["status"],
-        "result_type": payload["result"]["type"],
-        "result_title": payload["result"]["title"],
-        "planning_source": payload["result"]["planning"]["source"],
-        "plan_identity_version": payload["result"]["planning"]["plan_identity"]["version"],
-        "selected_capability": payload["result"]["planning"]["selected_capability_id"],
-        "capability_candidates": payload["result"]["planning"]["capability_candidate_ids"],
-        "capability_catalog_available": payload["result"]["planning"]["capability_catalog_available"],
-        "capability_catalog_ids": payload["result"]["planning"]["capability_catalog_ids"],
-        "request_facts": payload["result"]["request_facts"],
-        "execution_policy": payload["result"]["planning"].get("execution_policy"),
-        "step_governance": [
-            step.get("governance")
-            for step in payload.get("steps", [])
-        ],
-        "capability_catalog_environment": payload["result"]["planning"]["capability_catalog_environment"],
-        "capability_catalog_tool_schema_count": payload["result"]["planning"]["capability_catalog_tool_schema_count"],
-        "context_has_capability_discovery": "capability_discovery" in payload["context_evidence"]["section_names"],
-        "context_has_capability_catalog": "capability_catalog" in payload["context_evidence"]["section_names"],
-        "exact_templates": payload["result"]["planning"]["exact_template_ids"],
-        "matched_templates": payload["result"]["planning"]["matched_template_ids"],
-        "step_tools": [step["tool"] for step in payload["steps"]],
-        "step_statuses": [step["status"] for step in payload["steps"]],
-        "trace_step_count": len(payload["trace_summary"]),
-        "artifact_available": payload["result"]["lineage"]["artifact"]["available"],
-        "workspace_panels": payload["result"]["workspace"]["panels"],
-        "views_schema": payload["result"]["views"]["schema_version"],
-        "view_panels": sorted(payload["result"]["views"].get("panels", {}).keys()),
-        "view_kinds": {
-            key: value.get("kind")
-            for key, value in sorted(payload["result"]["views"].get("panels", {}).items())
-        },
-        "answer_has_summary": "已完成 9 个工具步骤" in payload.get("answer", ""),
-    }
 
 
 if __name__ == "__main__":

@@ -1059,11 +1059,16 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 
 下一阶段 M108 从全局角度先确认 CI 修复后的远程 run，再推进生产入口矩阵、开放式能力组合与动态 Console 验收；默认 CI 继续不访问真实模型、私有配置、原始 GIS 数据或 Docker，ToolRegistry 仍是唯一执行 seam。
 
-本轮同时确认内部 `AgentRuntime.run()` 返回的是内部 `AgentRunResult`，外部 result envelope 由 Service/HTTP/CLI 格式化层生成；该边界已记录到中文问题文档。Docker Linux engine 和 Chrome CDP 宿主阻塞仍未改变，生产 FastAPI 和动态浏览器验收继续保持未宣称状态。
+### M108 全局规划
 
-### M107 全局规划
+1. 架构与测试：以跨入口 Contract Harness 统一 CLI、HTTP、artifact、recovery 和 Console 结果证据，避免各入口复制 envelope 投影。
+2. 部署可靠性：Docker 恢复后执行 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和真实数据卷矩阵。
+3. 产品与模型：将开放式空间基线扩展为“同一能力的不同表达 + 未注册能力的结构化澄清”，用脱敏回放和可选 live 证据评估计划质量。
+4. 数据与体验：验证 provenance、栅格对齐/覆盖和可选数据降级；恢复可控 CDP 后完成动态 workspace/views/地图/轨迹/清空验收。
 
-1. 部署与架构：Docker 恢复后执行 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和 dev/production 结果契约矩阵。
-2. 产品与模型：将开放式请求基线扩展为“同一能力的不同表达 + 未注册能力的结构化澄清”，用脱敏回放和可选 live 证据评估计划质量。
-3. 数据：验证真实数据 provenance、栅格对齐/覆盖和道路水体可选数据降级，确保模型规划证据与数据执行证据不混淆。
-4. 体验与工具：恢复可控 CDP 后完成动态 workspace/views/地图/轨迹/清空验收；继续保持 ToolRegistry 唯一 dispatch seam，只有真实远程工具来源出现时才实现 MCP adapter。
+## M108 当前进展
+
+- 新增 `evaluation/contract_harness.py`，统一 CLI、HTTP、artifact 和 recovery 的稳定结果投影、等价比较及有界差异路径。
+- M81 复杂空间分析跨入口回归已改用 Harness；新增 M108 专项 4 项，连同既有跨入口验收共 13 项通过。
+- 修复异步服务在 Runtime 中间 `COMPLETED` 快照与 artifact/GeoJSON 最终引用之间的轮询竞态；50 次 targeted loop 全部通过。
+- 下一步运行 full-stage、离线全量和 CI，再将 Harness 证据接入 release/production acceptance；Docker 恢复后继续真实部署和动态前端验收。

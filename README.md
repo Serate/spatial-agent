@@ -169,6 +169,7 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/spatial-agent-design.md`](docs/spatial-agent-design.md)：系统设计与模块边界。
 - [`docs/core-acceptance.md`](docs/core-acceptance.md)：核心空间流程验收标准。
 - [`docs/test-strategy.md`](docs/test-strategy.md)：精简测试 profile、真实验收和扩展矩阵边界。
+- [`evaluation/contract_harness.py`](evaluation/contract_harness.py)：CLI、HTTP、artifact 和 recovery 的结果契约一致性 Harness。
 - [`evaluation/cases/global-acceptance.json`](evaluation/cases/global-acceptance.json)：全局场景验收矩阵。
 - [`docs/agent-context-resume.md`](docs/agent-context-resume.md)：新对话恢复上下文。
 - [`docs/task-resume.md`](docs/task-resume.md)：当前任务和下一阶段规划。

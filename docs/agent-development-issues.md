@@ -2959,3 +2959,31 @@ Windows runner 的默认 locale/stdio 编码不应被当作 Python 子进程 JSO
 `scripts/test_profile.py` 现在为子进程设置 `PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`，并以 UTF-8（带替换错误处理）捕获 stdout/stderr；GitHub workflow 同时在 job 级声明这两个环境变量。`tests/test_m81_test_profiles.py` 增加中文子进程输出回归。stage profile 仍保留，因为它提供少量代表性 Runtime 契约验收，不能为了绕过 CI 失败而删除。
 
 以后 CI/测试 harness 只要跨进程读取机器可读输出，就必须显式指定编码并覆盖至少一个非 ASCII 回归；报告输出编码问题要与业务测试失败分开诊断。Actions 日志不可读时，应至少先读取 job steps/check annotations，再用本地等价命令复现，不能仅凭 “All jobs have failed” 删除门禁。
+
+## 跨入口验收各自复制结果投影会造成契约漂移
+
+### 现象
+
+CLI、HTTP、artifact 和 recovery 的回归都需要判断“是否使用了同一 Runtime 契约”。原先这类测试在单个测试文件内手工读取 `result.type`、planning、views、lineage 和步骤治理字段；新增字段或兼容字段迁移时，不同测试可能选择不同的忽略规则，测试仍然通过但无法证明入口一致。
+
+### 根因
+
+结果 envelope 的稳定字段与 transport-specific 字段没有单独的测试 seam。测试调用方知道了太多内部字段路径，导致投影逻辑变浅且分散；这既增加维护成本，也让前端/HTTP/artifact 的契约变化无法集中发现。
+
+### 处理与预防
+
+M108 新增 `evaluation/contract_harness.py`，以 `normalize_result`、`compare_results` 和有界差异路径作为统一接口，集中筛选答案、RequestFacts、planning、治理、步骤、trace、workspace、views 和 artifact 可用性，同时忽略 run id、路径和时间等传输字段。跨入口测试统一使用该 Harness；以后扩展 result envelope 时，先更新 Harness 和跨入口回归，再修改单个入口断言。
+
+## 异步服务把 Runtime 中间终态暴露给 artifact 轮询
+
+### 现象
+
+异步请求同时要求 `export_artifact=true` 和 `export_geojson=true` 时，偶发出现 `get_run()` 已返回 `COMPLETED`，但 `artifact_ref`/`geojson_ref` 为空；同一时刻直接读取 SQLite 的 `agent_runs` 已经包含两个引用，artifact 文件也可在随后看到。该问题在完整回归中表现为 `test_async_artifact_references_survive_polling_and_recreation` 偶发失败。
+
+### 根因
+
+`AgentRuntime` 会先把工具执行完成后的 `COMPLETED` 快照写入共享 SQLite，`AgentService` 随后才导出 artifact/GeoJSON、补齐引用并保存最终快照。轮询器按 run status 判断终态时，可能在这两个写入之间读到中间快照；async job 的最终标记并不能撤回已经返回的旧结果。
+
+### 处理与预防
+
+M108 让 `AgentService.get_run()` 根据 async job 原始请求判断是否要求 artifact/GeoJSON；如果运行已完成但所要求的引用尚未出现在快照中，继续等待最终化窗口（有界 5 秒）后再返回。新增逻辑只影响持久化异步且明确请求导出的运行，不改变同步或不导出的结果。以后新增异步结果引用时，必须把“请求要求的引用、运行终态、最终快照和轮询响应”作为一个原子可观察契约测试，不能只校验 worker 最终状态。

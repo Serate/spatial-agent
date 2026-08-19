@@ -2366,3 +2366,23 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 推送本修复并确认 GitHub Actions 的 stage 与完整离线回归均执行成功。
 2. 从产品、架构、真实模型、数据、部署和前端整体检查 CI 是否覆盖正确边界，继续保持默认 CI 离线且可复现。
 3. Docker engine 恢复后执行 FastAPI/readiness、SQLite/artifact/recovery 和真实数据卷联合验收；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M108：跨入口结果契约 Harness（进行中）
+
+### 实现内容
+
+- 新增 `evaluation/contract_harness.py`，以小接口统一归一化和比较 CLI、HTTP、artifact、recovery 的稳定结果证据，并报告有界字段差异。
+- 将复杂空间分析的跨入口验收从测试文件内的重复投影迁移到 Harness；运行 id、路径和时间等 transport-specific 字段不参与一致性比较。
+- 增加 Harness 自身的差异报告、传输字段忽略和 JSON-safe 回归。
+
+### 当前验收证据
+
+- M108 Harness 与 M81 跨入口验收共 13 项通过；另以 50 次重复 targeted loop 验证异步 artifact/GeoJSON 轮询竞态修复。
+- 修复异步服务在 Runtime 中间 `COMPLETED` 快照与 artifact/GeoJSON 最终引用之间的轮询竞态。
+- Docker Linux engine 当前仍不可用；FastAPI/Docker production acceptance 和动态浏览器 smoke 仍未宣称通过。
+
+### 后续顺序
+
+1. 运行 full-stage、离线全量和 CI，确认 Harness 没有扩大默认测试边界。
+2. 将 Harness 证据接入 release/production acceptance 的统一契约矩阵。
+3. Docker 恢复后继续进行真实部署、数据卷和前端动态验收。

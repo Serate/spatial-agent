@@ -825,6 +825,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 
 ### M108 全局规划
 
-1. 先确认修复后的 GitHub Actions 远程 run，确保 stage 后完整离线 unittest 真正执行。
-2. 从整体 Agent Runtime 盘点 CI、HTTP/CLI/artifact/recovery、真实模型回放、数据质量和 Console 结果证据的一致性，避免只修一个局部测试。
-3. Docker engine 恢复后执行当前版本 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和真实数据卷验收；无真实外部工具来源时不引入 MCP 运行时依赖。
+1. 以跨入口 Contract Harness 统一 CLI、HTTP、artifact、recovery 和 Console 的稳定结果证据，避免各入口复制 envelope 投影。
+2. Docker engine 恢复后执行当前版本 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和真实数据卷验收。
+3. 从整体 Agent Runtime 盘点开放式能力组合、真实模型回放、数据质量和动态 Console 证据；无真实外部工具来源时不引入 MCP 运行时依赖。
+
+## M108 当前进展
+
+- 新增 `evaluation/contract_harness.py`，统一 CLI、HTTP、artifact 和 recovery 的稳定结果投影、等价比较及有界差异路径。
+- M81 复杂空间分析跨入口回归已改用 Harness；新增 M108 专项 4 项，连同既有跨入口验收共 13 项通过。
+- 修复异步服务在 Runtime 中间 `COMPLETED` 快照与 artifact/GeoJSON 最终引用之间的轮询竞态；50 次 targeted loop 全部通过。
+- Docker Linux engine 仍不可用；FastAPI/Docker production acceptance 和动态浏览器 smoke 继续保持未宣称状态。

@@ -1,13 +1,48 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from agent.service import AgentService
+from agent.models import AgentRunResult, RunStatus
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from run_demo import build_runtime
 
 
 class M42SQLiteStoreTests(unittest.TestCase):
+    def test_get_run_waits_for_requested_export_references(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = AgentService(state_db_path=str(Path(directory) / "agent.db"))
+            intermediate = AgentRunResult(
+                run_id="async-finalization",
+                status=RunStatus.COMPLETED,
+                request="查询洪山区行政区边界",
+            )
+            final = AgentRunResult(
+                run_id="async-finalization",
+                status=RunStatus.COMPLETED,
+                request="查询洪山区行政区边界",
+                artifact_ref="outputs/runs/async-finalization.json",
+                geojson_ref="outputs/geojson/async-finalization.geojson",
+            )
+            job = {
+                "run_id": "async-finalization",
+                "status": "COMPLETED",
+                "payload": {"export_artifact": True, "export_geojson": True},
+                "last_event": "completed",
+            }
+            with patch.object(service._state, "get_run", side_effect=[intermediate, final, final]), patch.object(
+                service._state, "async_job", return_value=job
+            ):
+                payload = service.get_run("async-finalization")
+
+        self.assertEqual(
+            payload["artifact_ref"], "outputs/runs/async-finalization.json"
+        )
+        self.assertEqual(
+            payload["geojson_ref"], "outputs/geojson/async-finalization.geojson"
+        )
+
     def test_named_sessions_survive_store_recreation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "agent.db")

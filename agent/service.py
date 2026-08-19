@@ -685,10 +685,24 @@ class AgentService:
             if result is None or not self._state.persistent:
                 break
             job = self._state.async_job(run_id)
+            job_payload = (
+                job.get("payload")
+                if isinstance(job, dict) and isinstance(job.get("payload"), dict)
+                else {}
+            )
+            requested_artifact = job_payload.get("export_artifact") is True
+            requested_geojson = job_payload.get("export_geojson") is True
+            missing_requested_refs = result.status == RunStatus.COMPLETED and (
+                (requested_artifact and not result.artifact_ref)
+                or (requested_geojson and not result.geojson_ref)
+            )
             if (
                 result.status in _TERMINAL_RUN_STATUSES
                 and job is not None
-                and job.get("status") in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}
+                and (
+                    job.get("status") in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}
+                    or missing_requested_refs
+                )
             ):
                 time.sleep(0.005)
                 continue
