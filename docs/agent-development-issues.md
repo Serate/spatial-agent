@@ -3065,3 +3065,17 @@ M113 将 `domain_id` 加入通用 planning evidence，优先读取 discovery，�
 ### 修复与预防
 
 M114 增加 Domain Pack 的 composer/默认权限 seam；Runtime 优先使用领域包提供的实现，显式调用参数仍可覆盖，缺少旧 Domain Pack 方法时才使用 GIS 兼容 fallback。以后新增 Domain Pack 必须验证默认权限、工具执行和答案组合均不依赖 GIS；不要只验证 planner context 没有 GIS 字段。
+
+## 新结果 registry 破坏旧自定义 Runtime 的兼容性
+
+### 现象
+
+M115 为让 Service 使用 Domain Pack 的 result registry，最初在所有 Service 结果路径直接调用 `runtime.result_registry()`。已有测试和扩展中的最小自定义 Runtime 没有该可选方法，异步几何证据回归在运行详情阶段出现 `AttributeError`。
+
+### 根因
+
+结果 registry 是新增的扩展 seam，但 Service 把它当成了旧 Runtime 必须实现的强制接口；这违反了 Planner、Backend、Domain Pack 可替换且向后兼容的边界。问题与空间几何无关，只在恢复/详情路径触发。
+
+### 修复与预防
+
+Service 现在通过有界的可选能力读取函数获取 registry；缺少该方法时将 `None` 交给 `build_result_contract()`，由兼容默认 registry 处理。以后扩展 Runtime/Domain Pack seam 时，必须至少用一个旧式最小 fake Runtime 覆盖同步、异步、重试、详情和 artifact 路径，不能只测试新实现。

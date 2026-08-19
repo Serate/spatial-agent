@@ -24,6 +24,9 @@ class DomainPack(Protocol):
     def default_permissions(self) -> Any:
         """Return the default permission grant for this domain's tools."""
 
+    def result_registry(self) -> Any:
+        """Return result titles and workspace metadata for this domain."""
+
     def extract_request_facts(self, request: str) -> Any:
         """Return the domain-neutral request facts for a request."""
 
@@ -107,6 +110,18 @@ def default_permissions(domain_pack: DomainPack) -> set[str]:
             if permissions:
                 return permissions
     return {"spatial_data:read"}
+
+
+def result_registry(domain_pack: DomainPack) -> Any:
+    """Resolve result metadata owned by a domain pack."""
+    factory = getattr(domain_pack, "result_registry", None)
+    if callable(factory):
+        registry = factory()
+        if registry is not None:
+            return registry
+    from .result_registry import default_result_registry
+
+    return default_result_registry()
 
 
 def default_domain_pack() -> DomainPack:

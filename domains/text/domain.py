@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION
 from agent.request_model import REQUEST_FACTS_SCHEMA_VERSION, RequestFacts
 from agent.capability_catalog import capability_catalog
+from agent.result_registry import ResultContractRegistry, ResultTypeSpec
 
 from .catalog import (
     TEXT_CAPABILITIES,
@@ -25,6 +26,17 @@ class TextDomainPack:
 
     def default_permissions(self) -> set[str]:
         return {"text_data:read"}
+
+    def result_registry(self) -> ResultContractRegistry:
+        return ResultContractRegistry(
+            {
+                "text_summary_result": ResultTypeSpec(
+                    title="文本摘要",
+                    panels=("generic",),
+                ),
+            },
+            fallback_title="运行结果",
+        )
 
     def extract_request_facts(self, request: str) -> RequestFacts:
         return RequestFacts(

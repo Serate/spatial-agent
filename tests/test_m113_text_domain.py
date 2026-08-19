@@ -64,6 +64,7 @@ class M113TextDomainTests(unittest.TestCase):
         self.assertEqual(payload["status"], "COMPLETED")
         self.assertEqual(payload["result"]["type"], "text_summary_result")
         self.assertEqual(payload["result"]["title"], "文本摘要")
+        self.assertTrue(payload["result"]["workspace"]["registered_type"])
         self.assertIn("generic", payload["result"]["workspace"]["panels"])
         self.assertEqual(payload["result"]["planning"]["domain_id"], "text")
         self.assertEqual(compare_results([payload, artifact]), [])

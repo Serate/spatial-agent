@@ -4,47 +4,7 @@ from pathlib import Path
 import math
 from typing import Any, Dict, List
 
-
-TITLE_BY_TYPE = {
-    "direct_answer": "通用回答",
-    "spatial_overview_result": "区域空间总览",
-    "admin_area_result": "行政区边界",
-    "raster_metadata_result": "栅格元数据",
-    "raster_statistics_result": "栅格统计",
-    "zonal_raster_statistics_result": "区域栅格统计",
-    "terrain_land_use_analysis_result": "综合空间分析",
-    "spatial_analysis_result": "综合空间分析",
-    "buildability_result": "建设适宜性筛选",
-    "buildability_comparison": "建设适宜性对比",
-    "constrained_buildability_result": "约束建设候选筛选",
-    "dataset_health_result": "数据健康检查",
-    "zonal_vector_summary_result": "区域矢量摘要",
-    "zonal_vector_result": "区域矢量摘要",
-    "vector_result": "矢量结果",
-    "spatial_relation_result": "空间关系",
-    "spatial_result": "空间结果",
-    "unknown": "空间分析结果",
-}
-
-WORKSPACE_PANELS_BY_TYPE = {
-    "direct_answer": [],
-    "spatial_overview_result": ["overview"],
-    "spatial_analysis_result": ["raster", "composite"],
-    "terrain_land_use_analysis_result": ["raster", "composite"],
-    "admin_area_result": [],
-    "raster_metadata_result": ["raster"],
-    "raster_statistics_result": ["raster"],
-    "zonal_raster_statistics_result": ["raster"],
-    "dataset_health_result": ["health"],
-    "buildability_result": ["raster", "buildability", "compare"],
-    "buildability_comparison": ["buildability", "compare"],
-    "constrained_buildability_result": ["buildability", "compare"],
-    "zonal_vector_summary_result": ["vector"],
-    "zonal_vector_result": ["vector"],
-    "vector_result": ["vector"],
-    "spatial_relation_result": ["vector"],
-    "spatial_result": ["vector"],
-}
+from agent.result_registry import ResultContractRegistry, default_result_registry
 
 COMMON_WORKSPACE_PANELS = [
     "answer",
@@ -66,7 +26,12 @@ GEOMETRY_STATUS = {
 REPLANNING_SCHEMA_VERSION = "spatial-agent.replanning.v1"
 
 
-def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
+def build_result_contract(
+    payload: Dict[str, Any],
+    *,
+    registry: ResultContractRegistry | None = None,
+) -> Dict[str, Any]:
+    registry = registry or default_result_registry()
     plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
     output = plan.get("output") if isinstance(plan.get("output"), dict) else {}
     result_type = str(payload.get("result_type") or output.get("type") or "unknown")
@@ -123,6 +88,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
     replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
     workspace = _workspace_contract(
         result_type,
+        registry=registry,
         steps=steps,
         geometry_evidence=geometry_evidence,
         geojson_ref=payload.get("geojson_ref"),
@@ -136,7 +102,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     contract = {
         "type": result_type,
-        "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
+        "title": str(output.get("title") or registry.title_for(result_type)),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
         "request_facts": payload.get("request_facts") or {"available": False},
         "data": {
@@ -245,12 +211,13 @@ def _replanning_events_from_payload(payload: Dict[str, Any]) -> Any:
 def _workspace_contract(
     result_type: str,
     *,
+    registry: ResultContractRegistry,
     steps: List[Any],
     geometry_evidence: Dict[str, Any],
     geojson_ref: Any = None,
 ) -> Dict[str, Any]:
-    registered = result_type in WORKSPACE_PANELS_BY_TYPE
-    panels = list(WORKSPACE_PANELS_BY_TYPE.get(result_type, []))
+    registered = registry.is_registered(result_type)
+    panels = list(registry.panels_for(result_type))
     map_evidence = _workspace_map(steps, geometry_evidence, geojson_ref)
     if map_evidence["available"] and "map" not in panels:
         panels.append("map")

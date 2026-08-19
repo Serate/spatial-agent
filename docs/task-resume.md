@@ -1154,3 +1154,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 设计并实现 Domain Pack 驱动的 result type/view 注册契约。
 2. 让 HTTP capability snapshot 复用实际 Runtime 的 Domain Pack，补 Text/GIS 双入口测试。
 3. 继续审计 provenance、failure/replanning 和前端动态结果消费，随后进行真实 Docker/GIS 验收。
+
+## M115 已完成
+
+- 新增通用 `ResultContractRegistry`/`ResultTypeSpec`，Domain Pack 可以注册 result type 的标题和 workspace panels；GIS metadata 位于 `domains/gis`，Text metadata 位于 `domains/text`。
+- `build_result_contract()` 支持注入 registry，Runtime/Service/artifact 复用同一 registry；旧自定义 Runtime 没有 registry 方法时自动回退到兼容默认值。
+- M115 定向 16 项、full-stage、离线全量 646 项（42 项跳过）、编译和 diff check 通过。
+
+### M116 下一步
+
+1. 让 HTTP capability endpoints 读取实际 Runtime/Domain Pack，而不是直接调用 GIS catalog。
+2. 增加 Text/GIS capability snapshot 的 Service/HTTP 契约回归，并将 GIS data health 作为可选领域证据。
+3. 继续处理 provenance/failure/replanning/前端领域泄漏，再安排真实 Docker/GIS 验收。

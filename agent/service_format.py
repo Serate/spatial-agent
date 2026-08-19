@@ -151,7 +151,12 @@ def normalize_workflow_payload(workflow: Dict[str, Any]) -> Dict[str, Any] | Non
     )
 
 
-def format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Dict[str, Any]:
+def format_result(
+    result: AgentRunResult,
+    spatial_context: Dict[str, Any],
+    *,
+    result_registry=None,
+) -> Dict[str, Any]:
     payload = result.to_dict()
     if payload.get("failure") is None:
         failure = failure_from_payload(payload)
@@ -168,7 +173,7 @@ def format_result(result: AgentRunResult, spatial_context: Dict[str, Any]) -> Di
     payload["result_type"] = result_type(payload)
     if isinstance(payload.get("plan_evidence"), dict) and payload["plan_evidence"].get("plan_identity"):
         payload["plan_identity"] = dict(payload["plan_evidence"]["plan_identity"])
-    payload["result"] = build_result_contract(payload)
+    payload["result"] = build_result_contract(payload, registry=result_registry)
     payload.pop("_geometry_evidence", None)
     _attach_error_category(payload)
     return payload

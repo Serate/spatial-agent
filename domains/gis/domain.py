@@ -29,6 +29,11 @@ class GisDomainPack:
     def default_permissions(self) -> set[str]:
         return {"spatial_data:read"}
 
+    def result_registry(self) -> Any:
+        from .result_registry import GIS_RESULT_REGISTRY
+
+        return GIS_RESULT_REGISTRY
+
     def extract_request_facts(self, request: str) -> Any:
         return parse_spatial_request(request)
 

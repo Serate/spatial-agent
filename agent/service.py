@@ -73,6 +73,12 @@ _TERMINAL_RUN_STATUSES = {
 }
 
 
+def _runtime_result_registry(runtime):
+    """Read the optional result registry from legacy/custom runtimes."""
+    resolver = getattr(runtime, "result_registry", None)
+    return resolver() if callable(resolver) else None
+
+
 class AgentService:
     """Application boundary for running Agent sessions from a CLI or HTTP API."""
 
@@ -167,7 +173,11 @@ class AgentService:
                 else self._runtime(planner, backend).get_run(run_id)
             )
             if existing is not None:
-                payload = _format_result(existing, _normalize_spatial_context(spatial_context))
+                payload = _format_result(
+                    existing,
+                    _normalize_spatial_context(spatial_context),
+                    result_registry=_runtime_result_registry(self._runtime(planner, backend)),
+                )
                 self._attach_async_observability(payload, run_id)
                 return payload
         if self._state.conversation_store is not None:
@@ -318,7 +328,10 @@ class AgentService:
             payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
             result.geometry_evidence = payload["_geometry_evidence"]
             result.geojson_ref = payload["geojson_ref"]
-        payload["result"] = build_result_contract(payload)
+        payload["result"] = build_result_contract(
+            payload,
+            registry=_runtime_result_registry(runtime),
+        )
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
@@ -649,7 +662,10 @@ class AgentService:
             payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
             result.geometry_evidence = payload["_geometry_evidence"]
             result.geojson_ref = payload["geojson_ref"]
-        payload["result"] = build_result_contract(payload)
+        payload["result"] = build_result_contract(
+            payload,
+            registry=_runtime_result_registry(runtime),
+        )
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
@@ -734,7 +750,10 @@ class AgentService:
                 payload["trace_summary"] = payload.get("trace_summary") or []
                 payload["provenance"] = payload.get("provenance") or build_provenance(payload)
                 payload["result_type"] = _result_type(payload)
-                payload["result"] = build_result_contract(payload)
+                payload["result"] = build_result_contract(
+                    payload,
+                    registry=_runtime_result_registry(self._runtime(planner, backend)),
+                )
                 if isinstance(artifact_result.get("views"), dict):
                     payload["result"]["views"] = artifact_result["views"]
                 _attach_error_category(payload)
@@ -749,7 +768,10 @@ class AgentService:
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(payload)
         payload["result_type"] = _result_type(payload)
-        payload["result"] = build_result_contract(payload)
+        payload["result"] = build_result_contract(
+            payload,
+            registry=_runtime_result_registry(self._runtime(planner, backend)),
+        )
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
         self._attach_async_observability(payload, run_id)

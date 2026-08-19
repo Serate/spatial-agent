@@ -905,3 +905,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M115
 
 优先建立 Domain Pack 驱动的 result type/view 注册契约，并让 HTTP capability snapshot 复用实际 Runtime；随后补 provenance/failure/replanning/前端的跨领域契约测试。继续保持最大并发度 1，真实 Docker/GIS 作为显式验收路径。
+
+## 当前进度：M115 已完成
+
+- `ResultContractRegistry`/`ResultTypeSpec` 已成为 Domain Pack 的结果 metadata seam；GIS 和 Text 分别提供自己的 result type/title/panel 注册。
+- Runtime、Service、重试、运行详情和 artifact 构建统一使用选定 registry；旧 Runtime 没有 registry 方法时使用兼容 fallback。
+- M115 定向 16 项、full-stage、离线全量 646 项（42 项按环境跳过）、compileall、diff check 通过。
+
+## 下一阶段 M116
+
+改造 HTTP capability snapshot，使其通过实际 Runtime/Domain Pack 提供目录；补 Text/GIS 双入口契约测试，并将 GIS 数据健康限制在可选领域证据层。最大并发度保持 1。

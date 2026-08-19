@@ -2501,3 +2501,16 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 让 HTTP/runtime capability snapshot 读取实际 Runtime/Domain Pack，而不是直接导入 GIS catalog；增加 Text/GIS 双入口契约测试。
 3. 审计 provenance、failure/replanning、数据健康和前端动态渲染的领域假设，明确哪些是通用证据、哪些必须由 GIS pack 提供。
 4. Docker/真实数据可用后做 GIS 真实入口验收；默认 CI 继续不访问原始数据、私有模型或 Docker。
+
+## M115 已完成：Domain Pack 结果注册契约
+
+- 新增通用 `ResultContractRegistry`/`ResultTypeSpec`，结果类型标题与 workspace panel 注册由 Domain Pack 提供；公共 `result_contract.py` 不再维护 GIS/文本类型字典。
+- GIS 结果 metadata 下沉到 `domains/gis/result_registry.py`，Text Domain Pack 注册 `text_summary_result` 与 generic workspace；旧的直接调用 `build_result_contract(payload)` 仍懒加载 GIS registry 兼容。
+- Runtime 持有所选 registry，Service 在同步、重试、运行详情和 artifact 结果构建时传递它；没有该新方法的旧自定义 Runtime 使用安全 fallback，不破坏可替换 Runtime 契约。
+- M115 相关定向回归 16 项、`full-stage`、离线全量 646 项（42 项按环境跳过）、编译和 `git diff --check` 通过。
+
+### M116 全局规划
+
+1. 将 `/capabilities` 与 `/capabilities/runtime` 的领域目录来源改为实际 Runtime/Domain Pack，保留 GIS 数据健康作为 GIS pack 的可选 runtime evidence。
+2. 用 Text Domain Pack 与 GIS Domain Pack 做 HTTP/Service capability snapshot 契约测试，避免生产入口直接导入 GIS catalog。
+3. 继续审计 provenance、failure/replanning 和前端动态结果消费；只有跨入口证据稳定后再做 Docker/真实 GIS 验收。

@@ -22,6 +22,7 @@ from .domain_contract import (
     default_domain_pack,
     discovery_context,
     extract_request_facts,
+    result_registry as resolve_result_registry,
     selected_capability_ids,
     workflow_context,
 )
@@ -160,6 +161,7 @@ class AgentRuntime:
         self._conversation_store = conversation_store or InMemoryConversationStore()
         self._backend_name = backend_name
         self._domain_pack = domain_pack or default_domain_pack()
+        self._result_registry = resolve_result_registry(self._domain_pack)
         self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
         self._context_builder = context_builder or ContextBuilder()
         self._max_steps = max_steps
@@ -183,6 +185,10 @@ class AgentRuntime:
         self._control_lock = Lock()
         self._cancelled_runs: Set[str] = set()
         self._run_span_ids: Dict[str, str] = {}
+
+    def result_registry(self):
+        """Return the result metadata registry selected by this Domain Pack."""
+        return self._result_registry
 
     def run(
         self,
