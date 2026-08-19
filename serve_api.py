@@ -27,6 +27,14 @@ from agent.workflow_templates import (
 )
 
 
+_legacy_runtime_capability_snapshot = runtime_capability_snapshot
+
+
+def runtime_capability_snapshot(max_files: int = 10) -> dict:
+    """Compatibility function retained for isolated runtime snapshot tests."""
+    return _legacy_runtime_capability_snapshot(max_files=max_files)
+
+
 class AgentApiHandler(BaseHTTPRequestHandler):
     service = AgentService()
     service.start_reaper()
@@ -62,7 +70,14 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 max_files = int(query.get("max_files", [10])[0])
                 if max_files < 1 or max_files > 10:
                     raise ValueError("max_files must be between 1 and 10")
-                self._write_json(200, runtime_capability_snapshot(max_files=max_files))
+                if self.service is None:
+                    snapshot = runtime_capability_snapshot(max_files=max_files)
+                else:
+                    snapshot = self.service.runtime_capabilities(
+                        max_files=max_files,
+                        backend="local",
+                    )
+                self._write_json(200, snapshot)
             except ValueError as exc:
                 self._write_json(400, error_response(exc))
             return

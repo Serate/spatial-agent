@@ -228,8 +228,17 @@ class AgentRuntime:
                 "health_status": "unavailable",
                 "evidence_error_code": "domain_runtime_evidence_unavailable",
             }
+        capability_runtime = evidence.get("capabilities_runtime")
+        if isinstance(capability_runtime, list):
+            snapshot["capabilities"] = capability_runtime[:32]
         for key, value in evidence.items():
-            if key not in {"capabilities", "tool_provider", "tool_provider_health", "tool_governance"}:
+            if key not in {
+                "capabilities",
+                "capabilities_runtime",
+                "tool_provider",
+                "tool_provider_health",
+                "tool_governance",
+            }:
                 snapshot[key] = value
         return snapshot
 

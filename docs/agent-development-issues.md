@@ -3093,3 +3093,17 @@ Service 已支持注入 Text Domain Pack，但开发 HTTP `/capabilities` 和生
 ### 修复与预防
 
 M116 增加 `AgentRuntime.capability_catalog()` 和 `AgentService.capabilities()`，两个 HTTP 入口通过它读取实际 Domain Pack，并支持 planner/backend 参数；GIS 数据健康探针保留为独立的 `/capabilities/runtime` 兼容路径。以后新增 HTTP 能力入口必须使用 Service/Runtime，不能直接导入任一领域的 catalog 常量。
+
+## runtime snapshot 迁移时破坏旧 provider 与隔离测试边界
+
+### 现象
+
+将 `/capabilities/runtime` 从旧 GIS snapshot 函数迁移到 Service/Runtime 后，旧测试通过 patch 模块级 provider，且部分隔离 handler 故意没有 Service；如果直接删除旧函数名或强制调用 Service，会让兼容测试在业务执行前失败。
+
+### 根因
+
+旧函数同时承担了三种角色：GIS 数据健康实现、HTTP 入口 provider 和测试替身 seam。迁移时没有区分“正常请求的 Runtime 路径”和“无 Service 的隔离 harness 路径”，导致基础设施兼容边界被误当成业务逻辑。
+
+### 修复与预防
+
+M118 保留有界的旧 provider 包装：正常 HTTP 请求使用 Service/Runtime，`service=None` 的隔离 handler 才使用旧 provider；GIS 数据证据由 `GisDomainPack.runtime_evidence()` 注入。以后迁移入口时必须分别测试正常 Service、无 Service 隔离、旧 patch seam 和真实生产依赖，不能只看单一路由返回值。

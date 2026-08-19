@@ -34,6 +34,34 @@ class GisDomainPack:
 
         return GIS_RESULT_REGISTRY
 
+    def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
+        """Adapt the legacy GIS data probe to the generic evidence seam."""
+        from agent.runtime_capabilities import runtime_capability_snapshot
+
+        snapshot = runtime_capability_snapshot(max_files=max_files)
+        keys = (
+            "health_status",
+            "core_health_status",
+            "optional_health_status",
+            "data_readiness",
+            "data_evidence",
+            "data_provenance",
+            "relationships",
+            "manifest",
+            "analysis_ready",
+            "config_path",
+            "runtime",
+            "updated_at",
+            "error",
+        )
+        evidence = {
+            key: snapshot[key]
+            for key in keys
+            if key in snapshot
+        }
+        evidence["capabilities_runtime"] = snapshot.get("capabilities", [])
+        return evidence
+
     def extract_request_facts(self, request: str) -> Any:
         return parse_spatial_request(request)
 

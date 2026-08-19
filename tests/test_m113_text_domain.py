@@ -77,6 +77,32 @@ class M113TextDomainTests(unittest.TestCase):
         self.assertEqual(payload["domain_id"], "text")
         self.assertEqual(payload["capabilities"][0]["id"], "text_summary")
 
+    def test_http_runtime_capabilities_use_domain_evidence(self):
+        class TextHandler(AgentApiHandler):
+            service = AgentService(runtime_factory=_text_runtime_factory)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TextHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = HTTPConnection(
+                "127.0.0.1", server.server_address[1], timeout=5
+            )
+            connection.request("GET", "/capabilities/runtime?max_files=1")
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            TextHandler.service.close()
+
+        self.assertEqual(response.status, 200)
+        self.assertEqual(payload["domain_id"], "text")
+        self.assertEqual(payload["health_status"], "ready")
+        self.assertEqual(payload["data_readiness"], "not_applicable")
+
     def test_non_gis_tool_runs_through_registry_and_runtime(self):
         runtime = build_text_runtime()
 

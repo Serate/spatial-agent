@@ -1190,3 +1190,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 迁移 `/capabilities/runtime` 到 Service/Runtime snapshot。
 2. 为 GIS Domain Pack 接入数据健康/manifest/alignment/provenance evidence，并保留旧字段。
 3. 补开发/生产 HTTP 双领域契约测试，随后做真实环境验收。
+
+## M118 已完成
+
+- 开发 `/capabilities/runtime` 和生产 FastAPI runtime snapshot 已接入 Service/Runtime；旧 provider 名称保留为兼容包装，`service=None` 隔离测试仍可用旧探针。
+- GIS Domain Pack 适配旧数据健康/manifest/analysis-ready/provenance 与 capability runtime evidence；Text HTTP snapshot 验证 `not_applicable`。
+- M118 定向 23 项、full-stage、离线全量回归、编译和 diff check 通过；FastAPI 依赖缺失导致生产专用用例按环境跳过。
+
+### M119 下一步
+
+1. 拆分 release evidence/provenance/failure/replanning 的通用与 GIS evidence 边界。
+2. Docker/FastAPI 可用后执行 readiness、runtime snapshot、SQLite、artifact/recovery 的生产验收。
+3. 补前端 Text/GIS 动态 result/workspace/views/runtime evidence 契约，再做真实模型与数据组合验收。

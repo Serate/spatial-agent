@@ -2539,3 +2539,16 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 将 `/capabilities/runtime` 接入新的 Service/Runtime snapshot，同时保留 GIS 数据健康、manifest、alignment 和 provenance 的 Domain evidence。
 2. 补开发 HTTP 与生产 FastAPI 的 runtime snapshot 双领域契约测试，验证旧 GIS 客户端字段和新通用字段同时稳定。
 3. 继续审计 provenance、failure/replanning 与前端 evidence 消费，再进行 Docker/真实 GIS/真实模型验收。
+
+## M118 已完成：HTTP runtime snapshot 接入 Domain Pack
+
+- 开发 HTTP `/capabilities/runtime` 在正常 Service 入口下改为读取 `AgentService.runtime_capabilities()`；生产 FastAPI 通过同名兼容包装进入 Service/Runtime，旧的可 patch 函数名和字段保持兼容。
+- GIS Domain Pack 将既有数据健康、manifest、analysis-ready、coverage/provenance 和 capability runtime evidence 适配到通用 snapshot；Text Domain Pack 的 HTTP snapshot 返回 `not_applicable` 数据证据。
+- `service=None` 的隔离测试仍使用旧 snapshot provider，避免测试 harness 误把缺少 Service 当成业务领域；正常请求不再直接绕过 Runtime。
+- M118 定向 23 项、`full-stage`、离线全量回归、编译和 `git diff --check` 通过；当前生产 FastAPI 依赖在宿主未安装，相关用例按环境跳过。
+
+### M119 全局规划
+
+1. 将 release evidence、provenance 和 failure/replanning 中剩余 GIS 语义分为通用证据与 Domain evidence，避免 HTTP snapshot 之外继续存在旁路。
+2. 在 FastAPI 依赖和 Docker 可用时执行生产 runtime snapshot、readiness、SQLite、artifact/recovery 的真实验收；不以开发 HTTP 代替生产证据。
+3. 审计前端是否完全消费 result/workspace/views/runtime evidence，补 Text/GIS 双领域动态展示契约后，再进入真实模型与真实数据组合验收。

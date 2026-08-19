@@ -27,7 +27,6 @@ from agent.api_contract import (
 )
 from agent.environment_status import environment_status
 from agent.service import AgentService
-from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import workflow_template_catalog
 
@@ -38,6 +37,11 @@ service.start_reaper()
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))
 GEOJSON_ROOT = Path(os.environ.get("SPATIAL_AGENT_GEOJSON_ROOT", "outputs/geojson"))
 WEB_ROOT = Path(__file__).parent / "web"
+
+
+def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
+    """Compatibility name backed by the Service/Domain Pack runtime seam."""
+    return service.runtime_capabilities(max_files=max_files, backend="local")
 
 
 @app.exception_handler(HTTPException)

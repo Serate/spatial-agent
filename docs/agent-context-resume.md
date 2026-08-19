@@ -935,3 +935,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M118
 
 迁移 `/capabilities/runtime` 到新 Service/Runtime seam，并将 GIS 数据健康、manifest、对齐和 provenance 作为领域证据注入；同时补开发 HTTP/生产 FastAPI 的双领域契约测试。
+
+## 当前进度：M118 已完成
+
+- HTTP runtime snapshot 已通过 Service/Runtime/Domain Pack seam 运行；GIS 数据 evidence 和 Text `not_applicable` evidence 均可进入同一返回结构。
+- 旧 snapshot provider 名称保留为兼容包装，隔离测试的 `service=None` 路径不影响正常请求；M118 定向 23 项、full-stage、离线全量回归、compileall、diff check 通过。
+- FastAPI 依赖未安装，生产专用用例按环境跳过，不能把本阶段开发 HTTP 结果宣称为生产验收。
+
+## 下一阶段 M119
+
+从全局证据链审计 release evidence、provenance、failure/replanning 和前端动态消费，拆分通用/GIS evidence；Docker/FastAPI 恢复后做真实生产矩阵。
