@@ -21,6 +21,14 @@ class GisDomainPack:
 
     domain_id = "gis"
 
+    def answer_composer(self) -> Any:
+        from agent.answer_composer import AnswerComposer
+
+        return AnswerComposer()
+
+    def default_permissions(self) -> set[str]:
+        return {"spatial_data:read"}
+
     def extract_request_facts(self, request: str) -> Any:
         return parse_spatial_request(request)
 

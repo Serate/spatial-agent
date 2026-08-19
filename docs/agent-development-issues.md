@@ -3051,3 +3051,17 @@ M112 新增 `DomainPack` seam，领域包负责 capability catalog、discovery �
 ### 修复与预防
 
 M113 将 `domain_id` 加入通用 planning evidence，优先读取 discovery，缺失时读取 capability catalog，未知领域使用 `unknown`；Runtime 不对具体领域值做分支判断。以后新增 Domain Pack 必须验证 domain id 从 discovery/catalog 贯穿 Runtime、Service、artifact 和 Contract Harness，不能只测试工具能否执行。
+
+## Runtime 默认行为隐式绑定 GIS composer 与权限
+
+### 现象
+
+即使注入了非 GIS Domain Pack，Runtime 在调用方没有显式传入 `answer_composer` 或 `allowed_permissions` 时，仍会创建 GIS `AnswerComposer` 并使用 `spatial_data:read`。非 GIS 工具可能因此执行失败，或答案组合误走空间分支。
+
+### 根因
+
+早期 GIS 是唯一领域，Runtime 构造函数直接把 GIS composer 和空间读取权限作为默认值。M112 虽然把能力目录和 discovery 下沉了，但没有同步处理执行后的答案组合和安全默认值，造成领域解耦只完成了一半。
+
+### 修复与预防
+
+M114 增加 Domain Pack 的 composer/默认权限 seam；Runtime 优先使用领域包提供的实现，显式调用参数仍可覆盖，缺少旧 Domain Pack 方法时才使用 GIS 兼容 fallback。以后新增 Domain Pack 必须验证默认权限、工具执行和答案组合均不依赖 GIS；不要只验证 planner context 没有 GIS 字段。

@@ -4,14 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.answer_composer import AnswerComposer
 from agent.domain_contract import DomainPack
 from agent.observability import ObservabilityEmitter
 from agent.runtime import AgentRuntime
 from agent.tools import ToolRegistry
 from agent.tool_provider import ToolProvider
 
-from .composer import TextAnswerComposer
 from .domain import TEXT_DOMAIN_PACK
 from .planner import TextSummaryPlanner
 from .provider import TextToolProvider
@@ -37,6 +35,4 @@ def build_text_runtime(
         observability=observability,
         backend_name=backend_name,
         domain_pack=TEXT_DOMAIN_PACK,
-        answer_composer=TextAnswerComposer(),
-        allowed_permissions={"text_data:read"},
     )

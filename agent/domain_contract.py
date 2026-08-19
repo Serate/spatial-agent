@@ -18,6 +18,12 @@ class DomainPack(Protocol):
 
     domain_id: str
 
+    def answer_composer(self) -> Any:
+        """Return the domain-owned answer composer."""
+
+    def default_permissions(self) -> Any:
+        """Return the default permission grant for this domain's tools."""
+
     def extract_request_facts(self, request: str) -> Any:
         """Return the domain-neutral request facts for a request."""
 
@@ -77,6 +83,30 @@ def extract_request_facts(domain_pack: DomainPack, request: str) -> Any:
     from .request_model import parse_spatial_request
 
     return parse_spatial_request(request)
+
+
+def answer_composer(domain_pack: DomainPack) -> Any:
+    """Resolve a domain-owned answer composer with GIS compatibility fallback."""
+    factory = getattr(domain_pack, "answer_composer", None)
+    if callable(factory):
+        composer = factory()
+        if composer is not None:
+            return composer
+    from .answer_composer import AnswerComposer
+
+    return AnswerComposer()
+
+
+def default_permissions(domain_pack: DomainPack) -> set[str]:
+    """Resolve the default read grant owned by the selected domain pack."""
+    factory = getattr(domain_pack, "default_permissions", None)
+    if callable(factory):
+        values = factory()
+        if values is not None:
+            permissions = {str(item) for item in values if str(item)}
+            if permissions:
+                return permissions
+    return {"spatial_data:read"}
 
 
 def default_domain_pack() -> DomainPack:

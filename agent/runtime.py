@@ -17,6 +17,8 @@ from .context_engineering import ContextBuilder, ContextPacket
 from .domain_contract import (
     DOMAIN_DISCOVERY_SCHEMA_VERSION,
     DomainPack,
+    answer_composer as resolve_answer_composer,
+    default_permissions,
     default_domain_pack,
     discovery_context,
     extract_request_facts,
@@ -156,22 +158,22 @@ class AgentRuntime:
         self._registry = registry
         self._state_store = state_store or InMemoryStateStore()
         self._conversation_store = conversation_store or InMemoryConversationStore()
-        self._answer_composer = answer_composer or AnswerComposer()
+        self._backend_name = backend_name
+        self._domain_pack = domain_pack or default_domain_pack()
+        self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
         self._context_builder = context_builder or ContextBuilder()
         self._max_steps = max_steps
         self._max_retries = max_retries
         self._replan_policy = replan_policy or ReplanningPolicy()
         self._memory = memory
         self._observability = observability
-        self._backend_name = backend_name
-        self._domain_pack = domain_pack or default_domain_pack()
-        # The default grant covers the repository's read-only spatial tools.
-        # Custom providers must explicitly grant their own permission names.
+        # The selected Domain Pack owns its default grant. Callers can still
+        # narrow or replace it explicitly for a deployment.
         self._allowed_permissions = {
             str(item) for item in (
                 allowed_permissions
                 if allowed_permissions is not None
-                else {"spatial_data:read"}
+                else default_permissions(self._domain_pack)
             ) if str(item)
         }
         self._approved_tools = {

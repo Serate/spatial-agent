@@ -20,11 +20,13 @@ class M113TextDomainTests(unittest.TestCase):
 
         result = runtime.run("这是一段需要被摘要的文本。")
 
+        self.assertEqual(runtime._allowed_permissions, {"text_data:read"})
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(result.plan.output["type"], "text_summary_result")
         self.assertEqual(result.steps[0].tool, "summarize_text")
         self.assertEqual(result.steps[0].status, "COMPLETED")
         self.assertEqual(result.steps[0].result["word_count"], 1)
+        self.assertIn("文本摘要：", result.answer)
         self.assertEqual(
             result.context_evidence["section_names"].count("capability_catalog"),
             1,
@@ -61,6 +63,7 @@ class M113TextDomainTests(unittest.TestCase):
 
         self.assertEqual(payload["status"], "COMPLETED")
         self.assertEqual(payload["result"]["type"], "text_summary_result")
+        self.assertEqual(payload["result"]["title"], "文本摘要")
         self.assertIn("generic", payload["result"]["workspace"]["panels"])
         self.assertEqual(payload["result"]["planning"]["domain_id"], "text")
         self.assertEqual(compare_results([payload, artifact]), [])

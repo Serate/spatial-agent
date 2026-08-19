@@ -894,3 +894,14 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M114
 
 进行全局领域泄漏审计：优先检查 HTTP/runtime capability 快照、结果 views/workspace、provenance、failure/replanning 和前端动态渲染，继续将 GIS 语义保留在 `domains/gis`，并补跨领域契约测试。Docker/真实数据/真实模型仍是可选验收路径，默认 CI 不依赖它们。
+
+## 当前进度：M114 已完成
+
+- Runtime 的默认 answer composer 与默认权限由 Domain Pack 提供；GIS 与 Text 均有各自实现，Text Runtime 不再显式注入这些领域细节。
+- 公共结果契约不再为 `text_summary_result` 写专用标题，计划 output metadata 可直接驱动标题，generic workspace 仍作为未知类型的安全降级。
+- M114 定向 17 项、full-stage、离线全量 646 项（42 项按环境跳过）、compileall、diff check 通过。
+- 尚存 GIS 领域泄漏：result view/panel 注册、生产 capability endpoint、provenance/data-health；下一阶段 M115 处理这些公共边界。
+
+## 下一阶段 M115
+
+优先建立 Domain Pack 驱动的 result type/view 注册契约，并让 HTTP capability snapshot 复用实际 Runtime；随后补 provenance/failure/replanning/前端的跨领域契约测试。继续保持最大并发度 1，真实 Docker/GIS 作为显式验收路径。

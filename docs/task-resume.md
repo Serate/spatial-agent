@@ -1141,3 +1141,16 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 进行全局领域泄漏审计，重点检查 Service/HTTP capability、result views、provenance、failure/replanning 和前端动态 workspace。
 2. 将仍然 GIS 特有的公共契约下沉到 GIS Domain Pack，并补跨 GIS/非 GIS 的 contract harness。
 3. Docker 可用后执行真实 GIS Domain Pack 的 HTTP、SQLite、artifact/recovery、地图和 live model 验收；保留离线 CI 门禁。
+
+## M114 已完成
+
+- Runtime 默认 composer 与默认权限已改为由 Domain Pack 提供；GIS 保留兼容 fallback，Text Domain Pack 可独立提供 `TextAnswerComposer` 和 `text_data:read`。
+- 移除公共结果契约中 `text_summary_result` 的专用标题映射，标题由计划 output 提供；通用结果仍可落入 generic workspace。
+- M114 定向 17 项、full-stage、离线全量 646 项（42 项跳过）、编译和 diff check 通过。
+- 仍待处理的边界：GIS result views/panels、生产 capability endpoint、provenance 和数据健康逻辑仍有领域语义。
+
+### M115 下一步
+
+1. 设计并实现 Domain Pack 驱动的 result type/view 注册契约。
+2. 让 HTTP capability snapshot 复用实际 Runtime 的 Domain Pack，补 Text/GIS 双入口测试。
+3. 继续审计 provenance、failure/replanning 和前端动态结果消费，随后进行真实 Docker/GIS 验收。

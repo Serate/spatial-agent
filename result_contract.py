@@ -23,7 +23,6 @@ TITLE_BY_TYPE = {
     "vector_result": "矢量结果",
     "spatial_relation_result": "空间关系",
     "spatial_result": "空间结果",
-    "text_summary_result": "文本摘要",
     "unknown": "空间分析结果",
 }
 

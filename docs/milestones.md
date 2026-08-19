@@ -2486,3 +2486,18 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 将数据集、实体、能力和结果类型的扩展点收敛为可校验的 Domain Pack 契约；用至少两个 GIS 数据源/区域和一个非 GIS Domain Pack 做契约测试。
 3. 恢复 Docker/真实环境后，重新验收 GIS Domain Pack 的 HTTP、SQLite、artifact/recovery、真实武汉数据和可选真实模型路径；CI 仍保持离线。
 4. 前端继续消费动态 result envelope/workspace/views，不为文本或 GIS 分别复制固定结果面板；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M114 已完成：Domain Pack 默认行为下沉
+
+- `AgentRuntime` 不再在未显式传入时直接创建 GIS `AnswerComposer` 或固定使用 `spatial_data:read`；默认答案组合器和权限集合现在由选中的 Domain Pack 提供，并保留旧 GIS fallback。
+- GIS Domain Pack 声明空间答案组合器与空间读取权限；Text Domain Pack 声明文本答案组合器与 `text_data:read`，文本 Runtime 因此不再需要额外注入领域实现。
+- 公共 `result_contract.py` 移除 `text_summary_result` 的专用标题映射，文本标题来自 Domain Planner 的 output metadata，未知结果继续使用兼容默认值。
+- M114 定向 17 项、`full-stage`、离线全量 646 项（42 项按环境跳过）、编译和 `git diff --check` 通过。
+- 审计仍确认 `result_contract.py` 的 GIS view/panel 注册、生产 capability endpoint 和部分 provenance/数据健康逻辑属于下一阶段的残留领域边界；本阶段没有声称全部领域泄漏已消除。
+
+### M115 全局规划
+
+1. 把结果类型标题、workspace panel 注册和 view builder 的扩展点从公共硬编码进一步收敛为 Domain Pack/结果注册契约，同时保持旧 GIS 结果兼容。
+2. 让 HTTP/runtime capability snapshot 读取实际 Runtime/Domain Pack，而不是直接导入 GIS catalog；增加 Text/GIS 双入口契约测试。
+3. 审计 provenance、failure/replanning、数据健康和前端动态渲染的领域假设，明确哪些是通用证据、哪些必须由 GIS pack 提供。
+4. Docker/真实数据可用后做 GIS 真实入口验收；默认 CI 继续不访问原始数据、私有模型或 Docker。

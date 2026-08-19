@@ -18,6 +18,14 @@ from .catalog import (
 class TextDomainPack:
     domain_id = "text"
 
+    def answer_composer(self) -> Any:
+        from .composer import TextAnswerComposer
+
+        return TextAnswerComposer()
+
+    def default_permissions(self) -> set[str]:
+        return {"text_data:read"}
+
     def extract_request_facts(self, request: str) -> RequestFacts:
         return RequestFacts(
             text=str(request or "").strip(),
