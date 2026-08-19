@@ -3163,3 +3163,31 @@ M124 后端已经提供 Domain-owned action catalog 和 `/actions/{action_id}`�
 ### 修复与预防
 
 M124 让 Console 启动时读取 `/actions`，通过有界 catalog 校验动作已由当前 Domain Pack 声明，再统一 POST `/actions/{action_id}`；旧路由保留为兼容 wrapper。以后新增领域动作必须同时验证“Domain spec -> Runtime dispatch -> HTTP -> Console catalog/dispatch -> 结果 view/artifact”的链路，不能只增加一个后端 URL；动作执行也不能通过任意 Service 方法反射。
+
+## 公共 Runtime 的数据预检规则泄漏 GIS 领域
+
+### 现象
+
+在 M125 审计中，`agent/runtime.py` 直接维护 DEM、土地利用、道路、水体和像元对齐工具的健康预检规则。即使 Planner、ToolRegistry 和 Domain Pack 已可替换，新的非 GIS 领域仍会被迫经过 GIS 语义的预检分支。
+
+### 根因
+
+早期 GIS 是唯一领域，数据依赖证据、网格关系和失败提示被放进 Runtime 的统一执行循环；后来增加 Domain Pack 时只迁移了 catalog、composer 和结果 registry，没有同步迁移执行前的数据策略。
+
+### 修复与预防
+
+M125.1 新增 `DomainPack.preflight_tool()` seam，将 GIS 实现移动到 `domains/gis/preflight.py`；Runtime 只计算 ToolRegistry 声明的通用依赖并委托领域策略。以后新增领域不得把数据集名、对齐关系或领域失败文本加入 `agent/runtime.py`；应通过 Domain-owned preflight/evidence provider 接入，并用非 GIS Domain Pack 负向测试确认无语义泄漏。
+
+## Domain Action catalog 有 schema 但 dispatch 未校验输入
+
+### 现象
+
+M124 的 Action catalog 已返回 `required`、属性和结果类型，但 `/actions/{action_id}` 初始只检查 action 是否已声明，不校验缺失字段、未知字段或嵌套数组类型；错误只能在领域 Service adapter 内部偶然暴露。
+
+### 根因
+
+Action metadata 最初被当作前端发现信息，而 ToolRegistry 的 schema validator 没有被设计成可复用的公共输入契约；直接复用任意 Service 方法又会破坏显式 dispatch seam。
+
+### 修复与预防
+
+M125.1 新增有界 `validate_action_payload()`，在 Domain-owned dispatch 前校验声明的 JSON schema 子集，并增加缺失/未知字段回归。以后新增 Action 必须把 metadata、校验、错误分类、trace、artifact/recovery 一起作为一个契约验收，不能只验证 happy path。

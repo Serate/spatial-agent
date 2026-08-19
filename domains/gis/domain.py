@@ -40,6 +40,25 @@ class GisDomainPack:
     def default_permissions(self) -> set[str]:
         return {"spatial_data:read"}
 
+    def preflight_tool(
+        self,
+        tool: str,
+        arguments: Mapping[str, Any],
+        completed_results: Mapping[str, Mapping[str, Any]],
+        *,
+        required_datasets=(),
+        require_dependency_evidence: bool = False,
+    ) -> None:
+        from .preflight import preflight_tool
+
+        preflight_tool(
+            tool,
+            arguments,
+            completed_results,
+            required_datasets=required_datasets,
+            require_dependency_evidence=require_dependency_evidence,
+        )
+
     def result_registry(self) -> Any:
         from .result_registry import GIS_RESULT_REGISTRY
 

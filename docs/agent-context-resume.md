@@ -1022,3 +1022,14 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 2. Action 工程契约：增加 bounded input schema 校验、结构化错误、trace/observability、artifact/recovery 一致性，禁止任意 Service 反射 dispatch。
 3. Console 与部署：能力/action/view/evidence 全部消费 Runtime snapshot；验证非 GIS pack 的 HTTP、生产入口、SQLite、artifact 和前端 generic path。
 4. 全局验收：覆盖产品闭环、架构替换、真实数据降级、真实模型可选 live、部署可靠性、前端体验和离线 CI；保持最大并发度 1。
+
+## M125.1 收尾状态
+
+- `agent/runtime.py` 已移除 GIS 数据预检规则，新增 `DomainPack.preflight_tool()` seam；GIS 健康、网格对齐和数据不可用门控位于 `domains/gis/preflight.py`。
+- Domain action dispatch 已增加 bounded input schema 校验，catalog 继续只暴露有界 schema，执行继续要求显式 Domain-owned action。
+- M125.1 领域预检、Action schema、M69 对齐门控、M94 治理和 M124 回归通过；离线全量 662 项通过、42 项按环境跳过；compileall、quick/full-stage、diff check 通过。
+- 尚未完成：`agent/answer_composer.py` 的物理迁移、GIS data-quality/analysis-ready legacy provider 与 release evidence 的进一步收口，以及 Action 的结构化错误/观测/artifact 证据。
+
+## M125.2 规划
+
+先完成 GIS composer/provider 的物理归属和兼容测试，再把 Action 错误、trace、artifact/recovery 纳入统一结果契约；随后复验第二非 GIS Domain Pack、生产 HTTP/FastAPI、Docker、真实数据和可选真实模型路径。

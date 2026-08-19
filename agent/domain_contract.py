@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol
+from typing import Any, Iterable, Mapping, Protocol
 
 
 DOMAIN_DISCOVERY_SCHEMA_VERSION = "spatial-agent.domain-discovery.v1"
@@ -40,7 +40,19 @@ class DomainActionSpec:
                 continue
             safe_properties[str(name)[:64]] = {
                 key: deepcopy(definition[key])
-                for key in ("type", "title", "description", "minimum", "maximum", "items")
+                for key in (
+                    "type",
+                    "title",
+                    "description",
+                    "minimum",
+                    "maximum",
+                    "minLength",
+                    "maxLength",
+                    "minItems",
+                    "maxItems",
+                    "items",
+                    "enum",
+                )
                 if key in definition
             }
         safe_schema = {
@@ -74,6 +86,17 @@ class DomainPack(Protocol):
 
     def default_permissions(self) -> Any:
         """Return the default permission grant for this domain's tools."""
+
+    def preflight_tool(
+        self,
+        tool: str,
+        arguments: Mapping[str, Any],
+        completed_results: Mapping[str, Mapping[str, Any]],
+        *,
+        required_datasets: Iterable[str] = (),
+        require_dependency_evidence: bool = False,
+    ) -> Any:
+        """Apply optional domain-owned data/evidence preflight policy."""
 
     def result_registry(self) -> Any:
         """Return result titles and workspace metadata for this domain."""
@@ -174,6 +197,25 @@ def execute_domain_action(
         raise ValueError("domain action execution is unavailable")
     if not isinstance(payload, Mapping):
         raise ValueError("action payload must be an object")
+    raw_specs = getattr(domain_pack, "action_specs", lambda: ())()
+    selected = None
+    for item in raw_specs if isinstance(raw_specs, (list, tuple)) else ():
+        if isinstance(item, DomainActionSpec) and item.action_id == action_id:
+            selected = item
+            break
+        if isinstance(item, Mapping) and str(item.get("id") or "") == action_id:
+            selected = DomainActionSpec(
+                action_id=action_id,
+                label=str(item.get("label") or action_id),
+                description=str(item.get("description") or ""),
+                input_schema=item.get("input_schema") if isinstance(item.get("input_schema"), Mapping) else {},
+                result_type=str(item.get("result_type")) if item.get("result_type") else None,
+            )
+            break
+    if selected is not None and selected.input_schema:
+        from .action_contract import validate_action_payload
+
+        validate_action_payload(dict(payload), selected.input_schema)
     return method(action_id, dict(payload), context=context)
 
 
@@ -209,6 +251,28 @@ def default_permissions(domain_pack: DomainPack) -> set[str]:
             if permissions:
                 return permissions
     return {"spatial_data:read"}
+
+
+def preflight_tool(
+    domain_pack: DomainPack,
+    tool: str,
+    arguments: Mapping[str, Any],
+    completed_results: Mapping[str, Mapping[str, Any]],
+    *,
+    required_datasets: Iterable[str] = (),
+    require_dependency_evidence: bool = False,
+) -> None:
+    """Delegate data/evidence policy without making Runtime know a domain."""
+    method = getattr(domain_pack, "preflight_tool", None)
+    if not callable(method):
+        return
+    method(
+        str(tool),
+        dict(arguments),
+        completed_results,
+        required_datasets=tuple(str(item) for item in required_datasets if str(item)),
+        require_dependency_evidence=bool(require_dependency_evidence),
+    )
 
 
 def result_registry(domain_pack: DomainPack) -> Any:

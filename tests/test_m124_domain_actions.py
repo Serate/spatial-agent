@@ -71,6 +71,22 @@ class M124DomainActionTests(unittest.TestCase):
             )
             with self.assertRaises(ValueError):
                 service.execute_action("gis.not_declared", {}, backend="memory")
+            with self.assertRaisesRegex(ValueError, "missing required fields"):
+                service.execute_action(
+                    "gis.buildability_threshold_comparison",
+                    {"planner": "rule", "backend": "memory"},
+                    backend="memory",
+                )
+            with self.assertRaisesRegex(ValueError, "unknown fields"):
+                service.execute_action(
+                    "gis.buildability_threshold_comparison",
+                    {
+                        "admin_name": "洪山区",
+                        "thresholds": [20],
+                        "unexpected": True,
+                    },
+                    backend="memory",
+                )
         finally:
             service.close()
 

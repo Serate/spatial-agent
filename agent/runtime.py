@@ -7,7 +7,6 @@ from time import perf_counter
 from typing import Any, Dict, Iterable, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
-from .answer_composer import AnswerComposer
 from .capability_catalog import (
     CAPABILITY_CONTEXT_SCHEMA_VERSION,
     capability_context_summary,
@@ -25,6 +24,7 @@ from .domain_contract import (
     result_registry as resolve_result_registry,
     domain_action_catalog,
     execute_domain_action,
+    preflight_tool as run_domain_preflight,
     runtime_evidence as resolve_runtime_evidence,
     selected_capability_ids,
     workflow_context,
@@ -145,7 +145,7 @@ class AgentRuntime:
         registry: ToolRegistry,
         state_store: Optional[InMemoryStateStore] = None,
         conversation_store: Optional[InMemoryConversationStore] = None,
-        answer_composer: Optional[AnswerComposer] = None,
+        answer_composer: Optional[Any] = None,
         context_builder: Optional[ContextBuilder] = None,
         max_steps: int = 12,
         max_retries: int = 2,
@@ -885,62 +885,14 @@ class AgentRuntime:
                 retryable=False,
             )
 
-        required_datasets = set(self._registry.data_dependencies(tool, arguments))
-        # Keep compatibility for older definitions that predate the metadata
-        # contract; new definitions should declare dependencies in their schema.
-        required_datasets.update(_required_health_datasets(tool, arguments))
-        health = next(
-            (value for value in completed_results.values() if value.get("capabilities") is not None),
-            None,
+        run_domain_preflight(
+            self._domain_pack,
+            tool,
+            arguments,
+            completed_results,
+            required_datasets=self._registry.data_dependencies(tool, arguments),
+            require_dependency_evidence=self._require_dependency_evidence,
         )
-        if health is None:
-            if (
-                self._require_dependency_evidence
-                and required_datasets
-                and tool != "get_dataset_health_report"
-            ):
-                raise ToolError(
-                    "数据依赖门控阻止工具 {}：缺少数据健康证据；请先执行 get_dataset_health_report".format(tool),
-                    category="policy",
-                    code="dependency_evidence_required",
-                    retryable=False,
-                )
-            if tool in _PIXEL_ALIGNMENT_TOOLS:
-                raise ToolError(
-                    "像元级对齐门控阻止工具 {}：缺少 DEM/土地利用网格对齐证据".format(tool)
-                )
-            return
-        if tool in _PIXEL_ALIGNMENT_TOOLS:
-            alignment = (
-                (health.get("relationships") or {})
-                .get("dem_land_use", {})
-                .get("grid_alignment")
-            )
-            # In-memory demos intentionally have no raster geometry. Preserve
-            # their explanatory placeholder, but never run real joint pixels
-            # when an explicit health report says the grids are incompatible.
-            if isinstance(alignment, dict) and alignment.get("status") not in {"aligned"}:
-                status = alignment.get("status") or "unknown"
-                reason = alignment.get("reason") or "未提供对齐原因"
-                raise ToolError(
-                    "像元级对齐门控阻止工具 {}：DEM/土地利用网格状态为 {}；{}".format(
-                        tool, status, reason
-                    )
-                )
-        reports = {item.get("dataset"): item for item in health.get("datasets", [])}
-        for dataset in required_datasets:
-            report = reports.get(dataset) or {}
-            if report.get("status") != "unavailable":
-                continue
-            capabilities = report.get("usable_for") or []
-            capability_text = ", ".join(capabilities) if capabilities else "无"
-            raise ToolError(
-                f"数据预检阻止工具 {tool}：数据集 {dataset} 不可用；"
-                f"当前可用能力：{capability_text}。请切换到本地 GIS 后端或补充数据配置。",
-                category="policy",
-                code="data_unavailable",
-                retryable=False,
-            )
 
     def _remember(self, result: AgentRunResult) -> None:
         """Persist one bounded memory fact for a completed run."""
@@ -1404,30 +1356,6 @@ def _resolve_result_references(value: Any, results: Dict[str, Dict[str, Any]]) -
     if isinstance(value, list):
         return [_resolve_result_references(item, results) for item in value]
     return value
-
-
-def _required_health_datasets(tool: str, arguments: Dict[str, Any]) -> Set[str]:
-    if tool in {"get_raster_metadata", "get_raster_statistics", "get_zonal_raster_statistics"}:
-        dataset = arguments.get("dataset")
-        return {dataset} if dataset in {"dem", "land_use"} else set()
-    if tool == "get_zonal_slope_statistics":
-        return {"dem"}
-    if tool == "get_zonal_land_use_distribution":
-        return {"land_use"}
-    if tool == "get_zonal_buildability_analysis":
-        return {"dem", "land_use"}
-    if tool == "get_zonal_constrained_buildability_analysis":
-        required = {"dem", "land_use", "roads"}
-        if arguments.get("exclude_water", True):
-            required.add("water")
-        return required
-    return set()
-
-
-_PIXEL_ALIGNMENT_TOOLS = {
-    "get_zonal_buildability_analysis",
-    "get_zonal_constrained_buildability_analysis",
-}
 
 
 def _result_type_for_observability(result: AgentRunResult) -> str:

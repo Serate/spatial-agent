@@ -1276,3 +1276,13 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 ## 下一阶段 M125
 
 以项目整体为基准收口公共 Runtime 的领域耦合：先迁移答案组合、数据健康和 analysis-ready 的 Domain provider，再补通用 Action schema/error/observability contract；同时让 Console 只消费 Runtime snapshot、action catalog、ViewSpec 和 result evidence。完成后用 Text/第二非 GIS Domain Pack、GIS 真实数据、artifact/recovery、HTTP/生产入口和可选真实模型做矩阵验收。
+
+## M125.1 已完成
+
+- Runtime 的 GIS 数据健康、DEM/土地利用网格对齐和像元工具列表已移入 `DomainPack.preflight_tool()` 与 `domains/gis/preflight.py`；Runtime 只负责通用权限/审批后调用领域预检。
+- Domain action 增加 bounded input schema 校验，拒绝缺少必填字段、未知字段和错误的嵌套类型；action 仍只能由 Domain Pack 显式声明和 dispatch。
+- 验证：M124/M125.1 相关回归通过；全量离线 662 项通过，42 项按环境跳过；compileall、quick/full-stage、`git diff --check` 通过。
+
+## 下一小阶段 M125.2
+
+继续物理收敛 GIS AnswerComposer、数据健康/analysis-ready legacy provider 和 release evidence；补 Action 的结构化错误、观测、artifact/recovery 契约，并以非 GIS Domain Pack 验证完整跨入口闭环。

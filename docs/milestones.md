@@ -2624,6 +2624,19 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 3. 让前端能力、action、workspace view 和结果 evidence 统一来自 Runtime snapshot；GIS 示例与控件作为可选 Domain 配置，验证 Text/第二非 GIS pack 不出现 GIS 语义。
 4. 在数据质量、真实模型、部署和用户体验维度做跨入口回归矩阵；真实武汉数据只作为 GIS Domain evidence，默认 CI 仍离线可复现。
 
+## M125.1 已完成：领域数据预检与 Action schema seam
+
+- `agent/runtime.py` 不再直接列出 GIS 数据集、DEM/土地利用网格关系或 GIS 像元工具；通用 Runtime 通过 `DomainPack.preflight_tool()` 委托领域数据与证据门控。
+- GIS 预检实现下沉到 `domains/gis/preflight.py`，保留原有数据健康、网格对齐、不可用数据和严格依赖证据行为；Text/自定义 Domain Pack 没有该方法时安全保持通用路径。
+- 新增 bounded `validate_action_payload()`，Domain action 在显式 dispatch 前校验 required、unknown fields、嵌套数组和基础类型/范围；仍禁止任意 Service 反射调用。
+- M125.1 新增领域预检负向测试和 Action schema 回归；全量离线测试 662 项通过（42 项按环境跳过），compileall、quick/full-stage 和 `git diff --check` 通过。
+
+### M125.2 全局规划
+
+1. 继续将 GIS AnswerComposer、数据健康/analysis-ready 兼容 provider 和 release evidence 物理收敛到 GIS Domain Pack；保留有界旧导入兼容。
+2. 为 Action 增加结构化错误、trace/observability、artifact/recovery 一致性证据，并用第二个非 GIS Domain Pack 做真实 dispatch replay。
+3. 审计 Console 与生产入口是否只消费 Runtime snapshot、Action catalog、ViewSpec 和 result evidence，随后执行 Docker/FastAPI/真实数据/可选模型矩阵。
+
 ## M120 已完成：Domain-owned view builder seam
 
 - `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。
