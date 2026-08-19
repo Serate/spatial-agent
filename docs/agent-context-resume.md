@@ -966,3 +966,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M121
 
 将 GIS view builder 下沉到 `domains/gis`，清理公共结果模块中的 GIS 实现依赖；补 provenance projection 与前端 Text/GIS smoke。
+
+## 当前进度：M121 已完成
+
+- provenance projector 已下沉到 Result registry：Text 使用通用安全摘要，GIS 保留兼容领域字段。
+- M121 定向回归、full-stage、离线全量 651 项（42 项按环境跳过）、compileall、diff check 通过。
+- 公共结果模块仍保留 GIS view 实现本体，下一阶段进行物理迁移并补前端 generic views smoke。
+
+## 下一阶段 M122
+
+移动 GIS view builder 实现到 `domains/gis`，让前端完全以结构化 result views/workspace 驱动，并在真实依赖可用后执行生产验收矩阵。

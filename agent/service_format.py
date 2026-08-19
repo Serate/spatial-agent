@@ -169,7 +169,10 @@ def format_result(
         payload["_geometry_evidence"] = explicit_geometry
     payload["spatial_context"] = spatial_context
     payload["trace_summary"] = format_trace(result)
-    payload["provenance"] = build_provenance(payload)
+    payload["provenance"] = build_provenance(
+        payload,
+        registry=result_registry,
+    )
     payload["result_type"] = result_type(payload)
     if isinstance(payload.get("plan_evidence"), dict) and payload["plan_evidence"].get("plan_identity"):
         payload["plan_identity"] = dict(payload["plan_evidence"]["plan_identity"])

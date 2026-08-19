@@ -1,10 +1,16 @@
 from typing import Any, Dict, List
 
+from agent.result_registry import ResultContractRegistry, default_result_registry
+
 
 PROVENANCE_SCHEMA_VERSION = "spatial-agent.provenance.v1"
 
 
-def build_provenance(payload: Dict[str, Any]) -> Dict[str, Any]:
+def build_provenance(
+    payload: Dict[str, Any],
+    *,
+    registry: ResultContractRegistry | None = None,
+) -> Dict[str, Any]:
     """Build a bounded, secret-free description of how a run was produced."""
     plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
     plan_steps = {
@@ -13,6 +19,7 @@ def build_provenance(payload: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(item, dict) and item.get("id")
     }
     planning = payload.get("plan_evidence") if isinstance(payload.get("plan_evidence"), dict) else {}
+    registry = registry or default_result_registry()
     entries: List[Dict[str, Any]] = []
     for step in payload.get("steps", []):
         if not isinstance(step, dict):
@@ -27,7 +34,10 @@ def build_provenance(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "depends_on": list(step.get("depends_on") or planned.get("depends_on") or []),
                 "input_bindings": _find_bindings(planned.get("args", {})),
                 "result_ref": result.get("result_ref"),
-                "result_summary": _result_summary(result),
+                "result_summary": registry.project_provenance(
+                    result,
+                    _result_summary(result),
+                ),
             }
         )
     return {
@@ -58,10 +68,6 @@ def _result_summary(result: Dict[str, Any]) -> Dict[str, Any]:
     for key in (
         "count",
         "file_count",
-        "admin_name",
-        "crs",
-        "first_name",
-        "matched_files",
     ):
         if key in result and isinstance(result[key], (str, int, float, bool, list)):
             summary[key] = result[key]

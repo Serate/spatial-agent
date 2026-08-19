@@ -29,6 +29,7 @@ class ResultContractRegistry:
         *,
         fallback_title: str = "运行结果",
         view_builder: Callable[..., Mapping[str, Any]] | None = None,
+        provenance_projector: Callable[..., Mapping[str, Any]] | None = None,
     ) -> None:
         self._specs = {
             str(key): value
@@ -37,6 +38,7 @@ class ResultContractRegistry:
         }
         self._fallback_title = str(fallback_title or "运行结果")[:120]
         self._view_builder = view_builder
+        self._provenance_projector = provenance_projector
 
     def spec(self, result_type: str) -> ResultTypeSpec | None:
         return self._specs.get(str(result_type or ""))
@@ -80,6 +82,17 @@ class ResultContractRegistry:
         if isinstance(value, Mapping):
             return dict(value)
         return {"schema_version": "spatial-agent.views.v1", "panels": {}}
+
+    def project_provenance(
+        self,
+        result: Mapping[str, Any],
+        summary: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Project bounded domain evidence into a generic provenance summary."""
+        if not callable(self._provenance_projector):
+            return dict(summary)
+        value = self._provenance_projector(result, dict(summary))
+        return dict(value) if isinstance(value, Mapping) else dict(summary)
 
     def as_context(self) -> dict[str, object]:
         """Expose only JSON-safe metadata for capability/evidence consumers."""

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from agent.artifact_store import ArtifactStore
 from agent.errors import ToolError
+from agent.provenance import build_provenance
 from agent.service import AgentService
 from evaluation.contract_harness import compare_results
 from domains.text.runtime import build_text_runtime
@@ -170,6 +171,33 @@ class M113TextDomainTests(unittest.TestCase):
             artifact["result"]["data"]["evidence_steps"][0]["tool"],
             "summarize_text",
         )
+
+    def test_text_provenance_uses_generic_projection(self):
+        runtime = build_text_runtime()
+        provenance = build_provenance(
+            {
+                "run_id": "text-run",
+                "plan_evidence": {"domain_id": "text"},
+                "steps": [
+                    {
+                        "id": "summary",
+                        "tool": "summarize_text",
+                        "status": "COMPLETED",
+                        "result": {
+                            "word_count": 3,
+                            "char_count": 9,
+                            "admin_name": "不应进入文本 evidence",
+                        },
+                    }
+                ],
+            },
+            registry=runtime.result_registry(),
+        )
+
+        summary = provenance["steps"][0]["result_summary"]
+        self.assertEqual(provenance["domain_id"], "text")
+        self.assertEqual(summary["word_count"], 3)
+        self.assertNotIn("admin_name", summary)
 
 
 if __name__ == "__main__":

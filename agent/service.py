@@ -293,7 +293,10 @@ class AgentService:
         payload["spatial_context"] = normalized_context
         payload["result_type"] = _result_type(payload)
         payload["trace_summary"] = format_trace(result)
-        payload["provenance"] = build_provenance(payload)
+        payload["provenance"] = build_provenance(
+            payload,
+            registry=_runtime_result_registry(runtime),
+        )
         if payload.get("failure") is None:
             failure = failure_from_payload(payload)
             if failure is not None:
@@ -635,7 +638,10 @@ class AgentService:
         result = runtime.retry_failed(run_id)
         payload = result.to_dict()
         payload["trace_summary"] = format_trace(result)
-        payload["provenance"] = build_provenance(payload)
+        payload["provenance"] = build_provenance(
+            payload,
+            registry=_runtime_result_registry(runtime),
+        )
         payload["result_type"] = _result_type(payload)
         if export_artifact:
             payload["artifact_ref"] = self._artifact_store.write_run(payload)
@@ -748,7 +754,12 @@ class AgentService:
             if payload is not None:
                 artifact_result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
                 payload["trace_summary"] = payload.get("trace_summary") or []
-                payload["provenance"] = payload.get("provenance") or build_provenance(payload)
+                payload["provenance"] = payload.get("provenance") or build_provenance(
+                    payload,
+                    registry=_runtime_result_registry(
+                        self._runtime(planner, backend)
+                    ),
+                )
                 payload["result_type"] = _result_type(payload)
                 payload["result"] = build_result_contract(
                     payload,
@@ -766,7 +777,12 @@ class AgentService:
         if explicit_geometry is not None:
             payload["_geometry_evidence"] = explicit_geometry
         payload["trace_summary"] = format_trace(result)
-        payload["provenance"] = build_provenance(payload)
+        payload["provenance"] = build_provenance(
+            payload,
+            registry=_runtime_result_registry(
+                self._runtime(planner, backend)
+            ),
+        )
         payload["result_type"] = _result_type(payload)
         payload["result"] = build_result_contract(
             payload,

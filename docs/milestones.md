@@ -2567,6 +2567,19 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 将 provenance 中 `admin_name/crs` 等领域字段变为可选 Domain evidence，同时保留旧 artifact 读取兼容。
 3. 补前端动态 workspace/views/runtime evidence 的 Text/GIS 契约测试；Docker/FastAPI/真实模型和真实数据继续作为显式验收路径。
 
+## M121 已完成：provenance Domain projection
+
+- `ResultContractRegistry` 增加 provenance projector；公共 provenance 只自动保留通用运行血缘和 bounded numeric counters，GIS 的 `admin_name/crs` 等兼容字段由 GIS registry 投影。
+- Text Domain Pack 不会从文本工具结果中继承 GIS provenance 字段，同时保留 `domain_id`、`word_count` 等安全通用 evidence；旧 GIS artifact/recovery 回归保持通过。
+- M121 定向回归、`full-stage`、离线全量 651 项（42 项按环境跳过）、编译和 `git diff --check` 通过。
+- 公共 `result_contract.py` 仍包含 GIS view builder 的实现本体，但它已只能由 GIS registry 调度；下一阶段处理物理迁移。
+
+### M122 全局规划
+
+1. 将 GIS view builder 实现物理移动到 `domains/gis`，公共结果模块只保留通用 envelope、registry dispatch 和 geometry primitives。
+2. 将前端静态 GIS 结果面板逐步收敛为 result views/workspace 驱动，并补 Text generic views smoke。
+3. Docker/FastAPI/真实数据/真实模型可用后执行生产矩阵；所有数据集继续作为可替换 Domain evidence，而非 Runtime 前置条件。
+
 ## M120 已完成：Domain-owned view builder seam
 
 - `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。

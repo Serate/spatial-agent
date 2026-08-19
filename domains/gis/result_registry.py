@@ -10,6 +10,15 @@ def _build_gis_views(*args, **kwargs):
     return _view_model(*args, **kwargs)
 
 
+def _project_gis_provenance(result, summary):
+    """Preserve legacy GIS identity fields outside the generic allowlist."""
+    for key in ("admin_name", "crs", "first_name", "matched_files"):
+        value = result.get(key)
+        if isinstance(value, (str, int, float, bool, list)):
+            summary[key] = value
+    return summary
+
+
 _TITLES = {
     "direct_answer": "通用回答",
     "spatial_overview_result": "区域空间总览",
@@ -70,4 +79,5 @@ GIS_RESULT_REGISTRY = ResultContractRegistry(
     },
     fallback_title="空间分析结果",
     view_builder=_build_gis_views,
+    provenance_projector=_project_gis_provenance,
 )

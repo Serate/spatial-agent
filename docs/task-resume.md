@@ -1225,3 +1225,14 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 将 GIS view builder 实现移入 `domains/gis`，公共结果模块只保留 envelope/dispatch。
 2. 将 provenance GIS 字段改为可选领域 projection，保持旧 artifact/recovery 兼容。
 3. 补前端 Text generic views 与 GIS views smoke，随后做真实环境验收。
+
+## M121 已完成
+
+- provenance 已增加 Domain projection：通用层只保留安全计数和血缘，GIS registry 负责 `admin_name/crs` 等兼容字段，Text 不泄漏 GIS 字段。
+- M121 定向回归、full-stage、离线全量 651 项（42 项跳过）、编译和 diff check 通过。
+
+### M122 下一步
+
+1. 将 GIS view builder 代码移动到 `domains/gis`。
+2. 前端继续只消费 result views/workspace，补 Text generic views smoke。
+3. 真实依赖可用后执行 Docker/FastAPI/数据/模型生产验收。
