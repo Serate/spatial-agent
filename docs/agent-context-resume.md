@@ -734,6 +734,15 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 下一步：完成阶段提交后，从全局 Agent Runtime 角度重新评估真实环境验收、失败修复/重规划、契约演进和外部工具 adapter 的优先级。MCP 仍只作为未来真实外部工具来源的 adapter。
 
+## M96 已完成
+
+- `ToolRegistry` 接入 provider 时统一调用 `validate_tool_definitions()`，校验工具名、目录 key、object schema、治理字段和 timeout；新增 `spatial-agent.tool-provider-contract.v1`。
+- provider health、runtime capability 和 plan evidence 暴露有界定义合同；非 Native provider 回放验证外部工具来源仍受权限、schema、timeout、StepRun governance 和结果契约约束。
+- M96 专项 4 项、M92–M95 回归 26 项、quick/stage、离线全量 612 项通过、42 项按环境跳过；编译、PowerShell acceptance 解析和 diff check 通过；真实 GIS core 3 项通过。
+- Docker Linux engine 仍不可用，未宣称 M96 Docker production acceptance；live LLM 仍按环境门控。MCP 继续保持未来真实远程工具来源的 adapter，而不是当前依赖。
+
+下一步：先从全局七维矩阵安排当前版本真实入口/部署复验和失败重规划组合验收，再根据是否出现真实外部工具来源决定 MCP adapter；不得为使用 MCP 而改变 ToolRegistry 核心 seam。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。

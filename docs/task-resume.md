@@ -960,3 +960,12 @@ M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 
 - 生产 acceptance 已加入版本化 RequestFacts、execution policy 及 artifact 证据门禁；本轮没有执行真实 GIS、Docker production acceptance 或 live LLM。
 
 下一阶段要从全局 Agent Runtime 目标重新排序真实环境验收、错误修复/重规划、契约演进和工具来源扩展；没有真实远程工具来源时不实现 MCP 运行时依赖。
+
+## M96 已完成
+
+- `ToolRegistry` 在 provider 接入时校验工具定义合同，拒绝错误名称、schema、治理字段和 timeout；新增 `spatial-agent.tool-provider-contract.v1`。
+- provider health、runtime capability、plan evidence 和生产 acceptance 均记录安全的合同状态；非 Native provider 回放验证同一 Registry、权限、timeout、治理和结果边界。
+- M96 专项 4 项、M92–M95 回归 26 项、quick/stage、编译、PowerShell 解析和 diff check 已通过；离线全量 612 项通过、42 项按环境跳过；真实 GIS core 3 项通过。
+- Docker Linux engine 仍无法连接，因此没有把旧容器或未执行的 Docker acceptance 当作 M96 证据；live LLM 仍为可选门控。
+
+下一阶段从全局角度优先安排当前版本的 Docker/真实入口复验（环境恢复时）以及“失败观察 -> 受控重规划 -> 结果证据”组合验收；没有真实远程工具来源时不实现 MCP 运行时依赖。

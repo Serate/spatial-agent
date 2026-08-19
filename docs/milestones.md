@@ -2133,3 +2133,31 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 ### 全局重规划入口
 
 M95 已把请求理解、工具治理、计划证据和执行结果连接为同一条可恢复链路。下一阶段必须从完整 Agent Runtime 的全局缺口出发，优先评估真实环境验收、失败后的可控修复、跨入口契约演进和工具来源扩展的先后关系；没有真实远程工具来源时不实现 MCP 运行时依赖。
+
+## M96：Provider 合同验证与可替换适配器回放（已完成）
+
+### 全局目标
+
+在不引入 MCP 核心依赖的前提下，证明工具来源可以替换，但工具定义、权限、参数校验、timeout、错误和结果证据不能被 provider 绕过。MCP 继续只是未来真实远程工具来源的候选适配器。
+
+### 实现内容
+
+- `agent.tool_provider.validate_tool_definitions()` 在 `ToolRegistry` 接入 seam 校验 provider 工具目录：名称、目录 key、输入/输出 object schema、治理字段类型和正数有限 timeout。
+- 新增 `spatial-agent.tool-provider-contract.v1`；provider health、runtime capability 和 Planner plan evidence 暴露有界的定义合同状态，不暴露 provider handler、连接信息或密钥。
+- 生产 acceptance 增加 provider definition contract 的 schema 和 `valid` 状态门禁；动态工具和旧 `ToolRegistry(definitions, adapter)` 兼容路径保持不变。
+- 新增非 Native provider 回放，验证外部 provider 仍经过同一 Registry dispatch、权限门控、治理快照和结构化计划证据。
+
+### 验收证据
+
+- M96 专项 4 项、M92/M93/M94/M95 相关回归 26 项通过；quick、stage、Python 编译、PowerShell acceptance 解析和 `git diff --check` 通过。
+- 真实 GIS 核心 profile 在 `spatial-agent-gis` 环境通过 3 项；Docker Linux engine 当前仍不可用，本阶段未宣称 Docker production acceptance。
+- 离线全量 612 项通过、42 项按环境跳过；真实 LLM 仍按可选 live 门控，不进入默认 CI。
+
+### 全局复盘与下一阶段入口
+
+- 产品：工具来源可替换性现在有可解释的合同证据，面试演示可以区分“协议接入”和“Runtime 治理”。
+- 架构：ToolRegistry 继续是唯一执行 seam，provider 只提供定义和 provider-specific invocation。
+- 数据/模型：provider 合同不改变数据健康和 TaskPlan 契约；真实模型仍使用同一 schema 和门控。
+- 部署/体验/测试：runtime capability 与 acceptance 可发现 provider 合同失败；非 Native 回放覆盖 adapter 变更风险，前端无需新增硬编码面板。
+
+下一阶段应优先处理真实部署证据与失败后的可控修复/重规划组合验收，再评估是否存在值得实现的真实外部工具来源；在没有该来源前不实现 MCP 运行时依赖。

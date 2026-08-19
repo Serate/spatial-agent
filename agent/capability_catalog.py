@@ -544,6 +544,17 @@ def _safe_tool_provider_health(value: Mapping[str, Any]) -> Dict[str, Any]:
     }
     if value.get("reason_code"):
         result["reason_code"] = str(value["reason_code"])[:96]
+    contract = value.get("definition_contract")
+    if isinstance(contract, Mapping):
+        result["definition_contract"] = {
+            "schema_version": str(
+                contract.get("schema_version") or "spatial-agent.tool-provider-contract.v1"
+            )[:80],
+            "provider_id": str(contract.get("provider_id", "unknown"))[:64],
+            "status": str(contract.get("status", "unknown"))[:20],
+            "tool_count": max(0, int(contract.get("tool_count", 0) or 0)),
+            "validation": str(contract.get("validation", "unknown"))[:64],
+        }
     return result
 
 

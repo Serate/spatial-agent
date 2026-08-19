@@ -78,6 +78,7 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("sync_selected_capability", script)
         self.assertIn("runtime tool provider evidence missing", script)
         self.assertIn("spatial-agent.tool-provider-health.v1", script)
+        self.assertIn("spatial-agent.tool-provider-contract.v1", script)
         self.assertIn("spatial-agent.tool-governance.v1", script)
         self.assertIn("runtime_tool_provider_health", script)
         self.assertIn("spatial-agent.request-facts.v1", script)

@@ -2807,3 +2807,17 @@ M94 为 Registry 接入 per-tool timeout 后，最初把 run 的剩余时间也�
 ### 处理与预防
 
 Registry 只对工具声明的 `timeout_seconds` 建立有界 dispatch 等待；Runtime 的 `timeout_seconds` 继续只在规划、步骤开始和步骤结束边界检查。若未来需要让工具 timeout 触发 run 的 `TIMED_OUT`，必须先设计统一的错误分类转换和步骤状态迁移，并增加同步/异步/取消/重启恢复矩阵，不能仅修改一个 timeout 参数的传递方式。
+
+## 可替换 ToolProvider 不能只验证 invoke 接口
+
+### 现象
+
+M92 之后，非 Native provider 只要提供 `definitions()` 和 `invoke()` 就可以接入 Registry。如果 provider 返回错误的工具名、非 object 的输入 schema、治理字段类型错误或无效 timeout，问题可能直到 Planner 生成计划或实际 dispatch 时才暴露；这会让“provider 可替换”变成只替换调用实现，却没有稳定的工具契约。
+
+### 根因
+
+Provider 是工具来源适配器，不应决定 Runtime 如何解释工具定义。若 Registry 只复制 provider 的 definitions 而不在接入 seam 做合同校验，schema 校验、权限门控、上下文摘要和生产健康状态会分别看到不同程度的无效元数据。引入 MCP 也不能解决这个问题，因为 MCP 只提供外部工具传输协议。
+
+### 处理与预防
+
+M96 在 `ToolRegistry` 构造时统一调用 `validate_tool_definitions()`，校验工具名、输入/输出 object schema、name 与目录 key、一组治理字段和正数有限 timeout，并生成 `spatial-agent.tool-provider-contract.v1` 安全证据。provider 健康、runtime capability、Planner plan evidence 和生产 acceptance 都保留该合同状态；非 Native provider 的回放仍经过同一 Registry、权限、timeout、StepRun governance 和结果契约。后续实现 `MCPToolProvider` 时必须先通过同一合同，不能把协议客户端直接暴露给 Planner 或 Runtime。

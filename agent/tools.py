@@ -5,7 +5,13 @@ from typing import Any, Callable, Dict, Iterable, Mapping, Protocol
 
 from .errors import ToolError
 from .spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
-from .tool_provider import NativeToolProvider, ToolProvider, ToolProviderError
+from .tool_provider import (
+    TOOL_PROVIDER_CONTRACT_SCHEMA,
+    NativeToolProvider,
+    ToolProvider,
+    ToolProviderError,
+    validate_tool_definitions,
+)
 
 _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -33,9 +39,7 @@ class ToolRegistry:
             raise TypeError("provide either provider or definitions/adapter, not both")
         self._provider = provider
         provider_definitions = provider.definitions()
-        if not isinstance(provider_definitions, Mapping):
-            raise ToolError("tool provider definitions must be an object")
-        self._definitions = dict(provider_definitions)
+        self._definitions = validate_tool_definitions(provider_definitions)
         self._dynamic_handlers: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
 
     @classmethod
@@ -58,17 +62,28 @@ class ToolRegistry:
             "tool_count": len(self._definitions),
         }
 
+    def provider_contract(self) -> Dict[str, Any]:
+        """Return the validated provider/catalog contract evidence."""
+        return {
+            "schema_version": TOOL_PROVIDER_CONTRACT_SCHEMA,
+            "provider_id": self.provider_info()["id"],
+            "status": "valid",
+            "tool_count": len(self._definitions),
+            "validation": "registry_definition_schema",
+        }
+
     def provider_health(self) -> Dict[str, Any]:
         """Return bounded provider health without invoking a business tool."""
         info = self.provider_info()
         checker = getattr(self._provider, "health", None)
         if not callable(checker):
             return {
-                "schema_version": "spatial-agent.tool-provider-health.v1",
-                "provider_id": info["id"],
-                "status": "unknown",
-                "tool_count": info["tool_count"],
-                "reason_code": "health_check_not_supported",
+            "schema_version": "spatial-agent.tool-provider-health.v1",
+            "provider_id": info["id"],
+            "status": "unknown",
+            "tool_count": info["tool_count"],
+            "definition_contract": self.provider_contract(),
+            "reason_code": "health_check_not_supported",
             }
         try:
             raw = checker()
@@ -78,6 +93,7 @@ class ToolRegistry:
                 "provider_id": info["id"],
                 "status": "unavailable",
                 "tool_count": info["tool_count"],
+                "definition_contract": self.provider_contract(),
                 "reason_code": "health_check_failed",
             }
         if not isinstance(raw, Mapping):
@@ -101,6 +117,7 @@ class ToolRegistry:
             "provider_id": info["id"],
             "status": status,
             "tool_count": info["tool_count"],
+            "definition_contract": self.provider_contract(),
             "checks": checks[:12],
             "reason_code": str(raw.get("reason_code"))[:96]
             if raw.get("reason_code")

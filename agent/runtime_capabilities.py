@@ -44,6 +44,13 @@ def tool_provider_snapshot() -> Dict[str, Any]:
                 "provider_id": "unknown",
                 "status": "unavailable",
                 "tool_count": 0,
+                "definition_contract": {
+                    "schema_version": "spatial-agent.tool-provider-contract.v1",
+                    "provider_id": "unknown",
+                    "status": "unavailable",
+                    "tool_count": 0,
+                    "validation": "not_available",
+                },
                 "reason_code": "tool_manifest_unavailable",
             },
             "tool_governance": {

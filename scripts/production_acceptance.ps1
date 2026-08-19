@@ -57,6 +57,15 @@ function Assert-RuntimeCapabilitySnapshot($snapshot) {
   if ($snapshot.tool_provider_health.status -notin @("ready", "degraded", "unavailable", "unknown")) {
     throw "runtime tool provider health status invalid"
   }
+  if ($null -eq $snapshot.tool_provider_health.definition_contract) {
+    throw "runtime tool provider definition contract missing"
+  }
+  if ($snapshot.tool_provider_health.definition_contract.schema_version -ne "spatial-agent.tool-provider-contract.v1") {
+    throw "runtime tool provider definition contract schema mismatch"
+  }
+  if ($snapshot.tool_provider_health.definition_contract.status -ne "valid") {
+    throw "runtime tool provider definition contract is not valid"
+  }
   if ($null -eq $snapshot.tool_governance) {
     throw "runtime tool governance evidence missing"
   }

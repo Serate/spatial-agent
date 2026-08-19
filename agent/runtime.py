@@ -1119,6 +1119,15 @@ def _build_plan_evidence(
                 if provider_health.get("reason_code")
                 else None,
             }
+            contract = provider_health.get("definition_contract")
+            if isinstance(contract, Mapping):
+                evidence["capability_catalog_tool_provider_health"]["definition_contract"] = {
+                    "schema_version": str(contract.get("schema_version", ""))[:80],
+                    "provider_id": str(contract.get("provider_id", "unknown"))[:64],
+                    "status": str(contract.get("status", "unknown"))[:20],
+                    "tool_count": int(contract.get("tool_count", 0) or 0),
+                    "validation": str(contract.get("validation", "unknown"))[:64],
+                }
         governance = capability_catalog_section.get("tool_governance")
         if isinstance(governance, Mapping):
             evidence["capability_catalog_tool_governance"] = {
