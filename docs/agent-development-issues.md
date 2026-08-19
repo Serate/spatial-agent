@@ -2770,6 +2770,30 @@ M93 在 Planner 上下文中同时展开 provider 健康、完整治理工具列
 
 M93 将独立 `tool_governance` section 收紧为统计摘要，权限和数据依赖只保留在选中工具 schema；ContextBuilder 默认预算调整为 16,000 字符，并按“能力发现 -> 能力目录 -> 工作流模板”的顺序裁剪，工作流模板优先级最高。新增 Planner 上下文 section 必须先检查是否与现有 schema 重复，并用复杂请求测试确认 `capability_discovery`、`capability_catalog`、`workflow_templates` 和 plan evidence 同时存在。
 
+## RequestFacts 只放在 Planner context 会造成恢复与展示契约断裂
+
+### 现象
+
+M95 之前，`parse_spatial_request()` 已经抽取了行政区、任务、数据集、约束和证据，但这些 facts 主要只存在于 Planner 的临时 `spatial_request` section。同步结果、preview、SQLite recovery、artifact 和 result envelope 没有同一个版本化 RequestFacts 引用，跨入口无法证明“同一请求被同样理解”。
+
+### 根因
+
+请求抽取、能力发现、工作流约束和结果展示分别保留了相似字段；如果不把 RequestFacts 固化为运行快照，后续入口可能重新解析已被拼接/澄清过的文本，或者由前端从 plan/steps 反推原始意图，形成第二套语义。
+
+### 处理与预防
+
+新增 `spatial-agent.request-facts.v1`，Runtime 在规划前生成一次 `RequestFacts`，并将无原文的 context-safe projection 同时写入 `AgentRunResult`、preview、result envelope、SQLite 和 artifact；`plan_evidence` 记录 schema version 与受限摘要。后续新增请求字段必须先进入 RequestFacts，再由 CapabilityCatalog/WorkflowTemplate/Result contract 消费，不能在页面、工具或答案组合器中重复解析自然语言。
+
+## 规划证据与执行门控不能各自维护工具治理副本
+
+### 现象
+
+如果 Planner context、plan evidence、Runtime preflight、StepRun 和 artifact 各自读取工具权限、数据依赖或 timeout，治理配置修改后可能出现“计划显示允许、执行时拒绝、artifact 没有解释”的不一致。
+
+### 处理与预防
+
+M95 让 `ToolRegistry.governance_for()` 成为唯一治理读取 seam：plan evidence 输出 `spatial-agent.execution-policy.v1`，每个实际 StepRun 保存同一治理快照，result evidence、SQLite、artifact 和 step observability 复用该快照/错误码。未来治理字段必须先扩展 Registry contract，再同步各入口的 normalization 测试，不能从前端或模板重新推断权限。
+
 ## 工具级 timeout 不能替代 run 级协作式超时
 
 ### 现象

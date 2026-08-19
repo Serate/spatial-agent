@@ -80,6 +80,9 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("spatial-agent.tool-provider-health.v1", script)
         self.assertIn("spatial-agent.tool-governance.v1", script)
         self.assertIn("runtime_tool_provider_health", script)
+        self.assertIn("spatial-agent.request-facts.v1", script)
+        self.assertIn("spatial-agent.execution-policy.v1", script)
+        self.assertIn("artifact request facts evidence missing", script)
 
     @unittest.skipUnless(
         os.environ.get("SPATIAL_AGENT_RUN_M66_PRODUCTION") == "1",

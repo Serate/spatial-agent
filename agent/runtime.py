@@ -27,7 +27,7 @@ from .replanning import (
     merge_replanned_plan,
     rule_replan_plan,
 )
-from .request_model import parse_spatial_request
+from .request_model import RequestFacts, parse_spatial_request
 from .tools import ToolRegistry
 from .workflow_templates import (
     WorkflowTemplateError,
@@ -185,6 +185,7 @@ class AgentRuntime:
             raise ToolError("timeout_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
         resolved_request = self._resolve_request(request, session_id)
+        request_facts = parse_spatial_request(resolved_request)
         resolved_run_id = run_id or str(uuid.uuid4())
         run_span_id = uuid.uuid4().hex[:16]
         self._run_span_ids[resolved_run_id] = run_span_id
@@ -194,9 +195,12 @@ class AgentRuntime:
             request=request,
             session_id=session_id,
             resolved_request=resolved_request,
+            request_facts=request_facts.as_context_dict(),
             workflow=dict(workflow) if workflow is not None else None,
         )
-        context_packet = self._build_context_packet(request, resolved_request, session_id, workflow)
+        context_packet = self._build_context_packet(
+            request, resolved_request, session_id, workflow, request_facts=request_facts
+        )
         result.context_evidence = context_packet.evidence
         self._state_store.save(result)
         try:
@@ -211,6 +215,7 @@ class AgentRuntime:
                 context_packet,
                 planner_kind=type(self._planner).__name__,
             )
+            result.plan_evidence["execution_policy"] = self._execution_policy_evidence(plan)
             if expected_plan_fingerprint is not None:
                 actual_fingerprint = (result.plan_evidence.get("plan_identity") or {}).get("fingerprint")
                 result.plan_evidence["expected_plan_fingerprint"] = str(expected_plan_fingerprint)
@@ -320,12 +325,16 @@ class AgentRuntime:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
         resolved_request = self._resolve_request(request, session_id)
-        context_packet = self._build_context_packet(request, resolved_request, session_id, workflow)
+        request_facts = parse_spatial_request(resolved_request)
+        context_packet = self._build_context_packet(
+            request, resolved_request, session_id, workflow, request_facts=request_facts
+        )
         payload: Dict[str, Any] = {
             "status": "PLANNING",
             "request": request,
             "resolved_request": resolved_request,
             "session_id": session_id,
+            "request_facts": request_facts.as_context_dict(),
             "workflow": dict(workflow) if workflow is not None else None,
             "context_evidence": context_packet.evidence,
             "execution": {
@@ -347,6 +356,7 @@ class AgentRuntime:
                 context_packet,
                 planner_kind=type(self._planner).__name__,
             )
+            plan_evidence["execution_policy"] = self._execution_policy_evidence(plan)
             payload.update({
                 "status": "PLANNED",
                 "plan": plan_payload,
@@ -467,19 +477,40 @@ class AgentRuntime:
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict:
         return self._registry.export_result(result_ref, max_features=max_features)
 
+    def _execution_policy_evidence(self, plan: TaskPlan) -> Dict[str, Any]:
+        """Project the Registry governance used by this plan into evidence."""
+        tools = []
+        seen = set()
+        for step in plan.steps:
+            if step.tool in seen:
+                continue
+            seen.add(step.tool)
+            tools.append(self._registry.governance_for(step.tool))
+        return {
+            "schema_version": "spatial-agent.execution-policy.v1",
+            "provider_id": self._registry.provider_info().get("id", "unknown"),
+            "dependency_evidence_required": self._require_dependency_evidence,
+            "allowed_permission_count": len(self._allowed_permissions),
+            "wildcard_permission": "*" in self._allowed_permissions,
+            "approved_tool_count": len(self._approved_tools),
+            "tools": tools[:32],
+        }
+
     def _build_context_packet(
         self,
         request: str,
         resolved_request: str,
         session_id: str,
         workflow: Optional[Mapping[str, Any]],
+        *,
+        request_facts: Optional[RequestFacts] = None,
     ) -> ContextPacket:
         memory_section = (
             self._memory.context_section(session_id)
             if self._memory is not None
             else None
         )
-        spatial_request = parse_spatial_request(resolved_request)
+        spatial_request = request_facts or parse_spatial_request(resolved_request)
         capability_discovery = CapabilityRouter().discover(
             resolved_request,
             spatial_request,
@@ -582,6 +613,7 @@ class AgentRuntime:
         if missing:
             raise ToolError("Step dependencies are not complete: " + ", ".join(missing))
         resolved_args = _resolve_result_references(step.args, completed_results)
+        step_run.governance = self._registry.governance_for(step.tool)
         try:
             self._enforce_preflight_policy(step.tool, resolved_args, completed_results)
         except ToolError as exc:
@@ -859,6 +891,7 @@ class AgentRuntime:
         attributes = {
             "attempts": step_run.attempts,
             "error_category": step_run.error_category or failure_category(step_run.error),
+            "error_code": step_run.error_code,
         }
         attributes = {key: value for key, value in attributes.items() if value is not None}
         self._observability.emit_step(
@@ -1019,6 +1052,20 @@ def _build_plan_evidence(
             planner_kind=planner_kind,
         ),
     }
+    request_facts = sections.get("spatial_request")
+    if isinstance(request_facts, Mapping):
+        evidence["request_facts"] = {
+            "schema_version": str(
+                request_facts.get("schema_version", "spatial-agent.request-facts.v1")
+            )[:80],
+            "admin_name": str(request_facts.get("admin_name"))[:120]
+            if request_facts.get("admin_name")
+            else None,
+            "tasks": [str(item)[:64] for item in (request_facts.get("tasks") or [])[:16]],
+            "datasets": [str(item)[:64] for item in (request_facts.get("datasets") or [])[:16]],
+            "constraints": _safe_small_mapping(request_facts.get("constraints")),
+            "evidence": [str(item)[:64] for item in (request_facts.get("evidence") or [])[:8]],
+        }
     if isinstance(workflow, Mapping):
         evidence["workflow_template_id"] = workflow.get("template_id")
         evidence["workflow_template_version"] = workflow.get("template_version")

@@ -97,6 +97,9 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
             "error_code": str(step.get("error_code"))[:96]
             if step.get("error_code")
             else None,
+            "governance": step.get("governance")
+            if isinstance(step.get("governance"), dict)
+            else None,
         })
 
     if payload.get("geojson_ref"):
@@ -131,6 +134,7 @@ def build_result_contract(payload: Dict[str, Any]) -> Dict[str, Any]:
         "type": result_type,
         "title": str(output.get("title") or TITLE_BY_TYPE.get(result_type, "空间分析结果")),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
+        "request_facts": payload.get("request_facts") or {"available": False},
         "data": {
             "evidence_steps": evidence_steps,
             "degradations": degradation["items"],

@@ -38,6 +38,7 @@ _RUN_ALLOWED_ATTRIBUTES = {
 _STEP_ALLOWED_ATTRIBUTES = {
     "attempts",
     "error_category",
+    "error_code",
     "result_type",
 }
 

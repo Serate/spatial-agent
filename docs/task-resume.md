@@ -949,3 +949,14 @@ M94 已完成 provider 治理的执行闭环：runtime capability snapshot 暴�
 M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 项通过；stage 通过；离线全量 605 项通过、42 项按环境跳过；编译、schema、PowerShell 静态契约和 diff check 通过。普通 Python 环境下真实 GIS 仍按依赖条件跳过，Docker Linux engine 仍未恢复，不能引用旧容器作为当前版本生产证据。
 
 下一阶段 M95 必须先进行全局盘点：统一 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry governance 和 Result envelope 中重复的约束字段，建立计划证据与执行门控的一致性矩阵；随后补 HTTP/生产配置与 trace/artifact normalization。没有真实外部工具来源时不实现 MCP 运行时依赖，只保留未来 `MCPToolProvider` adapter seam。当前最大并发度为 1，默认 quick/stage 离线。
+
+## M95 已完成
+
+- `SpatialRequest` 已明确命名为 `RequestFacts`（保留兼容别名），输出版本化 `spatial-agent.request-facts.v1`；Runtime 在规划前只抽取一次，并把 context-safe projection 写入运行结果和 preview。
+- RequestFacts 已贯通 direct service、result envelope、SQLite recovery 和 artifact；复杂请求的同一 facts 在 3 项 M95 专项测试中保持一致，且不携带原始请求文本。
+- 工具治理证据开始收敛到 `ToolRegistry.governance_for()`：plan evidence 输出 `spatial-agent.execution-policy.v1`，实际 StepRun 保存治理快照，result evidence、artifact 和 SQLite 恢复保留同一快照；step observability 增加安全 `error_code`。
+- M81 跨入口 acceptance 已把 RequestFacts、execution policy 和 StepRun governance 纳入 direct/HTTP/CLI/artifact/recovery normalization。
+- quick、stage、Python 编译、PowerShell acceptance 解析和 diff check 通过；离线全量 608 项通过、42 项按环境跳过。
+- 生产 acceptance 已加入版本化 RequestFacts、execution policy 及 artifact 证据门禁；本轮没有执行真实 GIS、Docker production acceptance 或 live LLM。
+
+下一阶段要从全局 Agent Runtime 目标重新排序真实环境验收、错误修复/重规划、契约演进和工具来源扩展；没有真实远程工具来源时不实现 MCP 运行时依赖。

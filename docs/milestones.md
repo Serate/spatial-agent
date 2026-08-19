@@ -2115,3 +2115,21 @@ M81.3 继续收敛“通用 Agent Runtime，而不是按具体问题堆规则”
 1. 从项目全局评估 RequestFacts、能力目录、工作流模板、工具治理与结果契约的重复字段，建立统一的“计划前约束 -> 执行时门控 -> 结果证据”一致性矩阵。
 2. 完善治理配置的 HTTP/生产入口暴露与安全默认值，并将门控、timeout、provider health 纳入 trace、artifact 和跨入口 normalization Harness。
 3. 仅当出现真实远程 GIS、数据库或第三方工具来源时，按同一 Registry contract 实现 MCPToolProvider；在此前继续保持 MCP 为可替换 adapter，而不是核心依赖。
+
+## M95：RequestFacts 与执行治理证据收敛（已完成）
+
+### 已完成
+
+- `SpatialRequest` 已明确为 `RequestFacts`，并输出版本化 `spatial-agent.request-facts.v1`；保留旧名称兼容已有 Planner/CapabilityRouter。
+- Runtime 在规划前只抽取一次 RequestFacts，安全 projection 已贯通 preview、`AgentRunResult`、result envelope、SQLite recovery 和 artifact，避免各入口重新解析自然语言。
+- `ToolRegistry.governance_for()` 作为治理读取唯一 seam；`spatial-agent.execution-policy.v1` 已进入 plan evidence，实际 StepRun 的权限、数据依赖、审批和 timeout 快照进入 result evidence、artifact、SQLite recovery；step observability 增加安全错误码。
+
+### 当前证据
+
+- M95 专项 3 项通过；M81 跨入口 normalization 已覆盖 direct/HTTP/CLI/artifact/recovery 的 RequestFacts、execution policy 和 StepRun governance 一致性。
+- quick、stage 和离线全量通过：608 项通过、42 项按环境跳过；Python 编译、PowerShell acceptance 解析和 `git diff --check` 通过。
+- 生产 acceptance 已加入 RequestFacts 与 execution policy schema/artifact 门禁；本轮未执行真实 GIS、Docker production acceptance 或 live LLM，不能将其跳过状态宣称为当前版本的真实环境证据。
+
+### 全局重规划入口
+
+M95 已把请求理解、工具治理、计划证据和执行结果连接为同一条可恢复链路。下一阶段必须从完整 Agent Runtime 的全局缺口出发，优先评估真实环境验收、失败后的可控修复、跨入口契约演进和工具来源扩展的先后关系；没有真实远程工具来源时不实现 MCP 运行时依赖。

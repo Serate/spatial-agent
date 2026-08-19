@@ -29,8 +29,11 @@ _DISTANCE_PATTERN = re.compile(
 )
 
 
+REQUEST_FACTS_SCHEMA_VERSION = "spatial-agent.request-facts.v1"
+
+
 @dataclass(frozen=True)
-class SpatialRequest:
+class RequestFacts:
     """Planner-neutral request facts extracted from natural language."""
 
     text: str
@@ -42,6 +45,7 @@ class SpatialRequest:
 
     def as_dict(self) -> Dict[str, Any]:
         return {
+            "schema_version": REQUEST_FACTS_SCHEMA_VERSION,
             "text": self.text,
             "admin_name": self.admin_name,
             "tasks": list(self.tasks),
@@ -53,6 +57,7 @@ class SpatialRequest:
     def as_context_dict(self) -> Dict[str, Any]:
         """Return the bounded, non-verbatim facts safe for planner context."""
         return {
+            "schema_version": REQUEST_FACTS_SCHEMA_VERSION,
             "admin_name": self.admin_name,
             "tasks": list(self.tasks),
             "datasets": list(self.datasets),
@@ -95,7 +100,7 @@ def _extract_admin_name(text: str) -> Optional[str]:
     return None
 
 
-def parse_spatial_request(request: str) -> SpatialRequest:
+def parse_spatial_request(request: str) -> RequestFacts:
     """Extract reusable facts without making a planning or execution claim."""
 
     text = str(request or "").strip()
@@ -142,7 +147,7 @@ def parse_spatial_request(request: str) -> SpatialRequest:
         evidence.append("geometry")
     if any(term in text for term in ("轨迹", "过程", "步骤", "依据", "证据")):
         evidence.append("trace")
-    return SpatialRequest(
+    return RequestFacts(
         text=text,
         admin_name=_extract_admin_name(text),
         tasks=tuple(tasks),
@@ -150,3 +155,7 @@ def parse_spatial_request(request: str) -> SpatialRequest:
         constraints=constraints,
         evidence=tuple(evidence),
     )
+
+
+# Compatibility name retained for existing planner and capability adapters.
+SpatialRequest = RequestFacts

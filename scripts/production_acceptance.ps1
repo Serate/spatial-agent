@@ -183,6 +183,24 @@ function Assert-PlanningEvidence($payload, [string]$surface) {
   if ($planning.plan_identity.fingerprint -ne $payload.plan_evidence.plan_identity.fingerprint) {
     throw "$surface plan identity mismatch"
   }
+  if ($null -eq $payload.plan_evidence.request_facts) {
+    throw "$surface request facts evidence missing"
+  }
+  if ($payload.plan_evidence.request_facts.schema_version -ne "spatial-agent.request-facts.v1") {
+    throw "$surface request facts schema mismatch"
+  }
+  if ($null -eq $payload.result.request_facts -or $payload.result.request_facts.schema_version -ne "spatial-agent.request-facts.v1") {
+    throw "$surface result request facts mismatch"
+  }
+  if ($null -eq $payload.plan_evidence.execution_policy) {
+    throw "$surface execution policy evidence missing"
+  }
+  if ($payload.plan_evidence.execution_policy.schema_version -ne "spatial-agent.execution-policy.v1") {
+    throw "$surface execution policy schema mismatch"
+  }
+  if (@($payload.plan_evidence.execution_policy.tools).Count -lt 1) {
+    throw "$surface execution policy tools missing"
+  }
 }
 
 function Assert-DegradationEvidence($payload, [string]$surface) {
@@ -317,6 +335,15 @@ if ($artifact.plan_evidence.selected_capability_id -ne $syncRun.plan_evidence.se
 }
 if ($artifact.plan_evidence.capability_catalog_available -ne $true) {
   throw "artifact capability catalog evidence missing"
+}
+if ($artifact.request_facts.schema_version -ne "spatial-agent.request-facts.v1") {
+  throw "artifact request facts evidence missing"
+}
+if ($artifact.result.request_facts.schema_version -ne "spatial-agent.request-facts.v1") {
+  throw "artifact result request facts evidence missing"
+}
+if ($artifact.plan_evidence.execution_policy.schema_version -ne "spatial-agent.execution-policy.v1") {
+  throw "artifact execution policy evidence missing"
 }
 if ($null -eq $artifact.degradation -or $null -eq $artifact.result -or $null -eq $artifact.result.degradation) {
   throw "artifact degradation evidence missing"

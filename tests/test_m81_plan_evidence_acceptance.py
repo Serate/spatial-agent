@@ -408,6 +408,12 @@ def _normalized_contract(payload):
         "capability_candidates": payload["result"]["planning"]["capability_candidate_ids"],
         "capability_catalog_available": payload["result"]["planning"]["capability_catalog_available"],
         "capability_catalog_ids": payload["result"]["planning"]["capability_catalog_ids"],
+        "request_facts": payload["result"]["request_facts"],
+        "execution_policy": payload["result"]["planning"].get("execution_policy"),
+        "step_governance": [
+            step.get("governance")
+            for step in payload.get("steps", [])
+        ],
         "capability_catalog_environment": payload["result"]["planning"]["capability_catalog_environment"],
         "capability_catalog_tool_schema_count": payload["result"]["planning"]["capability_catalog_tool_schema_count"],
         "context_has_capability_discovery": "capability_discovery" in payload["context_evidence"]["section_names"],

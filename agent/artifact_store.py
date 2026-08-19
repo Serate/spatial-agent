@@ -20,6 +20,7 @@ class ArtifactStore:
             "status": payload.get("status"),
             "request": payload.get("request"),
             "resolved_request": payload.get("resolved_request"),
+            "request_facts": payload.get("request_facts"),
             "session_id": payload.get("session_id"),
             "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
@@ -132,6 +133,7 @@ def _step_summary(step):
         "error_category": step.get("error_category"),
         "error_code": step.get("error_code"),
         "retryable": step.get("retryable"),
+        "governance": step.get("governance"),
         "result": result_summary,
         "error": step.get("error"),
     }

@@ -44,6 +44,8 @@ class StepRun:
     error_category: Optional[str] = None
     error_code: Optional[str] = None
     retryable: Optional[bool] = None
+    # Safe snapshot of the Registry governance used for this dispatch.
+    governance: Optional[Dict[str, Any]] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     latency_ms: Optional[float] = None
@@ -56,6 +58,9 @@ class AgentRunResult:
     request: str
     session_id: Optional[str] = None
     resolved_request: Optional[str] = None
+    # Structured request interpretation shared by planning, recovery and
+    # result consumers. The original text remains in ``request``.
+    request_facts: Optional[Dict[str, Any]] = None
     plan: Optional[TaskPlan] = None
     planner_metrics: Optional[Dict[str, Any]] = None
     steps: List[StepRun] = field(default_factory=list)
@@ -88,4 +93,6 @@ class AgentRunResult:
             data.pop("error_category", None)
         if data.get("workflow") is None:
             data.pop("workflow", None)
+        if data.get("request_facts") is None:
+            data.pop("request_facts", None)
         return data

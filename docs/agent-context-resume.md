@@ -725,6 +725,15 @@ M92 当前部署复验受宿主环境阻塞：Docker CLI 无法连接 `dockerDes
 
 下一阶段先盘点 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry governance、Result envelope、trace/artifact 和 HTTP 配置的重复约束，建立“规划约束 -> 执行门控 -> 结果证据”一致性矩阵，再决定应收敛哪个公共契约。没有真实远程工具来源时不引入 MCP 运行时依赖；如未来出现远程 GIS/数据库/第三方工具，仅实现满足现有 Registry contract 的 `MCPToolProvider` adapter。当前最大并发度为 1。
 
+## M95 已完成
+
+- `agent.request_model.RequestFacts` 输出 `spatial-agent.request-facts.v1`，`SpatialRequest` 保留为兼容别名。Runtime 在规划前一次性抽取 facts，preview、`AgentRunResult`、result envelope、SQLite 和 artifact 均保留无原文的安全 projection。
+- `ToolRegistry.governance_for()` 作为治理读取唯一 seam；plan evidence 增加 `spatial-agent.execution-policy.v1`，实际 StepRun 保存同一权限/数据依赖/审批/timeout 快照，result evidence、artifact 和 SQLite recovery 复用它；step observability 保留安全错误码。
+- M95 专项 3 项通过；M81 跨入口 normalization 已覆盖 direct/HTTP/CLI/artifact/recovery 的 RequestFacts、execution policy 和 StepRun governance 一致性。quick、stage 和离线全量通过：608 项通过、42 项按环境跳过；Python 编译、PowerShell acceptance 解析和 diff check 通过。
+- 生产 acceptance 已加入版本化 RequestFacts、execution policy 及 artifact 证据门禁。本轮未执行真实 GIS、Docker production acceptance 或 live LLM，不能把旧容器或按环境跳过当作当前版本证据。
+
+下一步：完成阶段提交后，从全局 Agent Runtime 角度重新评估真实环境验收、失败修复/重规划、契约演进和外部工具 adapter 的优先级。MCP 仍只作为未来真实外部工具来源的 adapter。
+
 ## M93 当前完成状态
 
 M93 已完成 provider 治理基础闭环：`NativeToolProvider.health()`、`ToolRegistry.provider_health()`、`ToolRegistry.governance_summary()` 和 `ToolProviderError` 已接入。内置 12 个工具的 schema 声明了 `spatial_data:read` 权限和数据依赖；provider 错误的 category/code/retryable 会安全保留在步骤、SQLite/artifact、result envelope 和 observability 中。Planner 上下文与 plan evidence 记录 provider health/governance，治理细节通过选中工具 schema 传递。
