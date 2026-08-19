@@ -1214,3 +1214,14 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 1. 继续把 result views 的 GIS tool/type 判断下沉为 Domain Pack view registry。
 2. 将 provenance 的 GIS 字段变成可选领域 evidence，保留旧 artifact 兼容。
 3. 补前端 Text/GIS 动态展示契约，再进行真实 Docker/FastAPI/GIS/LLM 验收。
+
+## M120 已完成
+
+- `ResultContractRegistry` 增加 Domain-owned view builder；GIS 使用惰性注册的既有 view model，Text 不执行 GIS view builder 并返回 generic empty views。
+- `build_result_contract()` 通过 registry dispatch views；M120 定向 25 项、full-stage、离线全量 650 项（42 项跳过）、编译和 diff check 通过。
+
+### M121 下一步
+
+1. 将 GIS view builder 实现移入 `domains/gis`，公共结果模块只保留 envelope/dispatch。
+2. 将 provenance GIS 字段改为可选领域 projection，保持旧 artifact/recovery 兼容。
+3. 补前端 Text generic views 与 GIS views smoke，随后做真实环境验收。

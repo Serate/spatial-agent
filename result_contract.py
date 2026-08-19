@@ -94,7 +94,7 @@ def build_result_contract(
         geometry_evidence=geometry_evidence,
         geojson_ref=payload.get("geojson_ref"),
     )
-    views = _view_model(
+    views = registry.build_views(
         result_type,
         steps=steps,
         geometry_evidence=geometry_evidence,

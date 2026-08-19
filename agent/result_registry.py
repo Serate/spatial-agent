@@ -8,7 +8,7 @@ is loaded lazily from the GIS pack for backwards compatibility.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Any, Callable, Mapping
 
 
 @dataclass(frozen=True)
@@ -28,6 +28,7 @@ class ResultContractRegistry:
         specs: Mapping[str, ResultTypeSpec] | None = None,
         *,
         fallback_title: str = "运行结果",
+        view_builder: Callable[..., Mapping[str, Any]] | None = None,
     ) -> None:
         self._specs = {
             str(key): value
@@ -35,6 +36,7 @@ class ResultContractRegistry:
             if str(key) and isinstance(value, ResultTypeSpec)
         }
         self._fallback_title = str(fallback_title or "运行结果")[:120]
+        self._view_builder = view_builder
 
     def spec(self, result_type: str) -> ResultTypeSpec | None:
         return self._specs.get(str(result_type or ""))
@@ -55,6 +57,29 @@ class ResultContractRegistry:
     def requires_geometry(self, result_type: str) -> bool:
         spec = self.spec(result_type)
         return bool(spec and spec.requires_geometry)
+
+    def build_views(
+        self,
+        result_type: str,
+        *,
+        steps: list[Any],
+        geometry_evidence: Mapping[str, Any],
+        geojson_ref: Any = None,
+        workspace: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build views through the selected domain, with generic empty views."""
+        if not callable(self._view_builder):
+            return {"schema_version": "spatial-agent.views.v1", "panels": {}}
+        value = self._view_builder(
+            result_type,
+            steps=steps,
+            geometry_evidence=geometry_evidence,
+            geojson_ref=geojson_ref,
+            workspace=workspace,
+        )
+        if isinstance(value, Mapping):
+            return dict(value)
+        return {"schema_version": "spatial-agent.views.v1", "panels": {}}
 
     def as_context(self) -> dict[str, object]:
         """Expose only JSON-safe metadata for capability/evidence consumers."""

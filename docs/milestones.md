@@ -2566,3 +2566,17 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 将 result views 的 GIS tool/result type 判断继续收敛为 Domain Pack 的 view builder registry，Text 领域保持 generic view，不增加前端类型分支。
 2. 将 provenance 中 `admin_name/crs` 等领域字段变为可选 Domain evidence，同时保留旧 artifact 读取兼容。
 3. 补前端动态 workspace/views/runtime evidence 的 Text/GIS 契约测试；Docker/FastAPI/真实模型和真实数据继续作为显式验收路径。
+
+## M120 已完成：Domain-owned view builder seam
+
+- `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。
+- GIS registry 通过惰性 builder 保留现有 raster/vector/composite/map view 算法；Text registry 不注册 GIS builder，结果 views 稳定返回 generic empty panels。
+- Text/GIS 结果、artifact、lineage、geometry degradation 与既有 view contract 回归通过；没有新增前端按领域分支。
+- M120 定向 25 项、`full-stage`、离线全量 650 项（42 项按环境跳过）、编译和 `git diff --check` 通过。
+- 当前公共模块仍保留 GIS view builder 实现代码，但调用权限已由 registry 控制；下一阶段可在不改变结果契约的前提下继续移动实现位置。
+
+### M121 全局规划
+
+1. 将 GIS view builder 实现从公共 `result_contract.py` 移至 `domains/gis`，公共模块只保留通用 view envelope 与 registry dispatch。
+2. 将 provenance 中 `admin_name/crs` 等兼容字段变成 Domain evidence projection，并验证旧 artifact/recovery 不丢字段。
+3. 补前端动态 workspace/views/runtime evidence 的 Text/GIS 契约测试；Docker/FastAPI/真实模型和真实数据继续作为显式验收路径。

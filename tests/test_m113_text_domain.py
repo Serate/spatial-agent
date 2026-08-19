@@ -154,6 +154,7 @@ class M113TextDomainTests(unittest.TestCase):
         self.assertEqual(payload["result"]["title"], "文本摘要")
         self.assertTrue(payload["result"]["workspace"]["registered_type"])
         self.assertIn("generic", payload["result"]["workspace"]["panels"])
+        self.assertEqual(payload["result"]["views"]["panels"], {})
         self.assertNotIn(
             "geometry_unknown",
             [item["code"] for item in payload["result"]["degradation"]["items"]],

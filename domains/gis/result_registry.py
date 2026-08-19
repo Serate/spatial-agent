@@ -3,6 +3,13 @@
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec
 
 
+def _build_gis_views(*args, **kwargs):
+    """Lazy import keeps the generic result contract free of GIS bootstrap."""
+    from result_contract import _view_model
+
+    return _view_model(*args, **kwargs)
+
+
 _TITLES = {
     "direct_answer": "通用回答",
     "spatial_overview_result": "区域空间总览",
@@ -62,4 +69,5 @@ GIS_RESULT_REGISTRY = ResultContractRegistry(
         for result_type in _TITLES
     },
     fallback_title="空间分析结果",
+    view_builder=_build_gis_views,
 )

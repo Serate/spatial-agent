@@ -956,3 +956,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M120
 
 建立 Domain Pack view builder registry，并将 provenance GIS 字段转成可选领域 evidence；补前端 Text/GIS 动态结果契约后再做真实环境矩阵。
+
+## 当前进度：M120 已完成
+
+- Result registry 已控制 view builder 调用：GIS 保留既有 view 算法，Text 不触发 GIS builder，generic views 可正常输出。
+- M120 定向 25 项、full-stage、离线全量 650 项（42 项按环境跳过）、compileall、diff check 通过。
+- 下一步继续移动 GIS view 实现和 provenance 兼容字段，保持前端只消费结构化结果。
+
+## 下一阶段 M121
+
+将 GIS view builder 下沉到 `domains/gis`，清理公共结果模块中的 GIS 实现依赖；补 provenance projection 与前端 Text/GIS smoke。
