@@ -4,9 +4,11 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  test:
+  contract:
+    name: Stable contract gate
     runs-on: windows-latest
     env:
       PYTHONUTF8: "1"
@@ -20,5 +22,18 @@ jobs:
         run: python scripts/smoke_check.py
       - name: Run stage contract profile
         run: python scripts/test_profile.py --profile stage
+
+  full-regression:
+    name: Full offline regression (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Run offline regression suite
         run: python -m unittest discover -s tests -v

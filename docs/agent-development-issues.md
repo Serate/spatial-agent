@@ -3229,3 +3229,73 @@ Text Domain Pack 原先作为无 GIS 领域 fixture，测试用例把它的 acti
 ### 修复与预防
 
 将测试意图改为断言 Text catalog 只包含 Text-owned action，且序列化内容不出现 GIS 语义；新增成功、输入校验失败、artifact 读取和 HTTP 恢复回归。以后非 GIS fixture 扩展能力时，测试应验证领域隔离和跨入口契约，不应把“当前没有任何能力”当作长期接口。
+
+## Action 幂等需要同时绑定输入指纹与失败证据
+
+### 现象
+
+Action 增加幂等键后，如果只按键返回上一次结果，调用方可能用同一个键提交不同参数，却得到旧结果；失败 Action 也可能被误认为可以安全重试，从而再次调用领域逻辑。
+
+### 根因
+
+幂等键表达的是“同一逻辑请求”的身份，不是参数本身。Action 与普通 Run 不同，执行结果不在 Runtime 状态中长期保留；若不把规范化输入指纹、失败错误码和 artifact 一起持久化，服务重启后无法区分输入冲突，也无法证明失败没有被重复执行。
+
+### 处理与预防
+
+M127 使用 `action_id + canonical payload` 的 SHA-256 指纹绑定幂等键；相同指纹复用成功 artifact，不同指纹返回 `idempotency_conflict`，失败请求从原 artifact 重放结构化错误。以后新增幂等入口必须同时覆盖成功复用、输入冲突、失败重放和重启后读取，不能只测试两次 happy path。
+
+## Action artifact 与普通 Run artifact 共用目录时必须区分入口
+
+### 现象
+
+Action 复用普通 artifact 根目录后，历史列表、运行指标和 JSON 下载入口如果只按 `*.json` 扫描，会把 Action 当成普通运行，或者把普通运行文件暴露为 Action artifact。
+
+### 根因
+
+物理目录相同并不代表契约相同：普通 Run 有 request/plan/steps，Action 有 action execution/result/recovery。仅靠文件名读取或前端猜测会造成跨入口字段错配。
+
+### 处理与预防
+
+M127 以 `spatial-agent.action-artifact.v1` 和 `action-` 文件名前缀建立 Action 专用列表、指标和 `/action-executions`/`/artifacts/actions` 入口；普通 `/runs` 与 `/artifacts/runs` 保持排除 Action 的行为。以后增加新 artifact 类型必须同时定义 schema discriminator、列表过滤、恢复接口和路径前缀。
+
+## 脱敏模型回放扩展到非 GIS Domain 时不能复用 GIS 工具注册表
+
+### 现象
+
+原有模型回放 evaluator 默认使用 Demo GIS adapter。加入开放式文本请求后，如果只替换 fixture 而不替换 provider，回放会因工具不在注册表中失败，无法证明 Runtime 的跨领域可替换性。
+
+### 根因
+
+回放本身是 Runtime 的测试入口，工具注册表、Domain Pack、结果 registry 和答案组合必须与被评估领域一致；fixture 的 `domain` 只是数据，不能自动改变执行边界。
+
+### 处理与预防
+
+M127 为回放 fixture 增加有界 `domain` 标识，Text 使用 TextToolProvider/Text Domain Pack，GIS 继续使用 DemoSpatialAdapter；报告只输出领域、工具覆盖、结果类型、中文答案和脱敏 token/延迟指标。以后新增 Domain Pack 回放必须验证 provider、registry、composer 和 evidence 全链路一致，不得只改请求文本。
+
+## HTTP artifact 动态根目录不能覆盖旧测试替身
+
+### 现象
+
+M127 为 Action artifact 增加了从 Service 的 `ArtifactStore` 自动解析根目录的逻辑，但旧 HTTP contract harness 会在 handler 子类上显式设置临时 `artifact_root`，普通 Run 下载因此被错误地导向 Service 默认目录。
+
+### 根因
+
+HTTP handler 同时支持生产默认目录、Service 注入目录和测试子类目录三种部署方式。只检查 Service 是否有 artifact store，无法判断调用方是否已经明确选择了更高优先级的测试/部署路径。
+
+### 处理与预防
+
+M127 规定显式的 handler 子类 `artifact_root` 优先；只有未覆盖默认属性时，Action/Run artifact 才跟随 Service store。以后给 HTTP 入口增加动态依赖解析时，必须先保留显式注入 seam，并用默认、注入、子类覆盖三种路径验证。
+
+## CI 完整回归失败且无法读取远程失败堆栈时不应继续作为提交门禁
+
+### 现象
+
+GitHub Actions 的 smoke check 和 stage contract profile 连续通过，但每次 push 的完整离线 `unittest discover` 都失败，导致每次提交都发送失败邮件。GitHub job 元数据只能确认失败发生在完整回归步骤；当前令牌没有读取该仓库 Actions 日志所需的管理员权限，无法获取远程堆栈。本机只有 Python 3.14，无法直接用 CI 的 Python 3.11 复现；同一工作树的本地离线回归已通过。
+
+### 根因
+
+完整回归测试数量和环境敏感性已经超过日常提交门禁的稳定范围，但 workflow 仍把它与快速 smoke、阶段契约检查放在同一个必过 job 中。这样一个无法在本机定位的远程环境差异，就会把所有 push 标记为失败并持续触发通知；同时也没有区分“日常稳定门禁”和“阶段性完整验收”。
+
+### 修复与预防
+
+将 push/PR 的 CI 门禁收敛为 smoke check 和 `stage` profile；完整离线回归保留在同一 workflow 的 `workflow_dispatch` 手动入口，仅在明确需要时运行。以后新增测试应先进入快速、确定性的阶段 profile；重型或环境敏感的全量回归必须有独立的手动/阶段验收入口，并在能读取失败日志或复现同版本环境后再重新提升为提交门禁，不能用持续失败的门禁掩盖未知环境问题。
