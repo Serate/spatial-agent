@@ -1290,3 +1290,14 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 ## 当前阶段节奏调整
 
 后续阶段将合并更多相互依赖的纵向任务，至少同时覆盖一个架构 seam、一个跨入口结果契约和对应文档/部署影响；开发中只做必要的专项回归，阶段完成时统一执行一次专项验收和一次全量测试，避免频繁重复长时间测试。
+
+## M126 收尾状态
+
+- `DomainPack` 新增可选 `release_evidence()` seam；`AgentRuntime`、`AgentService`、开发 HTTP 和生产 FastAPI 的正常路径均从当前 Domain Pack 读取 release evidence。GIS 通过 `domains/gis/evidence.py` 适配既有 data-quality、analysis-ready 和 release provider；旧模块继续作为兼容入口。
+- Domain Action 已统一生成 `spatial-agent.action-execution.v1`、有界 trace、`result` envelope 和独立 action artifact；新增 `/action-executions/{execution_id}` 只读恢复入口，不会重复执行动作。artifact store 不会把 action artifact 混入普通 run 列表和运行指标。
+- Text Domain Pack 新增 `text.summarize`，验证非 GIS action 的成功、输入 schema 失败、artifact recovery、开发 HTTP 和 release evidence；其 runtime/release snapshot 不含 GIS 数据语义。
+- M126 专项与 M124 兼容回归已通过；阶段末按新节奏只保留一次代表性专项回归和一次全量离线回归。Docker、FastAPI 依赖、真实 GIS 数据和真实模型仍需在依赖可用时做显式环境验收，不能以离线证据代替。
+
+## 下一阶段规划原则
+
+下一阶段继续以完整 Agent 闭环为单位合并任务，至少同时覆盖架构 seam、跨入口结果契约、可替换领域回放、部署影响和中文文档。开发期间只运行编译/静态检查与必要的局部专项；阶段结束集中运行代表性专项和全量回归，然后再根据产品、架构、数据、模型、部署、体验、测试七个维度整体重规划。

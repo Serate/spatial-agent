@@ -202,6 +202,10 @@ def error_response(
         response["action_error_code"] = str(
             getattr(exc, "code", "action_error")
         )[:96]
+        if getattr(exc, "action_execution_id", None):
+            response["action_execution_id"] = str(exc.action_execution_id)[:128]
+        if getattr(exc, "artifact_ref", None):
+            response["artifact_ref"] = str(exc.artifact_ref)[:240]
     return response
 
 

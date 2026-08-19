@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import math
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
 
@@ -133,6 +133,76 @@ def build_result_contract(
     if isinstance(payload.get("failure"), dict):
         contract["failure"] = dict(payload["failure"])
     return contract
+
+
+def build_action_result_contract(
+    payload: Dict[str, Any],
+    *,
+    registry: ResultContractRegistry | None = None,
+) -> Dict[str, Any]:
+    """Project a Domain Action through the same result/trace seam as a run.
+
+    Actions are explicit Domain-owned operations rather than planner steps, so
+    this adapter creates one bounded synthetic evidence step for the generic
+    envelope. The action's own view model is retained when supplied; callers
+    do not need a GIS-specific result contract to display an action result.
+    """
+    action_id = str(payload.get("action_id") or "")[:96]
+    action_result = payload.get("action_result")
+    action_result = action_result if isinstance(action_result, Mapping) else {}
+    synthetic = dict(payload)
+    synthetic["steps"] = [
+        {
+            "id": "action-execution",
+            "tool": "action:" + action_id,
+            "status": payload.get("status", "COMPLETED"),
+            "result": dict(action_result),
+            "error": payload.get("error"),
+        }
+    ]
+    contract = build_result_contract(synthetic, registry=registry)
+    supplied_views = action_result.get("views")
+    if isinstance(supplied_views, Mapping):
+        contract["views"] = dict(supplied_views)
+    action_execution = payload.get("action_execution")
+    if isinstance(action_execution, Mapping):
+        contract["action_execution"] = _safe_action_execution(action_execution)
+    contract["action"] = {
+        "id": action_id,
+        "domain_id": str(payload.get("domain_id") or "unknown")[:80],
+        "artifact_ref": _basename_ref(payload.get("artifact_ref")),
+    }
+    contract["data"]["action"] = {
+        "action_id": action_id,
+        "result_keys": sorted(str(key)[:64] for key in action_result.keys())[:32],
+    }
+    contract["lineage"]["action_execution"] = {
+        "available": bool(action_id),
+        "action_id": action_id,
+        "ref": payload.get("action_execution_id") or payload.get("run_id"),
+    }
+    return contract
+
+
+def _safe_action_execution(value: Mapping[str, Any]) -> Dict[str, Any]:
+    """Keep action evidence stable and bounded across HTTP/artifact replay."""
+    result = {
+        "schema_version": str(
+            value.get("schema_version") or "spatial-agent.action-execution.v1"
+        )[:80],
+        "status": str(value.get("status") or "UNKNOWN")[:32],
+        "action_id": str(value.get("action_id") or "")[:96],
+        "input_validated": bool(value.get("input_validated", False)),
+    }
+    try:
+        duration = float(value.get("duration_ms"))
+        if math.isfinite(duration) and duration >= 0:
+            result["duration_ms"] = round(min(duration, 86_400_000), 3)
+    except (TypeError, ValueError):
+        pass
+    if value.get("error_code"):
+        result["error_code"] = str(value["error_code"])[:96]
+    return result
 
 
 def build_replanning_evidence(events: Any) -> Dict[str, Any]:

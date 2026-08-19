@@ -26,6 +26,7 @@ from .domain_contract import (
     execute_domain_action,
     preflight_tool as run_domain_preflight,
     runtime_evidence as resolve_runtime_evidence,
+    release_evidence as resolve_release_evidence,
     selected_capability_ids,
     workflow_context,
 )
@@ -263,6 +264,30 @@ class AgentRuntime:
             }:
                 snapshot[key] = value
         return snapshot
+
+    def release_evidence(
+        self,
+        *,
+        config_path: Optional[str] = None,
+        max_files: int = 10,
+    ) -> Dict[str, Any]:
+        """Return release evidence through the selected Domain Pack.
+
+        Release/data publication policy is deliberately outside this Module's
+        implementation. The Domain Pack owns the provider; the Runtime only
+        validates the bounded request and returns its JSON-safe projection.
+        """
+        if not isinstance(max_files, int) or max_files < 1 or max_files > 10:
+            raise ValueError("max_files must be between 1 and 10")
+        evidence = resolve_release_evidence(
+            self._domain_pack,
+            config_path=config_path,
+            max_files=max_files,
+        )
+        evidence.setdefault(
+            "domain_id", str(getattr(self._domain_pack, "domain_id", "unknown"))[:80]
+        )
+        return evidence
 
     def run(
         self,

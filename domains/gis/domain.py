@@ -15,6 +15,7 @@ from .catalog import (
     GIS_DATASET_GROUPS,
     GIS_DATASET_TOOL_CAPABILITIES,
 )
+from .evidence import GIS_EVIDENCE_PROVIDER
 
 
 class GisDomainPack:
@@ -66,9 +67,7 @@ class GisDomainPack:
 
     def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
         """Adapt the legacy GIS data probe to the generic evidence seam."""
-        from agent.runtime_capabilities import runtime_capability_snapshot
-
-        snapshot = runtime_capability_snapshot(max_files=max_files)
+        snapshot = GIS_EVIDENCE_PROVIDER.runtime_snapshot(max_files=max_files)
         keys = (
             "health_status",
             "core_health_status",
@@ -91,6 +90,21 @@ class GisDomainPack:
         }
         evidence["capabilities_runtime"] = snapshot.get("capabilities", [])
         return evidence
+
+    def release_evidence(
+        self,
+        *,
+        config_path: str | None = None,
+        max_files: int = 10,
+    ) -> Mapping[str, Any]:
+        """Expose GIS publication checks through the Domain Pack seam."""
+        snapshot = GIS_EVIDENCE_PROVIDER.release_snapshot(
+            config_path=config_path,
+            max_files=max_files,
+        )
+        result = dict(snapshot) if isinstance(snapshot, Mapping) else {}
+        result.setdefault("domain_id", self.domain_id)
+        return result
 
     def extract_request_facts(self, request: str) -> Any:
         return parse_spatial_request(request)

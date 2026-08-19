@@ -1047,3 +1047,14 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 1. 继续迁移 GIS data-quality、analysis-ready、release evidence provider，保留有界 HTTP/旧 artifact 兼容。
 2. 将 Action execution evidence 接入统一 trace/result/artifact，并用第二个非 GIS Domain Pack 回放成功、校验失败和恢复读取路径。
 3. 全局复验 Console、FastAPI、Docker、真实数据、可选真实模型、部署和降级证据；完成阶段后再统一运行测试矩阵并推送版本。
+
+## M126 收尾状态
+
+- 领域证据已扩展为 `DomainPack.release_evidence()`；正常 Runtime/Service/HTTP 路径只消费当前领域 provider。GIS 的既有 data-quality、analysis-ready、manifest 和 release 实现由 `domains/gis/evidence.py` 适配，旧 `agent/` provider 保留给兼容脚本/隔离测试。
+- Action 已形成统一的执行证据、trace、result envelope、artifact 和 recovery seam。成功与 schema 校验失败均可通过 action artifact 读取；普通 run 列表和运行指标会排除 action artifact。
+- Text Domain Pack 提供 `text.summarize` 作为第二个非 GIS action，已覆盖 Service、开发 HTTP、artifact/recovery、runtime/release evidence 和 GIS 语义隔离。
+- M126 开发期只执行编译、diff check 和必要专项；阶段收尾统一执行一次 M126/M125 代表性专项和一次离线全量回归。Docker、FastAPI、真实 GIS 与 live LLM 仍是环境条件验收，不能用离线测试代替。
+
+## 当前执行节奏
+
+每阶段合并更多相互依赖的纵向任务：同一阶段同时处理架构 seam、跨入口契约、可替换领域回放、部署影响和中文文档。开发中不重复运行长时间全量套件；只在接口发生变化时做必要专项，阶段结束集中测试、记录证据、提交并推送版本，再以产品、架构、数据、模型、部署、体验和测试七维度进行整体重规划。最大并发度保持 1。

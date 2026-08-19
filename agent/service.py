@@ -22,6 +22,7 @@ from agent.trace_formatter import format_trace
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.models import AgentRunResult, RunStatus
 from result_contract import (
+    build_action_result_contract,
     build_comparison_views,
     build_comparison_lineage,
     build_lineage_index,
@@ -77,6 +78,16 @@ def _runtime_result_registry(runtime):
     """Read the optional result registry from legacy/custom runtimes."""
     resolver = getattr(runtime, "result_registry", None)
     return resolver() if callable(resolver) else None
+
+
+def _action_result_type(runtime, action_id: str) -> str:
+    """Resolve a declared action's result type without reflecting methods."""
+    resolver = getattr(runtime, "domain_actions", None)
+    catalog = resolver() if callable(resolver) else {}
+    for item in (catalog.get("actions", []) if isinstance(catalog, dict) else []):
+        if isinstance(item, dict) and str(item.get("id") or "") == action_id:
+            return str(item.get("result_type") or "action_result")[:96]
+    return "action_result"
 
 
 class AgentService:
@@ -914,31 +925,119 @@ class AgentService:
         planner: str = "rule",
         backend: str = "local",
     ) -> Dict[str, Any]:
-        """Execute a declared Domain Pack action through the Runtime seam."""
+        """Execute and durably observe a declared Domain Pack action."""
         runtime = self._runtime(planner, backend)
         resolver = getattr(runtime, "execute_domain_action", None)
         if not callable(resolver):
             raise ValueError("domain action execution is unavailable")
+        action_id = str(action_id or "")[:96]
+        execution_id = "action-" + uuid.uuid4().hex
+        catalog = runtime.capability_catalog()
+        domain_id = str(catalog.get("domain_id") or "unknown")[:80]
+        result_type = _action_result_type(runtime, action_id)
         started = time.perf_counter()
-        result = resolver(action_id, payload, context=self)
+        try:
+            result = resolver(action_id, payload, context=self)
+        except Exception as exc:
+            duration_ms = round((time.perf_counter() - started) * 1000, 3)
+            action_error_code = str(getattr(exc, "code", "action_execution_failed"))[:96]
+            record = {
+                "action_execution_id": execution_id,
+                "action_id": action_id,
+                "domain_id": domain_id,
+                "status": "FAILED",
+                "result_type": result_type,
+                "error": str(exc),
+                "error_code": "action_execution_failed",
+                "action_error_code": action_error_code,
+                "action_result": {},
+                "action_execution": {
+                    "schema_version": "spatial-agent.action-execution.v1",
+                    "status": "FAILED",
+                    "action_id": action_id,
+                    "input_validated": action_error_code != "action_invalid_input",
+                    "error_code": action_error_code,
+                    "duration_ms": duration_ms,
+                },
+                "trace_summary": [
+                    "Received action: " + action_id,
+                    "Action " + action_id + " failed: " + str(exc),
+                ],
+            }
+            record["result"] = build_action_result_contract(
+                record,
+                registry=_runtime_result_registry(runtime),
+            )
+            artifact_ref = self._artifact_store.write_action(record)
+            record["artifact_ref"] = artifact_ref
+            record["result"] = build_action_result_contract(
+                record,
+                registry=_runtime_result_registry(runtime),
+            )
+            self._artifact_store.write_action(record)
+            for name, value in {
+                "action_execution_id": execution_id,
+                "artifact_ref": artifact_ref,
+            }.items():
+                try:
+                    setattr(exc, name, value)
+                except Exception:
+                    pass
+            raise
         if not isinstance(result, dict):
             raise ValueError("domain action must return an object")
-        response = dict(result)
-        response.setdefault("action_id", str(action_id)[:96])
+        action_result = dict(result)
+        response = dict(action_result)
+        response.setdefault("action_id", action_id)
         response.setdefault("action_schema_version", "spatial-agent.actions.v1")
-        catalog = runtime.capability_catalog()
-        response.setdefault("domain_id", str(catalog.get("domain_id") or "unknown")[:80])
-        response.setdefault(
-            "action_execution",
-            {
-                "schema_version": "spatial-agent.action-execution.v1",
-                "status": "COMPLETED",
-                "action_id": str(action_id)[:96],
-                "input_validated": True,
-                "duration_ms": round((time.perf_counter() - started) * 1000, 3),
-            },
+        response.setdefault("domain_id", domain_id)
+        response.setdefault("status", "COMPLETED")
+        action_execution = {
+            "schema_version": "spatial-agent.action-execution.v1",
+            "status": "COMPLETED",
+            "action_id": action_id,
+            "input_validated": True,
+            "duration_ms": round((time.perf_counter() - started) * 1000, 3),
+        }
+        record = {
+            "action_execution_id": execution_id,
+            "action_id": action_id,
+            "domain_id": domain_id,
+            "status": "COMPLETED",
+            "result_type": str(action_result.get("result_type") or result_type),
+            "action_result": action_result,
+            "action_execution": action_execution,
+            "trace_summary": [
+                "Received action: " + action_id,
+                "Action " + action_id + " completed.",
+            ],
+        }
+        record["result"] = build_action_result_contract(
+            record,
+            registry=_runtime_result_registry(runtime),
         )
+        artifact_ref = self._artifact_store.write_action(record)
+        record["artifact_ref"] = artifact_ref
+        record["result"] = build_action_result_contract(
+            record,
+            registry=_runtime_result_registry(runtime),
+        )
+        self._artifact_store.write_action(record)
+        response.update({
+            "action_execution_id": execution_id,
+            "action_execution": action_execution,
+            "trace_summary": list(record["trace_summary"]),
+            "artifact_ref": artifact_ref,
+            "result": record["result"],
+        })
         return response
+
+    def get_action_execution(self, execution_id: str) -> Dict[str, Any]:
+        """Recover one action result from its artifact without dispatching it."""
+        value = self._artifact_store.read_action(execution_id)
+        if value is None:
+            raise ValueError("action execution not found: " + str(execution_id))
+        return value
 
     def runtime_capabilities(
         self,
@@ -949,6 +1048,19 @@ class AgentService:
         """Return generic runtime evidence from the selected Domain Pack."""
         return self._runtime(planner, backend).runtime_capabilities(
             max_files=max_files
+        )
+
+    def release_evidence(
+        self,
+        config_path: str = None,
+        max_files: int = 10,
+        planner: str = "rule",
+        backend: str = "local",
+    ) -> Dict[str, Any]:
+        """Return release evidence from the selected Domain Pack."""
+        return self._runtime(planner, backend).release_evidence(
+            config_path=config_path,
+            max_files=max_files,
         )
 
     def close(self) -> None:

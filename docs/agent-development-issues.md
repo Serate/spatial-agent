@@ -3205,3 +3205,27 @@ GIS `AnswerComposer` 原本位于 `agent/answer_composer.py`，旧测试和扩�
 ### 修复与预防
 
 M125.2 将实现迁移到 `domains/gis/composer.py`，公共旧路径仅作为显式兼容 shim；新增归属测试确认 shim 不再定义 Composer。以后迁移领域实现要同时检查物理归属、旧导入、artifact/recovery 和跨领域默认构造，不能只修改调用方。
+
+## 领域证据迁移时 HTTP 入口容易绕过 Domain Pack
+
+### 现象
+
+M126 将 runtime capability 与 release evidence 接入 Domain Pack 后，如果 HTTP 入口继续直接调用 `agent.runtime_capabilities` 或 `agent.release_evidence`，Text 等非 GIS Domain Pack 会在能力快照之外意外获得 GIS 数据状态；动作入口也可能只返回业务 payload，无法和普通运行共享 trace、result 和恢复证据。
+
+### 根因
+
+旧 provider 同时承担了 GIS 实现、脚本入口和测试替身三种角色。迁移时若只修改 Runtime 而不检查 Service、开发 HTTP、生产 FastAPI 和 artifact 读取路径，公共入口仍会绕过新的 seam。动作则没有天然的 `AgentRunResult`，直接复用普通运行对象会把领域动作伪装成 Planner step，或者复制另一套结果契约。
+
+### 修复与预防
+
+M126 增加 Domain-owned `release_evidence` seam；正常 Service/Runtime 请求使用当前 Domain Pack，旧 provider 只保留给明确的兼容/隔离路径。Text Domain Pack 返回 `not_applicable`，不会继承 GIS 数据语义。动作使用独立但共享结果契约的 Adapter：生成有界 `spatial-agent.action-execution.v1`、trace、result envelope 和 action artifact，并通过 `/action-executions/{id}` 只读恢复，不重新 dispatch。以后迁移领域证据必须同时检查“Domain Pack -> Runtime -> Service -> 两个 HTTP 入口 -> artifact/recovery -> Console”，不能只验证一个函数返回值。
+
+## 新增非 GIS Action 会使旧的“空 action catalog”断言失效
+
+### 现象
+
+Text Domain Pack 原先作为无 GIS 领域 fixture，测试用例把它的 action catalog 固定断言为空。M126 为验证通用 Action 执行、错误和恢复链路增加 `text.summarize` 后，旧测试虽然没有 GIS 耦合，却仍然把 fixture 的历史状态当成接口契约，导致回归失败。
+
+### 修复与预防
+
+将测试意图改为断言 Text catalog 只包含 Text-owned action，且序列化内容不出现 GIS 语义；新增成功、输入校验失败、artifact 读取和 HTTP 恢复回归。以后非 GIS fixture 扩展能力时，测试应验证领域隔离和跨入口契约，不应把“当前没有任何能力”当作长期接口。

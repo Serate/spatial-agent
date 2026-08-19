@@ -2650,6 +2650,21 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 让 Action execution evidence 进入统一 trace/result/artifact 观测模型，并用第二个非 GIS Domain Pack 做有成功、校验失败和恢复读取的跨入口回放。
 3. 全局审计 Console、生产 FastAPI、Docker、真实 GIS 数据与可选真实模型，确认数据只是 Domain evidence；阶段末再做一次完整矩阵验收。
 
+## M126 已完成：领域证据与 Action 执行闭环
+
+- 新增 `DomainPack.release_evidence()` seam；Runtime、Service、开发 HTTP 和生产 FastAPI 的正常路径读取当前 Domain Pack 的 release evidence。GIS 通过 `domains/gis/evidence.py` 适配既有 data-quality、analysis-ready、manifest 和 release provider，旧 provider 入口继续兼容。
+- Action execution 进入统一结果模型：成功与 schema 校验失败都记录 `spatial-agent.action-execution.v1`、有界 trace、`result` envelope 和独立 action artifact；新增 `/action-executions/{execution_id}` 只读恢复入口，artifact 不会混入普通 run 列表或运行指标。
+- Text Domain Pack 新增 `text.summarize`，覆盖非 GIS action 的 catalog、Service、HTTP、成功、输入失败、artifact recovery 和 runtime/release evidence；验证公共 Runtime 不因 Text pack 继承 GIS 语义。
+- 中文问题记录已补充领域证据入口绕过、Action 与普通 Run 结果收敛、非 GIS fixture 历史断言失效等经验；恢复文档同步记录新的阶段节奏和 M126 状态。
+- 阶段收尾仅运行一次代表性专项与一次全量离线回归：专项 13 项通过；全量 667 项通过、42 项按环境跳过；compileall、`git diff --check`、私有配置 ignore 检查通过。
+
+### M127 全局规划
+
+1. 继续把领域证据从“兼容 Adapter”深化为可替换 Evidence Provider 接口，统一 runtime snapshot、release report、provenance projection 和 failure/degradation 的版本化 schema；同时保留旧 artifact/脚本读取。
+2. 将 Action 与普通 Run 的观测进一步接入统一 metrics、事件流和 Console 动态 workspace，补充跨领域 action 的失败重试/幂等边界，但不复制 GIS 专用页面或 Service 方法。
+3. 形成真实部署验收切片：FastAPI/readiness、SQLite 多进程、action artifact/recovery、能力快照、真实 GIS 数据卷和可选真实模型使用同一 contract harness；Docker 不可用时保留明确阻塞证据。
+4. 以一个开放式非固定表达和一个 GIS 复杂表达做端到端回放，比较 Rule Planner、脱敏 LLM Planner 与真实模型可选路径的计划、工具、证据、token/延迟和降级差异；阶段末统一回归后再全局重规划。
+
 ## M120 已完成：Domain-owned view builder seam
 
 - `ResultContractRegistry` 新增 view builder 回调；`build_result_contract()` 只调用选定 registry 的 builder，不再无条件执行 GIS view model。

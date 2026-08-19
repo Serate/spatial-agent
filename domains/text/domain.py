@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION
+from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION, domain_action_catalog
 from agent.request_model import REQUEST_FACTS_SCHEMA_VERSION, RequestFacts
 from agent.capability_catalog import capability_catalog
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec
@@ -20,10 +20,14 @@ class TextDomainPack:
     domain_id = "text"
 
     def action_specs(self):
-        return ()
+        from .actions import TEXT_ACTION_SPECS
+
+        return TEXT_ACTION_SPECS
 
     def execute_action(self, action_id: str, payload: Mapping[str, Any], *, context: Any = None):
-        raise ValueError("unknown text action: " + str(action_id))
+        from .actions import execute_action
+
+        return execute_action(action_id, payload, service=context)
 
     def answer_composer(self) -> Any:
         from .composer import TextAnswerComposer
@@ -52,6 +56,24 @@ class TextDomainPack:
             "data_provenance": {},
         }
 
+    def release_evidence(
+        self,
+        *,
+        config_path: str | None = None,
+        max_files: int = 10,
+    ) -> Mapping[str, Any]:
+        """Text has no configured GIS volume or release manifest."""
+        return {
+            "report_version": 1,
+            "domain_id": self.domain_id,
+            "status": "not_applicable",
+            "data_readiness": "not_applicable",
+            "metadata": {"status": "not_applicable"},
+            "source_binding": {"status": "not_applicable"},
+            "output_manifest": {"status": "not_applicable"},
+            "manifest": {"status": "not_applicable"},
+        }
+
     def extract_request_facts(self, request: str) -> RequestFacts:
         return RequestFacts(
             text=str(request or "").strip(),
@@ -71,11 +93,7 @@ class TextDomainPack:
             dataset_groups=TEXT_DATASET_GROUPS,
             analysis_ready_capability_ids=(),
             workflow_templates={},
-            actions={
-                "schema_version": "spatial-agent.actions.v1",
-                "domain_id": self.domain_id,
-                "actions": [],
-            },
+            actions=domain_action_catalog(self),
         )
 
     def discover(self, request: str, request_facts: Any) -> Mapping[str, Any]:

@@ -114,11 +114,12 @@ class M124DomainActionTests(unittest.TestCase):
         try:
             actions = service.actions()
             self.assertEqual(actions["domain_id"], "text")
-            self.assertEqual(actions["actions"], [])
+            self.assertEqual(actions["actions"][0]["id"], "text.summarize")
             catalog = service.capabilities()
         finally:
             service.close()
-        self.assertEqual(catalog["actions"]["actions"], [])
+        self.assertEqual(catalog["actions"]["actions"][0]["id"], "text.summarize")
+        self.assertNotIn("gis", json.dumps(catalog, ensure_ascii=False).lower())
 
     def test_dev_http_exposes_selected_domain_actions(self):
         class TextHandler(AgentApiHandler):
@@ -136,7 +137,7 @@ class M124DomainActionTests(unittest.TestCase):
             TextHandler.service.close()
         self.assertEqual(status, 200)
         self.assertEqual(payload["domain_id"], "text")
-        self.assertEqual(payload["actions"], [])
+        self.assertEqual(payload["actions"][0]["id"], "text.summarize")
 
     def test_text_replay_is_consistent_across_http_artifact_and_recovery(self):
         with tempfile.TemporaryDirectory() as directory:

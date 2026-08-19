@@ -104,6 +104,14 @@ class DomainPack(Protocol):
     def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
         """Return optional domain-specific runtime/data evidence."""
 
+    def release_evidence(
+        self,
+        *,
+        config_path: str | None = None,
+        max_files: int = 10,
+    ) -> Mapping[str, Any]:
+        """Return optional domain-owned release/data publication evidence."""
+
     def extract_request_facts(self, request: str) -> Any:
         """Return the domain-neutral request facts for a request."""
 
@@ -308,6 +316,35 @@ def runtime_evidence(domain_pack: DomainPack, *, max_files: int = 10) -> dict[st
     if not callable(method):
         return {}
     value = method(max_files=max_files)
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def release_evidence(
+    domain_pack: DomainPack,
+    *,
+    config_path: str | None = None,
+    max_files: int = 10,
+) -> dict[str, Any]:
+    """Read release evidence through the selected Domain Pack seam.
+
+    The generic Runtime deliberately has no fallback to a GIS provider. An
+    older Domain Pack that has not implemented this optional seam receives a
+    bounded ``not_evaluated`` response instead of inheriting another domain's
+    data policy.
+    """
+    method = getattr(domain_pack, "release_evidence", None)
+    if not callable(method):
+        return {
+            "report_version": 1,
+            "domain_id": str(getattr(domain_pack, "domain_id", "unknown"))[:80],
+            "status": "not_evaluated",
+            "data_readiness": "not_evaluated",
+            "metadata": {"status": "not_evaluated"},
+            "source_binding": {"status": "not_evaluated"},
+            "output_manifest": {"status": "not_evaluated"},
+            "manifest": {"status": "not_evaluated"},
+        }
+    value = method(config_path=config_path, max_files=max_files)
     return dict(value) if isinstance(value, Mapping) else {}
 
 

@@ -46,6 +46,33 @@ class ArtifactStore:
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
 
+    def write_action(self, payload: Dict) -> str:
+        """Persist one Domain Action execution for replay and recovery."""
+        execution_id = payload.get("action_execution_id")
+        if not isinstance(execution_id, str) or not execution_id:
+            raise ValueError("action payload must include action_execution_id")
+        if len(execution_id) > 128 or Path(execution_id).name != execution_id:
+            raise ValueError("action_execution_id must be a safe file name")
+        self._root.mkdir(parents=True, exist_ok=True)
+        path = self._root / ("action-" + execution_id + ".json")
+        artifact = {
+            "artifact_schema_version": "spatial-agent.action-artifact.v1",
+            "action_execution_id": execution_id,
+            "action_id": payload.get("action_id"),
+            "domain_id": payload.get("domain_id"),
+            "status": payload.get("status"),
+            "action_execution": payload.get("action_execution"),
+            "action_result": payload.get("action_result"),
+            "result": payload.get("result"),
+            "trace_summary": payload.get("trace_summary", []),
+            "error": payload.get("error"),
+            "error_code": payload.get("error_code"),
+            "action_error_code": payload.get("action_error_code"),
+            "artifact_ref": path.as_posix(),
+        }
+        path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
+        return path.as_posix()
+
     def read_run(self, run_id: str) -> Optional[Dict]:
         """Read a single persisted run artifact, or None when it is missing.
 
@@ -63,6 +90,20 @@ class ArtifactStore:
         payload.setdefault("run_id", run_id)
         return payload
 
+    def read_action(self, execution_id: str) -> Optional[Dict]:
+        """Read a persisted Domain Action without re-executing it."""
+        if not isinstance(execution_id, str) or not execution_id:
+            return None
+        if len(execution_id) > 128 or Path(execution_id).name != execution_id:
+            return None
+        path = self._root / ("action-" + execution_id + ".json")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        payload.setdefault("action_execution_id", execution_id)
+        return payload
+
     def list_runs(self, limit: int = 20) -> List[Dict]:
         if limit < 1:
             raise ValueError("limit must be positive")
@@ -73,6 +114,8 @@ class ArtifactStore:
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
+                continue
+            if payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1":
                 continue
             records.append({
                 "run_id": payload.get("run_id"),

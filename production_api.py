@@ -27,7 +27,6 @@ from agent.api_contract import (
 )
 from agent.environment_status import environment_status
 from agent.service import AgentService
-from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import workflow_template_catalog
 
 app = FastAPI(title="Spatial Agent Production API")
@@ -109,6 +108,14 @@ def actions(planner: str = "rule", backend: str = "memory") -> Dict[str, Any]:
     return service.actions(planner=planner, backend=backend)
 
 
+@app.get("/action-executions/{execution_id}")
+def action_execution(execution_id: str) -> Dict[str, Any]:
+    try:
+        return service.get_action_execution(execution_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
 @app.get("/capabilities/runtime")
 def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
     try:
@@ -124,7 +131,7 @@ def release_evidence(max_files: int = 10) -> Dict[str, Any]:
     try:
         if max_files < 1 or max_files > 10:
             raise ValueError("max_files must be between 1 and 10")
-        return release_evidence_snapshot(max_files=max_files)
+        return service.release_evidence(max_files=max_files, backend="local")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

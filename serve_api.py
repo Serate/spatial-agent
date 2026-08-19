@@ -67,6 +67,18 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             else:
                 self._write_json(200, self.service.actions(planner=planner, backend=backend))
             return
+        if parsed.path.startswith("/action-executions/"):
+            execution_id = parsed.path[len("/action-executions/") :].strip("/")
+            if not execution_id:
+                self._write_json(404, {"error": "not found"})
+                return
+            try:
+                result = self.service.get_action_execution(execution_id)
+            except ValueError as exc:
+                self._write_json(404, error_response(exc, not_found=True))
+            else:
+                self._write_json(200, result)
+            return
         if parsed.path == "/workflows":
             self._write_json(200, {"templates": workflow_template_catalog()})
             return
@@ -96,7 +108,15 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 max_files = int(query.get("max_files", [10])[0])
                 if max_files < 1 or max_files > 10:
                     raise ValueError("max_files must be between 1 and 10")
-                self._write_json(200, release_evidence_snapshot(max_files=max_files))
+                if self.service is None:
+                    evidence = release_evidence_snapshot(max_files=max_files)
+                else:
+                    evidence = self.service.release_evidence(
+                        max_files=max_files,
+                        planner=query.get("planner", ["rule"])[0],
+                        backend=query.get("backend", ["local"])[0],
+                    )
+                self._write_json(200, evidence)
             except ValueError as exc:
                 self._write_json(400, error_response(exc))
             return
