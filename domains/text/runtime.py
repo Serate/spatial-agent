@@ -4,14 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.domain_contract import rule_planner as resolve_rule_planner
 from agent.observability import ObservabilityEmitter
 from agent.runtime import AgentRuntime
-from agent.tools import ToolRegistry
-from agent.tool_provider import ToolProvider
-
 from .domain import TEXT_DOMAIN_PACK
-from .provider import TextToolProvider
 
 
 def build_text_runtime(
@@ -23,15 +18,14 @@ def build_text_runtime(
     observability: ObservabilityEmitter | None = None,
     **_: Any,
 ) -> AgentRuntime:
-    provider: ToolProvider = TextToolProvider()
-    registry = ToolRegistry.from_provider(provider)
-    return AgentRuntime(
-        resolve_rule_planner(TEXT_DOMAIN_PACK),
-        registry,
+    from agent.runtime_factory import build_runtime
+
+    return build_runtime(
+        planner_name,
+        backend_name,
         state_store=state_store,
         conversation_store=conversation_store,
         memory=memory,
         observability=observability,
-        backend_name=backend_name,
         domain_pack=TEXT_DOMAIN_PACK,
     )

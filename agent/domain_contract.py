@@ -87,6 +87,9 @@ class DomainPack(Protocol):
     def default_permissions(self) -> Any:
         """Return the default permission grant for this domain's tools."""
 
+    def tool_provider(self, *, backend_name: str = "memory", root: Any = None) -> Any:
+        """Return the domain-owned provider used by the generic Runtime Factory."""
+
     def preflight_tool(
         self,
         tool: str,

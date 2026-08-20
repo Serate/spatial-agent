@@ -2788,3 +2788,10 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 数据与模型：统一 provenance、CRS/栅格对齐和降级证据；脱敏回放为默认模型证据，live planner 只作为显式验收。
 - 部署与体验：验证同步/异步、SQLite 重启、artifact 恢复、多进程观测和动态 workspace 的一致性与可解释空态。
 - 执行顺序：先锁定跨领域结果/执行记录矩阵，再补双 Domain 回归，随后做 HTTP/Console/artifact/recovery 验收，最后运行 GIS/live/Docker 专项并整体重规划。
+
+## M133.1 Domain-owned ToolProvider seam
+
+- 通用 `runtime_factory` 不再直接创建 GIS 工具注册表；`DomainPack.tool_provider()` 负责领域工具定义、provider dispatch 和 backend 选择，GIS/Text 各自实现该 seam。
+- 默认权限由选定 Domain Pack 提供；Text Runtime 委托通用 Factory，rule/openai Planner 都经过同一 Registry/Runtime 执行路径；旧 Domain Pack 保留有界兼容 fallback。
+- M133.1 新增 2 项跨领域回归，连同 M112/M113/M124/M126-M131 受影响回归共 49 项通过；Ruff、Pyflakes、compileall 通过。
+- 下一步补 HTTP、异步、artifact/recovery 的 Domain Pack 选择矩阵，再进行 GIS/live/Docker 显式验收和全局重规划。

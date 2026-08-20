@@ -1155,3 +1155,10 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 7. 测试证据：`quick`/`ci`/`stage` 保持分层，新增跨领域最小契约与一次显式真实环境验收，避免恢复重复 profile。
 
 实现顺序为：先锁定跨领域结果与执行记录矩阵，再补 Text/GIS 双入口回归，随后验证 HTTP/Console/artifact/recovery，最后按环境运行 GIS、live、Docker 专项并整体重规划。
+
+## M133.1 当前实现：Domain-owned ToolProvider seam
+
+- `DomainPack.tool_provider(backend_name, root)` 已成为通用 Runtime Factory 的工具来源 seam；GIS 负责数据目录/后端与原生 provider，Text 负责 `text-native` provider。
+- `build_runtime()` 不再默认先构造 GIS Registry；选定 Domain Pack 现在提供工具定义、dispatch provider 和默认权限，旧 Domain Pack 保留有界兼容 fallback。
+- `domains/text/runtime.py` 已委托通用 Factory，`rule` 与 `openai` 经过相同的 Planner -> ToolRegistry -> Runtime 链路。
+- M133.1 新增 2 项跨领域红绿回归，连同 M112/M113/M124/M126-M131 受影响回归共 49 项通过；Ruff F401/F821/F841、Pyflakes 和 compileall 通过。下一步补 HTTP/异步/artifact/recovery 的 Domain Pack 选择矩阵。

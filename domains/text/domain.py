@@ -37,6 +37,12 @@ class TextDomainPack:
     def default_permissions(self) -> set[str]:
         return {"text_data:read"}
 
+    def tool_provider(self, *, backend_name: str = "memory", root: Any = None) -> Any:
+        """Return the text provider through the shared Runtime Factory seam."""
+        from .provider import TextToolProvider
+
+        return TextToolProvider()
+
     def evidence_provider(self) -> Any:
         from .evidence import TEXT_EVIDENCE_PROVIDER
 

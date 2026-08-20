@@ -1379,3 +1379,10 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 3. 将 provenance、CRS/栅格对齐、核心/可选数据降级纳入统一证据；真实模型以脱敏回放为默认、live 为显式基线。
 4. 验证同步/异步、SQLite 重启、artifact 恢复、多进程观测和动态 Console workspace 的一致性。
 5. 保持 `quick`/`ci`/`stage` 分层，先做最小跨领域契约，再运行 GIS/live/Docker 专项，最后整体重规划。
+
+## M133.1 当前实现：Domain-owned ToolProvider seam
+
+- 通用 Runtime Factory 现在通过 `DomainPack.tool_provider(backend_name, root)` 获得工具定义和 dispatch provider；GIS/Text 不再由公共工厂共享 GIS Registry。
+- 默认权限改为从选定 Domain Pack 读取；Text Runtime 通过通用 Factory 支持 rule/openai Planner 选择，旧 Domain Pack 保留兼容 fallback。
+- 新增跨领域行为回归，验证 Text provider、权限、结果类型和 fake LLM Planner 均经过统一 Runtime；M112/M113/M124/M126-M131 与 M133.1 共 49 项通过，静态检查和 compileall 通过。
+- 下一步：补同一 Domain Pack 在 HTTP、异步、artifact 和重启恢复入口的选择/结果一致性矩阵，再运行阶段 profile。

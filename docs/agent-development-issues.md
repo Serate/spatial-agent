@@ -3453,3 +3453,17 @@ Vulture 会将 Domain Pack 的惰性 provider、结果 registry 的公共查询�
 ### 修复与预防
 
 复验前先用 `rg --files tests` 和测试类名确认实际入口，再运行 unittest；文档中的 profile 命令优先作为稳定入口，模块级命令只引用当前存在的文件。测试入口变更时同步更新恢复文档和阶段记录，区分“命令错误”与“测试失败”。
+
+## 通用 Runtime Factory 不能直接创建 GIS 工具注册表
+
+### 现象
+
+通用 `agent.runtime_factory.build_runtime()` 虽然可以接收任意 `DomainPack`，但原实现始终在公共工厂中创建 GIS `ToolRegistry`，非 GIS Domain 只能通过独立的测试 Runtime 绕过这条路径；`domains.text.runtime.build_text_runtime()` 还忽略了 `planner_name`，因此 Text 的 LLM Planner 切换没有真正接入通用工厂。
+
+### 根因
+
+GIS 是最早的业务领域，工厂同时承担了后端选择、工具定义加载、权限默认值和 Planner 构造。引入 Domain Pack 后只迁移了目录、Planner 和结果证据 seam，没有把“工具提供者”和“领域默认权限”一起迁移，导致选择归属与实现归属不一致。
+
+### 修复与预防
+
+M133 增加有界的 `DomainPack.tool_provider(backend_name, root)` seam，GIS/Text 分别提供自己的 ToolProvider；通用 Factory 通过 `ToolRegistry.from_provider()` 接入选定领域，并从 Domain Pack 读取默认权限。旧 Domain Pack 没有该 seam 时保留明确的 GIS 兼容 fallback；Text Runtime 改为委托通用 Factory，因此 rule/openai 两种 Planner 经过同一 Runtime 链路。以后新增 Domain 必须同时验证 rule、LLM、ToolRegistry、权限、结果类型和跨入口恢复，不能只验证能力目录或测试替身。

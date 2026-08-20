@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Mapping
 
 from agent.capability_catalog import capability_catalog
@@ -38,6 +39,33 @@ class GisDomainPack:
 
     def default_permissions(self) -> set[str]:
         return {"spatial_data:read"}
+
+    def tool_provider(self, *, backend_name: str = "memory", root: Any = None) -> Any:
+        """Build the GIS provider behind the generic Runtime Factory seam."""
+        from pathlib import Path
+
+        from agent.dataset_catalog import DatasetCatalog
+        from agent.spatial_backend import (
+            HybridSpatialBackend,
+            InMemorySpatialBackend,
+            SpatialToolAdapter,
+        )
+        from agent.tool_provider import NativeToolProvider
+
+        project_root = Path(root) if root is not None else Path(__file__).resolve().parents[2]
+        if backend_name == "local":
+            catalog_path = os.environ.get(
+                "SPATIAL_AGENT_DATASET_CONFIG",
+                str(project_root / "config" / "datasets.local.example.json"),
+            )
+            catalog = DatasetCatalog.from_json(catalog_path)
+            adapter = SpatialToolAdapter(HybridSpatialBackend(catalog))
+        else:
+            adapter = SpatialToolAdapter(InMemorySpatialBackend())
+        return NativeToolProvider.from_json(
+            str(project_root / "tools" / "schema" / "tool-definitions.json"),
+            adapter,
+        )
 
     def evidence_provider(self) -> Any:
         """Return the GIS-owned provider for versioned evidence projections."""

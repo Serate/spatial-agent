@@ -9,9 +9,9 @@ import os
 from pathlib import Path
 from typing import Iterable, Optional
 
-from .dataset_catalog import DatasetCatalog
 from .domain_contract import (
     DomainPack,
+    default_permissions,
     default_domain_pack,
     planner_guidance,
     rule_planner as resolve_rule_planner,
@@ -20,7 +20,6 @@ from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_openai_config
 from .planner import RuleBasedPlanner
 from .runtime import AgentRuntime
-from .spatial_backend import HybridSpatialBackend, InMemorySpatialBackend, SpatialToolAdapter
 from .tools import ToolRegistry
 
 
@@ -38,19 +37,12 @@ def build_runtime(
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
     selected_domain_pack = domain_pack or default_domain_pack()
-    if backend_name == "local":
-        catalog_path = os.environ.get(
-            "SPATIAL_AGENT_DATASET_CONFIG",
-            str(root / "config" / "datasets.local.example.json"),
-        )
-        catalog = DatasetCatalog.from_json(catalog_path)
-        adapter = SpatialToolAdapter(HybridSpatialBackend(catalog))
+    provider_factory = getattr(selected_domain_pack, "tool_provider", None)
+    if callable(provider_factory):
+        provider = provider_factory(backend_name=backend_name, root=root)
+        registry = ToolRegistry.from_provider(provider)
     else:
-        adapter = SpatialToolAdapter(InMemorySpatialBackend())
-    registry = ToolRegistry.from_json(
-        str(root / "tools" / "schema" / "tool-definitions.json"),
-        adapter,
-    )
+        registry = _legacy_gis_registry(backend_name, root)
     if planner_name == "openai":
         planner = LLMPlanner(
             OpenAIPlannerClient(**load_openai_config()),
@@ -60,9 +52,9 @@ def build_runtime(
     else:
         planner = resolve_rule_planner(selected_domain_pack) or RuleBasedPlanner()
     if allowed_permissions is None:
-        allowed_permissions = _csv_env("SPATIAL_AGENT_PERMISSIONS") or {
-            "spatial_data:read"
-        }
+        allowed_permissions = _csv_env("SPATIAL_AGENT_PERMISSIONS") or default_permissions(
+            selected_domain_pack
+        )
     if approved_tools is None:
         approved_tools = _csv_env("SPATIAL_AGENT_APPROVED_TOOLS")
     if require_dependency_evidence is None:
@@ -82,6 +74,26 @@ def build_runtime(
         allowed_permissions=allowed_permissions,
         approved_tools=approved_tools,
         require_dependency_evidence=require_dependency_evidence,
+    )
+
+
+def _legacy_gis_registry(backend_name: str, root: Path) -> ToolRegistry:
+    """Keep older Domain Packs working until they expose ``tool_provider``."""
+    from .dataset_catalog import DatasetCatalog
+    from .spatial_backend import HybridSpatialBackend, InMemorySpatialBackend, SpatialToolAdapter
+
+    if backend_name == "local":
+        catalog_path = os.environ.get(
+            "SPATIAL_AGENT_DATASET_CONFIG",
+            str(root / "config" / "datasets.local.example.json"),
+        )
+        catalog = DatasetCatalog.from_json(catalog_path)
+        adapter = SpatialToolAdapter(HybridSpatialBackend(catalog))
+    else:
+        adapter = SpatialToolAdapter(InMemorySpatialBackend())
+    return ToolRegistry.from_json(
+        str(root / "tools" / "schema" / "tool-definitions.json"),
+        adapter,
     )
 
 
