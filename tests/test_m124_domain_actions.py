@@ -181,7 +181,10 @@ class M124DomainActionTests(unittest.TestCase):
         self.assertEqual(http_payload["status"], "COMPLETED")
         self.assertEqual(http_payload["result"]["type"], "text_summary_result")
         self.assertEqual(http_payload["result"]["workspace"]["panels"], ["generic"])
-        self.assertEqual(http_payload["result"]["views"]["panels"], {})
+        self.assertEqual(
+            http_payload["result"]["views"]["panels"]["generic"]["kind"],
+            "text_summary",
+        )
         self.assertEqual(compare_results([http_payload, artifact, recovered]), [])
 
 

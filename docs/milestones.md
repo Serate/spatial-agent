@@ -2951,6 +2951,19 @@ M143 将 M142 的 compact gate 与总体验收标准重新对齐：同一条稳�
 
 下一阶段从整体产品闭环检查 Domain-owned view spec、结果 envelope 与前端动态 renderer 是否真正跨 GIS/Text 可替换：先梳理通用 view schema 和空态/未知 view 的处理，再补一个跨领域负向契约，避免新增领域时把前端重新写成 GIS 专用分支。真实 GIS、live、Docker 和历史测试继续作为显式验收，最大并发度保持 1。
 
+## M144 当前阶段：跨领域动态 view contract
+
+M144 将前一阶段的跨入口结果一致性继续推进到用户界面：Text Domain 通过自己的 `ViewSpec` 和 view builder 提供结构化摘要，公共 Console 仅按 workspace/view spec 动态渲染。这样新增领域可以提供自己的 view model，而不需要在 `web/index.html` 中增加结果类型判断。
+
+- 新增 `domains/text/views.py`，输出 bounded `generic` view（摘要、字符数、词数），并注册 `spatial-agent.view.v1` 的 `ViewSpec`。
+- Console generic renderer 接受 `generic` 及未知 view ID，统一处理 metrics、rows、table、error、note 和 raw fallback；没有加入 `text_summary_result` 专用前端分支。
+- 验证：M122/M113/M124/M133 跨领域专项 21 项、Console 静态 smoke 14 项、compact 4 项、Pyflakes、compileall、Node smoke 脚本语法检查通过；当前 Docker 重建后 healthy，production acceptance 通过。
+- 宿主 Chrome CDP 本轮启动失败，动态浏览器 smoke 未宣称通过；静态契约与 Docker/API 证据保持明确边界。
+
+## M145 全局规划参考
+
+下一阶段从整体闭环补齐 generic view 的空态、降级和 artifact 引用：这些状态应来自结构化 evidence，并在 Text/GIS 的同步、异步恢复和 HTTP 入口中保持一致。默认 compact 门禁不扩张；动态浏览器 smoke 仅在 CDP 环境恢复后显式运行。
+
 ## M141 全局规划参考：模型计划稳健性与通用修复闭环
 
 下一阶段不围绕洪山区或某个工具追加规则，而是从整体 Agent Runtime 处理 M140 暴露的跨边界风险：规则 Planner、脱敏 replay 和 live Planner 必须共享同一 capability requirements、TaskPlan schema、DAG 校验、ToolRegistry 和 repair lineage。

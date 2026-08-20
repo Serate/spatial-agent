@@ -1554,3 +1554,9 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - active suite 仍为 4 项；其中 Runtime/artifact 契约已扩展为 direct Service、`run_demo.py` CLI、HTTP `/runs` 和 artifact 的统一 `compare_results` 比较。
 - README、测试策略和恢复文档已说明该 gate 的覆盖边界；没有增加真实模型、真实私有数据或默认历史矩阵。
 - compact discovery、CI、Pyflakes、compileall 和 `git diff --check` 已通过。下一阶段从全局检查 Domain-owned view spec 与前端动态 renderer 的跨领域一致性。
+
+## M144 跨领域动态 view 当前状态
+
+- Text Domain 已新增 Domain-owned `generic` ViewSpec 和摘要 view model；Console generic renderer 会消费结构化 `metrics/rows`，不再为 Text 结果显示 raw JSON。
+- M122/M113/M124/M133 相关 21 项、Console 静态 smoke 14 项、compact、Pyflakes、compileall、Node 脚本语法检查和 Docker production acceptance 已通过。
+- 宿主 Chrome CDP 启动失败，动态浏览器 smoke 保持未验证；该环境限制不影响 Docker/API 和静态 renderer 契约证据，也不替代动态浏览器验收。

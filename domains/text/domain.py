@@ -7,7 +7,7 @@ from typing import Any, Mapping
 from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION, domain_action_catalog
 from agent.request_model import RequestFacts
 from agent.capability_catalog import capability_catalog
-from agent.result_registry import ResultContractRegistry, ResultTypeSpec
+from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
 
 from .catalog import (
     TEXT_CAPABILITIES,
@@ -56,14 +56,18 @@ class TextDomainPack:
         return TEXT_EVIDENCE_PROVIDER
 
     def result_registry(self) -> ResultContractRegistry:
+        from .views import build_views
+
         return ResultContractRegistry(
             {
                 "text_summary_result": ResultTypeSpec(
                     title="文本摘要",
                     panels=("generic",),
+                    view_specs=(ViewSpec("generic", "generic", "摘要概览"),),
                 ),
             },
             fallback_title="运行结果",
+            view_builder=build_views,
         )
 
     def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:

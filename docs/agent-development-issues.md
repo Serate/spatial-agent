@@ -3607,3 +3607,17 @@ Python 类体有自己的命名空间；类属性赋值左侧的同名绑定会�
 ### 处理与预防
 
 先将外层对象绑定为不同名称（例如 `handler_service = service`），再在类体中写 `service = handler_service`。动态测试 Handler 应保持隔离端口、显式关闭 server 和 executor，并优先纳入现有 compact 测试而不是新增一组重复 HTTP 测试。
+
+## 宿主 Chrome CDP 不可用时不能伪造动态前端通过
+
+### 现象
+
+M144 尝试用隔离的无头 Chrome 运行 Console smoke；Chrome 进程存在，但以独立 profile 启动后没有监听 `127.0.0.1:9222`，因此动态 smoke 无法执行。与此同时，当前 Docker API 和前端静态契约均正常。
+
+### 根因
+
+浏览器 CDP 是宿主进程和端口级外部环境，不属于 Python Runtime 或 Docker 容器内的 API 契约。若只看到页面文件和 API healthy 就宣称浏览器通过，会把静态/后端证据误当成真实 DOM 行为证据。
+
+### 处理与预防
+
+将动态浏览器结果明确分类为“未执行/环境不可用”，保留 Console 静态契约、Node smoke 脚本语法检查和 Docker/API acceptance 作为独立证据；CDP 恢复后再运行 `scripts/console_*_smoke.js`。任何阶段文档不得用这些替代证据宣称动态浏览器 smoke 通过。

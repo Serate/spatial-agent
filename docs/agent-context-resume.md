@@ -1288,3 +1288,14 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 ## M144 下一阶段全局规划参考
 
 下一阶段优先检查“统一结果契约是否真的支撑动态前端”：让 Domain-owned view spec、通用 renderer 和 workspace 空态形成一个跨 GIS/Text 的小型契约；仅补一个跨领域负向证据，避免把前端逻辑重新扩展成领域分支。真实 GIS、live、Docker 和历史测试继续保持显式入口，最大并发度为 1。
+
+## M144 当前实现：跨领域动态 view contract
+
+- Text Domain 新增 `domains/text/views.py`，为 `text_summary_result` 生成受限 `generic` view model，并在 Domain-owned `ResultContractRegistry` 中声明 `ViewSpec`；公共 Runtime、`result_contract.py` 和前端没有新增 Text/GIS 专用分支。
+- Console generic renderer 现在会直接消费 `generic` view，而不是将非 GIS 结果退化为 raw JSON；未知 view 仍通过 view spec 和通用 rows/metrics/table/error/note fallback 渲染。
+- M122/M113/M124/M133 跨领域专项 21 项、Console 静态 smoke 14 项、compact 4 项、Pyflakes、compileall、Node smoke 脚本语法检查和 Docker production acceptance 已通过。
+- 宿主 Chrome CDP 本轮仍未启动，动态浏览器 smoke 未伪称通过；容器真实 API/数据卷验收通过，静态 Console 契约提供当前前端证据。
+
+## M145 下一阶段全局规划参考
+
+下一阶段从完整 Agent 闭环补齐“结果契约 -> 动态前端 -> 可恢复证据”的最后一段：让 generic view 的空态、降级和 artifact 引用也由结构化 evidence 驱动，并在 Text/GIS 两个 Domain 下验证同步、异步恢复和浏览器可消费字段一致。继续保持 compact 默认门禁，真实浏览器/CDP 恢复后只运行显式 smoke。

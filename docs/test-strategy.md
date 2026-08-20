@@ -4,6 +4,8 @@
 
 跨入口结果一致性由 `evaluation/contract_harness.py` 提供统一投影。CLI、HTTP、artifact 和 recovery 验收必须通过 `normalize_result`/`compare_results` 比较稳定契约，不能在各测试文件中重新拼接 `result`、兼容顶层字段或自行忽略运行时字段。
 
+结果视图同样由 Domain-owned `ViewSpec` 和 bounded view model 驱动。前端静态契约与跨领域专项可以验证 renderer 边界；动态 Chrome smoke 属于显式环境验收，不计入 compact/CI。
+
 当前原则：默认入口只跑极少量代表性用例，不再按里程碑整模块执行。历史测试继续保留为专项诊断资产，但不能把 500+ 用例当成本地开发默认门禁。
 
 ## 默认门禁
