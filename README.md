@@ -175,6 +175,7 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/agent-context-resume.md`](docs/agent-context-resume.md)：新对话恢复上下文。
 - [`docs/task-resume.md`](docs/task-resume.md)：当前任务和下一阶段规划。
 - [`docs/agent-development-issues.md`](docs/agent-development-issues.md)：中文工程问题记录。
+- [`docs/code-cleanup-process.md`](docs/code-cleanup-process.md)：代码清理的复用流程、判定标准和收尾检查清单。
 - [`docs/data-adapter-plan.md`](docs/data-adapter-plan.md)：真实空间数据接入计划。
 
 数据 manifest 可用 `scripts\dataset_manifest.py` 显式生成和校验；健康接口只做轻量 manifest 检查，完整 SHA-256 校验不会隐式发生。

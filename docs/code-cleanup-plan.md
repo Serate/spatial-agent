@@ -1,6 +1,6 @@
 # 代码清理计划
 
-本文档记录 Spatial Agent 的代码清理范围、判定依据和阶段结果。清理目标是减少无效复杂度，同时保持 Agent Runtime 的公共契约、兼容入口和可选环境验收能力不变。
+本文档记录 Spatial Agent 的代码清理范围、判定依据和阶段结果。清理目标是减少无效复杂度，同时保持 Agent Runtime 的公共契约、兼容入口和可选环境验收能力不变。具体操作步骤见 [`docs/code-cleanup-process.md`](code-cleanup-process.md)。
 
 ## 当前统计
 
