@@ -1117,3 +1117,15 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - `quick` 只保留工作流编译和 Domain Planner 选择两个核心 tripwire；CI 的复杂空间代表场景负责验证实际编排，不再把同一个复杂运行放进 quick。
 - `stage` 独立运行 3 个阶段验收场景；`full-stage` 独立运行完整全局离线评测/模型回放，均不再嵌套重复的 quick 或 smoke。
 - 只收窄 profile 的默认执行集合，不删除历史测试；负向契约、跨入口、真实 GIS、live、Docker 和全量 discover 仍按风险显式运行。
+
+## M132 当前实现：GIS Planner 物理归属收口
+
+- GIS `RuleBasedPlanner` 与 `RuleBasedPlanComposer` 已物理下沉至 `domains/gis/planner.py`、`domains/gis/rule_planning.py`；GIS Domain Pack 直接返回该实现。
+- 公共 `agent/planner.py` 只提供 `Planner` Protocol 与旧 `RuleBasedPlanner` 委托 facade；公共 `agent/rule_planning.py` 只提供旧 Composer 委托 facade，保持历史导入兼容。
+- 已通过 M132 归属/兼容专项 24 项、`ci`、`stage`、编译和静态检查；下一阶段审计非 GIS Planner 的跨入口证据、动态入口和部署矩阵。
+
+### M132 代码清理进度
+
+- 新增 `docs/code-cleanup-plan.md`，以静态引用证据区分无效代码、兼容代码和可选环境入口；当前基线为 105 个运行/脚本/评测 Python 文件、124 个测试文件、695 个测试方法。
+- 清理了确认无效的运行/测试导入、未使用局部变量与测试替身参数；修复 `capability_catalog` 的未定义动态全局读取和 Runtime 缺失 `List` 导入。
+- Pyflakes、Ruff F401/F821/F841、Vulture、102 项受影响专项、M81 profile 9 项、`ci`、`stage`、compileall 和 diff check 均通过；测试 profile 的重复 subprocess 样板已抽成 helper，测试方法本身没有证据表明可以删除或存在完全重复体。

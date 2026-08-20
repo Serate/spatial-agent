@@ -4,7 +4,7 @@ from threading import Lock
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Dict, Iterable, Mapping, Optional, Set
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .capability_catalog import (

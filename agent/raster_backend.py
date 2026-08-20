@@ -186,7 +186,6 @@ def raster_statistics_for_entry(entry: DatasetEntry, max_files: int = 3) -> Dict
     try:
         import numpy
         import rasterio
-        from rasterio.features import shapes
     except ImportError as exc:
         raise ToolError("rasterio and numpy are required for RasterMetadataBackend") from exc
 

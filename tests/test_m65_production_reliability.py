@@ -1,6 +1,5 @@
 import multiprocessing
 import os
-import queue
 import tempfile
 import time
 import unittest

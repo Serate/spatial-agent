@@ -85,7 +85,6 @@ class M79ResultZoneContractTests(unittest.TestCase):
         self.assertNotIn("find(s=>s.tool==='get_zonal_buildability_analysis')", self.html)
 
     def test_backend_workspace_contract_covers_all_catalog_result_types(self):
-        import json
         import sys
 
         sys.path.insert(0, str(ROOT))

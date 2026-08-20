@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable
-
-from agent.models import AgentRunResult, StepRun
+from agent.models import AgentRunResult
 
 
 class TextAnswerComposer:

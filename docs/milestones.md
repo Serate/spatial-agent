@@ -2749,3 +2749,22 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 旧的 `RuleBasedPlanner()` 直连入口保持兼容，TaskPlan/Runtime/ToolRegistry 执行契约未改变；新增 M131 适配测试验证自定义 Planner 可被 Runtime factory 替换。
 - 剩余 GIS Rule Planner 实现仍保留在兼容路径中，后续阶段再做物理迁移；当前不宣称公共 Planner 已完全无 GIS 代码。
 - 测试门禁同步收敛：`quick` 保留 2 个核心 tripwire，`stage` 只跑 3 个阶段验收场景，`full-stage` 只跑完整全局离线评测/模型回放；历史测试未删除，避免 profile 叠加重复执行。
+
+## M132 全局规划
+
+1. 从“Domain Pack 负责选择”推进到“Domain Pack 负责实现”：物理迁移 GIS Rule Planner/Composer，公共层只留下通用接口和有界兼容 facade。
+2. 保持 Planner 输出的 `TaskPlan`、workflow 校验、ToolRegistry、Runtime trace/result/artifact 契约不变，并用 GIS 与 Text 两个领域做正向和负向隔离验证。
+3. 审计自定义非 GIS Planner 的 Service、HTTP、artifact/recovery 证据是否复用同一 Runtime 契约；不为测试增加新的 GIS 专用分支。
+4. 阶段收口只运行必要专项、`ci`、`stage`、编译和静态检查；真实 GIS、模型、FastAPI/Docker 继续作为显式环境验收，再根据产品、架构、数据、模型、部署、体验和测试七维重规划。
+
+## M132 当前实现：GIS Planner 物理归属收口
+
+- `domains/gis/planner.py` 现在承载 GIS `RuleBasedPlanner` 的请求事实复用、拒绝/澄清和 TaskPlan 入口；`domains/gis/rule_planning.py` 承载 GIS capability route 到 workflow builder 的具体策略。
+- `agent/planner.py`、`agent/rule_planning.py` 已收敛为通用协议/兼容委托；旧 `RuleBasedPlanner`、`RuleBasedPlanComposer` 导入仍能工作，但正常 Runtime factory 走 Domain-owned Planner。
+- 新增归属契约验证：实现模块必须位于 `domains.gis`，compat facade 必须委托到 Domain 实现；既有 route、facts、Text Domain 和复杂空间执行链路保持通过。
+
+### M132 代码清理收尾
+
+- 新增 `docs/code-cleanup-plan.md`，明确无效代码统计、测试精简边界和删除判据；不把兼容 facade、可选 live/Docker 入口或历史契约误删为“死代码”。
+- 清理运行代码和测试中的确认无效导入/变量，修复静态检查发现的未定义全局和缺失类型导入；capability discovery 的有意兼容 re-export 通过 `__all__` 明确保留。
+- 阶段验证：Pyflakes、Ruff F401/F821/F841、Vulture、受影响专项 102 项（5 项按环境跳过）、M81 profile 9 项、`ci`、`stage`、compileall、`git diff --check` 通过；测试用例未因数量目标删除，profile 测试的重复 subprocess 样板已抽成 helper。

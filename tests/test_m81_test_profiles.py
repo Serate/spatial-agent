@@ -9,6 +9,26 @@ ROOT = Path(__file__).parents[1]
 
 
 class M81TestProfileTests(unittest.TestCase):
+    def _run_profile_dry_run(self, profile, *extra_args, check=True):
+        return subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "test_profile.py"),
+                "--profile",
+                profile,
+                *extra_args,
+                "--dry-run",
+            ],
+            cwd=str(ROOT),
+            check=check,
+            capture_output=True,
+            text=True,
+        )
+
+    def _profile_payload(self, profile, *extra_args):
+        completed = self._run_profile_dry_run(profile, *extra_args)
+        return json.loads(completed.stdout)
+
     def test_profile_runner_handles_utf8_child_output(self):
         from scripts.test_profile import ProfileCommand, _run_command
 
@@ -23,20 +43,7 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertIn("中文阶段输出", result["stdout_tail"])
 
     def test_quick_profile_is_bounded_to_core_tripwires(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "quick",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        payload = json.loads(completed.stdout)
+        payload = self._profile_payload("quick")
         names = [item["name"] for item in payload["commands"]]
 
         self.assertEqual(names, ["core_contract_tripwires"])
@@ -50,39 +57,13 @@ class M81TestProfileTests(unittest.TestCase):
         )
 
     def test_smoke_profile_does_not_request_nested_full_suite(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "smoke",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        payload = json.loads(completed.stdout)
+        payload = self._profile_payload("smoke")
 
         self.assertEqual([item["name"] for item in payload["commands"]], ["service_smoke"])
         self.assertEqual(payload["commands"][0]["env"], {})
 
     def test_ci_profile_keeps_only_one_stage_representative(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "ci",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        payload = json.loads(completed.stdout)
+        payload = self._profile_payload("ci")
 
         self.assertEqual(
             [item["name"] for item in payload["commands"]],
@@ -94,20 +75,7 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertIn("--no-model-replay", ci_args)
 
     def test_stage_profile_uses_small_acceptance_examples(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "stage",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        payload = json.loads(completed.stdout)
+        payload = self._profile_payload("stage")
 
         self.assertEqual(
             [item["name"] for item in payload["commands"]],
@@ -120,20 +88,7 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertIn("--no-model-replay", stage_args)
 
     def test_full_stage_profile_keeps_the_heavy_gate_explicit(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "full-stage",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        payload = json.loads(completed.stdout)
+        payload = self._profile_payload("full-stage")
 
         self.assertEqual(
             [item["name"] for item in payload["commands"]],
@@ -144,20 +99,7 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertNotIn("--no-model-replay", global_args)
 
     def test_gis_core_profile_is_sampled_not_full_modules(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "gis-core",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        payload = json.loads(completed.stdout)
+        payload = self._profile_payload("gis-core")
         command = payload["commands"][0]
         selected_tests = [item for item in command["command"] if item.startswith("tests.")]
 
@@ -166,24 +108,13 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertNotIn("tests.test_m15_raster_metadata", command["command"])
 
     def test_live_short_profile_uses_only_representative_cases(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "live-short",
-                "--dataset-config",
-                "D:/tmp/wuhan-gis/datasets.wuhan.analysis-ready.bound.json",
-                "--live-output",
-                "D:/tmp/wuhan-gis/test-live-short.json",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            check=True,
-            capture_output=True,
-            text=True,
+        payload = self._profile_payload(
+            "live-short",
+            "--dataset-config",
+            "D:/tmp/wuhan-gis/datasets.wuhan.analysis-ready.bound.json",
+            "--live-output",
+            "D:/tmp/wuhan-gis/test-live-short.json",
         )
-        payload = json.loads(completed.stdout)
         command = payload["commands"][0]
         args = command["command"]
         case_ids = args[args.index("--case-ids") + 1]
@@ -200,18 +131,7 @@ class M81TestProfileTests(unittest.TestCase):
         )
 
     def test_live_short_local_requires_explicit_dataset_config(self):
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "test_profile.py"),
-                "--profile",
-                "live-short",
-                "--dry-run",
-            ],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-        )
+        completed = self._run_profile_dry_run("live-short", check=False)
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("requires --dataset-config", completed.stderr)
 

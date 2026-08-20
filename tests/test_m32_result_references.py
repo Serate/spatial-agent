@@ -1,7 +1,6 @@
 import unittest
 
 from agent.models import PlanStep, TaskPlan
-from agent.plan_schema import parse_task_plan
 from agent.planner import Planner
 from agent.runtime import AgentRuntime, _resolve_result_references
 from agent.tools import ToolRegistry

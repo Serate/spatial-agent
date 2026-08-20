@@ -891,7 +891,6 @@ def _clip_bbox(gdf, bbox: List[float]):
         raise ToolError("bbox must be [minx, miny, maxx, maxy]")
     source = gdf
     if source.crs and str(source.crs).upper() not in {"EPSG:4326", "OGC:CRS84"}:
-        import geopandas as gpd
         source = source.to_crs("EPSG:4326")
     return source.cx[bbox[0]:bbox[2], bbox[1]:bbox[3]]
 

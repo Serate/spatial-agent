@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.domain_contract import DomainPack, rule_planner as resolve_rule_planner
+from agent.domain_contract import rule_planner as resolve_rule_planner
 from agent.observability import ObservabilityEmitter
 from agent.runtime import AgentRuntime
 from agent.tools import ToolRegistry

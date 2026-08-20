@@ -16,7 +16,6 @@ from agent.models import AgentRunResult
 from agent.runtime_capabilities import runtime_capability_snapshot
 from evaluation.model_evaluation import (
     DEFAULT_MODEL_REPLAY_FIXTURE,
-    classify_provider_error,
     evaluate_model_replay_suite_file,
     evaluate_plan_quality,
     sanitize_provider_metrics,

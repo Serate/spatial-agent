@@ -8,6 +8,9 @@ from typing import Optional
 from agent.request_model import RequestFacts
 
 
+SpatialRequest = RequestFacts
+
+
 _ADMIN_PATTERN = re.compile(r"([\u4e00-\u9fff]{2,12}(?:自治县|林区|市|县|区))(?!域)")
 _ADMIN_PREFIXES = (
     "查询", "查找", "查看", "获取", "统计", "分析", "帮我", "请", "找出",

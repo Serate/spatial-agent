@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION, domain_action_catalog
-from agent.request_model import REQUEST_FACTS_SCHEMA_VERSION, RequestFacts
+from agent.request_model import RequestFacts
 from agent.capability_catalog import capability_catalog
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec
 

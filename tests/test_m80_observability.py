@@ -1,12 +1,10 @@
-import json
 import os
 import unittest
 
 from agent.memory import FactMemory
-from agent.models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
+from agent.models import PlanStep, RunStatus, TaskPlan
 from agent.observability import (
     CollectingEmitter,
-    ObservabilityEmitter,
     observability_enabled,
 )
 from agent.runtime import AgentRuntime, InMemoryConversationStore, InMemoryStateStore

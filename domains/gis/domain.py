@@ -156,7 +156,7 @@ class GisDomainPack:
     def rule_planner(self) -> Any:
         # Kept lazy so importing the domain catalog does not initialize the
         # Planner or spatial backend graph.
-        from agent.planner import RuleBasedPlanner
+        from .planner import RuleBasedPlanner
 
         return RuleBasedPlanner()
 

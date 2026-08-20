@@ -3383,3 +3383,31 @@ profile 最初按“逐层叠加保护”设计，没有区分“独立门禁可
 ### 修复与预防
 
 M131 将 `quick` 收敛为工作流编译与 Domain Planner 选择两个核心 tripwire；`ci` 保留 quick、service smoke 和一个复杂空间代表场景；`stage` 独立运行 3 个离线阶段场景；`full-stage` 独立运行完整全局离线评测/模型回放。历史测试和专项 profile 不删除，只通过风险明确选择入口。以后新增测试先归类为日常契约、阶段场景、发布全量或环境专项，避免默认 profile 互相嵌套造成重复运行。
+
+## 领域实现物理迁移时兼容 facade 不能反向成为真实归属
+
+### 现象
+
+M132 将 GIS Rule Planner 从公共层迁移到 `domains/gis` 时，如果只在 Domain Pack 增加一个包装方法、仍让包装方法导入公共实现，运行结果虽然不变，但代码归属并未改变；如果 facade 顶层导入 Domain 实现，又可能触发 Domain catalog、request parser 和 planner 之间的循环导入。
+
+### 根因
+
+历史兼容导入路径同时被旧测试、CLI 和第三方调用使用，迁移时容易只改变选择入口而不移动实现；Domain Pack 又会被能力目录惰性加载，公共模块不能假设 Domain 包已经完成初始化。
+
+### 修复与预防
+
+M132 将 GIS Planner/Composer 的策略与 builder 代码物理放在 `domains/gis`，公共模块只保留惰性委托 facade；Domain Pack 也惰性构造 Domain-owned Planner。归属测试同时检查实现模块路径和 facade delegate，避免“能运行”被误认为“已解耦”；以后迁移领域实现必须同时验证物理归属、旧导入、惰性加载和跨入口结果契约。
+
+## 动态模块属性不能替代模块内部的全局变量定义
+
+### 现象
+
+静态检查发现 `agent/capability_catalog.py` 通过模块级 `__getattr__` 暴露旧的 `DATASET_GROUPS` 兼容属性，但同一模块内部函数直接读取 `DATASET_GROUPS`。模块级 `__getattr__` 只服务外部属性访问，不会为模块内部的全局名称查找提供兜底；对应路径会触发 `NameError`。同一轮检查还发现 Runtime 使用了未导入的 `List`。
+
+### 根因
+
+兼容导出和内部实现共用了一个历史名称，迁移到惰性 GIS contract 后只保留了外部 facade，没有把内部读取改成显式的 lazy provider；静态检查此前未纳入稳定门禁，所以问题没有在代码合并时暴露。
+
+### 修复与预防
+
+清理阶段将内部读取改为 `_default_gis_contract()` 的显式结果，并补齐 `List` 类型导入；同时安装并运行 Pyflakes、Ruff（F401/F821/F841）和 Vulture。以后模块级动态导出只能作为外部兼容 API，内部逻辑必须调用明确的 provider；静态检查应作为开发/阶段检查的一部分，且要区分有意 re-export 与真正无效导入。

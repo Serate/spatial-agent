@@ -83,6 +83,10 @@ class ReplanningPolicy:
         step_status: str,
         step_error: Optional[str],
     ) -> bool:
+        # Retained in the public policy signature for callers that provide
+        # failure details; the current bounded policy only gates on status and
+        # the replan budget.
+        del step_error
         if step_status != "FAILED":
             return False
         if replan_count >= self._limit:

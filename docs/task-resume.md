@@ -45,9 +45,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M129.1 精简提交测试门禁（`ci` profile、阶段验收分层和有界场景选择）；当前进行 M130 Domain-owned Request Understanding/Catalog/Discovery 解耦。
+- Latest completed milestone: M131 Domain-owned Rule Planner seam 与重复测试门禁收敛；当前进行 M132 GIS Planner 物理归属收口。
 - Last pushed commit: 以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
-- Current work: M130 已完成并推送；M131 已接入 Domain-owned Rule Planner seam，GIS/Text 由各自 Domain Pack 选择确定性 Planner，下一步验证跨入口替换并物理迁移剩余 GIS Rule Planner 策略。
+- Current work: M132 已完成 GIS Planner 物理归属收口和代码/测试清理；下一阶段继续做无直接 import 模块、动态入口和真正重复测试 profile 的全局审计。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
@@ -1344,3 +1344,16 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 - `quick` 从 3 个用例收敛为 2 个核心 tripwire：工作流编译契约和 Domain Planner 选择契约；复杂空间运行由 CI 的代表性阶段场景覆盖。
 - `stage` 只运行 `stage-acceptance.json` 的 3 个离线场景，不再重复执行 `quick`；`full-stage` 只运行完整全局离线评测和模型回放，不再重复 `quick`/service smoke。
 - 历史单测、负向边界、HTTP、GIS、live 和 Docker 验收均保留，按代码风险或阶段收口显式运行；未删除测试，只减少 profile 叠加造成的重复执行。
+
+## M132 当前实现：GIS Planner 物理归属收口
+
+- GIS `RuleBasedPlanner` 和 `RuleBasedPlanComposer` 已移动到 `domains/gis/planner.py` 与 `domains/gis/rule_planning.py`；`GisDomainPack.rule_planner()` 直接构造 Domain-owned 实现。
+- `agent/planner.py` 与 `agent/rule_planning.py` 仅保留 Planner 协议、旧导入适配和惰性委托，不再定义 GIS 规划策略；旧直连测试和调用保持兼容。
+- M132 专项已验证实现模块归属、旧 facade 委托、能力 route/builder 一致性、M130 facts 复用和复杂空间 Runtime 闭环；下一步完成阶段集成验证并按七维全局盘点重规划。
+
+## M132 代码清理进度
+
+- 新增 `docs/code-cleanup-plan.md`，记录 105 个运行/脚本/评测 Python 文件、124 个测试文件的清理基线、保留判据和阶段顺序。
+- 清理了可证明无效的运行代码/测试导入、未使用局部变量和测试替身参数；修复静态检查暴露的 `DATASET_GROUPS` 未定义与 `List` 缺失导入问题。
+- Pyflakes、Ruff（F401/F821/F841）和 Vulture 均通过；受影响专项 102 项通过、5 项按环境跳过，`ci`、`stage`、compileall 和 `git diff --check` 通过。
+- M81 profile 测试 9 项通过；重复的 subprocess dry-run 样板已集中到测试 helper。测试方法不按数量删除：没有发现无入口死测试或完全重复方法体；后续只继续合并重复 profile/重复断言，并保留失败、恢复、跨入口和环境专项契约。

@@ -34,7 +34,7 @@ class M79ReaperTests(unittest.TestCase):
                 async_timeout_seconds()
 
     def test_memory_expired_run_ids_detects_old_jobs(self):
-        state = ServiceState(runtime_factory=lambda p, b, **kw: None)
+        state = ServiceState(runtime_factory=lambda _p, _b, **_kw: None)
         state.submit_memory_job(
             "key-1",
             {
@@ -77,7 +77,7 @@ class M79ReaperTests(unittest.TestCase):
         self.assertEqual(job["failure_category"], "timeout")
 
     def test_reaper_marks_expired_jobs(self):
-        state = ServiceState(runtime_factory=lambda p, b, **kw: None)
+        state = ServiceState(runtime_factory=lambda _p, _b, **_kw: None)
         state.submit_memory_job(
             "key-old",
             {
@@ -103,7 +103,7 @@ class M79ReaperTests(unittest.TestCase):
             state.stop_reaper()
 
     def test_reaper_does_not_touch_fresh_jobs(self):
-        state = ServiceState(runtime_factory=lambda p, b, **kw: None)
+        state = ServiceState(runtime_factory=lambda _p, _b, **_kw: None)
         state.submit_memory_job(
             "key-new",
             {
@@ -157,8 +157,6 @@ class M79ReaperTests(unittest.TestCase):
             db = str(Path(directory) / "state.db")
             service = AgentService(state_db_path=db)
             try:
-                from agent.models import AgentRunResult, RunStatus
-
                 store = service._state.state_store
                 run_id = "m79-unclaimed-run"
                 store.create_async_job(

@@ -16,6 +16,17 @@ from .capability_discovery import (
     CapabilityRoute,
 )
 
+__all__ = [
+    "CAPABILITY_DISCOVERY_SCHEMA_VERSION",
+    "CapabilityDiscovery",
+    "CapabilityMatch",
+    "CapabilityRoute",
+    "CapabilityRouter",
+    "contains_any",
+    "request_signals",
+    "signal_terms",
+]
+
 
 def _gis_routing():
     from domains.gis import routing

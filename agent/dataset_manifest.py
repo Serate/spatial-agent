@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
-from .dataset_catalog import DatasetCatalog, DatasetEntry, controlled_provenance
+from .dataset_catalog import DatasetCatalog, controlled_provenance
 
 
 MANIFEST_VERSION = 1

@@ -12,7 +12,6 @@ class AnswerComposer:
         has_slope = _first_result(result.steps, "get_zonal_slope_statistics") is not None
         has_land_use = _first_result(result.steps, "get_zonal_land_use_distribution") is not None
         has_buildability = _first_result(result.steps, "get_zonal_buildability_analysis") is not None
-        has_health = _first_result(result.steps, "get_dataset_health_report") is not None
         output_type = result.plan.output.get("type") if result.plan else None
         if output_type == "spatial_analysis_result":
             return self._compose_spatial_analysis_result(result.steps)

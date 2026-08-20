@@ -1,6 +1,6 @@
 """Run the global acceptance matrix without hiding unavailable environments."""
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable
 
 from agent.service import AgentService
 from agent.capability_catalog import capability_catalog

@@ -144,7 +144,7 @@ class M16OpenAIConfigTests(unittest.TestCase):
             def __enter__(self):
                 return self
 
-            def __exit__(self, exc_type, exc_value, traceback):
+            def __exit__(self, _exc_type, _exc_value, _traceback):
                 return False
 
             def read(self):

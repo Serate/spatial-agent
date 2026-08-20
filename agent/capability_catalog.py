@@ -520,7 +520,9 @@ def _capability_data_layer(
     dataset_groups: Mapping[str, Iterable[str]] | None = None,
 ) -> str:
     names = set(datasets)
-    groups_source = DATASET_GROUPS if dataset_groups is None else dataset_groups
+    groups_source = (
+        _default_gis_contract()[1] if dataset_groups is None else dataset_groups
+    )
     groups = {
         group
         for group, members in groups_source.items()

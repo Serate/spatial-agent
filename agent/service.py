@@ -8,11 +8,7 @@ from typing import Any, Callable, Dict, Optional
 
 from agent.artifact_store import ArtifactStore
 from agent.action_contract import ActionContractError
-from agent.cost_governance import (
-    ConcurrencyLimited,
-    RunTokenCapExceeded,
-    extract_tokens as _extract_tokens,
-)
+from agent.cost_governance import RunTokenCapExceeded, extract_tokens as _extract_tokens
 from agent.errors import ToolError
 from agent.execution_contract import build_execution_record
 from agent.failure_contract import build_failure_evidence, failure_from_payload
@@ -22,7 +18,6 @@ from agent.runtime_factory import build_runtime
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
-from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.models import AgentRunResult, RunStatus
 from result_contract import (
     build_action_result_contract,
@@ -39,18 +34,14 @@ from agent.service_async import (
     async_response as _async_response,
     async_status as _async_status,
     async_worker_count as _async_worker_count,
-    as_float as _as_float,
     duration_summary as _duration_summary,
-    epoch_to_iso as _epoch_to_iso,
     failure_category_for as _failure_category,
     process_is_alive as _process_is_alive,
-    round_ms as _round_ms,
 )
 from agent.service_format import (
     _attach_error_category,
     analysis_ready_summary as _analysis_ready_summary,
     contextualize_request as _contextualize_request,
-    crs_name as _crs_name,
     exported_geometry_evidence as _exported_geometry_evidence,
     format_result as _format_result,
     normalize_spatial_context as _normalize_spatial_context,
@@ -410,8 +401,6 @@ class AgentService:
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
-        planner = kwargs.get("planner", "rule")
-        backend = kwargs.get("backend", "memory")
         kwargs = dict(kwargs)
         kwargs["workflow"] = _normalize_workflow_payload(kwargs.get("workflow"))
         run_id = kwargs.get("run_id")
@@ -1264,8 +1253,6 @@ class AgentService:
         no side effects. Demonstrates a runtime-registered capability that is
         still schema-validated and dispatched through the ToolRegistry.
         """
-        import math
-
         coordinates = arguments.get("coordinates")
         if not isinstance(coordinates, list) or len(coordinates) < 3:
             raise ToolError("estimate_area requires a polygon ring with 3+ points")

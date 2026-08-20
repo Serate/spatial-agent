@@ -13,7 +13,7 @@ import math
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable
 
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))

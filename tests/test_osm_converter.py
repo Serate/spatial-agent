@@ -1,8 +1,5 @@
-import json
 import importlib.util
-import tempfile
 import unittest
-from pathlib import Path
 
 from scripts.convert_osm_to_gpkg import _road_level, _water_geometry
 

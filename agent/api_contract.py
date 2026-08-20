@@ -6,7 +6,7 @@ validate/revise handling, and exception-to-status mapping. This module keeps
 those decisions in one place so the two servers cannot drift apart.
 """
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 from agent.cost_governance import BudgetExceeded, ConcurrencyLimited
 from agent.service import AgentService
