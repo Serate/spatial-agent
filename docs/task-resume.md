@@ -1419,3 +1419,32 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 - 已新增版本化 `spatial-agent.runtime-context.v1`，Runtime Factory 将选定的 Domain、Planner、Backend、ToolProvider、权限和核心契约版本构造成有界快照；TaskPlan/result envelope 版本由 `agent/contract_versions.py` 统一定义，直接 Runtime 未提供显式 Planner 名称时保留 `unknown`，生产 Factory 路径记录实际 `rule/openai`。
 - 同步 run、preview、runtime capabilities、Domain Action、异步 SQLite job、run snapshot、artifact/recovery 和 Console 统一消费该快照；前端执行证据旁显示 Planner、Backend 和 Provider；异步 worker 在执行前校验快照，发现配置漂移时返回 `runtime_context_mismatch`。
 - M135 专项 8 项通过，M128 执行记录兼容回归 7 项通过；完整离线回归 715 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、GIS-core profile、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过，M135 已具备阶段提交条件。
+
+## M136 全局规划：跨入口 Runtime Context 与 Deployment Evidence Contract
+
+M135 已把一次运行的配置快照持久化，但当前 Cross-entry Contract Harness 还没有把该快照纳入一致性投影；HTTP、异步、artifact/recovery 和 Action 的 Context 证据也缺少一组统一的正负验收。因此 M136 以“可信运行身份可比较、配置漂移可解释、数据/模型证据可关联”为阶段目标，不新增区域专用规则。
+
+七维度盘点与顺序任务：
+
+1. **产品能力**：让用户和面试演示能回答“这次运行使用了哪个 Domain、Planner、Backend、Provider 和策略”，并能区分配置漂移、数据降级和工具失败。
+2. **架构边界**：把有界 `RuntimeContext` 纳入 `evaluation/contract_harness.py` 的 canonical projection；统一 Service、开发 HTTP、生产 API、异步恢复、artifact 和 Domain Action 的读取路径，保留旧 payload 兼容。
+3. **数据质量**：为 Context 预留安全的 data/provenance snapshot 引用，只保存 manifest/版本/健康状态等有界证据，不保存原始路径、栅格内容或大 GeoJSON；验证数据降级不会覆盖 Runtime 身份。
+4. **真实模型**：为 rule、脱敏 replay 和 live provider 统一记录 planner/provider/model 的非敏感身份与 token/延迟/错误分类引用；不把 API key 或 provider 原文写入 Context。
+5. **部署可靠性**：增加滚动重启、异步接管和配置漂移的负向矩阵；当前 Context 与 Runtime 不一致时，HTTP/SQLite/artifact 保留同一个机器错误码和恢复证据。
+6. **用户体验**：Console 通过结构化 Context 和 failure/degradation evidence 动态展示可信度状态，不增加 GIS 专属 DOM 分支。
+7. **测试证据**：先补 Harness canonical projection 与漂移负向测试，再按直接 Service、HTTP、异步轮询、artifact、重启恢复、Action、Text/GIS 逐层验收；默认路径不访问真实模型或私有数据。
+
+执行顺序：
+
+1. Runtime Context canonical projection 与正负 Harness。
+2. HTTP/异步/artifact/recovery/Action 的 Context 一致性矩阵。
+3. 安全 data/provenance 与模型 replay evidence binding。
+4. Console 动态 Context/降级/漂移展示。
+5. `quick` -> `ci` -> `stage` -> `full-stage`，再按环境条件运行 GIS/live/Docker，更新全局规划并推送版本。
+
+## M136 当前实现状态
+
+- `RuntimeContext` 已进入 Contract Harness canonical projection；同时比较 result envelope 中的 Context、模型证据和 provenance Context fingerprint，支持顶层与嵌套 transport 位置兼容，并能报告 backend/domain 等漂移路径。
+- 新增版本化、白名单化 `model_evidence`；结果 envelope、`AgentRunResult`、run/action artifact 写入边界统一规范化 Runtime Context。模型证据不复制 provider 原始响应、API key、私有路径或未知 usage 字段。
+- 异步生命周期观测返回 `runtime_context_fingerprint`；新增异步轮询/重启/幂等、Action artifact 恢复、Text/GIS 领域隔离回归。M136 专项 3 项，受影响跨入口矩阵 83 项，完整离线 722 项通过、42 项按环境跳过。
+- M136 已完成离线契约范围。下一阶段先深化 data provenance/manifest 与真实模型 replay/live 证据，再进行生产 Docker/GIS 显式验收；仍按七维度整体规划，最大并发度保持 1。

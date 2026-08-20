@@ -8,9 +8,12 @@ requests, credentials, tool arguments, or raw provider responses.
 from __future__ import annotations
 
 from collections.abc import Mapping
+import hashlib
+import json
 from typing import Any, Iterable
 
 from .contract_versions import (
+    MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
     TASK_PLAN_SCHEMA_VERSION,
 )
@@ -45,7 +48,7 @@ def build_runtime_context(
         tool_count = max(0, min(128, int(provider.get("tool_count") or 0)))
     except (TypeError, ValueError):
         tool_count = 0
-    return {
+    context = {
         "schema_version": RUNTIME_CONTEXT_SCHEMA_VERSION,
         "domain_id": str(domain_id or "unknown")[:80],
         "planner": str(planner or "unknown")[:32],
@@ -65,8 +68,10 @@ def build_runtime_context(
             "execution_record": EXECUTION_RECORD_SCHEMA_VERSION,
             "result_envelope": RESULT_ENVELOPE_SCHEMA_VERSION,
             "tool_provider": TOOL_PROVIDER_CONTRACT_SCHEMA,
+            "model_evidence": MODEL_EVIDENCE_SCHEMA_VERSION,
         },
     }
+    return _with_fingerprint(context)
 
 
 def normalize_runtime_context(value: Any) -> dict[str, Any] | None:
@@ -93,7 +98,16 @@ def normalize_runtime_context(value: Any) -> dict[str, Any] | None:
         },
         "contracts": _normalize_contracts(value.get("contracts")),
     }
-    return context
+    return _with_fingerprint(context)
+
+
+def runtime_context_fingerprint(value: Any) -> str:
+    """Return a credential-free stable identity for a normalized context."""
+
+    context = normalize_runtime_context(value)
+    if context is None:
+        return ""
+    return str(context.get("fingerprint") or "")
 
 
 def assert_runtime_context_compatible(expected: Any, actual: Any) -> None:
@@ -135,11 +149,25 @@ def _normalize_contracts(value: Any) -> dict[str, str]:
         "execution_record": EXECUTION_RECORD_SCHEMA_VERSION,
         "result_envelope": RESULT_ENVELOPE_SCHEMA_VERSION,
         "tool_provider": TOOL_PROVIDER_CONTRACT_SCHEMA,
+        "model_evidence": MODEL_EVIDENCE_SCHEMA_VERSION,
     }
     return {
         key: str(value.get(key) or default)[:96]
         for key, default in defaults.items()
     }
+
+
+def _with_fingerprint(context: dict[str, Any]) -> dict[str, Any]:
+    context = dict(context)
+    context.pop("fingerprint", None)
+    encoded = json.dumps(
+        context,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    context["fingerprint"] = "sha256:" + hashlib.sha256(encoded).hexdigest()
+    return context
 
 
 def _bounded_strings(value: Any, limit: int, item_limit: int) -> list[str]:
@@ -161,4 +189,5 @@ __all__ = [
     "assert_runtime_context_compatible",
     "build_runtime_context",
     "normalize_runtime_context",
+    "runtime_context_fingerprint",
 ]

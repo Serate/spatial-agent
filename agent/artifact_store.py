@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from agent.execution_contract import build_execution_record
+from agent.runtime_context import normalize_runtime_context
 
 
 class ArtifactStore:
@@ -28,7 +29,7 @@ class ArtifactStore:
             "request_facts": payload.get("request_facts"),
             "session_id": payload.get("session_id"),
             "domain_id": payload.get("domain_id", "gis"),
-            "runtime_context": payload.get("runtime_context"),
+            "runtime_context": normalize_runtime_context(payload.get("runtime_context")),
             "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
             "context_evidence": payload.get("context_evidence"),
@@ -71,7 +72,7 @@ class ArtifactStore:
             "action_execution_id": execution_id,
             "action_id": payload.get("action_id"),
             "domain_id": payload.get("domain_id"),
-            "runtime_context": payload.get("runtime_context"),
+            "runtime_context": normalize_runtime_context(payload.get("runtime_context")),
             "idempotency_key": payload.get("idempotency_key"),
             "input_fingerprint": payload.get("input_fingerprint"),
             "status": payload.get("status"),

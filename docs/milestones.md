@@ -2821,3 +2821,20 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 新增领域无关的 `spatial-agent.runtime-context.v1`，绑定 Domain、Planner、Backend、ToolProvider、权限、批准工具、依赖证据策略和核心契约版本；快照只保留有界配置，不保存请求、密钥、工具参数或原始 provider 响应。TaskPlan 与 result envelope 版本由 `agent/contract_versions.py` 统一定义。
 - Runtime run/preview/capabilities、Service 同步/异步、Domain Action、SQLite snapshot、artifact 和 Console 执行证据均可读取同一 Context；异步任务在 worker 完成前就持久化快照，重启恢复会校验原快照，发现部署配置漂移时以 `runtime_context_mismatch` 失败并保留原证据。
 - M135 专项 8 项、M128 执行记录回归 7 项通过；完整离线回归 715 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、GIS-core profile、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过。M135 已完成，下一步提交版本并按七维度整体重规划。
+
+## M136 全局规划：跨入口 Runtime Context 与 Deployment Evidence Contract
+
+- **产品**：让用户和面试演示能看到一次运行的 Domain、Planner、Backend、ToolProvider、权限和契约版本，并解释配置漂移、数据降级与工具失败的区别。
+- **架构**：将有界 `RuntimeContext` 纳入 Cross-entry Contract Harness 的 canonical projection，统一直接 Service、开发/生产 HTTP、异步、artifact/recovery 和 Domain Action 的证据读取；旧 payload 保持兼容。
+- **数据与模型**：预留不含原始路径/数据/密钥的 data provenance、健康、manifest、模型 replay/live 身份引用，使真实数据和模型证据关联到同一运行快照而不改变核心结果契约。
+- **部署与体验**：补滚动重启、异步接管、配置漂移的机器错误码和恢复证据；Console 通过结构化 Context/failure/degradation evidence 动态展示状态，不增加区域专用面板。
+- **测试**：先做 Context canonical projection 与漂移负向，再覆盖 HTTP、异步轮询、artifact、重启、Action、Text/GIS；默认测试不访问真实模型或私有数据，阶段末按条件运行 GIS/live/Docker。
+
+M136 顺序任务：Context Harness -> 跨入口一致性矩阵 -> data/model evidence binding -> Console 动态展示 -> 分层验收与全局重规划。
+
+## M136 当前实现：跨入口 Context 与模型证据绑定
+
+- `evaluation/contract_harness.py` 将规范化 `RuntimeContext`、安全 `model_evidence` 和 provenance Context 指纹纳入 canonical projection；顶层、result envelope、HTTP、artifact 和 recovery 的位置差异不再造成假不一致，Context 字段漂移会输出有界路径。
+- `result_contract.py` 新增版本化 `spatial-agent.model-evidence.v1`，只保留 provider/model/wire_api、状态、重试、延迟和 token 使用等白名单字段，并绑定 Context fingerprint；结果模型与 artifact 写入边界统一规范化 Context，排除密钥、私有路径和 provider 原文。
+- 异步观测增加 `runtime_context_fingerprint`，因此提交、轮询、重启接管和最终结果可以用同一安全身份关联；Console 继续通过通用执行证据显示领域、Planner、Backend、Provider 和 Context 版本。
+- 新增 M136 跨入口回归 3 项，M108/M135 安全与 Harness 回归同步扩展；受影响矩阵 83 项通过，完整离线回归 722 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过。真实 GIS、live LLM 和 Docker 仍作为显式环境验收，数据 provenance/manifest 深化进入下一阶段。

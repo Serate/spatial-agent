@@ -6,7 +6,11 @@ from typing import Any, Dict, List, Mapping
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
 from agent.execution_contract import build_execution_record, execution_record_summary
-from agent.contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
+from agent.contract_versions import (
+    MODEL_EVIDENCE_SCHEMA_VERSION,
+    RESULT_ENVELOPE_SCHEMA_VERSION,
+)
+from agent.runtime_context import normalize_runtime_context, runtime_context_fingerprint
 
 COMMON_WORKSPACE_PANELS = [
     "answer",
@@ -103,6 +107,7 @@ def build_result_contract(
         geojson_ref=payload.get("geojson_ref"),
         workspace=workspace,
     )
+    normalized_runtime_context = normalize_runtime_context(payload.get("runtime_context"))
     contract = {
         "schema_version": RESULT_ENVELOPE_SCHEMA_VERSION,
         "type": result_type,
@@ -132,10 +137,13 @@ def build_result_contract(
             "sources": sorted(set(geometry_sources) | set(geometry_evidence.get("sources", []))),
             "crs": sorted(geometry_crs),
         },
+        "model_evidence": _model_evidence(
+            payload.get("planner_metrics"),
+            normalized_runtime_context,
+        ),
     }
-    runtime_context = payload.get("runtime_context")
-    if isinstance(runtime_context, Mapping):
-        contract["runtime_context"] = dict(runtime_context)
+    if normalized_runtime_context is not None:
+        contract["runtime_context"] = normalized_runtime_context
     if payload.get("run_id") or payload.get("action_execution_id"):
         # Rebuild from the current payload: AgentRunResult.to_dict() may have
         # produced an earlier record before Service assigned artifact_ref.
@@ -144,6 +152,39 @@ def build_result_contract(
     if isinstance(payload.get("failure"), dict):
         contract["failure"] = dict(payload["failure"])
     return contract
+
+
+def _model_evidence(metrics: Any, runtime_context: Any) -> Dict[str, Any]:
+    """Project planner metrics without copying provider response content."""
+    value = metrics if isinstance(metrics, Mapping) else {}
+    result: Dict[str, Any] = {
+        "schema_version": MODEL_EVIDENCE_SCHEMA_VERSION,
+        "available": bool(value),
+    }
+    context_fingerprint = runtime_context_fingerprint(runtime_context)
+    if context_fingerprint:
+        result["context_fingerprint"] = context_fingerprint
+    for key in ("provider", "model", "wire_api", "status", "error_type"):
+        item = value.get(key)
+        if isinstance(item, str) and item:
+            result[key] = item[:96]
+    for key in ("attempts", "retries"):
+        item = value.get(key)
+        if isinstance(item, int) and not isinstance(item, bool):
+            result[key] = max(0, min(item, 128))
+    latency = value.get("latency_ms")
+    if isinstance(latency, (int, float)) and not isinstance(latency, bool):
+        result["latency_ms"] = round(max(0.0, min(float(latency), 3_600_000.0)), 3)
+    usage = value.get("usage")
+    if isinstance(usage, Mapping):
+        safe_usage = {}
+        for key in ("input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens"):
+            item = usage.get(key)
+            if isinstance(item, int) and not isinstance(item, bool) and item >= 0:
+                safe_usage[key] = min(item, 10_000_000)
+        if safe_usage:
+            result["usage"] = safe_usage
+    return result
 
 
 def build_action_result_contract(

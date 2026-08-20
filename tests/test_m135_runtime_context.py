@@ -15,6 +15,7 @@ from agent.runtime_context import (
     assert_runtime_context_compatible,
     build_runtime_context,
     normalize_runtime_context,
+    runtime_context_fingerprint,
 )
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.service import AgentService
@@ -70,6 +71,14 @@ class M135RuntimeContextTests(unittest.TestCase):
                     export_artifact=True,
                 )
                 expected = payload["runtime_context"]
+                self.assertEqual(
+                    payload["provenance"]["runtime_context_fingerprint"],
+                    expected["fingerprint"],
+                )
+                self.assertEqual(
+                    payload["result"]["model_evidence"]["context_fingerprint"],
+                    expected["fingerprint"],
+                )
                 artifact = json.loads(
                     Path(payload["artifact_ref"]).read_text(encoding="utf-8")
                 )
@@ -122,6 +131,8 @@ class M135RuntimeContextTests(unittest.TestCase):
 
         self.assertEqual(normalized["permissions"], ["a", "b"])
         self.assertEqual(normalized["tool_provider"]["tool_count"], 0)
+        self.assertTrue(normalized["fingerprint"].startswith("sha256:"))
+        self.assertEqual(runtime_context_fingerprint(normalized), normalized["fingerprint"])
         json.dumps(normalized, ensure_ascii=False)
 
     def test_context_drift_is_rejected_before_async_execution(self):
@@ -131,6 +142,40 @@ class M135RuntimeContextTests(unittest.TestCase):
 
         with self.assertRaises(RuntimeContextMismatchError):
             assert_runtime_context_compatible(expected, actual)
+
+    def test_model_evidence_is_allowlisted_and_binds_context(self):
+        context = build_runtime("rule", "memory", domain_id="text").runtime_context()
+        unsafe_context = dict(context)
+        unsafe_context["api_key"] = "sk-never-return-this"
+        unsafe_context["private_path"] = "D:/private/provider.json"
+        contract = build_result_contract(
+            {
+                "result_type": "text_summary_result",
+                "runtime_context": unsafe_context,
+                "planner_metrics": {
+                    "provider": "openai-compatible",
+                    "model": "demo-model",
+                    "wire_api": "responses",
+                    "status": "success",
+                    "attempts": 2,
+                    "retries": 1,
+                    "latency_ms": 12.34567,
+                    "usage": {"input_tokens": 10, "output_tokens": 4, "total_tokens": 14},
+                    "raw_response": "private provider response",
+                    "api_key": "sk-never-return-this",
+                    "private_path": "D:/private/provider.json",
+                },
+            }
+        )
+
+        evidence = contract["model_evidence"]
+        self.assertEqual(evidence["context_fingerprint"], context["fingerprint"])
+        self.assertEqual(evidence["usage"]["total_tokens"], 14)
+        self.assertEqual(contract["runtime_context"], context)
+        encoded = json.dumps(evidence, ensure_ascii=False)
+        self.assertNotIn("private provider response", encoded)
+        self.assertNotIn("sk-never-return-this", encoded)
+        self.assertNotIn("private_path", encoded)
 
     def test_submission_snapshot_does_not_initialize_gis_backend(self):
         with patch(
@@ -151,6 +196,7 @@ class M135RuntimeContextTests(unittest.TestCase):
 
         self.assertIn("runtime_context", source)
         self.assertIn("context.tool_provider", source)
+        self.assertIn("context.domain_id", source)
         self.assertIn("Planner ", source)
 
 

@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Sequence
 
 from agent.execution_contract import build_execution_record, execution_record_summary
+from agent.runtime_context import normalize_runtime_context
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,12 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
     workspace = _mapping(result.get("workspace"))
     plan_identity = _mapping(planning.get("plan_identity"))
     context = _mapping(payload.get("context_evidence"))
+    provenance = _mapping(payload.get("provenance"))
+    runtime_context = normalize_runtime_context(
+        payload.get("runtime_context")
+        if isinstance(payload.get("runtime_context"), Mapping)
+        else result.get("runtime_context")
+    )
     section_names = context.get("section_names")
     section_names = section_names if isinstance(section_names, list) else []
     steps = payload.get("steps") if isinstance(payload.get("steps"), list) else []
@@ -63,6 +70,11 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "result_type": result.get("type"),
             "result_title": result.get("title"),
             "answer": payload.get("answer", ""),
+            "runtime_context": runtime_context,
+            "model_evidence": result.get("model_evidence"),
+            "provenance_context_fingerprint": provenance.get(
+                "runtime_context_fingerprint"
+            ),
             "planning_source": planning.get("source"),
             "plan_identity_version": plan_identity.get("version"),
             "selected_capability": planning.get("selected_capability_id"),

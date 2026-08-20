@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from agent.models import AgentRunResult
+from agent.runtime_context import runtime_context_fingerprint
 from agent.sqlite_store import SQLiteStateStore
 from result_contract import build_lineage_index
 
@@ -115,6 +116,13 @@ def build_async_observability(
     }
     if isinstance(lineage, dict):
         observation["lineage"] = lineage
+    context = result.runtime_context if result is not None else None
+    if context is None:
+        payload = job.get("payload")
+        context = payload.get("runtime_context") if isinstance(payload, dict) else None
+    fingerprint = runtime_context_fingerprint(context)
+    if fingerprint:
+        observation["runtime_context_fingerprint"] = fingerprint
     return observation
 
 

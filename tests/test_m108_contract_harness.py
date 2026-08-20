@@ -1,4 +1,5 @@
 import unittest
+from copy import deepcopy
 
 from evaluation.contract_harness import compare_results, normalize_result
 
@@ -54,6 +55,66 @@ class M108ContractHarnessTests(unittest.TestCase):
         payload = normalize_result(_payload()).as_dict()
         self.assertEqual(payload["result_type"], "admin_area_result")
         self.assertEqual(payload["view_kinds"], {"steps": "steps"})
+
+    def test_runtime_context_is_transport_neutral(self):
+        context = {
+            "schema_version": "spatial-agent.runtime-context.v1",
+            "domain_id": "text",
+            "planner": "rule",
+            "backend": "memory",
+            "tool_provider": {"id": "text-native", "tool_count": 1},
+            "permissions": ["text_data:read"],
+            "approved_tools": [],
+            "policies": {"require_dependency_evidence": False},
+            "contracts": {"task_plan": "spatial-agent.task-plan.v1"},
+        }
+        first = _payload()
+        second = _payload()
+        first["runtime_context"] = context
+        second["result"]["runtime_context"] = deepcopy(context)
+
+        self.assertEqual(compare_results([first, second]), [])
+
+    def test_runtime_context_drift_is_reported_by_harness(self):
+        context = {
+            "schema_version": "spatial-agent.runtime-context.v1",
+            "domain_id": "text",
+            "planner": "rule",
+            "backend": "memory",
+            "tool_provider": {"id": "text-native", "tool_count": 1},
+        }
+        baseline = _payload()
+        baseline["runtime_context"] = deepcopy(context)
+        changed = _payload()
+        changed["runtime_context"] = deepcopy(context)
+        changed["runtime_context"]["backend"] = "local"
+
+        differences = compare_results([baseline, changed])
+        self.assertIn("$.runtime_context.backend", differences[0])
+
+    def test_model_evidence_and_provenance_fingerprint_are_transport_neutral(self):
+        context = {
+            "schema_version": "spatial-agent.runtime-context.v1",
+            "domain_id": "text",
+            "planner": "rule",
+            "backend": "memory",
+            "tool_provider": {"id": "text-native", "tool_count": 1},
+        }
+        evidence = {
+            "schema_version": "spatial-agent.model-evidence.v1",
+            "available": False,
+            "context_fingerprint": "sha256:fixture",
+        }
+        first = _payload()
+        first["runtime_context"] = context
+        first["provenance"] = {"runtime_context_fingerprint": "sha256:fixture"}
+        first["result"]["model_evidence"] = evidence
+        second = _payload()
+        second["result"]["runtime_context"] = deepcopy(context)
+        second["result"]["model_evidence"] = deepcopy(evidence)
+        second["provenance"] = {"runtime_context_fingerprint": "sha256:fixture"}
+
+        self.assertEqual(compare_results([first, second]), [])
 
     def test_normalize_rejects_missing_public_envelope(self):
         with self.assertRaisesRegex(ValueError, "result envelope"):

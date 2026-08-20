@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
+from agent.runtime_context import runtime_context_fingerprint
 
 
 PROVENANCE_SCHEMA_VERSION = "spatial-agent.provenance.v1"
@@ -40,13 +41,17 @@ def build_provenance(
                 ),
             }
         )
-    return {
+    provenance = {
         "schema_version": PROVENANCE_SCHEMA_VERSION,
         "domain_id": str(planning.get("domain_id") or "unknown")[:80],
         "run_id": payload.get("run_id"),
         "execution_policy": "fail_fast",
         "steps": entries,
     }
+    context_fingerprint = runtime_context_fingerprint(payload.get("runtime_context"))
+    if context_fingerprint:
+        provenance["runtime_context_fingerprint"] = context_fingerprint
+    return provenance
 
 
 def _find_bindings(value: Any) -> List[Dict[str, str]]:

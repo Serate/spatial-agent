@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from agent.execution_contract import build_execution_record
+from agent.runtime_context import normalize_runtime_context
 
 
 class RunStatus(str, Enum):
@@ -109,6 +110,8 @@ class AgentRunResult:
             data.pop("workflow", None)
         if data.get("domain_id") is None:
             data.pop("domain_id", None)
+        if data.get("runtime_context") is not None:
+            data["runtime_context"] = normalize_runtime_context(data["runtime_context"])
         if data.get("runtime_context") is None:
             data.pop("runtime_context", None)
         if data.get("request_facts") is None:
