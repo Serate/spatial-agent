@@ -3313,3 +3313,17 @@ M128 为 Run 与 Domain Action 增加统一 `spatial-agent.execution-record.v1` 
 ### 修复与预防
 
 `normalize_execution()` 只有在 payload 已有 Run/Action 身份或明确的 `execution_record` 时才生成执行投影；纯旧 result fixture 保持无 execution 字段。真实 Service/HTTP/artifact payload 则必须携带完整投影。以后扩展公共结果证据时，先区分“无身份的历史最小 fixture”和“真实执行记录”，为新增字段提供有界兼容路径，并同时验证 acceptance checker 的退出码。
+
+## 公共 LLM Planner 不能持有 GIS 领域规划规则
+
+### 现象
+
+公共 `LLMPlanner._system_prompt()` 曾直接包含 DEM、土地利用、道路、水体、洪山区、建设筛选和空间总览等领域规则。即使 Runtime 已经选择了 Text Domain Pack，Planner 也天然携带 GIS 词汇，无法证明同一个 Planner 能被另一个领域安全复用。
+
+### 根因
+
+早期 GIS 是唯一业务领域，Planner prompt 同时承担了 JSON 输出协议、工具边界和领域知识三种职责。Domain Pack 后续虽然已经拥有请求事实、能力目录和工作流上下文 seam，但 Planner 仍绕过这些 seam 维护一份隐含的 GIS policy。
+
+### 修复与预防
+
+M129 增加 `DomainPack.planner_guidance()` 和版本化 `spatial-agent.planner-guidance.v1` 投影；公共 Planner 只保留 TaskPlan JSON、ToolRegistry、依赖引用和安全约束，GIS/Text 分别提供自己的工具语义、结果类型、规划、澄清和拒绝策略。guidance 进入模型前会有界规范化，并只渲染已注册工具的语义。以后新增领域规则必须进入 Domain-owned guidance 和对应负向隔离测试，不能继续追加到公共 `_system_prompt()`。

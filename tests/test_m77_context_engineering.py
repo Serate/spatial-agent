@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from agent.context_engineering import CONTEXT_SCHEMA_VERSION, ContextBuilder
+from agent.domain_contract import planner_guidance
 from agent.llm_planner import LLMPlanner
 from agent.models import PlanStep, TaskPlan
 from agent.runtime import AgentRuntime
@@ -11,6 +12,7 @@ from agent.sqlite_store import SQLiteStateStore
 from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
 from result_contract import build_result_contract
+from domains.gis.domain import GIS_DOMAIN_PACK
 
 
 ROOT = Path(__file__).parents[1]
@@ -146,7 +148,11 @@ class M77ContextEngineeringTests(unittest.TestCase):
 
     def test_llm_planner_receives_context_as_separate_trusted_metadata(self):
         client = RecordingLLMClient()
-        planner = LLMPlanner(client, registry().names)
+        planner = LLMPlanner(
+            client,
+            registry().names,
+            planner_guidance=planner_guidance(GIS_DOMAIN_PACK),
+        )
         planner.plan(
             "查询道路数据",
             context={
@@ -161,7 +167,7 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertIn(CONTEXT_SCHEMA_VERSION, client.messages[1]["content"])
         self.assertIn("raster_metadata", client.messages[1]["content"])
         self.assertIn("spatial_analysis_result", client.messages[0]["content"])
-        self.assertIn("sections.spatial_request.tasks", client.messages[0]["content"])
+        self.assertIn("Domain-owned planner guidance", client.messages[0]["content"])
         self.assertIn("workflow_templates", client.messages[0]["content"])
         self.assertIn("capability_catalog", client.messages[0]["content"])
 

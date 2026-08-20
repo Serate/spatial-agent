@@ -4,6 +4,8 @@ from agent.planner import RuleBasedPlanner
 from agent.errors import ClarificationNeeded
 from agent.spatial_intent import classify_spatial_intent
 from agent.llm_planner import LLMPlanner
+from agent.domain_contract import planner_guidance
+from domains.gis.domain import GIS_DOMAIN_PACK
 from run_demo import build_runtime
 
 
@@ -47,17 +49,21 @@ class M62SpatialIntentTests(unittest.TestCase):
         self.assertIn("水体摘要", result.answer)
 
     def test_llm_guidance_names_spatial_overview_contract(self):
-        planner = LLMPlanner(object(), [])
+        planner = LLMPlanner(
+            object(), [], planner_guidance=planner_guidance(GIS_DOMAIN_PACK)
+        )
         prompt = planner._system_prompt()
         self.assertIn("spatial_overview_result", prompt)
         self.assertIn("get_zonal_vector_summary", prompt)
         self.assertIn("max_features (not max_files)", prompt)
 
     def test_llm_guidance_names_buildability_contracts(self):
-        planner = LLMPlanner(object(), [])
+        planner = LLMPlanner(
+            object(), [], planner_guidance=planner_guidance(GIS_DOMAIN_PACK)
+        )
         prompt = planner._system_prompt()
-        self.assertIn('output type must be "buildability_result"', prompt)
-        self.assertIn('output type must be "constrained_buildability_result"', prompt)
+        self.assertIn("buildability_result", prompt)
+        self.assertIn("constrained_buildability_result", prompt)
         self.assertIn("MUST be get_dataset_health_report", prompt)
 
 

@@ -2567,6 +2567,8 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 将 provenance 中 `admin_name/crs` 等领域字段变为可选 Domain evidence，同时保留旧 artifact 读取兼容。
 3. 补前端动态 workspace/views/runtime evidence 的 Text/GIS 契约测试；Docker/FastAPI/真实模型和真实数据继续作为显式验收路径。
 
+
+
 ## M127 已完成：Evidence Provider 与 Action 可恢复闭环
 
 - 新增 `spatial-agent.domain-evidence.v1` 统一 evidence envelope；GIS/Text provider 与旧 Domain Pack 均可通过同一 runtime/release seam 输出，旧 runtime/release 方法仍保留兼容。
@@ -2702,3 +2704,18 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 1. 将 GIS view builder 实现从公共 `result_contract.py` 移至 `domains/gis`，公共模块只保留通用 view envelope 与 registry dispatch。
 2. 将 provenance 中 `admin_name/crs` 等兼容字段变成 Domain evidence projection，并验证旧 artifact/recovery 不丢字段。
 3. 补前端动态 workspace/views/runtime evidence 的 Text/GIS 契约测试；Docker/FastAPI/真实模型和真实数据继续作为显式验收路径。
+
+## M129 已完成：Domain-owned Planner Guidance
+
+- `DomainPack` 新增 `planner_guidance()` seam，并由 `agent/planner_guidance.py` 提供版本化 `spatial-agent.planner-guidance.v1` 的有界规范化与渲染。
+- 公共 `LLMPlanner` 现在只负责 TaskPlan JSON 契约、注册工具边界、工作流/依赖引用和通用安全约束；GIS 规划规则已迁移到 `domains/gis/planner_guidance.py`。
+- Text Domain Pack 提供独立摘要 guidance；脱敏模型回放、运行时工厂和跨领域测试均验证同一 LLM Planner 可切换 guidance，Text prompt 不泄漏 GIS 语义。
+- 新增 M129 跨领域负向契约；旧 GIS Planner prompt 测试改为显式注入 GIS guidance，避免把 GIS 默认值当作公共接口。
+- 阶段收尾验证已完成：685 项离线测试通过、42 项按环境跳过；M129 专项/受影响契约、smoke、stage、full-stage、compileall 和 `git diff --check` 均通过。真实模型、真实 GIS 和 Docker 仍按可选环境验收，阶段版本随后推送。
+
+### M130 全局规划
+
+1. 继续审计 `capability_routing.py`、`capability_catalog.py` 和遗留 GIS RequestFacts 兼容路径，建立 Domain-owned Request Understanding/Capability Discovery guidance，避免 Planner 解耦后路由层仍绑死 GIS。
+2. 让 planner guidance、RequestFacts、能力目录和 workflow template 在同一上下文/证据投影中可追踪，补充跨 CLI、HTTP、artifact 和回放的计划来源证据。
+3. 在不增加 GIS 专用规则的前提下，增加一个更接近开放式任务的非 GIS 脱敏回放，并验证澄清、拒绝、结果类型和 ToolRegistry 边界。
+4. 阶段末复验真实模型可选基线、Docker/FastAPI 条件路径和稳定 CI；重型全量回归保持阶段验收，不重新成为 push 门禁。

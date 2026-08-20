@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .dataset_catalog import DatasetCatalog
-from .domain_contract import DomainPack
+from .domain_contract import DomainPack, default_domain_pack, planner_guidance
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_openai_config
 from .planner import RuleBasedPlanner
@@ -32,6 +32,7 @@ def build_runtime(
     domain_pack: Optional[DomainPack] = None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
+    selected_domain_pack = domain_pack or default_domain_pack()
     if backend_name == "local":
         catalog_path = os.environ.get(
             "SPATIAL_AGENT_DATASET_CONFIG",
@@ -46,7 +47,11 @@ def build_runtime(
         adapter,
     )
     if planner_name == "openai":
-        planner = LLMPlanner(OpenAIPlannerClient(**load_openai_config()), registry.names)
+        planner = LLMPlanner(
+            OpenAIPlannerClient(**load_openai_config()),
+            registry.names,
+            planner_guidance=planner_guidance(selected_domain_pack),
+        )
     else:
         planner = RuleBasedPlanner()
     if allowed_permissions is None:
@@ -68,7 +73,7 @@ def build_runtime(
         memory=memory,
         observability=observability,
         backend_name=backend_name,
-        domain_pack=domain_pack,
+        domain_pack=selected_domain_pack,
         allowed_permissions=allowed_permissions,
         approved_tools=approved_tools,
         require_dependency_evidence=require_dependency_evidence,

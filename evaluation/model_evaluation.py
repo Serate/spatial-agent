@@ -15,6 +15,7 @@ import re
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 
 from agent.llm_planner import LLMPlanner
+from agent.domain_contract import planner_guidance
 from agent.runtime import AgentRuntime
 from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
@@ -357,15 +358,25 @@ def _build_recorded_runtime(
 
         registry = ToolRegistry.from_provider(TextToolProvider())
         client = _RecordedModelClient(response, metrics)
-        planner = LLMPlanner(client, registry.names)
+        planner = LLMPlanner(
+            client,
+            registry.names,
+            planner_guidance=planner_guidance(TEXT_DOMAIN_PACK),
+        )
         return AgentRuntime(planner, registry, domain_pack=TEXT_DOMAIN_PACK)
     if domain != "gis":
         raise ValueError("unsupported replay domain: " + domain)
     adapter = DemoSpatialAdapter()
     registry = ToolRegistry.from_json(str(TOOL_SCHEMA), adapter)
     client = _RecordedModelClient(response, metrics)
-    planner = LLMPlanner(client, registry.names)
-    return AgentRuntime(planner, registry)
+    from domains.gis.domain import GIS_DOMAIN_PACK
+
+    planner = LLMPlanner(
+        client,
+        registry.names,
+        planner_guidance=planner_guidance(GIS_DOMAIN_PACK),
+    )
+    return AgentRuntime(planner, registry, domain_pack=GIS_DOMAIN_PACK)
 
 
 class _RecordedModelClient:

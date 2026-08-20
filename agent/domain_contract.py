@@ -132,6 +132,9 @@ class DomainPack(Protocol):
     ) -> Mapping[str, Any]:
         """Return the domain-owned planner workflow context."""
 
+    def planner_guidance(self) -> Mapping[str, Any]:
+        """Return bounded domain vocabulary and planner policy."""
+
 
 def discovery_context(discovery: Any) -> dict[str, Any]:
     """Normalize a domain discovery result without imposing GIS types."""
@@ -164,6 +167,15 @@ def workflow_context(domain_pack: DomainPack) -> dict[str, Any]:
         return {}
     value = method(include_arg_shape=False, compact=True)
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def planner_guidance(domain_pack: DomainPack) -> dict[str, Any]:
+    """Read planner policy through the Domain Pack seam without GIS fallback."""
+    from .planner_guidance import normalize_planner_guidance
+
+    method = getattr(domain_pack, "planner_guidance", None)
+    value = method() if callable(method) else {}
+    return normalize_planner_guidance(value)
 
 
 def domain_action_catalog(domain_pack: DomainPack) -> dict[str, Any]:

@@ -141,5 +141,10 @@ class GisDomainPack:
             compact=compact,
         )
 
+    def planner_guidance(self) -> Mapping[str, Any]:
+        from .planner_guidance import GIS_PLANNER_GUIDANCE
+
+        return GIS_PLANNER_GUIDANCE
+
 
 GIS_DOMAIN_PACK = GisDomainPack()

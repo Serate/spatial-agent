@@ -1321,3 +1321,14 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 - 已新增 `spatial-agent.execution-record.v1`，统一 Run 与 Domain Action 的身份、状态、结果类型、trace、artifact、幂等和错误投影；不复制原始请求、Action 参数或工具结果。
 - Runtime、Service、ArtifactStore、result envelope、Contract Harness、开发 HTTP 和 Console 已消费同一执行记录；旧的无执行身份 fixture 仍按原契约工作。
 - M128 专项 7 项、受影响的 M108/M110/M127 等契约回归 13 项、离线全量 681 项通过（42 项跳过）；smoke、stage profile、compileall 和 `git diff --check` 通过，阶段版本随后推送。
+
+## M129 收尾状态：Domain-owned Planner Guidance
+
+- 公共 LLM Planner 已不再维护 GIS 数据集、区域或建设筛选规则；只消费通用 TaskPlan/ToolRegistry/安全协议和选定 Domain Pack guidance。
+- `GIS_DOMAIN_PACK` 与 `TEXT_DOMAIN_PACK` 都提供版本化 planner guidance；guidance 字段、工具语义和结果类型经过 bounded normalization。
+- 运行时工厂与模型回放入口会把当前 Domain Pack guidance 注入同一个 `LLMPlanner`；Text 负向测试确认 prompt 不含 GIS 语义。
+- M129 专项与受影响旧 Planner/Context/Domain 回归已通过；阶段末验证已完成：685 项离线测试通过、42 项按环境跳过，stage、full-stage、smoke、compileall 和 `git diff --check` 均通过，当前待提交并推送阶段版本。
+
+## 下一阶段 M130
+
+优先收口 Capability Routing/Catalog 的 GIS 兼容实现，建立通用 Request Understanding 与 capability discovery guidance，并让其进入计划证据和跨入口回放；不新增单区域 GIS 规则。

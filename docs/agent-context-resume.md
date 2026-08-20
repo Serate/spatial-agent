@@ -1080,3 +1080,14 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - Runtime `AgentRunResult`、Service、ArtifactStore、result envelope、Contract Harness、开发 HTTP 和 Console 均已接入该投影；历史无执行身份的旧 fixture 保持兼容。
 - 已覆盖同步 Run/Action、失败 Action 重放、开发 HTTP、SQLite 异步恢复、artifact 和前端统一执行记录展示；M128 专项当前 7 项通过，受影响旧契约 13 项通过。
 - 阶段收尾验证已完成：M128 专项 7 项、受影响契约 13 项、离线全量 681 项通过（42 项跳过），smoke、stage profile、compileall 和 `git diff --check` 通过；Docker/FastAPI/真实 GIS/LLM 仍按环境条件验收。
+
+## M129 当前进度：Domain-owned Planner Guidance
+
+- 已新增 `agent/planner_guidance.py`，定义 `spatial-agent.planner-guidance.v1`；`DomainPack.planner_guidance()` 是公共 Planner 与领域 policy 的唯一 seam。
+- `LLMPlanner._system_prompt()` 已收敛为通用 JSON、ToolRegistry、工作流依赖、安全和澄清协议；GIS/Text policy 分别位于 `domains/gis/planner_guidance.py` 与 `domains/text/planner_guidance.py`。
+- `runtime_factory`、脱敏模型评测和跨领域专项均显式绑定当前 Domain Pack guidance；公共 Planner 文件不再出现 DEM、土地利用、道路、水体或洪山区规则。
+- 阶段收尾验证已完成：685 项离线测试通过、42 项按环境跳过；smoke、stage、full-stage、compileall 和 `git diff --check` 均通过。下一步提交并推送 M129，然后根据全局七维盘点进入 M130：Capability Routing/Catalog 与通用 Request Understanding。
+
+## M130 规划参考
+
+先从产品闭环、架构 seam、数据 evidence、真实模型、部署、Console 和测试证据全局盘点，再把 GIS 专用 capability routing 迁移为 Domain-owned discovery guidance；保持最大并发度 1。

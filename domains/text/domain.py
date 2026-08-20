@@ -111,5 +111,10 @@ class TextDomainPack:
     ) -> Mapping[str, Any]:
         return {}
 
+    def planner_guidance(self) -> Mapping[str, Any]:
+        from .planner_guidance import TEXT_PLANNER_GUIDANCE
+
+        return TEXT_PLANNER_GUIDANCE
+
 
 TEXT_DOMAIN_PACK = TextDomainPack()
