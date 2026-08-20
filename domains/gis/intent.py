@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any
 
-from agent.capability_catalog import capability_suggestions
+from agent.capability_catalog import (
+    capability_suggestions,
+    project_clarification_requirements,
+)
 
+from .catalog import GIS_CAPABILITIES
+from .request_model import parse_spatial_request
 
 _HINTS = (
     ("spatial_overview", ("空间概况", "空间总览", "整体空间分析", "综合空间概览", "全面分析")),
@@ -33,17 +38,17 @@ _SPATIAL_TERMS = tuple(
 CLARIFICATION_SCHEMA_VERSION = "spatial-agent.clarification.v1"
 
 
-def classify_spatial_intent(request: str) -> Dict[str, Any]:
+def classify_spatial_intent(request: str) -> dict[str, Any]:
     """Return bounded GIS hints without claiming that a capability ran."""
 
     text = str(request or "").strip()
     suggested_details = [
         item
-        for item in capability_suggestions()
+        for item in capability_suggestions(GIS_CAPABILITIES)
         if item.get("id") in _HINT_CAPABILITY_IDS
     ]
-    matched: List[str] = []
-    matched_terms: List[str] = []
+    matched: list[str] = []
+    matched_terms: list[str] = []
     for capability_id, terms in _HINTS:
         hits = [term for term in terms if term in text]
         if hits:
@@ -76,7 +81,7 @@ def clarification_message(request: str) -> str:
     )
 
 
-def clarification_details(request: str) -> Dict[str, Any]:
+def clarification_details(request: str) -> dict[str, Any]:
     """Return UI/API-safe next actions for an unresolved GIS request."""
 
     intent = classify_spatial_intent(request)
@@ -87,21 +92,26 @@ def clarification_details(request: str) -> Dict[str, Any]:
     ][:16]
     catalog_by_id = {str(item["id"]): item for item in catalog_details}
     if intent["matched_capabilities"]:
-        missing = ["区域或行政区"]
-        if any(
-            item in intent["matched_capabilities"]
-            for item in ("zonal_raster_statistics", "zonal_terrain_land_use")
-        ):
-            missing.append("数据集")
-        if any(
-            item in intent["matched_capabilities"]
-            for item in ("buildability_screening", "constrained_buildability_screening")
-        ):
-            missing.append("筛选阈值")
-        next_actions = ["补充" + "、".join(missing), "或改问已注册的空间能力"]
+        facts = parse_spatial_request(request)
+        projection = project_clarification_requirements(
+            intent["matched_capabilities"],
+            facts,
+            capability_definitions=GIS_CAPABILITIES,
+        )
+        missing = list(projection["missing"])
+        missing_details = list(projection["missing_fields"])
+        if missing:
+            next_actions = ["补充" + "、".join(missing), "或改问已注册的空间能力"]
+        else:
+            next_actions = ["确认目标能力并执行", "或改问已注册的空间能力"]
         state = "matched_capability_missing_parameters"
     else:
         missing = ["空间对象", "区域", "分析条件"]
+        missing_details = [
+            {"id": "object", "label": "空间对象", "kind": "entity"},
+            {"id": "region", "label": "区域", "kind": "entity"},
+            {"id": "conditions", "label": "分析条件", "kind": "constraint"},
+        ]
         next_actions = ["补充" + "、".join(missing), "或从能力目录选择一个空间能力"]
         state = "unmatched_spatial_capability"
     return {
@@ -117,13 +127,14 @@ def clarification_details(request: str) -> Dict[str, Any]:
         ][:8],
         "suggested_capability_details": catalog_details,
         "missing": missing[:8],
+        "missing_fields": missing_details[:8],
         "next_actions": next_actions[:8],
     }
 
 
 __all__ = [
     "CLARIFICATION_SCHEMA_VERSION",
-    "classify_spatial_intent",
-    "clarification_message",
     "clarification_details",
+    "clarification_message",
+    "classify_spatial_intent",
 ]

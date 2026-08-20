@@ -2897,3 +2897,32 @@ M137 的统一 deployment evidence 已进入 Runtime、release、result 和 Cons
 2. 迁移 GIS 词汇/澄清逻辑，补 Text 领域隔离和旧导入回归。
 3. 贯通 Rule/LLM preview、run、HTTP 的澄清 evidence，确保不初始化 backend。
 4. 增加一条开放式脱敏回放和跨入口契约，阶段收口后再决定真实 GIS/live/Docker 验收。
+
+## M140 全局规划：CapabilityCatalog-owned 请求需求与真实部署复验
+
+M139 已完成 GIS intent 的领域归属，但能力所需的区域、数据集和约束事实仍可能重新落回 capability ID 分支。M140 从完整 Agent 闭环推进声明驱动的请求澄清：能力目录声明有界 `request_requirements`，通用投影器比较 RequestFacts，Domain 只提供词汇和能力定义；同时用当前工作树完成真实 GIS/Docker 验收。
+
+### M140 顺序任务
+
+1. 在 CapabilityCatalog 增加版本化、长度受限的实体/数据集/约束需求归一化和通用 `missing_fields` 投影。
+2. 为 GIS 能力声明区域、数据集和筛选阈值需求；删除 intent 中按 capability ID 推断缺参的逻辑，并验证 Text Domain 隔离。
+3. 修复生产 acceptance 的 Python 解释器解析和 Harness 空输出诊断；使用 `.env.production` 正确展开真实数据卷并重建当前容器。
+4. 运行 M140/相邻回归、分层离线 profile、GIS-core、Docker production acceptance 和一次脱敏 live smoke；据全局结果规划下一阶段。
+
+## M140 当前实现与验证状态
+
+- `agent/capability_catalog.py` 新增 `spatial-agent.capability-requirements.v1` 归一化和通用需求投影；`domains/gis/catalog.py` 声明实体、数据集与约束需求；GIS intent 不再按 capability ID 硬编码缺参，Text Domain 不继承 GIS 词汇。GIS legacy evidence 的 `capabilities` 在 Domain adapter 内归一化为 `capabilities_runtime`。
+- `production_acceptance.ps1` 自动跳过 WindowsApps Python alias，Harness 失败报告实际解释器和退出码；生产重建使用 `--env-file .env.production` 将 `D:/dataset/agent` 挂载到 `/data`。当前容器 healthy，核心/可选数据 ready，preview、同步/artifact、失败证据、错误边界和异步幂等均通过。
+- M140/M139/M62 专项 15 项、`quick`、`ci`、`stage`、`full-stage`、GIS-core、compileall、Ruff、Pyflakes、PowerShell parser、`git diff --check` 和全量离线 735 项通过（42 项按环境跳过）。live smoke 的约束建设案例通过；空间总览因模型生成重复 `range_query` 与未声明依赖被严格 `tool_validation` 拦截，provider error 为 none，未将部分 live 结果宣称为全量通过。
+
+## M141 全局规划参考：模型计划稳健性与通用修复闭环
+
+下一阶段不围绕洪山区或某个工具追加规则，而是从整体 Agent Runtime 处理 M140 暴露的跨边界风险：规则 Planner、脱敏 replay 和 live Planner 必须共享同一 capability requirements、TaskPlan schema、DAG 校验、ToolRegistry 和 repair lineage。
+
+1. **产品能力**：展示模型计划被校验、修复或拒绝的可读原因和可恢复动作。
+2. **架构边界**：建立有预算的 bounded plan repair seam；只允许基于 capability/tool schema 的有界替换，禁止绕过 Registry。
+3. **数据质量**：repair 继续绑定数据健康、覆盖、CRS/对齐和 provenance evidence，不把真实 GIS 降级误报为模型失败。
+4. **真实模型**：增加复杂总览的脱敏 replay 与一次可选 live 基线，记录重复步骤、未声明引用、token 和延迟，不保存原文/密钥。
+5. **部署可靠性**：验证同步、异步、artifact/recovery 和多 worker 中 repair lineage 一致，保留明确的配置漂移、超时和 provider 暂态分类。
+6. **用户体验**：Console 使用通用规划/修复/失败证据动态展示，不增加 GIS 专属页面分支。
+7. **测试证据**：先做 schema/DAG/repair 契约测试，再做 Text/GIS replay、HTTP/artifact/async 矩阵，最后运行 Docker/GIS/live 显式验收。

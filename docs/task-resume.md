@@ -1525,3 +1525,20 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 2. 迁移 GIS 实现，公共兼容入口改为惰性委托；Text 提供中性实现或明确“不适用”。
 3. 让 Rule/LLM preview、run 和 clarification 共用同一 discovery/clarification evidence。
 4. 补跨入口和脱敏回放，运行分层测试后再进行全局重规划。
+
+## M140 当前实现：CapabilityCatalog-owned 请求需求
+
+- `agent/capability_catalog.py` 提供版本化 `request_requirements` 归一化和通用 `project_clarification_requirements()`；投影只比较 RequestFacts，不检查 capability ID，因此可供非 GIS Domain 复用。
+- GIS catalog 为区域、数据集、筛选阈值声明需求；`domains/gis/intent.py` 删除按能力 ID 推断缺参的分支，并返回结构化 `missing_fields`。Text catalog 保持空的领域无关需求。
+- `domains/gis/evidence.py` 在 Domain adapter 内把旧 `capabilities` 适配为 Runtime 要求的 `capabilities_runtime`，不让公共 Runtime 认识 GIS 历史字段。
+- production acceptance 自动解析可运行 Python、跳过 WindowsApps alias，并在 Harness 失败时报告解释器和退出码。Docker 重建必须显式使用 `docker compose --env-file .env.production -f docker-compose.prod.yml ...`，当前真实数据卷 `/data` 已验证。
+
+## M140 验证结果
+
+- M140/M139/M62 专项 15 项通过；`quick`、`ci`、`stage`、`full-stage`、GIS-core、compileall、Ruff、Pyflakes、PowerShell parser 和 `git diff --check` 通过。
+- 全量离线测试 735 项通过、42 项按环境跳过。当前 Docker production acceptance 通过：16 项能力、核心/可选数据 ready、同步/artifact Contract Harness、失败证据、400 错误边界、异步终态与幂等均通过。
+- live smoke 已确认 provider 和真实 GIS 可达；约束建设案例通过。空间总览案例因真实模型产生重复 `range_query` 与未声明依赖，被严格 ToolRegistry/DAG 校验拒绝，分类为 `tool_validation`，不将其伪称为全量 live 通过。
+
+## 下一阶段 M141 规划参考
+
+围绕整体 Agent Runtime 建立通用的 capability-guided plan repair 与模型计划稳健性闭环：规则、脱敏 replay 和 live Planner 共享 TaskPlan schema、DAG、ToolRegistry、repair lineage 和 result/artifact/async 证据。先补有界 repair seam 与重复/未声明引用的契约测试，再扩展复杂开放式任务 replay/live 基线；数据健康、部署证据、Console 动态展示和跨领域隔离作为同一纵向切片验收，最大并发度保持 1。

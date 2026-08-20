@@ -88,6 +88,16 @@ class M110ProductionContractTests(unittest.TestCase):
         self.assertIn("contract_harness_check.py", source)
         self.assertIn("syncArtifactContract", source)
 
+    def test_production_acceptance_resolves_real_python_and_reports_harness_exit(self):
+        source = (ROOT / "scripts" / "production_acceptance.ps1").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("function Resolve-ContractHarnessPython", source)
+        self.assertIn("WindowsApps", source)
+        self.assertIn("SPATIAL_AGENT_PYTHON", source)
+        self.assertIn("contract harness failed (python=", source)
+        self.assertIn("exit_code=", source)
+
 
 if __name__ == "__main__":
     unittest.main()

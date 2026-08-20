@@ -3523,3 +3523,45 @@ M137 让 `deployment_evidence` 自身按 schema、执行模式、provider/model 
 ### 处理与预防
 
 M139 将实现移动到 `domains/gis/intent.py`，GIS Planner 直接从 Domain 模块导入；公共模块只通过惰性 import 保留旧函数名。`DomainPack.clarification_details()` 与 Runtime fallback 让当前领域决定澄清内容，Text Domain 明确返回中性策略。以后迁移领域代码必须同时检查实现物理路径、正常 Runtime 选择、旧导入兼容和非 GIS 负向隔离，不能只验证调用结果不变。
+
+## 生产验收脚本不能默认信任 WindowsApps 的 Python alias
+
+### 现象
+
+Docker 容器 healthy，真实 API 可用，但直接执行 `scripts/production_acceptance.ps1` 时，`sync/artifact` Contract Harness 失败且没有 Python 输出。宿主机的 `python` 实际解析到 WindowsApps Store alias；显式使用真实解释器后同一验收立即通过。
+
+### 根因
+
+脚本未配置 `SPATIAL_AGENT_PYTHON` 时直接调用字符串 `python`。WindowsApps alias 在部分主机上静默退出，导致 `$LASTEXITCODE` 非零但错误看起来像 Harness 或 API payload 不一致。
+
+### 修复与预防
+
+M140 增加 `Resolve-ContractHarnessPython`：优先显式解释器，再枚举可运行的 `python.exe`，跳过 WindowsApps alias 并执行短探针；Harness 失败时报告解释器路径、退出码和有界错误文本。以后跨语言验收入口不能假设 PATH 中第一个 `python` 可用，也不能输出密钥或模型原文。
+
+## Compose 的 env_file 不能替代宿主机 volume 插值
+
+### 现象
+
+M140 用当前工作树执行不带 `--env-file` 的 Compose 重建后，容器虽然 healthy，但 `/capabilities/runtime` 返回 500，日志为 `admin_areas dataset has no files`；容器 `/data` 为空，挂载源是仓库默认 `./data`，不是 `.env.production` 的真实 GIS 数据目录。
+
+### 根因
+
+Compose 的 `env_file` 只向容器注入变量，不参与 Compose 文件自身的宿主机路径插值。`${SPATIAL_AGENT_HOST_DATASET_ROOT:-./data}` 在没有进程环境或显式 `--env-file` 时会回退到空目录。
+
+### 修复与预防
+
+生产重建使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate`，并检查 `docker inspect` 的 `/data` source、容器文件和 runtime health。以后不能只看容器 healthy；必须验证 Compose 展开、文件可见性和数据能力快照。
+
+## 真实模型的多工具计划仍必须通过严格 DAG 和工具契约
+
+### 现象
+
+M140 live smoke 中，约束建设案例完成；空间总览案例的 provider 请求成功，但模型计划多生成了一个重复 `range_query`，并带有未声明依赖引用。Runtime 将其分类为 `tool_validation` 并拒绝执行；脱敏报告显示 provider error 为 `none`。
+
+### 根因
+
+模型能够理解任务并覆盖预期工具，但没有稳定遵守复杂总览计划的固定节点、唯一步骤和依赖声明。结果类型正确不能替代 TaskPlan schema、DAG 和 ToolRegistry 校验。
+
+### 处理与预防
+
+当前保留严格校验，不为 live smoke 放宽重复步骤、未知引用或工具白名单；只记录案例状态、错误分类、token/延迟等脱敏指标。下一阶段从全局 Agent 角度增强 capability-guided plan repair/retry 与结构化模型输出约束，且所有修复仍须经过同一 schema、DAG 和 ToolRegistry。

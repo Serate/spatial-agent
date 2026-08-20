@@ -37,6 +37,87 @@ GIS_DATASET_GROUPS = {
     "optional": ("roads", "water"),
 }
 
+
+def _request_requirements(*, entities=(), datasets=(), constraints=(), fields=()):
+    """Declare request facts needed to clarify a GIS capability.
+
+    Dataset dependencies remain on each capability's ``datasets`` field.  The
+    optional ``request_requirements`` block only describes facts that must be
+    present in the user's request, so the generic catalog can project them
+    without knowing GIS capability IDs.
+    """
+
+    return {
+        "entities": list(entities),
+        "datasets": list(datasets),
+        "constraints": list(constraints),
+        "clarification_fields": [dict(field) for field in fields],
+    }
+
+
+_REGION_FIELD = {
+    "id": "region",
+    "label": "区域或行政区",
+    "kind": "entity",
+    "key": "admin_name",
+}
+_DATASET_FIELD = {
+    "id": "dataset",
+    "label": "数据集",
+    "kind": "dataset",
+    "mode": "any",
+}
+_THRESHOLD_FIELD = {
+    "id": "filter_threshold",
+    "label": "筛选阈值",
+    "kind": "constraint",
+    "mode": "any",
+}
+
+
+def _region_requirements():
+    return _request_requirements(entities=("admin_name",), fields=(_REGION_FIELD,))
+
+
+def _region_dataset_requirements(values):
+    dataset_field = dict(_DATASET_FIELD)
+    dataset_field["values"] = list(values)
+    return _request_requirements(
+        entities=("admin_name",),
+        datasets=values,
+        fields=(_REGION_FIELD, dataset_field),
+    )
+
+
+def _buildability_requirements():
+    threshold = dict(_THRESHOLD_FIELD)
+    threshold["keys"] = ["slope_max"]
+    return _request_requirements(
+        entities=("admin_name",),
+        constraints=("slope_max",),
+        fields=(_REGION_FIELD, threshold),
+    )
+
+
+def _constrained_buildability_requirements():
+    threshold = dict(_THRESHOLD_FIELD)
+    threshold["keys"] = ["slope_max", "road_distance_max", "exclude_water"]
+    threshold["mode"] = "all"
+    return _request_requirements(
+        entities=("admin_name",),
+        constraints=("slope_max", "road_distance_max", "exclude_water"),
+        fields=(_REGION_FIELD, threshold),
+    )
+
+
+def _legacy_road_slope_requirements():
+    threshold = dict(_THRESHOLD_FIELD)
+    threshold["keys"] = ["slope_value"]
+    return _request_requirements(
+        constraints=("slope_value",),
+        fields=(threshold,),
+    )
+
 GIS_CAPABILITIES = (
     {
         "id": "conversation",
@@ -59,6 +140,7 @@ GIS_CAPABILITIES = (
         "result_types": ["spatial_overview_result"],
         "environments": ["local", "production"],
         "geometry": "optional",
+        "request_requirements": _region_requirements(),
     },
     {
         "id": "spatial_analysis",
@@ -73,6 +155,7 @@ GIS_CAPABILITIES = (
         "result_types": ["spatial_analysis_result"],
         "environments": ["local", "production"],
         "geometry": "available_when_artifact_contains_features",
+        "request_requirements": _region_requirements(),
     },
     {
         "id": "admin_boundary_query",
@@ -82,6 +165,9 @@ GIS_CAPABILITIES = (
         "result_types": ["admin_area_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "optional",
+        "request_requirements": _request_requirements(
+            entities=("admin_name",), fields=(_REGION_FIELD,)
+        ),
     },
     {
         "id": "raster_metadata",
@@ -100,6 +186,7 @@ GIS_CAPABILITIES = (
         "result_types": ["zonal_raster_statistics_result"],
         "environments": ["local", "production"],
         "geometry": "optional",
+        "request_requirements": _region_dataset_requirements(("dem", "land_use")),
     },
     {
         "id": "zonal_terrain_land_use",
@@ -113,6 +200,7 @@ GIS_CAPABILITIES = (
         "result_types": ["terrain_land_use_analysis_result"],
         "environments": ["local", "production"],
         "geometry": "optional",
+        "request_requirements": _region_dataset_requirements(("dem", "land_use")),
     },
     {
         "id": "buildability_screening",
@@ -122,6 +210,7 @@ GIS_CAPABILITIES = (
         "result_types": ["buildability_result", "buildability_comparison"],
         "environments": ["local", "production"],
         "geometry": "available_when_artifact_contains_features",
+        "request_requirements": _buildability_requirements(),
     },
     {
         "id": "constrained_buildability_screening",
@@ -134,6 +223,7 @@ GIS_CAPABILITIES = (
         "result_types": ["constrained_buildability_result"],
         "environments": ["local", "production"],
         "geometry": "available_when_artifact_contains_features",
+        "request_requirements": _constrained_buildability_requirements(),
     },
     {
         "id": "vector_summary",
@@ -143,6 +233,7 @@ GIS_CAPABILITIES = (
         "result_types": ["zonal_vector_summary_result"],
         "environments": ["local", "production"],
         "geometry": "optional",
+        "request_requirements": _region_requirements(),
     },
     {
         "id": "dataset_health",
@@ -188,6 +279,7 @@ GIS_CAPABILITIES = (
         "result_types": ["spatial_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "optional",
+        "request_requirements": _legacy_road_slope_requirements(),
     },
     {
         "id": "admin_raster_composite",
@@ -200,5 +292,6 @@ GIS_CAPABILITIES = (
         "result_types": ["zonal_raster_statistics_result"],
         "environments": ["local", "production"],
         "geometry": "optional",
+        "request_requirements": _region_requirements(),
     },
 )

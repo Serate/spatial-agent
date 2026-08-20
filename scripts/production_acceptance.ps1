@@ -35,6 +35,44 @@ function Post-JsonExpectError($url, $body) {
   }
 }
 
+function Resolve-ContractHarnessPython {
+  $configured = [string]$env:SPATIAL_AGENT_PYTHON
+  $candidates = @()
+  if (-not [string]::IsNullOrWhiteSpace($configured)) {
+    $candidates += [Environment]::ExpandEnvironmentVariables($configured.Trim())
+  }
+
+  # ``python`` may resolve to the WindowsApps Store alias.  It exits without
+  # a useful diagnostic on some hosts, so enumerate real python.exe entries
+  # and probe them before running the contract checker.
+  $commands = @(Get-Command python.exe -All -ErrorAction SilentlyContinue)
+  foreach ($command in $commands) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$command.Source)) {
+      $candidates += [string]$command.Source
+    }
+  }
+
+  $seen = @{}
+  foreach ($candidate in $candidates) {
+    $path = [string]$candidate
+    if ([string]::IsNullOrWhiteSpace($path)) { continue }
+    $key = $path.ToLowerInvariant()
+    if ($seen.ContainsKey($key)) { continue }
+    $seen[$key] = $true
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+    if ($path -match '(?i)[\\/]WindowsApps[\\/]') { continue }
+    $probe = @(& $path -c "import sys; print(sys.executable)" 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $probe.Count -gt 0) {
+      return $path
+    }
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($configured)) {
+    throw "no runnable Python found for SPATIAL_AGENT_PYTHON=$configured"
+  }
+  throw "no runnable Python found; set SPATIAL_AGENT_PYTHON to a Python executable"
+}
+
 function Invoke-ContractHarness($payloads, [string]$surface) {
   if ($null -eq $payloads -or @($payloads).Count -lt 2) {
     throw "$surface contract comparison requires at least two payloads"
@@ -44,11 +82,16 @@ function Invoke-ContractHarness($payloads, [string]$surface) {
     $json = ConvertTo-Json -InputObject @($payloads) -Depth 50 -Compress
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($tempPath, $json, $utf8)
-    $python = if ([string]::IsNullOrWhiteSpace([string]$env:SPATIAL_AGENT_PYTHON)) { "python" } else { $env:SPATIAL_AGENT_PYTHON }
+    $python = Resolve-ContractHarnessPython
     $checker = Join-Path $PSScriptRoot "contract_harness_check.py"
-    $output = & $python $checker --input $tempPath
-    if ($LASTEXITCODE -ne 0) {
-      throw "$surface contract harness failed: $($output -join "`n")"
+    $output = @(& $python $checker --input $tempPath 2>&1)
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+      $details = ($output | Out-String).Trim()
+      if ([string]::IsNullOrWhiteSpace($details)) {
+        $details = "checker exited without output"
+      }
+      throw "$surface contract harness failed (python=$python, exit_code=$exitCode): $details"
     }
     $report = ($output -join "`n") | ConvertFrom-Json
     if ($null -eq $report -or $report.status -ne "ok") {

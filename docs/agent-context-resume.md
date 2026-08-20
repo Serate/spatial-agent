@@ -1244,3 +1244,15 @@ M137 已建立统一 `spatial-agent.deployment-evidence.v1`，但生产 acceptan
 M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求理解边界：将仍位于公共 `agent/spatial_intent.py` 的 GIS 词汇、能力提示和缺参策略下沉到 GIS Domain，建立可替换的 intent/clarification seam；保持旧导入兼容、Text/GIS 隔离、结构化澄清结果和默认离线 profile，最大并发度保持 1。
 
 顺序为：Domain-owned projection -> GIS 迁移/兼容 facade -> preview/run/HTTP evidence 贯通 -> 脱敏开放式回放与跨入口验收 -> 全局七维重规划。
+
+## M140 当前阶段：CapabilityCatalog-owned 请求需求与真实环境验收
+
+- `agent/capability_catalog.py` 新增 `spatial-agent.capability-requirements.v1` 的有界归一化和通用澄清需求投影；GIS 能力在 `domains/gis/catalog.py` 声明实体、数据集、约束事实，GIS intent 不再按 capability ID 硬编码缺参；Text Domain 保持隔离。
+- `domains/gis/evidence.py` 将历史 runtime snapshot 的 `capabilities` 适配为通用证据 seam 的 `capabilities_runtime`；M140 专项覆盖自定义 capability、GIS 澄清、Text/GIS 隔离和兼容适配。
+- `production_acceptance.ps1` 会选择真实可运行 Python 并跳过 WindowsApps alias，Harness 失败会报告解释器和退出码。当前 Docker Engine 29.6.2 可用，容器以当前工作树重建并通过 `--env-file .env.production` 挂载 `D:/dataset/agent`，healthy 且真实 GIS 数据 ready。
+- M140/M139/M62 15 项、`quick`/`ci`/`stage`/`full-stage`、GIS-core、全量离线 735 项（42 项跳过）、compileall、Ruff、Pyflakes、PowerShell parser、diff check 和 Docker production acceptance 已通过。
+- live smoke 中约束建设案例通过；空间总览案例的真实模型返回了重复 `range_query` 和未声明依赖，被 `tool_validation` 正确拒绝，provider 错误分类为 none。不要把该部分 live 结果记为全量通过；问题已记录在 `docs/agent-development-issues.md`。
+
+## M141 下一阶段全局规划
+
+从全局 Agent Runtime 继续推进模型计划稳健性：建立 capability-guided、受预算限制的 plan repair seam，统一 rule/offline replay/live 的 TaskPlan schema、DAG、ToolRegistry 和 repair lineage；补复杂总览脱敏 replay 与可选 live 基线，并验证同步、异步、artifact/recovery、Text/GIS 和 Console 的同一证据契约。规划不得退化为某个区域或数据集的专用分支，最大并发度保持 1。

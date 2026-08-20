@@ -36,7 +36,20 @@ class GisEvidenceProvider:
     def runtime_snapshot(self, *, max_files: int = 10) -> Mapping[str, Any]:
         from agent.runtime_capabilities import runtime_capability_snapshot
 
-        return runtime_capability_snapshot(max_files=max_files)
+        value = runtime_capability_snapshot(max_files=max_files)
+        if not isinstance(value, Mapping):
+            return {}
+        result = dict(value)
+        # The legacy snapshot calls this list ``capabilities``.  The generic
+        # Runtime evidence seam uses an explicit name so it cannot confuse
+        # runtime projections with the static catalog.  Normalize at the
+        # Domain adapter instead of making the shared Runtime know GIS names.
+        if (
+            "capabilities_runtime" not in result
+            and isinstance(result.get("capabilities"), list)
+        ):
+            result["capabilities_runtime"] = list(result["capabilities"])
+        return result
 
     def release_snapshot(
         self,
