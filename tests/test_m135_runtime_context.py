@@ -203,6 +203,8 @@ class M135RuntimeContextTests(unittest.TestCase):
         self.assertIn("context.tool_provider", source)
         self.assertIn("context.domain_id", source)
         self.assertIn("deployment_evidence", source)
+        self.assertIn("deployment.data", source)
+        self.assertIn("发布证据", source)
         self.assertIn("Planner ", source)
 
 

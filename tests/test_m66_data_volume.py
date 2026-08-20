@@ -90,6 +90,14 @@ class M66DataVolumeContractTests(unittest.TestCase):
         self.assertIn("spatial-agent.replanning.v1", script)
         self.assertIn("replanning lineage count mismatch", script)
         self.assertIn("result replanning envelope missing", script)
+        self.assertIn("function Assert-DeploymentEvidence", script)
+        self.assertIn("spatial-agent.deployment-evidence.v1", script)
+        self.assertIn("deployment context fingerprint mismatch", script)
+        self.assertIn("runtime and release deployment context fingerprints differ", script)
+        self.assertIn("/release-evidence?max_files=1", script)
+        self.assertIn("runtime_deployment_status", script)
+        self.assertIn("release_deployment_status", script)
+        self.assertIn("sync_deployment_status", script)
 
     @unittest.skipUnless(
         os.environ.get("SPATIAL_AGENT_RUN_M66_PRODUCTION") == "1",

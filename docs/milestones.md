@@ -2861,3 +2861,21 @@ M137 顺序任务：
 - `model_evidence` 支持 `rule`、`offline_replay`、`live_model` 三种安全执行模式；脱敏评测报告带有界 `fixture_id`，真实客户端保留 provider/model/wire API 和 token/延迟/错误分类，不复制原始响应。
 - 新增 `spatial-agent.deployment-evidence.v1`，聚合 Context、模型、runtime/release 数据状态、manifest/source/output verification 和降级摘要；结果 envelope、runtime capabilities、release evidence 与 Console 共享该投影。
 - M137 专项 4 项、M135/M136 相邻 Context/跨入口专项 12 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 均通过；完整离线回归 726 项通过、42 项按环境跳过。Docker 宿主当前不可用，真实 production/GIS/live 证据不提前宣称。
+
+## M138 全局规划：Deployment Evidence 跨入口验收与发布 readiness
+
+M137 的统一 deployment evidence 已进入 Runtime、release、result 和 Console，但生产 acceptance 还没有把该投影作为跨入口门禁。M138 先补齐 runtime capabilities、`/release-evidence`、同步/异步结果、失败结果、artifact/recovery 的一致性检查，再完善通用前端证据卡；所有数据、模型和部署专项都通过该公共契约接入，不新增 GIS 区域规则。
+
+### M138 顺序任务
+
+1. 增加 deployment evidence 的生产脚本断言：schema、状态、Context fingerprint、模型执行模式、必需 section 和敏感字段过滤。
+2. 将 release endpoint、运行 artifact、失败运行和异步终态纳入同一 acceptance 结果摘要与 Contract Harness。
+3. 让 Console 展示 deployment/data/model/recovery 的有界摘要和发布证据引用，Text/GIS 共用渲染路径。
+4. 以少量离线契约、PowerShell parser 和显式环境验收收口；Docker 不可用时保留未验证证据，不用旧容器结果替代当前版本。
+
+## M138 当前实现状态
+
+- 生产 acceptance 已增加 `spatial-agent.deployment-evidence.v1` 门禁：runtime capabilities、`/release-evidence`、同步/失败/异步运行和 artifact 均校验 schema、Context fingerprint、模型模式、数据/降级 section 与敏感字段边界。
+- Console 统一执行证据显示 deployment/data/degradation 摘要，并可从 lineage 打开 `/release-evidence`；没有增加 GIS 专用渲染分支。
+- M138 关联回归 19 项通过（1 项真实 Docker acceptance 按环境跳过）；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture、PowerShell parser、Node 内嵌 JS 和 `git diff --check` 通过；完整离线 726 项通过、42 项按环境跳过。
+- Docker Linux engine 当前不可用，FastAPI/Docker/真实 GIS/live production acceptance 仍待环境恢复后执行。

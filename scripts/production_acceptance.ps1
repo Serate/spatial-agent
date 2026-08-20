@@ -373,6 +373,45 @@ function Assert-ViewEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-DeploymentEvidence($payload, [string]$surface) {
+  if ($null -eq $payload) { throw "$surface deployment payload is empty" }
+  $deployment = $payload.deployment_evidence
+  if ($null -eq $deployment -and $null -ne $payload.result) {
+    $deployment = $payload.result.deployment_evidence
+  }
+  if ($null -eq $deployment) { throw "$surface deployment evidence missing" }
+  if ($deployment.schema_version -ne "spatial-agent.deployment-evidence.v1") {
+    throw "$surface deployment evidence schema mismatch"
+  }
+  if ($deployment.status -notin @("ready", "degraded", "unavailable", "context_only", "unknown")) {
+    throw "$surface deployment evidence status invalid: $($deployment.status)"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$deployment.context_fingerprint)) {
+    throw "$surface deployment context fingerprint missing"
+  }
+  if ($null -eq $deployment.data -or $null -eq $deployment.model -or $null -eq $deployment.degradation) {
+    throw "$surface deployment evidence sections missing"
+  }
+  if ($deployment.model.execution_mode -notin @("rule", "offline_replay", "live_model", "unknown")) {
+    throw "$surface deployment model execution mode invalid"
+  }
+
+  $context = $payload.runtime_context
+  if ($null -eq $context -and $null -ne $payload.result) {
+    $context = $payload.result.runtime_context
+  }
+  if ($null -ne $context -and -not [string]::IsNullOrWhiteSpace([string]$context.fingerprint)) {
+    if ([string]$context.fingerprint -ne [string]$deployment.context_fingerprint) {
+      throw "$surface deployment context fingerprint mismatch"
+    }
+  }
+
+  $serialized = $payload | ConvertTo-Json -Depth 50 -Compress
+  if ($serialized -match '(?i)"(?:api_key|authorization|password|secret|raw_response)"\s*:') {
+    throw "$surface deployment payload contains a forbidden sensitive field"
+  }
+}
+
 $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
 $capabilityCatalog = Get-Json "$BaseUrl/capabilities"
@@ -382,6 +421,12 @@ if ($ready.status -ne "ready") { throw "readiness failed: $($ready.status)" }
 if ($capabilityCatalog.version -ne "1.0" -or @($capabilityCatalog.capabilities).Count -lt 1) { throw "capability catalog failed" }
 Assert-RuntimeCapabilitySnapshot $runtimeCapabilities
 $dataVolume = Assert-DataVolumeHealth $runtimeCapabilities
+Assert-DeploymentEvidence $runtimeCapabilities "runtime capabilities"
+$releaseEvidence = Get-Json "$BaseUrl/release-evidence?max_files=1"
+Assert-DeploymentEvidence $releaseEvidence "release evidence"
+if ($releaseEvidence.deployment_evidence.context_fingerprint -ne $runtimeCapabilities.deployment_evidence.context_fingerprint) {
+  throw "runtime and release deployment context fingerprints differ"
+}
 
 $sessionId = "production-acceptance-" + [guid]::NewGuid().ToString("N")
 $adminRequest = ([char]0x67E5) + ([char]0x8BE2) + ([char]0x6D2A) + ([char]0x5C71) + ([char]0x533A) + ([char]0x884C) + ([char]0x653F) + ([char]0x533A) + ([char]0x8FB9) + ([char]0x754C)
@@ -420,6 +465,7 @@ Assert-DegradationEvidence $syncRun "sync run"
 Assert-WorkspaceEvidence $syncRun "sync run"
 Assert-ViewEvidence $syncRun "sync run"
 Assert-ReplanningEvidence $syncRun "sync run"
+Assert-DeploymentEvidence $syncRun "sync run"
 if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
   throw "sync run artifact_ref missing"
 }
@@ -459,6 +505,7 @@ if ($artifact.result.views.schema_version -ne $syncRun.result.views.schema_versi
   throw "artifact views schema mismatch"
 }
 Assert-ReplanningEvidence $artifact "artifact"
+Assert-DeploymentEvidence $artifact "artifact"
 $syncArtifactContract = Invoke-ContractHarness -payloads @($syncRun, $artifact) -surface "sync/artifact"
 
 $failureRun = Post-Json "$BaseUrl/runs" @{
@@ -471,9 +518,11 @@ $failureRun = Post-Json "$BaseUrl/runs" @{
 }
 if ($failureRun.status -ne "FAILED") { throw "failure contract run unexpectedly succeeded" }
 Assert-FailureEvidence $failureRun "sync failure run"
+Assert-DeploymentEvidence $failureRun "sync failure run"
 $failureArtifactName = Split-Path -Leaf ([string]$failureRun.artifact_ref)
 $failureArtifact = Get-Json "$BaseUrl/artifacts/runs/$failureArtifactName"
 Assert-FailureEvidence $failureArtifact "failure artifact"
+Assert-DeploymentEvidence $failureArtifact "failure artifact"
 
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
   request = $adminRequest
@@ -503,6 +552,7 @@ for ($index = 0; $index -lt $PollLimit; $index++) {
 }
 if ($null -eq $final) { throw "async run did not reach a terminal state" }
 if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
+Assert-DeploymentEvidence $final "async run"
 
 [pscustomobject]@{
   status = "ok"
@@ -518,6 +568,9 @@ if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
   runtime_capability_count = @($runtimeCapabilities.capabilities).Count
   runtime_updated_at = $runtimeCapabilities.updated_at
   runtime_tool_provider = $runtimeCapabilities.tool_provider.id
+  runtime_deployment_status = $runtimeCapabilities.deployment_evidence.status
+  release_deployment_status = $releaseEvidence.deployment_evidence.status
+  sync_deployment_status = $syncRun.result.deployment_evidence.status
   runtime_tool_provider_health = $runtimeCapabilities.tool_provider_health.status
   runtime_tool_count = $runtimeCapabilities.tool_provider.tool_count
   preview_status = $preview.status

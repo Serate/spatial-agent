@@ -1215,3 +1215,19 @@ M137 从全局推进“统一 Deployment Evidence Contract”：将 runtime/rele
 - runtime/release evidence 已返回 Context fingerprint；Text/GIS 共享该身份，数据健康、manifest、source binding 和 output manifest 仍由 Domain Evidence Provider 负责。
 - `model_evidence` 支持 rule/offline replay/live model 执行模式，评测 fixture 只暴露 bounded identity；新增的 `deployment_evidence.v1` 聚合 Context、模型、数据状态和降级摘要，结果、能力快照、发布报告与 Console 共用。
 - M137 专项 4 项通过，M135/M136 相邻 Context/跨入口专项 12 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 均通过，完整离线回归 726 项通过、42 项按环境跳过。Docker 当前宿主不可用，不能把历史容器验收当作本版本证据。
+
+## 下一阶段 M138 全局规划
+
+M137 已建立统一 `spatial-agent.deployment-evidence.v1`，但生产 acceptance 尚未把 runtime capabilities、`/release-evidence`、同步/异步结果、失败运行和 artifact/recovery 的证据一致性作为门禁。M138 先完成跨入口 deployment evidence 验收与发布 readiness 闭环，再完善通用 Console evidence card；不新增 GIS 专用规则，最大并发度保持 1。
+
+1. 统一 schema、Context fingerprint、状态语义和敏感字段检查。
+2. 生产 acceptance 覆盖 runtime/release/run/artifact/failure/async，并接入 Contract Harness。
+3. Console 展示配置、数据、模型、降级、恢复状态和发布证据引用，Text/GIS 共用。
+4. 默认 profile 保持离线；Docker/FastAPI/GIS/live 仅在环境可用时执行当前版本显式验收。
+
+## M138 当前实现状态
+
+- 生产 acceptance 已覆盖 `spatial-agent.deployment-evidence.v1` 的 runtime/release/run/artifact/failure/async 入口，校验状态、Context fingerprint、模型模式、数据/降级 section 和敏感字段；runtime 与 release 证据必须共享 fingerprint。
+- Console 统一执行证据卡显示 deployment 状态、数据 readiness、降级状态和发布证据链接，Text/GIS 共用动态路径。
+- 关联回归 19 项通过（1 项真实 Docker acceptance 按环境跳过）；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture、PowerShell parser、Node 内嵌 JS 和 diff check 通过；完整离线 726 项通过、42 项按环境跳过。
+- Docker Linux engine 当前不可用，当前版本 FastAPI/Docker/GIS/live production acceptance 未验证，不能把旧容器结果当作本版本证据。

@@ -1469,3 +1469,31 @@ M136 已让 Context、model evidence 和 provenance fingerprint 可以跨 transp
 - `model_evidence` 已标记 `rule`、`offline_replay`、`live_model`，脱敏 replay 报告关联有界 fixture identity；result/artifact/recovery 仍只消费白名单证据。
 - `agent/deployment_evidence.py` 提供 `spatial-agent.deployment-evidence.v1`，结果 envelope、runtime capabilities、release evidence 和 Console 执行证据均可读取 Context、模型、数据/manifest、降级状态的统一摘要。
 - M137 专项 4 项、M135/M136 相邻 Context/跨入口专项 12 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 均通过；完整离线回归 726 项通过、42 项按环境跳过。Docker 当前宿主不可用，不能把历史容器验收当作本版本证据。
+
+## M138 全局规划：Deployment Evidence 跨入口验收与发布 readiness
+
+M137 已建立统一 deployment evidence projection，但生产 acceptance 尚未把它作为门禁，runtime capabilities、`/release-evidence`、运行结果、artifact/recovery、异步终态和前端展示也缺少一套完整的跨入口断言。M138 以“证据生成、传输、恢复和验收一致”为纵向目标，不新增区域专用规则。
+
+七维度盘点与顺序任务：
+
+1. **产品能力**：用户和面试演示可以从同一证据卡看到 Runtime 配置、数据发布状态、模型执行模式、降级状态和可恢复性，并能跳转到发布证据。
+2. **架构边界**：统一 runtime/release/result/artifact/async 的 deployment evidence schema、Context fingerprint 和状态语义；Contract Harness 对这些公共证据做有界比较。
+3. **数据质量**：验收 `ready`、`degraded`、`unavailable`、metadata-only、hash verified、source/output mismatch 等状态均能安全表达，不输出原始路径、栅格内容或大几何。
+4. **真实模型**：验证 rule、offline replay、live model 的执行模式和 bounded fixture/provider identity；模型失败分类与部署状态关联，但不写入 prompt、原响应或密钥。
+5. **部署可靠性**：生产 acceptance 增加 runtime capabilities、`/release-evidence`、同步/异步、失败运行和 artifact 的 evidence gate；Docker/FastAPI 恢复后运行当前版本验收，环境不可用时明确记录。
+6. **用户体验**：Console 只消费结构化 deployment evidence，展示配置、数据、模型和恢复状态，不增加 GIS 专用 DOM 分支。
+7. **测试证据**：新增少量跨入口正负契约与 PowerShell acceptance 静态门禁；默认 `quick`/`ci`/`stage`/`full-stage` 仍离线，真实 GIS/live/Docker 按显式 profile 验收。
+
+执行顺序：
+
+1. 为 runtime capabilities、release evidence、run、artifact、failure 和 async payload 增加统一 deployment evidence 检查。
+2. 将生产 acceptance 的 evidence gate 与 release endpoint、Context fingerprint 和敏感字段检查接通。
+3. 完善 Console evidence card 与发布证据链接的通用渲染，并验证 Text/GIS 领域隔离。
+4. 用 Contract Harness、离线回归和可用环境下的 Docker/FastAPI/GIS/live acceptance 收口，再进行七维度重规划。
+
+## M138 当前实现状态
+
+- `scripts/production_acceptance.ps1` 新增 `Assert-DeploymentEvidence`，覆盖 runtime capabilities、`/release-evidence`、同步 run、失败 run、异步终态和 run artifact；校验 schema、状态、Context fingerprint、模型执行模式、必需 section 和敏感字段，并比较 runtime/release fingerprint。
+- Console 的统一执行证据卡显示 deployment 状态、数据 readiness、降级状态和 lineage 发布证据链接；Text/GIS 共用同一结构化渲染路径。
+- M138 关联回归 19 项通过（1 项真实 Docker acceptance 按环境跳过）；PowerShell parser、Node 内嵌 JS、`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 通过；完整离线回归 726 项通过、42 项按环境跳过。
+- Docker Linux engine 当前不可用，当前版本 FastAPI/Docker/GIS/live production acceptance 尚未执行；不能用旧容器证据替代本版本验收。
