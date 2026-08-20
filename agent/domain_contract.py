@@ -104,6 +104,9 @@ class DomainPack(Protocol):
     def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
         """Return optional domain-specific runtime/data evidence."""
 
+    def evidence_provider(self) -> Any:
+        """Return the optional versioned runtime/release evidence provider."""
+
     def release_evidence(
         self,
         *,
@@ -311,12 +314,30 @@ def result_registry(domain_pack: DomainPack) -> Any:
 
 
 def runtime_evidence(domain_pack: DomainPack, *, max_files: int = 10) -> dict[str, Any]:
-    """Read optional bounded runtime evidence without imposing a data model."""
-    method = getattr(domain_pack, "runtime_evidence", None)
-    if not callable(method):
+    """Read bounded runtime evidence through the provider compatibility seam."""
+    provider = _evidence_provider(domain_pack)
+    method = getattr(provider, "snapshot", None) if provider is not None else None
+    if callable(method):
+        value = method("runtime", max_files=max_files)
+    else:
+        method = getattr(provider, "runtime_snapshot", None) if provider is not None else None
+        if callable(method):
+            value = method(max_files=max_files)
+            method = None
+        else:
+            method = getattr(domain_pack, "runtime_evidence", None)
+            if not callable(method):
+                return {}
+            value = method(max_files=max_files)
+    if not isinstance(value, Mapping):
         return {}
-    value = method(max_files=max_files)
-    return dict(value) if isinstance(value, Mapping) else {}
+    from .evidence_contract import attach_evidence_contract
+
+    return attach_evidence_contract(
+        value,
+        domain_id=str(getattr(domain_pack, "domain_id", "unknown")),
+        kind="runtime",
+    )
 
 
 def release_evidence(
@@ -332,20 +353,46 @@ def release_evidence(
     bounded ``not_evaluated`` response instead of inheriting another domain's
     data policy.
     """
-    method = getattr(domain_pack, "release_evidence", None)
-    if not callable(method):
-        return {
-            "report_version": 1,
-            "domain_id": str(getattr(domain_pack, "domain_id", "unknown"))[:80],
-            "status": "not_evaluated",
-            "data_readiness": "not_evaluated",
-            "metadata": {"status": "not_evaluated"},
-            "source_binding": {"status": "not_evaluated"},
-            "output_manifest": {"status": "not_evaluated"},
-            "manifest": {"status": "not_evaluated"},
-        }
-    value = method(config_path=config_path, max_files=max_files)
-    return dict(value) if isinstance(value, Mapping) else {}
+    provider = _evidence_provider(domain_pack)
+    method = getattr(provider, "snapshot", None) if provider is not None else None
+    if callable(method):
+        value = method("release", config_path=config_path, max_files=max_files)
+    else:
+        method = getattr(provider, "release_snapshot", None) if provider is not None else None
+        if callable(method):
+            value = method(config_path=config_path, max_files=max_files)
+        else:
+            method = getattr(domain_pack, "release_evidence", None)
+            if not callable(method):
+                return {
+                    "report_version": 1,
+                    "domain_id": str(getattr(domain_pack, "domain_id", "unknown"))[:80],
+                    "status": "not_evaluated",
+                    "data_readiness": "not_evaluated",
+                    "metadata": {"status": "not_evaluated"},
+                    "source_binding": {"status": "not_evaluated"},
+                    "output_manifest": {"status": "not_evaluated"},
+                    "manifest": {"status": "not_evaluated"},
+                }
+            value = method(config_path=config_path, max_files=max_files)
+    if not isinstance(value, Mapping):
+        return {}
+    from .evidence_contract import attach_evidence_contract
+
+    return attach_evidence_contract(
+        value,
+        domain_id=str(getattr(domain_pack, "domain_id", "unknown")),
+        kind="release",
+    )
+
+
+def _evidence_provider(domain_pack: DomainPack) -> Any:
+    """Resolve the new provider without breaking older Domain Pack adapters."""
+    factory = getattr(domain_pack, "evidence_provider", None)
+    if not callable(factory):
+        return None
+    value = factory()
+    return value if value is not None else None
 
 
 def default_domain_pack() -> DomainPack:

@@ -60,6 +60,8 @@ class ArtifactStore:
             "action_execution_id": execution_id,
             "action_id": payload.get("action_id"),
             "domain_id": payload.get("domain_id"),
+            "idempotency_key": payload.get("idempotency_key"),
+            "input_fingerprint": payload.get("input_fingerprint"),
             "status": payload.get("status"),
             "action_execution": payload.get("action_execution"),
             "action_result": payload.get("action_result"),
@@ -72,6 +74,30 @@ class ArtifactStore:
         }
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
+
+    def find_action_by_idempotency_key(self, key: str) -> Optional[Dict]:
+        """Find the newest bounded action record for an explicit idempotency key."""
+        if not isinstance(key, str) or not key or len(key) > 128 or Path(key).name != key:
+            return None
+        if not self._root.exists():
+            return None
+        paths = sorted(
+            self._root.glob("action-*.json"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        for path in paths[:10000]:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if (
+                payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1"
+                and payload.get("idempotency_key") == key
+            ):
+                payload.setdefault("artifact_ref", path.as_posix())
+                return payload
+        return None
 
     def read_run(self, run_id: str) -> Optional[Dict]:
         """Read a single persisted run artifact, or None when it is missing.
@@ -103,6 +129,41 @@ class ArtifactStore:
             return None
         payload.setdefault("action_execution_id", execution_id)
         return payload
+
+    def list_actions(self, limit: int = 20) -> List[Dict]:
+        """List bounded action evidence without exposing action payloads."""
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        if not self._root.exists():
+            return []
+        records = []
+        paths = sorted(
+            self._root.glob("action-*.json"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        for path in paths:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if payload.get("artifact_schema_version") != "spatial-agent.action-artifact.v1":
+                continue
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            records.append({
+                "action_execution_id": payload.get("action_execution_id"),
+                "action_id": payload.get("action_id"),
+                "domain_id": payload.get("domain_id"),
+                "status": payload.get("status"),
+                "result_type": result.get("type"),
+                "action_error_code": payload.get("action_error_code"),
+                "action_execution": payload.get("action_execution"),
+                "artifact_ref": path.as_posix(),
+                "modified_at": path.stat().st_mtime,
+            })
+            if len(records) >= limit:
+                break
+        return records
 
     def list_runs(self, limit: int = 20) -> List[Dict]:
         if limit < 1:
@@ -149,6 +210,42 @@ class ArtifactStore:
             "total_tokens": total_tokens,
         }
 
+    def action_metrics(self) -> Dict:
+        """Return bounded action artifact counters without loading raw results."""
+        count = 0
+        status_counts = {}
+        error_counts = {}
+        durations = []
+        if self._root.exists():
+            paths = sorted(
+                self._root.glob("action-*.json"),
+                key=lambda item: item.stat().st_mtime,
+                reverse=True,
+            )[:10000]
+            for path in paths:
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    continue
+                if payload.get("artifact_schema_version") != "spatial-agent.action-artifact.v1":
+                    continue
+                count += 1
+                status = str(payload.get("status") or "UNKNOWN")[:32]
+                status_counts[status] = status_counts.get(status, 0) + 1
+                code = payload.get("action_error_code")
+                if code:
+                    code = str(code)[:96]
+                    error_counts[code] = error_counts.get(code, 0) + 1
+                duration = (payload.get("action_execution") or {}).get("duration_ms")
+                if isinstance(duration, (int, float)) and not isinstance(duration, bool):
+                    durations.append(float(duration))
+        return {
+            "count": count,
+            "status_counts": status_counts,
+            "error_counts": error_counts,
+            "duration_ms": _duration_summary(durations),
+        }
+
 
 def _plan_summary(plan):
     if not isinstance(plan, dict):
@@ -193,3 +290,14 @@ def _degradation_summary(payload):
     if isinstance(degradation, dict):
         return degradation
     return None
+
+
+def _duration_summary(values):
+    if not values:
+        return {"count": 0, "min": None, "max": None, "mean": None}
+    return {
+        "count": len(values),
+        "min": round(min(values), 3),
+        "max": round(max(values), 3),
+        "mean": round(sum(values) / len(values), 3),
+    }

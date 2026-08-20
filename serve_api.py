@@ -79,6 +79,14 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             else:
                 self._write_json(200, result)
             return
+        if parsed.path == "/action-executions":
+            query = parse_qs(parsed.query)
+            try:
+                limit = int(query.get("limit", [20])[0])
+                self._write_json(200, self.service.list_action_executions(limit=limit))
+            except ValueError as exc:
+                self._write_json(400, error_response(exc))
+            return
         if parsed.path == "/workflows":
             self._write_json(200, {"templates": workflow_template_catalog()})
             return
@@ -252,6 +260,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     payload,
                     planner=payload.get("planner", "rule"),
                     backend=payload.get("backend", "local"),
+                    idempotency_key=payload.get("idempotency_key"),
                 )
             elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")
@@ -311,15 +320,22 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         parts = path.strip("/").split("/")
         if len(parts) != 3 or parts[0] != "artifacts":
             return None
-        roots = {"runs": (self.artifact_root, "application/json"), "geojson": (self.geojson_root, "application/geo+json")}
+        roots = {"runs": (self.artifact_root, "application/json"), "actions": (self.artifact_root, "application/json"), "geojson": (self.geojson_root, "application/geo+json")}
         if parts[1] not in roots or Path(parts[2]).name != parts[2]:
             return None
         root, content_type = roots[parts[1]]
+        explicit_artifact_root = "artifact_root" in type(self).__dict__
+        if parts[1] in ("runs", "actions") and self.service is not None and not explicit_artifact_root:
+            store_root = getattr(getattr(self.service, "_artifact_store", None), "_root", None)
+            if store_root is not None:
+                root = Path(store_root)
         candidate = (root / parts[2]).resolve()
         if root.resolve() not in candidate.parents:
             return None
-        expected_suffix = ".json" if parts[1] == "runs" else ".geojson"
+        expected_suffix = ".geojson" if parts[1] == "geojson" else ".json"
         if candidate.suffix != expected_suffix:
+            return None
+        if parts[1] == "actions" and not candidate.name.startswith("action-"):
             return None
         return candidate, content_type
 

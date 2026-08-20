@@ -41,6 +41,10 @@ class GisDomainPack:
     def default_permissions(self) -> set[str]:
         return {"spatial_data:read"}
 
+    def evidence_provider(self) -> Any:
+        """Return the GIS-owned provider for versioned evidence projections."""
+        return GIS_EVIDENCE_PROVIDER
+
     def preflight_tool(
         self,
         tool: str,

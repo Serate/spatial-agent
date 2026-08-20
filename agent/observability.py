@@ -44,6 +44,14 @@ _STEP_ALLOWED_ATTRIBUTES = {
     "error_code",
     "result_type",
 }
+_ACTION_ALLOWED_ATTRIBUTES = {
+    "action_id",
+    "domain_id",
+    "result_type",
+    "action_error_code",
+    "input_validated",
+    "artifact_available",
+}
 
 
 def observability_enabled() -> bool:
@@ -145,6 +153,33 @@ class ObservabilityEmitter:
             session_id=None,
         )
 
+    def emit_action(
+        self,
+        *,
+        execution_id: str,
+        action_id: str,
+        domain_id: Optional[str],
+        status: str,
+        duration_ms: Optional[float],
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Emit a bounded action span using the same trace event format."""
+        action_attributes = dict(attributes or {})
+        action_attributes.setdefault("action_id", action_id)
+        if domain_id:
+            action_attributes.setdefault("domain_id", domain_id)
+        self._emit(
+            "action",
+            span_id=_new_span_id(),
+            parent_span_id=None,
+            name="action:" + str(action_id)[:96],
+            status=status,
+            duration_ms=duration_ms,
+            attributes=action_attributes,
+            run_id=execution_id,
+            session_id=None,
+        )
+
     def close(self) -> None:
         if self._owned_stream is not None:
             try:
@@ -169,7 +204,13 @@ class ObservabilityEmitter:
     ) -> None:
         if not self._enabled:
             return
-        allowed = _ALLOWED_RUN if kind == "run" else _ALLOWED_STEP
+        allowed = (
+            _ALLOWED_RUN
+            if kind == "run"
+            else _ACTION_ALLOWED_ATTRIBUTES
+            if kind == "action"
+            else _ALLOWED_STEP
+        )
         safe_attributes = {
             key: value
             for key, value in (attributes or {}).items()

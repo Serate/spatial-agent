@@ -1301,3 +1301,17 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 ## 下一阶段规划原则
 
 下一阶段继续以完整 Agent 闭环为单位合并任务，至少同时覆盖架构 seam、跨入口结果契约、可替换领域回放、部署影响和中文文档。开发期间只运行编译/静态检查与必要的局部专项；阶段结束集中运行代表性专项和全量回归，然后再根据产品、架构、数据、模型、部署、体验、测试七个维度整体重规划。
+
+## M127 已完成
+
+- 已完成版本化 Domain Evidence Provider/Envelope、Action 幂等与失败重放、Action metrics/observability、Action history/artifact HTTP 入口，以及 Console 通用 Action evidence 展示。
+- 已完成脱敏回放的 Domain 选择：Text 使用 Text Domain Pack，GIS 使用 Demo GIS adapter；新增 Text 开放请求与 GIS 复杂总览 fixture。
+- M127 专项 7 项、离线全量 674 项通过（42 项跳过）；smoke、stage profile、`git diff --check` 和远端 CI 稳定门禁通过。
+- M127 已提交并推送阶段版本；FastAPI/Docker/真实 GIS/LLM 仍需在依赖可用时执行显式验收。
+
+## M128 全局规划
+
+1. 抽取 Run 与 Action 共用的 Execution Record/事件投影 seam，统一状态、trace、metrics、artifact/recovery 和幂等证据，避免公共 Runtime 继续维护两套近似执行模型。
+2. 用 Contract Harness 覆盖 CLI、开发 HTTP、生产 FastAPI、同步/异步、artifact 和 Console 的跨入口一致性，并使用 Text 与复杂 GIS 两类回放。
+3. 将数据健康/降级与执行结果建立通用关联；真实武汉数据继续只由 GIS Domain evidence 提供，真实模型继续作为可选 live 基线。
+4. 阶段末集中执行专项+全量，补充 Docker/FastAPI 可用性证据；环境不可用时记录明确阻塞，不把离线测试当成生产验收。

@@ -37,6 +37,11 @@ class TextDomainPack:
     def default_permissions(self) -> set[str]:
         return {"text_data:read"}
 
+    def evidence_provider(self) -> Any:
+        from .evidence import TEXT_EVIDENCE_PROVIDER
+
+        return TEXT_EVIDENCE_PROVIDER
+
     def result_registry(self) -> ResultContractRegistry:
         return ResultContractRegistry(
             {
@@ -49,12 +54,7 @@ class TextDomainPack:
         )
 
     def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
-        return {
-            "health_status": "ready",
-            "data_readiness": "not_applicable",
-            "data_evidence": {},
-            "data_provenance": {},
-        }
+        return self.evidence_provider().runtime_snapshot(max_files=max_files)
 
     def release_evidence(
         self,
@@ -63,16 +63,10 @@ class TextDomainPack:
         max_files: int = 10,
     ) -> Mapping[str, Any]:
         """Text has no configured GIS volume or release manifest."""
-        return {
-            "report_version": 1,
-            "domain_id": self.domain_id,
-            "status": "not_applicable",
-            "data_readiness": "not_applicable",
-            "metadata": {"status": "not_applicable"},
-            "source_binding": {"status": "not_applicable"},
-            "output_manifest": {"status": "not_applicable"},
-            "manifest": {"status": "not_applicable"},
-        }
+        return self.evidence_provider().release_snapshot(
+            config_path=config_path,
+            max_files=max_files,
+        )
 
     def extract_request_facts(self, request: str) -> RequestFacts:
         return RequestFacts(

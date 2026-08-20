@@ -2567,6 +2567,23 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 将 provenance 中 `admin_name/crs` 等领域字段变为可选 Domain evidence，同时保留旧 artifact 读取兼容。
 3. 补前端动态 workspace/views/runtime evidence 的 Text/GIS 契约测试；Docker/FastAPI/真实模型和真实数据继续作为显式验收路径。
 
+## M127 已完成：Evidence Provider 与 Action 可恢复闭环
+
+- 新增 `spatial-agent.domain-evidence.v1` 统一 evidence envelope；GIS/Text provider 与旧 Domain Pack 均可通过同一 runtime/release seam 输出，旧 runtime/release 方法仍保留兼容。
+- Action 增加规范化输入指纹、显式幂等键、成功复用、输入冲突和失败 artifact 重放；Action metrics 与 bounded observability event 进入 Service metrics/事件流。
+- 开发 HTTP 与生产 FastAPI 增加 Action 历史列表和 Action artifact 读取入口，并保持普通 Run 列表、指标和 artifact 路径隔离。
+- Console 的比较结果、Action 详情和历史列表统一展示 Action ID、状态、trace、幂等复用状态、artifact/recovery 链接；不增加 GIS 专用渲染分支。
+- 脱敏模型回放 evaluator 支持 Text 与 GIS 两种 Domain Pack；新增开放式文本请求和复杂 GIS 总览 fixture，共享工具覆盖、计划质量、结果类型、中文答案及 token/延迟脱敏指标。
+- M127 专项 7 项、离线全量 674 项通过（42 项跳过）；smoke、stage profile、`git diff --check` 和远端 CI 稳定门禁通过。
+- FastAPI/Docker/真实 GIS 数据/可选真实模型仍属于环境条件验收，不能用离线结果代替生产矩阵证据。
+
+### M128 全局规划
+
+1. 从完整 Agent 闭环审计 Run 与 Action 两套执行记录，抽取通用 Execution Record/事件投影 seam，统一状态、trace、metrics、artifact/recovery 和幂等证据。
+2. 将 CLI、开发 HTTP、生产 FastAPI、同步/异步、artifact 和 Console 接入同一 Contract Harness，用 Text 与复杂 GIS 回放验证跨领域一致性。
+3. 将数据健康/降级证据与执行结果建立通用关联；真实数据只作为 GIS Domain evidence，真实模型只作为可选 live 基线。
+4. 阶段末执行专项+全量，并在 Docker/FastAPI 可用时完成部署矩阵；环境不可用时保留明确阻塞证据。
+
 ## M121 已完成：provenance Domain projection
 
 - `ResultContractRegistry` 增加 provenance projector；公共 provenance 只自动保留通用运行血缘和 bounded numeric counters，GIS 的 `admin_name/crs` 等兼容字段由 GIS registry 投影。

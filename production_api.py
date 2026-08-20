@@ -116,6 +116,14 @@ def action_execution(execution_id: str) -> Dict[str, Any]:
         _raise_for(exc, not_found=True)
 
 
+@app.get("/action-executions")
+def action_executions(limit: int = 20) -> Dict[str, Any]:
+    try:
+        return service.list_action_executions(limit=limit)
+    except Exception as exc:
+        _raise_for(exc)
+
+
 @app.get("/capabilities/runtime")
 def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
     try:
@@ -338,6 +346,7 @@ def execute_action(action_id: str, payload: Dict[str, Any]):
             payload,
             planner=payload.get("planner", "rule"),
             backend=payload.get("backend", "local"),
+            idempotency_key=payload.get("idempotency_key"),
         )
     except Exception as exc:
         _raise_for(exc)
@@ -359,9 +368,13 @@ def cancel(run_id: str, payload: Dict[str, Any]):
         _raise_for(exc)
 
 
-def _safe_artifact(root: Path, name: str, suffix: str) -> Path:
+def _safe_artifact(root: Path, name: str, suffix: str, prefix: str = "") -> Path:
     candidate = (root / Path(name).name).resolve()
-    if root.resolve() not in candidate.parents or candidate.suffix != suffix:
+    if (
+        root.resolve() not in candidate.parents
+        or candidate.suffix != suffix
+        or (prefix and not candidate.name.startswith(prefix))
+    ):
         raise HTTPException(status_code=404, detail="artifact not found")
     if not candidate.is_file():
         raise HTTPException(status_code=404, detail="artifact not found")
@@ -371,6 +384,11 @@ def _safe_artifact(root: Path, name: str, suffix: str) -> Path:
 @app.get("/artifacts/runs/{name}")
 def run_artifact(name: str):
     return FileResponse(_safe_artifact(ARTIFACT_ROOT, name, ".json"), media_type="application/json")
+
+
+@app.get("/artifacts/actions/{name}")
+def action_artifact(name: str):
+    return FileResponse(_safe_artifact(ARTIFACT_ROOT, name, ".json", prefix="action-"), media_type="application/json")
 
 
 @app.get("/artifacts/geojson/{name}")

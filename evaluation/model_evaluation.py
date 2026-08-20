@@ -82,7 +82,12 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         return {"fixture_id": fixture_id, "passed": False, "error_class": "fixture_error"}
     metrics = _fixture_metrics(fixture)
     safe_metrics = sanitize_provider_metrics(metrics)
-    runtime = _build_recorded_runtime(responses, metrics)
+    domain = str(fixture.get("domain") or "gis")[:32]
+    runtime = _build_recorded_runtime(
+        responses,
+        metrics,
+        domain=domain,
+    )
     session_id = "m69-replay-" + fixture_id
     turn_results = []
     for turn in turns:
@@ -124,6 +129,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         passed = passed and repair_count == expected_repair_count
     return {
         "fixture_id": fixture_id,
+        "domain": domain,
         "replay_type": str(fixture.get("replay_type") or "unknown"),
         "turn_count": len(turn_results),
         "repair_count": repair_count,
@@ -339,7 +345,22 @@ def classify_provider_error(
     return "other"
 
 
-def _build_recorded_runtime(response: Mapping[str, Any], metrics: Mapping[str, Any]) -> AgentRuntime:
+def _build_recorded_runtime(
+    response: Mapping[str, Any],
+    metrics: Mapping[str, Any],
+    *,
+    domain: str = "gis",
+) -> AgentRuntime:
+    if domain == "text":
+        from domains.text.domain import TEXT_DOMAIN_PACK
+        from domains.text.provider import TextToolProvider
+
+        registry = ToolRegistry.from_provider(TextToolProvider())
+        client = _RecordedModelClient(response, metrics)
+        planner = LLMPlanner(client, registry.names)
+        return AgentRuntime(planner, registry, domain_pack=TEXT_DOMAIN_PACK)
+    if domain != "gis":
+        raise ValueError("unsupported replay domain: " + domain)
     adapter = DemoSpatialAdapter()
     registry = ToolRegistry.from_json(str(TOOL_SCHEMA), adapter)
     client = _RecordedModelClient(response, metrics)

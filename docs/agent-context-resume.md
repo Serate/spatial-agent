@@ -1058,3 +1058,18 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 当前执行节奏
 
 每阶段合并更多相互依赖的纵向任务：同一阶段同时处理架构 seam、跨入口契约、可替换领域回放、部署影响和中文文档。开发中不重复运行长时间全量套件；只在接口发生变化时做必要专项，阶段结束集中测试、记录证据、提交并推送版本，再以产品、架构、数据、模型、部署、体验和测试七维度进行整体重规划。最大并发度保持 1。
+
+## M127 已完成：Evidence Provider 与 Action 可恢复闭环
+
+- 已实现 `spatial-agent.domain-evidence.v1` 证据 envelope，GIS/Text/旧 Domain Pack 通过统一 provider 兼容 seam 输出 runtime/release evidence。
+- 已实现 Action 输入指纹、幂等复用、输入冲突、失败重放、Action metrics/observability、历史列表与专用 artifact 下载；Console 已展示 Action ID、状态、trace 和 recovery/artifact 链接。
+- 脱敏模型 replay evaluator 已按 `domain` 选择 Text 或 GIS provider，并增加一个开放式文本请求与一个复杂 GIS 总览请求。
+- M127 专项 7 项、离线全量 674 项通过（42 项跳过）；smoke、stage profile、`git diff --check` 和远端 CI 稳定门禁通过。
+- FastAPI/Docker/真实 GIS/LLM 仍是环境条件验收，不能用离线结果代替；当前最大并发度保持 1。
+
+## M128 全局规划
+
+1. 从完整 Agent 闭环审计 Run 与 Action 两套执行记录，抽取通用 Execution Record/事件投影 seam，使状态、trace、metrics、artifact/recovery 和幂等证据可以跨入口复用，而不是只在 Action 侧复制一份。
+2. 将 CLI、开发 HTTP、生产 FastAPI、artifact 和 Console 的请求/计划/执行结果通过同一 Contract Harness 验证；补一条 Text 与一条复杂 GIS 的同步、异步、恢复矩阵。
+3. 保持真实数据只作为 GIS Domain evidence，增加数据健康/降级证据与运行结果的关联；真实模型继续用脱敏回放作为默认证据，live 只做可选基线。
+4. 以 Docker/FastAPI 可用性、CI 稳定门禁、前端动态 workspace 和跨领域回放为阶段验收，缺失环境必须输出明确阻塞证据而不是伪造通过。

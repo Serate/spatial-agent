@@ -1,11 +1,13 @@
 import os
 import json
+import hashlib
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Optional
 
 from agent.artifact_store import ArtifactStore
+from agent.action_contract import ActionContractError
 from agent.cost_governance import (
     ConcurrencyLimited,
     RunTokenCapExceeded,
@@ -88,6 +90,37 @@ def _action_result_type(runtime, action_id: str) -> str:
         if isinstance(item, dict) and str(item.get("id") or "") == action_id:
             return str(item.get("result_type") or "action_result")[:96]
     return "action_result"
+
+
+def _action_input_fingerprint(action_id: str, payload: Any) -> str:
+    encoded = json.dumps(
+        {"action_id": str(action_id), "payload": payload},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _action_response_from_artifact(artifact: Dict[str, Any]) -> Dict[str, Any]:
+    response = dict(artifact.get("action_result") or {})
+    response.update({
+        "action_id": artifact.get("action_id"),
+        "domain_id": artifact.get("domain_id"),
+        "status": artifact.get("status"),
+        "action_execution_id": artifact.get("action_execution_id"),
+        "action_execution": artifact.get("action_execution"),
+        "idempotency_key": artifact.get("idempotency_key"),
+        "trace_summary": artifact.get("trace_summary") or [],
+        "artifact_ref": artifact.get("artifact_ref"),
+        "result": artifact.get("result"),
+        "idempotency_reused": True,
+    })
+    if artifact.get("error"):
+        response["error"] = artifact["error"]
+    if artifact.get("action_error_code"):
+        response["action_error_code"] = artifact["action_error_code"]
+    return response
 
 
 class AgentService:
@@ -887,6 +920,11 @@ class AgentService:
             metrics = self._artifact_store.metrics()
             metrics["async_jobs"] = self._memory_async_metrics()
         metrics["cost_governance"] = self._state.cost.summary()
+        metrics["actions"] = self._artifact_store.action_metrics()
+        metrics["observability"] = {
+            "schema_version": "spatial-agent.observability.v1",
+            "event_count": self._state.observability.event_count,
+        }
         return metrics
 
     def capabilities(
@@ -924,6 +962,7 @@ class AgentService:
         payload: Dict[str, Any],
         planner: str = "rule",
         backend: str = "local",
+        idempotency_key: str = None,
     ) -> Dict[str, Any]:
         """Execute and durably observe a declared Domain Pack action."""
         runtime = self._runtime(planner, backend)
@@ -931,13 +970,42 @@ class AgentService:
         if not callable(resolver):
             raise ValueError("domain action execution is unavailable")
         action_id = str(action_id or "")[:96]
+        action_payload = dict(payload) if isinstance(payload, dict) else payload
+        if isinstance(action_payload, dict):
+            action_payload.pop("idempotency_key", None)
+        if idempotency_key is None and isinstance(payload, dict):
+            idempotency_key = payload.get("idempotency_key")
+        if idempotency_key is not None:
+            idempotency_key = str(idempotency_key).strip()
+            if not idempotency_key or len(idempotency_key) > 128 or "/" in idempotency_key or "\\" in idempotency_key:
+                raise ValueError("idempotency_key must be a safe non-empty value")
+        input_fingerprint = _action_input_fingerprint(action_id, action_payload)
+        if idempotency_key:
+            existing = self._artifact_store.find_action_by_idempotency_key(idempotency_key)
+            if existing is not None:
+                if existing.get("input_fingerprint") != input_fingerprint:
+                    raise ActionContractError(
+                        "idempotency_key conflicts with a previous action input",
+                        action_id=action_id,
+                        code="idempotency_conflict",
+                    )
+                if existing.get("status") == "FAILED":
+                    error = ActionContractError(
+                        str(existing.get("error") or "action execution failed"),
+                        action_id=action_id,
+                        code=str(existing.get("action_error_code") or "action_execution_failed"),
+                    )
+                    error.action_execution_id = existing.get("action_execution_id")
+                    error.artifact_ref = existing.get("artifact_ref")
+                    raise error
+                return _action_response_from_artifact(existing)
         execution_id = "action-" + uuid.uuid4().hex
         catalog = runtime.capability_catalog()
         domain_id = str(catalog.get("domain_id") or "unknown")[:80]
         result_type = _action_result_type(runtime, action_id)
         started = time.perf_counter()
         try:
-            result = resolver(action_id, payload, context=self)
+            result = resolver(action_id, action_payload, context=self)
         except Exception as exc:
             duration_ms = round((time.perf_counter() - started) * 1000, 3)
             action_error_code = str(getattr(exc, "code", "action_execution_failed"))[:96]
@@ -945,6 +1013,8 @@ class AgentService:
                 "action_execution_id": execution_id,
                 "action_id": action_id,
                 "domain_id": domain_id,
+                "idempotency_key": idempotency_key,
+                "input_fingerprint": input_fingerprint,
                 "status": "FAILED",
                 "result_type": result_type,
                 "error": str(exc),
@@ -975,6 +1045,18 @@ class AgentService:
                 registry=_runtime_result_registry(runtime),
             )
             self._artifact_store.write_action(record)
+            self._state.observability.emit_action(
+                execution_id=execution_id,
+                action_id=action_id,
+                domain_id=domain_id,
+                status="FAILED",
+                duration_ms=duration_ms,
+                attributes={
+                    "action_error_code": action_error_code,
+                    "input_validated": action_error_code != "action_invalid_input",
+                    "artifact_available": True,
+                },
+            )
             for name, value in {
                 "action_execution_id": execution_id,
                 "artifact_ref": artifact_ref,
@@ -1003,6 +1085,8 @@ class AgentService:
             "action_execution_id": execution_id,
             "action_id": action_id,
             "domain_id": domain_id,
+            "idempotency_key": idempotency_key,
+            "input_fingerprint": input_fingerprint,
             "status": "COMPLETED",
             "result_type": str(action_result.get("result_type") or result_type),
             "action_result": action_result,
@@ -1023,9 +1107,23 @@ class AgentService:
             registry=_runtime_result_registry(runtime),
         )
         self._artifact_store.write_action(record)
+        self._state.observability.emit_action(
+            execution_id=execution_id,
+            action_id=action_id,
+            domain_id=domain_id,
+            status="COMPLETED",
+            duration_ms=action_execution["duration_ms"],
+            attributes={
+                "result_type": record["result_type"],
+                "input_validated": True,
+                "artifact_available": True,
+            },
+        )
         response.update({
             "action_execution_id": execution_id,
             "action_execution": action_execution,
+            "idempotency_key": idempotency_key,
+            "idempotency_reused": False,
             "trace_summary": list(record["trace_summary"]),
             "artifact_ref": artifact_ref,
             "result": record["result"],
@@ -1038,6 +1136,15 @@ class AgentService:
         if value is None:
             raise ValueError("action execution not found: " + str(execution_id))
         return value
+
+    def list_action_executions(self, limit: int = 20) -> Dict[str, Any]:
+        """Return bounded action history for Console and operational clients."""
+        if not isinstance(limit, int) or limit < 1 or limit > 100:
+            raise ValueError("limit must be between 1 and 100")
+        return {
+            "schema_version": "spatial-agent.action-history.v1",
+            "actions": self._artifact_store.list_actions(limit=limit),
+        }
 
     def runtime_capabilities(
         self,
