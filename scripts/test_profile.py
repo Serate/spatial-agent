@@ -61,7 +61,7 @@ def main() -> int:
     parser.add_argument(
         "--profile",
         action="append",
-        choices=("quick", "smoke", "stage", "full-stage", "gis-core", "live-short", "docker"),
+        choices=("quick", "smoke", "ci", "stage", "full-stage", "gis-core", "live-short", "docker"),
         default=None,
         help="profile to run; repeatable; default: quick",
     )
@@ -106,6 +106,10 @@ def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
             "purpose": "service smoke only; no nested unittest discovery",
             "commands": [c.as_dict() for c in _smoke_commands()],
         },
+        "ci": {
+            "purpose": "stable push/PR gate: quick contracts, service smoke, and one representative stage case",
+            "commands": [c.as_dict() for c in _ci_commands()],
+        },
         "stage": {
             "purpose": "minimal phase gate: quick tripwires plus three offline acceptance cases",
             "commands": [c.as_dict() for c in _stage_commands()],
@@ -136,6 +140,8 @@ def _commands_for_profiles(profiles: Iterable[str], args: argparse.Namespace) ->
             commands.extend(_quick_commands())
         elif profile == "smoke":
             commands.extend(_smoke_commands())
+        elif profile == "ci":
+            commands.extend(_ci_commands())
         elif profile == "stage":
             commands.extend(_stage_commands())
         elif profile == "full-stage":
@@ -185,6 +191,36 @@ def _stage_commands() -> List[ProfileCommand]:
                 str(ROOT / "scripts" / "evaluate_global.py"),
                 "--cases",
                 str(ROOT / "evaluation" / "cases" / "stage-acceptance.json"),
+                "--strict",
+                "--no-model-evaluation",
+                "--no-model-replay",
+            ],
+        ),
+    ]
+
+
+def _ci_commands() -> List[ProfileCommand]:
+    """Return the smaller push/PR gate.
+
+    The complete stage profile remains available for phase closeout.  CI only
+    needs one representative composed spatial request because the quick
+    tripwires and service smoke already cover the shared boundaries; running
+    the greeting and unsupported-domain cases on every push adds little signal
+    and keeps feedback slower.
+    """
+
+    return [
+        *_quick_commands(),
+        *_smoke_commands(),
+        ProfileCommand(
+            "ci_stage_representative",
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "evaluate_global.py"),
+                "--cases",
+                str(ROOT / "evaluation" / "cases" / "stage-acceptance.json"),
+                "--case-ids",
+                "stage-spatial-analysis",
                 "--strict",
                 "--no-model-evaluation",
                 "--no-model-replay",

@@ -18,10 +18,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Run smoke check
-        run: python scripts/smoke_check.py
-      - name: Run stage contract profile
-        run: python scripts/test_profile.py --profile stage
+      - name: Run stable CI profile
+        run: python scripts/test_profile.py --profile ci
 
   full-regression:
     name: Full offline regression (manual)

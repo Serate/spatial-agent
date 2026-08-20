@@ -128,15 +128,16 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 ## 测试与验证
 
-日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行 3 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；`stage` 只跑 quick 加 3 个代表性离线验收场景：
+日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行 3 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；提交/PR 使用更小的 `ci` profile；`stage` 在阶段收口时运行 quick 加 3 个代表性离线验收场景：
 
 ~~~powershell
 python scripts\test_profile.py --profile quick
 python scripts\test_profile.py --profile smoke
+python scripts\test_profile.py --profile ci
 python scripts\test_profile.py --profile stage
 ~~~
 
-GitHub Actions 的默认 CI 会运行服务 smoke、stage 契约 profile 和完整离线回归；真实 GIS、真实模型与 Docker 仍是显式阶段验收，不访问 CI 外的私有配置或数据。
+GitHub Actions 的 push/PR 默认 CI 运行 `ci` profile；完整离线回归只在手动触发 workflow 时运行。真实 GIS、真实模型与 Docker 仍是显式阶段验收，不访问 CI 外的私有配置或数据。
 
 真实 GIS、真实模型和 Docker 作为阶段验收或专项验证运行：
 

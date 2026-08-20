@@ -1,6 +1,6 @@
 # Spatial Agent 测试分层策略
 
-本项目默认测试策略从“每次跑完整矩阵”调整为“少量代表性 profile + 按需扩展矩阵”。目标是让开发反馈更快，同时保留真实 GIS、真实大模型和 Docker 生产验收的证据。
+本项目默认测试策略从“每次跑完整矩阵”调整为“少量代表性 profile + 按需扩展矩阵”。目标是让开发反馈更快，同时保留真实 GIS、真实大模型和 Docker 生产验收的证据。提交/PR 使用专门的 `ci` profile，阶段收口再使用完整 `stage`，避免每次提交重复执行所有边界场景。
 
 跨入口结果一致性由 `evaluation/contract_harness.py` 提供统一投影。CLI、HTTP、artifact 和 recovery 验收必须通过 `normalize_result`/`compare_results` 比较稳定契约，不能在各测试文件中重新拼接 `result`、兼容顶层字段或自行忽略运行时字段。
 
@@ -31,6 +31,22 @@ python scripts\test_profile.py --profile smoke
 ~~~
 
 覆盖范围：道路坡度、DEM 元数据、澄清追问和后续回答。`scripts/smoke_check.py` 默认只跑服务 smoke，不再嵌套完整 unittest。
+
+### ci
+
+提交/PR 默认门禁：
+
+~~~powershell
+python scripts\test_profile.py --profile ci
+~~~
+
+覆盖范围：
+
+- `quick` 的 3 个核心契约 tripwire。
+- 一次服务 smoke，验证 Service 入口、DEM 元数据和澄清续问。
+- 复杂空间编排的 1 个代表场景 `stage-spatial-analysis`。
+
+`ci` 不重复运行通用问答和未注册空间能力两个边界场景；这两个场景仍保留在 `stage`，由阶段验收运行。
 
 ### stage
 
@@ -104,7 +120,7 @@ python scripts\smoke_check.py --with-unit-tests
 python scripts\live_baseline.py --allow-network --backend local
 ~~~
 
-只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。即使需要完整矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。
+只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。提交/PR 不自动运行 `stage` 的全部边界场景；阶段收口或风险明确时再运行 `stage`。即使需要完整矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。
 
 ## 记录规则
 

@@ -1086,7 +1086,14 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - 已新增 `agent/planner_guidance.py`，定义 `spatial-agent.planner-guidance.v1`；`DomainPack.planner_guidance()` 是公共 Planner 与领域 policy 的唯一 seam。
 - `LLMPlanner._system_prompt()` 已收敛为通用 JSON、ToolRegistry、工作流依赖、安全和澄清协议；GIS/Text policy 分别位于 `domains/gis/planner_guidance.py` 与 `domains/text/planner_guidance.py`。
 - `runtime_factory`、脱敏模型评测和跨领域专项均显式绑定当前 Domain Pack guidance；公共 Planner 文件不再出现 DEM、土地利用、道路、水体或洪山区规则。
-- 阶段收尾验证已完成：685 项离线测试通过、42 项按环境跳过；smoke、stage、full-stage、compileall 和 `git diff --check` 均通过。下一步提交并推送 M129，然后根据全局七维盘点进入 M130：Capability Routing/Catalog 与通用 Request Understanding。
+- 阶段收尾验证已完成：685 项离线测试通过、42 项按环境跳过；smoke、stage、full-stage、compileall 和 `git diff --check` 均通过。M129 已推送，随后完成 M129.1 测试门禁精简并进入 M130：Capability Routing/Catalog 与通用 Request Understanding。
+
+## M129.1 当前状态：精简提交测试门禁
+
+- 新增 `ci` profile：3 个 quick 核心契约、服务 smoke、1 个 `stage-spatial-analysis` 复杂编排场景；完整 `stage` 仍保留 3 个场景，按阶段收口显式运行。
+- `evaluate_global.py` 支持有界 `--case-ids`；GitHub Actions push/PR 只运行 `ci`，完整离线回归保持 `workflow_dispatch` 手动入口。
+- 未删除历史测试、GIS/live/Docker 专项或完整阶段 profile；只减少默认门禁中的低频重复场景。
+- 本阶段完成后恢复 M130 的 Capability Routing/Catalog 与通用 Request Understanding 全局解耦，最大并发度保持 1。
 
 ## M130 规划参考
 

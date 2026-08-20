@@ -3327,3 +3327,17 @@ M128 为 Run 与 Domain Action 增加统一 `spatial-agent.execution-record.v1` 
 ### 修复与预防
 
 M129 增加 `DomainPack.planner_guidance()` 和版本化 `spatial-agent.planner-guidance.v1` 投影；公共 Planner 只保留 TaskPlan JSON、ToolRegistry、依赖引用和安全约束，GIS/Text 分别提供自己的工具语义、结果类型、规划、澄清和拒绝策略。guidance 进入模型前会有界规范化，并只渲染已注册工具的语义。以后新增领域规则必须进入 Domain-owned guidance 和对应负向隔离测试，不能继续追加到公共 `_system_prompt()`。
+
+## 提交门禁不应重复运行完整阶段边界场景
+
+### 现象
+
+原来的 push/PR job 分别运行服务 smoke 和 `stage` profile。`stage` 本身还会运行 3 个阶段验收场景；通用问答和未注册空间能力虽然有独立契约价值，但每次提交都运行它们，与日常核心契约和服务 smoke 叠加后，反馈成本高于实际新增信号。完整离线回归也容易被误解为默认门禁的一部分。
+
+### 根因
+
+阶段验收与提交门禁没有明确分层：提交门禁需要快速发现共享契约和最复杂的组合流程，阶段收口才需要覆盖全部边界场景。把同一套 `stage` 作为每次 push 的默认门禁，会让低频边界检查挤占日常反馈时间。
+
+### 修复与预防
+
+新增 `ci` profile，保留 3 个 quick 核心契约、服务 smoke 和 `stage-spatial-analysis` 一个代表性复杂编排场景；完整 `stage` 仍保留通用问答与未注册空间能力，阶段收口时显式运行。`evaluate_global.py --case-ids` 只用于有界选择已存在的验收场景，不改变 Runtime 行为，也不删除历史测试。以后新增测试先判断它属于提交门禁、阶段验收还是环境专项，避免把所有测试都接入默认 push/PR 流程。

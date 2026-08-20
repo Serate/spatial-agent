@@ -14,6 +14,10 @@ from evaluation.runner import load_cases
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the global Spatial Agent acceptance matrix.")
     parser.add_argument("--cases", default="evaluation/cases/global-acceptance.json")
+    parser.add_argument(
+        "--case-ids",
+        help="只运行指定的逗号分隔场景 ID；用于精简提交门禁，默认运行文件中的全部场景",
+    )
     parser.add_argument("--planner", choices=("rule", "openai"), default="rule")
     parser.add_argument("--backend", choices=("memory", "local"), default="memory")
     parser.add_argument("--include-optional", action="store_true")
@@ -35,8 +39,18 @@ def main() -> int:
         help="跳过离线多轮模型回放评测",
     )
     args = parser.parse_args()
+    cases = load_cases(args.cases)
+    if args.case_ids:
+        requested_ids = [item.strip() for item in args.case_ids.split(",") if item.strip()]
+        known_ids = {case["id"] for case in cases}
+        missing_ids = [case_id for case_id in requested_ids if case_id not in known_ids]
+        if not requested_ids:
+            parser.error("--case-ids 不能为空")
+        if missing_ids:
+            parser.error("未知的场景 ID: " + ",".join(missing_ids))
+        cases = [case for case in cases if case["id"] in requested_ids]
     report = run_global_cases(
-        load_cases(args.cases),
+        cases,
         planner=args.planner,
         backend=args.backend,
         include_optional=args.include_optional,

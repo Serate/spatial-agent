@@ -2713,6 +2713,13 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 新增 M129 跨领域负向契约；旧 GIS Planner prompt 测试改为显式注入 GIS guidance，避免把 GIS 默认值当作公共接口。
 - 阶段收尾验证已完成：685 项离线测试通过、42 项按环境跳过；M129 专项/受影响契约、smoke、stage、full-stage、compileall 和 `git diff --check` 均通过。真实模型、真实 GIS 和 Docker 仍按可选环境验收，阶段版本随后推送。
 
+## M129.1 已完成：精简提交测试门禁
+
+- 新增 `ci` profile，提交/PR 只运行 3 个 quick 核心契约、服务 smoke 和 1 个复杂空间编排代表场景；完整 `stage` 仍保留 3 个离线边界场景，按阶段收口显式运行。
+- `evaluate_global.py` 增加有界 `--case-ids` 选择，不复制验收 JSON，也不改变 Runtime 执行契约。
+- GitHub Actions push/PR 改为运行 `ci` profile；完整离线回归继续只在 `workflow_dispatch` 中运行，历史专项测试不删除。
+- 本阶段验证重点为 profile dry-run、profile 契约和 `ci`/`stage` 入口；下一阶段恢复 M130 的 Capability Routing/Catalog 全局解耦工作。
+
 ### M130 全局规划
 
 1. 继续审计 `capability_routing.py`、`capability_catalog.py` 和遗留 GIS RequestFacts 兼容路径，建立 Domain-owned Request Understanding/Capability Discovery guidance，避免 Planner 解耦后路由层仍绑死 GIS。

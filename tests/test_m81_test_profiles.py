@@ -66,6 +66,31 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in payload["commands"]], ["service_smoke"])
         self.assertEqual(payload["commands"][0]["env"], {})
 
+    def test_ci_profile_keeps_only_one_stage_representative(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "test_profile.py"),
+                "--profile",
+                "ci",
+                "--dry-run",
+            ],
+            cwd=str(ROOT),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(completed.stdout)
+
+        self.assertEqual(
+            [item["name"] for item in payload["commands"]],
+            ["core_contract_tripwires", "service_smoke", "ci_stage_representative"],
+        )
+        ci_args = payload["commands"][2]["command"]
+        self.assertEqual(ci_args[ci_args.index("--case-ids") + 1], "stage-spatial-analysis")
+        self.assertIn("--no-model-evaluation", ci_args)
+        self.assertIn("--no-model-replay", ci_args)
+
     def test_stage_profile_uses_small_acceptance_examples(self):
         completed = subprocess.run(
             [
