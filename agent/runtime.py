@@ -31,6 +31,7 @@ from .domain_contract import (
     selected_capability_ids,
     workflow_context,
 )
+from .deployment_evidence import build_deployment_evidence
 from .failure_contract import build_failure_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
@@ -285,6 +286,13 @@ class AgentRuntime:
                 "tool_governance",
             }:
                 snapshot[key] = value
+        context = snapshot.get("runtime_context")
+        if isinstance(context, Mapping) and context.get("fingerprint"):
+            snapshot["runtime_context_fingerprint"] = str(context["fingerprint"])
+        snapshot["deployment_evidence"] = build_deployment_evidence(
+            {"runtime_context": context, "runtime_evidence": snapshot},
+            degradation=snapshot.get("degradation"),
+        )
         return snapshot
 
     def release_evidence(
@@ -306,8 +314,20 @@ class AgentRuntime:
             config_path=config_path,
             max_files=max_files,
         )
+        evidence = dict(evidence) if isinstance(evidence, Mapping) else {}
         evidence.setdefault(
             "domain_id", str(getattr(self._domain_pack, "domain_id", "unknown"))[:80]
+        )
+        context = self.runtime_context()
+        evidence["runtime_context"] = context
+        evidence["runtime_context_fingerprint"] = context["fingerprint"]
+        evidence["deployment_evidence"] = build_deployment_evidence(
+            {
+                "domain_id": evidence.get("domain_id"),
+                "runtime_context": context,
+                "release_evidence": evidence,
+            },
+            model_evidence=None,
         )
         return evidence
 

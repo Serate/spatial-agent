@@ -20,6 +20,7 @@ from agent.runtime import AgentRuntime
 from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
 from evaluation.answer_judge import heuristic_answer_judge
+from result_contract import build_result_contract
 
 
 ROOT = Path(__file__).parents[1]
@@ -153,11 +154,14 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
     expected = fixture.get("expected") or {}
     expected_tools = list(expected.get("expected_tools") or [])
     expected_result_type = expected.get("expected_result_type")
-    provider_metrics = _fixture_metrics(fixture)
+    fixture_id = str(fixture.get("fixture_id") or "unnamed")
+    provider_metrics = dict(_fixture_metrics(fixture))
+    provider_metrics.setdefault("execution_mode", "offline_replay")
+    provider_metrics.setdefault("fixture_id", fixture_id)
     safety = sanitize_provider_metrics(provider_metrics)
 
     report: Dict[str, Any] = {
-        "fixture_id": str(fixture.get("fixture_id") or "unnamed"),
+        "fixture_id": fixture_id,
         "request": request,
         "execution_mode": "offline_fixture",
         "provider": "redacted-fixture",
@@ -207,6 +211,12 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         report["actual_tools"] = [step.tool for step in result.steps]
         report["result_type"] = _result_type(plan_payload)
         report["answer"] = result.answer or ""
+        result_payload = result.to_dict()
+        result_payload["result_type"] = report["result_type"]
+        report["model_evidence"] = build_result_contract(
+            result_payload,
+            registry=runtime.result_registry(),
+        )["model_evidence"]
         report["passed"] = (
             result.status.value == str(expected.get("expected_status") or "COMPLETED")
             and quality["passed"]

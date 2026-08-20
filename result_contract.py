@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Mapping
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
 from agent.execution_contract import build_execution_record, execution_record_summary
+from agent.deployment_evidence import build_deployment_evidence
 from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -142,6 +143,11 @@ def build_result_contract(
             normalized_runtime_context,
         ),
     }
+    contract["deployment_evidence"] = build_deployment_evidence(
+        payload,
+        model_evidence=contract["model_evidence"],
+        degradation=degradation,
+    )
     if normalized_runtime_context is not None:
         contract["runtime_context"] = normalized_runtime_context
     if payload.get("run_id") or payload.get("action_execution_id"):
@@ -161,6 +167,17 @@ def _model_evidence(metrics: Any, runtime_context: Any) -> Dict[str, Any]:
         "schema_version": MODEL_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value),
     }
+    execution_mode = str(value.get("execution_mode") or "").strip().lower()
+    if execution_mode not in {"rule", "offline_replay", "live_model"}:
+        context_mapping = runtime_context if isinstance(runtime_context, Mapping) else {}
+        execution_mode = (
+            "rule"
+            if context_mapping.get("planner") == "rule"
+            else "live_model"
+            if value
+            else "unknown"
+        )
+    result["execution_mode"] = execution_mode
     context_fingerprint = runtime_context_fingerprint(runtime_context)
     if context_fingerprint:
         result["context_fingerprint"] = context_fingerprint
@@ -168,6 +185,10 @@ def _model_evidence(metrics: Any, runtime_context: Any) -> Dict[str, Any]:
         item = value.get(key)
         if isinstance(item, str) and item:
             result[key] = item[:96]
+    if execution_mode == "offline_replay":
+        fixture_id = value.get("fixture_id")
+        if isinstance(fixture_id, str) and fixture_id:
+            result["fixture_id"] = fixture_id[:96]
     for key in ("attempts", "retries"):
         item = value.get(key)
         if isinstance(item, int) and not isinstance(item, bool):

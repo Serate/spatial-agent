@@ -79,6 +79,10 @@ class M135RuntimeContextTests(unittest.TestCase):
                     payload["result"]["model_evidence"]["context_fingerprint"],
                     expected["fingerprint"],
                 )
+                self.assertEqual(
+                    payload["result"]["deployment_evidence"]["context_fingerprint"],
+                    expected["fingerprint"],
+                )
                 artifact = json.loads(
                     Path(payload["artifact_ref"]).read_text(encoding="utf-8")
                 )
@@ -170,6 +174,7 @@ class M135RuntimeContextTests(unittest.TestCase):
 
         evidence = contract["model_evidence"]
         self.assertEqual(evidence["context_fingerprint"], context["fingerprint"])
+        self.assertEqual(evidence["execution_mode"], "rule")
         self.assertEqual(evidence["usage"]["total_tokens"], 14)
         self.assertEqual(contract["runtime_context"], context)
         encoded = json.dumps(evidence, ensure_ascii=False)
@@ -197,6 +202,7 @@ class M135RuntimeContextTests(unittest.TestCase):
         self.assertIn("runtime_context", source)
         self.assertIn("context.tool_provider", source)
         self.assertIn("context.domain_id", source)
+        self.assertIn("deployment_evidence", source)
         self.assertIn("Planner ", source)
 
 

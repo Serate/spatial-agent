@@ -1205,3 +1205,13 @@ M136 从项目全局推进“跨入口 Runtime Context 与 Deployment Evidence C
 - `model_evidence` 仅保留 provider/model/wire_api、状态、错误分类、重试、延迟和 token usage 白名单；`AgentRunResult`、result envelope、run/action artifact 写入均规范化 Context，未把 API key、私有路径或 provider 原文带入证据。
 - 异步 polling/restart observability 增加 Context fingerprint；M136 补充 3 项跨入口回归，受影响矩阵 83 项通过，完整离线 722 项通过、42 项按环境跳过，分层 profile、静态检查和 compileall 通过。
 - 真实 GIS、live LLM 和 Docker 没有被默认测试强制启动；data provenance/manifest 的发布校验与真实环境证据绑定保留为下一阶段任务。
+
+## 下一阶段 M137 规划参考
+
+M137 从全局推进“统一 Deployment Evidence Contract”：将 runtime/release 数据 provenance、manifest、CRS/栅格对齐、source/output binding、rule/replay/live 模型身份和可恢复性绑定到 Runtime Context fingerprint，形成公共、无私有路径的 evidence projection。先完成 release/runtime 与 Text/GIS 正负矩阵，再扩展模型 replay/live identity、Console 动态证据区和生产 acceptance；当前宿主 Docker 不可用，不能把旧容器结果当作当前版本证据，最大并发度保持 1。
+
+## M137 当前实现进展
+
+- runtime/release evidence 已返回 Context fingerprint；Text/GIS 共享该身份，数据健康、manifest、source binding 和 output manifest 仍由 Domain Evidence Provider 负责。
+- `model_evidence` 支持 rule/offline replay/live model 执行模式，评测 fixture 只暴露 bounded identity；新增的 `deployment_evidence.v1` 聚合 Context、模型、数据状态和降级摘要，结果、能力快照、发布报告与 Console 共用。
+- M137 专项 4 项通过，M135/M136 相邻 Context/跨入口专项 12 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 均通过，完整离线回归 726 项通过、42 项按环境跳过。Docker 当前宿主不可用，不能把历史容器验收当作本版本证据。

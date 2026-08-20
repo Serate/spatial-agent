@@ -72,6 +72,7 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "answer": payload.get("answer", ""),
             "runtime_context": runtime_context,
             "model_evidence": result.get("model_evidence"),
+            "deployment_evidence": result.get("deployment_evidence"),
             "provenance_context_fingerprint": provenance.get(
                 "runtime_context_fingerprint"
             ),

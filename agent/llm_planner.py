@@ -175,6 +175,7 @@ class OpenAIPlannerClient:
             "provider": "openai-compatible",
             "wire_api": self._wire_api,
             "model": self._model,
+            "execution_mode": "live_model",
             "timeout_seconds": self._timeout_seconds,
             "max_output_tokens": self._max_output_tokens,
             "max_retries": self._max_retries,

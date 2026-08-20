@@ -3495,3 +3495,17 @@ Runtime Context 同时承担了两种职责：提交前的配置选择快照，�
 ### 修复与预防
 
 M135 增加 Domain-owned `tool_provider_info()` 轻量 seam，并由 Runtime Factory 提供不打开 backend 的 submission context snapshot；异步 worker 启动后再创建真实 Runtime，并将实际 context 与已持久化快照校验。配置漂移返回 `runtime_context_mismatch`，不静默使用新配置执行。以后新增异步快照字段时，必须分别验证提交延迟、worker 初始化、重启恢复和配置漂移；不能用完整 Runtime 初始化作为提交前的只读 metadata 查询。
+
+## 聚合证据层不能假设上游输入已经完成脱敏
+
+### 现象
+
+M137 的 `deployment_evidence` 聚合器在正常结果路径中接收的是已经过 `result_contract` 白名单处理的 `model_evidence`，但最初仍直接复制传入的 mapping。若其他入口直接调用聚合器并传入模型原文、API key 或私有路径，这些字段就可能进入部署证据，违反 evidence projection 不保存敏感信息的边界。
+
+### 根因
+
+脱敏逻辑只放在上游结果封装函数中，聚合器被误认为“内部 helper”，没有被当作独立的持久化/导出边界。共享证据函数未来可能被 runtime capabilities、release evidence、artifact 或第三方 provider 直接调用，因此不能依赖调用顺序保证输入已经安全。
+
+### 处理与预防
+
+M137 让 `deployment_evidence` 自身按 schema、执行模式、provider/model 身份、错误分类、耗时、token usage 和 bounded fixture id 做白名单归一化；不复制 `raw_response`、凭据、私有路径或未知字段，并新增直接传入敏感字段的负向回归。以后每个跨入口 evidence、artifact 或导出聚合层都必须自包含地完成有界归一化，同时验证“正常上游输入”和“直接传入未清理输入”两条路径。

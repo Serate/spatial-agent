@@ -2838,3 +2838,26 @@ M136 顺序任务：Context Harness -> 跨入口一致性矩阵 -> data/model ev
 - `result_contract.py` 新增版本化 `spatial-agent.model-evidence.v1`，只保留 provider/model/wire_api、状态、重试、延迟和 token 使用等白名单字段，并绑定 Context fingerprint；结果模型与 artifact 写入边界统一规范化 Context，排除密钥、私有路径和 provider 原文。
 - 异步观测增加 `runtime_context_fingerprint`，因此提交、轮询、重启接管和最终结果可以用同一安全身份关联；Console 继续通过通用执行证据显示领域、Planner、Backend、Provider 和 Context 版本。
 - 新增 M136 跨入口回归 3 项，M108/M135 安全与 Harness 回归同步扩展；受影响矩阵 83 项通过，完整离线回归 722 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过。真实 GIS、live LLM 和 Docker 仍作为显式环境验收，数据 provenance/manifest 深化进入下一阶段。
+
+## M137 全局规划：统一 Deployment Evidence Contract
+
+- **产品**：让一次运行、一次发布检查和一次模型评测都能回答“使用了什么配置、数据是否可信、模型证据来自哪里、结果是否可恢复”，并由前端按结构化证据展示可信度。
+- **架构**：在现有 `RuntimeContext`、`evidence_contract`、`result envelope`、`provenance` 和 `model_evidence` 之上增加统一的有界 deployment evidence projection；Domain Pack 只提供领域数据证据，公共 Runtime 负责关联和比较。
+- **数据**：把 runtime/release data provenance、manifest、CRS/栅格对齐、source binding 和 output manifest 压缩为无私有路径的快照；缺失、degraded、metadata-only 和 hash verified 必须可区分。
+- **模型**：为 rule、offline replay、live provider 统一记录安全的执行模式、fixture/replay 标识、provider/model/wire API、token/延迟和错误分类；不复制 prompt、响应原文、密钥或 URL 查询凭据。
+- **部署**：让 `/release-evidence`、生产 readiness、同步/异步结果和 artifact/recovery 使用同一 Context fingerprint；Docker/FastAPI/GIS/live 作为显式 acceptance，宿主 Docker 当前不可用不阻塞离线实现。
+- **体验与测试**：Console 以通用 evidence card 显示数据/模型/运行状态；Harness 覆盖 release evidence、run artifact、async polling/restart 和 Text/GIS，默认 profile 仍不访问私有环境。
+
+M137 顺序任务：
+
+1. 将 release/runtime evidence 绑定到 Runtime Context fingerprint，并补 Text/GIS 正负契约。
+2. 扩展安全 model evidence 的 replay/live identity，接入 evaluator 与 result/artifact/recovery。
+3. 建立 deployment evidence canonical projection 和 Console 动态证据视图。
+4. 运行离线/分层回归；Docker 恢复后执行当前版本 production acceptance、真实 GIS 与可选 live baseline。
+
+## M137 当前实现进展
+
+- Runtime runtime/release evidence 均绑定 `runtime_context_fingerprint`；Text/GIS 正向与降级路径共享 `spatial-agent.domain-evidence.v1`，不会把数据状态误当作 Runtime 配置身份。
+- `model_evidence` 支持 `rule`、`offline_replay`、`live_model` 三种安全执行模式；脱敏评测报告带有界 `fixture_id`，真实客户端保留 provider/model/wire API 和 token/延迟/错误分类，不复制原始响应。
+- 新增 `spatial-agent.deployment-evidence.v1`，聚合 Context、模型、runtime/release 数据状态、manifest/source/output verification 和降级摘要；结果 envelope、runtime capabilities、release evidence 与 Console 共享该投影。
+- M137 专项 4 项、M135/M136 相邻 Context/跨入口专项 12 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 均通过；完整离线回归 726 项通过、42 项按环境跳过。Docker 宿主当前不可用，真实 production/GIS/live 证据不提前宣称。
