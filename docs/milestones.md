@@ -2779,4 +2779,12 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 
 - 发现 `tests/fixtures/m65_spatial_overview_response.json` 与 M67 canonical model fixture 的 `response` 完全重复；M65 Runtime/ToolRegistry 测试已改为读取 M67 的 `response`，删除重复文件。
 - M127 领域回放中的同内容响应继续内嵌，保持 Text/GIS replay suite 自包含，不把跨协议 fixture 强行耦合到模型评测文件。
-- M65/M67/M127/M81 相关 30 项回归通过，静态检查、compileall 和 diff check 通过；没有合并有独立失败模式的跨入口断言。
+- M65/M67/M127/M81 相关 30 项回归通过，静态检查、compileall 和 diff check 通过；没有合并有独立失败模式的跨入口断言。重复断言样板、删除 fixture 残留引用和过期运行注释复核完成，没有新增可安全删除项。
+
+## M133 全局规划：跨领域 Runtime 闭环验收
+
+- 产品：用 Text 与 GIS 两个 Domain 验证统一的请求理解、能力发现、计划、执行、结果、轨迹和 artifact 闭环。
+- 架构：建立 Domain Pack、Planner、ToolProvider、Result Registry、HTTP/Console 的跨入口契约矩阵，公共 Runtime 不再承载 GIS 策略。
+- 数据与模型：统一 provenance、CRS/栅格对齐和降级证据；脱敏回放为默认模型证据，live planner 只作为显式验收。
+- 部署与体验：验证同步/异步、SQLite 重启、artifact 恢复、多进程观测和动态 workspace 的一致性与可解释空态。
+- 执行顺序：先锁定跨领域结果/执行记录矩阵，再补双 Domain 回归，随后做 HTTP/Console/artifact/recovery 验收，最后运行 GIS/live/Docker 专项并整体重规划。

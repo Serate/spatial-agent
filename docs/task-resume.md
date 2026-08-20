@@ -1368,4 +1368,14 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 
 - 删除与 M67 canonical 模型响应完全重复的 `m65_spatial_overview_response.json`，M65 Runtime/ToolRegistry 测试改为读取 M67 fixture 的 `response`。
 - M127 的同内容响应仍保留在自包含 Domain replay suite 中；Service、HTTP、artifact、Console 和模型质量测试没有因“相同输入”而删除独立断言。
-- 相关回归 30 项通过；下一步继续检查真正重复的断言样板和过期测试注释。
+- 相关回归 30 项通过；重复断言样板、删除 fixture 残留引用和过期运行注释复核完成，没有新增可安全删除项。
+
+## M133 全局规划：跨领域 Runtime 闭环验收
+
+下一阶段从项目整体推进，不围绕单个 GIS 数据集堆规则：
+
+1. 验证 Text/GIS 共用 `RequestFacts -> CapabilityCatalog -> TaskPlan -> Runtime -> Result/Trace/Artifact` 闭环。
+2. 统一 Domain Pack、Planner、ToolProvider、Result Registry 与 HTTP/Console 的跨入口契约，保持公共 Runtime 与 GIS 策略解耦。
+3. 将 provenance、CRS/栅格对齐、核心/可选数据降级纳入统一证据；真实模型以脱敏回放为默认、live 为显式基线。
+4. 验证同步/异步、SQLite 重启、artifact 恢复、多进程观测和动态 Console workspace 的一致性。
+5. 保持 `quick`/`ci`/`stage` 分层，先做最小跨领域契约，再运行 GIS/live/Docker 专项，最后整体重规划。

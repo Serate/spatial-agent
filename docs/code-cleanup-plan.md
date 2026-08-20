@@ -70,5 +70,5 @@
 - P0 统计与计划：已完成。
 - P0 导入和测试无效代码清理：已完成静态修改和专项回归确认。
 - P1 GIS Planner 物理归属：已实现并通过归属、兼容和跨领域专项验收。
-- P2 可疑死代码审计：已完成第一轮入口图和低置信度候选复核；待继续检查跨入口重复断言。
-- P3 测试与文档收口：已删除与 `m67_spatial_overview_model.json` 响应逐字重复的 `m65_spatial_overview_response.json`，M65 Runtime/ToolRegistry 测试改为复用 canonical response；M127 领域回放中的内嵌响应仍保留，以保证回放 suite 自包含。跨入口重复断言继续按独立失败模式保留。
+- P2 可疑死代码审计：已完成入口图、低置信度候选、动态入口、重复断言和过期运行注释复核；未发现新的可安全删除项。
+- P3 测试与文档收口：已删除与 `m67_spatial_overview_model.json` 响应逐字重复的 `m65_spatial_overview_response.json`，M65 Runtime/ToolRegistry 测试改为复用 canonical response；M127 领域回放中的内嵌响应仍保留，以保证回放 suite 自包含。跨入口、失败、恢复、真实环境和领域隔离断言均保留，M132.2 已收口。

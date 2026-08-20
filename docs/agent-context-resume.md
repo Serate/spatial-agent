@@ -1140,4 +1140,18 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 
 - `m65_spatial_overview_response.json` 与 M67 canonical model fixture 的 `response` 完全重复，已删除独立文件并让 M65 Runtime/ToolRegistry 测试读取 canonical response。
 - M127 Domain replay 的同内容响应继续内嵌以保持 suite 自包含；没有删除 Service/HTTP/artifact/Console/模型质量的独立断言。
-- M65/M67/M127/M81 相关 30 项通过，静态检查和编译检查通过；下一步审计重复断言样板与过期注释。
+- M65/M67/M127/M81 相关 30 项通过，静态检查和编译检查通过；重复断言样板、删除 fixture 残留引用和过期运行注释复核完成，没有新增可安全删除项。
+
+## M133 全局规划：跨领域 Runtime 闭环验收
+
+下一阶段不再围绕单个 GIS 数据集增加规则，而是从完整 Agent 闭环推进：
+
+1. 产品能力：让 Text 与 GIS 都走 `RequestFacts -> CapabilityCatalog -> TaskPlan -> Runtime -> Result/Trace/Artifact`，验证开放式问题仍能澄清、拒绝或完成。
+2. 架构边界：补齐 Domain Pack、Planner、ToolProvider、Result Registry 和 HTTP/Console 的跨入口契约矩阵，继续保持公共 Runtime 不持有 GIS 规则。
+3. 数据质量：把真实数据 provenance、CRS/栅格对齐、核心/可选数据降级统一投影到结果证据，不新增区域专用分支。
+4. 真实模型：以脱敏回放作为默认证据，增加一个可选 live planner 基线，分别区分 provider、计划校验和工具执行失败。
+5. 部署可靠性：按同步、异步、SQLite 重启、artifact 恢复和多进程观测检查同一执行记录，不让环境专项进入默认 CI。
+6. 用户体验：Console 只根据结构化结果类型、证据和 workspace 动态展示，验证无结果时保持空态，有降级时可解释。
+7. 测试证据：`quick`/`ci`/`stage` 保持分层，新增跨领域最小契约与一次显式真实环境验收，避免恢复重复 profile。
+
+实现顺序为：先锁定跨领域结果与执行记录矩阵，再补 Text/GIS 双入口回归，随后验证 HTTP/Console/artifact/recovery，最后按环境运行 GIS、live、Docker 专项并整体重规划。
