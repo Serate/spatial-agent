@@ -15,6 +15,8 @@ from agent.failure_contract import build_failure_evidence, failure_from_payload
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime
+from agent.domain_registry import resolve_domain_id
+from agent.domain_registry import domain_registry
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
@@ -83,6 +85,22 @@ def _bind_domain_pack(domain_pack: Any) -> Callable[..., Any]:
     return factory
 
 
+def _bind_domain_id(domain_id: str) -> Callable[..., Any]:
+    """Bind a registered domain id without exposing import paths to callers."""
+    if not isinstance(domain_id, str) or not domain_id.strip():
+        raise ValueError("domain_id must be a non-empty string")
+
+    def factory(planner: str, backend: str, **kwargs: Any) -> Any:
+        return build_runtime(
+            planner,
+            backend,
+            domain_id=domain_id,
+            **kwargs,
+        )
+
+    return factory
+
+
 def _runtime_result_registry(runtime):
     """Read the optional result registry from legacy/custom runtimes."""
     resolver = getattr(runtime, "result_registry", None)
@@ -141,20 +159,36 @@ class AgentService:
         state_db_path: str = None,
         runtime_factory: Callable[..., Any] = None,
         domain_pack: Any = None,
+        domain_id: str = None,
     ):
         self._artifact_store = artifact_store or ArtifactStore()
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
-        if runtime_factory is not None and domain_pack is not None:
-            raise ValueError("runtime_factory and domain_pack are mutually exclusive")
+        self._configured_domain_id = None
+        self._resolved_domain_id = None
+        if runtime_factory is not None and (domain_pack is not None or domain_id is not None):
+            raise ValueError("runtime_factory cannot be combined with domain_pack or domain_id")
+        if domain_pack is not None and domain_id is not None:
+            raise ValueError("domain_pack and domain_id are mutually exclusive")
         if runtime_factory is not None:
             self._runtime_factory = runtime_factory
         elif domain_pack is not None:
+            self._configured_domain_id = str(
+                getattr(domain_pack, "domain_id", "unknown")
+            )[:80]
             self._runtime_factory = _bind_domain_pack(domain_pack)
+        elif domain_id is not None:
+            self._configured_domain_id = resolve_domain_id(domain_id)
+            self._runtime_factory = _bind_domain_id(self._configured_domain_id)
         else:
+            # Resolve once at the application boundary so all runtimes and
+            # persistence reads in this service use one selected Domain.
+            self._configured_domain_id = resolve_domain_id()
             self._runtime_factory = build_runtime
+        self._resolved_domain_id = self._configured_domain_id
         self._state = ServiceState(
             state_db_path=self._state_db_path,
             runtime_factory=self._runtime_factory,
+            domain_id=self._configured_domain_id,
         )
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(
@@ -228,8 +262,9 @@ class AgentService:
         ):
             raise ValueError("preview_fingerprint must be a non-empty string")
         if run_id is not None and not _force_run_id:
+            domain_id = self._domain_id(planner, backend)
             existing = (
-                self._state.get_run(run_id)
+                self._state.get_run(run_id, domain_id=domain_id)
                 if self._state.persistent
                 else self._runtime(planner, backend).get_run(run_id)
             )
@@ -436,6 +471,10 @@ class AgentService:
             raise ValueError("idempotency_key must be a non-empty string")
         self._state.cost.check_budget(session_id)
 
+        domain_id = self._domain_id(
+            kwargs.get("planner", "rule"), kwargs.get("backend", "memory")
+        )
+        kwargs["domain_id"] = domain_id
         job_payload = _async_job_payload(kwargs)
         if run_id:
             idempotency_key = idempotency_key or "run_id:" + run_id.strip()
@@ -447,8 +486,16 @@ class AgentService:
         early = None  # (run_id, status, reused) built under the lock, responded after it.
         with self._async_lock:
             if self._state.persistent:
-                existing_result = self._state.get_run(run_id)
-                if existing_result is not None and not self._state.async_job(run_id):
+                existing_any = self._state.get_run(run_id)
+                if (
+                    existing_any is not None
+                    and getattr(existing_any, "domain_id", "gis") != domain_id
+                ):
+                    raise ValueError("run_id belongs to another domain: " + str(run_id))
+                existing_result = self._state.get_run(run_id, domain_id=domain_id)
+                if existing_result is not None and not self._state.async_job(
+                    run_id, domain_id=domain_id
+                ):
                     early = (run_id, existing_result.status.value, True)
                 else:
                     job = self._state.create_async_job(
@@ -456,6 +503,15 @@ class AgentService:
                     )
                     created = bool(job.pop("created", False))
                     if not created:
+                        existing_domain = (
+                            job.get("payload", {}).get("domain_id", "gis")
+                            if isinstance(job.get("payload"), dict)
+                            else "gis"
+                        )
+                        if existing_domain != domain_id:
+                            raise ValueError(
+                                "idempotency_key belongs to another domain"
+                            )
                         self._ensure_async_run_snapshot(job)
                         early = (job["run_id"], _async_status(self._state_store, job), True)
                     else:
@@ -465,6 +521,7 @@ class AgentService:
                                 status=RunStatus.PLANNING,
                                 request=request,
                                 session_id=session_id,
+                                domain_id=domain_id,
                                 workflow=job_payload.get("workflow"),
                             )
                         )
@@ -509,6 +566,7 @@ class AgentService:
         run_id = job_payload["run_id"]
         kwargs = dict(job_payload)
         kwargs.pop("run_id", None)
+        domain_id = kwargs.pop("domain_id", None) or self._resolved_domain_id
         completed = False
         failure_category = None
         self._mark_async_started(run_id)
@@ -520,13 +578,14 @@ class AgentService:
             status = "FAILED"
             failure_category = _failure_category(status, str(exc), source="worker")
             if self._state.persistent:
-                result = self._state.get_run(run_id)
+                result = self._state.get_run(run_id, domain_id=domain_id)
                 if result is None:
                     result = AgentRunResult(
                         run_id=run_id,
                         status=RunStatus.FAILED,
                         request=str(kwargs.get("request") or ""),
                         session_id=kwargs.get("session_id"),
+                        domain_id=domain_id,
                         error=str(exc),
                         error_category=failure_category,
                         error_code=getattr(exc, "code", None),
@@ -555,7 +614,7 @@ class AgentService:
         if not self._state.persistent:
             self._finish_memory_async_job(run_id, status, failure_category)
             return
-        job = self._state.async_job(run_id)
+        job = self._state.async_job(run_id, domain_id=self._resolved_domain_id)
         if job and job.get("owner_pid") == os.getpid():
             self._state.finish_async_job(
                 run_id, status, os.getpid(), failure_category
@@ -564,7 +623,9 @@ class AgentService:
     def _recover_async_jobs(self) -> None:
         if not self._state.persistent:
             return
-        for job in self._state.recover_async_jobs(os.getpid()):
+        for job in self._state.recover_async_jobs(
+            os.getpid(), domain_id=self._configured_domain_id
+        ):
             run_id = job["run_id"]
             owner_pid = job.get("owner_pid")
             if owner_pid and owner_pid != os.getpid() and _process_is_alive(owner_pid):
@@ -591,6 +652,7 @@ class AgentService:
                 status=RunStatus.PLANNING,
                 request=str(payload.get("request") or ""),
                 session_id=payload.get("session_id"),
+                domain_id=payload.get("domain_id", "gis"),
                 workflow=payload.get("workflow"),
             )
         )
@@ -632,7 +694,11 @@ class AgentService:
         """Return a bounded lifecycle summary with no request or error text."""
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
-        job = self._state.async_job(run_id) if self._state.persistent else None
+        job = (
+            self._state.async_job(run_id, domain_id=self._resolved_domain_id)
+            if self._state.persistent
+            else None
+        )
         if job is None:
             with self._async_lock:
                 job = next(
@@ -641,7 +707,11 @@ class AgentService:
                 )
         if job is None:
             raise ValueError("async run not found: " + run_id)
-        result = self._state.get_run(run_id) if self._state.persistent else self._memory_run(run_id)
+        result = (
+            self._state.get_run(run_id, domain_id=self._resolved_domain_id)
+            if self._state.persistent
+            else self._memory_run(run_id)
+        )
         lineage = None
         if result is not None:
             result_payload = result.to_dict()
@@ -761,6 +831,7 @@ class AgentService:
     def get_run(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
+        domain_id = self._domain_id(planner, backend)
         result = None
         # A terminal run snapshot can be written just before the durable async
         # job marker is finalized. Wait long enough for readers to observe one
@@ -768,13 +839,13 @@ class AgentService:
         # still owns the SQLite file.
         for _ in range(1000):
             result = (
-                self._state.get_run(run_id)
+                self._state.get_run(run_id, domain_id=domain_id)
                 if self._state.persistent
                 else self._runtime(planner, backend).get_run(run_id)
             )
             if result is None or not self._state.persistent:
                 break
-            job = self._state.async_job(run_id)
+            job = self._state.async_job(run_id, domain_id=domain_id)
             job_payload = (
                 job.get("payload")
                 if isinstance(job, dict) and isinstance(job.get("payload"), dict)
@@ -809,7 +880,7 @@ class AgentService:
             # Serve a degraded detail (answer/trace/provenance/context) from the
             # artifact instead of requiring the model to re-run the request.
             payload = (
-                self._artifact_store.read_run(run_id)
+                self._artifact_store.read_run(run_id, domain_id=domain_id)
                 if self._artifact_store is not None
                 else None
             )
@@ -835,6 +906,7 @@ class AgentService:
                 )
                 self._attach_async_observability(payload, run_id)
                 return payload
+            self._reject_cross_domain_run_id(run_id, domain_id)
         if result is None:
             raise ValueError("run not found: " + run_id)
         payload = result.to_dict()
@@ -861,9 +933,13 @@ class AgentService:
 
     def list_runs(self, limit: int = 20) -> Dict:
         if self._state.persistent:
-            records = self._state.list_runs(limit=limit)
+            records = self._state.list_runs(
+                limit=limit, domain_id=self._resolved_domain_id
+            )
         else:
-            records = self._artifact_store.list_runs(limit=limit)
+            records = self._artifact_store.list_runs(
+                limit=limit, domain_id=self._resolved_domain_id
+            )
         return {"runs": _attach_history_lineage(records)}
 
     def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:
@@ -876,7 +952,11 @@ class AgentService:
             records = _dedupe_run_records(records)
             return {"runs": _attach_history_lineage(records[:limit])}
         return {"runs": _attach_history_lineage(
-            self._state.list_runs(limit=limit, session_id=session_id)
+            self._state.list_runs(
+                limit=limit,
+                session_id=session_id,
+                domain_id=self._resolved_domain_id,
+            )
         )}
 
     def list_sessions(self, limit: int = 50) -> Dict:
@@ -927,13 +1007,15 @@ class AgentService:
 
     def metrics(self) -> Dict:
         if self._state.persistent:
-            metrics = self._state.store_metrics()
+            metrics = self._state.store_metrics(domain_id=self._resolved_domain_id)
             metrics.setdefault("async_jobs", {})["worker_count"] = self._async_worker_count
         else:
-            metrics = self._artifact_store.metrics()
+            metrics = self._artifact_store.metrics(domain_id=self._resolved_domain_id)
             metrics["async_jobs"] = self._memory_async_metrics()
         metrics["cost_governance"] = self._state.cost.summary()
-        metrics["actions"] = self._artifact_store.action_metrics()
+        metrics["actions"] = self._artifact_store.action_metrics(
+            domain_id=self._resolved_domain_id
+        )
         metrics["observability"] = {
             "schema_version": "spatial-agent.observability.v1",
             "event_count": self._state.observability.event_count,
@@ -947,6 +1029,10 @@ class AgentService:
     ) -> Dict[str, Any]:
         """Return the capability catalog owned by the selected Domain Pack."""
         return self._runtime(planner, backend).capability_catalog()
+
+    def domains(self) -> Dict[str, Any]:
+        """Return the bounded deployment Domain Registry catalog."""
+        return domain_registry().catalog()
 
     def actions(
         self,
@@ -982,6 +1068,7 @@ class AgentService:
         resolver = getattr(runtime, "execute_domain_action", None)
         if not callable(resolver):
             raise ValueError("domain action execution is unavailable")
+        domain_id = self._domain_id(planner, backend)
         action_id = str(action_id or "")[:96]
         action_payload = dict(payload) if isinstance(payload, dict) else payload
         if isinstance(action_payload, dict):
@@ -994,7 +1081,9 @@ class AgentService:
                 raise ValueError("idempotency_key must be a safe non-empty value")
         input_fingerprint = _action_input_fingerprint(action_id, action_payload)
         if idempotency_key:
-            existing = self._artifact_store.find_action_by_idempotency_key(idempotency_key)
+            existing = self._artifact_store.find_action_by_idempotency_key(
+                idempotency_key, domain_id=domain_id
+            )
             if existing is not None:
                 if existing.get("input_fingerprint") != input_fingerprint:
                     raise ActionContractError(
@@ -1014,7 +1103,7 @@ class AgentService:
                 return _action_response_from_artifact(existing)
         execution_id = "action-" + uuid.uuid4().hex
         catalog = runtime.capability_catalog()
-        domain_id = str(catalog.get("domain_id") or "unknown")[:80]
+        domain_id = str(catalog.get("domain_id") or domain_id)[:80]
         result_type = _action_result_type(runtime, action_id)
         started = time.perf_counter()
         try:
@@ -1148,7 +1237,9 @@ class AgentService:
 
     def get_action_execution(self, execution_id: str) -> Dict[str, Any]:
         """Recover one action result from its artifact without dispatching it."""
-        value = self._artifact_store.read_action(execution_id)
+        value = self._artifact_store.read_action(
+            execution_id, domain_id=self._resolved_domain_id
+        )
         if value is None:
             raise ValueError("action execution not found: " + str(execution_id))
         value.setdefault(
@@ -1162,7 +1253,9 @@ class AgentService:
             raise ValueError("limit must be between 1 and 100")
         return {
             "schema_version": "spatial-agent.action-history.v1",
-            "actions": self._artifact_store.list_actions(limit=limit),
+            "actions": self._artifact_store.list_actions(
+                limit=limit, domain_id=self._resolved_domain_id
+            ),
         }
 
     def runtime_capabilities(
@@ -1451,7 +1544,31 @@ class AgentService:
         }
 
     def _runtime(self, planner: str, backend: str):
-        return self._state.runtime(planner, backend)
+        runtime = self._state.runtime(planner, backend)
+        runtime_domain_id = getattr(runtime, "domain_id", None)
+        if runtime_domain_id:
+            self._resolved_domain_id = str(runtime_domain_id)[:80]
+        return runtime
+
+    def _domain_id(self, planner: str, backend: str) -> str:
+        """Return the service's selected domain, resolving custom factories lazily."""
+        if self._resolved_domain_id:
+            return self._resolved_domain_id
+        runtime = self._runtime(planner, backend)
+        return self._resolved_domain_id or str(
+            getattr(runtime, "domain_id", "unknown")
+        )[:80]
+
+    def _reject_cross_domain_run_id(self, run_id: str, domain_id: str) -> None:
+        """Never overwrite a durable run owned by another Domain Pack."""
+        if self._state.persistent:
+            other = self._state.get_run(run_id)
+            if other is not None and getattr(other, "domain_id", "gis") != domain_id:
+                raise ValueError("run_id belongs to another domain: " + str(run_id))
+        else:
+            artifact = self._artifact_store.read_run(run_id)
+            if artifact is not None and artifact.get("domain_id", "gis") != domain_id:
+                raise ValueError("run_id belongs to another domain: " + str(run_id))
 
     def compare_constrained_buildability(
         self,

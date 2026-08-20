@@ -7,6 +7,7 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 - 对话式空间分析：支持行政区边界、DEM 高程、坡度、土地利用、道路/水体和建设候选演示筛选。
 - Agent Runtime：Planner、TaskPlan、依赖执行、重试、超时、取消和失败恢复相互分离。
 - 双 Planner：默认规则规划器保证确定性；可选 OpenAI 兼容大模型规划器处理更开放的表达。
+- 受控多领域：GIS/Text 通过静态 Domain Registry 选择，HTTP/生产 API 可查询 `/domains`，不允许请求参数反射导入任意模块。
 - 工具安全边界：所有工具经过 schema 校验和 Registry 分发，不让模型直接调用后端。
 - 真实数据接入：支持行政区 GeoJSON、DEM/土地利用栅格，以及武汉 OSM 道路和水体 GeoPackage。
 - 数据质量预检：检查可读性、CRS、覆盖关系和几何质量，并在分析结果中保留证据。
@@ -47,6 +48,8 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 ```powershell
 python run_demo.py "查询洪山区行政区边界"
 python run_demo.py "你好"
+# 可选：选择注册表中的领域；也可设置 SPATIAL_AGENT_DOMAIN=text
+python run_demo.py --domain text "请摘要这段文本"
 ```
 
 启动中文 Console：
@@ -111,6 +114,7 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 详细请求和响应契约见 [`docs/api.md`](docs/api.md)。常用接口：
 
 - `GET /health`
+- `GET /domains`
 - `POST /runs`
 - `POST /runs/async`
 - `GET /runs/{run_id}`

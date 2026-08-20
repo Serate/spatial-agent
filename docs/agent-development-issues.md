@@ -3467,3 +3467,17 @@ GIS 是最早的业务领域，工厂同时承担了后端选择、工具定义�
 ### 修复与预防
 
 M133 增加有界的 `DomainPack.tool_provider(backend_name, root)` seam，GIS/Text 分别提供自己的 ToolProvider；通用 Factory 通过 `ToolRegistry.from_provider()` 接入选定领域，并从 Domain Pack 读取默认权限。旧 Domain Pack 没有该 seam 时保留明确的 GIS 兼容 fallback；Text Runtime 改为委托通用 Factory，因此 rule/openai 两种 Planner 经过同一 Runtime 链路。以后新增 Domain 必须同时验证 rule、LLM、ToolRegistry、权限、结果类型和跨入口恢复，不能只验证能力目录或测试替身。
+
+## 共享 SQLite 或 artifact 根目录时必须按 Domain 隔离运行结果
+
+### 现象
+
+M134 引入受控 Domain Registry 后发现，SQLite 的 `agent_runs`、`async_jobs` 和普通 run artifact 原来只按 `run_id`、session 或文件名读取。如果 GIS 服务和 Text 服务共用同一个数据库或 artifact 目录，历史查询、异步恢复、metrics 或 artifact 详情可能返回另一个 Domain 的结果；同名 `run_id` 还可能被新 Domain 覆盖。
+
+### 根因
+
+Domain Pack 之前主要存在于 Runtime 内部，持久化层没有把 Domain 作为结果身份的一部分。服务边界也没有固定当前 Domain，导致“工具执行已经隔离”被误认为“缓存、恢复和历史也已经隔离”。
+
+### 修复与预防
+
+M134 为真实 `AgentRunResult`、预览、run artifact 和异步 payload 保存 `domain_id`；SQLite 的 run/history/async recovery/metrics 查询、artifact 的读取/列表/Action 幂等查询均按当前 Domain 过滤。旧记录缺失字段时按历史默认 GIS 兼容；同一 `run_id` 属于其他 Domain 时拒绝覆盖，并返回明确冲突错误。生产和开发 HTTP 服务通过 `SPATIAL_AGENT_DOMAIN` 选择注册表中的 Domain，CLI 使用同一注册表的 `--domain`，`/domains` 暴露有限目录。以后新增持久化或缓存入口必须同时回答：身份是否带 Domain、旧数据如何兼容、跨 Domain 读取是否有负向测试、恢复 worker 是否只接管本 Domain 任务。

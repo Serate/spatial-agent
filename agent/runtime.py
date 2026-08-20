@@ -191,6 +191,11 @@ class AgentRuntime:
         self._cancelled_runs: Set[str] = set()
         self._run_span_ids: Dict[str, str] = {}
 
+    @property
+    def domain_id(self) -> str:
+        """Return the selected Domain Pack identity for service boundaries."""
+        return str(getattr(self._domain_pack, "domain_id", "unknown"))[:80]
+
     def result_registry(self):
         """Return the result metadata registry selected by this Domain Pack."""
         return self._result_registry
@@ -312,6 +317,7 @@ class AgentRuntime:
             status=RunStatus.PLANNING,
             request=request,
             session_id=session_id,
+            domain_id=self.domain_id,
             resolved_request=resolved_request,
             request_facts=request_facts.as_context_dict(),
             workflow=dict(workflow) if workflow is not None else None,
@@ -454,6 +460,7 @@ class AgentRuntime:
             "request": request,
             "resolved_request": resolved_request,
             "session_id": session_id,
+            "domain_id": self.domain_id,
             "request_facts": request_facts.as_context_dict(),
             "workflow": dict(workflow) if workflow is not None else None,
             "context_evidence": context_packet.evidence,

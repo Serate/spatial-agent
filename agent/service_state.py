@@ -77,8 +77,10 @@ class ServiceState:
         self,
         state_db_path: Optional[str] = None,
         runtime_factory: Callable[[str, str], Any] | None = None,
+        domain_id: Optional[str] = None,
     ) -> None:
         self._state_db_path = state_db_path
+        self._domain_id = domain_id
         self._state_store = (
             SQLiteStateStore(state_db_path) if state_db_path else None
         )
@@ -243,15 +245,19 @@ class ServiceState:
             )
             return dict(job) if job is not None else None
 
-    def async_job(self, run_id: str) -> Optional[Dict[str, Any]]:
+    def async_job(
+        self, run_id: str, domain_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         if self._state_store is not None:
-            return self._state_store.get_async_job(run_id)
+            return self._state_store.get_async_job(run_id, domain_id=domain_id)
         return self.memory_job_by_run_id(run_id)
 
-    def recover_async_jobs(self, owner_pid: int) -> list:
+    def recover_async_jobs(self, owner_pid: int, domain_id: Optional[str] = None) -> list:
         if self._state_store is None:
             return []
-        return self._state_store.list_recoverable_async_jobs(owner_pid)
+        return self._state_store.list_recoverable_async_jobs(
+            owner_pid, domain_id=domain_id
+        )
 
     # ------------------------------------------------------------------ #
     # Run snapshots and async job persistence (SQLite mode)
@@ -264,10 +270,10 @@ class ServiceState:
         if self._state_store is not None:
             self._state_store.save(result)
 
-    def get_run(self, run_id: str) -> Optional[Any]:
+    def get_run(self, run_id: str, domain_id: Optional[str] = None) -> Optional[Any]:
         if self._state_store is None:
             return None
-        return self._state_store.get(run_id)
+        return self._state_store.get(run_id, domain_id=domain_id)
 
     def create_async_job(self, idempotency_key: str, run_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         if self._state_store is None:
@@ -302,29 +308,36 @@ class ServiceState:
         if self._state_store is not None:
             self._state_store.ensure_run_snapshot(result)
 
-    def list_runs(self, limit: int = 20, session_id: str = None) -> list:
+    def list_runs(
+        self,
+        limit: int = 20,
+        session_id: str = None,
+        domain_id: Optional[str] = None,
+    ) -> list:
         if self._state_store is None:
             return []
         if session_id is None:
-            return self._state_store.list_runs(limit=limit)
-        return self._state_store.list_runs(limit=limit, session_id=session_id)
+            return self._state_store.list_runs(limit=limit, domain_id=domain_id)
+        return self._state_store.list_runs(
+            limit=limit, session_id=session_id, domain_id=domain_id
+        )
 
-    def store_metrics(self) -> Optional[Dict[str, Any]]:
+    def store_metrics(self, domain_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         if self._state_store is None:
             return None
-        return self._state_store.metrics()
+        return self._state_store.metrics(domain_id=domain_id)
 
     # ------------------------------------------------------------------ #
     # Wall-clock timeout + reaper
     # ------------------------------------------------------------------ #
 
-    def expired_run_ids(self, now: float = None) -> list:
+    def expired_run_ids(self, now: float = None, domain_id: Optional[str] = None) -> list:
         """Return run_ids of jobs whose wall-clock age exceeds the timeout."""
         now = time.time() if now is None else now
         limit = now - self._timeout_seconds
         expired = []
         if self._state_store is not None:
-            for job in self._state_store.list_active_async_jobs():
+            for job in self._state_store.list_active_async_jobs(domain_id=domain_id):
                 if job.get("status") in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}:
                     created = _as_float(job.get("created_at"))
                     if created is not None and created <= limit:
@@ -381,7 +394,7 @@ class ServiceState:
     def _reaper_loop(self) -> None:
         while not self._reaper_stop.is_set():
             try:
-                for run_id in self.expired_run_ids():
+                for run_id in self.expired_run_ids(domain_id=self._domain_id):
                     self.expire_job(run_id)
             except Exception:
                 # A reaper failure must never kill the service; retry next tick.

@@ -1178,3 +1178,13 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 5. 部署可靠性：验证环境变量/配置文件、SQLite 重启、artifact 恢复和多 worker 缓存不会混用不同 Domain 的 Runtime。
 6. 用户体验：根据 Domain 与结果类型动态展示能力、证据和 workspace，切换配置后清理旧会话/缓存，避免结果串域。
 7. 测试：新增最小 Domain Registry 契约、配置错误负向测试和跨入口结果 Harness；默认 `ci`/`stage` 保持离线，真实环境作为显式验收。
+
+## M134 已完成：受控 Domain Registry 与跨 Domain 持久化隔离
+
+- `agent/domain_registry.py` 仅 allowlist `gis`/`text`，通过 `SPATIAL_AGENT_DOMAIN`、CLI `--domain`、Service、开发 HTTP、生产 API 和 Runtime Factory 统一选择；任意模块路径、未知值均拒绝；`GET /domains` 暴露有界目录。
+- 真实 Runtime run、preview、artifact、SQLite snapshot、async payload 和 execution record 保存 `domain_id`；SQLite/artifact/history/metrics/Action 幂等和异步恢复按 Domain 过滤，同一 run_id 跨 Domain 覆盖会被拒绝，旧记录缺失字段按 GIS 兼容。
+- M134 专项 7 项、受影响 Text/GIS/SQLite/Action 回归、离线全量 707 项（42 项按环境跳过）、full-stage、quick/ci/stage、Ruff、Pyflakes、Vulture、compileall 和 diff check 已通过；真实 GIS、live LLM、Docker 为显式环境验收，未被离线阶段强制启动。
+
+## 下一阶段 M135 规划参考
+
+围绕“不可变 Runtime Context/deployment snapshot”推进全局闭环：把 Domain、Planner、Backend、ToolProvider、权限、数据/模型证据和 schema 版本统一绑定到一次运行，验证配置变更、前端领域切换、SQLite 重启、多 worker、artifact/recovery 和 HTTP/Console 跨入口一致性。先完成 context contract 与负向隔离，再做真实 GIS/live/Docker 显式验收；最大并发度保持 1。

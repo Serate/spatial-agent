@@ -2808,3 +2808,10 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 架构与部署：建立受控 Domain Registry/选择器，统一 CLI、HTTP、生产 API、Console、环境配置和 Runtime 缓存，禁止任意模块反射导入。
 - 数据与模型：各 Domain 保留 provenance、健康/对齐降级策略；Text/GIS 共享 LLM Planner 接口并用脱敏回放、可选 live 基线验证计划契约。
 - 测试：补配置错误负向、跨入口 Harness、SQLite/artifact/restart/multi-worker 串域矩阵，默认 `ci`/`stage` 继续离线，真实环境显式验收。
+
+## M134 已完成：受控 Domain Registry 与持久化隔离
+
+- 新增静态 allowlist Domain Registry，仅注册 `gis` 与 `text`；环境变量 `SPATIAL_AGENT_DOMAIN`、CLI `--domain`、Service 配置、开发 HTTP、生产 API 和 Runtime Factory 均通过同一选择边界解析，未知值和模块路径输入会被拒绝。
+- 新增 `GET /domains`；capabilities、preview、run、artifact、execution record 和异步 payload 保留当前 `domain_id`，前端和运维入口可以识别当前领域。
+- SQLite run/history/metrics、异步恢复与 reaper、普通 artifact/Action history 和幂等读取按 Domain 过滤；同一 run_id 跨 Domain 覆盖会被拒绝，旧无 domain 字段数据按 GIS 兼容。
+- M134 专项 7 项、Text/GIS/SQLite/Action 受影响回归、离线全量 707 项（42 项按环境跳过）、full-stage、compileall、Ruff F401/F821/F841、Pyflakes、Vulture、`ci` 和 `stage` 均通过。真实 GIS、live 模型和 Docker 未因本阶段离线契约改动强制启动，继续作为显式环境验收。

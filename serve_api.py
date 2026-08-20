@@ -18,6 +18,7 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.environment_status import environment_status
+from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
@@ -57,6 +58,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 self._write_json(503, {"error": "service unavailable"})
             else:
                 self._write_json(200, self.service.capabilities(planner=planner, backend=backend))
+            return
+        if parsed.path == "/domains":
+            self._write_json(200, domain_registry().catalog())
             return
         if parsed.path == "/actions":
             query = parse_qs(parsed.query)

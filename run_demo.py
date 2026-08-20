@@ -2,6 +2,7 @@ import argparse
 import json
 
 from agent.artifact_store import ArtifactStore
+from agent.domain_registry import domain_registry
 from agent.runtime_factory import build_runtime
 from agent.service import AgentService
 
@@ -24,6 +25,12 @@ def parse_args():
         choices=("memory", "local"),
         default="memory",
         help="Spatial backend to use. local reads configured datasets where supported.",
+    )
+    parser.add_argument(
+        "--domain",
+        choices=domain_registry().ids(),
+        default=None,
+        help="Registered Domain Pack. Defaults to SPATIAL_AGENT_DOMAIN or GIS.",
     )
     parser.add_argument(
         "--session-id",
@@ -57,7 +64,10 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     request = " ".join(args.request) or "查询距离主干道500米以内、坡度超过25度的区域。"
-    service = AgentService(artifact_store=ArtifactStore(args.artifact_root))
+    service = AgentService(
+        artifact_store=ArtifactStore(args.artifact_root),
+        domain_id=args.domain,
+    )
     result = service.run(
         request,
         session_id=args.session_id,

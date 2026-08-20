@@ -12,10 +12,10 @@ from typing import Iterable, Optional
 from .domain_contract import (
     DomainPack,
     default_permissions,
-    default_domain_pack,
     planner_guidance,
     rule_planner as resolve_rule_planner,
 )
+from .domain_registry import resolve_domain_pack
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_openai_config
 from .planner import RuleBasedPlanner
@@ -34,9 +34,12 @@ def build_runtime(
     approved_tools: Optional[Iterable[str]] = None,
     require_dependency_evidence: Optional[bool] = None,
     domain_pack: Optional[DomainPack] = None,
+    domain_id: Optional[str] = None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
-    selected_domain_pack = domain_pack or default_domain_pack()
+    if domain_pack is not None and domain_id is not None:
+        raise ValueError("domain_pack and domain_id are mutually exclusive")
+    selected_domain_pack = domain_pack or resolve_domain_pack(domain_id)
     provider_factory = getattr(selected_domain_pack, "tool_provider", None)
     if callable(provider_factory):
         provider = provider_factory(backend_name=backend_name, root=root)

@@ -70,11 +70,21 @@ class SQLiteStateStore:
                 (result.run_id, payload),
             )
 
-    def get(self, run_id: str) -> Optional[AgentRunResult]:
+    def get(self, run_id: str, domain_id: Optional[str] = None) -> Optional[AgentRunResult]:
         with self._connection() as connection:
-            row = connection.execute(
-                "SELECT payload FROM agent_runs WHERE run_id = ?", (run_id,)
-            ).fetchone()
+            if domain_id:
+                row = connection.execute(
+                    """
+                    SELECT payload FROM agent_runs
+                    WHERE run_id = ?
+                      AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?
+                    """,
+                    (run_id, domain_id),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    "SELECT payload FROM agent_runs WHERE run_id = ?", (run_id,)
+                ).fetchone()
         if row is None:
             return None
         return _result_from_dict(json.loads(row[0]))
@@ -102,9 +112,18 @@ class SQLiteStateStore:
         result["created"] = cursor.rowcount == 1
         return result
 
-    def get_async_job(self, run_id: str) -> Optional[Dict[str, Any]]:
+    def get_async_job(
+        self, run_id: str, domain_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         with self._connection() as connection:
-            row = connection.execute(_ASYNC_JOB_SELECT + " WHERE run_id = ?", (run_id,)).fetchone()
+            suffix = " WHERE run_id = ?"
+            parameters: tuple[Any, ...] = (run_id,)
+            if domain_id:
+                suffix += " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+                parameters += (domain_id,)
+            row = connection.execute(
+                _ASYNC_JOB_SELECT + suffix, parameters
+            ).fetchone()
         return _async_job_from_row(row) if row else None
 
     def claim_async_job(
@@ -150,8 +169,17 @@ class SQLiteStateStore:
             )
         return cursor.rowcount == 1
 
-    def list_recoverable_async_jobs(self, owner_pid: int) -> List[Dict[str, Any]]:
+    def list_recoverable_async_jobs(
+        self, owner_pid: int, domain_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Return jobs left by another process or never claimed after a crash."""
+        domain_clause = ""
+        parameters: tuple[Any, ...] = (owner_pid,)
+        if domain_id:
+            domain_clause = (
+                " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+            )
+            parameters += (domain_id,)
         with self._connection() as connection:
             rows = connection.execute(
                 """
@@ -162,14 +190,20 @@ class SQLiteStateStore:
                 FROM async_jobs
                 WHERE status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')
                   AND (owner_pid IS NULL OR owner_pid != ?)
-                ORDER BY updated_at, run_id
-                """,
-                (owner_pid,),
+                """ + domain_clause + " ORDER BY updated_at, run_id",
+                parameters,
             ).fetchall()
         return [_async_job_from_row(row) for row in rows]
 
-    def list_active_async_jobs(self) -> List[Dict[str, Any]]:
+    def list_active_async_jobs(self, domain_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Return every non-terminal job for the wall-clock timeout reaper."""
+        domain_clause = ""
+        parameters: tuple[Any, ...] = ()
+        if domain_id:
+            domain_clause = (
+                " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+            )
+            parameters = (domain_id,)
         with self._connection() as connection:
             rows = connection.execute(
                 """
@@ -179,8 +213,8 @@ class SQLiteStateStore:
                        cancel_requested_at, last_event
                 FROM async_jobs
                 WHERE status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')
-                ORDER BY created_at, run_id
-                """
+                """ + domain_clause + " ORDER BY created_at, run_id",
+                parameters,
             ).fetchall()
         return [_async_job_from_row(row) for row in rows]
 
@@ -295,25 +329,43 @@ class SQLiteStateStore:
         with self._connection() as connection:
             connection.execute("DELETE FROM run_controls WHERE run_id = ?", (run_id,))
 
-    def list_runs(self, limit: int = 20, session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_runs(
+        self,
+        limit: int = 20,
+        session_id: Optional[str] = None,
+        domain_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         if limit < 1:
             raise ValueError("limit must be positive")
+        domain_clause = ""
+        domain_parameters: tuple[Any, ...] = ()
+        if domain_id:
+            domain_clause = (
+                " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+            )
+            domain_parameters = (domain_id,)
         with self._connection() as connection:
             if session_id:
                 rows = connection.execute(
-                    "SELECT payload, updated_at FROM agent_runs WHERE json_extract(payload, '$.session_id') = ? ORDER BY updated_at DESC LIMIT ?",
-                    (session_id, limit),
+                    "SELECT payload, updated_at FROM agent_runs "
+                    "WHERE json_extract(payload, '$.session_id') = ?"
+                    + domain_clause
+                    + " ORDER BY updated_at DESC LIMIT ?",
+                    (session_id,) + domain_parameters + (limit,),
                 ).fetchall()
             else:
                 rows = connection.execute(
-                    "SELECT payload, updated_at FROM agent_runs ORDER BY updated_at DESC LIMIT ?",
-                    (limit,),
+                    "SELECT payload, updated_at FROM agent_runs WHERE 1=1"
+                    + domain_clause
+                    + " ORDER BY updated_at DESC LIMIT ?",
+                    domain_parameters + (limit,),
                 ).fetchall()
         records = []
         for payload, updated_at in rows:
             item = json.loads(payload)
             records.append({
                 "run_id": item.get("run_id"),
+                "domain_id": item.get("domain_id", "gis"),
                 "session_id": item.get("session_id"),
                 "status": item.get("status"),
                 "request": item.get("request"),
@@ -345,8 +397,8 @@ class SQLiteStateStore:
             )
         return len(rows)
 
-    def metrics(self) -> Dict[str, Any]:
-        records = self.list_runs(limit=1000000)
+    def metrics(self, domain_id: Optional[str] = None) -> Dict[str, Any]:
+        records = self.list_runs(limit=1000000, domain_id=domain_id)
         status_counts: Dict[str, int] = {}
         total_tokens = 0
         for record in records:
@@ -358,11 +410,18 @@ class SQLiteStateStore:
             "run_count": len(records),
             "status_counts": status_counts,
             "total_tokens": total_tokens,
-            "async_jobs": self.async_metrics(),
+            "async_jobs": self.async_metrics(domain_id=domain_id),
         }
 
-    def async_metrics(self) -> Dict[str, Any]:
+    def async_metrics(self, domain_id: Optional[str] = None) -> Dict[str, Any]:
         """Return aggregate async lifecycle metrics without request payloads."""
+        domain_clause = ""
+        parameters: tuple[Any, ...] = ()
+        if domain_id:
+            domain_clause = (
+                " WHERE COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+            )
+            parameters = (domain_id,)
         with self._connection() as connection:
             rows = connection.execute(
                 """
@@ -370,7 +429,8 @@ class SQLiteStateStore:
                        queue_wait_ms, run_duration_ms, failure_category,
                        recovery_count
                 FROM async_jobs
-                """
+                """ + domain_clause,
+                parameters,
             ).fetchall()
         now = time.time()
         status_counts: Dict[str, int] = {}
@@ -804,6 +864,7 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         status=RunStatus(payload["status"]),
         request=payload["request"],
         session_id=payload.get("session_id"),
+        domain_id=payload.get("domain_id", "gis"),
         resolved_request=payload.get("resolved_request"),
         request_facts=payload.get("request_facts"),
         plan=plan,

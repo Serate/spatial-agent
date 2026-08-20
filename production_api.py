@@ -26,6 +26,7 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.environment_status import environment_status
+from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.workflow_templates import workflow_template_catalog
 
@@ -101,6 +102,11 @@ def capabilities(
     backend: str = "memory",
 ) -> Dict[str, Any]:
     return service.capabilities(planner=planner, backend=backend)
+
+
+@app.get("/domains")
+def domains() -> Dict[str, Any]:
+    return domain_registry().catalog()
 
 
 @app.get("/actions")

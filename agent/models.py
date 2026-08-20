@@ -59,6 +59,9 @@ class AgentRunResult:
     status: RunStatus
     request: str
     session_id: Optional[str] = None
+    # Stable Domain Pack identity used to isolate persistence and recovery.
+    # Older synthetic fixtures may omit it; real Runtime runs populate it.
+    domain_id: Optional[str] = None
     resolved_request: Optional[str] = None
     # Structured request interpretation shared by planning, recovery and
     # result consumers. The original text remains in ``request``.
@@ -102,6 +105,8 @@ class AgentRunResult:
             data.pop("failure", None)
         if data.get("workflow") is None:
             data.pop("workflow", None)
+        if data.get("domain_id") is None:
+            data.pop("domain_id", None)
         if data.get("request_facts") is None:
             data.pop("request_facts", None)
         return data

@@ -27,6 +27,7 @@ class ArtifactStore:
             "resolved_request": payload.get("resolved_request"),
             "request_facts": payload.get("request_facts"),
             "session_id": payload.get("session_id"),
+            "domain_id": payload.get("domain_id", "gis"),
             "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
             "context_evidence": payload.get("context_evidence"),
@@ -85,7 +86,9 @@ class ArtifactStore:
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
 
-    def find_action_by_idempotency_key(self, key: str) -> Optional[Dict]:
+    def find_action_by_idempotency_key(
+        self, key: str, domain_id: Optional[str] = None
+    ) -> Optional[Dict]:
         """Find the newest bounded action record for an explicit idempotency key."""
         if not isinstance(key, str) or not key or len(key) > 128 or Path(key).name != key:
             return None
@@ -104,12 +107,16 @@ class ArtifactStore:
             if (
                 payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1"
                 and payload.get("idempotency_key") == key
+                and (
+                    not domain_id
+                    or payload.get("domain_id", "gis") == domain_id
+                )
             ):
                 payload.setdefault("artifact_ref", path.as_posix())
                 return payload
         return None
 
-    def read_run(self, run_id: str) -> Optional[Dict]:
+    def read_run(self, run_id: str, domain_id: Optional[str] = None) -> Optional[Dict]:
         """Read a single persisted run artifact, or None when it is missing.
 
         Used by the service to serve a degraded run detail (answer, trace,
@@ -124,9 +131,13 @@ class ArtifactStore:
         except (OSError, ValueError):
             return None
         payload.setdefault("run_id", run_id)
+        if domain_id and payload.get("domain_id", "gis") != domain_id:
+            return None
         return payload
 
-    def read_action(self, execution_id: str) -> Optional[Dict]:
+    def read_action(
+        self, execution_id: str, domain_id: Optional[str] = None
+    ) -> Optional[Dict]:
         """Read a persisted Domain Action without re-executing it."""
         if not isinstance(execution_id, str) or not execution_id:
             return None
@@ -138,9 +149,13 @@ class ArtifactStore:
         except (OSError, ValueError):
             return None
         payload.setdefault("action_execution_id", execution_id)
+        if domain_id and payload.get("domain_id", "gis") != domain_id:
+            return None
         return payload
 
-    def list_actions(self, limit: int = 20) -> List[Dict]:
+    def list_actions(
+        self, limit: int = 20, domain_id: Optional[str] = None
+    ) -> List[Dict]:
         """List bounded action evidence without exposing action payloads."""
         if limit < 1:
             raise ValueError("limit must be positive")
@@ -158,6 +173,8 @@ class ArtifactStore:
             except (OSError, ValueError):
                 continue
             if payload.get("artifact_schema_version") != "spatial-agent.action-artifact.v1":
+                continue
+            if domain_id and payload.get("domain_id", "gis") != domain_id:
                 continue
             result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
             records.append({
@@ -177,7 +194,7 @@ class ArtifactStore:
                 break
         return records
 
-    def list_runs(self, limit: int = 20) -> List[Dict]:
+    def list_runs(self, limit: int = 20, domain_id: Optional[str] = None) -> List[Dict]:
         if limit < 1:
             raise ValueError("limit must be positive")
         if not self._root.exists():
@@ -190,8 +207,11 @@ class ArtifactStore:
                 continue
             if payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1":
                 continue
+            if domain_id and payload.get("domain_id", "gis") != domain_id:
+                continue
             records.append({
                 "run_id": payload.get("run_id"),
+                "domain_id": payload.get("domain_id", "gis"),
                 "status": payload.get("status"),
                 "request": payload.get("request"),
                 "answer": payload.get("answer"),
@@ -205,8 +225,8 @@ class ArtifactStore:
                 break
         return records
 
-    def metrics(self) -> Dict:
-        records = self.list_runs(limit=10000)
+    def metrics(self, domain_id: Optional[str] = None) -> Dict:
+        records = self.list_runs(limit=10000, domain_id=domain_id)
         status_counts = {}
         total_tokens = 0
         for record in records:
@@ -224,7 +244,7 @@ class ArtifactStore:
             "total_tokens": total_tokens,
         }
 
-    def action_metrics(self) -> Dict:
+    def action_metrics(self, domain_id: Optional[str] = None) -> Dict:
         """Return bounded action artifact counters without loading raw results."""
         count = 0
         status_counts = {}
@@ -242,6 +262,8 @@ class ArtifactStore:
                 except (OSError, ValueError):
                     continue
                 if payload.get("artifact_schema_version") != "spatial-agent.action-artifact.v1":
+                    continue
+                if domain_id and payload.get("domain_id", "gis") != domain_id:
                     continue
                 count += 1
                 status = str(payload.get("status") or "UNKNOWN")[:32]

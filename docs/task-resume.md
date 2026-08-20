@@ -1399,3 +1399,17 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 2. 将 Domain、Planner、Backend、provenance、健康/对齐降级状态在 capabilities、结果和 readiness 中统一暴露。
 3. 验证 Text/GIS 的脱敏 LLM 回放、可选 live 基线、SQLite 重启、artifact 恢复和多 worker 缓存不会串域。
 4. 让前端按 Domain 与结果类型动态展示能力和 workspace，切换配置时清理旧会话/缓存；补配置错误负向测试与跨入口 Harness。
+
+## M134 当前实现状态
+
+- `agent/domain_registry.py` 提供 GIS/Text 静态 allowlist、惰性 Domain Pack 加载、环境/显式选择和非法值拒绝；`AgentService`、Runtime Factory、CLI、开发 HTTP 与生产 API 已统一使用该边界，新增 `/domains` 目录接口。
+- `AgentRunResult`、preview、run artifact、SQLite snapshot、async job 和 execution evidence 均带 `domain_id`；历史查询、metrics、artifact/recovery、Action history 和异步恢复按 Domain 过滤，跨 Domain run_id 覆盖会被拒绝。
+- M134 专项 7 项、受影响 SQLite/异步/Action/Text/GIS 回归通过；离线全量 707 项（42 项按环境跳过）、full-stage、quick、ci、stage、Ruff、Pyflakes、Vulture、compileall 和 diff check 通过。当前工作树已完成实现，阶段提交/推送后进入 M135 全局重规划。
+
+## M135 全局重规划方向
+
+1. 产品与体验：让 `/domains`、capabilities、会话和结果 workspace 形成统一的当前运行上下文，前端在领域切换或服务配置变化时清理旧会话与缓存，并展示领域/Planner/Backend 证据。
+2. 架构：建立版本化 `RuntimeContext`/deployment snapshot，将 Domain、Planner、Backend、ToolProvider、权限和 schema 版本作为一次运行的不可变配置，避免仅靠环境变量推断历史运行上下文。
+3. 数据与模型：把 Domain-owned provenance、数据健康/网格对齐降级和脱敏模型 replay 统一关联到该 snapshot；真实模型仅做可选基线，不让 provider 差异改变结果契约。
+4. 部署与可靠性：验证生产 API、开发 HTTP、Console、SQLite 重启、多 worker 和 artifact 在同一 snapshot 下的一致性；补配置变更、滚动重启和旧 artifact 兼容证据。
+5. 测试与收口：保持单线程和精简 profile，增加一组跨入口 context snapshot contract，再按全局七维盘点决定是否进入真实 GIS/live/Docker 验收。
