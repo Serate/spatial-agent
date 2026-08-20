@@ -1299,3 +1299,14 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 ## M145 下一阶段全局规划参考
 
 下一阶段从完整 Agent 闭环补齐“结果契约 -> 动态前端 -> 可恢复证据”的最后一段：让 generic view 的空态、降级和 artifact 引用也由结构化 evidence 驱动，并在 Text/GIS 两个 Domain 下验证同步、异步恢复和浏览器可消费字段一致。继续保持 compact 默认门禁，真实浏览器/CDP 恢复后只运行显式 smoke。
+
+## M145 当前实现：统一 view 空态与恢复证据
+
+- `result_contract.build_result_contract()` 会为声明但没有实际数据的 ViewSpec 生成 bounded `kind: unavailable` view，携带结构化降级原因和 `artifact_available`，同步、异步、artifact 和恢复入口共享同一 envelope。
+- 旧 artifact 的空 `views.panels` 不再覆盖当前生成的 unavailable view；非空 artifact view 仍作为成功/恢复结果的权威视图。Console generic renderer 显示空态原因，并在有 artifact 时提供运行记录链接。
+- M122/M113/M124/M133 相关 22 项、Console 静态 smoke 14 项、compact 4 项、CI、Pyflakes、compileall、Node 脚本语法检查和当前 Docker production acceptance 已通过。
+- 宿主 Chrome CDP 仍未启动，动态浏览器 smoke 未宣称通过；Docker/API/静态 renderer 证据与浏览器证据保持分离。
+
+## M146 下一阶段全局规划参考
+
+下一阶段从整体可靠性收口 view evidence 的异步生命周期：验证 `unavailable`、degraded、成功 view 在 SQLite 重启、多 worker 轮询、artifact recovery 和 HTTP 详情中的一致性，并检查前端链接只消费安全的 artifact 引用。默认 active suite 不扩张，专项测试按风险显式运行。

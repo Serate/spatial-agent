@@ -920,8 +920,19 @@ class AgentService:
                     payload,
                     registry=_runtime_result_registry(self._runtime(planner, backend)),
                 )
-                if isinstance(artifact_result.get("views"), dict):
-                    payload["result"]["views"] = artifact_result["views"]
+                artifact_views = artifact_result.get("views")
+                artifact_panels = (
+                    artifact_views.get("panels")
+                    if isinstance(artifact_views, dict)
+                    else None
+                )
+                # Keep newly generated bounded unavailable views when an old
+                # artifact has an empty view map; a non-empty artifact view
+                # remains authoritative for successful/recovered rendering.
+                if isinstance(artifact_views, dict) and (
+                    isinstance(artifact_panels, dict) and artifact_panels
+                ):
+                    payload["result"]["views"] = artifact_views
                 _attach_error_category(payload)
                 payload["execution_record"] = payload.get("execution_record") or build_execution_record(
                     payload, kind="run"

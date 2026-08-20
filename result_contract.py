@@ -108,6 +108,12 @@ def build_result_contract(
         geojson_ref=payload.get("geojson_ref"),
         workspace=workspace,
     )
+    views = _ensure_view_fallbacks(
+        views,
+        workspace=workspace,
+        payload=payload,
+        degradation=degradation,
+    )
     normalized_runtime_context = normalize_runtime_context(payload.get("runtime_context"))
     contract = {
         "schema_version": RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -205,6 +211,58 @@ def _model_evidence(metrics: Any, runtime_context: Any) -> Dict[str, Any]:
                 safe_usage[key] = min(item, 10_000_000)
         if safe_usage:
             result["usage"] = safe_usage
+    return result
+
+
+def _ensure_view_fallbacks(
+    views: Any,
+    *,
+    workspace: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    degradation: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Keep declared views renderable when a run has no view data.
+
+    Domain builders own successful view models.  The public envelope owns the
+    failure/empty state so sync, async, artifact and recovery consumers see
+    the same bounded reason instead of inventing a raw JSON fallback.
+    """
+    result = dict(views) if isinstance(views, Mapping) else {}
+    panels = result.get("panels")
+    panels = dict(panels) if isinstance(panels, Mapping) else {}
+    specs = workspace.get("view_specs")
+    specs = list(specs) if isinstance(specs, list) else []
+    if not specs and "generic" in (workspace.get("panels") or []):
+        specs = [{"id": "generic", "title": "结构化结果", "renderer": "generic"}]
+    items = degradation.get("items") if isinstance(degradation, Mapping) else []
+    first_item = items[0] if isinstance(items, list) and items else {}
+    reason = (
+        first_item.get("message")
+        if isinstance(first_item, Mapping)
+        else None
+    ) or "本次运行没有返回该视图的数据。"
+    artifact = payload.get("artifact_ref")
+    if not artifact and isinstance(payload.get("result"), Mapping):
+        lineage = payload["result"].get("lineage")
+        artifact_info = lineage.get("artifact") if isinstance(lineage, Mapping) else None
+        artifact = artifact_info.get("available") if isinstance(artifact_info, Mapping) else None
+    for spec in specs[:12]:
+        if not isinstance(spec, Mapping):
+            continue
+        view_id = str(spec.get("id") or "")[:48]
+        if not view_id or view_id in panels:
+            continue
+        panels[view_id] = {
+            "kind": "unavailable",
+            "view_id": view_id,
+            "title": str(spec.get("title") or view_id)[:120],
+            "reason": str(reason)[:320],
+            "artifact_available": bool(artifact),
+        }
+    result["schema_version"] = str(
+        result.get("schema_version") or "spatial-agent.views.v1"
+    )[:80]
+    result["panels"] = panels
     return result
 
 

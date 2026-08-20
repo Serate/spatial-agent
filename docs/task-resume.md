@@ -1560,3 +1560,9 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - Text Domain 已新增 Domain-owned `generic` ViewSpec 和摘要 view model；Console generic renderer 会消费结构化 `metrics/rows`，不再为 Text 结果显示 raw JSON。
 - M122/M113/M124/M133 相关 21 项、Console 静态 smoke 14 项、compact、Pyflakes、compileall、Node 脚本语法检查和 Docker production acceptance 已通过。
 - 宿主 Chrome CDP 启动失败，动态浏览器 smoke 保持未验证；该环境限制不影响 Docker/API 和静态 renderer 契约证据，也不替代动态浏览器验收。
+
+## M145 统一 view 空态与恢复证据当前状态
+
+- 公共 result envelope 为声明但无结果的 view 生成 `unavailable` view，包含有界降级原因和 artifact 可恢复标志；前端 generic renderer 显示该结构化空态和运行 artifact 链接。
+- 恢复旧 artifact 时，空 view map 不会覆盖新契约；非空 artifact view 仍保留。M122/M113/M124/M133 相关 22 项、Console 静态 14 项、compact、CI、Pyflakes、compileall、Node 语法检查和 Docker production acceptance 已通过。
+- Chrome CDP 动态 smoke 仍未执行；下一阶段验证 SQLite/异步/多 worker 恢复后的 view evidence 一致性。

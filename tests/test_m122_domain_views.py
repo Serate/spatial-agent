@@ -111,6 +111,26 @@ class M122DomainViewTests(unittest.TestCase):
             ],
         )
 
+    def test_failed_generic_view_keeps_degradation_and_artifact_state(self):
+        runtime = build_text_runtime()
+        payload = build_result_contract(
+            {
+                "result_type": "text_summary_result",
+                "status": "FAILED",
+                "error": "摘要工具失败",
+                "artifact_ref": "outputs/runs/example.json",
+                "steps": [],
+            },
+            registry=runtime.result_registry(),
+        )
+
+        view = payload["views"]["panels"]["generic"]
+        self.assertEqual(view["kind"], "unavailable")
+        self.assertTrue(view["artifact_available"])
+        self.assertIn("失败", view["reason"])
+        self.assertIn("view.kind==='unavailable'", self.html)
+        self.assertIn("data.artifact_ref", self.html)
+
 
 if __name__ == "__main__":
     unittest.main()

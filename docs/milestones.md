@@ -2964,6 +2964,19 @@ M144 将前一阶段的跨入口结果一致性继续推进到用户界面：Tex
 
 下一阶段从整体闭环补齐 generic view 的空态、降级和 artifact 引用：这些状态应来自结构化 evidence，并在 Text/GIS 的同步、异步恢复和 HTTP 入口中保持一致。默认 compact 门禁不扩张；动态浏览器 smoke 仅在 CDP 环境恢复后显式运行。
 
+## M145 当前阶段：统一 view 空态与恢复证据
+
+M145 继续沿完整 Agent 闭环推进结果可信度：view 不再只有“成功数据”或 raw JSON 两种状态。公共结果契约将声明的 ViewSpec、降级矩阵和 artifact 可恢复性组合成统一 `unavailable` view，保证失败、空结果和旧 artifact 恢复时仍能被 API、artifact 与 Console 解释。
+
+- `result_contract.py` 新增 bounded view fallback：按 ViewSpec 生成 `kind: unavailable`、有界 `reason` 和 `artifact_available`；未注册但声明 generic workspace 的结果也有通用 fallback。
+- `AgentService.get_run()` 不再用旧 artifact 的空 view map 覆盖当前契约；成功 artifact 的非空 view 仍保持权威。前端 generic renderer 渲染 unavailable 状态和安全 basename artifact 链接。
+- 验证：M122/M113/M124/M133 相关 22 项、Console 静态 smoke 14 项、compact 4 项、CI、Pyflakes、compileall、Node 脚本语法检查和 Docker production acceptance 通过。
+- Chrome CDP 本轮仍未监听，动态浏览器 smoke 明确未验证；不使用 Docker/API/静态检查替代浏览器证据。
+
+## M146 全局规划参考
+
+下一阶段从项目整体验证 view evidence 的异步生命周期：同步、SQLite、多 worker、重启恢复、artifact 详情和 HTTP 轮询必须保留相同的 success/degraded/unavailable 语义；同时检查 artifact 引用的安全边界。默认 active suite 继续保持极简，专项按风险显式执行。
+
 ## M141 全局规划参考：模型计划稳健性与通用修复闭环
 
 下一阶段不围绕洪山区或某个工具追加规则，而是从整体 Agent Runtime 处理 M140 暴露的跨边界风险：规则 Planner、脱敏 replay 和 live Planner 必须共享同一 capability requirements、TaskPlan schema、DAG 校验、ToolRegistry 和 repair lineage。
