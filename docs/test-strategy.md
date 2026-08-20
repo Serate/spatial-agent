@@ -1,6 +1,6 @@
 # Spatial Agent 测试分层策略
 
-本项目默认测试策略从“每次跑完整矩阵”调整为“少量代表性 profile + 按需扩展矩阵”。目标是让开发反馈更快，同时保留真实 GIS、真实大模型和 Docker 生产验收的证据。提交/PR 使用专门的 `ci` profile，阶段收口再使用完整 `stage`，避免每次提交重复执行所有边界场景。
+本项目默认测试策略从“每次跑完整矩阵”调整为“少量代表性 profile + 按需扩展矩阵”。目标是让开发反馈更快，同时保留真实 GIS、真实大模型和 Docker 生产验收的证据。提交/PR 使用专门的 `ci` profile，阶段收口再使用独立的 `stage`，避免每次提交重复执行所有边界场景。
 
 跨入口结果一致性由 `evaluation/contract_harness.py` 提供统一投影。CLI、HTTP、artifact 和 recovery 验收必须通过 `normalize_result`/`compare_results` 比较稳定契约，不能在各测试文件中重新拼接 `result`、兼容顶层字段或自行忽略运行时字段。
 
@@ -18,7 +18,7 @@ python scripts\test_profile.py --profile quick
 
 覆盖范围：
 
-- 3 个核心契约 tripwire：模板编译、workflow runtime 拒绝、Runtime 组合执行。
+- 2 个核心契约 tripwire：工作流模板编译/结果引用，以及 Domain Planner 选择。
 
 `quick` 的目标是快速发现共享契约是否断裂，不负责证明每个历史里程碑都仍完整覆盖。
 
@@ -42,7 +42,7 @@ python scripts\test_profile.py --profile ci
 
 覆盖范围：
 
-- `quick` 的 3 个核心契约 tripwire。
+- `quick` 的 2 个核心契约 tripwire。
 - 一次服务 smoke，验证 Service 入口、DEM 元数据和澄清续问。
 - 复杂空间编排的 1 个代表场景 `stage-spatial-analysis`。
 
@@ -56,7 +56,7 @@ python scripts\test_profile.py --profile ci
 python scripts\test_profile.py --profile stage
 ~~~
 
-覆盖范围是在 `quick` 基础上增加 3 个代表性离线验收场景：通用问答、复杂空间分析模板、未注册空间问题澄清。它不运行服务 smoke、不运行完整全局矩阵，也不运行脱敏模型回放。
+覆盖范围是独立的 3 个代表性离线验收场景：通用问答、复杂空间分析模板、未注册空间问题澄清。它不重复运行 `quick`，也不运行服务 smoke、完整全局矩阵或脱敏模型回放。
 
 ~~~powershell
 python scripts\evaluate_global.py --cases evaluation/cases/stage-acceptance.json --strict --no-model-evaluation --no-model-replay
@@ -70,7 +70,7 @@ python scripts\evaluate_global.py --cases evaluation/cases/stage-acceptance.json
 python scripts\test_profile.py --profile full-stage
 ~~~
 
-覆盖范围：`quick + smoke + evaluation/cases/global-acceptance.json + 脱敏模型评测 + 多轮模型回放`。这是显式重型入口，不作为日常或普通阶段默认门禁。
+覆盖范围：`evaluation/cases/global-acceptance.json + 脱敏模型评测 + 多轮模型回放`。这是显式重型入口，不作为日常或普通阶段默认门禁，也不嵌套 `quick` 或 `smoke`。
 
 ## 真实环境验收
 

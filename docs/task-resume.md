@@ -1363,3 +1363,9 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 - 相对导入调用图确认 `agent/`、`domains/`、`evaluation/` 没有孤立运行模块；脚本类无直接 import 文件均保留为有文档或自动化入口的 CLI/验收脚本。
 - 删除了 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个无调用的旧 state 操作，以及测试替身中只赋值不读取的字段；公共兼容 alias、动态导出、registry 查询和反射字段保留。
 - 43 项异步/重启/重规划/几何/profile 专项通过（1 项按 FastAPI 环境跳过），`ci`、`stage` 和静态检查通过；下一步继续审计跨入口重复断言，不按测试数量删除独立契约。
+
+## M132.2 跨入口重复 fixture 审计
+
+- 删除与 M67 canonical 模型响应完全重复的 `m65_spatial_overview_response.json`，M65 Runtime/ToolRegistry 测试改为读取 M67 fixture 的 `response`。
+- M127 的同内容响应仍保留在自包含 Domain replay suite 中；Service、HTTP、artifact、Console 和模型质量测试没有因“相同输入”而删除独立断言。
+- 相关回归 30 项通过；下一步继续检查真正重复的断言样板和过期测试注释。

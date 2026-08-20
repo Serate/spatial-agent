@@ -1135,3 +1135,9 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - 相对导入解析和入口搜索确认没有孤立的 `agent/`、`domains/`、`evaluation/` 运行模块；无直接 import 的脚本均由文档、PowerShell、profile 或专项测试作为显式入口使用。
 - 删除 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个无调用的旧 state 操作，以及两个只赋值不读取的测试替身字段；保留兼容 alias、动态导出、registry 查询方法和反射序列化字段。
 - 异步/重启/重规划/几何/profile 专项 43 项通过（1 项按 FastAPI 环境跳过），`ci`、`stage`、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过；下一步审计跨入口重复断言。
+
+### M132.2 跨入口重复 fixture 审计
+
+- `m65_spatial_overview_response.json` 与 M67 canonical model fixture 的 `response` 完全重复，已删除独立文件并让 M65 Runtime/ToolRegistry 测试读取 canonical response。
+- M127 Domain replay 的同内容响应继续内嵌以保持 suite 自包含；没有删除 Service/HTTP/artifact/Console/模型质量的独立断言。
+- M65/M67/M127/M81 相关 30 项通过，静态检查和编译检查通过；下一步审计重复断言样板与过期注释。

@@ -3425,3 +3425,31 @@ Vulture 会将 Domain Pack 的惰性 provider、结果 registry 的公共查询�
 ### 修复与预防
 
 清理前先解析相对导入得到模块调用图，再搜索 README、API 文档、workflow、PowerShell、HTTP 路由、artifact/recovery 和 profile 入口；只有同时满足无入口、无契约、无文档引用且有专项回归替代，才删除。M132.1 只删除了确认无调用的内部 state/session/job 方法和测试替身字段，并保留兼容、CLI、registry 与反射字段。以后对低置信度报告必须记录“保留/删除”的证据，不能直接使用 `vulture --min-confidence` 结果作为删除清单。
+
+## 脱敏模型响应重复时要区分 canonical fixture 与自包含回放 suite
+
+### 现象
+
+测试 fixture 中曾同时存在独立的 M65 空间总览响应和 M67 模型 fixture 内的同一 `response`；二者规范化 JSON 完全一致。M127 领域回放 suite 也包含同一空间总览响应，但它位于带 `domain`、provider metrics、turns 和 expected 的自包含回放协议中。
+
+### 根因
+
+不同里程碑逐步增加了“直接运行 Runtime”“模型质量评测”和“跨领域回放”三类证据，早期通过复制 JSON 降低了各测试的读取复杂度，却没有区分 canonical 模型响应和自包含回放数据。
+
+### 修复与预防
+
+删除独立的 M65 重复文件，M65 Runtime/ToolRegistry 测试从 M67 canonical fixture 读取 `response`；保留 M127 内嵌副本，因为把它改成外部引用会削弱回放 suite 的独立可移植性。以后新增 fixture 先检查规范化 JSON 是否重复：同一测试协议复用 canonical response，跨入口/跨领域回放若必须自包含则保留并记录理由，不能机械合并所有相同 JSON。
+
+## 验证命令必须以实际测试入口为准
+
+### 现象
+
+阶段恢复信息中使用了历史性的测试模块简称，直接执行时出现 `ModuleNotFoundError`；实际测试文件已经按更具体的契约名称拆分，例如 M127 使用 `test_m127_runtime_action_contract.py`，M81 profile 使用 `test_m81_test_profiles.py`。
+
+### 根因
+
+里程碑文档中的“相关回归”是范围描述，不等于 Python 模块名；长期演进后，测试文件可能被重命名或拆分，但手工复验命令没有同步更新。若只根据旧模块名执行，会把验证入口错误误判成代码回归。
+
+### 修复与预防
+
+复验前先用 `rg --files tests` 和测试类名确认实际入口，再运行 unittest；文档中的 profile 命令优先作为稳定入口，模块级命令只引用当前存在的文件。测试入口变更时同步更新恢复文档和阶段记录，区分“命令错误”与“测试失败”。

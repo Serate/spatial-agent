@@ -2774,3 +2774,9 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 修正相对导入后，`agent/`、`domains/`、`evaluation/` 没有孤立运行模块；无直接 import 的 `scripts/` 文件均为 README/API/PowerShell/profile/专项测试引用的显式 CLI 或验收入口。
 - 删除 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个仓库内无调用的旧 runtime/session/memory-job 方法，以及两个测试替身中只赋值不读取的字段；保留兼容 alias、动态导出、结果 registry 查询和反射序列化字段。
 - 验证：异步/重启/重规划/几何证据/profile 专项 43 项通过（1 项按 FastAPI 环境跳过），`ci`、`stage`、Ruff F401/F821/F841、Pyflakes、Vulture、compileall 和 diff check 通过。
+
+## M132.2 跨入口重复 fixture 审计
+
+- 发现 `tests/fixtures/m65_spatial_overview_response.json` 与 M67 canonical model fixture 的 `response` 完全重复；M65 Runtime/ToolRegistry 测试已改为读取 M67 的 `response`，删除重复文件。
+- M127 领域回放中的同内容响应继续内嵌，保持 Text/GIS replay suite 自包含，不把跨协议 fixture 强行耦合到模型评测文件。
+- M65/M67/M127/M81 相关 30 项回归通过，静态检查、compileall 和 diff check 通过；没有合并有独立失败模式的跨入口断言。

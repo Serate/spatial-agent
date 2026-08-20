@@ -10,7 +10,7 @@ from agent.tools import DemoSpatialAdapter, ToolRegistry
 
 
 ROOT = Path(__file__).parents[1]
-FIXTURE = ROOT / "tests" / "fixtures" / "m65_spatial_overview_response.json"
+FIXTURE = ROOT / "tests" / "fixtures" / "m67_spatial_overview_model.json"
 EXPECTED_TOOLS = [
     "get_dataset_health_report",
     "get_dataset_schema",
@@ -56,7 +56,7 @@ class RecordingSpatialAdapter(DemoSpatialAdapter):
 
 
 def load_recorded_response():
-    return json.loads(FIXTURE.read_text(encoding="utf-8"))
+    return json.loads(FIXTURE.read_text(encoding="utf-8"))["response"]
 
 
 def build_recorded_runtime():

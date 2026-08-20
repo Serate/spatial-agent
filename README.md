@@ -128,7 +128,7 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 ## 测试与验证
 
-日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行 3 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；提交/PR 使用更小的 `ci` profile；`stage` 在阶段收口时运行 quick 加 3 个代表性离线验收场景：
+日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行 2 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；提交/PR 使用 `ci` profile；`stage` 在阶段收口时独立运行 3 个代表性离线验收场景，不重复 quick：
 
 ~~~powershell
 python scripts\test_profile.py --profile quick
