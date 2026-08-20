@@ -135,14 +135,24 @@ class DomainPack(Protocol):
     def planner_guidance(self) -> Mapping[str, Any]:
         """Return bounded domain vocabulary and planner policy."""
 
+    def request_understanding_guidance(self) -> Mapping[str, Any]:
+        """Return domain-owned RequestFacts/discovery interpretation guidance."""
 
-def discovery_context(discovery: Any) -> dict[str, Any]:
+
+def discovery_context(
+    discovery: Any,
+    *,
+    domain_id: str | None = None,
+) -> dict[str, Any]:
     """Normalize a domain discovery result without imposing GIS types."""
     as_context = getattr(discovery, "as_context_dict", None)
     value = as_context() if callable(as_context) else discovery
     if not isinstance(value, Mapping):
         raise TypeError("domain discovery must be a mapping or expose as_context_dict()")
-    return dict(value)
+    result = dict(value)
+    if domain_id and not result.get("domain_id"):
+        result["domain_id"] = str(domain_id)[:80]
+    return result
 
 
 def selected_capability_ids(discovery: Any) -> list[str]:
@@ -176,6 +186,18 @@ def planner_guidance(domain_pack: DomainPack) -> dict[str, Any]:
     method = getattr(domain_pack, "planner_guidance", None)
     value = method() if callable(method) else {}
     return normalize_planner_guidance(value)
+
+
+def request_understanding_guidance(domain_pack: DomainPack) -> dict[str, Any]:
+    """Read and normalize request-understanding policy through the domain seam."""
+    from .request_understanding import normalize_request_understanding_guidance
+
+    method = getattr(domain_pack, "request_understanding_guidance", None)
+    value = method() if callable(method) else {}
+    return normalize_request_understanding_guidance(
+        value,
+        domain_id=str(getattr(domain_pack, "domain_id", "unknown")),
+    )
 
 
 def domain_action_catalog(domain_pack: DomainPack) -> dict[str, Any]:

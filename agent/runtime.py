@@ -27,6 +27,7 @@ from .domain_contract import (
     preflight_tool as run_domain_preflight,
     runtime_evidence as resolve_runtime_evidence,
     release_evidence as resolve_release_evidence,
+    request_understanding_guidance,
     selected_capability_ids,
     workflow_context,
 )
@@ -636,7 +637,11 @@ class AgentRuntime:
             resolved_request,
             spatial_request,
         )
-        discovery_payload = discovery_context(capability_discovery)
+        discovery_payload = discovery_context(
+            capability_discovery,
+            domain_id=str(getattr(self._domain_pack, "domain_id", "unknown")),
+        )
+        understanding_payload = request_understanding_guidance(self._domain_pack)
         capability_catalog = capability_context_summary(
             catalog=self._domain_pack.capability_catalog(
                 environment=self._backend_name or "unknown"
@@ -657,6 +662,7 @@ class AgentRuntime:
             available_tools=self._registry.names,
             planner_kind=type(self._planner).__name__,
             spatial_request=spatial_request.as_context_dict(),
+            request_understanding=understanding_payload,
             capability_discovery=discovery_payload,
             capability_catalog=capability_catalog,
             memory_section=memory_section,
@@ -1092,6 +1098,13 @@ def _build_plan_evidence(
     request_section = sections.get("request")
     if not isinstance(request_section, Mapping):
         request_section = {}
+    understanding_section = sections.get("request_understanding")
+    understanding_available = (
+        isinstance(understanding_section, Mapping)
+        and understanding_section.get("schema_version")
+        == "spatial-agent.request-understanding-guidance.v1"
+        and not understanding_section.get("omitted")
+    )
     capability_section = sections.get("capability_discovery")
     capability_available = (
         isinstance(capability_section, Mapping)
@@ -1119,6 +1132,7 @@ def _build_plan_evidence(
         "context_sections": list(context_packet.evidence.get("section_names") or []),
         "template_context_available": templates_available,
         "template_context_truncated": bool(context_packet.evidence.get("truncated")),
+        "request_understanding_available": understanding_available,
         "capability_discovery_available": capability_available,
         "capability_catalog_available": capability_catalog_available,
         "plan_identity": build_plan_identity(
@@ -1153,6 +1167,13 @@ def _build_plan_evidence(
             "constraints": _safe_small_mapping(request_facts.get("constraints")),
             "evidence": [str(item)[:64] for item in (request_facts.get("evidence") or [])[:8]],
         }
+    if understanding_available and isinstance(understanding_section, Mapping):
+        evidence["request_understanding_domain_id"] = str(
+            understanding_section.get("domain_id", "unknown")
+        )[:80]
+        evidence["request_understanding_schema_version"] = str(
+            understanding_section.get("schema_version", "")
+        )[:96]
     if isinstance(workflow, Mapping):
         evidence["workflow_template_id"] = workflow.get("template_id")
         evidence["workflow_template_version"] = workflow.get("template_version")

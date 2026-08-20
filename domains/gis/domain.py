@@ -5,9 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from agent.capability_catalog import capability_catalog
-from agent.capability_routing import CapabilityRouter
 from agent.workflow_templates import workflow_template_catalog, workflow_template_context_summary
-from agent.request_model import parse_spatial_request
 from agent.domain_contract import domain_action_catalog
 
 from .catalog import (
@@ -111,6 +109,8 @@ class GisDomainPack:
         return result
 
     def extract_request_facts(self, request: str) -> Any:
+        from .request_model import parse_spatial_request
+
         return parse_spatial_request(request)
 
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
@@ -128,7 +128,9 @@ class GisDomainPack:
         return result
 
     def discover(self, request: str, request_facts: Any) -> Any:
-        return CapabilityRouter().discover(request, request_facts)
+        from .routing import GisCapabilityRouter
+
+        return GisCapabilityRouter().discover(request, request_facts)
 
     def workflow_template_context(
         self,
@@ -145,6 +147,11 @@ class GisDomainPack:
         from .planner_guidance import GIS_PLANNER_GUIDANCE
 
         return GIS_PLANNER_GUIDANCE
+
+    def request_understanding_guidance(self) -> Mapping[str, Any]:
+        from .request_understanding import GIS_REQUEST_UNDERSTANDING_GUIDANCE
+
+        return GIS_REQUEST_UNDERSTANDING_GUIDANCE
 
 
 GIS_DOMAIN_PACK = GisDomainPack()

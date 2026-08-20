@@ -116,5 +116,10 @@ class TextDomainPack:
 
         return TEXT_PLANNER_GUIDANCE
 
+    def request_understanding_guidance(self) -> Mapping[str, Any]:
+        from .request_understanding import TEXT_REQUEST_UNDERSTANDING_GUIDANCE
+
+        return TEXT_REQUEST_UNDERSTANDING_GUIDANCE
+
 
 TEXT_DOMAIN_PACK = TextDomainPack()

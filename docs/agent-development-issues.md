@@ -3341,3 +3341,17 @@ M129 增加 `DomainPack.planner_guidance()` 和版本化 `spatial-agent.planner-
 ### 修复与预防
 
 新增 `ci` profile，保留 3 个 quick 核心契约、服务 smoke 和 `stage-spatial-analysis` 一个代表性复杂编排场景；完整 `stage` 仍保留通用问答与未注册空间能力，阶段收口时显式运行。`evaluate_global.py --case-ids` 只用于有界选择已存在的验收场景，不改变 Runtime 行为，也不删除历史测试。以后新增测试先判断它属于提交门禁、阶段验收还是环境专项，避免把所有测试都接入默认 push/PR 流程。
+
+## 领域请求理解已接入但 Planner 仍可能重复抽取事实
+
+### 现象
+
+Runtime 已经通过 Domain Pack 抽取 `RequestFacts` 并生成 capability discovery，但 Rule Planner 过去会再次直接调用公共 `parse_spatial_request()`。这样领域自有的请求理解结果只用于上下文和证据，计划生成仍可能绕过它；同时公共 `agent/` 中的路由、目录和 GIS 解析实现会让新增领域继承兼容规则。
+
+### 根因
+
+早期 GIS 只有一个领域，解析器、路由器和 Rule Planner 可以共享同一套默认实现。引入 Domain Pack 后只增加了 Runtime seam，没有同时迁移实现归属，也没有规定 Planner 优先消费 Runtime 已确认的事实。
+
+### 修复与预防
+
+新增版本化 `request-understanding-guidance` projection，由各 Domain Pack 提供并进入 Context/plan evidence；普通 Rule Planner 请求优先消费 Runtime Context 中的 `RequestFacts`，直连调用和带结构化 workflow 的请求使用有界兼容解析 fallback（workflow hint 可能引入领域约束词汇）。GIS 请求解析实现、GIS 路由和路由信号分别移入 `domains/gis`，公共模块只保留领域无关 value objects 和惰性旧导入 facade；Contract Harness 同步比较新的请求理解证据。以后新增领域应实现自己的 facts extractor、discovery guidance 和 catalog，不得向公共 `agent/` 追加领域词汇。

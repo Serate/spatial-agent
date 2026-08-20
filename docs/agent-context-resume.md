@@ -1098,3 +1098,10 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## M130 规划参考
 
 先从产品闭环、架构 seam、数据 evidence、真实模型、部署、Console 和测试证据全局盘点，再把 GIS 专用 capability routing 迁移为 Domain-owned discovery guidance；保持最大并发度 1。
+
+## M130 当前实现状态
+
+- 新增 `spatial-agent.request-understanding-guidance.v1`；Domain Pack guidance 进入 bounded Context 和 `plan_evidence`，GIS/Text 负向隔离已覆盖。
+- Rule Planner 正常 Runtime 路径优先使用 Context 中已抽取的 `RequestFacts`；GIS parser、路由信号和路由表已物理下沉到 `domains/gis`，公共 `agent` 保留有界旧导入兼容。
+- `agent/capability_discovery.py` 提供领域无关 discovery value objects；公共 catalog 的 GIS 默认只在兼容调用时惰性加载；Contract Harness 已比较请求理解 evidence。
+- 当前已通过 M130 定向请求理解、M77/M78 路由目录、M95 facts、M112/M113 Text Domain 和 context 回归；`ci`、`stage`、跨入口 contract harness、compileall 和 `git diff --check` 均通过，全量离线 690 项通过、42 项按环境跳过。下一步按七维全局盘点进入 M131。

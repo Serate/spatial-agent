@@ -4,19 +4,39 @@ from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
 from .workflow_templates import workflow_template_catalog
-from domains.gis.catalog import (
-    GIS_CAPABILITIES,
-    GIS_DATASET_GROUPS,
-    GIS_DATASET_TOOL_CAPABILITIES,
-)
 
 
 CAPABILITY_CONTEXT_SCHEMA_VERSION = "spatial-agent.capability-catalog-context.v1"
 
 
-DATASET_TOOL_CAPABILITIES = GIS_DATASET_TOOL_CAPABILITIES
-DATASET_GROUPS = GIS_DATASET_GROUPS
-_CAPABILITIES = GIS_CAPABILITIES
+def _default_gis_contract():
+    """Load the legacy GIS defaults only for compatibility callers.
+
+    Domain Pack implementations pass their own definitions explicitly.  The
+    lazy fallback keeps older scripts importing ``capability_catalog()``
+    working without making the shared module import GIS at module load time.
+    """
+
+    from domains.gis.catalog import (
+        GIS_CAPABILITIES,
+        GIS_DATASET_GROUPS,
+        GIS_DATASET_TOOL_CAPABILITIES,
+    )
+
+    return GIS_CAPABILITIES, GIS_DATASET_GROUPS, GIS_DATASET_TOOL_CAPABILITIES
+
+
+def __getattr__(name: str):
+    """Expose old GIS constants through an explicit lazy compatibility path."""
+
+    if name in {"DATASET_TOOL_CAPABILITIES", "DATASET_GROUPS", "_CAPABILITIES"}:
+        capabilities, groups, tools = _default_gis_contract()
+        return {
+            "DATASET_TOOL_CAPABILITIES": tools,
+            "DATASET_GROUPS": groups,
+            "_CAPABILITIES": capabilities,
+        }[name]
+    raise AttributeError(name)
 
 
 def capability_catalog(
@@ -39,19 +59,25 @@ def capability_catalog(
         name: sorted(set(values))
         for name, values in (dataset_capabilities or {}).items()
     }
-    definitions = tuple(
-        _CAPABILITIES if capability_definitions is None else capability_definitions
-    )
+    if capability_definitions is None:
+        default_capabilities, default_groups, default_tools = _default_gis_contract()
+        definitions = tuple(default_capabilities)
+    else:
+        definitions = tuple(capability_definitions)
+        default_groups = {}
+        default_tools = {}
     tool_capabilities = (
-        DATASET_TOOL_CAPABILITIES
-        if dataset_tool_capabilities is None
-        else dataset_tool_capabilities
+        default_tools if dataset_tool_capabilities is None else dataset_tool_capabilities
     )
-    groups = DATASET_GROUPS if dataset_groups is None else dataset_groups
+    groups = default_groups if dataset_groups is None else dataset_groups
     analysis_ready_ids = set(
         analysis_ready_capability_ids
         if analysis_ready_capability_ids is not None
-        else {"buildability_screening", "constrained_buildability_screening"}
+        else (
+            {"buildability_screening", "constrained_buildability_screening"}
+            if capability_definitions is None
+            else set()
+        )
     )
     capabilities = []
     for item in definitions:
@@ -115,11 +141,16 @@ def capability_catalog(
     }
 
 
-def capability_suggestions() -> list[Dict[str, str]]:
+def capability_suggestions(
+    capability_definitions: Iterable[Mapping[str, Any]] | None = None,
+) -> list[Dict[str, str]]:
     """Return the stable, user-facing capability choices for clarification UI."""
+    definitions = capability_definitions
+    if definitions is None:
+        definitions, _, _ = _default_gis_contract()
     return [
         {"id": str(item["id"]), "label": str(item["label"])}
-        for item in _CAPABILITIES
+        for item in definitions
     ]
 
 

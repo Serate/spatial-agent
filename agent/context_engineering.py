@@ -41,6 +41,7 @@ class ContextBuilder:
         available_tools: Optional[Iterable[str]] = None,
         planner_kind: Optional[str] = None,
         spatial_request: Optional[Mapping[str, Any]] = None,
+        request_understanding: Optional[Mapping[str, Any]] = None,
         capability_discovery: Optional[Mapping[str, Any]] = None,
         capability_catalog: Optional[Mapping[str, Any]] = None,
         memory_section: Optional[Mapping[str, Any]] = None,
@@ -61,6 +62,8 @@ class ContextBuilder:
         }
         if spatial_request:
             sections["spatial_request"] = self._safe_value(spatial_request)
+        if request_understanding:
+            sections["request_understanding"] = self._safe_value(request_understanding)
         if capability_discovery:
             sections["capability_discovery"] = self._safe_value(capability_discovery)
         if capability_catalog:
@@ -102,6 +105,7 @@ class ContextBuilder:
             "workflow",
             "planner",
             "memory",
+            "request_understanding",
             "capability_discovery",
             "capability_catalog",
             "workflow_templates",

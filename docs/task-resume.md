@@ -45,9 +45,9 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 ## Current Status
 
-- Latest completed milestone: M129.1 精简提交测试门禁（`ci` profile、阶段验收分层和有界场景选择）。
+- Latest completed milestone: M129.1 精简提交测试门禁（`ci` profile、阶段验收分层和有界场景选择）；当前进行 M130 Domain-owned Request Understanding/Catalog/Discovery 解耦。
 - Last pushed commit: 以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
-- Current work: M129.1 已完成——push/PR 只运行 quick、服务 smoke 和一个复杂空间编排代表场景；完整 `stage`、full-stage、GIS、live 和 Docker 仍按需运行。下一阶段恢复 M130：Capability Routing/Catalog 与通用 Request Understanding/Capability Discovery 解耦。
+- Current work: M130 已完成第一条纵向切片——请求理解 guidance、Runtime 证据、facts 复用、GIS parser/router 下沉和兼容 facade 已接入；下一步完成跨入口回放与阶段集成验收，再按七维全局盘点重规划。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。

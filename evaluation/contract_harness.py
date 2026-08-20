@@ -80,6 +80,17 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "capability_catalog_tool_schema_count": planning.get(
                 "capability_catalog_tool_schema_count"
             ),
+            "request_understanding_available": planning.get(
+                "request_understanding_available"
+            ),
+            "request_understanding_domain_id": planning.get(
+                "request_understanding_domain_id"
+            ),
+            "request_understanding_schema_version": planning.get(
+                "request_understanding_schema_version"
+            ),
+            "context_has_request_understanding": "request_understanding"
+            in section_names,
             "context_has_capability_discovery": "capability_discovery"
             in section_names,
             "context_has_capability_catalog": "capability_catalog"

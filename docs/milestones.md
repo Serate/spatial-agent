@@ -2726,3 +2726,12 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 2. 让 planner guidance、RequestFacts、能力目录和 workflow template 在同一上下文/证据投影中可追踪，补充跨 CLI、HTTP、artifact 和回放的计划来源证据。
 3. 在不增加 GIS 专用规则的前提下，增加一个更接近开放式任务的非 GIS 脱敏回放，并验证澄清、拒绝、结果类型和 ToolRegistry 边界。
 4. 阶段末复验真实模型可选基线、Docker/FastAPI 条件路径和稳定 CI；重型全量回归保持阶段验收，不重新成为 push 门禁。
+
+## M130 已完成：Domain-owned Request Understanding 与 Capability Discovery
+
+- 新增 `spatial-agent.request-understanding-guidance.v1` projection；GIS/Text Domain Pack 分别声明事实字段、任务/约束/证据提示和澄清策略，Runtime 将其纳入 Context 与 `plan_evidence`。
+- Rule Planner 优先消费 Runtime 已抽取的 `RequestFacts`，避免正常 Runtime 路径重复解析；直连 Planner 仍保留兼容 fallback。
+- GIS RequestFacts 解析、路由信号与路由表已移入 `domains/gis`；`agent/capability_discovery.py` 只保留领域无关的 route/value objects，旧 `agent/capability_routing.py` 和默认 catalog 入口保留惰性兼容 facade。
+- Contract Harness 已纳入请求理解 guidance 的稳定投影；M69 workflow hint 回归已修复并通过。
+- 阶段验收：M130 定向回归、`ci`、`stage`、跨入口 plan evidence 回归、compileall、`git diff --check` 通过；全量离线 690 项通过、42 项按环境跳过。
+- 真实 GIS、真实模型、FastAPI/Docker 仍按环境条件作为显式验收，不以本阶段离线结果代替。
