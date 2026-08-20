@@ -42,7 +42,7 @@ def _run_unit_tests():
     env = os.environ.copy()
     env["SPATIAL_AGENT_SMOKE_NESTED"] = "1"
     completed = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
+        [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", str(ROOT)],
         cwd=str(ROOT),
         capture_output=True,
         text=True,

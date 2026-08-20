@@ -51,7 +51,7 @@ python scripts\test_profile.py --profile stage
 
 ```powershell
 python scripts\test_profile.py --profile full-stage
-python -m unittest discover -s tests
+python -m unittest discover -s tests -t .
 ```
 
 ## 失败恢复演示

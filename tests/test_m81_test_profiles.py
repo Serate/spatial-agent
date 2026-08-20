@@ -42,7 +42,7 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertIn("中文阶段输出", result["stdout_tail"])
 
-    def test_quick_profile_is_bounded_to_core_tripwires(self):
+    def test_quick_profile_is_bounded_to_compact_gate(self):
         payload = self._profile_payload("quick")
         names = [item["name"] for item in payload["commands"]]
 
@@ -50,10 +50,12 @@ class M81TestProfileTests(unittest.TestCase):
         core_args = payload["commands"][0]["command"]
         selected_tests = [item for item in core_args if item.startswith("tests.")]
         self.assertEqual(len(selected_tests), 2)
-        self.assertNotIn("tests.test_m68_workflow_templates", core_args)
-        self.assertNotIn("tests.test_m69_workflow_runtime", core_args)
-        self.assertTrue(
-            any(item.startswith("tests.test_m131_domain_planner.") for item in selected_tests)
+        self.assertEqual(
+            selected_tests,
+            [
+                "tests.test_dev_gate.DevGateTests.test_runtime_result_and_artifact_share_contract",
+                "tests.test_dev_gate.DevGateTests.test_clarification_follow_up_is_session_scoped",
+            ],
         )
 
     def test_smoke_profile_does_not_request_nested_full_suite(self):
@@ -62,17 +64,13 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in payload["commands"]], ["service_smoke"])
         self.assertEqual(payload["commands"][0]["env"], {})
 
-    def test_ci_profile_keeps_only_one_stage_representative(self):
+    def test_ci_profile_has_no_nested_stage_suite(self):
         payload = self._profile_payload("ci")
 
         self.assertEqual(
             [item["name"] for item in payload["commands"]],
-            ["core_contract_tripwires", "service_smoke", "ci_stage_representative"],
+            ["core_contract_tripwires", "service_smoke"],
         )
-        ci_args = payload["commands"][2]["command"]
-        self.assertEqual(ci_args[ci_args.index("--case-ids") + 1], "stage-spatial-analysis")
-        self.assertIn("--no-model-evaluation", ci_args)
-        self.assertIn("--no-model-replay", ci_args)
 
     def test_stage_profile_uses_small_acceptance_examples(self):
         payload = self._profile_payload("stage")

@@ -3579,3 +3579,17 @@ Docker 容器健康、真实 GIS 数据可读，Python 侧直接比较 sync 与 
 ### 处理与预防
 
 生产 API 增加 `UTF8JSONResponse`，作为 FastAPI 默认 response class，并在 HTTP 异常处理器中显式使用；回归测试验证默认响应契约，Docker acceptance 进一步检查实际 `Content-Type: application/json; charset=utf-8` 并通过 sync/artifact harness。以后跨语言 HTTP acceptance 必须同时验证 payload 语义和 Content-Type/charset，不能把客户端乱码误判为 Runtime、数据或 artifact 一致性问题；临时诊断日志只能使用有标签的脱敏字段并在修复后删除。
+
+## unittest 平铺 discovery 会绕过精简测试包
+
+### 现象
+
+仓库已经有 compact active suite，但执行 `python -m unittest discover -s tests` 仍会加载 133 个历史测试文件和 700 多个方法，导致开发者误以为精简没有生效。改成 `discover -s tests -t .` 后只运行 4 个 active gate 测试。
+
+### 根因
+
+当 `tests` 没有作为顶层 package 被发现时，unittest 会把 `tests` 当作平铺搜索目录，不调用 `tests/__init__.py` 的 `load_tests`。因此仅增加 package hook 不足，命令还必须显式指定仓库根目录为 top-level。
+
+### 处理与预防
+
+新增 `tests/__init__.py` 的 active module allowlist，并统一将 README、CI、smoke 和测试策略中的 discovery 命令改为 `python -m unittest discover -s tests -t . -v`。历史里程碑测试不删除，仍可通过 `python -m unittest tests.test_m80_replanning -v` 显式诊断；以后不要在默认脚本中使用没有 `-t .` 的平铺 discovery，也不要把完整历史矩阵塞回 quick/ci。

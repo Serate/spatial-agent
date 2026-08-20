@@ -21,10 +21,8 @@ from typing import Dict, Iterable, List, Sequence
 
 ROOT = Path(__file__).parents[1]
 QUICK_CORE_TESTS = (
-    "tests.test_m68_workflow_templates.M68WorkflowTemplateTests."
-    "test_template_compiler_binds_constraints_and_result_references",
-    "tests.test_m131_domain_planner.M131DomainPlannerTests."
-    "test_runtime_factory_uses_selected_domain_planner",
+    "tests.test_dev_gate.DevGateTests.test_runtime_result_and_artifact_share_contract",
+    "tests.test_dev_gate.DevGateTests.test_clarification_follow_up_is_session_scoped",
 )
 GIS_CORE_TESTS = (
     "tests.test_m6_geojson_admin_backend.M6GeoJSONAdminBackendTests."
@@ -105,7 +103,7 @@ def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
             "commands": [c.as_dict() for c in _smoke_commands()],
         },
         "ci": {
-            "purpose": "stable push/PR gate: quick contracts, service smoke, and one representative stage case",
+            "purpose": "stable push/PR gate: compact runtime contracts and service smoke",
             "commands": [c.as_dict() for c in _ci_commands()],
         },
         "stage": {
@@ -200,29 +198,13 @@ def _ci_commands() -> List[ProfileCommand]:
     """Return the smaller push/PR gate.
 
     The complete stage profile remains available for phase closeout.  CI only
-    needs one representative composed spatial request because the quick
-    tripwires and service smoke already cover the shared boundaries; running
-    the greeting and unsupported-domain cases on every push adds little signal
-    and keeps feedback slower.
+    needs only the compact quick gate and service smoke.  Composed spatial
+    acceptance remains an explicit stage gate so every push stays fast.
     """
 
     return [
         *_quick_commands(),
         *_smoke_commands(),
-        ProfileCommand(
-            "ci_stage_representative",
-            [
-                sys.executable,
-                str(ROOT / "scripts" / "evaluate_global.py"),
-                "--cases",
-                str(ROOT / "evaluation" / "cases" / "stage-acceptance.json"),
-                "--case-ids",
-                "stage-spatial-analysis",
-                "--strict",
-                "--no-model-evaluation",
-                "--no-model-replay",
-            ],
-        ),
     ]
 
 

@@ -46,7 +46,7 @@ python scripts\test_profile.py --profile ci
 - 一次服务 smoke，验证 Service 入口、DEM 元数据和澄清续问。
 - 复杂空间编排的 1 个代表场景 `stage-spatial-analysis`。
 
-`ci` 不重复运行通用问答和未注册空间能力两个边界场景；这两个场景仍保留在 `stage`，由阶段验收运行。
+`ci` 不运行阶段 acceptance、完整模型回放或历史里程碑测试；复杂场景和未注册能力仍保留在 `stage`，由阶段验收运行。
 
 ### stage
 
@@ -115,12 +115,12 @@ python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0
 
 ~~~powershell
 python scripts\test_profile.py --profile full-stage
-python -m unittest discover -s tests -v
+python -m unittest discover -s tests -t . -v  # 只运行 compact active suite
 python scripts\smoke_check.py --with-unit-tests
 python scripts\live_baseline.py --allow-network --backend local
 ~~~
 
-只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。提交/PR 不自动运行 `stage` 的全部边界场景；阶段收口或风险明确时再运行 `stage`。即使需要完整矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。
+历史里程碑测试仍可按模块显式运行，例如 `python -m unittest tests.test_m80_replanning -v`；它们不再参与默认 discovery。只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。提交/PR 不自动运行 `stage` 的边界场景；阶段收口或风险明确时再运行 `stage`。即使需要扩展矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。
 
 ## 记录规则
 

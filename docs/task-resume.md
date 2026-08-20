@@ -259,7 +259,7 @@ Run service smoke:
 Run all non-GIS tests:
 
 ~~~powershell
-& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest discover -s tests -v
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest discover -s tests -t . -v
 ~~~
 
 Run GIS-focused tests:
@@ -1542,3 +1542,9 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## 下一阶段 M141 规划参考
 
 围绕整体 Agent Runtime 建立通用的 capability-guided plan repair 与模型计划稳健性闭环：规则、脱敏 replay 和 live Planner 共享 TaskPlan schema、DAG、ToolRegistry、repair lineage 和 result/artifact/async 证据。先补有界 repair seam 与重复/未声明引用的契约测试，再扩展复杂开放式任务 replay/live 基线；数据健康、部署证据、Console 动态展示和跨领域隔离作为同一纵向切片验收，最大并发度保持 1。
+
+## M142 测试精简阶段当前状态
+
+- 默认 discovery 已收敛为 `python -m unittest discover -s tests -t . -v`，通过 `tests/__init__.py` 只加载 4 个 compact active gate 测试；历史测试文件保留，按模块显式运行。
+- `quick` 仅 2 个 Runtime/artifact/澄清契约，`ci` 仅 quick + service smoke；stage、full-stage、GIS、live、Docker 继续按风险显式执行。
+- compact discovery、quick、ci、stage 和 smoke（含 compact unit gate）均已通过；本阶段目标是缩短反馈，不宣称历史全量回归已运行。

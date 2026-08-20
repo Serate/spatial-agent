@@ -282,7 +282,7 @@ feat: add openai planner local config
 非 GIS 全量测试：
 
 ~~~powershell
-& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest discover -s tests -v
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest discover -s tests -t . -v
 ~~~
 
 Quick profile：
@@ -1267,3 +1267,14 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 ## M142 下一阶段全局规划参考
 
 围绕完整 Agent 闭环推进计划修复质量：脱敏 replay 评测“原计划无效 -> 修复成功/拒绝”的质量和预算，统一同步、异步、重启、HTTP、artifact、Text/GIS 的 repair lineage，再让 Console 动态解释已修复、拒绝和需澄清状态。保持单线程、默认离线和严格 Registry 边界，阶段收尾再做真实 GIS/live/Docker 验收。
+
+## M142 当前阶段：极简测试门禁与历史测试隔离
+
+- 默认 `unittest discover -s tests -t .` 通过 `tests/__init__.py` 的 active allowlist，只运行 `test_dev_gate` 和 `test_http_contract` 共 4 项；历史里程碑测试保留为显式诊断资产。
+- `quick` 只运行 2 个 compact Runtime 契约；`ci` 只组合 quick 与 service smoke，不再隐式运行 stage 代表场景。`stage`、`full-stage`、GIS、live、Docker 仍按风险显式执行。
+- README、CI、smoke、demo checklist、task resume 和 test strategy 的 discovery 命令已统一加 `-t .`；平铺 discovery 绕过 package `load_tests` 的原因和预防已写入 `docs/agent-development-issues.md`。
+- 验证证据：compact discovery 4 项通过，quick 2 项通过，ci、stage、`smoke_check.py --with-unit-tests` 均通过。不要把这组 compact 结果描述为历史全量回归通过。
+
+## M143 下一阶段全局规划参考
+
+从项目全局继续保持“最小反馈、按风险扩展”：共享 Runtime/HTTP/结果契约改动时只增加必要的跨入口专项，真实 GIS/live/Docker 和完整历史模块测试继续作为显式验收；任何新增测试必须说明它属于 active gate、阶段 acceptance 还是专项诊断，禁止自动加入默认 discovery。

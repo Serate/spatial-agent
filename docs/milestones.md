@@ -2926,6 +2926,19 @@ M139 已完成 GIS intent 的领域归属，但能力所需的区域、数据集
 
 M141 已让计划校验失败具备一次安全修复能力，但 repair 仍主要是 Runtime seam，尚未形成跨入口的模型质量评估和用户可恢复交互。下一阶段从全局推进“计划修复质量与可解释交互”：先建立脱敏 replay 的 repair quality 评测和错误分类，再验证异步/重启/HTTP/artifact 的 repair lineage，最后让 Console 对“已修复/拒绝/需澄清”使用统一动态证据。继续保持单线程、默认离线，不为单个 GIS 区域增加专用分支；真实 GIS/live/Docker 作为阶段收尾证据。
 
+## M142 当前阶段：极简测试门禁与历史测试隔离
+
+M141 之后的首要工程问题不是继续增加测试，而是降低反馈成本。M142 将测试分为 compact active gate 与显式历史诊断资产：默认 discovery、quick、smoke 和 CI 只验证少量共享 Runtime/HTTP 契约；阶段 acceptance、GIS、live、Docker 和历史里程碑测试仍保留，但不再隐式参与日常门禁。
+
+- 新增 `tests/__init__.py` 的 active module allowlist 与 3 个 Runtime/artifact/澄清 smoke、1 个标准 HTTP 健康契约；`python -m unittest discover -s tests -t .` 实际只运行 4 项。
+- `quick` 只运行 2 个 compact Runtime 契约，`ci` 收敛为 quick + service smoke，不再每次 push 重跑阶段代表场景；`stage`、`full-stage`、GIS、live、Docker 保持显式入口。
+- 历史测试文件不删除，仍可按模块显式运行；README、测试策略、smoke、CI、恢复文档统一使用 `-t .`，避免平铺 discovery 绕过 active suite。该边界和原因已记录到中文问题文档。
+- 验证：compact discovery 4 项通过、quick 2 项通过、ci 两个检查通过、stage 代表性验收通过、`smoke_check.py --with-unit-tests` 运行 4 项并通过；未将历史全量回归误报为默认门禁。
+
+## M143 全局规划参考
+
+在测试反馈已经收敛后，下一阶段再从全局 Agent Runtime 评估是否需要补充跨入口契约：优先以一条 compact contract 验证 Planner、Runtime、ToolRegistry、结果 envelope 和 artifact；只有共享边界发生变化时才扩展专项测试。真实数据质量、模型 replay/live、部署和 Console 继续通过显式阶段入口验收，避免测试规模再次按里程碑累加。
+
 ## M141 全局规划参考：模型计划稳健性与通用修复闭环
 
 下一阶段不围绕洪山区或某个工具追加规则，而是从整体 Agent Runtime 处理 M140 暴露的跨边界风险：规则 Planner、脱敏 replay 和 live Planner 必须共享同一 capability requirements、TaskPlan schema、DAG 校验、ToolRegistry 和 repair lineage。

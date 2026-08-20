@@ -21,8 +21,8 @@ jobs:
       - name: Run stable CI profile
         run: python scripts/test_profile.py --profile ci
 
-  full-regression:
-    name: Full offline regression (manual)
+  compact-regression:
+    name: Compact offline regression (manual)
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     env:
@@ -34,4 +34,4 @@ jobs:
         with:
           python-version: "3.11"
       - name: Run offline regression suite
-        run: python -m unittest discover -s tests -v
+        run: python -m unittest discover -s tests -t . -v
