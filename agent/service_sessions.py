@@ -56,6 +56,7 @@ def async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         "planner": kwargs.get("planner", "rule"),
         "backend": kwargs.get("backend", "memory"),
         "domain_id": kwargs.get("domain_id"),
+        "runtime_context": kwargs.get("runtime_context"),
         "export_artifact": bool(kwargs.get("export_artifact", False)),
         "export_geojson": bool(kwargs.get("export_geojson", False)),
         "geojson_max_features": kwargs.get("geojson_max_features", 100),

@@ -2815,3 +2815,9 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 新增 `GET /domains`；capabilities、preview、run、artifact、execution record 和异步 payload 保留当前 `domain_id`，前端和运维入口可以识别当前领域。
 - SQLite run/history/metrics、异步恢复与 reaper、普通 artifact/Action history 和幂等读取按 Domain 过滤；同一 run_id 跨 Domain 覆盖会被拒绝，旧无 domain 字段数据按 GIS 兼容。
 - M134 专项 7 项、Text/GIS/SQLite/Action 受影响回归、离线全量 707 项（42 项按环境跳过）、full-stage、compileall、Ruff F401/F821/F841、Pyflakes、Vulture、`ci` 和 `stage` 均通过。真实 GIS、live 模型和 Docker 未因本阶段离线契约改动强制启动，继续作为显式环境验收。
+
+## M135 当前实现：版本化 Runtime Context 快照
+
+- 新增领域无关的 `spatial-agent.runtime-context.v1`，绑定 Domain、Planner、Backend、ToolProvider、权限、批准工具、依赖证据策略和核心契约版本；快照只保留有界配置，不保存请求、密钥、工具参数或原始 provider 响应。TaskPlan 与 result envelope 版本由 `agent/contract_versions.py` 统一定义。
+- Runtime run/preview/capabilities、Service 同步/异步、Domain Action、SQLite snapshot、artifact 和 Console 执行证据均可读取同一 Context；异步任务在 worker 完成前就持久化快照，重启恢复会校验原快照，发现部署配置漂移时以 `runtime_context_mismatch` 失败并保留原证据。
+- M135 专项 8 项、M128 执行记录回归 7 项通过；完整离线回归 715 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、GIS-core profile、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过。M135 已完成，下一步提交版本并按七维度整体重规划。

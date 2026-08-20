@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import json
 from typing import Any, Mapping
 
 from agent.capability_catalog import capability_catalog
@@ -66,6 +67,20 @@ class GisDomainPack:
             str(project_root / "tools" / "schema" / "tool-definitions.json"),
             adapter,
         )
+
+    def tool_provider_info(self, *, backend_name: str = "memory", root: Any = None) -> Mapping[str, Any]:
+        """Describe the provider without opening a GIS backend or data volume."""
+        from pathlib import Path
+
+        project_root = Path(root) if root is not None else Path(__file__).resolve().parents[2]
+        path = project_root / "tools" / "schema" / "tool-definitions.json"
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            tools = payload.get("tools") if isinstance(payload, Mapping) else []
+            tool_count = len(tools) if isinstance(tools, list) else 0
+        except (OSError, ValueError, TypeError):
+            tool_count = 0
+        return {"id": "native", "tool_count": tool_count}
 
     def evidence_provider(self) -> Any:
         """Return the GIS-owned provider for versioned evidence projections."""

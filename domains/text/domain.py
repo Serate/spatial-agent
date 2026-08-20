@@ -13,6 +13,7 @@ from .catalog import (
     TEXT_CAPABILITIES,
     TEXT_DATASET_GROUPS,
     TEXT_DATASET_TOOL_CAPABILITIES,
+    TEXT_TOOL_DEFINITIONS,
 )
 
 
@@ -42,6 +43,12 @@ class TextDomainPack:
         from .provider import TextToolProvider
 
         return TextToolProvider()
+
+    def tool_provider_info(self, *, backend_name: str = "memory", root: Any = None) -> Mapping[str, Any]:
+        return {
+            "id": "text-native",
+            "tool_count": len(TEXT_TOOL_DEFINITIONS),
+        }
 
     def evidence_provider(self) -> Any:
         from .evidence import TEXT_EVIDENCE_PROVIDER

@@ -62,6 +62,8 @@ class AgentRunResult:
     # Stable Domain Pack identity used to isolate persistence and recovery.
     # Older synthetic fixtures may omit it; real Runtime runs populate it.
     domain_id: Optional[str] = None
+    # Immutable, bounded configuration evidence for this execution.
+    runtime_context: Optional[Dict[str, Any]] = None
     resolved_request: Optional[str] = None
     # Structured request interpretation shared by planning, recovery and
     # result consumers. The original text remains in ``request``.
@@ -107,6 +109,8 @@ class AgentRunResult:
             data.pop("workflow", None)
         if data.get("domain_id") is None:
             data.pop("domain_id", None)
+        if data.get("runtime_context") is None:
+            data.pop("runtime_context", None)
         if data.get("request_facts") is None:
             data.pop("request_facts", None)
         return data

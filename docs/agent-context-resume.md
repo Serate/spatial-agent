@@ -1188,3 +1188,9 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 ## 下一阶段 M135 规划参考
 
 围绕“不可变 Runtime Context/deployment snapshot”推进全局闭环：把 Domain、Planner、Backend、ToolProvider、权限、数据/模型证据和 schema 版本统一绑定到一次运行，验证配置变更、前端领域切换、SQLite 重启、多 worker、artifact/recovery 和 HTTP/Console 跨入口一致性。先完成 context contract 与负向隔离，再做真实 GIS/live/Docker 显式验收；最大并发度保持 1。
+
+## M135 当前实现：Runtime Context 快照
+
+- 新增 `agent/runtime_context.py` 的 `spatial-agent.runtime-context.v1`，只记录有界的 Domain、Planner、Backend、ToolProvider、权限、批准工具、策略和契约版本，不记录请求、凭据、工具参数或 provider 原文；TaskPlan 与 result envelope 版本由 `agent/contract_versions.py` 统一提供。
+- Runtime 的 run/preview/capabilities、Service 的同步/异步、Domain Action、SQLite/artifact/recovery 和 Console 执行证据已接入同一快照；异步提交时先保存快照，worker 完成或重启恢复会校验当前 Runtime，配置漂移时明确失败而不静默换配置执行。
+- M135 专项 8 项与 M128 执行记录回归 7 项通过；完整离线回归 715 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、GIS-core profile、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过。真实 GIS、live LLM 与 Docker 仍按显式环境验收，不因本阶段离线契约改动强制启动。

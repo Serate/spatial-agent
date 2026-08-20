@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Mapping
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
 from agent.execution_contract import build_execution_record, execution_record_summary
+from agent.contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
 
 COMMON_WORKSPACE_PANELS = [
     "answer",
@@ -103,6 +104,7 @@ def build_result_contract(
         workspace=workspace,
     )
     contract = {
+        "schema_version": RESULT_ENVELOPE_SCHEMA_VERSION,
         "type": result_type,
         "title": str(output.get("title") or registry.title_for(result_type)),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
@@ -131,6 +133,9 @@ def build_result_contract(
             "crs": sorted(geometry_crs),
         },
     }
+    runtime_context = payload.get("runtime_context")
+    if isinstance(runtime_context, Mapping):
+        contract["runtime_context"] = dict(runtime_context)
     if payload.get("run_id") or payload.get("action_execution_id"):
         # Rebuild from the current payload: AgentRunResult.to_dict() may have
         # produced an earlier record before Service assigned artifact_ref.

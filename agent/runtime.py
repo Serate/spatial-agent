@@ -45,6 +45,7 @@ from .replanning import (
     rule_replan_plan,
 )
 from .request_model import RequestFacts
+from .runtime_context import build_runtime_context
 from .tools import ToolRegistry
 from .workflow_templates import (
     WorkflowTemplateError,
@@ -155,6 +156,7 @@ class AgentRuntime:
         memory: Optional[FactMemory] = None,
         observability: Optional[ObservabilityEmitter] = None,
         backend_name: str = "unknown",
+        planner_name: str = "unknown",
         domain_pack: Optional[DomainPack] = None,
         allowed_permissions: Optional[Iterable[str]] = None,
         approved_tools: Optional[Iterable[str]] = None,
@@ -165,6 +167,7 @@ class AgentRuntime:
         self._state_store = state_store or InMemoryStateStore()
         self._conversation_store = conversation_store or InMemoryConversationStore()
         self._backend_name = backend_name
+        self._planner_name = str(planner_name or "unknown")[:32]
         self._domain_pack = domain_pack or default_domain_pack()
         self._result_registry = resolve_result_registry(self._domain_pack)
         self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
@@ -195,6 +198,18 @@ class AgentRuntime:
     def domain_id(self) -> str:
         """Return the selected Domain Pack identity for service boundaries."""
         return str(getattr(self._domain_pack, "domain_id", "unknown"))[:80]
+
+    def runtime_context(self) -> Dict[str, Any]:
+        """Return the immutable configuration evidence for this Runtime."""
+        return build_runtime_context(
+            domain_id=self.domain_id,
+            planner=self._planner_name,
+            backend=self._backend_name,
+            tool_provider=self._registry.provider_info(),
+            permissions=self._allowed_permissions,
+            approved_tools=self._approved_tools,
+            require_dependency_evidence=self._require_dependency_evidence,
+        )
 
     def result_registry(self):
         """Return the result metadata registry selected by this Domain Pack."""
@@ -234,6 +249,7 @@ class AgentRuntime:
         snapshot.setdefault("actions", self.domain_actions())
         snapshot.update({
             "domain_id": str(getattr(self._domain_pack, "domain_id", "unknown")),
+            "runtime_context": self.runtime_context(),
             "runtime": {
                 "backend": self._backend_name,
                 "domain_id": str(getattr(self._domain_pack, "domain_id", "unknown")),
@@ -318,6 +334,7 @@ class AgentRuntime:
             request=request,
             session_id=session_id,
             domain_id=self.domain_id,
+            runtime_context=self.runtime_context(),
             resolved_request=resolved_request,
             request_facts=request_facts.as_context_dict(),
             workflow=dict(workflow) if workflow is not None else None,
@@ -461,6 +478,7 @@ class AgentRuntime:
             "resolved_request": resolved_request,
             "session_id": session_id,
             "domain_id": self.domain_id,
+            "runtime_context": self.runtime_context(),
             "request_facts": request_facts.as_context_dict(),
             "workflow": dict(workflow) if workflow is not None else None,
             "context_evidence": context_packet.evidence,

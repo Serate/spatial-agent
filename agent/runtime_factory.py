@@ -6,6 +6,7 @@ factory for CLI compatibility.
 """
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -20,6 +21,7 @@ from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_openai_config
 from .planner import RuleBasedPlanner
 from .runtime import AgentRuntime
+from .runtime_context import build_runtime_context
 from .tools import ToolRegistry
 
 
@@ -73,10 +75,54 @@ def build_runtime(
         memory=memory,
         observability=observability,
         backend_name=backend_name,
+        planner_name=planner_name,
         domain_pack=selected_domain_pack,
         allowed_permissions=allowed_permissions,
         approved_tools=approved_tools,
         require_dependency_evidence=require_dependency_evidence,
+    )
+
+
+def build_runtime_context_snapshot(
+    planner_name: str,
+    backend_name: str = "memory",
+    *,
+    domain_pack: Optional[DomainPack] = None,
+    domain_id: Optional[str] = None,
+    allowed_permissions: Optional[Iterable[str]] = None,
+    approved_tools: Optional[Iterable[str]] = None,
+    require_dependency_evidence: Optional[bool] = None,
+) -> dict:
+    """Build submission-time context without initializing a backend."""
+    root = Path(__file__).resolve().parent.parent
+    if domain_pack is not None and domain_id is not None:
+        raise ValueError("domain_pack and domain_id are mutually exclusive")
+    selected_domain_pack = domain_pack or resolve_domain_pack(domain_id)
+    if allowed_permissions is None:
+        allowed_permissions = _csv_env("SPATIAL_AGENT_PERMISSIONS") or default_permissions(
+            selected_domain_pack
+        )
+    if approved_tools is None:
+        approved_tools = _csv_env("SPATIAL_AGENT_APPROVED_TOOLS")
+    if require_dependency_evidence is None:
+        require_dependency_evidence = _bool_env(
+            "SPATIAL_AGENT_REQUIRE_DEPENDENCY_EVIDENCE",
+            default=False,
+        )
+    provider_info = {}
+    info_factory = getattr(selected_domain_pack, "tool_provider_info", None)
+    if callable(info_factory):
+        value = info_factory(backend_name=backend_name, root=root)
+        if isinstance(value, Mapping):
+            provider_info = dict(value)
+    return build_runtime_context(
+        domain_id=str(getattr(selected_domain_pack, "domain_id", "unknown")),
+        planner=planner_name,
+        backend=backend_name,
+        tool_provider=provider_info,
+        permissions=allowed_permissions,
+        approved_tools=approved_tools,
+        require_dependency_evidence=bool(require_dependency_evidence),
     )
 
 

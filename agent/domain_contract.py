@@ -90,6 +90,9 @@ class DomainPack(Protocol):
     def tool_provider(self, *, backend_name: str = "memory", root: Any = None) -> Any:
         """Return the domain-owned provider used by the generic Runtime Factory."""
 
+    def tool_provider_info(self, *, backend_name: str = "memory", root: Any = None) -> Mapping[str, Any]:
+        """Return provider identity without initializing a backend."""
+
     def preflight_tool(
         self,
         tool: str,

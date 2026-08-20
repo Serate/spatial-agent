@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
+from .runtime_context import normalize_runtime_context
 from .runtime import PendingClarification
 
 
@@ -865,6 +866,7 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         request=payload["request"],
         session_id=payload.get("session_id"),
         domain_id=payload.get("domain_id", "gis"),
+        runtime_context=normalize_runtime_context(payload.get("runtime_context")),
         resolved_request=payload.get("resolved_request"),
         request_facts=payload.get("request_facts"),
         plan=plan,

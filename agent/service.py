@@ -14,9 +14,10 @@ from agent.execution_contract import build_execution_record
 from agent.failure_contract import build_failure_evidence, failure_from_payload
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
-from agent.runtime_factory import build_runtime
+from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.domain_registry import resolve_domain_id
 from agent.domain_registry import domain_registry
+from agent.runtime_context import assert_runtime_context_compatible
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
@@ -132,6 +133,7 @@ def _action_response_from_artifact(artifact: Dict[str, Any]) -> Dict[str, Any]:
     response.update({
         "action_id": artifact.get("action_id"),
         "domain_id": artifact.get("domain_id"),
+        "runtime_context": artifact.get("runtime_context"),
         "status": artifact.get("status"),
         "action_execution_id": artifact.get("action_execution_id"),
         "action_execution": artifact.get("action_execution"),
@@ -164,6 +166,7 @@ class AgentService:
         self._artifact_store = artifact_store or ArtifactStore()
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
         self._configured_domain_id = None
+        self._configured_domain_pack = None
         self._resolved_domain_id = None
         if runtime_factory is not None and (domain_pack is not None or domain_id is not None):
             raise ValueError("runtime_factory cannot be combined with domain_pack or domain_id")
@@ -172,6 +175,7 @@ class AgentService:
         if runtime_factory is not None:
             self._runtime_factory = runtime_factory
         elif domain_pack is not None:
+            self._configured_domain_pack = domain_pack
             self._configured_domain_id = str(
                 getattr(domain_pack, "domain_id", "unknown")
             )[:80]
@@ -475,6 +479,9 @@ class AgentService:
             kwargs.get("planner", "rule"), kwargs.get("backend", "memory")
         )
         kwargs["domain_id"] = domain_id
+        kwargs["runtime_context"] = self._submission_runtime_context(
+            kwargs.get("planner", "rule"), kwargs.get("backend", "memory")
+        )
         job_payload = _async_job_payload(kwargs)
         if run_id:
             idempotency_key = idempotency_key or "run_id:" + run_id.strip()
@@ -522,6 +529,7 @@ class AgentService:
                                 request=request,
                                 session_id=session_id,
                                 domain_id=domain_id,
+                                runtime_context=job_payload.get("runtime_context"),
                                 workflow=job_payload.get("workflow"),
                             )
                         )
@@ -567,10 +575,22 @@ class AgentService:
         kwargs = dict(job_payload)
         kwargs.pop("run_id", None)
         domain_id = kwargs.pop("domain_id", None) or self._resolved_domain_id
+        runtime_context = kwargs.pop("runtime_context", None)
         completed = False
         failure_category = None
         self._mark_async_started(run_id)
         try:
+            if runtime_context is not None:
+                current_context = self._runtime_context(
+                    kwargs.get("planner", "rule"),
+                    kwargs.get("backend", "memory"),
+                )
+                # Legacy/custom Runtime implementations may not expose the
+                # optional Context seam. Preserve their existing async
+                # behavior; strict drift detection applies when both sides
+                # provide a Context snapshot.
+                if current_context is not None:
+                    assert_runtime_context_compatible(runtime_context, current_context)
             payload = self.run(run_id=run_id, _force_run_id=True, **kwargs)
             status = str(payload.get("status") or "FAILED")
             completed = True
@@ -586,6 +606,7 @@ class AgentService:
                         request=str(kwargs.get("request") or ""),
                         session_id=kwargs.get("session_id"),
                         domain_id=domain_id,
+                        runtime_context=runtime_context,
                         error=str(exc),
                         error_category=failure_category,
                         error_code=getattr(exc, "code", None),
@@ -653,6 +674,7 @@ class AgentService:
                 request=str(payload.get("request") or ""),
                 session_id=payload.get("session_id"),
                 domain_id=payload.get("domain_id", "gis"),
+                runtime_context=payload.get("runtime_context"),
                 workflow=payload.get("workflow"),
             )
         )
@@ -1069,6 +1091,7 @@ class AgentService:
         if not callable(resolver):
             raise ValueError("domain action execution is unavailable")
         domain_id = self._domain_id(planner, backend)
+        runtime_context = self._runtime_context(planner, backend)
         action_id = str(action_id or "")[:96]
         action_payload = dict(payload) if isinstance(payload, dict) else payload
         if isinstance(action_payload, dict):
@@ -1115,6 +1138,7 @@ class AgentService:
                 "action_execution_id": execution_id,
                 "action_id": action_id,
                 "domain_id": domain_id,
+                "runtime_context": runtime_context,
                 "idempotency_key": idempotency_key,
                 "input_fingerprint": input_fingerprint,
                 "status": "FAILED",
@@ -1188,6 +1212,7 @@ class AgentService:
             "action_execution_id": execution_id,
             "action_id": action_id,
             "domain_id": domain_id,
+            "runtime_context": runtime_context,
             "idempotency_key": idempotency_key,
             "input_fingerprint": input_fingerprint,
             "status": "COMPLETED",
@@ -1226,6 +1251,7 @@ class AgentService:
         response.update({
             "action_execution_id": execution_id,
             "action_execution": action_execution,
+            "runtime_context": runtime_context,
             "idempotency_key": idempotency_key,
             "idempotency_reused": False,
             "trace_summary": list(record["trace_summary"]),
@@ -1549,6 +1575,33 @@ class AgentService:
         if runtime_domain_id:
             self._resolved_domain_id = str(runtime_domain_id)[:80]
         return runtime
+
+    def _runtime_context(self, planner: str, backend: str) -> Optional[Dict[str, Any]]:
+        runtime = self._runtime(planner, backend)
+        builder = getattr(runtime, "runtime_context", None)
+        value = builder() if callable(builder) else None
+        return dict(value) if isinstance(value, dict) else None
+
+    def _submission_runtime_context(
+        self, planner: str, backend: str
+    ) -> Optional[Dict[str, Any]]:
+        """Build a context snapshot without blocking async submission."""
+        if self._configured_domain_id or self._runtime_factory is build_runtime:
+            return build_runtime_context_snapshot(
+                planner,
+                backend,
+                domain_pack=self._configured_domain_pack,
+                domain_id=(
+                    None
+                    if self._configured_domain_pack is not None
+                    else self._configured_domain_id
+                ),
+            )
+        runtimes = self._state.runtimes()
+        runtime = runtimes.get(str(planner) + ":" + str(backend))
+        builder = getattr(runtime, "runtime_context", None) if runtime else None
+        value = builder() if callable(builder) else None
+        return dict(value) if isinstance(value, dict) else None
 
     def _domain_id(self, planner: str, backend: str) -> str:
         """Return the service's selected domain, resolving custom factories lazily."""

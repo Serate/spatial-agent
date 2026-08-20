@@ -1413,3 +1413,9 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 3. 数据与模型：把 Domain-owned provenance、数据健康/网格对齐降级和脱敏模型 replay 统一关联到该 snapshot；真实模型仅做可选基线，不让 provider 差异改变结果契约。
 4. 部署与可靠性：验证生产 API、开发 HTTP、Console、SQLite 重启、多 worker 和 artifact 在同一 snapshot 下的一致性；补配置变更、滚动重启和旧 artifact 兼容证据。
 5. 测试与收口：保持单线程和精简 profile，增加一组跨入口 context snapshot contract，再按全局七维盘点决定是否进入真实 GIS/live/Docker 验收。
+
+## M135 当前实现状态
+
+- 已新增版本化 `spatial-agent.runtime-context.v1`，Runtime Factory 将选定的 Domain、Planner、Backend、ToolProvider、权限和核心契约版本构造成有界快照；TaskPlan/result envelope 版本由 `agent/contract_versions.py` 统一定义，直接 Runtime 未提供显式 Planner 名称时保留 `unknown`，生产 Factory 路径记录实际 `rule/openai`。
+- 同步 run、preview、runtime capabilities、Domain Action、异步 SQLite job、run snapshot、artifact/recovery 和 Console 统一消费该快照；前端执行证据旁显示 Planner、Backend 和 Provider；异步 worker 在执行前校验快照，发现配置漂移时返回 `runtime_context_mismatch`。
+- M135 专项 8 项通过，M128 执行记录兼容回归 7 项通过；完整离线回归 715 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、GIS-core profile、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过，M135 已具备阶段提交条件。

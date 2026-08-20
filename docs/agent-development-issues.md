@@ -3481,3 +3481,17 @@ Domain Pack 之前主要存在于 Runtime 内部，持久化层没有把 Domain 
 ### 修复与预防
 
 M134 为真实 `AgentRunResult`、预览、run artifact 和异步 payload 保存 `domain_id`；SQLite 的 run/history/async recovery/metrics 查询、artifact 的读取/列表/Action 幂等查询均按当前 Domain 过滤。旧记录缺失字段时按历史默认 GIS 兼容；同一 `run_id` 属于其他 Domain 时拒绝覆盖，并返回明确冲突错误。生产和开发 HTTP 服务通过 `SPATIAL_AGENT_DOMAIN` 选择注册表中的 Domain，CLI 使用同一注册表的 `--domain`，`/domains` 暴露有限目录。以后新增持久化或缓存入口必须同时回答：身份是否带 Domain、旧数据如何兼容、跨 Domain 读取是否有负向测试、恢复 worker 是否只接管本 Domain 任务。
+
+## 异步提交不能为了生成运行快照而同步初始化 Runtime
+
+### 现象
+
+M135 为异步任务增加 Runtime Context 后，`run_async()` 在提交阶段调用完整 Runtime 的 context builder。该路径会初始化工具 provider 和本地 backend；当 Runtime 初始化较慢时，异步提交被阻塞，违反“先返回任务 ID、后台执行”的接口语义。
+
+### 根因
+
+Runtime Context 同时承担了两种职责：提交前的配置选择快照，以及执行时的真实 provider/工具证据。直接复用执行 Runtime 生成提交快照，虽然字段准确，却把慢初始化带进了 HTTP/Service 提交路径。
+
+### 修复与预防
+
+M135 增加 Domain-owned `tool_provider_info()` 轻量 seam，并由 Runtime Factory 提供不打开 backend 的 submission context snapshot；异步 worker 启动后再创建真实 Runtime，并将实际 context 与已持久化快照校验。配置漂移返回 `runtime_context_mismatch`，不静默使用新配置执行。以后新增异步快照字段时，必须分别验证提交延迟、worker 初始化、重启恢复和配置漂移；不能用完整 Runtime 初始化作为提交前的只读 metadata 查询。
