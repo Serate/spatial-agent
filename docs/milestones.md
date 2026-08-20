@@ -2795,3 +2795,16 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 默认权限由选定 Domain Pack 提供；Text Runtime 委托通用 Factory，rule/openai Planner 都经过同一 Registry/Runtime 执行路径；旧 Domain Pack 保留有界兼容 fallback。
 - M133.1 新增 2 项跨领域回归，连同 M112/M113/M124/M126-M131 受影响回归共 49 项通过；Ruff、Pyflakes、compileall 通过。
 - 下一步补 HTTP、异步、artifact/recovery 的 Domain Pack 选择矩阵，再进行 GIS/live/Docker 显式验收和全局重规划。
+
+## M133.2 Service/HTTP 的显式 Domain Pack 选择
+
+- `AgentService` 新增 `domain_pack` 配置 seam；与显式 `runtime_factory` 互斥，默认服务仍使用 GIS Domain Pack。
+- Text Domain 通过同一 Service 配置覆盖同步、HTTP、artifact、异步 SQLite 和重启恢复；结果、planning、execution evidence 保持统一。
+- M133.2 受影响回归 65 项通过；离线全量 700 项通过、42 项按环境跳过；`ci`、`stage`、Ruff、Pyflakes、Vulture、compileall 和 diff check 通过。
+
+## M134 全局规划：部署边界的 Domain Registry 与跨入口矩阵
+
+- 产品与体验：展示当前 Domain/Planner/Backend，并按结果类型动态展示能力、证据和 workspace；切换配置时不串用旧会话。
+- 架构与部署：建立受控 Domain Registry/选择器，统一 CLI、HTTP、生产 API、Console、环境配置和 Runtime 缓存，禁止任意模块反射导入。
+- 数据与模型：各 Domain 保留 provenance、健康/对齐降级策略；Text/GIS 共享 LLM Planner 接口并用脱敏回放、可选 live 基线验证计划契约。
+- 测试：补配置错误负向、跨入口 Harness、SQLite/artifact/restart/multi-worker 串域矩阵，默认 `ci`/`stage` 继续离线，真实环境显式验收。

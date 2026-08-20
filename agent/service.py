@@ -67,6 +67,22 @@ _TERMINAL_RUN_STATUSES = {
 }
 
 
+def _bind_domain_pack(domain_pack: Any) -> Callable[..., Any]:
+    """Bind one explicit Domain Pack to the generic Runtime Factory seam."""
+    if domain_pack is None:
+        raise ValueError("domain_pack is required")
+
+    def factory(planner: str, backend: str, **kwargs: Any) -> Any:
+        return build_runtime(
+            planner,
+            backend,
+            domain_pack=domain_pack,
+            **kwargs,
+        )
+
+    return factory
+
+
 def _runtime_result_registry(runtime):
     """Read the optional result registry from legacy/custom runtimes."""
     resolver = getattr(runtime, "result_registry", None)
@@ -124,10 +140,18 @@ class AgentService:
         artifact_store: ArtifactStore = None,
         state_db_path: str = None,
         runtime_factory: Callable[..., Any] = None,
+        domain_pack: Any = None,
     ):
         self._artifact_store = artifact_store or ArtifactStore()
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
-        self._runtime_factory = runtime_factory or build_runtime
+        if runtime_factory is not None and domain_pack is not None:
+            raise ValueError("runtime_factory and domain_pack are mutually exclusive")
+        if runtime_factory is not None:
+            self._runtime_factory = runtime_factory
+        elif domain_pack is not None:
+            self._runtime_factory = _bind_domain_pack(domain_pack)
+        else:
+            self._runtime_factory = build_runtime
         self._state = ServiceState(
             state_db_path=self._state_db_path,
             runtime_factory=self._runtime_factory,

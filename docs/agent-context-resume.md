@@ -1162,3 +1162,19 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - `build_runtime()` 不再默认先构造 GIS Registry；选定 Domain Pack 现在提供工具定义、dispatch provider 和默认权限，旧 Domain Pack 保留有界兼容 fallback。
 - `domains/text/runtime.py` 已委托通用 Factory，`rule` 与 `openai` 经过相同的 Planner -> ToolRegistry -> Runtime 链路。
 - M133.1 新增 2 项跨领域红绿回归，连同 M112/M113/M124/M126-M131 受影响回归共 49 项通过；Ruff F401/F821/F841、Pyflakes 和 compileall 通过。下一步补 HTTP/异步/artifact/recovery 的 Domain Pack 选择矩阵。
+
+## M133.2 当前实现：Service/HTTP 的显式 Domain Pack 选择
+
+- `AgentService` 新增 `domain_pack` 配置入口；它与自定义 `runtime_factory` 互斥，避免选择归属不明确；未配置时保持默认 GIS Factory 行为。
+- Text Domain 已通过同一个 Service 配置路径覆盖同步运行、HTTP、artifact、异步 SQLite 和重启恢复，前端/HTTP 仍消费统一结果、规划和执行证据。
+- M133.2 受影响回归 65 项通过；离线全量 700 项通过、42 项按环境跳过；`ci`、`stage`、Ruff、Pyflakes、Vulture、compileall 和 diff check 通过。真实 GIS/live/Docker 未因本次配置 seam 改动强行启动。
+
+## M134 全局规划：部署边界的 Domain Registry 与跨入口矩阵
+
+1. 产品：让部署配置选择的 Domain、Planner、Backend 在 capabilities、对话和结果证据中可见，避免前端/HTTP 默认为某个领域而用户无从判断。
+2. 架构：建立受控 Domain Registry/选择器，统一 CLI、HTTP、生产 API 和 Console 的 Domain Pack 解析；禁止请求参数直接反射导入任意模块。
+3. 数据质量：Domain 选择后仍沿用各自的 provenance、健康、对齐和降级策略，缺失配置要在 readiness 与结果中明确体现。
+4. 真实模型：用同一 LLM Planner 接口分别做 Text/GIS 脱敏回放，保留可选 live 基线，比较计划契约而不是 provider 文本。
+5. 部署可靠性：验证环境变量/配置文件、SQLite 重启、artifact 恢复和多 worker 缓存不会混用不同 Domain 的 Runtime。
+6. 用户体验：根据 Domain 与结果类型动态展示能力、证据和 workspace，切换配置后清理旧会话/缓存，避免结果串域。
+7. 测试：新增最小 Domain Registry 契约、配置错误负向测试和跨入口结果 Harness；默认 `ci`/`stage` 保持离线，真实环境作为显式验收。

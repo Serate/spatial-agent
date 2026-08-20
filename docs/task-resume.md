@@ -1386,3 +1386,16 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 - 默认权限改为从选定 Domain Pack 读取；Text Runtime 通过通用 Factory 支持 rule/openai Planner 选择，旧 Domain Pack 保留兼容 fallback。
 - 新增跨领域行为回归，验证 Text provider、权限、结果类型和 fake LLM Planner 均经过统一 Runtime；M112/M113/M124/M126-M131 与 M133.1 共 49 项通过，静态检查和 compileall 通过。
 - 下一步：补同一 Domain Pack 在 HTTP、异步、artifact 和重启恢复入口的选择/结果一致性矩阵，再运行阶段 profile。
+
+## M133.2 当前实现：Service/HTTP 的显式 Domain Pack 选择
+
+- `AgentService(domain_pack=...)` 现在可以直接选择 Domain Pack；与 `runtime_factory` 同时传入会明确报错，默认构造路径保持 GIS 兼容。
+- Text Domain 通过同一 Service 入口验证同步、HTTP、artifact、异步 SQLite 和重启恢复，统一返回 Text result、planning 和 execution evidence。
+- M133.2 受影响回归 65 项通过；离线全量 700 项通过、42 项跳过；`ci`、`stage`、静态检查和 compileall 通过。
+
+## M134 全局规划：部署边界的 Domain Registry 与跨入口矩阵
+
+1. 增加受控 Domain Registry/选择器，让 CLI、HTTP、生产 API 和 Console 从同一配置解析 Domain Pack，禁止任意模块反射导入。
+2. 将 Domain、Planner、Backend、provenance、健康/对齐降级状态在 capabilities、结果和 readiness 中统一暴露。
+3. 验证 Text/GIS 的脱敏 LLM 回放、可选 live 基线、SQLite 重启、artifact 恢复和多 worker 缓存不会串域。
+4. 让前端按 Domain 与结果类型动态展示能力和 workspace，切换配置时清理旧会话/缓存；补配置错误负向测试与跨入口 Harness。
