@@ -1231,3 +1231,16 @@ M137 已建立统一 `spatial-agent.deployment-evidence.v1`，但生产 acceptan
 - Console 统一执行证据卡显示 deployment 状态、数据 readiness、降级状态和发布证据链接，Text/GIS 共用动态路径。
 - 关联回归 19 项通过（1 项真实 Docker acceptance 按环境跳过）；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture、PowerShell parser、Node 内嵌 JS 和 diff check 通过；完整离线 726 项通过、42 项按环境跳过。
 - Docker Linux engine 当前不可用，当前版本 FastAPI/Docker/GIS/live production acceptance 未验证，不能把旧容器结果当作本版本证据。
+
+## M139 当前实现状态
+
+- GIS intent/clarification 实现已物理归属 `domains/gis/intent.py`；公共 `agent/spatial_intent.py` 仅保留惰性旧导入 facade，GIS Planner 不再从公共模块读取领域策略。
+- `DomainPack.clarification_details()` 与 Runtime preview/run fallback 已接入，当前 Planner 未提供 details 时会生成选定 Domain 的结构化 clarification；Text Domain 保持中性。
+- M139 专项 3 项、M62/M130 相关回归 11 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 diff check 通过；完整离线 729 项通过、42 项按环境跳过。
+- 真实 GIS/live/FastAPI/Docker 仍未宣称通过；下一阶段先将 capability requirements 从 GIS 澄清逻辑中进一步抽象，再增加开放式模型回放。
+
+## 下一阶段 M139 全局规划
+
+M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求理解边界：将仍位于公共 `agent/spatial_intent.py` 的 GIS 词汇、能力提示和缺参策略下沉到 GIS Domain，建立可替换的 intent/clarification seam；保持旧导入兼容、Text/GIS 隔离、结构化澄清结果和默认离线 profile，最大并发度保持 1。
+
+顺序为：Domain-owned projection -> GIS 迁移/兼容 facade -> preview/run/HTTP evidence 贯通 -> 脱敏开放式回放与跨入口验收 -> 全局七维重规划。

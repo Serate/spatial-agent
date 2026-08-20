@@ -2879,3 +2879,21 @@ M137 的统一 deployment evidence 已进入 Runtime、release、result 和 Cons
 - Console 统一执行证据显示 deployment/data/degradation 摘要，并可从 lineage 打开 `/release-evidence`；没有增加 GIS 专用渲染分支。
 - M138 关联回归 19 项通过（1 项真实 Docker acceptance 按环境跳过）；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture、PowerShell parser、Node 内嵌 JS 和 `git diff --check` 通过；完整离线 726 项通过、42 项按环境跳过。
 - Docker Linux engine 当前不可用，FastAPI/Docker/真实 GIS/live production acceptance 仍待环境恢复后执行。
+
+## M139 当前实现状态
+
+- GIS intent/clarification 已下沉到 `domains/gis/intent.py`；公共 `agent.spatial_intent` 仅做惰性兼容委托，GIS Rule Planner 直接使用 Domain-owned policy。
+- `DomainPack.clarification_details()` 和 Runtime fallback 贯通 preview/run：缺少 Planner details 时由选定 Domain 提供结构化澄清，Text Domain 不输出 GIS 选项。
+- M139 专项 3 项、M62/M130 相关回归 11 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 通过；完整离线 729 项通过、42 项按环境跳过。
+- 真实 GIS/live/FastAPI/Docker 仍是显式环境验收；下一阶段继续把 capability 的必需事实和开放式回放做成 Domain-owned 通用契约。
+
+## M139 全局规划：Domain-owned 开放式澄清与能力发现
+
+下一阶段从整体 Agent 闭环推进请求理解边界：公共 `agent/spatial_intent.py` 仍包含 GIS 词汇和缺参策略，M139 将其迁移到 GIS Domain，建立可替换的 intent/clarification seam，并让 preview、run、HTTP 和模型回放共用结构化 discovery evidence。该阶段不新增区域专用功能，继续保持默认离线测试和最大并发度 1。
+
+### M139 顺序任务
+
+1. 定义 Domain-owned intent/clarification projection 与兼容 facade。
+2. 迁移 GIS 词汇/澄清逻辑，补 Text 领域隔离和旧导入回归。
+3. 贯通 Rule/LLM preview、run、HTTP 的澄清 evidence，确保不初始化 backend。
+4. 增加一条开放式脱敏回放和跨入口契约，阶段收口后再决定真实 GIS/live/Docker 验收。

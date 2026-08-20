@@ -10,10 +10,10 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional
 
 from agent.errors import ClarificationNeeded
 from agent.models import PlanStep, TaskPlan
-from agent.spatial_intent import clarification_details, clarification_message, classify_spatial_intent
 from agent.workflow_templates import compile_workflow_plan, get_workflow_template
 
 from .request_model import SpatialRequest
+from .intent import clarification_details, clarification_message, classify_spatial_intent
 from .routing import GisCapabilityRouter, contains_any
 
 

@@ -24,6 +24,7 @@ from .domain_contract import (
     result_registry as resolve_result_registry,
     domain_action_catalog,
     execute_domain_action,
+    clarification_details as resolve_clarification_details,
     preflight_tool as run_domain_preflight,
     runtime_evidence as resolve_runtime_evidence,
     release_evidence as resolve_release_evidence,
@@ -450,7 +451,9 @@ class AgentRuntime:
         except ClarificationNeeded as exc:
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
-            result.clarification = exc.details
+            result.clarification = exc.details or resolve_clarification_details(
+                self._domain_pack, resolved_request
+            ) or None
             _record_run_failure(result, exc, phase="planning")
             self._conversation_store.save_pending(session_id, resolved_request, result.error)
         except RequestRejected as exc:
@@ -534,7 +537,9 @@ class AgentRuntime:
             payload.update({
                 "status": RunStatus.NEEDS_CLARIFICATION.value,
                 "error": str(exc),
-                "clarification": exc.details,
+                "clarification": exc.details or resolve_clarification_details(
+                    self._domain_pack, resolved_request
+                ) or None,
                 "planner_metrics": self._planner_metrics(),
             })
         except RequestRejected as exc:

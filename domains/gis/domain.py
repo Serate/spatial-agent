@@ -196,6 +196,11 @@ class GisDomainPack:
 
         return GIS_REQUEST_UNDERSTANDING_GUIDANCE
 
+    def clarification_details(self, request: str) -> Mapping[str, Any]:
+        from .intent import clarification_details
+
+        return clarification_details(request)
+
     def rule_planner(self) -> Any:
         # Kept lazy so importing the domain catalog does not initialize the
         # Planner or spatial backend graph.

@@ -3509,3 +3509,17 @@ M137 的 `deployment_evidence` 聚合器在正常结果路径中接收的是已�
 ### 处理与预防
 
 M137 让 `deployment_evidence` 自身按 schema、执行模式、provider/model 身份、错误分类、耗时、token usage 和 bounded fixture id 做白名单归一化；不复制 `raw_response`、凭据、私有路径或未知字段，并新增直接传入敏感字段的负向回归。以后每个跨入口 evidence、artifact 或导出聚合层都必须自包含地完成有界归一化，同时验证“正常上游输入”和“直接传入未清理输入”两条路径。
+
+## 公共兼容 facade 不应继续承载领域 intent 策略
+
+### 现象
+
+领域解耦后，公共 `agent/spatial_intent.py` 仍直接保存 GIS 的空间词汇、能力提示和缺参判断。即使 Runtime 通过 Domain Pack 选择 Planner，公共模块仍会让新领域继承 GIS 的开放式澄清策略；同时 GIS Planner 通过公共模块导入领域实现，物理归属与选择归属不一致。
+
+### 根因
+
+早期 GIS 是唯一业务领域，intent、路由和澄清逻辑都放在公共层。后续迁移 Planner/Capability Catalog 时只迁移了主要实现，历史导入兼容路径没有同步变成惰性 facade，导致“兼容入口”反向成为实际策略归属。
+
+### 处理与预防
+
+M139 将实现移动到 `domains/gis/intent.py`，GIS Planner 直接从 Domain 模块导入；公共模块只通过惰性 import 保留旧函数名。`DomainPack.clarification_details()` 与 Runtime fallback 让当前领域决定澄清内容，Text Domain 明确返回中性策略。以后迁移领域代码必须同时检查实现物理路径、正常 Runtime 选择、旧导入兼容和非 GIS 负向隔离，不能只验证调用结果不变。

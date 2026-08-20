@@ -144,6 +144,9 @@ class DomainPack(Protocol):
     def request_understanding_guidance(self) -> Mapping[str, Any]:
         """Return domain-owned RequestFacts/discovery interpretation guidance."""
 
+    def clarification_details(self, request: str) -> Any:
+        """Return optional structured clarification details for a request."""
+
     def rule_planner(self) -> Any:
         """Return the deterministic Planner adapter owned by this domain."""
 
@@ -207,6 +210,19 @@ def request_understanding_guidance(domain_pack: DomainPack) -> dict[str, Any]:
         value,
         domain_id=str(getattr(domain_pack, "domain_id", "unknown")),
     )
+
+
+def clarification_details(domain_pack: DomainPack, request: str) -> dict[str, Any]:
+    """Read optional Domain-owned clarification details without GIS fallback."""
+
+    method = getattr(domain_pack, "clarification_details", None)
+    if not callable(method):
+        return {}
+    try:
+        value = method(str(request or ""))
+    except Exception:
+        return {}
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def rule_planner(domain_pack: DomainPack) -> Any:

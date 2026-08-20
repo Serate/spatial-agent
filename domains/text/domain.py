@@ -134,6 +134,10 @@ class TextDomainPack:
 
         return TEXT_REQUEST_UNDERSTANDING_GUIDANCE
 
+    def clarification_details(self, request: str) -> Mapping[str, Any]:
+        """Text has no spatial clarification policy."""
+        return {}
+
     def rule_planner(self) -> Any:
         from .planner import TextSummaryPlanner
 

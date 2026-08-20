@@ -1497,3 +1497,31 @@ M137 已建立统一 deployment evidence projection，但生产 acceptance 尚�
 - Console 的统一执行证据卡显示 deployment 状态、数据 readiness、降级状态和 lineage 发布证据链接；Text/GIS 共用同一结构化渲染路径。
 - M138 关联回归 19 项通过（1 项真实 Docker acceptance 按环境跳过）；PowerShell parser、Node 内嵌 JS、`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 通过；完整离线回归 726 项通过、42 项按环境跳过。
 - Docker Linux engine 当前不可用，当前版本 FastAPI/Docker/GIS/live production acceptance 尚未执行；不能用旧容器证据替代本版本验收。
+
+## M139 当前实现状态
+
+- GIS intent/clarification 的词汇、能力提示和缺参策略已物理迁移至 `domains/gis/intent.py`；`agent/spatial_intent.py` 仅保留惰性兼容 facade，GIS Planner 直接依赖 Domain-owned 实现。
+- `DomainPack.clarification_details()` 与 Runtime fallback seam 已接入：Rule/LLM Planner 未提供 details 时，preview/run 会从当前 Domain 补充结构化澄清；Text Domain 返回中性空策略，不继承 GIS 词汇。
+- M139 专项 3 项、M62/M130 相关回归 11 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 通过；完整离线回归 729 项通过、42 项按环境跳过。
+- 真实 GIS、live LLM、FastAPI/Docker production acceptance 仍按环境条件未执行；旧兼容导入已验证，下一步继续扩展通用 capability requirement/开放式回放，不新增区域专用分支。
+
+## M139 全局规划：Domain-owned 开放式澄清与能力发现
+
+M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/spatial_intent.py` 仍持有 GIS 词汇和缺参判断，开放式问题的澄清策略没有完全归属于 Domain Pack。M139 以“请求理解与澄清策略可替换”为纵向目标，让新增领域不必继承 GIS 规则，同时保持旧导入和现有结果契约兼容。
+
+七维度盘点与顺序任务：
+
+1. **产品能力**：开放式空间问题能返回结构化匹配能力、缺失信息和下一步动作；非空间/非 GIS 领域不被误导到 GIS 选项。
+2. **架构边界**：将 GIS lexical intent、clarification message/details 物理下沉到 `domains/gis`，公共层只保留领域无关 seam 与惰性兼容 facade。
+3. **数据质量**：澄清结果引用能力目录的 dataset/tool gate 和环境状态，但不提前执行工具、不伪造数据可用性；实际数据降级仍由 Runtime preflight/evidence 负责。
+4. **真实模型**：LLM Planner 继续消费 Domain guidance、RequestFacts 和 capability discovery；增加脱敏开放式澄清回放，验证模型不会绕过 Domain policy 或工具 Registry。
+5. **部署可靠性**：澄清/preview 不初始化业务 backend，不生成 run/artifact；异步和恢复继续沿用 M138 的 Context/deployment evidence。
+6. **用户体验**：Console 以通用 clarification contract 渲染候选能力、缺失字段和动作，不增加 GIS 专用 DOM。
+7. **测试证据**：补 GIS/Text 正负隔离、旧 facade 兼容、preview/HTTP result contract 和一条开放式模型回放；默认 profile 保持精简离线。
+
+执行顺序：
+
+1. 建立 Domain-owned intent/clarification seam 与版本化安全 projection。
+2. 迁移 GIS 实现，公共兼容入口改为惰性委托；Text 提供中性实现或明确“不适用”。
+3. 让 Rule/LLM preview、run 和 clarification 共用同一 discovery/clarification evidence。
+4. 补跨入口和脱敏回放，运行分层测试后再进行全局重规划。
