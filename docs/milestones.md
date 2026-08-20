@@ -2939,6 +2939,18 @@ M141 之后的首要工程问题不是继续增加测试，而是降低反馈成
 
 在测试反馈已经收敛后，下一阶段再从全局 Agent Runtime 评估是否需要补充跨入口契约：优先以一条 compact contract 验证 Planner、Runtime、ToolRegistry、结果 envelope 和 artifact；只有共享边界发生变化时才扩展专项测试。真实数据质量、模型 replay/live、部署和 Console 继续通过显式阶段入口验收，避免测试规模再次按里程碑累加。
 
+## M143 当前阶段：跨入口最小契约证据
+
+M143 将 M142 的 compact gate 与总体验收标准重新对齐：同一条稳定结果投影现在同时覆盖 direct Service、真实 CLI、HTTP `/runs` 和 artifact。该阶段没有增加 active 测试数量，而是提高单条契约的入口覆盖，证明前端所消费的 HTTP result envelope 与 CLI/持久化结果保持一致。
+
+- `tests/test_dev_gate.py` 的 Runtime/artifact gate 运行同一请求，比较 Service、`run_demo.py`、标准库 HTTP 服务和两份 artifact 的 `evaluation.contract_harness` 结果。
+- 比较投影包含结果类型、中文答案、Planner/能力证据、工具步骤、轨迹、workspace/views 和 execution contract；排除 run ID、路径、时间等传输差异。
+- 验证：compact discovery 4 项、CI 的 quick + service smoke、Pyflakes、compileall 和 `git diff --check` 通过；默认门禁仍不访问真实模型、私有数据或历史全量测试。
+
+## M144 全局规划参考
+
+下一阶段从整体产品闭环检查 Domain-owned view spec、结果 envelope 与前端动态 renderer 是否真正跨 GIS/Text 可替换：先梳理通用 view schema 和空态/未知 view 的处理，再补一个跨领域负向契约，避免新增领域时把前端重新写成 GIS 专用分支。真实 GIS、live、Docker 和历史测试继续作为显式验收，最大并发度保持 1。
+
 ## M141 全局规划参考：模型计划稳健性与通用修复闭环
 
 下一阶段不围绕洪山区或某个工具追加规则，而是从整体 Agent Runtime 处理 M140 暴露的跨边界风险：规则 Planner、脱敏 replay 和 live Planner 必须共享同一 capability requirements、TaskPlan schema、DAG 校验、ToolRegistry 和 repair lineage。

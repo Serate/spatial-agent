@@ -3593,3 +3593,17 @@ Docker 容器健康、真实 GIS 数据可读，Python 侧直接比较 sync 与 
 ### 处理与预防
 
 新增 `tests/__init__.py` 的 active module allowlist，并统一将 README、CI、smoke 和测试策略中的 discovery 命令改为 `python -m unittest discover -s tests -t . -v`。历史里程碑测试不删除，仍可通过 `python -m unittest tests.test_m80_replanning -v` 显式诊断；以后不要在默认脚本中使用没有 `-t .` 的平铺 discovery，也不要把完整历史矩阵塞回 quick/ci。
+
+## 动态 unittest Handler 类体不能直接捕获同名局部变量
+
+### 现象
+
+为了在 compact gate 中复用一个隔离的 HTTP 服务，测试在方法内部定义 `TestHandler`，并直接写 `service = service`。运行时类体右侧名称不会按普通闭包规则解析同名方法局部变量，触发 `NameError`，容易被误判为 HTTP 服务初始化失败。
+
+### 根因
+
+Python 类体有自己的命名空间；类属性赋值左侧的同名绑定会遮蔽右侧名称的预期解析，不能把它当作嵌套函数闭包使用。
+
+### 处理与预防
+
+先将外层对象绑定为不同名称（例如 `handler_service = service`），再在类体中写 `service = handler_service`。动态测试 Handler 应保持隔离端口、显式关闭 server 和 executor，并优先纳入现有 compact 测试而不是新增一组重复 HTTP 测试。

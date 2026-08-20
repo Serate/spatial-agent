@@ -1548,3 +1548,9 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 默认 discovery 已收敛为 `python -m unittest discover -s tests -t . -v`，通过 `tests/__init__.py` 只加载 4 个 compact active gate 测试；历史测试文件保留，按模块显式运行。
 - `quick` 仅 2 个 Runtime/artifact/澄清契约，`ci` 仅 quick + service smoke；stage、full-stage、GIS、live、Docker 继续按风险显式执行。
 - compact discovery、quick、ci、stage 和 smoke（含 compact unit gate）均已通过；本阶段目标是缩短反馈，不宣称历史全量回归已运行。
+
+## M143 跨入口最小契约当前状态
+
+- active suite 仍为 4 项；其中 Runtime/artifact 契约已扩展为 direct Service、`run_demo.py` CLI、HTTP `/runs` 和 artifact 的统一 `compare_results` 比较。
+- README、测试策略和恢复文档已说明该 gate 的覆盖边界；没有增加真实模型、真实私有数据或默认历史矩阵。
+- compact discovery、CI、Pyflakes、compileall 和 `git diff --check` 已通过。下一阶段从全局检查 Domain-owned view spec 与前端动态 renderer 的跨领域一致性。

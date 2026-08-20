@@ -1278,3 +1278,13 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 ## M143 下一阶段全局规划参考
 
 从项目全局继续保持“最小反馈、按风险扩展”：共享 Runtime/HTTP/结果契约改动时只增加必要的跨入口专项，真实 GIS/live/Docker 和完整历史模块测试继续作为显式验收；任何新增测试必须说明它属于 active gate、阶段 acceptance 还是专项诊断，禁止自动加入默认 discovery。
+
+## M143 当前实现：跨入口最小契约证据
+
+- compact active gate 仍保持 4 项，但其中一项现在用同一个请求比较 direct `AgentService`、真实 `run_demo.py` CLI、HTTP `POST /runs` 和两份 run artifact 的 `evaluation.contract_harness` 投影。
+- 该投影覆盖结构化结果类型、中文答案、计划/能力证据、工具步骤、轨迹、workspace/view 和执行身份；忽略 run ID、路径和时间等传输差异，因此前端作为 HTTP 结果消费者也有可验证的稳定入口契约。
+- compact discovery 4 项、CI（quick + service smoke）、Pyflakes、compileall 和 diff check 已通过；没有新增默认测试数量，也没有把真实模型或私有 GIS 数据引入门禁。
+
+## M144 下一阶段全局规划参考
+
+下一阶段优先检查“统一结果契约是否真的支撑动态前端”：让 Domain-owned view spec、通用 renderer 和 workspace 空态形成一个跨 GIS/Text 的小型契约；仅补一个跨领域负向证据，避免把前端逻辑重新扩展成领域分支。真实 GIS、live、Docker 和历史测试继续保持显式入口，最大并发度为 1。

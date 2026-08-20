@@ -132,7 +132,7 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 ## 测试与验证
 
-日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行 2 个 compact Runtime 契约；服务 smoke 独立为 `smoke` profile；提交/PR 的 `ci` 只包含 quick + smoke；`stage` 在阶段收口时独立运行代表性离线验收场景，不重复 quick：
+日常开发默认使用精简 profile，避免每次改动都跑完整矩阵。`quick` 只运行 2 个 compact Runtime 契约，其中一条同时校验 Service、CLI、HTTP `/runs` 和 artifact 的稳定结果投影；服务 smoke 独立为 `smoke` profile；提交/PR 的 `ci` 只包含 quick + smoke；`stage` 在阶段收口时独立运行代表性离线验收场景，不重复 quick：
 
 ~~~powershell
 python scripts\test_profile.py --profile quick

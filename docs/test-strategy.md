@@ -18,7 +18,7 @@ python scripts\test_profile.py --profile quick
 
 覆盖范围：
 
-- 2 个核心契约 tripwire：工作流模板编译/结果引用，以及 Domain Planner 选择。
+- 2 个核心契约 tripwire：跨 Service/CLI/HTTP/artifact 的稳定结果投影，以及多轮澄清的会话边界。
 
 `quick` 的目标是快速发现共享契约是否断裂，不负责证明每个历史里程碑都仍完整覆盖。
 
@@ -44,7 +44,6 @@ python scripts\test_profile.py --profile ci
 
 - `quick` 的 2 个核心契约 tripwire。
 - 一次服务 smoke，验证 Service 入口、DEM 元数据和澄清续问。
-- 复杂空间编排的 1 个代表场景 `stage-spatial-analysis`。
 
 `ci` 不运行阶段 acceptance、完整模型回放或历史里程碑测试；复杂场景和未注册能力仍保留在 `stage`，由阶段验收运行。
 
