@@ -4,14 +4,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.domain_contract import DomainPack
+from agent.domain_contract import DomainPack, rule_planner as resolve_rule_planner
 from agent.observability import ObservabilityEmitter
 from agent.runtime import AgentRuntime
 from agent.tools import ToolRegistry
 from agent.tool_provider import ToolProvider
 
 from .domain import TEXT_DOMAIN_PACK
-from .planner import TextSummaryPlanner
 from .provider import TextToolProvider
 
 
@@ -27,7 +26,7 @@ def build_text_runtime(
     provider: ToolProvider = TextToolProvider()
     registry = ToolRegistry.from_provider(provider)
     return AgentRuntime(
-        TextSummaryPlanner(),
+        resolve_rule_planner(TEXT_DOMAIN_PACK),
         registry,
         state_store=state_store,
         conversation_store=conversation_store,

@@ -3355,3 +3355,31 @@ Runtime 已经通过 Domain Pack 抽取 `RequestFacts` 并生成 capability disc
 ### 修复与预防
 
 新增版本化 `request-understanding-guidance` projection，由各 Domain Pack 提供并进入 Context/plan evidence；普通 Rule Planner 请求优先消费 Runtime Context 中的 `RequestFacts`，直连调用和带结构化 workflow 的请求使用有界兼容解析 fallback（workflow hint 可能引入领域约束词汇）。GIS 请求解析实现、GIS 路由和路由信号分别移入 `domains/gis`，公共模块只保留领域无关 value objects 和惰性旧导入 facade；Contract Harness 同步比较新的请求理解证据。以后新增领域应实现自己的 facts extractor、discovery guidance 和 catalog，不得向公共 `agent/` 追加领域词汇。
+
+## Domain Planner seam 接入后仍需区分选择归属与实现归属
+
+### 现象
+
+M131 已让 Runtime factory 通过 `DomainPack.rule_planner()` 选择确定性 Planner，但 GIS Planner 的具体构建策略和固定回答暂时仍位于公共兼容实现。若只验证“factory 返回了一个 Planner”，容易误以为公共 `agent/` 已经完成领域解耦。
+
+### 根因
+
+Planner 的选择 seam 和 Planner 的实现归属是两个不同问题：先建立替换契约可以降低迁移风险，但旧直连测试、Rule Planner builder 和默认回答仍可能把 GIS 规则留在公共模块。
+
+### 修复与预防
+
+M131 明确保留有界旧 `RuleBasedPlanner()` facade，同时把正常 Runtime factory/Text Runtime 切换到 Domain-owned Planner；阶段证据分别检查“选择来自 Domain Pack”和“实现是否已物理下沉”。后续物理迁移完成前，不宣称公共 Planner 已完全通用；新增领域必须提供自己的 Planner adapter、TaskPlan 回归和跨入口证据，不能只复用 GIS fallback。
+
+## 测试 profile 叠加导致阶段验证重复
+
+### 现象
+
+项目已经把测试分成 `quick`、`ci`、`stage`、`full-stage`、GIS、live 和 Docker profile，但 `stage` 仍嵌套 `quick`，`full-stage` 又嵌套 `quick` 与 service smoke。这样同一批工作流契约和服务启动检查会在一次阶段验收中重复执行；复杂空间运行也同时出现在 quick 与 CI 代表场景中，增加耗时却没有增加等量信号。
+
+### 根因
+
+profile 最初按“逐层叠加保护”设计，没有区分“独立门禁可单独运行”和“上层 profile 组合所有下层命令”。阶段验收、提交门禁和发布前全量评测的职责边界因此发生重叠。
+
+### 修复与预防
+
+M131 将 `quick` 收敛为工作流编译与 Domain Planner 选择两个核心 tripwire；`ci` 保留 quick、service smoke 和一个复杂空间代表场景；`stage` 独立运行 3 个离线阶段场景；`full-stage` 独立运行完整全局离线评测/模型回放。历史测试和专项 profile 不删除，只通过风险明确选择入口。以后新增测试先归类为日常契约、阶段场景、发布全量或环境专项，避免默认 profile 互相嵌套造成重复运行。

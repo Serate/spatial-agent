@@ -121,5 +121,10 @@ class TextDomainPack:
 
         return TEXT_REQUEST_UNDERSTANDING_GUIDANCE
 
+    def rule_planner(self) -> Any:
+        from .planner import TextSummaryPlanner
+
+        return TextSummaryPlanner()
+
 
 TEXT_DOMAIN_PACK = TextDomainPack()

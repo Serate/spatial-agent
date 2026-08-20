@@ -47,7 +47,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 
 - Latest completed milestone: M129.1 精简提交测试门禁（`ci` profile、阶段验收分层和有界场景选择）；当前进行 M130 Domain-owned Request Understanding/Catalog/Discovery 解耦。
 - Last pushed commit: 以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
-- Current work: M130 已完成第一条纵向切片——请求理解 guidance、Runtime 证据、facts 复用、GIS parser/router 下沉和兼容 facade 已接入；下一步完成跨入口回放与阶段集成验收，再按七维全局盘点重规划。
+- Current work: M130 已完成并推送；M131 已接入 Domain-owned Rule Planner seam，GIS/Text 由各自 Domain Pack 选择确定性 Planner，下一步验证跨入口替换并物理迁移剩余 GIS Rule Planner 策略。
 - Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
 - M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
 - M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
@@ -1332,3 +1332,15 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 ## 下一阶段 M130
 
 优先收口 Capability Routing/Catalog 的 GIS 兼容实现，建立通用 Request Understanding 与 capability discovery guidance，并让其进入计划证据和跨入口回放；不新增单区域 GIS 规则。
+
+## M131 当前进度
+
+- `DomainPack.rule_planner()` 已加入通用 Contract；GIS/Text Domain Pack 分别提供确定性 Planner，Runtime factory 与 Text Runtime 通过该 seam 选择，不再由公共 factory 假定单一 Planner。
+- M131 适配回归、Text/GIS 既有跨入口回归和 M77 请求链路均通过；旧 `RuleBasedPlanner()` 入口保持兼容。
+- 剩余缺口：GIS Rule Planner 的构建策略和固定回答仍在公共兼容实现中，下一步物理下沉到 GIS Domain，并补自定义非 GIS Planner 的完整跨入口 replay。
+
+## M131 测试门禁收敛
+
+- `quick` 从 3 个用例收敛为 2 个核心 tripwire：工作流编译契约和 Domain Planner 选择契约；复杂空间运行由 CI 的代表性阶段场景覆盖。
+- `stage` 只运行 `stage-acceptance.json` 的 3 个离线场景，不再重复执行 `quick`；`full-stage` 只运行完整全局离线评测和模型回放，不再重复 `quick`/service smoke。
+- 历史单测、负向边界、HTTP、GIS、live 和 Docker 验收均保留，按代码风险或阶段收口显式运行；未删除测试，只减少 profile 叠加造成的重复执行。

@@ -42,10 +42,12 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertEqual(names, ["core_contract_tripwires"])
         core_args = payload["commands"][0]["command"]
         selected_tests = [item for item in core_args if item.startswith("tests.")]
-        self.assertEqual(len(selected_tests), 3)
+        self.assertEqual(len(selected_tests), 2)
         self.assertNotIn("tests.test_m68_workflow_templates", core_args)
         self.assertNotIn("tests.test_m69_workflow_runtime", core_args)
-        self.assertNotIn("tests.test_m77_request_model", core_args)
+        self.assertTrue(
+            any(item.startswith("tests.test_m131_domain_planner.") for item in selected_tests)
+        )
 
     def test_smoke_profile_does_not_request_nested_full_suite(self):
         completed = subprocess.run(
@@ -109,9 +111,9 @@ class M81TestProfileTests(unittest.TestCase):
 
         self.assertEqual(
             [item["name"] for item in payload["commands"]],
-            ["core_contract_tripwires", "stage_acceptance_examples"],
+            ["stage_acceptance_examples"],
         )
-        stage_args = payload["commands"][1]["command"]
+        stage_args = payload["commands"][0]["command"]
         self.assertIn("--cases", stage_args)
         self.assertTrue(stage_args[stage_args.index("--cases") + 1].endswith("stage-acceptance.json"))
         self.assertIn("--no-model-evaluation", stage_args)
@@ -135,9 +137,9 @@ class M81TestProfileTests(unittest.TestCase):
 
         self.assertEqual(
             [item["name"] for item in payload["commands"]],
-            ["core_contract_tripwires", "service_smoke", "strict_global_offline_evaluation"],
+            ["strict_global_offline_evaluation"],
         )
-        global_args = payload["commands"][2]["command"]
+        global_args = payload["commands"][0]["command"]
         self.assertNotIn("--no-model-evaluation", global_args)
         self.assertNotIn("--no-model-replay", global_args)
 

@@ -2735,3 +2735,17 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - Contract Harness 已纳入请求理解 guidance 的稳定投影；M69 workflow hint 回归已修复并通过。
 - 阶段验收：M130 定向回归、`ci`、`stage`、跨入口 plan evidence 回归、compileall、`git diff --check` 通过；全量离线 690 项通过、42 项按环境跳过。
 - 真实 GIS、真实模型、FastAPI/Docker 仍按环境条件作为显式验收，不以本阶段离线结果代替。
+
+### M131 全局规划
+
+1. 让确定性 Rule Planner 通过 Domain-owned adapter 选择，Runtime factory 不再把 GIS Planner 当作所有领域的默认实现。
+2. 保持 `TaskPlan`、workflow 校验、ToolRegistry 和 Runtime 执行契约不变，验证 GIS/Text/自定义 Planner 的替换、同步/异步和 artifact/recovery 入口。
+3. 下一步再物理迁移 GIS Rule Planner 的剩余策略与固定回答，公共 Planner 只保留通用协调和兼容 facade；不以一次迁移破坏历史直连导入。
+4. 阶段验收继续覆盖真实数据降级、脱敏模型回放、HTTP/Console 结果证据和稳定 CI。
+
+## M131 当前实现：Domain-owned Rule Planner seam
+
+- `DomainPack.rule_planner()` 已加入 Domain Contract；GIS 与 Text 分别提供确定性 Planner，`runtime_factory` 和 Text Runtime 均通过该 seam 选择 Planner。
+- 旧的 `RuleBasedPlanner()` 直连入口保持兼容，TaskPlan/Runtime/ToolRegistry 执行契约未改变；新增 M131 适配测试验证自定义 Planner 可被 Runtime factory 替换。
+- 剩余 GIS Rule Planner 实现仍保留在兼容路径中，后续阶段再做物理迁移；当前不宣称公共 Planner 已完全无 GIS 代码。
+- 测试门禁同步收敛：`quick` 保留 2 个核心 tripwire，`stage` 只跑 3 个阶段验收场景，`full-stage` 只跑完整全局离线评测/模型回放；历史测试未删除，避免 profile 叠加重复执行。

@@ -1105,3 +1105,15 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - Rule Planner 正常 Runtime 路径优先使用 Context 中已抽取的 `RequestFacts`；GIS parser、路由信号和路由表已物理下沉到 `domains/gis`，公共 `agent` 保留有界旧导入兼容。
 - `agent/capability_discovery.py` 提供领域无关 discovery value objects；公共 catalog 的 GIS 默认只在兼容调用时惰性加载；Contract Harness 已比较请求理解 evidence。
 - 当前已通过 M130 定向请求理解、M77/M78 路由目录、M95 facts、M112/M113 Text Domain 和 context 回归；`ci`、`stage`、跨入口 contract harness、compileall 和 `git diff --check` 均通过，全量离线 690 项通过、42 项按环境跳过。下一步按七维全局盘点进入 M131。
+
+## M131 当前进度
+
+- `DomainPack.rule_planner()` 已加入通用 Contract；GIS/Text Domain Pack 分别提供确定性 Planner，Runtime factory 与 Text Runtime 通过该 seam 选择，不再由公共 factory 假定单一 Planner。
+- M131 适配回归、Text/GIS 既有跨入口回归和 M77 请求链路均通过；旧 `RuleBasedPlanner()` 入口保持兼容。
+- 剩余缺口：GIS Rule Planner 的构建策略和固定回答仍在公共兼容实现中，下一步物理下沉到 GIS Domain，并补自定义非 GIS Planner 的完整跨入口 replay。
+
+### M131 测试策略调整
+
+- `quick` 只保留工作流编译和 Domain Planner 选择两个核心 tripwire；CI 的复杂空间代表场景负责验证实际编排，不再把同一个复杂运行放进 quick。
+- `stage` 独立运行 3 个阶段验收场景；`full-stage` 独立运行完整全局离线评测/模型回放，均不再嵌套重复的 quick 或 smoke。
+- 只收窄 profile 的默认执行集合，不删除历史测试；负向契约、跨入口、真实 GIS、live、Docker 和全量 discover 仍按风险显式运行。

@@ -138,6 +138,9 @@ class DomainPack(Protocol):
     def request_understanding_guidance(self) -> Mapping[str, Any]:
         """Return domain-owned RequestFacts/discovery interpretation guidance."""
 
+    def rule_planner(self) -> Any:
+        """Return the deterministic Planner adapter owned by this domain."""
+
 
 def discovery_context(
     discovery: Any,
@@ -198,6 +201,13 @@ def request_understanding_guidance(domain_pack: DomainPack) -> dict[str, Any]:
         value,
         domain_id=str(getattr(domain_pack, "domain_id", "unknown")),
     )
+
+
+def rule_planner(domain_pack: DomainPack) -> Any:
+    """Resolve a domain-owned deterministic Planner, if one is declared."""
+    method = getattr(domain_pack, "rule_planner", None)
+    value = method() if callable(method) else None
+    return value if callable(getattr(value, "plan", None)) else None
 
 
 def domain_action_catalog(domain_pack: DomainPack) -> dict[str, Any]:

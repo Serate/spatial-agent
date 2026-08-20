@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from .dataset_catalog import DatasetCatalog
-from .domain_contract import DomainPack, default_domain_pack, planner_guidance
+from .domain_contract import (
+    DomainPack,
+    default_domain_pack,
+    planner_guidance,
+    rule_planner as resolve_rule_planner,
+)
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_openai_config
 from .planner import RuleBasedPlanner
@@ -53,7 +58,7 @@ def build_runtime(
             planner_guidance=planner_guidance(selected_domain_pack),
         )
     else:
-        planner = RuleBasedPlanner()
+        planner = resolve_rule_planner(selected_domain_pack) or RuleBasedPlanner()
     if allowed_permissions is None:
         allowed_permissions = _csv_env("SPATIAL_AGENT_PERMISSIONS") or {
             "spatial_data:read"

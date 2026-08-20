@@ -23,10 +23,8 @@ ROOT = Path(__file__).parents[1]
 QUICK_CORE_TESTS = (
     "tests.test_m68_workflow_templates.M68WorkflowTemplateTests."
     "test_template_compiler_binds_constraints_and_result_references",
-    "tests.test_m69_workflow_runtime.M69WorkflowRuntimeTests."
-    "test_plan_is_rejected_when_selected_template_does_not_allow_it",
-    "tests.test_m77_request_model.M77SpatialRequestTests."
-    "test_runtime_completes_composed_request_and_composes_actual_results",
+    "tests.test_m131_domain_planner.M131DomainPlannerTests."
+    "test_runtime_factory_uses_selected_domain_planner",
 )
 GIS_CORE_TESTS = (
     "tests.test_m6_geojson_admin_backend.M6GeoJSONAdminBackendTests."
@@ -99,7 +97,7 @@ def main() -> int:
 def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
     return {
         "quick": {
-            "purpose": "minimal development gate: three core contract tripwires",
+            "purpose": "minimal development gate: workflow compilation and domain planner selection",
             "commands": [c.as_dict() for c in _quick_commands()],
         },
         "smoke": {
@@ -111,11 +109,11 @@ def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
             "commands": [c.as_dict() for c in _ci_commands()],
         },
         "stage": {
-            "purpose": "minimal phase gate: quick tripwires plus three offline acceptance cases",
+            "purpose": "phase acceptance gate: three offline acceptance cases without repeated quick checks",
             "commands": [c.as_dict() for c in _stage_commands()],
         },
         "full-stage": {
-            "purpose": "explicit heavy phase gate: quick, service smoke, full global evaluation, and model replay",
+            "purpose": "explicit heavy phase gate: full global evaluation and model replay",
             "commands": [c.as_dict() for c in _full_stage_commands()],
         },
         "gis-core": {
@@ -183,7 +181,6 @@ def _smoke_commands() -> List[ProfileCommand]:
 
 def _stage_commands() -> List[ProfileCommand]:
     return [
-        *_quick_commands(),
         ProfileCommand(
             "stage_acceptance_examples",
             [
@@ -231,8 +228,6 @@ def _ci_commands() -> List[ProfileCommand]:
 
 def _full_stage_commands() -> List[ProfileCommand]:
     return [
-        *_quick_commands(),
-        *_smoke_commands(),
         ProfileCommand(
             "strict_global_offline_evaluation",
             [sys.executable, str(ROOT / "scripts" / "evaluate_global.py"), "--strict"],
