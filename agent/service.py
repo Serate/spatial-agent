@@ -14,6 +14,7 @@ from agent.cost_governance import (
     extract_tokens as _extract_tokens,
 )
 from agent.errors import ToolError
+from agent.execution_contract import build_execution_record
 from agent.failure_contract import build_failure_evidence, failure_from_payload
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
@@ -115,6 +116,8 @@ def _action_response_from_artifact(artifact: Dict[str, Any]) -> Dict[str, Any]:
         "artifact_ref": artifact.get("artifact_ref"),
         "result": artifact.get("result"),
         "idempotency_reused": True,
+        "execution_record": artifact.get("execution_record")
+        or build_execution_record(artifact, kind="action"),
     })
     if artifact.get("error"):
         response["error"] = artifact["error"]
@@ -272,6 +275,7 @@ class AgentService:
             if isinstance(payload.get("result"), dict):
                 payload["result"]["failure"] = dict(payload["failure"])
             _attach_error_category(payload)
+        payload["execution_record"] = build_execution_record(payload, kind="run")
         return payload
 
     def preview(
@@ -382,6 +386,7 @@ class AgentService:
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
+        payload["execution_record"] = build_execution_record(payload, kind="run")
         if export_artifact:
             # Refresh the durable artifact so it carries the final navigational
             # references (geojson_ref, result_type, session_id) that lineage
@@ -719,6 +724,7 @@ class AgentService:
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
+        payload["execution_record"] = build_execution_record(payload, kind="run")
         if export_artifact:
             # Refresh the durable artifact so it carries the final navigational
             # references (geojson_ref, result_type, session_id) that lineage
@@ -812,6 +818,9 @@ class AgentService:
                 if isinstance(artifact_result.get("views"), dict):
                     payload["result"]["views"] = artifact_result["views"]
                 _attach_error_category(payload)
+                payload["execution_record"] = payload.get("execution_record") or build_execution_record(
+                    payload, kind="run"
+                )
                 self._attach_async_observability(payload, run_id)
                 return payload
         if result is None:
@@ -834,6 +843,7 @@ class AgentService:
         )
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
+        payload["execution_record"] = build_execution_record(payload, kind="run")
         self._attach_async_observability(payload, run_id)
         return payload
 
@@ -1040,6 +1050,7 @@ class AgentService:
             )
             artifact_ref = self._artifact_store.write_action(record)
             record["artifact_ref"] = artifact_ref
+            record["execution_record"] = build_execution_record(record, kind="action")
             record["result"] = build_action_result_contract(
                 record,
                 registry=_runtime_result_registry(runtime),
@@ -1102,6 +1113,7 @@ class AgentService:
         )
         artifact_ref = self._artifact_store.write_action(record)
         record["artifact_ref"] = artifact_ref
+        record["execution_record"] = build_execution_record(record, kind="action")
         record["result"] = build_action_result_contract(
             record,
             registry=_runtime_result_registry(runtime),
@@ -1127,6 +1139,7 @@ class AgentService:
             "trace_summary": list(record["trace_summary"]),
             "artifact_ref": artifact_ref,
             "result": record["result"],
+            "execution_record": record["execution_record"],
         })
         return response
 
@@ -1135,6 +1148,9 @@ class AgentService:
         value = self._artifact_store.read_action(execution_id)
         if value is None:
             raise ValueError("action execution not found: " + str(execution_id))
+        value.setdefault(
+            "execution_record", build_execution_record(value, kind="action")
+        )
         return value
 
     def list_action_executions(self, limit: int = 20) -> Dict[str, Any]:

@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Sequence
 
+from agent.execution_contract import build_execution_record, execution_record_summary
+
 
 @dataclass(frozen=True)
 class CrossEntryContract:
@@ -56,8 +58,7 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
     section_names = context.get("section_names")
     section_names = section_names if isinstance(section_names, list) else []
     steps = payload.get("steps") if isinstance(payload.get("steps"), list) else []
-    return CrossEntryContract(
-        {
+    values = {
             "status": payload.get("status"),
             "result_type": result.get("type"),
             "result_title": result.get("title"),
@@ -105,7 +106,22 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
                 for key, value in sorted(panels.items(), key=lambda item: str(item[0]))
             },
         }
-    )
+    execution = normalize_execution(payload)
+    if execution is not None:
+        values["execution"] = execution
+    return CrossEntryContract(values)
+
+
+def normalize_execution(payload: Mapping[str, Any]) -> Dict[str, Any] | None:
+    """Project Run/Action execution identity without volatile ids or timing."""
+    record = payload.get("execution_record")
+    if not isinstance(record, Mapping):
+        if not payload.get("run_id") and not payload.get("action_execution_id"):
+            # Legacy contract fixtures may represent only the result envelope.
+            # Preserve that transport contract instead of inventing an identity.
+            return None
+        record = build_execution_record(payload)
+    return execution_record_summary(record)
 
 
 def compare_results(

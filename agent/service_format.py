@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 from agent.artifact_store import ArtifactStore
+from agent.execution_contract import build_execution_record
 from agent.geojson_exporter import export_run_summary
 from agent.models import AgentRunResult
 from agent.provenance import build_provenance
@@ -179,6 +180,7 @@ def format_result(
     payload["result"] = build_result_contract(payload, registry=result_registry)
     payload.pop("_geometry_evidence", None)
     _attach_error_category(payload)
+    payload["execution_record"] = build_execution_record(payload, kind="run")
     return payload
 
 

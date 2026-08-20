@@ -3299,3 +3299,17 @@ GitHub Actions 的 smoke check 和 stage contract profile 连续通过，但每�
 ### 修复与预防
 
 将 push/PR 的 CI 门禁收敛为 smoke check 和 `stage` profile；完整离线回归保留在同一 workflow 的 `workflow_dispatch` 手动入口，仅在明确需要时运行。以后新增测试应先进入快速、确定性的阶段 profile；重型或环境敏感的全量回归必须有独立的手动/阶段验收入口，并在能读取失败日志或复现同版本环境后再重新提升为提交门禁，不能用持续失败的门禁掩盖未知环境问题。
+
+## 新增通用执行投影时必须兼容没有执行身份的旧 Contract Harness fixture
+
+### 现象
+
+M128 为 Run 与 Domain Action 增加统一 `spatial-agent.execution-record.v1` 投影，并让 Contract Harness 自动比较执行状态。旧的结果契约 fixture 只包含 result envelope，没有 `run_id` 或 `action_execution_id`；如果 Harness 无条件构造执行记录，历史契约检查会因缺少执行身份而直接报错，甚至让生产 acceptance checker 返回参数错误码。
+
+### 根因
+
+执行记录需要一个稳定身份，而旧 Harness 的最小 fixture 有意只验证结果 envelope，本身并不代表一次可恢复执行。把新能力当成所有历史 payload 的必填字段，会把“新增可选证据”错误升级成“旧契约失效”，破坏替换入口和 artifact 兼容。
+
+### 修复与预防
+
+`normalize_execution()` 只有在 payload 已有 Run/Action 身份或明确的 `execution_record` 时才生成执行投影；纯旧 result fixture 保持无 execution 字段。真实 Service/HTTP/artifact payload 则必须携带完整投影。以后扩展公共结果证据时，先区分“无身份的历史最小 fixture”和“真实执行记录”，为新增字段提供有界兼容路径，并同时验证 acceptance checker 的退出码。

@@ -5,6 +5,7 @@ import math
 from typing import Any, Dict, List, Mapping
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
+from agent.execution_contract import build_execution_record, execution_record_summary
 
 COMMON_WORKSPACE_PANELS = [
     "answer",
@@ -130,6 +131,11 @@ def build_result_contract(
             "crs": sorted(geometry_crs),
         },
     }
+    if payload.get("run_id") or payload.get("action_execution_id"):
+        # Rebuild from the current payload: AgentRunResult.to_dict() may have
+        # produced an earlier record before Service assigned artifact_ref.
+        record = build_execution_record(payload)
+        contract["execution"] = execution_record_summary(record)
     if isinstance(payload.get("failure"), dict):
         contract["failure"] = dict(payload["failure"])
     return contract
@@ -181,6 +187,10 @@ def build_action_result_contract(
         "action_id": action_id,
         "ref": payload.get("action_execution_id") or payload.get("run_id"),
     }
+    # The artifact reference can be assigned between the first and final
+    # result projection, so never reuse a stale pre-artifact record here.
+    record = build_execution_record(payload, kind="action")
+    contract["execution"] = execution_record_summary(record)
     return contract
 
 

@@ -2,6 +2,8 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from agent.execution_contract import build_execution_record
+
 
 class RunStatus(str, Enum):
     CREATED = "CREATED"
@@ -88,6 +90,7 @@ class AgentRunResult:
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
         data["status"] = self.status.value
+        data["execution_record"] = build_execution_record(data, kind="run")
         for key in ("artifact_ref", "geojson_ref"):
             if data.get(key) is None:
                 data.pop(key, None)

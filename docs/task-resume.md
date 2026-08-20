@@ -1315,3 +1315,9 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 2. 用 Contract Harness 覆盖 CLI、开发 HTTP、生产 FastAPI、同步/异步、artifact 和 Console 的跨入口一致性，并使用 Text 与复杂 GIS 两类回放。
 3. 将数据健康/降级与执行结果建立通用关联；真实武汉数据继续只由 GIS Domain evidence 提供，真实模型继续作为可选 live 基线。
 4. 阶段末集中执行专项+全量，补充 Docker/FastAPI 可用性证据；环境不可用时记录明确阻塞，不把离线测试当成生产验收。
+
+## M128 当前进度
+
+- 已新增 `spatial-agent.execution-record.v1`，统一 Run 与 Domain Action 的身份、状态、结果类型、trace、artifact、幂等和错误投影；不复制原始请求、Action 参数或工具结果。
+- Runtime、Service、ArtifactStore、result envelope、Contract Harness、开发 HTTP 和 Console 已消费同一执行记录；旧的无执行身份 fixture 仍按原契约工作。
+- M128 专项 7 项、受影响的 M108/M110/M127 等契约回归 13 项、离线全量 681 项通过（42 项跳过）；smoke、stage profile、compileall 和 `git diff --check` 通过，阶段版本随后推送。

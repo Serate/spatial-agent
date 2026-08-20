@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from agent.execution_contract import build_execution_record
+
 
 class ArtifactStore:
     """Writes small run artifacts for demos, handoff, and downstream clients."""
@@ -15,6 +17,9 @@ class ArtifactStore:
             raise ValueError("payload must include run_id")
         self._root.mkdir(parents=True, exist_ok=True)
         path = self._root / (run_id + ".json")
+        execution_record = build_execution_record(
+            {**payload, "artifact_ref": path.as_posix()}, kind="run"
+        )
         artifact = {
             "run_id": run_id,
             "status": payload.get("status"),
@@ -42,6 +47,7 @@ class ArtifactStore:
             "replan_events": payload.get("replan_events") or [],
             "geojson_ref": payload.get("geojson_ref"),
             "artifact_ref": path.as_posix(),
+            "execution_record": execution_record,
         }
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
@@ -55,6 +61,9 @@ class ArtifactStore:
             raise ValueError("action_execution_id must be a safe file name")
         self._root.mkdir(parents=True, exist_ok=True)
         path = self._root / ("action-" + execution_id + ".json")
+        execution_record = build_execution_record(
+            {**payload, "artifact_ref": path.as_posix()}, kind="action"
+        )
         artifact = {
             "artifact_schema_version": "spatial-agent.action-artifact.v1",
             "action_execution_id": execution_id,
@@ -71,6 +80,7 @@ class ArtifactStore:
             "error_code": payload.get("error_code"),
             "action_error_code": payload.get("action_error_code"),
             "artifact_ref": path.as_posix(),
+            "execution_record": execution_record,
         }
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
@@ -159,6 +169,8 @@ class ArtifactStore:
                 "action_error_code": payload.get("action_error_code"),
                 "action_execution": payload.get("action_execution"),
                 "artifact_ref": path.as_posix(),
+                "execution_record": payload.get("execution_record")
+                or build_execution_record(payload, kind="action"),
                 "modified_at": path.stat().st_mtime,
             })
             if len(records) >= limit:
@@ -185,6 +197,8 @@ class ArtifactStore:
                 "answer": payload.get("answer"),
                 "error": payload.get("error"),
                 "artifact_ref": path.as_posix(),
+                "execution_record": payload.get("execution_record")
+                or build_execution_record(payload, kind="run"),
                 "modified_at": path.stat().st_mtime,
             })
             if len(records) >= limit:

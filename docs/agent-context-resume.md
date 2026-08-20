@@ -1073,3 +1073,10 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 2. 将 CLI、开发 HTTP、生产 FastAPI、artifact 和 Console 的请求/计划/执行结果通过同一 Contract Harness 验证；补一条 Text 与一条复杂 GIS 的同步、异步、恢复矩阵。
 3. 保持真实数据只作为 GIS Domain evidence，增加数据健康/降级证据与运行结果的关联；真实模型继续用脱敏回放作为默认证据，live 只做可选基线。
 4. 以 Docker/FastAPI 可用性、CI 稳定门禁、前端动态 workspace 和跨领域回放为阶段验收，缺失环境必须输出明确阻塞证据而不是伪造通过。
+
+## M128 当前进度
+
+- 已新增 `spatial-agent.execution-record.v1` 深模块：Run 与 Domain Action 通过同一有界投影暴露身份、状态、领域、结果类型、轨迹数量、artifact 可恢复性、幂等存在性和错误码，不复制请求文本或工具 payload。
+- Runtime `AgentRunResult`、Service、ArtifactStore、result envelope、Contract Harness、开发 HTTP 和 Console 均已接入该投影；历史无执行身份的旧 fixture 保持兼容。
+- 已覆盖同步 Run/Action、失败 Action 重放、开发 HTTP、SQLite 异步恢复、artifact 和前端统一执行记录展示；M128 专项当前 7 项通过，受影响旧契约 13 项通过。
+- 阶段收尾验证已完成：M128 专项 7 项、受影响契约 13 项、离线全量 681 项通过（42 项跳过），smoke、stage profile、compileall 和 `git diff --check` 通过；Docker/FastAPI/真实 GIS/LLM 仍按环境条件验收。

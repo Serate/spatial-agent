@@ -2584,6 +2584,13 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 3. 将数据健康/降级证据与执行结果建立通用关联；真实数据只作为 GIS Domain evidence，真实模型只作为可选 live 基线。
 4. 阶段末执行专项+全量，并在 Docker/FastAPI 可用时完成部署矩阵；环境不可用时保留明确阻塞证据。
 
+## M128 当前实现：统一 Execution Record 与跨入口投影
+
+- 新增 `agent/execution_contract.py`，提供 `spatial-agent.execution-record.v1` 有界投影；Run 与 Domain Action 共用同一字段集合，身份、耗时、请求文本和 payload 彼此隔离。
+- `AgentRunResult.to_dict()`、Service、ArtifactStore 和 result envelope 均暴露执行记录；Action artifact、Run artifact、历史列表和恢复入口均保留该记录。
+- Contract Harness 新增 transport-neutral execution projection，开发 HTTP、同步/异步、SQLite 恢复、Text Domain 和 Console 回归覆盖；没有执行身份的旧 fixture 不被强制升级。
+- 当前验证：M128 专项 7 项、受影响契约 13 项、离线全量 681 项通过（42 项跳过）；smoke、stage profile、compileall 和 `git diff --check` 通过，文档已收尾，待推送阶段版本。
+
 ## M121 已完成：provenance Domain projection
 
 - `ResultContractRegistry` 增加 provenance projector；公共 provenance 只自动保留通用运行血缘和 bounded numeric counters，GIS 的 `admin_name/crs` 等兼容字段由 GIS registry 投影。
