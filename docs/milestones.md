@@ -2768,3 +2768,9 @@ M95–M98 已形成“请求事实 -> 计划/工具治理 -> 执行 -> 成功/�
 - 新增 `docs/code-cleanup-plan.md`，明确无效代码统计、测试精简边界和删除判据；不把兼容 facade、可选 live/Docker 入口或历史契约误删为“死代码”。
 - 清理运行代码和测试中的确认无效导入/变量，修复静态检查发现的未定义全局和缺失类型导入；capability discovery 的有意兼容 re-export 通过 `__all__` 明确保留。
 - 阶段验证：Pyflakes、Ruff F401/F821/F841、Vulture、受影响专项 102 项（5 项按环境跳过）、M81 profile 9 项、`ci`、`stage`、compileall、`git diff --check` 通过；测试用例未因数量目标删除，profile 测试的重复 subprocess 样板已抽成 helper。
+
+## M132.1 可疑死代码与测试替身审计
+
+- 修正相对导入后，`agent/`、`domains/`、`evaluation/` 没有孤立运行模块；无直接 import 的 `scripts/` 文件均为 README/API/PowerShell/profile/专项测试引用的显式 CLI 或验收入口。
+- 删除 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个仓库内无调用的旧 runtime/session/memory-job 方法，以及两个测试替身中只赋值不读取的字段；保留兼容 alias、动态导出、结果 registry 查询和反射序列化字段。
+- 验证：异步/重启/重规划/几何证据/profile 专项 43 项通过（1 项按 FastAPI 环境跳过），`ci`、`stage`、Ruff F401/F821/F841、Pyflakes、Vulture、compileall 和 diff check 通过。

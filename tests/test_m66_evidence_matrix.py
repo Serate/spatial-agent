@@ -59,7 +59,6 @@ class _GeometryRuntime:
         )
 
     def export_result(self, result_ref, max_features=100):
-        self.last_export = (result_ref, max_features)
         return {
             "features": [
                 {

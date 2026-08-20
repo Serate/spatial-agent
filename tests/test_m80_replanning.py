@@ -20,11 +20,9 @@ class DowngradePlanner:
 
     def __init__(self, replacement=None):
         self._replacement = replacement
-        self.replan_calls = 0
 
     def plan(self, request, context=None):
         if context and context.get("feedback") and self._replacement is not None:
-            self.replan_calls += 1
             return self._replacement
         return TaskPlan(
             goal="exercise replanning",
@@ -252,7 +250,7 @@ class M80RuntimeReplanningTests(unittest.TestCase):
         self.assertEqual(plan.output["type"], "dataset_health_result")
 
     def test_rule_planner_runtime_replans_with_downgrade(self):
-        reg, adapter = registry(
+        reg, _adapter = registry(
             (
                 "get_dataset_health_report",
                 "get_zonal_slope_statistics",
@@ -308,7 +306,7 @@ class _RecordedLLMClient:
 
 class M80RecordedLLMReplanningTests(unittest.TestCase):
     def test_recorded_llm_replans_after_step_failure(self):
-        reg, adapter = registry(
+        reg, _adapter = registry(
             ("make_value", "fail_value", "use_value", "recover_value")
         )
         first_plan = {
@@ -347,7 +345,7 @@ class M80RecordedLLMReplanningTests(unittest.TestCase):
         self.assertEqual(result.replan_events[0]["failed_step_id"], "second")
 
     def test_recorded_llm_exhausts_budget_without_replan(self):
-        reg, adapter = registry(
+        reg, _adapter = registry(
             ("make_value", "fail_value", "use_value", "recover_value")
         )
         first_plan = {
@@ -375,7 +373,7 @@ class M80RecordedLLMReplanningTests(unittest.TestCase):
         self.assertEqual(result.steps[2].status, "BLOCKED")
 
     def test_replan_events_survive_to_dict_roundtrip(self):
-        reg, adapter = registry(
+        reg, _adapter = registry(
             ("make_value", "fail_value", "use_value", "recover_value")
         )
         runtime = AgentRuntime(

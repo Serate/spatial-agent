@@ -3411,3 +3411,17 @@ M132 将 GIS Planner/Composer 的策略与 builder 代码物理放在 `domains/g
 ### 修复与预防
 
 清理阶段将内部读取改为 `_default_gis_contract()` 的显式结果，并补齐 `List` 类型导入；同时安装并运行 Pyflakes、Ruff（F401/F821/F841）和 Vulture。以后模块级动态导出只能作为外部兼容 API，内部逻辑必须调用明确的 provider；静态检查应作为开发/阶段检查的一部分，且要区分有意 re-export 与真正无效导入。
+
+## 静态死代码报告必须经过相对导入和动态入口复核
+
+### 现象
+
+Vulture 会将 Domain Pack 的惰性 provider、结果 registry 的公共查询方法、兼容 alias、CLI 脚本以及通过 `dataclasses.asdict()` 输出的字段报告为低置信度未使用。简单按报告删除，可能破坏 HTTP/PowerShell 入口、旧导入或序列化契约。相反，`ServiceState` 的部分旧操作方法和 `AgentService._ensure_memory_session()` 在仓库内确实没有任何调用，属于可清理的历史残留。
+
+### 根因
+
+静态工具主要根据 Python 语法树和直接调用判断使用情况，无法完整理解相对导入、模块级 `__getattr__`、字符串路由、子类属性覆盖、脚本直接执行和反射序列化。把“无直接调用”与“无入口”混为一谈，会在清理时误删公共边界。
+
+### 修复与预防
+
+清理前先解析相对导入得到模块调用图，再搜索 README、API 文档、workflow、PowerShell、HTTP 路由、artifact/recovery 和 profile 入口；只有同时满足无入口、无契约、无文档引用且有专项回归替代，才删除。M132.1 只删除了确认无调用的内部 state/session/job 方法和测试替身字段，并保留兼容、CLI、registry 与反射字段。以后对低置信度报告必须记录“保留/删除”的证据，不能直接使用 `vulture --min-confidence` 结果作为删除清单。

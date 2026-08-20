@@ -8,7 +8,7 @@
 
 - 运行/脚本/评测 Python 文件：105 个。
 - 测试 Python 文件：124 个。
-- Ruff、Pyflakes、Vulture 当前未安装，因此先用 AST 导入扫描，再用全文引用和模块契约逐项复核。
+- 初始清理基线时 Ruff、Pyflakes、Vulture 尚未安装，因此先用 AST 导入扫描；当前已安装到本机 Python 环境，并用静态工具和模块契约逐项复核。
 - 初始 AST 复核确认无调用证据的导入或局部导入：23 个，分布在 12 个模块。
 - 安装静态工具后又发现并清理 25 个真实问题：6 个运行代码问题、19 个测试代码问题；另有 4 个 capability discovery 导出是有意兼容导出，已用 `__all__` 明确标记而不是删除。
 - 测试中另有 15 个只用于协议签名或测试替身、但未读取的参数名，已改成下划线命名；没有测试方法被判定为无入口死代码。
@@ -46,6 +46,13 @@
 
 对没有直接 import 的模块逐个检查：命令行入口、动态导入、HTTP 路由、配置声明、artifact/recovery 读取和 optional profile 都算有效入口。只有同时满足“无入口、无契约、无文档引用、可由专项回归证明替代”才允许删除。
 
+本轮审计结果：
+
+- 修正相对导入解析后，`agent/`、`domains/`、`evaluation/` 没有孤立运行模块；Domain Pack 的惰性导入、结果 registry 和 evidence provider 均有调用链。
+- `scripts/` 中没有直接 import 的文件都是明确的 CLI/验收入口，并被 README、API 文档、PowerShell、profile 或专项测试引用；不删除这些脚本。
+- 删除了 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个无调用的旧 runtime/session/memory-job 操作，以及两个测试替身中只赋值不读取的字段。
+- 保留 `__getattr__`、`KNOWN_TOOLS`、`validate_template`、结果 registry 查询方法和反射序列化字段；它们虽可能被静态工具标为低置信度未使用，但分别承担兼容导出、旧调用、公共查询或 JSON 序列化职责。
+
 ### P3：测试与文档收口
 
 测试不按数量简单删除。只把重复 profile 调用、没有独立断言的重复场景和过期 fixture 归并；保留跨入口、失败、恢复、真实数据和领域隔离契约。清理结果同步到 `docs/milestones.md`、`docs/task-resume.md`、`docs/agent-context-resume.md` 和本项目问题记录。
@@ -63,4 +70,5 @@
 - P0 统计与计划：已完成。
 - P0 导入和测试无效代码清理：已完成静态修改和专项回归确认。
 - P1 GIS Planner 物理归属：已实现并通过归属、兼容和跨领域专项验收。
-- P2/P3：作为下一阶段继续，优先审计动态入口和真正重复的 profile/断言。
+- P2 可疑死代码审计：已完成第一轮入口图和低置信度候选复核；待继续检查跨入口重复断言。
+- P3 测试与文档收口：继续优先合并真正重复的 profile/断言，保留失败、恢复、跨入口和环境专项契约。

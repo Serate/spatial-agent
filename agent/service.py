@@ -53,7 +53,6 @@ from agent.service_sessions import (
     async_job_payload as _async_job_payload,
     attach_history_lineage as _attach_history_lineage,
     dedupe_run_records as _dedupe_run_records,
-    memory_session_display_name as _memory_session_display_name,
     validate_session_id as _validate_session_id,
 )
 
@@ -901,15 +900,6 @@ class AgentService:
         for runtime in self._runtimes.values():
             runtime.clear_session(session_id)
         return {"session_id": session_id, "deleted": deleted, "cleared_runs": cleared_runs}
-
-    def _ensure_memory_session(self, session_id: str) -> None:
-        with self._memory_session_lock:
-            if session_id in self._memory_sessions:
-                return
-            self._memory_sessions[session_id] = {
-                "session_id": session_id,
-                "display_name": _memory_session_display_name(session_id),
-            }
 
     def metrics(self) -> Dict:
         if self._state.persistent:

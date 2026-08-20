@@ -159,10 +159,6 @@ class ServiceState:
         with self._runtime_lock:
             return dict(self._runtimes)
 
-    def forget_runtime(self, planner: str, backend: str) -> None:
-        with self._runtime_lock:
-            self._runtimes.pop((planner, backend), None)
-
     # ------------------------------------------------------------------ #
     # Memory sessions (persistent store wins when present)
     # ------------------------------------------------------------------ #
@@ -219,10 +215,6 @@ class ServiceState:
     def jobs_lock(self) -> threading.Lock:
         return self._jobs_lock
 
-    def pop_session(self, session_id: str) -> Optional[Dict[str, Any]]:
-        with self._session_lock:
-            return self._sessions.pop(session_id, None)
-
     def clear_session_runs(self, session_id: str) -> int:
         if self._state_store is not None:
             return self._state_store.clear_session_runs(session_id)
@@ -243,11 +235,6 @@ class ServiceState:
             self._jobs[idempotency_key] = normalized
             return None
 
-    def memory_job_by_key(self, idempotency_key: str) -> Optional[Dict[str, Any]]:
-        with self._jobs_lock:
-            job = self._jobs.get(idempotency_key)
-            return dict(job) if job is not None else None
-
     def memory_job_by_run_id(self, run_id: str) -> Optional[Dict[str, Any]]:
         with self._jobs_lock:
             job = next(
@@ -255,49 +242,6 @@ class ServiceState:
                 None,
             )
             return dict(job) if job is not None else None
-
-    def memory_jobs(self) -> list:
-        with self._jobs_lock:
-            return [dict(job) for job in self._jobs.values()]
-
-    def mark_memory_started(self, run_id: str) -> None:
-        now = time.time()
-        with self._jobs_lock:
-            for job in self._jobs.values():
-                if job.get("run_id") != run_id:
-                    continue
-                job["status"] = "RUNNING"
-                job["started_at"] = job.get("started_at") or now
-                if job.get("queue_wait_ms") is None:
-                    job["queue_wait_ms"] = max(0, (now - job["created_at"]) * 1000)
-                job["last_event"] = "started"
-                return
-
-    def finish_memory_job(
-        self, run_id: str, status: str, failure_category: str = None
-    ) -> None:
-        finished_at = time.time()
-        with self._jobs_lock:
-            for job in self._jobs.values():
-                if job.get("run_id") != run_id:
-                    continue
-                job["status"] = status
-                job["finished_at"] = finished_at
-                started_at = job.get("started_at")
-                if started_at is not None:
-                    job["run_duration_ms"] = max(0, (finished_at - started_at) * 1000)
-                job["failure_category"] = failure_category
-                job["last_event"] = "finished"
-                return
-
-    def mark_memory_cancel_requested(self, run_id: str) -> None:
-        with self._jobs_lock:
-            for job in self._jobs.values():
-                if job.get("run_id") == run_id and job.get("status") in {"QUEUED", "RUNNING"}:
-                    job["status"] = "CANCEL_REQUESTED"
-                    job["cancel_requested_at"] = time.time()
-                    job["last_event"] = "cancel_requested"
-                    return
 
     def async_job(self, run_id: str) -> Optional[Dict[str, Any]]:
         if self._state_store is not None:

@@ -1357,3 +1357,9 @@ M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 
 - 清理了可证明无效的运行代码/测试导入、未使用局部变量和测试替身参数；修复静态检查暴露的 `DATASET_GROUPS` 未定义与 `List` 缺失导入问题。
 - Pyflakes、Ruff（F401/F821/F841）和 Vulture 均通过；受影响专项 102 项通过、5 项按环境跳过，`ci`、`stage`、compileall 和 `git diff --check` 通过。
 - M81 profile 测试 9 项通过；重复的 subprocess dry-run 样板已集中到测试 helper。测试方法不按数量删除：没有发现无入口死测试或完全重复方法体；后续只继续合并重复 profile/重复断言，并保留失败、恢复、跨入口和环境专项契约。
+
+## M132.1 可疑死代码审计
+
+- 相对导入调用图确认 `agent/`、`domains/`、`evaluation/` 没有孤立运行模块；脚本类无直接 import 文件均保留为有文档或自动化入口的 CLI/验收脚本。
+- 删除了 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个无调用的旧 state 操作，以及测试替身中只赋值不读取的字段；公共兼容 alias、动态导出、registry 查询和反射字段保留。
+- 43 项异步/重启/重规划/几何/profile 专项通过（1 项按 FastAPI 环境跳过），`ci`、`stage` 和静态检查通过；下一步继续审计跨入口重复断言，不按测试数量删除独立契约。

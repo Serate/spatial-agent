@@ -1129,3 +1129,9 @@ M93 的 GIS profile 在当前普通 Python 环境下按依赖条件跳过；Dock
 - 新增 `docs/code-cleanup-plan.md`，以静态引用证据区分无效代码、兼容代码和可选环境入口；当前基线为 105 个运行/脚本/评测 Python 文件、124 个测试文件、695 个测试方法。
 - 清理了确认无效的运行/测试导入、未使用局部变量与测试替身参数；修复 `capability_catalog` 的未定义动态全局读取和 Runtime 缺失 `List` 导入。
 - Pyflakes、Ruff F401/F821/F841、Vulture、102 项受影响专项、M81 profile 9 项、`ci`、`stage`、compileall 和 diff check 均通过；测试 profile 的重复 subprocess 样板已抽成 helper，测试方法本身没有证据表明可以删除或存在完全重复体。
+
+### M132.1 可疑死代码与测试替身审计
+
+- 相对导入解析和入口搜索确认没有孤立的 `agent/`、`domains/`、`evaluation/` 运行模块；无直接 import 的脚本均由文档、PowerShell、profile 或专项测试作为显式入口使用。
+- 删除 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个无调用的旧 state 操作，以及两个只赋值不读取的测试替身字段；保留兼容 alias、动态导出、registry 查询方法和反射序列化字段。
+- 异步/重启/重规划/几何/profile 专项 43 项通过（1 项按 FastAPI 环境跳过），`ci`、`stage`、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过；下一步审计跨入口重复断言。
