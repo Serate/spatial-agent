@@ -371,6 +371,17 @@ class AgentRuntime:
             # timeout would otherwise be observed.
             self._check_control(result.run_id, deadline)
             plan = self._plan(resolved_request, workflow, context_packet)
+            self._check_control(result.run_id, deadline)
+            plan, _repair_event = self._validate_or_repair_plan(
+                plan,
+                resolved_request,
+                workflow,
+                deadline=deadline,
+                result=result,
+                run_id=result.run_id,
+                context_packet=context_packet,
+            )
+            result.plan = plan
             result.plan_evidence = _build_plan_evidence(
                 plan,
                 workflow,
@@ -386,12 +397,8 @@ class AgentRuntime:
                 )
                 if not result.plan_evidence["plan_fingerprint_match"]:
                     raise ToolError("preview plan fingerprint mismatch")
-            self._check_control(result.run_id, deadline)
-            if workflow is not None:
-                _validate_runtime_workflow_plan(plan, workflow)
             result.planner_metrics = self._planner_metrics()
             if plan.output.get("type") == "direct_answer":
-                result.plan = plan
                 result.status = RunStatus.COMPLETED
                 result.answer = str(plan.output.get("message", ""))
                 self._conversation_store.clear_pending(session_id)
@@ -399,8 +406,6 @@ class AgentRuntime:
                 self._remember(result)
                 self._state_store.save(result)
                 return result
-            self._validate_plan(plan)
-            result.plan = plan
             result.status = RunStatus.EXECUTING
             result.steps = [
                 StepRun(step.id, step.tool, step.args, list(step.depends_on))
@@ -408,7 +413,8 @@ class AgentRuntime:
             ]
             completed: Set[str] = set()
             completed_results: Dict[str, Dict[str, Any]] = {}
-            replan_count = 0
+            # Planning repair and execution replan share one per-run budget.
+            replan_count = 1 if _repair_event is not None else 0
             index = 0
             while index < len(result.steps):
                 step_run = result.steps[index]
@@ -490,6 +496,7 @@ class AgentRuntime:
         """Plan a request and return a bounded DAG preview without dispatching tools."""
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
+        deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
         resolved_request = self._resolve_request(request, session_id)
         request_facts = extract_request_facts(self._domain_pack, resolved_request)
         context_packet = self._build_context_packet(
@@ -513,10 +520,14 @@ class AgentRuntime:
         }
         try:
             plan = self._plan(resolved_request, workflow, context_packet)
-            if workflow is not None:
-                _validate_runtime_workflow_plan(plan, workflow)
-            if plan.output.get("type") != "direct_answer":
-                self._validate_plan(plan)
+            plan, repair_event = self._validate_or_repair_plan(
+                plan,
+                resolved_request,
+                workflow,
+                deadline=deadline,
+                run_id=None,
+                context_packet=context_packet,
+            )
             plan_payload = _plan_to_dict(plan)
             plan_evidence = _build_plan_evidence(
                 plan,
@@ -533,6 +544,8 @@ class AgentRuntime:
                 "plan_identity": dict(plan_evidence["plan_identity"]),
                 "planner_metrics": self._planner_metrics(),
             })
+            if repair_event is not None:
+                payload["replan_events"] = [repair_event]
         except ClarificationNeeded as exc:
             payload.update({
                 "status": RunStatus.NEEDS_CLARIFICATION.value,
@@ -732,6 +745,143 @@ class AgentRuntime:
     def _planner_metrics(self) -> Optional[Dict]:
         metrics = getattr(self._planner, "metrics", None)
         return metrics() if callable(metrics) else None
+
+    def _validate_or_repair_plan(
+        self,
+        plan: TaskPlan,
+        request: str,
+        workflow: Optional[Mapping[str, Any]],
+        *,
+        deadline: Optional[float],
+        result: Optional[AgentRunResult] = None,
+        run_id: Optional[str] = None,
+        context_packet: Optional[ContextPacket] = None,
+    ) -> tuple[TaskPlan, Optional[Dict[str, Any]]]:
+        """Validate a plan and make one bounded model repair if needed.
+
+        This is the planning-phase seam: no tool has run, so a repaired plan
+        replaces the whole candidate rather than being merged with execution
+        state.  The replacement still crosses the same workflow and Registry
+        validation as the original plan.
+        """
+
+        try:
+            self._validate_plan_for_execution(plan, workflow)
+            return plan, None
+        except Exception as exc:
+            replacement, event = self._try_plan_repair(
+                request,
+                plan,
+                workflow,
+                exc,
+                deadline,
+                run_id=run_id,
+                context_packet=context_packet,
+            )
+            if replacement is None or event is None:
+                raise
+            if result is not None:
+                result.replan_events.append(event)
+            return replacement, event
+
+    def _validate_plan_for_execution(
+        self, plan: TaskPlan, workflow: Optional[Mapping[str, Any]]
+    ) -> None:
+        if workflow is not None:
+            _validate_runtime_workflow_plan(plan, workflow)
+        if plan.output.get("type") != "direct_answer":
+            self._validate_plan(plan)
+
+    def _try_plan_repair(
+        self,
+        request: str,
+        plan: TaskPlan,
+        workflow: Optional[Mapping[str, Any]],
+        exc: Exception,
+        deadline: Optional[float],
+        run_id: Optional[str],
+        context_packet: Optional[ContextPacket],
+    ) -> tuple[Optional[TaskPlan], Optional[Dict[str, Any]]]:
+        if getattr(self._planner, "capability_rules", None) is not None:
+            return None, None
+        if not self._replan_policy.should_repair(
+            repair_count=0,
+            validation_error=str(exc),
+        ):
+            return None, None
+        self._check_control(run_id or "plan-repair", deadline)
+        failed_payload = {
+            "id": "plan-validation",
+            "tool": "planner",
+            "args": {},
+            "error_category": failure_category(str(exc)),
+        }
+        feedback = self._replan_policy.feedback_payload(
+            request=request,
+            completed_steps=[],
+            failed_step=failed_payload,
+            remaining_tools=self._registry.names,
+            output_type=(plan.output or {}).get("type"),
+            validation_error=str(exc),
+        )
+        started = perf_counter()
+        try:
+            replacement = self._plan_with_feedback(
+                request,
+                workflow,
+                feedback,
+                context_packet=context_packet,
+            )
+            self._validate_plan_for_execution(replacement, workflow)
+        except Exception:
+            return None, None
+        event = build_replan_event(
+            failed_step_id="plan-validation",
+            failed_tool="planner",
+            failure_category=failure_category(str(exc)),
+            new_step_ids=[step.id for step in replacement.steps],
+            latency_ms=(perf_counter() - started) * 1000,
+            phase="planning",
+        )
+        return replacement, event
+
+    def _plan_with_feedback(
+        self,
+        request: str,
+        workflow: Optional[Mapping[str, Any]],
+        feedback: Mapping[str, Any],
+        *,
+        context_packet: Optional[ContextPacket] = None,
+    ) -> TaskPlan:
+        method = self._planner.plan
+        try:
+            parameters = inspect.signature(method).parameters
+        except (TypeError, ValueError):
+            parameters = {}
+        accepts_kwargs = any(
+            item.kind == inspect.Parameter.VAR_KEYWORD
+            for item in parameters.values()
+        )
+        kwargs: Dict[str, Any] = {}
+        if workflow is not None and ("workflow" in parameters or accepts_kwargs):
+            kwargs["workflow"] = workflow
+        if "context" in parameters or accepts_kwargs:
+            repair_context = _replan_context(feedback)
+            if context_packet is not None:
+                sections = context_packet.payload.get("sections", {})
+                if isinstance(sections, Mapping):
+                    repair_context["capability_context"] = {
+                        key: sections[key]
+                        for key in (
+                            "available_tools",
+                            "capability_discovery",
+                            "capability_catalog",
+                            "workflow_templates",
+                        )
+                        if key in sections
+                    }
+            kwargs["context"] = repair_context
+        return method(request, **kwargs)
 
     def _plan(
         self,

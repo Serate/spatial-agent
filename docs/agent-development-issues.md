@@ -3565,3 +3565,17 @@ M140 live smoke 中，约束建设案例完成；空间总览案例的 provider 
 ### 处理与预防
 
 当前保留严格校验，不为 live smoke 放宽重复步骤、未知引用或工具白名单；只记录案例状态、错误分类、token/延迟等脱敏指标。下一阶段从全局 Agent 角度增强 capability-guided plan repair/retry 与结构化模型输出约束，且所有修复仍须经过同一 schema、DAG 和 ToolRegistry。
+
+## 生产 JSON 未声明 UTF-8 会造成跨语言契约假失败
+
+### 现象
+
+Docker 容器健康、真实 GIS 数据可读，Python 侧直接比较 sync 与 artifact 结果一致，但 `scripts/production_acceptance.ps1` 的 sync/artifact Contract Harness 报告 `answer`、`request_facts.admin_name` 和 `result_title` 不一致。临时脱敏观测显示同步 HTTP 响应中的中文变成了乱码，而 artifact 文件中的中文正常。
+
+### 根因
+
+生产 FastAPI 路由返回默认 `JSONResponse` 时，响应头只有 `application/json`，没有声明 `charset=utf-8`。同步响应包含未转义的 UTF-8 中文，PowerShell 客户端按系统默认编码解码；artifact 使用 `ensure_ascii=True` 保存，只有 ASCII 转义序列，因此没有触发同一问题。实际结果并未发生变化，失败发生在跨语言传输边界。
+
+### 处理与预防
+
+生产 API 增加 `UTF8JSONResponse`，作为 FastAPI 默认 response class，并在 HTTP 异常处理器中显式使用；回归测试验证默认响应契约，Docker acceptance 进一步检查实际 `Content-Type: application/json; charset=utf-8` 并通过 sync/artifact harness。以后跨语言 HTTP acceptance 必须同时验证 payload 语义和 Content-Type/charset，不能把客户端乱码误判为 Runtime、数据或 artifact 一致性问题；临时诊断日志只能使用有标签的脱敏字段并在修复后删除。

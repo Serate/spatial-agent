@@ -30,7 +30,16 @@ from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.workflow_templates import workflow_template_catalog
 
-app = FastAPI(title="Spatial Agent Production API")
+class UTF8JSONResponse(JSONResponse):
+    """Keep JSON responses unambiguous for clients without charset sniffing."""
+
+    media_type = "application/json; charset=utf-8"
+
+
+app = FastAPI(
+    title="Spatial Agent Production API",
+    default_response_class=UTF8JSONResponse,
+)
 service = AgentService()
 service.start_reaper()
 
@@ -50,7 +59,7 @@ def http_exception_handler(request, exc: HTTPException):
     # Preserve the structured contract when the detail is already a payload.
     if isinstance(exc.detail, dict):
         body = exc.detail
-    return JSONResponse(status_code=exc.status_code, content=body)
+    return UTF8JSONResponse(status_code=exc.status_code, content=body)
 
 
 def _raise_for(exc: Exception, *, not_found: bool = False, service_unavailable: bool = False):

@@ -64,9 +64,10 @@ def _append_replanning_trace(lines: List[str], result: AgentRunResult) -> None:
             for item in (event.get("replanned_step_ids") or [])[:24]
         ]
         replacement = ", ".join(replacement_ids) if replacement_ids else "无替代步骤"
+        phase = "planning" if event.get("phase") == "planning" else "execution"
         lines.append(
-            "Adaptive replan: step {} ({}) failed; replacement steps: {}.".format(
-                failed_step, failed_tool, replacement
+            "Adaptive replan ({}): step {} ({}) failed; replacement steps: {}.".format(
+                phase, failed_step, failed_tool, replacement
             )
         )
 

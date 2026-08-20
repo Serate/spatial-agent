@@ -314,6 +314,9 @@ def build_replanning_evidence(events: Any) -> Dict[str, Any]:
             ) or "unknown",
             "replanned_step_ids": replacement_ids,
         }
+        phase = _bounded_replan_token(event.get("phase"))
+        if phase in {"planning", "execution"}:
+            item["phase"] = phase
         try:
             latency = float(event.get("latency_ms"))
             if math.isfinite(latency) and latency >= 0:

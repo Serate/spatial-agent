@@ -93,6 +93,16 @@ class ReplanningPolicy:
             return False
         return True
 
+    def should_repair(self, *, repair_count: int, validation_error: Optional[str]) -> bool:
+        """Allow one bounded repair for an invalid pre-execution TaskPlan.
+
+        Planning repair shares the same budget as execution replanning.  This
+        keeps the Runtime from turning a malformed model response into an
+        unbounded model-call loop.
+        """
+
+        return bool(validation_error) and repair_count < self._limit
+
     def feedback_payload(
         self,
         *,
@@ -101,9 +111,10 @@ class ReplanningPolicy:
         failed_step: Mapping[str, Any],
         remaining_tools: List[str],
         output_type: Optional[str],
+        validation_error: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Bounded feedback the planner uses to revise the remaining plan."""
-        return {
+        payload = {
             "stage": "replan",
             "original_request": request,
             "completed_steps": completed_steps,
@@ -111,6 +122,12 @@ class ReplanningPolicy:
             "available_tools": remaining_tools,
             "output_type": output_type,
         }
+        if validation_error:
+            # The planner needs the local validator's bounded reason to make a
+            # useful repair, but this text is feedback only and never enters
+            # persisted replan evidence.
+            payload["validation_error"] = str(validation_error)[:240]
+        return payload
 
 
 def merge_replanned_plan(
@@ -174,6 +191,7 @@ def build_replan_event(
     failure_category: str,
     new_step_ids: List[str],
     latency_ms: float,
+    phase: str = "execution",
 ) -> Dict[str, Any]:
     """Bounded, credential-free evidence for one replan round."""
     return {
@@ -181,6 +199,7 @@ def build_replan_event(
         "failed_tool": failed_tool,
         "failure_category": failure_category,
         "replanned_step_ids": new_step_ids,
+        "phase": phase if phase in {"planning", "execution"} else "execution",
         "latency_ms": round(latency_ms, 3),
         "occurred_at": time.time(),
     }

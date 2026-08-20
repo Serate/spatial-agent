@@ -2915,6 +2915,17 @@ M139 已完成 GIS intent 的领域归属，但能力所需的区域、数据集
 - `production_acceptance.ps1` 自动跳过 WindowsApps Python alias，Harness 失败报告实际解释器和退出码；生产重建使用 `--env-file .env.production` 将 `D:/dataset/agent` 挂载到 `/data`。当前容器 healthy，核心/可选数据 ready，preview、同步/artifact、失败证据、错误边界和异步幂等均通过。
 - M140/M139/M62 专项 15 项、`quick`、`ci`、`stage`、`full-stage`、GIS-core、compileall、Ruff、Pyflakes、PowerShell parser、`git diff --check` 和全量离线 735 项通过（42 项按环境跳过）。live smoke 的约束建设案例通过；空间总览因模型生成重复 `range_query` 与未声明依赖被严格 `tool_validation` 拦截，provider error 为 none，未将部分 live 结果宣称为全量通过。
 
+## M141 当前实现与验证状态
+
+- `agent/runtime.py` 已增加 planning-phase bounded plan repair：初始 TaskPlan 校验失败时，LLM Planner 最多修复一次；修复计划重新通过 workflow、TaskPlan 和 ToolRegistry 校验，planning repair 与 execution replan 共用单次预算。repair context 只继承有界的工具、能力发现、能力目录和 workflow template 投影，不携带凭据或模型原文。
+- `agent/replanning.py`、`result_contract.py` 和 `agent/trace_formatter.py` 已为 repair lineage 增加受限 `phase`（`planning`/`execution`）；preview、同步执行、artifact/recovery 的证据保持一致。Rule Planner 不进入模型修复分支，避免改变默认离线确定性行为。
+- M141 专项与 M80/M99/M102/M81 相邻回归 34 项通过；`quick`、`ci`、`stage`、`full-stage` 和全量离线 739 项通过、42 项按环境跳过；新增文件的 F401/F821/F841、Pyflakes、compileall 和 `git diff --check` 通过。
+- Docker Engine 29.6.2 使用国内镜像重建，真实 `D:/dataset/agent` 数据卷挂载正确，容器 healthy，production acceptance 全部通过。验收期间修复 production FastAPI JSON 未声明 UTF-8 charset 导致 PowerShell sync/artifact contract 比较乱码的问题，并增加 `UTF8JSONResponse` 契约测试。真实 live 复杂总览仍是可选基线，不能以本阶段离线/容器验收替代完整 live 成功声明。
+
+## M142 全局规划参考
+
+M141 已让计划校验失败具备一次安全修复能力，但 repair 仍主要是 Runtime seam，尚未形成跨入口的模型质量评估和用户可恢复交互。下一阶段从全局推进“计划修复质量与可解释交互”：先建立脱敏 replay 的 repair quality 评测和错误分类，再验证异步/重启/HTTP/artifact 的 repair lineage，最后让 Console 对“已修复/拒绝/需澄清”使用统一动态证据。继续保持单线程、默认离线，不为单个 GIS 区域增加专用分支；真实 GIS/live/Docker 作为阶段收尾证据。
+
 ## M141 全局规划参考：模型计划稳健性与通用修复闭环
 
 下一阶段不围绕洪山区或某个工具追加规则，而是从整体 Agent Runtime 处理 M140 暴露的跨边界风险：规则 Planner、脱敏 replay 和 live Planner 必须共享同一 capability requirements、TaskPlan schema、DAG 校验、ToolRegistry 和 repair lineage。

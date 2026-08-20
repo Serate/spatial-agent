@@ -3,6 +3,23 @@ from unittest.mock import patch
 
 
 class M63ProductionContractTests(unittest.TestCase):
+    def test_production_json_contract_declares_utf8_charset(self):
+        try:
+            import production_api
+        except ModuleNotFoundError as exc:
+            if exc.name == "fastapi":
+                self.skipTest("requires production FastAPI dependencies")
+            raise
+
+        self.assertIs(
+            production_api.app.router.default_response_class,
+            production_api.UTF8JSONResponse,
+        )
+        self.assertEqual(
+            production_api.UTF8JSONResponse.media_type,
+            "application/json; charset=utf-8",
+        )
+
     def test_sync_run_route_does_not_forward_async_idempotency_argument(self):
         try:
             import production_api

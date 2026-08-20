@@ -1256,3 +1256,14 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 ## M141 下一阶段全局规划
 
 从全局 Agent Runtime 继续推进模型计划稳健性：建立 capability-guided、受预算限制的 plan repair seam，统一 rule/offline replay/live 的 TaskPlan schema、DAG、ToolRegistry 和 repair lineage；补复杂总览脱敏 replay 与可选 live 基线，并验证同步、异步、artifact/recovery、Text/GIS 和 Console 的同一证据契约。规划不得退化为某个区域或数据集的专用分支，最大并发度保持 1。
+
+## M141 当前实现与验证状态
+
+- planning-phase bounded plan repair 已接入 `AgentRuntime`：初始计划校验失败时最多修复一次，修复计划重新通过 workflow、TaskPlan 和 ToolRegistry 校验；planning repair 与 execution replan 共用预算，Rule Planner 保持确定性路径。
+- repair context 只继承有界的 `available_tools`、`capability_discovery`、`capability_catalog` 和 `workflow_templates`，不把凭据或模型原文写入证据；`phase` 已贯通 preview、result envelope、trace 和 artifact/recovery。
+- M141 及相邻回归 34 项、`quick`/`ci`/`stage`/`full-stage`、全量离线 739 项（42 项跳过）、F401/F821/F841、Pyflakes、compileall 和 diff check 通过。
+- Docker Engine 29.6.2 可用；通过国内镜像重建并挂载 `D:/dataset/agent` 后，容器 healthy，production acceptance 通过。新增 `UTF8JSONResponse` 修复 PowerShell 对生产同步 JSON 中文的错误解码，避免 sync/artifact Contract Harness 假失败。当前未宣称复杂 live 总览完全通过。
+
+## M142 下一阶段全局规划参考
+
+围绕完整 Agent 闭环推进计划修复质量：脱敏 replay 评测“原计划无效 -> 修复成功/拒绝”的质量和预算，统一同步、异步、重启、HTTP、artifact、Text/GIS 的 repair lineage，再让 Console 动态解释已修复、拒绝和需澄清状态。保持单线程、默认离线和严格 Registry 边界，阶段收尾再做真实 GIS/live/Docker 验收。
