@@ -1391,3 +1391,10 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M153 全局规划参考
 
 继续从完整生命周期收敛通用 action contract：让澄清补充、计划修复、确认、拒绝、重试和恢复共享安全的 action/version/evidence 投影；优先补跨进程重复提交、未知 action、artifact 与 HTTP/Console 一致性，再做 Docker、live 和浏览器验收。
+
+## M153 当前实现状态
+
+- 新增无领域依赖的 `agent/action_lifecycle.py`；`DecisionLifecycle` 继续负责持久化用户决策，`ActionLifecycle` 负责从 bounded run/Action payload 只读投影外部生命周期。
+- result、artifact、async evidence 和 Console 共用 `spatial-agent.action-lifecycle.v1`，支持 planning、executing、awaiting_confirmation、clarification_required、repairable、recoverable、completed、rejected、cancelled、failed 状态及 allowlist 动作。
+- M153 专项 4 项、M151 11 项、M149/M150 相邻契约 16 项、quick、compact discovery、Python 编译、Node 语法和 diff check 已通过；当前版本 Docker production acceptance 已通过。
+- live-short 已实际调用真实模型和武汉 GIS，但两个案例因模型重复步骤触发 `tool_gate` 失败；动态 Chrome/CDP 尚未验收。下一阶段修复通用 Planner/Workflow repair seam，并保持默认 active suite 精简。

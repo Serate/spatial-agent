@@ -21,6 +21,7 @@
     clarification: "spatial-agent.clarification.v1",
     failure: "spatial-agent.failure.v1",
     decisionLifecycle: "spatial-agent.decision-lifecycle.v1",
+    actionLifecycle: "spatial-agent.action-lifecycle.v1",
   });
   const LIMITS = Object.freeze({
     id: 80,
@@ -59,6 +60,18 @@
     execution: "执行阶段",
     control: "控制阶段",
     unknown: "未知阶段",
+  });
+  const LIFECYCLE_LABELS = Object.freeze({
+    planning: "规划中",
+    executing: "执行中",
+    awaiting_confirmation: "等待确认",
+    clarification_required: "需要澄清",
+    repairable: "可修复",
+    recoverable: "可恢复",
+    completed: "已完成",
+    rejected: "已拒绝",
+    cancelled: "已取消",
+    failed: "失败",
   });
 
   function isRecord(value) {
@@ -334,6 +347,35 @@
     };
   }
 
+  function normalizeLifecycle(data, result, status) {
+    const raw = isRecord(data.lifecycle)
+      ? data.lifecycle
+      : (isRecord(result.lifecycle) ? result.lifecycle : null);
+    if (!raw) return {state: "missing", available: false, actions: [], lineage: {}};
+    if (raw.schema_version !== VERSIONS.actionLifecycle) {
+      return {state: "unavailable", available: false, actions: [], lineage: {}, reason: "运行生命周期证据使用未知版本，暂时无法安全展示。"};
+    }
+    const states = ["planning", "executing", "awaiting_confirmation", "clarification_required", "repairable", "recoverable", "completed", "rejected", "cancelled", "failed"];
+    const state = states.includes(raw.state) ? raw.state : "unavailable";
+    const actions = boundedList(raw.allowed_actions, 8, value => identifier(value, ""));
+    const lineage = isRecord(raw.lineage) ? raw.lineage : {};
+    return {
+      state,
+      available: state !== "unavailable",
+      status: text(raw.status || status, "UNKNOWN", LIMITS.code),
+      phase: ["planning", "execution", "control"].includes(raw.phase) ? raw.phase : "unknown",
+      actions,
+      reason: text(raw.reason_code, "", LIMITS.code),
+      attempt: Number.isInteger(raw.attempt) ? Math.max(1, Math.min(10000, raw.attempt)) : null,
+      lineage: {
+        retry_count: Number.isInteger(lineage.retry_count) ? Math.max(0, lineage.retry_count) : 0,
+        repair_count: Number.isInteger(lineage.repair_count) ? Math.max(0, lineage.repair_count) : 0,
+        recovery_count: Number.isInteger(lineage.recovery_count) ? Math.max(0, lineage.recovery_count) : 0,
+        recovered: lineage.recovered === true,
+      },
+    };
+  }
+
   function normalize(input) {
     const data = isRecord(input) ? input : {};
     const result = isRecord(data.result) ? data.result : {};
@@ -342,9 +384,11 @@
     const rejection = normalizeRejection(data, result, status);
     const clarification = normalizeClarification(data, result, status);
     const decision = normalizeDecision(data, result);
+    const lifecycle = normalizeLifecycle(data, result, status);
     return {
       status,
-      visible: Boolean(status || repair.state !== "missing" || rejection.state !== "not_applicable" || clarification.state !== "not_applicable" || decision.state !== "not_applicable"),
+      visible: Boolean(status || lifecycle.state !== "missing" || repair.state !== "missing" || rejection.state !== "not_applicable" || clarification.state !== "not_applicable" || decision.state !== "not_applicable"),
+      lifecycle,
       repair,
       rejection,
       clarification,
@@ -400,10 +444,21 @@
     return "<section class=\"decision-evidence-card\" data-decision-state=\"" + escapeHtml(decision.state) + "\"><h4>执行决策</h4><div>" + escapeHtml(labels[decision.state] || "受控状态") + escapeHtml(actionText) + "</div><p>决策版本：" + escapeHtml(decision.version ?? "-") + (decision.reason ? " · " + escapeHtml(decision.reason) : "") + "</p></section>";
   }
 
+  function renderLifecycle(lifecycle) {
+    if (lifecycle.state === "missing") return "";
+    if (lifecycle.state === "unavailable") {
+      return "<section class=\"decision-evidence-card\" data-lifecycle-state=\"unavailable\"><h4>运行生命周期</h4><div>" + escapeHtml(lifecycle.reason || "生命周期证据不可用。") + "</div></section>";
+    }
+    const lineage = lifecycle.lineage || {};
+    const actions = lifecycle.actions.length ? " · 可操作：" + lifecycle.actions.join("、") : "";
+    const counts = "重试 " + lineage.retry_count + " · 修复 " + lineage.repair_count + " · 恢复 " + lineage.recovery_count;
+    return "<section class=\"decision-evidence-card decision-lifecycle\" data-lifecycle-state=\"" + escapeHtml(lifecycle.state) + "\"><h4>运行生命周期</h4><div>" + escapeHtml(LIFECYCLE_LABELS[lifecycle.state] || "受控状态") + escapeHtml(actions) + "</div><p>" + escapeHtml(counts) + (lifecycle.attempt ? " · 第 " + escapeHtml(lifecycle.attempt) + " 次尝试" : "") + "</p></section>";
+  }
+
   function render(input) {
     const model = normalize(input);
     if (!model.visible) return {model, html: ""};
-    const cards = renderRepair(model.repair) + renderRejection(model.rejection) + renderClarification(model.clarification) + renderDecision(model.decision);
+    const cards = renderLifecycle(model.lifecycle) + renderRepair(model.repair) + renderRejection(model.rejection) + renderClarification(model.clarification) + renderDecision(model.decision);
     return {
       model,
       html: "<div class=\"decision-evidence\" data-status=\"" + escapeHtml(model.status || "unknown") + "\"><div class=\"decision-evidence-head\"><strong>决策证据</strong><span>仅显示结构化、脱敏状态</span></div><div class=\"decision-evidence-grid\">" + cards + "</div></div>",

@@ -3775,3 +3775,30 @@ artifact 最初主要用于展示和恢复结果，`plan` 只保存 goal/output/
 ### 处理与预防
 
 M152 在 artifact 中增加有界 decision record/evidence 和完整计划节点（工具、参数、依赖），并通过安全的 decision scan 找回记录；恢复后仍经过 Domain、fingerprint、version 和 ToolRegistry 边界。以后涉及继续执行的 artifact 必须同时验证“展示恢复”和“执行恢复”，对参数做深度、数量和字符串长度限制，不能把摘要 artifact 当作可执行快照。
+
+## M153：用户决策状态不能替代运行全生命周期
+
+### 现象
+
+M151/M152 已有 `DecisionLifecycle`，但它只描述批准、拒绝和消费等持久化决策状态。若让 result、异步轮询、artifact 或 Console 直接拼接澄清、修复、重试、恢复和取消状态，就会出现同一运行在不同入口显示不同可操作动作的问题。
+
+### 根因
+
+用户决策记录和运行状态属于不同抽象：前者需要 SQLite/CAS/TTL 和可恢复写入，后者应该是对当前 bounded run payload 的只读解释。把两者合并会让纯展示逻辑依赖 DecisionStore，也会诱使入口自行推断状态、复制失败分类和重试计数。
+
+### 处理与预防
+
+M153 新增无 I/O、无领域依赖的 `agent/action_lifecycle.py`。`project_action_lifecycle()` 只接收运行或 Action 的有界 payload，统一投影 `planning`、`executing`、`awaiting_confirmation`、`clarification_required`、`repairable`、`recoverable`、`completed`、`rejected`、`cancelled` 和 `failed`，并只输出 allowlist 动作、原因码、尝试次数和修复/重试/恢复计数。result envelope、artifact、async evidence 和 Console 均消费 `spatial-agent.action-lifecycle.v1`；旧 async evidence 缺少该字段时按状态生成有界 fallback，未知版本不能静默透传。以后新增生命周期动作必须先扩展这个投影及其跨入口契约测试，不能在 HTTP、前端或 artifact adapter 中各自增加状态判断。
+## M153：真实模型会重复生成已存在的工作流步骤
+
+### 现象
+
+在当前版本用真实模型、武汉 analysis-ready 数据和本地 GIS 后端运行 `live-short` 时，空间总览与约束建设两个案例都能返回正确的结果类型、中文答案和完整工具覆盖，但最终状态为 `FAILED`，错误分类为 `tool_gate`。模型生成的计划重复包含 `get_dataset_health_report`、`get_dataset_schema` 或业务分析工具，有限 repair 仍未收敛到模板允许的步骤集合。
+
+### 根因
+
+模型能够理解请求的能力目标，却没有严格遵守运行时上下文中已有 workflow/template 蓝图的步骤基数和唯一性约束。当前 Planner 只在模型输出后做校验，repair 反馈没有把“已存在的步骤不能重复、模板 blueprint 必须保持顺序和数量”收敛成足够强的修复协议。ToolRegistry 和数据门控正确拒绝了不可靠计划，因此不能把这次 live 结果算作成功。
+
+### 处理与预防
+
+M153 保持 ToolRegistry、workflow 和 DAG 门控不放宽，并将失败作为脱敏 `tool_gate`/repair evidence 保存；默认 CI 不引入 live 网络。后续阶段应从通用 Planner/Workflow seam 处理：给 repair 输入增加模板 blueprint 的有界结构摘要，分别验证重复工具、步骤数量、依赖和结果引用，并让 replay/live 使用同一计划质量契约。不能针对“空间总览”或“建设筛选”增加一次性去重分支，也不能静默删除模型步骤后继续执行。

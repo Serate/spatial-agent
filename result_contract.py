@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Mapping
 from agent.result_registry import ResultContractRegistry, default_result_registry
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.deployment_evidence import build_deployment_evidence
+from agent.action_lifecycle import project_action_lifecycle
 from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -100,6 +101,7 @@ def build_result_contract(
         registry=registry,
     )
     replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
+    lifecycle = project_action_lifecycle(payload)
     workspace = _workspace_contract(
         result_type,
         registry=registry,
@@ -133,6 +135,7 @@ def build_result_contract(
         },
         "clarification": payload.get("clarification"),
         "decision": payload.get("decision_evidence") or {"available": False},
+        "lifecycle": lifecycle,
         "context": payload.get("context_evidence") or {"available": False},
         "planning": payload.get("plan_evidence") or {"available": False},
         "references": references,

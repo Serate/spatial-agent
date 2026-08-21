@@ -13,6 +13,12 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Sequence
 
 from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
+from agent.action_lifecycle import (
+    ACTION_LIFECYCLE_SCHEMA_VERSION,
+    LIFECYCLE_ACTIONS,
+    LIFECYCLE_STATES,
+    project_action_lifecycle,
+)
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.runtime_context import normalize_runtime_context
 
@@ -89,6 +95,9 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "capability_catalog_available": planning.get("capability_catalog_available"),
             "capability_catalog_ids": planning.get("capability_catalog_ids"),
             "request_facts": result.get("request_facts"),
+            "action_lifecycle": _lifecycle_projection(
+                payload, result=result
+            ),
             "execution_policy": planning.get("execution_policy"),
             "step_governance": [
                 step.get("governance")
@@ -152,6 +161,43 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
     if execution is not None:
         values["execution"] = execution
     return CrossEntryContract(values)
+
+
+def _lifecycle_projection(
+    payload: Mapping[str, Any], *, result: Mapping[str, Any] | None = None
+) -> Dict[str, Any]:
+    """Project lifecycle evidence without volatile subject or decision ids."""
+    result = result if isinstance(result, Mapping) else {}
+    raw = result.get("lifecycle")
+    if not isinstance(raw, Mapping):
+        raw = payload.get("lifecycle")
+    if not isinstance(raw, Mapping) or raw.get("schema_version") != ACTION_LIFECYCLE_SCHEMA_VERSION:
+        raw = project_action_lifecycle(payload)
+    state = str(raw.get("state") or "failed")[:64]
+    if state not in LIFECYCLE_STATES:
+        state = "failed"
+    actions = [
+        str(item)[:32]
+        for item in (raw.get("allowed_actions") or [])
+        if str(item) in LIFECYCLE_ACTIONS
+    ][:8]
+    lineage = raw.get("lineage") if isinstance(raw.get("lineage"), Mapping) else {}
+    return {
+        "schema_version": ACTION_LIFECYCLE_SCHEMA_VERSION,
+        "state": state,
+        "phase": str(raw.get("phase") or "unknown")[:32],
+        "status": str(raw.get("status") or payload.get("status") or "UNKNOWN")[:32],
+        "allowed_actions": actions,
+        "reason_code": str(raw.get("reason_code") or "")[:96],
+        "attempt": _bounded_int(raw.get("attempt"), 1, 10000),
+        "lineage": {
+            "retry_count": _bounded_int(lineage.get("retry_count"), 0, 10000),
+            "repair_count": _bounded_int(lineage.get("repair_count"), 0, 1000),
+            "recovery_count": _bounded_int(lineage.get("recovery_count"), 0, 10000),
+            "decision": str(lineage.get("decision") or "")[:64] or None,
+            "recovered": bool(lineage.get("recovered")),
+        },
+    }
 
 
 def _artifact_schema(
@@ -254,6 +300,9 @@ def _async_result_evidence_projection(
         "degradation_status": _stable_status(
             evidence.get("degradation_status")
         ),
+        "lifecycle": _lifecycle_projection(
+            {"status": evidence.get("status"), "lifecycle": evidence.get("lifecycle")}
+        ),
         "artifact_available": _optional_bool(evidence_artifact.get("available")),
         "views": _view_state_projection(evidence_views),
     }
@@ -325,6 +374,14 @@ def _stable_status(value: Any) -> str | None:
 
 def _optional_bool(value: Any) -> bool | None:
     return value if isinstance(value, bool) else None
+
+
+def _bounded_int(value: Any, minimum: int, maximum: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = minimum
+    return max(minimum, min(maximum, number))
 
 
 def normalize_execution(payload: Mapping[str, Any]) -> Dict[str, Any] | None:

@@ -12,6 +12,12 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Mapping
 
 from agent.models import AgentRunResult
+from agent.action_lifecycle import (
+    ACTION_LIFECYCLE_SCHEMA_VERSION,
+    LIFECYCLE_ACTIONS,
+    LIFECYCLE_STATES,
+    project_action_lifecycle,
+)
 from agent.runtime_context import runtime_context_fingerprint
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
@@ -154,6 +160,9 @@ def build_async_result_evidence(
     unavailable, or pending while no result snapshot exists yet.
     """
     value = contract if isinstance(contract, Mapping) else {}
+    lifecycle_input = dict(value)
+    lifecycle_input["status"] = status
+    lifecycle = project_action_lifecycle(lifecycle_input)
     degradation = value.get("degradation")
     degradation_status = (
         str(degradation.get("status") or "none")
@@ -211,6 +220,7 @@ def build_async_result_evidence(
         "available": bool(value),
         "state": state,
         "status": str(status or "UNKNOWN")[:32],
+        "lifecycle": lifecycle,
         "result_type": str(value.get("type") or "unknown")[:96],
         "degradation_status": degradation_status,
         "workspace": {
@@ -224,6 +234,52 @@ def build_async_result_evidence(
         },
         "artifact": {"available": bool(ref), "ref": ref},
     }
+
+
+def _normalize_lifecycle(value: Any, status: str) -> Dict[str, Any]:
+    """Keep async lifecycle evidence bounded while tolerating old payloads."""
+    fallback = project_action_lifecycle({"status": status})
+    if not isinstance(value, Mapping):
+        return fallback
+    if value.get("schema_version") != ACTION_LIFECYCLE_SCHEMA_VERSION:
+        return fallback
+    state = str(value.get("state") or "")[:64]
+    phase = str(value.get("phase") or "")[:32]
+    if state not in LIFECYCLE_STATES or not phase:
+        return fallback
+    actions = [
+        str(item)[:32]
+        for item in (value.get("allowed_actions") or [])
+        if str(item) in LIFECYCLE_ACTIONS
+    ][:8]
+    result = dict(fallback)
+    result.update(
+        {
+            "state": state,
+            "phase": phase,
+            "status": str(value.get("status") or status or "UNKNOWN")[:32],
+            "allowed_actions": actions,
+            "reason_code": str(value.get("reason_code") or "")[:96],
+        }
+    )
+    lineage = value.get("lineage")
+    if isinstance(lineage, Mapping):
+        result["lineage"] = {
+            "retry_count": _bounded_int(lineage.get("retry_count"), 0, 10000),
+            "repair_count": _bounded_int(lineage.get("repair_count"), 0, 1000),
+            "recovery_count": _bounded_int(lineage.get("recovery_count"), 0, 10000),
+            "decision": str(lineage.get("decision") or "")[:64] or None,
+            "recovered": bool(lineage.get("recovered")),
+        }
+    return result
+
+
+def _bounded_int(value: Any, minimum: int, maximum: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = minimum
+    return max(minimum, min(maximum, number))
 
 
 def unavailable_async_result_evidence(
@@ -334,6 +390,7 @@ def normalize_async_result_evidence(
             "artifact_available": bool(panel.get("artifact_available")),
         }
 
+    lifecycle = _normalize_lifecycle(value.get("lifecycle"), status)
     artifact = value.get("artifact")
     artifact = artifact if isinstance(artifact, Mapping) else {}
     ref = _safe_ref(artifact.get("ref") or artifact_ref)
@@ -342,6 +399,7 @@ def normalize_async_result_evidence(
         "available": bool(value.get("available")) and state != "unavailable",
         "state": state,
         "status": str(value.get("status") or status or "UNKNOWN")[:32],
+        "lifecycle": lifecycle,
         "result_type": str(value.get("result_type") or "unknown")[:96],
         "degradation_status": str(value.get("degradation_status") or "none")[:32],
         "workspace": {

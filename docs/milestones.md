@@ -3083,3 +3083,14 @@ M152 将 M151 的确认状态推进到可恢复边界：run artifact 保存有�
 ## M153 全局规划参考
 
 统一澄清补充、计划修复、用户确认、拒绝、重试和恢复的 action/version/evidence contract，优先覆盖重复提交、未知 action、artifact、HTTP、异步和 Console 一致性。
+
+## M153 当前实现状态
+
+- 新增领域无关的 `agent/action_lifecycle.py` 深模块；它与 `DecisionLifecycle` 分离，只做无 I/O 的 bounded run/Action 状态投影。
+- `result_contract.py`、run artifact、async result evidence 和 Console decision evidence seam 已消费 `spatial-agent.action-lifecycle.v1`，统一展示澄清、确认、失败恢复、重试和修复计数；未知 async lifecycle 版本回落到安全状态。
+- 新增 4 项 M153 专项，覆盖等待确认/恢复动作过滤、未知状态拒绝默认为失败、result/async 生命周期一致性和 Contract Harness 稳定比较；M151 11 项、M149/M150 相邻契约 16 项、quick、compact discovery 和 Node 语法检查通过。
+- 当前版本 Docker production acceptance 已通过，真实 live-short 已执行但两个案例均因模型重复步骤的 `tool_gate` 失败；动态 Chrome/CDP 尚未作为 M153 已通过证据。该 live 失败已记录到 `docs/agent-development-issues.md`，下一阶段修复 Planner/Workflow repair seam。
+
+## M154 全局规划参考
+
+在 M153 生命周期投影稳定后，从项目整体推进“动作可执行、证据可比较”：把 lifecycle 纳入 Contract Harness、artifact-only recovery 和 HTTP/异步重复提交矩阵，再验证 Console 动作按钮是否严格由 `allowed_actions` 驱动。保持默认 active suite 精简，Text/GIS 双 Domain、Docker、live 和浏览器作为显式阶段验收。

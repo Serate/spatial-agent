@@ -1646,3 +1646,10 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M153 规划参考
 
 把澄清、修复、确认、拒绝、重试和恢复统一为通用 action/version/evidence contract，优先验证重复提交、未知 action、artifact、HTTP、异步和 Console 的一致性。
+
+## M153 当前进展
+
+- 已新增 `agent/action_lifecycle.py`，与 `DecisionLifecycle` 分离，提供无 I/O 的 `spatial-agent.action-lifecycle.v1` bounded projection。
+- result envelope、run artifact、async result evidence 和 Console 已接入同一 lifecycle 字段；旧 async evidence 缺少字段时生成安全 fallback。
+- M153 专项 4 项、M151 决策 11 项、M149/M150 相邻契约 16 项、quick、compact discovery、Python 编译和 Node 语法检查通过；Docker production acceptance 已通过。
+- live-short 已实际调用真实模型和武汉 GIS，但两个案例因模型重复步骤触发 `tool_gate` 失败，详见中文问题文档；动态浏览器尚未验收。下一阶段修复通用 Planner/Workflow repair seam，默认 active suite 不扩大。

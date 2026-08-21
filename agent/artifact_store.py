@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from agent.execution_contract import build_execution_record
+from agent.action_lifecycle import project_action_lifecycle
 from agent.runtime_context import normalize_runtime_context
 from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
 from agent.service_async import normalize_async_result_evidence
@@ -67,6 +68,7 @@ class ArtifactStore:
             "replan_events": payload.get("replan_events") or [],
             "decision_evidence": payload.get("decision_evidence"),
             "decision_record": payload.get("_decision_record"),
+            "lifecycle": project_action_lifecycle(payload),
             "geojson_ref": payload.get("geojson_ref"),
             "artifact_ref": path.as_posix(),
             "execution_record": execution_record,
@@ -121,6 +123,7 @@ class ArtifactStore:
             "status": payload.get("status"),
             "action_execution": payload.get("action_execution"),
             "action_result": payload.get("action_result"),
+            "lifecycle": project_action_lifecycle(payload),
             "result": payload.get("result"),
             "trace_summary": payload.get("trace_summary", []),
             "error": payload.get("error"),
