@@ -1608,3 +1608,10 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - Service、生产 FastAPI、开发 HTTP 和开发门禁测试均补齐资源关闭；Docker quick 已无 `ResourceWarning`。Node 浏览器 smoke 改为显式 CommonJS 异步入口，避免仓库无 `package.json` 时被 Node 错误解析顶层 `await`。
 - 当前工作树 Docker 已重建 healthy；compileall、quick、stage、M127/M148/M162-M169 专项 90 项通过，2 项因容器没有 Node 跳过；production acceptance、候选卡片、补事实、恢复和 M169 预览 fingerprint → 确认 → 完成 Chrome smoke 均通过。
 - M169 尚未提交/推送。提交前仍需执行敏感信息与 diff 检查；不提交 API key、`config/openai.local.json`、原始 live 输出或 GIS 数据。阶段完成后从产品、架构、数据、模型、部署、体验、测试七维度规划下一阶段。
+
+## M170 当前实现与验证状态
+
+- 生产 FastAPI 从已弃用的 `on_event("shutdown")` 收敛到 `lifespan` context，并保留 `atexit` 作为直接导入/解释器退出兜底；开发 HTTP 继续使用显式 Service close。
+- 新增 `tests/test_m170_runtime_boundaries.py`，验证 ASGI lifespan 释放模块级 Service，以及 Text Domain artifact 在读取、列表和 GIS 过滤之间保持正确归属。
+- 当前 Docker 工作树 healthy；M170 专项、M169/M127 回归、M133/M148 跨 Domain 回归、quick、stage、compileall 和 production acceptance 通过；Chrome 预览→确认→完成 smoke 继续通过，且不再出现 FastAPI lifecycle 弃用告警。
+- M170 尚未提交/推送。下一阶段按全局七维度继续处理公共层残留 GIS 兼容默认、开放式能力发现覆盖、真实 runtime evidence 与 live/replay 代表集，不新增单区域专用规则。

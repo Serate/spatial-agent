@@ -1891,3 +1891,10 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - Docker 当前工作树已重建 healthy；compileall、quick、stage、M127/M148/M162-M169 专项 90 项通过（Node 相关 2 项按容器环境跳过），production acceptance 通过。
 - 宿主 Chrome CDP 已验证真实 Console 的预览 fingerprint、提交计划和最终计划一致，确认后完成且 artifact 可用；候选卡片、补事实和恢复 smoke 也通过。浏览器脚本使用显式 CommonJS 异步入口。
 - M169 当前仍未提交/推送。下一步是敏感信息扫描、`git diff --check`、版本提交与推送；随后按全局七维度规划 M170，不再只围绕单个 GIS 数据集扩展规则。
+
+## M170 当前恢复位置
+
+- `production_api.py` 已使用 FastAPI `lifespan` 管理模块级 Service，直接 import 仍由 `atexit` 兜底，避免 `on_event` 弃用告警和资源未释放。
+- `tests/test_m170_runtime_boundaries.py` 覆盖 lifespan close 与 Text Domain artifact 的 domain filter；不引入 `fastapi.testclient` 或额外 `httpx2` 依赖，直接使用原生 lifespan context。
+- Docker M170/M169/M127/M133/M148 专项、quick、stage、compileall 和 production acceptance 通过；真实 Chrome 预览 fingerprint 与最终计划一致，确认后完成。
+- 当前工作树包含未提交 M170 修改；提交前需完成敏感信息、diff 和文档一致性检查。推送后从公共 Runtime 的 GIS 兼容默认、能力发现广度和真实 evidence 可信度三条主线规划 M171。

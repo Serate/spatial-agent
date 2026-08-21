@@ -4223,7 +4223,7 @@ Service 关闭流程现在显式调用 `self._state.observability.close()`，保
 
 ### 处理与预防
 
-生产入口现在注册 FastAPI 兼容的 shutdown hook，并保留 `atexit` 兜底；开发 HTTP 入口也为 `AgentApiHandler` 的默认 Service 注册退出释放，确保 ASGI、标准库 HTTP 和直接模块导入三条路径都释放 Service 资源。接入 FastAPI 生命周期时应先确认当前依赖版本公开的 API；本项目 pinned 版本使用 `app.on_event("shutdown")`，不能假设 `FastAPI.add_event_handler()` 存在。以后新增全局 Service、线程池、文件或数据库句柄时，必须同时覆盖应用 shutdown、直接导入测试和重复 close 场景。
+生产入口现在使用 FastAPI `lifespan` 管理应用生命周期，并保留 `atexit` 兜底；开发 HTTP 入口也为 `AgentApiHandler` 的默认 Service 注册退出释放，确保 ASGI、标准库 HTTP 和直接模块导入三条路径都释放 Service 资源。接入 FastAPI 生命周期时应先检查 pinned 版本是否支持 `lifespan`；不能假设 `add_event_handler()` 存在，也不应继续使用已弃用的 `on_event()`。以后新增全局 Service、线程池、文件或数据库句柄时，必须同时覆盖应用 shutdown、直接导入测试和重复 close 场景。
 
 ## M169：开发门禁测试未关闭临时 Service
 
@@ -4252,3 +4252,17 @@ Docker quick 的业务断言全部通过，但测试结束时仍出现 `observab
 ### 处理与预防
 
 浏览器 smoke 现在使用显式异步 IIFE，并在入口统一捕获异常、设置退出码；宿主 Node `--check`、真实 Chrome CDP 和 Docker HTTP 均通过。以后新增 Node smoke 必须明确模块入口（CommonJS 异步 IIFE 或仓库显式 ESM 配置），并在没有 `package.json` 的干净环境中直接执行一次 `node script.js`，不能只在开发机的隐式模块环境中验证。
+
+## M170：生命周期专项误依赖未安装的 TestClient
+
+### 现象
+
+M170 生命周期专项第一次执行时，业务代码已经可以导入，但测试在导入 `fastapi.testclient.TestClient` 时失败，提示需要安装 `httpx2`。当前生产镜像没有该额外依赖，失败与 Agent Runtime 或 FastAPI lifespan 行为无关。
+
+### 根因
+
+为了测试 ASGI shutdown，测试直接引入了 Starlette TestClient；而项目的生产 requirements 有意保持精简，未安装 TestClient 所需的 `httpx2`。这会把测试工具依赖误当成产品运行时依赖。
+
+### 处理与预防
+
+测试改为使用 FastAPI 原生 `app.router.lifespan_context(app)`，在异步上下文中验证 Service close，不新增生产依赖；M170 专项和 production acceptance 均通过。以后生命周期测试应优先调用框架公开的 lifespan seam；只有明确加入独立测试依赖并记录到测试 profile 时，才使用 TestClient，不得为了单个专项修改生产镜像依赖。

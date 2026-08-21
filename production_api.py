@@ -8,6 +8,7 @@ dev server in serve_api.py.
 import json
 import atexit
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -41,10 +42,6 @@ class UTF8JSONResponse(JSONResponse):
     media_type = "application/json; charset=utf-8"
 
 
-app = FastAPI(
-    title="Spatial Agent Production API",
-    default_response_class=UTF8JSONResponse,
-)
 service = AgentService()
 service.start_reaper()
 
@@ -61,11 +58,20 @@ def _close_service() -> None:
     service.close()
 
 
-# FastAPI 0.141 keeps the public compatibility hook on the application
-# object; older/newer deployments may expose the lower-level router method
-# instead.  Prefer the public hook so importing the production module remains
-# compatible with the pinned container dependency.
-app.on_event("shutdown")(_close_service)
+@asynccontextmanager
+async def _lifespan(_app):
+    """Own the module-level Service for the complete ASGI application life."""
+    try:
+        yield
+    finally:
+        _close_service()
+
+
+app = FastAPI(
+    title="Spatial Agent Production API",
+    default_response_class=UTF8JSONResponse,
+    lifespan=_lifespan,
+)
 atexit.register(_close_service)
 
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))

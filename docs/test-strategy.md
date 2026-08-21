@@ -208,3 +208,14 @@ node scripts\console_selection_interaction_browser_smoke.js
 ~~~
 
 该浏览器 smoke 使用当前 Docker HTTP 服务和宿主隔离 Chrome CDP，验证预览 fingerprint、提交计划和最终完成结果保持一致，并确认 artifact 与选定能力存在。仓库未声明 `package.json` 时，浏览器脚本必须使用显式 CommonJS 异步入口，不能依赖 Node 对顶层 `await` 的模块推断。Python 测试仍统一在 Docker 内执行；宿主 Node 只负责前端静态/浏览器验收。
+
+## M170 生命周期与跨 Domain 专项
+
+涉及 FastAPI 生命周期、全局 Service 所有权或非 GIS Domain artifact 时，运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -W error::ResourceWarning -m unittest tests.test_m170_runtime_boundaries tests.test_m169_interaction_receipt -v
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains production_api.py serve_api.py
+~~~
+
+M170 使用 `app.router.lifespan_context(app)` 验证 ASGI 生命周期，不依赖未安装的 `httpx2`/`TestClient`；生产 acceptance 仍通过宿主 PowerShell 调用当前 Docker HTTP 服务。FastAPI 生命周期测试不应因为测试客户端缺失而跳过，也不应为测试便利把额外 HTTP 客户端依赖加入生产镜像。

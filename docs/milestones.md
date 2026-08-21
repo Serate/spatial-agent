@@ -3399,3 +3399,22 @@ M167 不再增加单一区域 GIS 规则，重点把“能力目录 → 候选�
 - Service、生产 FastAPI、开发 HTTP 和开发门禁测试统一释放 observability 资源；quick 已消除 `ResourceWarning`。浏览器 smoke 显式包裹 CommonJS 异步入口，适配仓库没有 `package.json` 的 Node 环境。
 - 当前工作树 Docker 已重建 healthy；compileall、quick、stage、M127/M148/M162-M169 专项 90 项通过（2 项因容器没有 Node 跳过），production acceptance 通过；Chrome 真实验证预览→确认→完成的 plan fingerprint 零漂移，artifact、候选卡片、补事实和恢复 smoke 均通过。
 - M169 尚未提交/推送；完成敏感信息检查和版本交付后，按全局七维度进入 M170 规划。
+
+## M170 全局规划参考
+
+M170 从项目整体收敛生产生命周期和跨 Domain 公共边界，不继续增加 GIS 专用工具：
+
+1. **产品能力**：确认同一交互结果在 GIS 与 Text Domain 都能进入可恢复的完成态。
+2. **架构边界**：生产入口生命周期、Service 所有权和 artifact domain filter 必须由公共契约统一证明。
+3. **数据质量**：Domain artifact/readiness 证据不能因为默认值或入口切换漂移。
+4. **真实模型**：保留 M169 的 Planner selection/repair replay，下一阶段补代表性 live/replay 组合。
+5. **部署可靠性**：移除 FastAPI 已弃用生命周期 API，并验证直接 import、ASGI shutdown 和 HTTP 服务三种关闭路径。
+6. **用户体验**：保留 M169 已通过的计划预览 fingerprint → 确认 → 完成前端链路。
+7. **测试证据**：Docker 内运行精简专项、quick/stage/production acceptance；不为生命周期测试引入额外 TestClient 依赖。
+
+## M170 当前实现与验证状态
+
+- 生产 FastAPI 使用 `lifespan` context 管理模块级 AgentService，`atexit` 负责直接导入路径兜底；开发 HTTP 和 Service close 语义保持一致。
+- 新增 `tests/test_m170_runtime_boundaries.py`，验证 ASGI lifecycle close 与 Text Domain artifact 的读取/列表/跨 Domain 过滤。
+- Docker M170/M169/M127/M133/M148 专项通过；quick、stage、compileall、production acceptance 和真实 Chrome 预览→确认→完成 smoke 通过，FastAPI 弃用告警已消失。
+- M170 当前工作树尚未提交/推送；提交后进入 M171，重点是公共 Runtime 残留 GIS 兼容默认、能力发现广度和 runtime evidence 可信度。
