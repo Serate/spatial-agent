@@ -3358,3 +3358,15 @@ M167 不再增加单一区域 GIS 规则，重点把“能力目录 → 候选�
 5. **部署可靠性**：补齐 SQLite 多 worker/滚动重启、旧 Domain workflow schema、重复 capability action 和 artifact-only 恢复矩阵。
 6. **用户体验**：增加真实候选卡片、能力选择后预览、确认前计划摘要和通用失败恢复动作的浏览器验收。
 7. **测试证据**：默认 Docker quick/CI 保持精简；阶段收口使用跨入口 Harness、Docker、browser 与必要 live，并为 Domain seam 增加最小契约测试。
+
+## M167 当前实现与验证状态
+
+- `spatial-agent.workflow-selection.v1` 已增加有界 `candidate_details`。候选详情来自 Domain capability catalog，包含名称、描述、输入事实、结果类型、可用性、数据门控、动作和可执行 workflow 摘要；公共 Runtime 只执行裁剪、规范化和兼容读取。
+- GIS/Text catalog 均接入候选详情投影；selection interaction、result、async/artifact evidence 继续复用同一 selection 结构，不新增 Domain 专用公共分支。
+- Console 已将候选 ID 列表升级为领域无关候选卡片，候选选择直接提交 `capability_id`，没有详情时保留旧兼容路径；新增 `tests/test_m167_candidate_selection.py`。
+- Docker 当前镜像 healthy。M167 与 M162/M164/M165/M166 相邻专项 25 项通过，容器 Node 测试 1 项因无 Node 跳过；quick、stage、compileall、宿主 Node smoke 和 production HTTP acceptance 通过。
+- 阶段中曾因 `agent/runtime.py` 新增调用块缩进错误导致容器 unhealthy，已修复并记录中文开发问题；后续 Runtime 修改必须先在当前 Docker 镜像内 compileall，再进行服务健康和 HTTP 验收。
+
+## M167 下一步全局收口
+
+继续从项目整体推进 Domain seam 版本化、readiness/coverage/alignment/provenance 与候选能力绑定、模型选择不一致和有限 repair 失败 replay、SQLite 多 worker/旧 schema/artifact 恢复矩阵，以及真实候选选择→预览→确认→完成的浏览器验收。默认 quick/CI 不扩张，阶段完成后再更新全局七维规划并推送版本。

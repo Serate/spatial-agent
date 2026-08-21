@@ -1097,6 +1097,7 @@ class AgentRuntime:
                 workflow=workflow,
             ),
             workflow=workflow,
+            capability_catalog=catalog,
             request_facts=spatial_request,
             domain_id=self.domain_id,
         )

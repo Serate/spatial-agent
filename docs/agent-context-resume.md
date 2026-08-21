@@ -1584,3 +1584,11 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - Text/GIS 开放式同步与异步核心 Contract、Domain 歧义选择、`select_capability`、浏览器 facts/recovery/confirmation 和真实 live-short 已完成显式验收。
 - Docker 当前工作树 healthy；97 项跨 Domain/Contract Harness 回归通过，Node 缺失 1 项跳过；quick、stage、full-stage、compileall、gis-core、production acceptance 和 live-short 2/2 通过。
 - M166 已满足阶段验收，待敏感配置检查后提交/推送；远程当前仍为 `0ef1640`。推送后进入 M167，全局重点是候选详情与动作、Domain seam 版本化、数据证据绑定、模型选择回放、SQLite 恢复和真实前端候选交互。
+
+## M167 当前实现与验证状态
+
+- workflow selection 现在保留有界 `candidate_details`，候选详情由 Domain capability catalog 投影，包含名称、描述、输入事实、结果类型、可用性、数据门控、动作和 workflow 摘要；公共 Runtime 不解释 GIS 字段。
+- Console 候选交互已从 ID 列表升级为领域无关候选卡片，选择动作直接提交 `capability_id`；无详情的旧 evidence 仍走兼容显示路径。
+- Docker 当前工作树镜像 healthy。M167 与 M162/M164/M165/M166 相邻专项 25 项通过，容器内 Node 测试 1 项按环境跳过；quick、stage、compileall、宿主 Node smoke、HTTP production acceptance 通过。
+- 首次 Docker 重建发现 `agent/runtime.py` 缩进错误导致 Uvicorn import failure，已修复并记录到 `docs/agent-development-issues.md`；以后 Runtime 修改必须先容器 compileall 再做 HTTP 验收。
+- 当前工作树未提交。下一步仍按 M167 全局规划推进 Domain seam 版本化、readiness/coverage/alignment/provenance 候选 evidence、SQLite/旧 schema 恢复矩阵、模型选择 replay 和真实候选浏览器动作；不提交 API key、私有配置、原始 live 输出或 GIS 数据。

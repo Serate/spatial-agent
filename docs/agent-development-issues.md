@@ -4154,3 +4154,31 @@ workflow 规范化和执行前校验被放在 Service/Runtime 公共入口，早
 ### 处理与预防
 
 新增 Domain-owned `normalize_workflow`、`validate_workflow_plan` 和 `resolve_capability_selection` seam。GIS Domain 在 seam 内调用原有模板目录，Text Domain 只实现自己的通用形状校验和能力映射；公共 Service 仅转发选中的 Domain，旧自定义 Domain 保留有界兼容回退。以后新增 workflow、能力选择或结果类型，必须确认 HTTP、async、interaction、recovery 和 Runtime 校验均通过 Domain seam，公共层不得导入 GIS 模板或能力名称。
+
+## M167：Runtime 上下文代码缩进错误会让 Docker 容器反复 unhealthy
+
+### 现象
+
+M167 在 `agent/runtime.py` 的上下文构建函数中加入候选详情参数后，镜像可以成功构建，但容器启动失败，健康检查持续返回 `unhealthy`，生产 HTTP 和所有容器测试都不可用。
+
+### 根因
+
+补丁将 `workflow_selection` 调用块多缩进了一层，Python 在导入 `agent.runtime` 时抛出 `IndentationError`。Docker build 只复制文件并不等于应用可以导入；Uvicorn 子进程不断重启，健康检查看到的只是连接拒绝。
+
+### 处理与预防
+
+修正缩进后重新执行当前工作树的 Docker build/recreate，确认容器 `healthy`，再运行 Docker `compileall`、专项测试和 production acceptance。以后修改 Runtime 这类高扇出模块时，提交前至少按顺序执行：容器内 compileall → 容器内最小专项 → 健康检查 → HTTP acceptance；不能只依据镜像构建成功判断服务可用。若容器 unhealthy，先读 `docker logs` 和 `.State.Health`，区分导入错误、健康检查连接错误和业务测试失败。
+
+## M167：候选 ID 直接展示无法形成通用能力选择
+
+### 现象
+
+workflow selection 虽然返回了 `candidate_ids`，但 Console 只能显示代码字符串；选择动作会统一打开 GIS workflow editor，无法让用户理解候选能力，也无法证明实际提交了哪个 capability。
+
+### 根因
+
+selection evidence 只有选择结果，没有对候选能力的有界名称、描述、输入事实、结果类型、可执行 workflow 和动作信息；前端因此不得不依赖旧的 GIS 编辑器流程，违背了 Domain-neutral renderer 要求。
+
+### 处理与预防
+
+在 `spatial-agent.workflow-selection.v1` 中增加有界 `candidate_details`，由 Domain capability catalog 提供候选元数据，公共投影只负责安全裁剪和版本化规范化。Console 根据详情渲染候选卡片，选择卡片直接提交 `capability_id`，仍保留没有详情时的旧兼容路径。以后新增候选能力必须同时检查 catalog、selection evidence、interaction、HTTP/async/artifact 恢复和浏览器实际动作，不能只增加候选 ID 或前端专用分支。

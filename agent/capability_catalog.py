@@ -83,6 +83,9 @@ def capability_catalog(
     capabilities = []
     for item in definitions:
         entry = deepcopy(item)
+        if not str(entry.get("description") or "").strip():
+            label = str(entry.get("label") or entry.get("id") or "能力").strip()
+            entry["description"] = f"提供“{label}”能力。"
         entry["request_requirements"] = _normalize_request_requirements(
             entry.get("request_requirements")
         )
@@ -540,6 +543,7 @@ def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
     return {
         "id": str(item.get("id", "")),
         "label": str(item.get("label", ""))[:80],
+        "description": str(item.get("description", ""))[:320],
         "datasets": [str(value) for value in item.get("datasets", [])],
         "tools": [str(value) for value in item.get("tools", [])],
         "result_types": [str(value) for value in item.get("result_types", [])],

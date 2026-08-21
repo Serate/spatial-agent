@@ -38,6 +38,47 @@
     return Array.isArray(value) ? value.slice(0, limit).map(mapper).filter(Boolean) : [];
   }
 
+  function inputFacts(value) {
+    return list(value, item => {
+      if (!record(item)) return null;
+      const id = text(item.id, "", 96);
+      return id ? {id, label: text(item.label, id, 128), kind: text(item.kind, "fact", 32)} : null;
+    });
+  }
+
+  function candidateDetails(value) {
+    return list(value, item => {
+      if (!record(item)) return null;
+      const id = text(item.id || item.capability_id, "", 96);
+      if (!id) return null;
+      const workflow = record(item.workflow) && text(item.workflow.template_id, "", 96)
+        ? {
+          template_id: text(item.workflow.template_id, "", 96),
+          template_version: text(item.workflow.template_version, "1.0.0", 32),
+          result_types: list(item.workflow.result_types, value => text(value, "", 96), 8),
+          max_steps: Number.isInteger(item.workflow.max_steps) ? item.workflow.max_steps : null,
+        }
+        : null;
+      const data = record(item.data) ? {
+        dataset_gate: text(item.data.dataset_gate, "unknown", 24),
+        capability_status: text(item.data.capability_status, "unknown", 24),
+        missing_datasets: list(item.data.missing_datasets, value => text(value, "", 96), 8),
+        geometry: text(item.data.geometry, "unknown", 96),
+      } : {};
+      return {
+        id,
+        label: text(item.label, id, 128),
+        description: text(item.description, "", 320),
+        available: item.available !== false,
+        input_facts: inputFacts(item.input_facts),
+        result_types: list(item.result_types, value => text(value, "", 96), 8),
+        data,
+        actions: list(item.actions, value => text(value, "", 32), 8),
+        workflow,
+      };
+    });
+  }
+
   function normalize(input) {
     const source = record(input) ? input : {};
     if (source.schema_version !== VERSION) {
@@ -75,6 +116,7 @@
         selected_capability_id: text(selection.selected_capability_id, "", 96),
         candidate_ids: list(selection.candidate_ids, value => text(value, "", 96)),
         candidate_workflow_ids: list(selection.candidate_workflow_ids, value => text(value, "", 96)),
+        candidate_details: candidateDetails(selection.candidate_details),
       },
       missing_fields: missing,
       decision: record(source.decision) ? {

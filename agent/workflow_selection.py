@@ -23,6 +23,7 @@ WORKFLOW_SELECTION_SOURCES = {
 }
 _MAX_ITEMS = 16
 _MAX_TEXT = 96
+_MAX_DESCRIPTION = 320
 
 
 def build_workflow_selection_evidence(
@@ -30,6 +31,8 @@ def build_workflow_selection_evidence(
     discovery: Mapping[str, Any] | None = None,
     domain_selection: Mapping[str, Any] | None = None,
     workflow: Mapping[str, Any] | None = None,
+    capability_catalog: Mapping[str, Any] | None = None,
+    candidate_details: Any = None,
     request_facts: Any = None,
     domain_id: str = "unknown",
     state: str | None = None,
@@ -64,6 +67,16 @@ def build_workflow_selection_evidence(
         selected.get("candidate_workflow_ids")
         or selected.get("candidate_template_ids")
     )
+    candidate_detail_values = (
+        selected.get("candidate_details")
+        or discovery_map.get("candidate_details")
+        or candidate_details
+    )
+    if not candidate_detail_values and isinstance(capability_catalog, Mapping):
+        candidate_detail_values = _candidate_details_from_catalog(
+            capability_catalog,
+            candidate_ids,
+        )
     source = _text(selected.get("source")) or (
         "explicit_workflow" if template_id and explicit.get("template_id") else
         "domain_discovery" if selected_capability or candidate_ids else "none"
@@ -110,6 +123,7 @@ def build_workflow_selection_evidence(
         "workflow_template_id": template_id,
         "workflow_template_version": template_version,
         "candidate_workflow_ids": candidate_templates[:_MAX_ITEMS],
+        "candidate_details": _normalize_candidate_details(candidate_detail_values),
         "missing_fields": missing,
         "request_facts_schema_version": facts["schema_version"],
         "fact_keys": facts["fact_keys"],
@@ -139,7 +153,141 @@ def normalize_workflow_selection_evidence(value: Any) -> dict[str, Any]:
         domain_id=_text(value.get("domain_id")) or "unknown",
         state=_text(value.get("state")) or "unavailable",
         reason_code=_text(value.get("reason_code")) or "workflow_selection_unavailable",
+        candidate_details=value.get("candidate_details"),
     )
+
+
+def _candidate_details_from_catalog(
+    catalog: Mapping[str, Any],
+    candidate_ids: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Project Domain-owned catalog entries into bounded choice cards.
+
+    The Runtime only understands this generic shape. Labels, descriptions,
+    requirements, availability and workflow metadata come from the selected
+    Domain Pack's catalog; no domain identifier or dataset vocabulary is
+    interpreted here.
+    """
+
+    definitions = {
+        _text(item.get("id")): item
+        for item in (catalog.get("capabilities") or [])
+        if isinstance(item, Mapping) and _text(item.get("id"))
+    }
+    templates = {
+        _text(key): value
+        for key, value in (catalog.get("workflow_templates") or {}).items()
+        if _text(key) and isinstance(value, Mapping)
+    }
+    result = []
+    for capability_id in candidate_ids[:_MAX_ITEMS]:
+        definition = definitions.get(capability_id)
+        if not definition:
+            continue
+        requirements = definition.get("request_requirements")
+        fields = []
+        if isinstance(requirements, Mapping):
+            fields = requirements.get("clarification_fields") or []
+        workflow = templates.get(capability_id)
+        workflow_summary = None
+        if isinstance(workflow, Mapping):
+            workflow_summary = {
+                "template_id": _text(workflow.get("id") or capability_id),
+                "template_version": _text(workflow.get("version") or "1.0.0"),
+                "result_types": _string_list(workflow.get("result_types")),
+                "max_steps": _bounded_int(workflow.get("max_steps"), 1, 64),
+            }
+        result.append(
+            {
+                "id": capability_id,
+                "label": _text(definition.get("label") or capability_id),
+                "description": (
+                    _text(definition.get("description"))
+                    or f"提供“{_text(definition.get('label') or capability_id)}”能力。"
+                )[:_MAX_DESCRIPTION],
+                "available": bool(definition.get("available", True)),
+                "input_facts": _normalize_input_facts(fields),
+                "result_types": _string_list(definition.get("result_types")),
+                "data": {
+                    "dataset_gate": _text(definition.get("dataset_gate") or "unknown"),
+                    "capability_status": _text(
+                        definition.get("capability_status") or "unknown"
+                    ),
+                    "missing_datasets": _string_list(definition.get("missing_datasets")),
+                    "geometry": _text(definition.get("geometry") or "unknown"),
+                },
+                "actions": [
+                    "select_capability",
+                    "select_workflow",
+                ] if workflow_summary else ["select_capability"],
+                "workflow": workflow_summary,
+            }
+        )
+    return result
+
+
+def _normalize_candidate_details(value: Any) -> list[dict[str, Any]]:
+    values = value if isinstance(value, (list, tuple)) else []
+    result = []
+    seen = set()
+    for item in values[:_MAX_ITEMS]:
+        if not isinstance(item, Mapping):
+            continue
+        capability_id = _text(item.get("id") or item.get("capability_id"))
+        if not capability_id or capability_id in seen:
+            continue
+        seen.add(capability_id)
+        actions = [
+            action
+            for action in _string_list(item.get("actions"))[:8]
+            if action in {"select_capability", "select_workflow", "preview"}
+        ]
+        workflow = item.get("workflow")
+        workflow_summary = None
+        if isinstance(workflow, Mapping) and _text(workflow.get("template_id")):
+            workflow_summary = {
+                "template_id": _text(workflow.get("template_id")),
+                "template_version": _text(workflow.get("template_version") or "1.0.0"),
+                "result_types": _string_list(workflow.get("result_types")),
+                "max_steps": _bounded_int(workflow.get("max_steps"), 1, 64),
+            }
+        data = item.get("data")
+        data_summary = {}
+        if isinstance(data, Mapping):
+            data_summary = {
+                "dataset_gate": _text(data.get("dataset_gate") or "unknown"),
+                "capability_status": _text(data.get("capability_status") or "unknown"),
+                "missing_datasets": _string_list(data.get("missing_datasets")),
+                "geometry": _text(data.get("geometry") or "unknown"),
+            }
+        result.append(
+            {
+                "id": capability_id,
+                "label": _text(item.get("label") or capability_id),
+                "description": _text(item.get("description"))[:_MAX_DESCRIPTION],
+                "available": item.get("available") is not False,
+                "input_facts": _normalize_input_facts(item.get("input_facts")),
+                "result_types": _string_list(item.get("result_types")),
+                "data": data_summary,
+                "actions": actions or ["select_capability"],
+                "workflow": workflow_summary,
+            }
+        )
+    return result
+
+
+def _normalize_input_facts(value: Any) -> list[dict[str, str]]:
+    values = value if isinstance(value, (list, tuple)) else []
+    result = []
+    for item in values[:_MAX_ITEMS]:
+        if not isinstance(item, Mapping):
+            continue
+        field_id = _text(item.get("id"))
+        label = _text(item.get("label") or field_id)
+        kind = _text(item.get("kind") or "fact")
+        if field_id and label:
+            result.append({"id": field_id, "label": label, "kind": kind})
+    return result
 
 
 def _facts_summary(value: Any) -> dict[str, Any]:

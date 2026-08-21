@@ -1867,3 +1867,11 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - M166 回归现在覆盖 `provide_facts`、`select_workflow`、多轮原始 request/ resolved request、request/plan identity 传播和直接 workflow 对比；Docker 中 M166 相关 9/9 通过，Contract Harness 真实比较为零差异。
 - Docker quick、stage、compileall、production acceptance 通过；Chrome CDP smoke 已通过确认→完成、补事实→完成、恢复→完成三条动态路径。容器内 Node 测试仍因未安装 Node 跳过，宿主 Node/browser 已补验。
 - 当前仍未提交或推送。下一步从项目全局补 Text/GIS 开放式请求、多候选选择不一致、有限修复失败和跨入口恢复矩阵，再决定 M166 是否收口并推送版本。
+
+## M167 当前实现与验证状态
+
+- `spatial-agent.workflow-selection.v1` 已增加有界 `candidate_details`：候选能力包含 ID、名称、描述、输入事实、结果类型、可用性、数据门控、动作和可执行 workflow 摘要；由 Domain capability catalog 提供，公共 Runtime 只负责裁剪和规范化。
+- `agent/runtime.py` 已将 Domain catalog 传入 selection projection；GIS/Text 的 catalog 均能生成候选详情，旧的 `candidate_ids` 和未知/无详情数据保持兼容。
+- Console 已新增领域无关候选卡片，选择卡片直接提交 `capability_id`，不再强制打开 GIS workflow editor；`console_selection_interaction.js` 只处理通用结构化字段。
+- 新增 `tests/test_m167_candidate_selection.py`。Docker 中 M167 与 M162/M164/M165/M166 相邻专项 25 项通过，Node 测试 1 项因容器没有 Node 跳过；quick、stage、compileall、宿主 Node smoke、HTTP production acceptance 通过，容器保持 healthy。
+- 本阶段首次重建曾因 Runtime 缩进错误导致容器 unhealthy，已修复并将根因写入 `docs/agent-development-issues.md`。当前工作树仍未提交，下一步继续完成 M167 的 Domain seam 版本化、数据 evidence 绑定、SQLite 恢复矩阵和真实候选浏览器动作验收。
