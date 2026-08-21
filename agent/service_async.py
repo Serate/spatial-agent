@@ -23,6 +23,7 @@ from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from agent.plan_quality import project_plan_quality_evidence
 from agent.execution_timeline import normalize_execution_timeline
+from agent.evidence_registry import normalize_evidence_registry
 from result_contract import build_lineage_index
 
 
@@ -220,6 +221,7 @@ def build_async_result_evidence(
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
+    registry = normalize_evidence_registry(value.get("evidence_registry"))
     return {
         "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value),
@@ -242,6 +244,7 @@ def build_async_result_evidence(
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
         },
         "execution_timeline": timeline,
+        "evidence_registry": registry,
     }
 
 
@@ -403,6 +406,7 @@ def normalize_async_result_evidence(
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
+    registry = normalize_evidence_registry(value.get("evidence_registry"))
     artifact = value.get("artifact")
     artifact = artifact if isinstance(artifact, Mapping) else {}
     ref = _safe_ref(artifact.get("ref") or artifact_ref)
@@ -430,6 +434,7 @@ def normalize_async_result_evidence(
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
         },
         "execution_timeline": timeline,
+        "evidence_registry": registry,
     }
     for key in ("availability", "reason_code", "source"):
         if value.get(key) is not None:

@@ -3872,3 +3872,17 @@ M154 在 LLM Planner 边界增加有限 canonical normalization：仅对 `range_
 ### 处理与预防
 
 时间线构建与归一化统一复用 `ActionLifecycle` 的 allowlist，未知动作直接过滤；timeline 不负责执行动作，真正的批准、重试、恢复和工具调用仍由 Runtime、DecisionStore 与 ToolRegistry 处理。以后新增可操作状态必须先扩展生命周期契约和跨入口 Harness，不能在前端或 artifact adapter 中直接添加动作。
+
+## M158：Evidence Registry 如果不限制引用类型会重新引入路径泄漏
+
+### 现象
+
+Evidence Registry 需要给前端和跨入口 Harness 提供证据定位。如果 Registry 直接接受任意 `file`、`http` 或宿主路径引用，虽然证据正文没有泄漏，前端仍可能通过索引暴露本机路径或访问不应公开的资源。
+
+### 根因
+
+Registry 是索引而不是证据内容，但早期设计容易把“可定位”误解为“保存真实地址”。同时 entry schema 如果不校验，未来版本可能被旧消费者静默解释。
+
+### 处理与预防
+
+Registry 只允许当前 allowlist 中的 schema 版本，引用限定为 `result` 或 `result.*` 的 JSON 路径；未知 entry schema、外部引用和未知 Registry 版本统一返回 unavailable。artifact、async、HTTP 和 Console 只消费该安全索引，不把它当作文件下载授权。以后新增 evidence entry 必须同时定义 schema allowlist、引用边界和未知版本回归。

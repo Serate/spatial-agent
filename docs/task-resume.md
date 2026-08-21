@@ -1710,3 +1710,17 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 2. 将 result、async、artifact、Console 和 Domain Pack 接入该引用索引，保持旧 artifact 兼容与未知版本安全降级。
 3. 验证允许动作只能由 lifecycle/Runtime 决定，ToolRegistry 仍是工具执行最终边界。
 4. 补 Text/GIS、live、Docker 和浏览器显式验收后再整体重规划。
+
+## M158 当前完成状态
+
+- 新增 `spatial-agent.evidence-registry.v1`，登记 result、plan quality、execution timeline、action lifecycle 和 replanning 的版本、状态与 JSON 引用。
+- result、async、artifact、Contract Harness 和 Console 共用 Registry；未知 Registry/entry schema 与外部引用安全降级为 unavailable。
+- M158 专项 4 项；M155/M156/M157 相邻契约合计 13 项、quick、stage、compileall、Node smoke 和 diff check 通过；Docker 当前镜像专项 4 项与 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，继续作为后续显式验收。
+
+## M159 下一阶段执行顺序
+
+1. 把 Registry 引用接入 artifact 下载、run history、async artifact-only recovery 和 Console 导航。
+2. 用 Text/GIS 双 Domain 验证 Registry 形状、跨 Domain 隔离和自定义 evidence 扩展。
+3. 让 replay/live baseline 使用 Registry 做证据完整性检查，保持默认 CI 离线精简。
+4. 完成 Docker/GIS/live/browser 显式验收后进行全局重规划。

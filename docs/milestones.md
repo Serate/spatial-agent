@@ -3161,3 +3161,21 @@ M157 将执行时间线与统一 Action Lifecycle 连接：时间线终态事件
 ## M158 全局规划参考
 
 下一阶段从整体推进证据引用和可恢复动作：定义最小领域无关 Evidence Registry/lineage reference，让 result、async、artifact、Console 和未来 Domain Pack 使用同一证据索引；随后验证动作执行仍以 Runtime/ToolRegistry 为边界，并运行 Text/GIS 双 Domain、live 和浏览器显式验收。
+
+## M158：Evidence Registry 与安全引用索引（已完成）
+
+M158 新增领域无关 `spatial-agent.evidence-registry.v1`。Registry 只登记 result、plan quality、execution timeline、action lifecycle 和 replanning 的 schema 版本、状态与 JSON 引用路径，不复制证据内容，也不拥有 Runtime 执行策略。
+
+- result envelope、async polling、artifact、Contract Harness 和 Console 共用同一证据索引；未知 Registry 版本、未知 entry schema 或外部文件/URL 引用均安全降级为 unavailable。
+- 新增 M158 专项 4 项；M155/M156/M157 相邻契约合计 13 项、quick、stage、compileall、Node smoke 和 `git diff --check` 通过。
+- 当前 Docker 镜像重建后，M158 容器专项 4 项和 production acceptance 通过；同步/异步、artifact contract、幂等、恢复和核心/可选数据 ready 均通过。
+- 外部 live provider、动态 Chrome/CDP 尚未执行，仍作为后续独立验收路径。
+
+## M159 全局规划参考
+
+继续从整体闭环验证 Registry 的实际消费：
+
+1. 将 Registry 引用与 HTTP artifact/download、run history、异步 artifact-only recovery 和 Console 点击导航关联，确保引用可解析但不暴露宿主路径。
+2. 在 Text/GIS 双 Domain 中验证同一 Registry 形状、跨 Domain 负向隔离和自定义 Domain evidence 扩展。
+3. 让 replay/live 报告和真实模型 baseline 直接使用 Registry 进行证据完整性评估，不增加领域专用分支。
+4. 运行 Docker/GIS/live/browser 显式验收后，再进行全局七维度重规划。

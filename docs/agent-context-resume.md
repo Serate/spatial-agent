@@ -1443,3 +1443,14 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M158 全局规划
 
 下一阶段建立最小领域无关 Evidence Registry/lineage reference，贯通 result、async、artifact、Console 和 Domain Pack；继续保持 lifecycle/Runtime/ToolRegistry 的动作与执行边界，并显式验证 Text/GIS、live 和 browser。
+
+## M158 当前实现与验证状态
+
+- 新增 `agent/evidence_registry.py` 与 `spatial-agent.evidence-registry.v1`，统一登记公共证据版本、状态和 JSON 引用路径。
+- result、async、artifact、Contract Harness 和 Console 共用 Registry；未知版本、未知 entry schema 或外部引用安全降级。
+- M158 专项 4 项、M155/M156/M157 相邻契约合计 13 项、quick/stage、compileall、Node smoke 通过；Docker 当前镜像专项 4 项和 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行。
+
+## M159 全局规划
+
+下一阶段把 Registry 引用接入 artifact/download、history、async recovery、Console 导航和 replay/live 证据完整性，并验证 Text/GIS 双 Domain 隔离与自定义 Domain evidence 扩展；继续保持 Runtime/ToolRegistry 动作边界和默认离线精简测试。

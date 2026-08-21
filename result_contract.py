@@ -10,6 +10,7 @@ from agent.deployment_evidence import build_deployment_evidence
 from agent.action_lifecycle import project_action_lifecycle
 from agent.plan_quality import project_plan_quality_evidence
 from agent.execution_timeline import build_execution_timeline
+from agent.evidence_registry import build_evidence_registry
 from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -162,6 +163,10 @@ def build_result_contract(
             normalized_runtime_context,
         ),
     }
+    contract["evidence_registry"] = build_evidence_registry({
+        "result": contract,
+        "status": payload.get("status"),
+    })
     contract["deployment_evidence"] = build_deployment_evidence(
         payload,
         model_evidence=contract["model_evidence"],

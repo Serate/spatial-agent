@@ -30,6 +30,14 @@ def _execution_timeline_from_payload(payload: Dict) -> object:
     return nested.get("execution_timeline") if isinstance(nested, dict) else None
 
 
+def _evidence_registry_from_payload(payload: Dict) -> object:
+    value = payload.get("evidence_registry")
+    if value is not None:
+        return value
+    nested = payload.get("result")
+    return nested.get("evidence_registry") if isinstance(nested, dict) else None
+
+
 class ArtifactStore:
     """Writes small run artifacts for demos, handoff, and downstream clients."""
 
@@ -75,6 +83,7 @@ class ArtifactStore:
             "retry_count": payload.get("retry_count", 0),
             "replan_events": payload.get("replan_events") or [],
             "execution_timeline": _execution_timeline_from_payload(payload),
+            "evidence_registry": _evidence_registry_from_payload(payload),
             "decision_evidence": payload.get("decision_evidence"),
             "decision_record": payload.get("_decision_record"),
             "lifecycle": project_action_lifecycle(payload),
