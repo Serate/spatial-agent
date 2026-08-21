@@ -1659,3 +1659,10 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - `evaluation/live_baseline.py` 顶层报告保留同一 `selection_evidence` summary；所有字段均为有界结构化状态，不含请求、参数、原始模型返回或密钥。
 - 新增 `tests/test_m174_replay_selection_evidence.py`。Docker M174 3/3、相邻回归 45/45、compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
 - M174 未新增 live token 消耗，沿用 M173 已验证的真实模型 + GIS/Docker 基线。当前阶段待执行最终 diff/敏感信息检查、提交和推送；之后从全局七维度进入 M175。
+
+## M175 当前恢复位置
+
+- `agent/evidence_registry.py` 已将 `workflow_selection` 和 `planner_selection` 作为正式 Registry entry，分别引用 `result.planning.workflow_selection` 与 `result.planning.planner_selection`；公共 Registry 不解释 Domain 字段，也不拥有执行策略。
+- 严格完整性版本为 `spatial-agent.evidence-completeness.v2`，required entry 为 result、plan_quality、execution_timeline、action_lifecycle、replanning、workflow_selection、planner_selection。旧 Registry 仍可兼容读取，但缺少当前 selection entry 的结果只会安全降级/严格失败。
+- 新增 `tests/test_m175_selection_registry.py`。Docker M175 3/3、M158/M160/M174 回归 7/7、compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
+- M175 未新增 live token 消耗；当前阶段待最终 diff/敏感信息检查、提交和推送，随后从全局七维度规划 M176，不局限于单个 GIS 数据集。

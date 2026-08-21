@@ -245,3 +245,14 @@ docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evalu
 ~~~
 
 该专项只检查脱敏 projection 和公共状态，不重复真实模型请求；真实 live-short 仍按 M173/阶段风险显式执行。workflow `ambiguous`、planner `mismatch`、planner `unresolved` 必须保持不同状态，summary 不能通过合并状态来掩盖选择问题。
+
+## M175 Evidence Registry selection 专项
+
+涉及 Evidence Registry、异步/artifact 恢复或 selection completeness 时，运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m175_selection_registry tests.test_m158_evidence_registry tests.test_m160_evidence_completeness -v
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evaluation result_contract.py
+~~~
+
+当前严格完整性版本为 `spatial-agent.evidence-completeness.v2`，required entries 包含 workflow/planner selection；旧 Registry 允许兼容读取，但不能在当前严格 replay/Contract Harness 中伪装为完整。新增 Registry entry 时必须同步更新 schema 版本、完整性测试、async/artifact projection 和跨 Domain 契约。

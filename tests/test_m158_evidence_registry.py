@@ -32,10 +32,18 @@ class M158EvidenceRegistryTests(unittest.TestCase):
         contract = build_result_contract(_payload())
         registry = contract["evidence_registry"]
         self.assertEqual(registry["schema_version"], EVIDENCE_REGISTRY_SCHEMA_VERSION)
-        self.assertEqual(registry["entry_count"], 5)
+        self.assertEqual(registry["entry_count"], 7)
         self.assertEqual(
             {item["id"] for item in registry["entries"]},
-            {"result", "plan_quality", "execution_timeline", "action_lifecycle", "replanning"},
+            {
+                "result",
+                "plan_quality",
+                "execution_timeline",
+                "action_lifecycle",
+                "replanning",
+                "workflow_selection",
+                "planner_selection",
+            },
         )
         self.assertTrue(all(item["reference"].startswith(("result",)) for item in registry["entries"]))
 

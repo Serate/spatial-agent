@@ -3479,3 +3479,13 @@ M174 将运行时已存在的 workflow selection 与 planner alignment 接入脱
 - 新增 M174 专项 3 项，覆盖 replay 每轮选择证据、live/replay projection 一致性、真实 ambiguous Domain 状态和汇总计数。
 - Docker 验证：M174 专项 3/3；相邻 M149/M150/M160/M166/M169/M172/M173 回归 45/45；compileall、quick、stage、production acceptance、Chrome/CDP smoke 通过。
 - 本阶段未改变 Runtime 执行路径，未新增 live token 消耗。M174 完成后提交并推送版本，再按全局七维度规划 M175。
+
+## M175：Selection Evidence Registry 正式化（已完成）
+
+M175 把 workflow selection 和 planner selection 从“结果中的普通 planning 字段”提升为 Evidence Registry 的正式、可校验公共入口，解决评测脚本能看到选择证据而严格 Registry 完整性却不检查的边界缺口。
+
+- `agent/evidence_registry.py` 新增 `workflow_selection`（`spatial-agent.workflow-selection.v1`）和 `planner_selection`（`spatial-agent.planner-selection.v1`）entry；Registry 仍只索引 result 中已有证据，不拥有执行状态或选择逻辑。
+- `spatial-agent.evidence-completeness.v2` 将两个 selection entry 纳入 required set。旧 `evidence-registry.v1` artifact 继续安全 normalize，但缺少当前 required entry 时严格 replay/Contract Harness 返回不完整，不静默通过。
+- 新增 `tests/test_m175_selection_registry.py`，覆盖 Text/GIS Registry 形状、缺失 entry 拒绝和跨入口 Registry 丢失检测；同步、异步和 artifact 既有 Registry 回归继续通过。
+- Docker 验证：M175 专项 3/3；M158/M160/M174 回归 7/7；compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
+- 本阶段不增加 GIS 工具、不改变 Runtime 执行路径、不新增 live token 消耗。M175 完成后提交并推送版本，再按全局七维度进入 M176。

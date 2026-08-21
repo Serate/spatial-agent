@@ -15,10 +15,12 @@ from .contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
 from .evidence_contract import DOMAIN_EVIDENCE_SCHEMA_VERSION
 from .execution_timeline import EXECUTION_TIMELINE_SCHEMA_VERSION, normalize_execution_timeline
 from .plan_quality import PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, project_plan_quality_evidence
+from .planner_selection import PLANNER_SELECTION_SCHEMA_VERSION
+from .workflow_selection import WORKFLOW_SELECTION_SCHEMA_VERSION
 
 
 EVIDENCE_REGISTRY_SCHEMA_VERSION = "spatial-agent.evidence-registry.v1"
-EVIDENCE_COMPLETENESS_SCHEMA_VERSION = "spatial-agent.evidence-completeness.v1"
+EVIDENCE_COMPLETENESS_SCHEMA_VERSION = "spatial-agent.evidence-completeness.v2"
 REPLANNING_SCHEMA_VERSION = "spatial-agent.replanning.v1"
 _MAX_ENTRIES = 12
 _MAX_TEXT = 96
@@ -28,6 +30,8 @@ _REQUIRED_ENTRY_IDS = (
     "execution_timeline",
     "action_lifecycle",
     "replanning",
+    "workflow_selection",
+    "planner_selection",
 )
 _KNOWN_SCHEMA_VERSIONS = {
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -35,6 +39,8 @@ _KNOWN_SCHEMA_VERSIONS = {
     EXECUTION_TIMELINE_SCHEMA_VERSION,
     ACTION_LIFECYCLE_SCHEMA_VERSION,
     REPLANNING_SCHEMA_VERSION,
+    WORKFLOW_SELECTION_SCHEMA_VERSION,
+    PLANNER_SELECTION_SCHEMA_VERSION,
     DOMAIN_EVIDENCE_SCHEMA_VERSION,
 }
 
@@ -56,12 +62,28 @@ def build_evidence_registry(
         lifecycle = project_action_lifecycle({"status": source.get("status")})
     replanning = result.get("replanning") if isinstance(result.get("replanning"), Mapping) else {}
     events = replanning.get("events") if isinstance(replanning.get("events"), list) else []
+    selection = planning.get("workflow_selection") if isinstance(planning.get("workflow_selection"), Mapping) else {}
+    planner_selection = planning.get("planner_selection") if isinstance(planning.get("planner_selection"), Mapping) else {}
     entries = [
         _entry("result", RESULT_ENVELOPE_SCHEMA_VERSION, bool(result), "available" if result else "unavailable", "result"),
         _entry("plan_quality", PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, quality["available"], quality["state"], "result.planning.plan_quality"),
         _entry("execution_timeline", EXECUTION_TIMELINE_SCHEMA_VERSION, timeline["available"], "available" if timeline["available"] else "unavailable", "result.execution_timeline"),
         _entry("action_lifecycle", ACTION_LIFECYCLE_SCHEMA_VERSION, bool(lifecycle), str(lifecycle.get("state") or "unknown"), "result.lifecycle"),
         _entry("replanning", REPLANNING_SCHEMA_VERSION, bool(events), "available" if events else "none", "result.replanning", count=len(events)),
+        _entry(
+            "workflow_selection",
+            WORKFLOW_SELECTION_SCHEMA_VERSION,
+            bool(selection),
+            _selection_state(selection),
+            "result.planning.workflow_selection",
+        ),
+        _entry(
+            "planner_selection",
+            PLANNER_SELECTION_SCHEMA_VERSION,
+            bool(planner_selection),
+            _selection_state(planner_selection),
+            "result.planning.planner_selection",
+        ),
     ][: _MAX_ENTRIES]
     for item in custom_entries or ():
         candidate = _custom_entry(result, item)
@@ -238,6 +260,13 @@ def _custom_entry(result: Mapping[str, Any], item: Mapping[str, Any]) -> dict[st
     if isinstance(current, Mapping) and current.get("status"):
         state = _text(current.get("status")) or state
     return _entry(entry_id, schema_version, available, state, reference)
+
+
+def _selection_state(value: Mapping[str, Any]) -> str:
+    """Use only the declared bounded state in a Registry index entry."""
+
+    state = _text(value.get("state")) if isinstance(value, Mapping) else ""
+    return state or "unavailable"
 
 
 def _unavailable(reason_code: str) -> dict[str, Any]:

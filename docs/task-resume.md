@@ -1946,3 +1946,11 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 `tests/test_m174_replay_selection_evidence.py`，覆盖脱敏 replay 每轮 selection、live/replay 投影一致、ambiguous Service 状态和 summary 聚合。
 - Docker 证据：M174 专项 3/3；M149/M150/M160/M166/M169/M172/M173 受影响回归 45/45；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 通过。
 - 本阶段没有改变 Runtime 工具执行路径，也没有新增 live token 消耗；下一阶段从全局七维度继续规划跨 Domain 评测矩阵、公共 GIS 兼容清理和结果 evidence 的前端动态消费。
+
+## M175 当前完成状态
+
+- Evidence Registry 正式索引 `workflow_selection` 与 `planner_selection` 两类公共证据，来源仍是 `result.planning`，Registry 只做索引，不创建第二套状态机。
+- 严格完整性投影升级为 `spatial-agent.evidence-completeness.v2`，required entries 从 5 类扩展为 7 类；旧 Registry 仍可由兼容 normalizer 读取，缺少新 entry 的旧结果不会被伪装成当前版本完整证据。
+- 新增 `tests/test_m175_selection_registry.py`，覆盖 Text/GIS 相同 Registry 形状、缺失 selection entry 的严格失败和 Contract Harness 检测 Registry 丢失。
+- Docker 证据：M175 专项 3/3；M158/M160/M174 回归 7/7；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 通过。
+- 本阶段没有新增 live token 消耗或 GIS 工具；下一阶段从全局七维度规划 Evidence Registry 的前端/异步展示一致性、旧 artifact 迁移和跨 Domain 评测矩阵。

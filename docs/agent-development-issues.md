@@ -4350,3 +4350,17 @@ M172 为控制 Planner 上下文大小，只保留选中能力的完整候选卡
 ### 处理与预防
 
 现在由 Domain catalog 生成有界 `known_capability_result_types`，只包含能力 ID 与结果类型，不参与能力选择，也不展开工具或数据细节；`planner_selection` 使用它补充已知结果类型绑定。已知能力错配稳定返回 `mismatch`，未知结果类型仍返回 `unresolved`，多候选仍由 workflow selection 在 Planner 前返回 `ambiguous`。Contract Harness 新增稳定的 `planner_selection` 和脱敏 `repair_lineage` 投影，排除 latency/occurred_at 等易变字段但保留修复语义。以后做 context 压缩时，必须分别验证模型输入预算、候选选择证据和 Planner alignment 证据，不能用“候选详情存在”替代“已知能力索引完整”。
+
+## M175：扩展 Evidence Registry required entries 必须升级完整性版本
+
+### 现象
+
+selection evidence 已经存在于 `result.planning`，但旧的 Evidence Registry completeness 只要求五个核心 entry。若直接增加 Registry entry 却继续返回 `spatial-agent.evidence-completeness.v1`，下游无法判断 v1 是旧契约还是已经包含 selection 的新语义，旧 artifact 与当前严格验收也会产生不透明差异。
+
+### 根因
+
+Registry 的 schema（可兼容读取的索引）与 completeness contract（当前版本必须具备哪些 entry）职责不同；早期实现只考虑新增可选 Domain evidence，没有把 required entry 集变化视为公共契约迁移。
+
+### 处理与预防
+
+M175 保持 `spatial-agent.evidence-registry.v1` 的安全 normalize 兼容，新增 workflow/planner selection entry，并将严格完整性投影升级为 `spatial-agent.evidence-completeness.v2`。旧 Registry 可以读取，但缺少当前 selection entry 时只允许兼容展示，不能通过当前 replay/live/Contract Harness 完整性门禁。以后改变 required entry、引用规则或完整性判定时，必须升级 completeness 版本，并同时覆盖旧 artifact、未知版本、同步、异步、artifact-only recovery、Text/GIS 和前端证据状态。
