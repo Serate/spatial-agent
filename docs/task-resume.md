@@ -1905,7 +1905,7 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 `tests/test_m171_domain_defaults.py`，M171 专项 6/6 通过；M60/M61/M67 相邻回归已补齐 Service close，并在 Docker `-W error::ResourceWarning` 下 20/20 通过。
 - `web/index.html` 的 bootstrap 标记在基础目录加载完成后设置，历史恢复不再阻塞 smoke；`scripts/console_selection_interaction_browser_smoke.js` 已清理临时诊断并改用 DOM 就绪检查。
 - 当前 Docker 镜像 healthy；compileall、quick、stage、production acceptance 和正式 Chrome/CDP preview → confirmation → completed smoke 通过。Chrome smoke 连续 3 次通过，指纹无漂移。
-- M171 代码和文档仍待提交/推送。提交前执行 `git diff --check`、敏感信息扫描和状态核对；推送后按七维度进入 M172，不继续围绕单个数据集增加规则。
+- M171 已提交并推送，版本为 `90ab4ef`；提交前已执行 `git diff --check`、敏感信息扫描和状态核对。现在按七维度进入 M172，不继续围绕单个数据集增加规则。
 
 ## M172 下一阶段规划
 

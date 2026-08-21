@@ -1623,7 +1623,7 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - Console bootstrap readiness 不再等待历史运行结果渲染完成：基础目录加载完成后即标记页面可交互，历史恢复在后台继续。浏览器 smoke 的就绪条件改为版本标记、真实函数入口和 DOM 控件检查，不依赖 lexical `$`。
 - 当前 Docker 镜像已按工作树重建并 healthy。M171 与 M60/M61/M67 相邻回归 20/20 通过，并在 `-W error::ResourceWarning` 下通过；容器 compileall、quick、stage、production acceptance 通过。
 - 正式 Chrome/CDP smoke 连续 3 次以及最终清理诊断代码后的 1 次均通过：preview、submit、complete 的 plan fingerprint 一致，确认后状态为 `COMPLETED`，artifact 和 selection evidence 均可用。临时 `[DEBUG-M171]` 诊断已清理。
-- 当前工作树仍包含未提交的 M171 修改；收口前必须完成敏感信息扫描、`git diff --check`、文档一致性检查、提交和推送。不得提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+- M171 已提交并推送，版本为 `90ab4ef`；推送前已完成敏感信息扫描、`git diff --check`、Docker/Chrome 显式验收，且未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。下一步按 M172 全局规划继续工作。
 
 ## M172 全局规划参考
 

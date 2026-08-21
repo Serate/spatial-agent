@@ -3437,7 +3437,7 @@ M171 从项目整体清理公共持久化边界中的 GIS 兼容默认，并提�
 - 新增 `tests/test_m171_domain_defaults.py`，覆盖 Text/future Domain 的旧数据隔离和 Service 隐式 adapter；M171 专项 6/6 通过。
 - Console bootstrap readiness 已从历史恢复末端前移到基础目录加载完成；正式浏览器 smoke 连续 3 次及清理诊断后的最终运行均通过，preview、submit、complete fingerprint 保持一致。
 - Docker 当前镜像重建后 healthy；M60/M61/M67/M171 回归 20/20 在 `-W error::ResourceWarning` 下通过，compileall、quick、stage、production acceptance 通过。
-- 本阶段问题已写入中文开发问题文档。当前 M171 修改尚未提交/推送；提交后进入 M172，并按全局七维度推进开放式能力发现、跨入口证据和真实部署验收。
+- 本阶段问题已写入中文开发问题文档。M171 已提交并推送，版本为 `90ab4ef`；下一阶段进入 M172，并按全局七维度推进开放式能力发现、跨入口证据和真实部署验收。
 
 ## M172 全局规划参考
 
