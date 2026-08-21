@@ -66,6 +66,10 @@ class AgentRunResult:
     domain_id: Optional[str] = None
     # Immutable, bounded configuration evidence for this execution.
     runtime_context: Optional[Dict[str, Any]] = None
+    # Normalized semantic spatial context retained for result reconstruction.
+    # It is distinct from runtime_context: the latter describes execution
+    # configuration, while this value contributes to request identity.
+    spatial_context: Optional[Dict[str, Any]] = None
     resolved_request: Optional[str] = None
     # Structured request interpretation shared by planning, recovery and
     # result consumers. The original text remains in ``request``.
@@ -119,6 +123,10 @@ class AgentRunResult:
             data["runtime_context"] = normalize_runtime_context(data["runtime_context"])
         if data.get("runtime_context") is None:
             data.pop("runtime_context", None)
+        if data.get("spatial_context") is None:
+            data.pop("spatial_context", None)
+        elif isinstance(data.get("spatial_context"), dict):
+            data["spatial_context"] = dict(data["spatial_context"])
         if data.get("request_facts") is None:
             data.pop("request_facts", None)
         if data.get("decision_evidence") is None:

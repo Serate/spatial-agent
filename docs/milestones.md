@@ -3312,3 +3312,49 @@ M165 将 M164 的 selection interaction 纳入既有 Contract Harness，并用�
 5. **部署可靠性**：补 API 资源路由、artifact、SQLite 和多 worker 的版本兼容矩阵，验证未知 evidence/schema 的 unavailable 降级和重复动作 CAS。
 6. **用户体验**：扩展浏览器 smoke 到候选选择、补充事实、确认后完成和恢复空态；保持通用 renderer。
 7. **测试证据**：默认 Docker quick/CI 仍精简；阶段验收运行跨入口 harness、Docker、browser 及必要 live，完成后更新文档并推送版本。
+
+## M166 当前实现进展
+
+- 新增 `spatial-agent.request-identity.v1` 与 `agent/request_identity.py`。身份只由 request、resolved request、workflow 和 spatial context 的语义内容生成稳定 fingerprint，不包含 session、Planner、backend、状态、时间或密钥。
+- result envelope、async result evidence、artifact recovery 和 Contract Harness 已统一保留 request identity；Harness 同时比较 `plan_identity_fingerprint`，可以识别计划漂移并忽略传输配置差异。
+- `AgentRunResult`、SQLite 快照和 ArtifactStore 已持久化 normalized spatial context；async polling 重建契约时复用同一语义上下文，修复了 production acceptance 暴露的 async/artifact identity 漂移。
+- 新增 M166 5 项专项，覆盖 transport 中立、同步/async identity 传播、plan drift、Harness async projection 和 SQLite/artifact/restart 恢复。
+- 修复显式 `spatial_analysis` workflow 被 GIS 自动路由覆盖的问题，并从 canonical `workflow_selection` 恢复 compact context 裁剪后的旧版能力证据别名；新增显式 workflow 回归。
+- Docker 当前镜像 healthy；M166 专项 5/5、M165/M164/M163/M158/M156/M155/M153/M148 相邻专项 36 项中 35 项通过、1 项因容器没有 Node 跳过；quick、stage、compileall 和 production acceptance 均通过。async/artifact Contract Harness 当前为 `ok`。
+- 本次问题根因与预防规则已写入 `docs/agent-development-issues.md`。M166 仍未完成浏览器候选/补事实/确认后完成全链路、Text/GIS 开放式跨入口验收和必要的显式 live 基线，不能标记阶段完成。
+
+## M166 当前收尾进展：交互续接身份一致性
+
+- 修复 `AgentService.apply_run_interaction()` 重复拼接 pending request 的问题：selection/facts/preview 续接先消费 pending clarification，再使用当前 run 的 `resolved_request`。
+- 新增回归覆盖 `provide_facts` 与 `select_workflow`；直接 workflow 运行与交互续接在统一 artifact 配置下通过 Contract Harness 零差异比较。
+- 当前 Docker 镜像 healthy；M166 相关专项 9/9 通过；相邻契约专项保持通过，容器内 Node 测试跳过 1 项；quick、stage、compileall、production acceptance 通过。
+- Chrome CDP 动态 smoke 已通过：确认→完成、补充事实→完成、恢复→完成；宿主 Node/browser 证据与容器 Python 测试分开记录。
+- M166 尚未整体收口：Text/GIS 开放式请求、多候选/模型选择不一致和更完整 live 基线仍需按全局 goal 验收；本阶段修改尚未提交或推送。
+
+## M166 本轮 Domain 选择边界与 Docker 回归
+
+- 公共 Runtime 新增 Domain 声明的 `ambiguous` 选择门控：当 Domain 不能安全选择单一能力时，Runtime 在 Planner 之前返回结构化澄清和 `candidate_selection` 交互，不执行工具；显式 workflow 选择仍直接继续原有 Planner/ToolRegistry 链路。
+- Service 的 workflow 规范化和计划校验已下沉到 Domain Pack。GIS 继续使用 GIS 自有模板目录，Text 使用自己的基本 workflow 契约，公共 Runtime 不再直接调用 GIS workflow 模板。
+- `select_capability` 已增加 Domain-owned capability → workflow 解析 seam，并通过非 GIS Domain 夹具验证能力选择、显式执行和结果组合。
+- 新增 `tests/test_m166_multi_candidate_selection.py`，覆盖歧义停止、结构化候选动作、能力选择续接和非 GIS 结果；更新 M69 过时断言，显式 workflow 以用户选择为准。
+- 当前 Docker 镜像 healthy；跨 Domain/工作流与 Contract Harness 专项共 97 项通过、1 项因容器内没有 Node 跳过。Docker quick、stage、full-stage、compileall、gis-core 和宿主 production acceptance 均通过。
+- 本轮仍未提交或推送；动态浏览器的真实候选选择链路、Text/GIS 完整跨入口开放式回放和必要的显式 live-short 基线仍需阶段收口时验证。
+
+## M166 阶段收口
+
+- Text/GIS 同步与异步开放式请求现在通过 Contract Harness 共享核心 result、request identity、plan identity、lifecycle、views 和 artifact 证据；异步专属 evidence 在同步入口缺失时不再制造伪差异。
+- 浏览器动态验收：selection/confirmation → completed、facts_required → completed、recoverable → completed；Node 静态 smoke 通过，Console 继续使用领域无关 renderer。
+- 真实 Docker live-short 2/2 通过（真实模型 + 真实 GIS，12,225 tokens，0 次重试）；repair/failure/plan-quality/timeline/evidence-registry 专项通过，缺失 PowerShell/FastAPI 的 7 项按环境规则跳过并已与业务失败区分。
+- M166 阶段目标已达到，下一步按项目七维度整体重规划 M167；本阶段所有修改仍需完成敏感配置检查后提交并推送版本。
+
+## M167 全局规划参考
+
+M167 不再增加单一区域 GIS 规则，重点把“能力目录 → 候选选择 → 可执行 workflow → 通用结果视图”继续做成可替换产品闭环：
+
+1. **产品能力**：让候选能力具备领域提供的安全标签、描述、输入事实和可执行动作，前端根据结构化 evidence 真正渲染选择，而不是只展示 ID。
+2. **架构边界**：把 capability selection、workflow normalization、plan validation 和 capability-to-workflow resolution 的 seam 版本化，并清理公共层的 GIS 兼容分支。
+3. **数据质量**：将 readiness、coverage、alignment、provenance 绑定到候选能力和降级结果，验证数据不可用时仍可选择、解释和恢复。
+4. **真实模型**：补充多候选、模型选择与规则选择不一致、有限 repair 失败的脱敏回放，保持 live 只运行最小代表集。
+5. **部署可靠性**：补齐 SQLite 多 worker/滚动重启、旧 Domain workflow schema、重复 capability action 和 artifact-only 恢复矩阵。
+6. **用户体验**：增加真实候选卡片、能力选择后预览、确认前计划摘要和通用失败恢复动作的浏览器验收。
+7. **测试证据**：默认 Docker quick/CI 保持精简；阶段收口使用跨入口 Harness、Docker、browser 与必要 live，并为 Domain seam 增加最小契约测试。

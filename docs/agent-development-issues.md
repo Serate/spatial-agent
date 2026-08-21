@@ -4068,3 +4068,89 @@ M165 的真实 Chrome smoke 中，HTTP 运行已经返回 `WAITING_FOR_DECISION`
 ### 处理与预防
 
 开发与生产入口新增同形的受限 Console JS allowlist，只允许三个已知文件并返回 `application/javascript`，不接受任意路径或目录遍历。新增 `scripts/console_selection_interaction_browser_smoke.js`，先检查真实资源 HTTP 200，再通过 CDP 断言 `confirmation_required` 卡片和 confirm/reject/cancel。以后新增外部前端模块必须同时验证：仓库文件、容器文件、HTTP 资源状态、浏览器加载状态和实际 DOM 行为；静态 Node smoke 不能替代资源路由验收。
+
+## M166：跨入口 request identity 因语义上下文未持久化而漂移
+
+### 现象
+
+新增 `request_identity` 后，Docker production acceptance 在 `async/artifact` Contract Harness 处发现同一异步请求的 `request_identity.fingerprint` 不一致。同步结果、async polling 和 artifact 都能单独完成，但跨入口比较失败。
+
+### 根因
+
+request identity 需要包含 `spatial_context`，因为它属于请求语义；同步 Service 在构建 result envelope 时拥有该上下文，而 `AgentRunResult` 的 SQLite 快照原先没有保存它。async polling 从快照重建契约时只能看到请求文本和 runtime context，artifact-only recovery 也无法重新得到完整语义上下文，于是同一请求被哈希成不同身份。另一个兼容性问题是 replay fixture 使用短的 `sha256:plan-a` 形式，若只接受完整 64 位摘要会把合法的脱敏回放误判为 unavailable。
+
+### 处理与预防
+
+新增版本化 `spatial-agent.request-identity.v1`，只哈希 request、resolved_request、workflow 和 spatial_context，排除 session、Planner、backend、状态、时间和密钥；result、async、artifact、recovery 和 Contract Harness 共用该身份。`AgentRunResult`、SQLite 反序列化和 ArtifactStore 持久化现在保留 normalized spatial context；async 重建优先使用持久化快照，并以提交 job payload 作为兼容回退。生产生成的 plan identity 仍使用完整 SHA-256，同时允许有界、无敏感内容的短 replay 标识。以后新增影响请求语义的字段，必须同时检查模型快照、artifact、async 重建和 Contract Harness，不能只给同步 result 加字段。
+
+## M166：显式 workflow 选择被自然语言路由覆盖会产生错误结果契约
+
+### 现象
+
+用户在交互界面明确选择 `spatial_analysis` 后，HTTP 运行仍可能生成 `admin_raster_composite` 的两步计划，最终返回 `result type is not allowed by template: zonal_raster_statistics_result`。同一个 `spatial_analysis` 模板直接编译时，模板自身的结果类型和 DAG 均正确。
+
+### 根因
+
+GIS Rule Planner 原先只把显式 workflow 的约束追加到请求提示文本，随后再次执行自然语言能力路由。短请求“进行空间分析”没有足够任务词时会被重新匹配为栅格统计能力，导致 Planner 输出与用户已选择的 workflow 不一致；Runtime 的严格校验只是正确地拦截了这个漂移。
+
+### 处理与预防
+
+GIS Domain 新增 `RuleBasedPlanComposer.compose_workflow()`，显式 workflow 直接通过现有模板编译器生成约束、证据、DAG 和 output type；Runtime、ToolRegistry 和最终 workflow 校验保持不变。新增 M166 回归覆盖显式选择 `spatial_analysis` 的计划类型和 9 个工具步骤，并用 Docker 复现原始失败后验证修复。以后显式选择必须优先于自然语言自动路由，不能把结构化用户决策降级为提示词；新增 workflow selection 时必须同时测试短请求、完整请求和结果契约一致性。
+
+## M166：上下文裁剪后旧版能力证据别名缺失
+
+### 现象
+
+复杂空间请求执行成功，新的 `workflow_selection` 结构化证据也存在，但历史 M77 客户端读取 `plan_evidence.selected_capability_id` 时出现 `KeyError`。原因是 compact context 裁剪后，旧版顶层能力字段没有生成。
+
+### 根因
+
+能力发现和 workflow selection 已经迁移为领域无关的嵌套契约，但旧版顶层字段只在未被裁剪的 verbose `capability_discovery` section 存在。上下文预算控制改变了展示 section 的可用性，却不应改变已选能力的公共结果语义。
+
+### 处理与预防
+
+Runtime 在缺少 verbose discovery section 时，从同一 `workflow_selection` projection 生成有界的兼容别名；没有新增第二套选择逻辑，也没有引入 GIS 字段。M166 相邻 Docker 回归 57 项中 56 项通过、1 项因容器未安装 Node 跳过。以后压缩或迁移 evidence 时，必须区分 canonical nested contract 与兼容投影，并在 context budget 裁剪场景下验证两者仍表达同一选择结果。
+
+## M166：交互续接重复消费 pending request 导致身份漂移
+
+### 现象
+
+空间请求首次进入 `facts_required` 后，通过 `POST /runs/{run_id}/interaction` 提交事实或选择 workflow，运行可以继续执行，但 `resolved_request` 变成了“分析空间数据 分析空间数据”。因此 request fingerprint、plan fingerprint 和跨入口 Contract Harness 可能与同一 workflow 的直接运行不一致。
+
+### 根因
+
+澄清失败时，ConversationStore 会保存当前的 `resolved_request` 作为 pending request。交互动作本质上是对已有 run 的继续处理，不是新的用户轮次；但 `AgentService.apply_run_interaction()` 原先使用原始 `request` 重新调用 `Service.run/preview`，而 Runtime 的 `_resolve_request()` 又把 pending request 拼接一次，形成重复语义。
+
+### 处理与预防
+
+selection/facts/preview 动作现在先通过所选 Runtime 消费当前 session 的 pending clarification，再使用当前 run 持久化的 `resolved_request` 继续进入 Runtime；确认、拒绝、重试、恢复和取消仍沿用各自生命周期。新增 M166 回归覆盖 `provide_facts`、`select_workflow`、同步直接运行与 SQLite 临时状态隔离，并用 Contract Harness 验证两条路径差异为空；真实 Chrome smoke 同时验证确认→完成、补事实→完成和恢复→完成。以后新增交互动作必须明确区分“新对话轮次”和“已有 run 续接”，并比较 request identity、plan identity、trace、artifact 和 evidence，不能只断言最终 status。
+
+多轮场景还必须保留两个字段的职责：`request` 是当前用户轮次，`resolved_request` 是已合并的会话语义。交互续接通过 Runtime 的内部 resolved-request override 传递后者，不得把后者覆盖到前者；HTTP 公共 payload 不开放该内部参数。
+
+## M166：候选能力记录存在但未形成真实选择生命周期
+
+### 现象
+
+Domain discovery 可以返回多个 `candidate_ids`，但如果同时保留第一项 `selected_capability_id`，Runtime 会继续规划和执行，前端只能展示候选列表，无法证明用户真正选择过能力。
+
+### 根因
+
+候选发现是描述性证据，是否能够安全自动选择属于 Domain 策略；公共 Runtime 原先没有消费 Domain 声明的歧义状态，也没有在 Planner 前建立统一的候选选择门控。
+
+### 处理与预防
+
+允许 Domain 在 `select_workflow` 投影中声明 `state=ambiguous`。Runtime 只负责把它转换为 `NEEDS_CLARIFICATION` 和 `candidate_selection` 交互，不解释能力 ID，也不执行工具；显式 workflow 和 `select_capability` 选择仍经过同一 Runtime/Planner/ToolRegistry 路径。以后新增候选路由必须分别测试自动选定、歧义澄清、用户选择后的续接以及跨入口 selection evidence，不能只断言候选数组存在。
+
+## M166：公共 Service workflow 边界泄漏 GIS 模板
+
+### 现象
+
+非 GIS Domain 通过交互提交自己的 workflow 时，Service 的公共 normalizer 直接调用 GIS 模板目录，未知 Text workflow 被报为 `unknown workflow template`；Runtime 计划校验也直接使用 GIS 模板规则。
+
+### 根因
+
+workflow 规范化和执行前校验被放在 Service/Runtime 公共入口，早期 GIS 模板实现成为隐式默认策略，导致 Domain Pack 虽然存在，跨 Domain 的选择和恢复仍无法真正替换。
+
+### 处理与预防
+
+新增 Domain-owned `normalize_workflow`、`validate_workflow_plan` 和 `resolve_capability_selection` seam。GIS Domain 在 seam 内调用原有模板目录，Text Domain 只实现自己的通用形状校验和能力映射；公共 Service 仅转发选中的 Domain，旧自定义 Domain 保留有界兼容回退。以后新增 workflow、能力选择或结果类型，必须确认 HTTP、async、interaction、recovery 和 Runtime 校验均通过 Domain seam，公共层不得导入 GIS 模板或能力名称。

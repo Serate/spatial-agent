@@ -62,7 +62,7 @@ class M69WorkflowRuntimeTests(unittest.TestCase):
         self.assertEqual(result["status"], "COMPLETED")
         self.assertEqual(result["workflow"]["constraints"]["dataset"], "dem")
 
-    def test_plan_is_rejected_when_selected_template_does_not_allow_it(self):
+    def test_explicit_template_controls_plan_instead_of_natural_language_route(self):
         result = AgentService().run(
             "查询 DEM 栅格元数据",
             workflow={
@@ -72,9 +72,12 @@ class M69WorkflowRuntimeTests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(result["status"], "FAILED")
-        self.assertIn("tool is not allowed by template", result["error"])
+        self.assertEqual(result["status"], "COMPLETED")
         self.assertEqual(result["workflow"]["template_id"], "admin_boundary_query")
+        self.assertEqual(
+            [step["tool"] for step in result["steps"]],
+            ["get_dataset_schema", "range_query"],
+        )
 
 
 if __name__ == "__main__":

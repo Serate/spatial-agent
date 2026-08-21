@@ -8,6 +8,7 @@ WORKSPACE_SCHEMA_VERSION = "spatial-agent.workspace.v1"
 VIEWS_SCHEMA_VERSION = "spatial-agent.views.v1"
 VIEW_SCHEMA_VERSION = "spatial-agent.view.v1"
 ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION = "spatial-agent.async-result-evidence.v1"
+REQUEST_IDENTITY_SCHEMA_VERSION = "spatial-agent.request-identity.v1"
 
 __all__ = [
     "TASK_PLAN_SCHEMA_VERSION",
@@ -18,4 +19,5 @@ __all__ = [
     "VIEWS_SCHEMA_VERSION",
     "VIEW_SCHEMA_VERSION",
     "ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION",
+    "REQUEST_IDENTITY_SCHEMA_VERSION",
 ]

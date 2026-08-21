@@ -197,6 +197,75 @@ class GisDomainPack:
             "candidate_count": context.get("candidate_count"),
         }
 
+    def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Normalize GIS workflow input inside the GIS Domain Pack."""
+        from agent.workflow_templates import normalize_workflow_selection
+
+        if not isinstance(workflow, Mapping):
+            raise ValueError("workflow must be an object")
+        template_id = workflow.get("template_id")
+        if not isinstance(template_id, str) or not template_id.strip():
+            raise ValueError("workflow.template_id must be a non-empty string")
+        return normalize_workflow_selection(
+            template_id.strip(),
+            workflow.get("constraints", {}),
+            workflow.get("evidence"),
+        )
+
+    def validate_workflow_plan(
+        self,
+        plan: Any,
+        workflow: Mapping[str, Any],
+    ) -> None:
+        """Validate a generated plan against the GIS-owned template catalog."""
+        from agent.workflow_templates import validate_workflow_plan
+
+        if not isinstance(workflow, Mapping):
+            raise WorkflowTemplateError("workflow selection is incomplete")
+        template_id = workflow.get("template_id")
+        constraints = workflow.get("constraints")
+        evidence = workflow.get("evidence")
+        if not template_id or not isinstance(constraints, Mapping):
+            raise WorkflowTemplateError("workflow selection is incomplete")
+        payload = {
+            "template_id": template_id,
+            "template_version": workflow.get("template_version"),
+            "goal": plan.goal,
+            "constraints": constraints,
+            "evidence": evidence or [],
+            "steps": [
+                {
+                    "id": step.id,
+                    "tool": step.tool,
+                    "args": step.args,
+                    "depends_on": list(step.depends_on),
+                }
+                for step in getattr(plan, "steps", ())
+            ],
+            "output": dict(plan.output),
+            "assumptions": list(plan.assumptions),
+        }
+        validate_workflow_plan(str(template_id), payload)
+
+    def resolve_capability_selection(
+        self,
+        capability_id: str,
+        *,
+        request_facts: Any = None,
+        selection: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
+        """Map only template-backed GIS capabilities to workflows."""
+        del request_facts, selection
+        aliases = {
+            "constrained_buildability_screening": "constrained_buildability",
+        }
+        template_id = aliases.get(
+            str(capability_id or "").strip(), str(capability_id or "").strip()
+        )
+        if template_id not in workflow_template_catalog():
+            return None
+        return {"template_id": template_id, "constraints": {}, "evidence": []}
+
     def workflow_template_context(
         self,
         *,

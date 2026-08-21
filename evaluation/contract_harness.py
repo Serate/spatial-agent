@@ -21,6 +21,8 @@ from agent.action_lifecycle import (
 )
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.runtime_context import normalize_runtime_context
+from agent.request_identity import normalize_request_identity
+from agent.plan_identity import normalize_plan_identity
 from agent.plan_quality import project_plan_quality_evidence
 from agent.plan_policy import normalize_plan_policy_evidence
 from agent.selection_interaction import normalize_selection_interaction
@@ -71,6 +73,7 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
     panels = _mapping(views.get("panels"))
     workspace = _mapping(result.get("workspace"))
     plan_identity = _mapping(planning.get("plan_identity"))
+    request_identity = normalize_request_identity(result.get("request_identity"))
     context = _mapping(payload.get("context_evidence"))
     provenance = _mapping(payload.get("provenance"))
     runtime_context = normalize_runtime_context(
@@ -92,6 +95,7 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "result_title": result.get("title"),
             "answer": payload.get("answer", ""),
             "runtime_context": runtime_context,
+            "request_identity": request_identity,
             "model_evidence": result.get("model_evidence"),
             "deployment_evidence": result.get("deployment_evidence"),
             "provenance_context_fingerprint": provenance.get(
@@ -99,6 +103,7 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             ),
             "planning_source": planning.get("source"),
             "plan_identity_version": plan_identity.get("version"),
+            "plan_identity_fingerprint": plan_identity.get("fingerprint"),
             "selected_capability": planning.get("selected_capability_id"),
             "capability_candidates": planning.get("capability_candidate_ids"),
             "capability_catalog_available": planning.get("capability_catalog_available"),
@@ -326,6 +331,12 @@ def _async_result_evidence_projection(
         "schema_version": _stable_version(evidence.get("schema_version")),
         "state": _stable_status(evidence.get("state")),
         "status": _stable_status(evidence.get("status")),
+        "request_identity": normalize_request_identity(
+            evidence.get("request_identity")
+        ),
+        "plan_identity": normalize_plan_identity(
+            evidence_planning.get("plan_identity")
+        ),
         "degradation_status": _stable_status(
             evidence.get("degradation_status")
         ),
@@ -495,10 +506,27 @@ def compare_results(
 
     if len(payloads) < 2:
         raise ValueError("at least two result payloads are required")
-    baseline = normalize_result(payloads[0])
+    contracts = [normalize_result(payload) for payload in payloads]
+    # Async evidence is an optional transport projection. A synchronous
+    # entry cannot produce it, so comparing it against a polling/artifact
+    # entry would report a false drift in the shared core contract. When all
+    # entries carry the projection it remains strictly comparable, including
+    # its version/state changes.
+    if any(contract.values.get("async_result_evidence") is None for contract in contracts):
+        contracts = [
+            CrossEntryContract(
+                {
+                    key: value
+                    for key, value in contract.values.items()
+                    if key != "async_result_evidence"
+                }
+            )
+            for contract in contracts
+        ]
+    baseline = contracts[0]
     differences: List[str] = []
-    for index, payload in enumerate(payloads[1:], start=1):
-        for path in baseline.differences(normalize_result(payload)):
+    for index, contract in enumerate(contracts[1:], start=1):
+        for path in baseline.differences(contract):
             differences.append(f"entry[0] vs entry[{index}]: {path}")
     return differences[:100]
 

@@ -23,6 +23,7 @@ from agent.nested_schema import (
     unavailable_nested_view,
 )
 from agent.runtime_context import normalize_runtime_context, runtime_context_fingerprint
+from agent.request_identity import build_request_identity
 
 COMMON_WORKSPACE_PANELS = [
     "answer",
@@ -142,6 +143,7 @@ def build_result_contract(
         "type": result_type,
         "title": str(output.get("title") or registry.title_for(result_type)),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
+        "request_identity": build_request_identity(payload),
         "request_facts": payload.get("request_facts") or {"available": False},
         "data": {
             "evidence_steps": evidence_steps,

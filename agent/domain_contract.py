@@ -139,6 +139,25 @@ class DomainPack(Protocol):
     ) -> Mapping[str, Any]:
         """Return domain-owned metadata for capability/workflow selection."""
 
+    def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Normalize one explicit workflow inside the Domain Pack."""
+
+    def validate_workflow_plan(
+        self,
+        plan: Any,
+        workflow: Mapping[str, Any],
+    ) -> None:
+        """Validate a Domain-owned workflow against a generated plan."""
+
+    def resolve_capability_selection(
+        self,
+        capability_id: str,
+        *,
+        request_facts: Any = None,
+        selection: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
+        """Resolve a selected capability into an explicit workflow payload."""
+
     def workflow_template_context(
         self,
         *,

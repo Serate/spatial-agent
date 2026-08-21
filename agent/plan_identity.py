@@ -51,3 +51,32 @@ def build_plan_identity(
         "version": PLAN_IDENTITY_VERSION,
         "fingerprint": "sha256:" + hashlib.sha256(encoded).hexdigest(),
     }
+
+
+def normalize_plan_identity(value: Any) -> dict[str, str] | None:
+    """Keep a stored plan identity bounded at async and recovery seams."""
+
+    if not isinstance(value, Mapping):
+        return None
+    version = value.get("version")
+    fingerprint = value.get("fingerprint")
+    if not isinstance(version, str) or version != PLAN_IDENTITY_VERSION:
+        return None
+    if not isinstance(fingerprint, str) or not fingerprint.startswith("sha256:"):
+        return None
+    digest = fingerprint[7:]
+    # Production identities are full SHA-256 values.  Short deterministic
+    # replay identifiers are also valid at this compatibility seam so old
+    # fixtures and recorded planner evidence can still be compared.
+    if not 1 <= len(digest) <= 120 or any(
+        not (char.isalnum() or char in "_-") for char in digest
+    ):
+        return None
+    return {"version": PLAN_IDENTITY_VERSION, "fingerprint": fingerprint}
+
+
+__all__ = [
+    "PLAN_IDENTITY_VERSION",
+    "build_plan_identity",
+    "normalize_plan_identity",
+]

@@ -35,6 +35,11 @@ class RuleBasedPlanner:
             raise RequestRejected("request contains destructive, unauthorized, or oversized operations")
         if "KNN" in text.upper() or "最近" in text:
             raise ClarificationNeeded("M1 does not support KNN yet; use an explicit range condition")
+        if isinstance(workflow, Mapping) and workflow.get("template_id"):
+            # Explicit selection is a structured user decision.  Compile that
+            # workflow directly instead of routing the natural-language text a
+            # second time and accidentally changing its result contract.
+            return self._composer.compose_workflow(workflow)
         lowered = text.lower()
         if lowered in ("你好", "您好", "嗨", "hello", "hi"):
             return TaskPlan("respond to greeting", [], {"type": "direct_answer", "message": "你好，我是空间智能体。你可以直接询问行政区边界、DEM 高程、坡度、土地利用或建设适宜性演示分析。"})

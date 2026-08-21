@@ -873,6 +873,7 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         session_id=payload.get("session_id"),
         domain_id=payload.get("domain_id", "gis"),
         runtime_context=normalize_runtime_context(payload.get("runtime_context")),
+        spatial_context=payload.get("spatial_context"),
         resolved_request=payload.get("resolved_request"),
         request_facts=payload.get("request_facts"),
         plan=plan,

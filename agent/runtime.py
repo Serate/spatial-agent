@@ -366,13 +366,19 @@ class AgentRuntime:
         decision_version: Optional[int] = None,
         decision_input: Optional[Mapping[str, Any]] = None,
         decision_ttl_seconds: Optional[float] = 1800.0,
+        resolved_request_override: Optional[str] = None,
     ) -> AgentRunResult:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
         if decision_ttl_seconds is not None and decision_ttl_seconds <= 0:
             raise ToolError("decision_ttl_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
-        resolved_request = self._resolve_request(request, session_id)
+        if resolved_request_override is not None:
+            if not isinstance(resolved_request_override, str) or not resolved_request_override.strip():
+                raise ToolError("resolved_request_override must be a non-empty string")
+            resolved_request = resolved_request_override.strip()
+        else:
+            resolved_request = self._resolve_request(request, session_id)
         request_facts = extract_request_facts(self._domain_pack, resolved_request)
         resolved_run_id = run_id or str(uuid.uuid4())
         if decision_id is not None:
@@ -410,6 +416,7 @@ class AgentRuntime:
             # direct-answer plan has no step boundary where cancellation or
             # timeout would otherwise be observed.
             self._check_control(result.run_id, deadline)
+            self._require_workflow_selection(context_packet, workflow)
             plan = self._plan(resolved_request, workflow, context_packet)
             candidate_plan = plan
             # Preserve the candidate for rejected/clarification evidence even
@@ -745,12 +752,18 @@ class AgentRuntime:
         session_id: str = "default",
         timeout_seconds: Optional[float] = None,
         workflow: Optional[Mapping[str, Any]] = None,
+        resolved_request_override: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Plan a request and return a bounded DAG preview without dispatching tools."""
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
-        resolved_request = self._resolve_request(request, session_id)
+        if resolved_request_override is not None:
+            if not isinstance(resolved_request_override, str) or not resolved_request_override.strip():
+                raise ToolError("resolved_request_override must be a non-empty string")
+            resolved_request = resolved_request_override.strip()
+        else:
+            resolved_request = self._resolve_request(request, session_id)
         request_facts = extract_request_facts(self._domain_pack, resolved_request)
         context_packet = self._build_context_packet(
             request, resolved_request, session_id, workflow, request_facts=request_facts
@@ -773,6 +786,7 @@ class AgentRuntime:
         }
         candidate_plan: Optional[TaskPlan] = None
         try:
+            self._require_workflow_selection(context_packet, workflow)
             plan = self._plan(resolved_request, workflow, context_packet)
             candidate_plan = plan
             plan, repair_event = self._validate_or_repair_plan(
@@ -1122,6 +1136,54 @@ class AgentRuntime:
             return request.strip() + "。基于上一轮请求：" + previous.strip()
         return request
 
+    def _require_workflow_selection(
+        self,
+        context_packet: ContextPacket,
+        workflow: Optional[Mapping[str, Any]],
+    ) -> None:
+        """Stop before planning when a Domain declares an ambiguous choice.
+
+        Candidate discovery is descriptive by default. A Domain Pack may
+        explicitly mark the projection as ``ambiguous`` when lexical or
+        policy routing cannot safely choose one capability. The public
+        Runtime owns the lifecycle transition, while the Domain remains the
+        owner of candidate semantics. An explicit workflow is already a
+        user decision and therefore bypasses this gate.
+        """
+        if isinstance(workflow, Mapping) and workflow.get("template_id"):
+            return
+        sections = (context_packet.payload or {}).get("sections", {})
+        selection = normalize_workflow_selection_evidence(
+            sections.get("workflow_selection")
+            if isinstance(sections, Mapping)
+            else None
+        )
+        if selection.get("state") != "ambiguous":
+            return
+        candidates = [
+            str(item)[:96]
+            for item in (selection.get("candidate_ids") or [])
+            if str(item).strip()
+        ][:16]
+        if not candidates:
+            raise ClarificationNeeded(
+                "当前能力选择存在歧义，请补充任务目标。",
+                {
+                    "schema_version": "spatial-agent.clarification.v1",
+                    "state": "ambiguous_capability",
+                    "next_actions": ["补充任务目标或分析对象"],
+                },
+            )
+        raise ClarificationNeeded(
+            "检测到多个候选能力，请选择后继续。",
+            {
+                "schema_version": "spatial-agent.clarification.v1",
+                "state": "ambiguous_capability",
+                "candidate_capabilities": candidates,
+                "next_actions": ["选择一个候选能力", "或补充更明确的任务条件"],
+            },
+        )
+
     def _planner_metrics(self) -> Optional[Dict]:
         metrics = getattr(self._planner, "metrics", None)
         return metrics() if callable(metrics) else None
@@ -1168,7 +1230,13 @@ class AgentRuntime:
         self, plan: TaskPlan, workflow: Optional[Mapping[str, Any]]
     ) -> None:
         if workflow is not None:
-            _validate_runtime_workflow_plan(plan, workflow)
+            workflow_validator = getattr(self._domain_pack, "validate_workflow_plan", None)
+            if callable(workflow_validator):
+                workflow_validator(plan, workflow)
+            else:
+                # Compatibility path for legacy Domain Packs that predate the
+                # Domain-owned workflow validation seam.
+                _validate_runtime_workflow_plan(plan, workflow)
         domain_validator = getattr(self._domain_pack, "validate_plan", None)
         if callable(domain_validator):
             domain_validator(plan)
@@ -1755,6 +1823,27 @@ def _build_plan_evidence(
             if isinstance(signals, list)
             else []
         )
+    # Keep the historical top-level capability projection available when the
+    # compact context builder has omitted the verbose discovery section.  The
+    # values still come from the domain-neutral workflow-selection contract;
+    # this is a compatibility alias, not a second selection implementation.
+    selection_section = sections.get("workflow_selection")
+    if isinstance(selection_section, Mapping):
+        if "selected_capability_id" not in evidence:
+            evidence["selected_capability_id"] = selection_section.get(
+                "selected_capability_id"
+            )
+        if "capability_candidate_ids" not in evidence:
+            candidate_ids = selection_section.get("candidate_ids")
+            evidence["capability_candidate_ids"] = (
+                [str(item) for item in candidate_ids[:8]]
+                if isinstance(candidate_ids, list)
+                else []
+            )
+        if "capability_candidate_count" not in evidence:
+            evidence["capability_candidate_count"] = selection_section.get(
+                "candidate_count"
+            )
     if capability_catalog_available and isinstance(capability_catalog_section, Mapping):
         catalog_capabilities = capability_catalog_section.get("capabilities")
         tool_schemas = capability_catalog_section.get("tool_schemas")

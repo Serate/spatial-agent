@@ -1837,3 +1837,33 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 3. 验证旧 schema、未知 evidence、静态资源、SQLite 多 worker、重复 action 和 CAS 的兼容/恢复边界。
 4. 增加浏览器候选选择、补充事实、确认后完成和恢复空态 smoke；默认 Docker quick/CI 继续精简。
 5. 阶段完成后更新中文文档、运行显式 live/browser 验收并推送版本。
+
+## M166 当前进展（继续中）
+
+- request identity 公共 seam 已实现并接入 result、async、artifact、SQLite recovery 和 Contract Harness；plan identity 增加稳定 fingerprint 漂移比较。
+- 为保证请求语义不在入口切换时变化，`AgentRunResult` 与 artifact 现在保存 spatial context，async 重建使用持久化上下文；该修复已通过真实 Docker production acceptance 的 async/artifact Harness。
+- 修复显式 `spatial_analysis` workflow 被 GIS 自然语言路由重新覆盖的问题；新增显式 workflow 9 步计划回归，避免 `zonal_raster_statistics_result` 与模板契约冲突。
+- Runtime 从 canonical `workflow_selection` 提供 compact context 裁剪后的旧版能力证据兼容别名；M166/相邻 Docker 回归 57 项中 56 项通过、1 项因容器没有 Node 跳过。
+- Docker 证据：M166 专项 5/5；相邻专项 36 项中 35 项通过、1 项因 Node 缺失跳过；quick、stage、compileall、production acceptance 通过。
+- 下一步继续 M166 的纵向验收：补浏览器候选选择/补充事实/确认后完成/恢复空态，验证 Text/GIS 开放式请求和计划修复跨入口一致性，再决定阶段是否收口。
+
+## M166 本轮继续位置
+
+- 已将 Domain 声明的 `ambiguous` 选择统一接入 Runtime：未提供显式 workflow 时在 Planner 前进入 `NEEDS_CLARIFICATION`，结果保留候选能力和 `candidate_selection` allowed actions；用户选择后重新经过 Domain normalizer、Planner、workflow 校验和 ToolRegistry。
+- `AgentService` 不再把所有显式 workflow 交给 GIS normalizer。新增 Domain-owned `normalize_workflow`、`validate_workflow_plan` 和 `resolve_capability_selection` seam；GIS 保留原模板行为，Text 不携带 GIS 模板依赖。
+- 新增 `tests/test_m166_multi_candidate_selection.py`，已在 Docker 验证歧义停止和 `select_capability` 续接完成；M69 旧测试已调整为验证显式模板优先于自然语言路由。
+- 本轮 Docker 验证：新增/相邻 Contract Harness 专项共 97 项通过、Node 缺失跳过 1 项；quick、stage、full-stage、compileall、gis-core、production acceptance 通过。
+- 下一步仍是浏览器真实候选动作、Text/GIS 开放式跨入口 Contract Harness、模型选择不一致/有限 repair 失败回放和显式 live 基线；完成后再更新阶段版本并 push。不要提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M166 已完成，进入 M167 全局重规划
+
+- M166 的开放请求、Domain 歧义选择、`select_capability` 续接、Text/GIS 同步异步核心 Contract、浏览器交互和真实 live-short 已完成验收。
+- 阶段证据：Docker 97 项通过、Node 1 项因容器缺失跳过；quick、stage、full-stage、compileall、gis-core、production acceptance、browser smoke、live-short 2/2 和 repair/failure/evidence 专项均已记录。
+- 当前阶段尚未提交或推送；提交前继续检查 diff、敏感配置和文档一致性。推送后基于七维度进入 M167：候选详情/动作、Domain seam 版本化、数据证据绑定、模型选择回放、SQLite 矩阵和前端真实候选卡片。
+
+## M166 本轮恢复位置
+
+- 已修复交互续接重复使用 pending clarification 的问题。`provide_facts`、`select_workflow` 和 `preview` 续接现在消费 pending 状态，并使用已有 run 的 `resolved_request`，避免 `_resolve_request()` 二次拼接。
+- M166 回归现在覆盖 `provide_facts`、`select_workflow`、多轮原始 request/ resolved request、request/plan identity 传播和直接 workflow 对比；Docker 中 M166 相关 9/9 通过，Contract Harness 真实比较为零差异。
+- Docker quick、stage、compileall、production acceptance 通过；Chrome CDP smoke 已通过确认→完成、补事实→完成、恢复→完成三条动态路径。容器内 Node 测试仍因未安装 Node 跳过，宿主 Node/browser 已补验。
+- 当前仍未提交或推送。下一步从项目全局补 Text/GIS 开放式请求、多候选选择不一致、有限修复失败和跨入口恢复矩阵，再决定 M166 是否收口并推送版本。

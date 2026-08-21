@@ -175,3 +175,25 @@ node scripts\console_selection_interaction_browser_smoke.js
 ~~~
 
 浏览器命令需要先用 `scripts\console_cdp_start.ps1 -Headless` 启动独立 CDP profile；如果容器内没有 Node，专项中的 Node 测试允许跳过，但必须在宿主补跑静态 Node smoke。浏览器 smoke 只断言页面状态、结构化 interaction 和允许动作，不读取或输出原始请求、工具参数、密钥或模型响应。
+
+## M166 request identity 与跨入口恢复专项
+
+涉及请求语义、plan fingerprint、async polling、artifact-only recovery、SQLite 重启或 Contract Harness 时，显式运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m166_request_identity -v
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m165_cross_entry_contract tests.test_m164_selection_interaction tests.test_m163_workflow_selection_lifecycle tests.test_m158_evidence_registry tests.test_m156_execution_timeline tests.test_m155_plan_quality_contract tests.test_m153_action_lifecycle tests.test_m148_contract_harness -v
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile stage
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
+~~~
+
+M166 专项应覆盖 transport 配置不影响 request identity、计划 fingerprint 漂移可报告、同步/async/artifact/restart 共用 identity，以及带 spatial context 的真实 Service 链路。production acceptance 的 async/artifact Harness 失败必须先定位语义字段是否在 SQLite 快照和 artifact 中持久化，不能通过从比较器排除 identity 来掩盖漂移。
+
+M166 选择与开放请求补充专项：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m166_multi_candidate_selection tests.test_m148_contract_harness -v
+~~~
+
+该专项验证 Domain 声明歧义时 Planner 前停止、`select_capability` 经 Domain seam 续接、Text/GIS 同步与异步共享核心 Contract。`async_result_evidence` 是异步入口的可选投影：所有入口都有时严格比较；同步入口没有时只比较公共核心证据，不能把 transport 专属字段当作业务结果漂移。

@@ -65,6 +65,7 @@ class ArtifactStore:
             "session_id": payload.get("session_id"),
             "domain_id": payload.get("domain_id", "gis"),
             "runtime_context": normalize_runtime_context(payload.get("runtime_context")),
+            "spatial_context": payload.get("spatial_context"),
             "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
             "context_evidence": payload.get("context_evidence"),

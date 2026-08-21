@@ -19,6 +19,8 @@ from agent.action_lifecycle import (
     project_action_lifecycle,
 )
 from agent.runtime_context import runtime_context_fingerprint
+from agent.request_identity import normalize_request_identity
+from agent.plan_identity import normalize_plan_identity
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from agent.plan_quality import project_plan_quality_evidence
@@ -222,6 +224,8 @@ def build_async_result_evidence(
         ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
+    request_identity = normalize_request_identity(value.get("request_identity"))
+    plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
     registry = normalize_evidence_registry(value.get("evidence_registry"))
     return {
@@ -231,6 +235,7 @@ def build_async_result_evidence(
         "status": str(status or "UNKNOWN")[:32],
         "lifecycle": lifecycle,
         "result_type": str(value.get("type") or "unknown")[:96],
+        "request_identity": request_identity,
         "degradation_status": degradation_status,
         "workspace": {
             "schema_version": str(workspace.get("schema_version") or "")[:80],
@@ -243,6 +248,7 @@ def build_async_result_evidence(
         },
         "artifact": {"available": bool(ref), "ref": ref},
         "planning": {
+            "plan_identity": plan_identity,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
             "workflow_selection": normalize_workflow_selection_evidence(
                 planning.get("workflow_selection")
@@ -413,6 +419,8 @@ def normalize_async_result_evidence(
     lifecycle = _normalize_lifecycle(value.get("lifecycle"), status)
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
+    request_identity = normalize_request_identity(value.get("request_identity"))
+    plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
     registry = normalize_evidence_registry(value.get("evidence_registry"))
     artifact = value.get("artifact")
@@ -425,6 +433,7 @@ def normalize_async_result_evidence(
         "status": str(value.get("status") or status or "UNKNOWN")[:32],
         "lifecycle": lifecycle,
         "result_type": str(value.get("result_type") or "unknown")[:96],
+        "request_identity": request_identity,
         "degradation_status": str(value.get("degradation_status") or "none")[:32],
         "workspace": {
             "schema_version": str(workspace.get("schema_version") or "")[:80],
@@ -439,6 +448,7 @@ def normalize_async_result_evidence(
         },
         "artifact": {"available": bool(ref), "ref": ref},
         "planning": {
+            "plan_identity": plan_identity,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
             "workflow_selection": normalize_workflow_selection_evidence(
                 planning.get("workflow_selection")

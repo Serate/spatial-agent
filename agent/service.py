@@ -4,7 +4,7 @@ import hashlib
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Mapping, Optional
 
 from agent.artifact_store import ArtifactStore
 from agent.action_contract import ActionContractError
@@ -266,12 +266,17 @@ class AgentService:
         decision_ttl_seconds: float = 1800.0,
         _force_run_id: bool = False,
         _async_requested: bool = False,
+        _resolved_request: str = None,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
-        workflow_context = _normalize_workflow_payload(workflow)
+        if _resolved_request is not None and (
+            not isinstance(_resolved_request, str) or not _resolved_request.strip()
+        ):
+            raise ValueError("_resolved_request must be a non-empty string")
+        workflow_context = self._normalize_workflow_payload(workflow, planner, backend)
         if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
             raise ValueError("run_id must be a non-empty string")
         if preview_fingerprint is not None and (
@@ -328,6 +333,7 @@ class AgentService:
                 export_geojson=export_geojson,
                 geojson_max_features=geojson_max_features,
                 async_requested=_async_requested,
+                resolved_request_override=_resolved_request,
             )
         finally:
             cost.release_concurrency()
@@ -363,22 +369,33 @@ class AgentService:
         timeout_seconds: float = None,
         spatial_context: Dict[str, Any] = None,
         workflow: Dict[str, Any] = None,
+        _resolved_request: str = None,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
-        workflow_context = _normalize_workflow_payload(workflow)
+        if _resolved_request is not None and (
+            not isinstance(_resolved_request, str) or not _resolved_request.strip()
+        ):
+            raise ValueError("_resolved_request must be a non-empty string")
+        workflow_context = self._normalize_workflow_payload(workflow, planner, backend)
         normalized_context = _normalize_spatial_context(spatial_context)
         cost = self._state.cost
         cost.acquire_concurrency()
         try:
             cost.check_budget(session_id)
-            payload = self._runtime(planner, backend).preview(
+            runtime = self._runtime(planner, backend)
+            preview_kwargs = {
+                "session_id": session_id,
+                "timeout_seconds": timeout_seconds,
+                "workflow": workflow_context,
+            }
+            if _resolved_request is not None:
+                preview_kwargs["resolved_request_override"] = _resolved_request
+            payload = runtime.preview(
                 _contextualize_request(request, normalized_context),
-                session_id=session_id,
-                timeout_seconds=timeout_seconds,
-                workflow=workflow_context,
+                **preview_kwargs,
             )
         finally:
             cost.release_concurrency()
@@ -523,13 +540,21 @@ class AgentService:
         export_geojson: bool,
         geojson_max_features: int,
         async_requested: bool = False,
+        resolved_request_override: str = None,
     ) -> Dict:
         runtime = self._runtime(planner, backend)
         if workflow_context is not None:
             runtime_kwargs["workflow"] = workflow_context
-        result = runtime.run(
-            _contextualize_request(request, normalized_context), **runtime_kwargs
-        )
+        contextualized_request = _contextualize_request(request, normalized_context)
+        if resolved_request_override is None:
+            result = runtime.run(contextualized_request, **runtime_kwargs)
+        else:
+            result = runtime.run(
+                contextualized_request,
+                resolved_request_override=resolved_request_override,
+                **runtime_kwargs,
+            )
+        result.spatial_context = dict(normalized_context)
         payload = result.to_dict()
         if async_requested:
             # Internal marker consumed only by ArtifactStore.  It is kept out
@@ -634,7 +659,11 @@ class AgentService:
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
         kwargs = dict(kwargs)
-        kwargs["workflow"] = _normalize_workflow_payload(kwargs.get("workflow"))
+        kwargs["workflow"] = self._normalize_workflow_payload(
+            kwargs.get("workflow"),
+            kwargs.get("planner", "rule"),
+            kwargs.get("backend", "memory"),
+        )
         run_id = kwargs.get("run_id")
         if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
             raise ValueError("run_id must be a non-empty string")
@@ -978,6 +1007,15 @@ class AgentService:
         result_evidence = None
         if result is not None:
             result_payload = result.to_dict()
+            # The runtime result snapshot does not own the request's
+            # transport context.  Reuse the persisted submission payload so
+            # rebuilding the result contract for async polling hashes the
+            # same semantic request as the synchronous/artifact path.
+            submitted_payload = job.get("payload")
+            if isinstance(submitted_payload, dict) and "spatial_context" in submitted_payload:
+                result_payload["spatial_context"] = submitted_payload.get(
+                    "spatial_context"
+                )
             explicit_geometry = result_payload.pop("geometry_evidence", None)
             if explicit_geometry is not None:
                 result_payload["_geometry_evidence"] = explicit_geometry
@@ -1390,6 +1428,27 @@ class AgentService:
             )
 
         workflow_value = data.get("workflow")
+        if action == "select_capability" and not isinstance(workflow_value, dict):
+            capability_id = str(data.get("capability_id") or "").strip()
+            if not capability_id:
+                raise ValueError("interaction capability_id must be a non-empty string")
+            selected_runtime = self._runtime(selected_planner, selected_backend)
+            resolver = getattr(
+                getattr(selected_runtime, "_domain_pack", None),
+                "resolve_capability_selection",
+                None,
+            )
+            if not callable(resolver):
+                raise ValueError("selected capability cannot be converted to a workflow")
+            workflow_value = resolver(
+                capability_id,
+                request_facts=current.get("request_facts"),
+                selection=interaction.get("selection"),
+            )
+            if not isinstance(workflow_value, dict):
+                raise ValueError(
+                    "selected capability has no executable workflow: " + capability_id
+                )
         if action == "provide_facts" and isinstance(workflow_value, dict):
             workflow_value = dict(workflow_value)
             constraints = dict(workflow_value.get("constraints") or {})
@@ -1400,18 +1459,40 @@ class AgentService:
             workflow_value["constraints"] = constraints
         if not isinstance(workflow_value, dict):
             raise ValueError("interaction workflow selection must be an object")
-        workflow_value = _normalize_workflow_payload(workflow_value)
+        workflow_value = self._normalize_workflow_payload(
+            workflow_value, selected_planner, selected_backend
+        )
+        continuation_request = str(
+            current.get("request") or current.get("resolved_request") or ""
+        ).strip()
+        resolved_request_override = str(
+            current.get("resolved_request") or continuation_request
+        ).strip()
+        if not continuation_request:
+            raise ValueError("interaction request context is unavailable")
+        # A selection interaction continues the stored run; it is not a new
+        # conversational turn.  Consume the clarification marker before
+        # entering Runtime so _resolve_request does not append the same
+        # resolved request a second time.  Preserve the stored raw turn and
+        # resolved semantic context separately when the run came from a prior
+        # conversational clarification.
+        if action in {"provide_facts", "select_capability", "select_workflow", "preview"}:
+            continuation_runtime = self._runtime(selected_planner, selected_backend)
+            clear_pending = getattr(continuation_runtime, "clear_session", None)
+            if callable(clear_pending):
+                clear_pending(str(current.get("session_id") or "default"))
         if action == "preview":
             return self.preview(
-                request=str(current.get("request") or ""),
+                request=continuation_request,
                 session_id=str(current.get("session_id") or "default"),
                 planner=selected_planner,
                 backend=selected_backend,
                 workflow=workflow_value,
                 spatial_context=current.get("spatial_context"),
+                _resolved_request=resolved_request_override,
             )
         return self.run(
-            request=str(current.get("request") or ""),
+            request=continuation_request,
             session_id=str(current.get("session_id") or "default"),
             planner=selected_planner,
             backend=selected_backend,
@@ -1420,6 +1501,7 @@ class AgentService:
             export_artifact=bool(data.get("export_artifact", True)),
             export_geojson=bool(data.get("export_geojson", False)),
             geojson_max_features=int(data.get("geojson_max_features", 100)),
+            _resolved_request=resolved_request_override,
         )
 
     def list_runs(self, limit: int = 20) -> Dict:
@@ -2084,6 +2166,33 @@ class AgentService:
         if runtime_domain_id:
             self._resolved_domain_id = str(runtime_domain_id)[:80]
         return runtime
+
+    def _normalize_workflow_payload(
+        self,
+        workflow: Dict[str, Any] | None,
+        planner: str,
+        backend: str,
+    ) -> Dict[str, Any] | None:
+        """Use the selected Domain Pack for explicit workflow normalization.
+
+        The historical GIS normalizer remains only as a compatibility
+        fallback for custom/legacy packs. Built-in Domains own their workflow
+        schema, so HTTP, async and interaction entry points cannot silently
+        import GIS templates for a non-GIS request.
+        """
+        if workflow is None:
+            return None
+        runtime = self._runtime(planner, backend)
+        domain_pack = getattr(runtime, "_domain_pack", None)
+        normalizer = getattr(domain_pack, "normalize_workflow", None)
+        if callable(normalizer):
+            value = normalizer(workflow)
+            if not isinstance(value, dict):
+                value = dict(value) if isinstance(value, Mapping) else None
+            if value is None:
+                raise ValueError("Domain workflow normalizer must return an object")
+            return value
+        return _normalize_workflow_payload(workflow)
 
     def _runtime_context(self, planner: str, backend: str) -> Optional[Dict[str, Any]]:
         runtime = self._runtime(planner, backend)

@@ -62,6 +62,29 @@ class RuleBasedPlanComposer:
         self._clarify_unmatched(facts)
         raise AssertionError("unreachable")
 
+    def compose_workflow(self, workflow: Mapping[str, object]) -> TaskPlan:
+        """Compile an explicit Domain workflow without re-routing its request.
+
+        A user-selected workflow is already a structured capability decision.
+        Re-running the natural-language router after that decision can produce
+        a different result contract, which the generic Runtime must correctly
+        reject.  Keep the template compiler as the single source of truth for
+        the selected DAG, constraints, evidence, and output type.
+        """
+
+        if not isinstance(workflow, Mapping):
+            raise TypeError("workflow must be an object")
+        template_id = workflow.get("template_id")
+        if not isinstance(template_id, str) or not template_id.strip():
+            raise ValueError("workflow.template_id must be a non-empty string")
+        constraints = workflow.get("constraints", {})
+        evidence = workflow.get("evidence")
+        return self._template_plan(
+            template_id.strip(),
+            constraints if isinstance(constraints, Mapping) else {},
+            evidence=evidence if isinstance(evidence, Iterable) and not isinstance(evidence, (str, bytes)) else None,
+        )
+
     @staticmethod
     def _has(text: str, terms: Iterable[str]) -> bool:
         return contains_any(text, terms)

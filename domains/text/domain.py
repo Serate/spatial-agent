@@ -138,6 +138,46 @@ class TextDomainPack:
             "candidate_count": context.get("candidate_count"),
         }
 
+    def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Normalize a text workflow without importing GIS templates."""
+        if not isinstance(workflow, Mapping):
+            raise ValueError("workflow must be an object")
+        template_id = str(workflow.get("template_id") or "").strip()
+        if not template_id:
+            raise ValueError("workflow.template_id must be a non-empty string")
+        constraints = workflow.get("constraints", {})
+        if not isinstance(constraints, Mapping):
+            raise ValueError("workflow.constraints must be an object")
+        evidence = workflow.get("evidence")
+        if evidence is None:
+            evidence = []
+        if not isinstance(evidence, (list, tuple)):
+            raise ValueError("workflow.evidence must be an array")
+        return {
+            "template_id": template_id[:96],
+            "template_version": "1.0.0",
+            "constraints": dict(constraints),
+            "evidence": [str(item)[:96] for item in evidence[:16]],
+        }
+
+    def validate_workflow_plan(self, plan: Any, workflow: Mapping[str, Any]) -> None:
+        """Validate only the public Text workflow shape."""
+        del plan
+        if not isinstance(workflow, Mapping) or not workflow.get("template_id"):
+            raise ValueError("text workflow selection is incomplete")
+
+    def resolve_capability_selection(
+        self,
+        capability_id: str,
+        *,
+        request_facts: Any = None,
+        selection: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
+        del request_facts, selection
+        if str(capability_id or "").strip() != "text_summary":
+            return None
+        return {"template_id": "text_summary", "constraints": {}, "evidence": []}
+
     def workflow_template_context(
         self,
         *,

@@ -168,7 +168,9 @@ def format_result(
     explicit_geometry = payload.pop("geometry_evidence", None)
     if explicit_geometry is not None:
         payload["_geometry_evidence"] = explicit_geometry
-    payload["spatial_context"] = spatial_context
+    if not spatial_context and isinstance(payload.get("spatial_context"), dict):
+        spatial_context = dict(payload["spatial_context"])
+    payload["spatial_context"] = spatial_context or {}
     payload["trace_summary"] = format_trace(result)
     payload["provenance"] = build_provenance(
         payload,

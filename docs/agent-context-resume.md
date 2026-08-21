@@ -1555,3 +1555,32 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - 产品/模型：覆盖多候选、补充事实、开放式无模板、模型选择不一致、有限 repair 失败和动态结果视图；保持通用 renderer。
 - 数据/部署：验证 readiness/coverage/alignment/provenance 的可迁移引用、Text/GIS 隔离、未知 schema/evidence 降级、SQLite 多 worker、重复 action/CAS 和资源路由。
 - 测试：默认 Docker quick/CI 精简，浏览器补候选/事实/确认后完成/恢复空态 smoke，live 只执行显式最小基线，阶段结束后更新文档并推送。
+
+## M166 当前恢复位置
+
+- 已新增 `agent/request_identity.py`，版本为 `spatial-agent.request-identity.v1`；`build_request_identity()` 只哈希 request、resolved_request、workflow、spatial_context，忽略 transport 配置和执行身份。
+- `result_contract.py`、`agent/service_async.py`、`evaluation/contract_harness.py`、`agent/artifact_store.py` 和 `AgentRunResult` 已接入 request identity/plan fingerprint。Spatial context 已进入 SQLite 与 artifact 持久化，解决 async/artifact 跨入口 fingerprint 漂移。
+- 未提交工作树包含 M166 专项 `tests/test_m166_request_identity.py` 及本阶段实现；当前最新远程版本仍为 `0ef1640`，不要把本阶段标记为已推送。
+- Docker 当前容器已用工作树重建并为 healthy。M166 专项 5/5；M165/M164/M163/M158/M156/M155/M153/M148 相邻回归 36 项中 35 项通过、1 项因容器没有 Node 跳过；quick、stage、compileall 和宿主 production acceptance 通过。
+- 修复显式 `spatial_analysis` 选择被 GIS 自动路由覆盖的契约漂移；新增 M166 显式 workflow 9 步计划回归，并从 canonical `workflow_selection` 恢复 compact context 裁剪后的旧版能力证据别名。当前 Docker workflow/selection 相邻回归 57 项中 56 项通过、1 项因容器没有 Node 跳过。
+- 继续前先检查 `git status` 和本段；下一步是浏览器候选/补事实/确认完成/恢复空态与 Text/GIS 开放式跨入口验收，阶段结束前不提交私有配置、API key、原始 live 输出或 GIS 数据。
+
+## M166 本轮恢复位置
+
+- `AgentService.apply_run_interaction()` 已修复 pending clarification 的重复消费：selection/facts/preview 续接会清理当前 session pending，并以保存的 `resolved_request` 重新进入 Runtime；确认、拒绝、恢复和取消路径不改变。
+- 新增 M166 交互身份回归，`provide_facts`、`select_workflow` 和多轮原始 request/resolved request 以及直接 workflow 基线在统一 artifact 配置下 Contract Harness 零差异；Docker M166 相关 9/9 通过。
+- 当前 Docker 镜像 healthy；quick、stage、compileall、production acceptance 通过；Chrome CDP 已验证确认→完成、补事实→完成、恢复→完成。容器 Python 测试因没有 Node 跳过 1 项，宿主 Node/browser 已补验。
+- 本轮未提交或推送。继续时优先做 Text/GIS 开放式请求、多候选/模型选择不一致、有限 repair 失败和跨入口恢复验收；完成 M166 全局收口后再更新版本并推送。
+
+## 当前 M166 最新恢复点
+
+- 公共 Runtime 已实现 Domain-owned `ambiguous` 选择门控，避免候选列表被静默当作第一项执行；结构化结果进入 `candidate_selection`，显式 workflow 或 `select_capability` 选择后才继续执行。
+- workflow 规范化、workflow plan 校验和 capability → workflow 解析均通过 Domain Pack seam；GIS 专用模板逻辑留在 GIS Domain，Text Domain 不依赖 GIS 模板。
+- Docker 当前镜像 healthy。M166/相邻交互专项通过；跨 Domain/工作流与 Contract Harness 回归 97 项通过、Node 测试 1 项跳过；quick、stage、full-stage、compileall、gis-core 和 production acceptance 通过。
+- 新增测试为 `tests/test_m166_multi_candidate_selection.py`。工作树仍有未提交 M166 修改，远程最新版本仍为 `0ef1640`。阶段收口前必须完成 browser/live/开放式跨入口显式证据，再提交和推送。
+
+## M166 阶段完成前的最终状态
+
+- Text/GIS 开放式同步与异步核心 Contract、Domain 歧义选择、`select_capability`、浏览器 facts/recovery/confirmation 和真实 live-short 已完成显式验收。
+- Docker 当前工作树 healthy；97 项跨 Domain/Contract Harness 回归通过，Node 缺失 1 项跳过；quick、stage、full-stage、compileall、gis-core、production acceptance 和 live-short 2/2 通过。
+- M166 已满足阶段验收，待敏感配置检查后提交/推送；远程当前仍为 `0ef1640`。推送后进入 M167，全局重点是候选详情与动作、Domain seam 版本化、数据证据绑定、模型选择回放、SQLite 恢复和真实前端候选交互。

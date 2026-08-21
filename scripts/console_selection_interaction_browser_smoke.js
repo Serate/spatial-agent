@@ -1,6 +1,6 @@
 /*
- * M165 browser smoke: the Console renders the domain-neutral selection
- * interaction projection for a real HTTP run that waits for confirmation.
+ * M165/M166 browser smoke: the Console renders the domain-neutral selection
+ * interaction projection and completes a real confirmation action.
  * Requires Chrome started with scripts/console_cdp_start.ps1.
  */
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -11,6 +11,7 @@ const page = pages.find(item => item.type === "page");
 if (!page) throw new Error("Chrome CDP page was not found");
 
 const socket = new WebSocket(page.webSocketDebuggerUrl);
+process.on('exit', () => { try { socket.close(); } catch {} });
 let nextId = 0;
 const pending = new Map();
 socket.onmessage = event => {
@@ -46,8 +47,16 @@ for (let attempt = 0; attempt < 60; attempt++) {
 
 const result = await command("Runtime.evaluate", {
   expression: `(async()=>{
+    const sessionId='m166-selection-browser-'+Date.now();
+    const sessionOption=document.createElement('option');
+    sessionOption.value=sessionId;
+    sessionOption.textContent='M166选择验收';
+    $('session').append(sessionOption);
+    $('session').value=sessionId;
     $('planner').value='rule';
     $('backend').value='memory';
+    $('workflow').value='';
+    $('workflow').dispatchEvent(new Event('change',{bubbles:true}));
     $('requireConfirmation').checked=true;
     await sendChat('查询DEM栅格元数据');
     const history=await (await fetch('/runs?limit=5')).json();
@@ -56,11 +65,30 @@ const result = await command("Runtime.evaluate", {
       ? await (await fetch('/runs/'+encodeURIComponent(latest.run_id)+'?planner=rule&backend=memory')).json()
       : {};
     const normalizedDetail=normalizeSelectionInteraction(detail);
+    const initialState=document.querySelector('[data-selection-state]')?.getAttribute('data-selection-state')||'';
+    const initialCard=document.querySelector('.selection-interaction-card')?.textContent||'';
+    const initialActions=[...document.querySelectorAll('[data-selection-action]')].map(item=>item.getAttribute('data-selection-action'));
+    const confirm=document.querySelector('[data-selection-action="confirm"]');
+    if(!confirm) throw new Error('confirm 动作未渲染');
+    confirm.click();
+    let finalState='';
+    let finalStatus='';
+    for(let attempt=0;attempt<80;attempt++){
+      finalState=document.querySelector('[data-selection-state]')?.getAttribute('data-selection-state')||'';
+      finalStatus=$('status')?.textContent||'';
+      if(finalState==='completed') break;
+      await new Promise(resolve=>setTimeout(resolve,250));
+    }
     const snapshot={
       status:$('status')?.textContent||'',
       state:document.querySelector('[data-selection-state]')?.getAttribute('data-selection-state')||'',
       card:document.querySelector('.selection-interaction-card')?.textContent||'',
       actions:[...document.querySelectorAll('[data-selection-action]')].map(item=>item.getAttribute('data-selection-action')),
+      initialState,
+      initialCard,
+      initialActions,
+      finalState,
+      finalStatus,
       detailStatus:detail.status||'',
       detailState:detail.result?.selection_interaction?.state||'',
       detailSchema:detail.result?.selection_interaction?.schema_version||'',
@@ -78,13 +106,13 @@ if (result.result.exceptionDetails) {
 }
 const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
-if (snapshot.status !== "等待确认" || snapshot.state !== "confirmation_required") {
+if (snapshot.initialState !== "confirmation_required" || snapshot.finalState !== "completed") {
   throw new Error(`selection interaction was not rendered: ${JSON.stringify(snapshot)}`);
 }
-if (!snapshot.actions.includes("confirm") || !snapshot.actions.includes("reject")) {
+if (!snapshot.initialActions.includes("confirm") || !snapshot.initialActions.includes("reject")) {
   throw new Error(`confirmation actions are missing: ${JSON.stringify(snapshot)}`);
 }
-if (!snapshot.card.includes("下一步交互")) {
+if (!snapshot.initialCard.includes("下一步交互")) {
   throw new Error("selection interaction card is missing");
 }
 socket.close();

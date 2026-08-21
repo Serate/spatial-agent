@@ -71,8 +71,11 @@ def build_workflow_selection_evidence(
     if source not in WORKFLOW_SELECTION_SOURCES:
         source = "none"
     missing = _normalize_missing(selected.get("missing_fields"))
+    declared_state = _text(selected.get("state"))
     if state not in WORKFLOW_SELECTION_STATES:
-        if missing:
+        if declared_state in WORKFLOW_SELECTION_STATES and not template_id:
+            state = declared_state
+        elif missing:
             state = "clarification"
         elif template_id or selected_capability:
             state = "selected"
