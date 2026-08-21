@@ -1398,3 +1398,15 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - result、artifact、async evidence 和 Console 共用 `spatial-agent.action-lifecycle.v1`，支持 planning、executing、awaiting_confirmation、clarification_required、repairable、recoverable、completed、rejected、cancelled、failed 状态及 allowlist 动作。
 - M153 专项 4 项、M151 11 项、M149/M150 相邻契约 16 项、quick、compact discovery、Python 编译、Node 语法和 diff check 已通过；当前版本 Docker production acceptance 已通过。
 - live-short 已实际调用真实模型和武汉 GIS，但两个案例因模型重复步骤触发 `tool_gate` 失败；动态 Chrome/CDP 尚未验收。下一阶段修复通用 Planner/Workflow repair seam，并保持默认 active suite 精简。
+
+## M154 当前实现与验证状态
+
+- `agent/plan_quality.py` 提供无 I/O、领域无关的 workflow blueprint 质量诊断，检查步骤数量、顺序、id、tool、参数键和依赖；不静默修改模型计划。
+- `PlanRepairEngine` 与 Runtime execution replan 共用 bounded `workflow_repair` context，并对 replacement/merged plan 执行严格质量检查；ToolRegistry、DAG 和数据门控保持不放宽。
+- `LLMPlanner` 在 `range_query` canonical boundary 归一化模型常见的 `op` 和符号比较符；未知/冲突参数仍会被 schema/Registry 拒绝。
+- Docker 当前版本 healthy；容器专项 30 项、`ci`、`stage`、production acceptance 通过；容器内真实模型 + GIS `live-short` 2/2 通过。真实证据使用 `/app/config/datasets.container.example.json` 和当前重建镜像，未把宿主 Python 3.14 缺少 Rasterio 的结果混入阶段结论。
+- 工作树尚未提交 M154；下一步是执行文档/敏感信息/diff 检查、提交并推送阶段版本。动态 Chrome/CDP 仍未验证。
+
+## M155 下一阶段规划参考
+
+从整体 Agent Runtime 推进 plan-quality/repair lineage 的跨入口证据投影：覆盖 rule、offline replay、live、同步、异步、artifact/recovery、HTTP 和 Console，同时验证开放式、无唯一 blueprint 的请求不会被模板约束误伤。默认 active suite 不扩大，真实环境继续显式验收，最大并发度保持 5，公共契约由主线统一集成。

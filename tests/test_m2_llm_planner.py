@@ -180,6 +180,59 @@ class M2LLMPlannerTests(unittest.TestCase):
         self.assertNotIn("field", plan.steps[0].args)
         self.assertNotIn("value", plan.steps[0].args)
 
+    def test_llm_planner_normalizes_range_condition_operator_alias(self):
+        client = FakeLLMClient(
+            {
+                "goal": "query admin boundary",
+                "steps": [
+                    {
+                        "id": "admin-range",
+                        "tool": "range_query",
+                        "args": {
+                            "dataset": "admin_areas",
+                            "conditions": [
+                                {"field": "name", "op": "eq", "value": "洪山区"}
+                            ],
+                            "limit": 100,
+                        },
+                    }
+                ],
+                "output": {"type": "geojson"},
+            }
+        )
+
+        plan = LLMPlanner(client, tool_names()).plan("查询洪山区行政区边界")
+
+        self.assertEqual(
+            plan.steps[0].args["conditions"],
+            [{"field": "name", "operator": "eq", "value": "洪山区"}],
+        )
+
+    def test_llm_planner_normalizes_symbolic_range_operator(self):
+        client = FakeLLMClient(
+            {
+                "goal": "query admin boundary",
+                "steps": [
+                    {
+                        "id": "admin-range",
+                        "tool": "range_query",
+                        "args": {
+                            "dataset": "admin_areas",
+                            "conditions": [
+                                {"field": "name", "operator": "=", "value": "洪山区"}
+                            ],
+                            "limit": 100,
+                        },
+                    }
+                ],
+                "output": {"type": "geojson"},
+            }
+        )
+
+        plan = LLMPlanner(client, tool_names()).plan("查询洪山区行政区边界")
+
+        self.assertEqual(plan.steps[0].args["conditions"][0]["operator"], "eq")
+
     def test_result_reference_requires_dependency(self):
         with self.assertRaises(PlanningError):
             parse_task_plan(

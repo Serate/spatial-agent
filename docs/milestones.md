@@ -3094,3 +3094,17 @@ M152 将 M151 的确认状态推进到可恢复边界：run artifact 保存有�
 ## M154 全局规划参考
 
 在 M153 生命周期投影稳定后，从项目整体推进“动作可执行、证据可比较”：把 lifecycle 纳入 Contract Harness、artifact-only recovery 和 HTTP/异步重复提交矩阵，再验证 Console 动作按钮是否严格由 `allowed_actions` 驱动。保持默认 active suite 精简，Text/GIS 双 Domain、Docker、live 和浏览器作为显式阶段验收。
+
+## M154：通用 Workflow-aware Planner Repair（已完成）
+
+M154 将 M153 暴露的真实模型重复步骤问题收敛为通用 Planner/Workflow seam，不放宽 ToolRegistry、TaskPlan schema 或 DAG 门控，也不增加洪山区专用分支。
+
+- 新增 `agent/plan_quality.py`，对唯一匹配的 workflow blueprint 进行有界诊断，检查步骤数量、顺序、id、tool、参数键和依赖；诊断只产生 issue code，不静默删除或去重模型步骤。
+- 规划阶段 `PlanRepairEngine` 和执行阶段 adaptive replan 均收到同一份 bounded blueprint context；replacement/merged plan 必须再次通过 blueprint quality 校验后才能继续执行。
+- LLM Planner 在 `range_query` 参数边界对模型常见的 `op`、`=` 等无歧义比较符做有限 canonical normalization；最终参数仍由 ToolRegistry 严格校验，冲突或未知值不会被猜测放行。
+- 验证：容器内 M154、M141、M150 和 M2 相关专项 30 项通过；Docker `ci`、`stage`、production acceptance 通过；容器内真实模型 + 真实 GIS `live-short` 2/2 通过，两个案例均为 `COMPLETED`、错误分类 `none`。容器 runtime/data health ready，生产同步的 warning/degraded 状态按契约保留。
+- 宿主 Python 3.14 缺少 Rasterio 的失败已与代码证据区分；最终 live 证据使用重建后的 Docker GIS 环境。动态 Chrome/CDP 仍未作为本阶段通过证据。
+
+## M155 全局规划参考
+
+M154 已让模型计划在 workflow repair 后可执行，下一阶段从项目整体推进“计划质量证据跨入口一致”：将 plan-quality/repair lineage 统一投影到 replay、live、同步、异步、artifact/recovery、HTTP 和 Console，并验证开放式非模板能力仍保持可组合而不是被模板硬编码。继续保持默认 active suite 精简，真实模型、真实 GIS、Docker 和浏览器使用显式验收；不新增单区域专用规则。

@@ -3802,3 +3802,31 @@ M153 新增无 I/O、无领域依赖的 `agent/action_lifecycle.py`。`project_a
 ### 处理与预防
 
 M153 保持 ToolRegistry、workflow 和 DAG 门控不放宽，并将失败作为脱敏 `tool_gate`/repair evidence 保存；默认 CI 不引入 live 网络。后续阶段应从通用 Planner/Workflow seam 处理：给 repair 输入增加模板 blueprint 的有界结构摘要，分别验证重复工具、步骤数量、依赖和结果引用，并让 replay/live 使用同一计划质量契约。不能针对“空间总览”或“建设筛选”增加一次性去重分支，也不能静默删除模型步骤后继续执行。
+
+## M154：宿主 Python 与 GIS conda/Docker 环境不一致会伪造 live 失败
+
+### 现象
+
+使用宿主 Python 3.14 运行 `live-short --live-backend local` 时，真实模型请求可以成功，计划也通过 blueprint 校验，但所有 GIS 数据健康状态显示 `unavailable`，错误包括 `rasterio is required`，工具随后被 `tool_gate` 拒绝。换到 `spatial-agent-gis` conda 环境后，建设筛选案例可以完成；最终重建 Docker GIS 环境后两个 live-short 案例均通过。
+
+### 根因
+
+宿主解释器与 GIS 依赖环境不是同一个运行时。`rasterio`、GDAL/PROJ 和 GeoPandas 不属于普通 Python 环境；模型、Runtime 和 ToolRegistry 的可用并不代表真实 GIS provider 已具备像元和矢量读取能力。
+
+### 处理与预防
+
+真实 GIS/live 验收必须使用 `spatial-agent-gis` 或包含 GIS 依赖的 Docker 镜像，并显式设置 `SPATIAL_AGENT_DATASET_CONFIG`。生产阶段优先使用 `docker compose --env-file .env.production -f docker-compose.prod.yml build`、`up -d --force-recreate` 和 production acceptance；先记录解释器/镜像、provider、数据配置和健康状态，再判断业务失败。以后不能用宿主 Python 缺少 Rasterio 的结果否定 Planner 或 GIS 代码，也不能用旧容器结果替代当前镜像证据。
+
+## M154：真实模型会使用 schema 外的比较符别名
+
+### 现象
+
+在 Docker GIS live 中，模型生成的 `range_query` 计划结构、工具、依赖和结果类型都正确，但条件中的标准字段 `operator` 被输出为 `op`，或值被输出为符号 `=`。ToolRegistry 按正式 schema 拒绝该参数，错误分类为 `tool_validation`。
+
+### 根因
+
+结构化输出约束保证了大体 JSON 形状，但不同 OpenAI 兼容 provider 对嵌套条件字段的遵循程度不一致；模型理解了“等于”语义，却没有稳定使用项目定义的枚举词汇。放宽 Registry 或静默删字段会破坏执行边界。
+
+### 处理与预防
+
+M154 在 LLM Planner 边界增加有限 canonical normalization：仅对 `range_query` 的无歧义 `op` 别名和 `=、==、!=、>、>=、<、<=` 做标准化，未知值和冲突字段继续交给 schema/ToolRegistry 拒绝。补充离线别名回归和 Docker live 验收；以后类似兼容处理必须位于 Planner adapter、映射范围有 allowlist，且最终仍经过统一 schema/Registry，不能在 Runtime 或具体 GIS 工具中偷偷修正。

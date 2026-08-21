@@ -1653,3 +1653,14 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - result envelope、run artifact、async result evidence 和 Console 已接入同一 lifecycle 字段；旧 async evidence 缺少字段时生成安全 fallback。
 - M153 专项 4 项、M151 决策 11 项、M149/M150 相邻契约 16 项、quick、compact discovery、Python 编译和 Node 语法检查通过；Docker production acceptance 已通过。
 - live-short 已实际调用真实模型和武汉 GIS，但两个案例因模型重复步骤触发 `tool_gate` 失败，详见中文问题文档；动态浏览器尚未验收。下一阶段修复通用 Planner/Workflow repair seam，默认 active suite 不扩大。
+
+## M154 当前完成状态
+
+- 新增 `agent/plan_quality.py`，对唯一 workflow blueprint 进行有界步骤质量诊断；规划 repair 和执行 replan 共用 blueprint context，合并计划不满足 blueprint 时拒绝继续，不静默去重。
+- LLM Planner 增加 `range_query` 条件比较符的有限 canonical normalization，保留 ToolRegistry/schema 作为最终边界。
+- 容器内专项 30 项、Docker `ci`、`stage`、production acceptance 均通过；Docker 内真实模型 + 真实 GIS `live-short` 2/2 通过，token 总量约 11849，未发生 provider retry。
+- M153 的重复步骤问题已闭合；宿主 Python 缺少 Rasterio 的失败被确认是环境选择错误，不能替代 Docker GIS 证据。动态 Chrome/CDP 尚未验收。
+
+## 下一阶段 M155 规划参考
+
+从全局推进计划质量证据跨入口一致性：统一 replay/live、同步/异步、artifact/recovery、HTTP 和 Console 对 plan-quality、repair lineage、拒绝原因和最终状态的投影；同时验证无唯一 workflow blueprint 的开放式能力不会被误套模板。阶段默认门禁保持精简，Docker/GIS/live/browser 使用显式 profile。

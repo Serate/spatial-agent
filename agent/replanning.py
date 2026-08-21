@@ -112,6 +112,7 @@ class ReplanningPolicy:
         remaining_tools: List[str],
         output_type: Optional[str],
         validation_error: Optional[str] = None,
+        plan_quality: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Bounded feedback the planner uses to revise the remaining plan."""
         payload = {
@@ -127,7 +128,53 @@ class ReplanningPolicy:
             # useful repair, but this text is feedback only and never enters
             # persisted replan evidence.
             payload["validation_error"] = str(validation_error)[:240]
+        if isinstance(plan_quality, Mapping):
+            payload["plan_quality"] = _bound_plan_quality(plan_quality)
         return payload
+
+
+def _bound_plan_quality(value: Mapping[str, Any]) -> Dict[str, Any]:
+    """Keep workflow repair feedback structural and credential-free."""
+    result: Dict[str, Any] = {}
+    for key in (
+        "schema_version",
+        "available",
+        "passed",
+        "reason_code",
+        "template_id",
+        "result_type",
+        "expected_step_count",
+        "actual_step_count",
+    ):
+        if key in value:
+            result[key] = value[key]
+    for key in ("expected_steps", "actual_steps", "issues", "candidate_template_ids"):
+        item = value.get(key)
+        if isinstance(item, list):
+            result[key] = [
+                _bound_plan_quality_item(entry)
+                for entry in item[:16]
+                if isinstance(entry, Mapping)
+            ]
+    return result
+
+
+def _bound_plan_quality_item(value: Mapping[str, Any]) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    for key in ("code", "index", "id", "tool", "arg_keys", "depends_on", "expected", "actual"):
+        if key not in value:
+            continue
+        item = value[key]
+        if isinstance(item, list):
+            result[key] = [str(entry)[:96] for entry in item[:16]]
+        elif isinstance(item, Mapping):
+            result[key] = {
+                str(name)[:64]: str(entry)[:96]
+                for name, entry in list(item.items())[:16]
+            }
+        else:
+            result[key] = item if isinstance(item, (bool, int, float)) else str(item)[:96]
+    return result
 
 
 def merge_replanned_plan(

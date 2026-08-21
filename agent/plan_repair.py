@@ -15,6 +15,7 @@ from time import perf_counter
 from typing import Any, Callable, Mapping, Optional, Protocol
 
 from .models import TaskPlan
+from .plan_quality import diagnose_plan, repair_context
 from .replanning import ReplanningPolicy, build_replan_event, failure_category
 
 
@@ -93,6 +94,7 @@ class PlanRepairEngine:
             "args": {},
             "error_category": failure_category(request.validation_error),
         }
+        plan_quality = diagnose_plan(request.candidate, request.capability_context)
         feedback = self._policy.feedback_payload(
             request=request.request,
             completed_steps=[],
@@ -100,11 +102,17 @@ class PlanRepairEngine:
             remaining_tools=list(self._available_tools())[:128],
             output_type=(request.candidate.output or {}).get("type"),
             validation_error=request.validation_error,
+            plan_quality=plan_quality,
         )
         started = perf_counter()
         try:
             replacement = self._call_planner(request, feedback)
             self._validate_plan(replacement, request.workflow)
+            replacement_quality = diagnose_plan(replacement, request.capability_context)
+            if replacement_quality.get("available") and not replacement_quality.get("passed"):
+                return PlanRepairOutcome(
+                    None, None, "failed", "replacement_workflow_invalid"
+                )
         except Exception:
             return PlanRepairOutcome(None, None, "failed", "replacement_invalid")
 
@@ -141,6 +149,9 @@ class PlanRepairEngine:
             context = {
                 "stage": "replan",
                 "feedback": dict(feedback),
+                "workflow_repair": repair_context(
+                    feedback.get("plan_quality")
+                ),
                 "capability_context": _bounded_capability_context(
                     request.capability_context
                 ),

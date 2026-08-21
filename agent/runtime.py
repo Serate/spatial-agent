@@ -40,6 +40,7 @@ from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .plan_repair import PlanRepairEngine, PlanRepairInput
 from .observability import ObservabilityEmitter
 from .plan_identity import build_plan_identity
+from .plan_quality import diagnose_plan, repair_context
 from .planner import Planner
 from .replanning import (
     ReplanningPolicy,
@@ -1205,6 +1206,10 @@ class AgentRuntime:
             failed_step=failed_payload,
             remaining_tools=self._registry.names,
             output_type=(result.plan.output or {}).get("type"),
+            plan_quality=diagnose_plan(
+                result.plan,
+                workflow_context(self._domain_pack),
+            ),
         )
         started = perf_counter()
         try:
@@ -1221,6 +1226,12 @@ class AgentRuntime:
             # depend on original steps that survive in the merged plan, which
             # a standalone validation of the replacement would reject.
             self._validate_plan(merged)
+            merged_quality = diagnose_plan(
+                merged,
+                workflow_context(self._domain_pack),
+            )
+            if merged_quality.get("available") and not merged_quality.get("passed"):
+                raise ToolError("replanned workflow blueprint mismatch")
             # Rebuild step runs to match the merged plan: keep runs for steps
             # that still exist (completed ones keep their results, the failed
             # step keeps its FAILED state), create fresh runs for new steps.
@@ -1747,6 +1758,7 @@ def _replan_context(feedback: Mapping[str, Any]) -> Dict[str, Any]:
     """Wrap replan feedback in the same trusted-context shape planners expect."""
     return {
         "feedback": feedback,
+        "workflow_repair": repair_context(feedback.get("plan_quality")),
         "note": "Adaptive replan: revise only the remaining steps needed to finish the request.",
     }
 

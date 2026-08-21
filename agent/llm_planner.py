@@ -486,6 +486,27 @@ def _normalize_step_arguments(step: Mapping[str, Any]) -> Mapping[str, Any]:
     if step.get("tool") != "range_query" or not isinstance(step.get("args"), dict):
         return step
     args = dict(step["args"])
+    # Some OpenAI-compatible models abbreviate the canonical schema key to
+    # ``op`` even when the surrounding condition shape is correct.  Normalize
+    # that unambiguous alias at the planner boundary; ToolRegistry still
+    # validates the resulting canonical arguments and conflicting aliases are
+    # deliberately left invalid rather than guessed.
+    if "operator" not in args and "op" in args:
+        args["operator"] = args.pop("op")
+    conditions = args.get("conditions")
+    if isinstance(conditions, list):
+        normalized_conditions = []
+        for condition in conditions:
+            if isinstance(condition, Mapping):
+                condition = dict(condition)
+                if "operator" not in condition and "op" in condition:
+                    condition["operator"] = condition.pop("op")
+                if "operator" in condition:
+                    condition["operator"] = _normalize_range_operator(
+                        condition["operator"]
+                    )
+            normalized_conditions.append(condition)
+        args["conditions"] = normalized_conditions
     if "conditions" not in args and "field" in args and "value" in args:
         field = args.pop("field")
         value = args.pop("value")
@@ -496,3 +517,17 @@ def _normalize_step_arguments(step: Mapping[str, Any]) -> Mapping[str, Any]:
     normalized = dict(step)
     normalized["args"] = args
     return normalized
+
+
+def _normalize_range_operator(value: Any) -> Any:
+    """Map common symbolic comparison operators to the tool vocabulary."""
+    aliases = {
+        "=": "eq",
+        "==": "eq",
+        "!=": "neq",
+        ">": "gt",
+        ">=": "gte",
+        "<": "lt",
+        "<=": "lte",
+    }
+    return aliases.get(value, value)
