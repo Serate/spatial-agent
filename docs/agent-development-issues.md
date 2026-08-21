@@ -4308,3 +4308,31 @@ M60/M61/M67 的业务断言全部通过，但 Docker stderr 出现 `ResourceWarn
 ### 处理与预防
 
 为临时 Service 注册 `self.addCleanup(service.close)`，并将手动 executor shutdown 改为公开 close；阶段回归增加 `python -W error::ResourceWarning` 的 Docker 运行，确保生命周期错误直接失败。以后测试中的 Service、HTTP server、SQLite store 和 emitter 必须明确所有权和 finally/cleanup 路径，不能只验证业务状态。
+
+## M172：catalog matcher 接入后复杂 context 裁剪掉关键能力证据
+
+### 现象
+
+能力目录增加请求提示和候选详情后，复杂空间请求的业务计划仍能执行，但 `context_evidence` 将 `capability_discovery`、`capability_catalog` 或 workflow template 标记为 omitted；HTTP/artifact 契约因此缺少能力目录或精确模板证据。
+
+### 根因
+
+`ContextBuilder` 只按整体字符数淘汰 section。workflow templates、selection candidate details、工具 schema、memory 同时存在时，旧的淘汰顺序会先丢掉能力发现/目录，且没有区分“规划时的 compact context”和“结果中需要保留的结构化证据”。
+
+### 处理与预防
+
+Runtime 增加领域无关的 selected selection/template compact projection：保留完整 candidate IDs/count，只保留选中详情和选中模板；context budget 在不足时优先淘汰可选 memory、workflow 模板冗余和低优先级工具信息，保留 discovery/catalog/selection 证据。新增 M172 HTTP/artifact 回归验证动态 catalog fallback 的 `raster_metadata_result`、plan identity 和 artifact contract 一致。以后新增 evidence 字段时，必须同时验证 context budget 充分、planner 可见字段和持久化结果字段，不能只在未超预算的短请求上断言。
+
+## M172：HTTP 契约测试直接发送中文字符串导致伪装成服务失败
+
+### 现象
+
+新增动态发现 HTTP 测试第一次执行时，服务尚未收到请求，`http.client` 在发送包含中文的 JSON 字符串时抛出 `UnicodeEncodeError`；容易误判为 HTTP 入口或 Agent Runtime 失败。
+
+### 根因
+
+`HTTPConnection.request()` 对字符串 body 默认按 Latin-1 编码。测试请求声明了 JSON content type，但没有先将 `ensure_ascii=False` 的 JSON 文本编码为 UTF-8 bytes。
+
+### 处理与预防
+
+测试改为显式 `json.dumps(..., ensure_ascii=False).encode("utf-8")`，并继续通过服务真实 HTTP 入口验证响应。以后 HTTP/PowerShell/浏览器验收遇到中文请求失败时，先区分请求体编码、网络传输和服务业务错误；契约测试必须显式指定 UTF-8 bytes，不能依赖客户端默认编码。

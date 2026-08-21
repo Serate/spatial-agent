@@ -45,9 +45,20 @@ class RuleBasedPlanner:
             return TaskPlan("respond to greeting", [], {"type": "direct_answer", "message": "你好，我是空间智能体。你可以直接询问行政区边界、DEM 高程、坡度、土地利用或建设适宜性演示分析。"})
         if any(term in text for term in ("你能做什么", "帮助", "能力范围", "你是谁")):
             return TaskPlan("explain spatial agent capabilities", [], {"type": "direct_answer", "message": "我是空间智能体，可以查询行政区边界，分析 DEM 高程和坡度，统计土地利用，并进行建设适宜性演示筛选。需要真实栅格分析时，请选择本地 GIS 后端。"})
-        return self._composer.compose(
-            PlanningFacts(text, self._facts_from_context(text, context, workflow))
+        facts = self._facts_from_context(text, context, workflow)
+        sections = context.get("sections") if isinstance(context, Mapping) else None
+        discovery = sections.get("capability_discovery") if isinstance(sections, Mapping) else None
+        selected = (
+            discovery.get("selected_capability_id")
+            if isinstance(discovery, Mapping)
+            and discovery.get("selection_state", "selected") == "selected"
+            else None
         )
+        if selected:
+            return self._composer.compose_capability(
+                str(selected), PlanningFacts(text, facts)
+            )
+        return self._composer.compose(PlanningFacts(text, facts))
 
     @staticmethod
     def _facts_from_context(

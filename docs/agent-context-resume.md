@@ -1636,3 +1636,11 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 5. **部署可靠性**：继续验证 SQLite 多 worker、异步重启接管、artifact-only recovery、跨 Domain 过滤和服务生命周期。
 6. **用户体验**：验证动态 workspace、空态、澄清、确认、恢复和历史加载不会互相阻塞，前端继续只消费结构化结果。
 7. **测试证据**：默认 Docker quick/CI 保持极简；阶段末使用最小 Contract Harness、Docker、browser 和必要 live 验收，并更新全局文档后推送版本。
+
+## M172 当前实现与验证状态
+
+- `agent/capability_discovery.py` 提供基于 Domain catalog hints 的通用 matcher；候选只有明确 phrase 或至少两个独立事实维度才进入候选集，required entity 缺失时不会误选，phrase 命中优先于宽泛 dataset overlap。
+- `domains/gis/domain.py` 保留旧 GIS router 结果，未命中时调用 catalog matcher；`domains/text/domain.py` 通过同一 matcher。GIS Rule Planner 的 `compose_capability()` 只作为 Domain 内部 builder seam，公共 Runtime、Result 和 ToolRegistry 不读取 GIS ID。
+- Runtime context 对 selected selection/template 做 bounded projection，保留候选 ID/count 和选中详情；可选 memory 与过量工具 schema在预算不足时优先裁剪。该修复恢复了复杂请求的 capability discovery/catalog/template evidence。
+- Docker 证据：M172 专项 5/5；M15/M112/M113/M166/M167/M171 受影响回归 42 项通过（真实 Windows GIS 数据 8 项跳过）；quick、stage、compileall、production acceptance 通过；Chrome/CDP 真实 Console preview → confirmation → completed 通过。
+- M172 尚未新增 live token 消耗；阶段提交前必须检查 `git diff --check`、敏感信息、私有配置和原始输出。推送后从 M173 的脱敏模型 replay、最小 live-short 和跨入口 model-selection evidence 继续全局规划。

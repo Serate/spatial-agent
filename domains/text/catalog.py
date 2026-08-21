@@ -20,6 +20,11 @@ TEXT_CAPABILITIES = (
         "result_types": ["text_summary_result"],
         "environments": ["memory"],
         "geometry": "none",
+        "request_hints": {
+            "phrases": ["摘要", "总结", "概括", "summarize", "summary"],
+            "tasks": ["summarize"],
+            "datasets": ["documents"],
+        },
     },
 )
 

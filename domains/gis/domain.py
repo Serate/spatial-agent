@@ -177,7 +177,19 @@ class GisDomainPack:
     def discover(self, request: str, request_facts: Any) -> Any:
         from .routing import GisCapabilityRouter
 
-        return GisCapabilityRouter().discover(request, request_facts)
+        legacy = GisCapabilityRouter().discover(request, request_facts)
+        if legacy.candidates:
+            return legacy
+        from agent.capability_discovery import discover_from_catalog
+
+        # Keep the historical route stable while allowing new catalog entries
+        # to participate without adding another fixed GIS branch.
+        catalog = self.capability_catalog(environment="unknown")
+        return discover_from_catalog(
+            request,
+            request_facts,
+            catalog.get("capabilities", ()),
+        )
 
     def select_workflow(
         self,

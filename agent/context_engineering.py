@@ -104,15 +104,15 @@ class ContextBuilder:
             return rendered, False
         truncated = False
         for name in (
+            "memory",
+            "workflow_templates",
             "available_tools",
             "workflow",
             "planner",
-            "memory",
             "request_understanding",
+            "workflow_selection",
             "capability_discovery",
             "capability_catalog",
-            "workflow_selection",
-            "workflow_templates",
         ):
             if len(rendered) <= self.max_chars:
                 break

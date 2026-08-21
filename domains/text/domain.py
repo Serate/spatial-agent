@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION, domain_action_catalog, discovery_context
+from agent.domain_contract import domain_action_catalog, discovery_context
 from agent.request_model import RequestFacts
 from agent.capability_catalog import capability_catalog
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
@@ -108,17 +108,14 @@ class TextDomainPack:
         )
 
     def discover(self, request: str, request_facts: Any) -> Mapping[str, Any]:
-        return {
-            "schema_version": DOMAIN_DISCOVERY_SCHEMA_VERSION,
-            "domain_id": self.domain_id,
-            "available": True,
-            "selected_capability_id": "text_summary",
-            "candidate_ids": ["text_summary"],
-            "candidate_count": 1,
-            "signals": ["text"],
-            "tasks": ["summarize"],
-            "constraints": [],
-        }
+        from agent.capability_discovery import discover_from_catalog
+
+        catalog = self.capability_catalog(environment="memory")
+        return discover_from_catalog(
+            request,
+            request_facts,
+            catalog.get("capabilities", ()),
+        )
 
     def select_workflow(
         self,

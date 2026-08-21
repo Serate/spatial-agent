@@ -3450,3 +3450,11 @@ M172 继续完成通用 Agent Runtime 的开放式纵向闭环，GIS 仍只是 D
 5. **部署可靠性**：继续验证 SQLite 多 worker、异步重启、artifact-only recovery、跨 Domain 过滤和服务生命周期。
 6. **用户体验**：验证动态 workspace、空态、澄清、确认、恢复和历史加载的通用前端消费。
 7. **测试证据**：默认 quick/CI 保持极简，阶段末运行 Contract Harness、Docker、browser 和必要 live，完成后更新文档并推送版本。
+
+## M172 当前完成状态
+
+- 新增 `request_hints` catalog 声明和公共 `discover_from_catalog()` matcher，统一输出 `spatial-agent.capability-discovery.v1` 的选择状态与匹配证据。
+- GIS 旧路由保持兼容优先，未命中时走 Domain catalog fallback；Text/GIS 均通过相同 Runtime seam，Rule Planner 通过 Domain-owned capability builder 执行已有能力。
+- 修复复杂请求 context budget 优先级：可选 memory 和冗余工具 schema 先压缩，选中 workflow、capability discovery、capability catalog 和 selection evidence 保持可见；HTTP/artifact 的模板与能力证据重新一致。
+- M172 专项 5/5、受影响 Docker 回归 42 项通过；quick、stage、compileall、production acceptance、Chrome/CDP smoke 通过。真实 Windows GIS 数据测试有 8 项按环境跳过，live 模型未在本阶段重复调用。
+- 阶段问题已记录到 `docs/agent-development-issues.md`；当前工作树待执行最终 diff/敏感信息检查、提交和推送，随后进入 M173。

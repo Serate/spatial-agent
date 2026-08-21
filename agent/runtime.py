@@ -1117,15 +1117,19 @@ class AgentRuntime:
             request_facts=spatial_request,
             domain_id=self.domain_id,
         )
+        workflow_templates = _compact_workflow_templates_for_context(
+            workflow_context(self._domain_pack),
+            workflow_selection,
+        )
         capability_catalog = capability_context_summary(
             catalog=catalog,
             tool_definitions=self._registry.definition_summary(),
             tool_provider=self._registry.provider_info(),
             tool_provider_health=self._registry.provider_health(),
-            tool_governance=self._registry.governance_summary(max_tools=8),
+            tool_governance=self._registry.governance_summary(max_tools=4),
             selected_capability_ids=selected_capability_ids(capability_discovery)[:1],
             max_capabilities=1,
-            max_tools=8,
+            max_tools=4,
         )
         return self._context_builder.build(
             request=request,
@@ -1138,9 +1142,11 @@ class AgentRuntime:
             request_understanding=understanding_payload,
             capability_discovery=discovery_payload,
             capability_catalog=capability_catalog,
-            workflow_selection=workflow_selection,
+            workflow_selection=_compact_workflow_selection_for_context(
+                workflow_selection
+            ),
             memory_section=memory_section,
-            workflow_templates=workflow_context(self._domain_pack),
+            workflow_templates=workflow_templates,
         )
 
     def _resolve_request(self, request: str, session_id: str) -> str:
@@ -1720,6 +1726,72 @@ def _plan_dag(plan: TaskPlan) -> Dict[str, Any]:
         "node_count": len(nodes),
         "edge_count": len(edges),
     }
+
+
+def _compact_workflow_selection_for_context(
+    selection: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Bound selected candidate detail without hiding the candidate set.
+
+    The persisted/result projection keeps the full Domain-owned candidate
+    cards.  Planner context is a separate budgeted surface: when a decision
+    is already selected, one detailed card is enough to explain the choice;
+    all candidate IDs and the original count remain available as evidence.
+    Ambiguous selections retain their cards so the clarification UI can
+    render an actionable choice.
+    """
+    if not isinstance(selection, Mapping):
+        return selection
+    if str(selection.get("state") or "") != "selected":
+        return selection
+    details = selection.get("candidate_details")
+    if not isinstance(details, list) or len(details) <= 1:
+        return selection
+    selected_id = str(selection.get("selected_capability_id") or "")
+    selected_details = [
+        item
+        for item in details
+        if isinstance(item, Mapping)
+        and str(item.get("id") or "") == selected_id
+    ]
+    if not selected_details:
+        selected_details = [item for item in details[:1] if isinstance(item, Mapping)]
+    compact = dict(selection)
+    compact["candidate_details"] = selected_details[:1]
+    compact["candidate_details_truncated"] = True
+    return compact
+
+
+def _compact_workflow_templates_for_context(
+    templates: Mapping[str, Any],
+    selection: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Keep the selected template deep while retaining catalog counts."""
+    if not isinstance(templates, Mapping) or not isinstance(selection, Mapping):
+        return templates
+    if str(selection.get("state") or "") != "selected":
+        return templates
+    selected_id = str(
+        selection.get("workflow_template_id")
+        or selection.get("selected_capability_id")
+        or ""
+    )
+    values = templates.get("templates")
+    if not selected_id or not isinstance(values, list) or len(values) <= 1:
+        return templates
+    selected = [
+        item
+        for item in values
+        if isinstance(item, Mapping)
+        and str(item.get("id") or "") == selected_id
+    ]
+    if not selected:
+        return templates
+    compact = dict(templates)
+    compact["templates"] = selected[:1]
+    compact["returned_count"] = 1
+    compact["omitted_count"] = max(0, len(values) - 1)
+    return compact
 
 
 def _build_plan_evidence(

@@ -58,9 +58,17 @@ class RuleBasedPlanComposer:
     def compose(self, facts: PlanningFacts) -> TaskPlan:
         selected = self.router.select(facts.request, facts.spatial)
         if selected:
-            return self._builders[selected[0].capability_id](facts)
+            return self.compose_capability(selected[0].capability_id, facts)
         self._clarify_unmatched(facts)
         raise AssertionError("unreachable")
+
+    def compose_capability(self, capability_id: str, facts: PlanningFacts) -> TaskPlan:
+        """Compile a Domain-owned catalog selection through the same builders."""
+        builder = self._builders.get(str(capability_id or "").strip())
+        if builder is None:
+            self._clarify_unmatched(facts)
+            raise AssertionError("unreachable")
+        return builder(facts)
 
     def compose_workflow(self, workflow: Mapping[str, object]) -> TaskPlan:
         """Compile an explicit Domain workflow without re-routing its request.

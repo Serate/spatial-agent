@@ -1910,3 +1910,22 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M172 下一阶段规划
 
 从全局完成“能力发现 → 规划 → 执行/澄清 → 证据 → 恢复”的开放式链路：先审计跨 Domain 公共契约和剩余 GIS 默认，再补未预定义请求的动态匹配/澄清、脱敏模型计划回放、跨入口证据比较和真实部署验收；前端只扩展通用结构化 renderer，默认测试继续精简并在 Docker 内执行。
+
+## M172 当前完成状态
+
+- `agent/capability_discovery.py` 新增领域无关的 catalog matcher：按 Domain 声明的 `request_hints` 比较 phrase、task、dataset、constraint 和 entity 证据；单一候选自动选择，多候选返回 `ambiguous`，无候选返回 `unavailable`，并保留 bounded score/source/matched hints。
+- GIS Domain 保留历史 `GisCapabilityRouter` 作为兼容优先路径；未命中旧路由时才使用 GIS catalog hints。Text Domain 已改为消费同一 matcher，不再固定返回 `text_summary` 字面路由。
+- GIS Rule Planner 新增 Domain-owned `compose_capability` 入口，使 catalog 选中的既有能力仍通过原有 Planner、TaskPlan 校验和 ToolRegistry 执行；公共 Runtime 没有新增 GIS 分支。
+- Context planner surface 增加领域无关的候选详情/模板 compact projection：已选请求保留全量 candidate IDs，只在预算内保留选中详情和选中模板；澄清状态仍保留候选卡片，避免复杂请求把 capability discovery/catalog 从 16KB context 中裁掉。
+- 新增 `tests/test_m172_capability_discovery.py`，覆盖单候选、歧义、无候选、GIS/Text 双 Domain、catalog fallback 执行以及 HTTP/artifact 结果契约；M172 专项 5/5 通过。
+- Docker 当前镜像 healthy；M172 与 M15/M112/M113/M166/M167/M171 受影响回归 42 项通过（8 项真实 Windows GIS 数据测试按环境跳过）；quick、stage、compileall、production acceptance 和真实 Chrome/CDP 预览→确认→完成 smoke 通过。M77/M81 上下文/计划证据回归业务断言通过，旧测试仍有少量历史 observability 句柄警告，未作为 M172 严格资源证据。
+- 本阶段没有新增 live 模型调用；既有真实模型/GIS 证据继续作为显式验收，不进入默认 CI。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M173 全局重规划参考
+
+下一阶段从完整 Agent Runtime 继续推进“模型理解/计划 → Domain 选择 → 跨入口证据”的闭环：
+
+1. 用脱敏 LLM replay 和最小 live-short 验证模型能读取 catalog/discovery evidence，输出与选中能力、workflow、DAG、result type 一致的计划。
+2. 将 model selection、规则 selection、repair lineage 和 unresolved/ambiguous 状态纳入同一 Contract Harness，确保 HTTP、异步、artifact-only recovery 不漂移。
+3. 继续审计公共层残留 GIS 兼容默认，但不为单一表达增加规则；新能力只通过 Domain catalog、facts、workflow 和 result contract 扩展。
+4. 保持 Docker quick/stage 精简，阶段末补最小 live/browser/production evidence，并在收口后再更新全局规划。

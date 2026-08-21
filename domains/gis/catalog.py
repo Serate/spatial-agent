@@ -118,7 +118,110 @@ def _legacy_road_slope_requirements():
         fields=(threshold,),
     )
 
-GIS_CAPABILITIES = (
+def _request_hints(*, phrases=(), tasks=(), datasets=(), constraints=(), required_entities=()):
+    """Declare bounded lexical/fact hints for catalog-driven discovery."""
+
+    return {
+        "phrases": list(phrases),
+        "tasks": list(tasks),
+        "datasets": list(datasets),
+        "constraints": list(constraints),
+        "required_entities": list(required_entities),
+    }
+
+
+def _attach_request_hints(definitions):
+    hints = {
+        "conversation": _request_hints(
+            phrases=("聊天", "解释", "说明", "介绍"),
+        ),
+        "spatial_overview": _request_hints(
+            phrases=("空间总览", "区域概览", "总体情况"),
+            tasks=("admin_boundary", "elevation", "land_use", "roads", "water"),
+            required_entities=("admin_name",),
+        ),
+        "spatial_analysis": _request_hints(
+            phrases=("综合空间分析", "组合式空间分析", "综合分析"),
+            tasks=("admin_boundary", "elevation", "land_use"),
+            required_entities=("admin_name",),
+        ),
+        "admin_boundary_query": _request_hints(
+            phrases=("行政区边界", "行政边界", "区划边界"),
+            tasks=("admin_boundary",),
+            datasets=("admin_areas",),
+        ),
+        "raster_metadata": _request_hints(
+            phrases=("栅格元数据", "栅格信息", "栅格属性", "文件属性", "DEM信息", "DEM详情"),
+            datasets=("dem", "land_use"),
+        ),
+        "zonal_raster_statistics": _request_hints(
+            phrases=("区域栅格统计", "区域高程统计", "区域土地利用统计"),
+            tasks=("elevation", "land_use"),
+            datasets=("admin_areas", "dem", "land_use"),
+            required_entities=("admin_name",),
+        ),
+        "zonal_terrain_land_use": _request_hints(
+            phrases=("地形与土地利用", "高程与坡度", "地形土地利用"),
+            tasks=("elevation", "slope", "land_use"),
+            required_entities=("admin_name",),
+        ),
+        "buildability_screening": _request_hints(
+            phrases=("建设适宜性", "建设候选", "适宜建设", "建设筛选"),
+            tasks=("buildability",),
+            constraints=("slope_max",),
+            required_entities=("admin_name",),
+        ),
+        "constrained_buildability_screening": _request_hints(
+            phrases=("道路与水体约束", "建设约束筛选", "距离道路", "排除水体"),
+            tasks=("buildability", "roads", "water"),
+            constraints=("slope_max", "road_distance_max", "exclude_water"),
+            required_entities=("admin_name",),
+        ),
+        "vector_summary": _request_hints(
+            phrases=("道路和水体汇总", "道路水体摘要", "道路与水体分布"),
+            tasks=("roads", "water"),
+            required_entities=("admin_name",),
+        ),
+        "dataset_health": _request_hints(
+            phrases=("数据健康", "数据完整性", "数据就绪", "数据状态"),
+        ),
+        "raster_statistics": _request_hints(
+            phrases=("栅格值统计", "栅格统计", "像元统计"),
+            tasks=("elevation", "land_use"),
+            datasets=("dem", "land_use"),
+        ),
+        "vector_query": _request_hints(
+            phrases=("道路查询", "水体查询", "矢量查询", "要素查询"),
+            tasks=("roads", "water"),
+        ),
+        "vector_relation": _request_hints(
+            phrases=("空间关系", "空间连接", "相交查询", "附近要素"),
+            tasks=("roads", "water"),
+            constraints=("road_distance_max",),
+        ),
+        "legacy_road_slope": _request_hints(
+            phrases=("道路邻近高坡度", "道路坡度关系"),
+            tasks=("roads", "slope"),
+            constraints=("slope_value",),
+        ),
+        "admin_raster_composite": _request_hints(
+            phrases=("行政区栅格复合", "区域高程土地利用"),
+            tasks=("admin_boundary", "elevation", "land_use"),
+            required_entities=("admin_name",),
+        ),
+    }
+    return tuple(
+        {
+            **item,
+            "request_hints": hints.get(
+                str(item.get("id")), _request_hints()
+            ),
+        }
+        for item in definitions
+    )
+
+
+GIS_CAPABILITIES = _attach_request_hints((
     {
         "id": "conversation",
         "label": "通用对话",
@@ -301,4 +404,4 @@ GIS_CAPABILITIES = (
         "geometry": "optional",
         "request_requirements": _region_requirements(),
     },
-)
+))
