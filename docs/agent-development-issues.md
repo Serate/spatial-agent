@@ -4026,3 +4026,31 @@ Text runtime factory 现在显式接收 `decision_store` 并传给公共 `build_
 ### 处理与预防
 
 SQLiteDecisionStore 增加受校验的恢复入口：同一 Domain 下只插入不存在的记录，不覆盖已有记录；同一 decision ID 属于其他 Domain 时拒绝恢复；插入后仍复用原有 `get/resolve/consume` 和版本 CAS。以后涉及 artifact-only 用户决策时，必须同时验证内存、全新 SQLite、跨 Domain 和过期边界，并比较恢复前后的 workflow selection、plan fingerprint 和 lifecycle evidence。
+
+## M164：Selection interaction 专项中的错误自引用断言造成假失败
+
+### 现象
+
+M164 相关代码和 Console smoke 已经正确接入，但 Docker 专项出现 1 个失败：测试要求 `scripts/console_selection_interaction_smoke.js` 的文件内容包含字符串 `console_selection_interaction_smoke.js`。该失败看起来像前端入口缺失，实际与业务行为无关。
+
+### 根因
+
+测试把“文件路径存在”误写成“文件内容包含自身文件名”，没有断言真实的 smoke 入口。脚本本身已经正确 `require("../web/console_selection_interaction.js")`，所以这是测试断言设计错误，不是 Console 或 Runtime 回归。
+
+### 处理与预防
+
+断言改为检查 smoke 文件存在，并检查其真实 `require` 入口；随后 Docker 专项 16 项中 15 项通过、1 项因容器没有 Node 跳过，宿主 Node smoke 通过。以后静态前端契约应分别验证文件存在、入口引用和可执行 smoke，不应要求文件内容包含自身路径。
+
+## M164：HTTP 交互验收必须使用匹配的 Domain 请求
+
+### 现象
+
+使用 HTTP 默认 GIS Domain 提交“概括一段文本”并要求确认时，返回 `facts_required`，而不是 `confirmation_required`；直接 Text Domain 单测对同类请求则进入确认态。
+
+### 根因
+
+HTTP 生产服务默认绑定 GIS Domain。该请求没有空间事实，GIS Domain 按能力发现契约返回结构化缺失事实；Text 单测使用显式 Text runtime factory，两条路径的 Domain 不同。`require_confirmation` 本身已在 HTTP `run_kwargs` 中正确透传，并未丢失。
+
+### 处理与预防
+
+改用 HTTP 默认 GIS Domain 支持的“查询DEM栅格元数据”请求验证真实确认 → `POST /runs/{id}/interaction` `confirm` → `COMPLETED`，同时验证非法 action 返回 400、interaction GET 不泄露原始请求/工具参数。以后 HTTP/Console 验收必须显式记录 Domain、planner、backend 和 workflow；跨 Domain 对比应通过 Domain Pack seam，不要用不匹配的请求推断生命周期实现错误。

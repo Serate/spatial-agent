@@ -15,6 +15,7 @@ from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
 )
+from agent.selection_interaction import build_selection_interaction
 from agent.nested_schema import (
     NestedSchemaError,
     normalize_result_contract,
@@ -105,6 +106,16 @@ def build_result_contract(
     )
     replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
     lifecycle = project_action_lifecycle(payload)
+    selection_interaction = build_selection_interaction(
+        selection=(payload.get("plan_evidence") or {}).get("workflow_selection")
+        if isinstance(payload.get("plan_evidence"), Mapping)
+        else None,
+        clarification=payload.get("clarification"),
+        decision=payload.get("decision_evidence"),
+        lifecycle=lifecycle,
+        status=payload.get("status"),
+        subject_id=payload.get("run_id"),
+    )
     workspace = _workspace_contract(
         result_type,
         registry=registry,
@@ -138,6 +149,7 @@ def build_result_contract(
         },
         "clarification": payload.get("clarification"),
         "decision": payload.get("decision_evidence") or {"available": False},
+        "selection_interaction": selection_interaction,
         "lifecycle": lifecycle,
         "context": payload.get("context_evidence") or {"available": False},
         "planning": payload.get("plan_evidence") or {"available": False},

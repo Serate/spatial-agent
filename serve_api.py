@@ -10,6 +10,7 @@ from agent.api_contract import (
     comparison_kwargs,
     constrained_comparison_kwargs,
     decision_resolve_kwargs,
+    interaction_kwargs,
     error_response,
     error_status,
     region_comparison_kwargs,
@@ -145,6 +146,19 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 else:
                     self._write_json(200, result)
                 return
+            if len(parts) == 3 and parts[1] and parts[2] == "interaction":
+                query = parse_qs(parsed.query)
+                try:
+                    result = self.service.get_run_interaction(
+                        parts[1],
+                        planner=query.get("planner", ["rule"])[0],
+                        backend=query.get("backend", ["memory"])[0],
+                    )
+                except ValueError as exc:
+                    self._write_json(404, error_response(exc, not_found=True))
+                else:
+                    self._write_json(200, result)
+                return
             if len(parts) == 3 and parts[1] and parts[2] in ("observability", "async"):
                 try:
                     result = self.service.get_async_observability(parts[1])
@@ -260,6 +274,10 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             parsed.path.startswith("/decisions/")
             and parsed.path.endswith("/resolve")
         )
+        is_interaction = (
+            parsed.path.startswith("/runs/")
+            and parsed.path.endswith("/interaction")
+        )
         is_comparison = parsed.path == "/comparisons"
         is_region_comparison = parsed.path == "/region-comparisons"
         is_constrained_comparison = parsed.path == "/constrained-comparisons"
@@ -273,7 +291,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and workflow_action is None:
+        if parsed.path != "/runs" and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
@@ -298,6 +316,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 result = self.service.resolve_decision(
                     parts[1], **decision_resolve_kwargs(payload)
                 )
+            elif is_interaction:
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) != 3 or not parts[1] or parts[2] != "interaction":
+                    self._write_json(404, {"error": "not found"})
+                    return
+                kwargs = interaction_kwargs(payload)
+                result = self.service.apply_run_interaction(parts[1], **kwargs)
             elif is_session_create:
                 result = self.service.create_session()
             elif is_session_clear:

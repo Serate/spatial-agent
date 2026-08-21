@@ -19,6 +19,7 @@ from agent.api_contract import (
     comparison_kwargs,
     constrained_comparison_kwargs,
     decision_resolve_kwargs,
+    interaction_kwargs,
     error_response,
     error_status,
     region_comparison_kwargs,
@@ -348,6 +349,29 @@ def run_evidence(run_id: str):
         return service.get_run_evidence(run_id=run_id)
     except Exception as exc:
         _raise_for(exc, not_found=True)
+
+
+@app.get("/runs/{run_id}/interaction")
+def run_interaction(run_id: str, planner: str = "rule", backend: str = "memory"):
+    try:
+        return service.get_run_interaction(
+            run_id=run_id,
+            planner=planner,
+            backend=backend,
+        )
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.post("/runs/{run_id}/interaction")
+def apply_run_interaction(run_id: str, payload: Dict[str, Any]):
+    try:
+        return service.apply_run_interaction(
+            run_id,
+            **interaction_kwargs(payload),
+        )
+    except Exception as exc:
+        _raise_for(exc)
 
 
 @app.get("/runs/{run_id}/observability")

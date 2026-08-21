@@ -1522,3 +1522,19 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 5. **部署可靠性**：验证 SQLite 多 worker、artifact-only、滚动重启和旧 schema 迁移下的 selection/decision/action 一致性，特别是 CAS 与跨 Domain 隔离。
 6. **用户体验**：Console 动态展示候选能力、选择状态、确认动作和异步恢复证据；保持通用 renderer，不增加 GIS 专用页面分支。
 7. **测试证据**：默认 quick/CI 继续精简离线；新增 M164 selection interaction/replay 专项，阶段收口再执行 Docker、HTTP、SQLite/artifact、browser 和可选 live 验收。
+
+## M164 当前实现与验证状态
+
+- 新增领域无关 `spatial-agent.selection-interaction.v1`，将候选能力、缺失事实、确认、恢复、处理中和完成状态投影为有限交互状态与 `allowed_actions`；候选歧义优先于确认/缺失事实判断。
+- result envelope、异步轮询、artifact-only recovery、开发/生产 HTTP 和 Console 共用该投影；GET 只暴露 bounded interaction，POST 动作先过 allowlist，再复用既有生命周期或 Service.run/preview，不绕过 ToolRegistry。
+- Docker 当前工作树镜像重建并 healthy；M164/M163/M162 专项共 16 项中 15 项通过、1 项因容器没有 Node 跳过；quick、stage、compileall、宿主 Node smoke、production acceptance 和当前 Docker `live-short` 2/2 通过（12,153 tokens，0 次重试）。
+- HTTP 已验证 GIS Domain 的确认 → confirm → `COMPLETED`、非法 action 400 和 bounded read 脱敏；动态 Chrome/CDP 未作为本阶段通过证据。测试自引用断言失败已修复，具体过程记录于 `docs/agent-development-issues.md`。
+
+## M165 全局规划
+
+下一阶段以项目整体为中心建立 selection → plan → execution 的跨入口可比较、可恢复验收，不增加单区域专用分支：
+
+- 架构：建立最小 Contract Harness，比较 CLI、HTTP、异步、artifact-only recovery 和 Console 的核心结果、plan identity、lifecycle 与 evidence。
+- 产品/模型：覆盖多候选、补充事实、开放式无模板、模型选择不一致、有限 repair 失败和动态答案/地图/轨迹展示。
+- 数据/部署：验证 capability readiness/provenance 引用、SQLite 多 worker、滚动重启、旧 schema/evidence 安全降级、重复 action 幂等和 CAS。
+- 测试：Text/GIS 双 Domain 只运行精简 Docker quick/CI 作为默认；Docker、live、browser 和完整恢复矩阵按显式风险验收，阶段结束后更新文档并推送版本。

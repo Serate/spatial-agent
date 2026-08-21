@@ -21,6 +21,7 @@ from agent.domain_registry import domain_registry
 from agent.runtime_context import assert_runtime_context_compatible
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.evidence_registry import normalize_evidence_registry
+from agent.selection_interaction import normalize_selection_interaction
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
@@ -1302,6 +1303,124 @@ class AgentService:
         payload["execution_record"] = build_execution_record(payload, kind="run")
         self._attach_async_observability(payload, run_id)
         return payload
+
+    def get_run_interaction(
+        self,
+        run_id: str,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Return only the bounded next-action projection for one run.
+
+        The full run endpoint remains the source of result details. This
+        narrow read seam lets a Console or poller refresh selection state
+        without receiving request text, tool arguments, or raw errors.
+        """
+        payload = self.get_run(run_id, planner=planner, backend=backend)
+        envelope = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        interaction = normalize_selection_interaction(
+            envelope.get("selection_interaction")
+        )
+        return {
+            "schema_version": "spatial-agent.selection-interaction-reference.v1",
+            "run_id": str(payload.get("run_id") or run_id)[:160],
+            "domain_id": str(payload.get("domain_id") or self._resolved_domain_id or "unknown")[:80],
+            "interaction": interaction,
+        }
+
+    def apply_run_interaction(
+        self,
+        run_id: str,
+        action: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Apply one allowlisted next action through existing Runtime seams.
+
+        Selection changes are resumed as a new governed run using the same
+        request/session and a caller-supplied normalized workflow. Approval,
+        retry, recovery and cancellation delegate to their existing lifecycle
+        implementations. No Domain or transport policy is duplicated here.
+        """
+        action = str(action or "").strip().lower()
+        if not action:
+            raise ValueError("interaction action must be a non-empty string")
+        current = self.get_run(run_id, planner=planner, backend=backend)
+        envelope = current.get("result") if isinstance(current.get("result"), dict) else {}
+        interaction = normalize_selection_interaction(
+            envelope.get("selection_interaction")
+        )
+        allowed = set(interaction.get("allowed_actions") or ())
+        if action not in allowed:
+            raise ValueError("interaction action is not allowed: " + action)
+        data = dict(payload) if isinstance(payload, dict) else {}
+        selected_planner, selected_backend = self._infer_run_runtime_selection(
+            run_id, planner, backend
+        )
+
+        if action in {"confirm", "reject"}:
+            decision = current.get("decision_evidence") or envelope.get("decision")
+            if not isinstance(decision, dict) or not decision.get("decision_id"):
+                raise ValueError("interaction decision evidence is unavailable")
+            choice = "approve" if action == "confirm" else "reject"
+            expected_version = data.get("expected_version", decision.get("version"))
+            return self.resolve_decision(
+                str(decision["decision_id"]),
+                choice,
+                expected_version=expected_version,
+                planner=selected_planner,
+                backend=selected_backend,
+            )
+        if action == "cancel":
+            return self.cancel(
+                run_id,
+                planner=selected_planner,
+                backend=selected_backend,
+            )
+        if action in {"retry", "recover"}:
+            return self.retry(
+                run_id,
+                planner=selected_planner,
+                backend=selected_backend,
+                export_artifact=bool(data.get("export_artifact", True)),
+                export_geojson=bool(data.get("export_geojson", False)),
+                geojson_max_features=int(data.get("geojson_max_features", 100)),
+            )
+
+        workflow_value = data.get("workflow")
+        if action == "provide_facts" and isinstance(workflow_value, dict):
+            workflow_value = dict(workflow_value)
+            constraints = dict(workflow_value.get("constraints") or {})
+            facts = data.get("facts") or data.get("constraints") or {}
+            if not isinstance(facts, dict):
+                raise ValueError("interaction facts must be an object")
+            constraints.update(facts)
+            workflow_value["constraints"] = constraints
+        if not isinstance(workflow_value, dict):
+            raise ValueError("interaction workflow selection must be an object")
+        workflow_value = _normalize_workflow_payload(workflow_value)
+        if action == "preview":
+            return self.preview(
+                request=str(current.get("request") or ""),
+                session_id=str(current.get("session_id") or "default"),
+                planner=selected_planner,
+                backend=selected_backend,
+                workflow=workflow_value,
+                spatial_context=current.get("spatial_context"),
+            )
+        return self.run(
+            request=str(current.get("request") or ""),
+            session_id=str(current.get("session_id") or "default"),
+            planner=selected_planner,
+            backend=selected_backend,
+            workflow=workflow_value,
+            require_confirmation=bool(data.get("require_confirmation", True)),
+            export_artifact=bool(data.get("export_artifact", True)),
+            export_geojson=bool(data.get("export_geojson", False)),
+            geojson_max_features=int(data.get("geojson_max_features", 100)),
+        )
 
     def list_runs(self, limit: int = 20) -> Dict:
         if self._state.persistent:

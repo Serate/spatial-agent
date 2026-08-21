@@ -150,3 +150,13 @@ docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m163_workflow
 ~~~
 
 该专项验证同一选择证据在异步等待确认、SQLite/artifact 重启恢复和批准继续执行后的稳定投影；它不加入默认 quick/CI。阶段收口时再与 M148/M151-M162 相邻契约、Docker production acceptance、必要的浏览器和 `live-short` 一起执行。
+
+## M164 selection interaction 专项
+
+涉及候选能力、缺失事实、显式 workflow、用户确认或恢复动作时，显式运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m164_selection_interaction tests.test_m163_workflow_selection_lifecycle tests.test_m162_workflow_selection -v
+~~~
+
+该专项验证同一 `spatial-agent.selection-interaction.v1` 在 result、异步、artifact、HTTP 和 Console 静态 seam 中的状态与动作边界；容器没有 Node 时允许专项中的 Node 测试跳过，但阶段收口必须补跑宿主 Node smoke。HTTP 还应验证：当前 GIS Domain 的 confirmation → confirm → `COMPLETED`、非法动作 400，以及 interaction read 不泄露原始请求和工具参数。该专项不加入默认 quick/CI。

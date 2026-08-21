@@ -3266,3 +3266,26 @@ M163 将 workflow selection 从同步计划证据推进到异步轮询、artifac
 ## M164 全局规划参考
 
 下一阶段围绕“能力选择可解释、可交互、可迁移”推进：补候选能力和缺失事实的用户交互，统一显式 workflow/Domain discovery/用户确认的公共生命周期，保持数据 readiness/provenance 为 capability evidence，增加多候选脱敏 replay 与最小 live 基线，验证 SQLite/artifact/滚动重启迁移，并让 Console 动态展示 selection/confirmation/recovery。默认测试继续 Docker 内精简分层，新增专项后再做 HTTP、browser、GIS/live 显式验收。
+
+## M164：Workflow Selection 交互投影与 HTTP/Console 收口（已完成）
+
+M164 将 workflow selection 从只读证据推进为领域无关的 bounded interaction projection，使候选能力、缺失事实、确认、恢复和完成状态都能通过同一交互契约被 HTTP、异步结果、artifact 和 Console 消费。
+
+- 新增 `spatial-agent.selection-interaction.v1`，支持 `candidate_selection`、`facts_required`、`confirmation_required`、`recoverable`、`processing`、`completed` 和 `unavailable` 状态；`allowed_actions` 由 Runtime/lifecycle 投影决定。
+- `GET/POST /runs/{run_id}/interaction` 已接入开发 HTTP 与生产 FastAPI。POST 只允许当前 projection 声明的动作；确认、拒绝、重试、恢复和取消复用既有生命周期，选择/补充事实继续经过 `Service.run/preview`、workflow normalization 和 ToolRegistry 边界。
+- result envelope、异步 evidence、artifact recovery 和 Console 均保留同一 selection interaction；bounded GET 不返回原始请求、工具参数或原始错误，Console 只消费领域无关结构化投影。
+- Docker 镜像已用当前工作树重建并为 healthy。M164/M163/M162 专项共 16 项中 15 项通过、1 项因容器没有 Node 跳过；容器 quick、stage、compileall、宿主 Node smoke 和 production acceptance 均通过。
+- HTTP 显式验证了 GIS Domain 的确认 → `POST interaction(confirm)` → `COMPLETED`、非法动作 400、交互读取脱敏；当前镜像 `live-short` 真实模型 + 真实 GIS 2/2 通过，12,153 tokens、0 次重试。
+- 动态 Chrome/CDP 未作为 M164 通过证据；静态 Node smoke 已通过，浏览器动态验收仍保持独立风险项。阶段测试中发现的错误自引用断言已修复，详见 `docs/agent-development-issues.md`。
+
+## M165 全局规划参考
+
+M164 后从项目整体推进“开放式请求可评测、跨入口可恢复、部署状态可证明”，不继续堆叠 GIS 专用能力：
+
+1. **产品能力**：用统一 interaction/action projection 支持多轮补充事实、用户选择和确认后的连续对话，并让答案、地图、轨迹、证据按结果类型动态呈现。
+2. **架构边界**：建立 selection → plan → execution 的跨入口 Contract Harness，比较 CLI、HTTP、异步、artifact-only recovery 和前端消费的核心结果、plan identity、lifecycle 与 evidence，而不是复制业务逻辑。
+3. **数据质量**：把 capability requirements、readiness、coverage、alignment 和 provenance 作为可引用 evidence，验证缺失/不对齐时选择和降级状态仍可迁移。
+4. **真实模型**：增加多候选、开放式无模板、补充事实、模型选择不一致和有限修复失败的脱敏 replay；真实 live 只保留最小代表集和安全摘要。
+5. **部署可靠性**：显式验证 SQLite 多 worker、滚动重启、artifact-only 接管、旧 schema/未知 evidence 安全降级和重复 action 的幂等/CAS。
+6. **用户体验**：补 selection interaction 的动态浏览器 smoke；前端不增加 Domain 专用分支，验证空态、候选、确认、恢复和结果切换。
+7. **测试证据**：默认 Docker quick/CI 继续精简；新增最小跨入口 harness 后，再按风险执行 Docker、GIS、live 和 browser，阶段完成后更新文档并推送版本。

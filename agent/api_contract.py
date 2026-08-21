@@ -89,6 +89,16 @@ def decision_resolve_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def interaction_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize one generic run interaction without interpreting its action."""
+    return {
+        "action": payload.get("action", ""),
+        "payload": payload,
+        "planner": payload.get("planner", "rule"),
+        "backend": payload.get("backend", "memory"),
+    }
+
+
 def comparison_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "admin_name": payload.get("admin_name", ""),

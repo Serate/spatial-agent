@@ -23,6 +23,7 @@ from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from agent.plan_quality import project_plan_quality_evidence
 from agent.workflow_selection import normalize_workflow_selection_evidence
+from agent.selection_interaction import normalize_selection_interaction
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_registry import normalize_evidence_registry
 from result_contract import build_lineage_index
@@ -247,6 +248,9 @@ def build_async_result_evidence(
                 planning.get("workflow_selection")
             ),
         },
+        "selection_interaction": normalize_selection_interaction(
+            value.get("selection_interaction")
+        ),
         "execution_timeline": timeline,
         "evidence_registry": registry,
     }
@@ -440,6 +444,9 @@ def normalize_async_result_evidence(
                 planning.get("workflow_selection")
             ),
         },
+        "selection_interaction": normalize_selection_interaction(
+            value.get("selection_interaction")
+        ),
         "execution_timeline": timeline,
         "evidence_registry": registry,
     }

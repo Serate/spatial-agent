@@ -1801,3 +1801,21 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M164 全局规划参考
 
 下一阶段从项目整体推进能力选择的交互和迁移能力：产品侧补候选能力/补充事实/确认的连续交互；架构侧统一显式 workflow、Domain discovery、用户选择与 action lifecycle；数据侧保持 readiness/provenance 作为 capability evidence；模型侧补多候选与选择失败 replay/live；部署侧验证 SQLite 多 worker、artifact-only、滚动重启和旧 schema；体验侧让 Console 动态显示候选、选择、确认和恢复；测试侧保持 Docker 内 quick/CI 精简，新增显式 selection interaction/replay 专项后再执行 HTTP、browser 和 live 验收。
+
+## M164 当前收尾状态
+
+- 新增 `agent/selection_interaction.py` 与 `spatial-agent.selection-interaction.v1`，统一投影候选能力、缺失事实、确认、恢复、处理中和完成状态，并生成 bounded `allowed_actions`。
+- `result_contract.py`、`agent/service_async.py`、artifact recovery、开发/生产 HTTP 和 `web/index.html` 已接入同一投影；POST 交互动作经过 allowlist 校验并复用既有 DecisionLifecycle、Service.run/preview 和 ToolRegistry 边界。
+- Docker 当前镜像重建并 healthy；M164/M163/M162 相关专项 16 项中 15 项通过、容器缺少 Node 导致 1 项跳过；quick、stage、compileall、宿主 Node smoke 和 production acceptance 通过。
+- HTTP 已验证默认 GIS Domain 的确认、非法动作拒绝和交互读脱敏；当前 Docker `live-short` 2/2 通过，真实模型 + 真实 GIS 使用 12,153 tokens、0 次重试。动态 Chrome/CDP 未验证，不以静态 Node smoke 替代。
+- 修复了 M164 测试中的错误自引用断言；问题原因与预防规则已写入中文开发问题文档。
+
+## M165 全局重规划
+
+下一阶段不再围绕单个 GIS 请求扩展规则，优先建立“开放式请求 → selection → plan → execution → result/evidence → recovery”的跨入口可比较验收：
+
+1. 新增最小 Contract Harness，比较 CLI/HTTP/异步/artifact-only recovery/Console 的核心结果、plan fingerprint、lifecycle 和 evidence。
+2. 用 Text/GIS 双 Domain 覆盖多候选、缺失事实、开放式无模板、计划修复失败和数据降级；保持 Domain 策略不泄漏到公共 Runtime。
+3. 验证 SQLite 多 worker、滚动重启、旧 evidence/schema、重复 action 和 CAS 的恢复与幂等边界。
+4. 增加 selection interaction 的动态浏览器 smoke；默认仍只运行 Docker quick/CI，live/browser 作为显式验收。
+5. 阶段结束后更新全局文档、运行分层验收、敏感配置检查并推送版本。
