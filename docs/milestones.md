@@ -3179,3 +3179,24 @@ M158 新增领域无关 `spatial-agent.evidence-registry.v1`。Registry 只登�
 2. 在 Text/GIS 双 Domain 中验证同一 Registry 形状、跨 Domain 负向隔离和自定义 Domain evidence 扩展。
 3. 让 replay/live 报告和真实模型 baseline 直接使用 Registry 进行证据完整性评估，不增加领域专用分支。
 4. 运行 Docker/GIS/live/browser 显式验收后，再进行全局七维度重规划。
+
+## M159：Evidence Registry 跨入口导航与恢复（已完成）
+
+M159 将 M158 的版本化 Evidence Registry 从“结果中的索引”推进为可导航、可恢复的公共入口。历史列表和 SQLite 快照现在保留规范化 Registry；新增只读运行证据索引入口与 artifact evidence 入口，均只返回版本、状态、JSON 引用和 basename，不暴露宿主路径。
+
+- 异步 artifact-only recovery 在半写入或旧 async evidence 缺少 Registry 时，安全复用同一 run artifact 顶层 Registry；未知版本、未知 schema 和跨领域读取继续降级或拒绝。
+- Domain-owned `ResultContractRegistry` 可以声明有限自定义 evidence entry；entry 只能使用已知版本和 `result`/`result.*` 引用，当前支持 `spatial-agent.domain-evidence.v1`，仍由统一 Registry 校验。
+- 开发 HTTP 与生产 FastAPI 均提供 `/runs/{run_id}/evidence` 和 `/artifacts/runs/{name}/evidence`；Console 历史和运行证据区提供索引导航，不增加 GIS 专用渲染分支。
+- 验证：M159 专项 4 项、M155-M158 相邻专项 17 项、M148/M149/M146/M133 跨领域/恢复回归 13 项通过；Python compileall、`git diff --check` 通过。当前镜像重建后 Docker Engine 29.6.2 healthy，production acceptance 通过；同步/异步结果、artifact、轮询和两个 evidence 导航端点的 Registry 完整性检查均通过。容器专项 10 项通过。
+
+## M160 全局规划参考
+
+从项目整体推进“证据可比较 -> 证据可评测 -> 真实入口可证明”：
+
+1. **产品能力**：让开放式请求、澄清、修复、确认、失败和恢复都能从同一 Registry 导航到计划、时间线、结果、artifact 和下一步动作。
+2. **架构边界**：将 replay/live 评测接入 Registry completeness contract；继续保持 Planner、Runtime、ToolRegistry、Domain Pack 和前端 renderer 的 seam，不把 evidence registry 变成第二个执行状态机。
+3. **数据质量**：Text/GIS 双 Domain 继续验证数据 evidence、degraded/unavailable 和 geometry/artifact 引用隔离；真实 GIS 只作为 Domain evidence，不扩展公共 GIS 策略。
+4. **真实模型**：用脱敏 replay 覆盖开放式无模板、澄清补全、计划修复失败和多工具 DAG；在 Docker/GIS 可用时运行最小 live baseline，记录安全的 Registry completeness、模型身份和错误分类。
+5. **部署可靠性**：验收当前镜像的 FastAPI、SQLite、多 worker、async artifact-only recovery、滚动重启和跨 Domain 负向边界；不以旧容器或宿主静态检查替代当前版本证据。
+6. **用户体验**：Console 以 Registry entry 动态生成证据导航和空态，进一步减少结果类型分支；浏览器 smoke 验证历史、异步、artifact、地图和证据索引的真实点击链路。
+7. **测试证据**：默认 quick/CI 保持离线精简；新增最小 Registry completeness/replay contract，stage/full-stage、GIS、live、Docker、browser 按风险显式运行。

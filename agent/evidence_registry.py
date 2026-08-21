@@ -12,6 +12,7 @@ from typing import Any
 
 from .action_lifecycle import ACTION_LIFECYCLE_SCHEMA_VERSION, project_action_lifecycle
 from .contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
+from .evidence_contract import DOMAIN_EVIDENCE_SCHEMA_VERSION
 from .execution_timeline import EXECUTION_TIMELINE_SCHEMA_VERSION, normalize_execution_timeline
 from .plan_quality import PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, project_plan_quality_evidence
 
@@ -26,10 +27,15 @@ _KNOWN_SCHEMA_VERSIONS = {
     EXECUTION_TIMELINE_SCHEMA_VERSION,
     ACTION_LIFECYCLE_SCHEMA_VERSION,
     REPLANNING_SCHEMA_VERSION,
+    DOMAIN_EVIDENCE_SCHEMA_VERSION,
 }
 
 
-def build_evidence_registry(payload: Mapping[str, Any] | None) -> dict[str, Any]:
+def build_evidence_registry(
+    payload: Mapping[str, Any] | None,
+    *,
+    custom_entries: list[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Build one bounded catalogue of evidence available for a result."""
 
     source = payload if isinstance(payload, Mapping) else {}
@@ -49,6 +55,10 @@ def build_evidence_registry(payload: Mapping[str, Any] | None) -> dict[str, Any]
         _entry("action_lifecycle", ACTION_LIFECYCLE_SCHEMA_VERSION, bool(lifecycle), str(lifecycle.get("state") or "unknown"), "result.lifecycle"),
         _entry("replanning", REPLANNING_SCHEMA_VERSION, bool(events), "available" if events else "none", "result.replanning", count=len(events)),
     ][: _MAX_ENTRIES]
+    for item in custom_entries or ():
+        candidate = _custom_entry(result, item)
+        if candidate is not None and len(entries) < _MAX_ENTRIES:
+            entries.append(candidate)
     return {
         "schema_version": EVIDENCE_REGISTRY_SCHEMA_VERSION,
         "available": bool(result),
@@ -112,6 +122,30 @@ def _entry(entry_id: str, schema_version: str, available: bool, state: str, refe
     if count is not None:
         result["count"] = max(0, min(int(count), 128))
     return result
+
+
+def _custom_entry(result: Mapping[str, Any], item: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Build one Domain-owned entry without accepting arbitrary references."""
+    entry_id = _text(item.get("id"))
+    schema_version = _text(item.get("schema_version"))
+    reference = _text(item.get("reference"))
+    if not entry_id or not schema_version or not reference:
+        return None
+    if schema_version not in _KNOWN_SCHEMA_VERSIONS:
+        return None
+    if reference != "result" and not reference.startswith("result."):
+        return None
+    current: Any = result
+    for part in reference.split(".")[1:]:
+        if not isinstance(current, Mapping):
+            current = None
+            break
+        current = current.get(part)
+    available = current is not None and current != {}
+    state = "available" if available else "unavailable"
+    if isinstance(current, Mapping) and current.get("status"):
+        state = _text(current.get("status")) or state
+    return _entry(entry_id, schema_version, available, state, reference)
 
 
 def _unavailable(reason_code: str) -> dict[str, Any]:

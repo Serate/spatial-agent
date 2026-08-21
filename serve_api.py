@@ -20,6 +20,7 @@ from agent.api_contract import (
 )
 from agent.environment_status import environment_status
 from agent.artifact_access import resolve_artifact_path
+from agent.evidence_registry import normalize_evidence_registry
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
@@ -136,6 +137,14 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path.startswith("/runs/"):
             parts = parsed.path.strip("/").split("/")
+            if len(parts) == 3 and parts[1] and parts[2] == "evidence":
+                try:
+                    result = self.service.get_run_evidence(parts[1])
+                except ValueError as exc:
+                    self._write_json(404, error_response(exc, not_found=True))
+                else:
+                    self._write_json(200, result)
+                return
             if len(parts) == 3 and parts[1] and parts[2] in ("observability", "async"):
                 try:
                     result = self.service.get_async_observability(parts[1])
@@ -208,6 +217,28 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")
+            return
+        if parsed.path.startswith("/artifacts/runs/") and parsed.path.endswith("/evidence"):
+            name = parsed.path[len("/artifacts/runs/") : -len("/evidence")].strip("/")
+            artifact = self._artifact_file("/artifacts/runs/" + name)
+            if artifact is None:
+                self._write_json(404, {"error": "artifact not found"})
+                return
+            path, _content_type = artifact
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                self._write_json(404, {"error": "artifact not found"})
+                return
+            self._write_json(200, {
+                "schema_version": "spatial-agent.evidence-reference.v1",
+                "run_id": payload.get("run_id"),
+                "domain_id": payload.get("domain_id", "gis"),
+                "artifact": {"available": True, "ref": path.name},
+                "evidence_registry": normalize_evidence_registry(
+                    payload.get("evidence_registry")
+                ),
+            })
             return
         artifact = self._artifact_file(parsed.path)
         if artifact is not None:

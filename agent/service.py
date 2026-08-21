@@ -20,6 +20,7 @@ from agent.domain_registry import resolve_domain_id
 from agent.domain_registry import domain_registry
 from agent.runtime_context import assert_runtime_context_compatible
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
+from agent.evidence_registry import normalize_evidence_registry
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
@@ -588,6 +589,7 @@ class AgentService:
             payload,
             registry=_runtime_result_registry(runtime),
         )
+        result.evidence_registry = payload["result"].get("evidence_registry")
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
@@ -923,6 +925,18 @@ class AgentService:
                 status=status,
                 artifact_ref=artifact.get("artifact_ref"),
             )
+        artifact_registry = normalize_evidence_registry(
+            artifact.get("evidence_registry")
+        )
+        if artifact_registry.get("available") and not (
+            isinstance(evidence.get("evidence_registry"), dict)
+            and evidence["evidence_registry"].get("available")
+        ):
+            # A partially-written/legacy async projection can omit the
+            # registry even though the run artifact already has the final
+            # result index. Reuse that bounded source rather than guessing
+            # from result_type or discarding the evidence.
+            evidence["evidence_registry"] = artifact_registry
         return _build_async_observability(
             {
                 "run_id": run_id,
@@ -1121,6 +1135,7 @@ class AgentService:
             payload,
             registry=_runtime_result_registry(runtime),
         )
+        result.evidence_registry = payload["result"].get("evidence_registry")
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
@@ -1298,6 +1313,46 @@ class AgentService:
                 limit=limit, domain_id=self._resolved_domain_id
             )
         return {"runs": _attach_history_lineage(records)}
+
+    def get_run_evidence(self, run_id: str) -> Dict[str, Any]:
+        """Return a safe, navigable evidence index for one run.
+
+        This is intentionally smaller than a run artifact: callers receive
+        the versioned registry and a basename-only artifact reference, never
+        a host path or arbitrary file locator.
+        """
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("run_id must be a non-empty string")
+        domain_id = self._resolved_domain_id or "gis"
+        artifact = (
+            self._artifact_store.read_run(run_id, domain_id=domain_id)
+            if self._artifact_store is not None
+            else None
+        )
+        registry = normalize_evidence_registry(
+            artifact.get("evidence_registry") if isinstance(artifact, dict) else None
+        )
+        artifact_ref = artifact.get("artifact_ref") if isinstance(artifact, dict) else None
+        if not registry.get("available"):
+            try:
+                payload = self.get_run(run_id)
+            except ValueError:
+                payload = None
+            envelope = payload.get("result") if isinstance(payload, dict) else None
+            if isinstance(envelope, dict):
+                registry = normalize_evidence_registry(envelope.get("evidence_registry"))
+                artifact_ref = artifact_ref or payload.get("artifact_ref")
+        safe_ref = str(artifact_ref or "").replace("\\", "/").rsplit("/", 1)[-1]
+        if not registry.get("available") and not safe_ref:
+            self._reject_cross_domain_run_id(run_id, domain_id)
+            raise ValueError("run evidence not found: " + run_id)
+        return {
+            "schema_version": "spatial-agent.evidence-reference.v1",
+            "run_id": run_id,
+            "domain_id": domain_id,
+            "artifact": {"available": bool(safe_ref), "ref": safe_ref or None},
+            "evidence_registry": registry,
+        }
 
     def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:
         if not isinstance(session_id, str) or not session_id.strip():

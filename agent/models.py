@@ -95,6 +95,8 @@ class AgentRunResult:
     replan_events: List[Dict[str, Any]] = field(default_factory=list)
     # Bounded user decision lifecycle evidence (M151).
     decision_evidence: Optional[Dict[str, Any]] = None
+    # Versioned evidence index retained in SQLite/history snapshots (M159).
+    evidence_registry: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -121,4 +123,6 @@ class AgentRunResult:
             data.pop("request_facts", None)
         if data.get("decision_evidence") is None:
             data.pop("decision_evidence", None)
+        if data.get("evidence_registry") is None:
+            data.pop("evidence_registry", None)
         return data

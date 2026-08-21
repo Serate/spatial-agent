@@ -625,6 +625,36 @@ function Assert-DeploymentEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-EvidenceRegistry($payload, [string]$surface) {
+  if ($null -eq $payload) { throw "$surface evidence payload is empty" }
+  $registry = $payload.evidence_registry
+  if ($null -eq $registry -and $null -ne $payload.result_evidence) {
+    $registry = $payload.result_evidence.evidence_registry
+  }
+  if ($null -eq $registry -and $null -ne $payload.result) {
+    $registry = $payload.result.evidence_registry
+  }
+  if ($null -eq $registry) { throw "$surface evidence registry missing" }
+  if ($registry.schema_version -ne "spatial-agent.evidence-registry.v1") {
+    throw "$surface evidence registry schema mismatch"
+  }
+  $entries = @($registry.entries)
+  if ([int]$registry.entry_count -ne $entries.Count -or $entries.Count -lt 1 -or $entries.Count -gt 12) {
+    throw "$surface evidence registry entry count invalid"
+  }
+  foreach ($entry in $entries) {
+    if ([string]::IsNullOrWhiteSpace([string]$entry.id) -or [string]::IsNullOrWhiteSpace([string]$entry.schema_version)) {
+      throw "$surface evidence registry entry identity missing"
+    }
+    if ([string]$entry.reference -notlike "result*") {
+      throw "$surface evidence registry reference is not a result JSON path"
+    }
+    if ([string]$entry.reference -match '(?i)(?:[A-Za-z]:\\|/app/|/data/|file:|https?:)') {
+      throw "$surface evidence registry contains an external path or URL"
+    }
+  }
+}
+
 if (-not [string]::IsNullOrWhiteSpace($ContractPayloadPath)) {
   if (-not (Test-Path -LiteralPath $ContractPayloadPath -PathType Leaf)) {
     throw "contract payload not found: $ContractPayloadPath"
@@ -691,6 +721,7 @@ Assert-DegradationEvidence $syncRun "sync run"
 Assert-WorkspaceEvidence $syncRun "sync run"
 Assert-ViewEvidence $syncRun "sync run"
 Assert-NestedSchemaContract $syncRun "sync run"
+Assert-EvidenceRegistry $syncRun "sync run"
 Assert-ReplanningEvidence $syncRun "sync run"
 Assert-DeploymentEvidence $syncRun "sync run"
 if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
@@ -698,6 +729,20 @@ if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
 }
 $artifactName = Split-Path -Leaf ([string]$syncRun.artifact_ref)
 $artifact = Get-Json "$BaseUrl/artifacts/runs/$artifactName"
+Assert-EvidenceRegistry $artifact "artifact"
+if ($null -eq $artifact.evidence_registry -or $null -eq $syncRun.result.evidence_registry) {
+  throw "sync/artifact evidence registry comparison source missing"
+}
+if (($artifact.evidence_registry | ConvertTo-Json -Depth 50 -Compress) -ne ($syncRun.result.evidence_registry | ConvertTo-Json -Depth 50 -Compress)) {
+  throw "sync/artifact evidence registry mismatch"
+}
+$syncEvidence = Get-Json "$BaseUrl/runs/$($syncRun.run_id)/evidence"
+Assert-EvidenceRegistry $syncEvidence "sync run evidence endpoint"
+$syncArtifactEvidence = Get-Json "$BaseUrl/artifacts/runs/$artifactName/evidence"
+Assert-EvidenceRegistry $syncArtifactEvidence "sync artifact evidence endpoint"
+if (($syncEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress) -ne ($syncArtifactEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress)) {
+  throw "sync evidence endpoints registry mismatch"
+}
 if ($artifact.plan_evidence.selected_capability_id -ne $syncRun.plan_evidence.selected_capability_id) {
   throw "artifact selected capability mismatch"
 }
@@ -752,6 +797,8 @@ $failureArtifactName = Split-Path -Leaf ([string]$failureRun.artifact_ref)
 $failureArtifact = Get-Json "$BaseUrl/artifacts/runs/$failureArtifactName"
 Assert-FailureEvidence $failureArtifact "failure artifact"
 Assert-DeploymentEvidence $failureArtifact "failure artifact"
+Assert-EvidenceRegistry $failureRun "sync failure run"
+Assert-EvidenceRegistry $failureArtifact "failure artifact"
 
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
   request = $adminRequest
@@ -782,6 +829,7 @@ for ($index = 0; $index -lt $PollLimit; $index++) {
 if ($null -eq $final) { throw "async run did not reach a terminal state" }
 if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
 Assert-DeploymentEvidence $final "async run"
+Assert-EvidenceRegistry $final "async final run"
 $asyncFinalArtifactName = Split-Path -Leaf ([string]$final.artifact_ref)
 if ([string]::IsNullOrWhiteSpace([string]$asyncFinalArtifactName)) {
   throw "async run artifact_ref missing"
@@ -789,12 +837,21 @@ if ([string]::IsNullOrWhiteSpace([string]$asyncFinalArtifactName)) {
 Assert-NestedSchemaContract $final "async final run"
 Assert-ReplanningEvidence $final "async final run"
 $asyncArtifact = Get-Json "$BaseUrl/artifacts/runs/$asyncFinalArtifactName"
+Assert-EvidenceRegistry $asyncArtifact "async artifact"
 Assert-NestedSchemaContract $asyncArtifact "async artifact"
 Assert-ReplanningEvidence $asyncArtifact "async artifact"
 Assert-RepairLineageEvidence $asyncArtifact "async artifact"
 $asyncArtifactContract = Invoke-ContractHarness -payloads @($final, $asyncArtifact) -surface "async/artifact"
 $asyncObservation = Get-Json "$BaseUrl/runs/$($queued.run_id)/async"
 Assert-AsyncResultEvidence $asyncObservation "async polling"
+Assert-EvidenceRegistry $asyncObservation "async polling"
+$asyncRunEvidence = Get-Json "$BaseUrl/runs/$($queued.run_id)/evidence"
+Assert-EvidenceRegistry $asyncRunEvidence "async run evidence endpoint"
+$asyncArtifactEvidence = Get-Json "$BaseUrl/artifacts/runs/$asyncFinalArtifactName/evidence"
+Assert-EvidenceRegistry $asyncArtifactEvidence "async artifact evidence endpoint"
+if (($asyncRunEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress) -ne ($asyncArtifactEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress)) {
+  throw "async evidence endpoints registry mismatch"
+}
 if ($null -eq $asyncObservation.lineage -or $null -eq $asyncObservation.lineage.replanning) {
   throw "async polling repair lineage index missing"
 }

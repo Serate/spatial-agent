@@ -5,6 +5,7 @@ exception mapping to agent.api_contract so this server cannot drift from the
 dev server in serve_api.py.
 """
 
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -341,6 +342,14 @@ def get_run(run_id: str, planner: str = "rule", backend: str = "memory"):
         _raise_for(exc, not_found=True)
 
 
+@app.get("/runs/{run_id}/evidence")
+def run_evidence(run_id: str):
+    try:
+        return service.get_run_evidence(run_id=run_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
 @app.get("/runs/{run_id}/observability")
 @app.get("/runs/{run_id}/async")
 def async_observability(run_id: str):
@@ -438,6 +447,31 @@ def run_artifact(name: str):
         ),
         media_type="application/json",
     )
+
+
+@app.get("/artifacts/runs/{name}/evidence")
+def run_artifact_evidence(name: str):
+    path = _safe_artifact(
+        ARTIFACT_ROOT,
+        name,
+        ".json",
+        domain_id=getattr(service, "_resolved_domain_id", "gis"),
+        metadata_root=ARTIFACT_ROOT,
+    )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="artifact not found") from exc
+    from agent.evidence_registry import normalize_evidence_registry
+
+    registry = normalize_evidence_registry(payload.get("evidence_registry"))
+    return {
+        "schema_version": "spatial-agent.evidence-reference.v1",
+        "run_id": payload.get("run_id"),
+        "domain_id": payload.get("domain_id", "gis"),
+        "artifact": {"available": True, "ref": path.name},
+        "evidence_registry": registry,
+    }
 
 
 @app.get("/artifacts/actions/{name}")

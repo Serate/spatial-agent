@@ -49,6 +49,7 @@ class ResultContractRegistry:
         fallback_title: str = "运行结果",
         view_builder: Callable[..., Mapping[str, Any]] | None = None,
         provenance_projector: Callable[..., Mapping[str, Any]] | None = None,
+        evidence_specs: Mapping[str, Any] | None = None,
     ) -> None:
         self._specs = {
             str(key): value
@@ -58,6 +59,11 @@ class ResultContractRegistry:
         self._fallback_title = str(fallback_title or "运行结果")[:120]
         self._view_builder = view_builder
         self._provenance_projector = provenance_projector
+        self._evidence_specs = {
+            str(key): tuple(item for item in (value or ()) if isinstance(item, Mapping))[:8]
+            for key, value in (evidence_specs or {}).items()
+            if str(key)
+        }
 
     def spec(self, result_type: str) -> ResultTypeSpec | None:
         return self._specs.get(str(result_type or ""))
@@ -119,6 +125,17 @@ class ResultContractRegistry:
         value = self._provenance_projector(result, dict(summary))
         return dict(value) if isinstance(value, Mapping) else dict(summary)
 
+    def evidence_specs_for(self, result_type: str) -> list[dict[str, Any]]:
+        """Return bounded Domain-owned evidence index declarations.
+
+        The declarations are metadata only.  ``build_evidence_registry``
+        still validates the schema version and JSON reference before exposing
+        an entry to any transport or recovery path.
+        """
+        values = list(self._evidence_specs.get("*", ()))
+        values.extend(self._evidence_specs.get(str(result_type or ""), ()))
+        return [dict(item) for item in values[:12]]
+
     def as_context(self) -> dict[str, object]:
         """Expose only JSON-safe metadata for capability/evidence consumers."""
         return {
@@ -137,6 +154,7 @@ class ResultContractRegistry:
                 for result_type, spec in self._specs.items()
             ],
             "fallback_title": self._fallback_title,
+            "evidence_specs": self.evidence_specs_for("*")[:8],
         }
 
 

@@ -1454,3 +1454,15 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M159 全局规划
 
 下一阶段把 Registry 引用接入 artifact/download、history、async recovery、Console 导航和 replay/live 证据完整性，并验证 Text/GIS 双 Domain 隔离与自定义 Domain evidence 扩展；继续保持 Runtime/ToolRegistry 动作边界和默认离线精简测试。
+
+## M159 当前完成状态
+
+- `ArtifactStore.list_runs()` 与 SQLite history snapshot 现在保留规范化 Evidence Registry；新增 `/runs/{run_id}/evidence` 与 `/artifacts/runs/{name}/evidence`，只返回版本化索引和安全 basename。
+- async artifact-only recovery 会在投影缺失 Registry 时复用同一 run artifact 顶层索引；未知 Registry/entry schema、外部引用和跨 Domain 文件继续安全降级/拒绝。
+- `ResultContractRegistry` 提供 bounded Domain-owned evidence specs；`spatial-agent.domain-evidence.v1` 是当前可迁移的领域证据版本，最终仍经过公共 Registry 校验。
+- Console 历史任务和运行证据卡提供 Registry 导航；没有新增 GIS 专用 renderer 分支。
+- M159 宿主专项和相邻跨入口回归已通过；当前代码镜像已重建，Docker Engine 29.6.2 healthy，production acceptance 通过。验收脚本覆盖同步/异步结果、artifact、轮询和两个 evidence 导航端点的 Registry 完整性与一致性；容器专项 10 项通过。动态 Chrome/CDP 和外部 live provider 仍未执行。
+
+## M160 全局规划
+
+以完整 Agent 闭环为中心推进 Registry completeness/replay contract、开放式澄清与修复回放、Text/GIS 双 Domain 真实隔离和当前镜像的 Docker/FastAPI/SQLite/artifact/browser 验收。证据索引只做可比较导航，不拥有执行策略；默认 quick/CI 继续离线精简。

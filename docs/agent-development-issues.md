@@ -3886,3 +3886,31 @@ Registry 是索引而不是证据内容，但早期设计容易把“可定位�
 ### 处理与预防
 
 Registry 只允许当前 allowlist 中的 schema 版本，引用限定为 `result` 或 `result.*` 的 JSON 路径；未知 entry schema、外部引用和未知 Registry 版本统一返回 unavailable。artifact、async、HTTP 和 Console 只消费该安全索引，不把它当作文件下载授权。以后新增 evidence entry 必须同时定义 schema allowlist、引用边界和未知版本回归。
+
+## M159：异步 artifact 投影缺失 Registry 会造成历史/轮询证据分叉
+
+### 现象
+
+新写入的 run artifact 已经包含顶层 Evidence Registry，但旧版或异步 worker 在最终 evidence 投影写入前退出时，`async_result_evidence` 可能没有 Registry。历史列表、artifact-only recovery 和在线轮询因此可能显示不同的证据入口数量。
+
+### 根因
+
+Registry 首先接入了 result envelope 和 async projection；SQLite/history 使用的运行快照只保存 `AgentRunResult`，而该对象原先没有保存 Registry。artifact 顶层索引与 async 轻量投影也没有定义缺失场景下的有界 fallback。
+
+### 处理与预防
+
+M159 将 Registry 作为 `AgentRunResult` 的可选版本化字段保存到 SQLite/history，并在 artifact/history 列表统一规范化；artifact-only async recovery 在同一 Domain 内优先复用顶层 Registry。新增 `/runs/{id}/evidence` 和 artifact evidence 入口只返回 Registry 与安全 basename。以后新增跨入口 evidence 时，必须同时验证 result、SQLite history、async online、async artifact-only、HTTP 下载和 Console 导航；部分写入只能复用已存在的安全投影，不能根据 result type 猜测。
+
+## M159：Domain 自定义 evidence 如果绕过公共 allowlist 会破坏可迁移性
+
+### 现象
+
+Domain Pack 需要把自己的 runtime/release 证据加入统一 Registry。如果直接把 Domain 自定义 schema 或文件路径塞入 Registry，旧 artifact、其他 Domain 和前端可能无法识别，甚至重新暴露本机路径。
+
+### 根因
+
+Evidence Registry 是公共可迁移索引，不应把 Domain 实现细节当作通用协议。自定义 entry 同时涉及 schema 版本、JSON 引用、状态和跨入口恢复；只在 Domain builder 中校验会让 artifact/HTTP/async 消费者各自解释。
+
+### 处理与预防
+
+M159 增加 `ResultContractRegistry.evidence_specs_for()` 作为 Domain-owned 声明 seam，但公共 Registry 只接受已知版本（当前领域证据使用 `spatial-agent.domain-evidence.v1`）和 `result`/`result.*` 引用；未知版本或外部引用被拒绝/降级。以后扩展 Domain evidence 必须补自定义 entry 的当前/未知 schema、跨 Domain、artifact 恢复和 Console 导航测试，并保持 Registry 不拥有 Runtime 动作策略。

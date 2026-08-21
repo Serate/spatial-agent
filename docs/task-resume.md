@@ -1724,3 +1724,14 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 2. 用 Text/GIS 双 Domain 验证 Registry 形状、跨 Domain 隔离和自定义 evidence 扩展。
 3. 让 replay/live baseline 使用 Registry 做证据完整性检查，保持默认 CI 离线精简。
 4. 完成 Docker/GIS/live/browser 显式验收后进行全局重规划。
+
+## M159 当前完成状态
+
+- 历史运行和 SQLite 快照保留规范化 `spatial-agent.evidence-registry.v1`；artifact history 不输出原始证据内容，只提供安全 Registry 投影。
+- 开发 HTTP 与生产 FastAPI 新增 `/runs/{run_id}/evidence`、`/artifacts/runs/{name}/evidence`；Console 历史与运行证据区可以导航到同一索引。
+- async artifact-only recovery 在旧/半写入 async evidence 缺失 Registry 时复用 artifact 顶层 Registry；Domain-owned result registry 支持有界自定义 evidence entry。
+- M159 专项 4 项、M155-M158 相邻专项 17 项、M148/M149/M146/M133 回归 13 项通过；当前代码镜像已用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate` 重建，Docker Engine 29.6.2 healthy，production acceptance 通过。新增检查覆盖同步/异步结果、artifact、轮询和两个 evidence 导航端点的 Registry 一致性；容器专项 10 项通过。
+
+## M160 全局重规划参考
+
+优先把 Registry 用于 replay/live 的证据完整性评测和当前版本真实入口验收：先补 Registry completeness contract 与开放式/澄清/修复/失败回放，再做 Docker/GIS/live/browser 矩阵；继续验证 Text/GIS 隔离、SQLite/artifact 重启恢复和 Console 动态证据导航。默认 quick/CI 保持离线精简，公共 Runtime/Result/ToolRegistry seam 由主线统一集成。

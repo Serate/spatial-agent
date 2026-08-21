@@ -8,6 +8,7 @@ from agent.runtime_context import normalize_runtime_context
 from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
 from agent.service_async import normalize_async_result_evidence
 from agent.nested_schema import NestedSchemaError, normalize_result_contract, unavailable_nested_view
+from agent.evidence_registry import normalize_evidence_registry
 
 
 def _safe_run_id(run_id: object) -> str | None:
@@ -382,6 +383,9 @@ class ArtifactStore:
                 "request": payload.get("request"),
                 "answer": payload.get("answer"),
                 "error": payload.get("error"),
+                "evidence_registry": normalize_evidence_registry(
+                    _evidence_registry_from_payload(payload)
+                ),
                 "artifact_ref": path.as_posix(),
                 "execution_record": payload.get("execution_record")
                 or build_execution_record(payload, kind="run"),

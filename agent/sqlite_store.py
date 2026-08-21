@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .runtime_context import normalize_runtime_context
 from .runtime import PendingClarification
+from .evidence_registry import normalize_evidence_registry
 
 
 _ASYNC_JOB_SELECT = """
@@ -372,6 +373,11 @@ class SQLiteStateStore:
                 "request": item.get("request"),
                 "answer": item.get("answer"),
                 "error": item.get("error"),
+                "evidence_registry": normalize_evidence_registry(
+                    item.get("evidence_registry")
+                    or ((item.get("result") or {}).get("evidence_registry")
+                        if isinstance(item.get("result"), dict) else None)
+                ),
                 "planner_metrics": item.get("planner_metrics"),
                 "modified_at": updated_at,
             })

@@ -163,15 +163,19 @@ def build_result_contract(
             normalized_runtime_context,
         ),
     }
-    contract["evidence_registry"] = build_evidence_registry({
-        "result": contract,
-        "status": payload.get("status"),
-    })
     contract["deployment_evidence"] = build_deployment_evidence(
         payload,
         model_evidence=contract["model_evidence"],
         degradation=degradation,
     )
+    evidence_specs = []
+    resolver = getattr(registry, "evidence_specs_for", None)
+    if callable(resolver):
+        evidence_specs = resolver(result_type)
+    contract["evidence_registry"] = build_evidence_registry({
+        "result": contract,
+        "status": payload.get("status"),
+    }, custom_entries=evidence_specs)
     if normalized_runtime_context is not None:
         contract["runtime_context"] = normalized_runtime_context
     if payload.get("run_id") or payload.get("action_execution_id"):
