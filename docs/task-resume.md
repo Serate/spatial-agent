@@ -1735,3 +1735,15 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M160 全局重规划参考
 
 优先把 Registry 用于 replay/live 的证据完整性评测和当前版本真实入口验收：先补 Registry completeness contract 与开放式/澄清/修复/失败回放，再做 Docker/GIS/live/browser 矩阵；继续验证 Text/GIS 隔离、SQLite/artifact 重启恢复和 Console 动态证据导航。默认 quick/CI 保持离线精简，公共 Runtime/Result/ToolRegistry seam 由主线统一集成。
+
+## M160 当前完成状态
+
+- 新增 `spatial-agent.evidence-completeness.v1`，Registry 核心 entry 缺失、重复、数量失配、未知 schema 或非法引用时，replay/Contract Harness 明确失败；历史兼容读取仍安全降级。
+- 脱敏 replay 和 live baseline 均消费该 completeness 投影；GIS/Text 核心 Registry 结构一致，跨 Domain 执行记录不混用。
+- 新增可选 `DomainPack.validate_plan()` 执行前 seam。GIS 对唯一结果类型工作流执行 Domain-owned allowlist/max-step 门控，Text 不引入 GIS 策略；ToolRegistry、TaskPlan 和 DAG 校验仍是公共最终边界。
+- M160 专项 5 项、相邻回归、quick/stage/full-stage、compileall 和 diff check 通过；当前镜像 Docker production acceptance 通过，容器 M160/M159/M158 13 项通过。
+- 当前 Docker GIS/live-short 2/2 通过；脱敏 replay 4/4、live case Registry completeness 2/2，token 11,862、重试 0。动态 Chrome/CDP 因 Chrome 进程提前退出未验证，脚本的 Windows PowerShell 5.1 编码解析问题已修复并记录。
+
+## M161 全局重规划参考
+
+优先把 Domain plan policy 的选择依据、allowlist、repair lineage 和拒绝/澄清原因纳入公共 plan evidence，再评估显式 workflow selection 与开放式自动匹配的统一契约；继续做 Text/GIS 同步/异步/artifact/recovery 隔离和当前镜像动态浏览器验收。Registry 只做证据索引，不拥有 Runtime 状态或执行策略，默认 quick/CI 继续离线精简。

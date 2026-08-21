@@ -1016,6 +1016,9 @@ class AgentRuntime:
     ) -> None:
         if workflow is not None:
             _validate_runtime_workflow_plan(plan, workflow)
+        domain_validator = getattr(self._domain_pack, "validate_plan", None)
+        if callable(domain_validator):
+            domain_validator(plan)
         if plan.output.get("type") != "direct_answer":
             self._validate_plan(plan)
 

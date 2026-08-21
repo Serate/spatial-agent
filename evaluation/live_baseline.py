@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 from agent.models import AgentRunResult
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.plan_quality import project_plan_quality_evidence
+from agent.evidence_registry import project_evidence_registry_completeness
 from evaluation.model_evaluation import (
     DEFAULT_MODEL_REPLAY_FIXTURE,
     evaluate_model_replay_suite_file,
@@ -100,6 +101,9 @@ def run_live_baseline(
     snapshot = snapshot_provider(max_files)
     safe_snapshot = _safe_capability_snapshot(snapshot)
     replay = dict(replay_evaluator(replay_fixture))
+    replay_registry_completeness = replay.get("evidence_registry_completeness")
+    if not isinstance(replay_registry_completeness, Mapping):
+        replay_registry_completeness = project_evidence_registry_completeness(None)
     runtime = runtime_factory("openai", backend)
     service = service_factory() if service_factory is not None else None
     results = []
@@ -122,6 +126,7 @@ def run_live_baseline(
         "backend": backend,
         "capability_snapshot": safe_snapshot,
         "plan_repair_replay": replay,
+        "evidence_registry_completeness": replay_registry_completeness,
         "repair_evidence": summarize_repair_evidence(replay),
         "capability_repair_evaluation": summarize_capability_repair_quality(results),
         "cases": results,
@@ -138,7 +143,11 @@ def run_live_baseline(
             "attempts": sum(item["metrics"].get("attempts", 0) for item in results),
             "retries": sum(item["metrics"].get("retries", 0) for item in results),
         },
-        "passed": passed == len(results) and bool(replay.get("failed", 1) == 0),
+        "passed": (
+            passed == len(results)
+            and bool(replay.get("failed", 1) == 0)
+            and bool(replay_registry_completeness.get("passed"))
+        ),
     }
 
 
@@ -734,12 +743,16 @@ def _result_evidence(
     status_match = status == str(case.get("expected_status") or "COMPLETED")
     error_class = provider_class if provider_class != "none" else _local_error_class(result)
     repair_evidence = project_repair_evidence(result)
+    registry_completeness = repair_evidence.get("evidence_registry_completeness")
+    if not isinstance(registry_completeness, Mapping):
+        registry_completeness = project_evidence_registry_completeness(None)
     capability_repair_quality = evaluate_capability_guided_repair(
         repair_evidence,
         expected=case,
     )
     passed = status_match and (quality is None or quality["passed"])
     passed = passed and capability_repair_quality["passed"]
+    passed = passed and bool(registry_completeness.get("passed"))
     if kind == "clarification":
         passed = passed and not actual_tools
     return {
@@ -767,6 +780,7 @@ def _result_evidence(
             else None
         ),
         "repair_evidence": repair_evidence,
+        "evidence_registry_completeness": registry_completeness,
         "capability_repair_quality": capability_repair_quality,
         "answer_chinese": bool(result.answer and any("\u3400" <= char <= "\u9fff" for char in result.answer)),
         "passed": passed,

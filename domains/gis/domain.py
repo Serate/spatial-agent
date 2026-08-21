@@ -7,7 +7,11 @@ import json
 from typing import Any, Mapping
 
 from agent.capability_catalog import capability_catalog
-from agent.workflow_templates import workflow_template_catalog, workflow_template_context_summary
+from agent.workflow_templates import (
+    WorkflowTemplateError,
+    workflow_template_catalog,
+    workflow_template_context_summary,
+)
 from agent.domain_contract import domain_action_catalog
 
 from .catalog import (
@@ -190,6 +194,42 @@ class GisDomainPack:
         from .planner_guidance import GIS_PLANNER_GUIDANCE
 
         return GIS_PLANNER_GUIDANCE
+
+    def validate_plan(self, plan: Any) -> None:
+        """Apply the selected GIS workflow's bounded tool policy.
+
+        Open-ended LLM planning does not always receive an explicit workflow
+        selection.  When a result type maps to exactly one declared blueprint,
+        keep that capability's allowlist as an execution-time policy.  This
+        remains Domain-owned; generic Runtime only invokes the optional seam.
+        """
+        output = getattr(plan, "output", None)
+        output_type = output.get("type") if isinstance(output, Mapping) else None
+        if not output_type:
+            return
+        candidates = [
+            template
+            for template in workflow_template_catalog().values()
+            if output_type in (template.get("result_types") or [])
+            and template.get("step_blueprint")
+        ]
+        if len(candidates) != 1:
+            return
+        template = candidates[0]
+        tools = [str(step.tool) for step in getattr(plan, "steps", ())]
+        allowed = {str(item) for item in (template.get("allowed_tools") or [])}
+        unexpected = sorted(set(tools) - allowed)
+        if unexpected:
+            raise WorkflowTemplateError(
+                "domain workflow policy rejected tools: " + ", ".join(unexpected)
+            )
+        max_steps = template.get("max_steps")
+        if isinstance(max_steps, int) and len(tools) > max_steps:
+            raise WorkflowTemplateError(
+                "domain workflow policy exceeded max steps: {} > {}".format(
+                    len(tools), max_steps
+                )
+            )
 
     def request_understanding_guidance(self) -> Mapping[str, Any]:
         from .request_understanding import GIS_REQUEST_UNDERSTANDING_GUIDANCE

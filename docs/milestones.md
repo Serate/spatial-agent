@@ -3200,3 +3200,23 @@ M159 将 M158 的版本化 Evidence Registry 从“结果中的索引”推进�
 5. **部署可靠性**：验收当前镜像的 FastAPI、SQLite、多 worker、async artifact-only recovery、滚动重启和跨 Domain 负向边界；不以旧容器或宿主静态检查替代当前版本证据。
 6. **用户体验**：Console 以 Registry entry 动态生成证据导航和空态，进一步减少结果类型分支；浏览器 smoke 验证历史、异步、artifact、地图和证据索引的真实点击链路。
 7. **测试证据**：默认 quick/CI 保持离线精简；新增最小 Registry completeness/replay contract，stage/full-stage、GIS、live、Docker、browser 按风险显式运行。
+
+## M160：Evidence Registry 完整性与 Domain 计划门控（代码与可用环境验收完成）
+
+M160 将 Registry 从“可导航索引”推进为可评测的完整性契约，并把真实模型额外工具问题收敛到 Domain-owned 计划策略：
+
+- 新增 `spatial-agent.evidence-completeness.v1`，严格检查五个核心 evidence entry、唯一性、entry_count、schema allowlist 和安全 JSON 引用；兼容读取仍由原 Registry normalize 负责。
+- Contract Harness、脱敏 replay 和 live baseline 共用完整性投影；Text/GIS 的核心 Registry 形状一致，跨 Domain 执行记录仍保持隔离。
+- `DomainPack.validate_plan()` 成为可选执行前 seam；公共 Runtime 只调用该接口并继续执行 TaskPlan/DAG/ToolRegistry 校验，GIS 只在唯一工作流蓝图下执行有界工具 allowlist/max-step 策略，Text 不携带 GIS 规则。
+- 验证：M160 专项 5 项；M155-M159、M149/M150/M131 相关回归通过；quick、stage、full-stage、compileall、diff check 通过。当前镜像 Docker production acceptance 通过，容器 M160/M159/M158 13 项通过。
+- 当前 Docker GIS/live-short 2/2 通过；脱敏 replay Registry 4/4、live 两个 case 的 Registry completeness 均通过，token 11,862、重试 0。动态 Chrome/CDP 仍因 Chrome 进程提前退出未验证，已记录为环境边界。
+
+## M161 全局规划参考
+
+从完整 Agent 闭环继续推进“能力发现到可控计划”的通用性：
+
+1. 将 Domain-owned plan policy 的选中能力、allowlist、repair lineage 和拒绝原因纳入公共 plan evidence，并覆盖澄清/修复/失败/恢复的 replay 矩阵。
+2. 评估显式 workflow selection 与开放式自动匹配的统一契约，避免仅依赖 result type；不能把自动匹配变成公共 GIS 分支。
+3. 继续验证 Text/GIS 同步、异步、artifact/recovery 和跨 Domain 负向隔离，保持 Registry 只做索引、不拥有执行状态。
+4. 恢复 Chrome/CDP 后执行当前镜像的历史、异步、证据导航、地图和空态动态 smoke；浏览器不可用时保留明确未验证证据。
+5. 默认 quick/CI 保持离线精简，阶段末运行当前版本 Docker、GIS/live 和必要的浏览器显式验收。

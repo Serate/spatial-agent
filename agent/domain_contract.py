@@ -141,6 +141,15 @@ class DomainPack(Protocol):
     def planner_guidance(self) -> Mapping[str, Any]:
         """Return bounded domain vocabulary and planner policy."""
 
+    def validate_plan(self, plan: Any) -> None:
+        """Optionally validate a plan against Domain-owned capability policy.
+
+        This is an execution gate, not a second ToolRegistry.  The Runtime
+        still performs generic TaskPlan/DAG checks and every step still goes
+        through ToolRegistry; a Domain may only reject a plan that exceeds its
+        own declared workflow/capability contract.
+        """
+
     def request_understanding_guidance(self) -> Mapping[str, Any]:
         """Return domain-owned RequestFacts/discovery interpretation guidance."""
 

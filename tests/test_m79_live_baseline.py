@@ -81,7 +81,7 @@ class M79LiveBaselineExtensionTests(unittest.TestCase):
         }):
             report = run_live_baseline(
                 runtime_factory=lambda planner, backend: type("Runtime", (), {"run": lambda self, request, session_id: result})(),
-                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2},
+                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2, "evidence_registry_completeness": {"passed": True}},
                 cases=[{"id": "buildability", "request": "筛选洪山区坡度不超过15度的建设候选区域", "expected_status": "COMPLETED", "kind": "buildability"}],
             )
         self.assertTrue(report["passed"])
@@ -103,7 +103,7 @@ class M79LiveBaselineExtensionTests(unittest.TestCase):
         }):
             report = run_live_baseline(
                 runtime_factory=lambda planner, backend: type("Runtime", (), {"run": lambda self, request, session_id: result})(),
-                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2},
+                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2, "evidence_registry_completeness": {"passed": True}},
                 cases=[{"id": "constrained", "request": "筛选洪山区坡度不超过15度、距道路1000米内、排除水体的建设候选区域", "expected_status": "COMPLETED", "kind": "constrained_buildability"}],
             )
         self.assertTrue(report["passed"])
@@ -118,7 +118,7 @@ class M79LiveBaselineExtensionTests(unittest.TestCase):
             report = run_live_baseline(
                 runtime_factory=lambda planner, backend: type("Runtime", (), {"run": lambda self, request, session_id: None})(),
                 service_factory=None,
-                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2},
+                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2, "evidence_registry_completeness": {"passed": True}},
                 cases=[{"id": "comparison", "request": {"admin_names": ["洪山区", "江夏区"], "threshold": 15}, "expected_status": "COMPLETED", "kind": "region_comparison"}],
             )
         self.assertFalse(report["passed"])
@@ -436,7 +436,7 @@ class M79LiveBaselineExtensionTests(unittest.TestCase):
             report = run_live_baseline(
                 runtime_factory=lambda planner, backend: type("Runtime", (), {"run": lambda self, request, session_id: None})(),
                 service_factory=None,
-                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2},
+                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2, "evidence_registry_completeness": {"passed": True}},
                 cases=[{"id": "constrained-matrix", "request": {"admin_names": ["洪山区", "江夏区"], "road_distances": [200, 500]}, "expected_status": "COMPLETED", "kind": "constrained_matrix"}],
             )
         self.assertFalse(report["passed"])

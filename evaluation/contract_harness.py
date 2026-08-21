@@ -23,7 +23,10 @@ from agent.execution_contract import build_execution_record, execution_record_su
 from agent.runtime_context import normalize_runtime_context
 from agent.plan_quality import project_plan_quality_evidence
 from agent.execution_timeline import normalize_execution_timeline
-from agent.evidence_registry import normalize_evidence_registry
+from agent.evidence_registry import (
+    normalize_evidence_registry,
+    project_evidence_registry_completeness,
+)
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,9 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
                 result.get("execution_timeline")
             ),
             "evidence_registry": normalize_evidence_registry(
+                result.get("evidence_registry")
+            ),
+            "evidence_registry_completeness": project_evidence_registry_completeness(
                 result.get("evidence_registry")
             ),
             "step_tools": [
@@ -323,6 +329,9 @@ def _async_result_evidence_projection(
             evidence.get("execution_timeline")
         ),
         "evidence_registry": normalize_evidence_registry(
+            evidence.get("evidence_registry")
+        ),
+        "evidence_registry_completeness": project_evidence_registry_completeness(
             evidence.get("evidence_registry")
         ),
     }

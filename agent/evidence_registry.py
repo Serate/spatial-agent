@@ -18,9 +18,17 @@ from .plan_quality import PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, project_plan_qua
 
 
 EVIDENCE_REGISTRY_SCHEMA_VERSION = "spatial-agent.evidence-registry.v1"
+EVIDENCE_COMPLETENESS_SCHEMA_VERSION = "spatial-agent.evidence-completeness.v1"
 REPLANNING_SCHEMA_VERSION = "spatial-agent.replanning.v1"
 _MAX_ENTRIES = 12
 _MAX_TEXT = 96
+_REQUIRED_ENTRY_IDS = (
+    "result",
+    "plan_quality",
+    "execution_timeline",
+    "action_lifecycle",
+    "replanning",
+)
 _KNOWN_SCHEMA_VERSIONS = {
     RESULT_ENVELOPE_SCHEMA_VERSION,
     PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION,
@@ -111,6 +119,90 @@ def normalize_evidence_registry(value: Any) -> dict[str, Any]:
     }
 
 
+def project_evidence_registry_completeness(value: Any) -> dict[str, Any]:
+    """Check the registry shape without interpreting evidence payloads.
+
+    ``normalize_evidence_registry`` is intentionally forgiving for historical
+    artifacts.  Replay and cross-entry acceptance need a stricter, separate
+    projection: all core entries must be present exactly once, the declared
+    count must match, and every entry must stay within the same safe schema
+    and JSON-reference rules.  Domain-owned entries remain optional.
+    """
+
+    required = list(_REQUIRED_ENTRY_IDS)
+    base = {
+        "schema_version": EVIDENCE_COMPLETENESS_SCHEMA_VERSION,
+        "available": False,
+        "passed": False,
+        "state": "unavailable",
+        "entry_count": 0,
+        "required_entry_ids": required,
+        "present_entry_ids": [],
+        "missing_entry_ids": required,
+        "duplicate_entry_ids": [],
+        "reason_codes": [],
+    }
+    if not isinstance(value, Mapping):
+        base["reason_codes"] = ["evidence_registry_missing"]
+        return base
+    if value.get("schema_version") != EVIDENCE_REGISTRY_SCHEMA_VERSION:
+        base["reason_codes"] = ["evidence_registry_unknown_schema"]
+        return base
+
+    raw_entries = value.get("entries")
+    if not isinstance(raw_entries, list) or len(raw_entries) > _MAX_ENTRIES:
+        base["reason_codes"] = ["evidence_registry_entries_invalid"]
+        return base
+    declared_count = value.get("entry_count")
+    reasons: list[str] = []
+    if isinstance(declared_count, bool) or not isinstance(declared_count, int):
+        reasons.append("evidence_registry_entry_count_invalid")
+    elif declared_count != len(raw_entries):
+        reasons.append("evidence_registry_entry_count_mismatch")
+
+    present: list[str] = []
+    duplicates: list[str] = []
+    for item in raw_entries:
+        if not isinstance(item, Mapping):
+            reasons.append("evidence_registry_entry_invalid")
+            continue
+        entry_id = _text(item.get("id"))
+        schema_version = _text(item.get("schema_version"))
+        reference = _text(item.get("reference"))
+        if not entry_id or not schema_version or not reference:
+            reasons.append("evidence_registry_entry_identity_missing")
+            continue
+        if entry_id in present and entry_id not in duplicates:
+            duplicates.append(entry_id)
+        present.append(entry_id)
+        if schema_version not in _KNOWN_SCHEMA_VERSIONS:
+            reasons.append("evidence_registry_unknown_entry_schema")
+        if reference != "result" and not reference.startswith("result."):
+            reasons.append("evidence_registry_reference_invalid")
+
+    missing = [entry_id for entry_id in required if entry_id not in present]
+    if missing:
+        reasons.append("evidence_registry_required_entry_missing")
+    if duplicates:
+        reasons.append("evidence_registry_duplicate_entry")
+    # Keep codes deterministic and bounded for replay artifacts and UI.
+    reasons = list(dict.fromkeys(reasons))[:12]
+    passed = not reasons and bool(value.get("available"))
+    base.update(
+        {
+            "available": bool(value.get("available")),
+            "passed": passed,
+            "state": "complete" if passed else "incomplete",
+            "entry_count": len(raw_entries),
+            "present_entry_ids": present[:_MAX_ENTRIES],
+            "missing_entry_ids": missing,
+            "duplicate_entry_ids": duplicates,
+            "reason_codes": reasons or (["evidence_registry_unavailable"] if not value.get("available") else []),
+        }
+    )
+    return base
+
+
 def _entry(entry_id: str, schema_version: str, available: bool, state: str, reference: str, *, count: int | None = None) -> dict[str, Any]:
     result = {
         "id": entry_id[:_MAX_TEXT],
@@ -162,4 +254,10 @@ def _text(value: Any) -> str:
     return str(value or "").strip()[:_MAX_TEXT]
 
 
-__all__ = ["EVIDENCE_REGISTRY_SCHEMA_VERSION", "build_evidence_registry", "normalize_evidence_registry"]
+__all__ = [
+    "EVIDENCE_COMPLETENESS_SCHEMA_VERSION",
+    "EVIDENCE_REGISTRY_SCHEMA_VERSION",
+    "build_evidence_registry",
+    "normalize_evidence_registry",
+    "project_evidence_registry_completeness",
+]

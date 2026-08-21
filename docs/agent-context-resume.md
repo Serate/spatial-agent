@@ -1466,3 +1466,14 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M160 全局规划
 
 以完整 Agent 闭环为中心推进 Registry completeness/replay contract、开放式澄清与修复回放、Text/GIS 双 Domain 真实隔离和当前镜像的 Docker/FastAPI/SQLite/artifact/browser 验收。证据索引只做可比较导航，不拥有执行策略；默认 quick/CI 继续离线精简。
+
+## M160 当前完成状态
+
+- 新增 `spatial-agent.evidence-completeness.v1`，对 Registry 五个核心 entry、唯一性、entry_count、schema allowlist 和安全引用做严格、领域无关的验收投影；Contract Harness、脱敏 replay 和 live baseline 共用它。
+- 新增可选 `DomainPack.validate_plan()` seam。GIS Domain 只对唯一结果类型对应的工作流执行有界 allowlist/max-step 策略，Text 不携带 GIS 规则；Runtime 仍统一执行 TaskPlan/DAG/ToolRegistry 校验。
+- M160 专项 5 项、相邻回归、quick/stage/full-stage、compileall、diff check 通过；Docker 当前镜像 production acceptance 通过，容器 M160/M159/M158 13 项通过。
+- Docker GIS/live-short 2/2 通过，脱敏 replay Registry 4/4，两个 live case Registry completeness 2/2，token 11,862、重试 0。动态 Chrome/CDP 因 Chrome 进程提前退出未验证；Windows PowerShell 5.1 的脚本编码解析问题已修复。
+
+## M161 全局规划
+
+将 Domain plan policy 的选择依据、allowlist、repair lineage 和拒绝/澄清原因纳入公共 plan evidence；评估显式 workflow selection 与开放式自动匹配的统一契约，继续做 Text/GIS 跨入口隔离、SQLite/artifact 恢复和当前镜像浏览器动态验收。Registry 只做索引，不拥有执行状态；默认 quick/CI 保持离线精简。

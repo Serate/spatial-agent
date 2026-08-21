@@ -20,6 +20,10 @@ from agent.runtime import AgentRuntime
 from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
 from agent.plan_quality import project_plan_quality_evidence
+from agent.evidence_registry import (
+    EVIDENCE_COMPLETENESS_SCHEMA_VERSION,
+    project_evidence_registry_completeness,
+)
 from evaluation.answer_judge import heuristic_answer_judge
 from result_contract import build_result_contract
 
@@ -97,6 +101,7 @@ def evaluate_model_replay_suite(suite: Mapping[str, Any]) -> Dict[str, Any]:
         "pass_rate": round(passed / len(results), 4) if results else 0,
         "repair_evidence": summarize_repair_evidence(results),
         "capability_repair_evaluation": summarize_capability_repair_quality(results),
+        "evidence_registry_completeness": summarize_evidence_registry_completeness(results),
         "results": results,
     }
 
@@ -119,6 +124,9 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
         contract = build_result_contract(source)
     except Exception:
         contract = {"replanning": {"events": []}}
+    registry_completeness = project_evidence_registry_completeness(
+        contract.get("evidence_registry")
+    )
     replanning = contract.get("replanning") if isinstance(contract, Mapping) else {}
     events = replanning.get("events") if isinstance(replanning, Mapping) else []
     events = events if isinstance(events, list) else []
@@ -184,6 +192,7 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
             "plan_step_count": min(len(steps), 64),
             "failed_step_count": min(failed_step_count, 64),
         },
+        "evidence_registry_completeness": registry_completeness,
     }
 
 
@@ -283,6 +292,52 @@ def summarize_capability_repair_quality(report_or_results: Any) -> Dict[str, Any
         "failed_count": sum(1 for item in evaluated if not item.get("passed")),
         "repair_classes": dict(sorted(classes.items())),
         "passed": all(bool(item.get("passed", True)) for item in evaluated),
+    }
+
+
+def summarize_evidence_registry_completeness(report_or_results: Any) -> Dict[str, Any]:
+    """Aggregate the strict registry check for replay/live-safe reports."""
+    candidates = report_or_results.get("results") if isinstance(report_or_results, Mapping) else report_or_results
+    candidates = candidates if isinstance(candidates, list) else []
+    projections = []
+    for item in candidates:
+        if not isinstance(item, Mapping):
+            continue
+        direct = item.get("evidence_registry_completeness")
+        if isinstance(direct, Mapping):
+            projections.append(direct)
+            continue
+        for turn in item.get("turns") or []:
+            if not isinstance(turn, Mapping):
+                continue
+            repair = turn.get("repair_evidence")
+            projection = repair.get("evidence_registry_completeness") if isinstance(repair, Mapping) else None
+            if isinstance(projection, Mapping):
+                projections.append(projection)
+    return _summarize_registry_projections(projections)
+
+
+def _fixture_registry_completeness(turns: Any) -> Dict[str, Any]:
+    projections = []
+    for turn in turns if isinstance(turns, list) else []:
+        if not isinstance(turn, Mapping):
+            continue
+        repair = turn.get("repair_evidence")
+        projection = repair.get("evidence_registry_completeness") if isinstance(repair, Mapping) else None
+        if isinstance(projection, Mapping):
+            projections.append(projection)
+    return _summarize_registry_projections(projections)
+
+
+def _summarize_registry_projections(projections: List[Mapping[str, Any]]) -> Dict[str, Any]:
+    evaluated = [item for item in projections if item.get("schema_version") == EVIDENCE_COMPLETENESS_SCHEMA_VERSION]
+    passed_count = sum(1 for item in evaluated if item.get("passed") is True)
+    return {
+        "schema_version": EVIDENCE_COMPLETENESS_SCHEMA_VERSION,
+        "evaluated_count": len(evaluated),
+        "passed_count": passed_count,
+        "failed_count": max(0, len(evaluated) - passed_count),
+        "passed": bool(evaluated) and passed_count == len(evaluated),
     }
 
 
@@ -696,7 +751,12 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         repair_evidence,
         expected=fixture,
     )
-    passed = all(item["status_match"] and item["quality"]["passed"] for item in turn_results)
+    passed = all(
+        item["status_match"]
+        and item["quality"]["passed"]
+        and item["repair_evidence"].get("evidence_registry_completeness", {}).get("passed", False)
+        for item in turn_results
+    )
     passed = passed and final_status == final_expected
     if expected_repair_count is not None:
         passed = passed and repair_count == expected_repair_count
@@ -713,6 +773,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         "turns": turn_results,
         "repair_evidence": repair_evidence,
         "capability_repair_quality": capability_repair_quality,
+        "evidence_registry_completeness": _fixture_registry_completeness(turn_results),
         "metrics": safe_metrics,
         "passed": passed,
         "error_class": "none" if passed else "replay_contract_error",
@@ -757,6 +818,7 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
             "chinese_answer": _empty_quality("no answer"),
         },
         "repair_evidence": project_repair_evidence({"status": "FAILED"}),
+        "evidence_registry_completeness": project_evidence_registry_completeness(None),
         "safety": safety,
         "error_class": safety["provider_error"]["class"],
         "passed": False,
@@ -791,6 +853,9 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         result_payload = result.to_dict()
         result_payload["result_type"] = report["result_type"]
         report["repair_evidence"] = project_repair_evidence(result)
+        report["evidence_registry_completeness"] = report["repair_evidence"][
+            "evidence_registry_completeness"
+        ]
         report["model_evidence"] = build_result_contract(
             result_payload,
             registry=runtime.result_registry(),
@@ -798,6 +863,7 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         report["passed"] = (
             result.status.value == str(expected.get("expected_status") or "COMPLETED")
             and quality["passed"]
+            and report["evidence_registry_completeness"]["passed"]
         )
         if result.status.value != "COMPLETED":
             report["error_class"] = "runtime_failure"

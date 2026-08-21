@@ -87,7 +87,7 @@ class M76LiveBaselineTests(unittest.TestCase):
         }):
             report = run_live_baseline(
                 runtime_factory=lambda planner, backend: type("Runtime", (), {"run": lambda self, request, session_id: result})(),
-                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2},
+                replay_evaluator=lambda fixture: {"failed": 0, "passed": 2, "evidence_registry_completeness": {"passed": True}},
                 cases=[{"id": "overview", "request": "分析洪山区空间概况", "expected_status": "COMPLETED", "kind": "spatial_overview"}],
             )
 

@@ -3914,3 +3914,45 @@ Evidence Registry 是公共可迁移索引，不应把 Domain 实现细节当作
 ### 处理与预防
 
 M159 增加 `ResultContractRegistry.evidence_specs_for()` 作为 Domain-owned 声明 seam，但公共 Registry 只接受已知版本（当前领域证据使用 `spatial-agent.domain-evidence.v1`）和 `result`/`result.*` 引用；未知版本或外部引用被拒绝/降级。以后扩展 Domain evidence 必须补自定义 entry 的当前/未知 schema、跨 Domain、artifact 恢复和 Console 导航测试，并保持 Registry 不拥有 Runtime 动作策略。
+
+## M160：Registry 有索引不代表证据入口完整
+
+### 现象
+
+M158/M159 的 Registry 可以完成版本和引用归一化，但旧 replay/Contract Harness 只要看到一个可解析 Registry 就会继续通过，无法发现核心入口缺失、重复、声明数量不一致或被截断。这样会让“可导航”被误认为“证据完整”。
+
+### 根因
+
+安全兼容读取与严格验收使用了同一个宽松投影：历史 artifact 需要有界降级，replay/live 则需要证明 `result`、计划质量、执行时间线、生命周期和重规划五类核心入口都存在。两种语义没有拆成独立 contract。
+
+### 处理与预防
+
+M160 增加领域无关 `spatial-agent.evidence-completeness.v1`，严格检查核心 entry、唯一性、entry_count、schema allowlist 和 JSON 引用；Contract Harness、脱敏 replay 和 live baseline 共用该投影。以后新增 Registry entry 必须区分“兼容读取”与“验收完整性”，不能仅以 `normalize` 成功作为通过条件。
+
+## M160：真实模型完成工具执行但计划质量仍可能不匹配工作流蓝图
+
+### 现象
+
+当前 Docker GIS/live-short 中，空间总览案例通过 Registry 完整性与计划质量；约束建设筛选案例也完成了工具执行并返回正确结果类型，但真实模型额外生成了 `get_dataset_schema` 和 `range_query` 步骤，导致工具覆盖与 workflow blueprint 质量失败。该结果不能算作完整 live baseline 通过。
+
+### 根因
+
+开放式 LLM 运行没有显式 workflow selection 时，Runtime 会执行所有已注册且 schema 合法的工具；当前 capability catalog 记录了选中能力，但尚未把“唯一匹配工作流的 allowlist/蓝图”变成通用的执行前门控。因此 ToolRegistry 合法不等于计划符合该能力的最小蓝图。
+
+### 处理与预防
+
+M160 保持严格评测，不通过放宽 expected tools 或静默删除额外步骤来掩盖问题；同时在通用 Runtime 中增加可选的 Domain-owned `validate_plan` seam。GIS Domain 对唯一结果类型对应的工作流执行有界 allowlist/max-step 门控，违反时进入既有有限 repair；Text Domain 不实现该领域策略，公共 Runtime 不读取 GIS 名称。重建镜像后的 live-short 两个案例均通过。以后新增 Domain 计划策略必须通过同一可选 seam，并保留 repair lineage，不能增加某个区域或固定问句的专用去重分支。
+
+## M160：Windows PowerShell/Chrome CDP 环境会阻塞动态浏览器验收
+
+### 现象
+
+`scripts/console_cdp_start.ps1` 用 Windows PowerShell 5.1 直接执行时，原无 BOM UTF-8 文件被误解码，产生脚本解析错误。改为 ASCII 机器输出并增加 `-Headless` 后，脚本可以解析，但当前机器上的 Chrome headless/普通进程仍在监听 CDP 前退出，动态 Console smoke 无法取得页面。
+
+### 根因
+
+Windows PowerShell 5.1 对无 BOM 脚本的默认编码与 PowerShell 7 不同；Chrome 进程退出则属于浏览器/显示环境边界，不是前端 HTTP 或 Runtime 失败。若把静态 Node smoke 或 Docker API acceptance 当成浏览器通过，会掩盖真实的动态验收缺口。
+
+### 处理与预防
+
+启动脚本的机器可见输出改为 ASCII，并支持显式 `-Headless`；动态浏览器证据继续单独记录为未验证，不能用静态契约替代。后续应先确认 Chrome 进程、独立 profile、CDP 端口和页面存活，再运行 Console smoke；浏览器不可用时只报告环境阻塞，不修改前端逻辑伪造通过。
