@@ -3858,3 +3858,17 @@ M154 在 LLM Planner 边界增加有限 canonical normalization：仅对 `range_
 ### 处理与预防
 
 时间线构建阶段不输出空可选字段，归一化阶段继续使用同一 allowlist；未知版本、缺失事件和旧 artifact 明确返回 unavailable。以后新增跨入口证据字段时，必须先定义 canonical JSON 形状，再同时验证构建、归一化、artifact recovery、async polling 和 Harness，不能只比较业务值。
+
+## M157：时间线直接透传动作会绕过生命周期安全边界
+
+### 现象
+
+执行时间线为了让前端显示可操作动作，需要携带 `allowed_actions`。如果归一化器只检查字段类型而直接透传，手写 artifact 或伪造 async evidence 就可能把未被 Runtime 批准的动作显示给用户，造成前端状态与实际生命周期不一致。
+
+### 根因
+
+时间线是展示投影，不拥有动作策略；动作策略已经由 `ActionLifecycle` 统一维护。若在 timeline、HTTP 或 Console 各自维护动作名称，会产生重复的 allowlist 和跨入口漂移。
+
+### 处理与预防
+
+时间线构建与归一化统一复用 `ActionLifecycle` 的 allowlist，未知动作直接过滤；timeline 不负责执行动作，真正的批准、重试、恢复和工具调用仍由 Runtime、DecisionStore 与 ToolRegistry 处理。以后新增可操作状态必须先扩展生命周期契约和跨入口 Harness，不能在前端或 artifact adapter 中直接添加动作。

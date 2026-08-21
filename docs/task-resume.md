@@ -1696,3 +1696,17 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 2. 实现 Evidence Registry/lineage index 的领域无关适配，保持旧 artifact 兼容和未知版本降级。
 3. 补 Text/GIS、开放式无模板、修复失败、数据降级的跨入口 Harness，并保持 quick/stage 不膨胀。
 4. 运行 Docker/GIS/live/browser 显式验收，完成阶段文档与版本推送后再重规划。
+
+## M157 当前完成状态
+
+- execution timeline 生命周期事件增加 `allowed_actions`，构建与归一化只接受 `ActionLifecycle` allowlist，未知动作被过滤。
+- Console 可从时间线显示当前可执行动作；result、async、artifact 和 Harness 继续共用相同时间线投影。
+- M157 专项 2 项；M155/M156 相邻契约合计 9 项、quick、stage、compileall、Node smoke 和 diff check 通过；Docker 当前镜像专项 5 项与 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，仍作为后续显式验收。
+
+## M158 下一阶段执行顺序
+
+1. 定义最小领域无关 Evidence Registry/lineage reference 接口，避免各入口拼接证据。
+2. 将 result、async、artifact、Console 和 Domain Pack 接入该引用索引，保持旧 artifact 兼容与未知版本安全降级。
+3. 验证允许动作只能由 lifecycle/Runtime 决定，ToolRegistry 仍是工具执行最终边界。
+4. 补 Text/GIS、live、Docker 和浏览器显式验收后再整体重规划。

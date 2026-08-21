@@ -1433,3 +1433,13 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M157 全局规划
 
 下一阶段把执行时间线与 lifecycle allowed actions、Evidence Registry/lineage index 关联，验证 Text/GIS 双 Domain 的开放式无模板、修复失败和数据降级证据，并运行最小 live/browser 显式验收；默认 CI 继续离线精简。
+
+## M157 当前实现与验证状态
+
+- execution timeline 的 lifecycle 事件现在携带 allowlist 过滤后的 `allowed_actions`；未知动作不会从 artifact/async evidence 进入前端。
+- M157 专项 2 项、M155/M156 契约合计 9 项、quick/stage、compileall、Node smoke 通过；Docker 当前镜像专项 5 项和 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行。
+
+## M158 全局规划
+
+下一阶段建立最小领域无关 Evidence Registry/lineage reference，贯通 result、async、artifact、Console 和 Domain Pack；继续保持 lifecycle/Runtime/ToolRegistry 的动作与执行边界，并显式验证 Text/GIS、live 和 browser。

@@ -3148,3 +3148,16 @@ M156 将计划质量、步骤状态、修复事件和生命周期组合为领域
 2. 为 Evidence Registry/引用索引确定最小公共接口，避免 result、async、artifact 和 Console 各自拼接证据。
 3. 在 Text/GIS 双 Domain 验证开放式无模板请求、计划修复失败和数据降级的时间线一致性。
 4. 运行当前版本最小 live baseline 与可用浏览器/CDP 验收；默认 CI 继续离线精简。
+
+## M157：执行时间线动作投影（已完成）
+
+M157 将执行时间线与统一 Action Lifecycle 连接：时间线终态事件现在携带 `allowed_actions`，但只接受 Lifecycle 已声明的动作。前端和异步消费者可以据此显示通用“澄清/取消/批准/重试/恢复”能力，不需要按 Domain 或结果类型猜测按钮。
+
+- 时间线构建和归一化均执行 lifecycle action allowlist；未知动作被过滤，不能通过 artifact 或手写 async evidence 注入危险操作。
+- 新增 M157 专项 2 项；M155/M156 相邻契约 9 项通过，quick、stage、compileall、Node smoke 和 `git diff --check` 通过。
+- Docker 当前镜像重建后，M156/M157 容器专项 5 项和 production acceptance 通过；async artifact contract、幂等、恢复和数据 readiness 保持通过。
+- 外部 live provider、动态 Chrome/CDP 尚未执行。
+
+## M158 全局规划参考
+
+下一阶段从整体推进证据引用和可恢复动作：定义最小领域无关 Evidence Registry/lineage reference，让 result、async、artifact、Console 和未来 Domain Pack 使用同一证据索引；随后验证动作执行仍以 Runtime/ToolRegistry 为边界，并运行 Text/GIS 双 Domain、live 和浏览器显式验收。

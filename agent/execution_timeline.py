@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .action_lifecycle import project_action_lifecycle
+from .action_lifecycle import LIFECYCLE_ACTIONS, project_action_lifecycle
 from .plan_quality import project_plan_quality_evidence
 
 
@@ -92,6 +92,15 @@ def build_execution_timeline(payload: Mapping[str, Any] | None) -> dict[str, Any
         "state": _text(lifecycle.get("state")) or "failed",
         "phase": _text(lifecycle.get("phase")) or "unknown",
     }
+    actions = lifecycle.get("allowed_actions")
+    if isinstance(actions, list):
+        safe_actions = [
+            _text(item)
+            for item in actions
+            if _text(item) in LIFECYCLE_ACTIONS
+        ][:8]
+        if safe_actions:
+            lifecycle_event["allowed_actions"] = safe_actions
     if lifecycle.get("reason_code"):
         lifecycle_event["reason_code"] = _text(lifecycle.get("reason_code"))
     events.append(lifecycle_event)
@@ -129,9 +138,19 @@ def _normalize_event(value: Mapping[str, Any]) -> dict[str, Any]:
     for key in (
         "state", "phase", "reason_code", "template_id", "id", "tool",
         "status", "error_category", "error_code", "failed_step_id", "failed_tool",
+        "allowed_actions",
     ):
         if value.get(key) is not None:
-            result[key] = _text(value.get(key))
+            item = value.get(key)
+            result[key] = (
+                [
+                    _text(entry)
+                    for entry in item[:8]
+                    if _text(entry) in LIFECYCLE_ACTIONS
+                ]
+                if key == "allowed_actions" and isinstance(item, list)
+                else _text(item)
+            )
     for key in ("attempts", "replacement_step_count"):
         item = value.get(key)
         if isinstance(item, int) and not isinstance(item, bool):
