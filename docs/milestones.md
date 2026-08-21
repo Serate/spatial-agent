@@ -3031,8 +3031,20 @@ M148 从完整 Agent Runtime 视角收敛跨入口证据边界，而不是增加
 
 M149 使用最多 5 路并行开发。并行任务必须具备独立写入边界和专项验收；共享 schema、result envelope、Runtime 状态迁移与前端核心函数由主线负责集成，合并后统一运行精简门禁和显式环境验收。此前 M141-M147 记录的单线程约束属于历史阶段。
 
-## M149 当前实现状态（进行中）
+## M149 当前实现状态（已完成）
 
 - 主线新增统一嵌套 schema 迁移/校验 seam；legacy 缺失版本可读，未知 result/workspace/views/view/panel 版本拒绝静默解释。
 - artifact、HTTP、async recovery 和 Console 均使用有界 unavailable fallback 或安全拒绝；plan-repair replay/live 评测使用同一脱敏证据投影。
 - M149 专项与 M147/M148 相邻回归 28 项通过（FastAPI 环境相关 3 项跳过）；quick、ci、stage、full-stage 和 Node smoke 通过。动态 Chrome/CDP、live provider、Docker 仍未作为本阶段已通过证据。
+
+## M150 全局规划参考
+
+M150 不再扩展单一 GIS 数据集，而是把 M149 的契约边界推进到完整 Agent 闭环：
+
+1. **产品能力**：公开计划修复/拒绝原因、可恢复动作和最终证据，支持多轮继续执行。
+2. **架构边界**：建立 capability-guided、预算有界的 Runtime plan-repair seam，仍统一经过 TaskPlan、DAG、ToolRegistry 和 result envelope。
+3. **数据质量**：将数据健康、覆盖、CRS/对齐和 provenance 绑定到 repair 决策；缺数据只产生可解释降级。
+4. **真实模型**：replay 与可选 live 共享 repair lineage、token/延迟和 provider error 的脱敏投影。
+5. **部署可靠性**：补 FastAPI 依赖环境、同步/异步/artifact/recovery 生产矩阵和滚动重启证据。
+6. **用户体验**：完成 Console 动态浏览器/CDP 验收，统一显示计划、修复、视图空态和恢复链接。
+7. **测试证据**：active suite 继续保持极简；M150 使用显式 profile，最多 5 路并行，阶段末统一专项、Docker、live 和浏览器验收。

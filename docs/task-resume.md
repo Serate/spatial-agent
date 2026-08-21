@@ -1609,6 +1609,10 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 
 下一阶段先从项目全局收敛嵌套 schema 迁移/未知版本边界，再增强 capability-guided replay/live plan repair 的统一证据，随后执行生产 FastAPI 与 Console 动态浏览器矩阵；不围绕单一 GIS 数据集增加规则，最大并发度保持 5。
 
-## M149 当前执行规则：并发度调整为 5（进行中）
+## M149 当前执行规则：并发度调整为 5（已完成）
 
 本阶段按用户最新要求将可用并发度提高为 5。只并行执行边界清晰、可独立验收且写入集合不重叠的支线；共享嵌套 schema、result envelope、Runtime 状态迁移和前端核心渲染仍由主线统一集成。历史记录中的并发度 1/3 均为当时阶段约束，不覆盖本阶段规则。
+
+## M150 全局规划参考
+
+下一阶段从整体 Agent Runtime 推进 capability-guided plan repair 的真实执行闭环：先定义有预算的 Runtime repair seam，再接入同步/异步/artifact/recovery 和 Text/GIS 双 Domain；同时建立 FastAPI 生产依赖矩阵、可选 live/replay 计划修复基线和 Console 浏览器/CDP 动态验收。默认 active suite 不扩张，数据任务只服务于 runtime evidence，最多并发 5 路。

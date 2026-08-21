@@ -1347,10 +1347,14 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 
 从整体 Agent Runtime 继续推进“跨入口契约可执行且可解释”：先补嵌套 result/view/workspace schema 的严格迁移边界，再把 replay/live 的计划修复证据接入统一评测，最后做生产 FastAPI 与 Console 动态浏览器矩阵。默认 active suite 不扩张，Docker/GIS/live/browser 保持显式 profile，最大并发度为 5。
 
-## M149 当前实现状态（进行中）
+## M149 当前实现状态（已完成）
 
 - 已建立 `agent/nested_schema.py` 统一迁移/校验 seam，覆盖 result envelope、workspace、views、view/panel、artifact 与 async evidence 的嵌套边界；缺失版本按历史兼容补齐，未知版本不静默解释。
 - artifact/HTTP/async 恢复遇到未知嵌套版本时只返回有界 `unavailable` 视图；原始未来字段不会进入结果、artifact 下载或 Console。
 - replay/live 评测已增加脱敏、限界的 plan-repair evidence；生产验收脚本与 Console Node smoke 已覆盖嵌套版本负向契约。
 - M149 相关 28 项回归、quick、ci、stage、full-stage 与 Node smoke 已通过；FastAPI/动态浏览器仍按环境显式验收，未用静态证据替代运行时证据。
 - 当前最多 5 路并行开发；共享 schema、result envelope、Runtime 状态迁移和前端核心函数由主线集成。
+
+## M150 全局规划参考
+
+M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“可修复规划 + 可验证生产入口”：产品侧让用户能看到模型计划为何被修复/拒绝并继续执行；架构侧把 capability-guided plan repair 从评测证据推进到 Runtime 的有界执行 seam；数据侧继续绑定 runtime capability、健康、覆盖和对齐证据，不新增区域专用规则；模型侧用脱敏 replay 与可选 live 基线验证重复步骤、依赖错误和 repair lineage；部署侧补 FastAPI 依赖环境与生产 API 矩阵；体验侧完成 Console 动态浏览器/CDP 验收；测试侧保持 active suite 极简，新增能力只进入显式 M150 profile。M150 继续允许最多 5 路边界清晰的并行任务。
