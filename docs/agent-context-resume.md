@@ -1691,7 +1691,7 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - 新增 `tests/test_m178_contract_harness.py`，M178/相邻证据专项 Docker 回归 22/22 通过，覆盖旧 Registry 可迁移、未知 schema、planner selection 漂移和 Artifact-only projection equality。
 - Docker 重建后容器 healthy；compileall、quick、stage、production acceptance 均通过，生产数据卷、核心/可选数据健康和 runtime capability 均 ready。
 - `console_selection_evidence_smoke.js`、Chrome/CDP `console_overview_smoke.js` 通过；本阶段未新增 live token 消耗、GIS 工具或原始数据。
-- M178 已完成并准备提交推送；下一阶段为 M179，继续按产品、架构、数据、模型、部署、体验、测试七维度规划，不把单个证据字段当作整体目标。
+- M178 已完成并推送，版本为 `4657a81`；下一阶段为 M179，继续按产品、架构、数据、模型、部署、体验、测试七维度规划，不把单个证据字段当作整体目标。
 
 ## M179 全局规划参考
 
