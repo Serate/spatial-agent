@@ -3635,3 +3635,17 @@ Docker 容器已经 healthy，但生产 acceptance 的第一个 `/capabilities/r
 ### 处理与预防
 
 `production_acceptance.ps1` 将只读 GET 超时提高到 30 秒，仍保留有界等待；POST 请求继续使用 10 秒。以后遇到 acceptance 超时，先区分冷启动耗时、HTTP 路由错误和容器日志，再决定是否修复业务代码；不能因为一次短超时就放宽真实数据或工具契约。
+
+## run artifact 缺少版本和文件名边界会影响迁移与恢复安全
+
+### 现象
+
+旧 run artifact 没有独立的 artifact schema 字段，服务只能依赖结果 envelope 的版本猜测格式；同时如果 recovery 直接把外部 `run_id` 拼接为文件名，斜杠或反斜杠可能让读取边界脱离 artifact 根目录。未知未来格式还可能被误当成当前格式。
+
+### 根因
+
+早期 artifact 主要服务于 demo 恢复，写入路径默认使用 Runtime 生成的 UUID，因而没有像 Domain Action 一样集中校验 run id，也没有单独的 artifact migration contract。随着 HTTP/SQLite/artifact/Console 多入口共用恢复逻辑，这个隐含前提不再可靠。
+
+### 处理与预防
+
+新增 `spatial-agent.run-artifact.v1`：新文件显式写版本；缺失版本的历史文件保持兼容；未知版本拒绝读取。`ArtifactStore` 对 run artifact 的写入和读取统一拒绝路径分隔符、`.`、`..` 和超长 run id，并继续按 Domain 过滤 recovery/list/read。以后新增 artifact 字段或版本时必须补当前/legacy/unknown 三类专项，而不能只测试新写入文件。

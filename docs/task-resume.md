@@ -1577,3 +1577,13 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M147 全局规划参考
 
 下一阶段从整体 Runtime 视角检查证据版本化、旧 artifact 兼容、跨 Domain 负向隔离和 Console 消费边界；不要为单一 GIS 场景增加专用分支。顺序为：契约迁移负向检查 -> Text/GIS 跨入口最小矩阵 -> Docker/HTTP 显式验收 -> 全局七维度重规划。
+
+## M147 当前阶段：artifact 版本与安全恢复边界
+
+- run artifact 新增 `spatial-agent.run-artifact.v1`；缺失 schema 的历史 artifact 兼容读取，未知版本拒绝读取，避免未来格式被静默误解释。
+- run artifact 的 `run_id` 写入/读取与 Action 一样进行安全文件名校验，跨 Domain recovery/list/read 仍返回空而不串域；Console 通用 renderer 已消费 async result evidence。
+- M147 专项 3 项、M146/M122/M124/M133 相邻专项共 19 项、compact、CI、Docker 专项 5 项、生产 acceptance 和内嵌 JS 语法检查通过。
+
+## M148 全局规划参考
+
+下一阶段优先把 artifact/async evidence 版本投影纳入 Contract Harness，再验证 Text/GIS 双 Domain 的 HTTP、artifact、Console 负向隔离；真实模型 replay/live 与 Docker 作为显式验收，不扩大默认测试。

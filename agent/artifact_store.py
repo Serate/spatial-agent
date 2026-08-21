@@ -4,6 +4,19 @@ from typing import Dict, List, Optional
 
 from agent.execution_contract import build_execution_record
 from agent.runtime_context import normalize_runtime_context
+from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
+
+
+def _safe_run_id(run_id: object) -> str | None:
+    """Return a filename-safe run id without relying on host path semantics."""
+    if not isinstance(run_id, str) or not run_id or len(run_id) > 128:
+        return None
+    normalized = run_id.replace("\\", "/")
+    if normalized != run_id or "/" in normalized or run_id in {".", ".."}:
+        return None
+    if Path(run_id).name != run_id:
+        return None
+    return run_id
 
 
 class ArtifactStore:
@@ -14,14 +27,16 @@ class ArtifactStore:
 
     def write_run(self, payload: Dict) -> str:
         run_id = payload.get("run_id")
-        if not isinstance(run_id, str) or not run_id:
-            raise ValueError("payload must include run_id")
+        run_id = _safe_run_id(run_id)
+        if run_id is None:
+            raise ValueError("payload must include a safe run_id")
         self._root.mkdir(parents=True, exist_ok=True)
         path = self._root / (run_id + ".json")
         execution_record = build_execution_record(
             {**payload, "artifact_ref": path.as_posix()}, kind="run"
         )
         artifact = {
+            "artifact_schema_version": RUN_ARTIFACT_SCHEMA_VERSION,
             "run_id": run_id,
             "status": payload.get("status"),
             "request": payload.get("request"),
@@ -126,12 +141,19 @@ class ArtifactStore:
         provenance, context) from the durable artifact after the in-memory
         store has been lost, without re-invoking the model.
         """
-        if not isinstance(run_id, str) or not run_id:
+        run_id = _safe_run_id(run_id)
+        if run_id is None:
             return None
         path = self._root / (run_id + ".json")
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
+            return None
+        schema = payload.get("artifact_schema_version")
+        # Artifacts written before M147 had no run-artifact schema field and
+        # remain readable. Unknown versions are not silently interpreted as
+        # current data, which keeps future migrations explicit.
+        if schema not in (None, RUN_ARTIFACT_SCHEMA_VERSION):
             return None
         payload.setdefault("run_id", run_id)
         if domain_id and payload.get("domain_id", "gis") != domain_id:
@@ -209,6 +231,11 @@ class ArtifactStore:
             except (OSError, ValueError):
                 continue
             if payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1":
+                continue
+            if payload.get("artifact_schema_version") not in (
+                None,
+                RUN_ARTIFACT_SCHEMA_VERSION,
+            ):
                 continue
             if domain_id and payload.get("domain_id", "gis") != domain_id:
                 continue

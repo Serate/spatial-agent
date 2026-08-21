@@ -134,3 +134,7 @@ python scripts\live_baseline.py --allow-network --backend local
 ## M146 异步证据专项
 
 涉及 result views、SQLite、artifact 或 HTTP 轮询时，优先运行一个跨重启的专项，断言 `spatial-agent.async-result-evidence.v1` 的状态、workspace/view 元数据和安全 artifact basename；不要把完整历史异步矩阵重新加入默认 discovery。当前专项为 `tests.test_m146_async_view_evidence`，默认 compact/CI 仍保持 4 项/quick 2 项。
+
+## M147 artifact 兼容专项
+
+涉及 artifact schema、Domain recovery 或 Console async evidence 时，显式运行 `tests.test_m147_artifact_compatibility`，覆盖当前版本、无版本历史文件、未知版本、跨 Domain、路径边界和通用前端消费。该专项不加入默认 discovery；M147 的 Docker 验收仅运行显式专项与 production acceptance。

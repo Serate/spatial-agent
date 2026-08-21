@@ -2986,6 +2986,18 @@ M146 将 M145 的 view 空态继续贯通到异步生命周期。`GET /runs/{run
 
 围绕证据版本迁移、旧 artifact 兼容、跨 Domain 负向隔离和动态 Console 消费做下一条全局纵向切片，继续保持单线程、最小 active gate 与显式 Docker/GIS/live 验收。
 
+## M147：artifact 版本化、安全恢复与 async Console 消费（已完成）
+
+M147 在 M146 async evidence 之上补齐公共 artifact 边界：run artifact 写入 `spatial-agent.run-artifact.v1`，旧的无版本 artifact 保持兼容，未知版本拒绝解释；`run_id` 对写入和读取都执行跨平台安全文件名校验，Domain 过滤继续保护恢复和列表入口。Console 以通用 renderer 消费 async result evidence，不按 Text/GIS 结果类型硬编码。
+
+- M147 专项 3 项，M146/M122/M124/M133 相邻专项共 19 项通过；compact、CI、compileall、内嵌 JS 语法检查通过。
+- 最终 Docker 镜像内 M147/M146 专项 5 项通过，生产 acceptance 通过：核心/可选数据 ready、artifact contract ok、async view state=`success`、失败/400/幂等边界通过。
+- 未执行动态 Chrome CDP smoke；没有将 Docker/API/静态 JS 证据替代浏览器证据。
+
+## M148 规划参考
+
+将 artifact/async evidence 版本投影接入 Contract Harness，并完成 Text/GIS 双 Domain 的 HTTP/Console 负向隔离矩阵；保持单线程和极简默认门禁。
+
 ## M146 全局规划参考
 
 下一阶段从项目整体验证 view evidence 的异步生命周期：同步、SQLite、多 worker、重启恢复、artifact 详情和 HTTP 轮询必须保留相同的 success/degraded/unavailable 语义；同时检查 artifact 引用的安全边界。默认 active suite 继续保持极简，专项按风险显式执行。

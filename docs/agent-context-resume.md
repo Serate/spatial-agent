@@ -1319,6 +1319,17 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 
 从全局 Agent Runtime 继续推进“证据可组合但不膨胀”：统一 async result evidence、deployment evidence、artifact lineage 与 Console 消费边界，优先处理结果契约版本迁移、旧 artifact 兼容和多 Domain 负向隔离；再评估真实模型计划修复的可观测性。默认 active suite 不扩张，阶段专项保持最小风险矩阵，最大并发度保持 1。
 
+## M147 当前实现与验证状态
+
+- `agent.contract_versions` 新增 `spatial-agent.run-artifact.v1`；新写入的 run artifact 带显式版本。缺少版本字段的历史 artifact 继续可恢复，未知未来版本不会被静默当作当前格式读取。
+- `ArtifactStore` 对 run artifact 的写入和读取统一执行安全 `run_id` 文件名校验，拒绝斜杠、反斜杠、`.`、`..` 和超长值；Domain 过滤保持在 artifact recovery/list/read 边界。
+- Console 新增通用 `renderAsyncResultEvidence()`，消费 `async_observability.result_evidence` 的状态、结果类型、view 状态和 artifact 可恢复性，没有增加 Text/GIS 结果类型分支。
+- M147 专项 3 项（版本/旧格式/未知版本/跨 Domain/路径边界/Console 静态契约）与 M146 专项合计 19 项、compact 4 项、CI、内嵌 JS 语法检查通过；Docker 最终镜像专项 5 项和 production acceptance 通过。
+
+## M148 下一阶段全局规划参考
+
+从整体 Runtime 继续检查 evidence schema 的跨版本投影和真实入口一致性：先让 Contract Harness 显式比较 artifact/async evidence 版本与降级状态，再补 Text/GIS 双 Domain 的 HTTP/Console 负向隔离，最后进行真实模型 replay/live 与 Docker 显式验收。默认 active suite 不扩张，最大并发度保持 1。
+
 ## M146 下一阶段全局规划参考
 
 下一阶段从整体可靠性收口 view evidence 的异步生命周期：验证 `unavailable`、degraded、成功 view 在 SQLite 重启、多 worker 轮询、artifact recovery 和 HTTP 详情中的一致性，并检查前端链接只消费安全的 artifact 引用。默认 active suite 不扩张，专项测试按风险显式运行。
