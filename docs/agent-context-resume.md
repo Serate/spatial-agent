@@ -1477,3 +1477,17 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M161 全局规划
 
 将 Domain plan policy 的选择依据、allowlist、repair lineage 和拒绝/澄清原因纳入公共 plan evidence；评估显式 workflow selection 与开放式自动匹配的统一契约，继续做 Text/GIS 跨入口隔离、SQLite/artifact 恢复和当前镜像浏览器动态验收。Registry 只做索引，不拥有执行状态；默认 quick/CI 保持离线精简。
+
+## 持续有效：测试统一使用 Docker
+
+- 后续 Python 单元测试、profile、compileall、GIS 验收和阶段回归，默认在当前版本 Docker 容器内执行；宿主 Python 不作为项目测试通过证据。
+- 生产入口使用当前工作树重建镜像：`docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate`。确认容器 `healthy` 后，通过 `docker exec ai-agent-spatial-agent-1 ...` 执行容器专项；`scripts/production_acceptance.ps1` 是宿主编排器，负责调用容器 HTTP 入口，不在 Linux 容器内执行。
+- 默认测试仍保持精简：先运行容器内 `quick`/`stage` 或对应专项，再按共享 Runtime、部署、GIS 数据卷或真实模型风险追加 `docker`/`live-short` 验收；不因为切换 Docker 而恢复完整历史测试矩阵。
+- 真实模型、真实 GIS、Docker 和浏览器属于显式验收路径；阶段文档必须记录镜像、容器、数据配置和实际 profile。宿主命令失败只能记录为环境诊断，不能替代容器结果。
+
+## M161 当前收尾状态
+
+- `spatial-agent.plan-policy.v1` 已接入 Domain Pack、Runtime、result/artifact/async evidence、Contract Harness 和 Console；GIS policy 支持显式 workflow/唯一自动匹配，Text 不继承 GIS 策略。
+- Docker 当前工作树镜像已重建并为 `healthy`。容器内 M161 专项 6/6、compileall、quick、stage、M160/M159/M154/M148 相邻契约 21 项通过；宿主侧 production acceptance 针对 Docker HTTP 入口通过。
+- 动态 Console 对当前 Docker 服务的 overview、health、clear、map 和 lineage smoke 已通过；lineage 首次 CDP 页面生命周期异常复跑通过，保留为环境波动而非业务失败。
+- M161 仍需完成最终 diff/敏感配置检查、提交和推送；之后按七个维度执行 M162 全局重规划。

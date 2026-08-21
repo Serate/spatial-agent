@@ -73,7 +73,7 @@ if (countCreated !== countBefore + 2) {
 // 历史列表：主按钮打开详情，副按钮保留重跑，且不重新执行。
 await evaluate("loadHistory()");
 await sleep(600);
-const historySnapshot = await evaluate(`JSON.stringify([...document.querySelectorAll('#historyList .history-item')].map(item=>({open:item.querySelector('[data-history-run]')?.getAttribute('data-history-run')||'',rerun:Boolean(item.querySelector('.history-rerun'))})))`, true);
+const historySnapshot = await evaluate(`JSON.stringify([...document.querySelectorAll('#historyList [data-history-run]')].map(button=>({open:button.getAttribute('data-history-run')||'',rerun:Boolean(button.closest('.history-item')?.querySelector('.history-rerun'))})))`, true);
 const historyItems = JSON.parse(historySnapshot || "[]");
 if (historyItems.length < 2) throw new Error(`历史列表应至少 2 项，实际 ${historyItems.length}`);
 for (const item of historyItems) {
@@ -151,3 +151,4 @@ console.log(JSON.stringify({
   finalRunId: compared.runId,
 }));
 socket.close();
+process.exit(0);

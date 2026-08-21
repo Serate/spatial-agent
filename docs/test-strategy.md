@@ -2,6 +2,8 @@
 
 本项目默认测试策略从“每次跑完整矩阵”调整为“少量代表性 profile + 按需扩展矩阵”。目标是让开发反馈更快，同时保留真实 GIS、真实大模型和 Docker 生产验收的证据。提交/PR 使用专门的 `ci` profile，阶段收口再使用独立的 `stage`，避免每次提交重复执行所有边界场景。
 
+测试执行环境统一以当前 Docker 镜像为准。日常 profile、Python 单元测试、GIS 依赖检查和阶段回归默认在容器内运行；宿主 Python 只用于诊断环境问题，不作为阶段通过证据。容器应先用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate` 按当前工作树重建，并确认 `ai-agent-spatial-agent-1` 为 `healthy`。
+
 跨入口结果一致性由 `evaluation/contract_harness.py` 提供统一投影。CLI、HTTP、artifact 和 recovery 验收必须通过 `normalize_result`/`compare_results` 比较稳定契约，不能在各测试文件中重新拼接 `result`、兼容顶层字段或自行忽略运行时字段。
 
 结果视图同样由 Domain-owned `ViewSpec` 和 bounded view model 驱动。前端静态契约与跨领域专项可以验证 renderer 边界；动态 Chrome smoke 属于显式环境验收，不计入 compact/CI。
@@ -17,7 +19,7 @@
 日常改动默认运行：
 
 ~~~powershell
-python scripts\test_profile.py --profile quick
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick
 ~~~
 
 覆盖范围：
@@ -31,7 +33,7 @@ python scripts\test_profile.py --profile quick
 服务 smoke 与 quick 分离，按需运行：
 
 ~~~powershell
-python scripts\test_profile.py --profile smoke
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile smoke
 ~~~
 
 覆盖范围：道路坡度、DEM 元数据、澄清追问和后续回答。`scripts/smoke_check.py` 默认只跑服务 smoke，不再嵌套完整 unittest。
@@ -41,7 +43,7 @@ python scripts\test_profile.py --profile smoke
 提交/PR 默认门禁：
 
 ~~~powershell
-python scripts\test_profile.py --profile ci
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile ci
 ~~~
 
 覆盖范围：
@@ -56,13 +58,13 @@ python scripts\test_profile.py --profile ci
 阶段代码收口但还未进入真实环境验收时运行：
 
 ~~~powershell
-python scripts\test_profile.py --profile stage
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile stage
 ~~~
 
 覆盖范围是独立的 3 个代表性离线验收场景：通用问答、复杂空间分析模板、未注册空间问题澄清。它不重复运行 `quick`，也不运行服务 smoke、完整全局矩阵或脱敏模型回放。
 
 ~~~powershell
-python scripts\evaluate_global.py --cases evaluation/cases/stage-acceptance.json --strict --no-model-evaluation --no-model-replay
+docker exec ai-agent-spatial-agent-1 python scripts/evaluate_global.py --cases evaluation/cases/stage-acceptance.json --strict --no-model-evaluation --no-model-replay
 ~~~
 
 ### full-stage
@@ -70,7 +72,7 @@ python scripts\evaluate_global.py --cases evaluation/cases/stage-acceptance.json
 只有在改动共享 Runtime、HTTP/SQLite 契约、模型评测或阶段发布前需要更强证据时运行：
 
 ~~~powershell
-python scripts\test_profile.py --profile full-stage
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile full-stage
 ~~~
 
 覆盖范围：`evaluation/cases/global-acceptance.json + 脱敏模型评测 + 多轮模型回放`。这是显式重型入口，不作为日常或普通阶段默认门禁，也不嵌套 `quick` 或 `smoke`。
@@ -82,7 +84,7 @@ python scripts\test_profile.py --profile full-stage
 真实 GIS 核心契约只在 `spatial-agent-gis` 环境中运行：
 
 ~~~powershell
-python scripts\test_profile.py --profile gis-core
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile gis-core
 ~~~
 
 该 profile 不替代完整 GIS 全量，但能快速覆盖行政区 GeoJSON、Rasterio 元数据和 analysis-ready 门控。它同样采用抽样用例，不再整模块跑真实 GIS 测试。
@@ -92,7 +94,7 @@ python scripts\test_profile.py --profile gis-core
 真实模型默认不跑完整 live baseline。阶段验收只跑两个代表 case：
 
 ~~~powershell
-python scripts\test_profile.py --profile live-short --dataset-config D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json --live-output D:\tmp\wuhan-gis\live-short.json
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile live-short --dataset-config /app/config/datasets.container.example.json --live-output /app/outputs/live-short.json
 ~~~
 
 代表 case：
@@ -107,20 +109,20 @@ python scripts\test_profile.py --profile live-short --dataset-config D:\tmp\wuha
 Docker profile 只做 production acceptance，不在容器里默认跑完整 live baseline：
 
 ~~~powershell
-python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0.1:8088
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 ~~~
 
-容器镜像构建、完整数据卷和容器内 live baseline 只在部署或数据卷改动阶段单独执行。
+`production_acceptance.ps1` 是宿主侧 HTTP 验收编排器，不能从 Linux 容器内运行；它验收的目标仍必须是当前重建的 Docker 容器。容器镜像构建、完整数据卷和容器内 live baseline 只在部署或数据卷改动阶段单独执行。
 
 ## 完整矩阵
 
 以下命令仍保留，但不是日常默认：
 
 ~~~powershell
-python scripts\test_profile.py --profile full-stage
-python -m unittest discover -s tests -t . -v  # 只运行 compact active suite
-python scripts\smoke_check.py --with-unit-tests
-python scripts\live_baseline.py --allow-network --backend local
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile full-stage
+docker exec ai-agent-spatial-agent-1 python -m unittest discover -s tests -t . -v  # 只运行 compact active suite
+docker exec ai-agent-spatial-agent-1 python scripts/smoke_check.py --with-unit-tests
+docker exec ai-agent-spatial-agent-1 python scripts/live_baseline.py --allow-network --backend local
 ~~~
 
 历史里程碑测试仍可按模块显式运行，例如 `python -m unittest tests.test_m80_replanning -v`；它们不再参与默认 discovery。只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。提交/PR 不自动运行 `stage` 的边界场景；阶段收口或风险明确时再运行 `stage`。即使需要扩展矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。

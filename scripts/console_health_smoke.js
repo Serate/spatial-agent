@@ -51,3 +51,4 @@ if (!snapshot.panel || !snapshot.text.includes("整体状态") || !snapshot.text
   throw new Error("数据健康结果没有激活专用前端面板");
 }
 socket.close();
+process.exit(0);

@@ -116,3 +116,4 @@ if (!placeholders.compare.includes('对比') || !placeholders.regionCompare.incl
 
 console.log(JSON.stringify({tool, rejected, ok, placeholders}));
 socket.close();
+process.exit(0);

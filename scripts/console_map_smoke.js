@@ -106,3 +106,4 @@ if (clearSnapshot.answer || clearSnapshot.steps || clearSnapshot.map) {
   throw new Error("清空对话没有清除工作区结果");
 }
 socket.close();
+process.exit(0);

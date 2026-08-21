@@ -3956,3 +3956,31 @@ Windows PowerShell 5.1 对无 BOM 脚本的默认编码与 PowerShell 7 不同�
 ### 处理与预防
 
 启动脚本的机器可见输出改为 ASCII，并支持显式 `-Headless`；动态浏览器证据继续单独记录为未验证，不能用静态契约替代。后续应先确认 Chrome 进程、独立 profile、CDP 端口和页面存活，再运行 Console smoke；浏览器不可用时只报告环境阻塞，不修改前端逻辑伪造通过。
+
+## M161：宿主 Python alias 不能作为项目测试环境
+
+### 现象
+
+在宿主 PowerShell 执行 `python -m unittest` 或 `python scripts/test_profile.py` 时，命令解析到 `C:\Users\torch\AppData\Local\Microsoft\WindowsApps\python.exe` 占位 alias，进程无法启动。使用明确的宿主 Python 路径可以运行，但宿主环境不一定包含 Rasterio/GDAL 等 GIS 依赖。
+
+### 根因
+
+Windows 的 Python Store alias 与项目实际依赖环境不一致；普通宿主解释器即使能够运行离线 Runtime，也不能证明当前 Docker 生产镜像、真实 GIS 数据卷或容器内依赖可用。宿主测试还可能把“环境缺失”误判为代码回归。
+
+### 处理与预防
+
+从 M161 起，Python 单元测试、profile、compileall、GIS 回归和阶段验收统一在当前 Docker 镜像内执行，使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate` 重建后，通过 `docker exec ai-agent-spatial-agent-1 python ...` 运行。宿主 Python 只用于诊断 alias/依赖问题，不作为阶段通过证据；阶段记录必须区分容器结果、宿主诊断和 live/browser 环境状态。Docker 化不意味着恢复完整历史测试矩阵，仍按 quick、stage、专项和显式 live 分层。
+
+## M161：Console smoke 的异步竞态和页面生命周期需要单独处理
+
+### 现象
+
+M161 的浏览器验收中发现四类容易把前端真实问题与 smoke 自身问题混淆的边界：动作目录异步加载完成前用户已经发起请求；降级对比数据中 `y=null` 的行仍应保留详情入口；lineage 页面历史列表包含 Action 项，不能把它们当作普通运行项；CDP smoke 的定时器没有及时清理时，脚本通过后仍会延迟退出，或在页面导航时出现 `Inspected target navigated or closed`。
+
+### 根因
+
+这些问题分别属于前端异步资源加载、降级数据的展示语义、历史记录类型混合和浏览器测试进程生命周期。它们不应通过扩大后端结果分支或让 smoke 忽略错误来处理；否则会掩盖结构化结果与实际 UI 状态的不一致。
+
+### 处理与预防
+
+动作目录请求在竞态期间自动重新加载；对比表即使没有可绘制的 `y` 值也保留详情导航；lineage smoke 只筛选普通运行历史项并保留 Action 专用入口；CDP smoke 的等待定时器在响应或异常后清理，并在页面导航/关闭时把环境边界报告为可重试错误。以后新增异步前端证据时，必须同时覆盖加载竞态、空值降级、混合历史类型、页面导航和脚本退出，不得只增加静态 DOM 断言。

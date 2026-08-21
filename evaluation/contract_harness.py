@@ -22,6 +22,7 @@ from agent.action_lifecycle import (
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.runtime_context import normalize_runtime_context
 from agent.plan_quality import project_plan_quality_evidence
+from agent.plan_policy import normalize_plan_policy_evidence
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_registry import (
     normalize_evidence_registry,
@@ -132,6 +133,9 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "exact_templates": planning.get("exact_template_ids"),
             "matched_templates": planning.get("matched_template_ids"),
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+            "plan_policy": normalize_plan_policy_evidence(
+                planning.get("plan_policy")
+            ),
             "execution_timeline": normalize_execution_timeline(
                 result.get("execution_timeline")
             ),

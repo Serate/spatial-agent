@@ -133,6 +133,22 @@ class TextDomainPack:
 
         return TEXT_PLANNER_GUIDANCE
 
+    def plan_policy(
+        self,
+        plan: Any,
+        *,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Text has no GIS workflow policy; generic Runtime validation applies."""
+        del plan, workflow
+        return {
+            "schema_version": "spatial-agent.plan-policy.v1",
+            "available": False,
+            "domain_id": self.domain_id,
+            "source": "none",
+            "reason_code": "no_domain_workflow_policy",
+        }
+
     def request_understanding_guidance(self) -> Mapping[str, Any]:
         from .request_understanding import TEXT_REQUEST_UNDERSTANDING_GUIDANCE
 

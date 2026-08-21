@@ -231,6 +231,74 @@ class GisDomainPack:
                 )
             )
 
+    def plan_policy(
+        self,
+        plan: Any,
+        *,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Describe the GIS policy selected for a plan without validating it.
+
+        Validation remains in ``validate_plan``.  This companion seam only
+        exposes enough declarative metadata for the generic Runtime to
+        explain whether a policy was explicit or automatically matched.
+        """
+        output = getattr(plan, "output", None)
+        output_type = output.get("type") if isinstance(output, Mapping) else None
+        catalog = workflow_template_catalog()
+        explicit_id = (
+            str(workflow.get("template_id"))
+            if isinstance(workflow, Mapping) and workflow.get("template_id")
+            else None
+        )
+        candidates = [
+            template
+            for template in catalog.values()
+            if isinstance(template, Mapping)
+            and output_type in (template.get("result_types") or [])
+            and template.get("step_blueprint")
+        ]
+        selected = catalog.get(explicit_id) if explicit_id else None
+        source = "explicit_workflow" if selected is not None else "domain_auto_match"
+        if selected is None and len(candidates) == 1:
+            selected = candidates[0]
+        candidate_ids = [
+            str(item.get("id"))
+            for item in candidates[:8]
+            if isinstance(item, Mapping) and item.get("id")
+        ]
+        if not isinstance(selected, Mapping):
+            return {
+                "schema_version": "spatial-agent.plan-policy.v1",
+                "available": False,
+                "domain_id": self.domain_id,
+                "source": "none",
+                "candidate_policy_ids": [
+                    "gis.workflow." + item for item in candidate_ids
+                ],
+                "reason_code": "workflow_policy_unavailable",
+            }
+        template_id = str(selected.get("id"))
+        return {
+            "schema_version": "spatial-agent.plan-policy.v1",
+            "available": True,
+            "domain_id": self.domain_id,
+            "policy_id": "gis.workflow." + template_id,
+            "source": source,
+            "selected_by": "user" if explicit_id else "domain",
+            "workflow_template_id": template_id,
+            "workflow_template_version": str(selected.get("version") or "1.0.0"),
+            "allowed_tools": [str(item) for item in (selected.get("allowed_tools") or [])[:24]],
+            "max_steps": selected.get("max_steps"),
+            "result_types": [str(item) for item in (selected.get("result_types") or [])[:8]],
+            "required_constraints": [
+                str(item) for item in (selected.get("required_constraints") or [])[:16]
+            ],
+            "candidate_policy_ids": [
+                "gis.workflow." + item for item in candidate_ids
+            ],
+        }
+
     def request_understanding_guidance(self) -> Mapping[str, Any]:
         from .request_understanding import GIS_REQUEST_UNDERSTANDING_GUIDANCE
 

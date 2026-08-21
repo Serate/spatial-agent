@@ -51,3 +51,4 @@ if (snapshot.answer || snapshot.steps || !snapshot.selection.includes("点击地
   throw new Error("清空对话没有清除当前工作区");
 }
 socket.close();
+process.exit(0);

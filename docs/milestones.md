@@ -3220,3 +3220,26 @@ M160 将 Registry 从“可导航索引”推进为可评测的完整性契约�
 3. 继续验证 Text/GIS 同步、异步、artifact/recovery 和跨 Domain 负向隔离，保持 Registry 只做索引、不拥有执行状态。
 4. 恢复 Chrome/CDP 后执行当前镜像的历史、异步、证据导航、地图和空态动态 smoke；浏览器不可用时保留明确未验证证据。
 5. 默认 quick/CI 保持离线精简，阶段末运行当前版本 Docker、GIS/live 和必要的浏览器显式验收。
+
+## M161：Domain Plan Policy 公共证据与 Docker 验收（已完成）
+
+M161 将 Domain-owned plan policy 的选择依据、工具 allowlist、步骤上限、结果类型、澄清/拒绝原因和 repair lineage 纳入版本化 `spatial-agent.plan-policy.v1` 公共证据。该证据由 Runtime 统一投影，result、artifact、异步恢复、Contract Harness 和 Console 共用；Domain Pack 只提供描述性 policy，ToolRegistry、TaskPlan/DAG 和 Runtime 仍是最终执行边界。
+
+- 新增可选 `DomainPack.plan_policy()` seam。GIS 支持显式 workflow 与唯一结果类型自动匹配；Text 明确不携带 GIS workflow 规则。
+- 计划通过、计划校验拒绝、澄清、规划失败和执行重规划均保留有界 plan policy evidence；执行重规划复用完整 Domain plan 校验并刷新 plan identity。
+- 修复 Console 动作目录加载竞态、降级对比结果隐藏详情入口和 lineage smoke 把 Action 历史项误当作普通运行项的问题；浏览器 smoke 增加及时退出处理。
+- 容器内 M161 专项 6/6、compileall、quick、stage 和 M160/M159/M154/M148 相邻契约 21 项通过；当前镜像 production acceptance 通过，核心/可选数据均 ready，同步/artifact、失败契约、异步恢复和幂等通过。
+- 当前 Docker 服务对应的动态 Console smoke：空间总览、数据健康、清空会话、地图分层和 lineage 复跑均通过；首次 lineage 运行遇到一次 CDP 页面导航边界，复跑通过，保留为环境波动证据而非业务失败。
+- 测试环境规则已写入恢复文档、任务文档和测试策略：Python 测试默认在当前 Docker 镜像内运行；PowerShell production acceptance 仅作为宿主侧 HTTP 编排器调用 Docker 服务，不在 Linux 容器内执行。
+
+## M162 全局规划参考
+
+基于当前全局目标，下一阶段优先推进“能力发现到通用计划选择”的完整闭环，而不是继续增加 GIS 专用工具：
+
+1. **产品能力**：让开放式请求明确展示候选能力、选择依据、澄清问题和最终 workflow，支持未知问题结构化降级。
+2. **架构边界**：抽象 Domain-neutral workflow selection/RequestFacts contract，使显式选择、自动匹配和用户确认共享同一 TaskPlan 与 policy evidence。
+3. **数据质量**：继续把数据 readiness、覆盖、对齐和 provenance 作为能力要求与执行证据，不让数据细节反向驱动 Runtime 分支。
+4. **真实模型**：用脱敏 replay 和最小 Docker live 基线验证多候选能力、歧义澄清、计划修复和模型输出 canonicalization。
+5. **部署可靠性**：覆盖容器内测试、HTTP/SQLite/artifact 恢复、版本迁移和 worker 重启后的 workflow/policy evidence 一致性。
+6. **用户体验**：让 Console 以通用 evidence 动态展示候选能力、计划选择、结果和下一步动作，继续减少 GIS 页面分支。
+7. **测试证据**：默认 Docker 内 quick/stage 保持精简，新增 selection contract 后再运行 Docker/GIS/live/browser 显式验收。

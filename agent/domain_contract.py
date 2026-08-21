@@ -150,6 +150,18 @@ class DomainPack(Protocol):
         own declared workflow/capability contract.
         """
 
+    def plan_policy(
+        self,
+        plan: Any,
+        *,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Return bounded metadata for the policy used to assess a plan.
+
+        The metadata is evidence only. Runtime validation and ToolRegistry
+        dispatch remain the execution gates.
+        """
+
     def request_understanding_guidance(self) -> Mapping[str, Any]:
         """Return domain-owned RequestFacts/discovery interpretation guidance."""
 
@@ -219,6 +231,45 @@ def request_understanding_guidance(domain_pack: DomainPack) -> dict[str, Any]:
         value,
         domain_id=str(getattr(domain_pack, "domain_id", "unknown")),
     )
+
+
+def plan_policy(
+    domain_pack: DomainPack,
+    plan: Any,
+    *,
+    workflow: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve Domain-owned plan policy metadata without a GIS fallback."""
+
+    from .plan_policy import PLAN_POLICY_SCHEMA_VERSION
+
+    method = getattr(domain_pack, "plan_policy", None)
+    if not callable(method):
+        return {
+            "schema_version": PLAN_POLICY_SCHEMA_VERSION,
+            "available": False,
+            "domain_id": str(getattr(domain_pack, "domain_id", "unknown"))[:80],
+            "source": "none",
+            "reason_code": "domain_policy_unavailable",
+        }
+    try:
+        value = method(plan, workflow=workflow)
+    except TypeError:
+        # Keep older custom Domain Packs compatible with a positional-only
+        # optional seam while still keeping the call domain-owned.
+        try:
+            value = method(plan)
+        except Exception:
+            value = {}
+    except Exception:
+        value = {}
+    return dict(value) if isinstance(value, Mapping) else {
+        "schema_version": PLAN_POLICY_SCHEMA_VERSION,
+        "available": False,
+        "domain_id": str(getattr(domain_pack, "domain_id", "unknown"))[:80],
+        "source": "none",
+        "reason_code": "domain_policy_unavailable",
+    }
 
 
 def clarification_details(domain_pack: DomainPack, request: str) -> dict[str, Any]:

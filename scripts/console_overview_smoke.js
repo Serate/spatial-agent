@@ -138,3 +138,4 @@ if (!release.text.includes("发布完整性") || !release.text.includes("源绑�
   throw new Error(`发布完整性证据卡缺少三层摘要：${JSON.stringify(release)}`);
 }
 socket.close();
+process.exit(0);

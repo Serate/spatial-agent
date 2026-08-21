@@ -1747,3 +1747,23 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M161 全局重规划参考
 
 优先把 Domain plan policy 的选择依据、allowlist、repair lineage 和拒绝/澄清原因纳入公共 plan evidence，再评估显式 workflow selection 与开放式自动匹配的统一契约；继续做 Text/GIS 同步/异步/artifact/recovery 隔离和当前镜像动态浏览器验收。Registry 只做证据索引，不拥有 Runtime 状态或执行策略，默认 quick/CI 继续离线精简。
+
+## 持续有效：测试环境规则
+
+从 M161 起，项目测试统一以 Docker 当前镜像为准。宿主 Python 不再作为单元测试、GIS 测试或阶段完成的有效证据；宿主解释器只能用于诊断 WindowsApps alias、依赖缺失等环境问题。
+
+标准流程：
+
+1. 使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate` 让容器包含当前工作树。
+2. 确认 `ai-agent-spatial-agent-1` 为 `healthy`，并确认 `/data` 数据卷与容器内解释器/GIS 依赖可用。
+3. 通过 `docker exec ai-agent-spatial-agent-1 python ...` 执行 M 专项、`test_profile.py`、compileall 和必要的回归；生产 API 使用宿主侧 `scripts/production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088` 验收，该脚本只编排容器 HTTP 入口。
+4. 阶段记录必须区分容器通过、宿主诊断和外部 live/browser 未验证三类证据。
+
+切换到 Docker 只改变执行环境，不扩大默认测试矩阵；仍按 quick、stage、专项、docker、live-short 分层运行。
+
+## M161 当前收尾状态
+
+- `spatial-agent.plan-policy.v1` 已接入 Domain Pack、Runtime、result/artifact/async evidence、Contract Harness 和 Console；GIS policy 支持显式 workflow/唯一自动匹配，Text 不继承 GIS 策略。
+- 当前工作树镜像已重建为 healthy。容器内 M161 专项 6/6、compileall、quick、stage、M160/M159/M154/M148 相邻契约 21 项通过；宿主侧 production acceptance 针对 Docker HTTP 入口通过。
+- 当前 Docker 服务动态 Console 的 overview、health、clear、map 和 lineage smoke 通过；lineage 首次 CDP 页面生命周期异常在复跑中通过，暂记为环境波动。
+- 下一步是最终 diff/敏感配置检查、提交并推送 M161，然后按产品、架构、数据、模型、部署、体验、测试七个维度执行 M162 全局重规划。

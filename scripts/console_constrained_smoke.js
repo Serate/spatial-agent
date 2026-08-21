@@ -90,3 +90,4 @@ if (!state.text.includes("满足道路距离约束候选单调不减")) throw ne
 
 console.log(`constrained smoke PASS: rows=${state.rows} monotonicBadge=true`);
 socket.close();
+process.exit(0);

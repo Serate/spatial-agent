@@ -26,6 +26,7 @@ from .domain_contract import (
     execute_domain_action,
     clarification_details as resolve_clarification_details,
     preflight_tool as run_domain_preflight,
+    plan_policy as resolve_plan_policy,
     runtime_evidence as resolve_runtime_evidence,
     release_evidence as resolve_release_evidence,
     request_understanding_guidance,
@@ -41,6 +42,7 @@ from .plan_repair import PlanRepairEngine, PlanRepairInput
 from .observability import ObservabilityEmitter
 from .plan_identity import build_plan_identity
 from .plan_quality import diagnose_plan, project_plan_quality_evidence, repair_context
+from .plan_policy import build_plan_policy_evidence
 from .planner import Planner
 from .replanning import (
     ReplanningPolicy,
@@ -397,12 +399,17 @@ class AgentRuntime:
         )
         result.context_evidence = context_packet.evidence
         self._state_store.save(result)
+        candidate_plan: Optional[TaskPlan] = None
         try:
             # Check controls around planning as well as tool dispatch. A
             # direct-answer plan has no step boundary where cancellation or
             # timeout would otherwise be observed.
             self._check_control(result.run_id, deadline)
             plan = self._plan(resolved_request, workflow, context_packet)
+            candidate_plan = plan
+            # Preserve the candidate for rejected/clarification evidence even
+            # when the plan fails before it becomes executable.
+            result.plan = plan
             self._check_control(result.run_id, deadline)
             plan, _repair_event = self._validate_or_repair_plan(
                 plan,
@@ -419,6 +426,13 @@ class AgentRuntime:
                 workflow,
                 context_packet,
                 planner_kind=type(self._planner).__name__,
+            )
+            result.plan_evidence["plan_policy"] = self._plan_policy_evidence(
+                plan,
+                workflow,
+                state="accepted",
+                reason_code="accepted",
+                repair_lineage=result.replan_events,
             )
             result.plan_evidence["execution_policy"] = self._execution_policy_evidence(plan)
             if expected_plan_fingerprint is not None:
@@ -527,6 +541,13 @@ class AgentRuntime:
         except ClarificationNeeded as exc:
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
+            if result.plan_evidence is None:
+                result.plan_evidence = self._failure_plan_evidence(
+                    plan=candidate_plan,
+                    workflow=workflow,
+                    state="clarification",
+                    reason_code="clarification_required",
+                )
             result.clarification = exc.details or resolve_clarification_details(
                 self._domain_pack, resolved_request
             ) or None
@@ -535,6 +556,13 @@ class AgentRuntime:
         except RequestRejected as exc:
             result.status = RunStatus.REJECTED
             result.error = str(exc)
+            if result.plan_evidence is None:
+                result.plan_evidence = self._failure_plan_evidence(
+                    plan=candidate_plan,
+                    workflow=workflow,
+                    state="rejected",
+                    reason_code="request_rejected",
+                )
             _record_run_failure(result, exc, phase="planning")
             self._conversation_store.clear_pending(session_id)
         except RunCancelled as exc:
@@ -548,6 +576,17 @@ class AgentRuntime:
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
+            if result.plan_evidence is None:
+                result.plan_evidence = self._failure_plan_evidence(
+                    plan=candidate_plan,
+                    workflow=workflow,
+                    state="rejected" if candidate_plan is not None else "unavailable",
+                    reason_code=(
+                        "plan_validation_rejected"
+                        if candidate_plan is not None
+                        else "planner_failed"
+                    ),
+                )
             _record_run_failure(result, exc)
             result.answer = self._answer_composer.compose_failure(result)
         if result.planner_metrics is None:
@@ -724,8 +763,10 @@ class AgentRuntime:
                 "artifact_export": False,
             },
         }
+        candidate_plan: Optional[TaskPlan] = None
         try:
             plan = self._plan(resolved_request, workflow, context_packet)
+            candidate_plan = plan
             plan, repair_event = self._validate_or_repair_plan(
                 plan,
                 resolved_request,
@@ -740,6 +781,13 @@ class AgentRuntime:
                 workflow,
                 context_packet,
                 planner_kind=type(self._planner).__name__,
+            )
+            plan_evidence["plan_policy"] = self._plan_policy_evidence(
+                plan,
+                workflow,
+                state="accepted",
+                reason_code="accepted",
+                repair_lineage=[repair_event] if repair_event is not None else [],
             )
             plan_evidence["execution_policy"] = self._execution_policy_evidence(plan)
             payload.update({
@@ -761,18 +809,40 @@ class AgentRuntime:
                 ) or None,
                 "planner_metrics": self._planner_metrics(),
             })
+            payload["plan_evidence"] = self._failure_plan_evidence(
+                plan=candidate_plan,
+                workflow=workflow,
+                state="clarification",
+                reason_code="clarification_required",
+            )
         except RequestRejected as exc:
             payload.update({
                 "status": RunStatus.REJECTED.value,
                 "error": str(exc),
                 "planner_metrics": self._planner_metrics(),
             })
+            payload["plan_evidence"] = self._failure_plan_evidence(
+                plan=candidate_plan,
+                workflow=workflow,
+                state="rejected",
+                reason_code="request_rejected",
+            )
         except Exception as exc:
             payload.update({
                 "status": RunStatus.FAILED.value,
                 "error": str(exc),
                 "planner_metrics": self._planner_metrics(),
             })
+            payload["plan_evidence"] = self._failure_plan_evidence(
+                plan=candidate_plan,
+                workflow=workflow,
+                state="rejected" if candidate_plan is not None else "unavailable",
+                reason_code=(
+                    "plan_validation_rejected"
+                    if candidate_plan is not None
+                    else "planner_failed"
+                ),
+            )
         if payload.get("workflow") is None:
             payload.pop("workflow", None)
         return payload
@@ -904,6 +974,57 @@ class AgentRuntime:
             "wildcard_permission": "*" in self._allowed_permissions,
             "approved_tool_count": len(self._approved_tools),
             "tools": tools[:32],
+        }
+
+    def _plan_policy_evidence(
+        self,
+        plan: Optional[TaskPlan],
+        workflow: Optional[Mapping[str, Any]],
+        *,
+        state: str = "accepted",
+        reason_code: Optional[str] = None,
+        repair_lineage: Optional[Iterable[Mapping[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Project Domain policy metadata through one generic Runtime seam."""
+        domain_policy = resolve_plan_policy(
+            self._domain_pack,
+            plan,
+            workflow=workflow,
+        )
+        return build_plan_policy_evidence(
+            plan,
+            domain_policy=domain_policy,
+            workflow=workflow,
+            domain_id=self.domain_id,
+            state=state,
+            reason_code=reason_code,
+            repair_lineage=tuple(repair_lineage or ()),
+        )
+
+    def _failure_plan_evidence(
+        self,
+        *,
+        plan: Optional[TaskPlan],
+        workflow: Optional[Mapping[str, Any]],
+        state: str,
+        reason_code: str,
+    ) -> Dict[str, Any]:
+        """Create planning evidence even when no executable plan survived."""
+        return {
+            "available": False,
+            "planner_kind": type(self._planner).__name__,
+            "source": _planner_source(type(self._planner).__name__, workflow),
+            "domain_id": self.domain_id,
+            "step_count": len(plan.steps) if isinstance(plan, TaskPlan) else 0,
+            "tool_names": [step.tool for step in plan.steps]
+            if isinstance(plan, TaskPlan)
+            else [],
+            "plan_policy": self._plan_policy_evidence(
+                plan,
+                workflow,
+                state=state,
+                reason_code=reason_code,
+            ),
         }
 
     def _build_context_packet(
@@ -1229,7 +1350,7 @@ class AgentRuntime:
             # Validate the merged plan only: replacement steps may legitimately
             # depend on original steps that survive in the merged plan, which
             # a standalone validation of the replacement would reject.
-            self._validate_plan(merged)
+            self._validate_plan_for_execution(merged, result.workflow)
             merged_quality = diagnose_plan(
                 merged,
                 workflow_context(self._domain_pack),
@@ -1267,6 +1388,21 @@ class AgentRuntime:
                     plan_quality_after=merged_quality,
                 )
             )
+            if isinstance(result.plan_evidence, dict):
+                result.plan_evidence["plan_policy"] = self._plan_policy_evidence(
+                    merged,
+                    result.workflow,
+                    state="accepted",
+                    reason_code="execution_replan_accepted",
+                    repair_lineage=result.replan_events,
+                )
+                result.plan_evidence["plan_identity"] = build_plan_identity(
+                    merged,
+                    request=result.request,
+                    resolved_request=result.resolved_request or result.request,
+                    workflow=result.workflow,
+                    planner_kind=type(self._planner).__name__,
+                )
             return True
         except Exception:
             # Replanning failed; the caller falls back to fail-fast.

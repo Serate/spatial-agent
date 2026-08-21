@@ -75,3 +75,4 @@ if (!result.messages.some(item => item === '你好')) throw new Error("conversat
 if (!result.messages.some(item => item.includes('空间智能体'))) throw new Error("conversation assistant history was not restored");
 if (result.rasterVisible) throw new Error("result from another conversation leaked into the selected conversation");
 socket.close();
+process.exit(0);
