@@ -2973,6 +2973,19 @@ M145 继续沿完整 Agent 闭环推进结果可信度：view 不再只有“成
 - 验证：M122/M113/M124/M133 相关 22 项、Console 静态 smoke 14 项、compact 4 项、CI、Pyflakes、compileall、Node 脚本语法检查和 Docker production acceptance 通过。
 - Chrome CDP 本轮仍未监听，动态浏览器 smoke 明确未验证；不使用 Docker/API/静态检查替代浏览器证据。
 
+## M146：异步结果证据生命周期（已完成）
+
+M146 将 M145 的 view 空态继续贯通到异步生命周期。`GET /runs/{run_id}/async` 增加有界 `spatial-agent.async-result-evidence.v1`，由公共 result contract 与选定 Domain registry 生成，统一暴露 pending/success/degraded/unavailable、结果类型、workspace/view 状态和 artifact 是否可恢复；不泄露请求、模型原文、工具错误或宿主文件路径。
+
+- SQLite 重启、终态轮询、artifact 和 HTTP `/async` 的 Text Domain 专项 2 项通过。
+- 宿主 compact/CI、Docker 容器专项与 compact/CI、生产 acceptance 均通过；真实容器 Engine 29.6.2、核心/可选数据 ready、async view state=`success`。
+- acceptance 首次真实 GIS cold start 约 8 秒，已将 GET 验收超时从 5 秒提高到 30 秒并记录原因；这不是业务错误。
+- 未执行 Chrome CDP 动态 smoke；未改变默认 active suite 数量。
+
+## M147 规划参考
+
+围绕证据版本迁移、旧 artifact 兼容、跨 Domain 负向隔离和动态 Console 消费做下一条全局纵向切片，继续保持单线程、最小 active gate 与显式 Docker/GIS/live 验收。
+
 ## M146 全局规划参考
 
 下一阶段从项目整体验证 view evidence 的异步生命周期：同步、SQLite、多 worker、重启恢复、artifact 详情和 HTTP 轮询必须保留相同的 success/degraded/unavailable 语义；同时检查 artifact 引用的安全边界。默认 active suite 继续保持极简，专项按风险显式执行。

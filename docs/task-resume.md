@@ -1566,3 +1566,14 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 公共 result envelope 为声明但无结果的 view 生成 `unavailable` view，包含有界降级原因和 artifact 可恢复标志；前端 generic renderer 显示该结构化空态和运行 artifact 链接。
 - 恢复旧 artifact 时，空 view map 不会覆盖新契约；非空 artifact view 仍保留。M122/M113/M124/M133 相关 22 项、Console 静态 14 项、compact、CI、Pyflakes、compileall、Node 语法检查和 Docker production acceptance 已通过。
 - Chrome CDP 动态 smoke 仍未执行；下一阶段验证 SQLite/异步/多 worker 恢复后的 view evidence 一致性。
+
+## M146 当前阶段：异步 view evidence 生命周期
+
+- async observability 新增 `spatial-agent.async-result-evidence.v1`，用 `pending`、`success`、`degraded`、`unavailable` 统一描述轮询状态；仅返回 bounded workspace/view/artifact 元数据。
+- SQLite 终态、服务重启、artifact 恢复和标准库 HTTP `/runs/{run_id}/async` 的证据投影一致；完整结果仍通过 `/runs/{run_id}` 获取。
+- 专项测试 2 项通过；宿主 compact discovery 4 项、CI、Docker 容器专项、容器 compact/CI 和 production acceptance 通过。Docker 冷启动能力快照实测约 8 秒，acceptance GET 预算改为 30 秒。
+- 本阶段未扩大默认 active suite，也未提交真实数据、私有配置或密钥；Chrome CDP 动态 smoke 仍未执行。
+
+## M147 全局规划参考
+
+下一阶段从整体 Runtime 视角检查证据版本化、旧 artifact 兼容、跨 Domain 负向隔离和 Console 消费边界；不要为单一 GIS 场景增加专用分支。顺序为：契约迁移负向检查 -> Text/GIS 跨入口最小矩阵 -> Docker/HTTP 显式验收 -> 全局七维度重规划。

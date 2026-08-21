@@ -7,7 +7,10 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Net.Http
 
 function Get-Json($url) {
-  return Invoke-RestMethod -Method Get -Uri $url -TimeoutSec 5
+  # The first GIS capability snapshot may initialize GDAL/PROJ and inspect
+  # real mounted datasets.  Keep the acceptance bounded, but allow a cold
+  # production container enough time to complete that one-time work.
+  return Invoke-RestMethod -Method Get -Uri $url -TimeoutSec 30
 }
 
 function Post-Json($url, $body) {
@@ -416,6 +419,30 @@ function Assert-ViewEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-AsyncResultEvidence($payload, [string]$surface) {
+  $evidence = $payload.result_evidence
+  if ($null -eq $evidence) { throw "$surface async result evidence missing" }
+  if ($evidence.schema_version -ne "spatial-agent.async-result-evidence.v1") {
+    throw "$surface async result evidence schema mismatch"
+  }
+  if ($evidence.state -notin @("pending", "success", "degraded", "unavailable")) {
+    throw "$surface async result evidence state invalid: $($evidence.state)"
+  }
+  if ($null -eq $evidence.workspace -or $null -eq $evidence.views) {
+    throw "$surface async result evidence workspace/views missing"
+  }
+  if ($evidence.views.schema_version -ne "spatial-agent.views.v1") {
+    throw "$surface async result evidence views schema mismatch"
+  }
+  if ($null -eq $evidence.artifact -or $null -eq $evidence.artifact.available) {
+    throw "$surface async result evidence artifact state missing"
+  }
+  $serialized = $evidence | ConvertTo-Json -Depth 20 -Compress
+  if ($serialized -match '(?i)(?:[A-Za-z]:\\|/app/|/data/)') {
+    throw "$surface async result evidence contains a filesystem path"
+  }
+}
+
 function Assert-DeploymentEvidence($payload, [string]$surface) {
   if ($null -eq $payload) { throw "$surface deployment payload is empty" }
   $deployment = $payload.deployment_evidence
@@ -596,6 +623,8 @@ for ($index = 0; $index -lt $PollLimit; $index++) {
 if ($null -eq $final) { throw "async run did not reach a terminal state" }
 if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
 Assert-DeploymentEvidence $final "async run"
+$asyncObservation = Get-Json "$BaseUrl/runs/$($queued.run_id)/async"
+Assert-AsyncResultEvidence $asyncObservation "async polling"
 
 [pscustomobject]@{
   status = "ok"
@@ -632,6 +661,7 @@ Assert-DeploymentEvidence $final "async run"
   invalid_request_status = $invalid.status_code
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status
+  async_view_state = $asyncObservation.result_evidence.state
   async_duplicate_idempotent = $duplicate.idempotent
   run_id = $queued.run_id
 } | ConvertTo-Json -Compress

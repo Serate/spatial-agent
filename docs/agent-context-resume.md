@@ -1307,6 +1307,18 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 - M122/M113/M124/M133 相关 22 项、Console 静态 smoke 14 项、compact 4 项、CI、Pyflakes、compileall、Node 脚本语法检查和当前 Docker production acceptance 已通过。
 - 宿主 Chrome CDP 仍未启动，动态浏览器 smoke 未宣称通过；Docker/API/静态 renderer 证据与浏览器证据保持分离。
 
+## M146 当前实现与验证状态
+
+- `agent/service_async.py` 新增 `spatial-agent.async-result-evidence.v1` 安全投影；`GET /runs/{run_id}/async` 现在直接返回 pending/success/degraded/unavailable 状态、结果类型、workspace/view kind 与 artifact 可恢复性，不复制请求、答案、原始错误或宿主路径。
+- `AgentService.get_async_observability()` 从同一 Domain-owned result registry 重建 result contract；SQLite 终态、重启恢复和 HTTP 轮询共用相同 view evidence。artifact 引用只保留 basename。
+- 新增 M146 专项 2 项，覆盖 success/degraded/unavailable 三态、路径脱敏、SQLite 重启、artifact、HTTP `/async` 轮询；M122/M124/M133 相邻专项 16 项、compact discovery 4 项、CI、compileall 均通过。
+- Docker Desktop 已从 `D:\code\DockerDesktop` 启动；当前 Engine 29.6.2，容器 healthy，`D:/dataset/agent -> /data (ro)`；生产 acceptance 通过，包含 async polling view state=`success`。动态 Chrome smoke 仍未验证。
+- 生产 acceptance 的只读 GET 超时从 5 秒调整为 30 秒：真实 GIS 容器冷启动首次生成 capabilities snapshot 实测约 8 秒，不能误报为服务失败；POST 超时保持 10 秒。
+
+## M147 下一阶段全局规划参考
+
+从全局 Agent Runtime 继续推进“证据可组合但不膨胀”：统一 async result evidence、deployment evidence、artifact lineage 与 Console 消费边界，优先处理结果契约版本迁移、旧 artifact 兼容和多 Domain 负向隔离；再评估真实模型计划修复的可观测性。默认 active suite 不扩张，阶段专项保持最小风险矩阵，最大并发度保持 1。
+
 ## M146 下一阶段全局规划参考
 
 下一阶段从整体可靠性收口 view evidence 的异步生命周期：验证 `unavailable`、degraded、成功 view 在 SQLite 重启、多 worker 轮询、artifact recovery 和 HTTP 详情中的一致性，并检查前端链接只消费安全的 artifact 引用。默认 active suite 不扩张，专项测试按风险显式运行。

@@ -9,7 +9,7 @@ timing utilities, and process-liveness checks.
 import os
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 
 from agent.models import AgentRunResult
 from agent.runtime_context import runtime_context_fingerprint
@@ -54,6 +54,7 @@ def build_async_observability(
     job: Dict[str, Any],
     result: AgentRunResult = None,
     lineage: Dict[str, Any] = None,
+    result_evidence: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """Build a request-free lifecycle contract for polling and metrics consumers."""
     status = str(job.get("status") or "UNKNOWN")
@@ -116,6 +117,12 @@ def build_async_observability(
     }
     if isinstance(lineage, dict):
         observation["lineage"] = lineage
+    observation["result_evidence"] = result_evidence or {
+        "schema_version": "spatial-agent.async-result-evidence.v1",
+        "available": False,
+        "state": "pending" if status in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"} else "unavailable",
+        "status": status,
+    }
     context = result.runtime_context if result is not None else None
     if context is None:
         payload = job.get("payload")
@@ -124,6 +131,93 @@ def build_async_observability(
     if fingerprint:
         observation["runtime_context_fingerprint"] = fingerprint
     return observation
+
+
+def build_async_result_evidence(
+    contract: Mapping[str, Any] = None,
+    *,
+    status: str = "UNKNOWN",
+    artifact_ref: Any = None,
+) -> Dict[str, Any]:
+    """Project only safe view state for an async polling response.
+
+    The full result envelope remains available from ``GET /runs/{id}``.  This
+    compact projection lets a poller select a renderer without receiving the
+    request, answer, raw tool errors, or filesystem paths.  ``state`` is the
+    common lifecycle vocabulary consumed by all Domains: success, degraded,
+    unavailable, or pending while no result snapshot exists yet.
+    """
+    value = contract if isinstance(contract, Mapping) else {}
+    degradation = value.get("degradation")
+    degradation_status = (
+        str(degradation.get("status") or "none")
+        if isinstance(degradation, Mapping)
+        else "none"
+    )
+    if degradation_status == "unavailable":
+        state = "unavailable"
+    elif degradation_status in {"warning", "degraded"}:
+        state = "degraded"
+    else:
+        state = "success"
+
+    workspace = value.get("workspace")
+    workspace = workspace if isinstance(workspace, Mapping) else {}
+    requested_panels = [
+        str(item)[:64]
+        for item in (workspace.get("panels") or [])
+        if isinstance(item, (str, int))
+    ][:20]
+    specs = []
+    view_specs = workspace.get("view_specs")
+    view_specs = view_specs if isinstance(view_specs, (list, tuple)) else []
+    for item in view_specs[:20]:
+        if not isinstance(item, Mapping) or not item.get("id"):
+            continue
+        specs.append({
+            "id": str(item.get("id"))[:64],
+            "renderer": str(item.get("renderer") or "view")[:64],
+        })
+
+    views = value.get("views")
+    views = views if isinstance(views, Mapping) else {}
+    panels = views.get("panels")
+    panels = panels if isinstance(panels, Mapping) else {}
+    safe_panels: Dict[str, Dict[str, Any]] = {}
+    for panel_id, panel in list(panels.items())[:20]:
+        if not isinstance(panel, Mapping):
+            continue
+        panel_name = str(panel_id)[:64]
+        kind = str(panel.get("kind") or "unknown")[:64]
+        safe_panels[panel_name] = {
+            "kind": kind,
+            "state": "unavailable" if kind == "unavailable" else "available",
+            "artifact_available": bool(panel.get("artifact_available")),
+        }
+
+    ref = None
+    if artifact_ref:
+        # Artifacts can originate on Windows and be recovered by a Linux
+        # worker.  Do not rely on the host platform's Path separator.
+        ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
+    return {
+        "schema_version": "spatial-agent.async-result-evidence.v1",
+        "available": bool(value),
+        "state": state,
+        "status": str(status or "UNKNOWN")[:32],
+        "result_type": str(value.get("type") or "unknown")[:96],
+        "degradation_status": degradation_status,
+        "workspace": {
+            "schema_version": str(workspace.get("schema_version") or "")[:80],
+            "panels": requested_panels,
+            "view_specs": specs,
+        },
+        "views": {
+            "schema_version": str(views.get("schema_version") or "spatial-agent.views.v1")[:80],
+            "panels": safe_panels,
+        },
+        "artifact": {"available": bool(ref), "ref": ref},
+    }
 
 
 def failure_category_for(status: str, error: str = None, source: str = None) -> str:

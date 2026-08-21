@@ -130,3 +130,7 @@ python scripts\live_baseline.py --allow-network --backend local
 - 阶段文档必须写明实际运行的是哪个 profile，而不是笼统写“测试通过”。
 - live 结果只提交安全摘要，不提交 API key、本地私有配置、原始模型响应或原始 GIS 数据。
 - 真实环境失败先分类为 provider、planner、tool schema、数据门控、GIS 后端或 Docker 环境，再决定是否修代码。
+
+## M146 异步证据专项
+
+涉及 result views、SQLite、artifact 或 HTTP 轮询时，优先运行一个跨重启的专项，断言 `spatial-agent.async-result-evidence.v1` 的状态、workspace/view 元数据和安全 artifact basename；不要把完整历史异步矩阵重新加入默认 discovery。当前专项为 `tests.test_m146_async_view_evidence`，默认 compact/CI 仍保持 4 项/quick 2 项。

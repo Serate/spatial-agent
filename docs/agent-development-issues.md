@@ -3621,3 +3621,17 @@ M144 尝试用隔离的无头 Chrome 运行 Console smoke；Chrome 进程存在�
 ### 处理与预防
 
 将动态浏览器结果明确分类为“未执行/环境不可用”，保留 Console 静态契约、Node smoke 脚本语法检查和 Docker/API acceptance 作为独立证据；CDP 恢复后再运行 `scripts/console_*_smoke.js`。任何阶段文档不得用这些替代证据宣称动态浏览器 smoke 通过。
+
+## 真实 GIS 冷启动超过过短的 HTTP 验收超时
+
+### 现象
+
+Docker 容器已经 healthy，但生产 acceptance 的第一个 `/capabilities/runtime?max_files=1` 请求超过 5 秒，PowerShell 报请求超时；随后同一路由正常返回 200，容易被误判为 GIS 依赖、Docker 或 Runtime 失败。
+
+### 根因
+
+生产服务首次生成 runtime capability snapshot 时会加载真实 GIS provider，并检查挂载数据、Rasterio/GDAL/PROJ 和 manifest。当前容器实测冷启动约 8 秒；readiness healthy 只代表服务可接收请求，不代表第一次重量级 capability 快照已经完成。固定 5 秒 GET 预算过短。
+
+### 处理与预防
+
+`production_acceptance.ps1` 将只读 GET 超时提高到 30 秒，仍保留有界等待；POST 请求继续使用 10 秒。以后遇到 acceptance 超时，先区分冷启动耗时、HTTP 路由错误和容器日志，再决定是否修复业务代码；不能因为一次短超时就放宽真实数据或工具契约。

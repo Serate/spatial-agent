@@ -32,6 +32,7 @@ from result_contract import (
 
 from agent.service_async import (
     build_async_observability as _build_async_observability,
+    build_async_result_evidence as _build_async_result_evidence,
     async_event as _async_event,
     async_fingerprint as _async_fingerprint,
     async_response as _async_response,
@@ -735,6 +736,7 @@ class AgentService:
             else self._memory_run(run_id)
         )
         lineage = None
+        result_evidence = None
         if result is not None:
             result_payload = result.to_dict()
             explicit_geometry = result_payload.pop("geometry_evidence", None)
@@ -742,7 +744,26 @@ class AgentService:
                 result_payload["_geometry_evidence"] = explicit_geometry
             result_payload["trace_summary"] = format_trace(result)
             lineage = build_lineage_index(result_payload)
-        return _build_async_observability(job, result, lineage=lineage)
+            context = result_payload.get("runtime_context")
+            planner = context.get("planner", "rule") if isinstance(context, dict) else "rule"
+            backend = context.get("backend", "memory") if isinstance(context, dict) else "memory"
+            runtime = self._runtime(planner, backend)
+            result_payload["result_type"] = _result_type(result_payload)
+            result_contract = build_result_contract(
+                result_payload,
+                registry=_runtime_result_registry(runtime),
+            )
+            result_evidence = _build_async_result_evidence(
+                result_contract,
+                status=result.status.value,
+                artifact_ref=result_payload.get("artifact_ref"),
+            )
+        return _build_async_observability(
+            job,
+            result,
+            lineage=lineage,
+            result_evidence=result_evidence,
+        )
 
     def _async_submission_response(self, run_id: str, status: str, reused: bool) -> Dict[str, Any]:
         response = _async_response(run_id, status, reused)
