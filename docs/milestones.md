@@ -2996,7 +2996,7 @@ M147 在 M146 async evidence 之上补齐公共 artifact 边界：run artifact �
 
 ## M148 规划参考
 
-将 artifact/async evidence 版本投影接入 Contract Harness，并完成 Text/GIS 双 Domain 的 HTTP/Console 负向隔离矩阵；保持单线程和极简默认门禁。
+将 artifact/async evidence 版本投影接入 Contract Harness，并完成 Text/GIS 双 Domain 的 HTTP/Console 负向隔离矩阵；保持极简默认门禁，M148 起允许最多 5 个边界清晰的并行子任务，公共 schema 与 Runtime 状态由主线统一集成。
 
 ## M146 全局规划参考
 

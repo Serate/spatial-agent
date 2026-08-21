@@ -1328,7 +1328,7 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 
 ## M148 下一阶段全局规划参考
 
-从整体 Runtime 继续检查 evidence schema 的跨版本投影和真实入口一致性：先让 Contract Harness 显式比较 artifact/async evidence 版本与降级状态，再补 Text/GIS 双 Domain 的 HTTP/Console 负向隔离，最后进行真实模型 replay/live 与 Docker 显式验收。默认 active suite 不扩张，最大并发度保持 1。
+从整体 Runtime 继续检查 evidence schema 的跨版本投影和真实入口一致性：先让 Contract Harness 显式比较 artifact/async evidence 版本与降级状态，再补 Text/GIS 双 Domain 的 HTTP/Console 负向隔离，最后进行真实模型 replay/live 与 Docker 显式验收。默认 active suite 不扩张，后续可将边界清晰、互不修改同一公共契约的任务并行拆分，最大并发度为 5。
 
 ## M146 下一阶段全局规划参考
 

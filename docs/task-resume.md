@@ -1586,4 +1586,11 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 
 ## M148 全局规划参考
 
-下一阶段优先把 artifact/async evidence 版本投影纳入 Contract Harness，再验证 Text/GIS 双 Domain 的 HTTP、artifact、Console 负向隔离；真实模型 replay/live 与 Docker 作为显式验收，不扩大默认测试。
+下一阶段优先把 artifact/async evidence 版本投影纳入 Contract Harness，再验证 Text/GIS 双 Domain 的 HTTP、artifact、Console 负向隔离；真实模型 replay/live 与 Docker 作为显式验收，不扩大默认测试。M148 起允许并行开发，边界清晰的子任务最大并发度为 5；共享 schema、result envelope 和公共 Runtime 改动仍由主线统一集成。
+
+## 当前并行开发策略
+
+- 最大并发度：5。
+- 适合并行：独立 Domain 测试、文档/验收脚本、前端静态契约、互不重叠的 adapter 或 provider 边界。
+- 不直接并行：同时修改同一公共 schema、`result_contract.py`、Runtime 状态迁移或同一组前端核心函数；这些由主线先确定契约，再合并实现。
+- 每个并行子任务必须有显式专项测试，合并后仍按 compact -> 专项 -> Docker/HTTP 的顺序集成验证。
