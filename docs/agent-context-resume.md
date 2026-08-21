@@ -1709,7 +1709,7 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - 多轮 replay 聚合字段命名为 `evidence_projection_summary`；收集器只接受同时具备 migration 和 Registry completeness 的单条 projection，避免 summary 被误判为证据。
 - 新增 M179 专项 4/4；M178/M177/M174/M149/M160/M158 相邻评测回归 25/25；compileall、quick、stage、production acceptance、Chrome/CDP smoke 通过。
 - Docker 当前镜像 healthy，生产数据卷和 runtime capability ready。本阶段未重复 live token，沿用 M173 真实模型 + GIS/Docker 证据；新问题已记录到中文开发问题文档。
-- M179 已完成并准备提交推送；下一阶段为 M180，重点是统一 Evidence Migration/Recovery seam 和可操作恢复状态。
+- M179 已完成并推送，版本为 `1d6a442`；下一阶段为 M180，重点是统一 Evidence Migration/Recovery seam 和可操作恢复状态。
 
 ## M180 全局规划参考
 
