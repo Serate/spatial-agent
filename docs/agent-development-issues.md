@@ -4364,3 +4364,25 @@ Registry 的 schema（可兼容读取的索引）与 completeness contract（当
 ### 处理与预防
 
 M175 保持 `spatial-agent.evidence-registry.v1` 的安全 normalize 兼容，新增 workflow/planner selection entry，并将严格完整性投影升级为 `spatial-agent.evidence-completeness.v2`。旧 Registry 可以读取，但缺少当前 selection entry 时只允许兼容展示，不能通过当前 replay/live/Contract Harness 完整性门禁。以后改变 required entry、引用规则或完整性判定时，必须升级 completeness 版本，并同时覆盖旧 artifact、未知版本、同步、异步、artifact-only recovery、Text/GIS 和前端证据状态。
+
+## M176：浏览器 smoke 继承表单状态导致空间总览被错误路由
+
+### 现象
+
+在 Docker 生产服务和前端模块均正常时，`console_overview_smoke.js` 发送“分析洪山区空间概况”却得到已完成的单工具 `dem` 结果，空间总览面板没有显示。相邻的候选选择浏览器 smoke 可以正常通过。
+
+### 根因
+
+浏览器 smoke 复用了 CDP 页面，页面导航不会保证浏览器表单控件恢复到默认值。空间总览脚本只固定了 backend，没有固定 planner；前一个 smoke 或浏览器自身的表单恢复可能把 planner 留在其他值，导致测试请求与预期的确定性 Rule Planner 路径不一致。这个失败不是 Evidence Registry renderer 或 GIS 几何执行失败。
+
+### 诊断
+
+先查看 smoke 返回的 `decision`、步骤数和 `result_type`。如果状态为已完成但步骤数为 1、结果不是 `spatial_overview_result`，再在 CDP 中检查 `$('planner').value` 与 `$('backend').value`，区分页面状态继承和服务业务错误。
+
+### 修复
+
+`console_overview_smoke.js` 增加 `CONSOLE_PLANNER` 参数，默认显式设置为 `rule`，与已有 backend 一样在发送请求前固定测试输入。生产接口和运行时逻辑无需修改。
+
+### 预防
+
+浏览器 smoke 必须显式设置所有影响路由的 planner、backend、workflow、确认开关和会话，并使用独立会话；不能假设 Page.navigate 会清除表单状态。结果断言同时检查状态、result type、工具步骤和目标面板，避免把“任意成功结果”当作场景验收通过。

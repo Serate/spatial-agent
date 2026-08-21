@@ -240,6 +240,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 "console_nested_schema.js",
                 "console_decision_evidence.js",
                 "console_selection_interaction.js",
+                "console_evidence_registry.js",
             }
             if name in allowed:
                 self._write_file(self.web_root / name, "application/javascript")

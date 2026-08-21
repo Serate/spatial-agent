@@ -3489,3 +3489,15 @@ M175 把 workflow selection 和 planner selection 从“结果中的普通 plann
 - 新增 `tests/test_m175_selection_registry.py`，覆盖 Text/GIS Registry 形状、缺失 entry 拒绝和跨入口 Registry 丢失检测；同步、异步和 artifact 既有 Registry 回归继续通过。
 - Docker 验证：M175 专项 3/3；M158/M160/M174 回归 7/7；compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
 - 本阶段不增加 GIS 工具、不改变 Runtime 执行路径、不新增 live token 消耗。M175 完成后提交并推送版本，再按全局七维度进入 M176。
+
+## M176：Evidence Registry 前端动态消费与跨入口展示（已完成）
+
+M176 将 Registry 中的 workflow/planner selection 从后端契约接入 Console 通用 renderer，补齐同步结果、异步轮询、Artifact 恢复和 Text/GIS 共享的证据展示边界。
+
+- 新增 `web/console_evidence_registry.js`，统一归一化 Registry、selection payload 和未知 schema；前端动态展示 Registry 版本、入口状态、引用路径、工作流选择和规划器选择，不增加 GIS 页面分支。
+- `web/index.html` 新增选择证据卡片；同步结果和 Artifact recovery 使用同一 `renderEvidence()`，异步 compact evidence 使用同一模块的 `renderCompact()`。
+- `agent/service_async.py` 将 `planner_selection` 纳入 async result evidence，保证轮询、SQLite/artifact 恢复与同步 `result.planning` 的 selection 形状一致。
+- 开发 HTTP 和生产 FastAPI 均将新前端模块加入静态资源 allowlist；未知 Registry/schema 安全降级，不泄露外部引用或路径。
+- 新增 `tests/test_m176_selection_frontend_contract.py` 与 `scripts/console_selection_evidence_smoke.js`；Docker M176/相邻专项通过，compileall、quick、stage、production acceptance 通过。
+- Chrome/CDP 空间总览 smoke 通过：8 步总览、Evidence Registry 可用、工作流/规划器选择均显示，地图三类图层和颜色断言通过；候选选择 smoke 也通过。
+- 本阶段未新增 live token 消耗，Docker 容器 healthy；浏览器 smoke 的表单状态继承问题已记录到中文开发问题文档并固定 planner/backend 输入。

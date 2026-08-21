@@ -81,6 +81,7 @@ WEB_ASSETS = frozenset({
     "console_nested_schema.js",
     "console_decision_evidence.js",
     "console_selection_interaction.js",
+    "console_evidence_registry.js",
 })
 
 

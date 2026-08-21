@@ -7,6 +7,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const cdpBase = process.env.CDP_URL || "http://127.0.0.1:9222";
 const consoleUrl = process.env.CONSOLE_URL || "http://127.0.0.1:8088/";
 const backend = process.env.CONSOLE_BACKEND || "memory";
+const planner = process.env.CONSOLE_PLANNER || "rule";
 const request = process.env.OVERVIEW_REQUEST || "分析洪山区空间概况";
 
 let pages;
@@ -45,6 +46,8 @@ await new Promise((resolve, reject) => {
 });
 await command("Page.enable");
 await command("Runtime.enable");
+await command("Network.enable");
+await command("Network.setCacheDisabled", {cacheDisabled: true});
 await command("Page.navigate", {url: consoleUrl});
 for (let attempt = 0; attempt < 60; attempt++) {
   const ready = await command("Runtime.evaluate", {
@@ -69,6 +72,7 @@ const evaluate = async (expression) => {
 };
 
 const runSnapshot = await evaluate(`(async()=>{
+  $('planner').value=${JSON.stringify(planner)};
   $('backend').value=${JSON.stringify(backend)};
   await newSession();
   await sendChat(${JSON.stringify(request)});
@@ -83,6 +87,7 @@ const runSnapshot = await evaluate(`(async()=>{
     panel:Boolean(document.querySelector('.overview-result.is-visible')),
     stats:$('overviewStats')?.textContent||'',
     evidence:$('overviewEvidence')?.textContent||'',
+    selectionEvidence:$('selectionEvidence')?.textContent||'',
     lineage:$('lineageEvidence')?.textContent||'',
     error:$('error')?.textContent||''
   });
@@ -93,6 +98,9 @@ if (!run.panel) {
 }
 if (!run.lineage.includes('运行 ID')) {
   throw new Error('结果证据索引未显示运行 ID: ' + run.lineage);
+}
+if (!run.selectionEvidence.includes('Evidence Registry') || !run.selectionEvidence.includes('工作流选择') || !run.selectionEvidence.includes('规划器选择')) {
+  throw new Error('选择证据没有通过通用 Evidence Registry renderer 展示: ' + run.selectionEvidence);
 }
 if (!run.stats.includes("工具步骤") || !run.stats.includes("数据来源") || !run.stats.includes("空间要素")) {
   throw new Error(`空间总览摘要缺少公共指标：${JSON.stringify(run)}`);

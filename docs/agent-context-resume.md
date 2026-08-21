@@ -1666,3 +1666,12 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - 严格完整性版本为 `spatial-agent.evidence-completeness.v2`，required entry 为 result、plan_quality、execution_timeline、action_lifecycle、replanning、workflow_selection、planner_selection。旧 Registry 仍可兼容读取，但缺少当前 selection entry 的结果只会安全降级/严格失败。
 - 新增 `tests/test_m175_selection_registry.py`。Docker M175 3/3、M158/M160/M174 回归 7/7、compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
 - M175 未新增 live token 消耗；当前阶段待最终 diff/敏感信息检查、提交和推送，随后从全局七维度规划 M176，不局限于单个 GIS 数据集。
+
+## M176 当前完成状态
+
+- `web/console_evidence_registry.js` 提供领域无关的 Registry/selection 前端 projection；未知 schema、缺失入口和不可信引用均安全降级，Text/GIS 共用同一 renderer。
+- `web/index.html` 的同步结果与 Artifact recovery 使用 `renderEvidence()` 展示 Evidence Registry、workflow selection、planner selection 和所有版本化入口；异步 compact 结果使用同模块 `renderCompact()`。
+- `agent/service_async.py` 的 async evidence 同时保留 workflow/planner selection；开发与生产 HTTP 静态 allowlist 均已加入新模块。
+- Docker 当前镜像 healthy；M176 专项及相邻回归通过；compileall、quick、stage、production acceptance 通过。Node renderer smoke 与宿主 Chrome/CDP 总览/候选 smoke 通过，容器 Node 缺失项按环境跳过。
+- Chrome 总览 smoke 已显式固定 planner/backend，验证 8 步总览、Registry 可用、两类 selection evidence、地图图层和颜色；表单状态继承与静态资源 allowlist 问题已写入 `docs/agent-development-issues.md`。
+- M176 已完成代码与阶段验收，当前待执行最终敏感信息扫描、`git diff --check`、提交和推送；推送后进入 M177 全局七维度重规划。不要提交 API key、私有配置、原始 live 输出或 GIS 原始数据。

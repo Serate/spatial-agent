@@ -1954,3 +1954,25 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 `tests/test_m175_selection_registry.py`，覆盖 Text/GIS 相同 Registry 形状、缺失 selection entry 的严格失败和 Contract Harness 检测 Registry 丢失。
 - Docker 证据：M175 专项 3/3；M158/M160/M174 回归 7/7；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 通过。
 - 本阶段没有新增 live token 消耗或 GIS 工具；下一阶段从全局七维度规划 Evidence Registry 的前端/异步展示一致性、旧 artifact 迁移和跨 Domain 评测矩阵。
+
+## M176 当前完成状态
+
+- 新增 `web/console_evidence_registry.js` 作为领域无关的前端 Evidence Registry renderer；它只消费版本化 Registry entry 和 `result.planning` selection evidence，不解释 GIS 字段。
+- Console 结果证据区域新增 `selectionEvidence`，展示 Registry 可用性、所有有界入口及 workflow/planner selection 卡片；同步详情、历史/Artifact recovery 继续经过同一 `renderEvidence()`。
+- `renderAsyncResultEvidence()` 复用同一 renderer 的 compact projection；`agent/service_async.py` 的 async result evidence 新增规范化 `planner_selection`，未知/旧 schema 保持不可用降级。
+- `serve_api.py` 与 `production_api.py` 均 allowlist `console_evidence_registry.js`，避免静态入口和生产入口出现资源漂移。
+- Docker 当前镜像 healthy。M176 专项与相邻回归通过；compileall、quick、stage、production acceptance 通过。Node 独立 smoke 通过，容器因未安装 Node 跳过旧 Node smoke。
+- Chrome/CDP `console_overview_smoke.js` 通过：显式固定 Rule Planner/backend 后空间总览 8 步完成，Evidence Registry、两类 selection evidence、图层和颜色均可见；候选选择 preview → confirmation → completed 继续通过。
+- M176 遇到的静态资源 allowlist 缺口和浏览器表单状态继承问题已记录到 `docs/agent-development-issues.md`。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M177 全局重规划参考
+
+下一阶段从七个维度继续推进“证据可迁移、可恢复、可被不同入口解释”的完整 Agent Runtime：
+
+1. 产品能力：让前端从 Registry/Result 动态生成答案、轨迹、证据和 artifact 导航，验证澄清、拒绝、修复和完成态都不依赖 GIS 页面分支。
+2. 架构边界：建立统一 Evidence Projection/registry reader seam，清理同步结果、async projection、artifact viewer 与前端之间重复的字段解释；补旧 Registry 的显式迁移语义。
+3. 数据质量：把 Domain evidence 的 readiness、provenance 和降级状态绑定到 Registry 引用，验证缺失/过期/未知证据不会被 UI 标成成功。
+4. 真实模型：扩展脱敏 replay 与最小 live-short，比较模型选择、repair lineage、Registry completeness 和最终答案的一致性。
+5. 部署可靠性：补跨进程 SQLite、artifact-only、重启接管和前端历史恢复的 evidence equality 矩阵。
+6. 用户体验：验证长结果、空结果、旧 artifact、异步处理中和未知 schema 的通用空态与可读提示。
+7. 测试证据：保持 Docker quick/stage 精简，新增少量跨 Domain Contract Harness；阶段末执行一次 Docker、HTTP、Chrome 和必要 live 验收并推送版本。
