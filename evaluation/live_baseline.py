@@ -23,6 +23,7 @@ from evaluation.model_evaluation import (
     evaluate_capability_guided_repair,
     project_repair_evidence,
     sanitize_provider_metrics,
+    summarize_selection_evidence,
     summarize_capability_repair_quality,
     summarize_repair_evidence,
 )
@@ -128,6 +129,7 @@ def run_live_baseline(
         "plan_repair_replay": replay,
         "evidence_registry_completeness": replay_registry_completeness,
         "repair_evidence": summarize_repair_evidence(replay),
+        "selection_evidence": summarize_selection_evidence(results),
         "capability_repair_evaluation": summarize_capability_repair_quality(results),
         "cases": results,
         "summary": {

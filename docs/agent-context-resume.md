@@ -1652,3 +1652,10 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - 新增 `tests/test_m173_selection_contract.py`。Docker M173 专项 5/5、受影响回归 35/35、compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
 - Docker `live-short` 2/2 通过，真实模型 + GIS token 总量 13,001、0 次重试；live 结果只保留安全摘要，不提交 API key、私有配置、原始模型输出或原始 GIS 数据。
 - 当前阶段待完成最终敏感信息检查、`git diff --check`、提交和推送；推送后从全局七维度进入 M174，不把下一阶段限制为单个 GIS 数据集或固定表达。
+
+## M174 当前恢复位置
+
+- replay/live 评测现在通过 `project_workflow_selection_evidence()`、`project_planner_selection_evidence()` 和 `summarize_selection_evidence()` 共享 selection projection；workflow state 与 planner state 分开记录，ambiguous 不会被误当作 unresolved。
+- `evaluation/live_baseline.py` 顶层报告保留同一 `selection_evidence` summary；所有字段均为有界结构化状态，不含请求、参数、原始模型返回或密钥。
+- 新增 `tests/test_m174_replay_selection_evidence.py`。Docker M174 3/3、相邻回归 45/45、compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
+- M174 未新增 live token 消耗，沿用 M173 已验证的真实模型 + GIS/Docker 基线。当前阶段待执行最终 diff/敏感信息检查、提交和推送；之后从全局七维度进入 M175。

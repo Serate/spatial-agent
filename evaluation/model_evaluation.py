@@ -20,6 +20,8 @@ from agent.runtime import AgentRuntime
 from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
 from agent.plan_quality import project_plan_quality_evidence
+from agent.planner_selection import normalize_planner_selection_evidence
+from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.evidence_registry import (
     EVIDENCE_COMPLETENESS_SCHEMA_VERSION,
     project_evidence_registry_completeness,
@@ -37,6 +39,8 @@ _SECRET_KEY_TERMS = ("api_key", "apikey", "secret", "access_token", "refresh_tok
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens")
 REPAIR_EVIDENCE_SCHEMA_VERSION = "spatial-agent.repair-evaluation.v1"
 CAPABILITY_REPAIR_EVIDENCE_SCHEMA_VERSION = "spatial-agent.capability-repair-evaluation.v1"
+PLANNER_SELECTION_EVIDENCE_SCHEMA_VERSION = "spatial-agent.planner-selection.v1"
+SELECTION_EVIDENCE_SUMMARY_SCHEMA_VERSION = "spatial-agent.selection-evaluation.v1"
 _MAX_REPAIR_EVENTS = 8
 _MAX_REPAIR_STEP_IDS = 24
 _MAX_REPAIR_TURNS = 32
@@ -101,6 +105,7 @@ def evaluate_model_replay_suite(suite: Mapping[str, Any]) -> Dict[str, Any]:
         "pass_rate": round(passed / len(results), 4) if results else 0,
         "repair_evidence": summarize_repair_evidence(results),
         "capability_repair_evaluation": summarize_capability_repair_quality(results),
+        "selection_evidence": summarize_selection_evidence(results),
         "evidence_registry_completeness": summarize_evidence_registry_completeness(results),
         "results": results,
     }
@@ -186,6 +191,8 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
         "repair_count": len(projected_events),
         "repair_class": _repair_class(status, len(projected_events)),
         "capability_guidance": _project_capability_guidance(source),
+        "workflow_selection": project_workflow_selection_evidence(source),
+        "planner_selection": project_planner_selection_evidence(source),
         "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
         "lineage": {
             "available": bool(projected_events),
@@ -199,6 +206,128 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
             "failed_step_count": min(failed_step_count, 64),
         },
         "evidence_registry_completeness": registry_completeness,
+    }
+
+
+def project_planner_selection_evidence(payload: Any) -> Dict[str, Any]:
+    """Project the Runtime planner/domain alignment for replay and live.
+
+    Only the versioned planner-selection fields are returned.  Requests,
+    tool arguments, provider payloads and arbitrary error text never enter
+    the model-evaluation report.
+    """
+
+    if hasattr(payload, "to_dict") and callable(payload.to_dict):
+        try:
+            payload = payload.to_dict()
+        except Exception:
+            payload = {}
+    source = dict(payload) if isinstance(payload, Mapping) else {}
+    candidates = []
+    nested_result = source.get("result")
+    if isinstance(nested_result, Mapping):
+        candidates.extend(
+            nested_result.get(key)
+            for key in ("planning", "plan_evidence")
+        )
+    candidates.extend(source.get(key) for key in ("plan_evidence", "planning"))
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            continue
+        value = candidate.get("planner_selection")
+        if isinstance(value, Mapping):
+            return normalize_planner_selection_evidence(value)
+    return normalize_planner_selection_evidence(None)
+
+
+def project_workflow_selection_evidence(payload: Any) -> Dict[str, Any]:
+    """Project only safe workflow selection state for evaluation reports."""
+
+    if hasattr(payload, "to_dict") and callable(payload.to_dict):
+        try:
+            payload = payload.to_dict()
+        except Exception:
+            payload = {}
+    source = dict(payload) if isinstance(payload, Mapping) else {}
+    candidates = []
+    nested_result = source.get("result")
+    if isinstance(nested_result, Mapping):
+        candidates.extend(
+            nested_result.get(key)
+            for key in ("planning", "plan_evidence")
+        )
+    candidates.extend(source.get(key) for key in ("plan_evidence", "planning"))
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            continue
+        value = candidate.get("workflow_selection")
+        if not isinstance(value, Mapping):
+            continue
+        normalized = normalize_workflow_selection_evidence(value)
+        return {
+            "schema_version": normalized.get("schema_version"),
+            "state": normalized.get("state"),
+            "reason_code": normalized.get("reason_code"),
+            "source": normalized.get("source"),
+            "selected_capability_id": normalized.get("selected_capability_id"),
+            "candidate_ids": list(normalized.get("candidate_ids") or [])[:16],
+            "candidate_count": normalized.get("candidate_count"),
+        }
+    normalized = normalize_workflow_selection_evidence(None)
+    return {
+        "schema_version": normalized.get("schema_version"),
+        "state": normalized.get("state"),
+        "reason_code": normalized.get("reason_code"),
+        "source": normalized.get("source"),
+        "selected_capability_id": normalized.get("selected_capability_id"),
+        "candidate_ids": [],
+        "candidate_count": 0,
+    }
+
+
+def summarize_selection_evidence(report_or_results: Any) -> Dict[str, Any]:
+    """Count bounded workflow/planner selection states in replay or live data."""
+
+    if isinstance(report_or_results, Mapping):
+        candidates = report_or_results.get("results")
+        if not isinstance(candidates, list):
+            candidates = report_or_results.get("cases")
+    elif isinstance(report_or_results, list):
+        candidates = report_or_results
+    else:
+        candidates = []
+    candidates = candidates if isinstance(candidates, list) else []
+    workflow_states = Counter()
+    planner_states = Counter()
+    workflow_count = 0
+    planner_count = 0
+    for item in candidates:
+        if not isinstance(item, Mapping):
+            continue
+        turns = item.get("turns")
+        entries = turns if isinstance(turns, list) else [item]
+        for entry in entries:
+            if not isinstance(entry, Mapping):
+                continue
+            repair = entry.get("repair_evidence")
+            repair = repair if isinstance(repair, Mapping) else entry
+            workflow = repair.get("workflow_selection")
+            planner = repair.get("planner_selection")
+            if isinstance(workflow, Mapping):
+                state = str(workflow.get("state") or "unavailable")[:32]
+                workflow_states[state] += 1
+                workflow_count += 1
+            if isinstance(planner, Mapping):
+                state = str(planner.get("state") or "unavailable")[:32]
+                planner_states[state] += 1
+                planner_count += 1
+    return {
+        "schema_version": SELECTION_EVIDENCE_SUMMARY_SCHEMA_VERSION,
+        "workflow_selection_count": workflow_count,
+        "planner_selection_count": planner_count,
+        "workflow_states": dict(sorted(workflow_states.items())),
+        "planner_states": dict(sorted(planner_states.items())),
+        "passed": planner_count >= 0 and workflow_count >= 0,
     }
 
 

@@ -234,3 +234,14 @@ node scripts\console_selection_interaction_browser_smoke.js
 ~~~
 
 该专项要求 Contract Harness 比较 `planner_selection` 和脱敏 `repair_lineage`，忽略 latency/occurred_at 等易变字段；同时验证已知能力错配为 `mismatch`、未知结果为 `unresolved`、多候选为 `ambiguous`。live-short 只作为显式验收，不进入默认 CI，也不得提交原始模型输出、密钥或 GIS 数据。
+
+## M174 Replay/Live selection evidence 专项
+
+涉及 replay/live 报告、workflow selection 状态或 Planner alignment 汇总时，运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m174_replay_selection_evidence tests.test_m173_selection_contract tests.test_m150_repair_evaluation tests.test_m149_plan_repair_evidence -v
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evaluation result_contract.py
+~~~
+
+该专项只检查脱敏 projection 和公共状态，不重复真实模型请求；真实 live-short 仍按 M173/阶段风险显式执行。workflow `ambiguous`、planner `mismatch`、planner `unresolved` 必须保持不同状态，summary 不能通过合并状态来掩盖选择问题。

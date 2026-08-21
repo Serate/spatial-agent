@@ -1938,3 +1938,11 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - Docker 证据：M173 专项 5/5；受影响 M160/M166/M169/M172 回归 35/35；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 均通过。
 - 显式真实模型 + GIS/Docker `live-short` 2/2 通过，token 总量 13,001、0 次重试；只保存安全摘要，没有提交原始模型输出、API key、私有配置或 GIS 原始数据。
 - 本阶段问题已记录到 `docs/agent-development-issues.md`。下一阶段继续从全局七维度规划跨 Domain 的 replay/live 证据完整性、公共 GIS 兼容清理和更通用的动态结果展示。
+
+## M174 当前完成状态
+
+- `evaluation/model_evaluation.py` 新增安全的 `project_workflow_selection_evidence()`、`project_planner_selection_evidence()` 和 `summarize_selection_evidence()`；replay 与 live baseline 的报告现在同时表达 workflow selection state、planner alignment state 和有界状态计数。
+- `evaluation/live_baseline.py` 接入同一 selection summary；不复制请求文本、工具参数、provider 原文、URL 或密钥，保持 replay/live 报告形状一致。
+- 新增 `tests/test_m174_replay_selection_evidence.py`，覆盖脱敏 replay 每轮 selection、live/replay 投影一致、ambiguous Service 状态和 summary 聚合。
+- Docker 证据：M174 专项 3/3；M149/M150/M160/M166/M169/M172/M173 受影响回归 45/45；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 通过。
+- 本阶段没有改变 Runtime 工具执行路径，也没有新增 live token 消耗；下一阶段从全局七维度继续规划跨 Domain 评测矩阵、公共 GIS 兼容清理和结果 evidence 的前端动态消费。

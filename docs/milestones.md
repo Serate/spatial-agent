@@ -3469,3 +3469,13 @@ M173 从项目整体推进“模型理解/计划 → Domain 选择 → 稳定证
 - Docker 验证：M173 专项 5/5；M160/M166/M169/M172 受影响回归 35/35；compileall、quick、stage、production acceptance、真实 Chrome/CDP smoke 均通过。
 - Docker `live-short` 真实模型 + 真实 GIS 2/2 通过，13,001 tokens、0 次重试；未进入默认 CI，未保存原始 live 输出。
 - M173 阶段问题已写入中文问题文档；阶段完成后提交并推送版本，再按产品、架构、数据、模型、部署、体验、测试七个维度规划 M174。
+
+## M174：Replay/Live selection evidence 统一（已完成）
+
+M174 将运行时已存在的 workflow selection 与 planner alignment 接入脱敏 replay/live 报告，补齐“模型是否读到能力目录、是否选择了已知能力、是否进入歧义/未知状态”的可评测证据，不增加 GIS 工具或默认 CI 成本。
+
+- `evaluation/model_evaluation.py` 新增领域无关的 workflow/planner selection projection 和 `spatial-agent.selection-evaluation.v1` summary；按安全状态聚合 `matched`、`mismatch`、`unresolved`、`ambiguous` 等结果。
+- `evaluation/live_baseline.py` 复用相同 summary，replay 与 live 的单条 repair evidence 共享 selection 字段；所有投影继续排除请求、参数、provider 原文和敏感信息。
+- 新增 M174 专项 3 项，覆盖 replay 每轮选择证据、live/replay projection 一致性、真实 ambiguous Domain 状态和汇总计数。
+- Docker 验证：M174 专项 3/3；相邻 M149/M150/M160/M166/M169/M172/M173 回归 45/45；compileall、quick、stage、production acceptance、Chrome/CDP smoke 通过。
+- 本阶段未改变 Runtime 执行路径，未新增 live token 消耗。M174 完成后提交并推送版本，再按全局七维度规划 M175。
