@@ -1405,8 +1405,20 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - `PlanRepairEngine` 与 Runtime execution replan 共用 bounded `workflow_repair` context，并对 replacement/merged plan 执行严格质量检查；ToolRegistry、DAG 和数据门控保持不放宽。
 - `LLMPlanner` 在 `range_query` canonical boundary 归一化模型常见的 `op` 和符号比较符；未知/冲突参数仍会被 schema/Registry 拒绝。
 - Docker 当前版本 healthy；容器专项 30 项、`ci`、`stage`、production acceptance 通过；容器内真实模型 + GIS `live-short` 2/2 通过。真实证据使用 `/app/config/datasets.container.example.json` 和当前重建镜像，未把宿主 Python 3.14 缺少 Rasterio 的结果混入阶段结论。
-- 工作树尚未提交 M154；下一步是执行文档/敏感信息/diff 检查、提交并推送阶段版本。动态 Chrome/CDP 仍未验证。
+- M154 已推送 `88de039`；M155 已完成实现与环境验证，待执行最终文档/敏感信息/diff 检查、提交并推送阶段版本。动态 Chrome/CDP 仍未验证。
 
 ## M155 下一阶段规划参考
 
 从整体 Agent Runtime 推进 plan-quality/repair lineage 的跨入口证据投影：覆盖 rule、offline replay、live、同步、异步、artifact/recovery、HTTP 和 Console，同时验证开放式、无唯一 blueprint 的请求不会被模板约束误伤。默认 active suite 不扩大，真实环境继续显式验收，最大并发度保持 5，公共契约由主线统一集成。
+
+## M155 当前实现与验证状态
+
+- 新增 `spatial-agent.plan-quality-evidence.v1`，统一表示唯一 workflow blueprint 的通过、不匹配和无唯一蓝图状态。
+- 规划 repair 与执行 replan 的事件保存有界 `plan_quality_before/after`；同步 result、artifact、异步轮询、replay/live、Contract Harness 和 Console 共用最终投影。
+- 无唯一 blueprint 的开放式能力保持 `available=false` 与 `workflow_blueprint_unavailable`，不会被 result type 猜测套用模板。
+- M155 专项 4 项、相邻契约 26 项、quick/stage、compileall、Node 语法检查通过；当前 Docker 镜像专项 8 项和 production acceptance 通过。
+- 外部 live provider 与动态 Chrome/CDP 未执行，仍是后续显式验收项。
+
+## M156 全局规划
+
+下一阶段从七个维度推进证据可操作化：统一计划质量、repair lineage、生命周期和视图的执行时间线；评估领域无关 Evidence Registry；覆盖旧 artifact、异步轮询、重启恢复和未知版本安全降级；补 Text/GIS 隔离与最小 live baseline；Console 继续使用结构化 Evidence，不增加 GIS 专用分支。默认 quick/stage 保持精简，Docker/GIS/live/browser 按风险显式运行。

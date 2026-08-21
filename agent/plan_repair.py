@@ -123,6 +123,8 @@ class PlanRepairEngine:
             new_step_ids=[step.id for step in replacement.steps][:24],
             latency_ms=(perf_counter() - started) * 1000,
             phase="planning",
+            plan_quality_before=plan_quality,
+            plan_quality_after=replacement_quality,
         )
         return PlanRepairOutcome(replacement, event, "repaired", "ok")
 

@@ -14,6 +14,7 @@ from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 
 from agent.models import AgentRunResult
 from agent.runtime_capabilities import runtime_capability_snapshot
+from agent.plan_quality import project_plan_quality_evidence
 from evaluation.model_evaluation import (
     DEFAULT_MODEL_REPLAY_FIXTURE,
     evaluate_model_replay_suite_file,
@@ -760,6 +761,11 @@ def _result_evidence(
         ],
         "result_type": (plan.get("output") or {}).get("type"),
         "plan_quality": quality,
+        "runtime_plan_quality": project_plan_quality_evidence(
+            (result.plan_evidence or {}).get("plan_quality")
+            if isinstance(result.plan_evidence, Mapping)
+            else None
+        ),
         "repair_evidence": repair_evidence,
         "capability_repair_quality": capability_repair_quality,
         "answer_chinese": bool(result.answer and any("\u3400" <= char <= "\u9fff" for char in result.answer)),

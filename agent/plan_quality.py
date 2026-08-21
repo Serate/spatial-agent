@@ -16,6 +16,7 @@ from .models import TaskPlan
 
 
 PLAN_QUALITY_SCHEMA_VERSION = "spatial-agent.plan-quality.v1"
+PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION = "spatial-agent.plan-quality-evidence.v1"
 _MAX_ITEMS = 16
 _MAX_TEXT = 96
 
@@ -125,6 +126,64 @@ def repair_context(diagnostic: Mapping[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def project_plan_quality_evidence(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Project plan quality into one bounded cross-entry evidence shape.
+
+    ``diagnose_plan`` is an internal diagnostic and may be absent on legacy
+    artifacts or open-ended plans.  This projection deliberately distinguishes
+    an unavailable unique blueprint from a failed blueprint match; callers can
+    therefore compare replay, HTTP, artifact and Console evidence without
+    inventing a template for an extensible capability.
+    """
+
+    source = value if isinstance(value, Mapping) else {}
+    available = bool(source.get("available"))
+    passed = bool(source.get("passed")) if available else True
+    reason = _text(source.get("reason_code")) or (
+        "ok" if available and passed else "workflow_blueprint_unavailable"
+    )
+    state = "passed" if available and passed else "mismatch" if available else "unavailable"
+    result: dict[str, Any] = {
+        "schema_version": PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION,
+        "available": available,
+        "state": state,
+        "passed": passed,
+        "reason_code": reason,
+        "template_id": _text(source.get("template_id")) or None,
+        "result_type": _text(source.get("result_type")) or None,
+        "candidate_template_ids": _string_list(source.get("candidate_template_ids"))[:_MAX_ITEMS],
+        "expected_step_count": _bounded_int(source.get("expected_step_count"), 0, _MAX_ITEMS),
+        "actual_step_count": _bounded_int(source.get("actual_step_count"), 0, _MAX_ITEMS),
+        "issues": [],
+    }
+    issues = source.get("issues")
+    if isinstance(issues, list):
+        result["issues"] = [
+            _bound_quality_item(item)
+            for item in issues[:_MAX_ITEMS]
+            if isinstance(item, Mapping)
+        ]
+    return result
+
+
+def _bound_quality_item(value: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key in ("code", "index", "expected", "actual"):
+        if key not in value:
+            continue
+        item = value[key]
+        if isinstance(item, list):
+            result[key] = [str(entry)[:_MAX_TEXT] for entry in item[:_MAX_ITEMS]]
+        elif isinstance(item, Mapping):
+            result[key] = {
+                str(name)[:_MAX_TEXT]: str(entry)[:_MAX_TEXT]
+                for name, entry in list(item.items())[:_MAX_ITEMS]
+            }
+        elif isinstance(item, (str, int, float, bool)) or item is None:
+            result[key] = item if not isinstance(item, str) else item[:_MAX_TEXT]
+    return result
+
+
 def _templates(context: Mapping[str, Any] | None) -> list[Mapping[str, Any]]:
     source = context if isinstance(context, Mapping) else {}
     if isinstance(source.get("workflow_templates"), Mapping):
@@ -206,6 +265,8 @@ def _bounded_int(value: Any, minimum: int, maximum: int) -> int:
 
 __all__ = [
     "PLAN_QUALITY_SCHEMA_VERSION",
+    "PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION",
     "diagnose_plan",
+    "project_plan_quality_evidence",
     "repair_context",
 ]

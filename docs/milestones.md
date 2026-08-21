@@ -3108,3 +3108,24 @@ M154 将 M153 暴露的真实模型重复步骤问题收敛为通用 Planner/Wor
 ## M155 全局规划参考
 
 M154 已让模型计划在 workflow repair 后可执行，下一阶段从项目整体推进“计划质量证据跨入口一致”：将 plan-quality/repair lineage 统一投影到 replay、live、同步、异步、artifact/recovery、HTTP 和 Console，并验证开放式非模板能力仍保持可组合而不是被模板硬编码。继续保持默认 active suite 精简，真实模型、真实 GIS、Docker 和浏览器使用显式验收；不新增单区域专用规则。
+
+## M155：计划质量证据跨入口一致性（已完成）
+
+M155 将 M154 的 workflow-aware 计划校验从 Runtime 内部诊断推进为公共、可迁移的证据契约。新增 `spatial-agent.plan-quality-evidence.v1`，统一表达唯一蓝图匹配、蓝图不匹配和没有唯一蓝图三种状态；计划修复与执行重规划事件同时保留修复前后的有界质量快照，不静默删除模型步骤。
+
+- 同步结果、artifact、异步轮询和 Contract Harness 均消费相同的 `plan_quality` 投影；异步 artifact-only recovery 也保留该证据。
+- replay/live 脱敏评估增加 Runtime 计划质量投影；Console 依据结构化证据展示计划质量状态，并明确“未套用唯一模板蓝图”。
+- 新增 M155 专项 4 项；M155 及 M154/M150/M149/M148/M81 相邻契约合计 26 项宿主通过；quick、stage、compileall、Node 语法检查和 `git diff --check` 通过。
+- 当前 Docker 镜像已重建；容器内 M155/M154 专项 8 项通过，production acceptance 通过（运行时/核心与可选数据 ready、同步/异步 artifact contract ok）。本阶段未执行外部 live provider 和动态 Chrome/CDP，不以 Docker/API/静态证据替代这两类验收。
+
+## M156 全局规划参考
+
+从项目整体继续推进“证据可操作化”而不是增加 GIS 专用功能：
+
+1. **产品能力**：让计划质量、修复 lineage、生命周期和结果视图形成可读的统一执行时间线，明确用户何时可批准、重试、澄清或恢复。
+2. **架构边界**：将 plan-quality 与 repair lineage 从结果字段进一步抽象为版本化 Evidence Registry/投影，供未来 Planner、Domain Pack 和入口复用；保持 ToolRegistry 为最终执行边界。
+3. **数据质量**：在质量证据与 GIS 数据 readiness/degradation 之间建立引用关系，只说明“计划可执行性”和“数据可用性”各自的证据，不把二者混为模型成功。
+4. **真实模型**：运行当前版本的最小 live replay/live 基线，验证真实模型在唯一模板、开放式无模板和修复失败三类请求中都输出可解释证据。
+5. **部署可靠性**：覆盖异步轮询、artifact-only recovery、重启接管和旧证据版本迁移，确保新证据缺失时是明确 unavailable 而不是静默成功。
+6. **用户体验**：Console 继续消费通用 Evidence，不新增 GIS 结果类型分支；把计划 DAG、质量状态和修复事件合并到紧凑时间线。
+7. **测试证据**：默认 quick/stage 保持精简；新增跨入口 Evidence Harness 后，再按风险运行 Docker/GIS/live/browser 显式验收。

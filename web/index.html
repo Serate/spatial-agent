@@ -1274,6 +1274,8 @@
       if(snapshot.updated_at) runtimeDetails.push('检查时间：'+snapshot.updated_at);
       if(contextEvidence.available) runtimeDetails.push('上下文工程：'+escapeHtml(contextEvidence.schema_version||'已构建')+' · '+escapeHtml(contextEvidence.input_chars||0)+' 字符'+(contextEvidence.truncated?' · 已按预算裁剪':' · 未裁剪'));
       if(planEvidence.available) runtimeDetails.push('计划来源：'+escapeHtml(planEvidence.source||'未知')+' · '+escapeHtml(planEvidence.planner_kind||'未知规划器')+' · '+escapeHtml(planEvidence.step_count||0)+' 步'+((planEvidence.exact_template_ids||[]).length?' · 模板 '+escapeHtml((planEvidence.exact_template_ids||[]).join('、')):''));
+      const planQuality=planEvidence.plan_quality||{};
+      if(planQuality.schema_version) runtimeDetails.push('计划质量：'+escapeHtml(planQuality.state||'未知')+' · '+escapeHtml(planQuality.reason_code||'未提供')+(planQuality.template_id?' · '+escapeHtml(planQuality.template_id):'')+(planQuality.available===false?' · 未套用唯一模板蓝图':''));
       if(planEvidence.capability_discovery_available) runtimeDetails.push('能力发现：'+escapeHtml(planEvidence.selected_capability_id||'未选定')+((planEvidence.capability_candidate_ids||[]).length?' · 候选 '+escapeHtml((planEvidence.capability_candidate_ids||[]).join('、')):''));
       if(planEvidence.capability_catalog_available) runtimeDetails.push('能力目录：'+escapeHtml(planEvidence.capability_catalog_environment||'未知后端')+((planEvidence.capability_catalog_ids||[]).length?' · '+escapeHtml((planEvidence.capability_catalog_ids||[]).join('、')):'')+' · schema '+escapeHtml(planEvidence.capability_catalog_tool_schema_count||0));
       const planIdentity=planIdentityText(data); if(planIdentity) runtimeDetails.push('计划身份：'+escapeHtml(planIdentity));

@@ -19,6 +19,7 @@ import time
 from typing import Any, Dict, List, Mapping, Optional
 
 from .models import PlanStep, TaskPlan
+from .plan_quality import project_plan_quality_evidence
 
 _REPLAN_ENV = "SPATIAL_AGENT_REPLAN_LIMIT"
 _DEFAULT_REPLAN_LIMIT = 1
@@ -239,9 +240,11 @@ def build_replan_event(
     new_step_ids: List[str],
     latency_ms: float,
     phase: str = "execution",
+    plan_quality_before: Optional[Mapping[str, Any]] = None,
+    plan_quality_after: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Bounded, credential-free evidence for one replan round."""
-    return {
+    event = {
         "failed_step_id": failed_step_id,
         "failed_tool": failed_tool,
         "failure_category": failure_category,
@@ -250,6 +253,11 @@ def build_replan_event(
         "latency_ms": round(latency_ms, 3),
         "occurred_at": time.time(),
     }
+    if isinstance(plan_quality_before, Mapping):
+        event["plan_quality_before"] = project_plan_quality_evidence(plan_quality_before)
+    if isinstance(plan_quality_after, Mapping):
+        event["plan_quality_after"] = project_plan_quality_evidence(plan_quality_after)
+    return event
 
 
 def rule_replan_plan(

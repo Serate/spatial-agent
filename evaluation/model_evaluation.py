@@ -19,6 +19,7 @@ from agent.domain_contract import planner_guidance
 from agent.runtime import AgentRuntime
 from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
+from agent.plan_quality import project_plan_quality_evidence
 from evaluation.answer_judge import heuristic_answer_judge
 from result_contract import build_result_contract
 
@@ -146,6 +147,9 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
         latency = event.get("latency_ms")
         if _nonnegative_number(latency):
             item["latency_ms"] = round(min(float(latency), 86_400_000), 3)
+        for key in ("plan_quality_before", "plan_quality_after"):
+            if isinstance(event.get(key), Mapping):
+                item[key] = project_plan_quality_evidence(event[key])
         if item["failed_step_id"] and item["failed_tool"]:
             projected_events.append(item)
 
@@ -157,6 +161,7 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
     status = _safe_repair_status(source.get("status") or result.get("status"))
     result_type = output.get("type") or source.get("result_type") or result.get("result_type")
     result_type = _safe_repair_token(result_type) or "unknown"
+    planning = source.get("plan_evidence") if isinstance(source.get("plan_evidence"), Mapping) else {}
     failed_step_count = sum(
         1 for item in step_runs[:64]
         if isinstance(item, Mapping) and str(item.get("status") or "") == "FAILED"
@@ -167,6 +172,7 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
         "repair_count": len(projected_events),
         "repair_class": _repair_class(status, len(projected_events)),
         "capability_guidance": _project_capability_guidance(source),
+        "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
         "lineage": {
             "available": bool(projected_events),
             "count": len(projected_events),

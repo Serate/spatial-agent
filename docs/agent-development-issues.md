@@ -3830,3 +3830,17 @@ M153 保持 ToolRegistry、workflow 和 DAG 门控不放宽，并将失败作为
 ### 处理与预防
 
 M154 在 LLM Planner 边界增加有限 canonical normalization：仅对 `range_query` 的无歧义 `op` 别名和 `=、==、!=、>、>=、<、<=` 做标准化，未知值和冲突字段继续交给 schema/ToolRegistry 拒绝。补充离线别名回归和 Docker live 验收；以后类似兼容处理必须位于 Planner adapter、映射范围有 allowlist，且最终仍经过统一 schema/Registry，不能在 Runtime 或具体 GIS 工具中偷偷修正。
+
+## M155：异步结果证据只投影视图会丢失计划质量
+
+### 现象
+
+同步结果和 artifact 已经包含 workflow blueprint 的计划质量，但异步轮询 evidence 只保留 workspace/views、降级状态和生命周期。前端或跨入口 Harness 只能知道视图是否可用，无法判断异步结果是否沿用了已校验的计划，也无法区分“无唯一蓝图”和“蓝图不匹配”。
+
+### 根因
+
+异步 evidence 最初被设计为轻量 renderer 选择器，计划来源与 repair lineage 被认为可以通过完整 `/runs/{id}` 另行读取。随着异步轮询、artifact-only recovery 和多入口一致性成为同一结果契约，这个假设会让轮询和完整结果产生不同的证据解释。
+
+### 处理与预防
+
+新增 `spatial-agent.plan-quality-evidence.v1`，并在异步 evidence 的 `planning.plan_quality` 中保留有界投影；Contract Harness、artifact recovery、replay/live 和 Console 统一消费该投影。没有唯一 workflow blueprint 时必须返回 `available=false` 和 `workflow_blueprint_unavailable`，不能根据 result type 猜模板。以后新增结果证据时，要同时检查同步 envelope、异步轮询、artifact-only recovery、历史兼容和前端 renderer，不能只在完整 run detail 中增加字段。

@@ -21,6 +21,7 @@ from agent.action_lifecycle import (
 )
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.runtime_context import normalize_runtime_context
+from agent.plan_quality import project_plan_quality_evidence
 
 
 @dataclass(frozen=True)
@@ -125,6 +126,7 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             in section_names,
             "exact_templates": planning.get("exact_template_ids"),
             "matched_templates": planning.get("matched_template_ids"),
+            "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
             "step_tools": [
                 step.get("tool")
                 for step in steps
@@ -293,6 +295,7 @@ def _async_result_evidence_projection(
 
     evidence_artifact = _mapping(evidence.get("artifact"))
     evidence_views = _mapping(evidence.get("views"))
+    evidence_planning = _mapping(evidence.get("planning"))
     return {
         "schema_version": _stable_version(evidence.get("schema_version")),
         "state": _stable_status(evidence.get("state")),
@@ -305,6 +308,9 @@ def _async_result_evidence_projection(
         ),
         "artifact_available": _optional_bool(evidence_artifact.get("available")),
         "views": _view_state_projection(evidence_views),
+        "plan_quality": project_plan_quality_evidence(
+            evidence_planning.get("plan_quality")
+        ),
     }
 
 

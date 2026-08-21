@@ -21,6 +21,7 @@ from agent.action_lifecycle import (
 from agent.runtime_context import runtime_context_fingerprint
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
+from agent.plan_quality import project_plan_quality_evidence
 from result_contract import build_lineage_index
 
 
@@ -215,6 +216,8 @@ def build_async_result_evidence(
         # Artifacts can originate on Windows and be recovered by a Linux
         # worker.  Do not rely on the host platform's Path separator.
         ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
+    planning = value.get("planning")
+    planning = planning if isinstance(planning, Mapping) else {}
     return {
         "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value),
@@ -233,6 +236,9 @@ def build_async_result_evidence(
             "panels": safe_panels,
         },
         "artifact": {"available": bool(ref), "ref": ref},
+        "planning": {
+            "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+        },
     }
 
 
@@ -391,6 +397,8 @@ def normalize_async_result_evidence(
         }
 
     lifecycle = _normalize_lifecycle(value.get("lifecycle"), status)
+    planning = value.get("planning")
+    planning = planning if isinstance(planning, Mapping) else {}
     artifact = value.get("artifact")
     artifact = artifact if isinstance(artifact, Mapping) else {}
     ref = _safe_ref(artifact.get("ref") or artifact_ref)
@@ -414,6 +422,9 @@ def normalize_async_result_evidence(
             "panels": safe_view_panels,
         },
         "artifact": {"available": bool(ref), "ref": ref},
+        "planning": {
+            "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+        },
     }
     for key in ("availability", "reason_code", "source"):
         if value.get(key) is not None:

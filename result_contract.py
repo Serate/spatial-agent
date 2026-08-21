@@ -8,6 +8,7 @@ from agent.result_registry import ResultContractRegistry, default_result_registr
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.deployment_evidence import build_deployment_evidence
 from agent.action_lifecycle import project_action_lifecycle
+from agent.plan_quality import project_plan_quality_evidence
 from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -408,6 +409,13 @@ def build_replanning_evidence(events: Any) -> Dict[str, Any]:
         phase = _bounded_replan_token(event.get("phase"))
         if phase in {"planning", "execution"}:
             item["phase"] = phase
+        for source_key, target_key in (
+            ("plan_quality_before", "plan_quality_before"),
+            ("plan_quality_after", "plan_quality_after"),
+        ):
+            quality = event.get(source_key)
+            if isinstance(quality, Mapping):
+                item[target_key] = project_plan_quality_evidence(quality)
         try:
             latency = float(event.get("latency_ms"))
             if math.isfinite(latency) and latency >= 0:

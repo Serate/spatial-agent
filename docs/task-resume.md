@@ -1664,3 +1664,20 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## 下一阶段 M155 规划参考
 
 从全局推进计划质量证据跨入口一致性：统一 replay/live、同步/异步、artifact/recovery、HTTP 和 Console 对 plan-quality、repair lineage、拒绝原因和最终状态的投影；同时验证无唯一 workflow blueprint 的开放式能力不会被误套模板。阶段默认门禁保持精简，Docker/GIS/live/browser 使用显式 profile。
+
+## M155 当前完成状态
+
+- 新增 `spatial-agent.plan-quality-evidence.v1`，对唯一 workflow blueprint 的通过、不匹配和不可用状态做统一有界投影。
+- 规划修复与执行重规划事件保存 `plan_quality_before/after`；最终 `plan_evidence`、result envelope、artifact、异步 evidence、replay/live 投影和 Contract Harness 共用该证据。
+- 开放式请求没有唯一 blueprint 时保持 `available=false`、`state=unavailable`、`reason_code=workflow_blueprint_unavailable`，不会被强行套用模板。
+- Console 计划证据区显示计划质量状态；不引入 GIS 专用页面分支。
+- M155 专项 4 项；M155 及相邻契约合计 26 项、quick、stage、compileall、Node 语法检查通过；当前 Docker 镜像专项 8 项和 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，继续作为后续显式验收，不得用已有 Docker/API/静态证据替代。
+
+## M156 下一阶段执行顺序
+
+1. 先盘点 Evidence、lifecycle、result envelope、artifact、async 和 Console 的公共边界，确认是否需要独立 Evidence Registry。
+2. 设计并实现统一执行时间线/证据引用的领域无关契约，保持旧 artifact 有界兼容和未知版本安全降级。
+3. 用 Contract Harness 覆盖同步、异步、artifact-only recovery、重启和 Text/GIS 隔离，再补 Console 静态/动态入口。
+4. 在可用 Docker/GIS 环境运行最小 live baseline，分别验证唯一模板、无唯一模板开放请求和失败修复；不把 live 结果纳入默认 CI。
+5. 阶段收口后更新 milestones、恢复文档和中文问题日志，提交并推送版本，再按七维度整体重规划。

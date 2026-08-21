@@ -40,7 +40,7 @@ from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .plan_repair import PlanRepairEngine, PlanRepairInput
 from .observability import ObservabilityEmitter
 from .plan_identity import build_plan_identity
-from .plan_quality import diagnose_plan, repair_context
+from .plan_quality import diagnose_plan, project_plan_quality_evidence, repair_context
 from .planner import Planner
 from .replanning import (
     ReplanningPolicy,
@@ -1200,16 +1200,17 @@ class AgentRuntime:
             "args": dict(step.args),
             "error_category": step_run.error_category or failure_category(str(exc)),
         }
+        original_quality = diagnose_plan(
+            result.plan,
+            workflow_context(self._domain_pack),
+        )
         feedback = self._replan_policy.feedback_payload(
             request=request,
             completed_steps=completed_steps,
             failed_step=failed_payload,
             remaining_tools=self._registry.names,
             output_type=(result.plan.output or {}).get("type"),
-            plan_quality=diagnose_plan(
-                result.plan,
-                workflow_context(self._domain_pack),
-            ),
+            plan_quality=original_quality,
         )
         started = perf_counter()
         try:
@@ -1248,6 +1249,10 @@ class AgentRuntime:
                     new_step_ids.append(item.id)
             result.plan = merged
             result.steps = rebuilt
+            if isinstance(result.plan_evidence, dict):
+                result.plan_evidence["plan_quality"] = project_plan_quality_evidence(
+                    merged_quality
+                )
             result.replan_events.append(
                 build_replan_event(
                     failed_step_id=step.id,
@@ -1255,6 +1260,8 @@ class AgentRuntime:
                     failure_category=step_run.error_category or failure_category(str(exc)),
                     new_step_ids=new_step_ids,
                     latency_ms=(perf_counter() - started) * 1000,
+                    plan_quality_before=original_quality,
+                    plan_quality_after=merged_quality,
                 )
             )
             return True
@@ -1658,6 +1665,14 @@ def _build_plan_evidence(
     )
     evidence["matched_template_ids"] = matched
     evidence["exact_template_ids"] = exact
+    evidence["plan_quality"] = project_plan_quality_evidence(
+        diagnose_plan(
+            plan,
+            {"workflow_templates": templates_section}
+            if isinstance(templates_section, Mapping)
+            else {},
+        )
+    )
     return evidence
 
 
