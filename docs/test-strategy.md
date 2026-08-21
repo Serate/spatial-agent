@@ -140,3 +140,13 @@ docker exec ai-agent-spatial-agent-1 python scripts/live_baseline.py --allow-net
 ## M147 artifact 兼容专项
 
 涉及 artifact schema、Domain recovery 或 Console async evidence 时，显式运行 `tests.test_m147_artifact_compatibility`，覆盖当前版本、无版本历史文件、未知版本、跨 Domain、路径边界和通用前端消费。该专项不加入默认 discovery；M147 的 Docker 验收仅运行显式专项与 production acceptance。
+
+## M163 workflow selection 生命周期专项
+
+涉及 workflow selection、异步轮询、artifact-only recovery 或用户确认继续执行时，显式运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m163_workflow_selection_lifecycle -v
+~~~
+
+该专项验证同一选择证据在异步等待确认、SQLite/artifact 重启恢复和批准继续执行后的稳定投影；它不加入默认 quick/CI。阶段收口时再与 M148/M151-M162 相邻契约、Docker production acceptance、必要的浏览器和 `live-short` 一起执行。

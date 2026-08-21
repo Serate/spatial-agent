@@ -8,6 +8,20 @@ This document is a handoff note for continuing development of the Spatial Agent 
 
 后续实现优先解决通用请求建模、能力发现、组合编排和统一结果契约。RuleBasedPlanner、LLMPlanner 与澄清流程共享 `TaskPlan`、工作流校验、执行门控、result envelope 和恢复协议。任何局部工具、数据或前端修复都必须说明其服务的系统级目标。
 
+### 当前测试环境规则
+
+项目测试统一使用当前 Docker 镜像。Python 单元测试、`test_profile.py`、`compileall`、GIS 回归和阶段验收都通过 `docker exec ai-agent-spatial-agent-1 ...` 在容器内执行；宿主 Python 仅用于诊断 Windows alias、依赖缺失或 Docker 环境问题，不能作为阶段完成证据。
+
+执行 Docker 测试前，先按当前工作树重建服务并确认健康状态：
+
+~~~powershell
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate
+docker ps --format "{{.Names}} {{.Status}}"
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick
+~~~
+
+宿主侧 `scripts/production_acceptance.ps1` 只作为 HTTP 编排器，验收目标仍是当前 Docker 服务，不能把它放进 Linux 容器执行。阶段记录必须明确区分 Docker 容器通过、宿主环境诊断以及真实模型/GIS/浏览器等显式验收未执行。Docker 化只改变执行环境，不扩大默认测试矩阵；测试仍按 `quick`、`stage`、专项、`docker` 和 `live-short` 分层运行。
+
 - 当前 goal 的最大并发度为 5。
 - 该规则优先于历史阶段记录中的并行度；后文旧阶段数字仅用于记录当时的执行事实。
 - 阶段规划的总体参考见 `docs/agent-project-direction.md`，必须先确认完整 Agent 闭环和面试展示能力。
@@ -1773,4 +1787,17 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 `spatial-agent.workflow-selection.v1`，将候选能力、显式 workflow、Domain 自动发现、歧义/澄清状态、事实键和选择原因纳入公共证据。
 - Runtime Context、计划/澄清/失败 evidence、Contract Harness 和 Console 共用该投影；Text/GIS 均通过 Domain seam 提供选择元数据，公共 Runtime 不读取 GIS 专用字段。
 - 当前 Docker 镜像 healthy；容器内 M162 6 项、M161 6 项、quick/stage、compileall 通过；宿主侧 production acceptance 检查同步/artifact 的 workflow selection，overview/health/map/lineage 动态 smoke 通过。
-- 当前 M162 改动尚未提交；下一步继续补用户确认、候选能力 UI 和真实模型回放，再进行阶段收口。
+- M162 后续工作已并入 M163，完成异步、artifact-only recovery、用户确认和真实模型/GIS 验收。
+
+## M163 当前完成状态
+
+- 异步结果证据、artifact-only recovery、Contract Harness 和 Console 统一保留 `spatial-agent.workflow-selection.v1` 的 selection projection。
+- Text runtime 工厂补齐 `decision_store` 传递；SQLite DecisionStore 支持安全恢复 artifact 中的决策记录，避免新服务批准时丢失 CAS 状态。
+- 新增 `tests.test_m163_workflow_selection_lifecycle`，2 项测试验证异步等待确认 → artifact-only 重启 → 批准继续执行的完整链路，并覆盖 SQLite 决策恢复的 Domain 隔离和不覆盖现有记录。
+- Docker 验证：M163 专项 2 项；M148/M151/M154-M162 相邻契约 54 项；quick、stage、compileall、smoke 均通过；容器为 healthy。
+- 当前 Docker 生产 HTTP acceptance 通过；动态 Console health、clear、overview/地图分层和 lineage smoke 通过；真实模型 + 真实 GIS `live-short` 2/2 通过（12,140 tokens，0 次重试）。
+- 发现的 Text 确认 store 丢失和 SQLite artifact 决策恢复问题已记录到中文开发问题文档；私有配置、API key、原始 live 输出和真实 GIS 数据未提交。
+
+## M164 全局规划参考
+
+下一阶段从项目整体推进能力选择的交互和迁移能力：产品侧补候选能力/补充事实/确认的连续交互；架构侧统一显式 workflow、Domain discovery、用户选择与 action lifecycle；数据侧保持 readiness/provenance 作为 capability evidence；模型侧补多候选与选择失败 replay/live；部署侧验证 SQLite 多 worker、artifact-only、滚动重启和旧 schema；体验侧让 Console 动态显示候选、选择、确认和恢复；测试侧保持 Docker 内 quick/CI 精简，新增显式 selection interaction/replay 专项后再执行 HTTP、browser 和 live 验收。

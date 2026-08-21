@@ -3252,3 +3252,17 @@ M162 将“请求理解 → 候选能力 → workflow 选择”从 Runtime 内�
 - `DomainPack.select_workflow()` 成为可选 Domain seam；GIS/Text 都通过自己的 Domain metadata 接入，公共 Runtime 不携带 GIS 字段或分支。
 - Context Engineering、Runtime 计划/澄清/失败证据、Contract Harness 和 Console 统一消费选择证据；production acceptance 同时校验同步结果与 artifact 的 schema 一致性。
 - 验证：Docker 容器 M162 专项 6 项、M161 专项 6 项、quick/stage、compileall 通过；当前 Docker production acceptance 通过；overview、health、map、lineage 动态 Console smoke 通过。
+
+## M163：Workflow Selection 生命周期贯通（已完成）
+
+M163 将 workflow selection 从同步计划证据推进到异步轮询、artifact-only recovery、用户确认和前端展示的完整生命周期。
+
+- `agent/service_async.py`、`evaluation/contract_harness.py` 和 Console 异步证据区统一保留 `spatial-agent.workflow-selection.v1`，不再因入口切换丢失候选能力、选择状态或选择原因。
+- Text Domain runtime 工厂补齐 `decision_store` 依赖传递；SQLite DecisionStore 增加带 Domain 隔离、幂等恢复且不覆盖现有记录的 artifact 决策恢复，批准后继续使用原计划快照。
+- 新增 M163 纵向专项 2 项，覆盖异步提交、等待确认、artifact-only 重启、批准继续、跨入口 Contract Harness 比较，以及 SQLite 决策恢复的 Domain 隔离/不覆盖边界；默认 quick/CI 未扩张。
+- Docker 当前镜像 healthy；M163 专项 2 项、M148/M151/M154-M162 相邻契约 54 项、quick、stage、compileall、smoke 通过；production acceptance 通过。
+- 动态 Console health、clear、overview/行政区-道路-水体三色地图分层和 lineage smoke 通过；Docker 内真实模型 + 真实 GIS `live-short` 2/2 通过（12,140 tokens，0 次重试）。
+
+## M164 全局规划参考
+
+下一阶段围绕“能力选择可解释、可交互、可迁移”推进：补候选能力和缺失事实的用户交互，统一显式 workflow/Domain discovery/用户确认的公共生命周期，保持数据 readiness/provenance 为 capability evidence，增加多候选脱敏 replay 与最小 live 基线，验证 SQLite/artifact/滚动重启迁移，并让 Console 动态展示 selection/confirmation/recovery。默认测试继续 Docker 内精简分层，新增专项后再做 HTTP、browser、GIS/live 显式验收。

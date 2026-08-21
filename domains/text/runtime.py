@@ -16,6 +16,7 @@ def build_text_runtime(
     conversation_store: Any = None,
     memory: Any = None,
     observability: ObservabilityEmitter | None = None,
+    decision_store: Any = None,
     **_: Any,
 ) -> AgentRuntime:
     from agent.runtime_factory import build_runtime
@@ -27,5 +28,6 @@ def build_text_runtime(
         conversation_store=conversation_store,
         memory=memory,
         observability=observability,
+        decision_store=decision_store,
         domain_pack=TEXT_DOMAIN_PACK,
     )

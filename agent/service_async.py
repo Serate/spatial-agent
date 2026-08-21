@@ -22,6 +22,7 @@ from agent.runtime_context import runtime_context_fingerprint
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from agent.plan_quality import project_plan_quality_evidence
+from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_registry import normalize_evidence_registry
 from result_contract import build_lineage_index
@@ -242,6 +243,9 @@ def build_async_result_evidence(
         "artifact": {"available": bool(ref), "ref": ref},
         "planning": {
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+            "workflow_selection": normalize_workflow_selection_evidence(
+                planning.get("workflow_selection")
+            ),
         },
         "execution_timeline": timeline,
         "evidence_registry": registry,
@@ -432,6 +436,9 @@ def normalize_async_result_evidence(
         "artifact": {"available": bool(ref), "ref": ref},
         "planning": {
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+            "workflow_selection": normalize_workflow_selection_evidence(
+                planning.get("workflow_selection")
+            ),
         },
         "execution_timeline": timeline,
         "evidence_registry": registry,

@@ -333,6 +333,9 @@ def _async_result_evidence_projection(
         "plan_quality": project_plan_quality_evidence(
             evidence_planning.get("plan_quality")
         ),
+        "workflow_selection": normalize_workflow_selection_evidence(
+            evidence_planning.get("workflow_selection")
+        ),
         "execution_timeline": normalize_execution_timeline(
             evidence.get("execution_timeline")
         ),

@@ -349,6 +349,49 @@ class SQLiteDecisionStore:
                 """
             )
 
+    def restore(self, record: DecisionRecord) -> DecisionRecord:
+        """Restore an artifact decision without overwriting a newer record.
+
+        Artifact-only recovery can start with a fresh SQLite database.  The
+        decision must be reinserted before resolve/consume can use the normal
+        CAS path; a stale artifact must never replace an existing decision.
+        """
+        if not isinstance(record, DecisionRecord):
+            raise DecisionLifecycleError(
+                "decision record is invalid", code="decision_record_invalid"
+            )
+        _validate_record(record)
+        payload = json.dumps(record.as_dict(), ensure_ascii=True)
+        with self._connection() as connection:
+            existing = connection.execute(
+                "SELECT domain_id FROM agent_decisions WHERE decision_id = ?",
+                (record.decision_id,),
+            ).fetchone()
+            if existing is not None:
+                if str(existing[0]) != record.domain_id:
+                    raise DecisionLifecycleError(
+                        "decision belongs to another domain",
+                        code="decision_domain_mismatch",
+                    )
+            else:
+                connection.execute(
+                    "INSERT INTO agent_decisions VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        record.decision_id,
+                        record.domain_id,
+                        record.status,
+                        record.version,
+                        payload,
+                        time.time(),
+                    ),
+                )
+        restored = self.get(record.decision_id, domain_id=record.domain_id)
+        if restored is None:
+            raise DecisionLifecycleError(
+                "decision restore failed", code="decision_restore_failed"
+            )
+        return restored
+
     def create(self, request: DecisionRequest) -> DecisionRecord:
         _validate_request(request)
         now = time.time()

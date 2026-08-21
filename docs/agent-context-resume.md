@@ -5,6 +5,9 @@
 ## 当前全局执行规则
 
 - 全局 goal 持续执行“整体规划 -> 顺序实现 -> 集成测试 -> 整体重规划”循环。
+- 测试环境统一使用当前 Docker 镜像：Python 单元测试、测试 profile、compileall、GIS 回归和阶段验收默认通过 `docker exec ai-agent-spatial-agent-1 ...` 执行；宿主 Python 只用于诊断 Windows alias、依赖或 Docker 环境问题，不能作为阶段通过证据。
+- Docker 测试前先按当前工作树重建并确认容器健康：`docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate`，然后检查 `ai-agent-spatial-agent-1` 为 `healthy`。宿主侧 `scripts/production_acceptance.ps1` 只负责调用 Docker 暴露的 HTTP 服务，不能在 Linux 容器内执行。
+- 测试记录必须区分 Docker 容器通过、宿主环境诊断和真实模型/浏览器等显式验收未执行三类证据；切换到 Docker 不意味着恢复完整历史测试矩阵，仍按 `quick`、`stage`、专项、`docker`、`live-short` 分层运行。
 - 阶段规划的总体参考见 `docs/agent-project-direction.md`；先确认完整 Agent 闭环和面试展示能力，再决定局部实现任务。
 - 当前最大并发度为 5；仅对边界清晰、可独立验收且不修改同一共享契约的任务并行。共享 schema、result envelope、Runtime 状态迁移和前端核心函数仍由主线统一集成。
 - 所有任务按依赖顺序在共享 schema、runtime 状态、result envelope 和能力目录上逐项集成并验证。
@@ -1497,4 +1500,25 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - 新增领域无关 `spatial-agent.workflow-selection.v1`，统一投影候选能力、显式 workflow、Domain 自动发现、歧义/澄清状态、事实键和选择原因。
 - Runtime Context、计划证据、澄清/失败证据、Contract Harness 和 Console 统一消费该投影；Text/GIS 均通过 Domain seam 提供选择元数据，不把 GIS 字段放入公共选择逻辑。
 - 当前 Docker 镜像重建并 healthy；容器内 M162 专项 6/6、M161 专项 6/6、quick/stage、compileall 通过；宿主侧 production acceptance 已检查同步结果与 artifact 的 workflow selection schema；overview/health/map/lineage 动态 smoke 通过。
-- M162 仍需提交并推送版本；下一步是根据选择证据扩展用户确认、候选能力 UI 和真实模型回放，再做全局重规划。
+- M162 后续工作已并入 M163，完成异步、artifact-only recovery、用户确认和真实模型/GIS 验收。
+
+## M163：Workflow Selection 生命周期贯通（已完成）
+
+- `agent/service_async.py`、`evaluation/contract_harness.py` 和 Console 异步证据区现在统一保留 `spatial-agent.workflow-selection.v1`；选择状态、选中能力和工作流原因不会在轮询或 artifact-only 恢复中丢失。
+- Text Domain runtime 工厂现在正确传递公共 `decision_store`；SQLite DecisionStore 增加带 Domain 隔离、幂等插入和不覆盖现有记录的 artifact 决策恢复，批准后仍从原计划快照继续执行。
+- 新增 `tests/test_m163_workflow_selection_lifecycle.py`，2 项测试覆盖异步提交、等待确认、artifact-only 重启恢复、批准继续、跨入口选择证据比较，以及 SQLite 决策恢复的 Domain 隔离/不覆盖边界；没有增加默认测试矩阵。
+- Docker 当前镜像重建并 healthy；M163 专项 2 项、M148/M151/M154-M162 相邻契约共 54 项、quick、stage、compileall、smoke 通过；宿主侧 production acceptance 通过。
+- 当前 Docker 服务动态 Console 的 health、clear、overview/三色地图分层和 lineage smoke 通过；真实模型 + 真实 GIS `live-short` 2/2 通过，12,140 tokens、0 次重试。真实 live 结果只保留安全摘要，未提交原始模型响应或私有配置。
+- 本阶段发现并修复两个问题：Text runtime 工厂丢弃确认 store；新 SQLite 服务无法从 artifact 恢复决策。详见 `docs/agent-development-issues.md`。
+
+## M164 全局规划参考
+
+从完整 Agent 闭环继续推进“能力选择可解释、可交互、可迁移”：
+
+1. **产品能力**：将候选能力、选择依据、澄清问题、确认和最终 workflow 组成连续交互，支持开放式问题在多个候选之间由用户补充或选择。
+2. **架构边界**：统一显式 workflow、Domain 自动发现、用户选择和确认继续执行的公共状态/版本/证据契约；保持 Planner、Runtime、ToolRegistry 和 Domain Pack seam，不在 Runtime 增加领域判断。
+3. **数据质量**：把能力所需的数据 readiness、覆盖、对齐和 provenance 继续作为 capability evidence；验证选择变化只影响计划选择，不污染数据健康和结果契约。
+4. **真实模型**：用脱敏 replay 覆盖多候选、缺失事实、用户补充、模型选择不一致和有限修复；Docker/GIS 可用时运行最小 live baseline，并比较模型选择与 Rule Planner 的公共证据。
+5. **部署可靠性**：验证 SQLite 多 worker、artifact-only、滚动重启和旧 schema 迁移下的 selection/decision/action 一致性，特别是 CAS 与跨 Domain 隔离。
+6. **用户体验**：Console 动态展示候选能力、选择状态、确认动作和异步恢复证据；保持通用 renderer，不增加 GIS 专用页面分支。
+7. **测试证据**：默认 quick/CI 继续精简离线；新增 M164 selection interaction/replay 专项，阶段收口再执行 Docker、HTTP、SQLite/artifact、browser 和可选 live 验收。

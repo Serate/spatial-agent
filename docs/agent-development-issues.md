@@ -3998,3 +3998,31 @@ Docker profile 的职责是由宿主编排器调用已经运行的容器 HTTP �
 ### 处理与预防
 
 Python 专项、profile、compileall 和 GIS 回归使用 `docker exec ai-agent-spatial-agent-1 python ...`；production acceptance 使用宿主侧 `scripts/production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088`，目标仍是当前重建 Docker 服务。测试策略文档明确区分两者，默认矩阵保持精简；以后增加跨平台 profile 时，必须声明执行面（容器内部或宿主编排）并分别提供可执行入口。
+
+## M163：Text Domain 工厂丢弃 decision store 会让异步确认变成执行失败
+
+### 现象
+
+M163 新增异步“执行前确认”回归时，Text Domain 请求的 workflow selection 已经成功选择 `text_summary`，但异步运行最终为 `FAILED`，错误分类为 `tool_gate`，错误为 decision store 不可用；同步默认 Runtime 的确认测试仍然通过。
+
+### 根因
+
+`ServiceState` 会把公共 `decision_store` 注入自定义 runtime factory，但 `domains/text/runtime.py` 的工厂虽然接受 `**kwargs`，却没有显式接收并转交该依赖。异步 worker 因此构造出没有 DecisionStore 的 Text Runtime。
+
+### 处理与预防
+
+Text runtime factory 现在显式接收 `decision_store` 并传给公共 `build_runtime`；确认边界仍由 Runtime/DecisionStore 负责，Domain 不复制生命周期逻辑。以后新增 Domain runtime factory 必须验证 ServiceState 注入的 state store、conversation store、observability 和 decision store 均能到达 Runtime，并补一个异步确认专项，不要只验证同步路径。
+
+## M163：SQLite artifact-only 恢复找到决策但无法执行 CAS
+
+### 现象
+
+异步确认运行的 artifact 已保存 `decision_record` 和 workflow selection，但关闭原服务、使用新的 SQLite 数据库读取 artifact 后，批准请求返回 `decision_not_found`；内存 artifact-only 恢复可以成功。
+
+### 根因
+
+`AgentService._decision_record()` 能从 artifact 找到记录，但 `SQLiteDecisionStore` 没有实现 `restore()`，所以记录没有重新写入新的 SQLite 决策表，后续 `resolve()` 的 CAS 查询自然找不到它。
+
+### 处理与预防
+
+SQLiteDecisionStore 增加受校验的恢复入口：同一 Domain 下只插入不存在的记录，不覆盖已有记录；同一 decision ID 属于其他 Domain 时拒绝恢复；插入后仍复用原有 `get/resolve/consume` 和版本 CAS。以后涉及 artifact-only 用户决策时，必须同时验证内存、全新 SQLite、跨 Domain 和过期边界，并比较恢复前后的 workflow selection、plan fingerprint 和 lifecycle evidence。
