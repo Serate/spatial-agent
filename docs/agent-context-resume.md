@@ -1538,3 +1538,20 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - 产品/模型：覆盖多候选、补充事实、开放式无模板、模型选择不一致、有限 repair 失败和动态答案/地图/轨迹展示。
 - 数据/部署：验证 capability readiness/provenance 引用、SQLite 多 worker、滚动重启、旧 schema/evidence 安全降级、重复 action 幂等和 CAS。
 - 测试：Text/GIS 双 Domain 只运行精简 Docker quick/CI 作为默认；Docker、live、browser 和完整恢复矩阵按显式风险验收，阶段结束后更新文档并推送版本。
+
+## M165 当前实现与验证状态
+
+- Contract Harness 现在消费 `selection_interaction` 的稳定投影，跨 result/artifact/async 比较时排除 run id、decision id 等传输身份；新增 M165 3 项专项覆盖传输中立、漂移检测和 async propagation。
+- 真实 Docker 回归覆盖 Text/GIS workflow selection 生命周期、artifact-only/SQLite 决策恢复、M68 旧 schema、M69 三 worker/滚动重启和嵌套 schema；M165/M164/M163/M68/M69 23 项中 22 项通过、1 项因容器没有 Node 跳过。
+- 发现并修复生产/开发 HTTP 未提供 `console_*.js` 静态资源的路由缺口；现在只允许三个已知 Console JS 文件，当前 Docker HTTP 均 200。
+- `scripts/console_selection_interaction_browser_smoke.js` 通过 Chrome CDP 实际验证等待确认卡片、`confirmation_required` 和 confirm/reject/cancel；Docker quick、stage、compileall、production acceptance 通过。M164 live-short 2/2 仍为最近真实模型/GIS证据。
+- 该阶段问题已写入中文开发问题文档；当前版本未提交私有配置、API key、原始 live 输出或原始 GIS 数据。
+
+## M166 全局规划
+
+下一阶段继续建立开放式请求的纵向可证明闭环：
+
+- 架构/测试：用统一 request fingerprint、plan identity、result、lifecycle、repair/action lineage 和 evidence 比较 CLI、HTTP、async、artifact-only recovery、重启接管及 Console。
+- 产品/模型：覆盖多候选、补充事实、开放式无模板、模型选择不一致、有限 repair 失败和动态结果视图；保持通用 renderer。
+- 数据/部署：验证 readiness/coverage/alignment/provenance 的可迁移引用、Text/GIS 隔离、未知 schema/evidence 降级、SQLite 多 worker、重复 action/CAS 和资源路由。
+- 测试：默认 Docker quick/CI 精简，浏览器补候选/事实/确认后完成/恢复空态 smoke，live 只执行显式最小基线，阶段结束后更新文档并推送。

@@ -4054,3 +4054,17 @@ HTTP 生产服务默认绑定 GIS Domain。该请求没有空间事实，GIS Dom
 ### 处理与预防
 
 改用 HTTP 默认 GIS Domain 支持的“查询DEM栅格元数据”请求验证真实确认 → `POST /runs/{id}/interaction` `confirm` → `COMPLETED`，同时验证非法 action 返回 400、interaction GET 不泄露原始请求/工具参数。以后 HTTP/Console 验收必须显式记录 Domain、planner、backend 和 workflow；跨 Domain 对比应通过 Domain Pack seam，不要用不匹配的请求推断生命周期实现错误。
+
+## M165：生产 HTTP 未提供 Console 外部 JS 资源导致动态交互空白
+
+### 现象
+
+M165 的真实 Chrome smoke 中，HTTP 运行已经返回 `WAITING_FOR_DECISION`，完整 run 的 `result.selection_interaction.state` 也是 `confirmation_required`，但页面没有交互卡片，`window.ConsoleSelectionInteraction` 未加载。
+
+### 根因
+
+生产 FastAPI 和开发 HTTP 只提供 `/`、`/index.html`、API 与 artifact 路由，没有为 `index.html` 中的相对路径 `console_nested_schema.js`、`console_decision_evidence.js` 和 `console_selection_interaction.js` 提供静态资源路由。浏览器拿到 404 后，页面 fallback 为空态；容器文件存在不能证明 HTTP 资源可达。
+
+### 处理与预防
+
+开发与生产入口新增同形的受限 Console JS allowlist，只允许三个已知文件并返回 `application/javascript`，不接受任意路径或目录遍历。新增 `scripts/console_selection_interaction_browser_smoke.js`，先检查真实资源 HTTP 200，再通过 CDP 断言 `confirmation_required` 卡片和 confirm/reject/cancel。以后新增外部前端模块必须同时验证：仓库文件、容器文件、HTTP 资源状态、浏览器加载状态和实际 DOM 行为；静态 Node smoke 不能替代资源路由验收。

@@ -1819,3 +1819,21 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 3. 验证 SQLite 多 worker、滚动重启、旧 evidence/schema、重复 action 和 CAS 的恢复与幂等边界。
 4. 增加 selection interaction 的动态浏览器 smoke；默认仍只运行 Docker quick/CI，live/browser 作为显式验收。
 5. 阶段结束后更新全局文档、运行分层验收、敏感配置检查并推送版本。
+
+## M165 当前收尾状态
+
+- `evaluation/contract_harness.py` 已把 `selection_interaction` 纳入跨入口稳定比较，排除 run/decision identity，只保留状态、原因、候选、缺失事实、生命周期、允许动作和决策版本/选项。
+- 新增 `tests.test_m165_cross_entry_contract` 3 项；真实 Text/GIS selection lifecycle、artifact-only、SQLite 决策恢复、M68 旧 schema、M69 三 worker/滚动重启和 nested schema 回归均通过。
+- 修复生产与开发 HTTP 未提供 `console_*.js` 静态资源的问题，使用受限 allowlist 路由；三份脚本 HTTP 200，避免任意文件访问。
+- 新增真实 Chrome CDP smoke：`scripts/console_selection_interaction_browser_smoke.js` 已在 Docker 服务上通过，页面显示 `confirmation_required` 和 confirm/reject/cancel，证明前端实际加载并消费结构化 interaction。
+- M165/M164/M163/M68/M69 专项 23 项中 22 项通过、1 项因容器缺少 Node 跳过；quick、stage、compileall、production acceptance 通过。M164 的 Docker `live-short` 2/2 结果继续有效，未重复消耗 live token。
+
+## M166 全局重规划
+
+下一阶段围绕跨入口纵向链路，不增加单区域专用规则：
+
+1. 用同一 request fingerprint、plan identity、result、lifecycle 和 evidence 比较 CLI/HTTP/async/artifact-only recovery/重启/Console。
+2. Text/GIS 双 Domain 覆盖多候选、开放式无模板、补充事实、计划修复失败和数据降级。
+3. 验证旧 schema、未知 evidence、静态资源、SQLite 多 worker、重复 action 和 CAS 的兼容/恢复边界。
+4. 增加浏览器候选选择、补充事实、确认后完成和恢复空态 smoke；默认 Docker quick/CI 继续精简。
+5. 阶段完成后更新中文文档、运行显式 live/browser 验收并推送版本。

@@ -3289,3 +3289,26 @@ M164 后从项目整体推进“开放式请求可评测、跨入口可恢复、
 5. **部署可靠性**：显式验证 SQLite 多 worker、滚动重启、artifact-only 接管、旧 schema/未知 evidence 安全降级和重复 action 的幂等/CAS。
 6. **用户体验**：补 selection interaction 的动态浏览器 smoke；前端不增加 Domain 专用分支，验证空态、候选、确认、恢复和结果切换。
 7. **测试证据**：默认 Docker quick/CI 继续精简；新增最小跨入口 harness 后，再按风险执行 Docker、GIS、live 和 browser，阶段完成后更新文档并推送版本。
+
+## M165：跨入口交互契约与真实 Console 静态资源收口（已完成）
+
+M165 将 M164 的 selection interaction 纳入既有 Contract Harness，并用真实 Docker/FastAPI/SQLite/Chrome 链路验证选择 → 计划 → 确认的公共结果，而不是新增另一套前端状态机。
+
+- `evaluation/contract_harness.py` 新增稳定 `selection_interaction` 投影：比较状态、原因、候选、缺失事实、生命周期、允许动作和决策版本/选项，排除 run id、decision id 等传输身份；同步结果、artifact 和 async evidence 使用同一 projection。
+- 新增 `tests/test_m165_cross_entry_contract.py`，覆盖 interaction 的传输中立、状态漂移检测和异步 evidence 传播；M164/M163 selection、M68 SQLite migration、M69 多 worker/滚动重启和嵌套 schema 回归均保持通过。
+- 发现生产 FastAPI 与开发 HTTP 只服务 `index.html`，未服务 `console_*.js`，导致真实浏览器中后端已返回 `confirmation_required` 但 `window.ConsoleSelectionInteraction` 未加载。新增受限 JS asset allowlist 路由，避免路径穿越和任意文件暴露。
+- 新增 `scripts/console_selection_interaction_browser_smoke.js`。当前 Docker 服务的三份 Console JS 均 HTTP 200；Chrome CDP smoke 实际渲染“等待计划确认”卡片及 confirm/reject/cancel 动作，浏览器验收通过。
+- 验证：M165/M164/M163/M68/M69 专项共 23 项中 22 项通过、1 项因 Docker 内没有 Node 跳过；Docker quick、stage、compileall、production acceptance、SQLite 多 worker/滚动重启/旧 schema 和宿主 Node/browser smoke 通过。当前版本未新增 live 调用，继续沿用 M164 已通过的 Docker `live-short` 2/2 安全摘要。
+- 本阶段问题与防止静态资源回归的规则已加入 `docs/agent-development-issues.md`；默认测试矩阵未扩张。
+
+## M166 全局规划参考
+
+从整体继续推进“开放式请求可评测、结果可恢复、运行状态可证明”，下一阶段重点是跨入口 Contract Harness 的真实纵向链路：
+
+1. **产品能力**：把多轮补充事实、能力选择、确认后执行和动态结果视图串成可重复的对话验收；验证非预定义表达可以匹配、澄清或安全降级。
+2. **架构边界**：让同一 request fingerprint/plan identity 在 CLI、HTTP、async、artifact-only recovery、重启接管和 Console 中可比较，并保留 repair/action lineage；不复制 Domain 逻辑。
+3. **数据质量**：将 readiness、coverage、alignment、provenance 和降级原因作为可迁移 evidence，验证 Text/GIS 隔离和缺失数据恢复说明。
+4. **真实模型**：扩展少量脱敏 replay，覆盖多候选、无模板开放请求、补充事实和模型选择不一致；live 保持显式最小基线。
+5. **部署可靠性**：补 API 资源路由、artifact、SQLite 和多 worker 的版本兼容矩阵，验证未知 evidence/schema 的 unavailable 降级和重复动作 CAS。
+6. **用户体验**：扩展浏览器 smoke 到候选选择、补充事实、确认后完成和恢复空态；保持通用 renderer。
+7. **测试证据**：默认 Docker quick/CI 仍精简；阶段验收运行跨入口 harness、Docker、browser 及必要 live，完成后更新文档并推送版本。

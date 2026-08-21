@@ -232,6 +232,18 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")
             return
+        if parsed.path.startswith("/console_") and parsed.path.endswith(".js"):
+            name = parsed.path.strip("/")
+            allowed = {
+                "console_nested_schema.js",
+                "console_decision_evidence.js",
+                "console_selection_interaction.js",
+            }
+            if name in allowed:
+                self._write_file(self.web_root / name, "application/javascript")
+                return
+            self._write_json(404, {"error": "web asset not found"})
+            return
         if parsed.path.startswith("/artifacts/runs/") and parsed.path.endswith("/evidence"):
             name = parsed.path[len("/artifacts/runs/") : -len("/evidence")].strip("/")
             artifact = self._artifact_file("/artifacts/runs/" + name)

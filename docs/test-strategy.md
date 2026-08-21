@@ -160,3 +160,18 @@ docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m164_selectio
 ~~~
 
 该专项验证同一 `spatial-agent.selection-interaction.v1` 在 result、异步、artifact、HTTP 和 Console 静态 seam 中的状态与动作边界；容器没有 Node 时允许专项中的 Node 测试跳过，但阶段收口必须补跑宿主 Node smoke。HTTP 还应验证：当前 GIS Domain 的 confirmation → confirm → `COMPLETED`、非法动作 400，以及 interaction read 不泄露原始请求和工具参数。该专项不加入默认 quick/CI。
+
+## M165 跨入口与真实浏览器专项
+
+涉及 selection interaction、跨入口结果比较、静态 Console 资源、SQLite 多 worker 或旧 schema 时，阶段收口运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m165_cross_entry_contract tests.test_m164_selection_interaction tests.test_m163_workflow_selection_lifecycle tests.test_m68_sqlite_migration tests.test_m69_sqlite_matrix -v
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile stage
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
+node scripts\console_selection_interaction_smoke.js
+node scripts\console_selection_interaction_browser_smoke.js
+~~~
+
+浏览器命令需要先用 `scripts\console_cdp_start.ps1 -Headless` 启动独立 CDP profile；如果容器内没有 Node，专项中的 Node 测试允许跳过，但必须在宿主补跑静态 Node smoke。浏览器 smoke 只断言页面状态、结构化 interaction 和允许动作，不读取或输出原始请求、工具参数、密钥或模型响应。

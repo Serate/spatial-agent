@@ -23,6 +23,7 @@ from agent.execution_contract import build_execution_record, execution_record_su
 from agent.runtime_context import normalize_runtime_context
 from agent.plan_quality import project_plan_quality_evidence
 from agent.plan_policy import normalize_plan_policy_evidence
+from agent.selection_interaction import normalize_selection_interaction
 from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_registry import (
@@ -139,6 +140,9 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             ),
             "workflow_selection": normalize_workflow_selection_evidence(
                 planning.get("workflow_selection")
+            ),
+            "selection_interaction": _selection_interaction_projection(
+                result.get("selection_interaction")
             ),
             "execution_timeline": normalize_execution_timeline(
                 result.get("execution_timeline")
@@ -336,6 +340,9 @@ def _async_result_evidence_projection(
         "workflow_selection": normalize_workflow_selection_evidence(
             evidence_planning.get("workflow_selection")
         ),
+        "selection_interaction": _selection_interaction_projection(
+            evidence.get("selection_interaction")
+        ),
         "execution_timeline": normalize_execution_timeline(
             evidence.get("execution_timeline")
         ),
@@ -345,6 +352,51 @@ def _async_result_evidence_projection(
         "evidence_registry_completeness": project_evidence_registry_completeness(
             evidence.get("evidence_registry")
         ),
+    }
+
+
+def _selection_interaction_projection(value: Any) -> Dict[str, Any]:
+    """Compare selection interaction without volatile subject identities.
+
+    The public interaction projection may carry a run id and a decision id so
+    a transport can submit the next action. Those identities are not part of
+    cross-entry equivalence: the stable contract is the state, reason, action
+    allowlist, selection facts, missing facts, lifecycle summary, and bounded
+    decision status/version.
+    """
+    interaction = normalize_selection_interaction(value)
+    decision = _mapping(interaction.get("decision"))
+    return {
+        "schema_version": _stable_version(interaction.get("schema_version")),
+        "available": bool(interaction.get("available")),
+        "state": _stable_status(interaction.get("state")),
+        "reason_code": _stable_status(interaction.get("reason_code")),
+        "status": _stable_status(interaction.get("status")),
+        "allowed_actions": [
+            str(item)[:32]
+            for item in (interaction.get("allowed_actions") or [])[:8]
+        ],
+        "selection": interaction.get("selection")
+        if isinstance(interaction.get("selection"), Mapping)
+        else {},
+        "missing_fields": interaction.get("missing_fields")
+        if isinstance(interaction.get("missing_fields"), list)
+        else [],
+        "lifecycle": interaction.get("lifecycle")
+        if isinstance(interaction.get("lifecycle"), Mapping)
+        else {},
+        "decision": {
+            "status": _stable_status(decision.get("status")),
+            "version": decision.get("version")
+            if isinstance(decision.get("version"), int)
+            else None,
+            "options": [
+                str(item)[:32]
+                for item in (decision.get("options") or [])[:8]
+            ],
+        }
+        if decision
+        else None,
     }
 
 

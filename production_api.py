@@ -50,6 +50,11 @@ service.start_reaper()
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))
 GEOJSON_ROOT = Path(os.environ.get("SPATIAL_AGENT_GEOJSON_ROOT", "outputs/geojson"))
 WEB_ROOT = Path(__file__).parent / "web"
+WEB_ASSETS = frozenset({
+    "console_nested_schema.js",
+    "console_decision_evidence.js",
+    "console_selection_interaction.js",
+})
 
 
 def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
@@ -171,6 +176,14 @@ def console():
 @app.get("/index.html")
 def console_index():
     return FileResponse(WEB_ROOT / "index.html", media_type="text/html")
+
+
+@app.get("/console_{asset_name}.js")
+def console_asset(asset_name: str):
+    filename = "console_" + asset_name + ".js"
+    if filename not in WEB_ASSETS:
+        raise HTTPException(status_code=404, detail="web asset not found")
+    return FileResponse(WEB_ROOT / filename, media_type="application/javascript")
 
 
 @app.post("/runs")
