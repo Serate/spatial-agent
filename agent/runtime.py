@@ -45,6 +45,7 @@ from .observability import ObservabilityEmitter
 from .plan_identity import build_plan_identity
 from .plan_quality import diagnose_plan, project_plan_quality_evidence, repair_context
 from .plan_policy import build_plan_policy_evidence
+from .planner_selection import build_planner_selection_evidence
 from .workflow_selection import (
     build_workflow_selection_evidence,
     normalize_workflow_selection_evidence,
@@ -561,6 +562,7 @@ class AgentRuntime:
                     state="clarification",
                     reason_code="clarification_required",
                     context_packet=context_packet,
+                    repair_lineage=result.replan_events,
                 )
             result.clarification = exc.details or resolve_clarification_details(
                 self._domain_pack, resolved_request
@@ -577,6 +579,7 @@ class AgentRuntime:
                     state="rejected",
                     reason_code="request_rejected",
                     context_packet=context_packet,
+                    repair_lineage=result.replan_events,
                 )
             _record_run_failure(result, exc, phase="planning")
             self._conversation_store.clear_pending(session_id)
@@ -602,6 +605,7 @@ class AgentRuntime:
                         else "planner_failed"
                     ),
                     context_packet=context_packet,
+                    repair_lineage=result.replan_events,
                 )
             _record_run_failure(result, exc)
             result.answer = self._answer_composer.compose_failure(result)
@@ -838,6 +842,7 @@ class AgentRuntime:
                 state="clarification",
                 reason_code="clarification_required",
                 context_packet=context_packet,
+                repair_lineage=payload.get("replan_events"),
             )
         except RequestRejected as exc:
             payload.update({
@@ -851,6 +856,7 @@ class AgentRuntime:
                 state="rejected",
                 reason_code="request_rejected",
                 context_packet=context_packet,
+                repair_lineage=payload.get("replan_events"),
             )
         except Exception as exc:
             payload.update({
@@ -868,6 +874,7 @@ class AgentRuntime:
                     else "planner_failed"
                 ),
                 context_packet=context_packet,
+                repair_lineage=payload.get("replan_events"),
             )
         if payload.get("workflow") is None:
             payload.pop("workflow", None)
@@ -1035,6 +1042,7 @@ class AgentRuntime:
         state: str,
         reason_code: str,
         context_packet: Optional[ContextPacket] = None,
+        repair_lineage: Optional[Iterable[Mapping[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Create planning evidence even when no executable plan survived."""
         selection = None
@@ -1056,8 +1064,14 @@ class AgentRuntime:
                 workflow,
                 state=state,
                 reason_code=reason_code,
+                repair_lineage=repair_lineage,
             ),
             "workflow_selection": normalize_workflow_selection_evidence(selection),
+            "planner_selection": build_planner_selection_evidence(
+                plan,
+                selection,
+                planner_kind=type(self._planner).__name__,
+            ),
         }
 
     def _build_context_packet(
@@ -1223,10 +1237,11 @@ class AgentRuntime:
                 run_id=run_id,
                 context_packet=context_packet,
             )
+            if result is not None:
+                if event is not None:
+                    result.replan_events.append(event)
             if replacement is None or event is None:
                 raise
-            if result is not None:
-                result.replan_events.append(event)
             return replacement, event
 
     def _validate_plan_for_execution(
@@ -1847,6 +1862,46 @@ def _build_plan_evidence(
             evidence["capability_candidate_count"] = selection_section.get(
                 "candidate_count"
             )
+    alignment_selection = dict(selection_section) if isinstance(selection_section, Mapping) else {}
+    if isinstance(capability_section, Mapping):
+        for key in ("selected_capability_id", "candidate_ids", "candidate_count"):
+            if key not in alignment_selection and key in capability_section:
+                alignment_selection[key] = capability_section.get(key)
+    if (
+        not alignment_selection.get("candidate_details")
+        and isinstance(capability_catalog_section, Mapping)
+        and isinstance(capability_catalog_section.get("capabilities"), list)
+    ):
+        alignment_selection["candidate_details"] = capability_catalog_section.get("capabilities")
+    template_section = sections.get("workflow_templates")
+    templates = (
+        template_section.get("templates")
+        if isinstance(template_section, Mapping)
+        else None
+    )
+    if isinstance(templates, list):
+        existing_details = alignment_selection.get("candidate_details")
+        existing_details = existing_details if isinstance(existing_details, list) else []
+        existing_ids = {
+            item.get("id")
+            for item in existing_details
+            if isinstance(item, Mapping) and item.get("id")
+        }
+        alignment_selection["candidate_details"] = existing_details + [
+            {
+                "id": item.get("id"),
+                "result_types": item.get("result_types") or [item.get("output_type")],
+            }
+            for item in templates
+            if isinstance(item, Mapping)
+            and item.get("id")
+            and item.get("id") not in existing_ids
+        ]
+    evidence["planner_selection"] = build_planner_selection_evidence(
+        plan,
+        alignment_selection,
+        planner_kind=planner_kind,
+    )
     if capability_catalog_available and isinstance(capability_catalog_section, Mapping):
         catalog_capabilities = capability_catalog_section.get("capabilities")
         tool_schemas = capability_catalog_section.get("tool_schemas")

@@ -3388,3 +3388,14 @@ M167 不再增加单一区域 GIS 规则，重点把“能力目录 → 候选�
 3. 增加脱敏模型选择不一致、有限 repair 失败和开放式无模板 replay；真实模型保持最小显式基线。
 4. 扩展 SQLite 多 worker、滚动重启和 artifact-only 恢复到 candidate evidence/selection action 的 CAS 与幂等矩阵。
 5. 完成真实浏览器候选选择 → 计划预览 → 确认 → 执行结果的闭环，并保持通用 renderer。
+
+## M169 当前实现进展：交互动作 CAS 与幂等 receipt
+
+- `SQLiteStateStore` 新增 `interaction_receipts` 表，以 `domain_id + source run_id + action` 作为 CAS 主键，以 `idempotency_key` 作为重放边界；旧数据库通过 `CREATE TABLE IF NOT EXISTS` 安全迁移。
+- `AgentService.apply_run_interaction()` 对 `select_capability`、`select_workflow`、`provide_facts` 和 `preview` 统一建立 receipt。重复点击复用同一个子 run 或预览响应，冲突输入和并发占用返回结构化失败，不会重复进入 Planner/ToolRegistry。
+- receipt 状态和 `spatial-agent.interaction-receipt.v1` 投影会进入子 run artifact；服务重启后从 SQLite receipt、SQLite run snapshot 或 artifact 恢复，不重新调用模型或工具。
+- 新增 `tests/test_m169_interaction_receipt.py`，覆盖重复选择、源 run/action CAS 冲突、artifact receipt、服务重启恢复、旧 artifact 显式迁移、未知版本拒绝、Planner 选择不一致和失败 repair lineage；Docker 中 M169/M168/M167 专项通过。
+- 新增 `spatial-agent.planner-selection.v1`，把 Domain 选择与 Planner 结果的匹配状态纳入可读 evidence；`ArtifactStore.migrate_run()` 只迁移无版本 legacy artifact，未知版本不迁移、不恢复。
+- Service、生产 FastAPI、开发 HTTP 和开发门禁测试统一释放 observability 资源；quick 已消除 `ResourceWarning`。浏览器 smoke 显式包裹 CommonJS 异步入口，适配仓库没有 `package.json` 的 Node 环境。
+- 当前工作树 Docker 已重建 healthy；compileall、quick、stage、M127/M148/M162-M169 专项 90 项通过（2 项因容器没有 Node 跳过），production acceptance 通过；Chrome 真实验证预览→确认→完成的 plan fingerprint 零漂移，artifact、候选卡片、补事实和恢复 smoke 均通过。
+- M169 尚未提交/推送；完成敏感信息检查和版本交付后，按全局七维度进入 M170 规划。

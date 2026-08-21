@@ -104,6 +104,8 @@ class ServiceState:
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._jobs_lock = threading.Lock()
         self._jobs: Dict[str, Dict[str, Any]] = {}
+        self._interaction_lock = threading.Lock()
+        self._interactions: Dict[tuple[str, str, str], Dict[str, Any]] = {}
         self._timeout_seconds = async_timeout_seconds()
         self._reaper_interval = reaper_interval_seconds()
         self._reaper_stop = threading.Event()
@@ -300,6 +302,86 @@ class ServiceState:
         if self._state_store is None:
             return {"created": False}
         return self._state_store.create_async_job(idempotency_key, run_id, payload)
+
+    def reserve_interaction(
+        self,
+        *,
+        domain_id: str,
+        run_id: str,
+        action: str,
+        idempotency_key: str,
+        input_fingerprint: str,
+    ) -> Dict[str, Any]:
+        """Reserve one run interaction through SQLite or the memory CAS map."""
+        if self._state_store is not None:
+            return self._state_store.reserve_interaction(
+                domain_id=domain_id,
+                run_id=run_id,
+                action=action,
+                idempotency_key=idempotency_key,
+                input_fingerprint=input_fingerprint,
+            )
+        key = (domain_id, run_id, action)
+        with self._interaction_lock:
+            existing = self._interactions.get(key)
+            if existing is not None:
+                result = dict(existing)
+                result["created"] = False
+                return result
+            result = {
+                "domain_id": domain_id,
+                "run_id": run_id,
+                "action": action,
+                "idempotency_key": idempotency_key,
+                "input_fingerprint": input_fingerprint,
+                "status": "IN_PROGRESS",
+                "result_run_id": None,
+                "response_payload": None,
+                "error_code": None,
+            }
+            self._interactions[key] = result
+            result["created"] = True
+            return dict(result)
+
+    def complete_interaction(
+        self,
+        *,
+        domain_id: str,
+        run_id: str,
+        action: str,
+        input_fingerprint: str,
+        status: str,
+        result_run_id: Optional[str] = None,
+        response_payload: Optional[Dict[str, Any]] = None,
+        error_code: Optional[str] = None,
+    ) -> bool:
+        if self._state_store is not None:
+            return self._state_store.complete_interaction(
+                domain_id=domain_id,
+                run_id=run_id,
+                action=action,
+                input_fingerprint=input_fingerprint,
+                status=status,
+                result_run_id=result_run_id,
+                response_payload=response_payload,
+                error_code=error_code,
+            )
+        key = (domain_id, run_id, action)
+        with self._interaction_lock:
+            current = self._interactions.get(key)
+            if not current or current.get("input_fingerprint") != input_fingerprint:
+                return False
+            if current.get("status") != "IN_PROGRESS":
+                return False
+            current.update(
+                {
+                    "status": str(status)[:32],
+                    "result_run_id": result_run_id,
+                    "response_payload": response_payload,
+                    "error_code": error_code,
+                }
+            )
+            return True
 
     def claim_async_job(
         self,

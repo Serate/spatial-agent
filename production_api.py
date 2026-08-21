@@ -6,6 +6,7 @@ dev server in serve_api.py.
 """
 
 import json
+import atexit
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -46,6 +47,26 @@ app = FastAPI(
 )
 service = AgentService()
 service.start_reaper()
+
+
+def _close_service() -> None:
+    """Release the module-level service on app and interpreter shutdown.
+
+    The production entry point owns a long-lived ``AgentService``.  FastAPI
+    normally invokes the shutdown hook, while direct imports in contract
+    tests bypass the ASGI lifespan; the atexit fallback covers that second
+    path and prevents observability/SQLite handles from being left to the
+    interpreter finalizer.
+    """
+    service.close()
+
+
+# FastAPI 0.141 keeps the public compatibility hook on the application
+# object; older/newer deployments may expose the lower-level router method
+# instead.  Prefer the public hook so importing the production module remains
+# compatible with the pinned container dependency.
+app.on_event("shutdown")(_close_service)
+atexit.register(_close_service)
 
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))
 GEOJSON_ROOT = Path(os.environ.get("SPATIAL_AGENT_GEOJSON_ROOT", "outputs/geojson"))

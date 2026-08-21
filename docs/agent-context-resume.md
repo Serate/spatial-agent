@@ -1598,4 +1598,13 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - `agent/evidence_contract.py` 新增 `spatial-agent.capability-evidence.v1`，以 bounded status/readiness/coverage/alignment/provenance/missing reasons 绑定候选能力；未知版本安全降级。
 - `workflow-selection.v1` 的候选详情现在携带 capability evidence；`agent/domain_contract.py` 新增 `spatial-agent.domain-workflow-seam.v1` 的 Domain seam 能力摘要，Runtime、interaction、artifact 和 Harness 共享同一投影。
 - Docker 当前工作树镜像 healthy；M168/M167/M166/M165 专项 17 项、SQLite/artifact/restart 相邻矩阵 15 项通过；quick、stage、compileall、production acceptance 和 Chrome candidate smoke 通过。
-- M168 尚未新增 live 调用；最近 live-short 仍是显式真实模型 + GIS 证据。当前工作树未提交，下一步提交后进入 M169，重点是运行时数据 evidence 绑定、旧 schema/artifact 迁移、模型选择 replay 与 candidate action CAS/恢复。
+- M168 尚未新增 live 调用；最近 live-short 仍是显式真实模型 + GIS 证据。M168 已提交并推送，M169 当前工作树重点是运行时数据 evidence 绑定、旧 schema/artifact 迁移、模型选择 replay 与 candidate action CAS/恢复。
+
+## M169 当前实现与验证状态
+
+- M168 已推送 `9e9b76d`；M169 当前工作树已加入 `interaction_receipts` SQLite CAS 表和 memory fallback。`domain_id + source run_id + action` 防止同一澄清运行被不同选择重复消费，`idempotency_key` 支持网络重试复用。
+- `select_capability`、`select_workflow`、`provide_facts`、`preview` 均经过统一 receipt seam；成功后的子 run artifact 带 `spatial-agent.interaction-receipt.v1`，重启后从 receipt 和 run snapshot/artifact 恢复。
+- 新增 `spatial-agent.planner-selection.v1`，记录 Planner 与 Domain 能力选择的 `matched`、`mismatch`、`unresolved` 状态；有限 repair 失败仍保留脱敏 lineage，旧版无版本 artifact 只允许显式迁移，未知版本拒绝恢复。
+- Service、生产 FastAPI、开发 HTTP 和开发门禁测试均补齐资源关闭；Docker quick 已无 `ResourceWarning`。Node 浏览器 smoke 改为显式 CommonJS 异步入口，避免仓库无 `package.json` 时被 Node 错误解析顶层 `await`。
+- 当前工作树 Docker 已重建 healthy；compileall、quick、stage、M127/M148/M162-M169 专项 90 项通过，2 项因容器没有 Node 跳过；production acceptance、候选卡片、补事实、恢复和 M169 预览 fingerprint → 确认 → 完成 Chrome smoke 均通过。
+- M169 尚未提交/推送。提交前仍需执行敏感信息与 diff 检查；不提交 API key、`config/openai.local.json`、原始 live 输出或 GIS 数据。阶段完成后从产品、架构、数据、模型、部署、体验、测试七维度规划下一阶段。

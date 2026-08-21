@@ -5,7 +5,11 @@ from typing import Dict, List, Optional
 from agent.execution_contract import build_execution_record
 from agent.action_lifecycle import project_action_lifecycle
 from agent.runtime_context import normalize_runtime_context
-from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
+from agent.contract_versions import (
+    ACTION_ARTIFACT_SCHEMA_VERSION,
+    ARTIFACT_MIGRATION_SCHEMA_VERSION,
+    RUN_ARTIFACT_SCHEMA_VERSION,
+)
 from agent.service_async import normalize_async_result_evidence
 from agent.nested_schema import NestedSchemaError, normalize_result_contract, unavailable_nested_view
 from agent.evidence_registry import normalize_evidence_registry
@@ -57,6 +61,7 @@ class ArtifactStore:
         )
         artifact = {
             "artifact_schema_version": RUN_ARTIFACT_SCHEMA_VERSION,
+            "artifact_migration": payload.get("artifact_migration"),
             "run_id": run_id,
             "status": payload.get("status"),
             "request": payload.get("request"),
@@ -88,6 +93,7 @@ class ArtifactStore:
             "evidence_registry": _evidence_registry_from_payload(payload),
             "decision_evidence": payload.get("decision_evidence"),
             "decision_record": payload.get("_decision_record"),
+            "interaction_receipt": payload.get("interaction_receipt"),
             "lifecycle": project_action_lifecycle(payload),
             "geojson_ref": payload.get("geojson_ref"),
             "artifact_ref": path.as_posix(),
@@ -133,7 +139,7 @@ class ArtifactStore:
             {**payload, "artifact_ref": path.as_posix()}, kind="action"
         )
         artifact = {
-            "artifact_schema_version": "spatial-agent.action-artifact.v1",
+            "artifact_schema_version": ACTION_ARTIFACT_SCHEMA_VERSION,
             "action_execution_id": execution_id,
             "action_id": payload.get("action_id"),
             "domain_id": payload.get("domain_id"),
@@ -174,7 +180,7 @@ class ArtifactStore:
             except (OSError, ValueError):
                 continue
             if (
-                payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1"
+                payload.get("artifact_schema_version") == ACTION_ARTIFACT_SCHEMA_VERSION
                 and payload.get("idempotency_key") == key
                 and (
                     not domain_id
@@ -184,6 +190,40 @@ class ArtifactStore:
                 payload.setdefault("artifact_ref", path.as_posix())
                 return payload
         return None
+
+    def migrate_run(
+        self, run_id: str, domain_id: Optional[str] = None
+    ) -> Optional[str]:
+        """Migrate one unversioned legacy run to the current artifact schema.
+
+        Legacy artifacts are intentionally readable without mutation.  A
+        caller that owns a persistence migration can opt into an explicit,
+        bounded rewrite.  Future/unknown versions are never rewritten because
+        the current process cannot prove their semantics.
+        """
+        safe_id = _safe_run_id(run_id)
+        if safe_id is None:
+            return None
+        path = self._root / (safe_id + ".json")
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        schema = raw.get("artifact_schema_version")
+        if schema == RUN_ARTIFACT_SCHEMA_VERSION:
+            return path.as_posix()
+        if schema is not None:
+            return None
+        payload = self.read_run(safe_id, domain_id=domain_id)
+        if payload is None:
+            return None
+        payload["artifact_migration"] = {
+            "schema_version": ARTIFACT_MIGRATION_SCHEMA_VERSION,
+            "source_schema_version": "legacy-unversioned",
+            "target_schema_version": RUN_ARTIFACT_SCHEMA_VERSION,
+            "mode": "explicit_rewrite",
+        }
+        return self.write_run(payload)
 
     def read_run(self, run_id: str, domain_id: Optional[str] = None) -> Optional[Dict]:
         """Read a single persisted run artifact, or None when it is missing.
@@ -255,7 +295,7 @@ class ArtifactStore:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1":
+            if payload.get("artifact_schema_version") == ACTION_ARTIFACT_SCHEMA_VERSION:
                 continue
             if domain_id and payload.get("domain_id", "gis") != domain_id:
                 continue
@@ -301,6 +341,8 @@ class ArtifactStore:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
+        if payload.get("artifact_schema_version") != ACTION_ARTIFACT_SCHEMA_VERSION:
+            return None
         payload.setdefault("action_execution_id", execution_id)
         if domain_id and payload.get("domain_id", "gis") != domain_id:
             return None
@@ -335,7 +377,7 @@ class ArtifactStore:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if payload.get("artifact_schema_version") != "spatial-agent.action-artifact.v1":
+            if payload.get("artifact_schema_version") != ACTION_ARTIFACT_SCHEMA_VERSION:
                 continue
             if domain_id and payload.get("domain_id", "gis") != domain_id:
                 continue
@@ -368,7 +410,7 @@ class ArtifactStore:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1":
+            if payload.get("artifact_schema_version") == ACTION_ARTIFACT_SCHEMA_VERSION:
                 continue
             if payload.get("artifact_schema_version") not in (
                 None,
@@ -432,7 +474,7 @@ class ArtifactStore:
                     payload = json.loads(path.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     continue
-                if payload.get("artifact_schema_version") != "spatial-agent.action-artifact.v1":
+                if payload.get("artifact_schema_version") != ACTION_ARTIFACT_SCHEMA_VERSION:
                     continue
                 if domain_id and payload.get("domain_id", "gis") != domain_id:
                     continue

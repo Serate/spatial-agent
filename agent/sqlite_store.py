@@ -21,6 +21,13 @@ _ASYNC_JOB_SELECT = """
     FROM async_jobs
 """
 
+_INTERACTION_RECEIPT_SELECT = """
+    SELECT domain_id, run_id, action, idempotency_key, input_fingerprint,
+           status, result_run_id, response_payload, error_code,
+           created_at, updated_at
+    FROM interaction_receipts
+"""
+
 
 def _connect_sqlite(path: Path) -> sqlite3.Connection:
     """Open SQLite with a retry for concurrent WAL mode initialization."""
@@ -113,6 +120,103 @@ class SQLiteStateStore:
         result = _async_job_from_row(row)
         result["created"] = cursor.rowcount == 1
         return result
+
+    def reserve_interaction(
+        self,
+        *,
+        domain_id: str,
+        run_id: str,
+        action: str,
+        idempotency_key: str,
+        input_fingerprint: str,
+    ) -> Dict[str, Any]:
+        """Atomically reserve one interaction against a source run.
+
+        The source-run/action primary key is the CAS boundary: a browser
+        double click or two workers cannot apply different choices to the same
+        clarification run. The idempotency key is a second unique boundary so
+        a caller can safely replay a request after a transport failure.
+        """
+        now = time.time()
+        with self._connection() as connection:
+            created = False
+            try:
+                cursor = connection.execute(
+                    """
+                    INSERT INTO interaction_receipts
+                        (domain_id, run_id, action, idempotency_key,
+                         input_fingerprint, status, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'IN_PROGRESS', ?, ?)
+                    """,
+                    (
+                        domain_id,
+                        run_id,
+                        action,
+                        idempotency_key,
+                        input_fingerprint,
+                        now,
+                        now,
+                    ),
+                )
+                created = cursor.rowcount == 1
+            except sqlite3.IntegrityError:
+                created = False
+            row = connection.execute(
+                _INTERACTION_RECEIPT_SELECT
+                + " WHERE domain_id = ? AND run_id = ? AND action = ?",
+                (domain_id, run_id, action),
+            ).fetchone()
+            if row is None:
+                row = connection.execute(
+                    _INTERACTION_RECEIPT_SELECT
+                    + " WHERE idempotency_key = ?",
+                    (idempotency_key,),
+                ).fetchone()
+        result = _interaction_receipt_from_row(row)
+        result["created"] = created
+        return result
+
+    def complete_interaction(
+        self,
+        *,
+        domain_id: str,
+        run_id: str,
+        action: str,
+        input_fingerprint: str,
+        status: str,
+        result_run_id: Optional[str] = None,
+        response_payload: Optional[Dict[str, Any]] = None,
+        error_code: Optional[str] = None,
+    ) -> bool:
+        """Complete a receipt only if its original input still owns it."""
+        serialized = (
+            json.dumps(response_payload, ensure_ascii=True)
+            if isinstance(response_payload, dict)
+            else None
+        )
+        with self._connection() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE interaction_receipts
+                   SET status = ?, result_run_id = ?, response_payload = ?,
+                       error_code = ?, updated_at = ?
+                 WHERE domain_id = ? AND run_id = ? AND action = ?
+                   AND input_fingerprint = ?
+                   AND status = 'IN_PROGRESS'
+                """,
+                (
+                    str(status)[:32],
+                    result_run_id,
+                    serialized,
+                    str(error_code)[:96] if error_code else None,
+                    time.time(),
+                    domain_id,
+                    run_id,
+                    action,
+                    input_fingerprint,
+                ),
+            )
+        return cursor.rowcount == 1
 
     def get_async_job(
         self, run_id: str, domain_id: Optional[str] = None
@@ -501,6 +605,22 @@ class SQLiteStateStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_async_jobs_status
                     ON async_jobs(status, owner_pid);
+                CREATE TABLE IF NOT EXISTS interaction_receipts (
+                    domain_id TEXT NOT NULL,
+                    run_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    input_fingerprint TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    result_run_id TEXT,
+                    response_payload TEXT,
+                    error_code TEXT,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY (domain_id, run_id, action)
+                );
+                CREATE INDEX IF NOT EXISTS idx_interaction_receipts_run
+                    ON interaction_receipts(domain_id, run_id, action);
                 """
             )
             existing_columns = {
@@ -813,6 +933,31 @@ def _async_job_from_row(row) -> Dict[str, Any]:
         "recovery_count": int(recovery_count or 0),
         "cancel_requested_at": cancel_requested_at,
         "last_event": last_event,
+    }
+
+
+def _interaction_receipt_from_row(row) -> Dict[str, Any]:
+    if row is None:
+        return {}
+    response_payload = None
+    if row[7]:
+        try:
+            value = json.loads(row[7])
+            response_payload = value if isinstance(value, dict) else None
+        except (TypeError, ValueError):
+            response_payload = None
+    return {
+        "domain_id": row[0],
+        "run_id": row[1],
+        "action": row[2],
+        "idempotency_key": row[3],
+        "input_fingerprint": row[4],
+        "status": row[5],
+        "result_run_id": row[6],
+        "response_payload": response_payload,
+        "error_code": row[8],
+        "created_at": row[9],
+        "updated_at": row[10],
     }
 
 

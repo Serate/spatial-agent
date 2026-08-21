@@ -197,3 +197,14 @@ docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m166_multi_ca
 ~~~
 
 该专项验证 Domain 声明歧义时 Planner 前停止、`select_capability` 经 Domain seam 续接、Text/GIS 同步与异步共享核心 Contract。`async_result_evidence` 是异步入口的可选投影：所有入口都有时严格比较；同步入口没有时只比较公共核心证据，不能把 transport 专属字段当作业务结果漂移。
+
+## M169 交互 receipt 与预览指纹专项
+
+涉及交互动作 CAS、旧 artifact 迁移、Planner 选择证据、repair lineage 或预览计划绑定时，阶段收口还应运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -W error::ResourceWarning -m unittest tests.test_m169_interaction_receipt tests.test_m127_runtime_action_contract -v
+node scripts\console_selection_interaction_browser_smoke.js
+~~~
+
+该浏览器 smoke 使用当前 Docker HTTP 服务和宿主隔离 Chrome CDP，验证预览 fingerprint、提交计划和最终完成结果保持一致，并确认 artifact 与选定能力存在。仓库未声明 `package.json` 时，浏览器脚本必须使用显式 CommonJS 异步入口，不能依赖 Node 对顶层 `await` 的模块推断。Python 测试仍统一在 Docker 内执行；宿主 Node 只负责前端静态/浏览器验收。

@@ -1,4 +1,5 @@
 import argparse
+import atexit
 import json
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -46,6 +47,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     artifact_root = Path("outputs/runs")
     geojson_root = Path("outputs/geojson")
     web_root = Path(__file__).parent / "web"
+
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -449,6 +451,16 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+
+def _close_default_service() -> None:
+    """Release the development handler's module-level Service at exit."""
+    current = AgentApiHandler.service
+    if current is not None:
+        current.close()
+
+
+atexit.register(_close_default_service)
 
 
 def parse_args():

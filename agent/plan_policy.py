@@ -180,6 +180,10 @@ def project_repair_lineage(value: Any) -> list[dict[str, Any]]:
             text = _text(event.get(key))
             if text:
                 item[key] = text
+        for key in ("repair_status", "repair_reason_code"):
+            text = _text(event.get(key))
+            if text in {"repaired", "failed", "ok", "replacement_invalid", "replacement_workflow_invalid"}:
+                item[key] = text
         ids = event.get("replanned_step_ids")
         if isinstance(ids, list):
             item["replanned_step_ids"] = _string_list(ids)

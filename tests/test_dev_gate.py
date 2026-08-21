@@ -24,6 +24,7 @@ class DevGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             service = AgentService(artifact_store=ArtifactStore(str(root / "service-runs")))
+            self.addCleanup(service.close)
             direct = service.run(
                 "查询洪山区行政区边界",
                 session_id="dev-gate",
@@ -93,7 +94,6 @@ class DevGateTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=2)
-                TestHandler.service._async_executor.shutdown(wait=True)
 
         self.assertEqual(direct["status"], "COMPLETED")
         self.assertEqual(direct["result"]["type"], "admin_area_result")
@@ -107,6 +107,7 @@ class DevGateTests(unittest.TestCase):
 
     def test_clarification_follow_up_is_session_scoped(self):
         service = AgentService()
+        self.addCleanup(service.close)
         first = service.run("查询行政区边界", session_id="dev-clarification")
         second = service.run("洪山区", session_id="dev-clarification")
 
@@ -116,6 +117,7 @@ class DevGateTests(unittest.TestCase):
 
     def test_service_smoke_covers_raster_and_tool_dispatch(self):
         service = AgentService()
+        self.addCleanup(service.close)
         raster = service.run("查询DEM栅格元数据", session_id="dev-raster")
         road = service.run(
             "查询距离主干道500米以内、坡度超过25度的区域。",

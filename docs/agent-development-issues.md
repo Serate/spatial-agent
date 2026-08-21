@@ -4182,3 +4182,73 @@ selection evidence 只有选择结果，没有对候选能力的有界名称、�
 ### 处理与预防
 
 在 `spatial-agent.workflow-selection.v1` 中增加有界 `candidate_details`，由 Domain capability catalog 提供候选元数据，公共投影只负责安全裁剪和版本化规范化。Console 根据详情渲染候选卡片，选择卡片直接提交 `capability_id`，仍保留没有详情时的旧兼容路径。以后新增候选能力必须同时检查 catalog、selection evidence、interaction、HTTP/async/artifact 恢复和浏览器实际动作，不能只增加候选 ID 或前端专用分支。
+
+## M169：交互续接没有 CAS 会重复创建子运行
+
+### 现象
+
+候选能力卡片、补充事实或预览动作在网络重试、浏览器双击或多 worker 并发时，会对同一个 `NEEDS_CLARIFICATION` run 再次调用 `AgentService.run/preview`，产生多个语义相同的续接运行；普通 async 的 `idempotency_key` 不能覆盖这种同步交互路径。
+
+### 根因
+
+交互动作原先只有 allowlist 和 Domain workflow resolver，没有持久化“源 run 已消费哪个 action、输入是什么、结果是哪一个子 run”的原子记录。源 run 本身仍保持澄清状态，因而单独检查状态无法实现 compare-and-swap。
+
+### 处理与预防
+
+新增 `interaction_receipts` SQLite 表和 memory fallback，以 `domain_id + source run_id + action` 为 CAS 主键、以幂等键为重放边界。`select_capability`、`select_workflow`、`provide_facts`、`preview` 在进入 continuation Runtime 前先 reserve，成功后记录子 run 或预览响应；重复输入重放，冲突输入拒绝，服务重启从 receipt 和 run snapshot/artifact 恢复。以后新增交互动作必须先定义 source subject、输入 fingerprint、CAS 主键、IN_PROGRESS 崩溃语义和恢复证据，不能只复用普通 run 的幂等逻辑。
+
+## M169：服务关闭没有释放 Observability 文件句柄
+
+### 现象
+
+Docker 专项业务断言均通过，但测试输出持续出现 `ResourceWarning: unclosed file ... observability.log`，尤其在异步、多轮交互和 SQLite 恢复场景中反复出现。
+
+### 根因
+
+`ObservabilityEmitter` 已经提供 `close()`，但 `AgentService.close()` 只停止 reaper 和线程池，没有转发关闭调用；每个 Service 实例打开的日志流直到解释器回收才释放。
+
+### 处理与预防
+
+Service 关闭流程现在显式调用 `self._state.observability.close()`，保证测试和进程重启释放句柄。以后新增可持有文件、网络或线程资源的 Runtime 依赖，必须由 Service 生命周期统一关闭，并在 Docker 测试中检查无新增 `ResourceWarning`。
+
+## M169：生产入口全局 Service 未接入关闭生命周期
+
+### 现象
+
+生产 API 在模块导入时创建全局 `AgentService` 并启动 reaper。直接导入生产模块的契约测试不会触发 ASGI 生命周期，进程结束时可能出现 observability 文件句柄未关闭的 `ResourceWarning`。
+
+### 根因
+
+服务已经具备显式 `close()`，但生产入口没有注册 shutdown 处理；测试中替换临时 Service 也不能替代模块级 Service 的所有权释放。
+
+### 处理与预防
+
+生产入口现在注册 FastAPI 兼容的 shutdown hook，并保留 `atexit` 兜底；开发 HTTP 入口也为 `AgentApiHandler` 的默认 Service 注册退出释放，确保 ASGI、标准库 HTTP 和直接模块导入三条路径都释放 Service 资源。接入 FastAPI 生命周期时应先确认当前依赖版本公开的 API；本项目 pinned 版本使用 `app.on_event("shutdown")`，不能假设 `FastAPI.add_event_handler()` 存在。以后新增全局 Service、线程池、文件或数据库句柄时，必须同时覆盖应用 shutdown、直接导入测试和重复 close 场景。
+
+## M169：开发门禁测试未关闭临时 Service
+
+### 现象
+
+Docker quick 的业务断言全部通过，但测试结束时仍出现 `observability.log` 文件句柄未关闭的 `ResourceWarning`。该问题只在开发门禁的临时 Service 生命周期中出现，容易被误判为 Runtime 或 Docker 业务失败。
+
+### 根因
+
+`tests/test_dev_gate.py` 创建了多个 `AgentService`，HTTP server 关闭时只停止线程池，没有把 Service 作为测试资源注册清理；M169 虽然已补齐 `AgentService.close()`，但测试没有调用它。
+
+### 处理与预防
+
+开发门禁现在使用 `self.addCleanup(service.close)`，并移除重复的内部线程池关闭调用。以后测试中创建 Service、SQLite store、HTTP server 或 observability emitter 时，必须通过 `addCleanup`/`finally` 明确释放所有权；阶段 quick 应在 Docker 内检查 stderr，不应只看 unittest 的返回码。
+
+## M169：浏览器 smoke 的 Node 模块入口依赖隐式推断
+
+### 现象
+
+更新真实 Chrome CDP smoke 后，直接执行 `node scripts/console_selection_interaction_browser_smoke.js` 在当前仓库失败，错误为 `SyntaxError`；浏览器和 HTTP 服务本身均正常。
+
+### 根因
+
+仓库没有 `package.json` 声明模块类型，Node 按 CommonJS 解析 `.js` 文件。脚本使用顶层 `await`，不能依赖 Node 根据语法或未来环境配置自动推断为 ES module。
+
+### 处理与预防
+
+浏览器 smoke 现在使用显式异步 IIFE，并在入口统一捕获异常、设置退出码；宿主 Node `--check`、真实 Chrome CDP 和 Docker HTTP 均通过。以后新增 Node smoke 必须明确模块入口（CommonJS 异步 IIFE 或仓库显式 ESM 配置），并在没有 `package.json` 的干净环境中直接执行一次 `node script.js`，不能只在开发机的隐式模块环境中验证。

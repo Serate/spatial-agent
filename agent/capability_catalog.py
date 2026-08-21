@@ -114,7 +114,7 @@ def capability_catalog(
         entry["capability_status"] = _capability_status(
             entry["datasets"], dataset_statuses
         )
-        entry["available"] = (
+        native_available = (
             entry["environment_supported"]
             and entry["dataset_gate"] != "missing"
             and (
@@ -123,7 +123,34 @@ def capability_catalog(
             )
         )
         if needs_analysis_ready and analysis_required and analysis_status != "ready":
-            entry["available"] = False
+            native_available = False
+        demo_supported = bool(entry.get("demo_supported", False))
+        demo_available = (
+            environment == "memory"
+            and demo_supported
+            and entry["dataset_gate"] != "missing"
+            and entry["capability_status"] != "unavailable"
+            and not (needs_analysis_ready and analysis_required and analysis_status != "ready")
+        )
+        entry["demo_supported"] = demo_supported
+        entry["native_available"] = native_available
+        entry["demo_available"] = demo_available
+        entry["available"] = native_available or demo_available
+        if native_available:
+            entry["availability_mode"] = "native"
+            entry["availability_reason"] = "native_backend_supported"
+        elif demo_available:
+            entry["availability_mode"] = "demo"
+            entry["availability_reason"] = "memory_backend_demo_only"
+        elif entry["dataset_gate"] == "missing":
+            entry["availability_mode"] = "unavailable"
+            entry["availability_reason"] = "required_data_missing"
+        elif not entry["environment_supported"]:
+            entry["availability_mode"] = "unavailable"
+            entry["availability_reason"] = "backend_not_supported"
+        else:
+            entry["availability_mode"] = "unavailable"
+            entry["availability_reason"] = "data_readiness_unavailable"
         capabilities.append(entry)
     return {
         "version": "1.0",
@@ -548,6 +575,11 @@ def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
         "tools": [str(value) for value in item.get("tools", [])],
         "result_types": [str(value) for value in item.get("result_types", [])],
         "environment_supported": bool(item.get("environment_supported", False)),
+        "demo_supported": bool(item.get("demo_supported", False)),
+        "native_available": bool(item.get("native_available", False)),
+        "demo_available": bool(item.get("demo_available", False)),
+        "availability_mode": str(item.get("availability_mode", "unknown")),
+        "availability_reason": str(item.get("availability_reason", "unknown"))[:96],
         "dataset_gate": str(item.get("dataset_gate", "unknown")),
         "capability_status": str(item.get("capability_status", "unknown")),
         "available": bool(item.get("available", False)),

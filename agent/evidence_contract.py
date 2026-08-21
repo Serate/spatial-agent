@@ -101,15 +101,23 @@ def build_capability_evidence(
         _safe_status(runtime.get("status")),
         _safe_status(runtime.get("data_readiness")),
     ]
+    availability_mode = _safe_availability_mode(source.get("availability_mode"))
+    availability_reason = _bounded_text(
+        source.get("availability_reason") or "unknown", 96
+    )
     dataset_statuses = [
         _safe_status(item.get("status") or item.get("quality"))
         for item in datasets.values()
         if isinstance(item, Mapping)
     ]
     statuses = [item for item in raw_statuses + dataset_statuses if item != "unknown"]
-    if "unavailable" in statuses or "missing" in statuses or source.get("available") is False:
+    if availability_mode == "unavailable":
+        status = "unavailable"
+    elif "unavailable" in statuses or "missing" in statuses or source.get("available") is False:
         status = "unavailable"
     elif "degraded" in statuses or "warning" in statuses:
+        status = "degraded"
+    elif availability_mode == "demo":
         status = "degraded"
     elif statuses and all(item in {"ready", "aligned"} for item in statuses):
         status = "ready"
@@ -136,6 +144,12 @@ def build_capability_evidence(
     return {
         "schema_version": CAPABILITY_EVIDENCE_SCHEMA_VERSION,
         "status": status,
+        "availability": {
+            "mode": availability_mode,
+            "reason": availability_reason,
+            "native_available": bool(source.get("native_available", False)),
+            "demo_available": bool(source.get("demo_available", False)),
+        },
         "readiness": {
             "status": _safe_status(
                 runtime.get("data_readiness") or source.get("dataset_gate")
@@ -173,9 +187,16 @@ def normalize_capability_evidence(value: Any) -> dict[str, Any]:
     alignment = source.get("alignment") if isinstance(source.get("alignment"), Mapping) else {}
     provenance = source.get("provenance") if isinstance(source.get("provenance"), Mapping) else {}
     status = _safe_status(source.get("status"))
+    availability = source.get("availability") if isinstance(source.get("availability"), Mapping) else {}
     return {
         "schema_version": CAPABILITY_EVIDENCE_SCHEMA_VERSION,
         "status": status,
+        "availability": {
+            "mode": _safe_availability_mode(availability.get("mode")),
+            "reason": _bounded_text(availability.get("reason") or "unknown", 96),
+            "native_available": bool(availability.get("native_available", False)),
+            "demo_available": bool(availability.get("demo_available", False)),
+        },
         "readiness": {
             "status": _safe_status(readiness.get("status")),
             "required": bool(readiness.get("required", False)),
@@ -202,6 +223,15 @@ def _safe_status(value: Any) -> str:
         "warning": "degraded",
     }.get(value, value)
     return value if value in CAPABILITY_EVIDENCE_STATUSES else "unknown"
+
+
+def _safe_availability_mode(value: Any) -> str:
+    value = str(value or "unknown").strip().lower()[:24]
+    return value if value in {"native", "demo", "unavailable", "unknown"} else "unknown"
+
+
+def _bounded_text(value: Any, limit: int) -> str:
+    return str(value or "").strip()[:limit] or "unknown"
 
 
 def _bounded_strings(value: Any) -> list[str]:

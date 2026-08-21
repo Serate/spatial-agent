@@ -105,16 +105,31 @@ class PlanRepairEngine:
             plan_quality=plan_quality,
         )
         started = perf_counter()
+        replacement_quality = None
+        failure_reason = None
         try:
             replacement = self._call_planner(request, feedback)
             self._validate_plan(replacement, request.workflow)
             replacement_quality = diagnose_plan(replacement, request.capability_context)
             if replacement_quality.get("available") and not replacement_quality.get("passed"):
-                return PlanRepairOutcome(
-                    None, None, "failed", "replacement_workflow_invalid"
-                )
+                failure_reason = "replacement_workflow_invalid"
         except Exception:
-            return PlanRepairOutcome(None, None, "failed", "replacement_invalid")
+            failure_reason = "replacement_invalid"
+
+        if failure_reason:
+            event = build_replan_event(
+                failed_step_id="plan-validation",
+                failed_tool="planner",
+                failure_category=failure_category(request.validation_error),
+                new_step_ids=[],
+                latency_ms=(perf_counter() - started) * 1000,
+                phase="planning",
+                plan_quality_before=plan_quality,
+                plan_quality_after=replacement_quality,
+                repair_status="failed",
+                repair_reason_code=failure_reason,
+            )
+            return PlanRepairOutcome(None, event, "failed", failure_reason)
 
         event = build_replan_event(
             failed_step_id="plan-validation",
@@ -125,6 +140,8 @@ class PlanRepairEngine:
             phase="planning",
             plan_quality_before=plan_quality,
             plan_quality_after=replacement_quality,
+            repair_status="repaired",
+            repair_reason_code="ok",
         )
         return PlanRepairOutcome(replacement, event, "repaired", "ok")
 

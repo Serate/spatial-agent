@@ -221,6 +221,14 @@ def _candidate_details_from_catalog(
                     "capability_status": _text(
                         definition.get("capability_status") or "unknown"
                     ),
+                    "availability_mode": _text(
+                        definition.get("availability_mode") or "unknown"
+                    ),
+                    "availability_reason": _text(
+                        definition.get("availability_reason") or "unknown"
+                    ),
+                    "native_available": bool(definition.get("native_available", False)),
+                    "demo_available": bool(definition.get("demo_available", False)),
                     "missing_datasets": _string_list(definition.get("missing_datasets")),
                     "geometry": _text(definition.get("geometry") or "unknown"),
                 },
@@ -266,6 +274,10 @@ def _normalize_candidate_details(value: Any) -> list[dict[str, Any]]:
             data_summary = {
                 "dataset_gate": _text(data.get("dataset_gate") or "unknown"),
                 "capability_status": _text(data.get("capability_status") or "unknown"),
+                "availability_mode": _text(data.get("availability_mode") or "unknown"),
+                "availability_reason": _text(data.get("availability_reason") or "unknown"),
+                "native_available": bool(data.get("native_available", False)),
+                "demo_available": bool(data.get("demo_available", False)),
                 "missing_datasets": _string_list(data.get("missing_datasets")),
                 "geometry": _text(data.get("geometry") or "unknown"),
             }

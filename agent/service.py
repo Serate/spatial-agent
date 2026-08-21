@@ -1366,6 +1366,137 @@ class AgentService:
             "interaction": interaction,
         }
 
+    def _reserve_interaction_receipt(
+        self,
+        *,
+        source_run_id: str,
+        action: str,
+        payload: Dict[str, Any],
+        planner: str,
+        backend: str,
+    ) -> tuple[Dict[str, Any], bool]:
+        """Reserve one user interaction and replay a completed receipt.
+
+        Interaction continuation creates a new governed run, so normal
+        ``run_async`` idempotency cannot protect it. This seam gives
+        candidate/facts/preview actions the same CAS boundary as async jobs.
+        """
+        data = dict(payload)
+        explicit_key = data.pop("idempotency_key", None)
+        input_fingerprint = _action_input_fingerprint(
+            "run_interaction:" + action,
+            {"planner": planner, "backend": backend, "payload": data},
+        )
+        if explicit_key is None:
+            explicit_key = (
+                "interaction:"
+                + str(source_run_id)[:48]
+                + ":"
+                + action[:24]
+                + ":"
+                + input_fingerprint.rsplit(":", 1)[-1][:20]
+            )
+        explicit_key = str(explicit_key).strip()
+        if (
+            not explicit_key
+            or len(explicit_key) > 128
+            or "/" in explicit_key
+            or "\\" in explicit_key
+        ):
+            raise ValueError("interaction idempotency_key must be a safe non-empty value")
+        domain_id = self._domain_id(planner, backend)
+        receipt = self._state.reserve_interaction(
+            domain_id=domain_id,
+            run_id=str(source_run_id),
+            action=action,
+            idempotency_key=explicit_key,
+            input_fingerprint=input_fingerprint,
+        )
+        if not receipt.get("created"):
+            same_input = receipt.get("input_fingerprint") == input_fingerprint
+            same_subject = (
+                receipt.get("domain_id") == domain_id
+                and receipt.get("run_id") == str(source_run_id)
+                and receipt.get("action") == action
+            )
+            if not same_input or not same_subject:
+                raise ValueError("interaction idempotency key conflicts with a previous input")
+            if receipt.get("status") == "COMPLETED":
+                replay = None
+                result_run_id = receipt.get("result_run_id")
+                if result_run_id:
+                    replay = self.get_run(
+                        str(result_run_id), planner=planner, backend=backend
+                    )
+                if replay is None and isinstance(receipt.get("response_payload"), dict):
+                    replay = dict(receipt["response_payload"])
+                if replay is None:
+                    raise ValueError("interaction receipt result is unavailable")
+                replay["interaction_receipt"] = self._interaction_receipt_projection(
+                    receipt, reused=True
+                )
+                return replay, True
+            if receipt.get("status") == "FAILED":
+                raise ValueError(
+                    "interaction previously failed: "
+                    + str(receipt.get("error_code") or "interaction_failed")
+                )
+            raise ValueError("interaction is already in progress")
+        receipt["idempotency_key"] = explicit_key
+        receipt["input_fingerprint"] = input_fingerprint
+        return receipt, False
+
+    @staticmethod
+    def _interaction_receipt_projection(
+        receipt: Dict[str, Any], *, reused: bool
+    ) -> Dict[str, Any]:
+        return {
+            "schema_version": "spatial-agent.interaction-receipt.v1",
+            "status": str(receipt.get("status") or "UNKNOWN")[:32],
+            "action": str(receipt.get("action") or "unknown")[:64],
+            "source_run_id": str(receipt.get("run_id") or "")[:160],
+            "result_run_id": str(receipt.get("result_run_id") or "")[:160] or None,
+            "idempotency_key": str(receipt.get("idempotency_key") or "")[:128],
+            "reused": bool(reused),
+        }
+
+    def _complete_interaction_receipt(
+        self,
+        receipt: Dict[str, Any],
+        response: Optional[Dict[str, Any]],
+        *,
+        status: str,
+        error_code: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        response = response if isinstance(response, dict) else {}
+        result_run_id = response.get("run_id") if status == "COMPLETED" else None
+        response_payload = (
+            response if status == "COMPLETED" and not result_run_id else None
+        )
+        self._state.complete_interaction(
+            domain_id=str(receipt.get("domain_id") or self._resolved_domain_id),
+            run_id=str(receipt.get("run_id") or ""),
+            action=str(receipt.get("action") or ""),
+            input_fingerprint=str(receipt.get("input_fingerprint") or ""),
+            status=status,
+            result_run_id=str(result_run_id) if result_run_id else None,
+            response_payload=response_payload,
+            error_code=error_code,
+        )
+        receipt = dict(receipt)
+        receipt.update(
+            {
+                "status": status,
+                "result_run_id": result_run_id,
+                "response_payload": response_payload,
+                "error_code": error_code,
+            }
+        )
+        response["interaction_receipt"] = self._interaction_receipt_projection(
+            receipt, reused=False
+        )
+        return response
+
     def apply_run_interaction(
         self,
         run_id: str,
@@ -1470,6 +1601,23 @@ class AgentService:
         ).strip()
         if not continuation_request:
             raise ValueError("interaction request context is unavailable")
+        receipt = None
+        receipt_actions = {
+            "provide_facts",
+            "select_capability",
+            "select_workflow",
+            "preview",
+        }
+        if action in receipt_actions:
+            receipt, replay = self._reserve_interaction_receipt(
+                source_run_id=run_id,
+                action=action,
+                payload=data,
+                planner=selected_planner,
+                backend=selected_backend,
+            )
+            if replay:
+                return receipt
         # A selection interaction continues the stored run; it is not a new
         # conversational turn.  Consume the clarification marker before
         # entering Runtime so _resolve_request does not append the same
@@ -1482,27 +1630,55 @@ class AgentService:
             if callable(clear_pending):
                 clear_pending(str(current.get("session_id") or "default"))
         if action == "preview":
-            return self.preview(
+            try:
+                response = self.preview(
+                    request=continuation_request,
+                    session_id=str(current.get("session_id") or "default"),
+                    planner=selected_planner,
+                    backend=selected_backend,
+                    workflow=workflow_value,
+                    spatial_context=current.get("spatial_context"),
+                    _resolved_request=resolved_request_override,
+                )
+            except Exception:
+                if receipt is not None:
+                    self._complete_interaction_receipt(
+                        receipt, {}, status="FAILED", error_code="preview_failed"
+                    )
+                raise
+            return (
+                self._complete_interaction_receipt(receipt, response, status="COMPLETED")
+                if receipt is not None
+                else response
+            )
+        try:
+            response = self.run(
                 request=continuation_request,
                 session_id=str(current.get("session_id") or "default"),
                 planner=selected_planner,
                 backend=selected_backend,
                 workflow=workflow_value,
-                spatial_context=current.get("spatial_context"),
+                require_confirmation=bool(data.get("require_confirmation", True)),
+                export_artifact=bool(data.get("export_artifact", True)),
+                export_geojson=bool(data.get("export_geojson", False)),
+                geojson_max_features=int(data.get("geojson_max_features", 100)),
                 _resolved_request=resolved_request_override,
             )
-        return self.run(
-            request=continuation_request,
-            session_id=str(current.get("session_id") or "default"),
-            planner=selected_planner,
-            backend=selected_backend,
-            workflow=workflow_value,
-            require_confirmation=bool(data.get("require_confirmation", True)),
-            export_artifact=bool(data.get("export_artifact", True)),
-            export_geojson=bool(data.get("export_geojson", False)),
-            geojson_max_features=int(data.get("geojson_max_features", 100)),
-            _resolved_request=resolved_request_override,
-        )
+        except Exception:
+            if receipt is not None:
+                self._complete_interaction_receipt(
+                    receipt, {}, status="FAILED", error_code="interaction_failed"
+                )
+            raise
+        if receipt is not None:
+            response = self._complete_interaction_receipt(
+                receipt, response, status="COMPLETED"
+            )
+            if response.get("artifact_ref"):
+                # Refresh the child run artifact with the receipt projection so
+                # artifact navigation retains the interaction lineage.
+                self._artifact_store.write_run(response)
+        return response
 
     def list_runs(self, limit: int = 20) -> Dict:
         if self._state.persistent:
@@ -1907,6 +2083,7 @@ class AgentService:
         """
         self._state.stop_reaper()
         self._async_executor.shutdown(wait=True)
+        self._state.observability.close()
 
     def list_memory(
         self,

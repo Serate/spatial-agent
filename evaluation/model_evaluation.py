@@ -152,6 +152,12 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
             "replanned_step_ids": replacement_ids,
             "replanned_step_count": len(replacement_ids),
         }
+        repair_status = _safe_repair_token(event.get("repair_status"))
+        if repair_status in {"repaired", "failed"}:
+            item["repair_status"] = repair_status
+        repair_reason = _safe_repair_token(event.get("repair_reason_code"))
+        if repair_reason:
+            item["repair_reason_code"] = repair_reason
         latency = event.get("latency_ms")
         if _nonnegative_number(latency):
             item["latency_ms"] = round(min(float(latency), 86_400_000), 3)

@@ -242,6 +242,8 @@ def build_replan_event(
     phase: str = "execution",
     plan_quality_before: Optional[Mapping[str, Any]] = None,
     plan_quality_after: Optional[Mapping[str, Any]] = None,
+    repair_status: Optional[str] = None,
+    repair_reason_code: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Bounded, credential-free evidence for one replan round."""
     event = {
@@ -257,6 +259,10 @@ def build_replan_event(
         event["plan_quality_before"] = project_plan_quality_evidence(plan_quality_before)
     if isinstance(plan_quality_after, Mapping):
         event["plan_quality_after"] = project_plan_quality_evidence(plan_quality_after)
+    if repair_status in {"repaired", "failed"}:
+        event["repair_status"] = repair_status
+    if repair_reason_code:
+        event["repair_reason_code"] = str(repair_reason_code)[:96]
     return event
 
 

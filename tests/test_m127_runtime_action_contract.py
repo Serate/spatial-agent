@@ -124,19 +124,22 @@ class M127RuntimeActionContractTests(unittest.TestCase):
 
     def test_action_observability_is_bounded_and_machine_readable(self):
         emitter = CollectingEmitter(enabled=True)
-        emitter.emit_action(
-            execution_id="action-m127",
-            action_id="text.summarize",
-            domain_id="text",
-            status="COMPLETED",
-            duration_ms=3.5,
-            attributes={"result_type": "text_summary_result", "raw_text": "must be dropped"},
-        )
-        self.assertEqual(len(emitter.events), 1)
-        event = emitter.events[0]
-        self.assertEqual(event["event"], "action")
-        self.assertEqual(event["attributes"]["action_id"], "text.summarize")
-        self.assertNotIn("raw_text", event["attributes"])
+        try:
+            emitter.emit_action(
+                execution_id="action-m127",
+                action_id="text.summarize",
+                domain_id="text",
+                status="COMPLETED",
+                duration_ms=3.5,
+                attributes={"result_type": "text_summary_result", "raw_text": "must be dropped"},
+            )
+            self.assertEqual(len(emitter.events), 1)
+            event = emitter.events[0]
+            self.assertEqual(event["event"], "action")
+            self.assertEqual(event["attributes"]["action_id"], "text.summarize")
+            self.assertNotIn("raw_text", event["attributes"])
+        finally:
+            emitter.close()
 
     def test_dev_http_exposes_action_history_and_artifact(self):
         with tempfile.TemporaryDirectory() as directory:

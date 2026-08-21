@@ -1881,4 +1881,13 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 `spatial-agent.capability-evidence.v1`，候选详情绑定有界 readiness、coverage、alignment、provenance、状态和缺失原因摘要；未知 schema 降级为 `unavailable`，不泄露文件路径或原始数据。
 - 新增 `spatial-agent.domain-workflow-seam.v1`，selection、workflow normalization、plan validation 和 capability resolution 的 Domain 能力声明进入 selection evidence。
 - M168/M167/M166/M165 专项 17 项通过；SQLite/artifact/restart 相邻矩阵 15 项通过；quick、stage、compileall、HTTP production acceptance 和 Chrome candidate smoke 通过，Docker 保持 healthy。
-- 当前版本尚未新增 live 模型调用，沿用最近一次真实模型 + GIS live-short 证据。工作树包含 M168 未提交修改，下一步提交推送后进入 M169：运行时真实数据 evidence 绑定、旧 schema/artifact 迁移、模型选择 replay 和 candidate action 恢复矩阵。
+
+## M169 当前恢复位置
+
+- M168 已提交并推送 `9e9b76d`。Docker 重建后容器 healthy；M169/M168/M167 专项 12 项通过，容器内 compileall 通过。
+- `interaction_receipts` 已接入 SQLiteStateStore 和 ServiceState memory fallback。候选选择、补事实、workflow 选择和预览现在有 CAS/idempotency receipt；重复请求复用结果，源 run/action 的不同输入被拒绝。
+- 交互完成后 receipt projection 写入子 run artifact，服务重启可以通过 receipt 找到原子续接的子 run；未执行第二次 Planner/ToolRegistry。
+- 新增 Planner selection evidence、旧 artifact 显式迁移、未知版本拒绝和失败 repair lineage；`AgentService.close()`、生产入口 shutdown/atexit 以及开发门禁的 `addCleanup` 均释放 observability 资源。
+- Docker 当前工作树已重建 healthy；compileall、quick、stage、M127/M148/M162-M169 专项 90 项通过（Node 相关 2 项按容器环境跳过），production acceptance 通过。
+- 宿主 Chrome CDP 已验证真实 Console 的预览 fingerprint、提交计划和最终计划一致，确认后完成且 artifact 可用；候选卡片、补事实和恢复 smoke 也通过。浏览器脚本使用显式 CommonJS 异步入口。
+- M169 当前仍未提交/推送。下一步是敏感信息扫描、`git diff --check`、版本提交与推送；随后按全局七维度规划 M170，不再只围绕单个 GIS 数据集扩展规则。

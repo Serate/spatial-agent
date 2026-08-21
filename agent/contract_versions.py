@@ -4,6 +4,8 @@ TASK_PLAN_SCHEMA_VERSION = "spatial-agent.task-plan.v1"
 RESULT_ENVELOPE_SCHEMA_VERSION = "spatial-agent.result-envelope.v1"
 MODEL_EVIDENCE_SCHEMA_VERSION = "spatial-agent.model-evidence.v1"
 RUN_ARTIFACT_SCHEMA_VERSION = "spatial-agent.run-artifact.v1"
+ACTION_ARTIFACT_SCHEMA_VERSION = "spatial-agent.action-artifact.v1"
+ARTIFACT_MIGRATION_SCHEMA_VERSION = "spatial-agent.artifact-migration.v1"
 WORKSPACE_SCHEMA_VERSION = "spatial-agent.workspace.v1"
 VIEWS_SCHEMA_VERSION = "spatial-agent.views.v1"
 VIEW_SCHEMA_VERSION = "spatial-agent.view.v1"
@@ -15,6 +17,8 @@ __all__ = [
     "RESULT_ENVELOPE_SCHEMA_VERSION",
     "MODEL_EVIDENCE_SCHEMA_VERSION",
     "RUN_ARTIFACT_SCHEMA_VERSION",
+    "ACTION_ARTIFACT_SCHEMA_VERSION",
+    "ARTIFACT_MIGRATION_SCHEMA_VERSION",
     "WORKSPACE_SCHEMA_VERSION",
     "VIEWS_SCHEMA_VERSION",
     "VIEW_SCHEMA_VERSION",

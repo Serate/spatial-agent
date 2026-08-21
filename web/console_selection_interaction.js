@@ -68,6 +68,8 @@
       const evidence = record(item.evidence) ? {
         schema_version: text(item.evidence.schema_version, "spatial-agent.capability-evidence.v1", 96),
         status: text(item.evidence.status, "unknown", 24),
+        availability_mode: text(item.evidence.availability?.mode, "unknown", 24),
+        availability_reason: text(item.evidence.availability?.reason, "unknown", 96),
         readiness: text(item.evidence.readiness?.status, "unknown", 24),
         alignment: text(item.evidence.alignment?.status, "unknown", 24),
         provenance: text(item.evidence.provenance?.status, "unknown", 24),

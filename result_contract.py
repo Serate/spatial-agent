@@ -431,6 +431,12 @@ def build_replanning_evidence(events: Any) -> Dict[str, Any]:
             ) or "unknown",
             "replanned_step_ids": replacement_ids,
         }
+        repair_status = _bounded_replan_token(event.get("repair_status"))
+        if repair_status in {"repaired", "failed"}:
+            item["repair_status"] = repair_status
+        repair_reason = _bounded_replan_token(event.get("repair_reason_code"))
+        if repair_reason:
+            item["repair_reason_code"] = repair_reason
         phase = _bounded_replan_token(event.get("phase"))
         if phase in {"planning", "execution"}:
             item["phase"] = phase
