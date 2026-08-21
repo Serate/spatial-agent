@@ -8,10 +8,10 @@ This document is a handoff note for continuing development of the Spatial Agent 
 
 后续实现优先解决通用请求建模、能力发现、组合编排和统一结果契约。RuleBasedPlanner、LLMPlanner 与澄清流程共享 `TaskPlan`、工作流校验、执行门控、result envelope 和恢复协议。任何局部工具、数据或前端修复都必须说明其服务的系统级目标。
 
-- 当前 goal 的最大并发度为 1。
+- 当前 goal 的最大并发度为 5。
 - 该规则优先于历史阶段记录中的并行度；后文旧阶段数字仅用于记录当时的执行事实。
 - 阶段规划的总体参考见 `docs/agent-project-direction.md`，必须先确认完整 Agent 闭环和面试展示能力。
-- 任一阶段不启动并行子任务；所有任务按依赖顺序完成，公共契约由主线统一集成。
+- 边界清晰的子任务可以并行，最多 5 路；共享公共契约仍按依赖顺序由主线统一集成。
 - 阶段规划不得从最近一次数据报错或局部页面现象直接开始；必须先复盘产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据，并把局部任务挂到明确的系统级目标下。
 - 每次重规划记录全局缺口、阶段排序依据、跨模块依赖和验收证据；如果某项数据修复只是支撑条件，应明确标注为支撑任务，不能把它写成阶段唯一目标。
 
@@ -57,7 +57,7 @@ The project should not be framed as a simple GIS script. The core point is a tes
 ## Development Loop
 
 - Overall loop: global planning -> sequential implementation -> integrated testing -> global replanning.
-- A large milestone is executed as one dependency-ordered task stream; current maximum concurrency is one.
+- A large milestone may use up to five dependency-safe parallel task streams; shared contracts remain integrated by the mainline.
 - Each completed milestone must update `docs/milestones.md`, refresh this handoff document, and create one GitHub commit/version.
 - Shared tool schema, runtime contract, focused tests, full regression, and GIS/browser verification are integrated by the single mainline.
 
