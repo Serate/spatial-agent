@@ -3761,3 +3761,17 @@ M150 测试现在同时处理模块缺失和 TestClient 导入 RuntimeError，�
 ### 处理与预防
 
 M151 在计划校验后持久化完整运行快照和 `DecisionRecord`，批准时通过 CAS 消费决策，并从原运行快照执行，不重新调用 Planner；执行前再次检查 Domain、run_id、decision version 和 fingerprint。以后所有需要用户确认的 Agent action 都必须明确保存“用户批准的对象”，不能只保存请求文本或比较指纹；并补充同步、异步、SQLite 重启和重复 resolve 的测试。
+
+## M152：artifact 只保存摘要会导致批准后无法恢复原计划
+
+### 现象
+
+待确认运行的 SQLite 快照已经保存完整 TaskPlan，但无 SQLite 的 artifact-only 服务只能读到旧 artifact 的计划摘要和步骤结果，找不到可执行的参数与依赖，因此无法在重启后批准并继续原计划。
+
+### 根因
+
+artifact 最初主要用于展示和恢复结果，`plan` 只保存 goal/output/assumptions，`steps` 也只保存结果摘要。用户确认要求恢复“被批准的对象”，不能只恢复结果展示字段。
+
+### 处理与预防
+
+M152 在 artifact 中增加有界 decision record/evidence 和完整计划节点（工具、参数、依赖），并通过安全的 decision scan 找回记录；恢复后仍经过 Domain、fingerprint、version 和 ToolRegistry 边界。以后涉及继续执行的 artifact 必须同时验证“展示恢复”和“执行恢复”，对参数做深度、数量和字符串长度限制，不能把摘要 artifact 当作可执行快照。

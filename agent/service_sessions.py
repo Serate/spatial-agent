@@ -67,4 +67,5 @@ def async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         "require_confirmation": bool(kwargs.get("require_confirmation", False)),
         "decision_id": kwargs.get("decision_id"),
         "decision_version": kwargs.get("decision_version"),
+        "decision_ttl_seconds": kwargs.get("decision_ttl_seconds", 1800.0),
     }

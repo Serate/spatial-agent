@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Optional
 from agent.artifact_store import ArtifactStore
 from agent.action_contract import ActionContractError
 from agent.cost_governance import RunTokenCapExceeded, extract_tokens as _extract_tokens
-from agent.decision_lifecycle import DecisionLifecycleError
+from agent.decision_lifecycle import DecisionLifecycleError, DecisionRecord
 from agent.errors import ToolError
 from agent.execution_contract import build_execution_record
 from agent.failure_contract import build_failure_evidence, failure_from_payload
@@ -261,6 +261,7 @@ class AgentService:
         require_confirmation: bool = False,
         decision_id: str = None,
         decision_version: int = None,
+        decision_ttl_seconds: float = 1800.0,
         _force_run_id: bool = False,
         _async_requested: bool = False,
     ) -> Dict:
@@ -313,6 +314,7 @@ class AgentService:
                     "require_confirmation": bool(require_confirmation),
                     "decision_id": decision_id,
                     "decision_version": decision_version,
+                    "decision_ttl_seconds": decision_ttl_seconds,
                     "decision_input": {
                         "export_artifact": bool(export_artifact),
                         "export_geojson": bool(export_geojson),
@@ -394,7 +396,7 @@ class AgentService:
         if not isinstance(decision_id, str) or not decision_id.strip():
             raise ValueError("decision_id must be a non-empty string")
         domain_id = self._resolved_domain_id or self._configured_domain_id or "unknown"
-        record = self._state.decision_store.get(decision_id, domain_id=domain_id)
+        record = self._decision_record(decision_id, domain_id)
         if record is None:
             raise ValueError("decision not found: " + decision_id)
         return {
@@ -415,6 +417,7 @@ class AgentService:
         if not isinstance(decision_id, str) or not decision_id.strip():
             raise ValueError("decision_id must be a non-empty string")
         domain_id = self._resolved_domain_id or self._configured_domain_id or "unknown"
+        self._decision_record(decision_id, domain_id)
         try:
             record = self._state.decision_store.resolve(
                 decision_id,
@@ -429,6 +432,21 @@ class AgentService:
             if self._state.persistent
             else self._memory_run(record.subject_id)
         )
+        if result is None:
+            artifact = self._artifact_store.read_run(
+                record.subject_id, domain_id=domain_id
+            )
+            if isinstance(artifact, dict):
+                from agent.sqlite_store import _result_from_dict
+
+                restored = _result_from_dict(artifact)
+                context = restored.runtime_context if isinstance(restored.runtime_context, dict) else {}
+                runtime = self._runtime(
+                    str(context.get("planner") or planner),
+                    str(context.get("backend") or backend),
+                )
+                runtime._state_store.save(restored)
+                result = restored
         if result is None:
             raise ValueError("decision subject run not found: " + record.subject_id)
         if record.status == "REJECTED":
@@ -471,6 +489,24 @@ class AgentService:
         payload["decision"] = record.as_dict()
         return payload
 
+    def _decision_record(self, decision_id: str, domain_id: str) -> DecisionRecord:
+        record = self._state.decision_store.get(decision_id, domain_id=domain_id)
+        if record is not None:
+            return record
+        artifact = self._artifact_store.find_decision(
+            decision_id, domain_id=domain_id
+        )
+        if not isinstance(artifact, dict):
+            raise ValueError("decision not found: " + decision_id)
+        try:
+            record = DecisionRecord.from_dict(artifact)
+        except (DecisionLifecycleError, TypeError, ValueError) as exc:
+            raise ValueError("decision artifact is invalid: " + decision_id) from exc
+        restore = getattr(self._state.decision_store, "restore", None)
+        if callable(restore):
+            restore(record)
+        return record
+
     def _run_governed(
         self,
         request: str,
@@ -505,6 +541,15 @@ class AgentService:
             payload,
             registry=_runtime_result_registry(runtime),
         )
+        if payload.get("status") == RunStatus.WAITING_FOR_DECISION.value:
+            evidence = payload.get("decision_evidence")
+            decision_id = evidence.get("decision_id") if isinstance(evidence, dict) else None
+            if decision_id:
+                record = self._state.decision_store.get(
+                    decision_id, domain_id=payload.get("domain_id", self._resolved_domain_id)
+                )
+                if record is not None:
+                    payload["_decision_record"] = record.as_dict()
         if payload.get("failure") is None:
             failure = failure_from_payload(payload)
             if failure is not None:
@@ -575,6 +620,7 @@ class AgentService:
             if export_artifact:
                 self._artifact_store.write_run(payload)
         payload.pop("_async_requested", None)
+        payload.pop("_decision_record", None)
         return payload
 
     def run_async(self, **kwargs) -> Dict:
@@ -1094,6 +1140,12 @@ class AgentService:
         result = self._runtime(planner, backend).cancel(run_id)
         if not self._state.persistent:
             self._mark_memory_cancel_requested(run_id)
+        if result.status == RunStatus.CANCELLED:
+            return {
+                "run_id": run_id,
+                "status": "CANCELLED",
+                "current_status": result.status.value,
+            }
         return {
             "run_id": run_id,
             "status": "CANCEL_REQUESTED",

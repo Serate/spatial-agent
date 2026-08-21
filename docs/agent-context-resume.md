@@ -1381,3 +1381,13 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M152 全局规划参考
 
 从全局 Runtime 继续完善“决策可恢复而非一次性动作”：统一澄清补充、计划修复批准、失败重试/恢复与用户决策的 action contract，补齐 artifact-only recovery、跨进程 CAS 和决策过期/取消边界；随后做 Text/GIS 双 Domain 的 Docker、live planner 与浏览器显式验收。默认 active suite 仍保持精简，不新增区域专用规则。
+
+## M152 当前实现状态
+
+- run artifact 现在保存有界 `decision_record`、`decision_evidence` 和可恢复的完整计划节点；无 SQLite 的新服务可以通过 artifact 找回待确认决策并继续执行原计划。
+- SQLite DecisionStore 增加过期 CAS 处理；`WAITING_FOR_DECISION` 运行支持取消，取消不会 dispatch 任何工具；决策默认 TTL 为 30 分钟且可配置。
+- M152 相关 artifact/SQLite/嵌套契约及 M151 专项共 40 项回归通过，quick/ci 通过。Docker、live planner、动态浏览器仍待显式验收。
+
+## M153 全局规划参考
+
+继续从完整生命周期收敛通用 action contract：让澄清补充、计划修复、确认、拒绝、重试和恢复共享安全的 action/version/evidence 投影；优先补跨进程重复提交、未知 action、artifact 与 HTTP/Console 一致性，再做 Docker、live 和浏览器验收。

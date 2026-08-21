@@ -1636,3 +1636,13 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M152 规划参考
 
 以完整 Agent 闭环为基准，统一用户决策、澄清、计划修复和失败恢复的 action/状态/证据契约，再验证 Text/GIS、同步/异步/artifact/restart 和 HTTP/Console 的一致性；不因单个 GIS 数据集增加专用分支，默认测试保持精简。
+
+## M152 当前完成状态
+
+- 已完成 artifact-only decision recovery：artifact 保存有界 decision record 和完整计划节点，重启后的无 SQLite 服务可以查询、批准并继续原计划。
+- 已完成 SQLite 过期决策、默认 30 分钟 TTL 和待确认运行取消边界；取消不执行工具。
+- 相关 artifact/SQLite/嵌套契约与 M151 专项共 40 项通过，quick/ci 通过；Docker/live/CDP 留待显式验收。
+
+## M153 规划参考
+
+把澄清、修复、确认、拒绝、重试和恢复统一为通用 action/version/evidence contract，优先验证重复提交、未知 action、artifact、HTTP、异步和 Console 的一致性。

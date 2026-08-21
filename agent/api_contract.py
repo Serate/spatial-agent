@@ -40,6 +40,7 @@ def run_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "require_confirmation": bool(payload.get("require_confirmation", False)),
         "decision_id": payload.get("decision_id"),
         "decision_version": payload.get("decision_version"),
+        "decision_ttl_seconds": payload.get("decision_ttl_seconds", 1800.0),
     }
 
 

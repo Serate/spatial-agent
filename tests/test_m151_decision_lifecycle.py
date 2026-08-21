@@ -4,6 +4,7 @@ import unittest
 import tempfile
 import json
 import threading
+import time
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 
@@ -131,6 +132,31 @@ class M151DecisionLifecycleTests(unittest.TestCase):
             )
             self.assertEqual(completed["status"], "COMPLETED")
 
+    def test_artifact_only_decision_can_be_recovered_and_approved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            from agent.artifact_store import ArtifactStore
+
+            root = directory + "/runs"
+            first = AgentService(artifact_store=ArtifactStore(root))
+            waiting = first.run(
+                "查询DEM栅格元数据",
+                session_id="m151-artifact",
+                require_confirmation=True,
+                export_artifact=True,
+            )
+            evidence = waiting["decision_evidence"]
+            second = AgentService(artifact_store=ArtifactStore(root))
+            self.assertEqual(
+                second.get_decision(evidence["decision_id"])["decision"]["status"],
+                "PENDING",
+            )
+            completed = second.resolve_decision(
+                evidence["decision_id"],
+                "approve",
+                expected_version=evidence["version"],
+            )
+            self.assertEqual(completed["status"], "COMPLETED")
+
     def test_pending_decision_can_be_resolved_and_consumed_once(self):
         store = InMemoryDecisionStore()
         record = store.create(_request())
@@ -168,6 +194,28 @@ class M151DecisionLifecycleTests(unittest.TestCase):
                 expected_version=9,
             )
         self.assertEqual(error.exception.code, "decision_version_mismatch")
+
+    def test_expired_decision_is_not_resolvable_after_reopen(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = SQLiteDecisionStore(directory + "/state.db")
+            record = store.create(_request(expires_at=time.time() - 1))
+            self.assertEqual(store.get(record.decision_id, domain_id="text").status, "EXPIRED")
+            with self.assertRaises(DecisionLifecycleError) as error:
+                store.resolve(record.decision_id, domain_id="text", choice="approve")
+            self.assertEqual(error.exception.code, "decision_not_pending")
+
+    def test_waiting_plan_can_be_cancelled_without_dispatch(self):
+        service = AgentService()
+        waiting = service.run(
+            "查询DEM栅格元数据",
+            session_id="m151-cancel",
+            require_confirmation=True,
+        )
+        cancelled = service.cancel(waiting["run_id"])
+        self.assertEqual(cancelled["status"], "CANCELLED")
+        detail = service.get_run(waiting["run_id"])
+        self.assertEqual(detail["status"], "CANCELLED")
+        self.assertTrue(all(step["status"] == "PENDING" for step in detail["steps"]))
 
     def test_projection_and_transition_are_versioned_and_bounded(self):
         evidence = build_decision_evidence(

@@ -120,6 +120,33 @@ class DecisionRecord:
             value["input_data"] = _bound_value(self.input_data)
         return value
 
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> "DecisionRecord":
+        if not isinstance(value, Mapping):
+            raise DecisionLifecycleError(
+                "decision record must be an object", code="decision_record_invalid"
+            )
+        subject = value.get("subject") if isinstance(value.get("subject"), Mapping) else {}
+        return cls(
+            str(value.get("schema_version") or DECISION_LIFECYCLE_SCHEMA_VERSION),
+            str(value.get("decision_id") or ""),
+            str(subject.get("kind") or ""),
+            str(subject.get("id") or ""),
+            str(value.get("domain_id") or ""),
+            value.get("session_id"),
+            str(value.get("decision_kind") or ""),
+            str(value.get("status") or ""),
+            str(value.get("prompt") or "")[:320],
+            tuple(str(item)[:32] for item in (value.get("options") or [])[:8]),
+            value.get("selected_choice"),
+            value.get("input_data") if isinstance(value.get("input_data"), Mapping) else None,
+            str(value.get("subject_fingerprint") or "")[:160],
+            int(value.get("version") or 1),
+            float(value.get("created_at") or 0),
+            value.get("resolved_at"),
+            value.get("expires_at"),
+        )
+
     def evidence(self) -> dict[str, Any]:
         state = {
             "PENDING": "awaiting_confirmation",
@@ -199,6 +226,17 @@ class InMemoryDecisionStore:
             None,
             request.expires_at,
         )
+        with self._lock:
+            self._records[record.decision_id] = record
+        return record
+
+    def restore(self, record: DecisionRecord) -> DecisionRecord:
+        """Restore a bounded artifact record for artifact-only recovery."""
+        if not isinstance(record, DecisionRecord):
+            raise DecisionLifecycleError(
+                "decision record is invalid", code="decision_record_invalid"
+            )
+        _validate_record(record)
         with self._lock:
             self._records[record.decision_id] = record
         return record
@@ -353,7 +391,19 @@ class SQLiteDecisionStore:
                 "SELECT payload FROM agent_decisions WHERE decision_id = ? AND domain_id = ?",
                 (str(decision_id), str(domain_id)),
             ).fetchone()
-        return self._from_payload(row[0]) if row else None
+        record = self._from_payload(row[0]) if row else None
+        if record is None or record.status != "PENDING":
+            return record
+        if record.expires_at is None or float(record.expires_at) > time.time():
+            return record
+        expired = _updated_record(record, status="EXPIRED")
+        try:
+            self._cas_update(record, expired)
+            return expired
+        except DecisionLifecycleError:
+            # Another worker may have resolved it while this reader noticed
+            # the expiry. Return the latest CAS winner rather than masking it.
+            return self._require(decision_id, domain_id)
 
     def resolve(
         self,
@@ -591,6 +641,21 @@ def _validate_request(request: DecisionRequest) -> None:
         raise DecisionLifecycleError(
             "decision subject fingerprint is missing",
             code="decision_request_invalid",
+        )
+
+
+def _validate_record(record: DecisionRecord) -> None:
+    if not record.decision_id or not record.subject_id or not record.domain_id:
+        raise DecisionLifecycleError(
+            "decision record identity is incomplete", code="decision_record_invalid"
+        )
+    if record.status not in DECISION_STATUSES:
+        raise DecisionLifecycleError(
+            "unknown decision record status", code="decision_record_invalid"
+        )
+    if not record.subject_fingerprint:
+        raise DecisionLifecycleError(
+            "decision record fingerprint is missing", code="decision_record_invalid"
         )
 
 

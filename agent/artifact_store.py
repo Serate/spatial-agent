@@ -65,6 +65,8 @@ class ArtifactStore:
             "degradation": _degradation_summary(payload),
             "retry_count": payload.get("retry_count", 0),
             "replan_events": payload.get("replan_events") or [],
+            "decision_evidence": payload.get("decision_evidence"),
+            "decision_record": payload.get("_decision_record"),
             "geojson_ref": payload.get("geojson_ref"),
             "artifact_ref": path.as_posix(),
             "execution_record": execution_record,
@@ -205,6 +207,63 @@ class ArtifactStore:
                 artifact_ref=payload.get("artifact_ref"),
             )
         return payload
+
+    def find_decision(
+        self, decision_id: str, domain_id: Optional[str] = None
+    ) -> Optional[Dict]:
+        """Find a bounded decision embedded in a run artifact.
+
+        This is intentionally a fallback for artifact-only recovery. Normal
+        services use the DecisionStore, while this scan allows a restarted
+        stateless viewer to recover a pending decision without trusting an
+        external path or executing the run.
+        """
+        if not isinstance(decision_id, str) or not decision_id or len(decision_id) > 160:
+            return None
+        if not self._root.exists():
+            return None
+        paths = sorted(
+            self._root.glob("*.json"),
+            key=lambda item: item.stat().st_mtime,
+            reverse=True,
+        )
+        for path in paths[:10000]:
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if payload.get("artifact_schema_version") == "spatial-agent.action-artifact.v1":
+                continue
+            if domain_id and payload.get("domain_id", "gis") != domain_id:
+                continue
+            record = payload.get("decision_record")
+            evidence = payload.get("decision_evidence")
+            candidate = record if isinstance(record, dict) else None
+            if candidate is None and isinstance(evidence, dict):
+                candidate = {
+                    "schema_version": evidence.get("schema_version"),
+                    "decision_id": evidence.get("decision_id"),
+                    "subject": {"kind": "run", "id": payload.get("run_id")},
+                    "domain_id": payload.get("domain_id", "gis"),
+                    "session_id": payload.get("session_id"),
+                    "decision_kind": "plan_confirmation",
+                    "status": evidence.get("status", "PENDING"),
+                    "prompt": "是否批准执行当前计划？",
+                    "options": ["approve", "reject"],
+                    "selected_choice": None,
+                    "subject_fingerprint": evidence.get("plan_fingerprint"),
+                    "version": evidence.get("version", 1),
+                    "created_at": 0,
+                }
+            if isinstance(candidate, dict) and candidate.get("decision_id") == decision_id:
+                candidate = dict(candidate)
+                candidate["artifact_ref"] = path.as_posix()
+                candidate["run_id"] = payload.get("run_id")
+                candidate["runtime_context"] = payload.get("runtime_context")
+                candidate["plan"] = payload.get("plan")
+                candidate["steps"] = payload.get("steps") or []
+                return candidate
+        return None
 
     def read_action(
         self, execution_id: str, domain_id: Optional[str] = None
@@ -376,7 +435,32 @@ def _plan_summary(plan):
         "goal": plan.get("goal"),
         "output": plan.get("output", {}),
         "assumptions": plan.get("assumptions", []),
+        "steps": [
+            {
+                "id": step.get("id"),
+                "tool": step.get("tool"),
+                "args": _bounded_value(step.get("args", {})),
+                "depends_on": list(step.get("depends_on") or [])[:32],
+            }
+            for step in (plan.get("steps") or [])[:64]
+            if isinstance(step, dict)
+        ],
     }
+
+
+def _bounded_value(value, depth=0):
+    if depth > 3:
+        return None
+    if isinstance(value, dict):
+        return {
+            str(key)[:64]: _bounded_value(item, depth + 1)
+            for key, item in list(value.items())[:32]
+        }
+    if isinstance(value, (list, tuple)):
+        return [_bounded_value(item, depth + 1) for item in list(value)[:32]]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value if not isinstance(value, str) else value[:240]
+    return str(value)[:240]
 
 
 def _step_summary(step):

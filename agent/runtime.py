@@ -33,7 +33,7 @@ from .domain_contract import (
     workflow_context,
 )
 from .deployment_evidence import build_deployment_evidence
-from .decision_lifecycle import DecisionRequest, DecisionStore
+from .decision_lifecycle import DecisionLifecycleError, DecisionRequest, DecisionStore
 from .failure_contract import build_failure_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
@@ -357,9 +357,12 @@ class AgentRuntime:
         decision_id: Optional[str] = None,
         decision_version: Optional[int] = None,
         decision_input: Optional[Mapping[str, Any]] = None,
+        decision_ttl_seconds: Optional[float] = 1800.0,
     ) -> AgentRunResult:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
+        if decision_ttl_seconds is not None and decision_ttl_seconds <= 0:
+            raise ToolError("decision_ttl_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
         resolved_request = self._resolve_request(request, session_id)
         request_facts = extract_request_facts(self._domain_pack, resolved_request)
@@ -451,6 +454,12 @@ class AgentRuntime:
                         options=("approve", "reject"),
                         subject_fingerprint=fingerprint,
                         input_data=dict(decision_input or {}),
+                        expires_at=(
+                            datetime.now(timezone.utc).timestamp()
+                            + float(decision_ttl_seconds)
+                            if decision_ttl_seconds is not None
+                            else None
+                        ),
                     )
                 )
                 result.status = RunStatus.WAITING_FOR_DECISION
@@ -778,6 +787,27 @@ class AgentRuntime:
         result = self._state_store.get(run_id)
         if result is None:
             raise ToolError("run not found: " + run_id)
+        if result.status == RunStatus.WAITING_FOR_DECISION:
+            evidence = result.decision_evidence or {}
+            decision_id = evidence.get("decision_id")
+            version = evidence.get("version")
+            if self._decision_store is None or not decision_id:
+                raise ToolError("waiting run has no cancellable decision")
+            try:
+                record = self._decision_store.resolve(
+                    decision_id,
+                    choice="reject",
+                    expected_version=version,
+                    domain_id=self.domain_id,
+                )
+            except DecisionLifecycleError as exc:
+                raise ToolError(str(exc)) from exc
+            result.status = RunStatus.CANCELLED
+            result.error = "用户取消了待确认计划。"
+            result.decision_evidence = record.evidence()
+            self._state_store.save(result)
+            self._emit_run_event(result)
+            return result
         if result.status not in (RunStatus.PLANNING, RunStatus.EXECUTING):
             raise ToolError("run is not active: " + run_id)
         with self._control_lock:

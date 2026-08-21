@@ -3072,3 +3072,14 @@ M151 新增版本化 `DecisionStore` 和 `WAITING_FOR_DECISION` 状态。Runtime
 ## M152 全局规划参考
 
 统一澄清补充、计划修复批准、失败重试/恢复和用户确认的 action contract，补齐过期/取消、artifact-only recovery、跨进程 CAS 及 Text/GIS 双 Domain 的显式部署验收。
+
+## M152：决策 artifact 恢复与过期/取消边界（已完成）
+
+M152 将 M151 的确认状态推进到可恢复边界：run artifact 保存有界 decision record 和完整计划节点；无 SQLite 的新服务可以找回待确认决策并批准原计划，不重新调用 Planner。SQLite DecisionStore 对过期决策执行 CAS，待确认运行可取消且不会 dispatch 工具，默认决策 TTL 为 30 分钟。
+
+- artifact、SQLite、嵌套结果契约和 M151 决策专项共 40 项回归通过；quick/ci 通过。
+- Docker、真实 live planner 和 Chrome/CDP 仍为独立显式验收，未以离线证据替代。
+
+## M153 全局规划参考
+
+统一澄清补充、计划修复、用户确认、拒绝、重试和恢复的 action/version/evidence contract，优先覆盖重复提交、未知 action、artifact、HTTP、异步和 Console 一致性。
