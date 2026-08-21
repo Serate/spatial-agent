@@ -16,11 +16,13 @@ module only owns state, the timeout policy, and the reaper loop.
 from __future__ import annotations
 
 import os
+import inspect
 import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
 from agent.cost_governance import TokenBudget
+from agent.decision_lifecycle import InMemoryDecisionStore, SQLiteDecisionStore
 from agent.memory import FactMemory
 from agent.observability import ObservabilityEmitter
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
@@ -84,6 +86,11 @@ class ServiceState:
         self._state_store = (
             SQLiteStateStore(state_db_path) if state_db_path else None
         )
+        self._decision_store = (
+            SQLiteDecisionStore(state_db_path)
+            if state_db_path
+            else InMemoryDecisionStore()
+        )
         self._conversation_store = (
             SQLiteConversationStore(state_db_path) if state_db_path else None
         )
@@ -131,6 +138,10 @@ class ServiceState:
         return self._cost
 
     @property
+    def decision_store(self):
+        return self._decision_store
+
+    @property
     def timeout_seconds(self) -> float:
         return self._timeout_seconds
 
@@ -146,14 +157,24 @@ class ServiceState:
                 return cached
             if self._runtime_factory is None:
                 raise RuntimeError("runtime_factory is required to build runtimes")
-            runtime = self._runtime_factory(
-                planner,
-                backend,
-                state_store=self._state_store,
-                conversation_store=self._conversation_store,
-                memory=self._memory,
-                observability=self._observability,
-            )
+            kwargs = {
+                "state_store": self._state_store,
+                "conversation_store": self._conversation_store,
+                "memory": self._memory,
+                "observability": self._observability,
+            }
+            try:
+                parameters = inspect.signature(self._runtime_factory).parameters
+                accepts_kwargs = any(
+                    item.kind == inspect.Parameter.VAR_KEYWORD
+                    for item in parameters.values()
+                )
+            except (TypeError, ValueError):
+                accepts_kwargs = True
+                parameters = {}
+            if accepts_kwargs or "decision_store" in parameters:
+                kwargs["decision_store"] = self._decision_store
+            runtime = self._runtime_factory(planner, backend, **kwargs)
             self._runtimes[key] = runtime
             return runtime
 

@@ -64,4 +64,7 @@ def async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         "spatial_context": kwargs.get("spatial_context"),
         "workflow": kwargs.get("workflow"),
         "preview_fingerprint": kwargs.get("preview_fingerprint"),
+        "require_confirmation": bool(kwargs.get("require_confirmation", False)),
+        "decision_id": kwargs.get("decision_id"),
+        "decision_version": kwargs.get("decision_version"),
     }

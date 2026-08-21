@@ -24,6 +24,7 @@ _ASYNC_RESULT_EVIDENCE_STATES = {"pending", "success", "degraded", "unavailable"
 _TERMINAL_RUN_STATUSES = {
     "COMPLETED",
     "NEEDS_CLARIFICATION",
+    "WAITING_FOR_DECISION",
     "REJECTED",
     "FAILED",
     "CANCELLED",
@@ -97,6 +98,7 @@ def build_async_observability(
         "TIMED_OUT": "timed_out",
         "REJECTED": "rejected",
         "NEEDS_CLARIFICATION": "clarification",
+        "WAITING_FOR_DECISION": "waiting_decision",
     }.get(status, "unknown")
     observation = {
         "schema_version": 1,
@@ -372,6 +374,8 @@ def failure_category_for(status: str, error: str = None, source: str = None) -> 
         return "timeout"
     if status == "NEEDS_CLARIFICATION":
         return "clarification"
+    if status == "WAITING_FOR_DECISION":
+        return "decision"
     if status == "REJECTED":
         return "rejected"
     if source == "worker":
@@ -399,6 +403,7 @@ def async_event(status: str) -> str:
         "FAILED": "failed",
         "CANCELLED": "cancelled",
         "TIMED_OUT": "timed_out",
+        "WAITING_FOR_DECISION": "waiting_decision",
     }.get(str(status), "finished")
 
 

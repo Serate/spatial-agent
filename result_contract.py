@@ -132,6 +132,7 @@ def build_result_contract(
             "degradations": degradation["items"],
         },
         "clarification": payload.get("clarification"),
+        "decision": payload.get("decision_evidence") or {"available": False},
         "context": payload.get("context_evidence") or {"available": False},
         "planning": payload.get("plan_evidence") or {"available": False},
         "references": references,
@@ -891,6 +892,13 @@ def _degradation_matrix(
             "run_needs_clarification",
             "warning",
             "请求仍在澄清阶段，尚未形成完整执行结果。",
+            "run.status",
+        )
+    elif run_status == "WAITING_FOR_DECISION":
+        add(
+            "run_waiting_for_decision",
+            "warning",
+            "计划已生成，等待用户确认后才会执行。",
             "run.status",
         )
     elif run_status in {"FAILED", "REJECTED", "CANCELLED", "TIMED_OUT"}:

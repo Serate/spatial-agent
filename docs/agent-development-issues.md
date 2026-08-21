@@ -3747,3 +3747,17 @@ Docker 生产镜像中 FastAPI 和 Uvicorn 均可用，真实 `/health`、同步
 ### 处理与预防
 
 M150 测试现在同时处理模块缺失和 TestClient 导入 RuntimeError，并以明确原因跳过可选 FastAPI TestClient 矩阵；生产镜像不为测试工具强行增加依赖，实际生产路径继续由 Uvicorn acceptance 覆盖。以后遇到可选测试客户端缺失，必须区分“生产入口不可用”和“测试适配器不可用”，不能把后者改写成业务失败，也不能静默跳过而不说明原因。
+
+## M151：用户批准后不能重新生成计划
+
+### 现象
+
+计划确认功能如果只在批准请求中再次调用 Planner，即使 plan fingerprint 仍然存在，也可能因真实模型具有随机性而得到不同的步骤、参数或依赖；这会让用户批准的内容与实际执行内容不一致。
+
+### 根因
+
+早期 `preview`/`run` 链路把 fingerprint 当作比较字段，而没有把经过校验的 TaskPlan 作为可恢复执行快照。对于 live Planner，重新规划并不能保证与预览计划等价。
+
+### 处理与预防
+
+M151 在计划校验后持久化完整运行快照和 `DecisionRecord`，批准时通过 CAS 消费决策，并从原运行快照执行，不重新调用 Planner；执行前再次检查 Domain、run_id、decision version 和 fingerprint。以后所有需要用户确认的 Agent action 都必须明确保存“用户批准的对象”，不能只保存请求文本或比较指纹；并补充同步、异步、SQLite 重启和重复 resolve 的测试。

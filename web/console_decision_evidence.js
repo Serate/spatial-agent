@@ -20,6 +20,7 @@
     repairEvaluation: "spatial-agent.repair-evaluation.v1",
     clarification: "spatial-agent.clarification.v1",
     failure: "spatial-agent.failure.v1",
+    decisionLifecycle: "spatial-agent.decision-lifecycle.v1",
   });
   const LIMITS = Object.freeze({
     id: 80,
@@ -308,6 +309,31 @@
     };
   }
 
+  function normalizeDecision(data, result) {
+    const raw = isRecord(data.decision_evidence)
+      ? data.decision_evidence
+      : (isRecord(result.decision) ? result.decision : null);
+    if (!raw || !raw.decision_id) {
+      return {state: "not_applicable", available: false, actions: []};
+    }
+    if (raw.schema_version && raw.schema_version !== VERSIONS.decisionLifecycle) {
+      return {state: "unavailable", available: false, actions: [], reason: "决策证据使用未知版本，暂时无法安全展示。"};
+    }
+    const state = ["awaiting_confirmation", "approved", "rejected", "completed"].includes(raw.state)
+      ? raw.state
+      : "unavailable";
+    return {
+      state,
+      available: state !== "unavailable",
+      decision_id: text(raw.decision_id, "", LIMITS.id),
+      status: identifier(raw.status, "unknown"),
+      version: Number.isInteger(raw.version) ? raw.version : null,
+      actions: boundedList(raw.allowed_actions, 4, value => identifier(value, "")),
+      plan_fingerprint: text(raw.plan_fingerprint, "", LIMITS.text),
+      reason: state === "unavailable" ? "决策状态不可读，已切换为有界状态。" : "",
+    };
+  }
+
   function normalize(input) {
     const data = isRecord(input) ? input : {};
     const result = isRecord(data.result) ? data.result : {};
@@ -315,12 +341,14 @@
     const repair = normalizeRepair(data, result);
     const rejection = normalizeRejection(data, result, status);
     const clarification = normalizeClarification(data, result, status);
+    const decision = normalizeDecision(data, result);
     return {
       status,
-      visible: Boolean(status || repair.state !== "missing" || rejection.state !== "not_applicable" || clarification.state !== "not_applicable"),
+      visible: Boolean(status || repair.state !== "missing" || rejection.state !== "not_applicable" || clarification.state !== "not_applicable" || decision.state !== "not_applicable"),
       repair,
       rejection,
       clarification,
+      decision,
     };
   }
 
@@ -359,10 +387,23 @@
       "</section>";
   }
 
+  function renderDecision(decision) {
+    if (decision.state === "not_applicable") return "";
+    const labels = {
+      awaiting_confirmation: "等待用户确认",
+      approved: "已批准",
+      rejected: "已拒绝",
+      completed: "已完成",
+      unavailable: "不可用",
+    };
+    const actionText = decision.actions.length ? " · 可操作：" + decision.actions.join("、") : "";
+    return "<section class=\"decision-evidence-card\" data-decision-state=\"" + escapeHtml(decision.state) + "\"><h4>执行决策</h4><div>" + escapeHtml(labels[decision.state] || "受控状态") + escapeHtml(actionText) + "</div><p>决策版本：" + escapeHtml(decision.version ?? "-") + (decision.reason ? " · " + escapeHtml(decision.reason) : "") + "</p></section>";
+  }
+
   function render(input) {
     const model = normalize(input);
     if (!model.visible) return {model, html: ""};
-    const cards = renderRepair(model.repair) + renderRejection(model.rejection) + renderClarification(model.clarification);
+    const cards = renderRepair(model.repair) + renderRejection(model.rejection) + renderClarification(model.clarification) + renderDecision(model.decision);
     return {
       model,
       html: "<div class=\"decision-evidence\" data-status=\"" + escapeHtml(model.status || "unknown") + "\"><div class=\"decision-evidence-head\"><strong>决策证据</strong><span>仅显示结构化、脱敏状态</span></div><div class=\"decision-evidence-grid\">" + cards + "</div></div>",

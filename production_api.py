@@ -17,6 +17,7 @@ from agent.api_contract import (
     cancel_kwargs,
     comparison_kwargs,
     constrained_comparison_kwargs,
+    decision_resolve_kwargs,
     error_response,
     error_status,
     region_comparison_kwargs,
@@ -190,6 +191,25 @@ def preview(payload: Dict[str, Any]):
 def run_async(payload: Dict[str, Any]):
     try:
         return service.run_async(**async_run_kwargs(payload))
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/decisions/{decision_id}")
+def get_decision(decision_id: str):
+    try:
+        return service.get_decision(decision_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.post("/decisions/{decision_id}/resolve")
+def resolve_decision(decision_id: str, payload: Dict[str, Any]):
+    try:
+        return service.resolve_decision(
+            decision_id,
+            **decision_resolve_kwargs(payload),
+        )
     except Exception as exc:
         _raise_for(exc)
 

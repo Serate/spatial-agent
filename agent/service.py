@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Optional
 from agent.artifact_store import ArtifactStore
 from agent.action_contract import ActionContractError
 from agent.cost_governance import RunTokenCapExceeded, extract_tokens as _extract_tokens
+from agent.decision_lifecycle import DecisionLifecycleError
 from agent.errors import ToolError
 from agent.execution_contract import build_execution_record
 from agent.failure_contract import build_failure_evidence, failure_from_payload
@@ -67,6 +68,7 @@ from agent.service_sessions import (
 _TERMINAL_RUN_STATUSES = {
     RunStatus.COMPLETED,
     RunStatus.NEEDS_CLARIFICATION,
+    RunStatus.WAITING_FOR_DECISION,
     RunStatus.REJECTED,
     RunStatus.FAILED,
     RunStatus.CANCELLED,
@@ -256,6 +258,9 @@ class AgentService:
         workflow: Dict[str, Any] = None,
         run_id: str = None,
         preview_fingerprint: str = None,
+        require_confirmation: bool = False,
+        decision_id: str = None,
+        decision_version: int = None,
         _force_run_id: bool = False,
         _async_requested: bool = False,
     ) -> Dict:
@@ -305,6 +310,14 @@ class AgentService:
                     "timeout_seconds": timeout_seconds,
                     "run_id": run_id,
                     "expected_plan_fingerprint": preview_fingerprint,
+                    "require_confirmation": bool(require_confirmation),
+                    "decision_id": decision_id,
+                    "decision_version": decision_version,
+                    "decision_input": {
+                        "export_artifact": bool(export_artifact),
+                        "export_geojson": bool(export_geojson),
+                        "geojson_max_features": int(geojson_max_features),
+                    },
                 },
                 workflow_context=workflow_context,
                 export_artifact=export_artifact,
@@ -374,6 +387,88 @@ class AgentService:
             payload["status"] = "FAILED"
             payload["error"] = str(exc)
             payload["error_category"] = "budget"
+        return payload
+
+    def get_decision(self, decision_id: str) -> Dict[str, Any]:
+        """Read one bounded decision projection within the selected Domain."""
+        if not isinstance(decision_id, str) or not decision_id.strip():
+            raise ValueError("decision_id must be a non-empty string")
+        domain_id = self._resolved_domain_id or self._configured_domain_id or "unknown"
+        record = self._state.decision_store.get(decision_id, domain_id=domain_id)
+        if record is None:
+            raise ValueError("decision not found: " + decision_id)
+        return {
+            "schema_version": record.schema_version,
+            "decision": record.as_dict(),
+            "evidence": record.evidence(),
+        }
+
+    def resolve_decision(
+        self,
+        decision_id: str,
+        choice: str,
+        expected_version: int = None,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Approve/reject a waiting run and resume only its persisted plan."""
+        if not isinstance(decision_id, str) or not decision_id.strip():
+            raise ValueError("decision_id must be a non-empty string")
+        domain_id = self._resolved_domain_id or self._configured_domain_id or "unknown"
+        try:
+            record = self._state.decision_store.resolve(
+                decision_id,
+                choice=choice,
+                expected_version=expected_version,
+                domain_id=domain_id,
+            )
+        except DecisionLifecycleError:
+            raise
+        result = (
+            self._state.get_run(record.subject_id, domain_id=domain_id)
+            if self._state.persistent
+            else self._memory_run(record.subject_id)
+        )
+        if result is None:
+            raise ValueError("decision subject run not found: " + record.subject_id)
+        if record.status == "REJECTED":
+            result.status = RunStatus.REJECTED
+            result.error = "用户拒绝执行当前计划。"
+            result.answer = "已拒绝执行当前计划。"
+            result.decision_evidence = record.evidence()
+            if self._state.persistent:
+                self._state.save_run(result)
+            else:
+                runtime = self._runtime(planner, backend)
+                runtime._state_store.save(result)
+            payload = _format_result(
+                result,
+                {},
+                result_registry=_runtime_result_registry(self._runtime(planner, backend)),
+            )
+            payload["decision"] = record.as_dict()
+            return payload
+
+        context = result.runtime_context if isinstance(result.runtime_context, dict) else {}
+        selected_planner = str(context.get("planner") or planner)
+        selected_backend = str(context.get("backend") or backend)
+        options = record.input_data if isinstance(record.input_data, dict) else {}
+        payload = self.run(
+            request=result.request,
+            session_id=result.session_id or "default",
+            planner=selected_planner,
+            backend=selected_backend,
+            export_artifact=bool(options.get("export_artifact")),
+            export_geojson=bool(options.get("export_geojson")),
+            geojson_max_features=int(options.get("geojson_max_features", 100)),
+            workflow=result.workflow,
+            run_id=result.run_id,
+            preview_fingerprint=record.subject_fingerprint,
+            decision_id=record.decision_id,
+            decision_version=record.version,
+            _force_run_id=True,
+        )
+        payload["decision"] = record.as_dict()
         return payload
 
     def _run_governed(

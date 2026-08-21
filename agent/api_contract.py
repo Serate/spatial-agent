@@ -37,6 +37,9 @@ def run_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "spatial_context": payload.get("spatial_context"),
         "workflow": payload.get("workflow"),
         "preview_fingerprint": payload.get("preview_fingerprint"),
+        "require_confirmation": bool(payload.get("require_confirmation", False)),
+        "decision_id": payload.get("decision_id"),
+        "decision_version": payload.get("decision_version"),
     }
 
 
@@ -71,6 +74,15 @@ def retry_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def cancel_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
+        "planner": payload.get("planner", "rule"),
+        "backend": payload.get("backend", "memory"),
+    }
+
+
+def decision_resolve_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "choice": payload.get("choice", ""),
+        "expected_version": payload.get("expected_version"),
         "planner": payload.get("planner", "rule"),
         "backend": payload.get("backend", "memory"),
     }

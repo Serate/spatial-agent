@@ -33,6 +33,7 @@ from .domain_contract import (
     workflow_context,
 )
 from .deployment_evidence import build_deployment_evidence
+from .decision_lifecycle import DecisionRequest, DecisionStore
 from .failure_contract import build_failure_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
@@ -157,6 +158,7 @@ class AgentRuntime:
         max_retries: int = 2,
         replan_policy: Optional[ReplanningPolicy] = None,
         plan_repair_engine: Optional[PlanRepairEngine] = None,
+        decision_store: Optional[DecisionStore] = None,
         memory: Optional[FactMemory] = None,
         observability: Optional[ObservabilityEmitter] = None,
         backend_name: str = "unknown",
@@ -179,6 +181,7 @@ class AgentRuntime:
         self._max_steps = max_steps
         self._max_retries = max_retries
         self._replan_policy = replan_policy or ReplanningPolicy()
+        self._decision_store = decision_store
         self._plan_repair_engine = plan_repair_engine or PlanRepairEngine(
             self._planner,
             self._replan_policy,
@@ -349,6 +352,11 @@ class AgentRuntime:
         run_id: Optional[str] = None,
         workflow: Optional[Mapping[str, Any]] = None,
         expected_plan_fingerprint: Optional[str] = None,
+        require_confirmation: bool = False,
+        decision_evidence: Optional[Dict[str, Any]] = None,
+        decision_id: Optional[str] = None,
+        decision_version: Optional[int] = None,
+        decision_input: Optional[Mapping[str, Any]] = None,
     ) -> AgentRunResult:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
@@ -356,6 +364,16 @@ class AgentRuntime:
         resolved_request = self._resolve_request(request, session_id)
         request_facts = extract_request_facts(self._domain_pack, resolved_request)
         resolved_run_id = run_id or str(uuid.uuid4())
+        if decision_id is not None:
+            existing = self._state_store.get(resolved_run_id)
+            if existing is None:
+                raise ToolError("decision subject run not found: " + resolved_run_id)
+            return self._resume_decision(
+                existing,
+                decision_id=str(decision_id),
+                decision_version=decision_version,
+                timeout_seconds=timeout_seconds,
+            )
         run_span_id = uuid.uuid4().hex[:16]
         self._run_span_ids[resolved_run_id] = run_span_id
         result = AgentRunResult(
@@ -368,6 +386,7 @@ class AgentRuntime:
             resolved_request=resolved_request,
             request_facts=request_facts.as_context_dict(),
             workflow=dict(workflow) if workflow is not None else None,
+            decision_evidence=dict(decision_evidence) if decision_evidence else None,
         )
         context_packet = self._build_context_packet(
             request, resolved_request, session_id, workflow, request_facts=request_facts
@@ -407,6 +426,38 @@ class AgentRuntime:
                 if not result.plan_evidence["plan_fingerprint_match"]:
                     raise ToolError("preview plan fingerprint mismatch")
             result.planner_metrics = self._planner_metrics()
+            if require_confirmation:
+                if self._decision_store is None:
+                    raise ToolError("decision store is unavailable")
+                fingerprint = str(
+                    (result.plan_evidence.get("plan_identity") or {}).get(
+                        "fingerprint", ""
+                    )
+                )
+                if not fingerprint:
+                    raise ToolError("plan fingerprint is unavailable for confirmation")
+                result.steps = [
+                    StepRun(step.id, step.tool, step.args, list(step.depends_on))
+                    for step in plan.steps
+                ]
+                record = self._decision_store.create(
+                    DecisionRequest(
+                        subject_kind="run",
+                        subject_id=result.run_id,
+                        domain_id=self.domain_id,
+                        session_id=session_id,
+                        decision_kind="plan_confirmation",
+                        prompt="是否批准执行当前计划？",
+                        options=("approve", "reject"),
+                        subject_fingerprint=fingerprint,
+                        input_data=dict(decision_input or {}),
+                    )
+                )
+                result.status = RunStatus.WAITING_FOR_DECISION
+                result.decision_evidence = record.evidence()
+                self._state_store.save(result)
+                self._emit_run_event(result)
+                return result
             if plan.output.get("type") == "direct_answer":
                 result.status = RunStatus.COMPLETED
                 result.answer = str(plan.output.get("message", ""))
@@ -491,6 +542,142 @@ class AgentRuntime:
             result.answer = self._answer_composer.compose_failure(result)
         if result.planner_metrics is None:
             result.planner_metrics = self._planner_metrics()
+        self._state_store.save(result)
+        self._emit_run_event(result)
+        return result
+
+    def _resume_decision(
+        self,
+        result: AgentRunResult,
+        *,
+        decision_id: str,
+        decision_version: Optional[int],
+        timeout_seconds: Optional[float],
+    ) -> AgentRunResult:
+        """Resume the exact persisted plan after an accepted decision.
+
+        The plan is loaded from the waiting run snapshot instead of asking the
+        Planner to regenerate it.  This makes approval meaningful even for a
+        nondeterministic provider and keeps the fingerprint a real execution
+        boundary rather than a best-effort comparison.
+        """
+        if self._decision_store is None:
+            raise ToolError("decision store is unavailable")
+        if result.status != RunStatus.WAITING_FOR_DECISION or result.plan is None:
+            raise ToolError("run is not waiting for a decision: " + result.run_id)
+        record = self._decision_store.get(decision_id, domain_id=self.domain_id)
+        if record is None or record.subject_id != result.run_id:
+            raise ToolError("decision does not belong to run: " + result.run_id)
+        if record.status != "ACCEPTED":
+            raise ToolError("decision is not accepted: " + decision_id)
+        if decision_version is None or int(decision_version) != record.version:
+            raise ToolError("decision version mismatch")
+        fingerprint = str(
+            (result.plan_evidence or {}).get("plan_identity", {}).get("fingerprint", "")
+        )
+        if not fingerprint or fingerprint != record.subject_fingerprint:
+            raise ToolError("decision plan fingerprint mismatch")
+        consumed = self._decision_store.consume(
+            decision_id,
+            expected_version=record.version,
+            domain_id=self.domain_id,
+        )
+        result.decision_evidence = consumed.evidence()
+        self._run_span_ids[result.run_id] = uuid.uuid4().hex[:16]
+        clear_cancel = getattr(self._state_store, "clear_cancel", None)
+        if callable(clear_cancel):
+            clear_cancel(result.run_id)
+        result.status = RunStatus.EXECUTING
+        result.error = None
+        result.answer = None
+        deadline = (
+            perf_counter() + timeout_seconds
+            if timeout_seconds is not None
+            else None
+        )
+        completed: Set[str] = set()
+        completed_results: Dict[str, Dict[str, Any]] = {}
+        for step in result.steps:
+            if step.status == "COMPLETED" and step.result is not None:
+                completed.add(step.id)
+                completed_results[step.id] = step.result
+        try:
+            if not result.steps and result.plan.output.get("type") == "direct_answer":
+                result.status = RunStatus.COMPLETED
+                result.answer = str(result.plan.output.get("message", ""))
+                self._conversation_store.clear_pending(result.session_id or "default")
+                self._conversation_store.save_completed(
+                    result.session_id or "default", result.resolved_request or result.request
+                )
+                self._state_store.save(result)
+                self._remember(result)
+                self._emit_run_event(result)
+                return result
+            index = 0
+            replan_count = len(result.replan_events or [])
+            while index < len(result.steps):
+                step_run = result.steps[index]
+                step = result.plan.steps[index]
+                if step_run.status == "COMPLETED":
+                    index += 1
+                    continue
+                try:
+                    self._check_control(result.run_id, deadline)
+                    self._execute_step(
+                        result.run_id,
+                        deadline,
+                        step_run,
+                        step,
+                        completed,
+                        completed_results,
+                    )
+                    completed.add(step.id)
+                    if step_run.result is not None:
+                        completed_results[step.id] = step_run.result
+                    index += 1
+                except RunCancelled as exc:
+                    self._block_remaining_steps(result.steps, index, step.id, str(exc))
+                    raise
+                except RunTimedOut as exc:
+                    self._block_remaining_steps(result.steps, index, step.id, str(exc))
+                    raise
+                except Exception as exc:
+                    if not self._try_replan(
+                        result,
+                        result.resolved_request or result.request,
+                        index,
+                        step_run,
+                        step,
+                        exc,
+                        completed,
+                        completed_results,
+                        replan_count,
+                        deadline,
+                    ):
+                        self._block_remaining_steps(result.steps, index + 1, step.id, str(exc))
+                        raise
+                    replan_count += 1
+                    index += 1
+            result.status = RunStatus.COMPLETED
+            result.answer = self._answer_composer.compose(result)
+            self._conversation_store.clear_pending(result.session_id or "default")
+            self._conversation_store.save_completed(
+                result.session_id or "default", result.resolved_request or result.request
+            )
+            self._remember(result)
+        except RunCancelled as exc:
+            result.status = RunStatus.CANCELLED
+            result.error = str(exc)
+            _record_run_failure(result, exc, phase="control")
+        except RunTimedOut as exc:
+            result.status = RunStatus.TIMED_OUT
+            result.error = str(exc)
+            _record_run_failure(result, exc, phase="control")
+        except Exception as exc:
+            result.status = RunStatus.FAILED
+            result.error = str(exc)
+            _record_run_failure(result, exc)
+            result.answer = self._answer_composer.compose_failure(result)
         self._state_store.save(result)
         self._emit_run_event(result)
         return result

@@ -1370,3 +1370,14 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M151 全局规划参考
 
 从完整 Agent Runtime 视角把“计划可修复”推进为“修复后可控地继续工作”：不新增单区域规则，不把更多 GIS 工具硬编码到 Runtime。优先建立跨 Domain 的 repair decision/action contract 与多轮继续执行边界，让用户或上层系统可以确认、拒绝、补充信息或在失败后安全恢复；随后把该状态贯通 HTTP、artifact、async、Console 和评测。最后再用 Docker、可选 live planner 和浏览器动态 smoke 做显式验收。默认 active suite 继续极简，最多并行 5 路，公共状态/schema 由主线统一集成。
+
+## M151 当前实现状态
+
+- 新增 `agent/decision_lifecycle.py`，提供版本化、限界、跨 Domain 隔离的 `DecisionRequest`、`DecisionRecord`、内存/SQLite `DecisionStore` 和 optimistic concurrency；状态投影支持等待确认、批准、拒绝和完成。
+- Runtime 在计划校验完成后可进入 `WAITING_FOR_DECISION`，保存完整 TaskPlan、plan fingerprint 和脱敏 decision evidence；批准时从持久化计划快照继续执行，不重新调用 Planner，拒绝时不 dispatch 工具。
+- Service、标准库 HTTP 和 FastAPI 已提供 decision 查询/resolve 接口；同步、异步、SQLite 重启和 Console 均消费同一决策证据。前端增加可选“执行前请求确认”开关以及批准/拒绝操作。
+- M151 专项 8 项、M46/M10 相关回归 19 项通过；Node 语法、Python 编译和 `git diff --check` 通过。Docker、真实 live planner 和动态 Chrome/CDP 仍需按环境执行，不能由本地专项替代。
+
+## M152 全局规划参考
+
+从全局 Runtime 继续完善“决策可恢复而非一次性动作”：统一澄清补充、计划修复批准、失败重试/恢复与用户决策的 action contract，补齐 artifact-only recovery、跨进程 CAS 和决策过期/取消边界；随后做 Text/GIS 双 Domain 的 Docker、live planner 与浏览器显式验收。默认 active suite 仍保持精简，不新增区域专用规则。

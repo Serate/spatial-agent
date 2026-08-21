@@ -885,4 +885,5 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         context_evidence=payload.get("context_evidence"),
         plan_evidence=payload.get("plan_evidence"),
         replan_events=payload.get("replan_events") or [],
+        decision_evidence=payload.get("decision_evidence"),
     )

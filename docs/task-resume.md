@@ -1626,3 +1626,13 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M151 规划参考
 
 下一阶段从项目整体推进 repair decision 的可控生命周期：统一 repair/拒绝/澄清/恢复 action contract，支持跨 Domain 的多轮继续执行，并保证同步、异步、artifact、HTTP、Console 和评测使用同一状态投影。先做公共状态与恢复边界，再做入口适配，最后进行 Docker、可选 live 模型和浏览器显式验收；不为单个 GIS 数据集增加专用分支，默认 active suite 不扩大，最多并行 5 路。
+
+## M151 当前完成状态
+
+- 已完成计划执行前确认闭环：`WAITING_FOR_DECISION`、版本化 DecisionStore、CAS、批准/拒绝、原计划快照继续执行和结构化 evidence。
+- 已接入 Service、HTTP、异步、SQLite 重启、result envelope、Console 确认按钮；M151 专项 8 项和 M46/M10 相关回归 19 项通过。
+- 未完成 Docker、真实模型和动态浏览器验收；下一阶段先做决策生命周期的过期、取消、artifact-only 恢复和澄清/修复 action 统一。
+
+## M152 规划参考
+
+以完整 Agent 闭环为基准，统一用户决策、澄清、计划修复和失败恢复的 action/状态/证据契约，再验证 Text/GIS、同步/异步/artifact/restart 和 HTTP/Console 的一致性；不因单个 GIS 数据集增加专用分支，默认测试保持精简。

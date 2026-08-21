@@ -3061,3 +3061,14 @@ M150 将 capability-guided plan repair 从评测投影推进到可替换的 Runt
 ## M151 全局规划参考
 
 从全局 Runtime 推进“可修复”到“可控继续执行”：先定义跨 Domain 的 repair decision/action contract 和多轮恢复边界，再贯通 HTTP、异步、artifact、Console 与评测，最后进行 Docker、可选 live planner 和浏览器动态验收。避免为单一区域或单一 GIS 数据集增加硬编码规则，默认 active suite 保持精简，最多并行 5 路。
+
+## M151：计划确认与可控继续执行（已完成）
+
+M151 新增版本化 `DecisionStore` 和 `WAITING_FOR_DECISION` 状态。Runtime 在计划校验后可以保存原始计划、fingerprint 和脱敏决策证据，用户批准后从同一计划快照继续执行，拒绝则保持工具未执行；SQLite 使用版本 CAS 防止重复提交。
+
+- Service、标准库 HTTP、FastAPI、异步轮询、SQLite 重启和 result envelope 已接入统一 decision projection；Console 提供可选执行前确认及批准/拒绝按钮。
+- M151 专项 8 项、M46/M10 相关回归 19 项通过；Docker、live planner 和 Chrome/CDP 仍是独立显式验收，未用离线证据替代。
+
+## M152 全局规划参考
+
+统一澄清补充、计划修复批准、失败重试/恢复和用户确认的 action contract，补齐过期/取消、artifact-only recovery、跨进程 CAS 及 Text/GIS 双 Domain 的显式部署验收。

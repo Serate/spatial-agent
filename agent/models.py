@@ -10,6 +10,7 @@ class RunStatus(str, Enum):
     CREATED = "CREATED"
     PLANNING = "PLANNING"
     EXECUTING = "EXECUTING"
+    WAITING_FOR_DECISION = "WAITING_FOR_DECISION"
     COMPLETED = "COMPLETED"
     NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
     REJECTED = "REJECTED"
@@ -92,6 +93,8 @@ class AgentRunResult:
     retry_count: int = 0
     # Bounded adaptive-replanning evidence (M80.1): one entry per replan round.
     replan_events: List[Dict[str, Any]] = field(default_factory=list)
+    # Bounded user decision lifecycle evidence (M151).
+    decision_evidence: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -116,4 +119,6 @@ class AgentRunResult:
             data.pop("runtime_context", None)
         if data.get("request_facts") is None:
             data.pop("request_facts", None)
+        if data.get("decision_evidence") is None:
+            data.pop("decision_evidence", None)
         return data
