@@ -1929,3 +1929,12 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 2. 将 model selection、规则 selection、repair lineage 和 unresolved/ambiguous 状态纳入同一 Contract Harness，确保 HTTP、异步、artifact-only recovery 不漂移。
 3. 继续审计公共层残留 GIS 兼容默认，但不为单一表达增加规则；新能力只通过 Domain catalog、facts、workflow 和 result contract 扩展。
 4. 保持 Docker quick/stage 精简，阶段末补最小 live/browser/production evidence，并在收口后再更新全局规划。
+
+## M173 当前完成状态
+
+- `evaluation/contract_harness.py` 现在将 `spatial-agent.planner-selection.v1` 和脱敏 `repair_lineage` 纳入跨入口稳定投影；repair 的 latency/occurred_at 等易变观测字段不会造成同步、异步、HTTP 和 artifact-only recovery 的伪漂移，但 repair phase、失败工具、替换步骤、状态和 reason 会被严格比较。
+- Runtime context 在保留选中能力完整卡片的同时，由 Domain catalog 提供有界 `known_capability_result_types` 摘要；模型选择一个已知但非当前候选的能力时记录 `mismatch`，完全无法绑定到已知能力时记录 `unresolved`，多候选仍在 Planner 前进入 `ambiguous` 澄清。
+- 新增 `tests/test_m173_selection_contract.py`，覆盖脱敏模型 replay 与 Rule Planner selection 一致性、模型错配、真正 unresolved、ambiguous 生命周期、repair lineage 稳定比较。
+- Docker 证据：M173 专项 5/5；受影响 M160/M166/M169/M172 回归 35/35；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 均通过。
+- 显式真实模型 + GIS/Docker `live-short` 2/2 通过，token 总量 13,001、0 次重试；只保存安全摘要，没有提交原始模型输出、API key、私有配置或 GIS 原始数据。
+- 本阶段问题已记录到 `docs/agent-development-issues.md`。下一阶段继续从全局七维度规划跨 Domain 的 replay/live 证据完整性、公共 GIS 兼容清理和更通用的动态结果展示。

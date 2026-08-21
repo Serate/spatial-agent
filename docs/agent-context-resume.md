@@ -1644,3 +1644,11 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - Runtime context 对 selected selection/template 做 bounded projection，保留候选 ID/count 和选中详情；可选 memory 与过量工具 schema在预算不足时优先裁剪。该修复恢复了复杂请求的 capability discovery/catalog/template evidence。
 - Docker 证据：M172 专项 5/5；M15/M112/M113/M166/M167/M171 受影响回归 42 项通过（真实 Windows GIS 数据 8 项跳过）；quick、stage、compileall、production acceptance 通过；Chrome/CDP 真实 Console preview → confirmation → completed 通过。
 - M172 尚未新增 live token 消耗；阶段提交前必须检查 `git diff --check`、敏感信息、私有配置和原始输出。推送后从 M173 的脱敏模型 replay、最小 live-short 和跨入口 model-selection evidence 继续全局规划。
+
+## M173 当前恢复位置
+
+- `evaluation/contract_harness.py` 已统一比较 `planner_selection` 与脱敏 `repair_lineage`；volatile latency/occurred_at 不参与语义比较，repair phase/status/reason/step identities 仍严格比较。
+- `agent/workflow_selection.py` 从 Domain catalog 生成有界 `known_capability_result_types`；`agent/planner_selection.py` 消费该摘要，修复 compact context 后已知模型错配被错误报告为 `unresolved` 的问题。该摘要不参与能力选择，只服务 Planner alignment evidence。
+- 新增 `tests/test_m173_selection_contract.py`。Docker M173 专项 5/5、受影响回归 35/35、compileall、quick、stage、production acceptance 和 Chrome/CDP smoke 通过。
+- Docker `live-short` 2/2 通过，真实模型 + GIS token 总量 13,001、0 次重试；live 结果只保留安全摘要，不提交 API key、私有配置、原始模型输出或原始 GIS 数据。
+- 当前阶段待完成最终敏感信息检查、`git diff --check`、提交和推送；推送后从全局七维度进入 M174，不把下一阶段限制为单个 GIS 数据集或固定表达。

@@ -1758,6 +1758,30 @@ def _compact_workflow_selection_for_context(
         selected_details = [item for item in details[:1] if isinstance(item, Mapping)]
     compact = dict(selection)
     compact["candidate_details"] = selected_details[:1]
+    # Preserve the small result-type binding for every candidate.  This is
+    # not a second selection decision and does not expose full cards to the
+    # model; it lets the public planner-selection evidence distinguish a
+    # model choosing another known capability from a truly unknown result.
+    candidate_result_types = []
+    for item in details[:16]:
+        if not isinstance(item, Mapping):
+            continue
+        capability_id = str(item.get("id") or item.get("capability_id") or "").strip()
+        if not capability_id:
+            continue
+        result_types = list(item.get("result_types") or [])
+        workflow = item.get("workflow")
+        if isinstance(workflow, Mapping):
+            result_types.extend(workflow.get("result_types") or [])
+        bounded_types = []
+        for result_type in result_types:
+            value = str(result_type or "").strip()[:96]
+            if value and value not in bounded_types:
+                bounded_types.append(value)
+        candidate_result_types.append(
+            {"id": capability_id[:96], "result_types": bounded_types[:8]}
+        )
+    compact["candidate_result_types"] = candidate_result_types[:16]
     compact["candidate_details_truncated"] = True
     return compact
 

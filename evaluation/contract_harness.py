@@ -25,6 +25,7 @@ from agent.request_identity import normalize_request_identity
 from agent.plan_identity import normalize_plan_identity
 from agent.plan_quality import project_plan_quality_evidence
 from agent.plan_policy import normalize_plan_policy_evidence
+from agent.planner_selection import normalize_planner_selection_evidence
 from agent.selection_interaction import normalize_selection_interaction
 from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.execution_timeline import normalize_execution_timeline
@@ -140,6 +141,9 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "exact_templates": planning.get("exact_template_ids"),
             "matched_templates": planning.get("matched_template_ids"),
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+            "planner_selection": normalize_planner_selection_evidence(
+                planning.get("planner_selection")
+            ),
             "plan_policy": normalize_plan_policy_evidence(
                 planning.get("plan_policy")
             ),
@@ -151,6 +155,9 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             ),
             "execution_timeline": normalize_execution_timeline(
                 result.get("execution_timeline")
+            ),
+            "repair_lineage": _repair_lineage_projection(
+                result.get("replanning")
             ),
             "evidence_registry": normalize_evidence_registry(
                 result.get("evidence_registry")
@@ -231,6 +238,72 @@ def _lifecycle_projection(
             "recovered": bool(lineage.get("recovered")),
         },
     }
+
+
+def _repair_lineage_projection(value: Any) -> Dict[str, Any]:
+    """Project repair lineage without volatile timing or provider details.
+
+    The full result envelope may retain bounded latency and occurrence time
+    for observability.  Those fields are intentionally excluded here because
+    the Contract Harness compares the same semantic run across sync, async,
+    HTTP and artifact-only recovery.  Step/tool identities, repair phase,
+    outcome and plan-quality transitions are stable evidence and must remain
+    comparable across those entries.
+    """
+
+    version = "spatial-agent.replanning.v1"
+    source = value if isinstance(value, Mapping) else {}
+    events = source.get("events") if isinstance(source.get("events"), list) else []
+    projected = []
+    for event in events[:8]:
+        if not isinstance(event, Mapping):
+            continue
+        failed_step_id = _bounded_contract_text(event.get("failed_step_id"))
+        failed_tool = _bounded_contract_text(event.get("failed_tool"))
+        if not failed_step_id or not failed_tool:
+            continue
+        item = {
+            "failed_step_id": failed_step_id,
+            "failed_tool": failed_tool,
+            "failure_category": _bounded_contract_text(
+                event.get("failure_category")
+            ) or "unknown",
+            "replanned_step_ids": [
+                token
+                for token in (
+                    _bounded_contract_text(entry)
+                    for entry in (event.get("replanned_step_ids") or [])
+                )
+                if token
+            ][:24],
+        }
+        phase = _bounded_contract_text(event.get("phase"))
+        if phase in {"planning", "execution"}:
+            item["phase"] = phase
+        repair_status = _bounded_contract_text(event.get("repair_status"))
+        if repair_status in {"repaired", "failed"}:
+            item["repair_status"] = repair_status
+        repair_reason = _bounded_contract_text(event.get("repair_reason_code"))
+        if repair_reason:
+            item["repair_reason_code"] = repair_reason
+        for key in ("plan_quality_before", "plan_quality_after"):
+            if isinstance(event.get(key), Mapping):
+                item[key] = project_plan_quality_evidence(event[key])
+        projected.append(item)
+    return {
+        "schema_version": version,
+        "available": bool(projected),
+        "count": len(projected),
+        "events": projected,
+    }
+
+
+def _bounded_contract_text(value: Any) -> str:
+    """Keep contract identifiers bounded and avoid echoing arbitrary values."""
+
+    if not isinstance(value, (str, int, float)) or isinstance(value, bool):
+        return ""
+    return str(value).strip()[:96]
 
 
 def _artifact_schema(

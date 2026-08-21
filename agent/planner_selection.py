@@ -44,8 +44,17 @@ def build_planner_selection_evidence(
     candidate_ids = _string_list(source.get("candidate_ids"))
     details = source.get("candidate_details")
     details = details if isinstance(details, list) else []
+    # A selected planner context intentionally keeps one candidate card in
+    # detail to stay within the model budget.  Domain Packs may still expose
+    # a compact id -> result-type summary for every candidate so a model plan
+    # that chooses another capability is reported as ``mismatch`` rather than
+    # being incorrectly downgraded to ``unresolved``.
+    summaries = source.get("candidate_result_types")
+    summaries = summaries if isinstance(summaries, list) else []
+    known_summaries = source.get("known_capability_result_types")
+    known_summaries = known_summaries if isinstance(known_summaries, list) else []
     matches = []
-    for item in details[:16]:
+    for item in [*details[:16], *summaries[:16], *known_summaries[:16]]:
         if not isinstance(item, Mapping):
             continue
         capability_id = _text(item.get("id") or item.get("capability_id"))

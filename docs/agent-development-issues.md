@@ -4336,3 +4336,17 @@ Runtime 增加领域无关的 selected selection/template compact projection：�
 ### 处理与预防
 
 测试改为显式 `json.dumps(..., ensure_ascii=False).encode("utf-8")`，并继续通过服务真实 HTTP 入口验证响应。以后 HTTP/PowerShell/浏览器验收遇到中文请求失败时，先区分请求体编码、网络传输和服务业务错误；契约测试必须显式指定 UTF-8 bytes，不能依赖客户端默认编码。
+
+## M173：compact context 丢失已知能力绑定导致模型错配被误报为 unresolved
+
+### 现象
+
+模型针对“查询 DEM 栅格元数据”返回了行政区边界计划。此前 Planner selection evidence 返回 `unresolved`，而不是应有的 `mismatch`。这会让面试演示和 live/replay 评测无法区分“模型选择了一个已知但不符合当前请求的能力”和“模型输出了 Domain 完全不知道的结果类型”。
+
+### 根因
+
+M172 为控制 Planner 上下文大小，只保留选中能力的完整候选卡片和选中 workflow 模板。`planner_selection` 原本只从这些详细卡片读取 result type；因此已知的其他能力虽然存在于 Domain catalog，却不在 alignment 输入中。第一次补丁仅从现有候选详情生成摘要，仍然无法覆盖被 compact projection 隐藏的其他 catalog 能力。
+
+### 处理与预防
+
+现在由 Domain catalog 生成有界 `known_capability_result_types`，只包含能力 ID 与结果类型，不参与能力选择，也不展开工具或数据细节；`planner_selection` 使用它补充已知结果类型绑定。已知能力错配稳定返回 `mismatch`，未知结果类型仍返回 `unresolved`，多候选仍由 workflow selection 在 Planner 前返回 `ambiguous`。Contract Harness 新增稳定的 `planner_selection` 和脱敏 `repair_lineage` 投影，排除 latency/occurred_at 等易变字段但保留修复语义。以后做 context 压缩时，必须分别验证模型输入预算、候选选择证据和 Planner alignment 证据，不能用“候选详情存在”替代“已知能力索引完整”。

@@ -219,3 +219,18 @@ docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains produ
 ~~~
 
 M170 使用 `app.router.lifespan_context(app)` 验证 ASGI 生命周期，不依赖未安装的 `httpx2`/`TestClient`；生产 acceptance 仍通过宿主 PowerShell 调用当前 Docker HTTP 服务。FastAPI 生命周期测试不应因为测试客户端缺失而跳过，也不应为测试便利把额外 HTTP 客户端依赖加入生产镜像。
+
+## M173 模型选择与修复证据专项
+
+涉及 capability catalog、Planner selection、compact context、repair lineage 或跨入口证据时，运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m173_selection_contract tests.test_m160_evidence_completeness tests.test_m166_request_identity tests.test_m166_multi_candidate_selection tests.test_m169_interaction_receipt tests.test_m172_capability_discovery -v
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile stage
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
+docker exec -e SPATIAL_AGENT_LIVE_OPENAI=1 -e SPATIAL_AGENT_LIVE_GIS=1 ai-agent-spatial-agent-1 python scripts/test_profile.py --profile live-short --dataset-config /app/config/datasets.container.example.json --live-output /app/outputs/live-short.json
+node scripts\console_selection_interaction_browser_smoke.js
+~~~
+
+该专项要求 Contract Harness 比较 `planner_selection` 和脱敏 `repair_lineage`，忽略 latency/occurred_at 等易变字段；同时验证已知能力错配为 `mismatch`、未知结果为 `unresolved`、多候选为 `ambiguous`。live-short 只作为显式验收，不进入默认 CI，也不得提交原始模型输出、密钥或 GIS 数据。

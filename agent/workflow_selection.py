@@ -111,6 +111,11 @@ def build_workflow_selection_evidence(
             "unavailable": "no_matching_capability",
         }.get(state, "workflow_selection_unavailable")
     facts = _facts_summary(request_facts)
+    known_result_types = _normalize_result_type_index(
+        selected.get("known_capability_result_types")
+        or discovery_map.get("known_capability_result_types")
+        or _known_capability_result_types(capability_catalog)
+    )
     return {
         "schema_version": WORKFLOW_SELECTION_SCHEMA_VERSION,
         "available": available,
@@ -130,6 +135,7 @@ def build_workflow_selection_evidence(
         "workflow_template_version": template_version,
         "candidate_workflow_ids": candidate_templates[:_MAX_ITEMS],
         "candidate_details": _normalize_candidate_details(candidate_detail_values),
+        "known_capability_result_types": known_result_types,
         "domain_seams": _normalize_domain_seams(domain_seams or selected.get("domain_seams")),
         "missing_fields": missing,
         "request_facts_schema_version": facts["schema_version"],
@@ -240,6 +246,57 @@ def _candidate_details_from_catalog(
                 "workflow": workflow_summary,
             }
         )
+    return result
+
+
+def _known_capability_result_types(catalog: Any) -> list[dict[str, Any]]:
+    """Return a small Domain-owned result-type index for planner alignment.
+
+    This is deliberately separate from candidate cards.  Context compaction
+    may show only the selected card, but a generated plan can still name a
+    different known capability.  The Runtime should then report a clear
+    mismatch; it should reserve ``unresolved`` for result types absent from
+    the Domain catalog altogether.
+    """
+
+    if not isinstance(catalog, Mapping):
+        return []
+    definitions = catalog.get("capabilities")
+    definitions = definitions if isinstance(definitions, list) else []
+    result = []
+    seen = set()
+    for definition in definitions[:_MAX_ITEMS]:
+        if not isinstance(definition, Mapping):
+            continue
+        capability_id = _text(definition.get("id"))
+        if not capability_id or capability_id in seen:
+            continue
+        seen.add(capability_id)
+        result_types = _string_list(definition.get("result_types"))
+        workflow = (catalog.get("workflow_templates") or {}).get(capability_id)
+        if isinstance(workflow, Mapping):
+            result_types.extend(_string_list(workflow.get("result_types")))
+        result_types = list(dict.fromkeys(result_types))[:8]
+        if result_types:
+            result.append({"id": capability_id, "result_types": result_types})
+    return result[:_MAX_ITEMS]
+
+
+def _normalize_result_type_index(value: Any) -> list[dict[str, Any]]:
+    values = value if isinstance(value, (list, tuple)) else []
+    result = []
+    seen = set()
+    for item in values[:_MAX_ITEMS]:
+        if not isinstance(item, Mapping):
+            continue
+        capability_id = _text(item.get("id") or item.get("capability_id"))
+        if not capability_id or capability_id in seen:
+            continue
+        result_types = _string_list(item.get("result_types"))[:8]
+        if not result_types:
+            continue
+        seen.add(capability_id)
+        result.append({"id": capability_id, "result_types": result_types})
     return result
 
 

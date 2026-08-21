@@ -3458,3 +3458,14 @@ M172 继续完成通用 Agent Runtime 的开放式纵向闭环，GIS 仍只是 D
 - 修复复杂请求 context budget 优先级：可选 memory 和冗余工具 schema 先压缩，选中 workflow、capability discovery、capability catalog 和 selection evidence 保持可见；HTTP/artifact 的模板与能力证据重新一致。
 - M172 专项 5/5、受影响 Docker 回归 42 项通过；quick、stage、compileall、production acceptance、Chrome/CDP smoke 通过。真实 Windows GIS 数据测试有 8 项按环境跳过，live 模型未在本阶段重复调用。
 - 阶段问题已记录到 `docs/agent-development-issues.md`；当前工作树待执行最终 diff/敏感信息检查、提交和推送，随后进入 M173。
+
+## M173：模型选择与跨入口修复证据闭环（已完成）
+
+M173 从项目整体推进“模型理解/计划 → Domain 选择 → 稳定证据”的纵向链路，不新增单区域 GIS 规则。上下文压缩仍保持模型输入精简，但不能牺牲对模型能力错配和修复 lineage 的解释能力。
+
+- `evaluation.contract_harness` 新增领域无关的 `planner_selection` 和 `repair_lineage` 稳定投影。跨入口比较忽略时间、延迟等传输/观测噪声，严格比较选择状态、绑定能力、失败工具、替换步骤、修复阶段、状态和原因。
+- `workflow-selection.v1` 增加有界 `known_capability_result_types`，来源为 Domain catalog；`planner-selection.v1` 可以区分已知能力错配（`mismatch`）与未知结果（`unresolved`），而不是因为 compact context 丢失候选详情而混淆两者。
+- 新增 `tests/test_m173_selection_contract.py`，覆盖脱敏 replay、Rule Planner 对照、模型错配、unresolved、ambiguous、repair lineage 和 Contract Harness 漂移检测。
+- Docker 验证：M173 专项 5/5；M160/M166/M169/M172 受影响回归 35/35；compileall、quick、stage、production acceptance、真实 Chrome/CDP smoke 均通过。
+- Docker `live-short` 真实模型 + 真实 GIS 2/2 通过，13,001 tokens、0 次重试；未进入默认 CI，未保存原始 live 输出。
+- M173 阶段问题已写入中文问题文档；阶段完成后提交并推送版本，再按产品、架构、数据、模型、部署、体验、测试七个维度规划 M174。
