@@ -25,6 +25,7 @@ from evaluation.model_evaluation import (
     sanitize_provider_metrics,
     summarize_selection_evidence,
     summarize_capability_repair_quality,
+    summarize_evidence_projection,
     summarize_repair_evidence,
 )
 from run_demo import build_runtime
@@ -130,6 +131,7 @@ def run_live_baseline(
         "evidence_registry_completeness": replay_registry_completeness,
         "repair_evidence": summarize_repair_evidence(replay),
         "selection_evidence": summarize_selection_evidence(results),
+        "evidence_projection": summarize_evidence_projection(results),
         "capability_repair_evaluation": summarize_capability_repair_quality(results),
         "cases": results,
         "summary": {

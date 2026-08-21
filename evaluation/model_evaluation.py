@@ -26,6 +26,10 @@ from agent.evidence_registry import (
     EVIDENCE_COMPLETENESS_SCHEMA_VERSION,
     project_evidence_registry_completeness,
 )
+from agent.evidence_projection import (
+    EVIDENCE_PROJECTION_SCHEMA_VERSION,
+    project_evidence_projection,
+)
 from evaluation.answer_judge import heuristic_answer_judge
 from result_contract import build_result_contract
 
@@ -107,6 +111,7 @@ def evaluate_model_replay_suite(suite: Mapping[str, Any]) -> Dict[str, Any]:
         "capability_repair_evaluation": summarize_capability_repair_quality(results),
         "selection_evidence": summarize_selection_evidence(results),
         "evidence_registry_completeness": summarize_evidence_registry_completeness(results),
+        "evidence_projection": summarize_evidence_projection(results),
         "results": results,
     }
 
@@ -129,9 +134,8 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
         contract = build_result_contract(source)
     except Exception:
         contract = {"replanning": {"events": []}}
-    registry_completeness = project_evidence_registry_completeness(
-        contract.get("evidence_registry")
-    )
+    evidence_projection = _evaluation_evidence_projection(source, contract)
+    registry_completeness = evidence_projection["evidence_registry_completeness"]
     replanning = contract.get("replanning") if isinstance(contract, Mapping) else {}
     events = replanning.get("events") if isinstance(replanning, Mapping) else []
     events = events if isinstance(events, list) else []
@@ -206,7 +210,29 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
             "failed_step_count": min(failed_step_count, 64),
         },
         "evidence_registry_completeness": registry_completeness,
+        "evidence_projection": evidence_projection,
+        "evidence_migration": evidence_projection["migration"],
     }
+
+
+def _evaluation_evidence_projection(
+    source: Mapping[str, Any], contract: Mapping[str, Any]
+) -> Dict[str, Any]:
+    """Read evaluation evidence through the public result projection seam.
+
+    Runtime objects are rebuilt into a result contract before evaluation.  A
+    persisted artifact may already carry a nested result or a legacy top-level
+    registry; preserve that source for migration classification instead of
+    silently rebuilding it into the current Registry shape.
+    """
+
+    if isinstance(source.get("result"), Mapping):
+        return project_evidence_projection(source)
+    projection_contract = dict(contract)
+    raw_registry = source.get("evidence_registry")
+    if isinstance(raw_registry, Mapping):
+        projection_contract["evidence_registry"] = raw_registry
+    return project_evidence_projection({"result": projection_contract})
 
 
 def project_planner_selection_evidence(payload: Any) -> Dict[str, Any]:
@@ -450,6 +476,76 @@ def summarize_evidence_registry_completeness(report_or_results: Any) -> Dict[str
             if isinstance(projection, Mapping):
                 projections.append(projection)
     return _summarize_registry_projections(projections)
+
+
+def summarize_evidence_projection(report_or_results: Any) -> Dict[str, Any]:
+    """Aggregate shared projection and migration states for safe reports."""
+
+    projections = _collect_evidence_projections(report_or_results)
+    migration_states = Counter()
+    completeness_states = Counter()
+    for projection in projections:
+        migration = projection.get("migration")
+        migration_state = (
+            str(migration.get("state") or "unavailable")[:32]
+            if isinstance(migration, Mapping)
+            else "unavailable"
+        )
+        migration_states[migration_state] += 1
+        completeness = projection.get("evidence_registry_completeness")
+        completeness_state = (
+            "passed"
+            if isinstance(completeness, Mapping) and completeness.get("passed") is True
+            else "failed"
+        )
+        completeness_states[completeness_state] += 1
+    evaluated = [
+        projection
+        for projection in projections
+        if isinstance(projection.get("migration"), Mapping)
+        and projection["migration"].get("state") != "unavailable"
+    ]
+    passed = bool(evaluated) and all(
+        isinstance(projection.get("migration"), Mapping)
+        and projection["migration"].get("state") == "current"
+        and isinstance(projection.get("evidence_registry_completeness"), Mapping)
+        and projection["evidence_registry_completeness"].get("passed") is True
+        for projection in evaluated
+    )
+    return {
+        "schema_version": EVIDENCE_PROJECTION_SCHEMA_VERSION,
+        "projection_count": len(projections),
+        "migration_states": dict(sorted(migration_states.items())),
+        "completeness_states": dict(sorted(completeness_states.items())),
+        "passed": passed,
+    }
+
+
+def _collect_evidence_projections(value: Any) -> List[Mapping[str, Any]]:
+    """Collect bounded projections from replay, live, or turn-shaped reports."""
+
+    collected: List[Mapping[str, Any]] = []
+    if isinstance(value, list):
+        for item in value[:_MAX_REPAIR_TURNS]:
+            collected.extend(_collect_evidence_projections(item))
+        return collected[:_MAX_REPAIR_TURNS]
+    if not isinstance(value, Mapping):
+        return collected
+    direct = value.get("evidence_projection")
+    if (
+        isinstance(direct, Mapping)
+        and isinstance(direct.get("migration"), Mapping)
+        and isinstance(direct.get("evidence_registry_completeness"), Mapping)
+    ):
+        collected.append(direct)
+    repair = value.get("repair_evidence")
+    if isinstance(repair, Mapping):
+        collected.extend(_collect_evidence_projections(repair))
+    for key in ("results", "cases", "turns"):
+        nested = value.get(key)
+        if isinstance(nested, list):
+            collected.extend(_collect_evidence_projections(nested))
+    return collected[:_MAX_REPAIR_TURNS]
 
 
 def _fixture_registry_completeness(turns: Any) -> Dict[str, Any]:
@@ -789,6 +885,7 @@ def project_replay_repair_evidence(
         "expected_match": expected_match,
         "expected_final_status": expected_status,
         "final_status_match": final_match,
+        "evidence_projection_summary": summarize_evidence_projection(turn_evidence),
         "passed": expected_match and final_match,
     }
 

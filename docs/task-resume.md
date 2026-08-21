@@ -2018,3 +2018,25 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 部署：补 SQLite 多 worker、滚动重启和 artifact-only 接管后的 evidence 连续性，并验证生产 HTTP 与历史查看器消费同一 projection。
 6. 体验：完善通用结果工作区的空态、迁移提示、失败恢复和证据导航，继续避免 GIS 页面专用分支。
 7. 测试：保持 quick/CI 极简，以跨 Domain Contract Harness 为主线，阶段收口运行 Docker、HTTP、浏览器和必要 live 验收后再全局重规划。
+
+## M179 当前完成状态
+
+- `evaluation/model_evaluation.py` 的 `project_repair_evidence()` 已通过 `agent.evidence_projection` 读取 Registry、完整性、selection 和 migration；不再为 replay/live 复制一套 Registry 解释逻辑。
+- replay 与 live-safe repair evidence 新增有界 `evidence_projection`、`evidence_migration`；多轮 replay 的聚合字段使用 `evidence_projection_summary`，避免与单条版本化 projection 混淆。
+- 离线 replay 与 live baseline 顶层均输出 projection summary，统计 `current`、`legacy_incomplete`、`unknown_schema`、`unavailable` 和完整性状态；无结果的澄清轮次保留为 unavailable，不伪造失败，旧/未知 schema 不通过。
+- 新增 `tests/test_m179_evidence_evaluation.py`，M179 专项 4/4；M179 与 M178/M177/M174/M149/M160/M158 相邻评测回归 25/25 通过。
+- Docker 重建后 compileall、quick、stage、production acceptance、Evidence/总览 Chrome/CDP smoke 均通过，容器 healthy，生产数据卷和 runtime capability ready。
+- 本阶段沿用 M173 的真实模型 + GIS/Docker 基线，未重复 live 调用、未新增 GIS 工具、未保存原始模型输出；命名冲突问题已记录到中文开发问题文档。
+- M179 已完成，下一阶段按全局七维度进入 M180。
+
+## M180 全局重规划参考
+
+从整体 Agent Runtime 继续推进“证据可迁移”到“证据可恢复、可操作”的生产闭环：
+
+1. 产品：将 `legacy_incomplete`、`unknown_schema`、`unavailable` 转化为统一的安全空态和有界恢复动作，确保用户能区分“等待结果”“历史不可迁移”和“数据不可用”。
+2. 架构：建立 Evidence Migration/Recovery 的领域无关 seam，让 artifact、SQLite snapshot、async 接管和 HTTP evidence endpoint 使用同一迁移判定，不在各入口猜测版本。
+3. 数据：把 readiness、coverage、alignment、provenance 和过期状态作为 Domain evidence adapter 输入，验证恢复前后数据来源与降级状态不漂移。
+4. 模型：在 replay/live 对照中加入 evidence recovery 状态，区分模型计划失败、工具执行失败和历史 evidence 不可恢复；仅保留安全摘要。
+5. 部署：验证多 worker、滚动重启、旧 artifact 接管和 evidence endpoint 的 CAS/幂等边界，补生产恢复后的连续读取验收。
+6. 体验：前端动态展示迁移状态与允许动作，覆盖处理中、澄清、拒绝、失败修复、历史恢复和无证据空态，不增加 GIS 专用分支。
+7. 测试：保持 quick/CI 极简，以 migration/recovery Contract Harness 为核心，阶段末运行 Docker、HTTP、Artifact、浏览器和必要 live-short 后再全局重规划。

@@ -1702,3 +1702,21 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 5. 部署：验证 SQLite 多 worker、滚动重启、Artifact-only 接管和 evidence endpoint 连续性。
 6. 体验：完善通用空态、迁移提示、失败恢复和证据导航，不增加 GIS 专用前端分支。
 7. 测试：维持 Docker quick/stage 精简，以跨 Domain Contract Harness、HTTP、浏览器和必要 live 作为阶段证据。
+
+## M179 当前完成状态
+
+- `project_repair_evidence()`、离线 replay 和 live baseline 已统一消费 `agent.evidence_projection`；repair evidence 暴露 `evidence_projection` 与 `evidence_migration`，顶层报告提供 projection summary。
+- 多轮 replay 聚合字段命名为 `evidence_projection_summary`；收集器只接受同时具备 migration 和 Registry completeness 的单条 projection，避免 summary 被误判为证据。
+- 新增 M179 专项 4/4；M178/M177/M174/M149/M160/M158 相邻评测回归 25/25；compileall、quick、stage、production acceptance、Chrome/CDP smoke 通过。
+- Docker 当前镜像 healthy，生产数据卷和 runtime capability ready。本阶段未重复 live token，沿用 M173 真实模型 + GIS/Docker 证据；新问题已记录到中文开发问题文档。
+- M179 已完成并准备提交推送；下一阶段为 M180，重点是统一 Evidence Migration/Recovery seam 和可操作恢复状态。
+
+## M180 全局规划参考
+
+1. 产品：统一展示历史证据迁移、未知 schema、不可用结果和允许恢复动作。
+2. 架构：让 Artifact、SQLite snapshot、async 接管和 HTTP evidence endpoint 共享 Migration/Recovery seam。
+3. 数据：绑定 readiness、coverage、alignment、provenance 与过期状态，保持恢复前后证据稳定。
+4. 模型：区分计划/工具失败与历史 evidence 不可恢复，扩展 replay/live 安全摘要。
+5. 部署：验证多 worker、滚动重启、旧 artifact 接管、CAS 和幂等读取。
+6. 体验：前端动态消费迁移状态、空态和允许动作，不增加 GIS 专用分支。
+7. 测试：以 migration/recovery Contract Harness 为主，Docker、HTTP、Artifact、浏览器和必要 live-short 分层验收。

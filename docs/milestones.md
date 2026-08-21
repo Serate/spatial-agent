@@ -3523,3 +3523,14 @@ M178 将 M177 的公共证据读取 seam 纳入更广泛的跨入口 Contract Ha
 - Docker 重建后 M178 与 M177/M176/M165/M160/M158 相邻专项 22/22 通过；compileall、quick、stage、production acceptance 通过，容器 healthy，生产数据卷和 runtime capability ready。
 - `console_selection_evidence_smoke.js` 与 Chrome/CDP `console_overview_smoke.js` 通过；本阶段未增加 GIS 工具、默认 CI 测试或 live token 消耗。
 - M178 完成后，下一阶段从全局推进 M179：统一证据迁移/恢复动作、replay/live 评测、SQLite/Artifact 接管和通用前端空态。
+
+## M179：Replay/Live 评测统一 Evidence Projection（已完成）
+
+M179 将 M177/M178 的公共 Evidence Projection 继续推进到模型评测与真实模型报告，避免 Runtime、Contract Harness、replay 和 live baseline 各自解释证据完整性。
+
+- `project_repair_evidence()` 通过 `project_evidence_projection()` 读取 Registry、completeness、workflow/planner selection 和 migration；repair evidence 增加有界 `evidence_projection` 与 `evidence_migration`。
+- 离线 replay suite 与 live baseline 增加 `evidence_projection` summary；多轮 replay 内部使用 `evidence_projection_summary`，明确区分单条证据和跨轮次统计。
+- `unavailable` 的澄清/无结果轮次保留在统计中但不伪造失败；`legacy_incomplete` 与 `unknown_schema` 保留迁移状态并使 summary 不通过，推动显式恢复或拒绝。
+- 新增 `tests/test_m179_evidence_evaluation.py`，M179 专项 4/4；M179/M178/M177/M174/M149/M160/M158 评测回归 25/25 通过。
+- Docker 重建后 compileall、quick、stage、production acceptance 和 Evidence/总览 Chrome/CDP smoke 通过，容器 healthy；本阶段未新增 live token 或 GIS 工具。
+- 多轮 summary 命名冲突问题已记录到 `docs/agent-development-issues.md`；下一阶段进入 M180，重点是领域无关的 Evidence Migration/Recovery seam 与可操作恢复状态。

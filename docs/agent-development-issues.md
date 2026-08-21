@@ -4400,3 +4400,21 @@ transport 来源是观测上下文，不是请求的核心证据语义。将它�
 ### 预防
 
 浏览器 smoke 必须显式设置所有影响路由的 planner、backend、workflow、确认开关和会话，并使用独立会话；不能假设 Page.navigate 会清除表单状态。结果断言同时检查状态、result type、工具步骤和目标面板，避免把“任意成功结果”当作场景验收通过。
+
+## M179：多轮评测 summary 不能与单条 Evidence Projection 同名
+
+### 现象
+
+M179 将统一 `evidence_projection` 接入 replay/live 评测后，离线 replay 的单条结果均为当前 Registry 且完整性通过，但顶层 projection summary 错误显示 `unavailable`，阶段断言失败。
+
+### 根因
+
+多轮 `repair_evidence` 同时包含“每一轮的单条 projection”和“整个 replay 的聚合 summary”。两者都使用 `evidence_projection` 字段名，收集器把缺少 `migration`、`evidence_registry_completeness` 的 summary 当作单条 projection，产生伪造的 unavailable/failed 计数。
+
+### 处理与预防
+
+M179 将多轮聚合字段命名为 `evidence_projection_summary`，单条证据仍使用 `evidence_projection`；收集器只有在对象同时包含 `migration` 和 `evidence_registry_completeness` 时才接受为单条 projection。以后新增聚合 evidence 时，必须区分“单条版本化证据”和“跨条目统计摘要”，不能只依赖字段名称；测试应同时覆盖真实当前状态、`unavailable` 状态和旧/未知 schema。
+
+### 补充：过滤集合修改必须同时检查推导源和消费集合
+
+在修复 `unavailable` 不应阻断当前结果时，第一次只替换了列表推导的消费集合，误把推导源也改成尚未定义的 `evaluated`，造成 replay 汇总 `UnboundLocalError`。处理方式是先从完整 `projections` 建立 `evaluated`，再让最终通过判断只消费 `evaluated`；以后修改两阶段过滤逻辑必须同时覆盖变量定义顺序和空集合测试，不能只看最终布尔表达式。
