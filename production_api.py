@@ -26,6 +26,7 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.environment_status import environment_status
+from agent.artifact_access import resolve_artifact_path
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.workflow_templates import workflow_template_catalog
@@ -383,29 +384,66 @@ def cancel(run_id: str, payload: Dict[str, Any]):
         _raise_for(exc)
 
 
-def _safe_artifact(root: Path, name: str, suffix: str, prefix: str = "") -> Path:
-    candidate = (root / Path(name).name).resolve()
-    if (
-        root.resolve() not in candidate.parents
-        or candidate.suffix != suffix
-        or (prefix and not candidate.name.startswith(prefix))
-    ):
-        raise HTTPException(status_code=404, detail="artifact not found")
-    if not candidate.is_file():
+def _safe_artifact(
+    root: Path,
+    name: str,
+    suffix: str,
+    prefix: str = "",
+    *,
+    domain_id: str = "gis",
+    metadata_root: Optional[Path] = None,
+) -> Path:
+    kind = "geojson" if suffix == ".geojson" else ("action" if prefix else "run")
+    candidate = resolve_artifact_path(
+        root,
+        name,
+        kind=kind,
+        domain_id=domain_id,
+        metadata_root=metadata_root,
+    )
+    if candidate is None:
         raise HTTPException(status_code=404, detail="artifact not found")
     return candidate
 
 
 @app.get("/artifacts/runs/{name}")
 def run_artifact(name: str):
-    return FileResponse(_safe_artifact(ARTIFACT_ROOT, name, ".json"), media_type="application/json")
+    return FileResponse(
+        _safe_artifact(
+            ARTIFACT_ROOT,
+            name,
+            ".json",
+            domain_id=getattr(service, "_resolved_domain_id", "gis"),
+            metadata_root=ARTIFACT_ROOT,
+        ),
+        media_type="application/json",
+    )
 
 
 @app.get("/artifacts/actions/{name}")
 def action_artifact(name: str):
-    return FileResponse(_safe_artifact(ARTIFACT_ROOT, name, ".json", prefix="action-"), media_type="application/json")
+    return FileResponse(
+        _safe_artifact(
+            ARTIFACT_ROOT,
+            name,
+            ".json",
+            prefix="action-",
+            domain_id=getattr(service, "_resolved_domain_id", "gis"),
+            metadata_root=ARTIFACT_ROOT,
+        ),
+        media_type="application/json",
+    )
 
 
 @app.get("/artifacts/geojson/{name}")
 def geojson_artifact(name: str):
-    return FileResponse(_safe_artifact(GEOJSON_ROOT, name, ".geojson"), media_type="application/geo+json")
+    return FileResponse(
+        _safe_artifact(
+            GEOJSON_ROOT,
+            name,
+            ".geojson",
+            domain_id=getattr(service, "_resolved_domain_id", "gis"),
+            metadata_root=ARTIFACT_ROOT,
+        ),
+        media_type="application/geo+json",
+    )

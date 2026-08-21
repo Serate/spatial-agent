@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Sequence
 
+from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.runtime_context import normalize_runtime_context
 
@@ -65,6 +66,11 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
     section_names = context.get("section_names")
     section_names = section_names if isinstance(section_names, list) else []
     steps = payload.get("steps") if isinstance(payload.get("steps"), list) else []
+    artifact_available = _artifact_available(
+        payload,
+        result=result,
+        artifact=artifact,
+    )
     values = {
             "status": payload.get("status"),
             "result_type": result.get("type"),
@@ -121,7 +127,19 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
                 if isinstance(step, dict)
             ],
             "trace_step_count": len(payload.get("trace_summary") or []),
-            "artifact_available": artifact.get("available"),
+            "artifact_available": artifact_available,
+            "artifact_schema": _artifact_schema(
+                payload,
+                result=result,
+                artifact=artifact,
+                artifact_available=artifact_available,
+            ),
+            "async_result_evidence": _async_result_evidence_projection(payload),
+            "degradation_and_view_states": _degradation_and_view_states(
+                payload,
+                result=result,
+                views=views,
+            ),
             "workspace_panels": workspace.get("panels", []),
             "views_schema": views.get("schema_version"),
             "view_panels": sorted(str(key) for key in panels),
@@ -134,6 +152,173 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
     if execution is not None:
         values["execution"] = execution
     return CrossEntryContract(values)
+
+
+def _artifact_schema(
+    payload: Mapping[str, Any],
+    *,
+    result: Mapping[str, Any],
+    artifact: Mapping[str, Any],
+    artifact_available: bool,
+) -> str | None:
+    """Return only the artifact format version, never its reference.
+
+    Run artifacts written before M147 intentionally have no version field.
+    When lineage proves an artifact is available but the public envelope does
+    not carry its top-level version, use the current compatible namespace so
+    old and current entries remain comparable.  An explicitly supplied future
+    version is still preserved and therefore remains visible to the harness.
+    """
+    candidates = [
+        payload.get("artifact_schema_version"),
+        payload.get("artifact_schema"),
+        artifact.get("artifact_schema_version"),
+        artifact.get("schema_version"),
+    ]
+    for value in candidates:
+        if isinstance(value, str) and value:
+            return value[:80]
+    if artifact_available:
+        # The public sync envelope exposes lineage availability but not the
+        # artifact's top-level version.  Infer the current compatible
+        # namespace so sync/artifact/recovery entries remain equivalent;
+        # legacy artifacts without a version are intentionally treated as
+        # compatible with that namespace.
+        if payload.get("action_execution_id") or isinstance(
+            result.get("action"), Mapping
+        ):
+            return "spatial-agent.action-artifact.v1"
+        return RUN_ARTIFACT_SCHEMA_VERSION
+    return None
+
+
+def _artifact_available(
+    payload: Mapping[str, Any],
+    *,
+    result: Mapping[str, Any],
+    artifact: Mapping[str, Any],
+) -> bool:
+    """Project artifact existence as a boolean without comparing its path."""
+    explicit = payload.get("artifact_available")
+    if isinstance(explicit, bool):
+        return explicit
+
+    for value in (
+        artifact.get("available"),
+        _mapping(payload.get("artifact")).get("available"),
+    ):
+        if isinstance(value, bool):
+            return value
+
+    lineage_artifact = _mapping(_mapping(result.get("lineage")).get("artifact"))
+    if isinstance(lineage_artifact.get("available"), bool):
+        return lineage_artifact["available"]
+
+    if isinstance(payload.get("artifact_schema_version"), str):
+        return bool(payload["artifact_schema_version"])
+    if isinstance(payload.get("artifact_ref"), str):
+        return bool(payload["artifact_ref"])
+    return False
+
+
+def _async_result_evidence_projection(
+    payload: Mapping[str, Any],
+) -> Dict[str, Any] | None:
+    """Keep the cross-entry portion of async result evidence only.
+
+    Async observations also carry request fingerprints, run identifiers and
+    timing data.  Those fields are useful operationally but are not part of
+    a sync/HTTP/artifact equivalence contract, so this projection deliberately
+    excludes them.
+    """
+    observation = payload.get("async_observability")
+    observation = observation if isinstance(observation, Mapping) else None
+    evidence = observation.get("result_evidence") if observation else None
+    if not isinstance(evidence, Mapping):
+        evidence = payload.get("result_evidence")
+    if not isinstance(evidence, Mapping):
+        return None
+
+    evidence_artifact = _mapping(evidence.get("artifact"))
+    evidence_views = _mapping(evidence.get("views"))
+    return {
+        "schema_version": _stable_version(evidence.get("schema_version")),
+        "state": _stable_status(evidence.get("state")),
+        "status": _stable_status(evidence.get("status")),
+        "degradation_status": _stable_status(
+            evidence.get("degradation_status")
+        ),
+        "artifact_available": _optional_bool(evidence_artifact.get("available")),
+        "views": _view_state_projection(evidence_views),
+    }
+
+
+def _degradation_and_view_states(
+    payload: Mapping[str, Any],
+    *,
+    result: Mapping[str, Any],
+    views: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Project durable degradation and view state without volatile detail."""
+    degradation = result.get("degradation")
+    if not isinstance(degradation, Mapping):
+        degradation = payload.get("degradation")
+    degradation = degradation if isinstance(degradation, Mapping) else {}
+    items = degradation.get("items")
+    if not isinstance(items, list):
+        items = _mapping(result.get("data")).get("degradations")
+    codes = sorted(
+        {
+            str(item.get("code"))[:96]
+            for item in (items if isinstance(items, list) else [])
+            if isinstance(item, Mapping) and item.get("code")
+        }
+    )
+    return {
+        "degradation": {
+            "schema_version": _stable_version(degradation.get("schema_version")),
+            "status": _stable_status(degradation.get("status")),
+            "codes": codes,
+        },
+        "views": _view_state_projection(views),
+    }
+
+
+def _view_state_projection(views: Mapping[str, Any]) -> Dict[str, Any]:
+    """Project view schema and panel kind/state, omitting display payloads."""
+    panels = views.get("panels") if isinstance(views, Mapping) else None
+    panels = panels if isinstance(panels, Mapping) else {}
+    projected: Dict[str, Any] = {}
+    for panel_id, panel in sorted(panels.items(), key=lambda item: str(item[0])):
+        if not isinstance(panel, Mapping):
+            continue
+        kind = _stable_status(panel.get("kind"))
+        state = panel.get("state")
+        if not isinstance(state, str) or not state:
+            state = "unavailable" if kind == "unavailable" else "available"
+        projected[str(panel_id)] = {
+            "kind": kind,
+            "state": _stable_status(state),
+            "artifact_available": _optional_bool(panel.get("artifact_available")),
+        }
+    return {
+        "schema_version": _stable_version(
+            views.get("schema_version") if isinstance(views, Mapping) else None
+        ),
+        "panels": projected,
+    }
+
+
+def _stable_version(value: Any) -> str | None:
+    return value[:80] if isinstance(value, str) and value else None
+
+
+def _stable_status(value: Any) -> str | None:
+    return value[:96] if isinstance(value, str) and value else None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
 
 
 def normalize_execution(payload: Mapping[str, Any]) -> Dict[str, Any] | None:

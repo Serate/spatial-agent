@@ -1594,3 +1594,17 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 适合并行：独立 Domain 测试、文档/验收脚本、前端静态契约、互不重叠的 adapter 或 provider 边界。
 - 不直接并行：同时修改同一公共 schema、`result_contract.py`、Runtime 状态迁移或同一组前端核心函数；这些由主线先确定契约，再合并实现。
 - 每个并行子任务必须有显式专项测试，合并后仍按 compact -> 专项 -> Docker/HTTP 的顺序集成验证。
+
+## M148 当前阶段完成状态
+
+- `evaluation.contract_harness` 已比较 artifact schema、async result evidence、降级/视图状态和 artifact 可用性，同时忽略路径、run_id 与时间等易变字段。
+- 新增统一 Domain-aware artifact file access；开发 HTTP 与生产 FastAPI 的 run/action/GeoJSON 下载均执行 Domain 过滤，Text 请求 GIS artifact 返回 404。
+- artifact 持久化有界 async evidence；只有 artifact 时可恢复 evidence，缺失时明确为 `unavailable` 且 `availability=unknown`。
+- 修复自定义 Runtime 异步提交的 Context 快照字符串/tuple key 漂移，并让无 query 的 run detail 从持久化 Runtime Context 推断 planner/backend。
+- Console 依据 `/capabilities.domain_id` 隐藏/禁用 GIS 专用控件；新增 Text Domain 静态负向契约。
+- Docker opt-in replay：`docker exec -e SPATIAL_AGENT_M148_DOCKER_REPLAY=1 ai-agent-spatial-agent-1 python -m unittest tests.test_m148_docker_replay -v` 通过 Text/GIS 两个 case；production acceptance 通过。GIS degraded 证据按契约保留，不视为失败。
+- 默认 compact gate 未扩大；M148 专项与相邻回归 25 项通过。动态浏览器/CDP 和 live provider 未混入本阶段通过结论。
+
+## M149 全局规划参考
+
+下一阶段先从项目全局收敛嵌套 schema 迁移/未知版本边界，再增强 capability-guided replay/live plan repair 的统一证据，随后执行生产 FastAPI 与 Console 动态浏览器矩阵；不围绕单一 GIS 数据集增加规则，最大并发度保持 5。

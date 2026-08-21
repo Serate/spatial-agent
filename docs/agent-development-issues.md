@@ -3663,3 +3663,45 @@ Docker 容器已经 healthy，但生产 acceptance 的第一个 `/capabilities/r
 ### 处理与预防
 
 新增 `spatial-agent.run-artifact.v1`：新文件显式写版本；缺失版本的历史文件保持兼容；未知版本拒绝读取。`ArtifactStore` 对 run artifact 的写入和读取统一拒绝路径分隔符、`.`、`..` 和超长 run id，并继续按 Domain 过滤 recovery/list/read。以后新增 artifact 字段或版本时必须补当前/legacy/unknown 三类专项，而不能只测试新写入文件。
+
+## HTTP artifact 下载绕过 Domain 过滤
+
+### 现象
+
+内部 `ArtifactStore.read_run/read_action` 已按 Domain 过滤，但开发 HTTP 和生产 FastAPI 的 artifact 下载只按文件名、后缀和目录判断。已知文件名时，Text 服务可以直接读取 GIS 的 run、action 或 GeoJSON artifact。
+
+### 根因
+
+HTTP 文件下载被当作静态文件服务，没有复用业务层的 Domain 身份；GeoJSON 旧格式又可能没有直接保存 Domain 字段，导致“路径安全”被误当成“领域隔离”。
+
+### 处理与预防
+
+新增有界 artifact access seam：校验文件名、类型、前缀、JSON 结构和 Domain；旧 GeoJSON 缺少 Domain 时只从同名 run artifact 读取元数据，无法绑定时按历史 GIS 默认。开发和生产入口共用该规则，并补 run/action/GeoJSON 的跨 Domain 负向测试。以后任何 artifact 下载、预览或导出入口都必须回答：当前 Domain 如何确定、旧文件如何兼容、跨 Domain 是否返回 404。
+
+## 异步自定义 Runtime 的 Context 快照使用错误缓存 key
+
+### 现象
+
+Docker offline replay 的同步调用成功，但 HTTP async 提交在 worker 很快完成时返回 500，错误为 replay 工厂收到 `rule` 而不是 `openai`。慢一点轮询时又可能表现为 run detail 连接被关闭。
+
+### 根因
+
+`ServiceState` 用 `(planner, backend)` tuple 缓存 Runtime；`AgentService._submission_runtime_context()` 却使用 `"planner:backend"` 字符串查找，导致自定义 Runtime 的提交快照为空。async 观测随后按默认 `rule/memory` 重建 Runtime，绕过了原始 planner 选择。
+
+### 处理与预防
+
+改用 tuple key，并让 `get_run()` 在 URL 未提供 planner/backend 时从持久化 Runtime Context 或 async payload 推断实际选择。新增 Docker replay 红测覆盖快速 worker、HTTP async、轮询和重启恢复。以后新增 Runtime cache 或持久化快照字段时，必须同时验证 rule/LLM、memory/local、同步/异步和无 query run detail，不能只验证首次提交返回 run_id。
+
+## Async artifact evidence 的首次轮询与恢复状态不一致
+
+### 现象
+
+真实 GIS Docker replay 中，首次 async 轮询的 evidence 一度显示 artifact 不可用，而服务重启后从 artifact 恢复显示可用；另一个环境中 GIS 结果因数据质量而显示 `degraded`，旧测试却硬编码 `success`。
+
+### 根因
+
+SQLite run snapshot 与最终 artifact 写入存在短暂时序差异，状态快照可能没有 `artifact_ref`，但 artifact 文件已经存在。测试还把真实 GIS 数据降级误当成失败，忽略了项目对 `degraded` 的合法契约。
+
+### 处理与预防
+
+async evidence 生成时在同一 Domain 的 ArtifactStore 中做有界 fallback，只取安全 artifact basename；artifact-only recovery 与首次轮询使用同一投影。Docker replay 允许 `success/degraded`，但要求 degraded 有非空降级状态且重启后保持一致。以后真实数据验收必须区分 `failed`、`unavailable` 和合法 `degraded`，不能为追求绿色测试放宽数据门控或硬编码 success。

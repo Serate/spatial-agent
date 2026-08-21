@@ -1333,3 +1333,16 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 ## M146 下一阶段全局规划参考
 
 下一阶段从整体可靠性收口 view evidence 的异步生命周期：验证 `unavailable`、degraded、成功 view 在 SQLite 重启、多 worker 轮询、artifact recovery 和 HTTP 详情中的一致性，并检查前端链接只消费安全的 artifact 引用。默认 active suite 不扩张，专项测试按风险显式运行。
+
+## M148 当前实现与验证状态
+
+- Contract Harness 新增稳定投影：run artifact schema、async result evidence、degradation/view states 和 artifact availability；忽略路径、run_id、时间和其他传输易变字段，并保持旧 fixture 兼容。
+- HTTP run/action/GeoJSON artifact 下载统一经过有界 Domain 校验；Text Domain 读取 GIS artifact 返回 404，开发入口和生产 FastAPI 入口共用同一访问规则。Console 根据 `/capabilities` 的 `domain_id` 隐藏并禁用 GIS 专用控件，不增加结果 renderer 的 GIS 分支。
+- run artifact 保存有界 `async_result_evidence`；SQLite job 丢失时可从 artifact 恢复，旧 artifact 缺失 evidence 时返回 `unavailable/availability=unknown`，不静默丢失状态。
+- 修复异步自定义 Runtime 的 Context 快照查找：ServiceState 使用 `(planner, backend)` tuple 作为缓存 key；run detail 在 URL 未提供选择器时从持久化 Runtime Context 推断实际 planner/backend，避免 OpenAI/local 运行被错误重建为 rule/memory。
+- Docker offline replay 显式验收覆盖 Text 与真实 GIS：`LLMPlanner -> ToolRegistry -> AgentService -> artifact -> HTTP async -> SQLite/artifact recovery`，两例通过；模型 evidence 标记 `offline_replay`，重启后模型调用数为 0。GIS 的 degraded 结果作为明确证据保留并跨恢复一致。
+- M148 专项、相邻 M146/M147/Domain 回归 25 项通过；生产 Docker acceptance 通过。动态 Chrome/CDP 与 live provider 仍是独立验收路径。
+
+## M149 下一阶段全局规划参考
+
+从整体 Agent Runtime 继续推进“跨入口契约可执行且可解释”：先补嵌套 result/view/workspace schema 的严格迁移边界，再把 replay/live 的计划修复证据接入统一评测，最后做生产 FastAPI 与 Console 动态浏览器矩阵。默认 active suite 不扩张，Docker/GIS/live/browser 保持显式 profile，最大并发度为 5。

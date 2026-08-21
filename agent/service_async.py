@@ -17,6 +17,9 @@ from agent.sqlite_store import SQLiteStateStore
 from result_contract import build_lineage_index
 
 
+ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION = "spatial-agent.async-result-evidence.v1"
+_ASYNC_RESULT_EVIDENCE_STATES = {"pending", "success", "degraded", "unavailable"}
+
 _TERMINAL_RUN_STATUSES = {
     "COMPLETED",
     "NEEDS_CLARIFICATION",
@@ -118,7 +121,7 @@ def build_async_observability(
     if isinstance(lineage, dict):
         observation["lineage"] = lineage
     observation["result_evidence"] = result_evidence or {
-        "schema_version": "spatial-agent.async-result-evidence.v1",
+        "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": False,
         "state": "pending" if status in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"} else "unavailable",
         "status": status,
@@ -201,7 +204,7 @@ def build_async_result_evidence(
         # worker.  Do not rely on the host platform's Path separator.
         ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
     return {
-        "schema_version": "spatial-agent.async-result-evidence.v1",
+        "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value),
         "state": state,
         "status": str(status or "UNKNOWN")[:32],
@@ -218,6 +221,136 @@ def build_async_result_evidence(
         },
         "artifact": {"available": bool(ref), "ref": ref},
     }
+
+
+def unavailable_async_result_evidence(
+    *,
+    status: str = "UNKNOWN",
+    artifact_ref: Any = None,
+    reason_code: str = "async_result_evidence_missing",
+    source: str = "run_artifact",
+) -> Dict[str, Any]:
+    """Describe missing async evidence without silently dropping the state.
+
+    Artifact-only recovery may encounter a legacy run artifact that predates
+    the async evidence field.  Keep the normal bounded evidence shape, but
+    explicitly mark availability as unknown and expose only a stable reason
+    code.  This is intentionally not an error payload and never includes a
+    request, raw exception, or host path.
+    """
+    evidence = build_async_result_evidence(
+        {}, status=status, artifact_ref=artifact_ref
+    )
+    evidence.update(
+        {
+            "available": False,
+            "state": "unavailable",
+            "degradation_status": "unavailable",
+            "availability": "unknown",
+            "reason_code": str(reason_code or "async_result_evidence_missing")[:96],
+            "source": str(source or "run_artifact")[:32],
+        }
+    )
+    return evidence
+
+
+def normalize_async_result_evidence(
+    value: Any,
+    *,
+    status: str = "UNKNOWN",
+    artifact_ref: Any = None,
+) -> Dict[str, Any]:
+    """Return a bounded, path-safe async evidence projection.
+
+    This is used at the artifact boundary as well as during recovery.  It
+    prevents a hand-written or older artifact from reintroducing arbitrary
+    nested data into the polling contract.  Unknown nested versions/states
+    become explicit unavailable evidence rather than being interpreted as a
+    current format.
+    """
+    if not isinstance(value, Mapping):
+        return unavailable_async_result_evidence(
+            status=status,
+            artifact_ref=artifact_ref,
+        )
+    if value.get("schema_version") != ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION:
+        return unavailable_async_result_evidence(
+            status=status,
+            artifact_ref=artifact_ref,
+            reason_code="async_result_evidence_unknown_schema",
+        )
+    state = str(value.get("state") or "unavailable")[:32]
+    if state not in _ASYNC_RESULT_EVIDENCE_STATES:
+        return unavailable_async_result_evidence(
+            status=status,
+            artifact_ref=artifact_ref,
+            reason_code="async_result_evidence_unknown_state",
+        )
+
+    def _safe_ref(ref: Any) -> str | None:
+        if not ref:
+            return None
+        return str(ref).replace("\\", "/").rsplit("/", 1)[-1] or None
+
+    workspace = value.get("workspace")
+    workspace = workspace if isinstance(workspace, Mapping) else {}
+    panels = workspace.get("panels")
+    panels = panels if isinstance(panels, list) else []
+    safe_panels = [str(item)[:64] for item in panels[:20]]
+    specs = workspace.get("view_specs")
+    specs = specs if isinstance(specs, list) else []
+    safe_specs = []
+    for item in specs[:20]:
+        if not isinstance(item, Mapping):
+            continue
+        spec = {}
+        for key in ("id", "title", "renderer"):
+            if item.get(key) is not None:
+                spec[key] = str(item[key])[:120]
+        if spec:
+            safe_specs.append(spec)
+
+    views = value.get("views")
+    views = views if isinstance(views, Mapping) else {}
+    source_panels = views.get("panels")
+    source_panels = source_panels if isinstance(source_panels, Mapping) else {}
+    safe_view_panels = {}
+    for panel_id, panel in list(source_panels.items())[:20]:
+        if not isinstance(panel, Mapping):
+            continue
+        safe_view_panels[str(panel_id)[:64]] = {
+            "kind": str(panel.get("kind") or "unknown")[:64],
+            "state": str(panel.get("state") or "unavailable")[:32],
+            "artifact_available": bool(panel.get("artifact_available")),
+        }
+
+    artifact = value.get("artifact")
+    artifact = artifact if isinstance(artifact, Mapping) else {}
+    ref = _safe_ref(artifact.get("ref") or artifact_ref)
+    result = {
+        "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
+        "available": bool(value.get("available")) and state != "unavailable",
+        "state": state,
+        "status": str(value.get("status") or status or "UNKNOWN")[:32],
+        "result_type": str(value.get("result_type") or "unknown")[:96],
+        "degradation_status": str(value.get("degradation_status") or "none")[:32],
+        "workspace": {
+            "schema_version": str(workspace.get("schema_version") or "")[:80],
+            "panels": safe_panels,
+            "view_specs": safe_specs,
+        },
+        "views": {
+            "schema_version": str(
+                views.get("schema_version") or "spatial-agent.views.v1"
+            )[:80],
+            "panels": safe_view_panels,
+        },
+        "artifact": {"available": bool(ref), "ref": ref},
+    }
+    for key in ("availability", "reason_code", "source"):
+        if value.get(key) is not None:
+            result[key] = str(value[key])[:96]
+    return result
 
 
 def failure_category_for(status: str, error: str = None, source: str = None) -> str:

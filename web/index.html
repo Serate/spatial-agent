@@ -439,6 +439,7 @@
       border-radius: 4px;
       background: linear-gradient(180deg, var(--teal), var(--amber));
     }
+    [data-domain-control][hidden] { display: none !important; }
     .result-panel { display: none; }
     .result-panel.is-visible { display: block; animation: panel-rise .3s ease both; }
     .generic-result { grid-column: 1 / -1; }
@@ -884,7 +885,7 @@
   <header><h1>空间智能体控制台</h1><span>对话 / 规划器 / 运行时 / 空间后端</span></header>
   <main>
     <aside id="workspaceControls" class="controls panel">
-      <div class="row"><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">空间后端</label><select id="backend"><option value="memory">内存演示</option><option value="local">本地 GIS</option></select></div></div>
+      <div class="row"><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">空间后端</label><select id="backend"><option value="memory">内存演示</option><option value="local" data-domain-control="gis">本地 GIS</option></select></div></div>
       <label for="session">选择对话</label><select id="session"><option value="conversation-1">对话1</option></select>
       <details id="workflowEditor" class="workflow-editor">
         <summary>工作流与约束</summary>
@@ -893,7 +894,7 @@
         <div id="workflowEvidence" class="workflow-evidence"></div>
         <div id="workflowValidation" class="workflow-validation" aria-live="polite"></div>
       </details>
-      <details class="suggestions"><summary>示例问题</summary><div class="examples" aria-label="示例问题">
+      <details class="suggestions" data-domain-control="gis"><summary>示例问题</summary><div class="examples" aria-label="示例问题">
         <button class="example" data-request="查询DEM栅格元数据">查询 DEM 栅格元数据</button>
         <button class="example" data-request="分析DEM高程统计">分析 DEM 高程统计</button>
         <button class="example" data-request="分析洪山区DEM高程概况">分析洪山区 DEM 高程概况</button>
@@ -902,7 +903,7 @@
         <button class="example" data-request="查询洪山区行政区边界">查询洪山区行政区边界</button>
         <button class="example" data-request="查询土地利用栅格元数据">查询土地利用栅格元数据</button>
       </div></details>
-      <div class="hint">真实大模型会读取本地服务商配置。本地 GIS 后端需要用 spatial-agent-gis 环境启动服务。</div>
+      <div class="hint" data-domain-control="gis">真实大模型会读取本地服务商配置。本地 GIS 后端需要用 spatial-agent-gis 环境启动服务。</div>
       <div id="env" class="env"><div>正在检查运行环境...</div></div>
       <div id="capabilityStatus" class="distribution-note">正在读取能力目录...</div>
       <div class="history"><div class="history-head"><strong>历史任务</strong><button id="refreshHistory" class="history-refresh" type="button">刷新</button></div><div id="runtimeMetrics" class="distribution-note">正在读取运行指标…</div><div id="historyList" class="history-list"><div class="muted">正在读取历史任务…</div></div></div>
@@ -924,16 +925,16 @@
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><div id="genericResult" class="raw-json"></div></section>
         <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
         <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="dataEvidence" class="evidence-card"></div><div id="releaseEvidence" class="evidence-card release-evidence"></div></div><div class="evidence-grid"><div id="memoryEvidence" class="evidence-card memory-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
-        <section class="panel result-panel raster-result"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
-        <section class="panel result-panel health-result"><h3>数据健康检查</h3><div id="healthStats" class="muted"></div></section>
-        <section class="panel result-panel overview-result"><h3>空间总览摘要</h3><div id="overviewStats" class="metric-grid"></div><div id="overviewEvidence" class="distribution-note"></div></section>
-        <section class="panel result-panel composite-result"><h3>综合空间分析</h3><div id="compositeStats" class="muted"></div></section>
-        <section class="panel result-panel buildability-result"><h3>建设适宜性筛选</h3><div id="buildabilityStats" class="muted"></div></section>
-        <section class="panel result-panel compare-result"><h3>阈值结果对比</h3><div class="compare-controls"><input id="compareThresholds" value="15,20,25" aria-label="坡度阈值列表"><button id="compareButton" type="button">对比</button></div><div id="compareResults" class="muted">设置坡度阈值后点击「对比」生成结果。</div><div class="compare-controls region-compare-controls"><input id="compareRegions" value="洪山区,江夏区" aria-label="对比行政区列表"><input id="regionThreshold" type="number" value="20" min="1" max="45" aria-label="区域对比坡度阈值"><button id="regionCompareButton" type="button">多区域对比</button></div><div id="regionCompareResults" class="muted">设置行政区与阈值后点击「多区域对比」生成结果。</div><div class="compare-controls constrained-compare-controls"><input id="constrainedCompareRegion" value="洪山区" aria-label="约束对比行政区"><input id="constrainedSlope" type="number" value="15" min="1" max="45" aria-label="约束对比坡度阈值"><input id="constrainedRoadDistances" value="200,500,1000" aria-label="道路距离列表（米）"><button id="constrainedCompareButton" type="button">道路距离对比</button></div><div id="constrainedCompareResults" class="muted">设置行政区、坡度阈值与道路距离后点击「道路距离对比」生成约束敏感性结果。</div></section>
+        <section class="panel result-panel raster-result" data-domain-control="gis"><h3>栅格统计概览</h3><div id="rasterStats"></div></section>
+        <section class="panel result-panel health-result" data-domain-control="gis"><h3>数据健康检查</h3><div id="healthStats" class="muted"></div></section>
+        <section class="panel result-panel overview-result" data-domain-control="gis"><h3>空间总览摘要</h3><div id="overviewStats" class="metric-grid"></div><div id="overviewEvidence" class="distribution-note"></div></section>
+        <section class="panel result-panel composite-result" data-domain-control="gis"><h3>综合空间分析</h3><div id="compositeStats" class="muted"></div></section>
+        <section class="panel result-panel buildability-result" data-domain-control="gis"><h3>建设适宜性筛选</h3><div id="buildabilityStats" class="muted"></div></section>
+        <section class="panel result-panel compare-result" data-domain-control="gis"><h3>阈值结果对比</h3><div class="compare-controls"><input id="compareThresholds" value="15,20,25" aria-label="坡度阈值列表"><button id="compareButton" type="button">对比</button></div><div id="compareResults" class="muted">设置坡度阈值后点击「对比」生成结果。</div><div class="compare-controls region-compare-controls"><input id="compareRegions" value="洪山区,江夏区" aria-label="对比行政区列表"><input id="regionThreshold" type="number" value="20" min="1" max="45" aria-label="区域对比坡度阈值"><button id="regionCompareButton" type="button">多区域对比</button></div><div id="regionCompareResults" class="muted">设置行政区与阈值后点击「多区域对比」生成结果。</div><div class="compare-controls constrained-compare-controls"><input id="constrainedCompareRegion" value="洪山区" aria-label="约束对比行政区"><input id="constrainedSlope" type="number" value="15" min="1" max="45" aria-label="约束对比坡度阈值"><input id="constrainedRoadDistances" value="200,500,1000" aria-label="道路距离列表（米）"><button id="constrainedCompareButton" type="button">道路距离对比</button></div><div id="constrainedCompareResults" class="muted">设置行政区、坡度阈值与道路距离后点击「道路距离对比」生成约束敏感性结果。</div></section>
         <section class="panel result-panel common-result"><h3>规划指标</h3><div id="metrics" class="metric-grid"></div></section>
         <section class="panel result-panel common-result"><h3>任务计划与步骤</h3><div id="goal" class="muted" style="margin-bottom:14px"></div><ul id="steps" class="steps"></ul></section>
         <section class="panel result-panel common-result"><h3>运行血缘</h3><div id="provenance" class="provenance"></div></section>
-        <section class="panel result-panel map-result"><h3>空间预览</h3><div id="map" class="map"></div><div id="mapSelection" class="muted" style="margin-top:10px">点击地图要素后，可将其作为下一次分析的空间上下文。</div><button id="useMapSelection" type="button" disabled style="margin-top:8px">以选中区域继续分析</button></section>
+        <section class="panel result-panel map-result" data-domain-control="gis"><h3>空间预览</h3><div id="map" class="map"></div><div id="mapSelection" class="muted" style="margin-top:10px">点击地图要素后，可将其作为下一次分析的空间上下文。</div><button id="useMapSelection" type="button" disabled style="margin-top:8px">以选中区域继续分析</button></section>
         <section class="panel result-panel common-result trace-result" style="grid-column:1/-1"><h3>执行轨迹</h3><ol id="trace" class="trace"></ol><div id="links" class="links" style="margin-top:14px"></div></section>
       </div>
     </div>
@@ -951,6 +952,39 @@
       }
     }
     dockWorkspaceControls();
+    let activeDomainId = 'unknown';
+    function setDomainControlState(domainId) {
+      activeDomainId = String(domainId || 'unknown').trim().toLowerCase() || 'unknown';
+      document.documentElement.dataset.domainId = activeDomainId;
+      document.querySelectorAll('[data-domain-control]').forEach(control => {
+        const domains = String(control.dataset.domainControl || '')
+          .split(/[\s,]+/)
+          .map(value => value.trim().toLowerCase())
+          .filter(Boolean);
+        const allowed = domains.includes(activeDomainId);
+        control.hidden = !allowed;
+        control.setAttribute('aria-hidden', String(!allowed));
+        const focusable = [];
+        if (control.matches('button, input, select, textarea, option, [tabindex]')) focusable.push(control);
+        focusable.push(...control.querySelectorAll('button, input, select, textarea, option, [tabindex]'));
+        focusable.forEach(element => {
+          if (!allowed) {
+            if (element.dataset.domainRestoreDisabled === undefined) {
+              element.dataset.domainRestoreDisabled = String(element.disabled);
+            }
+            element.disabled = true;
+          } else if (element.dataset.domainRestoreDisabled !== undefined) {
+            element.disabled = element.dataset.domainRestoreDisabled === 'true';
+            delete element.dataset.domainRestoreDisabled;
+          }
+        });
+      });
+      const backend = $('backend');
+      if (backend && activeDomainId !== 'gis' && backend.value === 'local') {
+        backend.value = 'memory';
+      }
+    }
+    setDomainControlState('unknown');
     function setResultPanel(selector, visible) { document.querySelectorAll(selector).forEach(panel => panel.classList.toggle('is-visible', visible)); }
     const workspacePanelSelectors = {
       raster: '.raster-result',
@@ -1240,9 +1274,10 @@
       $('degradationEvidence').innerHTML=degradations.length?'<div class="degradation-item"><strong>降级与限制</strong></div>'+degradations.map(item=>'<div class="degradation-item">'+escapeHtml(item)+'</div>').join(''):'<div class="degradation-item ok">未发现明确降级状态；仍应以空间几何、数据质量和来源证据共同判断结果可信范围。</div>';
     }
     function loadRuntimeEvidence() { if(runtimeEvidenceSnapshot||runtimeEvidencePromise) return; runtimeEvidencePromise=nativeFetch('/capabilities/runtime?max_files=3').then(response=>{if(!response.ok) throw new Error('runtime evidence unavailable');return response.json();}).then(snapshot=>{runtimeEvidenceSnapshot=snapshot;if(lastRunData) renderEvidence(lastRunData);}).catch(()=>null).finally(()=>{runtimeEvidencePromise=null;}); }
-    function renderCapabilities(data) { const catalog=data.capability_catalog||{}; const items=catalog.capabilities||[]; const ready=items.filter(item=>item.dataset_gate==='ready'&&item.environment_supported).length; const unknown=items.filter(item=>item.dataset_gate==='unknown').length; const actions=(catalog.actions?.actions||actionCatalog.actions||[]).length; $('capabilityStatus').textContent='能力目录：'+ready+' / '+items.length+' 项已通过数据门控'+(unknown?'；'+unknown+' 项待健康检查':'')+'；已注册动作 '+actions+' 项；真实几何以运行证据为准。'; }
-    function renderHealth(data) { health=data; const caps=data.capabilities||{}; const rows=[['内存演示',caps.memory_backend?'可用':'不可用',caps.memory_backend],['本地 GIS',caps.local_gis_backend?'可用':'不可用',caps.local_gis_backend],llmHealthLabel(caps)]; $('env').innerHTML=rows.map(x=>'<div class="'+(x[2]?'':'bad')+'">'+x[0]+'：'+x[1]+'</div>').join(''); renderCapabilities(data); }
-    async function loadHealth() { try { const response=await fetch('/health'); renderHealth(await response.json()); } catch(e) { $('env').innerHTML='<div class="bad">无法读取运行环境状态</div>'; $('capabilityStatus').textContent='能力目录暂不可用。'; } }
+    function renderCapabilities(data) { const catalog=data.capability_catalog||data||{}; const items=catalog.capabilities||[]; const ready=items.filter(item=>item.dataset_gate==='ready'&&item.environment_supported).length; const unknown=items.filter(item=>item.dataset_gate==='unknown').length; const actions=(catalog.actions?.actions||actionCatalog.actions||[]).length; $('capabilityStatus').textContent='能力目录：'+ready+' / '+items.length+' 项已通过数据门控'+(unknown?'；'+unknown+' 项待健康检查':'')+'；已注册动作 '+actions+' 项；真实几何以运行证据为准。'; }
+    function renderHealth(data) { health=data; const caps=data.capabilities||{}; const rows=[['内存演示',caps.memory_backend?'可用':'不可用',caps.memory_backend,''],['本地 GIS',caps.local_gis_backend?'可用':'不可用',caps.local_gis_backend,'gis'],llmHealthLabel(caps)]; $('env').innerHTML=rows.map(x=>'<div'+(x[3]?' data-domain-control="'+x[3]+'"':'')+' class="'+(x[2]?'':'bad')+'">'+x[0]+'：'+x[1]+'</div>').join(''); renderCapabilities(data); setDomainControlState(activeDomainId); }
+    async function loadHealth() { try { const response=await fetch('/health'); renderHealth(await response.json()); } catch(e) { $('env').innerHTML='<div class="bad">无法读取运行环境状态</div>'; $('capabilityStatus').textContent='能力目录暂不可用。'; setDomainControlState('unknown'); } }
+    async function loadCapabilities() { try { const query='?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value); const response=await nativeFetch('/capabilities'+query); const data=await response.json(); if(!response.ok) throw new Error(data.error||'能力目录不可用'); setDomainControlState(data.domain_id); renderCapabilities(data); } catch(error) { setDomainControlState('unknown'); $('capabilityStatus').textContent='能力目录暂不可用。'; } }
     function actionSpec(actionId) { return (actionCatalog.actions||[]).find(item=>item&&item.id===actionId)||null; }
     async function loadActions() { const query='?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value); actionCatalogPromise=nativeFetch('/actions'+query).then(async response=>{ if(!response.ok) throw new Error('action catalog unavailable'); const data=await response.json(); actionCatalog={schema_version:data.schema_version||'spatial-agent.actions.v1',domain_id:data.domain_id||'unknown',actions:Array.isArray(data.actions)?data.actions:[]}; if(health) renderCapabilities(health); return actionCatalog; }).catch(()=>{ actionCatalog={schema_version:'spatial-agent.actions.v1',domain_id:'unknown',actions:[]}; return actionCatalog; }).finally(()=>{ actionCatalogPromise=null; }); return actionCatalogPromise; }
     async function executeDomainAction(actionId,payload) { if(actionCatalogPromise) await actionCatalogPromise; if(!actionSpec(actionId)) throw new Error('当前领域未注册动作：'+actionId); const response=await nativeFetch('/actions/'+encodeURIComponent(actionId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload||{})}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(data.error||data.detail||'动作执行失败'); return data; }
@@ -1265,11 +1300,12 @@
     $('refreshHistory').addEventListener('click',loadHistory);
     $('clearChat').addEventListener('click',clearChat);
     $('workflow').addEventListener('change',renderWorkflowEditor);
-    $('planner').addEventListener('change',loadActions);
-    $('backend').addEventListener('change',loadActions);
+    $('planner').addEventListener('change',()=>{ loadActions(); loadCapabilities(); });
+    $('backend').addEventListener('change',()=>{ loadActions(); loadCapabilities(); });
     document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{ $('prompt').value=button.dataset.request; $('prompt').focus(); }));
     welcome();
     loadHealth();
+    loadCapabilities();
     loadActions();
     loadWorkflows();
     loadSessions().then(restoreSession);

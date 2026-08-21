@@ -18,6 +18,7 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.environment_status import environment_status
+from agent.artifact_access import resolve_artifact_path
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
@@ -324,22 +325,29 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         parts = path.strip("/").split("/")
         if len(parts) != 3 or parts[0] != "artifacts":
             return None
-        roots = {"runs": (self.artifact_root, "application/json"), "actions": (self.artifact_root, "application/json"), "geojson": (self.geojson_root, "application/geo+json")}
+        roots = {
+            "runs": (self.artifact_root, "application/json", "run"),
+            "actions": (self.artifact_root, "application/json", "action"),
+            "geojson": (self.geojson_root, "application/geo+json", "geojson"),
+        }
         if parts[1] not in roots or Path(parts[2]).name != parts[2]:
             return None
-        root, content_type = roots[parts[1]]
+        root, content_type, kind = roots[parts[1]]
         explicit_artifact_root = "artifact_root" in type(self).__dict__
         if parts[1] in ("runs", "actions") and self.service is not None and not explicit_artifact_root:
             store_root = getattr(getattr(self.service, "_artifact_store", None), "_root", None)
             if store_root is not None:
                 root = Path(store_root)
-        candidate = (root / parts[2]).resolve()
-        if root.resolve() not in candidate.parents:
-            return None
-        expected_suffix = ".geojson" if parts[1] == "geojson" else ".json"
-        if candidate.suffix != expected_suffix:
-            return None
-        if parts[1] == "actions" and not candidate.name.startswith("action-"):
+        domain_id = getattr(self.service, "_resolved_domain_id", "gis") if self.service is not None else "gis"
+        metadata_root = self.artifact_root if parts[1] == "geojson" else None
+        candidate = resolve_artifact_path(
+            root,
+            parts[2],
+            kind=kind,
+            domain_id=domain_id,
+            metadata_root=metadata_root,
+        )
+        if candidate is None:
             return None
         return candidate, content_type
 

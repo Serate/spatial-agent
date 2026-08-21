@@ -33,6 +33,8 @@ from result_contract import (
 from agent.service_async import (
     build_async_observability as _build_async_observability,
     build_async_result_evidence as _build_async_result_evidence,
+    normalize_async_result_evidence as _normalize_async_result_evidence,
+    unavailable_async_result_evidence as _unavailable_async_result_evidence,
     async_event as _async_event,
     async_fingerprint as _async_fingerprint,
     async_response as _async_response,
@@ -254,6 +256,7 @@ class AgentService:
         run_id: str = None,
         preview_fingerprint: str = None,
         _force_run_id: bool = False,
+        _async_requested: bool = False,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
@@ -306,6 +309,7 @@ class AgentService:
                 export_artifact=export_artifact,
                 export_geojson=export_geojson,
                 geojson_max_features=geojson_max_features,
+                async_requested=_async_requested,
             )
         finally:
             cost.release_concurrency()
@@ -384,6 +388,7 @@ class AgentService:
         export_artifact: bool,
         export_geojson: bool,
         geojson_max_features: int,
+        async_requested: bool = False,
     ) -> Dict:
         runtime = self._runtime(planner, backend)
         if workflow_context is not None:
@@ -392,6 +397,11 @@ class AgentService:
             _contextualize_request(request, normalized_context), **runtime_kwargs
         )
         payload = result.to_dict()
+        if async_requested:
+            # Internal marker consumed only by ArtifactStore.  It is kept out
+            # of the public result envelope while allowing a partial artifact
+            # to be identified as an async run during recovery.
+            payload["_async_requested"] = True
         payload["spatial_context"] = normalized_context
         payload["result_type"] = _result_type(payload)
         payload["trace_summary"] = format_trace(result)
@@ -449,12 +459,26 @@ class AgentService:
         if self._state.persistent:
             self._state.save_run(result)
         self._attach_async_observability(payload, payload.get("run_id"))
+        if export_artifact and async_requested:
+            # The first artifact write happens before the final async
+            # observation exists.  Refresh it once more so artifact-only
+            # recovery can render the same bounded evidence.
+            self._artifact_store.write_run(payload)
         payload["memory_evidence"] = self._state.memory.evidence(
             str(payload.get("session_id") or "default")
         )
         # Mark the durable job terminal only after every final snapshot read
         # is complete. Pollers use this marker as the worker quiescence boundary.
         self._finalize_async_job(payload)
+        if async_requested:
+            # The job is terminal now, so a final observation can be rebuilt
+            # even when the pre-finalization snapshot was not yet visible to
+            # this worker.  Persist that terminal evidence for artifact-only
+            # recovery as well.
+            self._attach_async_observability(payload, payload.get("run_id"))
+            if export_artifact:
+                self._artifact_store.write_run(payload)
+        payload.pop("_async_requested", None)
         return payload
 
     def run_async(self, **kwargs) -> Dict:
@@ -592,7 +616,12 @@ class AgentService:
                 # provide a Context snapshot.
                 if current_context is not None:
                     assert_runtime_context_compatible(runtime_context, current_context)
-            payload = self.run(run_id=run_id, _force_run_id=True, **kwargs)
+            payload = self.run(
+                run_id=run_id,
+                _force_run_id=True,
+                _async_requested=True,
+                **kwargs,
+            )
             status = str(payload.get("status") or "FAILED")
             completed = True
         except Exception as exc:
@@ -713,6 +742,56 @@ class AgentService:
                 job["last_event"] = _async_event(status)
                 return
 
+    def _artifact_async_observability(self, run_id: str) -> Optional[Dict[str, Any]]:
+        """Rebuild async evidence when the SQLite job row is unavailable.
+
+        Only artifacts explicitly marked as async (or carrying the new
+        evidence field) enter this path.  That keeps synchronous run artifacts
+        from unexpectedly gaining an async polling payload while allowing a
+        partially written/legacy async artifact to report an explicit
+        unavailable/unknown evidence state.
+        """
+        artifact = self._artifact_store.read_run(
+            run_id, domain_id=self._resolved_domain_id
+        )
+        if not isinstance(artifact, dict):
+            return None
+        is_async = bool(
+            artifact.get("async_requested")
+            or "async_result_evidence" in artifact
+            or isinstance(artifact.get("async_observability"), dict)
+        )
+        if not is_async:
+            return None
+        status = str(artifact.get("status") or "UNKNOWN")[:32]
+        evidence = artifact.get("async_result_evidence")
+        if evidence is None and isinstance(artifact.get("async_observability"), dict):
+            # Accept the transitional nested shape used by early async
+            # artifacts while keeping the persisted projection flat going
+            # forward.
+            evidence = artifact["async_observability"].get("result_evidence")
+        if evidence is None:
+            evidence = _unavailable_async_result_evidence(
+                status=status,
+                artifact_ref=artifact.get("artifact_ref"),
+            )
+        else:
+            evidence = _normalize_async_result_evidence(
+                evidence,
+                status=status,
+                artifact_ref=artifact.get("artifact_ref"),
+            )
+        return _build_async_observability(
+            {
+                "run_id": run_id,
+                "status": status,
+                "payload": {},
+                "recovery_count": 1,
+                "last_event": "artifact_recovered",
+            },
+            result_evidence=evidence,
+        )
+
     def get_async_observability(self, run_id: str) -> Dict[str, Any]:
         """Return a bounded lifecycle summary with no request or error text."""
         if not isinstance(run_id, str) or not run_id.strip():
@@ -729,6 +808,9 @@ class AgentService:
                     None,
                 )
         if job is None:
+            artifact_observation = self._artifact_async_observability(run_id)
+            if artifact_observation is not None:
+                return artifact_observation
             raise ValueError("async run not found: " + run_id)
         result = (
             self._state.get_run(run_id, domain_id=self._resolved_domain_id)
@@ -753,10 +835,21 @@ class AgentService:
                 result_payload,
                 registry=_runtime_result_registry(runtime),
             )
+            artifact_ref = result_payload.get("artifact_ref")
+            if not artifact_ref and self._artifact_store is not None:
+                # SQLite snapshots can become visible just before the final
+                # artifact_ref column is refreshed.  The artifact itself is
+                # the durable source of truth for this bounded evidence; use
+                # only its safe reference, never its contents.
+                artifact = self._artifact_store.read_run(
+                    run_id, domain_id=self._resolved_domain_id
+                )
+                if isinstance(artifact, dict):
+                    artifact_ref = artifact.get("artifact_ref")
             result_evidence = _build_async_result_evidence(
                 result_contract,
                 status=result.status.value,
-                artifact_ref=result_payload.get("artifact_ref"),
+                artifact_ref=artifact_ref,
             )
         return _build_async_observability(
             job,
@@ -796,6 +889,46 @@ class AgentService:
             if result is not None:
                 return result
         return None
+
+    def _infer_run_runtime_selection(
+        self, run_id: str, planner: str, backend: str
+    ) -> tuple[str, str]:
+        """Use persisted Runtime Context when a detail URL omits selectors.
+
+        HTTP clients historically called ``GET /runs/{id}`` without planner or
+        backend query parameters.  Rebuilding the default rule/memory Runtime
+        for an OpenAI/local run can execute the wrong Domain factory (and can
+        fail before the result is even formatted).  The run snapshot and
+        async submission payload already carry the immutable selection, so
+        recover it without inventing a new Runtime.
+        """
+        if (planner, backend) != ("rule", "memory"):
+            return planner, backend
+
+        context = None
+        if self._state.persistent:
+            domain_id = self._resolved_domain_id or self._configured_domain_id
+            snapshot = self._state.get_run(run_id, domain_id=domain_id)
+            context = getattr(snapshot, "runtime_context", None) if snapshot else None
+            if not isinstance(context, dict):
+                job = self._state.async_job(run_id, domain_id=domain_id)
+                payload = job.get("payload") if isinstance(job, dict) else None
+                context = payload.get("runtime_context") if isinstance(payload, dict) else None
+                if isinstance(payload, dict):
+                    planner = str(payload.get("planner") or planner)
+                    backend = str(payload.get("backend") or backend)
+        else:
+            snapshot = self._memory_run(run_id)
+            context = getattr(snapshot, "runtime_context", None) if snapshot else None
+
+        if isinstance(context, dict):
+            planner = str(context.get("planner") or planner)
+            backend = str(context.get("backend") or backend)
+        if planner not in {"rule", "openai"}:
+            planner = "rule"
+        if backend not in {"memory", "local"}:
+            backend = "memory"
+        return planner, backend
 
     def retry(
         self,
@@ -874,6 +1007,7 @@ class AgentService:
     def get_run(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
+        planner, backend = self._infer_run_runtime_selection(run_id, planner, backend)
         domain_id = self._domain_id(planner, backend)
         result = None
         # A terminal run snapshot can be written just before the durable async
@@ -917,11 +1051,11 @@ class AgentService:
             # found by scanning every live runtime before falling back to the
             # durable artifact.
             result = self._memory_run(run_id)
-        if result is None and not self._state.persistent:
-            # Durable lineage navigation: after a process restart the in-memory
-            # run store is gone, but the exported artifact survives on disk.
-            # Serve a degraded detail (answer/trace/provenance/context) from the
-            # artifact instead of requiring the model to re-run the request.
+        if result is None:
+            # Durable lineage navigation: after a process restart or when the
+            # SQLite row has been removed, the exported artifact may be the
+            # only surviving run snapshot.  Serve a degraded detail from it
+            # instead of requiring the model to re-run the request.
             payload = (
                 self._artifact_store.read_run(run_id, domain_id=domain_id)
                 if self._artifact_store is not None
@@ -1630,7 +1764,15 @@ class AgentService:
                 ),
             )
         runtimes = self._state.runtimes()
-        runtime = runtimes.get(str(planner) + ":" + str(backend))
+        # ServiceState caches runtimes by the validated `(planner, backend)`
+        # tuple.  Looking up a string key silently dropped the context for
+        # custom factories, causing async polling to rebuild the default
+        # rule/memory Runtime and fail before the first HTTP response.
+        runtime = runtimes.get((str(planner), str(backend)))
+        if runtime is None:
+            # Keep compatibility with any legacy state facade that exposed
+            # string keys while making the tuple key the canonical path.
+            runtime = runtimes.get(str(planner) + ":" + str(backend))
         builder = getattr(runtime, "runtime_context", None) if runtime else None
         value = builder() if callable(builder) else None
         return dict(value) if isinstance(value, dict) else None

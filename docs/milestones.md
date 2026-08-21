@@ -3013,3 +3013,16 @@ M147 在 M146 async evidence 之上补齐公共 artifact 边界：run artifact �
 5. **部署可靠性**：验证同步、异步、artifact/recovery 和多 worker 中 repair lineage 一致，保留明确的配置漂移、超时和 provider 暂态分类。
 6. **用户体验**：Console 使用通用规划/修复/失败证据动态展示，不增加 GIS 专属页面分支。
 7. **测试证据**：先做 schema/DAG/repair 契约测试，再做 Text/GIS replay、HTTP/artifact/async 矩阵，最后运行 Docker/GIS/live 显式验收。
+
+## M148：跨 Domain artifact、async evidence 与 Docker replay（已完成）
+
+M148 从完整 Agent Runtime 视角收敛跨入口证据边界，而不是增加 GIS 专用分析规则。Contract Harness 现在比较 artifact schema、async result evidence、degradation/view states 和 artifact availability；路径、run_id、时间等传输细节不进入稳定投影。
+
+- 新增统一 Domain-aware artifact 访问函数，开发 HTTP 与生产 FastAPI 对 run/action/GeoJSON 下载执行同一 Domain 校验；Text/GIS 负向矩阵覆盖三类 artifact。
+- run artifact 保存有界 async result evidence；SQLite job 丢失时从 artifact 恢复，旧 artifact 缺失 evidence 时明确返回 `unavailable + availability=unknown`。
+- 修复异步自定义 Runtime Context 使用错误缓存 key 导致的 HTTP 500：ServiceState 的 tuple key 与提交快照一致；无选择器 run detail 从持久化 Context 推断 planner/backend。补充 artifact evidence 的首次轮询/重启恢复一致性。
+- Console 根据 `/capabilities.domain_id` 动态隐藏并禁用 GIS 专用控件，保持通用结果 renderer，不增加 Text/GIS 结果类型分支。
+- 新增 opt-in Docker/offline replay，覆盖 Text 与真实 GIS 的 LLMPlanner、ToolRegistry、AgentService、同步 artifact、HTTP async、轮询和 SQLite/artifact 恢复；两例通过，模型执行模式为 `offline_replay`，重启后不重复调用模型。GIS degraded 状态被正确保留。
+- 验证：M148 及相邻专项 25 项通过；Docker replay 和 `scripts/production_acceptance.ps1` 均通过。宿主 FastAPI 生产路由单测因依赖未安装跳过，但容器生产 acceptance 已覆盖实际生产入口；Chrome/CDP 与 live provider 保持独立未执行证据。
+
+下一阶段 M149 从整体推进嵌套 result/view/workspace schema 迁移、replay/live plan repair 证据和生产 FastAPI/Console 动态矩阵；默认 active suite 保持精简，最大并发度为 5。

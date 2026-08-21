@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from agent.execution_contract import build_execution_record
 from agent.runtime_context import normalize_runtime_context
 from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
+from agent.service_async import normalize_async_result_evidence
 
 
 def _safe_run_id(run_id: object) -> str | None:
@@ -67,6 +68,30 @@ class ArtifactStore:
             "artifact_ref": path.as_posix(),
             "execution_record": execution_record,
         }
+        # Async polling evidence is deliberately stored as a bounded
+        # projection, never as the full observation/request.  The internal
+        # marker lets artifact-only recovery distinguish an async run from a
+        # normal synchronous artifact, including when the evidence field is
+        # absent in a legacy or partially-written file.
+        async_observation = payload.get("async_observability")
+        async_requested = bool(
+            payload.get("_async_requested")
+            or payload.get("async_requested")
+            or isinstance(async_observation, dict)
+        )
+        if async_requested:
+            artifact["async_requested"] = True
+            evidence = (
+                async_observation.get("result_evidence")
+                if isinstance(async_observation, dict)
+                else None
+            )
+            if evidence is not None:
+                artifact["async_result_evidence"] = normalize_async_result_evidence(
+                    evidence,
+                    status=payload.get("status"),
+                    artifact_ref=path.as_posix(),
+                )
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
 
