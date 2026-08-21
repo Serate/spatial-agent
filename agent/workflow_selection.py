@@ -11,6 +11,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from .evidence_contract import (
+    build_capability_evidence,
+    normalize_capability_evidence,
+)
+
 
 WORKFLOW_SELECTION_SCHEMA_VERSION = "spatial-agent.workflow-selection.v1"
 WORKFLOW_SELECTION_STATES = {"selected", "ambiguous", "clarification", "unavailable"}
@@ -33,6 +38,7 @@ def build_workflow_selection_evidence(
     workflow: Mapping[str, Any] | None = None,
     capability_catalog: Mapping[str, Any] | None = None,
     candidate_details: Any = None,
+    domain_seams: Mapping[str, Any] | None = None,
     request_facts: Any = None,
     domain_id: str = "unknown",
     state: str | None = None,
@@ -124,6 +130,7 @@ def build_workflow_selection_evidence(
         "workflow_template_version": template_version,
         "candidate_workflow_ids": candidate_templates[:_MAX_ITEMS],
         "candidate_details": _normalize_candidate_details(candidate_detail_values),
+        "domain_seams": _normalize_domain_seams(domain_seams or selected.get("domain_seams")),
         "missing_fields": missing,
         "request_facts_schema_version": facts["schema_version"],
         "fact_keys": facts["fact_keys"],
@@ -154,6 +161,7 @@ def normalize_workflow_selection_evidence(value: Any) -> dict[str, Any]:
         state=_text(value.get("state")) or "unavailable",
         reason_code=_text(value.get("reason_code")) or "workflow_selection_unavailable",
         candidate_details=value.get("candidate_details"),
+        domain_seams=value.get("domain_seams"),
     )
 
 
@@ -216,6 +224,7 @@ def _candidate_details_from_catalog(
                     "missing_datasets": _string_list(definition.get("missing_datasets")),
                     "geometry": _text(definition.get("geometry") or "unknown"),
                 },
+                "evidence": build_capability_evidence(definition),
                 "actions": [
                     "select_capability",
                     "select_workflow",
@@ -260,6 +269,7 @@ def _normalize_candidate_details(value: Any) -> list[dict[str, Any]]:
                 "missing_datasets": _string_list(data.get("missing_datasets")),
                 "geometry": _text(data.get("geometry") or "unknown"),
             }
+        evidence = normalize_capability_evidence(item.get("evidence"))
         result.append(
             {
                 "id": capability_id,
@@ -269,10 +279,24 @@ def _normalize_candidate_details(value: Any) -> list[dict[str, Any]]:
                 "input_facts": _normalize_input_facts(item.get("input_facts")),
                 "result_types": _string_list(item.get("result_types")),
                 "data": data_summary,
+                "evidence": evidence,
                 "actions": actions or ["select_capability"],
                 "workflow": workflow_summary,
             }
         )
+    return result
+
+
+def _normalize_domain_seams(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, Mapping) else {}
+    result = {
+        "schema_version": _text(source.get("schema_version"))
+        or "spatial-agent.domain-workflow-seam.v1",
+        "selection": bool(source.get("selection", False)),
+        "workflow_normalization": bool(source.get("workflow_normalization", False)),
+        "plan_validation": bool(source.get("plan_validation", False)),
+        "capability_resolution": bool(source.get("capability_resolution", False)),
+    }
     return result
 
 

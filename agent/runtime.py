@@ -33,6 +33,7 @@ from .domain_contract import (
     request_understanding_guidance,
     selected_capability_ids,
     workflow_context,
+    workflow_seam_summary,
 )
 from .deployment_evidence import build_deployment_evidence
 from .decision_lifecycle import DecisionLifecycleError, DecisionRequest, DecisionStore
@@ -1098,6 +1099,7 @@ class AgentRuntime:
             ),
             workflow=workflow,
             capability_catalog=catalog,
+            domain_seams=workflow_seam_summary(self._domain_pack),
             request_facts=spatial_request,
             domain_id=self.domain_id,
         )

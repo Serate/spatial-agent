@@ -14,6 +14,7 @@ from typing import Any, Iterable, Mapping, Protocol
 
 DOMAIN_DISCOVERY_SCHEMA_VERSION = "spatial-agent.domain-discovery.v1"
 DOMAIN_ACTION_SCHEMA_VERSION = "spatial-agent.actions.v1"
+DOMAIN_WORKFLOW_SEAM_SCHEMA_VERSION = "spatial-agent.domain-workflow-seam.v1"
 
 
 @dataclass(frozen=True)
@@ -256,6 +257,26 @@ def select_workflow(
         "candidate_ids": list(candidates) if isinstance(candidates, list) else [],
         "candidate_count": context.get("candidate_count"),
         "selected_by": "user" if isinstance(workflow, Mapping) and workflow.get("template_id") else "domain",
+    }
+
+
+def workflow_seam_summary(domain_pack: DomainPack) -> dict[str, Any]:
+    """Describe the Domain-owned workflow seams without exposing implementation.
+
+    This is evidence for selection/recovery compatibility, not an execution
+    switch. A legacy Domain can still run through the existing bounded
+    fallbacks while the projection makes the missing seam explicit.
+    """
+
+    def available(name: str) -> bool:
+        return callable(getattr(domain_pack, name, None))
+
+    return {
+        "schema_version": DOMAIN_WORKFLOW_SEAM_SCHEMA_VERSION,
+        "selection": available("select_workflow"),
+        "workflow_normalization": available("normalize_workflow"),
+        "plan_validation": available("validate_workflow_plan"),
+        "capability_resolution": available("resolve_capability_selection"),
     }
 
 

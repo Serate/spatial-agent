@@ -1592,3 +1592,10 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - Docker 当前工作树镜像 healthy。M167 与 M162/M164/M165/M166 相邻专项 25 项通过，容器内 Node 测试 1 项按环境跳过；quick、stage、compileall、宿主 Node smoke、HTTP production acceptance 通过。
 - 首次 Docker 重建发现 `agent/runtime.py` 缩进错误导致 Uvicorn import failure，已修复并记录到 `docs/agent-development-issues.md`；以后 Runtime 修改必须先容器 compileall 再做 HTTP 验收。
 - 当前工作树未提交。下一步仍按 M167 全局规划推进 Domain seam 版本化、readiness/coverage/alignment/provenance 候选 evidence、SQLite/旧 schema 恢复矩阵、模型选择 replay 和真实候选浏览器动作；不提交 API key、私有配置、原始 live 输出或 GIS 数据。
+
+## M168 当前实现与验证状态
+
+- `agent/evidence_contract.py` 新增 `spatial-agent.capability-evidence.v1`，以 bounded status/readiness/coverage/alignment/provenance/missing reasons 绑定候选能力；未知版本安全降级。
+- `workflow-selection.v1` 的候选详情现在携带 capability evidence；`agent/domain_contract.py` 新增 `spatial-agent.domain-workflow-seam.v1` 的 Domain seam 能力摘要，Runtime、interaction、artifact 和 Harness 共享同一投影。
+- Docker 当前工作树镜像 healthy；M168/M167/M166/M165 专项 17 项、SQLite/artifact/restart 相邻矩阵 15 项通过；quick、stage、compileall、production acceptance 和 Chrome candidate smoke 通过。
+- M168 尚未新增 live 调用；最近 live-short 仍是显式真实模型 + GIS 证据。当前工作树未提交，下一步提交后进入 M169，重点是运行时数据 evidence 绑定、旧 schema/artifact 迁移、模型选择 replay 与 candidate action CAS/恢复。

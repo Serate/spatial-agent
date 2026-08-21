@@ -65,6 +65,14 @@
         missing_datasets: list(item.data.missing_datasets, value => text(value, "", 96), 8),
         geometry: text(item.data.geometry, "unknown", 96),
       } : {};
+      const evidence = record(item.evidence) ? {
+        schema_version: text(item.evidence.schema_version, "spatial-agent.capability-evidence.v1", 96),
+        status: text(item.evidence.status, "unknown", 24),
+        readiness: text(item.evidence.readiness?.status, "unknown", 24),
+        alignment: text(item.evidence.alignment?.status, "unknown", 24),
+        provenance: text(item.evidence.provenance?.status, "unknown", 24),
+        missing_reasons: list(item.evidence.missing_reasons, value => text(value, "", 160), 8),
+      } : null;
       return {
         id,
         label: text(item.label, id, 128),
@@ -73,6 +81,7 @@
         input_facts: inputFacts(item.input_facts),
         result_types: list(item.result_types, value => text(value, "", 96), 8),
         data,
+        evidence,
         actions: list(item.actions, value => text(value, "", 32), 8),
         workflow,
       };
@@ -117,6 +126,7 @@
         candidate_ids: list(selection.candidate_ids, value => text(value, "", 96)),
         candidate_workflow_ids: list(selection.candidate_workflow_ids, value => text(value, "", 96)),
         candidate_details: candidateDetails(selection.candidate_details),
+        domain_seams: record(selection.domain_seams) ? selection.domain_seams : {},
       },
       missing_fields: missing,
       decision: record(source.decision) ? {

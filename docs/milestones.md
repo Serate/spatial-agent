@@ -3370,3 +3370,21 @@ M167 不再增加单一区域 GIS 规则，重点把“能力目录 → 候选�
 ## M167 下一步全局收口
 
 继续从项目整体推进 Domain seam 版本化、readiness/coverage/alignment/provenance 与候选能力绑定、模型选择不一致和有限 repair 失败 replay、SQLite 多 worker/旧 schema/artifact 恢复矩阵，以及真实候选选择→预览→确认→完成的浏览器验收。默认 quick/CI 不扩张，阶段完成后再更新全局七维规划并推送版本。
+
+## M168：候选能力证据与 Domain workflow seam 版本化（已完成）
+
+- 新增 `spatial-agent.capability-evidence.v1`，把 Domain capability catalog/runtime evidence 中的 readiness、coverage、alignment、provenance、状态和缺失原因投影为有界摘要；未知版本安全降级，不携带路径、原始几何或大体量数据。
+- `workflow-selection.v1` 的 `candidate_details` 现在绑定 capability evidence；selection interaction、result、async/artifact 和 Contract Harness 继续复用同一规范化投影。
+- 新增 `spatial-agent.domain-workflow-seam.v1`，公开 Domain 的 selection、workflow normalization、plan validation 和 capability resolution 能力声明；它只做兼容/迁移证据，不成为第二套执行状态机。
+- 新增 M168 evidence/seam 专项 6 项；M168/M167/M166/M165 相关专项 17 项通过，SQLite/artifact/restart 相邻矩阵 15 项通过；quick、stage、compileall、production acceptance 和 Chrome candidate smoke 通过。
+- Docker 当前镜像 healthy；真实 HTTP 结果已验证候选 evidence schema 与 seam schema 可被生产入口读取。未新增 live 调用，沿用最近一次显式 live-short 证据。
+
+## M169 全局规划参考
+
+下一阶段从全局推进“证据可信度影响选择与执行”：
+
+1. 将运行时实际数据健康/覆盖/对齐/来源状态绑定到候选，而不是只使用静态 catalog；数据不可用时明确区分不可执行、演示降级和可恢复路径。
+2. 用统一 seam 证据验证旧 Domain、旧 workflow schema、未知 candidate evidence 和跨版本 artifact 的安全迁移。
+3. 增加脱敏模型选择不一致、有限 repair 失败和开放式无模板 replay；真实模型保持最小显式基线。
+4. 扩展 SQLite 多 worker、滚动重启和 artifact-only 恢复到 candidate evidence/selection action 的 CAS 与幂等矩阵。
+5. 完成真实浏览器候选选择 → 计划预览 → 确认 → 执行结果的闭环，并保持通用 renderer。

@@ -1875,3 +1875,10 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - Console 已新增领域无关候选卡片，选择卡片直接提交 `capability_id`，不再强制打开 GIS workflow editor；`console_selection_interaction.js` 只处理通用结构化字段。
 - 新增 `tests/test_m167_candidate_selection.py`。Docker 中 M167 与 M162/M164/M165/M166 相邻专项 25 项通过，Node 测试 1 项因容器没有 Node 跳过；quick、stage、compileall、宿主 Node smoke、HTTP production acceptance 通过，容器保持 healthy。
 - 本阶段首次重建曾因 Runtime 缩进错误导致容器 unhealthy，已修复并将根因写入 `docs/agent-development-issues.md`。当前工作树仍未提交，下一步继续完成 M167 的 Domain seam 版本化、数据 evidence 绑定、SQLite 恢复矩阵和真实候选浏览器动作验收。
+
+## M168 当前实现与验证状态
+
+- 新增 `spatial-agent.capability-evidence.v1`，候选详情绑定有界 readiness、coverage、alignment、provenance、状态和缺失原因摘要；未知 schema 降级为 `unavailable`，不泄露文件路径或原始数据。
+- 新增 `spatial-agent.domain-workflow-seam.v1`，selection、workflow normalization、plan validation 和 capability resolution 的 Domain 能力声明进入 selection evidence。
+- M168/M167/M166/M165 专项 17 项通过；SQLite/artifact/restart 相邻矩阵 15 项通过；quick、stage、compileall、HTTP production acceptance 和 Chrome candidate smoke 通过，Docker 保持 healthy。
+- 当前版本尚未新增 live 模型调用，沿用最近一次真实模型 + GIS live-short 证据。工作树包含 M168 未提交修改，下一步提交推送后进入 M169：运行时真实数据 evidence 绑定、旧 schema/artifact 迁移、模型选择 replay 和 candidate action 恢复矩阵。

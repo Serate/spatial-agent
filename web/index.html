@@ -1042,9 +1042,11 @@
         ? '<div class="selection-candidate-grid">'+details.map(item=>{
             const facts=(item.input_facts||[]).map(f=>f.label||f.id).join('、');
             const results=(item.result_types||[]).join('、');
+            const evidence=item.evidence||{};
+            const evidenceText=evidence.status&&evidence.status!=='unknown'?'数据证据：'+evidence.status+(evidence.readiness&&evidence.readiness!=='unknown'?' · 就绪 '+evidence.readiness:''):'';
             const selectButton=allowed.includes('select_capability')
               ? '<button type="button" class="secondary selection-action" data-selection-action="select_capability" data-selection-value="'+escapeHtml(item.id)+'" data-run-id="'+escapeHtml(data.run_id||'')+'">选择此能力</button>' : '';
-            return '<article class="selection-candidate"><h4>'+escapeHtml(item.label||item.id)+'</h4><p>'+escapeHtml(item.description||'可执行的领域能力。')+'</p>'+(facts?'<small>输入：'+escapeHtml(facts)+'</small>':'')+(results?'<small>结果：'+escapeHtml(results)+'</small>':'')+selectButton+'</article>';
+            return '<article class="selection-candidate"><h4>'+escapeHtml(item.label||item.id)+'</h4><p>'+escapeHtml(item.description||'可执行的领域能力。')+'</p>'+(facts?'<small>输入：'+escapeHtml(facts)+'</small>':'')+(results?'<small>结果：'+escapeHtml(results)+'</small>':'')+(evidenceText?'<small>'+escapeHtml(evidenceText)+'</small>':'')+selectButton+'</article>';
           }).join('')+'</div>'
         : (candidates.length?'<div class="selection-candidates"><span>候选：</span>'+candidates.map(item=>'<code>'+escapeHtml(item)+'</code>').join('')+'</div>':'');
       const actions=allowed.filter(action=>!(details.length&&action==='select_capability')).map(action=>'<button type="button" class="secondary selection-action" data-selection-action="'+escapeHtml(action)+'" data-run-id="'+escapeHtml(data.run_id||'')+'">'+escapeHtml(actionLabels[action]||action)+'</button>').join('');
