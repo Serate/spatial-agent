@@ -22,6 +22,14 @@ def _safe_run_id(run_id: object) -> str | None:
     return run_id
 
 
+def _execution_timeline_from_payload(payload: Dict) -> object:
+    value = payload.get("execution_timeline")
+    if value is not None:
+        return value
+    nested = payload.get("result")
+    return nested.get("execution_timeline") if isinstance(nested, dict) else None
+
+
 class ArtifactStore:
     """Writes small run artifacts for demos, handoff, and downstream clients."""
 
@@ -66,6 +74,7 @@ class ArtifactStore:
             "degradation": _degradation_summary(payload),
             "retry_count": payload.get("retry_count", 0),
             "replan_events": payload.get("replan_events") or [],
+            "execution_timeline": _execution_timeline_from_payload(payload),
             "decision_evidence": payload.get("decision_evidence"),
             "decision_record": payload.get("_decision_record"),
             "lifecycle": project_action_lifecycle(payload),

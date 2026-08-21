@@ -3129,3 +3129,22 @@ M155 将 M154 的 workflow-aware 计划校验从 Runtime 内部诊断推进为�
 5. **部署可靠性**：覆盖异步轮询、artifact-only recovery、重启接管和旧证据版本迁移，确保新证据缺失时是明确 unavailable 而不是静默成功。
 6. **用户体验**：Console 继续消费通用 Evidence，不新增 GIS 结果类型分支；把计划 DAG、质量状态和修复事件合并到紧凑时间线。
 7. **测试证据**：默认 quick/stage 保持精简；新增跨入口 Evidence Harness 后，再按风险运行 Docker/GIS/live/browser 显式验收。
+
+## M156：统一执行时间线证据（已完成）
+
+M156 将计划质量、步骤状态、修复事件和生命周期组合为领域无关的 `spatial-agent.execution-timeline.v1`。它是只读展示/比较投影，不替代 Runtime 状态机，也不复制请求、参数、原始错误或时间戳。
+
+- result envelope、ArtifactStore、异步轮询和 Contract Harness 均保留同一执行时间线；未知或缺失版本安全降级为 unavailable。
+- Console 的通用证据区显示时间线事件数量和可追溯状态；没有增加 GIS 专用结果分支。
+- 新增 M156 专项 3 项；M155/M156 相邻契约 7 项通过，quick、stage、compileall、Node smoke 和 `git diff --check` 通过。
+- 当前 Docker 镜像重建后，M155/M156 容器专项 7 项和 production acceptance 通过；异步 artifact contract、幂等、恢复与核心/可选数据 ready 通过。
+- 外部 live provider、动态 Chrome/CDP 仍未执行，继续作为独立显式验收。
+
+## M157 全局规划参考
+
+从整体推进时间线“可操作化”和真实模型验证：
+
+1. 将时间线事件与统一 lifecycle `allowed_actions` 关联，支持通用批准、重试、澄清和恢复入口。
+2. 为 Evidence Registry/引用索引确定最小公共接口，避免 result、async、artifact 和 Console 各自拼接证据。
+3. 在 Text/GIS 双 Domain 验证开放式无模板请求、计划修复失败和数据降级的时间线一致性。
+4. 运行当前版本最小 live baseline 与可用浏览器/CDP 验收；默认 CI 继续离线精简。

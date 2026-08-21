@@ -3844,3 +3844,17 @@ M154 在 LLM Planner 边界增加有限 canonical normalization：仅对 `range_
 ### 处理与预防
 
 新增 `spatial-agent.plan-quality-evidence.v1`，并在异步 evidence 的 `planning.plan_quality` 中保留有界投影；Contract Harness、artifact recovery、replay/live 和 Console 统一消费该投影。没有唯一 workflow blueprint 时必须返回 `available=false` 和 `workflow_blueprint_unavailable`，不能根据 result type 猜模板。以后新增结果证据时，要同时检查同步 envelope、异步轮询、artifact-only recovery、历史兼容和前端 renderer，不能只在完整 run detail 中增加字段。
+
+## M156：执行时间线在异步归一化时丢失空字段导致跨入口差异
+
+### 现象
+
+同步 result envelope 的 execution timeline 在事件中保留了值为 `null` 的可选字段，而异步 evidence 归一化只保留非空字段，导致 Contract Harness 比较同步与异步时间线时出现结构差异。实际业务状态没有变化，但跨入口证据无法直接等价。
+
+### 根因
+
+时间线首次实现时，构建器和归一化器对可选字段的输出策略不一致：一个直接写入 `None`，另一个按“安全字段”过滤。结构化证据契约比较的是 JSON 形状，因此不能把这种差异留给前端或 Harness 自行容忍。
+
+### 处理与预防
+
+时间线构建阶段不输出空可选字段，归一化阶段继续使用同一 allowlist；未知版本、缺失事件和旧 artifact 明确返回 unavailable。以后新增跨入口证据字段时，必须先定义 canonical JSON 形状，再同时验证构建、归一化、artifact recovery、async polling 和 Harness，不能只比较业务值。

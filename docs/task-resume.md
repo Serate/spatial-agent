@@ -1681,3 +1681,18 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 3. 用 Contract Harness 覆盖同步、异步、artifact-only recovery、重启和 Text/GIS 隔离，再补 Console 静态/动态入口。
 4. 在可用 Docker/GIS 环境运行最小 live baseline，分别验证唯一模板、无唯一模板开放请求和失败修复；不把 live 结果纳入默认 CI。
 5. 阶段收口后更新 milestones、恢复文档和中文问题日志，提交并推送版本，再按七维度整体重规划。
+
+## M156 当前完成状态
+
+- 新增领域无关 `spatial-agent.execution-timeline.v1`，组合 planning、step、repair 和 lifecycle 事件；不包含请求、参数、原始错误和时间戳。
+- result envelope、artifact、async evidence 和 Contract Harness 统一保留/比较时间线；缺失或未知版本安全降级为 unavailable。
+- Console 通用证据区显示时间线是否可追溯及事件数量，没有新增 GIS 专用页面分支。
+- M156 专项 3 项、M155/M156 相邻契约 7 项、quick、stage、compileall、Node smoke 和 diff check 通过；Docker 当前镜像专项 7 项与 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，仍需后续显式验收。
+
+## M157 下一阶段执行顺序
+
+1. 盘点 timeline 与 action lifecycle 的字段重叠，定义允许动作和事件引用的最小公共接口。
+2. 实现 Evidence Registry/lineage index 的领域无关适配，保持旧 artifact 兼容和未知版本降级。
+3. 补 Text/GIS、开放式无模板、修复失败、数据降级的跨入口 Harness，并保持 quick/stage 不膨胀。
+4. 运行 Docker/GIS/live/browser 显式验收，完成阶段文档与版本推送后再重规划。

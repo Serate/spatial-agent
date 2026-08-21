@@ -1422,3 +1422,14 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 ## M156 全局规划
 
 下一阶段从七个维度推进证据可操作化：统一计划质量、repair lineage、生命周期和视图的执行时间线；评估领域无关 Evidence Registry；覆盖旧 artifact、异步轮询、重启恢复和未知版本安全降级；补 Text/GIS 隔离与最小 live baseline；Console 继续使用结构化 Evidence，不增加 GIS 专用分支。默认 quick/stage 保持精简，Docker/GIS/live/browser 按风险显式运行。
+
+## M156 当前实现与验证状态
+
+- 新增 `agent/execution_timeline.py` 与 `spatial-agent.execution-timeline.v1`，统一投影 planning、step、repair、lifecycle 事件。
+- result、artifact、async evidence、Contract Harness 和 Console 共用该投影；未知版本和旧数据明确降级为 unavailable。
+- M156 专项 3 项、M155/M156 契约 7 项、quick/stage、compileall、Node smoke 通过；当前 Docker 镜像专项 7 项和 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 尚未执行。
+
+## M157 全局规划
+
+下一阶段把执行时间线与 lifecycle allowed actions、Evidence Registry/lineage index 关联，验证 Text/GIS 双 Domain 的开放式无模板、修复失败和数据降级证据，并运行最小 live/browser 显式验收；默认 CI 继续离线精简。

@@ -9,6 +9,7 @@ from agent.execution_contract import build_execution_record, execution_record_su
 from agent.deployment_evidence import build_deployment_evidence
 from agent.action_lifecycle import project_action_lifecycle
 from agent.plan_quality import project_plan_quality_evidence
+from agent.execution_timeline import build_execution_timeline
 from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -142,6 +143,7 @@ def build_result_contract(
         "references": references,
         "lineage": lineage,
         "replanning": replanning,
+        "execution_timeline": build_execution_timeline(payload),
         "degradation": degradation,
         "workspace": workspace,
         "views": views,
