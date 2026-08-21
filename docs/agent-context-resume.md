@@ -1675,3 +1675,11 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - Docker 当前镜像 healthy；M176 专项及相邻回归通过；compileall、quick、stage、production acceptance 通过。Node renderer smoke 与宿主 Chrome/CDP 总览/候选 smoke 通过，容器 Node 缺失项按环境跳过。
 - Chrome 总览 smoke 已显式固定 planner/backend，验证 8 步总览、Registry 可用、两类 selection evidence、地图图层和颜色；表单状态继承与静态资源 allowlist 问题已写入 `docs/agent-development-issues.md`。
 - M176 已完成代码与阶段验收，当前待执行最终敏感信息扫描、`git diff --check`、提交和推送；推送后进入 M177 全局七维度重规划。不要提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M177 当前完成状态
+
+- 新增 `agent/evidence_projection.py`，提供 `spatial-agent.evidence-projection.v1` 和 `spatial-agent.evidence-migration.v1`；Registry、完整性、workflow/planner selection 和旧数据兼容状态由同一公共 seam 读取。
+- async result、Service run evidence、开发/生产 Artifact evidence endpoint 和 Artifact viewer 均接入 projection；移除 transport-specific source，HTTP 两条 evidence 路径核心 projection equality 已验证。
+- 旧 Registry 缺少 required entries 时显式 `legacy_incomplete`/`migratable`，未知 schema 显式 `unknown_schema`，不把缺失证据标记为当前完整。
+- Docker 当前镜像 healthy；M177/M176/M159/M158/M146/M165 专项 16/16、compileall、quick、stage、production acceptance 通过。Artifact viewer、async、HTTP equality 证据已完成。
+- M177 已完成，待最终敏感信息扫描、`git diff --check`、提交和推送；推送后进入 M178 全局七维度重规划。不要提交 API key、私有配置、原始 live 输出或 GIS 原始数据。

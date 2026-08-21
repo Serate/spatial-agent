@@ -23,6 +23,7 @@ from agent.api_contract import (
 from agent.environment_status import environment_status
 from agent.artifact_access import resolve_artifact_path
 from agent.evidence_registry import normalize_evidence_registry
+from agent.evidence_projection import project_evidence_projection
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
@@ -267,6 +268,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 "evidence_registry": normalize_evidence_registry(
                     payload.get("evidence_registry")
                 ),
+                "evidence_projection": project_evidence_projection(payload),
             })
             return
         artifact = self._artifact_file(parsed.path)

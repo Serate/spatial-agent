@@ -665,6 +665,25 @@ function Assert-EvidenceRegistry($payload, [string]$surface) {
   }
 }
 
+function Assert-EvidenceProjection($payload, [string]$surface) {
+  if ($null -eq $payload -or $null -eq $payload.evidence_projection) {
+    throw "$surface evidence projection missing"
+  }
+  $projection = $payload.evidence_projection
+  if ($projection.schema_version -ne "spatial-agent.evidence-projection.v1") {
+    throw "$surface evidence projection schema mismatch"
+  }
+  if ($null -eq $projection.evidence_registry -or $null -eq $projection.evidence_registry_completeness) {
+    throw "$surface evidence projection registry fields missing"
+  }
+  if ($null -eq $projection.selection -or $null -eq $projection.selection.workflow_selection -or $null -eq $projection.selection.planner_selection) {
+    throw "$surface evidence projection selection fields missing"
+  }
+  if ($null -eq $projection.migration -or $projection.migration.schema_version -ne "spatial-agent.evidence-migration.v1") {
+    throw "$surface evidence migration projection missing"
+  }
+}
+
 if (-not [string]::IsNullOrWhiteSpace($ContractPayloadPath)) {
   if (-not (Test-Path -LiteralPath $ContractPayloadPath -PathType Leaf)) {
     throw "contract payload not found: $ContractPayloadPath"
@@ -749,10 +768,15 @@ if (($artifact.evidence_registry | ConvertTo-Json -Depth 50 -Compress) -ne ($syn
 }
 $syncEvidence = Get-Json "$BaseUrl/runs/$($syncRun.run_id)/evidence"
 Assert-EvidenceRegistry $syncEvidence "sync run evidence endpoint"
+Assert-EvidenceProjection $syncEvidence "sync run evidence endpoint"
 $syncArtifactEvidence = Get-Json "$BaseUrl/artifacts/runs/$artifactName/evidence"
 Assert-EvidenceRegistry $syncArtifactEvidence "sync artifact evidence endpoint"
+Assert-EvidenceProjection $syncArtifactEvidence "sync artifact evidence endpoint"
 if (($syncEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress) -ne ($syncArtifactEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress)) {
   throw "sync evidence endpoints registry mismatch"
+}
+if (($syncEvidence.evidence_projection | ConvertTo-Json -Depth 50 -Compress) -ne ($syncArtifactEvidence.evidence_projection | ConvertTo-Json -Depth 50 -Compress)) {
+  throw "sync evidence endpoints projection mismatch"
 }
 if ($artifact.plan_evidence.selected_capability_id -ne $syncRun.plan_evidence.selected_capability_id) {
   throw "artifact selected capability mismatch"

@@ -4365,6 +4365,20 @@ Registry 的 schema（可兼容读取的索引）与 completeness contract（当
 
 M175 保持 `spatial-agent.evidence-registry.v1` 的安全 normalize 兼容，新增 workflow/planner selection entry，并将严格完整性投影升级为 `spatial-agent.evidence-completeness.v2`。旧 Registry 可以读取，但缺少当前 selection entry 时只允许兼容展示，不能通过当前 replay/live/Contract Harness 完整性门禁。以后改变 required entry、引用规则或完整性判定时，必须升级 completeness 版本，并同时覆盖旧 artifact、未知版本、同步、异步、artifact-only recovery、Text/GIS 和前端证据状态。
 
+## M177：跨入口 Evidence Projection 不应携带 transport source
+
+### 现象
+
+开发 HTTP 的 `/runs/{id}/evidence` 与 `/artifacts/runs/{name}/evidence` 返回的 Registry、selection 和完整性内容相同，但整体 projection equality 断言失败；唯一差异是 projection 中的 `source` 分别为 `run_evidence` 和 `artifact_http`。
+
+### 根因
+
+transport 来源是观测上下文，不是请求的核心证据语义。将它放进共享 projection 会让同步、异步、Artifact 和不同 HTTP 路径在没有业务差异时产生结构化漂移，违背跨入口一致性契约。
+
+### 处理与预防
+
+新增 `spatial-agent.evidence-projection.v1` 后，移除 transport-specific `source` 字段；共享 projection 只保留 Registry、completeness、selection 和 migration 状态。入口日志仍可在外层记录来源，不能把传输元数据混入需要 equality 比较的公共证据。以后新增公共 evidence 字段时，先判断它是核心语义、Domain 证据还是 transport 观测；只有前两者进入跨入口 projection。
+
 ## M176：浏览器 smoke 继承表单状态导致空间总览被错误路由
 
 ### 现象

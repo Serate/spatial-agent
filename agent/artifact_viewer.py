@@ -2,6 +2,8 @@ import html
 import json
 from typing import Any, Dict
 
+from .evidence_projection import project_evidence_projection
+
 
 def render_artifact_html(artifact: Dict[str, Any]) -> str:
     """Render a self-contained, dependency-free HTML view of a run artifact."""
@@ -16,6 +18,7 @@ def render_artifact_html(artifact: Dict[str, Any]) -> str:
     steps = artifact.get("steps") or []
     step_rows = "".join(_step_row(step) for step in steps)
     views_html = _views_section(artifact)
+    evidence_html = _evidence_section(artifact)
     trace_rows = "".join(
         "<li>" + html.escape(str(line)) + "</li>"
         for line in artifact.get("trace_summary", [])
@@ -35,7 +38,7 @@ h1 {{ margin:0 0 8px; font-size:28px; }} h2 {{ margin:0 0 14px; font-size:17px; 
 section {{ background:#fff; border:1px solid #d9e0e6; border-radius:8px; padding:20px; margin-top:16px; }}
 .prompt {{ font-size:18px; line-height:1.5; }} .answer {{ line-height:1.6; white-space:pre-wrap; }}
 .error {{ color:#a61b1b; white-space:pre-wrap; }}
-.view-grid,.view-rows {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }}
+.view-grid,.view-rows,.evidence-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }}
 .metric,.view-row {{ border:1px solid #e5e9ed; border-radius:8px; padding:12px; background:#f8fafc; }}
 .view-row small {{ display:block; color:#5f6b76; margin-bottom:4px; }} .view-row b {{ word-break:break-word; }}
 .chart-view {{ display:grid; gap:8px; margin:14px 0; }} .chart-row {{ display:grid; grid-template-columns:minmax(90px,150px) minmax(120px,1fr) auto; gap:10px; align-items:center; }}
@@ -48,6 +51,7 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
 </style></head><body><main>
 <header><div><div class="muted">Spatial Agent run</div><h1>{title}</h1><div class="muted">{request}</div></div><div class="status">{status}</div></header>
 <section><h2>Plan</h2><div class="prompt">{goal}</div></section>
+{evidence_html}
 <section><h2>Planner Metrics</h2><code>{metrics}</code></section>
 {views_html}
 <section><h2>Tool Steps</h2><table><thead><tr><th>Tool</th><th>Status</th><th>Attempts</th><th>Latency</th><th>Result</th></tr></thead><tbody>{step_rows}</tbody></table>{detail}</section>
@@ -58,6 +62,7 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
         status=status,
         request=request,
         goal=goal,
+        evidence_html=evidence_html,
         metrics=metrics_text,
         views_html=views_html,
         step_rows=step_rows or '<tr><td colspan="5" class="muted">No tool steps</td></tr>',
@@ -65,6 +70,81 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
         answer=answer,
         trace_rows=trace_rows or '<li class="muted">No trace entries</li>',
     )
+
+
+def _evidence_section(artifact: Dict[str, Any]) -> str:
+    """Render the shared evidence projection without exposing raw payloads."""
+    projection = project_evidence_projection(artifact)
+    registry = projection.get("evidence_registry") or {}
+    entries = registry.get("entries") if isinstance(registry.get("entries"), list) else []
+    migration = projection.get("migration") or {}
+    completeness = projection.get("evidence_registry_completeness") or {}
+    selection = projection.get("selection") or {}
+    workflow = selection.get("workflow_selection") or {}
+    planner = selection.get("planner_selection") or {}
+    entry_rows = "".join(
+        "<li><strong>{}</strong> · {} · <code>{}</code> · {}</li>".format(
+            html.escape(_entry_label(item.get("id"))),
+            html.escape(str(item.get("state") or "unknown")),
+            html.escape(str(item.get("schema_version") or "unknown")),
+            html.escape(str(item.get("reference") or "")),
+        )
+        for item in entries[:16]
+        if isinstance(item, dict)
+    )
+    registry_state = "可用" if registry.get("available") else "不可用"
+    complete_state = "完整" if completeness.get("passed") else "不完整"
+    migration_state = str(migration.get("state") or "unavailable")
+    return """<section><h2>证据索引（Evidence Registry）</h2>
+<p class="muted">Registry：{registry_state} · {count} 个入口 · 完整性：{complete_state} · 迁移状态：{migration_state}</p>
+<div class="evidence-grid">{workflow_card}{planner_card}</div>
+<p class="muted">schema：{schema} · 迁移动作：{action}</p>
+<ul>{entries}</ul></section>""".format(
+        registry_state=html.escape(registry_state),
+        count=html.escape(str(registry.get("entry_count") or 0)),
+        complete_state=html.escape(complete_state),
+        migration_state=html.escape(migration_state),
+        schema=html.escape(str(registry.get("schema_version") or "unknown")),
+        action=html.escape(str(migration.get("action") or "none")),
+        workflow_card=_selection_card("工作流选择", workflow),
+        planner_card=_selection_card("规划器选择", planner),
+        entries=entry_rows or '<li class="muted">没有可读取的证据入口</li>',
+    )
+
+
+def _selection_card(title: str, selection: Dict[str, Any]) -> str:
+    rows = []
+    for label, key in (
+        ("状态", "state"),
+        ("原因", "reason_code"),
+        ("能力", "selected_capability_id"),
+        ("计划能力", "planner_capability_id"),
+        ("结果类型", "result_type"),
+        ("来源", "source"),
+        ("规划器", "planner_kind"),
+    ):
+        value = selection.get(key)
+        if value:
+            rows.append("<div class=\"view-row\"><small>{}</small><b>{}</b></div>".format(
+                html.escape(label), html.escape(str(value))[:320]
+            ))
+    return "<article><h3>{}</h3><div class=\"view-rows\">{}</div></article>".format(
+        html.escape(title), "".join(rows) or '<p class="muted">不可用</p>'
+    )
+
+
+def _entry_label(entry_id: Any) -> str:
+    labels = {
+        "workflow_selection": "工作流选择",
+        "planner_selection": "规划器选择",
+        "plan_quality": "计划质量",
+        "execution_timeline": "执行时间线",
+        "action_lifecycle": "动作生命周期",
+        "replanning": "计划修复",
+        "result": "结果契约",
+    }
+    text = str(entry_id or "unknown")
+    return labels.get(text, text[:96])
 
 
 def _views_section(artifact: Dict[str, Any]) -> str:

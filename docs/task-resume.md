@@ -1976,3 +1976,24 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 部署可靠性：补跨进程 SQLite、artifact-only、重启接管和前端历史恢复的 evidence equality 矩阵。
 6. 用户体验：验证长结果、空结果、旧 artifact、异步处理中和未知 schema 的通用空态与可读提示。
 7. 测试证据：保持 Docker quick/stage 精简，新增少量跨 Domain Contract Harness；阶段末执行一次 Docker、HTTP、Chrome 和必要 live 验收并推送版本。
+
+## M177 当前完成状态
+
+- 新增 `agent/evidence_projection.py`，统一输出 `spatial-agent.evidence-projection.v1`，聚合 Registry、completeness、workflow/planner selection 和 `spatial-agent.evidence-migration.v1`。
+- `AgentService.get_run_evidence()`、开发/生产 Artifact evidence endpoint、async result evidence 和 Artifact viewer 均消费该 projection；移除 transport-specific source，确保核心 projection equality 不因入口变化而漂移。
+- 旧 Registry 缺少当前 required entry 时显式返回 `legacy_incomplete`、`migratable=true`、`rebuild_from_result`；未知 schema 为 `unknown_schema`，不自动伪造或覆盖历史证据。
+- 新增 `tests/test_m177_evidence_projection.py`，M177/M176/M159/M158/M146/M165 相关 Docker 回归 16/16 通过；compileall、quick、stage、production acceptance 通过，Docker healthy。
+- Artifact viewer 已展示 Registry 入口、两类 selection、完整性和迁移状态；HTTP 两个 evidence endpoint 的 projection equality 已纳入生产 acceptance。
+- M177 已完成，当前待最终 diff/敏感信息检查、提交和推送；推送后进入 M178 全局七维度规划。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M178 全局重规划参考
+
+下一阶段继续从全局闭环推进，而不是新增单个 GIS 功能：
+
+1. 产品：让前端、Artifact viewer 和历史恢复共同展示完整性/迁移状态，并对旧证据提供可读的恢复动作或安全空态。
+2. 架构：把 projection 纳入更广泛的 Result/Contract Harness，统一同步、异步、Artifact-only、重启和 Text/GIS 的核心比较字段。
+3. 数据：验证 Domain readiness、provenance、coverage/alignment 降级能通过 projection 绑定到证据入口，而不是只停留在页面摘要。
+4. 模型：在脱敏 replay/live 报告中加入 projection completeness 与 migration 状态，区分模型问题和历史证据问题。
+5. 部署：补生产重启/多 worker 后 evidence endpoint、artifact 和前端历史恢复的连续验收。
+6. 体验：验证未知 schema、旧 artifact、异步处理中、失败修复和无证据结果的动态空态与操作边界。
+7. 测试：保持 quick/stage 极简，新增一条跨 Domain/入口 Harness，再运行必要 Docker、HTTP、Chrome 和 live-short 验收。

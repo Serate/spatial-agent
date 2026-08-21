@@ -3501,3 +3501,14 @@ M176 将 Registry 中的 workflow/planner selection 从后端契约接入 Consol
 - 新增 `tests/test_m176_selection_frontend_contract.py` 与 `scripts/console_selection_evidence_smoke.js`；Docker M176/相邻专项通过，compileall、quick、stage、production acceptance 通过。
 - Chrome/CDP 空间总览 smoke 通过：8 步总览、Evidence Registry 可用、工作流/规划器选择均显示，地图三类图层和颜色断言通过；候选选择 smoke 也通过。
 - 本阶段未新增 live token 消耗，Docker 容器 healthy；浏览器 smoke 的表单状态继承问题已记录到中文开发问题文档并固定 planner/backend 输入。
+
+## M177：公共 Evidence Projection 与 Artifact/Async 一致性（已完成）
+
+M177 从全局证据链推进公共读取 seam：Artifact viewer、async polling、Service evidence index 和两个 HTTP Artifact evidence endpoint 现在共享同一版本化 projection。
+
+- 新增 `agent/evidence_projection.py`，统一输出 `spatial-agent.evidence-projection.v1`，包含 Registry、completeness、workflow/planner selection 和 `spatial-agent.evidence-migration.v1` 迁移状态。
+- 历史 Registry 缺少当前 required entry 时标记 `legacy_incomplete`、`migratable=true` 和 `rebuild_from_result`；未知 schema 显式拒绝，不伪造缺失证据。
+- `agent/service_async.py`、`AgentService.get_run_evidence()`、开发/生产 Artifact evidence endpoint 和 `agent/artifact_viewer.py` 均消费公共 projection；transport source 不进入可比较的核心 projection。
+- 新增 `tests/test_m177_evidence_projection.py`，验证 Text 结果、async、Artifact viewer、旧 Registry 迁移状态和 HTTP evidence equality。
+- Docker M177/M176/M159/M158/M146/M165 专项 16 项通过；compileall、quick、stage、production acceptance 通过。容器保持 healthy。
+- 本阶段无 live token 消耗、无 GIS 工具变更；跨入口 source 漂移问题已记录到中文开发问题文档。

@@ -24,11 +24,9 @@ from agent.plan_identity import normalize_plan_identity
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from agent.plan_quality import project_plan_quality_evidence
-from agent.workflow_selection import normalize_workflow_selection_evidence
-from agent.planner_selection import normalize_planner_selection_evidence
 from agent.selection_interaction import normalize_selection_interaction
 from agent.execution_timeline import normalize_execution_timeline
-from agent.evidence_registry import normalize_evidence_registry
+from agent.evidence_projection import project_evidence_projection
 from result_contract import build_lineage_index
 
 
@@ -225,10 +223,12 @@ def build_async_result_evidence(
         ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
+    evidence_projection = project_evidence_projection(value)
     request_identity = normalize_request_identity(value.get("request_identity"))
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
-    registry = normalize_evidence_registry(value.get("evidence_registry"))
+    registry = evidence_projection["evidence_registry"]
+    selection = evidence_projection["selection"]
     return {
         "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value),
@@ -251,18 +251,15 @@ def build_async_result_evidence(
         "planning": {
             "plan_identity": plan_identity,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
-            "workflow_selection": normalize_workflow_selection_evidence(
-                planning.get("workflow_selection")
-            ),
-            "planner_selection": normalize_planner_selection_evidence(
-                planning.get("planner_selection")
-            ),
+            "workflow_selection": selection["workflow_selection"],
+            "planner_selection": selection["planner_selection"],
         },
         "selection_interaction": normalize_selection_interaction(
             value.get("selection_interaction")
         ),
         "execution_timeline": timeline,
         "evidence_registry": registry,
+        "evidence_projection": evidence_projection,
     }
 
 
@@ -423,10 +420,12 @@ def normalize_async_result_evidence(
     lifecycle = _normalize_lifecycle(value.get("lifecycle"), status)
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
+    evidence_projection = project_evidence_projection(value)
     request_identity = normalize_request_identity(value.get("request_identity"))
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
-    registry = normalize_evidence_registry(value.get("evidence_registry"))
+    registry = evidence_projection["evidence_registry"]
+    selection = evidence_projection["selection"]
     artifact = value.get("artifact")
     artifact = artifact if isinstance(artifact, Mapping) else {}
     ref = _safe_ref(artifact.get("ref") or artifact_ref)
@@ -454,18 +453,15 @@ def normalize_async_result_evidence(
         "planning": {
             "plan_identity": plan_identity,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
-            "workflow_selection": normalize_workflow_selection_evidence(
-                planning.get("workflow_selection")
-            ),
-            "planner_selection": normalize_planner_selection_evidence(
-                planning.get("planner_selection")
-            ),
+            "workflow_selection": selection["workflow_selection"],
+            "planner_selection": selection["planner_selection"],
         },
         "selection_interaction": normalize_selection_interaction(
             value.get("selection_interaction")
         ),
         "execution_timeline": timeline,
         "evidence_registry": registry,
+        "evidence_projection": evidence_projection,
     }
     for key in ("availability", "reason_code", "source"):
         if value.get(key) is not None:
