@@ -36,6 +36,7 @@ from .deployment_evidence import build_deployment_evidence
 from .failure_contract import build_failure_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
+from .plan_repair import PlanRepairEngine, PlanRepairInput
 from .observability import ObservabilityEmitter
 from .plan_identity import build_plan_identity
 from .planner import Planner
@@ -155,6 +156,7 @@ class AgentRuntime:
         max_steps: int = 12,
         max_retries: int = 2,
         replan_policy: Optional[ReplanningPolicy] = None,
+        plan_repair_engine: Optional[PlanRepairEngine] = None,
         memory: Optional[FactMemory] = None,
         observability: Optional[ObservabilityEmitter] = None,
         backend_name: str = "unknown",
@@ -177,6 +179,13 @@ class AgentRuntime:
         self._max_steps = max_steps
         self._max_retries = max_retries
         self._replan_policy = replan_policy or ReplanningPolicy()
+        self._plan_repair_engine = plan_repair_engine or PlanRepairEngine(
+            self._planner,
+            self._replan_policy,
+            available_tools=lambda: list(self._registry.names),
+            validate_plan=self._validate_plan_for_execution,
+            control_check=self._check_control,
+        )
         self._memory = memory
         self._observability = observability
         # The selected Domain Pack owns its default grant. Callers can still
@@ -802,86 +811,32 @@ class AgentRuntime:
         run_id: Optional[str],
         context_packet: Optional[ContextPacket],
     ) -> tuple[Optional[TaskPlan], Optional[Dict[str, Any]]]:
-        if getattr(self._planner, "capability_rules", None) is not None:
-            return None, None
-        if not self._replan_policy.should_repair(
-            repair_count=0,
-            validation_error=str(exc),
-        ):
-            return None, None
-        self._check_control(run_id or "plan-repair", deadline)
-        failed_payload = {
-            "id": "plan-validation",
-            "tool": "planner",
-            "args": {},
-            "error_category": failure_category(str(exc)),
-        }
-        feedback = self._replan_policy.feedback_payload(
-            request=request,
-            completed_steps=[],
-            failed_step=failed_payload,
-            remaining_tools=self._registry.names,
-            output_type=(plan.output or {}).get("type"),
-            validation_error=str(exc),
-        )
-        started = perf_counter()
-        try:
-            replacement = self._plan_with_feedback(
-                request,
-                workflow,
-                feedback,
-                context_packet=context_packet,
+        capability_context = {}
+        if context_packet is not None:
+            sections = context_packet.payload.get("sections", {})
+            if isinstance(sections, Mapping):
+                capability_context = {
+                    key: sections[key]
+                    for key in (
+                        "available_tools",
+                        "capability_discovery",
+                        "capability_catalog",
+                        "workflow_templates",
+                    )
+                    if key in sections
+                }
+        outcome = self._plan_repair_engine.repair(
+            PlanRepairInput(
+                request=request,
+                candidate=plan,
+                workflow=workflow,
+                validation_error=str(exc),
+                run_id=run_id,
+                deadline=deadline,
+                capability_context=capability_context,
             )
-            self._validate_plan_for_execution(replacement, workflow)
-        except Exception:
-            return None, None
-        event = build_replan_event(
-            failed_step_id="plan-validation",
-            failed_tool="planner",
-            failure_category=failure_category(str(exc)),
-            new_step_ids=[step.id for step in replacement.steps],
-            latency_ms=(perf_counter() - started) * 1000,
-            phase="planning",
         )
-        return replacement, event
-
-    def _plan_with_feedback(
-        self,
-        request: str,
-        workflow: Optional[Mapping[str, Any]],
-        feedback: Mapping[str, Any],
-        *,
-        context_packet: Optional[ContextPacket] = None,
-    ) -> TaskPlan:
-        method = self._planner.plan
-        try:
-            parameters = inspect.signature(method).parameters
-        except (TypeError, ValueError):
-            parameters = {}
-        accepts_kwargs = any(
-            item.kind == inspect.Parameter.VAR_KEYWORD
-            for item in parameters.values()
-        )
-        kwargs: Dict[str, Any] = {}
-        if workflow is not None and ("workflow" in parameters or accepts_kwargs):
-            kwargs["workflow"] = workflow
-        if "context" in parameters or accepts_kwargs:
-            repair_context = _replan_context(feedback)
-            if context_packet is not None:
-                sections = context_packet.payload.get("sections", {})
-                if isinstance(sections, Mapping):
-                    repair_context["capability_context"] = {
-                        key: sections[key]
-                        for key in (
-                            "available_tools",
-                            "capability_discovery",
-                            "capability_catalog",
-                            "workflow_templates",
-                        )
-                        if key in sections
-                    }
-            kwargs["context"] = repair_context
-        return method(request, **kwargs)
+        return outcome.plan, outcome.event
 
     def _plan(
         self,

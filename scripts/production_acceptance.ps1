@@ -229,6 +229,56 @@ function Assert-ReplanningEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-RepairLineageEvidence($payload, [string]$surface) {
+  # Repair evidence is deliberately checked at the full result boundary.
+  # The compact async result_evidence projection does not carry raw repair
+  # events; its lineage count is checked by the async acceptance path below.
+  if ($null -eq $payload -or $null -eq $payload.result) {
+    throw "$surface repair result envelope missing"
+  }
+  $repair = $payload.result.replanning
+  if ($null -eq $repair) {
+    throw "$surface repair lineage envelope missing"
+  }
+  if ($repair.schema_version -ne "spatial-agent.replanning.v1") {
+    throw "$surface repair lineage schema mismatch"
+  }
+  $events = @($repair.events)
+  if ([int]$repair.count -ne $events.Count) {
+    throw "$surface repair lineage event count mismatch"
+  }
+  if (($repair.available -eq $true) -ne ($events.Count -gt 0)) {
+    throw "$surface repair lineage availability mismatch"
+  }
+  if ($null -eq $payload.result.lineage -or $null -eq $payload.result.lineage.replanning) {
+    throw "$surface repair lineage index missing"
+  }
+  if ([int]$payload.result.lineage.replanning.count -ne [int]$repair.count) {
+    throw "$surface repair lineage index count mismatch"
+  }
+  $rawEventsProperty = $payload.PSObject.Properties["replan_events"]
+  if ($null -ne $rawEventsProperty) {
+    $rawEvents = @($rawEventsProperty.Value)
+    if ($rawEvents.Count -ne $events.Count) {
+      throw "$surface persisted repair event count mismatch"
+    }
+  }
+  foreach ($event in $events) {
+    if ([string]::IsNullOrWhiteSpace([string]$event.failed_step_id)) {
+      throw "$surface repair failed step missing"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$event.failed_tool)) {
+      throw "$surface repair failed tool missing"
+    }
+    if ($event.phase -notin @("planning", "execution")) {
+      throw "$surface repair phase invalid"
+    }
+    if ($null -eq $event.replanned_step_ids) {
+      throw "$surface repair replacement steps missing"
+    }
+  }
+}
+
 function Get-DatasetEvidence($snapshot, [string]$dataset) {
   if ($null -eq $snapshot.data_evidence) {
     throw "runtime dataset evidence is missing"
@@ -491,6 +541,7 @@ function Assert-NestedSchemaContract($payload, [string]$surface) {
     throw "$surface result type missing"
   }
   Assert-NestedViewTree $result.workspace $result.views "$surface result" $true
+  Assert-RepairLineageEvidence $payload $surface
 
   # Async polling intentionally exposes a smaller evidence projection. It
   # still has to use the same workspace/view versions and panel linkage.
@@ -681,6 +732,7 @@ if ($artifact.result.views.schema_version -ne $syncRun.result.views.schema_versi
   throw "artifact views schema mismatch"
 }
 Assert-ReplanningEvidence $artifact "artifact"
+Assert-RepairLineageEvidence $artifact "artifact"
 Assert-DeploymentEvidence $artifact "artifact"
 Assert-NestedSchemaContract $artifact "artifact"
 $syncArtifactContract = Invoke-ContractHarness -payloads @($syncRun, $artifact) -surface "sync/artifact"
@@ -712,7 +764,7 @@ if ($invalid.payload.error_code -ne "invalid_request" -or $invalid.payload.error
 }
 
 $greeting = ([char]0x4F60) + ([char]0x597D)
-$asyncPayload = @{ request = $greeting; session_id = $sessionId; planner = "rule"; backend = "memory" }
+$asyncPayload = @{ request = $greeting; session_id = $sessionId; planner = "rule"; backend = "memory"; export_artifact = $true }
 $queued = Post-Json "$BaseUrl/runs/async" $asyncPayload
 if (-not $queued.run_id -or $queued.status -ne "QUEUED") { throw "async submission failed" }
 $duplicate = Post-Json "$BaseUrl/runs/async" $asyncPayload
@@ -730,8 +782,25 @@ for ($index = 0; $index -lt $PollLimit; $index++) {
 if ($null -eq $final) { throw "async run did not reach a terminal state" }
 if ($final.status -ne "COMPLETED") { throw "async run failed: $($final.error)" }
 Assert-DeploymentEvidence $final "async run"
+$asyncFinalArtifactName = Split-Path -Leaf ([string]$final.artifact_ref)
+if ([string]::IsNullOrWhiteSpace([string]$asyncFinalArtifactName)) {
+  throw "async run artifact_ref missing"
+}
+Assert-NestedSchemaContract $final "async final run"
+Assert-ReplanningEvidence $final "async final run"
+$asyncArtifact = Get-Json "$BaseUrl/artifacts/runs/$asyncFinalArtifactName"
+Assert-NestedSchemaContract $asyncArtifact "async artifact"
+Assert-ReplanningEvidence $asyncArtifact "async artifact"
+Assert-RepairLineageEvidence $asyncArtifact "async artifact"
+$asyncArtifactContract = Invoke-ContractHarness -payloads @($final, $asyncArtifact) -surface "async/artifact"
 $asyncObservation = Get-Json "$BaseUrl/runs/$($queued.run_id)/async"
 Assert-AsyncResultEvidence $asyncObservation "async polling"
+if ($null -eq $asyncObservation.lineage -or $null -eq $asyncObservation.lineage.replanning) {
+  throw "async polling repair lineage index missing"
+}
+if ([int]$asyncObservation.lineage.replanning.count -ne [int]$final.result.replanning.count) {
+  throw "async polling repair lineage count mismatch"
+}
 
 [pscustomobject]@{
   status = "ok"
@@ -769,6 +838,9 @@ Assert-AsyncResultEvidence $asyncObservation "async polling"
   invalid_request_error_code = $invalid.payload.error_code
   async_status = $final.status
   async_view_state = $asyncObservation.result_evidence.state
+  async_repair_count = $final.result.replanning.count
+  async_poll_repair_count = $asyncObservation.lineage.replanning.count
+  async_artifact_contract = $asyncArtifactContract.status
   async_duplicate_idempotent = $duplicate.idempotent
   run_id = $queued.run_id
 } | ConvertTo-Json -Compress

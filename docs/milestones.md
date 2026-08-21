@@ -3048,3 +3048,16 @@ M150 不再扩展单一 GIS 数据集，而是把 M149 的契约边界推进到�
 5. **部署可靠性**：补 FastAPI 依赖环境、同步/异步/artifact/recovery 生产矩阵和滚动重启证据。
 6. **用户体验**：完成 Console 动态浏览器/CDP 验收，统一显示计划、修复、视图空态和恢复链接。
 7. **测试证据**：active suite 继续保持极简；M150 使用显式 profile，最多 5 路并行，阶段末统一专项、Docker、live 和浏览器验收。
+
+## M150：Runtime 计划修复执行闭环（已完成）
+
+M150 将 capability-guided plan repair 从评测投影推进到可替换的 Runtime 执行 seam。`PlanRepairEngine` 统一负责有界 capability context、repair budget、Planner 调用、TaskPlan/workflow 校验和 repair lineage；Rule Planner 不调用模型 repair，所有替换计划仍经过 DAG、ToolRegistry 和结果契约边界。
+
+- replay/live 评测、同步/异步/artifact/recovery、生产 acceptance 和 Console 使用同一类脱敏 repair evidence；Console 新增通用决策证据区域，可显示修复、拒绝、澄清和 provider 不可用状态。
+- 修复 Contract Harness 漏读 artifact 顶层 `async_result_evidence` 的真实 Docker acceptance 问题，新增回归覆盖在线终态与 artifact 等价；FastAPI TestClient 缺少 `httpx2` 时测试明确跳过，生产镜像不引入非必要测试依赖。
+- M150 专项 15 项通过、1 项宿主环境跳过；M141/M148/M149 相邻回归 31 项通过、3 项环境跳过；M80 回归 32 项通过；quick、ci、stage、full-stage、compileall、diff check 通过。Docker Text/GIS offline replay 和当前镜像 production acceptance 通过，真实 GIS 数据卷、同步/异步、artifact contract、失败/400/幂等和 async evidence 均已验证。
+- Chrome/CDP 动态浏览器与外部 live provider 未执行，不能以 Docker/API/静态 Console 证据替代。
+
+## M151 全局规划参考
+
+从全局 Runtime 推进“可修复”到“可控继续执行”：先定义跨 Domain 的 repair decision/action contract 和多轮恢复边界，再贯通 HTTP、异步、artifact、Console 与评测，最后进行 Docker、可选 live planner 和浏览器动态验收。避免为单一区域或单一 GIS 数据集增加硬编码规则，默认 active suite 保持精简，最多并行 5 路。

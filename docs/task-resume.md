@@ -1616,3 +1616,13 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M150 全局规划参考
 
 下一阶段从整体 Agent Runtime 推进 capability-guided plan repair 的真实执行闭环：先定义有预算的 Runtime repair seam，再接入同步/异步/artifact/recovery 和 Text/GIS 双 Domain；同时建立 FastAPI 生产依赖矩阵、可选 live/replay 计划修复基线和 Console 浏览器/CDP 动态验收。默认 active suite 不扩张，数据任务只服务于 runtime evidence，最多并发 5 路。
+
+## M150 收尾状态
+
+- M150 已将 capability-guided plan repair 从评测层接入 Runtime seam，并贯通 replay/live 投影、HTTP、异步、artifact/recovery、生产 acceptance 与 Console 决策证据。
+- 当前代码已修复 async final/artifact Contract Harness 的证据来源不一致；生产镜像已重建并通过 acceptance。容器 offline replay 覆盖 Text/GIS、模型调用、ToolRegistry、异步轮询和重启恢复。
+- 测试保持分层：M150 15 项宿主通过、1 项环境跳过；相邻 M141/M148/M149 31 项通过、3 项跳过；M80 32 项通过；quick/ci/stage/full-stage 通过。FastAPI TestClient 由于缺少 `httpx2` 明确跳过，Uvicorn 生产入口不受影响；Chrome/CDP 和外部 live provider 未执行。
+
+## M151 规划参考
+
+下一阶段从项目整体推进 repair decision 的可控生命周期：统一 repair/拒绝/澄清/恢复 action contract，支持跨 Domain 的多轮继续执行，并保证同步、异步、artifact、HTTP、Console 和评测使用同一状态投影。先做公共状态与恢复边界，再做入口适配，最后进行 Docker、可选 live 模型和浏览器显式验收；不为单个 GIS 数据集增加专用分支，默认 active suite 不扩大，最多并行 5 路。

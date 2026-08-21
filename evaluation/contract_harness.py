@@ -236,6 +236,12 @@ def _async_result_evidence_projection(
     evidence = observation.get("result_evidence") if observation else None
     if not isinstance(evidence, Mapping):
         evidence = payload.get("result_evidence")
+    # Run artifacts persist the same bounded projection at the top level so
+    # artifact-only recovery does not need to recreate the full async
+    # observation envelope.  Treat that durable location as equivalent to
+    # the live polling locations above.
+    if not isinstance(evidence, Mapping):
+        evidence = payload.get("async_result_evidence")
     if not isinstance(evidence, Mapping):
         return None
 

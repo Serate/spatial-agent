@@ -3719,3 +3719,31 @@ result envelope、workspace、views、view/panel 和 async evidence 原先由不
 ### 处理与预防
 
 M149 增加无领域依赖的 `agent/nested_schema.py` 作为统一迁移/校验 seam：缺失版本只执行有界 legacy migration，未知版本抛出带 `reason_code` 的 `NestedSchemaError`。artifact/HTTP/async recovery 使用 `unavailable` fallback 或安全拒绝，Console 使用同样版本表做前端空态保护；replay/live 评测和生产验收复用对应的脱敏证据。以后新增嵌套结果字段必须同时补当前、legacy、unknown 三类测试，并验证同步、异步、artifact、HTTP 和前端的解释一致性。
+
+## M150：Contract Harness 漏掉 artifact 顶层异步证据
+
+### 现象
+
+当前 Docker 生产 acceptance 在 `async/artifact` Contract Harness 处失败，差异只有 `$.async_result_evidence`。异步运行结果本身和 artifact 都已成功，repair lineage、视图和部署证据也一致。
+
+### 根因
+
+在线终态通过 `async_observability.result_evidence` 暴露有界异步证据；run artifact 为支持 artifact-only recovery，将同一投影持久化在顶层 `async_result_evidence`。Contract Harness 只读取在线 observation 和兼容的 `result_evidence` 路径，没有读取 artifact 的持久化路径，因此把同一份证据误判为缺失。
+
+### 处理与预防
+
+`evaluation/contract_harness.py` 的异步证据投影现在按顺序读取在线 observation、兼容顶层 `result_evidence` 和 artifact 顶层 `async_result_evidence`。新增 M150 HTTP/artifact 回归先验证该问题为红灯，再验证修复后同步/异步 artifact 等价。以后新增持久化证据字段时，必须列出在线、artifact、recovery 三种来源并让 Harness 共用同一投影，不能只测试单一路径。
+
+## M150：FastAPI TestClient 的可选 httpx2 依赖不能冒充生产失败
+
+### 现象
+
+Docker 生产镜像中 FastAPI 和 Uvicorn 均可用，真实 `/health`、同步、异步和 artifact acceptance 全部通过；但运行 M150 Python 专项时，`fastapi.testclient` 因 Starlette 缺少 `httpx2` 抛出 `RuntimeError`，导致测试进程失败。
+
+### 根因
+
+`httpx2` 是 TestClient 的测试依赖，不是 Uvicorn 生产 HTTP 入口的必要依赖。测试原先只捕获 `ModuleNotFoundError`，没有把 TestClient 导入阶段对可选依赖的 RuntimeError 归类为环境跳过。
+
+### 处理与预防
+
+M150 测试现在同时处理模块缺失和 TestClient 导入 RuntimeError，并以明确原因跳过可选 FastAPI TestClient 矩阵；生产镜像不为测试工具强行增加依赖，实际生产路径继续由 Uvicorn acceptance 覆盖。以后遇到可选测试客户端缺失，必须区分“生产入口不可用”和“测试适配器不可用”，不能把后者改写成业务失败，也不能静默跳过而不说明原因。

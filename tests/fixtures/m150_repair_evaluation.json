@@ -1,0 +1,116 @@
+{
+  "schema_version": "m150-repair-evaluation-v1",
+  "suite_id": "m150-capability-guided-repair",
+  "fixtures": [
+    {
+      "fixture_id": "capability-guided-plan-repair",
+      "domain": "text",
+      "replay_type": "plan_repair",
+      "expected_repair_count": 1,
+      "expected_plan_repair_count": 1,
+      "expected_final_status": "COMPLETED",
+      "expected_repair_class": "repaired",
+      "expected_capability": {
+        "selected": "text_summary",
+        "candidates": ["text_summary"]
+      },
+      "provider_metrics": {
+        "usage": {"input_tokens": 140, "output_tokens": 60, "total_tokens": 200},
+        "latency_ms": 95,
+        "attempts": 2,
+        "retries": 1
+      },
+      "turns": [
+        {
+          "request": "请摘要这段文字",
+          "response": {
+            "goal": "summarize supplied text",
+            "steps": [{"id": "bad", "tool": "unknown_tool", "args": {}}],
+            "output": {"type": "text_summary_result", "summary": true}
+          },
+          "expected": {"expected_status": "FAILED"}
+        },
+        {
+          "request": "修复刚才的计划并重新执行",
+          "response": {
+            "goal": "summarize supplied text",
+            "steps": [{
+              "id": "summary",
+              "tool": "summarize_text",
+              "args": {"text": "能力目录应指导计划修复。"},
+              "depends_on": []
+            }],
+            "output": {"type": "text_summary_result", "summary": true}
+          },
+          "expected": {
+            "expected_status": "COMPLETED",
+            "expected_tools": ["summarize_text"],
+            "expected_result_type": "text_summary_result"
+          }
+        }
+      ]
+    },
+    {
+      "fixture_id": "capability-guided-rejection",
+      "domain": "gis",
+      "replay_type": "unsupported_capability",
+      "expected_repair_count": 0,
+      "expected_plan_repair_count": 0,
+      "expected_final_status": "REJECTED",
+      "expected_repair_class": "rejected",
+      "provider_metrics": {
+        "usage": {"input_tokens": 90, "output_tokens": 25, "total_tokens": 115},
+        "latency_ms": 40,
+        "attempts": 1,
+        "retries": 0
+      },
+      "turns": [
+        {
+          "request": "执行不允许的破坏性操作",
+          "response": {
+            "outcome": "rejected",
+            "message": "该请求不属于当前能力范围。"
+          },
+          "expected": {"expected_status": "REJECTED"}
+        }
+      ]
+    },
+    {
+      "fixture_id": "capability-guided-no-repair",
+      "domain": "gis",
+      "replay_type": "open_region_query",
+      "expected_repair_count": 0,
+      "expected_plan_repair_count": 0,
+      "expected_final_status": "COMPLETED",
+      "expected_repair_class": "no_repair",
+      "expected_capability": {
+        "selected": "admin_boundary_query",
+        "candidates": ["admin_boundary_query"]
+      },
+      "provider_metrics": {
+        "usage": {"input_tokens": 180, "output_tokens": 70, "total_tokens": 250},
+        "latency_ms": 75,
+        "attempts": 1,
+        "retries": 0
+      },
+      "turns": [
+        {
+          "request": "查询江夏区行政区边界",
+          "response": {
+            "goal": "查询行政区边界",
+            "steps": [
+              {"id": "schema", "tool": "get_dataset_schema", "args": {"dataset": "admin_areas"}, "depends_on": []},
+              {"id": "query", "tool": "range_query", "args": {"dataset": "admin_areas", "conditions": [{"field": "name", "operator": "eq", "value": "江夏区"}], "limit": 100}, "depends_on": ["schema"]}
+            ],
+            "output": {"type": "admin_area_result", "summary": true}
+          },
+          "expected": {
+            "expected_status": "COMPLETED",
+            "expected_tools": ["get_dataset_schema", "range_query"],
+            "expected_result_type": "admin_area_result"
+          }
+        }
+      ]
+    }
+  ]
+}

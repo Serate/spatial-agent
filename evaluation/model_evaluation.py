@@ -31,9 +31,11 @@ _CHINESE_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 _SECRET_KEY_TERMS = ("api_key", "apikey", "secret", "access_token", "refresh_token")
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens")
 REPAIR_EVIDENCE_SCHEMA_VERSION = "spatial-agent.repair-evaluation.v1"
+CAPABILITY_REPAIR_EVIDENCE_SCHEMA_VERSION = "spatial-agent.capability-repair-evaluation.v1"
 _MAX_REPAIR_EVENTS = 8
 _MAX_REPAIR_STEP_IDS = 24
 _MAX_REPAIR_TURNS = 32
+_MAX_CAPABILITY_IDS = 8
 _REPAIR_TYPES = {"plan_repair", "planning_repair", "execution_replan", "repair"}
 _REPAIR_STATUSES = {
     "CREATED",
@@ -45,6 +47,14 @@ _REPAIR_STATUSES = {
     "FAILED",
     "CANCELLED",
     "TIMED_OUT",
+}
+_REPAIR_CLASSES = {
+    "repaired",
+    "rejected",
+    "clarification",
+    "failed",
+    "no_repair",
+    "unknown",
 }
 
 
@@ -85,6 +95,7 @@ def evaluate_model_replay_suite(suite: Mapping[str, Any]) -> Dict[str, Any]:
         "failed": len(results) - passed,
         "pass_rate": round(passed / len(results), 4) if results else 0,
         "repair_evidence": summarize_repair_evidence(results),
+        "capability_repair_evaluation": summarize_capability_repair_quality(results),
         "results": results,
     }
 
@@ -154,6 +165,8 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
         "schema_version": REPAIR_EVIDENCE_SCHEMA_VERSION,
         "available": bool(projected_events),
         "repair_count": len(projected_events),
+        "repair_class": _repair_class(status, len(projected_events)),
+        "capability_guidance": _project_capability_guidance(source),
         "lineage": {
             "available": bool(projected_events),
             "count": len(projected_events),
@@ -166,6 +179,312 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
             "failed_step_count": min(failed_step_count, 64),
         },
     }
+
+
+def evaluate_capability_guided_repair(
+    payload: Any,
+    *,
+    expected: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Evaluate capability selection and repair outcome on safe evidence.
+
+    ``payload`` may be a Runtime result, an artifact/result mapping, or an
+    already projected replay evidence object.  All three paths are reduced to
+    the same bounded projection before comparison, so replay and live reports
+    cannot accidentally expose different fields or provider content.
+    """
+    actual = _coerce_repair_projection(payload)
+    expected_value = _normalize_capability_expectation(expected)
+    actual_guidance = actual.get("capability_guidance")
+    if not isinstance(actual_guidance, Mapping):
+        actual_guidance = _empty_capability_guidance()
+    actual_class = _safe_repair_class(actual.get("repair_class"))
+    expected_selected = expected_value.get("selected_capability_id")
+    expected_candidates = expected_value.get("candidate_ids")
+    expected_class = expected_value.get("repair_class")
+    matches = {
+        "selected_capability": (
+            True
+            if expected_selected is None
+            else actual_guidance.get("selected_capability_id") == expected_selected
+        ),
+        "candidate_ids": (
+            True
+            if expected_candidates is None
+            else actual_guidance.get("candidate_ids", []) == expected_candidates
+        ),
+        "repair_class": (
+            True
+            if expected_class is None
+            else actual_class == expected_class
+        ),
+    }
+    evaluated = any(
+        value is not None
+        for value in (expected_selected, expected_candidates, expected_class)
+    )
+    return {
+        "schema_version": CAPABILITY_REPAIR_EVIDENCE_SCHEMA_VERSION,
+        "evaluated": evaluated,
+        "expected": {
+            "selected_capability_id": expected_selected,
+            "candidate_ids": expected_candidates,
+            "repair_class": expected_class,
+        },
+        "actual": {
+            "selected_capability_id": _safe_capability_id(
+                actual_guidance.get("selected_capability_id")
+            ),
+            "candidate_ids": _safe_capability_ids(
+                actual_guidance.get("candidate_ids")
+            ),
+            "repair_class": actual_class,
+            "guidance_available": bool(actual_guidance.get("available")),
+        },
+        "matches": matches,
+        "passed": all(matches.values()) if evaluated else True,
+    }
+
+
+def summarize_capability_repair_quality(report_or_results: Any) -> Dict[str, Any]:
+    """Aggregate capability-guided repair quality without raw request data."""
+    if isinstance(report_or_results, Mapping):
+        candidates = report_or_results.get("results")
+        if not isinstance(candidates, list):
+            candidates = report_or_results.get("cases")
+    elif isinstance(report_or_results, list):
+        candidates = report_or_results
+    else:
+        candidates = []
+    candidates = candidates if isinstance(candidates, list) else []
+    quality = [
+        item.get("capability_repair_quality")
+        for item in candidates
+        if isinstance(item, Mapping)
+        and isinstance(item.get("capability_repair_quality"), Mapping)
+    ]
+    classes = Counter(
+        str(item.get("actual", {}).get("repair_class") or "unknown")
+        for item in quality
+        if isinstance(item.get("actual"), Mapping)
+    )
+    evaluated = [item for item in quality if item.get("evaluated")]
+    return {
+        "schema_version": CAPABILITY_REPAIR_EVIDENCE_SCHEMA_VERSION,
+        "fixture_count": len(quality),
+        "evaluated_count": len(evaluated),
+        "passed_count": sum(1 for item in evaluated if item.get("passed")),
+        "failed_count": sum(1 for item in evaluated if not item.get("passed")),
+        "repair_classes": dict(sorted(classes.items())),
+        "passed": all(bool(item.get("passed", True)) for item in evaluated),
+    }
+
+
+def compare_repair_evidence_entries(left: Any, right: Any) -> Dict[str, Any]:
+    """Check that replay/live entries share the same bounded evidence shape."""
+    left_projection = _coerce_repair_projection(left)
+    right_projection = _coerce_repair_projection(right)
+    left_keys = _safe_projection_shape(left_projection)
+    right_keys = _safe_projection_shape(right_projection)
+    left_text = json.dumps(left_projection, ensure_ascii=False, sort_keys=True)
+    right_text = json.dumps(right_projection, ensure_ascii=False, sort_keys=True)
+    return {
+        "schema_version": CAPABILITY_REPAIR_EVIDENCE_SCHEMA_VERSION,
+        "same_schema": (
+            left_projection.get("schema_version") == REPAIR_EVIDENCE_SCHEMA_VERSION
+            and right_projection.get("schema_version") == REPAIR_EVIDENCE_SCHEMA_VERSION
+        ),
+        "same_shape": left_keys == right_keys,
+        "left_shape": left_keys,
+        "right_shape": right_keys,
+        "redacted": not _contains_private_field(left_projection)
+        and not _contains_private_field(right_projection),
+        "contains_raw_private_terms": any(
+            term in (left_text + right_text).lower()
+            for term in ("authorization", "api_key", "access_token", "secret")
+        ),
+        "passed": (
+            left_keys == right_keys
+            and left_projection.get("schema_version") == REPAIR_EVIDENCE_SCHEMA_VERSION
+            and right_projection.get("schema_version") == REPAIR_EVIDENCE_SCHEMA_VERSION
+            and not _contains_private_field(left_projection)
+            and not _contains_private_field(right_projection)
+        ),
+    }
+
+
+def _coerce_repair_projection(payload: Any) -> Dict[str, Any]:
+    """Re-project raw or previously projected evidence through one seam."""
+    if isinstance(payload, Mapping):
+        nested = payload.get("repair_evidence")
+        if isinstance(nested, Mapping):
+            payload = nested
+        if payload.get("schema_version") == REPAIR_EVIDENCE_SCHEMA_VERSION:
+            result = payload.get("result") if isinstance(payload.get("result"), Mapping) else {}
+            guidance = payload.get("capability_guidance")
+            events = payload.get("lineage", {}).get("events", []) if isinstance(payload.get("lineage"), Mapping) else []
+            if "terminal_status" in payload:
+                count = payload.get("repair_count")
+                count = count if type(count) is int and count >= 0 else 0
+                events = [
+                    {
+                        "failed_step_id": "replay-transition",
+                        "failed_tool": "replay",
+                        "failure_category": "replay_transition",
+                        "phase": "planning",
+                        "replanned_step_ids": ["replay-transition"],
+                    }
+                    for _ in range(min(count, _MAX_REPAIR_EVENTS))
+                ]
+                result = {
+                    "status": payload.get("terminal_status"),
+                    "result_type": "unknown",
+                }
+            return project_repair_evidence({
+                "status": result.get("status"),
+                "result_type": result.get("result_type"),
+                "plan": {"output": {"type": result.get("result_type")}},
+                "replan_events": events if isinstance(events, list) else [],
+                "plan_evidence": guidance if isinstance(guidance, Mapping) else {},
+            })
+    return project_repair_evidence(payload)
+
+
+def _project_capability_guidance(source: Mapping[str, Any]) -> Dict[str, Any]:
+    """Extract only capability ids from runtime or envelope planning evidence."""
+    candidates = []
+    nested_result = source.get("result")
+    if isinstance(nested_result, Mapping):
+        candidates.extend(
+            nested_result.get(key)
+            for key in ("plan_evidence", "planning", "capability_guidance")
+        )
+    candidates.extend(
+        source.get(key)
+        for key in ("plan_evidence", "planning", "capability_guidance")
+    )
+    selected = None
+    candidate_ids = []
+    source_kind = "unavailable"
+    for value in candidates:
+        if not isinstance(value, Mapping):
+            continue
+        selected_value = value.get("selected_capability_id")
+        if selected is None and selected_value is not None:
+            selected = _safe_capability_id(selected_value)
+        raw_ids = value.get("capability_candidate_ids")
+        if raw_ids is None:
+            raw_ids = value.get("candidate_ids")
+        if not candidate_ids and isinstance(raw_ids, (list, tuple)):
+            candidate_ids = _safe_capability_ids(raw_ids)
+        if selected or candidate_ids:
+            source_kind = "plan_evidence"
+            break
+    if selected and selected not in candidate_ids:
+        candidate_ids.insert(0, selected)
+        candidate_ids = candidate_ids[:_MAX_CAPABILITY_IDS]
+    return {
+        "available": bool(selected or candidate_ids),
+        "selected_capability_id": selected or None,
+        "candidate_ids": candidate_ids,
+        "source": source_kind,
+    }
+
+
+def _empty_capability_guidance() -> Dict[str, Any]:
+    return {
+        "available": False,
+        "selected_capability_id": None,
+        "candidate_ids": [],
+        "source": "unavailable",
+    }
+
+
+def _normalize_capability_expectation(value: Any) -> Dict[str, Any]:
+    value = value if isinstance(value, Mapping) else {}
+    nested = value.get("capability_guidance")
+    nested = nested if isinstance(nested, Mapping) else value.get("expected_capability")
+    nested = nested if isinstance(nested, Mapping) else {}
+    selected = (
+        nested.get("selected_capability_id")
+        or nested.get("selected")
+        or value.get("expected_capability_id")
+    )
+    raw_candidates = (
+        nested.get("candidate_ids")
+        if "candidate_ids" in nested
+        else nested.get("candidates")
+    )
+    if raw_candidates is None:
+        raw_candidates = value.get("expected_capability_candidates")
+    candidates = None
+    if raw_candidates is not None:
+        candidates = _safe_capability_ids(raw_candidates)
+    repair_class = (
+        value.get("expected_repair_class")
+        or value.get("repair_class")
+        or (value.get("expected_repair") or {}).get("class")
+        if isinstance(value.get("expected_repair"), Mapping)
+        else value.get("expected_repair_class") or value.get("repair_class")
+    )
+    repair_class = _safe_repair_class(repair_class) if repair_class else None
+    return {
+        "selected_capability_id": _safe_capability_id(selected) or None,
+        "candidate_ids": candidates,
+        "repair_class": repair_class,
+    }
+
+
+def _safe_capability_id(value: Any) -> str:
+    return _safe_repair_token(value)
+
+
+def _safe_capability_ids(values: Any) -> List[str]:
+    if not isinstance(values, (list, tuple)):
+        return []
+    result = []
+    for value in values[:_MAX_CAPABILITY_IDS]:
+        safe = _safe_capability_id(value)
+        if safe and safe not in result:
+            result.append(safe)
+    return result
+
+
+def _safe_repair_class(value: Any) -> str:
+    value = str(value or "").strip().lower()
+    return value if value in _REPAIR_CLASSES else "unknown"
+
+
+def _repair_class(status: Any, repair_count: int) -> str:
+    safe_status = _safe_repair_status(status)
+    if safe_status == "REJECTED":
+        return "rejected"
+    if safe_status == "NEEDS_CLARIFICATION":
+        return "clarification"
+    if safe_status in {"FAILED", "CANCELLED", "TIMED_OUT"}:
+        return "failed"
+    if safe_status == "COMPLETED":
+        return "repaired" if repair_count > 0 else "no_repair"
+    return "unknown"
+
+
+def _safe_projection_shape(value: Mapping[str, Any]) -> Dict[str, Any]:
+    """Describe the stable recursive shape, excluding values and secrets."""
+    if not isinstance(value, Mapping):
+        return {}
+    result = {}
+    for key, item in sorted(value.items(), key=lambda pair: str(pair[0])):
+        key_text = str(key)
+        if isinstance(item, Mapping):
+            result[key_text] = _safe_projection_shape(item)
+        elif isinstance(item, list):
+            result[key_text] = [
+                _safe_projection_shape(entry) if isinstance(entry, Mapping) else type(entry).__name__
+                for entry in item[:_MAX_REPAIR_EVENTS]
+            ]
+        else:
+            result[key_text] = type(item).__name__
+    return result
 
 
 def project_replay_repair_evidence(
@@ -194,12 +513,25 @@ def project_replay_repair_evidence(
         })
 
     runtime_events = []
+    capability_guidance = _empty_capability_guidance()
     for turn in turn_evidence[:_MAX_REPAIR_TURNS]:
         if not isinstance(turn, Mapping):
             continue
         evidence = turn.get("repair_evidence")
         if not isinstance(evidence, Mapping):
             continue
+        guidance = evidence.get("capability_guidance")
+        if isinstance(guidance, Mapping) and (
+            guidance.get("selected_capability_id") or guidance.get("candidate_ids")
+        ):
+            capability_guidance = {
+                "available": bool(guidance.get("available")),
+                "selected_capability_id": _safe_capability_id(
+                    guidance.get("selected_capability_id")
+                ) or None,
+                "candidate_ids": _safe_capability_ids(guidance.get("candidate_ids")),
+                "source": "plan_evidence",
+            }
         lineage = evidence.get("lineage")
         events = lineage.get("events") if isinstance(lineage, Mapping) else []
         for event in events if isinstance(events, list) else []:
@@ -241,6 +573,8 @@ def project_replay_repair_evidence(
         "schema_version": REPAIR_EVIDENCE_SCHEMA_VERSION,
         "available": inferred_count > 0,
         "repair_count": min(inferred_count, _MAX_REPAIR_EVENTS),
+        "repair_class": _repair_class(final_status, inferred_count),
+        "capability_guidance": capability_guidance,
         "clarification_count": sum(
             1 for turn in safe_turns if turn["status"] == "NEEDS_CLARIFICATION"
         ),
@@ -352,12 +686,17 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         expected_repair_count=fixture.get("expected_plan_repair_count"),
         expected_final_status=final_expected,
     )
+    capability_repair_quality = evaluate_capability_guided_repair(
+        repair_evidence,
+        expected=fixture,
+    )
     passed = all(item["status_match"] and item["quality"]["passed"] for item in turn_results)
     passed = passed and final_status == final_expected
     if expected_repair_count is not None:
         passed = passed and repair_count == expected_repair_count
     if fixture.get("expected_plan_repair_count") is not None:
         passed = passed and repair_evidence["passed"]
+    passed = passed and capability_repair_quality["passed"]
     return {
         "fixture_id": fixture_id,
         "domain": domain,
@@ -367,6 +706,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         "final_status": final_status,
         "turns": turn_results,
         "repair_evidence": repair_evidence,
+        "capability_repair_quality": capability_repair_quality,
         "metrics": safe_metrics,
         "passed": passed,
         "error_class": "none" if passed else "replay_contract_error",

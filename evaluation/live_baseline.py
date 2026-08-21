@@ -18,8 +18,10 @@ from evaluation.model_evaluation import (
     DEFAULT_MODEL_REPLAY_FIXTURE,
     evaluate_model_replay_suite_file,
     evaluate_plan_quality,
+    evaluate_capability_guided_repair,
     project_repair_evidence,
     sanitize_provider_metrics,
+    summarize_capability_repair_quality,
     summarize_repair_evidence,
 )
 from run_demo import build_runtime
@@ -120,6 +122,7 @@ def run_live_baseline(
         "capability_snapshot": safe_snapshot,
         "plan_repair_replay": replay,
         "repair_evidence": summarize_repair_evidence(replay),
+        "capability_repair_evaluation": summarize_capability_repair_quality(results),
         "cases": results,
         "summary": {
             "total": len(results),
@@ -729,7 +732,13 @@ def _result_evidence(
         )
     status_match = status == str(case.get("expected_status") or "COMPLETED")
     error_class = provider_class if provider_class != "none" else _local_error_class(result)
+    repair_evidence = project_repair_evidence(result)
+    capability_repair_quality = evaluate_capability_guided_repair(
+        repair_evidence,
+        expected=case,
+    )
     passed = status_match and (quality is None or quality["passed"])
+    passed = passed and capability_repair_quality["passed"]
     if kind == "clarification":
         passed = passed and not actual_tools
     return {
@@ -751,7 +760,8 @@ def _result_evidence(
         ],
         "result_type": (plan.get("output") or {}).get("type"),
         "plan_quality": quality,
-        "repair_evidence": project_repair_evidence(result),
+        "repair_evidence": repair_evidence,
+        "capability_repair_quality": capability_repair_quality,
         "answer_chinese": bool(result.answer and any("\u3400" <= char <= "\u9fff" for char in result.answer)),
         "passed": passed,
     }

@@ -1358,3 +1358,15 @@ M138 已完成 deployment evidence 的跨入口验收门禁。M139 转向请求�
 ## M150 全局规划参考
 
 M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“可修复规划 + 可验证生产入口”：产品侧让用户能看到模型计划为何被修复/拒绝并继续执行；架构侧把 capability-guided plan repair 从评测证据推进到 Runtime 的有界执行 seam；数据侧继续绑定 runtime capability、健康、覆盖和对齐证据，不新增区域专用规则；模型侧用脱敏 replay 与可选 live 基线验证重复步骤、依赖错误和 repair lineage；部署侧补 FastAPI 依赖环境与生产 API 矩阵；体验侧完成 Console 动态浏览器/CDP 验收；测试侧保持 active suite 极简，新增能力只进入显式 M150 profile。M150 继续允许最多 5 路边界清晰的并行任务。
+
+## M150 当前实现与验证状态（已完成）
+
+- 新增 `agent/plan_repair.py` 的 `PlanRepairEngine`，把 capability context 限界、repair budget、Planner 调用、TaskPlan/workflow 校验和 repair lineage 收敛为 Runtime 可替换 seam；Rule Planner 不触发模型 repair，provider 原文和完整异常不进入证据。
+- replay/live 评测、同步/异步/artifact/recovery、生产 acceptance 和 Console 均消费有界 repair evidence；Console 新增通用决策证据面板，支持修复、拒绝、澄清和模型不可用状态，不增加 GIS 专属 renderer。
+- 修复 `evaluation.contract_harness` 未读取 artifact 顶层 `async_result_evidence` 的跨入口差异，并补充先红后绿的 HTTP/artifact 回归；FastAPI TestClient 缺少 `httpx2` 时明确环境跳过，不把可选测试依赖当作生产失败。
+- 验证：M150 专项宿主 15 项通过、1 项 FastAPI 缺失跳过；M141/M148/M149 相邻回归 31 项通过（3 项环境跳过）；M80 回归 32 项通过；quick、ci、stage、full-stage、compileall 和 diff check 通过。Docker M148 Text/GIS offline replay 通过，容器 M150 专项 15 项通过、8 项明确环境跳过，当前镜像 production acceptance 通过：16 个能力、核心/可选数据 ready、同步/异步 artifact contract、失败/400/幂等和 async evidence 全部通过。
+- 动态 Chrome/CDP 与 live provider 本轮仍未执行；Docker/Uvicorn/真实 GIS 数据卷证据不能替代浏览器或外部 live 模型证据。
+
+## M151 全局规划参考
+
+从完整 Agent Runtime 视角把“计划可修复”推进为“修复后可控地继续工作”：不新增单区域规则，不把更多 GIS 工具硬编码到 Runtime。优先建立跨 Domain 的 repair decision/action contract 与多轮继续执行边界，让用户或上层系统可以确认、拒绝、补充信息或在失败后安全恢复；随后把该状态贯通 HTTP、artifact、async、Console 和评测。最后再用 Docker、可选 live planner 和浏览器动态 smoke 做显式验收。默认 active suite 继续极简，最多并行 5 路，公共状态/schema 由主线统一集成。
