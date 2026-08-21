@@ -1451,12 +1451,20 @@
     $('backend').addEventListener('change',()=>{ loadActions(); loadCapabilities(); });
     document.querySelectorAll('.example').forEach(button=>button.addEventListener('click',()=>{ $('prompt').value=button.dataset.request; $('prompt').focus(); }));
     welcome();
-    loadHealth();
-    loadCapabilities();
-    loadActions();
-    loadWorkflows();
-    loadSessions().then(restoreSession);
-    loadHistory();
+    window.__consoleBootstrapReady = false;
+    Promise.all([
+      loadHealth(),
+      loadCapabilities(),
+      loadActions(),
+      loadWorkflows(),
+      loadSessions(),
+      loadHistory(),
+    ]).then(()=>{
+      window.__consoleBootstrapReady = true;
+      return restoreSession();
+    }).catch(()=>{
+      window.__consoleBootstrapReady = true;
+    });
     function renderCategoryList(categories) { const cats=(categories||[]).slice(0,12), peak=Math.max(1,...cats.map(x=>Number(x.share)||0)); return cats.length?'<div class="category-list">'+cats.map(x=>'<div class="category-row"><span>'+escapeHtml(x.label||((x.value??'-')+' 类'))+'</span><div class="category-track"><div class="category-fill" style="width:'+Math.max(2,Number(x.share||0)/peak*100)+'%"></div></div><span>'+escapeHtml(Number.isFinite(Number(x.share))?(Number(x.share)*100).toFixed(2)+'%':'-')+'</span></div>').join('')+'</div>':''; }
     function compositeStats(data) { const view=resultViewPanels(data).composite; if(!view){ $('compositeStats').textContent='本次结果未包含综合空间分析面板所需数据。'; return; } if(view.kind==='spatial_composite'){ $('compositeStats').innerHTML='<div class="metric-grid">'+renderMetricGrid(view.metrics||[])+'</div>'+renderCategoryList(view.categories||[])+(view.note?'<div class="distribution-note">'+escapeHtml(view.note)+'</div>':''); return; } $('compositeStats').textContent='综合空间分析 view model 类型暂不支持。'; }
     function healthStats(data) { const view=resultViewPanels(data).health; if(!view){ $('healthStats').textContent='本次结果未包含数据健康检查面板所需数据。'; return; } if(view.kind==='dataset_health'){ const rows=view.rows||[]; const relation=view.alignment?'<div class="distribution-note">'+escapeHtml(view.alignment.label||'覆盖关系')+'：'+escapeHtml(view.alignment.status_label||view.alignment.status||'未知')+(view.alignment.overlapping_pairs!==null&&view.alignment.overlapping_pairs!==undefined?' · 重叠文件对 '+escapeHtml(view.alignment.overlapping_pairs)+' 对':'')+'</div>':''; $('healthStats').innerHTML='<div class="stat-context"><strong>'+escapeHtml(view.title||'数据健康检查')+'</strong><span>检查 '+rows.length+' 个数据集</span></div><div class="metric-grid">'+renderMetricGrid(view.metrics||[])+'</div><div class="category-list">'+rows.map(item=>'<div class="category-row"><span><b>'+escapeHtml(item.dataset||'未知')+'</b>'+(item.count?' · '+escapeHtml(item.count):'')+'</span><span class="step-status '+escapeHtml(item.status||'')+'">'+escapeHtml(item.status_label||item.status||'未知')+'</span><small>'+escapeHtml(item.detail||'基础检查通过')+(item.usable_for&&item.usable_for.length?'；可用于：'+escapeHtml(item.usable_for.join('、')):'')+'</small></div>').join('')+'</div>'+relation+'<div class="distribution-note">'+escapeHtml(view.note||'健康检查不代表数据的法定权威性。')+'</div>'; return; } $('healthStats').textContent='数据健康 view model 类型暂不支持。'; }

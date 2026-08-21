@@ -4266,3 +4266,45 @@ M170 生命周期专项第一次执行时，业务代码已经可以导入，但
 ### 处理与预防
 
 测试改为使用 FastAPI 原生 `app.router.lifespan_context(app)`，在异步上下文中验证 Service close，不新增生产依赖；M170 专项和 production acceptance 均通过。以后生命周期测试应优先调用框架公开的 lifespan seam；只有明确加入独立测试依赖并记录到测试 profile 时，才使用 TestClient，不得为了单个专项修改生产镜像依赖。
+
+## M171：旧持久化记录缺少 Domain 时被误归为 GIS
+
+### 现象
+
+Text 或未来 Domain 使用共享 SQLite/artifact 存储时，旧 snapshot、旧 async job 或旧 artifact 没有 `domain_id`，恢复和列表过滤会把它们默认为 GIS，造成跨 Domain 数据不可见、run identity 归属错误或错误的“属于其他 Domain”拒绝。
+
+### 根因
+
+早期兼容代码在 `ArtifactStore`、`SQLiteStateStore`、结果反序列化和 Service recovery 中散落使用字面量 `"gis"`。公共持久化 adapter 不知道当前 Domain，却替 Domain 做了业务归属决策。
+
+### 处理与预防
+
+为 `ArtifactStore`、`SQLiteStateStore` 增加有界 `legacy_domain_id`，由 `AgentService` 将选定 Domain 传入隐式 adapter；显式传入的共享 store 保留自身兼容配置。所有 snapshot、async、artifact、decision 和 recovery 读取使用同一归属，并将 SQL fallback 改为参数化值。以后新增持久化字段时，必须同时验证旧数据读取、Domain 过滤、异步接管、artifact-only recovery 和跨入口 fingerprint，公共层不得凭 GIS 字段推断业务领域。
+
+## M171：前端 bootstrap readiness 等待历史大结果渲染导致 smoke 偶发超时
+
+### 现象
+
+Console 页面 HTTP、外部 JS 和所有初始化接口均返回成功，但浏览器 smoke 在 20 秒窗口内持续看到 `__consoleBootstrapReady === false`，报“Console 页面脚本未就绪”；再次运行或手动等待后可能通过。
+
+### 根因
+
+页面把 bootstrap 标记放在 `Promise.all(...).then(()=>restoreSession()).finally(...)` 的末端。`restoreSession()` 会加载历史、完整运行结果、GeoJSON 和 runtime evidence，并进行大量同步 DOM/地图渲染；它是可延迟的用户体验工作，却被错误当成基础控件就绪条件。
+
+### 处理与预防
+
+基础目录 Promise 完成后立即设置 readiness，随后后台执行 `restoreSession()`；失败时也把页面置为可交互并由各自空态展示降级。浏览器 smoke 同时检查版本标记、真实函数入口和 DOM 控件，不依赖 lexical 全局变量 `$`。以后新增启动任务必须区分“能否接收用户动作”和“历史/证据是否完全恢复”，并用真实 Chrome 在冷启动和已有历史两种状态验证。
+
+## M171：相邻测试通过但未关闭 Observability 句柄
+
+### 现象
+
+M60/M61/M67 的业务断言全部通过，但 Docker stderr 出现 `ResourceWarning: unclosed file ... observability.log`；只看 unittest 返回码会把资源泄漏误认为阶段通过。
+
+### 根因
+
+部分旧回归直接创建 `AgentService`，或只调用内部 `_async_executor.shutdown()`，没有调用公开的 `AgentService.close()`；因此线程停止了，但 `ObservabilityEmitter` 文件句柄仍由解释器回收。
+
+### 处理与预防
+
+为临时 Service 注册 `self.addCleanup(service.close)`，并将手动 executor shutdown 改为公开 close；阶段回归增加 `python -W error::ResourceWarning` 的 Docker 运行，确保生命周期错误直接失败。以后测试中的 Service、HTTP server、SQLite store 和 emitter 必须明确所有权和 finally/cleanup 路径，不能只验证业务状态。

@@ -1615,3 +1615,24 @@ M149 已稳定嵌套结果契约，下一阶段从完整 Agent 闭环推进“�
 - 新增 `tests/test_m170_runtime_boundaries.py`，验证 ASGI lifespan 释放模块级 Service，以及 Text Domain artifact 在读取、列表和 GIS 过滤之间保持正确归属。
 - 当前 Docker 工作树 healthy；M170 专项、M169/M127 回归、M133/M148 跨 Domain 回归、quick、stage、compileall 和 production acceptance 通过；Chrome 预览→确认→完成 smoke 继续通过，且不再出现 FastAPI lifecycle 弃用告警。
 - M170 尚未提交/推送。下一阶段按全局七维度继续处理公共层残留 GIS 兼容默认、开放式能力发现覆盖、真实 runtime evidence 与 live/replay 代表集，不新增单区域专用规则。
+
+## M171 当前实现与验证状态
+
+- 公共持久化边界不再把缺失 `domain_id` 的旧 artifact、SQLite snapshot 和 async payload 无条件解释为 GIS。`ArtifactStore`、`SQLiteStateStore` 与 `AgentService` 现在接收受限的 `legacy_domain_id`，由选定 Domain 负责兼容归属；显式 Domain 过滤、恢复和参数化 SQL 保持一致。
+- 新增 `tests/test_m171_domain_defaults.py`，覆盖 Text/future Domain 的旧 artifact、SQLite snapshot、async payload、Service 隐式 adapter 以及边界校验；M171 专项 6/6 通过。
+- Console bootstrap readiness 不再等待历史运行结果渲染完成：基础目录加载完成后即标记页面可交互，历史恢复在后台继续。浏览器 smoke 的就绪条件改为版本标记、真实函数入口和 DOM 控件检查，不依赖 lexical `$`。
+- 当前 Docker 镜像已按工作树重建并 healthy。M171 与 M60/M61/M67 相邻回归 20/20 通过，并在 `-W error::ResourceWarning` 下通过；容器 compileall、quick、stage、production acceptance 通过。
+- 正式 Chrome/CDP smoke 连续 3 次以及最终清理诊断代码后的 1 次均通过：preview、submit、complete 的 plan fingerprint 一致，确认后状态为 `COMPLETED`，artifact 和 selection evidence 均可用。临时 `[DEBUG-M171]` 诊断已清理。
+- 当前工作树仍包含未提交的 M171 修改；收口前必须完成敏感信息扫描、`git diff --check`、文档一致性检查、提交和推送。不得提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M172 全局规划参考
+
+M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环”，不新增单区域 GIS 专用规则：
+
+1. **产品能力**：让未预定义的自然语言请求能够通过能力目录动态匹配、结构化澄清或安全拒绝，并覆盖无模板请求。
+2. **架构边界**：审计 RequestFacts、Capability Catalog、Workflow、Result、Evidence、Artifact 的版本迁移和 Domain seam，清除公共层剩余 GIS 默认。
+3. **数据质量**：把 runtime readiness、coverage、alignment、provenance 作为 Domain evidence 展示，验证数据不可用时的降级与恢复说明。
+4. **真实模型**：建立有限的脱敏 replay 与可选 live 基线，比较模型计划、规则计划、repair lineage 和最终结果契约。
+5. **部署可靠性**：继续验证 SQLite 多 worker、异步重启接管、artifact-only recovery、跨 Domain 过滤和服务生命周期。
+6. **用户体验**：验证动态 workspace、空态、澄清、确认、恢复和历史加载不会互相阻塞，前端继续只消费结构化结果。
+7. **测试证据**：默认 Docker quick/CI 保持极简；阶段末使用最小 Contract Harness、Docker、browser 和必要 live 验收，并更新全局文档后推送版本。

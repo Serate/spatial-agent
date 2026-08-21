@@ -43,7 +43,7 @@ await command("Page.navigate", {url: consoleUrl});
 
 for (let attempt = 0; attempt < 80; attempt++) {
   const ready = await command("Runtime.evaluate", {
-    expression: "typeof $ === 'function' && typeof previewPlan === 'function' && typeof sendChat === 'function' && typeof renderRun === 'function' && !!$('requireConfirmation')",
+    expression: "window.__consoleBootstrapReady === true && typeof previewPlan === 'function' && typeof sendChat === 'function' && typeof renderRun === 'function' && !!document.getElementById('requireConfirmation')",
     returnByValue: true,
   });
   if (ready.result?.result?.value) break;

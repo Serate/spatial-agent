@@ -1898,3 +1898,15 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - `tests/test_m170_runtime_boundaries.py` 覆盖 lifespan close 与 Text Domain artifact 的 domain filter；不引入 `fastapi.testclient` 或额外 `httpx2` 依赖，直接使用原生 lifespan context。
 - Docker M170/M169/M127/M133/M148 专项、quick、stage、compileall 和 production acceptance 通过；真实 Chrome 预览 fingerprint 与最终计划一致，确认后完成。
 - 当前工作树包含未提交 M170 修改；提交前需完成敏感信息、diff 和文档一致性检查。推送后从公共 Runtime 的 GIS 兼容默认、能力发现广度和真实 evidence 可信度三条主线规划 M171。
+
+## M171 当前恢复位置
+
+- `ArtifactStore`、`SQLiteStateStore` 和 `AgentService` 已支持显式 `legacy_domain_id`；旧数据的兼容归属跟随当前 Domain，不再由公共持久化层硬编码 GIS。SQLite 的 domain 查询使用参数化 SQL，artifact、async、decision 和 recovery 过滤共用该归属。
+- 新增 `tests/test_m171_domain_defaults.py`，M171 专项 6/6 通过；M60/M61/M67 相邻回归已补齐 Service close，并在 Docker `-W error::ResourceWarning` 下 20/20 通过。
+- `web/index.html` 的 bootstrap 标记在基础目录加载完成后设置，历史恢复不再阻塞 smoke；`scripts/console_selection_interaction_browser_smoke.js` 已清理临时诊断并改用 DOM 就绪检查。
+- 当前 Docker 镜像 healthy；compileall、quick、stage、production acceptance 和正式 Chrome/CDP preview → confirmation → completed smoke 通过。Chrome smoke 连续 3 次通过，指纹无漂移。
+- M171 代码和文档仍待提交/推送。提交前执行 `git diff --check`、敏感信息扫描和状态核对；推送后按七维度进入 M172，不继续围绕单个数据集增加规则。
+
+## M172 下一阶段规划
+
+从全局完成“能力发现 → 规划 → 执行/澄清 → 证据 → 恢复”的开放式链路：先审计跨 Domain 公共契约和剩余 GIS 默认，再补未预定义请求的动态匹配/澄清、脱敏模型计划回放、跨入口证据比较和真实部署验收；前端只扩展通用结构化 renderer，默认测试继续精简并在 Docker 内执行。

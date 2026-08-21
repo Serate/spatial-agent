@@ -36,7 +36,15 @@ class _ProcessRecreatedAdapter:
         raise AssertionError(name)
 
 
-def _build_retry_runtime(_planner_name, _backend_name, state_store=None, conversation_store=None, memory=None, observability=None):
+def _build_retry_runtime(
+    _planner_name,
+    _backend_name,
+    state_store=None,
+    conversation_store=None,
+    memory=None,
+    observability=None,
+    decision_store=None,
+):
     definitions = {
         name: {
             "name": name,
@@ -51,6 +59,7 @@ def _build_retry_runtime(_planner_name, _backend_name, state_store=None, convers
         conversation_store=conversation_store,
         memory=memory,
         observability=observability,
+        decision_store=decision_store,
         max_retries=0,
     )
 
@@ -59,10 +68,14 @@ class M60SQLiteAsyncContractTests(unittest.TestCase):
     def test_result_reference_remains_readable_after_service_recreation(self):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "state.db")
-            first = AgentService(state_db_path=path).run(
+            first_service = AgentService(state_db_path=path)
+            self.addCleanup(first_service.close)
+            first = first_service.run(
                 "查询洪山区行政区边界", session_id="result-ref-session"
             )
-            restored = AgentService(state_db_path=path).get_run(first["run_id"])
+            restored_service = AgentService(state_db_path=path)
+            self.addCleanup(restored_service.close)
+            restored = restored_service.get_run(first["run_id"])
 
         step = next(item for item in restored["steps"] if item["tool"] == "range_query")
         self.assertEqual(step["result"]["result_ref"], "memory://range/admin_areas")
@@ -82,10 +95,14 @@ class M60SQLiteAsyncContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "state.db")
             first = AgentService(state_db_path=path)
+            self.addCleanup(first.close)
             first.run("你好", session_id="clear-after-restart")
 
-            cleared = AgentService(state_db_path=path).clear_session("clear-after-restart")
+            clear_service = AgentService(state_db_path=path)
+            self.addCleanup(clear_service.close)
+            cleared = clear_service.clear_session("clear-after-restart")
             restored = AgentService(state_db_path=path)
+            self.addCleanup(restored.close)
 
             self.assertEqual(cleared["cleared_runs"], 1)
             self.assertEqual(
@@ -108,13 +125,17 @@ class M60SQLiteAsyncContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / "state.db")
             with patch("agent.service.build_runtime", side_effect=_build_retry_runtime):
-                failed = AgentService(state_db_path=path).run(
+                failed_service = AgentService(state_db_path=path)
+                self.addCleanup(failed_service.close)
+                failed = failed_service.run(
                     "触发一次瞬态故障", session_id="retry-after-restart"
                 )
                 self.assertEqual(failed["status"], "FAILED")
                 failed_run_id = failed["run_id"]
 
-                recovered = AgentService(state_db_path=path).retry(failed_run_id)
+                recovered_service = AgentService(state_db_path=path)
+                self.addCleanup(recovered_service.close)
+                recovered = recovered_service.retry(failed_run_id)
 
         self.assertEqual(recovered["status"], "COMPLETED")
         self.assertEqual(

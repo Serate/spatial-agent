@@ -171,7 +171,7 @@ class AgentService:
         domain_pack: Any = None,
         domain_id: str = None,
     ):
-        self._artifact_store = artifact_store or ArtifactStore()
+        self._artifact_store = artifact_store
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
         self._configured_domain_id = None
         self._configured_domain_pack = None
@@ -197,6 +197,13 @@ class AgentService:
             self._configured_domain_id = resolve_domain_id()
             self._runtime_factory = build_runtime
         self._resolved_domain_id = self._configured_domain_id
+        if self._artifact_store is None:
+            # A legacy artifact without domain_id belongs to the selected
+            # Domain, not implicitly to GIS. Explicitly supplied stores keep
+            # their own compatibility configuration for shared repositories.
+            self._artifact_store = ArtifactStore(
+                legacy_domain_id=self._configured_domain_id or "gis"
+            )
         self._state = ServiceState(
             state_db_path=self._state_db_path,
             runtime_factory=self._runtime_factory,
@@ -458,7 +465,10 @@ class AgentService:
             if isinstance(artifact, dict):
                 from agent.sqlite_store import _result_from_dict
 
-                restored = _result_from_dict(artifact)
+                restored = _result_from_dict(
+                    artifact,
+                    legacy_domain_id=self._resolved_domain_id or "gis",
+                )
                 context = restored.runtime_context if isinstance(restored.runtime_context, dict) else {}
                 runtime = self._runtime(
                     str(context.get("planner") or planner),
@@ -573,7 +583,13 @@ class AgentService:
             decision_id = evidence.get("decision_id") if isinstance(evidence, dict) else None
             if decision_id:
                 record = self._state.decision_store.get(
-                    decision_id, domain_id=payload.get("domain_id", self._resolved_domain_id)
+                    decision_id,
+                    domain_id=(
+                        payload.get("domain_id")
+                        or self._resolved_domain_id
+                        or self._configured_domain_id
+                        or "gis"
+                    ),
                 )
                 if record is not None:
                     payload["_decision_record"] = record.as_dict()
@@ -695,7 +711,12 @@ class AgentService:
                 existing_any = self._state.get_run(run_id)
                 if (
                     existing_any is not None
-                    and getattr(existing_any, "domain_id", "gis") != domain_id
+                    and (
+                        getattr(existing_any, "domain_id", None)
+                        or self._resolved_domain_id
+                        or self._configured_domain_id
+                        or "gis"
+                    ) != domain_id
                 ):
                     raise ValueError("run_id belongs to another domain: " + str(run_id))
                 existing_result = self._state.get_run(run_id, domain_id=domain_id)
@@ -709,10 +730,16 @@ class AgentService:
                     )
                     created = bool(job.pop("created", False))
                     if not created:
-                        existing_domain = (
-                            job.get("payload", {}).get("domain_id", "gis")
+                        existing_payload = (
+                            job.get("payload")
                             if isinstance(job.get("payload"), dict)
-                            else "gis"
+                            else {}
+                        )
+                        existing_domain = (
+                            existing_payload.get("domain_id")
+                            or self._resolved_domain_id
+                            or self._configured_domain_id
+                            or "gis"
                         )
                         if existing_domain != domain_id:
                             raise ValueError(
@@ -877,7 +904,12 @@ class AgentService:
                 status=RunStatus.PLANNING,
                 request=str(payload.get("request") or ""),
                 session_id=payload.get("session_id"),
-                domain_id=payload.get("domain_id", "gis"),
+                domain_id=(
+                    payload.get("domain_id")
+                    or self._resolved_domain_id
+                    or self._configured_domain_id
+                    or "gis"
+                ),
                 runtime_context=payload.get("runtime_context"),
                 workflow=payload.get("workflow"),
             )
@@ -1700,7 +1732,7 @@ class AgentService:
         """
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
-        domain_id = self._resolved_domain_id or "gis"
+        domain_id = self._resolved_domain_id or self._configured_domain_id or "gis"
         artifact = (
             self._artifact_store.read_run(run_id, domain_id=domain_id)
             if self._artifact_store is not None
@@ -2419,11 +2451,19 @@ class AgentService:
         """Never overwrite a durable run owned by another Domain Pack."""
         if self._state.persistent:
             other = self._state.get_run(run_id)
-            if other is not None and getattr(other, "domain_id", "gis") != domain_id:
+            if other is not None and (
+                getattr(other, "domain_id", None)
+                or self._configured_domain_id
+                or "gis"
+            ) != domain_id:
                 raise ValueError("run_id belongs to another domain: " + str(run_id))
         else:
             artifact = self._artifact_store.read_run(run_id)
-            if artifact is not None and artifact.get("domain_id", "gis") != domain_id:
+            if artifact is not None and (
+                artifact.get("domain_id")
+                or self._configured_domain_id
+                or "gis"
+            ) != domain_id:
                 raise ValueError("run_id belongs to another domain: " + str(run_id))
 
     def compare_constrained_buildability(

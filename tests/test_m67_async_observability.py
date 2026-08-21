@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import threading
 import time
@@ -8,6 +9,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
+from agent.artifact_store import ArtifactStore
 from agent.models import AgentRunResult, RunStatus
 from agent.service import AgentService
 from agent.sqlite_store import SQLiteStateStore
@@ -41,7 +43,7 @@ class M67AsyncObservabilityTests(unittest.TestCase):
                 envelope = service.get_run(submitted["run_id"])
                 metrics = service.metrics()
             finally:
-                service._async_executor.shutdown(wait=True)
+                service.close()
 
         observation = envelope["async_observability"]
         self.assertEqual(observation["status"], "COMPLETED")
@@ -77,7 +79,7 @@ class M67AsyncObservabilityTests(unittest.TestCase):
                 observation = service.get_async_observability(submitted["run_id"])
                 metrics = service.metrics()
             finally:
-                service._async_executor.shutdown(wait=True)
+                service.close()
 
         self.assertEqual(job["status"], "FAILED")
         self.assertEqual(observation["phase"], "failed")
@@ -119,7 +121,7 @@ class M67AsyncObservabilityTests(unittest.TestCase):
                 job = _wait_for_job(restarted, run_id)
                 observation = restarted.get_async_observability(run_id)
             finally:
-                restarted._async_executor.shutdown(wait=True)
+                restarted.close()
 
         self.assertEqual(job["status"], "COMPLETED")
         self.assertGreaterEqual(observation["recovery_count"], 1)
@@ -173,7 +175,7 @@ class M67AsyncObservabilityTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=2)
-                service._async_executor.shutdown(wait=True)
+                service.close()
 
         self.assertEqual(response.status, 200)
         self.assertEqual(body["status"], "CANCEL_REQUESTED")
@@ -183,22 +185,24 @@ class M67AsyncObservabilityTests(unittest.TestCase):
         self.assertNotIn("hidden", repr(body))
 
     def test_memory_mode_keeps_the_same_async_metrics_shape(self):
-        service = AgentService()
-        try:
-            submitted = service.run_async(
-                request="你好",
-                session_id="m67-memory-metrics",
-                planner="rule",
-                backend="memory",
-            )
-            deadline = time.monotonic() + 4
-            while time.monotonic() < deadline:
-                if service.get_async_observability(submitted["run_id"])["status"] == "COMPLETED":
-                    break
-                time.sleep(0.01)
-            metrics = service.metrics()
-        finally:
-            service._async_executor.shutdown(wait=True)
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(os.environ, {"SPATIAL_AGENT_STATE_DB": ""}):
+                service = AgentService(artifact_store=ArtifactStore(directory))
+                try:
+                    submitted = service.run_async(
+                        request="你好",
+                        session_id="m67-memory-metrics",
+                        planner="rule",
+                        backend="memory",
+                    )
+                    deadline = time.monotonic() + 4
+                    while time.monotonic() < deadline:
+                        if service.get_async_observability(submitted["run_id"])["status"] == "COMPLETED":
+                            break
+                        time.sleep(0.01)
+                    metrics = service.metrics()
+                finally:
+                    service.close()
 
         self.assertEqual(metrics["async_jobs"]["count"], 1)
         self.assertEqual(metrics["async_jobs"]["status_counts"]["COMPLETED"], 1)

@@ -48,10 +48,19 @@ def _connect_sqlite(path: Path) -> sqlite3.Connection:
 class SQLiteStateStore:
     """Persist run snapshots so retry and lookup survive worker restarts."""
 
-    def __init__(self, path: str = "outputs/spatial-agent.db"):
+    def __init__(self, path: str = "outputs/spatial-agent.db", *, legacy_domain_id: str = "gis"):
         self._path = Path(path)
+        normalized_domain = str(legacy_domain_id or "").strip()
+        if not normalized_domain or len(normalized_domain) > 80:
+            raise ValueError("legacy_domain_id must be a non-empty bounded value")
+        self._legacy_domain_id = normalized_domain
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
+
+    def _payload_domain(self, payload: Dict[str, Any]) -> str:
+        value = payload.get("domain_id")
+        normalized = str(value or "").strip()
+        return normalized[:80] if normalized else self._legacy_domain_id
 
     def save(self, result: AgentRunResult) -> None:
         payload = json.dumps(result.to_dict(), ensure_ascii=True)
@@ -86,9 +95,9 @@ class SQLiteStateStore:
                     """
                     SELECT payload FROM agent_runs
                     WHERE run_id = ?
-                      AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?
+                      AND COALESCE(json_extract(payload, '$.domain_id'), ?) = ?
                     """,
-                    (run_id, domain_id),
+                    (run_id, self._legacy_domain_id, domain_id),
                 ).fetchone()
             else:
                 row = connection.execute(
@@ -96,7 +105,9 @@ class SQLiteStateStore:
                 ).fetchone()
         if row is None:
             return None
-        return _result_from_dict(json.loads(row[0]))
+        return _result_from_dict(
+            json.loads(row[0]), legacy_domain_id=self._legacy_domain_id
+        )
 
     def create_async_job(
         self, idempotency_key: str, run_id: str, payload: Dict[str, Any]
@@ -117,7 +128,7 @@ class SQLiteStateStore:
             row = connection.execute(_ASYNC_JOB_SELECT + " WHERE idempotency_key = ?", (idempotency_key,)).fetchone()
             if row is None:
                 row = connection.execute(_ASYNC_JOB_SELECT + " WHERE run_id = ?", (run_id,)).fetchone()
-        result = _async_job_from_row(row)
+        result = _async_job_from_row(row, legacy_domain_id=self._legacy_domain_id)
         result["created"] = cursor.rowcount == 1
         return result
 
@@ -225,12 +236,16 @@ class SQLiteStateStore:
             suffix = " WHERE run_id = ?"
             parameters: tuple[Any, ...] = (run_id,)
             if domain_id:
-                suffix += " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
-                parameters += (domain_id,)
+                suffix += " AND COALESCE(json_extract(payload, '$.domain_id'), ?) = ?"
+                parameters += (self._legacy_domain_id, domain_id)
             row = connection.execute(
                 _ASYNC_JOB_SELECT + suffix, parameters
             ).fetchone()
-        return _async_job_from_row(row) if row else None
+        return (
+            _async_job_from_row(row, legacy_domain_id=self._legacy_domain_id)
+            if row
+            else None
+        )
 
     def claim_async_job(
         self,
@@ -283,9 +298,9 @@ class SQLiteStateStore:
         parameters: tuple[Any, ...] = (owner_pid,)
         if domain_id:
             domain_clause = (
-                " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+                " AND COALESCE(json_extract(payload, '$.domain_id'), ?) = ?"
             )
-            parameters += (domain_id,)
+            parameters += (self._legacy_domain_id, domain_id)
         with self._connection() as connection:
             rows = connection.execute(
                 """
@@ -299,7 +314,10 @@ class SQLiteStateStore:
                 """ + domain_clause + " ORDER BY updated_at, run_id",
                 parameters,
             ).fetchall()
-        return [_async_job_from_row(row) for row in rows]
+        return [
+            _async_job_from_row(row, legacy_domain_id=self._legacy_domain_id)
+            for row in rows
+        ]
 
     def list_active_async_jobs(self, domain_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Return every non-terminal job for the wall-clock timeout reaper."""
@@ -307,9 +325,9 @@ class SQLiteStateStore:
         parameters: tuple[Any, ...] = ()
         if domain_id:
             domain_clause = (
-                " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+                " AND COALESCE(json_extract(payload, '$.domain_id'), ?) = ?"
             )
-            parameters = (domain_id,)
+            parameters = (self._legacy_domain_id, domain_id)
         with self._connection() as connection:
             rows = connection.execute(
                 """
@@ -322,7 +340,10 @@ class SQLiteStateStore:
                 """ + domain_clause + " ORDER BY created_at, run_id",
                 parameters,
             ).fetchall()
-        return [_async_job_from_row(row) for row in rows]
+        return [
+            _async_job_from_row(row, legacy_domain_id=self._legacy_domain_id)
+            for row in rows
+        ]
 
     def finish_async_job(
         self,
@@ -447,9 +468,9 @@ class SQLiteStateStore:
         domain_parameters: tuple[Any, ...] = ()
         if domain_id:
             domain_clause = (
-                " AND COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+                " AND COALESCE(json_extract(payload, '$.domain_id'), ?) = ?"
             )
-            domain_parameters = (domain_id,)
+            domain_parameters = (self._legacy_domain_id, domain_id)
         with self._connection() as connection:
             if session_id:
                 rows = connection.execute(
@@ -471,7 +492,7 @@ class SQLiteStateStore:
             item = json.loads(payload)
             records.append({
                 "run_id": item.get("run_id"),
-                "domain_id": item.get("domain_id", "gis"),
+                "domain_id": self._payload_domain(item),
                 "session_id": item.get("session_id"),
                 "status": item.get("status"),
                 "request": item.get("request"),
@@ -530,9 +551,9 @@ class SQLiteStateStore:
         parameters: tuple[Any, ...] = ()
         if domain_id:
             domain_clause = (
-                " WHERE COALESCE(json_extract(payload, '$.domain_id'), 'gis') = ?"
+                " WHERE COALESCE(json_extract(payload, '$.domain_id'), ?) = ?"
             )
-            parameters = (domain_id,)
+            parameters = (self._legacy_domain_id, domain_id)
         with self._connection() as connection:
             rows = connection.execute(
                 """
@@ -896,7 +917,7 @@ class SQLiteConversationStore:
             connection.close()
 
 
-def _async_job_from_row(row) -> Dict[str, Any]:
+def _async_job_from_row(row, *, legacy_domain_id: str = "gis") -> Dict[str, Any]:
     if row is None:
         return {}
     values = list(row) + [None] * max(0, 15 - len(row))
@@ -917,10 +938,13 @@ def _async_job_from_row(row) -> Dict[str, Any]:
         cancel_requested_at,
         last_event,
     ) = values[:15]
+    decoded_payload = json.loads(payload)
+    if isinstance(decoded_payload, dict):
+        decoded_payload.setdefault("domain_id", legacy_domain_id)
     return {
         "idempotency_key": key,
         "run_id": run_id,
-        "payload": json.loads(payload),
+        "payload": decoded_payload,
         "status": status,
         "owner_pid": owner_pid,
         "updated_at": updated_at,
@@ -973,7 +997,9 @@ def _duration_summary(values: List[float]) -> Dict[str, Any]:
     }
 
 
-def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
+def _result_from_dict(
+    payload: dict[str, Any], *, legacy_domain_id: str = "gis"
+) -> AgentRunResult:
     plan_payload = payload.get("plan")
     plan = None
     if isinstance(plan_payload, dict):
@@ -1016,7 +1042,10 @@ def _result_from_dict(payload: dict[str, Any]) -> AgentRunResult:
         status=RunStatus(payload["status"]),
         request=payload["request"],
         session_id=payload.get("session_id"),
-        domain_id=payload.get("domain_id", "gis"),
+        # Older snapshots omitted domain_id. The adapter's configured legacy
+        # domain owns that compatibility decision; the public Runtime must
+        # not assume GIS when a Text/future Domain is restoring data.
+        domain_id=payload.get("domain_id") or legacy_domain_id,
         runtime_context=normalize_runtime_context(payload.get("runtime_context")),
         spatial_context=payload.get("spatial_context"),
         resolved_request=payload.get("resolved_request"),

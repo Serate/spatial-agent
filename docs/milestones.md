@@ -3418,3 +3418,35 @@ M170 从项目整体收敛生产生命周期和跨 Domain 公共边界，不继�
 - 新增 `tests/test_m170_runtime_boundaries.py`，验证 ASGI lifecycle close 与 Text Domain artifact 的读取/列表/跨 Domain 过滤。
 - Docker M170/M169/M127/M133/M148 专项通过；quick、stage、compileall、production acceptance 和真实 Chrome 预览→确认→完成 smoke 通过，FastAPI 弃用告警已消失。
 - M170 当前工作树尚未提交/推送；提交后进入 M171，重点是公共 Runtime 残留 GIS 兼容默认、能力发现广度和 runtime evidence 可信度。
+
+## M171 全局规划参考
+
+M171 从项目整体清理公共持久化边界中的 GIS 兼容默认，并提高真实前端与测试生命周期证据的可信度，不增加单区域 GIS 工具：
+
+1. **产品能力**：同一运行在 Text/GIS Domain 中都能正确读取、恢复和过滤结果，避免历史数据被错误隐藏。
+2. **架构边界**：legacy Domain 归属由 Domain/Service 配置传入，Artifact、SQLite、async、decision 和 recovery 使用统一适配边界。
+3. **数据质量**：旧结果的 runtime/data evidence 不能因入口或 Domain 默认漂移，保留明确的兼容归属。
+4. **真实模型**：继续保留既有 replay/live 证据，不因本阶段持久化修复增加无必要的 live token 消耗。
+5. **部署可靠性**：验证当前 Docker 镜像、参数化 SQL、Service close 和跨进程恢复；资源警告不能被业务断言掩盖。
+6. **用户体验**：Console 基础控件就绪不应被历史大结果渲染阻塞，前端继续消费结构化结果和 evidence。
+7. **测试证据**：Docker 内运行最小 M171/相邻回归、`-W error::ResourceWarning`、quick/stage/production acceptance，真实 Chrome 作为显式验收。
+
+## M171 当前实现与验证状态
+
+- `ArtifactStore`、`SQLiteStateStore`、结果反序列化和 `AgentService` 支持有界 `legacy_domain_id`；旧 artifact、SQLite snapshot、async payload、decision 和 recovery 的缺省归属跟随选定 Domain，SQL fallback 使用参数化值。
+- 新增 `tests/test_m171_domain_defaults.py`，覆盖 Text/future Domain 的旧数据隔离和 Service 隐式 adapter；M171 专项 6/6 通过。
+- Console bootstrap readiness 已从历史恢复末端前移到基础目录加载完成；正式浏览器 smoke 连续 3 次及清理诊断后的最终运行均通过，preview、submit、complete fingerprint 保持一致。
+- Docker 当前镜像重建后 healthy；M60/M61/M67/M171 回归 20/20 在 `-W error::ResourceWarning` 下通过，compileall、quick、stage、production acceptance 通过。
+- 本阶段问题已写入中文开发问题文档。当前 M171 修改尚未提交/推送；提交后进入 M172，并按全局七维度推进开放式能力发现、跨入口证据和真实部署验收。
+
+## M172 全局规划参考
+
+M172 继续完成通用 Agent Runtime 的开放式纵向闭环，GIS 仍只是 Domain 载体：
+
+1. **产品能力**：覆盖未预定义请求的动态能力匹配、结构化澄清、无模板规划和安全拒绝。
+2. **架构边界**：审计 RequestFacts、Capability Catalog、Workflow、Result、Evidence、Artifact 的版本迁移，清除公共层剩余 GIS 默认。
+3. **数据质量**：统一 readiness、coverage、alignment、provenance 的 Domain evidence 和降级说明。
+4. **真实模型**：补最小脱敏 replay/live 代表集，比较规则与模型计划、repair lineage 和结果契约。
+5. **部署可靠性**：继续验证 SQLite 多 worker、异步重启、artifact-only recovery、跨 Domain 过滤和服务生命周期。
+6. **用户体验**：验证动态 workspace、空态、澄清、确认、恢复和历史加载的通用前端消费。
+7. **测试证据**：默认 quick/CI 保持极简，阶段末运行 Contract Harness、Docker、browser 和必要 live，完成后更新文档并推送版本。

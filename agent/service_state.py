@@ -84,7 +84,12 @@ class ServiceState:
         self._state_db_path = state_db_path
         self._domain_id = domain_id
         self._state_store = (
-            SQLiteStateStore(state_db_path) if state_db_path else None
+            SQLiteStateStore(
+                state_db_path,
+                legacy_domain_id=domain_id or "gis",
+            )
+            if state_db_path
+            else None
         )
         self._decision_store = (
             SQLiteDecisionStore(state_db_path)

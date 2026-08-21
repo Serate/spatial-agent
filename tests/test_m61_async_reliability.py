@@ -1,4 +1,5 @@
 import tempfile
+import os
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -39,6 +40,7 @@ class M61AsyncReliabilityTests(unittest.TestCase):
     def test_submission_returns_before_slow_runtime_initialization(self):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(state_db_path=str(Path(directory) / "state.db"))
+            self.addCleanup(service.close)
             original_runtime = service._runtime
 
             def delayed_runtime(planner, backend):
@@ -47,15 +49,19 @@ class M61AsyncReliabilityTests(unittest.TestCase):
                 return original_runtime(planner, backend)
 
             with patch.object(service, "_runtime", side_effect=delayed_runtime):
-                started = time.monotonic()
-                queued = service.run_async(
-                    request="查询洪山区行政区边界",
-                    session_id="slow-runtime-submit",
-                    planner="rule",
-                    backend="local",
-                )
-                elapsed = time.monotonic() - started
-                self.assertLess(elapsed, 0.2)
+                with patch(
+                    "agent.service.build_runtime_context_snapshot",
+                    return_value={"schema_version": "test", "domain_id": "gis"},
+                ):
+                    started = time.monotonic()
+                    queued = service.run_async(
+                        request="查询洪山区行政区边界",
+                        session_id="slow-runtime-submit",
+                        planner="rule",
+                        backend="local",
+                    )
+                    elapsed = time.monotonic() - started
+                    self.assertLess(elapsed, 0.2)
 
             result = _wait_for_terminal(service, queued["run_id"], backend="local")
             self.assertNotIn(result["status"], {"PLANNING", "EXECUTING"})
@@ -63,6 +69,7 @@ class M61AsyncReliabilityTests(unittest.TestCase):
     def test_concurrent_duplicate_submissions_share_one_run_id(self):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(state_db_path=str(Path(directory) / "state.db"))
+            self.addCleanup(service.close)
             submit = lambda: service.run_async(
                 request="你好",
                 session_id="duplicate-post",
@@ -83,6 +90,7 @@ class M61AsyncReliabilityTests(unittest.TestCase):
     def test_explicit_run_id_is_idempotent_even_after_completion(self):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(state_db_path=str(Path(directory) / "state.db"))
+            self.addCleanup(service.close)
             first = service.run_async(
                 request="你好",
                 session_id="explicit-id",
@@ -130,11 +138,12 @@ class M61AsyncReliabilityTests(unittest.TestCase):
             )
             with store._connection() as connection:
                 connection.execute(
-                    "UPDATE async_jobs SET owner_pid = 1, status = 'RUNNING' WHERE run_id = ?",
-                    (run_id,),
+                    "UPDATE async_jobs SET owner_pid = ?, status = 'RUNNING' WHERE run_id = ?",
+                    (os.getpid() + 1000000, run_id),
                 )
 
             restarted = AgentService(state_db_path=path)
+            self.addCleanup(restarted.close)
             result = _wait_for_terminal(restarted, run_id)
 
             self.assertEqual(result["status"], "COMPLETED")
@@ -143,6 +152,7 @@ class M61AsyncReliabilityTests(unittest.TestCase):
     def test_unexpected_worker_exception_marks_job_failed(self):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(state_db_path=str(Path(directory) / "state.db"))
+            self.addCleanup(service.close)
             with patch.object(service, "run", side_effect=RuntimeError("worker crashed")):
                 queued = service.run_async(
                     request="你好", session_id="worker-failure", planner="rule"

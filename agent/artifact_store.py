@@ -46,8 +46,17 @@ def _evidence_registry_from_payload(payload: Dict) -> object:
 class ArtifactStore:
     """Writes small run artifacts for demos, handoff, and downstream clients."""
 
-    def __init__(self, root: str = "outputs/runs"):
+    def __init__(self, root: str = "outputs/runs", *, legacy_domain_id: str = "gis"):
         self._root = Path(root)
+        normalized_domain = str(legacy_domain_id or "").strip()
+        if not normalized_domain or len(normalized_domain) > 80:
+            raise ValueError("legacy_domain_id must be a non-empty bounded value")
+        self._legacy_domain_id = normalized_domain
+
+    def _payload_domain(self, payload: Dict) -> str:
+        value = payload.get("domain_id")
+        normalized = str(value or "").strip()
+        return normalized[:80] if normalized else self._legacy_domain_id
 
     def write_run(self, payload: Dict) -> str:
         run_id = payload.get("run_id")
@@ -68,7 +77,7 @@ class ArtifactStore:
             "resolved_request": payload.get("resolved_request"),
             "request_facts": payload.get("request_facts"),
             "session_id": payload.get("session_id"),
-            "domain_id": payload.get("domain_id", "gis"),
+            "domain_id": self._payload_domain(payload),
             "runtime_context": normalize_runtime_context(payload.get("runtime_context")),
             "spatial_context": payload.get("spatial_context"),
             "result_type": payload.get("result_type"),
@@ -142,7 +151,7 @@ class ArtifactStore:
             "artifact_schema_version": ACTION_ARTIFACT_SCHEMA_VERSION,
             "action_execution_id": execution_id,
             "action_id": payload.get("action_id"),
-            "domain_id": payload.get("domain_id"),
+            "domain_id": self._payload_domain(payload),
             "runtime_context": normalize_runtime_context(payload.get("runtime_context")),
             "idempotency_key": payload.get("idempotency_key"),
             "input_fingerprint": payload.get("input_fingerprint"),
@@ -184,7 +193,7 @@ class ArtifactStore:
                 and payload.get("idempotency_key") == key
                 and (
                     not domain_id
-                    or payload.get("domain_id", "gis") == domain_id
+                    or self._payload_domain(payload) == domain_id
                 )
             ):
                 payload.setdefault("artifact_ref", path.as_posix())
@@ -247,7 +256,7 @@ class ArtifactStore:
         if schema not in (None, RUN_ARTIFACT_SCHEMA_VERSION):
             return None
         payload.setdefault("run_id", run_id)
-        if domain_id and payload.get("domain_id", "gis") != domain_id:
+        if domain_id and self._payload_domain(payload) != domain_id:
             return None
         # Keep the durable artifact readable while preventing a future nested
         # result shape from crossing the recovery boundary.  The service can
@@ -297,7 +306,7 @@ class ArtifactStore:
                 continue
             if payload.get("artifact_schema_version") == ACTION_ARTIFACT_SCHEMA_VERSION:
                 continue
-            if domain_id and payload.get("domain_id", "gis") != domain_id:
+            if domain_id and self._payload_domain(payload) != domain_id:
                 continue
             record = payload.get("decision_record")
             evidence = payload.get("decision_evidence")
@@ -307,7 +316,7 @@ class ArtifactStore:
                     "schema_version": evidence.get("schema_version"),
                     "decision_id": evidence.get("decision_id"),
                     "subject": {"kind": "run", "id": payload.get("run_id")},
-                    "domain_id": payload.get("domain_id", "gis"),
+                    "domain_id": self._payload_domain(payload),
                     "session_id": payload.get("session_id"),
                     "decision_kind": "plan_confirmation",
                     "status": evidence.get("status", "PENDING"),
@@ -344,7 +353,7 @@ class ArtifactStore:
         if payload.get("artifact_schema_version") != ACTION_ARTIFACT_SCHEMA_VERSION:
             return None
         payload.setdefault("action_execution_id", execution_id)
-        if domain_id and payload.get("domain_id", "gis") != domain_id:
+        if domain_id and self._payload_domain(payload) != domain_id:
             return None
         nested_result = payload.get("result")
         if isinstance(nested_result, dict):
@@ -379,13 +388,13 @@ class ArtifactStore:
                 continue
             if payload.get("artifact_schema_version") != ACTION_ARTIFACT_SCHEMA_VERSION:
                 continue
-            if domain_id and payload.get("domain_id", "gis") != domain_id:
+            if domain_id and self._payload_domain(payload) != domain_id:
                 continue
             result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
             records.append({
                 "action_execution_id": payload.get("action_execution_id"),
                 "action_id": payload.get("action_id"),
-                "domain_id": payload.get("domain_id"),
+                "domain_id": self._payload_domain(payload),
                 "status": payload.get("status"),
                 "result_type": result.get("type"),
                 "action_error_code": payload.get("action_error_code"),
@@ -417,11 +426,11 @@ class ArtifactStore:
                 RUN_ARTIFACT_SCHEMA_VERSION,
             ):
                 continue
-            if domain_id and payload.get("domain_id", "gis") != domain_id:
+            if domain_id and self._payload_domain(payload) != domain_id:
                 continue
             records.append({
                 "run_id": payload.get("run_id"),
-                "domain_id": payload.get("domain_id", "gis"),
+                "domain_id": self._payload_domain(payload),
                 "status": payload.get("status"),
                 "request": payload.get("request"),
                 "answer": payload.get("answer"),
@@ -476,7 +485,7 @@ class ArtifactStore:
                     continue
                 if payload.get("artifact_schema_version") != ACTION_ARTIFACT_SCHEMA_VERSION:
                     continue
-                if domain_id and payload.get("domain_id", "gis") != domain_id:
+                if domain_id and self._payload_domain(payload) != domain_id:
                     continue
                 count += 1
                 status = str(payload.get("status") or "UNKNOWN")[:32]
