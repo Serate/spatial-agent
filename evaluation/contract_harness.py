@@ -33,6 +33,7 @@ from agent.evidence_registry import (
     normalize_evidence_registry,
     project_evidence_registry_completeness,
 )
+from agent.evidence_projection import project_evidence_projection
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,8 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
         result=result,
         artifact=artifact,
     )
+    evidence_projection = project_evidence_projection(payload)
+    evidence_selection = _mapping(evidence_projection.get("selection"))
     values = {
             "status": payload.get("status"),
             "result_type": result.get("type"),
@@ -142,13 +145,13 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
             "matched_templates": planning.get("matched_template_ids"),
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
             "planner_selection": normalize_planner_selection_evidence(
-                planning.get("planner_selection")
+                evidence_selection.get("planner_selection")
             ),
             "plan_policy": normalize_plan_policy_evidence(
                 planning.get("plan_policy")
             ),
             "workflow_selection": normalize_workflow_selection_evidence(
-                planning.get("workflow_selection")
+                evidence_selection.get("workflow_selection")
             ),
             "selection_interaction": _selection_interaction_projection(
                 result.get("selection_interaction")
@@ -160,11 +163,12 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
                 result.get("replanning")
             ),
             "evidence_registry": normalize_evidence_registry(
-                result.get("evidence_registry")
+                evidence_projection.get("evidence_registry")
             ),
             "evidence_registry_completeness": project_evidence_registry_completeness(
-                result.get("evidence_registry")
+                evidence_projection.get("evidence_registry")
             ),
+            "evidence_projection": evidence_projection,
             "step_tools": [
                 step.get("tool")
                 for step in steps
@@ -400,6 +404,8 @@ def _async_result_evidence_projection(
     evidence_artifact = _mapping(evidence.get("artifact"))
     evidence_views = _mapping(evidence.get("views"))
     evidence_planning = _mapping(evidence.get("planning"))
+    evidence_projection = project_evidence_projection(evidence)
+    evidence_selection = _mapping(evidence_projection.get("selection"))
     return {
         "schema_version": _stable_version(evidence.get("schema_version")),
         "state": _stable_status(evidence.get("state")),
@@ -422,7 +428,10 @@ def _async_result_evidence_projection(
             evidence_planning.get("plan_quality")
         ),
         "workflow_selection": normalize_workflow_selection_evidence(
-            evidence_planning.get("workflow_selection")
+            evidence_selection.get("workflow_selection")
+        ),
+        "planner_selection": normalize_planner_selection_evidence(
+            evidence_selection.get("planner_selection")
         ),
         "selection_interaction": _selection_interaction_projection(
             evidence.get("selection_interaction")
@@ -431,11 +440,12 @@ def _async_result_evidence_projection(
             evidence.get("execution_timeline")
         ),
         "evidence_registry": normalize_evidence_registry(
-            evidence.get("evidence_registry")
+            evidence_projection.get("evidence_registry")
         ),
         "evidence_registry_completeness": project_evidence_registry_completeness(
-            evidence.get("evidence_registry")
+            evidence_projection.get("evidence_registry")
         ),
+        "evidence_projection": evidence_projection,
     }
 
 

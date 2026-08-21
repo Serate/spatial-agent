@@ -3512,3 +3512,14 @@ M177 从全局证据链推进公共读取 seam：Artifact viewer、async polling
 - 新增 `tests/test_m177_evidence_projection.py`，验证 Text 结果、async、Artifact viewer、旧 Registry 迁移状态和 HTTP evidence equality。
 - Docker M177/M176/M159/M158/M146/M165 专项 16 项通过；compileall、quick、stage、production acceptance 通过。容器保持 healthy。
 - 本阶段无 live token 消耗、无 GIS 工具变更；跨入口 source 漂移问题已记录到中文开发问题文档。
+
+## M178：Evidence Projection 纳入 Contract Harness（已完成）
+
+M178 将 M177 的公共证据读取 seam 纳入更广泛的跨入口 Contract Harness，避免 Harness、async 和 Artifact-only recovery 分别解释 Registry 与 selection 字段。
+
+- `evaluation.contract_harness` 直接调用 `project_evidence_projection()`；同步结果和 async 子 projection 统一比较 Registry、completeness、workflow/planner selection 与 migration，继续过滤 transport-specific source、运行 ID、路径和时间。
+- 新增 `evidence_projection` 稳定投影字段，并在 async 结果证据中补齐 planner selection、迁移状态和 Registry 完整性；旧 Registry 显式为 `legacy_incomplete`，未知 schema 显式为 `unknown_schema`。
+- 新增 `tests/test_m178_contract_harness.py`，覆盖 Text/GIS 形状、同步/async/Artifact-only equality、旧/未知 schema 和 planner selection 漂移，共 4 项。
+- Docker 重建后 M178 与 M177/M176/M165/M160/M158 相邻专项 22/22 通过；compileall、quick、stage、production acceptance 通过，容器 healthy，生产数据卷和 runtime capability ready。
+- `console_selection_evidence_smoke.js` 与 Chrome/CDP `console_overview_smoke.js` 通过；本阶段未增加 GIS 工具、默认 CI 测试或 live token 消耗。
+- M178 完成后，下一阶段从全局推进 M179：统一证据迁移/恢复动作、replay/live 评测、SQLite/Artifact 接管和通用前端空态。

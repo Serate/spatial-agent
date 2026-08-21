@@ -1984,7 +1984,7 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 旧 Registry 缺少当前 required entry 时显式返回 `legacy_incomplete`、`migratable=true`、`rebuild_from_result`；未知 schema 为 `unknown_schema`，不自动伪造或覆盖历史证据。
 - 新增 `tests/test_m177_evidence_projection.py`，M177/M176/M159/M158/M146/M165 相关 Docker 回归 16/16 通过；compileall、quick、stage、production acceptance 通过，Docker healthy。
 - Artifact viewer 已展示 Registry 入口、两类 selection、完整性和迁移状态；HTTP 两个 evidence endpoint 的 projection equality 已纳入生产 acceptance。
-- M177 已完成，当前待最终 diff/敏感信息检查、提交和推送；推送后进入 M178 全局七维度规划。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+- M177 已完成并推送，版本为 `ce5aff1`；随后进入 M178 全局七维度规划。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
 
 ## M178 全局重规划参考
 
@@ -1997,3 +1997,24 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 部署：补生产重启/多 worker 后 evidence endpoint、artifact 和前端历史恢复的连续验收。
 6. 体验：验证未知 schema、旧 artifact、异步处理中、失败修复和无证据结果的动态空态与操作边界。
 7. 测试：保持 quick/stage 极简，新增一条跨 Domain/入口 Harness，再运行必要 Docker、HTTP、Chrome 和 live-short 验收。
+
+## M178 当前完成状态
+
+- `evaluation.contract_harness` 已直接消费 `agent.evidence_projection.project_evidence_projection()`；同步结果、async compact evidence 和 Artifact-only payload 现在共享同一 Registry、完整性、workflow/planner selection 与 migration projection。
+- Harness 的稳定投影新增 `evidence_projection`，async 子投影补齐 `planner_selection`、迁移状态和完整性；transport-specific source、run id、路径和时间字段仍不会进入 equality。
+- 新增 `tests/test_m178_contract_harness.py`，覆盖 Text/GIS projection 形状一致、同步/async/Artifact-only equality、旧 Registry `legacy_incomplete`、未知 schema `unknown_schema` 和 planner selection 漂移检测。
+- Docker M178 与 M177/M176/M165/M160/M158 相邻专项 **22/22** 通过；`compileall`、quick、stage、production acceptance 通过，容器 healthy，生产数据卷和 runtime capability 均 ready。
+- `console_selection_evidence_smoke.js` 与 Chrome/CDP `console_overview_smoke.js` 通过；前端继续通过通用 Evidence renderer 展示 Registry、selection、迁移和动态结果，不新增 GIS 专用分支。
+- 本阶段未新增 live token 消耗、GIS 工具或私有数据；M178 已完成，下一阶段按全局七维度进入 M179。
+
+## M179 全局重规划参考
+
+下一阶段从“统一证据投影已可比较”继续推进通用 Runtime 的可恢复产品闭环：
+
+1. 产品：让证据完整性、旧版本迁移、未知 schema 和不可用结果都能进入统一的可读状态与有限恢复动作，而不是只停留在诊断字段。
+2. 架构：把 Evidence Projection 同时接入 replay/live 评测、Artifact-only recovery 和生产 evidence endpoint，明确公共读取 seam 与 Domain evidence adapter 的职责。
+3. 数据：将 readiness、coverage、alignment、provenance 和过期状态绑定到版本化证据入口，验证降级信息不会因同步/异步/重启而漂移。
+4. 模型：用脱敏 replay 和最小 live-short 验证模型选择、计划修复、结果类型和 evidence completeness 的一致性；不把原始模型输出写入仓库。
+5. 部署：补 SQLite 多 worker、滚动重启和 artifact-only 接管后的 evidence 连续性，并验证生产 HTTP 与历史查看器消费同一 projection。
+6. 体验：完善通用结果工作区的空态、迁移提示、失败恢复和证据导航，继续避免 GIS 页面专用分支。
+7. 测试：保持 quick/CI 极简，以跨 Domain Contract Harness 为主线，阶段收口运行 Docker、HTTP、浏览器和必要 live 验收后再全局重规划。

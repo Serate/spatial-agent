@@ -1682,4 +1682,23 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - async result、Service run evidence、开发/生产 Artifact evidence endpoint 和 Artifact viewer 均接入 projection；移除 transport-specific source，HTTP 两条 evidence 路径核心 projection equality 已验证。
 - 旧 Registry 缺少 required entries 时显式 `legacy_incomplete`/`migratable`，未知 schema 显式 `unknown_schema`，不把缺失证据标记为当前完整。
 - Docker 当前镜像 healthy；M177/M176/M159/M158/M146/M165 专项 16/16、compileall、quick、stage、production acceptance 通过。Artifact viewer、async、HTTP equality 证据已完成。
-- M177 已完成，待最终敏感信息扫描、`git diff --check`、提交和推送；推送后进入 M178 全局七维度重规划。不要提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+- M177 已完成并推送，版本为 `ce5aff1`；随后进入 M178 全局七维度重规划。不要提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M178 当前完成状态
+
+- `evaluation.contract_harness` 已直接复用 `agent.evidence_projection` 公共 seam；同步、async、Artifact-only 和 Text/GIS 的 Registry、完整性、workflow/planner selection、migration projection 现在由同一实现生成。
+- `normalize_result()` 和 `_async_result_evidence_projection()` 均公开有界 `evidence_projection`；Harness 严格比较稳定证据，同时继续忽略 transport source、运行 ID、路径和时间等易变字段。
+- 新增 `tests/test_m178_contract_harness.py`，M178/相邻证据专项 Docker 回归 22/22 通过，覆盖旧 Registry 可迁移、未知 schema、planner selection 漂移和 Artifact-only projection equality。
+- Docker 重建后容器 healthy；compileall、quick、stage、production acceptance 均通过，生产数据卷、核心/可选数据健康和 runtime capability 均 ready。
+- `console_selection_evidence_smoke.js`、Chrome/CDP `console_overview_smoke.js` 通过；本阶段未新增 live token 消耗、GIS 工具或原始数据。
+- M178 已完成并准备提交推送；下一阶段为 M179，继续按产品、架构、数据、模型、部署、体验、测试七维度规划，不把单个证据字段当作整体目标。
+
+## M179 全局规划参考
+
+1. 产品：统一展示证据完整性、旧版本迁移、未知 schema、不可用结果和有限恢复动作。
+2. 架构：让 Evidence Projection 贯通 replay/live、Artifact-only recovery、生产 evidence endpoint 和前端读取 seam。
+3. 数据：绑定 readiness、coverage、alignment、provenance 与证据版本，保持降级说明跨入口稳定。
+4. 模型：用脱敏 replay 和最小 live-short 验证 selection、repair、result type 与 evidence completeness。
+5. 部署：验证 SQLite 多 worker、滚动重启、Artifact-only 接管和 evidence endpoint 连续性。
+6. 体验：完善通用空态、迁移提示、失败恢复和证据导航，不增加 GIS 专用前端分支。
+7. 测试：维持 Docker quick/stage 精简，以跨 Domain Contract Harness、HTTP、浏览器和必要 live 作为阶段证据。
