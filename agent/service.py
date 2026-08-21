@@ -18,6 +18,7 @@ from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.domain_registry import resolve_domain_id
 from agent.domain_registry import domain_registry
 from agent.runtime_context import assert_runtime_context_compatible
+from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
@@ -1063,6 +1064,21 @@ class AgentService:
             )
             if payload is not None:
                 artifact_result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+                normalized_artifact_result = None
+                nested_schema_error = payload.get("nested_schema_warning")
+                if artifact_result:
+                    try:
+                        normalized_artifact_result = normalize_result_contract(
+                            artifact_result
+                        )
+                    except NestedSchemaError as exc:
+                        # The artifact itself remains readable, but an
+                        # unknown nested future view must never be copied into
+                        # the current result contract.  Build a bounded
+                        # unavailable view below instead.
+                        nested_schema_error = exc.reason_code
+                if nested_schema_error:
+                    payload["_nested_schema_error"] = nested_schema_error
                 payload["trace_summary"] = payload.get("trace_summary") or []
                 payload["provenance"] = payload.get("provenance") or build_provenance(
                     payload,
@@ -1075,7 +1091,11 @@ class AgentService:
                     payload,
                     registry=_runtime_result_registry(self._runtime(planner, backend)),
                 )
-                artifact_views = artifact_result.get("views")
+                artifact_views = (
+                    normalized_artifact_result.get("views")
+                    if isinstance(normalized_artifact_result, dict)
+                    else None
+                )
                 artifact_panels = (
                     artifact_views.get("panels")
                     if isinstance(artifact_views, dict)
@@ -1088,6 +1108,8 @@ class AgentService:
                     isinstance(artifact_panels, dict) and artifact_panels
                 ):
                     payload["result"]["views"] = artifact_views
+                payload.pop("_nested_schema_error", None)
+                payload.pop("nested_schema_warning", None)
                 _attach_error_category(payload)
                 payload["execution_record"] = payload.get("execution_record") or build_execution_record(
                     payload, kind="run"

@@ -1,0 +1,49 @@
+{
+  "schema_version": "m149-plan-repair-evidence-v1",
+  "suite_id": "m149-plan-repair-evidence",
+  "fixtures": [
+    {
+      "fixture_id": "text-plan-repair",
+      "domain": "text",
+      "replay_type": "plan_repair",
+      "expected_repair_count": 1,
+      "expected_plan_repair_count": 1,
+      "expected_final_status": "COMPLETED",
+      "provider_metrics": {
+        "usage": {"input_tokens": 120, "output_tokens": 55, "total_tokens": 175},
+        "latency_ms": 88,
+        "attempts": 2,
+        "retries": 1
+      },
+      "turns": [
+        {
+          "request": "请摘要这段文字",
+          "response": {
+            "goal": "summarize supplied text",
+            "steps": [{"id": "bad", "tool": "unknown_tool", "args": {}}],
+            "output": {"type": "text_summary_result", "summary": true}
+          },
+          "expected": {"expected_status": "FAILED"}
+        },
+        {
+          "request": "修复刚才的计划并重新执行",
+          "response": {
+            "goal": "summarize supplied text",
+            "steps": [{
+              "id": "summary",
+              "tool": "summarize_text",
+              "args": {"text": "空间智能体需要可测试的执行证据。"},
+              "depends_on": []
+            }],
+            "output": {"type": "text_summary_result", "summary": true}
+          },
+          "expected": {
+            "expected_status": "COMPLETED",
+            "expected_tools": ["summarize_text"],
+            "expected_result_type": "text_summary_result"
+          }
+        }
+      ]
+    }
+  ]
+}

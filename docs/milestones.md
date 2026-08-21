@@ -3026,3 +3026,13 @@ M148 从完整 Agent Runtime 视角收敛跨入口证据边界，而不是增加
 - 验证：M148 及相邻专项 25 项通过；Docker replay 和 `scripts/production_acceptance.ps1` 均通过。宿主 FastAPI 生产路由单测因依赖未安装跳过，但容器生产 acceptance 已覆盖实际生产入口；Chrome/CDP 与 live provider 保持独立未执行证据。
 
 下一阶段 M149 从整体推进嵌套 result/view/workspace schema 迁移、replay/live plan repair 证据和生产 FastAPI/Console 动态矩阵；默认 active suite 保持精简，最大并发度为 5。
+
+## M149 当前执行规则：并发度调整为 5（进行中）
+
+M149 使用最多 5 路并行开发。并行任务必须具备独立写入边界和专项验收；共享 schema、result envelope、Runtime 状态迁移与前端核心函数由主线负责集成，合并后统一运行精简门禁和显式环境验收。此前 M141-M147 记录的单线程约束属于历史阶段。
+
+## M149 当前实现状态（进行中）
+
+- 主线新增统一嵌套 schema 迁移/校验 seam；legacy 缺失版本可读，未知 result/workspace/views/view/panel 版本拒绝静默解释。
+- artifact、HTTP、async recovery 和 Console 均使用有界 unavailable fallback 或安全拒绝；plan-repair replay/live 评测使用同一脱敏证据投影。
+- M149 专项与 M147/M148 相邻回归 28 项通过（FastAPI 环境相关 3 项跳过）；quick、ci、stage、full-stage 和 Node smoke 通过。动态 Chrome/CDP、live provider、Docker 仍未作为本阶段已通过证据。

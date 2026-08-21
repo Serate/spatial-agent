@@ -6,6 +6,7 @@ from agent.execution_contract import build_execution_record
 from agent.runtime_context import normalize_runtime_context
 from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
 from agent.service_async import normalize_async_result_evidence
+from agent.nested_schema import NestedSchemaError, normalize_result_contract, unavailable_nested_view
 
 
 def _safe_run_id(run_id: object) -> str | None:
@@ -183,6 +184,26 @@ class ArtifactStore:
         payload.setdefault("run_id", run_id)
         if domain_id and payload.get("domain_id", "gis") != domain_id:
             return None
+        # Keep the durable artifact readable while preventing a future nested
+        # result shape from crossing the recovery boundary.  The service can
+        # turn this bounded marker into the normal unavailable view.
+        nested_result = payload.get("result")
+        if isinstance(nested_result, dict):
+            try:
+                payload["result"] = normalize_result_contract(nested_result)
+            except NestedSchemaError as exc:
+                payload["result"] = unavailable_nested_view(
+                    result_type=payload.get("result_type") or nested_result.get("type"),
+                    reason_code=exc.reason_code,
+                )
+                payload["nested_schema_warning"] = exc.reason_code
+        nested_evidence = payload.get("async_result_evidence")
+        if isinstance(nested_evidence, dict):
+            payload["async_result_evidence"] = normalize_async_result_evidence(
+                nested_evidence,
+                status=payload.get("status"),
+                artifact_ref=payload.get("artifact_ref"),
+            )
         return payload
 
     def read_action(
@@ -201,6 +222,16 @@ class ArtifactStore:
         payload.setdefault("action_execution_id", execution_id)
         if domain_id and payload.get("domain_id", "gis") != domain_id:
             return None
+        nested_result = payload.get("result")
+        if isinstance(nested_result, dict):
+            try:
+                payload["result"] = normalize_result_contract(nested_result)
+            except NestedSchemaError as exc:
+                payload["result"] = unavailable_nested_view(
+                    result_type=payload.get("result_type") or nested_result.get("type"),
+                    reason_code=exc.reason_code,
+                )
+                payload["nested_schema_warning"] = exc.reason_code
         return payload
 
     def list_actions(

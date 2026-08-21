@@ -3705,3 +3705,17 @@ SQLite run snapshot 与最终 artifact 写入存在短暂时序差异，状态�
 ### 处理与预防
 
 async evidence 生成时在同一 Domain 的 ArtifactStore 中做有界 fallback，只取安全 artifact basename；artifact-only recovery 与首次轮询使用同一投影。Docker replay 允许 `success/degraded`，但要求 degraded 有非空降级状态且重启后保持一致。以后真实数据验收必须区分 `failed`、`unavailable` 和合法 `degraded`，不能为追求绿色测试放宽数据门控或硬编码 success。
+
+## 嵌套结果 schema 分散校验会让未来 artifact 泄漏到恢复和前端
+
+### 现象
+
+result envelope、workspace、views、view/panel 和 async evidence 原先由不同入口分别读取。旧 artifact 缺少版本时可以兼容，但未知的嵌套版本可能被某个入口当作当前结构继续透传，导致恢复结果、HTTP artifact 下载和 Console 对同一份数据产生不同解释。
+
+### 根因
+
+版本常量虽然存在，迁移策略却没有统一的深层边界；artifact recovery、async polling 和前端 renderer 各自只检查了最外层或部分字段。这样会把“旧数据兼容”和“未来数据安全拒绝”混为一谈。
+
+### 处理与预防
+
+M149 增加无领域依赖的 `agent/nested_schema.py` 作为统一迁移/校验 seam：缺失版本只执行有界 legacy migration，未知版本抛出带 `reason_code` 的 `NestedSchemaError`。artifact/HTTP/async recovery 使用 `unavailable` fallback 或安全拒绝，Console 使用同样版本表做前端空态保护；replay/live 评测和生产验收复用对应的脱敏证据。以后新增嵌套结果字段必须同时补当前、legacy、unknown 三类测试，并验证同步、异步、artifact、HTTP 和前端的解释一致性。

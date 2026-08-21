@@ -1,6 +1,7 @@
 param(
   [string]$BaseUrl = "http://127.0.0.1:8088",
-  [int]$PollLimit = 60
+  [int]$PollLimit = 60,
+  [string]$ContractPayloadPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -419,6 +420,96 @@ function Assert-ViewEvidence($payload, [string]$surface) {
   }
 }
 
+function Assert-NestedViewTree($workspace, $views, [string]$surface, [bool]$RequireWorkspaceIdentity = $true) {
+  if ($null -eq $workspace) { throw "$surface workspace envelope missing" }
+  if ($workspace.schema_version -ne "spatial-agent.workspace.v1") {
+    throw "$surface workspace schema mismatch: $($workspace.schema_version)"
+  }
+  if ($RequireWorkspaceIdentity) {
+    if ([string]::IsNullOrWhiteSpace([string]$workspace.result_type)) {
+      throw "$surface workspace result_type missing"
+    }
+    if ($null -eq $workspace.common_panels) {
+      throw "$surface workspace common_panels missing"
+    }
+  }
+  if ($null -eq $workspace.panels) { throw "$surface workspace panels missing" }
+  if ($null -eq $workspace.view_specs) { throw "$surface workspace view_specs missing" }
+
+  foreach ($view in @($workspace.view_specs)) {
+    if ($null -eq $view) { throw "$surface view spec is null" }
+    if ($view.schema_version -ne "spatial-agent.view.v1") {
+      throw "$surface view schema mismatch: $($view.schema_version)"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$view.id)) {
+      throw "$surface view id missing"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$view.renderer)) {
+      throw "$surface view renderer missing"
+    }
+  }
+
+  if ($null -eq $views) { throw "$surface views envelope missing" }
+  if ($views.schema_version -ne "spatial-agent.views.v1") {
+    throw "$surface views schema mismatch: $($views.schema_version)"
+  }
+  if ($null -eq $views.panels) { throw "$surface views panels missing" }
+  $workspacePanels = @($workspace.panels)
+  $panelProperties = @($views.panels.PSObject.Properties | Where-Object {
+    -not [string]::IsNullOrWhiteSpace([string]$_.Name)
+  })
+  foreach ($property in $panelProperties) {
+    $panel = $property.Value
+    if ($null -eq $panel -or $panel -is [string]) {
+      throw "$surface panel payload invalid: $($property.Name)"
+    }
+    if ($property.Name -notin $workspacePanels) {
+      throw "$surface view panel not declared by workspace: $($property.Name)"
+    }
+    if ([string]::IsNullOrWhiteSpace([string]$panel.kind)) {
+      throw "$surface panel kind missing: $($property.Name)"
+    }
+    # Panel models use the shared view schema version. If a producer supplies
+    # one, it must be the supported version instead of being silently accepted.
+    $panelVersionProperty = $panel.PSObject.Properties["schema_version"]
+    if ($null -ne $panelVersionProperty -and $panelVersionProperty.Value -ne "spatial-agent.view.v1") {
+      throw "$surface panel schema mismatch: $($panelVersionProperty.Value)"
+    }
+  }
+}
+
+function Assert-NestedSchemaContract($payload, [string]$surface) {
+  if ($null -eq $payload) { throw "$surface payload is empty" }
+  $result = $payload.result
+  if ($null -eq $result) {
+    throw "$surface result envelope missing"
+  }
+  if ($result.schema_version -ne "spatial-agent.result-envelope.v1") {
+    throw "$surface result schema mismatch: $($result.schema_version)"
+  }
+  if ([string]::IsNullOrWhiteSpace([string]$result.type)) {
+    throw "$surface result type missing"
+  }
+  Assert-NestedViewTree $result.workspace $result.views "$surface result" $true
+
+  # Async polling intentionally exposes a smaller evidence projection. It
+  # still has to use the same workspace/view versions and panel linkage.
+  $evidence = $payload.result_evidence
+  if ($null -ne $evidence) {
+    if ($evidence.schema_version -ne "spatial-agent.async-result-evidence.v1") {
+      throw "$surface async result evidence schema mismatch"
+    }
+    Assert-NestedViewTree $evidence.workspace $evidence.views "$surface async evidence" $false
+    foreach ($property in @($evidence.views.panels.PSObject.Properties | Where-Object {
+      -not [string]::IsNullOrWhiteSpace([string]$_.Name)
+    })) {
+      if ([string]::IsNullOrWhiteSpace([string]$property.Value.kind)) {
+        throw "$surface async panel kind missing: $($property.Name)"
+      }
+    }
+  }
+}
+
 function Assert-AsyncResultEvidence($payload, [string]$surface) {
   $evidence = $payload.result_evidence
   if ($null -eq $evidence) { throw "$surface async result evidence missing" }
@@ -437,6 +528,7 @@ function Assert-AsyncResultEvidence($payload, [string]$surface) {
   if ($null -eq $evidence.artifact -or $null -eq $evidence.artifact.available) {
     throw "$surface async result evidence artifact state missing"
   }
+  Assert-NestedViewTree $evidence.workspace $evidence.views "$surface async evidence" $false
   $serialized = $evidence | ConvertTo-Json -Depth 20 -Compress
   if ($serialized -match '(?i)(?:[A-Za-z]:\\|/app/|/data/)') {
     throw "$surface async result evidence contains a filesystem path"
@@ -480,6 +572,19 @@ function Assert-DeploymentEvidence($payload, [string]$surface) {
   if ($serialized -match '(?i)"(?:api_key|authorization|password|secret|raw_response)"\s*:') {
     throw "$surface deployment payload contains a forbidden sensitive field"
   }
+}
+
+if (-not [string]::IsNullOrWhiteSpace($ContractPayloadPath)) {
+  if (-not (Test-Path -LiteralPath $ContractPayloadPath -PathType Leaf)) {
+    throw "contract payload not found: $ContractPayloadPath"
+  }
+  $contractPayload = Get-Content -LiteralPath $ContractPayloadPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  Assert-NestedSchemaContract $contractPayload "offline nested contract"
+  [pscustomobject]@{
+    status = "ok"
+    surface = "nested-schema"
+  } | ConvertTo-Json -Compress
+  exit 0
 }
 
 $live = Get-Json "$BaseUrl/health/live"
@@ -534,6 +639,7 @@ Assert-PlanningEvidence $syncRun "sync run"
 Assert-DegradationEvidence $syncRun "sync run"
 Assert-WorkspaceEvidence $syncRun "sync run"
 Assert-ViewEvidence $syncRun "sync run"
+Assert-NestedSchemaContract $syncRun "sync run"
 Assert-ReplanningEvidence $syncRun "sync run"
 Assert-DeploymentEvidence $syncRun "sync run"
 if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
@@ -576,6 +682,7 @@ if ($artifact.result.views.schema_version -ne $syncRun.result.views.schema_versi
 }
 Assert-ReplanningEvidence $artifact "artifact"
 Assert-DeploymentEvidence $artifact "artifact"
+Assert-NestedSchemaContract $artifact "artifact"
 $syncArtifactContract = Invoke-ContractHarness -payloads @($syncRun, $artifact) -surface "sync/artifact"
 
 $failureRun = Post-Json "$BaseUrl/runs" @{

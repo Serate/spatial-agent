@@ -18,7 +18,9 @@ from evaluation.model_evaluation import (
     DEFAULT_MODEL_REPLAY_FIXTURE,
     evaluate_model_replay_suite_file,
     evaluate_plan_quality,
+    project_repair_evidence,
     sanitize_provider_metrics,
+    summarize_repair_evidence,
 )
 from run_demo import build_runtime
 
@@ -117,6 +119,7 @@ def run_live_baseline(
         "backend": backend,
         "capability_snapshot": safe_snapshot,
         "plan_repair_replay": replay,
+        "repair_evidence": summarize_repair_evidence(replay),
         "cases": results,
         "summary": {
             "total": len(results),
@@ -748,6 +751,7 @@ def _result_evidence(
         ],
         "result_type": (plan.get("output") or {}).get("type"),
         "plan_quality": quality,
+        "repair_evidence": project_repair_evidence(result),
         "answer_chinese": bool(result.answer and any("\u3400" <= char <= "\u9fff" for char in result.answer)),
         "passed": passed,
     }

@@ -30,6 +30,22 @@ TOOL_SCHEMA = ROOT / "tools" / "schema" / "tool-definitions.json"
 _CHINESE_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
 _SECRET_KEY_TERMS = ("api_key", "apikey", "secret", "access_token", "refresh_token")
 _TOKEN_KEYS = ("input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens")
+REPAIR_EVIDENCE_SCHEMA_VERSION = "spatial-agent.repair-evaluation.v1"
+_MAX_REPAIR_EVENTS = 8
+_MAX_REPAIR_STEP_IDS = 24
+_MAX_REPAIR_TURNS = 32
+_REPAIR_TYPES = {"plan_repair", "planning_repair", "execution_replan", "repair"}
+_REPAIR_STATUSES = {
+    "CREATED",
+    "PLANNING",
+    "EXECUTING",
+    "COMPLETED",
+    "NEEDS_CLARIFICATION",
+    "REJECTED",
+    "FAILED",
+    "CANCELLED",
+    "TIMED_OUT",
+}
 
 
 def load_model_fixture(path: Union[str, Path] = DEFAULT_MODEL_FIXTURE) -> Dict[str, Any]:
@@ -68,7 +84,208 @@ def evaluate_model_replay_suite(suite: Mapping[str, Any]) -> Dict[str, Any]:
         "passed": passed,
         "failed": len(results) - passed,
         "pass_rate": round(passed / len(results), 4) if results else 0,
+        "repair_evidence": summarize_repair_evidence(results),
         "results": results,
+    }
+
+
+def project_repair_evidence(payload: Any) -> Dict[str, Any]:
+    """Project one Runtime result into bounded, credential-free repair evidence.
+
+    The input may be an ``AgentRunResult`` or a result/artifact mapping.  The
+    normal result contract remains the source of truth for event normalization;
+    this evaluator-specific projection deliberately drops run ids, timestamps,
+    raw errors, requests, arguments, and provider payloads.
+    """
+    if hasattr(payload, "to_dict") and callable(payload.to_dict):
+        try:
+            payload = payload.to_dict()
+        except Exception:
+            payload = {}
+    source = dict(payload) if isinstance(payload, Mapping) else {}
+    try:
+        contract = build_result_contract(source)
+    except Exception:
+        contract = {"replanning": {"events": []}}
+    replanning = contract.get("replanning") if isinstance(contract, Mapping) else {}
+    events = replanning.get("events") if isinstance(replanning, Mapping) else []
+    events = events if isinstance(events, list) else []
+
+    projected_events = []
+    for ordinal, event in enumerate(events[:_MAX_REPAIR_EVENTS], start=1):
+        if not isinstance(event, Mapping):
+            continue
+        replacement_ids = [
+            token
+            for token in (
+                _safe_repair_token(item)
+                for item in (event.get("replanned_step_ids") or [])
+            )
+            if token
+        ][:_MAX_REPAIR_STEP_IDS]
+        item = {
+            "ordinal": ordinal,
+            "phase": event.get("phase") if event.get("phase") in {"planning", "execution"} else "execution",
+            "failed_step_id": _safe_repair_token(event.get("failed_step_id")),
+            "failed_tool": _safe_repair_token(event.get("failed_tool")),
+            "failure_category": _safe_repair_token(event.get("failure_category")) or "unknown",
+            "replanned_step_ids": replacement_ids,
+            "replanned_step_count": len(replacement_ids),
+        }
+        latency = event.get("latency_ms")
+        if _nonnegative_number(latency):
+            item["latency_ms"] = round(min(float(latency), 86_400_000), 3)
+        if item["failed_step_id"] and item["failed_tool"]:
+            projected_events.append(item)
+
+    plan = source.get("plan") if isinstance(source.get("plan"), Mapping) else {}
+    steps = plan.get("steps") if isinstance(plan.get("steps"), list) else []
+    step_runs = source.get("steps") if isinstance(source.get("steps"), list) else []
+    output = plan.get("output") if isinstance(plan.get("output"), Mapping) else {}
+    result = source.get("result") if isinstance(source.get("result"), Mapping) else {}
+    status = _safe_repair_status(source.get("status") or result.get("status"))
+    result_type = output.get("type") or source.get("result_type") or result.get("result_type")
+    result_type = _safe_repair_token(result_type) or "unknown"
+    failed_step_count = sum(
+        1 for item in step_runs[:64]
+        if isinstance(item, Mapping) and str(item.get("status") or "") == "FAILED"
+    )
+    return {
+        "schema_version": REPAIR_EVIDENCE_SCHEMA_VERSION,
+        "available": bool(projected_events),
+        "repair_count": len(projected_events),
+        "lineage": {
+            "available": bool(projected_events),
+            "count": len(projected_events),
+            "events": projected_events,
+        },
+        "result": {
+            "status": status,
+            "result_type": result_type,
+            "plan_step_count": min(len(steps), 64),
+            "failed_step_count": min(failed_step_count, 64),
+        },
+    }
+
+
+def project_replay_repair_evidence(
+    fixture_id: Any,
+    replay_type: Any,
+    turn_evidence: Iterable[Mapping[str, Any]],
+    *,
+    expected_repair_count: Any = None,
+    expected_final_status: Any = None,
+) -> Dict[str, Any]:
+    """Project multi-turn replay recovery into the same repair evidence shape."""
+    turn_evidence = list(turn_evidence)
+    safe_turns = []
+    for index, turn in enumerate(turn_evidence[:_MAX_REPAIR_TURNS], start=1):
+        if not isinstance(turn, Mapping):
+            continue
+        evidence = turn.get("repair_evidence")
+        evidence = evidence if isinstance(evidence, Mapping) else {}
+        result = evidence.get("result") if isinstance(evidence.get("result"), Mapping) else {}
+        safe_turns.append({
+            "ordinal": index,
+            "status": _safe_repair_status(turn.get("status")),
+            "status_match": bool(turn.get("status_match")),
+            "repair_count": min(int(evidence.get("repair_count") or 0), _MAX_REPAIR_EVENTS),
+            "result_type": _safe_repair_token(result.get("result_type")) or "unknown",
+        })
+
+    runtime_events = []
+    for turn in turn_evidence[:_MAX_REPAIR_TURNS]:
+        if not isinstance(turn, Mapping):
+            continue
+        evidence = turn.get("repair_evidence")
+        if not isinstance(evidence, Mapping):
+            continue
+        lineage = evidence.get("lineage")
+        events = lineage.get("events") if isinstance(lineage, Mapping) else []
+        for event in events if isinstance(events, list) else []:
+            if isinstance(event, Mapping):
+                runtime_events.append(dict(event))
+
+    transitions = []
+    for index in range(len(safe_turns) - 1):
+        current = safe_turns[index]
+        following = safe_turns[index + 1]
+        if current["status"] == "FAILED" and following["status"] == "COMPLETED":
+            transitions.append({
+                "ordinal": len(transitions) + 1,
+                "source": "replay_transition",
+                "from_turn": current["ordinal"],
+                "to_turn": following["ordinal"],
+                "from_status": "FAILED",
+                "to_status": "COMPLETED",
+            })
+
+    safe_type = _safe_repair_token(replay_type) or "unknown"
+    inferred_count = len(runtime_events)
+    if safe_type in _REPAIR_TYPES:
+        inferred_count = max(inferred_count, len(transitions))
+    expected = _bounded_nonnegative_int(expected_repair_count)
+    expected_status = _safe_repair_status(expected_final_status)
+    final_status = safe_turns[-1]["status"] if safe_turns else "unknown"
+    expected_match = expected is None or inferred_count == expected
+    final_match = expected_status in (None, "unknown") or final_status == expected_status
+    rounds = []
+    for event in runtime_events[:_MAX_REPAIR_EVENTS]:
+        item = dict(event)
+        item["source"] = "runtime_event"
+        item["ordinal"] = len(rounds) + 1
+        rounds.append(item)
+    if not runtime_events:
+        rounds.extend(transitions[:_MAX_REPAIR_EVENTS])
+    return {
+        "schema_version": REPAIR_EVIDENCE_SCHEMA_VERSION,
+        "available": inferred_count > 0,
+        "repair_count": min(inferred_count, _MAX_REPAIR_EVENTS),
+        "clarification_count": sum(
+            1 for turn in safe_turns if turn["status"] == "NEEDS_CLARIFICATION"
+        ),
+        "failed_turn_count": sum(1 for turn in safe_turns if turn["status"] == "FAILED"),
+        "replay_type": safe_type,
+        "fixture_id": _safe_repair_token(fixture_id) or "unknown",
+        "turn_count": len(safe_turns),
+        "terminal_status": final_status,
+        "lineage": {
+            "available": bool(rounds),
+            "count": min(len(rounds), _MAX_REPAIR_EVENTS),
+            "events": rounds[:_MAX_REPAIR_EVENTS],
+        },
+        "turns": safe_turns,
+        "expected_repair_count": expected,
+        "expected_match": expected_match,
+        "expected_final_status": expected_status,
+        "final_status_match": final_match,
+        "passed": expected_match and final_match,
+    }
+
+
+def summarize_repair_evidence(report_or_results: Any) -> Dict[str, Any]:
+    """Aggregate only safe repair projections for replay or live reports."""
+    if isinstance(report_or_results, Mapping):
+        results = report_or_results.get("results")
+        if not isinstance(results, list):
+            results = []
+    elif isinstance(report_or_results, list):
+        results = report_or_results
+    else:
+        results = []
+    evidence = [
+        item.get("repair_evidence")
+        for item in results
+        if isinstance(item, Mapping) and isinstance(item.get("repair_evidence"), Mapping)
+    ]
+    return {
+        "schema_version": REPAIR_EVIDENCE_SCHEMA_VERSION,
+        "available": any(bool(item.get("available")) for item in evidence),
+        "fixture_count": len(evidence),
+        "repair_case_count": sum(1 for item in evidence if int(item.get("repair_count") or 0) > 0),
+        "repair_count": min(sum(int(item.get("repair_count") or 0) for item in evidence), _MAX_REPAIR_EVENTS),
+        "clarification_count": min(sum(int(item.get("clarification_count") or 0) for item in evidence), _MAX_REPAIR_TURNS),
+        "passed": all(bool(item.get("passed", True)) for item in evidence),
     }
 
 
@@ -99,6 +316,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
             status = result.status.value
             status_match = status == str(expected.get("expected_status") or status)
             quality = {"passed": True, "status_only": True}
+            repair_projection = project_repair_evidence(result)
             if status == "COMPLETED":
                 plan = result.to_dict().get("plan") or {}
                 quality = evaluate_plan_quality(
@@ -113,6 +331,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
                 "expected_status": expected.get("expected_status"),
                 "status_match": status_match,
                 "quality": quality,
+                "repair_evidence": repair_projection,
             })
         except Exception:
             turn_results.append({
@@ -120,15 +339,25 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
                 "expected_status": expected.get("expected_status"),
                 "status_match": False,
                 "quality": {"passed": False},
+                "repair_evidence": project_repair_evidence({"status": "FAILED"}),
             })
     repair_count = sum(1 for item in turn_results[:-1] if item["status"] in {"FAILED", "NEEDS_CLARIFICATION"})
     expected_repair_count = fixture.get("expected_repair_count")
     final_expected = fixture.get("expected_final_status", "COMPLETED")
     final_status = turn_results[-1]["status"]
+    repair_evidence = project_replay_repair_evidence(
+        fixture_id,
+        fixture.get("replay_type"),
+        turn_results,
+        expected_repair_count=fixture.get("expected_plan_repair_count"),
+        expected_final_status=final_expected,
+    )
     passed = all(item["status_match"] and item["quality"]["passed"] for item in turn_results)
     passed = passed and final_status == final_expected
     if expected_repair_count is not None:
         passed = passed and repair_count == expected_repair_count
+    if fixture.get("expected_plan_repair_count") is not None:
+        passed = passed and repair_evidence["passed"]
     return {
         "fixture_id": fixture_id,
         "domain": domain,
@@ -137,6 +366,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         "repair_count": repair_count,
         "final_status": final_status,
         "turns": turn_results,
+        "repair_evidence": repair_evidence,
         "metrics": safe_metrics,
         "passed": passed,
         "error_class": "none" if passed else "replay_contract_error",
@@ -180,6 +410,7 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
             "workflow_template_match": _empty_quality("no plan"),
             "chinese_answer": _empty_quality("no answer"),
         },
+        "repair_evidence": project_repair_evidence({"status": "FAILED"}),
         "safety": safety,
         "error_class": safety["provider_error"]["class"],
         "passed": False,
@@ -213,6 +444,7 @@ def evaluate_model_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
         report["answer"] = result.answer or ""
         result_payload = result.to_dict()
         result_payload["result_type"] = report["result_type"]
+        report["repair_evidence"] = project_repair_evidence(result)
         report["model_evidence"] = build_result_contract(
             result_payload,
             registry=runtime.result_registry(),
@@ -655,6 +887,29 @@ def _runtime_error_class(exc: Exception) -> str:
     if "planning" in name:
         return "planner_error"
     return "runtime_error"
+
+
+def _safe_repair_token(value: Any) -> str:
+    """Allow identifiers only; never echo arbitrary error/provider text."""
+    if not isinstance(value, (str, int, float)) or isinstance(value, bool):
+        return ""
+    token = str(value).strip()[:96]
+    if not token or not re.fullmatch(r"[A-Za-z0-9_.:-]+", token):
+        return ""
+    if re.search(r"(?:sk-|bearer|token|secret|password|key)", token, re.IGNORECASE):
+        return ""
+    return token
+
+
+def _safe_repair_status(value: Any) -> str:
+    status = str(value or "").strip().upper()
+    return status if status in _REPAIR_STATUSES else "unknown"
+
+
+def _bounded_nonnegative_int(value: Any) -> Optional[int]:
+    if type(value) is int and value >= 0:
+        return min(value, _MAX_REPAIR_EVENTS)
+    return None
 
 
 def _contains_private_field(value: Any) -> bool:

@@ -6,6 +6,7 @@
       "fixture_id": "clarification-follow-up",
       "replay_type": "clarification_follow_up",
       "expected_repair_count": 1,
+      "expected_plan_repair_count": 0,
       "expected_final_status": "COMPLETED",
       "provider_metrics": {
         "usage": {"input_tokens": 420, "output_tokens": 120, "total_tokens": 540},
@@ -41,6 +42,7 @@
       "fixture_id": "invalid-plan-repair",
       "replay_type": "plan_repair",
       "expected_repair_count": 1,
+      "expected_plan_repair_count": 1,
       "expected_final_status": "COMPLETED",
       "provider_metrics": {
         "usage": {"input_tokens": 510, "output_tokens": 160, "total_tokens": 670},
@@ -80,6 +82,7 @@
       "fixture_id": "open-region-boundary-query",
       "replay_type": "open_region_query",
       "expected_repair_count": 0,
+      "expected_plan_repair_count": 0,
       "expected_final_status": "COMPLETED",
       "provider_metrics": {
         "usage": {"input_tokens": 300, "output_tokens": 90, "total_tokens": 390},
@@ -110,6 +113,7 @@
       "fixture_id": "open-vector-distribution",
       "replay_type": "open_capability_query",
       "expected_repair_count": 0,
+      "expected_plan_repair_count": 0,
       "expected_final_status": "COMPLETED",
       "provider_metrics": {
         "usage": {"input_tokens": 640, "output_tokens": 190, "total_tokens": 830},

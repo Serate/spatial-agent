@@ -14,6 +14,7 @@ from typing import Any, Dict, Mapping
 from agent.models import AgentRunResult
 from agent.runtime_context import runtime_context_fingerprint
 from agent.sqlite_store import SQLiteStateStore
+from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from result_contract import build_lineage_index
 
 
@@ -287,13 +288,21 @@ def normalize_async_result_evidence(
             reason_code="async_result_evidence_unknown_state",
         )
 
+    try:
+        nested = validate_async_nested_sections(value)
+    except NestedSchemaError as exc:
+        return unavailable_async_result_evidence(
+            status=status,
+            artifact_ref=artifact_ref,
+            reason_code=exc.reason_code,
+        )
+
     def _safe_ref(ref: Any) -> str | None:
         if not ref:
             return None
         return str(ref).replace("\\", "/").rsplit("/", 1)[-1] or None
 
-    workspace = value.get("workspace")
-    workspace = workspace if isinstance(workspace, Mapping) else {}
+    workspace = nested["workspace"]
     panels = workspace.get("panels")
     panels = panels if isinstance(panels, list) else []
     safe_panels = [str(item)[:64] for item in panels[:20]]
@@ -310,8 +319,7 @@ def normalize_async_result_evidence(
         if spec:
             safe_specs.append(spec)
 
-    views = value.get("views")
-    views = views if isinstance(views, Mapping) else {}
+    views = nested["views"]
     source_panels = views.get("panels")
     source_panels = source_panels if isinstance(source_panels, Mapping) else {}
     safe_view_panels = {}

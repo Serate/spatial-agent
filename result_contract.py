@@ -11,6 +11,12 @@ from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
 )
+from agent.nested_schema import (
+    NestedSchemaError,
+    normalize_result_contract,
+    normalize_views,
+    unavailable_nested_view,
+)
 from agent.runtime_context import normalize_runtime_context, runtime_context_fingerprint
 
 COMMON_WORKSPACE_PANELS = [
@@ -163,7 +169,16 @@ def build_result_contract(
         contract["execution"] = execution_record_summary(record)
     if isinstance(payload.get("failure"), dict):
         contract["failure"] = dict(payload["failure"])
-    return contract
+    nested_error = payload.get("_nested_schema_error")
+    if nested_error:
+        contract["schema_warnings"] = [{
+            "code": "nested_schema_unavailable",
+            "reason_code": str(nested_error)[:96],
+        }]
+    # One shared seam for all domain-owned view builders.  Rich panel fields
+    # remain untouched; nested versions and required panel shape are checked
+    # before the result reaches HTTP, artifact, async or Console consumers.
+    return normalize_result_contract(contract)
 
 
 def _model_evidence(metrics: Any, runtime_context: Any) -> Dict[str, Any]:
@@ -234,9 +249,17 @@ def _ensure_view_fallbacks(
     specs = list(specs) if isinstance(specs, list) else []
     if not specs and "generic" in (workspace.get("panels") or []):
         specs = [{"id": "generic", "title": "结构化结果", "renderer": "generic"}]
+    if not specs and payload.get("_nested_schema_error"):
+        # Recovery of a future nested schema must still produce one bounded
+        # renderer target.  Never copy the unknown panel into the contract.
+        specs = [{"id": "generic", "title": "结构化结果", "renderer": "generic"}]
     items = degradation.get("items") if isinstance(degradation, Mapping) else []
     first_item = items[0] if isinstance(items, list) and items else {}
     reason = (
+        str(payload.get("_nested_schema_error"))
+        if payload.get("_nested_schema_error")
+        else None
+    ) or (
         first_item.get("message")
         if isinstance(first_item, Mapping)
         else None
@@ -294,7 +317,13 @@ def build_action_result_contract(
     contract = build_result_contract(synthetic, registry=registry)
     supplied_views = action_result.get("views")
     if isinstance(supplied_views, Mapping):
-        contract["views"] = dict(supplied_views)
+        try:
+            contract["views"] = normalize_views(supplied_views)
+        except NestedSchemaError:
+            contract["views"] = unavailable_nested_view(
+                result_type=contract.get("type"),
+                reason_code="action_view_schema_unavailable",
+            )["views"]
     action_execution = payload.get("action_execution")
     if isinstance(action_execution, Mapping):
         contract["action_execution"] = _safe_action_execution(action_execution)
@@ -658,7 +687,7 @@ def build_comparison_views(
     completed = len([row for row in safe_rows if str(row.get("status") or "") == "COMPLETED"])
     values = [point["y"] for point in points if point.get("y") is not None]
     columns = table_columns or [(x_label, x_field), (y_label, y_field), ("状态", "status")]
-    return {
+    return normalize_views({
         "schema_version": "spatial-agent.views.v1",
         "panels": {
             "chart": {
@@ -688,7 +717,7 @@ def build_comparison_views(
                 "note": str(note or "对比图由后端 result views 生成；详细子运行可通过 run_id 查看。")[:320],
             }
         },
-    }
+    })
 
 
 def _comparison_label(value: Any, x_label: str) -> str:

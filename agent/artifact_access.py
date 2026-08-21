@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from agent.nested_schema import NestedSchemaError, normalize_result_contract
+
 
 def resolve_artifact_path(
     root: Path,
@@ -44,6 +46,13 @@ def resolve_artifact_path(
         return None
     if not isinstance(payload, dict):
         return None
+    if kind in {"run", "action"} and isinstance(payload.get("result"), dict):
+        try:
+            normalize_result_contract(payload["result"])
+        except NestedSchemaError:
+            # File download is a raw artifact boundary; unlike run recovery,
+            # it has no result envelope to rebuild, so reject the file.
+            return None
 
     stored_domain = payload.get("domain_id")
     if kind == "geojson" and not stored_domain:
