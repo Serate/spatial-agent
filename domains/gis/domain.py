@@ -12,7 +12,7 @@ from agent.workflow_templates import (
     workflow_template_catalog,
     workflow_template_context_summary,
 )
-from agent.domain_contract import domain_action_catalog
+from agent.domain_contract import domain_action_catalog, discovery_context
 
 from .catalog import (
     GIS_CAPABILITIES,
@@ -178,6 +178,24 @@ class GisDomainPack:
         from .routing import GisCapabilityRouter
 
         return GisCapabilityRouter().discover(request, request_facts)
+
+    def select_workflow(
+        self,
+        discovery: Any,
+        request_facts: Any,
+        *,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Expose discovery/explicit selection metadata to the generic Runtime."""
+        del request_facts
+        context = discovery_context(discovery, domain_id=self.domain_id)
+        return {
+            "source": "explicit_workflow" if workflow and workflow.get("template_id") else "domain_discovery",
+            "selected_by": "user" if workflow and workflow.get("template_id") else "domain",
+            "selected_capability_id": context.get("selected_capability_id"),
+            "candidate_ids": list(context.get("candidate_ids") or [])[:8],
+            "candidate_count": context.get("candidate_count"),
+        }
 
     def workflow_template_context(
         self,

@@ -3243,3 +3243,12 @@ M161 将 Domain-owned plan policy 的选择依据、工具 allowlist、步骤上
 5. **部署可靠性**：覆盖容器内测试、HTTP/SQLite/artifact 恢复、版本迁移和 worker 重启后的 workflow/policy evidence 一致性。
 6. **用户体验**：让 Console 以通用 evidence 动态展示候选能力、计划选择、结果和下一步动作，继续减少 GIS 页面分支。
 7. **测试证据**：默认 Docker 内 quick/stage 保持精简，新增 selection contract 后再运行 Docker/GIS/live/browser 显式验收。
+
+## M162：Workflow Selection 公共契约与跨入口证据（已完成）
+
+M162 将“请求理解 → 候选能力 → workflow 选择”从 Runtime 内部上下文提升为领域无关的 `spatial-agent.workflow-selection.v1`。它只记录选择证据，不拥有 Planner、Runtime 或 ToolRegistry 的执行策略。
+
+- 新增 `agent/workflow_selection.py`，支持 selected、ambiguous、clarification、unavailable 状态，记录显式 workflow、Domain discovery、候选能力、事实键和有界原因码；未知版本安全降级。
+- `DomainPack.select_workflow()` 成为可选 Domain seam；GIS/Text 都通过自己的 Domain metadata 接入，公共 Runtime 不携带 GIS 字段或分支。
+- Context Engineering、Runtime 计划/澄清/失败证据、Contract Harness 和 Console 统一消费选择证据；production acceptance 同时校验同步结果与 artifact 的 schema 一致性。
+- 验证：Docker 容器 M162 专项 6 项、M161 专项 6 项、quick/stage、compileall 通过；当前 Docker production acceptance 通过；overview、health、map、lineage 动态 Console smoke 通过。

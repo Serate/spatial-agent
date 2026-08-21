@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION, domain_action_catalog
+from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION, domain_action_catalog, discovery_context
 from agent.request_model import RequestFacts
 from agent.capability_catalog import capability_catalog
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
@@ -118,6 +118,24 @@ class TextDomainPack:
             "signals": ["text"],
             "tasks": ["summarize"],
             "constraints": [],
+        }
+
+    def select_workflow(
+        self,
+        discovery: Any,
+        request_facts: Any,
+        *,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Expose text selection metadata without importing spatial policy."""
+        del request_facts
+        context = discovery_context(discovery, domain_id=self.domain_id)
+        return {
+            "source": "explicit_workflow" if workflow and workflow.get("template_id") else "domain_discovery",
+            "selected_by": "user" if workflow and workflow.get("template_id") else "domain",
+            "selected_capability_id": context.get("selected_capability_id"),
+            "candidate_ids": list(context.get("candidate_ids") or [])[:8],
+            "candidate_count": context.get("candidate_count"),
         }
 
     def workflow_template_context(

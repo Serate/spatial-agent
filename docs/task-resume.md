@@ -1766,4 +1766,11 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - `spatial-agent.plan-policy.v1` 已接入 Domain Pack、Runtime、result/artifact/async evidence、Contract Harness 和 Console；GIS policy 支持显式 workflow/唯一自动匹配，Text 不继承 GIS 策略。
 - 当前工作树镜像已重建为 healthy。容器内 M161 专项 6/6、compileall、quick、stage、M160/M159/M154/M148 相邻契约 21 项通过；宿主侧 production acceptance 针对 Docker HTTP 入口通过。
 - 当前 Docker 服务动态 Console 的 overview、health、clear、map 和 lineage smoke 通过；lineage 首次 CDP 页面生命周期异常在复跑中通过，暂记为环境波动。
-- 下一步是最终 diff/敏感配置检查、提交并推送 M161，然后按产品、架构、数据、模型、部署、体验、测试七个维度执行 M162 全局重规划。
+- M161 最终 diff/敏感配置检查、提交并推送已完成，版本为 `83ba60c`；随后按产品、架构、数据、模型、部署、体验、测试七个维度进入 M162。
+
+## M162 当前实现与验证状态
+
+- 新增 `spatial-agent.workflow-selection.v1`，将候选能力、显式 workflow、Domain 自动发现、歧义/澄清状态、事实键和选择原因纳入公共证据。
+- Runtime Context、计划/澄清/失败 evidence、Contract Harness 和 Console 共用该投影；Text/GIS 均通过 Domain seam 提供选择元数据，公共 Runtime 不读取 GIS 专用字段。
+- 当前 Docker 镜像 healthy；容器内 M162 6 项、M161 6 项、quick/stage、compileall 通过；宿主侧 production acceptance 检查同步/artifact 的 workflow selection，overview/health/map/lineage 动态 smoke 通过。
+- 当前 M162 改动尚未提交；下一步继续补用户确认、候选能力 UI 和真实模型回放，再进行阶段收口。

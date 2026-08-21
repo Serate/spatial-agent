@@ -130,6 +130,15 @@ class DomainPack(Protocol):
     def discover(self, request: str, request_facts: Any) -> Any:
         """Return a mapping or object exposing ``as_context_dict``."""
 
+    def select_workflow(
+        self,
+        discovery: Any,
+        request_facts: Any,
+        *,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Return domain-owned metadata for capability/workflow selection."""
+
     def workflow_template_context(
         self,
         *,
@@ -201,6 +210,34 @@ def selected_capability_ids(discovery: Any) -> list[str]:
         if value and str(value) not in result:
             result.append(str(value))
     return result[:8]
+
+
+def select_workflow(
+    domain_pack: DomainPack,
+    discovery: Any,
+    request_facts: Any,
+    *,
+    workflow: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve selection metadata without interpreting domain identifiers."""
+
+    method = getattr(domain_pack, "select_workflow", None)
+    if callable(method):
+        try:
+            value = method(discovery, request_facts, workflow=workflow)
+        except TypeError:
+            value = method(discovery, request_facts)
+        if isinstance(value, Mapping):
+            return dict(value)
+    context = discovery_context(discovery)
+    candidates = context.get("candidate_ids")
+    return {
+        "source": "explicit_workflow" if isinstance(workflow, Mapping) and workflow.get("template_id") else "domain_discovery",
+        "selected_capability_id": context.get("selected_capability_id"),
+        "candidate_ids": list(candidates) if isinstance(candidates, list) else [],
+        "candidate_count": context.get("candidate_count"),
+        "selected_by": "user" if isinstance(workflow, Mapping) and workflow.get("template_id") else "domain",
+    }
 
 
 def workflow_context(domain_pack: DomainPack) -> dict[str, Any]:

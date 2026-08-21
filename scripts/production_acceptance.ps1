@@ -392,6 +392,16 @@ function Assert-PlanningEvidence($payload, [string]$surface) {
   if (@($payload.plan_evidence.execution_policy.tools).Count -lt 1) {
     throw "$surface execution policy tools missing"
   }
+  $selection = $payload.plan_evidence.workflow_selection
+  if ($null -eq $selection -or $selection.schema_version -ne "spatial-agent.workflow-selection.v1") {
+    throw "$surface workflow selection evidence missing or version mismatch"
+  }
+  if ($selection.state -notin @("selected", "ambiguous", "clarification", "unavailable")) {
+    throw "$surface workflow selection state invalid: $($selection.state)"
+  }
+  if ($null -eq $planning.workflow_selection -or $planning.workflow_selection.schema_version -ne $selection.schema_version) {
+    throw "$surface result planning workflow selection mismatch"
+  }
 }
 
 function Assert-DegradationEvidence($payload, [string]$surface) {
@@ -729,6 +739,7 @@ if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
 }
 $artifactName = Split-Path -Leaf ([string]$syncRun.artifact_ref)
 $artifact = Get-Json "$BaseUrl/artifacts/runs/$artifactName"
+Assert-PlanningEvidence $artifact "artifact"
 Assert-EvidenceRegistry $artifact "artifact"
 if ($null -eq $artifact.evidence_registry -or $null -eq $syncRun.result.evidence_registry) {
   throw "sync/artifact evidence registry comparison source missing"

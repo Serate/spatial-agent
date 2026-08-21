@@ -44,6 +44,7 @@ class ContextBuilder:
         request_understanding: Optional[Mapping[str, Any]] = None,
         capability_discovery: Optional[Mapping[str, Any]] = None,
         capability_catalog: Optional[Mapping[str, Any]] = None,
+        workflow_selection: Optional[Mapping[str, Any]] = None,
         memory_section: Optional[Mapping[str, Any]] = None,
         workflow_templates: Optional[Mapping[str, Any]] = None,
     ) -> ContextPacket:
@@ -68,6 +69,8 @@ class ContextBuilder:
             sections["capability_discovery"] = self._safe_value(capability_discovery)
         if capability_catalog:
             sections["capability_catalog"] = self._safe_value(capability_catalog)
+        if workflow_selection:
+            sections["workflow_selection"] = self._safe_value(workflow_selection)
         if planner_kind:
             sections["planner"] = {"kind": self._text(planner_kind)}
         if memory_section:
@@ -108,6 +111,7 @@ class ContextBuilder:
             "request_understanding",
             "capability_discovery",
             "capability_catalog",
+            "workflow_selection",
             "workflow_templates",
         ):
             if len(rendered) <= self.max_chars:

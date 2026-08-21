@@ -3984,3 +3984,17 @@ M161 的浏览器验收中发现四类容易把前端真实问题与 smoke 自�
 ### 处理与预防
 
 动作目录请求在竞态期间自动重新加载；对比表即使没有可绘制的 `y` 值也保留详情导航；lineage smoke 只筛选普通运行历史项并保留 Action 专用入口；CDP smoke 的等待定时器在响应或异常后清理，并在页面导航/关闭时把环境边界报告为可重试错误。以后新增异步前端证据时，必须同时覆盖加载竞态、空值降级、混合历史类型、页面导航和脚本退出，不得只增加静态 DOM 断言。
+
+## M162：Linux 容器不能直接执行宿主 PowerShell production profile
+
+### 现象
+
+将 `scripts/test_profile.py --profile docker` 直接放进 Linux Docker 容器执行时，profile 试图启动 `powershell.exe`，返回 `FileNotFoundError`。容器本身健康、HTTP API 和 GIS 依赖均正常。
+
+### 根因
+
+Docker profile 的职责是由宿主编排器调用已经运行的容器 HTTP 入口；它不是容器内部的 Python 单元测试。把宿主 PowerShell 命令当作 Linux 容器内子进程会混淆测试层次，也会让真实部署 acceptance 被错误归类为业务失败。
+
+### 处理与预防
+
+Python 专项、profile、compileall 和 GIS 回归使用 `docker exec ai-agent-spatial-agent-1 python ...`；production acceptance 使用宿主侧 `scripts/production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088`，目标仍是当前重建 Docker 服务。测试策略文档明确区分两者，默认矩阵保持精简；以后增加跨平台 profile 时，必须声明执行面（容器内部或宿主编排）并分别提供可执行入口。

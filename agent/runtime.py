@@ -27,6 +27,7 @@ from .domain_contract import (
     clarification_details as resolve_clarification_details,
     preflight_tool as run_domain_preflight,
     plan_policy as resolve_plan_policy,
+    select_workflow as resolve_workflow_selection,
     runtime_evidence as resolve_runtime_evidence,
     release_evidence as resolve_release_evidence,
     request_understanding_guidance,
@@ -43,6 +44,10 @@ from .observability import ObservabilityEmitter
 from .plan_identity import build_plan_identity
 from .plan_quality import diagnose_plan, project_plan_quality_evidence, repair_context
 from .plan_policy import build_plan_policy_evidence
+from .workflow_selection import (
+    build_workflow_selection_evidence,
+    normalize_workflow_selection_evidence,
+)
 from .planner import Planner
 from .replanning import (
     ReplanningPolicy,
@@ -547,6 +552,7 @@ class AgentRuntime:
                     workflow=workflow,
                     state="clarification",
                     reason_code="clarification_required",
+                    context_packet=context_packet,
                 )
             result.clarification = exc.details or resolve_clarification_details(
                 self._domain_pack, resolved_request
@@ -562,6 +568,7 @@ class AgentRuntime:
                     workflow=workflow,
                     state="rejected",
                     reason_code="request_rejected",
+                    context_packet=context_packet,
                 )
             _record_run_failure(result, exc, phase="planning")
             self._conversation_store.clear_pending(session_id)
@@ -586,6 +593,7 @@ class AgentRuntime:
                         if candidate_plan is not None
                         else "planner_failed"
                     ),
+                    context_packet=context_packet,
                 )
             _record_run_failure(result, exc)
             result.answer = self._answer_composer.compose_failure(result)
@@ -814,6 +822,7 @@ class AgentRuntime:
                 workflow=workflow,
                 state="clarification",
                 reason_code="clarification_required",
+                context_packet=context_packet,
             )
         except RequestRejected as exc:
             payload.update({
@@ -826,6 +835,7 @@ class AgentRuntime:
                 workflow=workflow,
                 state="rejected",
                 reason_code="request_rejected",
+                context_packet=context_packet,
             )
         except Exception as exc:
             payload.update({
@@ -842,6 +852,7 @@ class AgentRuntime:
                     if candidate_plan is not None
                     else "planner_failed"
                 ),
+                context_packet=context_packet,
             )
         if payload.get("workflow") is None:
             payload.pop("workflow", None)
@@ -1008,8 +1019,14 @@ class AgentRuntime:
         workflow: Optional[Mapping[str, Any]],
         state: str,
         reason_code: str,
+        context_packet: Optional[ContextPacket] = None,
     ) -> Dict[str, Any]:
         """Create planning evidence even when no executable plan survived."""
+        selection = None
+        if context_packet is not None:
+            sections = (context_packet.payload or {}).get("sections", {})
+            if isinstance(sections, Mapping):
+                selection = sections.get("workflow_selection")
         return {
             "available": False,
             "planner_kind": type(self._planner).__name__,
@@ -1025,6 +1042,7 @@ class AgentRuntime:
                 state=state,
                 reason_code=reason_code,
             ),
+            "workflow_selection": normalize_workflow_selection_evidence(selection),
         }
 
     def _build_context_packet(
@@ -1053,10 +1071,23 @@ class AgentRuntime:
             domain_id=str(getattr(self._domain_pack, "domain_id", "unknown")),
         )
         understanding_payload = request_understanding_guidance(self._domain_pack)
-        capability_catalog = capability_context_summary(
-            catalog=self._domain_pack.capability_catalog(
-                environment=self._backend_name or "unknown"
+        catalog = self._domain_pack.capability_catalog(
+            environment=self._backend_name or "unknown"
+        )
+        workflow_selection = build_workflow_selection_evidence(
+            discovery=discovery_payload,
+            domain_selection=resolve_workflow_selection(
+                self._domain_pack,
+                discovery_payload,
+                spatial_request,
+                workflow=workflow,
             ),
+            workflow=workflow,
+            request_facts=spatial_request,
+            domain_id=self.domain_id,
+        )
+        capability_catalog = capability_context_summary(
+            catalog=catalog,
             tool_definitions=self._registry.definition_summary(),
             tool_provider=self._registry.provider_info(),
             tool_provider_health=self._registry.provider_health(),
@@ -1076,6 +1107,7 @@ class AgentRuntime:
             request_understanding=understanding_payload,
             capability_discovery=discovery_payload,
             capability_catalog=capability_catalog,
+            workflow_selection=workflow_selection,
             memory_section=memory_section,
             workflow_templates=workflow_context(self._domain_pack),
         )
@@ -1787,6 +1819,9 @@ def _build_plan_evidence(
                     if isinstance(item, Mapping)
                 ],
             }
+    evidence["workflow_selection"] = normalize_workflow_selection_evidence(
+        sections.get("workflow_selection")
+    )
     matched, exact = _matched_template_ids(
         templates_section if isinstance(templates_section, Mapping) else {},
         output_type=output_type,
