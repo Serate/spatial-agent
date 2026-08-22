@@ -4933,3 +4933,17 @@ replay runner 现在按 turn 将对应的脱敏响应绑定到独立的 recorded
 ### 处理与预防
 
 新增 `expected_tools`、`expected_result_type` 和既有 `evaluate_plan_quality` 的通用路径；它会同时检查工具覆盖、DAG 边、结果类型、模板匹配和答案质量。以后新增复杂 live/replay case 优先使用显式 contract，不为单个请求增加 evaluator 分支。
+
+## M200-A：复杂请求跨入口只验证完成状态导致结果证据漂移
+
+### 现象
+
+复杂空间请求在某个入口返回 `COMPLETED`，并不能证明 HTTP detail、同步 Artifact、async、SQLite 重启和 Artifact 恢复保留了同一结果类型、工具序列和 evidence。仅检查状态可能掩盖入口归一化时丢失证据的问题。
+
+### 根因
+
+既有组合 workflow 测试主要检查组件身份和生命周期动作；复杂请求的结果投影没有一个跨入口的有界 equality helper，导致不同入口可能分别“看起来成功”，但没有比较同一组核心事实。
+
+### 处理与预防
+
+新增领域无关的复杂结果投影，只比较状态、结果类型、工具标识序列和 evidence entry IDs，并覆盖 HTTP、同步 Artifact、async、SQLite restart 和 Artifact recovery；不比较原始模型响应、私有路径或完整 GIS payload。以后新增复杂开放式验收必须同时声明 `expected_tools`、`expected_result_type` 和跨入口 evidence equality，避免把单入口成功当成 Runtime 闭环证据。

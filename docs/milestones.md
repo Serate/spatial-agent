@@ -4061,3 +4061,20 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Rule + 本地 GIS 复杂请求完成 9 个工具步骤；真实模型 + Docker GIS 同一请求实际选择 9 个工具、14 条 DAG 依赖边，`spatial_analysis_result`、计划质量和答案质量均通过。
 - `live_baseline` 新增通用 `expected_tools` / `expected_result_type` 验收字段和 explicit composed case 单测；M194/M195/HTTP **8/8**。
 - 复杂 live-short 仅保存结构化摘要，1/1、无重试；阶段提交前仅剩 diff/敏感信息门禁和版本推送。
+
+## M200：复杂请求跨入口结果与证据一致性（已完成，待版本推送）
+
+- 全局目标是验证同一复杂开放式请求在 HTTP、同步 Artifact、async、SQLite 重启和 Artifact 恢复中共享核心 Result/Evidence projection，不新增 GIS 专用 Runtime 或前端分支。
+- 新增跨入口投影断言，覆盖 `COMPLETED`、`spatial_analysis_result`、9 个工具步骤和有界 evidence entry IDs；Docker 按当前工作树重建后 M200/M195/HTTP 合计 **9/9** 通过，容器 healthy。
+- 真实模型 + Docker GIS 的 9 工具、14 条 DAG 依赖和答案质量继续作为 M199 显式 live 证据；本切片不把 live、私有配置或原始响应带入默认 CI 或仓库。
+- 阶段收口动作：完成敏感信息审计、`git diff --check`、提交推送和当前恢复卡更新；下一阶段按七个全局维度推进非完成状态的 clarification/repair/recovery 跨入口一致性。
+
+## M201：下一阶段全局规划参考
+
+1. 产品：扩展跨入口一致性到 clarification、preview、repair、confirmation 和 failure recovery。
+2. 架构：统一 interaction/state transition、repair lineage、Action Receipt 与 Result/Evidence projection。
+3. 数据：使用有界 capability/evidence fixture 覆盖缺失、过期、未对齐和 Provider unavailable。
+4. 模型：用脱敏 replay 和最小 live-short 验证结构化缺失事实、澄清和有限修复。
+5. 部署：验证非完成状态下 HTTP、async、SQLite、Artifact-only 和多 Service 幂等接管不重复执行、不丢 evidence。
+6. 体验：通用 renderer 动态显示状态、证据、允许动作和 repair lineage，不增加 GIS 页面分支。
+7. 测试：保持 quick/CI 精简，优先一个跨 Domain interaction contract，再做 Docker/HTTP/Artifact/浏览器显式验收。

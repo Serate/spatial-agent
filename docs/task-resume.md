@@ -2468,3 +2468,32 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 - `live_baseline` 支持通用 `expected_tools` / `expected_result_type` contract，并新增 explicit composed case 单测；M194/M195/HTTP 回归 **8/8**。
 - 复杂 live-short 只保留结构化摘要：1/1、无重试、token/延迟可见，原始模型响应不进入仓库。
 - 下一步：执行 M199-A 门禁、更新中文问题日志并推送版本，再按全局目标规划下一切片。
+
+## M200：全局规划参考
+
+M200 从 M199 的复杂真实纵向链路继续验证“同一请求在不同入口仍是同一个 Runtime 事实”，不增加 GIS 专用页面或固定问句分支：
+
+1. 产品：复杂开放式请求在 HTTP、同步、异步、Artifact 和重启恢复中呈现同一结果、工具轨迹和证据。
+2. 架构：建立领域无关的 Result/Evidence projection equality 契约，复用现有 Harness，不复制入口专用断言。
+3. 数据：继续使用 Docker 中真实本地 GIS 数据；只比较有界工具标识、结果类型和 evidence ID，不持久化原始数据或模型响应。
+4. 模型：保留 Rule 与真实模型的独立验收边界；M200 重点验证 Runtime 结果承载，不把 live 输出塞进默认 CI。
+5. 部署：覆盖 HTTP API、async worker、SQLite restart 和 Artifact-only recovery，并先重建容器避免旧镜像证据。
+6. 体验：Console 继续消费公共 result/evidence contract；不为综合空间分析增加前端固定分支。
+7. 测试：新增一条复杂跨入口 contract，配合已有 M194/M195/HTTP 回归，保持默认测试精简。
+
+## M200-A：复杂请求跨入口结果与证据一致性（已完成，待版本推送）
+
+- `tests/test_m194_composition_cross_entry.py` 新增复杂洪山区空间请求的领域无关投影断言：HTTP detail、同步 Artifact、async 完成、SQLite 重启和 Artifact 恢复均必须保持 `COMPLETED`、`spatial_analysis_result`、同一组 9 个工具步骤和同一组 evidence entry IDs。
+- Docker 按当前工作树重建并保持 healthy；M200-A 专项与 M195 生命周期、HTTP contract 合计 **9/9** 通过。
+- 本切片没有新增 Runtime GIS 分支、默认 CI 网络依赖、私有配置、真实模型 token 或原始 GIS 数据；真实模型 + Docker GIS 的 9 工具/14 DAG 证据沿用 M199 显式验收记录。
+- 阶段收口剩余 `git diff --check`、敏感信息审计、提交推送和恢复卡更新；推送后进入 M201 全局重规划。
+
+## M201：下一阶段全局规划参考
+
+1. 产品：让跨入口一致性从“已完成结果”扩展到开放式请求的 clarification、preview、repair、confirmation 和 failure recovery。
+2. 架构：统一 interaction/state transition、repair lineage、Action Receipt 与 Result/Evidence projection，补齐状态迁移的唯一持久化事实。
+3. 数据：用有界 capability/evidence fixture 覆盖缺失、过期、未对齐和 Provider unavailable，不引入新的单区域数据分支。
+4. 模型：用脱敏 replay 和一条 live-short 验证模型能消费结构化缺失事实并产生 clarification 或有限 repair，而非依赖固定问句。
+5. 部署：验证 HTTP、async、SQLite restart、Artifact-only 和多 Service 幂等接管在非完成状态下不重复 dispatch、不丢 evidence。
+6. 体验：Console 继续使用通用 renderer 展示状态、证据、允许动作和 repair lineage，结果区由公共 view contract 动态决定。
+7. 测试：保持 quick/CI 精简，优先补一个跨 Domain interaction contract，再做 Docker/HTTP/Artifact/浏览器显式验收。

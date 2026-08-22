@@ -2,21 +2,45 @@
 
 这是上下文压缩或新对话接续时的唯一默认入口。先读本卡，再核对 Git；不要默认打开历史交接文档、全部源码或全部测试。
 
+## 恢复协议（v2）
+
+恢复上下文时只读取以下三项：
+
+1. 本文件。
+2. `git status --short --branch`。
+3. `git log -1 --oneline --decorate`。
+
+`docs/agent-context-resume.md`、`docs/task-resume.md`、`docs/milestones.md` 和
+`docs/agent-development-issues.md` 都是按需查询的历史档案，不得在恢复首轮全文读取，
+也不要为了查看目录执行 `rg '^#'` 之类的全文件扫描。历史追溯必须先用一个精确关键词定位，
+再读取单个命中点附近的有限行，例如：
+
+```powershell
+rg -n -C 8 "M200|具体符号|错误关键词" docs/task-resume.md
+rg -n -C 6 "错误关键词" docs/agent-development-issues.md
+```
+
+读取预算：每个工作回合最多读取 1 个历史文件、1 个命中区间（默认不超过 80 行）、3 个源码
+文件和 1 个直接相关测试文件。超过预算时先说明新增 seam 或阻塞原因；不要用完整日志、原始
+模型响应或大段测试输出填充当前上下文。阶段摘要只保留状态、提交、证据引用、阻塞项和下一步。
+
+如果当前卡超过 80 行，应把旧状态移入历史档案，只保留最新阶段和当前唯一工作切片。当前卡
+与 Git 实际状态冲突时，以工作树和提交为准，并在卡中修正，不追读整段历史来“对齐文字”。
+
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M199-A，复杂开放式请求的真实模型 + Docker GIS 纵向验收。
-- 最新提交：`0ad2c72 feat: render evidence guidance in console`。
-- 工作树：本卡、`evaluation/live_baseline.py` 和 `tests/test_m79_live_baseline.py` 有未提交修改；以 Git 实际状态为准。
+- 当前阶段：M200-A 已完成实现与 Docker 验收，待版本推送；下一阶段为 M201。
+- 最新提交：`a2942a8 test: validate complex live plan contracts`。
+- 工作树：M200-A 的恢复卡、阶段记录、问题记录和跨入口专项测试有未提交修改；后续实现以 Git 实际状态为准。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
-- 本轮验证：M198-A Node/Chrome/Evidence Registry/nested workspace smoke 通过；Rule + 本地 GIS 复杂请求 9 步完成；真实模型 + Docker GIS 复杂请求 9 工具、14 DAG edges、结果类型和答案质量通过；M194/M195/HTTP 8/8。
+- 本轮验证：M198-A Node/Chrome/Evidence Registry/nested workspace smoke 通过；Rule + 本地 GIS 复杂请求 9 步完成；真实模型 + Docker GIS 复杂请求 9 工具、14 DAG edges、结果类型和答案质量通过；M200/M195/HTTP 跨入口专项 9/9；diff 和敏感信息门禁通过。
 
 ## 当前唯一工作切片
 
-1. 运行 M199-A live contract 单测、replay/HTTP 回归、`git diff --check` 和敏感信息检查。
-2. 更新阶段文档与中文问题日志；只记录复杂请求的工具/DAG/结果摘要，不复制原始模型响应。
-3. 提交并推送 M199-A 版本；推送前不加载历史文档全文。
-4. 版本推送后按项目全局七维度重规划下一阶段。
+1. 提交并推送 M200-A；推送前不加载历史文档全文。
+2. 推送后按 M201 的七个全局维度重规划 clarification/repair/recovery 跨入口一致性。
+3. 继续保持 Docker 测试、精简默认门禁和有界上下文恢复协议。
 
 ## 读取预算
 
