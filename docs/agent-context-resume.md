@@ -2030,3 +2030,9 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - 新增 `spatial-agent.capability-catalog-evidence.v1`；Runtime capability snapshot 将静态 Catalog 与 Evidence Provider 的 per-capability observation 统一投影为 `capability-evidence.v1`，不复制原始 provider payload。
 - Text、GIS、自定义 Provider 专项 **5/5**，M168/M140/M194/M195 受影响回归 **31/31**；当前工作树 Docker 已重建 healthy，quick/ci/stage/full-stage、compileall、production acceptance、Node smoke、宿主 Node 语法检查和 Chrome/CDP workflow evidence smoke 均通过。
 - 新问题“非数据 Domain 的 `not_applicable` 被错误降级为 `unknown`”已追加到 `docs/agent-development-issues.md`。下一步先做敏感信息/diff 审计、提交推送 M196-A，再进入 M196-B：候选能力/澄清/HTTP/Artifact/SQLite 的 capability evidence equality 和脱敏模型 replay。
+
+## 当前恢复快照（M196-B.1 实现中）
+
+- M196-A 已推送为 `cff0684`；当前未提交改动为 `agent/runtime.py`、`agent/workflow_selection.py`、`tests/test_m196_capability_evidence_provider.py` 及阶段/问题文档。
+- `_build_context_packet()` 现在通过同一 capability evidence projection 将 Provider readiness 接入 per-run workflow selection；Runtime 增加默认 15 秒、最多 32 项的 advisory cache，避免多个入口重复读取昂贵数据健康快照。
+- Docker M196-B.1 专项 **7/7**、M168/M140/M194/M195 受影响回归 **26/26**、quick **2/2** 通过；Service async/Artifact selection evidence equality 已覆盖，ci/stage/full-stage、production/HTTP、Node/CDP 和 compileall 也已通过。下一步提交推送 M196-B.1，再进入 M196-B.2：HTTP/SQLite equality、Provider unavailable 接管和脱敏 replay。

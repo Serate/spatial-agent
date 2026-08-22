@@ -270,7 +270,11 @@ def _candidate_details_from_catalog(
                     "missing_datasets": _string_list(definition.get("missing_datasets")),
                     "geometry": _text(definition.get("geometry") or "unknown"),
                 },
-                "evidence": build_capability_evidence(definition),
+                "evidence": (
+                    normalize_capability_evidence(definition.get("evidence"))
+                    if isinstance(definition.get("evidence"), Mapping)
+                    else build_capability_evidence(definition)
+                ),
                 "actions": [
                     "select_capability",
                     "select_workflow",

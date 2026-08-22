@@ -1,7 +1,12 @@
 """M196-A: capability evidence is projected behind the provider seam."""
 
+import json
+import tempfile
+import time
 import unittest
+from pathlib import Path
 
+from agent.artifact_store import ArtifactStore
 from agent.capability_catalog import capability_context_summary
 from agent.evidence_contract import (
     CAPABILITY_CATALOG_EVIDENCE_SCHEMA_VERSION,
@@ -10,11 +15,21 @@ from agent.evidence_contract import (
     project_capability_catalog_evidence,
 )
 from agent.runtime_factory import build_runtime
+from agent.service import AgentService
 from domains.gis.domain import GIS_DOMAIN_PACK
 from domains.text.domain import TEXT_DOMAIN_PACK
 
 
 class M196CapabilityEvidenceProviderTests(unittest.TestCase):
+    @staticmethod
+    def _wait_for_terminal(service, run_id):
+        for _ in range(300):
+            value = service.get_run(run_id)
+            if value.get("status") not in {"QUEUED", "PLANNING", "EXECUTING"}:
+                return value
+            time.sleep(0.01)
+        raise AssertionError("async run did not reach a terminal state")
+
     def test_provider_observation_is_joined_without_raw_payload(self):
         catalog = {
             "domain_id": "custom",
@@ -111,6 +126,18 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
             snapshot["capabilities"][0]["evidence"],
         )
 
+    def test_text_run_selection_reuses_provider_evidence(self):
+        runtime = build_runtime("rule", "memory", domain_pack=TEXT_DOMAIN_PACK)
+        result = runtime.run("概括这段文本")
+        candidate = result.plan_evidence["workflow_selection"]["candidate_details"][0]
+
+        self.assertEqual(candidate["id"], "text_summary")
+        self.assertEqual(candidate["evidence"]["status"], "ready")
+        self.assertEqual(
+            candidate["evidence"]["schema_version"],
+            CAPABILITY_EVIDENCE_SCHEMA_VERSION,
+        )
+
     def test_gis_runtime_uses_the_same_bounded_projection(self):
         runtime = build_runtime("rule", "memory", domain_pack=GIS_DOMAIN_PACK)
         snapshot = runtime.runtime_capabilities(max_files=1)
@@ -126,6 +153,44 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
                 CAPABILITY_EVIDENCE_SCHEMA_VERSION,
             )
             self.assertNotIn("runtime_evidence", capability["evidence"])
+
+    def test_service_async_and_artifact_preserve_selection_evidence(self):
+        with tempfile.TemporaryDirectory(prefix="m196-selection-") as directory:
+            root = Path(directory)
+            service = AgentService(
+                domain_pack=TEXT_DOMAIN_PACK,
+                state_db_path=str(root / "state.db"),
+                artifact_store=ArtifactStore(root / "artifacts"),
+            )
+            try:
+                direct = service.run(
+                    "概括这段文本",
+                    session_id="m196-direct",
+                    export_artifact=True,
+                )
+                submitted = service.run_async(
+                    request="概括这段文本",
+                    session_id="m196-async",
+                    export_artifact=True,
+                    idempotency_key="m196-selection",
+                )
+                asynchronous = self._wait_for_terminal(service, submitted["run_id"])
+            finally:
+                service.close()
+
+            artifact = json.loads(
+                Path(direct["artifact_ref"]).read_text(encoding="utf-8")
+            )
+
+        def selection(payload):
+            return payload["result"]["planning"]["workflow_selection"]
+
+        direct_evidence = selection(direct)["candidate_details"][0]["evidence"]
+        async_evidence = selection(asynchronous)["candidate_details"][0]["evidence"]
+        artifact_evidence = selection(artifact)["candidate_details"][0]["evidence"]
+        self.assertEqual(direct_evidence, async_evidence)
+        self.assertEqual(direct_evidence, artifact_evidence)
+        self.assertEqual(direct_evidence["status"], "ready")
 
     def test_unknown_capability_schema_is_safe(self):
         value = normalize_capability_evidence(

@@ -4837,3 +4837,17 @@ Text Evidence Provider 明确返回 `health_status=ready` 和 `data_readiness=no
 ### 处理与预防
 
 `not_applicable` 现在作为中性状态参与合并；只要 Provider 的健康状态为 `ready`，Text 能力即可得到 `ready`，同时仍保留 readiness 字段的 `not_applicable` 语义。以后扩展 Evidence Provider 时，必须分别测试 ready、degraded、unavailable、unknown 和 not_applicable，不能仅用 GIS 数据状态覆盖公共归一化逻辑。
+
+## M196-B.1：每次规划重复探测 Provider 导致精简 quick 变慢
+
+### 现象
+
+将 capability evidence 接入每次 Planner context 后，默认 Docker `quick` 仍只有 2 个契约用例，但耗时从约 2 秒升至约 14 秒；GIS 数据健康探测在 CLI、Service 和 HTTP 的不同 Runtime 实例中重复执行。
+
+### 根因
+
+能力 evidence 是规划阶段的解释性输入，原实现却每次构建 context 都同步调用完整 runtime evidence provider。该快照是只读的，但没有短期复用策略；执行安全所需的 preflight/revalidation 与规划提示的证据新鲜度没有区分。
+
+### 处理与预防
+
+Runtime 现在按 Domain、backend、Provider 和数据配置路径使用有界进程内 advisory cache，默认 TTL 15 秒、最多 32 项；Provider 不可用时仍返回结构化 unavailable。缓存只服务能力发现/Planner context，执行前的 Domain preflight、evidence binding/revalidation 不读取该缓存作为授权依据。以后新增昂贵的只读 Provider 探测时，必须测量 quick/profile 延迟，并明确区分 advisory freshness 与 execution safety，不能为了实时提示绕过精简门禁。

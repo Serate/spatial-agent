@@ -3976,3 +3976,9 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 5. **部署**：覆盖 HTTP `/capabilities`、异步提交、Artifact-only 和 SQLite 重启下的 capability evidence equality，以及 Provider 不可用时的安全接管。
 6. **体验**：Console 用现有领域无关 renderer 动态展示 evidence status、missing reasons 和 allowed actions，不引入 GIS 页面分支。
 7. **测试**：保持 quick/CI 精简，新增少量跨 Domain contract；阶段收口使用 Docker、HTTP、Artifact/SQLite、浏览器和必要 live-short 验证。
+
+## M196-B.1：per-run workflow selection evidence（已完成，待版本推送）
+
+- Planner context 现在通过 Domain-owned Evidence Provider 读取一次有界快照，并复用 `project_capability_catalog_evidence()`；workflow selection 的候选卡片会携带与 runtime capability snapshot 相同的 `capability-evidence.v1`，Text Provider 的 ready 状态和 GIS Provider 的降级状态均不需要 Runtime 解释。
+- 新增 Text run selection 与 Service async/Artifact equality 回归；M196-B.1 专项当前 **7/7**，M168/M140/M194/M195 受影响回归 **26/26** 通过。Provider probe 增加短 TTL advisory cache，Docker quick 当前 **2/2** 通过，耗时已从约 14 秒降至约 8 秒。
+- 本切片已完成 Service async/Artifact 的 selection evidence equality；下一阶段 M196-B.2 补 HTTP/SQLite equality、Provider unavailable 接管和脱敏 replay，再从全局角度规划前端候选/澄清工作区。

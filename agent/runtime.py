@@ -1,9 +1,10 @@
 import uuid
 import inspect
+import os
 from threading import Lock
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from time import perf_counter
+from time import monotonic, perf_counter
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
@@ -161,6 +162,10 @@ class InMemoryConversationStore:
 
 class AgentRuntime:
     """The orchestration seam for planning, validation, execution, and tracing."""
+
+    _capability_evidence_cache: Dict[tuple[Any, ...], tuple[float, Any, Mapping[str, Any]]] = {}
+    _capability_evidence_cache_lock = Lock()
+    _capability_evidence_cache_limit = 32
 
     def __init__(
         self,
@@ -1164,6 +1169,11 @@ class AgentRuntime:
         catalog = self._domain_pack.capability_catalog(
             environment=self._backend_name or "unknown"
         )
+        catalog_runtime_evidence = self._capability_context_evidence()
+        catalog = project_capability_catalog_evidence(
+            catalog,
+            runtime_evidence=catalog_runtime_evidence,
+        )
         discovery_payload = enrich_discovery_context(
             discovery_payload,
             spatial_request,
@@ -1217,6 +1227,53 @@ class AgentRuntime:
             memory_section=memory_section,
             workflow_templates=workflow_templates,
         )
+
+    def _capability_context_evidence(self) -> Mapping[str, Any]:
+        """Read advisory capability evidence with a short process-local TTL.
+
+        Capability evidence helps discovery and planning explain availability;
+        it is not an execution authorization. The existing Domain preflight
+        and evidence revalidation gates remain authoritative, so a short cache
+        keeps repeated Runtime/CLI/HTTP construction cheap without allowing a
+        stale snapshot to bypass safety checks.
+        """
+
+        provider_factory = getattr(self._domain_pack, "evidence_provider", None)
+        provider = provider_factory() if callable(provider_factory) else None
+        provider_key = id(provider) if provider is not None else id(self._domain_pack)
+        config_key = os.environ.get("SPATIAL_AGENT_DATASET_CONFIG", "")[:240]
+        key = (self.domain_id, self._backend_name, provider_key, config_key)
+        ttl = _capability_evidence_cache_ttl()
+        now = monotonic()
+        if ttl > 0:
+            with self._capability_evidence_cache_lock:
+                cached = self._capability_evidence_cache.get(key)
+                if cached is not None and now - cached[0] < ttl:
+                    value = cached[2]
+                    return dict(value) if isinstance(value, Mapping) else {}
+        try:
+            value = resolve_runtime_evidence(self._domain_pack, max_files=1)
+        except Exception:
+            # Capability discovery must remain usable when a provider is
+            # unavailable. The failure is a bounded evidence state, not a
+            # reason to import a Domain-specific fallback into Runtime.
+            value = {
+                "health_status": "unavailable",
+                "errors": ["capability_evidence_provider_unavailable"],
+            }
+        if not isinstance(value, Mapping):
+            value = {"health_status": "unknown"}
+        value = dict(value)
+        if ttl > 0:
+            with self._capability_evidence_cache_lock:
+                self._capability_evidence_cache[key] = (now, provider, value)
+                while len(self._capability_evidence_cache) > self._capability_evidence_cache_limit:
+                    oldest = min(
+                        self._capability_evidence_cache,
+                        key=lambda item: self._capability_evidence_cache[item][0],
+                    )
+                    self._capability_evidence_cache.pop(oldest, None)
+        return value
 
     def _resolve_request(self, request: str, session_id: str) -> str:
         pending = self._conversation_store.get_pending(session_id)
@@ -2283,6 +2340,16 @@ def _replan_context(feedback: Mapping[str, Any]) -> Dict[str, Any]:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _capability_evidence_cache_ttl() -> float:
+    value = os.environ.get("SPATIAL_AGENT_CAPABILITY_EVIDENCE_TTL_SECONDS")
+    if value is None or not str(value).strip():
+        return 15.0
+    try:
+        return max(0.0, min(float(value), 300.0))
+    except (TypeError, ValueError):
+        return 15.0
 
 
 def _resolve_result_references(value: Any, results: Dict[str, Dict[str, Any]]) -> Any:
