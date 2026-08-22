@@ -17,17 +17,17 @@
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M215，真实模型 + 真实 GIS/Docker + Console 显式验收。
-- 最近功能提交：`6cdbb62 test: enforce complex cross-entry execution contract`；M214 已完成，待本卡更新后推送。
+- 当前阶段：M216，真实模型失败/修复/降级与 geometry 按需恢复。
+- 最近功能提交：`4fd8b27 test: add explicit live GIS acceptance path`；M215 已完成，待本卡更新后推送。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
-- 已通过：M200–M214 的跨入口、恢复、证据、Node/Chrome/DOM smoke、生产 acceptance、action/async recovery 和复杂 GIS Docker 专项。
-- 当前无已知阻塞；M206 地图清理、M207 preview、M208 lifecycle、M209 repair lineage、M210 receipt、M211 failure/replay、M212 failure envelope、M213 async evidence 和 M214 complex cross-entry contract 回归均已通过。
+- 已通过：M200–M215 的跨入口、恢复、证据、Node/Chrome/DOM smoke、生产 acceptance、action/async recovery、复杂 GIS Docker 和 live model 专项。
+- 当前无已知阻塞；M206 地图清理、M207 preview、M208 lifecycle、M209 repair lineage、M210 receipt、M211 failure/replay、M212 failure envelope、M213 async evidence、M214 complex cross-entry 和 M215 live acceptance 均已通过。
 
 ## 当前唯一工作切片
 
-1. 在 Docker 中用真实 GIS 数据执行一个脱敏复杂开放式请求，确认 Rule/LLM 计划、工具 schema、结果与降级证据。
-2. 用已配置中转 provider 做一次 live-short，并核对 HTTP/Console/Artifact/SQLite recovery；provider 失败时保留离线证据。
-3. 运行一次真实 Console/浏览器验收，更新 live 风险记录；阶段完成后提交、推送并做全局重规划。
+1. 用脱敏 replay 覆盖无效 JSON、工具参数错误、超时和 provider 不可用，核对有限 repair/澄清/拒绝与 fallback 生命周期。
+2. 针对真实 GIS 截断几何和 metadata-only Artifact 设计可恢复的按需引用，不扩大默认输出上限。
+3. 用 Docker 做一次 live failure/recovery 与 geometry artifact smoke，更新风险记录；阶段完成后提交、推送并做全局重规划。
 
 ## 不变量
 
