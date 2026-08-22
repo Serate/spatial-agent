@@ -17,17 +17,17 @@
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M213，Run/Action/Async/SQLite/Artifact 的统一执行 envelope。
-- 最近功能提交：`b61c39e feat: expose action execution envelope on failure`；M212 已完成，待本卡更新后推送。
+- 当前阶段：M214，复杂请求的统一执行时间线与通用 workspace evidence。
+- 最近功能提交：`eaff349 fix: preserve async execution evidence across recovery`；M213 已完成，待本卡更新后推送。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
-- 已通过：M200–M212 的跨入口、恢复、证据、Node/Chrome/DOM smoke、生产 acceptance 和 action failure/replay Docker 专项。
-- 当前无已知阻塞；M206 地图清理、M207 preview、M208 lifecycle、M209 repair lineage、M210 receipt、M211 failure/replay 和 M212 failure envelope 回归均已通过。
+- 已通过：M200–M213 的跨入口、恢复、证据、Node/Chrome/DOM smoke、生产 acceptance 和 action/async recovery Docker 专项。
+- 当前无已知阻塞；M206 地图清理、M207 preview、M208 lifecycle、M209 repair lineage、M210 receipt、M211 failure/replay、M212 failure envelope 和 M213 async evidence 回归均已通过。
 
 ## 当前唯一工作切片
 
-1. 盘点 `execution-record.v1` 在 Run、Action、Async、SQLite、Artifact-only recovery 和 Console 的现有投影与缺口。
-2. 只在跨入口核心结果、错误、lifecycle、receipt 或 recovery 不一致时补公共契约，不增加 GIS 页面分支。
-3. 用 Docker 跑精简 Run/Action/Async cross-entry 专项，更新阶段摘要和本卡；阶段完成后提交、推送并做全局重规划。
+1. 以一个复杂开放式请求盘点规划、工具步骤、Action、Async、SQLite、Artifact 和 Console 的执行时间线/证据链。
+2. 只在公共 timeline、receipt、repair/recovery 或 workspace view 不一致时补契约，不增加 GIS 页面分支。
+3. 用 Docker 跑精简复杂请求 cross-entry harness，再做一次 HTTP/Console smoke；阶段完成后提交、推送并做全局重规划。
 
 ## 不变量
 
