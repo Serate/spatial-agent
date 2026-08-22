@@ -4809,3 +4809,17 @@ selection projection 首次从原始 workflow 提取组件字段；经过 contex
 ### 处理与预防
 
 组合归一化现在保留有界 `evidence_summary`/`evidence_state`，selection 归一化统一通过 capability evidence normalizer 处理并安全降级未知字段；Docker Service preview、Artifact/SQLite 相关回归和浏览器 smoke 验证摘要不会丢失。以后新增组件 projection 必须同时断言首次生成、二次归一化、Planner context、Result、Artifact、SQLite replay 和前端显示，不能只检查组件 ID 是否存在。
+
+## M195-C.1：超时发生在计划 evidence 收口前导致组合 selection 丢失
+
+### 现象
+
+组合任务的 Planner 已经返回候选 DAG，但总时限在计划校验前耗尽时，运行结果虽然是 `TIMED_OUT`，`plan` 仍存在，`plan_evidence` 却为空。于是 HTTP/async、Artifact 和 SQLite 重启结果无法说明哪些组件被选择，也无法恢复组件级 evidence。
+
+### 根因
+
+Runtime 只在第二次控制检查之后才生成正常 `plan_evidence`；`RunTimedOut`/`RunCancelled` 收口分支原先只记录 failure，没有像澄清、拒绝和普通规划异常那样调用统一的 failure plan projection。计划对象和证据对象因此出现不同步。
+
+### 处理与预防
+
+取消和超时收口现在复用 `_failure_plan_evidence`，从同一个 context packet 生成 bounded workflow selection、组件身份和 evidence 摘要；不会执行工具，也不会把 timeout/cancel 当成成功计划。新增 Docker 集成契约覆盖 HTTP、Artifact、async、SQLite restart 和多 worker。以后任何控制点在 plan evidence 生成前终止，都必须保留可恢复的 selection/evidence projection，并验证跨入口 equality。

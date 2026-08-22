@@ -3940,3 +3940,22 @@ M195-B 已完成静态证据保真，但组合 workflow 仍需在生命周期变
 5. **部署**：覆盖取消、超时、多 worker claim、worker 崩溃、滚动重启、SQLite replay 和 Artifact-only recovery，确保工具不重复 dispatch。
 6. **体验**：动态渲染组件状态、动作可用性、恢复原因和最终结果，Text/GIS 共用 renderer。
 7. **测试**：新增精简组合生命周期 Contract Harness，阶段收口执行 Docker、HTTP、Artifact、SQLite、浏览器及必要真实模型/GIS 验收。
+
+## M195-C：组合 workflow 生命周期恢复（已完成，待版本推送）
+
+- Runtime 的取消/超时收口现在保留候选组合计划的 bounded workflow selection/evidence；ToolRegistry dispatch 不会因控制退出而发生。
+- 新增 `tests/test_m195_composed_lifecycle.py`，覆盖 HTTP preview/run/detail/Artifact、确认后安全取消、超时后的 async/Artifact/SQLite restart、显式 retry lineage，以及双 Service 幂等提交。
+- M195-C 专项 **5/5** 通过；阶段收口联合专项 **26/26** 通过，Docker quick、ci、stage、full-stage、生产 acceptance、compileall、Docker Node smoke、宿主 Node 语法检查和 Chrome/CDP workflow evidence smoke 均通过。Docker 测试镜像包含 Node.js，默认测试仍离线且不依赖私有数据。
+- 超时导致 `plan_evidence` 缺失的问题已记录到中文开发问题文档。本切片没有新增 GIS 专用 Runtime 分支、真实模型 token 或原始 GIS 数据。
+
+## M196：全局重规划参考
+
+M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵向闭环。下一阶段不再继续堆叠组合字段，而是从完整 Agent 系统推进开放式请求的可替换执行能力：
+
+1. **产品**：让未预定义请求从能力发现、澄清、选择、组合、确认、执行到结果工作区形成可操作闭环，并解释失败后的下一步。
+2. **架构**：把 RequestFacts、Capability Catalog、Workflow、TaskPlan、Result 和 Evidence 的迁移/版本边界继续收敛，减少 Domain 或前端的重复推导。
+3. **数据**：将数据 readiness、coverage、alignment、provenance 作为可替换 Evidence Provider，验证缺失、过期和跨来源冲突的降级行为。
+4. **模型**：扩展脱敏 replay 覆盖开放式多能力匹配、澄清、无效计划修复和有限确认；配置可用时执行一条真实模型基线。
+5. **部署**：补多 worker 滚动升级、旧 schema replay、Artifact-only 接管和 provider 不可用时的恢复边界。
+6. **体验**：让前端用统一 renderer 动态消费任意结果、evidence、lifecycle 和 artifact，不增加固定问题页面。
+7. **测试**：保持 compact quick/CI；以 Text + GIS 双 Domain、HTTP、Docker、Artifact/SQLite、浏览器和显式 live 验收证明通用性。

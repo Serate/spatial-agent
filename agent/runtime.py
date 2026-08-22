@@ -617,10 +617,28 @@ class AgentRuntime:
         except RunCancelled as exc:
             result.status = RunStatus.CANCELLED
             result.error = str(exc)
+            if result.plan_evidence is None:
+                result.plan_evidence = self._failure_plan_evidence(
+                    plan=candidate_plan,
+                    workflow=workflow,
+                    state="unavailable",
+                    reason_code="run_cancelled_before_plan_evidence",
+                    context_packet=context_packet,
+                    repair_lineage=result.replan_events,
+                )
             _record_run_failure(result, exc, phase="control")
         except RunTimedOut as exc:
             result.status = RunStatus.TIMED_OUT
             result.error = str(exc)
+            if result.plan_evidence is None:
+                result.plan_evidence = self._failure_plan_evidence(
+                    plan=candidate_plan,
+                    workflow=workflow,
+                    state="unavailable",
+                    reason_code="run_timeout_before_plan_evidence",
+                    context_packet=context_packet,
+                    repair_lineage=result.replan_events,
+                )
             _record_run_failure(result, exc, phase="control")
         except Exception as exc:
             result.status = RunStatus.FAILED

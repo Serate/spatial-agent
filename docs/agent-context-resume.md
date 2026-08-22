@@ -2015,3 +2015,11 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - Docker 已按当前工作树重建并 `healthy`，测试镜像已安装 Node.js。M195/M194/M193/M192 联合专项 **21/21 通过**；quick、stage、full-stage、production acceptance 均通过。
 - Docker Node smoke、宿主 Node 语法检查和 CDP workflow evidence smoke 通过；浏览器实际显示 2 个组件和 1 条依赖。未执行真实模型 live，本切片不以历史 live 记录替代当前代码证据。
 - M195-B 新增的问题记录为“组件 evidence 摘要在组合归一化时丢失”。下一阶段 M195-C 处理组合 workflow 的取消、超时、重试、多 worker、滚动重启和 Artifact/SQLite 恢复，并继续验证跨入口 evidence equality。
+
+## 当前恢复快照（M195-C 已实现，待阶段收口提交）
+
+- 当前推送基线为 `abecae2`。未提交改动包括 `agent/runtime.py`、`tests/test_m195_composed_lifecycle.py`、`docs/agent-development-issues.md`、`docs/milestones.md` 和 `docs/task-resume.md`。
+- Runtime 的取消/超时分支现在通过 `_failure_plan_evidence` 保留组合 workflow selection/evidence；未完成正常计划证据收口时不会丢组件信息，也不会调用 ToolRegistry。
+- Docker 专项 `tests.test_m195_composed_lifecycle` **5/5 通过**，覆盖 HTTP preview/run/detail/Artifact、async 轮询、取消、超时、显式 retry、双 Service 幂等提交和 SQLite 重启恢复。
+- 阶段收口已完成：上述联合专项 **26/26**，Docker quick、ci、stage、full-stage、生产 acceptance、compileall、Docker Node smoke、宿主 Node 语法检查和 Chrome/CDP workflow evidence smoke 均通过；`git diff --check` 通过，敏感文件未进入版本。
+- 下一步提交并推送 M195-C；不要标记总 Goal complete。阶段完成后按 `docs/milestones.md` 中的七维度进入 M196，全局优先于单个数据集细节。

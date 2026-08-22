@@ -2349,3 +2349,23 @@ M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194
 - 当前 Docker 已按工作树重建并为 `healthy`，测试镜像已安装 Node.js。M195/M194/M193/M192 联合专项 **21/21 通过**；quick、stage、full-stage 和 `scripts/production_acceptance.ps1` 均通过。
 - Docker Node smoke、宿主 Node 语法检查和 CDP workflow evidence smoke 均通过，浏览器显示 2 个组件、1 条组件依赖。该切片没有调用真实模型、提交私有配置、token 或原始 GIS 数据。
 - M195-B 的组件 `evidence_summary` 保真问题已追加到 `docs/agent-development-issues.md`。下一步提交并推送该切片，再按全局七维度进入 M195-C：取消、超时、重试、多 worker、SQLite/Artifact 重启和组合 evidence 恢复。
+
+## M195-C 当前完成状态：组合 workflow 生命周期恢复
+
+- Runtime 的取消/超时收口现在复用 `_failure_plan_evidence`，即使在正常 `plan_evidence` 生成前退出，也保留有界的组合 selection、组件身份和 evidence 摘要；控制退出不会进入 ToolRegistry dispatch。
+- 新增 `tests/test_m195_composed_lifecycle.py`，覆盖 HTTP preview → run → detail → Artifact、确认后的安全取消、async 超时与轮询、显式 retry lineage、SQLite 重启恢复，以及两个 Service/worker 的幂等提交。
+- M195-C 专项 Docker **5/5 通过**；测试镜像已包含 Node.js。组合组件 evidence 在取消、超时、重试、Artifact 和 SQLite replay 中保持可解释，工具执行次数不会因重复提交增加。
+- 新问题“超时发生在计划 evidence 收口前导致组合 selection 丢失”已追加到 `docs/agent-development-issues.md`。本切片没有新增 GIS 专用 Runtime 分支、默认 CI 网络访问、私有配置、真实模型 token 或原始 GIS 数据。
+- 阶段收口已完成：M195/M194/M193/M192 联合专项 **26/26**，Docker quick、ci、stage、full-stage、生产 acceptance、compileall、Docker Node smoke、宿主 Node 语法检查和 Chrome/CDP workflow evidence smoke 均通过；`git diff --check` 通过，敏感文件未进入版本。下一步提交并推送 M195-C 版本。
+
+## M196 全局规划参考
+
+M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵向闭环。下一阶段从项目整体推进开放式、多能力、可替换执行能力：
+
+1. 产品：让未预定义请求形成能力发现、澄清、选择、组合、确认、执行、恢复和结果工作区的可操作闭环。
+2. 架构：继续收敛 RequestFacts、Capability Catalog、Workflow、TaskPlan、Result、Evidence 的版本化迁移边界，减少 Domain 与前端重复推导。
+3. 数据：将 readiness、coverage、alignment、provenance 作为可替换 Evidence Provider，验证缺失、过期和跨来源冲突的降级行为。
+4. 模型：用脱敏 replay 覆盖开放式多能力匹配、澄清、无效计划修复和有限确认；配置可用时补一条真实模型基线。
+5. 部署：补多 worker 滚动升级、旧 schema replay、Artifact-only 接管和 provider 不可用时的恢复边界。
+6. 体验：前端用统一 renderer 动态消费任意结果、evidence、lifecycle 和 artifact，不增加固定 GIS 页面分支。
+7. 测试：保持 compact quick/CI；以 Text + GIS 双 Domain、HTTP、Docker、Artifact/SQLite、浏览器和显式 live 验收证明通用性。
