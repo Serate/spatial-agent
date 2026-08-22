@@ -1767,3 +1767,10 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 5. 部署：SQLite 多 worker、异常退出、滚动重启、Artifact-only 接管和旧 receipt/schema 迁移。
 6. 体验：通用 action/evidence workspace 动态展示澄清、确认、阻断、可恢复、重试中和完成状态。
 7. 测试：Action Contract Harness 为主，quick/CI 精简，阶段收口使用 Docker、HTTP、Artifact、history、restart、浏览器和必要 live-short。
+
+## M183.1 当前完成状态
+
+- `evaluation.contract_harness` 新增 `ActionReceiptContract`、`normalize_action_receipt_contract()` 和 `compare_action_receipts()`；公共投影保留动作语义与幂等输入，忽略 run/result ID 和 `reused`。
+- Action Contract 独立于默认 Result Contract equality，避免“提供 facts 后继续执行”与“直接执行”因动作历史不同而误报结果漂移。
+- M183.1 专项 2/2，M182/M181/M169/M165/M166/M178/M179/M108 相邻回归 50/50；Docker compileall、quick、stage、full-stage、compact discovery、production acceptance 通过，容器 healthy。
+- M183 总目标仍 active；下一条切片继续统一 Request/Plan/Result/Evidence identity，并覆盖异步、Artifact-only、重启和多 Domain 关联。

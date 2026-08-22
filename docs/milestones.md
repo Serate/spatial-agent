@@ -3606,3 +3606,13 @@ M183 从“Service 动作入口统一”继续推进“开放式请求组合、�
 5. **部署可靠性**：补 SQLite 多 worker 重复动作、异常退出、滚动重启、Artifact-only 接管和旧 receipt/schema 迁移验收，确保动作不会无意重复调用模型或工具。
 6. **用户体验**：前端通用 workspace 动态展示 action receipt、澄清、确认、阻断、可恢复、重试中和完成状态，并保持 Text/GIS 共用 renderer。
 7. **测试证据**：保持 quick/CI 精简，以 Action Contract Harness 为主线，增加 HTTP/Artifact/history/restart equality；阶段收口运行 Docker、必要浏览器和 live-short。
+
+## M183.1：Action Receipt Contract Harness（已完成）
+
+M183.1 将动作回执纳入现有 Contract Harness 的领域无关能力中，但保持 Action Contract 与 Result Contract 正交，避免交互动作差异污染“同一结果跨入口一致性”的判断。
+
+- `evaluation.contract_harness` 新增 `ActionReceiptContract`、`normalize_action_receipt_contract()` 和 `compare_action_receipts()`；投影保留 schema、状态、动作分类、幂等键、输入 fingerprint、subject/result 类型和错误码，忽略入口专属 run/result ID 与 `reused` 观测标记。
+- Service detail、Artifact 和 SQLite history 的 cancel receipt 现在可用同一 Action Contract 投影比较；语义 fingerprint 漂移会被 Harness 报告，恢复入口 ID 差异不会造成误报。
+- 新增 `tests/test_m183_action_contract.py` 2 项；M183.1 与 M182/M181/M169/M165/M166/M178/M179/M108 相邻回归共 50/50 通过。
+- Docker 重建后 healthy；compileall、quick、stage、full-stage、compact discovery 4/4 和 production acceptance 均通过。生产核心/可选数据 ready，同步/异步/Artifact contract ok。
+- 本阶段只扩展测试与公共投影，没有新增 GIS 工具、前端专用分支、私有配置或 live 输出；M183 总目标继续推进下一条 identity/recovery 切片。

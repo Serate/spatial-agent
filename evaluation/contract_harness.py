@@ -34,6 +34,10 @@ from agent.evidence_registry import (
     project_evidence_registry_completeness,
 )
 from agent.evidence_projection import project_evidence_projection
+from agent.recovery_action import (
+    ACTION_RECEIPT_SCHEMA_VERSION,
+    normalize_action_receipt,
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +54,82 @@ class CrossEntryContract:
 
     def equivalent_to(self, other: "CrossEntryContract") -> bool:
         return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class ActionReceiptContract:
+    """Stable semantic projection of one lifecycle action receipt."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "ActionReceiptContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "ActionReceiptContract") -> bool:
+        return not self.differences(other)
+
+
+def normalize_action_receipt_contract(
+    payload: Mapping[str, Any],
+) -> ActionReceiptContract:
+    """Project a receipt while excluding transport-specific run identities.
+
+    The source run/result IDs and the ``reused`` marker describe where and how
+    a caller observed an action.  They are not the action's semantic
+    contract.  Action kind, state, idempotency input and result/subject kinds
+    must remain stable across Service, HTTP, Artifact and history entries.
+    """
+    if not isinstance(payload, Mapping):
+        raise ValueError("action receipt payload must be a mapping")
+    raw = payload.get("action_receipt")
+    if not isinstance(raw, Mapping) and isinstance(payload.get("result"), Mapping):
+        raw = payload["result"].get("action_receipt")
+    if not isinstance(raw, Mapping):
+        raw = payload
+    if not isinstance(raw, Mapping) or not raw:
+        return ActionReceiptContract(
+            {
+                "available": False,
+                "schema_version": ACTION_RECEIPT_SCHEMA_VERSION,
+            }
+        )
+    receipt = normalize_action_receipt(raw)
+    subject = receipt.get("subject") if isinstance(receipt.get("subject"), Mapping) else {}
+    result_ref = receipt.get("result_ref") if isinstance(receipt.get("result_ref"), Mapping) else {}
+    values: Dict[str, Any] = {
+        "available": True,
+        "schema_version": receipt.get("schema_version"),
+        "status": receipt.get("status"),
+        "action_id": receipt.get("action_id"),
+        "action_kind": receipt.get("action_kind"),
+        "subject_kind": subject.get("kind"),
+        "result_kind": result_ref.get("kind"),
+        "idempotency_key": receipt.get("idempotency_key"),
+        "input_fingerprint": receipt.get("input_fingerprint"),
+    }
+    if receipt.get("error_code"):
+        values["error_code"] = receipt.get("error_code")
+    return ActionReceiptContract(values)
+
+
+def compare_action_receipts(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return bounded semantic drift paths for two or more receipt entries."""
+    if len(payloads) < 2:
+        raise ValueError("at least two action receipts are required")
+    contracts = [normalize_action_receipt_contract(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
 
 
 def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:

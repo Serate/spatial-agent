@@ -2089,3 +2089,10 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 部署：覆盖 SQLite 多 worker、异常退出、滚动重启、Artifact-only 接管和旧 receipt/schema 迁移。
 6. 体验：通用前端 workspace 动态展示 action receipt、澄清、确认、阻断、可恢复、重试中和完成状态。
 7. 测试：以 Action Contract Harness 为主，保持 quick/CI 精简，阶段末运行 Docker、HTTP、Artifact、history、restart、浏览器和必要 live-short。
+
+## M183.1 当前完成状态
+
+- `evaluation.contract_harness` 已新增独立的 `ActionReceiptContract`、稳定 normalize 和 drift comparison；Action Receipt 与默认 Result equality 保持正交。
+- Service detail、Artifact、SQLite history 的 cancel receipt 通过同一投影比较；run/result ID 与 `reused` 不参与语义 equality，fingerprint/状态/动作类型漂移会被发现。
+- M183.1 专项 2/2；M182/M181/M169/M165/M166/M178/M179/M108 相邻回归 50/50；Docker compileall、quick、stage、full-stage、compact discovery 和 production acceptance 通过，容器 healthy。
+- 该切片未修改 GIS 工具、前端页面或默认 CI；M183 总目标保持 active，下一条继续处理 Request/Plan/Result/Evidence identity 与异步/Artifact-only/restart 的统一关联。

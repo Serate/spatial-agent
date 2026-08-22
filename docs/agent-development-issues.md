@@ -4516,3 +4516,17 @@ Docker compact discovery 的业务测试通过，但进程退出时出现 `obser
 ### 处理与预防
 
 改为调用公开 `AgentService.close()`，并在 Docker 中使用 `python -W error::ResourceWarning` 和 compact discovery 验证无警告。以后测试只能通过公开 close/cleanup seam 释放 Service、SQLite、HTTP handler 和 emitter，不能只关闭内部线程池。
+
+## M183：Action Receipt 不应无条件进入默认 Result Contract equality
+
+### 现象
+
+将 Action Receipt 直接加入默认 `normalize_result()` 后，已有“先提供 facts 再继续执行”和“直接执行同一工作流”的跨入口测试被判定为结果漂移；差异来自动作 ID、幂等输入和动作状态，而不是最终 Result/Evidence。
+
+### 根因
+
+Action Receipt 描述的是导致结果产生的生命周期动作，属于 transition evidence；Result Contract 描述的是请求理解、计划、执行和结果证据。两者虽然共享 schema 词汇，但不是同一个 equality 维度。
+
+### 处理与预防
+
+在同一个 `evaluation.contract_harness` 模块中增加独立的 `ActionReceiptContract`、`normalize_action_receipt_contract()` 和 `compare_action_receipts()`，只在动作入口比较动作语义；默认 Result equality 不携带 Action Receipt。以后新增跨入口证据字段时，必须先判断它属于结果语义还是触发结果的 transition，不能为了“字段都比较”把正交契约混在一起。
