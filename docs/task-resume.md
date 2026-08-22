@@ -2429,9 +2429,25 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 6. 体验：Console 继续通过通用 result/evidence renderer 消费 guidance，不增加 Domain 页面分支。
 7. 测试：保持专项精简，覆盖 replay 4/4、projection equality、summary CLI 和一条真实 GIS/live case。
 
-## M197-A 当前完成状态：evidence-aware replay/live 与显式 live-short
+## M197-A 当前完成状态：evidence-aware replay/live 与显式 live-short（已推送）
 
 - `project_repair_evidence()` 与多轮 replay/live 汇总已纳入 `evidence_action_guidance.v1`，未知 schema/Provider 字段安全降级；新增 guidance 跨 live/replay equality 回归。
 - 修复 replay response FIFO 与 Domain 提前澄清的错位问题；离线 replay suite 从 **3/4** 恢复为 **4/4**，M197-A/M196 专项 **17/17**，M174/M150 回归 **7/7**。
 - 真实模型 memory clarification **1/1**；真实模型 + Docker 本地 GIS spatial overview **1/1**，均无重试。`scripts/live_baseline.py --summary` 已提供有界终端输出，完整报告仍可显式保存。
-- 下一步：执行敏感信息审计与 `git diff --check`，提交推送 M197-A，再从全局目标规划下一切片。
+- 已完成敏感信息审计与 `git diff --check`，版本为 `72819a5`；下一阶段进入 M198-A。
+
+## M198 全局规划参考
+
+1. 产品：让开放式澄清工作区直接显示 Domain guidance 的原因、建议动作和缺失事实，同时保持中心结果区按结果契约动态展示。
+2. 架构：复用现有 `selection_interaction.v1`、`workspace.v1` 和 `view.v1`，只增加 guidance 的通用前端投影，不建立平行页面协议。
+3. 数据：前端只消费后端已裁剪的 guidance/action 字段，不读取 Provider 原文或 GIS 专用字段。
+4. 模型：模型建议动作与 Runtime `allowed_actions` 分离，推荐不可执行动作时仍展示为 advisory，不产生越权按钮。
+5. 部署：HTTP、async、Artifact 恢复继续返回相同 selection interaction；浏览器 smoke 使用禁缓存的显式验收环境。
+6. 体验：Text/GIS/未来 Domain 共用候选卡、状态 badge、建议动作和缺失事实展示。
+7. 测试：只增加 Node normalization、Chrome CDP interaction 和已有公共 workspace smoke，不扩张默认 CI。
+
+## M198-A 当前完成状态：通用 evidence/action guidance renderer
+
+- `web/console_selection_interaction.js` 归一化 `evidence_action_guidance.v1`，候选/澄清卡片显示建议动作与缺失事实；只有 Runtime `allowed_actions` 会生成可点击按钮。
+- Node interaction smoke、Chrome candidate-selection smoke、Evidence Registry smoke 和 nested workspace smoke 均通过；Chrome smoke 已禁用缓存，避免旧容器脚本造成误判。
+- 下一步：执行 diff/敏感信息门禁，提交推送 M198-A，再按全局目标规划下一切片。

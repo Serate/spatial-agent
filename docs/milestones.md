@@ -4019,9 +4019,27 @@ M197 从 M196 的 Runtime evidence/action projection 继续推进“模型评测
 6. 体验：动态 renderer 消费公共 evidence/action contract，不添加 GIS 页面分支。
 7. 测试：以少量 replay/Contract Harness/summary CLI/真实 GIS case 形成阶段证据。
 
-## M197-A：evidence-aware replay/live 与显式 live-short（已完成，待版本推送）
+## M197-A：evidence-aware replay/live 与显式 live-short（已完成，版本 72819a5）
 
 - `evidence_action_guidance.v1` 已接入 Runtime repair evidence、live result 和多轮 replay 汇总；未知 schema 与 Provider 字段不会进入评测报告。
 - replay runner 现在按 turn 绑定脱敏响应，避免 Domain 在 Planner 前完成澄清时错消费 FIFO 响应；离线 suite **4/4** 通过。
 - M197-A/M196 专项 **17/17**，M174/M150 **7/7**；真实模型 memory clarification **1/1**，真实模型 + Docker GIS spatial overview **1/1**，无重试。
-- `scripts/live_baseline.py --summary` 提供有界终端输出，完整报告仍可通过 `--output` 显式保存；下一步执行 diff/敏感信息门禁并推送版本。
+- `scripts/live_baseline.py --summary` 提供有界终端输出，完整报告仍可通过 `--output` 显式保存；M197-A 已完成版本推送，下一阶段进入 M198-A。
+
+## M198：全局规划参考
+
+M198 从 M197 的模型与 replay 证据链继续推进“任意结果由公共契约驱动展示”，不增加 GIS 页面分支：
+
+1. 产品：澄清工作区展示 Domain guidance、建议动作和缺失事实；结果区继续由 workspace/view contract 决定内容。
+2. 架构：复用 `selection_interaction.v1`、`workspace.v1`、`view.v1`，只扩展通用 guidance renderer seam。
+3. 数据：前端只消费后端有界字段，保持 Provider 原文和 GIS 专用数据隔离。
+4. 模型：保持 advisory guidance 与 Runtime allowed actions 的安全分离。
+5. 部署：验证 HTTP、async、Artifact recovery 与浏览器缓存/资源加载边界。
+6. 体验：Text/GIS/未来 Domain 共用候选卡、状态、建议动作和缺失事实 UI。
+7. 测试：Node/Chrome/public workspace smoke 精简分层，不扩张默认 CI。
+
+## M198-A：通用 evidence/action guidance renderer（已完成，待版本推送）
+
+- Console selection interaction 现在归一化 `evidence_action_guidance.v1`，展示 advisory 建议动作、原因和缺失事实；按钮严格来自 `allowed_actions`。
+- Node interaction、Chrome CDP candidate selection、Evidence Registry 和 nested workspace smoke 均通过；浏览器 smoke 显式禁用缓存以保证加载当前镜像资源。
+- 阶段提交前仅剩 `git diff --check`、敏感信息审计和版本推送。

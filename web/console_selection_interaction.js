@@ -13,6 +13,7 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function createConsoleSelectionInteraction() {
   const VERSION = "spatial-agent.selection-interaction.v1";
+  const GUIDANCE_VERSION = "spatial-agent.evidence-action-guidance.v1";
   const STATES = new Set([
     "candidate_selection", "facts_required", "confirmation_required",
     "recoverable", "processing", "completed", "unavailable",
@@ -36,6 +37,32 @@
 
   function list(value, mapper, limit = LIMIT) {
     return Array.isArray(value) ? value.slice(0, limit).map(mapper).filter(Boolean) : [];
+  }
+
+  function normalizeGuidance(value) {
+    const source = record(value) ? value : {};
+    if (source.schema_version !== GUIDANCE_VERSION) {
+      return {
+        schema_version: GUIDANCE_VERSION,
+        available: false,
+        state: "unavailable",
+        reason_code: source.schema_version
+          ? "evidence_action_guidance_unknown_schema"
+          : "evidence_action_guidance_missing",
+        recommended_actions: [],
+        missing_fields: [],
+        source: "none",
+      };
+    }
+    return {
+      schema_version: GUIDANCE_VERSION,
+      available: source.available === true,
+      state: text(source.state, "unknown", 32),
+      reason_code: text(source.reason_code, "evidence_action_guidance_unavailable", 96),
+      recommended_actions: list(source.recommended_actions, value => text(value, "", 48), 8),
+      missing_fields: inputFacts(source.missing_fields),
+      source: text(source.source, "unknown", 48),
+    };
   }
 
   function inputFacts(value) {
@@ -75,6 +102,7 @@
         provenance: text(item.evidence.provenance?.status, "unknown", 24),
         missing_reasons: list(item.evidence.missing_reasons, value => text(value, "", 160), 8),
       } : null;
+      const guidance = normalizeGuidance(item.evidence_action_guidance);
       return {
         id,
         label: text(item.label, id, 128),
@@ -84,6 +112,7 @@
         result_types: list(item.result_types, value => text(value, "", 96), 8),
         data,
         evidence,
+        evidence_action_guidance: guidance,
         actions: list(item.actions, value => text(value, "", 32), 8),
         workflow,
       };
@@ -101,6 +130,7 @@
         allowed_actions: [],
         selection: {state: "unavailable", candidate_ids: [], candidate_workflow_ids: [], missing_fields: []},
         missing_fields: [],
+        evidence_action_guidance: normalizeGuidance(null),
       };
     }
     const selection = record(source.selection) ? source.selection : {};
@@ -131,6 +161,9 @@
         domain_seams: record(selection.domain_seams) ? selection.domain_seams : {},
       },
       missing_fields: missing,
+      evidence_action_guidance: normalizeGuidance(
+        source.evidence_action_guidance || selection.evidence_action_guidance
+      ),
       decision: record(source.decision) ? {
         decision_id: text(source.decision.decision_id, "", 128),
         version: Number.isInteger(source.decision.version) ? source.decision.version : null,
@@ -139,5 +172,5 @@
     };
   }
 
-  return Object.freeze({VERSION, STATES, ACTIONS, normalize});
+  return Object.freeze({VERSION, GUIDANCE_VERSION, STATES, ACTIONS, normalize, normalizeGuidance});
 });

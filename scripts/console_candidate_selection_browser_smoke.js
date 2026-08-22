@@ -35,6 +35,8 @@ const command = (method, params = {}) => new Promise((resolve, reject) => {
 });
 await new Promise(resolve => { socket.onopen = resolve; });
 await command("Page.enable");
+await command("Network.enable");
+await command("Network.setCacheDisabled", {cacheDisabled: true});
 await command("Runtime.enable");
 await command("Page.addScriptToEvaluateOnNewDocument", {source: `
   window.__m167Captured = null;
@@ -102,6 +104,15 @@ const result = await command("Runtime.evaluate", {
             candidate_workflow_ids:[],
             candidate_details:[candidate],
           },
+          evidence_action_guidance:{
+            schema_version:'spatial-agent.evidence-action-guidance.v1',
+            available:true,
+            state:'degraded',
+            reason_code:'selection_requires_facts',
+            recommended_actions:['provide_facts'],
+            missing_fields:[{id:'region',label:'区域',kind:'entity'}],
+            source:'domain',
+          },
           missing_fields:[],
         },
       },
@@ -118,6 +129,7 @@ const result = await command("Runtime.evaluate", {
     for(let attempt=0;attempt<40&&!window.__m167Captured;attempt++) await new Promise(resolve=>setTimeout(resolve,50));
     return JSON.stringify({
       cardText:card.textContent||'',
+      guidanceText:panel.textContent||'',
       capabilityId:window.__m167Captured?.body?.capability_id||'',
       action:window.__m167Captured?.body?.action||'',
       editorOpen:Boolean($('workflowEditor')?.open),
@@ -130,6 +142,7 @@ if (result.result.exceptionDetails) throw new Error(JSON.stringify(result.result
 const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
 if (!snapshot.cardText.includes("文本摘要")) throw new Error("候选卡片未显示领域标签");
+if (!snapshot.guidanceText.includes("系统建议") || !snapshot.guidanceText.includes("补充事实")) throw new Error("指导动作未通过通用 renderer 展示");
 if (snapshot.action !== "select_capability" || snapshot.capabilityId !== "text_summary") {
   throw new Error(`capability_id action was not submitted: ${JSON.stringify(snapshot)}`);
 }

@@ -4905,3 +4905,17 @@ replay runner 现在按 turn 将对应的脱敏响应绑定到独立的 recorded
 ### 处理与预防
 
 `scripts/live_baseline.py` 新增 `--summary`，终端只输出执行模式、总体状态、case 状态、错误分类、token 和延迟；完整安全报告仍通过 `--output` 显式保存。后续 live 验收默认使用摘要模式。
+
+## M198-A：Chrome 缓存旧 Console 脚本导致前端 smoke 误报
+
+### 现象
+
+容器内前端文件已经包含新的 guidance renderer，但 Chrome CDP smoke 仍看不到“系统建议”，而离线 Node normalization 已通过。
+
+### 根因
+
+浏览器复用缓存的旧静态脚本；Docker 镜像更新并不自动清除 Chrome 的资源缓存，导致 smoke 的页面代码与当前工作树不一致。
+
+### 处理与预防
+
+浏览器 smoke 在导航前调用 CDP `Network.setCacheDisabled`，并继续要求容器按当前工作树重建。前端验收必须同时核对容器资源版本、Node normalization 和真实 DOM 文本，不能只看其中一层。

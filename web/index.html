@@ -570,6 +570,11 @@
     .selection-interaction-head { display: flex; justify-content: space-between; gap: 8px; color: var(--ink-soft); }
     .selection-interaction-head span { color: var(--teal); font-weight: 800; }
     .selection-interaction-card p { margin: 6px 0; color: var(--muted); }
+    .selection-guidance { display: flex; flex-wrap: wrap; gap: 5px 9px; align-items: center; margin: 7px 0; padding: 7px 9px; border: 1px solid rgba(8, 127, 140, .16); border-radius: 8px; background: rgba(255,255,255,.72); color: var(--muted); font-size: 11px; }
+    .selection-guidance strong { color: var(--teal-deep); }
+    .selection-guidance[data-guidance-state="degraded"], .selection-guidance[data-guidance-state="unknown"] { border-color: rgba(190, 132, 32, .28); background: #fffaf0; }
+    .selection-guidance[data-guidance-state="unavailable"] { border-color: rgba(180, 70, 62, .22); background: #fff7f5; }
+    .selection-guidance code { padding: 2px 5px; border-radius: 999px; background: rgba(8, 127, 140, .1); color: var(--teal); }
     .selection-candidates { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin: 7px 0; }
     .selection-candidates code { padding: 2px 6px; border-radius: 999px; background: rgba(8, 127, 140, .1); color: var(--teal); }
     .selection-candidate-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 9px 0; }
@@ -1096,7 +1101,13 @@
           }).join('')+'</div>'
         : (candidates.length?'<div class="selection-candidates"><span>候选：</span>'+candidates.map(item=>'<code>'+escapeHtml(item)+'</code>').join('')+'</div>':'');
       const actions=allowed.filter(action=>!(details.length&&action==='select_capability')).map(action=>'<button type="button" class="secondary selection-action" data-selection-action="'+escapeHtml(action)+'" data-run-id="'+escapeHtml(data.run_id||'')+'">'+escapeHtml(actionLabels[action]||action)+'</button>').join('');
-      return '<section class="selection-interaction-card" data-selection-state="'+escapeHtml(model.state)+'"><div class="selection-interaction-head"><strong>下一步交互</strong><span>'+escapeHtml(labels[model.state]||model.state)+'</span></div><p>'+escapeHtml(model.reason_code||'')+(missing?' · 待补充：'+missing:'')+'</p>'+candidateText+(actions?'<div class="selection-actions">'+actions+'</div>':'')+'</section>';
+      const guidance=model.evidence_action_guidance||{};
+      const guidanceActions=(guidance.recommended_actions||[]).map(action=>actionLabels[action]||action).filter(Boolean).slice(0,8);
+      const guidanceMissing=(guidance.missing_fields||[]).map(item=>item.label||item.id).filter(Boolean).slice(0,8);
+      const guidanceBlock=guidance.available
+        ? '<div class="selection-guidance" data-guidance-state="'+escapeHtml(guidance.state||'unknown')+'"><strong>系统建议</strong><span>'+escapeHtml(guidance.reason_code||'未提供原因')+'</span>'+(guidanceActions.length?'<span>建议动作：'+guidanceActions.map(action=>'<code>'+escapeHtml(action)+'</code>').join('')+'</span>':'')+(guidanceMissing.length?'<span>待补充：'+escapeHtml(guidanceMissing.join('、'))+'</span>':'')+'</div>'
+        : '';
+      return '<section class="selection-interaction-card" data-selection-state="'+escapeHtml(model.state)+'"><div class="selection-interaction-head"><strong>下一步交互</strong><span>'+escapeHtml(labels[model.state]||model.state)+'</span></div><p>'+escapeHtml(model.reason_code||'')+(missing?' · 待补充：'+missing:'')+'</p>'+guidanceBlock+candidateText+(actions?'<div class="selection-actions">'+actions+'</div>':'')+'</section>';
     }
     function renderDecisionEvidence(data) {
       if (!window.ConsoleDecisionEvidence || typeof window.ConsoleDecisionEvidence.render !== 'function') return '';

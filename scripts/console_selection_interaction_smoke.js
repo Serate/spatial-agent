@@ -11,6 +11,15 @@ const model = interaction.normalize({
     state: "ambiguous",
     candidate_ids: ["capability_a", "capability_b"],
   },
+  evidence_action_guidance: {
+    schema_version: interaction.GUIDANCE_VERSION,
+    available: true,
+    state: "degraded",
+    reason_code: "selection_requires_facts",
+    recommended_actions: ["provide_facts", "repair", "unknown"],
+    missing_fields: [{id: "region", label: "区域", kind: "entity"}],
+    source: "domain",
+  },
   missing_fields: [],
 });
 
@@ -21,5 +30,11 @@ if (model.allowed_actions.join(",") !== "select_capability,select_workflow") {
 if (interaction.normalize({schema_version: "future.v9"}).state !== "unavailable") {
   throw new Error("future schema fallback failed");
 }
+if (model.evidence_action_guidance.recommended_actions.join(",") !== "provide_facts,repair,unknown") {
+  throw new Error("guidance projection failed");
+}
+if (model.evidence_action_guidance.missing_fields[0].id !== "region") {
+  throw new Error("guidance facts projection failed");
+}
 
-process.stdout.write(JSON.stringify({status: "ok", state: model.state, actions: model.allowed_actions}));
+process.stdout.write(JSON.stringify({status: "ok", state: model.state, actions: model.allowed_actions, guidance: model.evidence_action_guidance.state}));
