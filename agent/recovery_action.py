@@ -162,6 +162,14 @@ def project_action_receipt(
     linkage = normalize_action_receipt_identity_linkage(value.get("identity_linkage"))
     if linkage is not None:
         result["identity_linkage"] = linkage
+    if "preconditions" in value:
+        # Keep this import lazy with the other lifecycle/evidence projection
+        # dependency.  Old receipts omit the field and remain readable.
+        from .action_precondition import normalize_action_preconditions
+
+        result["preconditions"] = normalize_action_preconditions(
+            value.get("preconditions")
+        )
     return result
 
 

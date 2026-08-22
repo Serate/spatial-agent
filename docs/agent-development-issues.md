@@ -4572,3 +4572,17 @@ SQLite `interaction_receipts` 的 CAS 行只保存动作幂等字段和 `result_
 ### 处理与预防
 
 将 Action Receipt 附加到即时响应后，先通过统一 `attach_action_receipt_timeline()` 刷新 top-level 和嵌套 result，再把同一有界 projection 写入 SQLite `response_payload`；Artifact、history 和 async evidence 复用同一 projection。以后新增 transition evidence 时，必须在持久化 CAS payload 之前完成公共投影，并测试“并发请求 → in-progress 暂态 → 同幂等键 replay”链路，不能只验证首次响应。
+
+## M185：Action Preconditions 在跨入口重新推导时发生证据漂移
+
+### 现象
+
+M185 初版已经把 Action Preconditions 接入 Result Contract、执行时间线、异步 evidence 和 Console，但同一个完成动作在即时 HTTP response、SQLite detail/replay 和 Artifact 中可能分别显示为 `unavailable`、`not_observed` 和 `degraded`。这会让用户无法判断动作究竟是否具备执行条件，也破坏跨入口 evidence equality。
+
+### 根因
+
+前置条件只作为结果或 transport projection 被临时推导，没有写入规范化 Action Receipt。即时响应读取 source run，SQLite 可能只保存 CAS 的最小 response payload，Artifact 又从最终 result contract 重新推导；三者的输入层级和时机不同，因而得到不同状态。旧 Receipt replay 还不会从已保存的 bounded response 中补回该字段。
+
+### 处理与预防
+
+将有界的 `spatial-agent.action-precondition.v1` projection 写入 Action Receipt，且必须在 SQLite `response_payload` 完成前写入。`execution_timeline`、Result Contract、async evidence、Artifact attach、SQLite replay 和 Console 优先读取 Receipt 中的 canonical preconditions；没有该字段的旧 Receipt 才走兼容推导。回放时同时复制已保存的 preconditions，并对未知 schema 安全降级，不解释未知字段。以后新增 transition evidence，必须先确定唯一持久化来源，再覆盖即时响应、SQLite、Artifact、异步、多 worker 和重启 replay 的 equality 测试，不能让各入口分别重新推导。

@@ -24,6 +24,10 @@ from agent.plan_identity import normalize_plan_identity
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from agent.plan_quality import project_plan_quality_evidence
+from agent.action_precondition import (
+    normalize_action_preconditions,
+    project_action_preconditions,
+)
 from agent.selection_interaction import normalize_selection_interaction
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_projection import project_evidence_projection
@@ -261,6 +265,7 @@ def build_async_result_evidence(
             value.get("selection_interaction")
         ),
         "execution_timeline": timeline,
+        "action_preconditions": project_action_preconditions(value),
         "evidence_registry": registry,
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
@@ -470,6 +475,9 @@ def normalize_async_result_evidence(
             value.get("selection_interaction")
         ),
         "execution_timeline": timeline,
+        "action_preconditions": normalize_action_preconditions(
+            value.get("action_preconditions")
+        ),
         "evidence_registry": registry,
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,

@@ -2134,3 +2134,23 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 部署：补 FastAPI、异步接管、滚动重启、Artifact-only recovery 和多 worker 的完整 timeline/evidence equality。
 6. 体验：Console 按结构化状态动态展示可执行、等待、阻断、降级、恢复和完成，不增加 GIS 专用分支。
 7. 测试：保持 quick/CI 精简，增加跨 Domain action precondition/recovery Harness，阶段末再做 Docker、HTTP、Artifact、浏览器和必要 live-short 验收。
+
+## M185 当前完成状态
+
+- 新增领域无关 `agent/action_precondition.py` 与 `spatial-agent.action-precondition.v1`，支持显式 conditions、数据 readiness、结果降级和 evidence migration 的安全投影；未知 schema 不解释未知字段。
+- Action Preconditions 已写入 canonical Action Receipt。Result Contract、Action Timeline、async evidence、SQLite response/replay、Artifact attach 和 Console 统一读取 Receipt；旧 Receipt 继续兼容回退。
+- M185 专项 5/5；M184/M183.2/M183/M182/M156/M157 相邻回归 27/27；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP overview 和 Evidence Registry smoke 均通过。
+- 本阶段发现的即时响应/SQLite/Artifact 前置条件漂移已记录到中文问题文档。未调用 live 模型，未提交 API key、私有配置、原始模型输出或 GIS 原始数据。
+- 当前工作树已完成 M185 实现和验收，下一步进行敏感信息检查、提交推送，然后按 M186 的七个全局维度继续规划。
+
+## M186 下一阶段全局规划参考
+
+从 M185 的 canonical preconditions 继续推进“可执行动作的连续生命周期”，不围绕单个 GIS 工具增加规则：
+
+1. 统一能力选择、澄清、确认、repair、retry、cancel、recovery 到结果影响的多动作时间线。
+2. 建立 Action Receipt、Precondition、Timeline 的跨 Domain Contract Harness 和旧 schema 迁移语义。
+3. 将 Domain readiness/coverage/alignment/provenance/过期证据映射为可复用或必须重新核验的条件。
+4. 用脱敏 replay 与最小 live-short 验证复杂开放式请求的多轮动作连续性。
+5. 验证 FastAPI、SQLite 多 worker、重启接管、Artifact-only recovery 的动作幂等与证据连续性。
+6. 让 Console 仅消费结构化 `allowed_actions`、preconditions 和 evidence，动态显示可执行、等待、阻断、降级和恢复。
+7. 保持 Docker quick/CI 精简，阶段收口再执行 HTTP、Artifact、浏览器和必要 live-short。

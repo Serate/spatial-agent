@@ -1801,3 +1801,22 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 3. 验证多动作串联、跨 Domain、FastAPI、异步接管、滚动重启和 Artifact-only recovery。
 4. 用脱敏 replay 与最小 live-short 验证多轮失败修复的 identity 连续性。
 5. 保持前端结构化动态渲染和 quick/CI 精简，阶段结束后再次按七个全局维度重规划。
+
+## M185 当前完成状态
+
+- 新增 `agent/action_precondition.py` 与 `spatial-agent.action-precondition.v1`，将显式 conditions、readiness、degradation 和 evidence migration 投影为有界动作前置条件；未知 schema 安全降级。
+- `_complete_action_receipt()` 在 CAS `response_payload` 写入前保存 canonical preconditions；Result Contract、Action Timeline、async evidence、SQLite replay、Artifact 和 Console 统一读取该字段，旧 Receipt 保留回退推导。
+- M185 专项 5/5，M184/M183.2/M183/M182/M156/M157 相邻回归 27/27；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP overview 和 Evidence Registry smoke 通过，容器 healthy。
+- M185 发现的跨入口 precondition 漂移已追加到 `docs/agent-development-issues.md`。本阶段未调用 live 模型、未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- 当前工作树待最终敏感信息检查、commit/push；完成后进入 M186。
+
+## M186 全局规划参考
+
+下一阶段从“前置条件可比较”推进到“多动作可执行、可恢复且结果影响可追踪”：
+
+1. 完善能力选择、澄清、确认、repair、retry、cancel、recovery 到最终结果的连续 timeline。
+2. 用统一 Contract Harness 验证 Action Receipt/Precondition/Timeline 的跨 Domain、旧 schema 和多入口迁移。
+3. 让 Domain evidence adapter 提供 readiness、coverage、alignment、provenance 和过期状态，并标注复用/重验语义。
+4. 以脱敏 replay 和最小 live-short 覆盖复杂请求的多轮模型与动作连续性。
+5. 验证 FastAPI、SQLite 多 worker、重启接管、Artifact-only recovery 的幂等和 evidence equality。
+6. 继续让 Console 消费结构化状态，不增加 GIS 专用页面分支；quick/CI 维持精简。

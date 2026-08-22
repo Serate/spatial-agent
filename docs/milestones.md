@@ -3659,3 +3659,23 @@ M184 将 M183.2 的 Request/Plan/Result/Evidence identity linkage 接入统一�
 5. 部署：验证 FastAPI 生产入口、异步接管、滚动重启、Artifact-only recovery 和多 worker 下的连续时间线与 evidence equality。
 6. 体验：让 Console 根据结构化 action timeline 和 evidence 动态显示可执行、等待、阻断、降级、恢复和完成状态，继续保持 Text/GIS 共用工作区。
 7. 测试：继续保持 quick/CI 极简，新增一个跨 Domain action precondition/recovery Harness，阶段收口再运行 Docker、HTTP、Artifact、浏览器和必要 live-short。
+
+## M185：Action Preconditions canonical projection 与跨入口一致性（已完成）
+
+M185 将 Action Timeline 从动作身份关联推进到“动作前置条件 → 可执行状态”的领域无关只读投影，仍由 Runtime lifecycle 保持唯一状态机。
+
+- 新增 `agent/action_precondition.py` 和 `spatial-agent.action-precondition.v1`，将 readiness、degradation、evidence migration 以及 Domain 提供的有界 conditions 归一为 `ready`、`degraded`、`blocked`、`unavailable`、`unknown` 状态；未知 schema 不复制未知字段。
+- canonical preconditions 写入 Action Receipt。Result Contract、execution timeline、async evidence、SQLite response/replay、Artifact attach 和 Console 均优先消费同一 Receipt projection；旧 Receipt 保留安全回退路径。
+- 新增 M185 专项 **5/5**；M184/M183.2/M183/M182/M156/M157 相邻回归 **27/27**。Docker compileall、quick、stage、full-stage、生产 acceptance 和串行 Chrome/CDP overview、Evidence Registry smoke 均通过。
+- 生产 acceptance 验证容器 healthy、核心/可选数据 ready、同步/异步/Artifact contract、幂等和失败契约通过。本阶段未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- 本阶段发现的跨入口前置条件漂移已记录到 `docs/agent-development-issues.md`；M185 已完成，提交推送后进入 M186。
+
+## M186 全局重规划参考
+
+1. 产品：把能力选择、澄清、确认、repair、retry、cancel、recovery 和最终结果串成可操作的连续动作视图，明确每个动作的前置条件与结果影响。
+2. 架构：在不增加第二套状态机的前提下，建立 Action Preconditions/Receipt/Timeline 的统一 Contract Harness，覆盖旧 schema 与跨 Domain 迁移。
+3. 数据：让 Domain evidence adapter 提供 readiness、coverage、alignment、provenance 和过期状态，明确哪些前置条件可复用、哪些动作必须重新核验。
+4. 模型：使用脱敏 replay 和最小 live-short 验证开放式请求在澄清→确认→失败修复→重试链路中的计划、动作和证据连续性。
+5. 部署：验证 FastAPI、SQLite 多 worker、异常重启、滚动接管和 Artifact-only recovery 不会重复执行动作或丢失前置条件。
+6. 体验：Console 根据 `allowed_actions` 与结构化前置条件动态展示可执行、等待、阻断、降级和恢复，不新增 GIS 专用分支。
+7. 测试：quick/CI 继续精简；阶段收口增加一条跨 Domain 多动作 Contract Harness，再执行 Docker、HTTP、Artifact、浏览器和必要 live-short。

@@ -203,6 +203,10 @@ def _action_event(
     from .action_identity import (
         normalize_action_receipt_identity_linkage,
     )
+    from .action_precondition import (
+        normalize_action_preconditions,
+        project_action_preconditions,
+    )
     from .recovery_action import normalize_action_receipt
 
     normalized = normalize_action_receipt(receipt)
@@ -218,6 +222,17 @@ def _action_event(
     subject = subject if isinstance(subject, Mapping) else {}
     result_ref = normalized.get("result_ref")
     result_ref = result_ref if isinstance(result_ref, Mapping) else {}
+    if "preconditions" in normalized:
+        preconditions = normalize_action_preconditions(
+            normalized.get("preconditions")
+        )
+    else:
+        # Compatibility path for receipts written before M185.  New receipts
+        # always carry the canonical projection above.
+        preconditions = project_action_preconditions(
+            {**source, "result": result},
+            action=normalized.get("action_id"),
+        )
     return {
         "kind": "action",
         "action_linkage": {
@@ -229,6 +244,7 @@ def _action_event(
             "subject_kind": _text(subject.get("kind")) or None,
             "result_kind": _text(result_ref.get("kind")) or None,
             "identity_linkage": identity,
+            "preconditions": preconditions,
         },
     }
 
@@ -247,6 +263,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
             "reason_code": "action_timeline_linkage_unknown_schema",
         }
     from .action_identity import normalize_action_receipt_identity_linkage
+    from .action_precondition import normalize_action_preconditions
 
     identity = normalize_action_receipt_identity_linkage(
         value.get("identity_linkage")
@@ -265,6 +282,9 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
         "subject_kind": _text(value.get("subject_kind")) or None,
         "result_kind": _text(value.get("result_kind")) or None,
         "identity_linkage": identity,
+        "preconditions": normalize_action_preconditions(
+            value.get("preconditions")
+        ),
     }
     return result
 
@@ -281,11 +301,23 @@ def attach_action_receipt_timeline(
     """
 
     source = dict(payload) if isinstance(payload, Mapping) else {}
-    source["action_receipt"] = dict(action_receipt)
+    from .recovery_action import normalize_action_receipt
+
+    normalized_receipt = normalize_action_receipt(action_receipt)
+    source["action_receipt"] = dict(normalized_receipt)
+    if "preconditions" in normalized_receipt:
+        from .action_precondition import normalize_action_preconditions
+
+        canonical = normalize_action_preconditions(
+            normalized_receipt.get("preconditions")
+        )
+        source["action_preconditions"] = canonical
     nested = source.get("result")
     if isinstance(nested, Mapping):
         nested_result = dict(nested)
-        nested_result["action_receipt"] = dict(action_receipt)
+        nested_result["action_receipt"] = dict(normalized_receipt)
+        if "preconditions" in normalized_receipt:
+            nested_result["action_preconditions"] = canonical
         source["result"] = nested_result
     timeline = build_execution_timeline(source)
     source["execution_timeline"] = timeline

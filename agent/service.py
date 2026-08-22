@@ -22,6 +22,7 @@ from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.action_identity import build_action_receipt_identity_linkage
+from agent.action_precondition import project_action_preconditions
 from agent.execution_timeline import attach_action_receipt_timeline
 from agent.recovery_action import (
     action_input_fingerprint,
@@ -1657,6 +1658,10 @@ class AgentService:
                     replay_receipt["identity_linkage"] = stored_receipt.get(
                         "identity_linkage"
                     )
+                    if "preconditions" in stored_receipt:
+                        replay_receipt["preconditions"] = stored_receipt.get(
+                            "preconditions"
+                        )
                 replay["action_receipt"] = project_action_receipt(
                     replay_receipt, reused=True
                 )
@@ -1754,15 +1759,25 @@ class AgentService:
         if identity_linkage.get("available"):
             receipt["identity_linkage"] = identity_linkage
         action_receipt = project_action_receipt(receipt, reused=False)
+        action_preconditions = project_action_preconditions(
+            identity_payload,
+            action=receipt.get("action"),
+        )
+        # Persist the projection on the Receipt before any transport-specific
+        # response is written.  Subsequent replay, Artifact and timeline
+        # readers therefore share one canonical, bounded value.
+        receipt["preconditions"] = action_preconditions
         # Refresh before persisting response_payload: a replay can be served
         # entirely from SQLite and must retain the same action timeline as the
         # immediate response.
+        response["action_preconditions"] = action_preconditions
         response = attach_action_receipt_timeline(response, action_receipt)
         stored_response_payload = response_payload
         if not result_run_id:
             # A failed/non-run action is replayed from this bounded payload;
             # keep the linkage there because no result snapshot is available.
             stored_response_payload = dict(response_payload or response)
+            stored_response_payload["action_preconditions"] = action_preconditions
             stored_response_payload = attach_action_receipt_timeline(
                 stored_response_payload,
                 action_receipt,
@@ -1772,6 +1787,7 @@ class AgentService:
             # a small response payload (for example cancel).  Persist the
             # linkage there as a replay fallback alongside the result snapshot.
             stored_response_payload = dict(response_payload)
+            stored_response_payload["action_preconditions"] = action_preconditions
             stored_response_payload = attach_action_receipt_timeline(
                 stored_response_payload,
                 action_receipt,

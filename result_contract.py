@@ -10,6 +10,7 @@ from agent.deployment_evidence import build_deployment_evidence
 from agent.action_lifecycle import project_action_lifecycle
 from agent.plan_quality import project_plan_quality_evidence
 from agent.execution_timeline import build_execution_timeline
+from agent.action_precondition import project_action_preconditions
 from agent.evidence_registry import build_evidence_registry
 from agent.evidence_recovery import project_evidence_recovery
 from agent.recovery_action import normalize_action_receipt
@@ -161,6 +162,7 @@ def build_result_contract(
         "lineage": lineage,
         "replanning": replanning,
         "execution_timeline": build_execution_timeline(payload),
+        "action_preconditions": project_action_preconditions(payload),
         "degradation": degradation,
         "workspace": workspace,
         "views": views,
