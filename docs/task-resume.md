@@ -1,6 +1,8 @@
 # Spatial Agent Task Resume
 
-This document is a handoff note for continuing development of the Spatial Agent project in a fresh conversation or work session.
+> 快速恢复入口：新对话或上下文压缩后先阅读 [agent-context-current.md](agent-context-current.md)，再按需读取本文件的相关阶段。不要默认全文扫描本历史任务档案。
+
+This document is a historical handoff note for continuing development of the Spatial Agent project in a fresh conversation or work session. The compact current snapshot is authoritative for the active stage.
 
 ## 当前全局执行规则
 
@@ -2393,3 +2395,19 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 - Runtime 增加 15 秒、最多 32 项的进程内 advisory cache，降低 CLI/Service/HTTP 多 Runtime 实例重复探测的开销；执行前的 preflight/revalidation 仍是权威安全 gate。
 - M196-B.1 专项 **7/7**，M168/M140/M194/M195 受影响回归 **26/26**，Docker quick **2/2** 通过；Service async/Artifact 的 selection evidence equality 已覆盖。
 - 新性能问题已追加到 `docs/agent-development-issues.md`。下一步提交推送 M196-B.1，随后进入 M196-B.2：HTTP/SQLite equality、Provider unavailable 接管和脱敏 replay。
+
+## M196-B.2 当前完成状态：跨入口 capability evidence 接管
+
+- HTTP `/runs`、SQLite 重启和 Provider unavailable 契约已补齐；Text Domain 的候选 evidence 在 Service、HTTP、async、Artifact 和 restart 中保持 `capability-evidence.v1` 一致。
+- Provider 内部异常被压缩为结构化 `unavailable`，原始异常不会进入 `plan_evidence`、Artifact 或 replay；只保留 bounded status/reason/schema。
+- M196-B.2 专项 **10/10**，M168/M140/M194/M195 受影响回归 **26/26**；Docker ci/stage/full-stage、compileall、production acceptance、HTTP runtime capability、Node/CDP 均通过，`git diff --check` 和敏感信息审计待提交前最后执行。
+
+## M196-C 全局规划参考
+
+1. 产品：开放式候选能力与澄清工作区展示 evidence、缺失事实和下一步动作。
+2. 架构：统一 selection、interaction、workspace、Artifact 的 evidence/action projection。
+3. 数据：Domain-owned status-to-action 建议，Runtime 只负责通用生命周期和安全 gate。
+4. 模型：脱敏 replay/必要 live-short 验证模型消费 evidence、补事实和有限 repair。
+5. 部署：production FastAPI、async、SQLite restart、旧 artifact 和静态资源 allowlist 的一致性。
+6. 体验：Text/GIS 共用动态 renderer，显示候选、状态、缺失字段和允许动作。
+7. 测试：quick/CI 精简，跨入口 contract、Docker、HTTP、浏览器和显式 live 分层验收。

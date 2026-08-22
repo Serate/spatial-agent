@@ -1,5 +1,7 @@
 # Spatial Agent 阶段记录
 
+> 当前阶段快速恢复请先读取 [agent-context-current.md](agent-context-current.md)；本文件是阶段历史档案，按需读取。
+
 本文档记录项目每个阶段完成的功能、验证结果和关键工程决策。README 只保留当前能力与使用方式；后续阶段完成后，先更新本文档，再更新恢复文档，并创建对应 GitHub 版本。
 
 ## 当前执行规则
@@ -3982,3 +3984,19 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 - Planner context 现在通过 Domain-owned Evidence Provider 读取一次有界快照，并复用 `project_capability_catalog_evidence()`；workflow selection 的候选卡片会携带与 runtime capability snapshot 相同的 `capability-evidence.v1`，Text Provider 的 ready 状态和 GIS Provider 的降级状态均不需要 Runtime 解释。
 - 新增 Text run selection 与 Service async/Artifact equality 回归；M196-B.1 专项当前 **7/7**，M168/M140/M194/M195 受影响回归 **26/26** 通过。Provider probe 增加短 TTL advisory cache，Docker quick 当前 **2/2** 通过，耗时已从约 14 秒降至约 8 秒。
 - 本切片已完成 Service async/Artifact 的 selection evidence equality；下一阶段 M196-B.2 补 HTTP/SQLite equality、Provider unavailable 接管和脱敏 replay，再从全局角度规划前端候选/澄清工作区。
+
+## M196-B.2：跨入口 capability evidence 接管（已完成，待版本推送）
+
+- 新增 HTTP `/runs`、SQLite 重启和 Provider unavailable 契约；Text Domain 的候选 evidence 在 Service、HTTP、async、Artifact 和重启恢复中保持相同的 `capability-evidence.v1` projection。
+- Provider 抛出内部异常时，Runtime 返回结构化 `unavailable`，不泄露原始异常文本；artifact/replay 只保留 bounded status、reason 和 schema，不复制 Provider payload。
+- M196-B.2 专项 **10/10**；M168/M140/M194/M195 受影响回归 **26/26**。Docker ci/stage/full-stage、compileall、production acceptance、HTTP runtime capability、Docker Node/宿主 Node 和 Chrome/CDP 均通过；下一步提交推送 B.2。
+
+## M196-C：全局规划参考
+
+1. **产品**：把 capability evidence 状态、缺失事实、可选能力和下一步动作合并到开放式候选/澄清工作区。
+2. **架构**：统一 workflow selection、selection interaction、result workspace 和 Artifact 的 evidence projection 与 action contract。
+3. **数据**：把 evidence status 到 clarification/repair/action 的映射保持 Domain-owned，Runtime 只执行有界生命周期动作。
+4. **模型**：补脱敏 replay 验证模型消费 readiness/degradation、选择可用能力、请求补事实和有限 repair；配置可用时补真实模型 short。
+5. **部署**：覆盖 production FastAPI、async polling、SQLite restart、旧 artifact 和前端资源 allowlist 的 evidence/action 一致性。
+6. **体验**：Console 动态展示候选卡片、证据状态、缺失字段和 allowed actions；Text/GIS 共用 renderer。
+7. **测试**：保持 quick/CI 精简，以少量跨入口 contract + Docker/HTTP/浏览器显式验收，不恢复历史全量默认门禁。

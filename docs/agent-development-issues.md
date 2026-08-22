@@ -1,5 +1,7 @@
 # Agent 开发问题记录
 
+> 上下文压缩恢复时不要全文阅读本文件。先读取 `docs/agent-context-current.md`，再用 `rg -n -i "关键词" docs/agent-development-issues.md` 定位相关问题，并只读取命中附近内容。
+
 ## 超大空间范围请求不能直接作为单次下载
 
 ### 现象
@@ -4851,3 +4853,17 @@ Text Evidence Provider 明确返回 `health_status=ready` 和 `data_readiness=no
 ### 处理与预防
 
 Runtime 现在按 Domain、backend、Provider 和数据配置路径使用有界进程内 advisory cache，默认 TTL 15 秒、最多 32 项；Provider 不可用时仍返回结构化 unavailable。缓存只服务能力发现/Planner context，执行前的 Domain preflight、evidence binding/revalidation 不读取该缓存作为授权依据。以后新增昂贵的只读 Provider 探测时，必须测量 quick/profile 延迟，并明确区分 advisory freshness 与 execution safety，不能为了实时提示绕过精简门禁。
+
+## 恢复文档过长导致上下文恢复成本过高
+
+### 现象
+
+`agent-context-resume.md`、`task-resume.md` 和本问题日志长期追加阶段历史，文件已达到数十万字符。新对话或上下文压缩后若全文读取，会消耗大量上下文预算，真正的当前改动、阻塞项和下一步反而不突出。
+
+### 根因
+
+当前状态、历史验收和问题档案没有分离；恢复规则要求优先读取多个历史文件，但没有短小的单一当前快照，也没有规定问题日志按关键词检索。
+
+### 处理与预防
+
+新增 `docs/agent-context-current.md` 作为唯一短恢复入口，记录当前 Goal、提交、工作树、阶段、目标文件、测试规则和下一步。历史文档保留完整审计内容，但新对话只按快照和 `rg` 命中结果定向读取。每个阶段收口必须先更新短快照，再追加详细历史；短快照过期时以 Git 状态和当前工作树校正，不能盲信旧文字。

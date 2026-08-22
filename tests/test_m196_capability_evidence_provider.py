@@ -1,10 +1,15 @@
 """M196-A: capability evidence is projected behind the provider seam."""
 
 import json
+import os
 import tempfile
+import threading
 import time
 import unittest
+from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 from agent.artifact_store import ArtifactStore
 from agent.capability_catalog import capability_context_summary
@@ -18,6 +23,7 @@ from agent.runtime_factory import build_runtime
 from agent.service import AgentService
 from domains.gis.domain import GIS_DOMAIN_PACK
 from domains.text.domain import TEXT_DOMAIN_PACK
+from serve_api import AgentApiHandler
 
 
 class M196CapabilityEvidenceProviderTests(unittest.TestCase):
@@ -191,6 +197,87 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
         self.assertEqual(direct_evidence, async_evidence)
         self.assertEqual(direct_evidence, artifact_evidence)
         self.assertEqual(direct_evidence["status"], "ready")
+
+    def test_http_run_exposes_selection_evidence_projection(self):
+        service = AgentService(domain_pack=TEXT_DOMAIN_PACK)
+
+        class TextHandler(AgentApiHandler):
+            pass
+
+        TextHandler.service = service
+        server = ThreadingHTTPServer(("127.0.0.1", 0), TextHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            connection = HTTPConnection(
+                "127.0.0.1", server.server_address[1], timeout=5
+            )
+            body = json.dumps(
+                {"request": "概括这段文本", "session_id": "m196-http"},
+                ensure_ascii=False,
+            ).encode("utf-8")
+            connection.request(
+                "POST",
+                "/runs",
+                body=body,
+                headers={"Content-Type": "application/json; charset=utf-8"},
+            )
+            response = connection.getresponse()
+            payload = json.loads(response.read().decode("utf-8"))
+            connection.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+            service.close()
+
+        self.assertEqual(response.status, 200)
+        evidence = payload["result"]["planning"]["workflow_selection"]["candidate_details"][0]["evidence"]
+        self.assertEqual(evidence["status"], "ready")
+        self.assertEqual(evidence["schema_version"], CAPABILITY_EVIDENCE_SCHEMA_VERSION)
+
+    def test_sqlite_restart_preserves_selection_evidence(self):
+        with tempfile.TemporaryDirectory(prefix="m196-restart-") as directory:
+            root = Path(directory)
+            first = AgentService(
+                domain_pack=TEXT_DOMAIN_PACK,
+                state_db_path=str(root / "state.db"),
+                artifact_store=ArtifactStore(root / "artifacts"),
+            )
+            try:
+                created = first.run("概括这段文本", session_id="m196-restart")
+                run_id = created["run_id"]
+            finally:
+                first.close()
+
+            second = AgentService(
+                domain_pack=TEXT_DOMAIN_PACK,
+                state_db_path=str(root / "state.db"),
+                artifact_store=ArtifactStore(root / "artifacts"),
+            )
+            try:
+                restored = second.get_run(run_id)
+            finally:
+                second.close()
+
+        original = created["result"]["planning"]["workflow_selection"]
+        recovered = restored["result"]["planning"]["workflow_selection"]
+        self.assertEqual(original, recovered)
+
+    def test_provider_failure_becomes_structured_unavailable(self):
+        with patch.dict(
+            os.environ,
+            {"SPATIAL_AGENT_CAPABILITY_EVIDENCE_TTL_SECONDS": "0"},
+        ), patch(
+            "agent.runtime.resolve_runtime_evidence",
+            side_effect=RuntimeError("private provider detail must not escape"),
+        ):
+            runtime = build_runtime("rule", "memory", domain_pack=TEXT_DOMAIN_PACK)
+            result = runtime.run("概括这段文本")
+
+        evidence = result.plan_evidence["workflow_selection"]["candidate_details"][0]["evidence"]
+        self.assertEqual(evidence["status"], "unavailable")
+        self.assertNotIn("private provider detail", str(result.plan_evidence))
 
     def test_unknown_capability_schema_is_safe(self):
         value = normalize_capability_evidence(

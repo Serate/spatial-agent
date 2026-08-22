@@ -1,6 +1,8 @@
 # Spatial Agent 对话恢复文档
 
-本文档用于在新对话中恢复 Spatial Agent 项目的开发上下文。新对话开始后，应先阅读本文档，再检查 Git 状态和相关文件，然后继续当前任务。
+> 快速恢复入口：新对话或上下文压缩后先阅读 [agent-context-current.md](agent-context-current.md)。本文件是长期历史档案，不要默认全文阅读；仅按短快照列出的文件、阶段或问题关键词定向读取。
+
+本文档保存 Spatial Agent 的长期开发上下文和阶段历史。当前状态以 `docs/agent-context-current.md` 为准，历史记录用于审计和按需追溯。
 
 ## 当前全局执行规则
 
@@ -2036,3 +2038,9 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - M196-A 已推送为 `cff0684`；当前未提交改动为 `agent/runtime.py`、`agent/workflow_selection.py`、`tests/test_m196_capability_evidence_provider.py` 及阶段/问题文档。
 - `_build_context_packet()` 现在通过同一 capability evidence projection 将 Provider readiness 接入 per-run workflow selection；Runtime 增加默认 15 秒、最多 32 项的 advisory cache，避免多个入口重复读取昂贵数据健康快照。
 - Docker M196-B.1 专项 **7/7**、M168/M140/M194/M195 受影响回归 **26/26**、quick **2/2** 通过；Service async/Artifact selection evidence equality 已覆盖，ci/stage/full-stage、production/HTTP、Node/CDP 和 compileall 也已通过。下一步提交推送 M196-B.1，再进入 M196-B.2：HTTP/SQLite equality、Provider unavailable 接管和脱敏 replay。
+
+## 当前恢复快照（M196-B.2 已实现，待阶段提交）
+
+- M196-B.1 已推送为 `15012ab`；当前未提交改动主要是 `tests/test_m196_capability_evidence_provider.py` 及阶段/问题文档。
+- B.2 新增 HTTP `/runs`、SQLite restart 和 Provider unavailable 契约；M196-B.2 专项 **10/10** 通过，候选 evidence 在 Service、HTTP、async、Artifact 和 restart 中保持一致，内部异常不会进入 replay。
+- 受影响 M168/M140/M194/M195 回归、Docker ci/stage/full-stage、production acceptance、HTTP `/capabilities/runtime`、Node/CDP 和 compileall 已通过；下一步做 diff/sensitive 审计、提交推送 B.2，再按七维度进入 M196-C。
