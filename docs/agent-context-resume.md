@@ -1783,3 +1783,21 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - M183.2 专项 3/3，M183.1 专项 2/2，M182/M181/M169/M165/M166/M178/M179/M108 回归 48/48；Docker compileall、quick、stage、full-stage、smoke、严格 `ResourceWarning` 和 production acceptance 通过，容器 healthy，核心/可选数据 ready。
 - GIS core profile 3 项中 1 项通过、2 项因本地样例文件未挂载按环境跳过；本阶段未修改 GIS 工具、前端专用分支或模型调用，未保存私有配置和原始数据。
 - 本阶段发现的循环导入和重启 replay linkage 丢失问题已记录到 `docs/agent-development-issues.md`；当前总 Goal 仍 active，下一阶段继续做跨 Domain/多 worker 的 identity 与 action 前置条件验收。
+
+## M184 当前完成状态
+
+- Action Receipt 已接入统一 execution timeline，新增 `spatial-agent.action-timeline-linkage.v1` 有界事件；identity linkage 与动作语义均可被 Console、async、Artifact 和 history 消费。
+- Service 在 SQLite CAS `response_payload` 写入前刷新时间线，Artifact attach、SQLite history、async recovery 和 replay 共用 `attach_action_receipt_timeline()`，并修复并发 replay 丢失 timeline 的问题。
+- Contract Harness 新增 Action Timeline Contract；默认 Result equality 排除 transition action 事件，Action Receipt、identity linkage、action timeline 三个契约分别比较。
+- M184 专项 6/6，M183.2/M183/M182/M156/M157 相邻回归 22/22；Docker compileall/quick/stage/full-stage、ResourceWarning、production acceptance、Chrome/CDP overview 和 selection evidence smoke 通过。M184 只使用脱敏/离线验证，未新增 live token 或私有数据。
+- 问题记录已追加到 `docs/agent-development-issues.md`；当前版本待提交推送，之后进入 M185。
+
+## M185 下一阶段全局规划参考
+
+下一阶段不再只扩展 action 字段，而是从完整 Agent Runtime 角度补“动作前置条件 → 可执行状态 → 结果影响 → 恢复动作”的只读关联：
+
+1. 统一能力选择、澄清、确认、repair、retry、cancel 和 recovery 的连续 timeline。
+2. 将 readiness/coverage/alignment/provenance/过期/migration 投影为可执行前置条件。
+3. 验证多动作串联、跨 Domain、FastAPI、异步接管、滚动重启和 Artifact-only recovery。
+4. 用脱敏 replay 与最小 live-short 验证多轮失败修复的 identity 连续性。
+5. 保持前端结构化动态渲染和 quick/CI 精简，阶段结束后再次按七个全局维度重规划。

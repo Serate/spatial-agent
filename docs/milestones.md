@@ -3637,3 +3637,25 @@ M183.2 将 Action Receipt 从“动作语义可比较”推进到“动作与其
 5. 部署：补 FastAPI、异步接管、滚动重启、Artifact-only recovery 和历史迁移 equality 矩阵。
 6. 体验：Console 动态渲染 action receipt/linkage 的缺失、降级、阻断和可恢复状态，保持 Text/GIS 共用 renderer。
 7. 测试：quick/CI 保持精简，阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、多 worker、浏览器和必要 live-short。
+
+## M184：Action Timeline 与跨入口 replay 连续性（已完成）
+
+M184 将 M183.2 的 Request/Plan/Result/Evidence identity linkage 接入统一执行时间线，同时保持 Action Receipt transition contract 与默认 Result Contract equality 正交。
+
+- `agent/execution_timeline.py` 新增 `spatial-agent.action-timeline-linkage.v1`，将 bounded Action Receipt 投影为通用 `action` 事件；事件只保留动作语义、身份关联和结果/主体类型，不复制幂等键、私有输入或 transport ID。
+- 新增 `attach_action_receipt_timeline()` 公共 seam。Service 在写入 SQLite CAS `response_payload` 之前刷新 top-level/嵌套 result；Artifact attach、SQLite history、async evidence 和 replay 均复用同一时间线投影。
+- `evaluation.contract_harness` 新增 `ActionTimelineContract`、`normalize_action_timeline_contract()` 和 `compare_action_timelines()`；默认 Result equality 显式排除 action transition 事件，避免回执差异污染最终结果比较。
+- Console 新增通用 `renderActionTimeline()`，动态显示动作、状态和身份关联状态，不增加 GIS 专用页面分支；Text 与 GIS 结果共用相同 renderer。
+- 新增 `tests/test_m184_action_timeline.py` 6 项，覆盖 Text/GIS、Artifact/async、HTTP、SQLite 多 worker/CAS、未知 schema 降级和 Console；M184 与 M183.2/M183/M182/M156/M157 相邻回归共 22 项通过。
+- Docker 按当前工作树重建并 healthy；compileall、quick、stage、full-stage、严格 `ResourceWarning`、production acceptance 以及 Chrome/CDP 空间总览和 selection evidence smoke 均通过。本阶段未调用 live 模型、未提交私有配置或原始 GIS 数据。
+- 本阶段发现“SQLite CAS response_payload 在首次完成后未刷新时间线导致 replay 丢失 timeline”的问题，已用中文记录到 `docs/agent-development-issues.md`。
+
+## M185 全局重规划参考
+
+1. 产品：把 action timeline 从单次动作投影推进为能力发现、澄清、确认、repair、retry、cancel 和 recovery 的连续生命周期视图，并展示每个动作的前置条件和结果影响。
+2. 架构：建立 action precondition、transition lineage 与 Runtime lifecycle 的只读关联 seam，验证多动作串联、旧版本安全降级和跨 Domain 扩展，不增加第二套状态机。
+3. 数据：将 readiness、coverage、alignment、provenance、过期和 migration 状态投影为动作可执行前置条件，区分可复用证据与必须重新核验的数据。
+4. 模型：用脱敏 replay 和最小 live-short 验证澄清→确认→执行失败→有限 repair→重试的 identity/timeline 连续性，不扩大默认 CI。
+5. 部署：验证 FastAPI 生产入口、异步接管、滚动重启、Artifact-only recovery 和多 worker 下的连续时间线与 evidence equality。
+6. 体验：让 Console 根据结构化 action timeline 和 evidence 动态显示可执行、等待、阻断、降级、恢复和完成状态，继续保持 Text/GIS 共用工作区。
+7. 测试：继续保持 quick/CI 极简，新增一个跨 Domain action precondition/recovery Harness，阶段收口再运行 Docker、HTTP、Artifact、浏览器和必要 live-short。

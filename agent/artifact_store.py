@@ -152,7 +152,12 @@ class ArtifactStore:
         payload = self.read_run(run_id, domain_id=domain_id)
         if not isinstance(payload, dict):
             return False
-        payload["action_receipt"] = normalize_action_receipt(action_receipt)
+        from agent.execution_timeline import attach_action_receipt_timeline
+
+        payload = attach_action_receipt_timeline(
+            payload,
+            normalize_action_receipt(action_receipt),
+        )
         self.write_run(payload)
         return True
 
@@ -460,6 +465,8 @@ class ArtifactStore:
         if not self._root.exists():
             return []
         records = []
+        from agent.execution_timeline import normalize_execution_timeline
+
         for path in sorted(self._root.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
@@ -483,6 +490,9 @@ class ArtifactStore:
                 "error": payload.get("error"),
                 "evidence_registry": normalize_evidence_registry(
                     _evidence_registry_from_payload(payload)
+                ),
+                "execution_timeline": normalize_execution_timeline(
+                    _execution_timeline_from_payload(payload)
                 ),
                 "artifact_ref": path.as_posix(),
                 "execution_record": payload.get("execution_record")

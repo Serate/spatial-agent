@@ -2115,3 +2115,22 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 部署：补生产 FastAPI、异步接管、滚动重启、Artifact-only 和历史迁移的 linkage equality 矩阵。
 6. 体验：Console 统一展示 action receipt 与 identity linkage，按结构化状态动态处理缺失、降级和阻断，不增加 GIS 专用分支。
 7. 测试：保持 quick/CI 精简，阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、多 worker、浏览器和必要 live-short。
+
+## M184 当前完成状态
+
+- `execution_timeline` 已加入版本化 `action` 事件和 `spatial-agent.action-timeline-linkage.v1`；动作事件只携带有界动作语义、Request/Plan/Result/Evidence linkage 与主体/结果类型。
+- `attach_action_receipt_timeline()` 是 Service、Artifact 和 recovery 共享的刷新 seam；`_complete_action_receipt()` 在 SQLite `response_payload` 持久化前刷新时间线，修复并发 CAS replay 缺少 timeline 的问题。
+- SQLite history、Artifact、async polling/recovery、HTTP detail 和 immediate response 可使用 `compare_action_timelines()` 比较同一 transition；默认 Result Contract equality 用 `include_action_events=False` 保持正交。
+- Console 的 `renderActionTimeline()` 从结构化 result/evidence 动态渲染动作和身份状态；没有加入 GIS 类型判断。
+- M184 专项 **6/6**；M183.2/M183/M182/M156/M157 相邻回归 **22/22**；Docker compileall、quick、stage、full-stage、严格 ResourceWarning、production acceptance、Chrome/CDP overview 和 selection evidence smoke 通过。
+- 当前工作树已完成实现但尚未提交；提交前不得加入 API key、`config/openai.local.json`、原始模型输出或 GIS 原始数据。下一步是最终 diff/敏感信息检查、提交推送，然后按 M185 七个维度重新规划。
+
+## M185 下一阶段规划参考
+
+1. 产品：扩展连续 action timeline，表达能力选择、澄清、确认、repair、retry、cancel、recovery 的前置条件与结果影响。
+2. 架构：增加只读 action precondition/transition lineage projection，继续让 Runtime lifecycle 保持唯一状态机，跨 Domain 共用契约。
+3. 数据：将 readiness、coverage、alignment、provenance、过期和 migration 统一投影到动作前置条件和恢复提示。
+4. 模型：使用脱敏 replay 与最小 live-short 验证多轮澄清、确认、失败修复和重试的 identity 连续性。
+5. 部署：补 FastAPI、异步接管、滚动重启、Artifact-only recovery 和多 worker 的完整 timeline/evidence equality。
+6. 体验：Console 按结构化状态动态展示可执行、等待、阻断、降级、恢复和完成，不增加 GIS 专用分支。
+7. 测试：保持 quick/CI 精简，增加跨 Domain action precondition/recovery Harness，阶段末再做 Docker、HTTP、Artifact、浏览器和必要 live-short 验收。

@@ -12,6 +12,7 @@ from .runtime_context import normalize_runtime_context
 from .runtime import PendingClarification
 from .evidence_registry import normalize_evidence_registry
 from .recovery_action import normalize_action_receipt
+from .execution_timeline import normalize_execution_timeline
 
 
 _ASYNC_JOB_SELECT = """
@@ -542,6 +543,11 @@ class SQLiteStateStore:
                 "evidence_registry": normalize_evidence_registry(
                     item.get("evidence_registry")
                     or ((item.get("result") or {}).get("evidence_registry")
+                        if isinstance(item.get("result"), dict) else None)
+                ),
+                "execution_timeline": normalize_execution_timeline(
+                    item.get("execution_timeline")
+                    or ((item.get("result") or {}).get("execution_timeline")
                         if isinstance(item.get("result"), dict) else None)
                 ),
                 "planner_metrics": item.get("planner_metrics"),

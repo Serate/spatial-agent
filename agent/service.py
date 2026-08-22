@@ -22,6 +22,7 @@ from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.action_identity import build_action_receipt_identity_linkage
+from agent.execution_timeline import attach_action_receipt_timeline
 from agent.recovery_action import (
     action_input_fingerprint,
     project_action_receipt,
@@ -1753,18 +1754,28 @@ class AgentService:
         if identity_linkage.get("available"):
             receipt["identity_linkage"] = identity_linkage
         action_receipt = project_action_receipt(receipt, reused=False)
+        # Refresh before persisting response_payload: a replay can be served
+        # entirely from SQLite and must retain the same action timeline as the
+        # immediate response.
+        response = attach_action_receipt_timeline(response, action_receipt)
         stored_response_payload = response_payload
         if not result_run_id:
             # A failed/non-run action is replayed from this bounded payload;
             # keep the linkage there because no result snapshot is available.
             stored_response_payload = dict(response_payload or response)
-            stored_response_payload["action_receipt"] = action_receipt
+            stored_response_payload = attach_action_receipt_timeline(
+                stored_response_payload,
+                action_receipt,
+            )
         elif isinstance(response_payload, dict):
             # Some lifecycle actions have a result reference but also retain
             # a small response payload (for example cancel).  Persist the
             # linkage there as a replay fallback alongside the result snapshot.
             stored_response_payload = dict(response_payload)
-            stored_response_payload["action_receipt"] = action_receipt
+            stored_response_payload = attach_action_receipt_timeline(
+                stored_response_payload,
+                action_receipt,
+            )
         self._state.complete_interaction(
             domain_id=str(receipt.get("domain_id") or self._resolved_domain_id),
             run_id=str(receipt.get("run_id") or ""),
@@ -1782,8 +1793,6 @@ class AgentService:
                 receipt, reused=False
             )
         response["action_receipt"] = action_receipt
-        if isinstance(response.get("result"), dict):
-            response["result"]["action_receipt"] = response["action_receipt"]
         return response
 
     def _action_identity_source(

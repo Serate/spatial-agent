@@ -16,6 +16,7 @@ from .plan_quality import project_plan_quality_evidence
 
 
 EXECUTION_TIMELINE_SCHEMA_VERSION = "spatial-agent.execution-timeline.v1"
+ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION = "spatial-agent.action-timeline-linkage.v1"
 _MAX_EVENTS = 64
 _MAX_TEXT = 96
 
@@ -104,6 +105,10 @@ def build_execution_timeline(payload: Mapping[str, Any] | None) -> dict[str, Any
     if lifecycle.get("reason_code"):
         lifecycle_event["reason_code"] = _text(lifecycle.get("reason_code"))
     events.append(lifecycle_event)
+
+    action_event = _action_event(source, result)
+    if action_event is not None:
+        events.append(action_event)
     events = events[:_MAX_EVENTS]
     return {
         "schema_version": EXECUTION_TIMELINE_SCHEMA_VERSION,
@@ -113,7 +118,11 @@ def build_execution_timeline(payload: Mapping[str, Any] | None) -> dict[str, Any
     }
 
 
-def normalize_execution_timeline(value: Any) -> dict[str, Any]:
+def normalize_execution_timeline(
+    value: Any,
+    *,
+    include_action_events: bool = True,
+) -> dict[str, Any]:
     """Validate a persisted timeline and degrade unknown shapes safely."""
 
     if not isinstance(value, Mapping):
@@ -123,7 +132,13 @@ def normalize_execution_timeline(value: Any) -> dict[str, Any]:
     events = value.get("events")
     if not isinstance(events, list):
         return _unavailable("execution_timeline_events_invalid")
-    safe_events = [event for event in events[:_MAX_EVENTS] if isinstance(event, Mapping)]
+    safe_events = []
+    for event in events[:_MAX_EVENTS]:
+        if not isinstance(event, Mapping):
+            continue
+        if not include_action_events and event.get("kind") == "action":
+            continue
+        safe_events.append(event)
     return {
         "schema_version": EXECUTION_TIMELINE_SCHEMA_VERSION,
         "available": bool(value.get("available")) and bool(safe_events),
@@ -135,6 +150,10 @@ def normalize_execution_timeline(value: Any) -> dict[str, Any]:
 def _normalize_event(value: Mapping[str, Any]) -> dict[str, Any]:
     kind = _text(value.get("kind")) or "unknown"
     result = {"kind": kind}
+    if kind == "action":
+        result["action_linkage"] = _normalize_action_linkage(
+            value.get("action_linkage")
+        )
     for key in (
         "state", "phase", "reason_code", "template_id", "id", "tool",
         "status", "error_category", "error_code", "failed_step_id", "failed_tool",
@@ -161,6 +180,123 @@ def _normalize_event(value: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _action_event(
+    source: Mapping[str, Any],
+    result: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Project one Action Receipt as transition evidence.
+
+    Action Receipt fields such as idempotency keys and source IDs remain out
+    of the timeline event.  They belong to the separate Action Receipt
+    contract; the timeline only carries stable action semantics plus the
+    versioned linkage to the run identities.
+    """
+
+    receipt = source.get("action_receipt")
+    if not isinstance(receipt, Mapping):
+        receipt = result.get("action_receipt")
+    if not isinstance(receipt, Mapping):
+        return None
+
+    # Keep these imports lazy.  recovery_action and action_identity both sit
+    # on the lifecycle/evidence import path used during process startup.
+    from .action_identity import (
+        normalize_action_receipt_identity_linkage,
+    )
+    from .recovery_action import normalize_action_receipt
+
+    normalized = normalize_action_receipt(receipt)
+    identity = normalize_action_receipt_identity_linkage(
+        normalized.get("identity_linkage")
+    )
+    if identity is None:
+        identity = {
+            "schema_version": "spatial-agent.action-receipt-linkage.v1",
+            "available": False,
+        }
+    subject = normalized.get("subject")
+    subject = subject if isinstance(subject, Mapping) else {}
+    result_ref = normalized.get("result_ref")
+    result_ref = result_ref if isinstance(result_ref, Mapping) else {}
+    return {
+        "kind": "action",
+        "action_linkage": {
+            "schema_version": ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION,
+            "available": True,
+            "action_id": _text(normalized.get("action_id")) or "unknown",
+            "action_kind": _text(normalized.get("action_kind")) or "unknown",
+            "status": _text(normalized.get("status")) or "UNKNOWN",
+            "subject_kind": _text(subject.get("kind")) or None,
+            "result_kind": _text(result_ref.get("kind")) or None,
+            "identity_linkage": identity,
+        },
+    }
+
+
+def _normalize_action_linkage(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {
+            "schema_version": ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION,
+            "available": False,
+            "reason_code": "action_timeline_linkage_missing",
+        }
+    if value.get("schema_version") != ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION:
+        return {
+            "schema_version": ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION,
+            "available": False,
+            "reason_code": "action_timeline_linkage_unknown_schema",
+        }
+    from .action_identity import normalize_action_receipt_identity_linkage
+
+    identity = normalize_action_receipt_identity_linkage(
+        value.get("identity_linkage")
+    )
+    if identity is None:
+        identity = {
+            "schema_version": "spatial-agent.action-receipt-linkage.v1",
+            "available": False,
+        }
+    result = {
+        "schema_version": ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION,
+        "available": bool(value.get("available")),
+        "action_id": _text(value.get("action_id")) or "unknown",
+        "action_kind": _text(value.get("action_kind")) or "unknown",
+        "status": _text(value.get("status")) or "UNKNOWN",
+        "subject_kind": _text(value.get("subject_kind")) or None,
+        "result_kind": _text(value.get("result_kind")) or None,
+        "identity_linkage": identity,
+    }
+    return result
+
+
+def attach_action_receipt_timeline(
+    payload: Mapping[str, Any] | None,
+    action_receipt: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Refresh the bounded timeline after a receipt is completed.
+
+    Action completion happens after the original run result is built.  This
+    seam updates the top-level response and its nested result together, so
+    Service, Artifact and replay readers do not each reconstruct the event.
+    """
+
+    source = dict(payload) if isinstance(payload, Mapping) else {}
+    source["action_receipt"] = dict(action_receipt)
+    nested = source.get("result")
+    if isinstance(nested, Mapping):
+        nested_result = dict(nested)
+        nested_result["action_receipt"] = dict(action_receipt)
+        source["result"] = nested_result
+    timeline = build_execution_timeline(source)
+    source["execution_timeline"] = timeline
+    if isinstance(source.get("result"), Mapping):
+        source["result"] = {
+            **source["result"],
+            "execution_timeline": timeline,
+        }
+    return source
+
+
 def _unavailable(reason_code: str) -> dict[str, Any]:
     return {
         "schema_version": EXECUTION_TIMELINE_SCHEMA_VERSION,
@@ -176,7 +312,9 @@ def _text(value: Any) -> str:
 
 
 __all__ = [
+    "ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION",
     "EXECUTION_TIMELINE_SCHEMA_VERSION",
+    "attach_action_receipt_timeline",
     "build_execution_timeline",
     "normalize_execution_timeline",
 ]

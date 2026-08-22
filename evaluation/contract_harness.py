@@ -92,6 +92,22 @@ class ActionReceiptIdentityLinkageContract:
         return not self.differences(other)
 
 
+@dataclass(frozen=True)
+class ActionTimelineContract:
+    """Stable transition projection carried by the execution timeline."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "ActionTimelineContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "ActionTimelineContract") -> bool:
+        return not self.differences(other)
+
+
 def normalize_action_receipt_contract(
     payload: Mapping[str, Any],
 ) -> ActionReceiptContract:
@@ -180,6 +196,54 @@ def compare_action_receipt_identity_linkages(
     if len(payloads) < 2:
         raise ValueError("at least two action receipt linkages are required")
     contracts = [normalize_action_receipt_identity_linkage(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_action_timeline_contract(
+    payload: Mapping[str, Any],
+) -> ActionTimelineContract:
+    """Project action events without transport IDs or replay markers."""
+
+    if not isinstance(payload, Mapping):
+        raise ValueError("action timeline payload must be a mapping")
+    raw = payload.get("execution_timeline")
+    if not isinstance(raw, Mapping) and isinstance(payload.get("result"), Mapping):
+        raw = payload["result"].get("execution_timeline")
+    timeline = normalize_execution_timeline(raw)
+    events = []
+    for event in timeline.get("events", []):
+        if not isinstance(event, Mapping) or event.get("kind") != "action":
+            continue
+        linkage = event.get("action_linkage")
+        if isinstance(linkage, Mapping):
+            # The event itself is already bounded; retain only stable
+            # transition semantics and identity linkage.  Subject/result IDs,
+            # idempotency and reused markers stay in their own contracts.
+            events.append({
+                "kind": "action",
+                "action_linkage": dict(linkage),
+            })
+    return ActionTimelineContract({
+        "available": bool(events),
+        "events": events,
+    })
+
+
+def compare_action_timelines(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return bounded action-timeline drift across response/recovery entries."""
+
+    if len(payloads) < 2:
+        raise ValueError("at least two action timelines are required")
+    contracts = [normalize_action_timeline_contract(item) for item in payloads]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):
@@ -295,7 +359,8 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
                 result.get("selection_interaction")
             ),
             "execution_timeline": normalize_execution_timeline(
-                result.get("execution_timeline")
+                result.get("execution_timeline"),
+                include_action_events=False,
             ),
             "repair_lineage": _repair_lineage_projection(
                 result.get("replanning")
@@ -578,7 +643,8 @@ def _async_result_evidence_projection(
             evidence
         ).as_dict(),
         "execution_timeline": normalize_execution_timeline(
-            evidence.get("execution_timeline")
+            evidence.get("execution_timeline"),
+            include_action_events=False,
         ),
         "evidence_registry": normalize_evidence_registry(
             evidence_projection.get("evidence_registry")

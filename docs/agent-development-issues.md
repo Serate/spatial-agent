@@ -4558,3 +4558,17 @@ SQLite `interaction_receipts` 的 CAS 行只保存动作幂等字段和 `result_
 ### 处理与预防
 
 完成动作时，将 bounded identity linkage 同步写入带有最小响应的 `response_payload`；有 result reference 的动作仍同步写入 AgentRunResult/Artifact。replay 优先复用已保存回执，必要时从 result snapshot 补回 linkage，并由 Contract Harness 比较 HTTP、Artifact、history 和重启入口。以后新增持久化证据不能只看即时响应，必须覆盖“CAS 行 + response payload + result snapshot”三种 replay 来源。
+
+## M184：SQLite Action Receipt replay 可能丢失执行时间线
+
+### 现象
+
+首次 HTTP/Service 响应和 Artifact 已显示 Action Receipt 的 action timeline，但多 worker 并发时，第二个请求在 CAS 完成后按同一幂等键 replay，只返回 Action Receipt，没有执行时间线。
+
+### 根因
+
+`_complete_action_receipt()` 原来只在 `complete_interaction()` 写入 SQLite `response_payload` 之后，才给即时响应附加 `execution_timeline`。因此 CAS 行保存的最小响应没有 timeline，replay 优先读取该 payload 时无法重新构建原始计划/步骤/生命周期上下文。
+
+### 处理与预防
+
+将 Action Receipt 附加到即时响应后，先通过统一 `attach_action_receipt_timeline()` 刷新 top-level 和嵌套 result，再把同一有界 projection 写入 SQLite `response_payload`；Artifact、history 和 async evidence 复用同一 projection。以后新增 transition evidence 时，必须在持久化 CAS payload 之前完成公共投影，并测试“并发请求 → in-progress 暂态 → 同幂等键 replay”链路，不能只验证首次响应。
