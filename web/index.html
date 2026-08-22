@@ -1081,7 +1081,7 @@
     function renderSelectionInteraction(data) {
       const model=normalizeSelectionInteraction(data);
       if(!model.available && model.state==='unavailable') return '';
-      const labels={candidate_selection:'需要选择能力或工作流',facts_required:'需要补充事实',confirmation_required:'等待计划确认',recoverable:'可以恢复',processing:'处理中',completed:'已完成',unavailable:'不可用'};
+      const labels={candidate_selection:'需要选择能力或工作流',facts_required:'需要补充事实',confirmation_required:'等待计划确认',repairable:'需要修复计划',recoverable:'可以恢复',processing:'处理中',completed:'已完成',unavailable:'不可用'};
       const actionLabels={select_capability:'选择能力',select_workflow:'选择工作流',provide_facts:'补充事实',preview:'预览计划',confirm:'批准执行',reject:'拒绝执行',retry:'重试',recover:'恢复',cancel:'取消'};
       const selection=model.selection||{};
       const candidates=[...(selection.candidate_ids||[]),...(selection.candidate_workflow_ids||[])].filter((item,index,array)=>item&&array.indexOf(item)===index).slice(0,8);
@@ -1107,7 +1107,18 @@
       const guidanceBlock=guidance.available
         ? '<div class="selection-guidance" data-guidance-state="'+escapeHtml(guidance.state||'unknown')+'"><strong>系统建议</strong><span>'+escapeHtml(guidance.reason_code||'未提供原因')+'</span>'+(guidanceActions.length?'<span>建议动作：'+guidanceActions.map(action=>'<code>'+escapeHtml(action)+'</code>').join('')+'</span>':'')+(guidanceMissing.length?'<span>待补充：'+escapeHtml(guidanceMissing.join('、'))+'</span>':'')+'</div>'
         : '';
-      return '<section class="selection-interaction-card" data-selection-state="'+escapeHtml(model.state)+'"><div class="selection-interaction-head"><strong>下一步交互</strong><span>'+escapeHtml(labels[model.state]||model.state)+'</span></div><p>'+escapeHtml(model.reason_code||'')+(missing?' · 待补充：'+missing:'')+'</p>'+guidanceBlock+candidateText+(actions?'<div class="selection-actions">'+actions+'</div>':'')+'</section>';
+      const preconditions=model.action_preconditions||{};
+      const preconditionText=(model.blocked_actions||[]).length
+        ? '<div class="selection-guidance" data-precondition-state="blocked"><strong>执行前置条件</strong><span>'+escapeHtml(preconditions.reason_code||'动作被阻断')+'</span><span>已阻断：'+escapeHtml(model.blocked_actions.join('、'))+'</span></div>'
+        : (preconditions.available&&preconditions.state&&preconditions.state!=='ready'
+          ? '<div class="selection-guidance" data-precondition-state="'+escapeHtml(preconditions.state)+'"><strong>执行前置条件</strong><span>'+escapeHtml(preconditions.reason_code||preconditions.state)+'</span></div>' : '');
+      const receipt=model.action_receipt;
+      const receiptText=receipt&&receipt.available
+        ? '<small class="selection-lineage">动作凭据：'+escapeHtml(receipt.action_id||'未知')+' · '+escapeHtml(receipt.status||'UNKNOWN')+(receipt.reused?' · 已复用':'')+'</small>' : '';
+      const repairLineage=(model.repair_lineage||[]).filter(item=>item&&item.repair_status);
+      const repairText=repairLineage.length
+        ? '<small class="selection-lineage">修复链：'+escapeHtml(repairLineage.length)+' 次 · '+escapeHtml(repairLineage.map(item=>item.repair_status).join('、'))+'</small>' : '';
+      return '<section class="selection-interaction-card" data-selection-state="'+escapeHtml(model.state)+'"><div class="selection-interaction-head"><strong>下一步交互</strong><span>'+escapeHtml(labels[model.state]||model.state)+'</span></div><p>'+escapeHtml(model.reason_code||'')+(missing?' · 待补充：'+missing:'')+'</p>'+guidanceBlock+preconditionText+receiptText+repairText+candidateText+(actions?'<div class="selection-actions">'+actions+'</div>':'')+'</section>';
     }
     function renderDecisionEvidence(data) {
       if (!window.ConsoleDecisionEvidence || typeof window.ConsoleDecisionEvidence.render !== 'function') return '';

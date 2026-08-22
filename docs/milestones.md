@@ -4142,3 +4142,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：HTTP、async、Artifact、SQLite restart 和浏览器共享 schema/version。
 6. 体验：Text/GIS 共用动态 renderer，按钮只来自 Runtime allowed actions。
 7. 测试：精简 Node/Chrome/HTTP/Artifact interaction smoke，默认 CI 保持离线。
+
+## M205-A：Console 动态展示统一 interaction projection（已完成，待版本推送）
+
+- Console selection renderer 新增 repairable 状态、blocked actions、前置条件、Action Receipt 和脱敏 repair lineage 归一化与摘要展示；按钮权限仍来自 `allowed_actions`。
+- Node smoke、JS 语法检查和 Docker 重建后的 Chrome/DOM candidate smoke 通过，已确认 Receipt、阻断原因和修复链在 DOM 可见；未增加 GIS 页面分支。
+- 下一阶段 M206 进行复杂开放式请求从 HTTP 到 Console/Artifact 的显式纵向验收。
+
+## M206：下一阶段全局规划参考
+
+1. 产品：聊天输入到计划、执行、答案、交互状态、地图、轨迹和 artifact 的完整展示。
+2. 架构：HTTP/Console/async/Artifact 共用 Result、interaction 和 evidence projection。
+3. 数据：真实 Docker GIS 的 geometry、degradation、provenance 和 manifest 有界进入视图。
+4. 模型：Rule 与真实模型 live-short 比较工具、DAG、结果类型和前端可读性。
+5. 部署：production FastAPI、SQLite restart、Artifact-only 和禁缓存浏览器共同验收。
+6. 体验：workspace/view 动态决定结果内容，地图和文本共用 renderer。
+7. 测试：复杂 live-short、HTTP/Console browser contract 和精简回归分层执行。

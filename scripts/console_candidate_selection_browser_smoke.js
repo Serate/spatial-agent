@@ -104,6 +104,24 @@ const result = await command("Runtime.evaluate", {
             candidate_workflow_ids:[],
             candidate_details:[candidate],
           },
+          blocked_actions:['repair'],
+          action_preconditions:{
+            schema_version:'spatial-agent.action-precondition.v1',
+            available:true,
+            state:'blocked',
+            action_allowed:false,
+            enforcement:'enforced',
+            reason_code:'action_preconditions_blocked',
+            condition_count:1,
+            conditions:[{id:'alignment',status:'blocked',blocking:true}],
+          },
+          action_receipt:{
+            schema_version:'spatial-agent.action-receipt.v1',
+            action_id:'repair',
+            status:'FAILED',
+            reused:true,
+          },
+          repair_lineage:[{phase:'planning',repair_status:'repaired',repair_reason_code:'replacement_selected'}],
           evidence_action_guidance:{
             schema_version:'spatial-agent.evidence-action-guidance.v1',
             available:true,
@@ -143,6 +161,7 @@ const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
 if (!snapshot.cardText.includes("文本摘要")) throw new Error("候选卡片未显示领域标签");
 if (!snapshot.guidanceText.includes("系统建议") || !snapshot.guidanceText.includes("补充事实")) throw new Error("指导动作未通过通用 renderer 展示");
+if (!snapshot.guidanceText.includes("动作凭据") || !snapshot.guidanceText.includes("修复链") || !snapshot.guidanceText.includes("已阻断")) throw new Error("interaction receipt/precondition/lineage 未通过通用 renderer 展示");
 if (snapshot.action !== "select_capability" || snapshot.capabilityId !== "text_summary") {
   throw new Error(`capability_id action was not submitted: ${JSON.stringify(snapshot)}`);
 }

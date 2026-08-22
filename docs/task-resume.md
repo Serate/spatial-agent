@@ -2565,3 +2565,20 @@ M200 从 M199 的复杂真实纵向链路继续验证“同一请求在不同入
 5. 部署：HTTP、async、Artifact、SQLite restart 和浏览器加载同一 envelope schema/version。
 6. 体验：Text/GIS 共用动态 renderer，安全动作按钮只来自 Runtime `allowed_actions`。
 7. 测试：一个 Node/Chrome/HTTP/Artifact interaction smoke 加少量跨入口 contract，默认 CI 保持精简。
+
+## M205-A：Console 动态展示统一 interaction projection（已完成，待版本推送）
+
+- `web/console_selection_interaction.js` 现在归一化 `repairable`、`blocked_actions`、`action_preconditions`、`action_receipt` 和 `repair_lineage`；未知 schema 有界降级，Receipt/lineage 不展示原始错误或路径。
+- `web/index.html` 的领域无关 renderer 动态显示执行前置条件、动作凭据和修复链；可点击按钮仍严格来自 Runtime `allowed_actions`，没有新增 GIS 分支。
+- Node interaction smoke、JS syntax check 和重建当前 Docker 后的 Chrome/DOM candidate smoke 均通过；DOM 已验证 Receipt、阻断原因和 repair lineage 可见。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M206，做复杂开放式请求从 HTTP 到 Console/Artifact 的显式纵向验收。
+
+## M206：下一阶段全局规划参考
+
+1. 产品：验证复杂开放式请求从聊天输入到计划、执行、答案、交互状态、地图、轨迹和 artifact 的完整展示。
+2. 架构：HTTP、Console、async 和 Artifact 只消费同一 Result/interaction/evidence projection，不在前端新增推断逻辑。
+3. 数据：真实 Docker GIS 的 geometry、degradation、provenance 和输出 manifest 进入有界视图；缺失时明确降级。
+4. 模型：Rule 对照与真实模型 + Docker GIS live-short 比较工具覆盖、DAG、结果类型和前端可读性。
+5. 部署：production FastAPI、SQLite restart、Artifact-only 和浏览器缓存禁用共同验收，保留可恢复失败证据。
+6. 体验：结果区继续由 workspace/view 动态决定，地图和文本共用 interaction/evidence renderer。
+7. 测试：保留一条复杂 live-short、一个 HTTP/Console browser contract 和精简回归，不扩大默认 CI。

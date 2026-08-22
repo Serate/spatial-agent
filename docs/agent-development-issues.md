@@ -4990,6 +4990,20 @@ Selection interaction 只保存候选、生命周期和前置条件，没有绑�
 
 selection projection 现在复用 `normalize_action_receipt()` 和 `project_repair_lineage()`，只保存有界、脱敏字段；guidance normalizer 在存在布尔 `available` 时优先保留它，旧输入无该字段时才按非空推断。M204-A/M196/M165/M183 **26/26** 通过。以后新增跨入口字段必须验证一次构建和至少一次 normalize/recovery 的幂等 equality。
 
+## M205-A：Console 旧 renderer 忽略统一 interaction 字段
+
+### 现象
+
+后端已经返回 `repairable`、`blocked_actions`、Action Receipt、前置条件和 repair lineage，但 Console 只归一化候选、状态和 guidance；前端无法说明为什么动作不可执行，也看不到动作凭据和修复链，`repairable` 还可能降级成不可用状态。
+
+### 根因
+
+`console_selection_interaction.js` 的状态/字段 allowlist落后于 `selection-interaction.v1` 的后端投影；HTML renderer 只渲染 `allowed_actions`，没有消费新增的有界证据字段。
+
+### 处理与预防
+
+前端归一化新增字段并对未知 schema 安全降级，HTML 通过通用摘要显示阻断原因、Receipt 和 repair lineage；按钮仍只从 `allowed_actions` 生成。Node、语法和重建 Docker 后 Chrome/DOM smoke 均通过。以后扩展公共 projection 必须同时更新 schema normalizer、通用 renderer 和至少一条真实 DOM smoke，不能只验证后端 JSON。
+
 ## M200-A：复杂请求跨入口只验证完成状态导致结果证据漂移
 
 ### 现象

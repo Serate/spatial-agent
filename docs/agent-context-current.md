@@ -30,16 +30,16 @@ rg -n -C 6 "错误关键词" docs/agent-development-issues.md
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M204-A 已完成实现与 Docker 验收，待版本推送；下一阶段为 M205。
-- 最新提交：`f18af3b fix: enforce preconditions in interaction actions`。
-- 工作树：M204-A 的 Receipt/repair lineage projection、guidance 幂等修复、精简回归、阶段记录和问题记录有未提交修改；后续实现以 Git 实际状态为准。
+- 当前阶段：M205-A 已完成实现与 Docker/浏览器验收，待版本推送；下一阶段为 M206。
+- 最新提交：`062a2e0 feat: bind receipt lineage to interactions`。
+- 工作树：M205-A 的 Console normalizer/renderer、Node/Chrome smoke、阶段记录和问题记录有未提交修改；后续实现以 Git 实际状态为准。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
-- 本轮验证：M198-A Node/Chrome/Evidence Registry/nested workspace smoke 通过；Rule + 本地 GIS 复杂请求 9 步完成；真实模型 + Docker GIS 复杂请求 9 工具、14 DAG edges、结果类型和答案质量通过；M200/M195/HTTP 跨入口专项 9/9；M201-A 专项 5/5、受影响回归 14/14；M202-A async/selection/recovery 8/8；M203-A interaction/precondition 20/20；M204-A Receipt/guidance 7/7、受影响回归 19/19；容器 healthy。
+- 本轮验证：M198-A Node/Chrome/Evidence Registry/nested workspace smoke 通过；Rule + 本地 GIS 复杂请求 9 步完成；真实模型 + Docker GIS 复杂请求 9 工具、14 DAG edges、结果类型和答案质量通过；M200/M195/HTTP 跨入口专项 9/9；M201-A 专项 5/5、受影响回归 14/14；M202-A async/selection/recovery 8/8；M203-A interaction/precondition 20/20；M204-A Receipt/guidance 7/7、受影响回归 19/19；M205-A Node/Chrome/DOM smoke 通过；容器 healthy。
 
 ## 当前唯一工作切片
 
-1. 提交并推送 M204-A；推送前不加载历史文档全文。
-2. 推送后按 M205 的七个全局维度让 Console/HTTP/Artifact/浏览器消费统一 interaction projection。
+1. 提交并推送 M205-A；推送前不加载历史文档全文。
+2. 推送后按 M206 的七个全局维度做复杂开放式请求从 HTTP 到 Console/Artifact 的显式纵向验收。
 3. 继续保持 Docker 测试、精简默认门禁和有界上下文恢复协议。
 
 ## 读取预算
