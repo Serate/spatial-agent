@@ -203,13 +203,25 @@ class GisDomainPack:
         """Expose discovery/explicit selection metadata to the generic Runtime."""
         del request_facts
         context = discovery_context(discovery, domain_id=self.domain_id)
-        return {
+        selection = {
             "source": "explicit_workflow" if workflow and workflow.get("template_id") else "domain_discovery",
             "selected_by": "user" if workflow and workflow.get("template_id") else "domain",
             "selected_capability_id": context.get("selected_capability_id"),
             "candidate_ids": list(context.get("candidate_ids") or [])[:8],
             "candidate_count": context.get("candidate_count"),
         }
+        if isinstance(workflow, Mapping) and isinstance(workflow.get("components"), (list, tuple)):
+            normalized = self.normalize_workflow(workflow)
+            selection.update(
+                {
+                    "source": "explicit_workflow",
+                    "selected_by": "user",
+                    "workflow_template_id": normalized.get("template_id"),
+                    "workflow_template_version": normalized.get("template_version"),
+                    "workflow_components": list(normalized.get("components") or [])[:8],
+                }
+            )
+        return selection
 
     def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
         """Normalize GIS workflow input inside the GIS Domain Pack."""

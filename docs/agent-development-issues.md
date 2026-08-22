@@ -4767,3 +4767,31 @@ Evidence Transition、Action Preconditions 和 Action Receipt 原本分别在不
 ### 处理与预防
 
 GIS Domain 现在从组合输出中的 `component_template_ids` 和显式 workflow components 计算 allowlist 并集、组件总 max steps、required constraints 和组合 policy ID；Runtime 仍只调用 Domain policy seam，ToolRegistry 仍是唯一 dispatch 边界。以后新增组合结果类型或组件策略时，必须同时验证“编译 DAG、Domain policy、Runtime plan validation、preview/HTTP/artifact”一致，不能仅验证模板编译器的纯函数。
+
+## M195-A：新增 Console renderer 后遗漏 HTTP 静态资源白名单
+
+### 现象
+
+新增 `console_workflow_evidence.js` 后，页面主 HTML 可以返回，但 Docker HTTP 服务对该脚本返回 404，浏览器 smoke 一直等待不到 renderer ready。已有 Console 模块正常加载，因此表面上像是前端初始化卡住。
+
+### 根因
+
+开发 HTTP handler 和生产 FastAPI 都通过显式 `WEB_ASSETS` allowlist 提供 `console_*.js`，新增文件只修改了 HTML 的 `<script>` 引用，没有同步两个 HTTP 入口的静态资源注册。生产部署的安全 allowlist 是独立契约，不能假设文件存在就会自动暴露。
+
+### 处理与预防
+
+在 `serve_api.py` 和 `production_api.py` 同时登记新资源，并增加 M195 前端契约测试与浏览器 smoke。以后新增前端模块必须同时检查 HTML 引用、开发 HTTP、生产 HTTP、Docker 镜像内资源和实际浏览器加载，不能只执行 Node 模块测试。
+
+## M195-B：组件 evidence 在 selection 归一化时丢失
+
+### 现象
+
+GIS Domain 的 canonical composed workflow 已包含每个组件的默认 evidence 和约束，但 Runtime 最终 `plan_evidence.workflow_selection.workflow_components` 中的 `constraint_keys`、`evidence_keys` 为空，前端只能显示组件身份而不能显示声明证据。
+
+### 根因
+
+selection projection 首次从原始 workflow 提取组件字段；经过 context 和 Artifact replay 的二次 `normalize_workflow_selection_evidence()` 时，归一化函数只读取 `constraints`/`evidence`，没有保留已经投影出的 `constraint_keys`/`evidence_keys`。这是“写入 projection 正确、迁移/恢复 projection 不完整”的版本化边界问题。
+
+### 处理与预防
+
+归一化现在优先使用 Domain canonical workflow，并在二次归一化时保留已有的 `constraint_keys` 与 `evidence_keys`；新增 Docker Service preview、跨入口回归和 Console smoke。以后每个新 projection 都必须同时验证首次生成、Planner context、Result、Artifact 和 SQLite restart 的字段保真，不能只验证首次响应。

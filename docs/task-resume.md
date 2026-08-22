@@ -2329,3 +2329,16 @@ M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194
 - 新增 HTTP、Artifact、async 和 SQLite restart 组合证据测试；组件 ID/template ID 在 preview、完成结果、detail、Artifact 和重启恢复中保持一致。
 - M194-A/B/C 专项 **7/7**；M193/M191/M192 联合回归 **19/19**；Docker compileall 通过。
 - 当前切片待执行阶段最终 quick/stage/full-stage、生产 acceptance、敏感检查、提交和推送；下一阶段从全局角度评估跨 Domain 组合与异步取消/超时边界。
+
+## 当前任务状态（M194 已完成）
+
+- 上述“待执行/待提交/待推送”是历史记录；M194-A/B/C 已完成，最新提交为 `353e0b1`，已推送到 `origin/main`，工作树干净。
+- 当前完成证据以 `353e0b1` 及阶段验收记录为准：组合 workflow 在同步、HTTP、Artifact、异步和 SQLite 重启入口保持组件身份一致。
+- 下一阶段 M195 的首个纵向切片是通用前端 workflow/evidence projection：动态显示组件、依赖、组件状态和证据摘要，随后补取消/超时/重试/滚动重启的组合恢复验收。
+
+## M195-A 当前状态：已完成实现，待提交
+
+- `ConsoleWorkflowEvidence` 已接入结果工作区；组合 workflow 会动态显示组件、依赖、步骤和 evidence/约束摘要，没有组件时保持空态。
+- HTTP 静态资源 allowlist、Domain canonical selection projection 和二次归一化已补齐；相关问题已记录到中文开发问题文档。
+- Docker M195 专项 **9/9 可执行通过、1 项因容器无 Node 跳过**；M194 组合回归 **7/7**；quick/stage/full-stage、生产 acceptance 和 CDP smoke 通过。
+- 当前工作树包含 M195-A 实现和文档，尚未提交推送。下一步做阶段提交，再进入 M195-B 的组件 evidence 细化和组合生命周期恢复。

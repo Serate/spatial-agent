@@ -243,6 +243,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 "console_decision_evidence.js",
                 "console_selection_interaction.js",
                 "console_evidence_registry.js",
+                "console_workflow_evidence.js",
             }
             if name in allowed:
                 self._write_file(self.web_root / name, "application/javascript")

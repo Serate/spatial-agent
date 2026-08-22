@@ -71,9 +71,9 @@ def build_workflow_selection_evidence(
         or selected.get("workflow_template_version")
     ) or None
     workflow_components = _normalize_workflow_components(
-        explicit.get("components")
+        selected.get("workflow_components")
+        or explicit.get("components")
         or explicit.get("workflow_components")
-        or selected.get("workflow_components")
         or selected.get("components")
     )
     candidate_templates = _string_list(
@@ -422,8 +422,11 @@ def _normalize_workflow_components(value: Any) -> list[dict[str, Any]]:
         constraint_keys = (
             sorted(_text(key) for key in constraints.keys() if _text(key))[:16]
             if isinstance(constraints, Mapping)
-            else []
+            else _string_list(item.get("constraint_keys"))[:16]
         )
+        evidence_keys = _string_list(
+            item.get("evidence_keys") or item.get("evidence")
+        )[:16]
         result.append(
             {
                 "component_id": component_id,
@@ -431,6 +434,7 @@ def _normalize_workflow_components(value: Any) -> list[dict[str, Any]]:
                 "template_version": _text(item.get("template_version")) or "1.0.0",
                 "depends_on_components": dependencies,
                 "constraint_keys": constraint_keys,
+                "evidence_keys": evidence_keys,
             }
         )
     return result

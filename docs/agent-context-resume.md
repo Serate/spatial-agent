@@ -1983,3 +1983,28 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - M194-A/B/C 联合专项 **7/7**；与 M193/M191/M192 联合回归 **19/19**；Docker compileall 通过。
 - 当前切片未新增 Runtime 专用 GIS 分支，未调用真实模型或新增私有数据；阶段收口继续使用 Docker quick/stage/full-stage、生产 acceptance 和已有浏览器证据。
 - M194-C 当前代码和文档待最终检查、提交和推送；完成后从全局七维度重新评估是否进入跨 Domain 组合或数据 manifest 组合阶段。
+
+## 当前恢复快照（M194 已收口）
+
+- 上述“待提交/待推送”是历史记录；M194-A/B/C 已完成并推送，实际版本为 `d19a878`、`9919601`、`353e0b1`。当前 `main` 与 `origin/main` 一致，工作树干净。
+- M194 阶段证据：组合 workflow 专项 **7/7**，M193/M191/M192 联合回归 **19/19**；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP 相关验收均有通过记录。
+- M194 已覆盖组件身份、组件依赖、DAG 命名空间、证据投影，以及 HTTP、Artifact、异步和 SQLite 重启恢复；默认 CI 仍保持离线精简。
+- 下一阶段为 M195：把组合 workflow、组件依赖、readiness/coverage/alignment/provenance 摘要和恢复动作接入通用动态工作区，不增加 GIS 专用 DOM 分支。
+
+## M195 全局规划参考
+
+1. 产品：在同一工作区呈现组合组件、依赖、证据、计划、执行状态和恢复动作。
+2. 架构：建立领域无关的 Console workflow/evidence renderer seam，Text、GIS 和未来 Domain 共用归一化 projection。
+3. 数据：每个组件只展示有界 readiness、coverage、alignment、provenance 和降级来源，不复制原始数据或约束值。
+4. 模型：用脱敏 replay 验证多工具 DAG、组件边界和有限 repair lineage；配置可用时补最小 live-short。
+5. 部署：验证组合任务取消、超时、重试、多 worker 和滚动重启下的组件证据不丢失、不重复执行。
+6. 体验：结果工作区初始为空，显示内容由 `workspace`、`views` 和结构化 evidence 动态决定。
+7. 测试：新增精简的前端 projection/smoke 契约，阶段收口再执行 Docker、HTTP、Artifact、SQLite、浏览器和必要 live 验收。
+
+## M195-A 当前完成状态：通用 workflow/evidence 动态工作区
+
+- 新增 `web/console_workflow_evidence.js` 与 `spatial-agent.workflow-evidence.v1`，前端按结构化 projection 动态显示组件卡片、模板版本、组件依赖、步骤数、约束键和 evidence 状态；不解释 GIS 工具或约束值。
+- `workflow_selection.v1` 保留并可恢复组件 `constraint_keys`、`evidence_keys`；GIS Domain 将 canonical composed workflow 投影回公共 selection，经过 context、Result、Artifact 和 SQLite 归一化不会丢失。
+- 开发 HTTP 与生产 FastAPI 的静态资源 allowlist 已登记新模块；新增 Node 模块 smoke、M195 契约测试和 CDP 浏览器 smoke。
+- M195-A Docker 专项 **10 项（9 通过、Node 缺失跳过 1 项）**；M194 组合专项 **7/7**；quick、stage、full-stage、生产 acceptance 和浏览器动态渲染均通过。浏览器 smoke 验证 2 个组件、1 条依赖正确显示。
+- 新问题已追加到 `docs/agent-development-issues.md`。当前改动尚未提交；下一切片 M195-B 继续覆盖组件级 readiness/coverage/alignment/provenance 投影和取消/超时/重试/滚动重启恢复。

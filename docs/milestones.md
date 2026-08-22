@@ -3898,3 +3898,26 @@ M194 从证据安全恢复继续推进通用开放式多能力编排，覆盖能
 - 新增 HTTP preview/run/detail/Artifact 与 async 完成/SQLite restart 组合证据矩阵，组件 ID、模板 ID、版本和依赖在各入口一致。
 - M194-A/B/C 专项 **7/7**；M193/M191/M192 联合回归 **19/19**；Docker compileall 通过。
 - 本切片没有新增 Runtime GIS 专用分支、真实模型调用或私有数据；阶段收口后推送版本并进入下一次全局七维度规划。
+
+## M194：阶段最终状态（已完成）
+
+- M194-A/B/C 已全部完成并推送：`d19a878`、`9919601`、`353e0b1`。
+- 组合 workflow 专项 **7/7**，M193/M191/M192 联合回归 **19/19**；Docker compileall、quick、stage、full-stage、生产 acceptance 和浏览器相关验收通过。
+- 组合组件的 ID、模板 ID、版本、依赖和约束键在 preview、同步完成、HTTP detail、Artifact、异步完成和 SQLite 重启恢复中保持一致。
+- 本阶段没有新增 GIS 专用 Runtime 分支、私有配置、真实模型 token 或原始 GIS 数据。M194 完成后进入 M195：通用动态工作区、组件级 evidence 展示和组合恢复边界。
+
+## M195：全局规划（下一阶段）
+
+1. 新增领域无关 workflow/evidence 前端 projection 与 renderer，动态显示组件卡片、依赖 DAG、状态、证据摘要和允许动作。
+2. 让 Service、HTTP、Artifact 和异步结果使用同一 projection，Text/GIS Domain 不增加专用页面分支。
+3. 用脱敏 replay 和最小浏览器 smoke 验证多工具 DAG、组件边界、有限 repair 和结果工作区空态。
+4. 阶段后半补取消、超时、重试、多 worker 和滚动重启下的组合 evidence 恢复。
+5. 默认 CI/quick 保持精简，阶段收口使用 Docker、HTTP、Artifact、SQLite、浏览器和必要 live 验收，并完成版本推送。
+
+## M195-A：通用 workflow/evidence 动态工作区（实现完成，待提交）
+
+- 新增领域无关 `ConsoleWorkflowEvidence` renderer 和 `spatial-agent.workflow-evidence.v1`，结果区动态生成组件卡片、依赖、步骤数、约束键和 evidence 状态；不增加 GIS 专用 DOM 分支。
+- `workflow_selection.v1` 现在保留并恢复 `constraint_keys`、`evidence_keys`；GIS Domain 的 canonical composed workflow 会通过 Context、Result、Artifact 和 SQLite 二次归一化保持字段一致。
+- 开发 HTTP 与生产 FastAPI 静态资源 allowlist 已登记新模块；新增 Node smoke、M195 契约测试和 CDP 浏览器 smoke。
+- M195-A Docker 专项 **10 项（9 通过、Node 缺失跳过 1 项）**，M194 组合专项 **7/7**；quick、stage、full-stage、生产 acceptance 和浏览器动态渲染通过。
+- 本切片发现的 404 allowlist 和 projection 丢字段问题已记录到中文开发问题文档；下一切片补组件级 readiness/coverage/alignment/provenance 与取消/超时/重试/滚动重启恢复。
