@@ -180,6 +180,14 @@ def project_action_receipt(
         from .action_effect import normalize_action_effect
 
         result["effect"] = normalize_action_effect(value.get("effect"))
+    if "transition_identity" in value:
+        from .action_identity import normalize_action_transition_identity
+
+        transition_identity = normalize_action_transition_identity(
+            value.get("transition_identity")
+        )
+        if transition_identity is not None:
+            result["transition_identity"] = transition_identity
     return result
 
 

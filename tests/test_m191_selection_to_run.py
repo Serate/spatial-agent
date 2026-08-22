@@ -14,6 +14,7 @@ from agent.artifact_store import ArtifactStore
 from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION
 from agent.service import AgentService
 from domains.text.domain import TextDomainPack
+from evaluation.contract_harness import compare_action_transition_identities
 from serve_api import AgentApiHandler
 
 
@@ -137,6 +138,11 @@ class M191SelectionToRunTests(unittest.TestCase):
                 artifact = json.loads(
                     Path(completed["artifact_ref"]).read_text(encoding="utf-8")
                 )
+                history = next(
+                    item
+                    for item in service.list_runs()["runs"]
+                    if item["run_id"] == completed["run_id"]
+                )
             finally:
                 service.close()
 
@@ -152,6 +158,12 @@ class M191SelectionToRunTests(unittest.TestCase):
             finally:
                 restarted.close()
 
+        self.assertEqual(
+            compare_action_transition_identities(
+                [completed, artifact, history, recovered]
+            ),
+            [],
+        )
         for payload in (completed, artifact, recovered):
             self.assertEqual(payload["status"], "COMPLETED")
             self.assertEqual(payload["result"]["type"], "text_summary_result")
@@ -161,6 +173,9 @@ class M191SelectionToRunTests(unittest.TestCase):
                 ],
                 "text_summary",
             )
+        self.assertTrue(
+            completed["action_receipt"]["transition_identity"]["available"]
+        )
 
 
 if __name__ == "__main__":

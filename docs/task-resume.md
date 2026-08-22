@@ -2257,3 +2257,9 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - `AgentService.apply_run_interaction()` 统一从显式 capability ID、已选 capability 或唯一候选恢复 Domain workflow；`provide_facts` 可不携带 workflow。
 - Docker M191 专项 **2/2**，M164/M166/M167 受影响回归 **25/25**；quick、stage、full-stage 和 production acceptance 通过，容器 healthy。
 - M191 已完成，下一阶段 M192 聚焦 selection transition 的 request/plan identity、数据证据重验和跨入口 evidence equality；当前工作树待检查、提交和推送。
+
+## M192-A 当前完成状态
+
+- 新增 `spatial-agent.action-transition-identity.v1`，Action Receipt 保存源/目标 bounded identity；旧 `identity_linkage` 仍作为兼容的目标投影。
+- Receipt、execution timeline、Artifact、SQLite replay 和 Contract Harness 共享 transition identity；M192 专项 **2/2**，M191/M183.2/M184/M189 受影响回归 **16/16**；Docker compileall、full-stage 和 production acceptance 通过，容器 healthy，preview fingerprint 与同步执行计划一致。
+- 下一步继续 M192：补事实前后数据 readiness/coverage/alignment/provenance evidence 差异、preview fingerprint 一致性和真实模型 selection 基线。

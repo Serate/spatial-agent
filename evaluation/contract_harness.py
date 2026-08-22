@@ -50,7 +50,9 @@ from agent.recovery_action import (
 )
 from agent.action_identity import (
     ACTION_RECEIPT_LINKAGE_SCHEMA_VERSION,
+    ACTION_TRANSITION_IDENTITY_SCHEMA_VERSION,
     normalize_action_receipt_identity_linkage as _normalize_action_receipt_identity_linkage,
+    normalize_action_transition_identity as _normalize_action_transition_identity,
 )
 
 
@@ -99,6 +101,22 @@ class ActionReceiptIdentityLinkageContract:
         return _differences(self.values, other.values)
 
     def equivalent_to(self, other: "ActionReceiptIdentityLinkageContract") -> bool:
+        return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class ActionTransitionIdentityContract:
+    """Stable source-to-result identity transition for an interaction."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "ActionTransitionIdentityContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "ActionTransitionIdentityContract") -> bool:
         return not self.differences(other)
 
 
@@ -238,6 +256,44 @@ def compare_action_receipt_identity_linkages(
     if len(payloads) < 2:
         raise ValueError("at least two action receipt linkages are required")
     contracts = [normalize_action_receipt_identity_linkage(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_action_transition_identity(
+    payload: Mapping[str, Any],
+) -> ActionTransitionIdentityContract:
+    """Project source/result identity for a selection transition."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("action transition identity payload must be a mapping")
+    raw = payload.get("action_receipt")
+    if not isinstance(raw, Mapping) and isinstance(payload.get("result"), Mapping):
+        raw = payload["result"].get("action_receipt")
+    raw_transition = raw.get("transition_identity") if isinstance(raw, Mapping) else None
+    transition = _normalize_action_transition_identity(raw_transition)
+    if transition is None:
+        return ActionTransitionIdentityContract(
+            {
+                "available": False,
+                "schema_version": ACTION_TRANSITION_IDENTITY_SCHEMA_VERSION,
+            }
+        )
+    return ActionTransitionIdentityContract(transition)
+
+
+def compare_action_transition_identities(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return transition identity drift across HTTP/Artifact/history/replay."""
+    if len(payloads) < 2:
+        raise ValueError("at least two action transition identities are required")
+    contracts = [normalize_action_transition_identity(item) for item in payloads]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):

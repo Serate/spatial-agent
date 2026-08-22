@@ -1920,3 +1920,9 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - Runtime 已把 Domain 的 `clarification + missing_fields` 作为执行前门控；缺事实时状态为 `NEEDS_CLARIFICATION`，步骤数为 0，补齐后继续执行。
 - Docker M191 专项 **2/2**，选择/身份/交互受影响回归 **25/25**，compileall、quick、stage、full-stage、production acceptance 通过；容器 healthy。
 - M191 已完成并待提交推送。M192 入口是 selection transition 的 identity/evidence 关联、补事实后的数据 readiness 重验和跨入口计划一致性。
+
+## M192-A 最新恢复位置
+
+- 已新增 `agent.action_identity` 的 `spatial-agent.action-transition-identity.v1`；它在旧 `identity_linkage` 之外保存 bounded `source` 与 `result` identity。
+- `recovery_action`、execution timeline、Service replay、Artifact/SQLite projection 和 `evaluation.contract_harness` 已接入同一 transition identity；未知版本降级为 unavailable。
+- Docker M192 专项 **2/2**，M191/M183.2/M184/M189 联合回归 **16/16**；compileall、full-stage 和 production acceptance 通过，容器 healthy，preview fingerprint 与同步执行计划一致。下一步补事实前后 evidence 差异和 live selection 验收。

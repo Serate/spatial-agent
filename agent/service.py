@@ -21,7 +21,10 @@ from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
-from agent.action_identity import build_action_receipt_identity_linkage
+from agent.action_identity import (
+    build_action_receipt_identity_linkage,
+    build_action_transition_identity_from_linkages,
+)
 from agent.action_precondition import project_action_preconditions
 from agent.action_lineage import append_action_lineage
 from agent.action_effect import project_action_effect
@@ -1664,6 +1667,10 @@ class AgentService:
                         replay_receipt["preconditions"] = stored_receipt.get(
                             "preconditions"
                         )
+                    if "transition_identity" in stored_receipt:
+                        replay_receipt["transition_identity"] = stored_receipt.get(
+                            "transition_identity"
+                        )
                 replay["action_receipt"] = project_action_receipt(
                     replay_receipt, reused=True
                 )
@@ -1676,6 +1683,16 @@ class AgentService:
             raise ValueError("action is already in progress")
         receipt["idempotency_key"] = explicit_key
         receipt["input_fingerprint"] = input_fingerprint
+        source_payload = self._action_identity_source(
+            receipt,
+            planner=planner,
+            backend=backend,
+        )
+        source_identity_linkage = build_action_receipt_identity_linkage(
+            source_payload or {}
+        )
+        if source_identity_linkage.get("available"):
+            receipt["source_identity_linkage"] = source_identity_linkage
         return receipt, False
 
     def _reserve_interaction_receipt(
@@ -1810,6 +1827,16 @@ class AgentService:
             prior_lineage or ([prior_receipt] if isinstance(prior_receipt, Mapping) else []),
             receipt,
         )
+        result_identity_linkage = build_action_receipt_identity_linkage(identity_payload)
+        source_identity_linkage = receipt.get("source_identity_linkage")
+        if (
+            isinstance(source_identity_linkage, Mapping)
+            and result_identity_linkage.get("available")
+        ):
+            receipt["transition_identity"] = build_action_transition_identity_from_linkages(
+                source_identity_linkage,
+                result_identity_linkage,
+            )
         action_receipt = project_action_receipt(receipt, reused=False)
         # Refresh before persisting response_payload: a replay can be served
         # entirely from SQLite and must retain the same action timeline as the

@@ -202,6 +202,7 @@ def _action_event(
     # on the lifecycle/evidence import path used during process startup.
     from .action_identity import (
         normalize_action_receipt_identity_linkage,
+        normalize_action_transition_identity,
     )
     from .action_precondition import (
         normalize_action_preconditions,
@@ -220,6 +221,9 @@ def _action_event(
             "schema_version": "spatial-agent.action-receipt-linkage.v1",
             "available": False,
         }
+    transition_identity = normalize_action_transition_identity(
+        normalized.get("transition_identity")
+    )
     subject = normalized.get("subject")
     subject = subject if isinstance(subject, Mapping) else {}
     result_ref = normalized.get("result_ref")
@@ -246,6 +250,7 @@ def _action_event(
             "subject_kind": _text(subject.get("kind")) or None,
             "result_kind": _text(result_ref.get("kind")) or None,
             "identity_linkage": identity,
+            "transition_identity": transition_identity,
             "preconditions": preconditions,
             "transition_lineage": normalize_action_lineage(
                 normalized.get("transition_lineage")
@@ -269,6 +274,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
             "reason_code": "action_timeline_linkage_unknown_schema",
         }
     from .action_identity import normalize_action_receipt_identity_linkage
+    from .action_identity import normalize_action_transition_identity
     from .action_precondition import normalize_action_preconditions
     from .action_lineage import normalize_action_lineage
     from .action_effect import normalize_action_effect
@@ -281,6 +287,9 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
             "schema_version": "spatial-agent.action-receipt-linkage.v1",
             "available": False,
         }
+    transition_identity = normalize_action_transition_identity(
+        value.get("transition_identity")
+    )
     result = {
         "schema_version": ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION,
         "available": bool(value.get("available")),
@@ -290,6 +299,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
         "subject_kind": _text(value.get("subject_kind")) or None,
         "result_kind": _text(value.get("result_kind")) or None,
         "identity_linkage": identity,
+        "transition_identity": transition_identity,
         "preconditions": normalize_action_preconditions(
             value.get("preconditions")
         ),

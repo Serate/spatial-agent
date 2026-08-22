@@ -4684,3 +4684,17 @@ Domain 已返回 `workflow_selection.state=clarification` 和 `missing_fields`�
 ### 处理与预防
 
 Runtime 现在在无显式 workflow 时对 `clarification + missing_fields` 生成结构化澄清并停止工具执行；Service 增加 bounded capability ID 解析和统一 capability-to-workflow seam，`provide_facts` 可从已选/唯一候选能力恢复 workflow 后再合并 facts，旧的完整 workflow payload 仍兼容。以后 Domain 只声明事实和解析能力，不能让前端拼装 Domain workflow；测试必须覆盖“缺事实不执行、补事实后继续、HTTP/Artifact/SQLite 重启一致”。
+
+## M192-A：Action Receipt 只保存目标身份，无法证明选择过渡的源/目标关系
+
+### 现象
+
+能力选择或补事实会从一个 `NEEDS_CLARIFICATION` 源运行创建新的计划结果。原有 `identity_linkage` 能证明 Receipt 关联了目标结果，却不能证明源运行的 Request/Plan/Evidence 身份；跨入口只能看到 source/result run ID，无法判断两者是否是同一次交互的合法过渡。
+
+### 根因
+
+Action Receipt 的既有 identity contract 为兼容取消、重试等动作只设计了单个目标投影，selection transition 的源运行身份在 SQLite CAS 行和结果快照之间没有独立的版本化字段。若在各入口临时从 run ID 重新读取并推导，重启、Artifact-only recovery 和 replay 会出现证据时机差异。
+
+### 处理与预防
+
+新增领域无关 `spatial-agent.action-transition-identity.v1`，在不改变旧 `identity_linkage` 和默认 Result equality 的前提下保存 bounded `source`/`result` Request/Plan/Result/Evidence identities。Action Receipt、execution timeline、Artifact、SQLite replay 和 Contract Harness 统一读取该 projection；未知版本安全降级为 unavailable。以后新增跨运行过渡证据必须明确 source/target 的唯一持久化来源，并覆盖首次响应、HTTP、Artifact、history、异步和重启 replay，不能只凭 transport ID 建立关联。

@@ -3819,3 +3819,10 @@ M191 已打通能力选择到运行，但下一阶段需要从“能继续执行
 5. **部署**：验证重复补事实、异步提交、重启接管和旧 Artifact replay 不重复执行；preview fingerprint 必须与最终执行计划一致。
 6. **体验**：Console 动态显示 selection transition、计划变化和阻断原因，保持 Text/GIS 共用 renderer。
 7. **测试**：新增一条最小 selection identity/evidence Harness；quick/CI 不扩张，阶段末执行 Docker、HTTP、Artifact、浏览器和必要 live/GIS 验收。
+
+## M192-A 当前切片：Selection Transition Identity（已完成）
+
+- 新增 `spatial-agent.action-transition-identity.v1`，独立表达 selection/provide_facts/preview 等动作的源运行与目标结果 Request/Plan/Result/Evidence identity；旧 `identity_linkage` 和默认 Result equality 保持兼容。
+- Action Receipt、execution timeline、Artifact、SQLite replay 和 `evaluation.contract_harness` 共用 transition projection；未知版本安全降级，不复制 request 文本、transport ID 或 provider 原文。
+- 新增 `tests/test_m192_transition_identity.py` **2/2**；M191 selection-to-run、M183.2 linkage、M184 timeline、M189 action effect 联合回归 **16/16**；Docker compileall、full-stage 和 production acceptance 通过，容器 healthy，preview fingerprint 与同步执行计划一致。
+- 当前阶段暂未扩展数据 readiness 重验或 live selection；下一步按 M192 全局规划补“补事实前后 evidence 差异、preview fingerprint 和真实模型选择基线”。
