@@ -4181,3 +4181,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - evidence projection 去除 run/action subject identity，避免同步与异步仅因 transport 标识不同而产生虚假的 contract drift；可执行身份仍保留在 interaction/action envelope。
 - Docker 回归：M178 Contract Harness + M190 open capability 共 9/9；真实 async clarification → Artifact evidence 验证 `clarification_required / planning / clarify,cancel` 一致。
 - 下一阶段从全局目标继续检查 repair、retry、recover 和重启接管的证据血缘，尤其验证失败后用户动作与 Artifact/Console 的可恢复性。
+
+## M209-A：Repair lineage 贯通 Artifact evidence（已完成）
+
+- 公共 evidence projection 复用既有 `build_replanning_evidence()`，向 Artifact evidence 暴露有界 `replanning.schema_version/count/events`，不复制原始异常、请求或 provider 响应。
+- stale preview evidence 的真实 production HTTP 探针返回 `repairable / repair,reject,cancel`；M178、M190、M195 Docker 回归通过，验证 repair、retry、async/artifact 仍共享稳定 projection。
+- 为避免 evidence projection 与 result contract 的循环依赖，规范化函数采用延迟导入；sync/async 的 subject identity 继续从 evidence 等价契约中剔除。
+- 下一阶段按全局目标检查用户动作执行后的 transition receipt、repair lineage 和重启接管是否能在 Console/Artifact 中形成闭环。

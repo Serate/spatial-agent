@@ -17,17 +17,17 @@
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M208-A 已完成，Pending 生命周期贯通 Artifact evidence 待推送。
-- 最近功能提交：`a26ebf7 feat: expose lifecycle in plan previews`。
+- 当前阶段：M209-A 已完成，Repair lineage 贯通 Artifact evidence 待推送。
+- 最近功能提交：`880c281 feat: preserve lifecycle in artifact evidence`。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
 - 已通过：M200–M205 的跨入口、恢复、证据、Node/Chrome/DOM smoke 及生产 acceptance。
-- 当前无阻塞：M206 地图清理、M207 preview 和 M208 Artifact evidence 生命周期回归均已通过。
+- 当前无阻塞：M206 地图清理、M207 preview、M208 lifecycle 和 M209 repair lineage 回归均已通过。
 
 ## 当前唯一工作切片
 
-1. 复核 M208-A 的最小 diff、敏感信息和文档摘要。
-2. 提交并推送 M208-A；保留 Docker/HTTP/Artifact 验收证据引用，不提交原始响应。
-3. 推送后按全局七个维度规划 M209，再选择一个 repair/retry/recover 纵向切片实现。
+1. 复核 M209-A 的最小 diff、敏感信息和文档摘要。
+2. 提交并推送 M209-A；保留 Docker/HTTP/Artifact 验收证据引用，不提交原始响应。
+3. 推送后按全局七个维度规划 M210，再选择一个 action transition/restart 纵向切片实现。
 
 ## 不变量
 

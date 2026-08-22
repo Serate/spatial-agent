@@ -36,6 +36,16 @@ Runtime 与 Service preview 统一复用 `project_action_lifecycle()`，返回�
 
 公共 `project_evidence_projection()` 统一生成稳定 lifecycle，并移除 run/action subject identity。身份属于可执行 interaction/action envelope，不属于跨入口 evidence 等价契约；回归必须同时覆盖 pending 状态和 sync/async projection 等价。
 
+## M209：Repair lineage 需要复用规范化结果而不是复制 schema
+
+### 现象
+
+真实 stale preview evidence 会进入 `repairable` 生命周期，但 Artifact evidence projection 只有状态和允许动作，没有 `replanning.events`，修复原因和替换步骤无法从证据入口读取。
+
+### 修复与约束
+
+复用结果契约已有的 `build_replanning_evidence()`，向公共 projection 增加有界 `replanning`；不要复制第二套 repair schema。由于结果契约和 evidence recovery 存在反向依赖，复用入口必须避免模块初始化循环；新增字段仍需验证 sync/async/Artifact 的稳定等价。
+
 ## 超大空间范围请求不能直接作为单次下载
 
 ### 现象

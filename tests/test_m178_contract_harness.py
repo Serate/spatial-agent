@@ -135,6 +135,22 @@ class M178ContractHarnessTests(unittest.TestCase):
         self.assertEqual(projection["lifecycle"]["state"], "clarification_required")
         self.assertEqual(projection["lifecycle"]["allowed_actions"], ["clarify", "cancel"])
 
+    def test_replanning_lineage_survives_artifact_evidence_projection(self):
+        payload = _payload()
+        payload["replan_events"] = [{
+            "failed_step_id": "step-a",
+            "failed_tool": "tool_a",
+            "failure_category": "backend_execution",
+            "replanned_step_ids": ["repair-step"],
+            "repair_status": "repaired",
+            "repair_reason_code": "replacement_validated",
+        }]
+
+        projection = project_evidence_projection(payload)
+
+        self.assertEqual(projection["replanning"]["count"], 1)
+        self.assertEqual(projection["replanning"]["events"][0]["failed_tool"], "tool_a")
+
     def test_planner_selection_drift_is_reported_through_projection(self):
         changed = _full_payload()
         changed["result"]["planning"]["planner_selection"]["state"] = "mismatch"

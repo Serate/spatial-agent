@@ -31,6 +31,11 @@ def project_evidence_projection(
 ) -> dict[str, Any]:
     """Project shared evidence without exposing arbitrary nested payloads."""
 
+    # result_contract owns the canonical bounded replan-event normalizer. Keep
+    # this import lazy because result_contract also imports evidence recovery,
+    # which imports this projection module.
+    from result_contract import build_replanning_evidence
+
     payload = value if isinstance(value, Mapping) else {}
     envelope = payload.get("result")
     envelope = envelope if isinstance(envelope, Mapping) else payload
@@ -52,10 +57,12 @@ def project_evidence_projection(
     )
     migration = _migration_projection(raw_registry, completeness)
     lifecycle = _stable_lifecycle_projection(payload)
+    replanning = build_replanning_evidence(_replanning_events(payload, envelope))
     return {
         "schema_version": EVIDENCE_PROJECTION_SCHEMA_VERSION,
         "available": bool(registry.get("available") or planning),
         "lifecycle": lifecycle,
+        "replanning": replanning,
         "evidence_registry": registry,
         "evidence_registry_completeness": completeness,
         "migration": migration,
@@ -85,6 +92,17 @@ def _stable_lifecycle_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
             for item in actions
         ]
     return lifecycle
+
+
+def _replanning_events(payload: Mapping[str, Any], envelope: Mapping[str, Any]) -> Any:
+    """Read current and result-envelope repair events without raw errors."""
+    events = payload.get("replan_events")
+    if isinstance(events, list):
+        return events
+    nested = envelope.get("replanning")
+    if isinstance(nested, Mapping) and isinstance(nested.get("events"), list):
+        return nested["events"]
+    return []
 
 
 def _migration_projection(
