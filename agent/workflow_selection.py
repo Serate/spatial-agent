@@ -15,6 +15,7 @@ from .evidence_contract import (
     build_capability_evidence,
     normalize_capability_evidence,
 )
+from .recovery_action import ACTION_IDS, normalize_action_ids
 
 
 WORKFLOW_SELECTION_SCHEMA_VERSION = "spatial-agent.workflow-selection.v1"
@@ -26,6 +27,10 @@ WORKFLOW_SELECTION_SOURCES = {
     "user_confirmation",
     "none",
 }
+EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION = "spatial-agent.evidence-action-guidance.v1"
+EVIDENCE_ACTION_GUIDANCE_STATES = frozenset(
+    {"ready", "degraded", "unavailable", "unknown", "not_applicable"}
+)
 _MAX_ITEMS = 16
 _MAX_TEXT = 96
 _MAX_DESCRIPTION = 320
@@ -44,6 +49,7 @@ def build_workflow_selection_evidence(
     domain_id: str = "unknown",
     state: str | None = None,
     reason_code: str | None = None,
+    evidence_action_guidance: Any = None,
 ) -> dict[str, Any]:
     """Build a bounded selection projection without selecting by domain name."""
 
@@ -96,6 +102,14 @@ def build_workflow_selection_evidence(
         or discovery_map.get("suggested_capability_details")
         or discovery_guidance.get("suggested_capability_details")
         or suggested_capability_details
+    )
+    guidance_value = (
+        selected.get("evidence_action_guidance")
+        or discovery_map.get("evidence_action_guidance")
+        or discovery_guidance.get("evidence_action_guidance")
+        or selected.get("action_guidance")
+        or discovery_map.get("action_guidance")
+        or evidence_action_guidance
     )
     source = _text(selected.get("source")) or (
         "explicit_workflow" if template_id and explicit.get("template_id") else
@@ -166,6 +180,9 @@ def build_workflow_selection_evidence(
         "suggested_capability_details": _normalize_candidate_details(
             suggested_detail_values
         ),
+        "evidence_action_guidance": normalize_evidence_action_guidance(
+            guidance_value
+        ),
         "known_capability_result_types": known_result_types,
         "domain_seams": _normalize_domain_seams(domain_seams or selected.get("domain_seams")),
         "missing_fields": missing,
@@ -200,7 +217,56 @@ def normalize_workflow_selection_evidence(value: Any) -> dict[str, Any]:
         candidate_details=value.get("candidate_details"),
         suggested_capability_details=value.get("suggested_capability_details"),
         domain_seams=value.get("domain_seams"),
+        evidence_action_guidance=value.get("evidence_action_guidance"),
     )
+
+
+def normalize_evidence_action_guidance(value: Any) -> dict[str, Any]:
+    """Normalize Domain-owned evidence advice without granting execution power.
+
+    A Domain Pack may recommend next actions from its evidence/readiness
+    semantics.  The Runtime consumes this as a bounded hint; lifecycle and
+    interaction gates still decide which actions are executable.
+    """
+
+    source = value if isinstance(value, Mapping) else {}
+    schema = _text(source.get("schema_version"))
+    if source and schema != EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION:
+        return _empty_guidance("evidence_action_guidance_unknown_schema")
+    state = _text(source.get("state") or source.get("status")) or "unknown"
+    if state not in EVIDENCE_ACTION_GUIDANCE_STATES:
+        state = "unknown"
+    recommended = normalize_action_ids(
+        source.get("recommended_actions") or source.get("actions"),
+        allowed=ACTION_IDS,
+    )
+    return {
+        "schema_version": EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
+        "available": bool(source),
+        "state": state,
+        "reason_code": _text(source.get("reason_code"))
+        or "evidence_action_guidance_unavailable",
+        "recommended_actions": recommended,
+        "missing_fields": _normalize_missing(source.get("missing_fields")),
+        "source": _guidance_source(source.get("source")),
+    }
+
+
+def _empty_guidance(reason_code: str) -> dict[str, Any]:
+    return {
+        "schema_version": EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
+        "available": False,
+        "state": "unknown",
+        "reason_code": _text(reason_code),
+        "recommended_actions": [],
+        "missing_fields": [],
+        "source": "none",
+    }
+
+
+def _guidance_source(value: Any) -> str:
+    source = _text(value)
+    return source if source in {"domain", "catalog", "runtime", "none"} else "none"
 
 
 def _candidate_details_from_catalog(
@@ -279,6 +345,9 @@ def _candidate_details_from_catalog(
                     "select_capability",
                     "select_workflow",
                 ] if workflow_summary else ["select_capability"],
+                "evidence_action_guidance": definition.get(
+                    "evidence_action_guidance"
+                ) or definition.get("action_guidance"),
                 "workflow": workflow_summary,
             }
         )
@@ -375,6 +444,9 @@ def _normalize_candidate_details(value: Any) -> list[dict[str, Any]]:
                 "geometry": _text(data.get("geometry") or "unknown"),
             }
         evidence = normalize_capability_evidence(item.get("evidence"))
+        guidance = normalize_evidence_action_guidance(
+            item.get("evidence_action_guidance") or item.get("action_guidance")
+        )
         result.append(
             {
                 "id": capability_id,
@@ -385,6 +457,7 @@ def _normalize_candidate_details(value: Any) -> list[dict[str, Any]]:
                 "result_types": _string_list(item.get("result_types")),
                 "data": data_summary,
                 "evidence": evidence,
+                "evidence_action_guidance": guidance,
                 "actions": actions or ["select_capability"],
                 "workflow": workflow_summary,
             }
@@ -523,9 +596,12 @@ def _bounded_int(value: Any, minimum: int, maximum: int) -> int | None:
 
 
 __all__ = [
+    "EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION",
+    "EVIDENCE_ACTION_GUIDANCE_STATES",
     "WORKFLOW_SELECTION_SCHEMA_VERSION",
     "WORKFLOW_SELECTION_SOURCES",
     "WORKFLOW_SELECTION_STATES",
     "build_workflow_selection_evidence",
+    "normalize_evidence_action_guidance",
     "normalize_workflow_selection_evidence",
 ]

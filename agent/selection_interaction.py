@@ -14,7 +14,10 @@ from typing import Any
 
 from .action_lifecycle import project_action_lifecycle
 from .recovery_action import normalize_action_ids, project_available_actions
-from .workflow_selection import normalize_workflow_selection_evidence
+from .workflow_selection import (
+    normalize_evidence_action_guidance,
+    normalize_workflow_selection_evidence,
+)
 
 
 SELECTION_INTERACTION_SCHEMA_VERSION = "spatial-agent.selection-interaction.v1"
@@ -143,10 +146,19 @@ def build_selection_interaction(
         "missing_fields": missing,
         "lifecycle": _lifecycle_summary(lifecycle_map),
     }
+    guidance = normalize_evidence_action_guidance(
+        normalized_selection.get("evidence_action_guidance")
+    )
+    result["evidence_action_guidance"] = guidance
     if subject_id:
         result["subject_id"] = _text(subject_id)
     result["actions"] = project_available_actions(
         result["allowed_actions"], subject_id=subject_id
+    )
+    result["recommended_actions"] = _project_recommended_actions(
+        guidance.get("recommended_actions"),
+        result["allowed_actions"],
+        subject_id=subject_id,
     )
     decision_summary = _decision_summary(decision_map)
     if decision_summary:
@@ -202,6 +214,30 @@ def _decision_summary(value: Mapping[str, Any]) -> dict[str, Any] | None:
         "options": [_text(item) for item in (value.get("options") or [])[:8] if _text(item)],
     }
     return result
+
+
+def _project_recommended_actions(
+    recommended: Any,
+    allowed: Any,
+    *,
+    subject_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Expose Domain advice while marking Runtime-gated actions explicitly."""
+
+    allowed_ids = set(
+        normalize_action_ids(allowed, allowed=SELECTION_INTERACTION_ACTIONS)
+    )
+    result = []
+    for item in project_available_actions(recommended, subject_id=subject_id):
+        action_id = item.get("id")
+        item["recommended"] = True
+        item["state"] = (
+            "available" if action_id in allowed_ids else "blocked_by_lifecycle"
+        )
+        if action_id not in allowed_ids:
+            item["reason_code"] = "runtime_lifecycle_gate"
+        result.append(item)
+    return result[:_MAX_ITEMS]
 
 
 def _lifecycle_summary(value: Mapping[str, Any]) -> dict[str, Any]:

@@ -27,6 +27,7 @@ from .domain_contract import (
     domain_action_catalog,
     execute_domain_action,
     clarification_details as resolve_clarification_details,
+    evidence_action_guidance as resolve_evidence_action_guidance,
     preflight_tool as run_domain_preflight,
     plan_policy as resolve_plan_policy,
     select_workflow as resolve_workflow_selection,
@@ -1182,19 +1183,26 @@ class AgentRuntime:
             # for an open request to continue without a fixed question page.
             max_suggestions=4,
         )
+        domain_selection = resolve_workflow_selection(
+            self._domain_pack,
+            discovery_payload,
+            spatial_request,
+            workflow=workflow,
+        )
+        domain_guidance = resolve_evidence_action_guidance(
+            self._domain_pack,
+            domain_selection,
+            request_facts=spatial_request,
+        )
         workflow_selection = build_workflow_selection_evidence(
             discovery=discovery_payload,
-            domain_selection=resolve_workflow_selection(
-                self._domain_pack,
-                discovery_payload,
-                spatial_request,
-                workflow=workflow,
-            ),
+            domain_selection=domain_selection,
             workflow=workflow,
             capability_catalog=catalog,
             domain_seams=workflow_seam_summary(self._domain_pack),
             request_facts=spatial_request,
             domain_id=self.domain_id,
+            evidence_action_guidance=domain_guidance,
         )
         workflow_templates = _compact_workflow_templates_for_context(
             workflow_context(self._domain_pack),

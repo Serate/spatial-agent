@@ -140,6 +140,19 @@ class DomainPack(Protocol):
     ) -> Mapping[str, Any]:
         """Return domain-owned metadata for capability/workflow selection."""
 
+    def evidence_action_guidance(
+        self,
+        selection: Mapping[str, Any],
+        *,
+        request_facts: Any = None,
+    ) -> Mapping[str, Any]:
+        """Recommend bounded next actions from Domain-owned evidence status.
+
+        Recommendations are advisory. The generic Runtime still applies the
+        lifecycle and interaction gates before exposing an executable action.
+        Older Domain Packs may omit this optional seam.
+        """
+
     def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
         """Normalize one explicit workflow inside the Domain Pack."""
 
@@ -258,6 +271,45 @@ def select_workflow(
         "candidate_count": context.get("candidate_count"),
         "selected_by": "user" if isinstance(workflow, Mapping) and workflow.get("template_id") else "domain",
     }
+
+
+def evidence_action_guidance(
+    domain_pack: DomainPack,
+    selection: Mapping[str, Any] | None,
+    *,
+    request_facts: Any = None,
+) -> dict[str, Any]:
+    """Read and safely normalize optional Domain evidence advice.
+
+    The Runtime owns the lifecycle gate; this adapter only gives Domain Packs
+    a narrow, versioned seam for recommending clarification or recovery.
+    Provider/Domain exceptions become an unavailable guidance projection and
+    never cross the public contract.
+    """
+
+    from .workflow_selection import normalize_evidence_action_guidance
+
+    method = getattr(domain_pack, "evidence_action_guidance", None)
+    if not callable(method):
+        return normalize_evidence_action_guidance(None)
+    try:
+        try:
+            value = method(
+                dict(selection) if isinstance(selection, Mapping) else {},
+                request_facts=request_facts,
+            )
+        except TypeError:
+            value = method(dict(selection) if isinstance(selection, Mapping) else {})
+    except Exception:
+        return normalize_evidence_action_guidance(
+            {
+                "schema_version": "spatial-agent.evidence-action-guidance.v1",
+                "state": "unavailable",
+                "reason_code": "domain_evidence_action_guidance_failed",
+                "source": "none",
+            }
+        )
+    return normalize_evidence_action_guidance(value)
 
 
 def workflow_seam_summary(domain_pack: DomainPack) -> dict[str, Any]:
