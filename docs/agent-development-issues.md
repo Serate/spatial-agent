@@ -4823,3 +4823,17 @@ Runtime 只在第二次控制检查之后才生成正常 `plan_evidence`；`RunT
 ### 处理与预防
 
 取消和超时收口现在复用 `_failure_plan_evidence`，从同一个 context packet 生成 bounded workflow selection、组件身份和 evidence 摘要；不会执行工具，也不会把 timeout/cancel 当成成功计划。新增 Docker 集成契约覆盖 HTTP、Artifact、async、SQLite restart 和多 worker。以后任何控制点在 plan evidence 生成前终止，都必须保留可恢复的 selection/evidence projection，并验证跨入口 equality。
+
+## M196-A.1：非数据 Domain 的 `not_applicable` 被错误降级为 `unknown`
+
+### 现象
+
+Text Evidence Provider 明确返回 `health_status=ready` 和 `data_readiness=not_applicable`，但新的 capability-level evidence projection 将文本能力状态投影为 `unknown`。这样前端和能力目录无法区分“数据维度不适用”和“Provider 没有报告状态”。
+
+### 根因
+
+状态合并器只把 `unknown` 从候选状态中排除，`not_applicable` 仍参与“全部 ready 才算 ready”的判断。公共证据契约没有区分非数据 Domain 的中性维度与真正的未知状态。
+
+### 处理与预防
+
+`not_applicable` 现在作为中性状态参与合并；只要 Provider 的健康状态为 `ready`，Text 能力即可得到 `ready`，同时仍保留 readiness 字段的 `not_applicable` 语义。以后扩展 Evidence Provider 时，必须分别测试 ready、degraded、unavailable、unknown 和 not_applicable，不能仅用 GIS 数据状态覆盖公共归一化逻辑。

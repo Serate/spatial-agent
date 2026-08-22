@@ -3959,3 +3959,20 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 5. **部署**：补多 worker 滚动升级、旧 schema replay、Artifact-only 接管和 provider 不可用时的恢复边界。
 6. **体验**：让前端用统一 renderer 动态消费任意结果、evidence、lifecycle 和 artifact，不增加固定问题页面。
 7. **测试**：保持 compact quick/CI；以 Text + GIS 双 Domain、HTTP、Docker、Artifact/SQLite、浏览器和显式 live 验收证明通用性。
+
+## M196-A：Capability-level Evidence Provider projection（已完成，待版本推送）
+
+- 新增领域无关 `spatial-agent.capability-catalog-evidence.v1` 投影；`project_capability_catalog_evidence()` 将静态 Capability Catalog 与 Evidence Provider 的 per-capability observation 合并，统一输出 readiness、coverage、alignment、provenance、availability 和 bounded missing reasons。
+- Runtime 的 `runtime_capabilities()`、能力上下文和后续前端消费现在使用同一 `capability-evidence.v1`；只保留有界摘要，不把 Provider 原始 payload、路径或来源值复制到公共 evidence。缺失、过期、冲突、未知 schema 和非数据 Domain 的 `not_applicable` 均有明确降级语义。
+- Text、GIS 和自定义 Provider 契约测试共 **5/5**；M168、M140、M194、M195 受影响回归合计 **31/31**；Docker quick、ci、stage、full-stage、compileall、production acceptance、Docker Node smoke、宿主 Node 语法和 Chrome/CDP workflow evidence smoke 均通过。
+- 新发现的 `not_applicable` 误降级问题已记录到 `docs/agent-development-issues.md`。本切片没有增加 GIS Runtime 分支、默认 CI 网络访问、私有配置或真实模型 token。
+
+## M196-B：全局规划参考
+
+1. **产品**：把 capability-level evidence 接入开放式请求的候选卡片、澄清和结果工作区，让用户看到“可用/降级/需补事实/不可用”及下一步动作。
+2. **架构**：统一 runtime snapshot、per-run workflow selection 和 Artifact/SQLite replay 的 capability evidence projection，避免同一 Provider 被重复探测或不同入口各自归一化。
+3. **数据**：让 Evidence Provider 显式表达更新时间、覆盖、来源绑定、跨源冲突和有效期；验证缺失、过期、未对齐和冲突的可恢复降级。
+4. **模型**：把脱敏 capability evidence 摘要纳入开放式 Planner replay；模型不得选择不可用能力，信息不足时生成结构化 clarification/selection，而不是固定问句分支。
+5. **部署**：覆盖 HTTP `/capabilities`、异步提交、Artifact-only 和 SQLite 重启下的 capability evidence equality，以及 Provider 不可用时的安全接管。
+6. **体验**：Console 用现有领域无关 renderer 动态展示 evidence status、missing reasons 和 allowed actions，不引入 GIS 页面分支。
+7. **测试**：保持 quick/CI 精简，新增少量跨 Domain contract；阶段收口使用 Docker、HTTP、Artifact/SQLite、浏览器和必要 live-short 验证。

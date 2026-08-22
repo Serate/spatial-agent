@@ -38,6 +38,7 @@ from .domain_contract import (
 )
 from .deployment_evidence import build_deployment_evidence
 from .decision_lifecycle import DecisionLifecycleError, DecisionRequest, DecisionStore
+from .evidence_contract import project_capability_catalog_evidence
 from .failure_contract import build_failure_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
@@ -317,6 +318,10 @@ class AgentRuntime:
         context = snapshot.get("runtime_context")
         if isinstance(context, Mapping) and context.get("fingerprint"):
             snapshot["runtime_context_fingerprint"] = str(context["fingerprint"])
+        snapshot = project_capability_catalog_evidence(
+            snapshot,
+            runtime_evidence=evidence,
+        )
         snapshot["deployment_evidence"] = build_deployment_evidence(
             {"runtime_context": context, "runtime_evidence": snapshot},
             degradation=snapshot.get("degradation"),

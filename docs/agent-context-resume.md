@@ -2023,3 +2023,10 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - Docker 专项 `tests.test_m195_composed_lifecycle` **5/5 通过**，覆盖 HTTP preview/run/detail/Artifact、async 轮询、取消、超时、显式 retry、双 Service 幂等提交和 SQLite 重启恢复。
 - 阶段收口已完成：上述联合专项 **26/26**，Docker quick、ci、stage、full-stage、生产 acceptance、compileall、Docker Node smoke、宿主 Node 语法检查和 Chrome/CDP workflow evidence smoke 均通过；`git diff --check` 通过，敏感文件未进入版本。
 - 下一步提交并推送 M195-C；不要标记总 Goal complete。阶段完成后按 `docs/milestones.md` 中的七维度进入 M196，全局优先于单个数据集细节。
+
+## 当前恢复快照（M196-A 已实现，待阶段提交）
+
+- M195-C 已推送为 `5137358`，当前工作树进入 M196-A，尚未提交的实现包括 `agent/evidence_contract.py`、`agent/capability_catalog.py`、`agent/runtime.py`、`tests/test_m196_capability_evidence_provider.py` 及中文问题/阶段文档。
+- 新增 `spatial-agent.capability-catalog-evidence.v1`；Runtime capability snapshot 将静态 Catalog 与 Evidence Provider 的 per-capability observation 统一投影为 `capability-evidence.v1`，不复制原始 provider payload。
+- Text、GIS、自定义 Provider 专项 **5/5**，M168/M140/M194/M195 受影响回归 **31/31**；当前工作树 Docker 已重建 healthy，quick/ci/stage/full-stage、compileall、production acceptance、Node smoke、宿主 Node 语法检查和 Chrome/CDP workflow evidence smoke 均通过。
+- 新问题“非数据 Domain 的 `not_applicable` 被错误降级为 `unknown`”已追加到 `docs/agent-development-issues.md`。下一步先做敏感信息/diff 审计、提交推送 M196-A，再进入 M196-B：候选能力/澄清/HTTP/Artifact/SQLite 的 capability evidence equality 和脱敏模型 replay。

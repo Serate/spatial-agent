@@ -3,6 +3,7 @@
 from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
+from .evidence_contract import normalize_capability_evidence
 from .workflow_templates import workflow_template_catalog
 
 
@@ -567,7 +568,7 @@ def runtime_capability_catalog(
 
 
 def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
-    return {
+    result = {
         "id": str(item.get("id", "")),
         "label": str(item.get("label", ""))[:80],
         "description": str(item.get("description", ""))[:320],
@@ -589,6 +590,12 @@ def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
             item.get("request_requirements")
         ),
     }
+    # Runtime capability snapshots may carry the canonical projection. A
+    # static catalog does not claim that data has been probed, so do not turn
+    # an absent provider observation into a false ``unavailable`` status.
+    if isinstance(item.get("evidence"), Mapping):
+        result["evidence"] = normalize_capability_evidence(item.get("evidence"))
+    return result
 
 
 def _safe_tool_provider_summary(value: Mapping[str, Any] | str) -> Dict[str, Any]:
