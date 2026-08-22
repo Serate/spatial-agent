@@ -208,6 +208,7 @@ def _action_event(
         project_action_preconditions,
     )
     from .action_lineage import normalize_action_lineage
+    from .action_effect import normalize_action_effect
     from .recovery_action import normalize_action_receipt
 
     normalized = normalize_action_receipt(receipt)
@@ -249,6 +250,7 @@ def _action_event(
             "transition_lineage": normalize_action_lineage(
                 normalized.get("transition_lineage")
             ),
+            "effect": normalize_action_effect(normalized.get("effect")),
         },
     }
 
@@ -269,6 +271,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
     from .action_identity import normalize_action_receipt_identity_linkage
     from .action_precondition import normalize_action_preconditions
     from .action_lineage import normalize_action_lineage
+    from .action_effect import normalize_action_effect
 
     identity = normalize_action_receipt_identity_linkage(
         value.get("identity_linkage")
@@ -293,6 +296,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
         "transition_lineage": normalize_action_lineage(
             value.get("transition_lineage")
         ),
+        "effect": normalize_action_effect(value.get("effect")),
     }
     return result
 
@@ -320,12 +324,19 @@ def attach_action_receipt_timeline(
             normalized_receipt.get("preconditions")
         )
         source["action_preconditions"] = canonical
+    if "effect" in normalized_receipt:
+        from .action_effect import normalize_action_effect
+
+        effect = normalize_action_effect(normalized_receipt.get("effect"))
+        source["action_effect"] = effect
     nested = source.get("result")
     if isinstance(nested, Mapping):
         nested_result = dict(nested)
         nested_result["action_receipt"] = dict(normalized_receipt)
         if "preconditions" in normalized_receipt:
             nested_result["action_preconditions"] = canonical
+        if "effect" in normalized_receipt:
+            nested_result["action_effect"] = effect
         source["result"] = nested_result
     timeline = build_execution_timeline(source)
     source["execution_timeline"] = timeline

@@ -60,6 +60,7 @@ def _event(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, Mapping):
         return None
     from .action_identity import normalize_action_receipt_identity_linkage
+    from .action_effect import normalize_action_effect
     from .action_precondition import normalize_action_preconditions
 
     if isinstance(value.get("action_linkage"), Mapping):
@@ -76,6 +77,7 @@ def _event(value: Any) -> dict[str, Any] | None:
             "available": False,
         }
         preconditions = normalize_action_preconditions(linkage.get("preconditions"))
+        effect = normalize_action_effect(linkage.get("effect"))
     else:
         from .recovery_action import normalize_action_receipt
 
@@ -94,6 +96,7 @@ def _event(value: Any) -> dict[str, Any] | None:
             "available": False,
         }
         preconditions = normalize_action_preconditions(receipt.get("preconditions"))
+        effect = normalize_action_effect(receipt.get("effect"))
     if not action_id:
         return None
     return {
@@ -105,6 +108,7 @@ def _event(value: Any) -> dict[str, Any] | None:
         "result_kind": result_kind,
         "identity_linkage": identity,
         "preconditions": preconditions,
+        "effect": effect,
     }
 
 

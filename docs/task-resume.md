@@ -2194,3 +2194,23 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 验证滚动升级和异常接管不重复执行动作、不丢失 lineage。
 6. Console 动态渲染长 lineage 的折叠/截断/恢复，不增加 GIS 专用分支。
 7. quick/CI 维持精简，阶段收口执行 Docker、HTTP、Artifact、浏览器和必要 live-short。
+
+## M188 当前完成状态
+
+- 新增领域无关 `agent/action_effect.py` 与 `spatial-agent.action-effect.v1`，为每个生命周期动作投影 `state`、`impact`、`result_available`、源/目标状态、下一步动作和结构化原因。
+- Action Effect 已由 Action Receipt 作为 canonical 来源，接入 Result Contract、execution timeline、async evidence、SQLite/detail/replay、Artifact、Contract Harness 和 Console；没有新增 GIS 专用页面分支。
+- M188 专项 6/6；M187/M186/M185/M184/M183/M182/M156/M157 相关回归 41/41；Docker compileall、quick、stage、full-stage、生产 acceptance 通过，容器 healthy，核心/可选数据 ready。
+- `console_selection_interaction_browser_smoke.js` 通过 preview→confirmation→complete，三阶段 plan fingerprint 一致；`console_overview_smoke.js` 与 `console_selection_evidence_smoke.js` 通过，三类空间图层颜色契约保持有效。
+- 本阶段修复了 Service 完成阶段复用旧 Action Effect、以及 Console bootstrap ready 早于历史恢复完成的两个问题，均已追加到 `docs/agent-development-issues.md`。
+- 本阶段未调用 live 模型、未提交私有配置、API key、原始模型输出或 GIS 原始数据。M188 已具备提交推送条件。
+
+## M189 下一阶段全局规划参考
+
+从 M188 的结果影响投影继续推进通用 Agent Runtime，而不是增加单个 GIS 分析功能：
+
+1. 完成 Action Effect 跨同步、异步、Artifact-only、重启和多 worker 的 Contract Harness 与旧 schema 迁移。
+2. 把证据复用/重验、数据过期、覆盖/对齐和恢复动作接入统一生命周期。
+3. 用脱敏 replay 和最小 live-short 验证未预定义请求的动态能力匹配、澄清和有限 repair。
+4. 验证真实模型 + 真实 GIS + Docker 的代表性复杂请求，并保持默认测试离线、精简。
+5. 让前端动态呈现长动作 lineage、结果影响、证据状态、阻断原因和下一步动作。
+6. 阶段收口继续执行整体规划、实现、Docker 集成验收、文档更新和版本推送。

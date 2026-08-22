@@ -24,6 +24,7 @@ from agent.evidence_recovery import project_evidence_recovery
 from agent.action_identity import build_action_receipt_identity_linkage
 from agent.action_precondition import project_action_preconditions
 from agent.action_lineage import append_action_lineage
+from agent.action_effect import project_action_effect
 from agent.execution_timeline import attach_action_receipt_timeline
 from agent.recovery_action import (
     action_input_fingerprint,
@@ -1767,6 +1768,28 @@ class AgentService:
         # response is written.  Subsequent replay, Artifact and timeline
         # readers therefore share one canonical, bounded value.
         receipt["preconditions"] = action_preconditions
+        # The receipt reserved at the beginning of the action may already
+        # contain an in-progress effect.  Completion is the canonical point
+        # at which result_run_id/status become final, so do not let that old
+        # effect short-circuit the projection.  Other readers should still
+        # prefer a persisted canonical effect when replaying a completed
+        # receipt.
+        effect_receipt = dict(receipt)
+        effect_receipt.pop("effect", None)
+        effect_payload = dict(identity_payload)
+        # The source run/result may carry the previous result-contract
+        # projection.  It is evidence for the run, not the current action
+        # transition, and must not short-circuit this completion projection.
+        effect_payload.pop("action_effect", None)
+        effect_result = effect_payload.get("result")
+        if isinstance(effect_result, Mapping):
+            effect_result = dict(effect_result)
+            effect_result.pop("action_effect", None)
+            effect_payload["result"] = effect_result
+        receipt["effect"] = project_action_effect(
+            {**effect_payload, "action_receipt": effect_receipt},
+            action=receipt.get("action"),
+        )
         prior_source = identity_payload
         if not isinstance(prior_source.get("action_receipt"), Mapping):
             prior_source = self._action_identity_source(

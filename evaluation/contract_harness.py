@@ -34,6 +34,11 @@ from agent.action_precondition import (
     normalize_action_preconditions,
     project_action_preconditions,
 )
+from agent.action_effect import (
+    ACTION_EFFECT_SCHEMA_VERSION,
+    normalize_action_effect,
+    project_action_effect,
+)
 from agent.evidence_registry import (
     normalize_evidence_registry,
     project_evidence_registry_completeness,
@@ -126,6 +131,22 @@ class ActionPreconditionContract:
         return _differences(self.values, other.values)
 
     def equivalent_to(self, other: "ActionPreconditionContract") -> bool:
+        return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class ActionEffectContract:
+    """Stable result-impact evidence for one lifecycle action."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "ActionEffectContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "ActionEffectContract") -> bool:
         return not self.differences(other)
 
 
@@ -326,6 +347,61 @@ def compare_action_preconditions(
     contracts = [
         normalize_action_precondition_contract(item) for item in payloads
     ]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_action_effect_contract(
+    payload: Mapping[str, Any],
+) -> ActionEffectContract:
+    """Normalize action impact independently of identity and timeline."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("action effect payload must be a mapping")
+    result = payload.get("result")
+    result = result if isinstance(result, Mapping) else {}
+    receipt = payload.get("action_receipt")
+    if not isinstance(receipt, Mapping):
+        receipt = result.get("action_receipt")
+    receipt = receipt if isinstance(receipt, Mapping) else {}
+    raw = receipt.get("effect")
+    if not isinstance(raw, Mapping):
+        raw = payload.get("action_effect")
+    if not isinstance(raw, Mapping):
+        raw = result.get("action_effect")
+    if isinstance(raw, Mapping) and "schema_version" in raw:
+        effect = normalize_action_effect(raw)
+    else:
+        effect = project_action_effect(payload)
+    return ActionEffectContract({
+        "schema_version": effect.get(
+            "schema_version", ACTION_EFFECT_SCHEMA_VERSION
+        ),
+        "available": bool(effect.get("available")),
+        "action_id": effect.get("action_id"),
+        "state": effect.get("state"),
+        "impact": effect.get("impact"),
+        "receipt_status": effect.get("receipt_status"),
+        "source_status": effect.get("source_status"),
+        "target_status": effect.get("target_status"),
+        "result_available": bool(effect.get("result_available")),
+        "next_actions": effect.get("next_actions", []),
+        "reason_code": effect.get("reason_code"),
+    })
+
+
+def compare_action_effects(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return bounded result-impact drift across public/recovery entries."""
+    if len(payloads) < 2:
+        raise ValueError("at least two action effects are required")
+    contracts = [normalize_action_effect_contract(item) for item in payloads]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):

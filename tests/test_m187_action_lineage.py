@@ -81,13 +81,23 @@ class M187ActionLineageTests(unittest.TestCase):
             response["action_receipt"]["transition_lineage"]["event_count"],
             1,
         )
+        self.assertEqual(response["action_receipt"]["effect"]["state"], "completed")
+        self.assertTrue(response["action_receipt"]["effect"]["result_available"])
         self.assertEqual(
             detail["action_receipt"]["transition_lineage"],
             response["action_receipt"]["transition_lineage"],
         )
         self.assertEqual(
+            detail["action_receipt"]["effect"],
+            response["action_receipt"]["effect"],
+        )
+        self.assertEqual(
             artifact["action_receipt"]["transition_lineage"],
             response["action_receipt"]["transition_lineage"],
+        )
+        self.assertEqual(
+            artifact["action_receipt"]["effect"],
+            response["action_receipt"]["effect"],
         )
 
     def test_console_consumes_lineage_without_domain_specific_branch(self):

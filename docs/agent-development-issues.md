@@ -4614,3 +4614,31 @@ M185 初版已经把 Action Preconditions 接入 Result Contract、执行时间�
 ### 处理与预防
 
 Service 集成测试同时为 `state_db_path` 和 ArtifactStore 使用同一临时目录，测试结束显式调用 `close()`。以后凡是验证幂等、Action Receipt、重启或多 worker 的测试，都必须显式隔离 SQLite/Artifact 根目录，不能只隔离文件输出目录；固定幂等键只允许在测试私有存储中使用。
+
+## M188：完成动作时旧 Action Effect 覆盖了当前结果可用性
+
+### 现象
+
+取消一个等待确认的运行后，Service response、detail 和 Artifact 中的 Action Receipt 都显示 `state=completed`，但 `effect.result_available` 仍为 `false`；此时 Action Receipt 实际已经有 `result_run_id`。
+
+### 根因
+
+动作预留阶段已经生成了一个 schema v1 的处理中/无结果 Effect。完成阶段虽然写入了最终 `status` 和 `result_run_id`，但 Service 从源运行快照生成 `identity_payload` 时，嵌套 `result.action_effect` 仍是旧的结果契约投影。`project_action_effect()` 为保持已持久化 canonical Effect 的读取语义，会优先采用这个旧值，于是没有读取当前 receipt 的最终结果引用。
+
+### 处理与预防
+
+在 `_complete_action_receipt()` 的 canonical completion seam 中，清除顶层和嵌套 result 的旧 `action_effect`，只用当前完成后的 Action Receipt、状态和结果引用重新计算 Effect，再写入 Receipt、SQLite、Artifact 和 timeline。以后新增 transition evidence 时，必须区分“源运行的历史结果投影”和“当前动作完成投影”，完成阶段不能让旧嵌套 projection 短路新的状态。
+
+## M188：Console bootstrap ready 早于历史恢复完成导致浏览器确认结果被覆盖
+
+### 现象
+
+Chrome/CDP smoke 的 preview fingerprint 与提交 fingerprint 一致，最终请求也已完成，但脚本偶发读取到不同的 final fingerprint。直接 HTTP preview→submit→resolve 链路稳定通过。
+
+### 根因
+
+Console 初始化 Promise 在调用异步 `restoreSession()` 之前就设置 `window.__consoleBootstrapReady=true`。浏览器 smoke 看到 ready 后立即开始新任务，而历史恢复可能稍后完成并调用 `renderRun()`，覆盖 `lastRunData`；页面状态显示的是新任务，脚本读取的 fingerprint 却来自旧历史运行。这是初始化时序竞态，不是 Planner 重新规划。
+
+### 处理与预防
+
+将 bootstrap ready 延后到 `await restoreSession()` 完成之后；异常路径仍设置 ready，避免服务不可用时页面永久等待。浏览器 smoke 必须等待该 ready 标记后再开始交互，并同时断言 preview、submit、complete 三阶段 fingerprint、状态、Artifact 和页面模块加载。

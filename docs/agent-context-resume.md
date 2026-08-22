@@ -1856,3 +1856,24 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 3. 处理旧 Receipt/schema 迁移和未知版本安全空态。
 4. 以脱敏 replay、最小 live-short 和 Docker 生产接管验证模型/动作连续性。
 5. Console 动态展示长 lineage 的折叠、截断和恢复，不增加 GIS 专用页面分支。
+
+## M188 当前完成状态
+
+- 新增领域无关 `agent/action_effect.py`，版本化契约为 `spatial-agent.action-effect.v1`；表达动作完成/失败/处理中/未知、结果关联/状态改变/无变化/无影响/未知、结果可用性、源/目标状态、下一步动作和 `reason_code`。
+- Action Effect 以 canonical Action Receipt 为持久化来源，已接入 Result Contract、execution timeline、async evidence、SQLite replay、Artifact、Contract Harness 和 Console；旧 Receipt/未知 schema 继续安全降级。
+- M188 专项 6/6；相邻 M182–M187、M156/M157 回归 41/41；Docker compileall、quick、stage、full-stage、生产 acceptance 通过，容器 healthy，核心/可选数据 ready。
+- Chrome/CDP preview→confirmation→complete smoke 通过，plan fingerprint 在三阶段一致；空间总览和证据入口 smoke 通过，行政区/道路/水体图层仍按结构化结果使用不同颜色。
+- 本阶段修复了完成阶段旧嵌套 Action Effect 覆盖当前 `result_run_id`，以及 Console 在 `restoreSession()` 完成前报告 ready 的问题；详细记录见 `docs/agent-development-issues.md`。
+- 当前工作树包含 M188 实现、测试和文档修改，尚未提交推送；不得提交 API key、`config/openai.local.json`、原始模型输出或 GIS 原始数据。Goal 仍 active。
+
+## M189 全局规划参考
+
+从 M188 继续按全局七个维度推进：
+
+1. 产品：统一开放式能力发现、澄清、repair、确认、执行、恢复和结果影响工作区。
+2. 架构：完成 Action Effect 跨 HTTP、async、SQLite、Artifact-only、restart、multi-worker 的公共契约和迁移 seam。
+3. 数据：统一证据复用/重验、readiness、coverage、alignment、provenance 和过期状态。
+4. 模型：脱敏 replay + 最小 live-short 验证未预定义问题的能力匹配与有限修复。
+5. 部署：验证异常接管、滚动升级、幂等和旧历史恢复不重复执行、不丢证据。
+6. 体验：前端动态展示长 lineage、结果影响、证据状态、阻断原因和下一步动作。
+7. 测试：quick/CI 继续精简，阶段末再执行跨入口 Harness、Docker、HTTP、浏览器和必要真实模型/GIS 验收。

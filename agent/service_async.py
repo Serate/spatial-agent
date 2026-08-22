@@ -28,6 +28,7 @@ from agent.action_precondition import (
     normalize_action_preconditions,
     project_action_preconditions,
 )
+from agent.action_effect import normalize_action_effect, project_action_effect
 from agent.selection_interaction import normalize_selection_interaction
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_projection import project_evidence_projection
@@ -266,6 +267,7 @@ def build_async_result_evidence(
         ),
         "execution_timeline": timeline,
         "action_preconditions": project_action_preconditions(value),
+        "action_effect": project_action_effect(value),
         "evidence_registry": registry,
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
@@ -478,6 +480,7 @@ def normalize_async_result_evidence(
         "action_preconditions": normalize_action_preconditions(
             value.get("action_preconditions")
         ),
+        "action_effect": normalize_action_effect(value.get("action_effect")),
         "evidence_registry": registry,
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,

@@ -3719,3 +3719,26 @@ M187 将 Action Receipt 从“最后一次动作”推进为可恢复的 bounded
 5. 部署：验证 SQLite 重启接管、Artifact-only recovery、滚动升级和多 worker 不丢失/重复动作。
 6. 体验：Console 动态显示结果影响与证据引用，支持长 lineage 的折叠/截断/恢复，不增加 GIS 分支。
 7. 测试：quick/CI 继续精简，阶段收口增加多动作 HTTP/Artifact/SQLite/restart Harness 及必要浏览器/live-short。
+
+## M188：Action Effect 结果影响投影（已完成）
+
+M188 将 bounded transition lineage 从“动作发生了什么”推进到“动作产生了什么影响、结果是否可用以及下一步允许做什么”，仍保持领域无关，不把 GIS 策略写入公共 Runtime。
+
+- 新增 `agent/action_effect.py` 与 `spatial-agent.action-effect.v1`，统一表达动作状态、结果影响、结果引用可用性、源/目标状态、下一步动作和有界 `reason_code`；未知 schema 安全降级，不复制未知字段。
+- Action Effect 已接入 canonical Action Receipt、Result Contract、execution timeline、async evidence、SQLite replay、Artifact attach/recovery、Contract Harness 和 Console；同步、异步、Artifact 与历史入口共享同一投影。
+- 新增 M188 专项 **6/6**；M187/M186/M185/M184/M183/M182/M156/M157 受影响回归 **41/41**；Docker compileall、quick、stage、full-stage、生产 acceptance 均通过，容器 healthy，核心/可选数据 ready。
+- Chrome/CDP `console_selection_interaction_browser_smoke.js` 验证 preview→confirmation→complete 的计划 fingerprint 保持一致；`console_overview_smoke.js` 验证空间总览、证据入口和行政区/道路/水体三色图层；`console_selection_evidence_smoke.js` 通过。
+- 修复完成阶段旧 Action Effect 覆盖 `result_run_id` 的问题，并修复 Console 在历史恢复未完成前提前报告 ready 导致 `lastRunData` 被覆盖的问题；两项均已记录到中文开发问题文档。
+- 本阶段未调用 live 模型，未提交 API key、私有配置、原始模型输出或 GIS 原始数据。M188 完成后继续按全局七个维度进入 M189。
+
+## M189 全局重规划参考
+
+下一阶段从“动作影响可解释”继续推进完整通用 Agent Runtime 的开放式闭环：
+
+1. 产品：让开放式能力发现、澄清、计划修复、确认、执行、失败恢复和结果影响在同一工作区可读、可操作。
+2. 架构：补齐 Action Effect 在同步、异步、Artifact-only、SQLite 重启和多 worker 下的统一 Contract Harness 与迁移边界。
+3. 数据：把证据复用、重新核验、过期、覆盖和对齐状态映射为通用恢复条件，不新增单数据集分支。
+4. 模型：用脱敏 replay 和最小 live-short 验证未预定义问题的能力匹配、结构化澄清、有限 repair 与 Action Effect 连续性。
+5. 部署：验证滚动重启、异常接管、重复提交和旧 Artifact/Receipt 恢复不会重复执行工具或丢失结果影响证据。
+6. 体验：Console 动态展示长 lineage 的折叠、结果影响、证据复用/重验、阻断原因和下一步动作，保持 Text/GIS 共用 renderer。
+7. 测试：保持 quick/CI 极简，阶段收口覆盖跨入口 Harness、HTTP、Artifact、SQLite、浏览器和必要真实模型/GIS/Docker 验收。

@@ -176,6 +176,10 @@ def project_action_receipt(
         result["transition_lineage"] = normalize_action_lineage(
             value.get("transition_lineage")
         )
+    if "effect" in value:
+        from .action_effect import normalize_action_effect
+
+        result["effect"] = normalize_action_effect(value.get("effect"))
     return result
 
 
