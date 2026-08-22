@@ -100,6 +100,7 @@ class M165CrossEntryContractTests(unittest.TestCase):
             contract,
             status="WAITING_FOR_DECISION",
         )
+        self.assertEqual(evidence["state"], "pending")
         payload["async_observability"] = {"result_evidence": evidence}
         normalized = normalize_result(payload).as_dict()
         interaction = normalized["async_result_evidence"]["selection_interaction"]

@@ -30,16 +30,16 @@ rg -n -C 6 "错误关键词" docs/agent-development-issues.md
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M201-A 已完成实现与 Docker 验收，待版本推送；下一阶段为 M202。
-- 最新提交：`cbe8841 docs: advance recovery card to M201`。
-- 工作树：M201-A 的 Evidence Registry 修复、精简回归、阶段记录和问题记录有未提交修改；后续实现以 Git 实际状态为准。
+- 当前阶段：M202-A 已完成实现与 Docker 验收，待版本推送；下一阶段为 M203。
+- 最新提交：`c7b83f5 fix: preserve lifecycle evidence in registry`。
+- 工作树：M202-A 的 async projection 修复、精简回归、阶段记录和问题记录有未提交修改；后续实现以 Git 实际状态为准。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
-- 本轮验证：M198-A Node/Chrome/Evidence Registry/nested workspace smoke 通过；Rule + 本地 GIS 复杂请求 9 步完成；真实模型 + Docker GIS 复杂请求 9 工具、14 DAG edges、结果类型和答案质量通过；M200/M195/HTTP 跨入口专项 9/9；M201-A 专项 5/5、受影响回归 14/14；容器 healthy。
+- 本轮验证：M198-A Node/Chrome/Evidence Registry/nested workspace smoke 通过；Rule + 本地 GIS 复杂请求 9 步完成；真实模型 + Docker GIS 复杂请求 9 工具、14 DAG edges、结果类型和答案质量通过；M200/M195/HTTP 跨入口专项 9/9；M201-A 专项 5/5、受影响回归 14/14；M202-A async/selection/recovery 8/8；容器 healthy。
 
 ## 当前唯一工作切片
 
-1. 提交并推送 M201-A；推送前不加载历史文档全文。
-2. 推送后按 M202 的七个全局维度验证非完成 interaction envelope equality。
+1. 提交并推送 M202-A；推送前不加载历史文档全文。
+2. 推送后按 M203 的七个全局维度统一 interaction envelope、Action Receipt 和 repair lineage。
 3. 继续保持 Docker 测试、精简默认门禁和有界上下文恢复协议。
 
 ## 读取预算

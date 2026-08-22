@@ -183,9 +183,19 @@ def build_async_result_evidence(
         if isinstance(degradation, Mapping)
         else "none"
     )
+    lifecycle_state = str(lifecycle.get("state") or "")
     if degradation_status == "unavailable":
         state = "unavailable"
     elif degradation_status in {"warning", "degraded"}:
+        state = "degraded"
+    elif lifecycle_state in {
+        "planning",
+        "executing",
+        "awaiting_confirmation",
+        "clarification_required",
+    }:
+        state = "pending"
+    elif lifecycle_state in {"repairable", "recoverable", "failed", "rejected", "cancelled"}:
         state = "degraded"
     else:
         state = "success"

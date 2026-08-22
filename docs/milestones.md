@@ -4094,3 +4094,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：HTTP、async、Artifact-only、SQLite restart 和幂等 action 提交不重复 dispatch。
 6. 体验：通用 Console renderer 动态显示状态、allowed actions、receipt 和 lineage。
 7. 测试：精简跨入口 contract 优先，Docker/浏览器/live 保持显式验收。
+
+## M202-A：Async 非完成 interaction 状态投影（已完成，待版本推送）
+
+- Async result evidence 现在使用 Runtime lifecycle state 决定外层状态：规划/执行/确认/澄清为 `pending`，可修复/可恢复/失败控制态为 `degraded`，避免等待用户动作时误报 `success`。
+- M165/M146/M148 Docker 回归 **8/8** 通过，包含 selection interaction、HTTP polling、SQLite restart 和 Artifact-only recovery；未增加 GIS 专用逻辑。
+- 阶段收口后进入 M203：统一 selection interaction、action/decision lifecycle、Action Receipt 和 repair lineage 的公共 interaction envelope。
+
+## M203：下一阶段全局规划参考
+
+1. 产品：pending/recoverable/repairable 状态展示动作、原因、凭据和下一步。
+2. 架构：组合 selection、action/decision lifecycle、Action Receipt 和 repair lineage 的有界 envelope。
+3. 数据：用 request/plan/evidence fingerprint 约束动作前置条件。
+4. 模型：脱敏 replay 验证 pending/repair context 与有限修复链。
+5. 部署：HTTP、async、Artifact、SQLite restart 和多 Service 幂等动作统一。
+6. 体验：通用 renderer 展示动作可执行性、阻断原因、receipt 和修复链。
+7. 测试：一个跨入口 envelope contract 配合少量前端/浏览器 smoke，默认 CI 保持精简。

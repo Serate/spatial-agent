@@ -4948,6 +4948,20 @@ Registry 是公共证据索引，但构建 fallback projection 时只传递了�
 
 fallback 现在把完整受限 payload 交给 `project_action_lifecycle()`，由同一个 Runtime-owned projection 解释状态；新增 M158 两类非终态回归，并通过 M153/M158/M180 **14/14**。以后新增 evidence index 时必须复用权威 projection，不得从单一 status 字段重建生命周期语义。
 
+## M202-A：Async 等待用户动作时被错误投影为成功
+
+### 现象
+
+Async result evidence 在 `WAITING_FOR_DECISION` 或 `NEEDS_CLARIFICATION` 时，内部 `lifecycle.state` 已经是 `awaiting_confirmation` 或 `clarification_required`，但外层 `state` 仍可能是 `success`，前端和轮询器无法区分“已完成”和“等待用户继续”。
+
+### 根因
+
+`build_async_result_evidence()` 原先只根据 degradation 状态选择 `success`、`degraded` 或 `unavailable`，没有消费 Runtime 已生成的生命周期状态。
+
+### 处理与预防
+
+现在规划、执行、确认和澄清状态统一映射为 `pending`，可修复、可恢复及其他失败控制态映射为 `degraded`；M165/M146/M148 回归 **8/8**。以后新增 async/view 状态必须先映射公共 lifecycle，再决定展示层状态，不能仅凭“没有 degradation”推断成功。
+
 ## M200-A：复杂请求跨入口只验证完成状态导致结果证据漂移
 
 ### 现象

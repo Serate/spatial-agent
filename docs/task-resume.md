@@ -2514,3 +2514,20 @@ M200 从 M199 的复杂真实纵向链路继续验证“同一请求在不同入
 5. 部署：覆盖 HTTP detail、async polling、Artifact-only、SQLite restart 和幂等 action 提交，确保非完成状态不会重复 dispatch。
 6. 体验：Console 动态展示状态原因、allowed actions、receipt/lineage 和恢复提示，不增加 Domain 页面分支。
 7. 测试：新增一个精简跨入口 interaction contract，复用现有 Harness；默认 quick/CI 仍不联网，Docker/浏览器/live 只做显式验收。
+
+## M202-A：Async 非完成 interaction 状态投影（已完成，待版本推送）
+
+- 修复 `build_async_result_evidence()` 只根据 degradation 判断外层状态的问题；`planning`、`executing`、`awaiting_confirmation` 和 `clarification_required` 现在统一为 `pending`，`repairable`/`recoverable`/失败控制态统一为 `degraded`，不再把等待用户动作的运行显示为 `success`。
+- 复用 M165 跨入口契约增加等待确认断言；Docker M202-A、M146、M148 合计 **8/8** 通过，覆盖 HTTP polling、SQLite restart 和 Artifact-only recovery。
+- 本切片只调整公共 async projection，不增加 GIS 分支、不改变 ToolRegistry 或默认 CI 网络边界；selection interaction 和 lifecycle 仍由既有 versioned contract 提供。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M203，继续统一 Action Receipt/repair lineage 与非完成 interaction envelope。
+
+## M203：下一阶段全局规划参考
+
+1. 产品：在 pending/recoverable/repairable 状态下展示可执行动作、原因、凭据和下一步，而不是只有状态标签。
+2. 架构：将 `selection_interaction`、`action_lifecycle`、`decision_lifecycle`、Action Receipt 和 repair lineage 组合成一个有界公共 envelope。
+3. 数据：以 request/plan/evidence fingerprint 作为动作前置条件，验证证据变化后旧动作不会继续执行。
+4. 模型：脱敏 replay 验证模型读取 pending/repair context 后生成补事实或有限修复，保留 repair lineage。
+5. 部署：HTTP、async、Artifact、SQLite restart 和多 Service 幂等动作共享同一 precondition/receipt 结果。
+6. 体验：Console 通用 renderer 展示动作是否可执行、阻断原因、receipt 和修复链，不增加 GIS 页面分支。
+7. 测试：一个跨入口 interaction envelope contract 加上少量前端/浏览器 smoke；默认 quick/CI 继续精简。
