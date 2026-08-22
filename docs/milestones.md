@@ -3534,3 +3534,27 @@ M179 将 M177/M178 的公共 Evidence Projection 继续推进到模型评测与�
 - 新增 `tests/test_m179_evidence_evaluation.py`，M179 专项 4/4；M179/M178/M177/M174/M149/M160/M158 评测回归 25/25 通过。
 - Docker 重建后 compileall、quick、stage、production acceptance 和 Evidence/总览 Chrome/CDP smoke 通过，容器 healthy；本阶段未新增 live token 或 GIS 工具。
 - 多轮 summary 命名冲突问题已记录到 `docs/agent-development-issues.md`；下一阶段进入 M180，重点是领域无关的 Evidence Migration/Recovery seam 与可操作恢复状态。
+
+## M180：Evidence Migration/Recovery seam 与显式 Registry 重建（已完成）
+
+M180 将“证据可以被读取”推进为“证据状态可恢复、可解释且不会被错误标记为当前版本”，并让同步、异步、Artifact viewer、HTTP evidence endpoint 和前端共享同一 recovery projection。
+
+- 新增 `agent/evidence_recovery.py`，提供 `spatial-agent.evidence-recovery.v1`；统一表达 `ready`、`recoverable`、`blocked` 和 `unavailable`，并给出有界 `allowed_actions`、`migratable`、原因和迁移证据。
+- `result_contract.py`、async result evidence、`AgentService.get_run_evidence()`、开发/生产 Artifact evidence endpoint 和 Artifact viewer 均接入 recovery projection；不会把未知 Registry schema 当作当前证据。
+- `ArtifactStore.migrate_run()` 对兼容的旧/当前 artifact 执行显式 `rebuild_from_result`，从已持久化 result contract 重建缺失的 workflow/planner selection Registry entry；未知 artifact/schema 仍拒绝自动改写，重复迁移保持幂等。
+- Console 同步与异步 renderer 现在传递同一 recovery 数据；`recoverable` 显示为警告、`blocked` 显示为阻断，并保留恢复动作文本，不增加 GIS 专用页面分支。
+- 新增 M180 专项 5/5；M159/M176/M177/M178/M179 相邻回归 23/23；Docker compileall、quick、stage、full-stage、production acceptance 通过，容器 healthy。
+- `console_selection_evidence_smoke.js`、Chrome/CDP 空间总览和候选选择→预览→确认→完成 smoke 通过；前端实际显示“证据恢复：可用”。本阶段未新增 live token、GIS 工具或私有数据。
+- 并行浏览器 smoke 竞争同一 CDP 页面的问题已记录到中文开发问题文档；最终验收改为串行执行。
+
+## M181 全局规划参考
+
+M181 从项目整体继续推进“恢复状态可操作 → 统一生命周期动作 → 开放式请求可扩展”的纵向链路，不把 M180 的 Registry 迁移实现扩展成新的局部状态机：
+
+1. **产品能力**：将 `rebuild_from_result`、重新运行、重试、取消、用户确认和结构化澄清统一为可读、可幂等的 Recovery/Interaction action，覆盖完成、失败、阻断和历史恢复态。
+2. **架构边界**：定义领域无关的 RecoveryAction/ActionReceipt 契约，让 Decision、Interaction、Evidence Recovery 共用生命周期、CAS、授权动作和结果引用，继续保持 Planner 与 Runtime 分离。
+3. **数据质量**：恢复前后保持 request identity、plan identity、readiness、coverage、alignment、provenance 和 artifact 引用稳定；对过期或降级数据提供明确的重新核验边界。
+4. **真实模型**：用少量脱敏 replay/live-short 验证开放式请求、能力发现、模型计划错配、有限 repair 和 recovery action 的证据闭环；不扩大默认 CI 或保存原始模型输出。
+5. **部署可靠性**：验证 SQLite 多 worker、重复 action、滚动重启、artifact-only 接管和迁移幂等；恢复动作不得重复调用模型或工具，除非动作契约明确要求重新运行。
+6. **用户体验**：前端根据结构化 action/evidence 动态展示“可恢复、需要确认、已阻断、重新开始”状态，并让任意 Domain 共享同一结果/证据工作区。
+7. **测试证据**：保持 Docker quick/CI 精简；阶段收口增加 Text/GIS Contract Harness、HTTP、Artifact、浏览器和必要 live-short，验证同步/异步/重启/恢复的核心结果与 evidence equality。

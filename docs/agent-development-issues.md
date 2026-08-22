@@ -4418,3 +4418,17 @@ M179 将多轮聚合字段命名为 `evidence_projection_summary`，单条证据
 ### 补充：过滤集合修改必须同时检查推导源和消费集合
 
 在修复 `unavailable` 不应阻断当前结果时，第一次只替换了列表推导的消费集合，误把推导源也改成尚未定义的 `evaluated`，造成 replay 汇总 `UnboundLocalError`。处理方式是先从完整 `projections` 建立 `evaluated`，再让最终通过判断只消费 `evaluated`；以后修改两阶段过滤逻辑必须同时覆盖变量定义顺序和空集合测试，不能只看最终布尔表达式。
+
+## M180：并行浏览器 smoke 竞争共享 CDP 页面
+
+### 现象
+
+同时启动空间总览 smoke 和候选交互 smoke 时，两个脚本会连接同一个 Chrome CDP 页面并互相导航、修改表单或关闭连接，偶发出现 `UnknownProcessId`、页面状态错乱或结果断言不稳定。单独串行执行时业务和页面均正常。
+
+### 根因
+
+两个 smoke 都默认使用 `127.0.0.1:9222` 的第一个 page。CDP 页面不是并发安全的测试 fixture，脚本之间没有独立 tab、锁或会话隔离；这属于验收编排竞争，不是 Agent Runtime 或前端 recovery 逻辑错误。
+
+### 处理与预防
+
+阶段验收改为串行执行共享 CDP 的浏览器 smoke，并在每个脚本中显式设置 planner、backend、workflow、会话和关键表单状态。以后若要并行浏览器验收，必须先为每个脚本启动独立 CDP 端口和独立 Chrome profile，不能仅依赖不同 Node 进程连接同一 page；看到 `UnknownProcessId` 时先检查 CDP 竞争，再判断业务失败。

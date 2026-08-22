@@ -41,16 +41,36 @@ const planning = {
   }
 };
 
-const full = renderer.render(planning, registry);
+const readyRecovery = {
+  schema_version: 'spatial-agent.evidence-recovery.v1', state: 'ready',
+  reason_code: 'evidence_registry_current', action: 'none', allowed_actions: [], migratable: false
+};
+const full = renderer.render(planning, registry, readyRecovery);
 assert(full.includes('工作流选择'), 'full projection lacks workflow selection');
 assert(full.includes('规划器选择'), 'full projection lacks planner selection');
 assert(full.includes('text_summary_result'), 'full projection lacks planner result type');
 assert(full.includes('查看全部证据入口'), 'full projection lacks registry entries');
 assert(full.includes('data-evidence-registry-state="ready"'), 'full projection lacks ready state');
+assert(full.includes('data-evidence-recovery-state="ready"'), 'full projection lacks recovery state');
 
-const compact = renderer.renderCompact(planning, registry);
+const compact = renderer.renderCompact(planning, registry, readyRecovery);
 assert(compact.includes('工作流'), 'compact projection lacks workflow state');
 assert(compact.includes('规划器'), 'compact projection lacks planner state');
+
+const recoverable = renderer.render(planning, registry, {
+  schema_version: 'spatial-agent.evidence-recovery.v1', state: 'recoverable',
+  reason_code: 'evidence_registry_requires_rebuild', action: 'rebuild_from_result',
+  allowed_actions: ['rebuild_from_result'], migratable: true
+});
+assert(recoverable.includes('可恢复'), 'recoverable state lacks Chinese label');
+assert(recoverable.includes('rebuild_from_result'), 'recoverable state lacks allowed action');
+
+const blocked = renderer.render(planning, registry, {
+  schema_version: 'spatial-agent.evidence-recovery.v1', state: 'blocked',
+  reason_code: 'evidence_registry_unknown_schema', action: 'reject_until_explicit_migration',
+  allowed_actions: ['reject_until_explicit_migration'], migratable: false
+});
+assert(blocked.includes('已阻断'), 'blocked state lacks Chinese label');
 
 const unknown = renderer.render(planning, {
   schema_version: 'spatial-agent.evidence-registry.v99',

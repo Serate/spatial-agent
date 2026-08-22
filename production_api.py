@@ -33,6 +33,7 @@ from agent.api_contract import (
 from agent.environment_status import environment_status
 from agent.artifact_access import resolve_artifact_path
 from agent.evidence_projection import project_evidence_projection
+from agent.evidence_recovery import project_evidence_recovery
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.workflow_templates import workflow_template_catalog
@@ -538,6 +539,7 @@ def run_artifact_evidence(name: str):
         "artifact": {"available": True, "ref": path.name},
         "evidence_registry": registry,
         "evidence_projection": project_evidence_projection(payload),
+        "evidence_recovery": project_evidence_recovery(payload),
     }
 
 

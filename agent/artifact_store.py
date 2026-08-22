@@ -12,7 +12,12 @@ from agent.contract_versions import (
 )
 from agent.service_async import normalize_async_result_evidence
 from agent.nested_schema import NestedSchemaError, normalize_result_contract, unavailable_nested_view
-from agent.evidence_registry import normalize_evidence_registry
+from agent.evidence_registry import (
+    EVIDENCE_REGISTRY_SCHEMA_VERSION,
+    build_evidence_registry,
+    normalize_evidence_registry,
+    project_evidence_registry_completeness,
+)
 
 
 def _safe_run_id(run_id: object) -> str | None:
@@ -203,12 +208,14 @@ class ArtifactStore:
     def migrate_run(
         self, run_id: str, domain_id: Optional[str] = None
     ) -> Optional[str]:
-        """Migrate one unversioned legacy run to the current artifact schema.
+        """Migrate one compatible legacy run and rebuild its evidence index.
 
         Legacy artifacts are intentionally readable without mutation.  A
         caller that owns a persistence migration can opt into an explicit,
-        bounded rewrite.  Future/unknown versions are never rewritten because
-        the current process cannot prove their semantics.
+        bounded rewrite.  A current-but-incomplete Evidence Registry is
+        rebuilt from the persisted result contract.  Future/unknown artifact
+        or registry versions are never rewritten because the current process
+        cannot prove their semantics.
         """
         safe_id = _safe_run_id(run_id)
         if safe_id is None:
@@ -219,18 +226,41 @@ class ArtifactStore:
         except (OSError, ValueError):
             return None
         schema = raw.get("artifact_schema_version")
-        if schema == RUN_ARTIFACT_SCHEMA_VERSION:
-            return path.as_posix()
-        if schema is not None:
+        if schema not in (None, RUN_ARTIFACT_SCHEMA_VERSION):
             return None
         payload = self.read_run(safe_id, domain_id=domain_id)
         if payload is None:
             return None
+        raw_registry = _evidence_registry_from_payload(payload)
+        rebuilt_evidence = False
+        if isinstance(raw_registry, dict) and raw_registry.get("schema_version") == EVIDENCE_REGISTRY_SCHEMA_VERSION:
+            completeness = project_evidence_registry_completeness(raw_registry)
+            if not completeness.get("passed") and completeness.get("missing_entry_ids"):
+                result = payload.get("result")
+                if not isinstance(result, dict):
+                    return None
+                rebuilt_registry = build_evidence_registry(
+                    {"result": result, "status": payload.get("status")}
+                )
+                rebuilt_completeness = project_evidence_registry_completeness(
+                    rebuilt_registry
+                )
+                if not rebuilt_completeness.get("passed"):
+                    return None
+                payload["evidence_registry"] = rebuilt_registry
+                payload["result"] = {**result, "evidence_registry": rebuilt_registry}
+                rebuilt_evidence = True
+        if schema == RUN_ARTIFACT_SCHEMA_VERSION and not rebuilt_evidence:
+            return path.as_posix()
         payload["artifact_migration"] = {
             "schema_version": ARTIFACT_MIGRATION_SCHEMA_VERSION,
-            "source_schema_version": "legacy-unversioned",
+            "source_schema_version": "legacy-unversioned" if schema is None else schema,
             "target_schema_version": RUN_ARTIFACT_SCHEMA_VERSION,
-            "mode": "explicit_rewrite",
+            "mode": "explicit_rewrite_with_evidence_rebuild" if rebuilt_evidence else "explicit_rewrite",
+            "evidence_registry": {
+                "rebuilt": rebuilt_evidence,
+                "schema_version": EVIDENCE_REGISTRY_SCHEMA_VERSION if rebuilt_evidence else None,
+            },
         }
         return self.write_run(payload)
 

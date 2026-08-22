@@ -22,6 +22,7 @@ from agent.runtime_context import assert_runtime_context_compatible
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
+from agent.evidence_recovery import project_evidence_recovery
 from agent.selection_interaction import normalize_selection_interaction
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
@@ -1760,6 +1761,9 @@ class AgentService:
         projection = project_evidence_projection(
             artifact if isinstance(artifact, dict) else (payload or {})
         )
+        recovery = project_evidence_recovery(
+            artifact if isinstance(artifact, dict) else (payload or {})
+        )
         return {
             "schema_version": "spatial-agent.evidence-reference.v1",
             "run_id": run_id,
@@ -1767,6 +1771,7 @@ class AgentService:
             "artifact": {"available": bool(safe_ref), "ref": safe_ref or None},
             "evidence_registry": registry,
             "evidence_projection": projection,
+            "evidence_recovery": recovery,
         }
 
     def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:

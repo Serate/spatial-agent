@@ -3,6 +3,7 @@ import json
 from typing import Any, Dict
 
 from .evidence_projection import project_evidence_projection
+from .evidence_recovery import project_evidence_recovery
 
 
 def render_artifact_html(artifact: Dict[str, Any]) -> str:
@@ -75,6 +76,7 @@ code {{ background:#eef1f4; padding:2px 5px; border-radius:4px; }} ul {{ margin:
 def _evidence_section(artifact: Dict[str, Any]) -> str:
     """Render the shared evidence projection without exposing raw payloads."""
     projection = project_evidence_projection(artifact)
+    recovery = project_evidence_recovery(artifact)
     registry = projection.get("evidence_registry") or {}
     entries = registry.get("entries") if isinstance(registry.get("entries"), list) else []
     migration = projection.get("migration") or {}
@@ -95,10 +97,23 @@ def _evidence_section(artifact: Dict[str, Any]) -> str:
     registry_state = "可用" if registry.get("available") else "不可用"
     complete_state = "完整" if completeness.get("passed") else "不完整"
     migration_state = str(migration.get("state") or "unavailable")
+    recovery_labels = {
+        "ready": "可用",
+        "recoverable": "可恢复",
+        "blocked": "已阻断",
+        "unavailable": "不可用",
+    }
+    recovery_state = recovery_labels.get(
+        str(recovery.get("state") or "unavailable"), "未知"
+    )
+    recovery_actions = "、".join(
+        str(item)[:64]
+        for item in (recovery.get("allowed_actions") or [])
+    ) or "无"
     return """<section><h2>证据索引（Evidence Registry）</h2>
 <p class="muted">Registry：{registry_state} · {count} 个入口 · 完整性：{complete_state} · 迁移状态：{migration_state}</p>
 <div class="evidence-grid">{workflow_card}{planner_card}</div>
-<p class="muted">schema：{schema} · 迁移动作：{action}</p>
+<p class="muted">schema：{schema} · 迁移动作：{action} · 恢复状态：{recovery_state} · 允许动作：{recovery_actions}</p>
 <ul>{entries}</ul></section>""".format(
         registry_state=html.escape(registry_state),
         count=html.escape(str(registry.get("entry_count") or 0)),
@@ -106,6 +121,8 @@ def _evidence_section(artifact: Dict[str, Any]) -> str:
         migration_state=html.escape(migration_state),
         schema=html.escape(str(registry.get("schema_version") or "unknown")),
         action=html.escape(str(migration.get("action") or "none")),
+        recovery_state=html.escape(recovery_state),
+        recovery_actions=html.escape(recovery_actions),
         workflow_card=_selection_card("工作流选择", workflow),
         planner_card=_selection_card("规划器选择", planner),
         entries=entry_rows or '<li class="muted">没有可读取的证据入口</li>',

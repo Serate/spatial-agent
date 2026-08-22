@@ -27,6 +27,7 @@ from agent.plan_quality import project_plan_quality_evidence
 from agent.selection_interaction import normalize_selection_interaction
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_projection import project_evidence_projection
+from agent.evidence_recovery import project_evidence_recovery
 from result_contract import build_lineage_index
 
 
@@ -224,6 +225,7 @@ def build_async_result_evidence(
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
     evidence_projection = project_evidence_projection(value)
+    evidence_recovery = project_evidence_recovery(value)
     request_identity = normalize_request_identity(value.get("request_identity"))
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
@@ -260,6 +262,7 @@ def build_async_result_evidence(
         "execution_timeline": timeline,
         "evidence_registry": registry,
         "evidence_projection": evidence_projection,
+        "evidence_recovery": evidence_recovery,
     }
 
 
@@ -421,6 +424,7 @@ def normalize_async_result_evidence(
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
     evidence_projection = project_evidence_projection(value)
+    evidence_recovery = project_evidence_recovery(value)
     request_identity = normalize_request_identity(value.get("request_identity"))
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
@@ -462,6 +466,7 @@ def normalize_async_result_evidence(
         "execution_timeline": timeline,
         "evidence_registry": registry,
         "evidence_projection": evidence_projection,
+        "evidence_recovery": evidence_recovery,
     }
     for key in ("availability", "reason_code", "source"):
         if value.get(key) is not None:

@@ -133,6 +133,11 @@ class M159EvidenceNavigationTests(unittest.TestCase):
             json.loads(index_body)["evidence_projection"],
             json.loads(run_body)["evidence_projection"],
         )
+        self.assertEqual(
+            json.loads(index_body)["evidence_recovery"],
+            json.loads(run_body)["evidence_recovery"],
+        )
+        self.assertEqual(json.loads(index_body)["evidence_recovery"]["state"], "ready")
 
 
 if __name__ == "__main__":

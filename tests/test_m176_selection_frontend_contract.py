@@ -46,6 +46,9 @@ class M176SelectionFrontendContractTests(unittest.TestCase):
         self.assertIn('id="selectionEvidence"', html)
         self.assertIn("ConsoleEvidenceRegistry", html)
         self.assertIn("selectionEvidence", html)
+        self.assertIn("render(planEvidence,evidenceRegistry,evidenceRecovery)", html)
+        self.assertIn("renderCompact(evidence.planning,evidence.evidence_registry,evidence.evidence_recovery)", html)
+        self.assertIn('data-evidence-recovery-state="recoverable"', html)
         for entry in (root / "serve_api.py", root / "production_api.py"):
             self.assertIn("console_evidence_registry.js", entry.read_text(encoding="utf-8"))
 

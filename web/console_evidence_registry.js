@@ -21,7 +21,7 @@
   const stateLabels = {
     selected: '已选择', matched: '已匹配', mismatch: '不一致',
     ambiguous: '待选择', clarification: '待澄清', unavailable: '不可用',
-    ready: '可用', available: '可用', complete: '完整', incomplete: '不完整', unknown: '未知'
+    ready: '可用', recoverable: '可恢复', blocked: '已阻断', available: '可用', complete: '完整', incomplete: '不完整', unknown: '未知'
   };
 
   function record(value) {
@@ -78,11 +78,23 @@
         planner_capability_id: text(planner.planner_capability_id, '', 96), candidate_ids: list(planner.candidate_ids, 8)}
     };
   }
+  function normalizeRecovery(value) {
+    const source = record(value) ? value : {};
+    const state = text(source.state, 'unavailable', 48);
+    return {
+      schema_version: text(source.schema_version, ''),
+      state,
+      reason_code: text(source.reason_code, 'evidence_recovery_unavailable'),
+      action: text(source.action, 'start_new_run', 96),
+      allowed_actions: list(source.allowed_actions, 4),
+      migratable: source.migratable === true
+    };
+  }
   function stateLabel(state) { return stateLabels[state] || stateLabels.unknown; }
   function badge(state) {
     const className = ['ready', 'passed', 'selected', 'matched'].includes(state) ? 'ready'
-      : ['degraded', 'warning', 'ambiguous', 'clarification', 'mismatch'].includes(state) ? 'degraded'
-        : ['unavailable', 'incomplete'].includes(state) ? 'unavailable' : 'neutral';
+      : ['degraded', 'warning', 'ambiguous', 'clarification', 'mismatch', 'recoverable'].includes(state) ? 'degraded'
+        : ['unavailable', 'incomplete', 'blocked'].includes(state) ? 'unavailable' : 'neutral';
     return '<span class="evidence-status ' + className + '">' + escape(stateLabel(state)) + '</span>';
   }
   function detailRows(model) {
@@ -106,25 +118,30 @@
       (details ? '<ul class="evidence-list">' + details + '</ul>' : '') +
       '<small>schema ' + escape(schema) + (entry?.reference ? ' · 引用 ' + escape(entry.reference) : '') + '</small></article>';
   }
-  function render(planning, registry) {
+  function render(planning, registry, recoveryValue) {
     const model = normalizeSelection(planning, registry);
+    const recovery = normalizeRecovery(recoveryValue);
     const entries = model.registry.entries;
     const registryState = model.registry.available ? 'ready' : 'unavailable';
     const entryRows = entries.map(item => '<li><strong>' + escape(labels[item.id] || item.id) + '</strong> ' +
       badge(item.state) + ' · ' + escape(item.schema_version) + ' · ' + escape(item.reference) +
       (item.count === null ? '' : ' · ' + escape(item.count) + ' 项') + '</li>').join('');
-    return '<div class="selection-evidence-block" data-evidence-registry-state="' + escape(registryState) + '">' +
+    const recoveryActions = recovery.allowed_actions.length ? recovery.allowed_actions.join('、') : '无';
+    return '<div class="selection-evidence-block" data-evidence-registry-state="' + escape(registryState) + '" data-evidence-recovery-state="' + escape(recovery.state) + '">' +
       '<div class="selection-evidence-summary"><strong>Evidence Registry</strong> ' + badge(registryState) +
       '<span>' + escape(model.registry.available ? (model.registry.entry_count + ' 个版本化入口') : (model.registry.reason_code || '证据索引不可用')) + '</span></div>' +
+      '<div class="selection-evidence-recovery">证据恢复：' + badge(recovery.state) + ' · ' + escape(recovery.reason_code) + ' · 允许动作：' + escape(recoveryActions) + '</div>' +
       '<div class="selection-evidence-grid">' + renderCard('工作流选择', model.workflow, model.entries.workflow_selection) +
       renderCard('规划器选择', model.planner, model.entries.planner_selection) + '</div>' +
       (entryRows ? '<details class="selection-evidence-entries"><summary>查看全部证据入口</summary><ul class="evidence-list">' + entryRows + '</ul></details>' :
         '<div class="evidence-empty">当前没有可读取的版本化证据入口。</div>') + '</div>';
   }
-  function renderCompact(planning, registry) {
+  function renderCompact(planning, registry, recoveryValue) {
     const model = normalizeSelection(planning, registry);
+    const recovery = normalizeRecovery(recoveryValue);
+    const action = recovery.allowed_actions.length ? ' · 动作 ' + escape(recovery.allowed_actions[0]) : '';
     return '<span class="selection-evidence-compact">选择证据：工作流 ' + badge(model.workflow.state) +
-      ' · 规划器 ' + badge(model.planner.state) + (model.planner.result_type ? ' · ' + escape(model.planner.result_type) : '') + '</span>';
+      ' · 规划器 ' + badge(model.planner.state) + (model.planner.result_type ? ' · ' + escape(model.planner.result_type) : '') + ' · 恢复 ' + badge(recovery.state) + action + '</span>';
   }
-  global.ConsoleEvidenceRegistry = Object.freeze({REGISTRY_SCHEMA, normalizeRegistry, normalizeSelection, render, renderCompact});
+  global.ConsoleEvidenceRegistry = Object.freeze({REGISTRY_SCHEMA, normalizeRegistry, normalizeSelection, normalizeRecovery, render, renderCompact});
 })(window);

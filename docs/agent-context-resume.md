@@ -1720,3 +1720,20 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 5. 部署：验证多 worker、滚动重启、旧 artifact 接管、CAS 和幂等读取。
 6. 体验：前端动态消费迁移状态、空态和允许动作，不增加 GIS 专用分支。
 7. 测试：以 migration/recovery Contract Harness 为主，Docker、HTTP、Artifact、浏览器和必要 live-short 分层验收。
+
+## M180 当前完成状态
+
+- 新增 `agent/evidence_recovery.py`，统一投影 Evidence Registry 的 `ready`、`recoverable`、`blocked`、`unavailable` 状态、原因、迁移动作和允许动作。
+- 同步结果、异步轮询、Service evidence index、开发/生产 HTTP Artifact evidence、Artifact viewer 和 Console 均消费同一 recovery projection；前端同步/异步调用已显式传入 recovery，recoverable/blocked 状态分别使用警告/阻断样式。
+- `ArtifactStore.migrate_run()` 现在能对兼容的旧/当前 artifact 从 result contract 重建缺失 Registry entry；未知 artifact/schema 不自动迁移，重复调用保持安全。
+- Docker 按当前工作树重建并 healthy；M180 专项 5/5、M159/M176/M177/M178/M179 相邻回归 23/23、compileall、quick、stage、full-stage、production acceptance 通过。
+- 前端 `console_selection_evidence_smoke.js`、Chrome/CDP 空间总览、候选选择→预览→确认→完成均通过；浏览器 smoke 必须串行使用共享 CDP 页面。
+- M180 已完成本地实现与验收，当前工作树等待最终敏感信息检查、提交和推送；不提交 API key、私有配置、原始模型输出或原始 GIS 数据。
+
+## M181 全局重规划参考
+
+1. 将 Evidence Recovery、Decision、Interaction、Retry/Cancel/Confirm 统一为可幂等的 RecoveryAction/ActionReceipt 生命周期。
+2. 保持公共 Runtime 不携带 GIS 策略，Text/GIS/未来 Domain 通过 catalog、facts、workflow、result 和 action contract 扩展。
+3. 保护 request/plan identity、数据 readiness/provenance 和 artifact 引用在恢复、重启、异步和多 worker 间的一致性。
+4. 用脱敏 replay 与最小 live-short 验证开放式能力发现、模型计划错配、repair 和 recovery action，不扩大默认测试成本。
+5. 以 Docker、HTTP、Contract Harness、Artifact、浏览器和必要 live 组成阶段证据，完成后再次按七维度整体重规划。
