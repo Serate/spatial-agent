@@ -713,6 +713,9 @@ def normalize_workflow_composition(
         if not isinstance(normalized, Mapping):
             raise WorkflowTemplateError("component normalizer must return an object")
         normalized = dict(normalized)
+        for evidence_key in ("evidence_summary", "evidence_state"):
+            if isinstance(raw.get(evidence_key), Mapping):
+                normalized[evidence_key] = copy.deepcopy(dict(raw[evidence_key]))
         dependencies = raw.get("depends_on_components", raw.get("depends_on", []))
         if not isinstance(dependencies, (list, tuple)):
             raise WorkflowTemplateError("component dependencies must be an array")

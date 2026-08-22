@@ -4795,3 +4795,17 @@ selection projection 首次从原始 workflow 提取组件字段；经过 contex
 ### 处理与预防
 
 归一化现在优先使用 Domain canonical workflow，并在二次归一化时保留已有的 `constraint_keys` 与 `evidence_keys`；新增 Docker Service preview、跨入口回归和 Console smoke。以后每个新 projection 都必须同时验证首次生成、Planner context、Result、Artifact 和 SQLite restart 的字段保真，不能只验证首次响应。
+
+## M195-B.1：组件 evidence 摘要在组合归一化时丢失
+
+### 现象
+
+组合 workflow 的组件声明了 `evidence_summary` 或兼容字段 `evidence_state`，首次构建时可以看到摘要，但经过 workflow composition 归一化和 selection 二次归一化后，前端只剩组件身份、约束键和 evidence 键，readiness、coverage、alignment、provenance 等摘要字段变成“未提供”。
+
+### 根因
+
+组合组件归一化只保留模板身份和依赖字段，没有把 Domain canonical workflow 中已有的有界 evidence 摘要复制到规范化组件；selection projection 的二次归一化也只读取原始 `constraints`/`evidence`，没有消费已投影的摘要。结果是首次 projection 正确、恢复/迁移 projection 不完整。
+
+### 处理与预防
+
+组合归一化现在保留有界 `evidence_summary`/`evidence_state`，selection 归一化统一通过 capability evidence normalizer 处理并安全降级未知字段；Docker Service preview、Artifact/SQLite 相关回归和浏览器 smoke 验证摘要不会丢失。以后新增组件 projection 必须同时断言首次生成、二次归一化、Planner context、Result、Artifact、SQLite replay 和前端显示，不能只检查组件 ID 是否存在。

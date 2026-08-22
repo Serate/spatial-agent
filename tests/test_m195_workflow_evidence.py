@@ -72,6 +72,19 @@ class M195WorkflowEvidenceTests(unittest.TestCase):
                                 "template_id": "raster_metadata",
                                 "constraints": {"dataset": "dem"},
                                 "depends_on_components": ["boundary"],
+                                "evidence_summary": {
+                                    "schema_version": "spatial-agent.capability-evidence.v1",
+                                    "status": "degraded",
+                                    "readiness": {"status": "degraded", "required": True},
+                                    "coverage": {
+                                        "status": "ready",
+                                        "dataset_count": 1,
+                                        "covered_dataset_count": 1,
+                                    },
+                                    "alignment": {"status": "unknown"},
+                                    "provenance": {"status": "ready", "source_count": 1},
+                                    "missing_reasons": ["示例证据摘要"],
+                                },
                             },
                         ]
                     },
@@ -82,6 +95,8 @@ class M195WorkflowEvidenceTests(unittest.TestCase):
         self.assertEqual([item["component_id"] for item in components], ["boundary", "dem"])
         self.assertTrue(all("evidence_keys" in item for item in components))
         self.assertTrue(all(item["evidence_keys"] for item in components))
+        self.assertEqual(components[1]["evidence_summary"]["status"], "degraded")
+        self.assertEqual(components[1]["evidence_summary"]["coverage"]["dataset_count"], 1)
 
 
 if __name__ == "__main__":

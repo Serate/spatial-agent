@@ -26,6 +26,14 @@ RUN micromamba install -y --strict-channel-priority -n spatial-agent-gis \
         geopandas shapely pyogrio fiona \
     && micromamba clean --all --yes
 
+# 前端契约与浏览器 smoke 在同一 Docker 验收环境中运行，避免因缺少 Node.js
+# 而把 renderer 测试标记为跳过；Node 不参与 Agent Runtime 的生产请求路径。
+RUN micromamba install -y --strict-channel-priority -n spatial-agent-gis \
+        -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge \
+        -c https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main \
+        nodejs \
+    && micromamba clean --all --yes
+
 RUN PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
     micromamba run -n spatial-agent-gis pip install --no-cache-dir -r /tmp/requirements-prod.txt \
     && micromamba clean --all --yes

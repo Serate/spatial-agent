@@ -427,6 +427,7 @@ def _normalize_workflow_components(value: Any) -> list[dict[str, Any]]:
         evidence_keys = _string_list(
             item.get("evidence_keys") or item.get("evidence")
         )[:16]
+        evidence_summary = item.get("evidence_summary") or item.get("evidence_state")
         result.append(
             {
                 "component_id": component_id,
@@ -435,6 +436,11 @@ def _normalize_workflow_components(value: Any) -> list[dict[str, Any]]:
                 "depends_on_components": dependencies,
                 "constraint_keys": constraint_keys,
                 "evidence_keys": evidence_keys,
+                **(
+                    {"evidence_summary": normalize_capability_evidence(evidence_summary)}
+                    if isinstance(evidence_summary, Mapping)
+                    else {}
+                ),
             }
         )
     return result

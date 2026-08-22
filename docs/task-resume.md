@@ -2342,3 +2342,10 @@ M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194
 - HTTP 静态资源 allowlist、Domain canonical selection projection 和二次归一化已补齐；相关问题已记录到中文开发问题文档。
 - Docker M195 专项 **9/9 可执行通过、1 项因容器无 Node 跳过**；M194 组合回归 **7/7**；quick/stage/full-stage、生产 acceptance 和 CDP smoke 通过。
 - 当前工作树包含 M195-A 实现和文档，尚未提交推送。下一步做阶段提交，再进入 M195-B 的组件 evidence 细化和组合生命周期恢复。
+
+## 当前任务状态（M195-B 已实现，待提交推送）
+
+- 当前最新已推送基线为 `decaf1e`；工作树包含 M195-B 的 3 个未提交文件：`agent/workflow_selection.py`、`agent/workflow_templates.py` 和 `tests/test_m195_workflow_evidence.py`。
+- 当前 Docker 已按工作树重建并为 `healthy`，测试镜像已安装 Node.js。M195/M194/M193/M192 联合专项 **21/21 通过**；quick、stage、full-stage 和 `scripts/production_acceptance.ps1` 均通过。
+- Docker Node smoke、宿主 Node 语法检查和 CDP workflow evidence smoke 均通过，浏览器显示 2 个组件、1 条组件依赖。该切片没有调用真实模型、提交私有配置、token 或原始 GIS 数据。
+- M195-B 的组件 `evidence_summary` 保真问题已追加到 `docs/agent-development-issues.md`。下一步提交并推送该切片，再按全局七维度进入 M195-C：取消、超时、重试、多 worker、SQLite/Artifact 重启和组合 evidence 恢复。

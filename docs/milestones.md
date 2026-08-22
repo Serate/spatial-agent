@@ -3921,3 +3921,22 @@ M194 从证据安全恢复继续推进通用开放式多能力编排，覆盖能
 - 开发 HTTP 与生产 FastAPI 静态资源 allowlist 已登记新模块；新增 Node smoke、M195 契约测试和 CDP 浏览器 smoke。
 - M195-A Docker 专项 **10 项（9 通过、Node 缺失跳过 1 项）**，M194 组合专项 **7/7**；quick、stage、full-stage、生产 acceptance 和浏览器动态渲染通过。
 - 本切片发现的 404 allowlist 和 projection 丢字段问题已记录到中文开发问题文档；下一切片补组件级 readiness/coverage/alignment/provenance 与取消/超时/重试/滚动重启恢复。
+
+## M195-B：组件 evidence 摘要保真（已完成，待版本推送）
+
+- 组合 workflow 与 selection 二次归一化现在保留并规范化组件级 `evidence_summary`/`evidence_state`，不再只保留组件身份、约束键和 evidence 键。
+- M195/M194/M193/M192 联合专项 **21/21 通过**；quick、stage、full-stage 和 Docker production acceptance 均通过，容器 `healthy`，核心/可选数据均为 `ready`。Docker 测试镜像已补装 Node.js，前端 smoke 不再跳过。
+- Docker Node.js smoke、宿主 Node 语法检查和动态 CDP smoke 均通过；浏览器实际显示 **2 个组件、1 条依赖**，组件未提供的 evidence 仍按契约显示“未提供”，前端不自行推断。
+- 本切片未增加 GIS 专用 Runtime 分支、默认 CI 网络访问、私有配置或原始数据；新增 projection 丢摘要问题已记录到中文开发问题文档。
+
+## M195-C：全局规划（下一切片）
+
+M195-B 已完成静态证据保真，但组合 workflow 仍需在生命周期变化中保持可恢复、可观测且不重复执行。下一切片从项目全局七个维度推进：
+
+1. **产品**：统一展示取消、超时、重试、恢复和最终安全退出动作，并保留组件级 evidence 与 action lineage。
+2. **架构**：把组合 workflow 的生命周期动作接入现有 Action Receipt、统一状态机和 ToolRegistry dispatch gate，不新增第二套组合状态机。
+3. **数据**：验证组件 evidence 在执行中断、部分完成、恢复和数据降级时的状态变化与有界摘要。
+4. **模型**：用脱敏 replay 验证组合计划失败后的有限 repair/clarification；必要时补最小 live-short，不进入默认 CI。
+5. **部署**：覆盖取消、超时、多 worker claim、worker 崩溃、滚动重启、SQLite replay 和 Artifact-only recovery，确保工具不重复 dispatch。
+6. **体验**：动态渲染组件状态、动作可用性、恢复原因和最终结果，Text/GIS 共用 renderer。
+7. **测试**：新增精简组合生命周期 Contract Harness，阶段收口执行 Docker、HTTP、Artifact、SQLite、浏览器及必要真实模型/GIS 验收。

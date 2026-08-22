@@ -2008,3 +2008,10 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - 开发 HTTP 与生产 FastAPI 的静态资源 allowlist 已登记新模块；新增 Node 模块 smoke、M195 契约测试和 CDP 浏览器 smoke。
 - M195-A Docker 专项 **10 项（9 通过、Node 缺失跳过 1 项）**；M194 组合专项 **7/7**；quick、stage、full-stage、生产 acceptance 和浏览器动态渲染均通过。浏览器 smoke 验证 2 个组件、1 条依赖正确显示。
 - 新问题已追加到 `docs/agent-development-issues.md`。当前改动尚未提交；下一切片 M195-B 继续覆盖组件级 readiness/coverage/alignment/provenance 投影和取消/超时/重试/滚动重启恢复。
+
+## 当前恢复快照（M195-B 已验证，待提交推送）
+
+- 最新已推送基线为 `decaf1e`；当前未提交改动仅涉及组件 evidence 摘要在组合/selection 二次归一化中的保真，以及对应专项测试。
+- Docker 已按当前工作树重建并 `healthy`，测试镜像已安装 Node.js。M195/M194/M193/M192 联合专项 **21/21 通过**；quick、stage、full-stage、production acceptance 均通过。
+- Docker Node smoke、宿主 Node 语法检查和 CDP workflow evidence smoke 通过；浏览器实际显示 2 个组件和 1 条依赖。未执行真实模型 live，本切片不以历史 live 记录替代当前代码证据。
+- M195-B 新增的问题记录为“组件 evidence 摘要在组合归一化时丢失”。下一阶段 M195-C 处理组合 workflow 的取消、超时、重试、多 worker、滚动重启和 Artifact/SQLite 恢复，并继续验证跨入口 evidence equality。
