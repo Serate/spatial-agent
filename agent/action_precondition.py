@@ -209,6 +209,10 @@ def _inferred_conditions(
     result: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     conditions: list[dict[str, Any]] = []
+    receipt = payload.get("action_receipt")
+    if not isinstance(receipt, Mapping):
+        receipt = result.get("action_receipt")
+    receipt = receipt if isinstance(receipt, Mapping) else {}
     deployment = result.get("deployment_evidence")
     deployment = deployment if isinstance(deployment, Mapping) else {}
     data = deployment.get("data")
@@ -241,6 +245,14 @@ def _inferred_conditions(
         migration.get("state") or recovery.get("state"),
         "result.evidence_recovery.migration.state",
     )
+    revalidation = receipt.get("evidence_revalidation")
+    if isinstance(revalidation, Mapping):
+        _append_status(
+            conditions,
+            "evidence_revalidation",
+            revalidation.get("state"),
+            "action_receipt.evidence_revalidation.state",
+        )
     return conditions
 
 

@@ -196,6 +196,17 @@ def project_action_receipt(
         )
         if transition_evidence is not None:
             result["transition_evidence"] = transition_evidence
+            from .evidence_revalidation import (
+                build_evidence_revalidation,
+                normalize_evidence_revalidation,
+            )
+
+            revalidation = normalize_evidence_revalidation(
+                value.get("evidence_revalidation")
+            )
+            result["evidence_revalidation"] = revalidation or build_evidence_revalidation(
+                transition_evidence
+            )
     return result
 
 

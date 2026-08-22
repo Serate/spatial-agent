@@ -2272,3 +2272,18 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - M192-B 专项 **5/5**，M192-A/M192-B、M191、M183.2、M184、M189 联合回归 **21/21**；Docker compileall、full-stage、production acceptance 通过，容器 healthy，preview fingerprint 匹配。
 - 显式真实模型 selection → facts → run **1/1** 通过；默认 live 测试仍跳过，不进入 CI。新问题已记录到中文开发问题文档。
 - M192 已完成，下一阶段从“证据变化可见”推进到“证据变化触发重验、阻断、修复或恢复”，继续按全局七个维度规划。
+## M193-A 当前完成状态
+
+- 新增领域无关 `agent/evidence_revalidation.py` 和 `spatial-agent.evidence-revalidation.v1`，统一表达 evidence transition 的当前、变化、降级、阻断和不可用状态。
+- Receipt、Action Preconditions、Execution Timeline、Artifact/恢复和 Contract Harness 共享 revalidation projection；`cancel` 仍保留为安全退出动作，未知 schema 不被解释为可执行。
+- Docker 专项 `tests.test_m193_evidence_revalidation` **4/4**；M184–M192 相关回归 **31/31**；容器重建后 `healthy`。
+- 当前 M193-A 实现尚未提交。下一步收口：运行 Docker full-stage、生产 acceptance、敏感信息检查和 `git diff --check`，提交并推送版本，再开始 M193-B。
+
+## M193-B 全局规划参考
+
+1. 让 preview fingerprint 绑定 evidence fingerprint；证据发生变化时旧 preview 只能进入重新核验，不能直接 approve/execute。
+2. 在 Runtime 的统一生命周期中接入 revalidation gate：区分 advisory、必须重验、阻断和安全退出，不新增第二套状态机。
+3. 由 Domain 提供最小 revalidation/repair 建议，Runtime 负责有限 repair、用户确认、重试和恢复；不增加 GIS 专用判断。
+4. 覆盖同步、HTTP、异步、SQLite 重启、Artifact-only 和多 worker CAS，确保旧计划不会被错误复用且不会重复执行工具。
+5. 用脱敏 replay 验证证据变化触发澄清/repair；配置可用时补一条真实模型 + Docker/GIS live-short，不进入默认 CI。
+6. 前端动态显示证据前后状态、新 fingerprint、失效原因和允许动作，不增加固定 GIS 页面分支。

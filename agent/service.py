@@ -32,6 +32,7 @@ from agent.transition_evidence import (
     build_transition_evidence,
     project_transition_evidence,
 )
+from agent.evidence_revalidation import build_evidence_revalidation
 from agent.execution_timeline import attach_action_receipt_timeline
 from agent.recovery_action import (
     action_input_fingerprint,
@@ -1679,6 +1680,10 @@ class AgentService:
                         replay_receipt["transition_evidence"] = stored_receipt.get(
                             "transition_evidence"
                         )
+                    if "evidence_revalidation" in stored_receipt:
+                        replay_receipt["evidence_revalidation"] = stored_receipt.get(
+                            "evidence_revalidation"
+                        )
                 replay["action_receipt"] = project_action_receipt(
                     replay_receipt, reused=True
                 )
@@ -1857,6 +1862,18 @@ class AgentService:
             source_evidence,
             project_transition_evidence(identity_payload),
         )
+        receipt["evidence_revalidation"] = build_evidence_revalidation(
+            receipt["transition_evidence"]
+        )
+        # Recompute after the transition projection exists so a blocked or
+        # degraded evidence result can participate in the canonical receipt
+        # precondition.  Advisory remains the default; only an explicit
+        # enforced condition can remove gated actions.
+        action_preconditions = project_action_preconditions(
+            {**identity_payload, "action_receipt": receipt},
+            action=receipt.get("action"),
+        )
+        receipt["preconditions"] = action_preconditions
         action_receipt = project_action_receipt(receipt, reused=False)
         # Refresh before persisting response_payload: a replay can be served
         # entirely from SQLite and must retain the same action timeline as the

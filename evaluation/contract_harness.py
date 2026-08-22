@@ -58,6 +58,10 @@ from agent.transition_evidence import (
     TRANSITION_EVIDENCE_SCHEMA_VERSION,
     normalize_transition_evidence as _normalize_transition_evidence,
 )
+from agent.evidence_revalidation import (
+    EVIDENCE_REVALIDATION_SCHEMA_VERSION,
+    normalize_evidence_revalidation as _normalize_evidence_revalidation,
+)
 
 
 @dataclass(frozen=True)
@@ -137,6 +141,22 @@ class ActionTransitionEvidenceContract:
         return _differences(self.values, other.values)
 
     def equivalent_to(self, other: "ActionTransitionEvidenceContract") -> bool:
+        return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class EvidenceRevalidationContract:
+    """Stable revalidation state derived from transition evidence."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "EvidenceRevalidationContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "EvidenceRevalidationContract") -> bool:
         return not self.differences(other)
 
 
@@ -367,6 +387,60 @@ def compare_action_transition_evidence(
     if len(payloads) < 2:
         raise ValueError("at least two action transition evidence payloads are required")
     contracts = [normalize_action_transition_evidence(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_evidence_revalidation(
+    payload: Mapping[str, Any],
+) -> EvidenceRevalidationContract:
+    """Project canonical revalidation from receipt or timeline entries."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("evidence revalidation payload must be a mapping")
+    raw = payload.get("action_receipt")
+    if not isinstance(raw, Mapping) and isinstance(payload.get("result"), Mapping):
+        raw = payload["result"].get("action_receipt")
+    if not isinstance(raw, Mapping):
+        timeline = payload.get("execution_timeline")
+        events = timeline.get("events") if isinstance(timeline, Mapping) else None
+        if isinstance(events, list):
+            raw = next(
+                (
+                    item.get("action_linkage")
+                    for item in reversed(events)
+                    if isinstance(item, Mapping)
+                    and item.get("kind") == "action"
+                    and isinstance(item.get("action_linkage"), Mapping)
+                ),
+                None,
+            )
+    value = _normalize_evidence_revalidation(
+        raw.get("evidence_revalidation") if isinstance(raw, Mapping) else None
+    )
+    if value is None:
+        return EvidenceRevalidationContract(
+            {
+                "schema_version": EVIDENCE_REVALIDATION_SCHEMA_VERSION,
+                "available": False,
+                "state": "unavailable",
+            }
+        )
+    return EvidenceRevalidationContract(value)
+
+
+def compare_evidence_revalidations(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return revalidation drift across response, artifact, history and timeline."""
+    if len(payloads) < 2:
+        raise ValueError("at least two evidence revalidation payloads are required")
+    contracts = [normalize_evidence_revalidation(item) for item in payloads]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):

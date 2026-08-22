@@ -3848,3 +3848,21 @@ M192 已能证明选择过渡的身份、数据证据变化和计划指纹，但
 5. **部署**：覆盖多 worker CAS、SQLite 重启、Artifact-only recovery、旧 evidence schema 迁移和重复提交不重复执行。
 6. **体验**：前端动态显示证据前后状态、阻断原因、可执行动作和新的 plan fingerprint，不增加 GIS 页面分支。
 7. **测试**：新增最小 Evidence Revalidation Contract Harness，阶段收口覆盖 Docker、HTTP、Artifact、SQLite、浏览器和必要 live；默认 quick/CI 保持精简。
+## M193-A：Evidence Revalidation 结构化投影（实现完成，待提交）
+
+M193-A 将 M192 的 transition evidence 从“可见差异”推进为统一的 revalidation 状态投影，但暂不让该投影直接替代 Runtime lifecycle。
+
+- 新增 `agent/evidence_revalidation.py` 与 `spatial-agent.evidence-revalidation.v1`，支持 `current`、`changed`、`degraded`、`blocked`、`unavailable` 五类状态、字段级摘要和有界 `next_actions`。
+- Action Receipt 在完成阶段生成 canonical revalidation；Action Preconditions、Execution Timeline、Artifact/恢复和 Contract Harness 读取同一 projection，未知 schema 安全降级。
+- M193 专项 **4/4**；M184–M192 相关联合回归 **31/31**；Docker 重建后容器 `healthy`。
+- 本阶段修复了 receipt 在完成路径中初始化顺序不稳定的问题，并记录到中文开发问题文档。未提交 API key、私有配置、原始模型响应或 GIS 原始数据。
+- 当前尚未完成阶段最终 full-stage、生产 acceptance、敏感信息检查、提交和推送；M193-B 将把 revalidation 接入 preview 失效、重新核验、阻断、repair 和恢复。
+
+## M193-B 下一阶段规划参考
+
+1. 绑定 preview fingerprint 与 evidence fingerprint，证据变化时强制重新核验。
+2. 将 revalidation 接入统一 Action Preconditions 与 Runtime 生命周期，区分可提示、必须重验、阻断和安全退出。
+3. 让 Domain 提供领域无关的最小 repair/revalidation 建议，Runtime 负责有限修复、确认、重试和恢复。
+4. 验证 HTTP、异步、SQLite 重启、Artifact-only、多 worker CAS 的计划不复用和工具不重复执行。
+5. 通过脱敏 replay 和必要 live-short 验证真实模型能消费 revalidation 上下文。
+6. 前端动态展示状态变化、失效原因、最新计划指纹和允许动作。

@@ -4712,3 +4712,16 @@ selection → provide_facts 的规则路径可以继续运行，但真实模型�
 ### 处理与预防
 
 增加通用、有界的自定义约束摘要：允许安全键和值进入 Planner 提示，限制长度和数组规模，并跳过 password、secret、token、credential、api_key 等敏感键。该逻辑不解释 Text 或 GIS 语义，由 workflow contract 统一承载；同时增加显式 live selection → facts → run 验收。以后新增 Domain fact 时，必须验证事实同时出现在 canonical workflow、Planner context、计划参数和跨入口结果中，不能只检查 Service 内部合并结果。
+## M193-A：Evidence Revalidation 接入完成阶段时的 receipt 初始化顺序
+
+### 现象
+
+将 evidence revalidation 接入 Action Receipt 的完成路径时，部分失败或恢复分支会在 receipt 尚未完成初始化前读取 `receipt`，触发 `NameError`。该问题只在特定生命周期动作进入完成或异常收口分支时出现，普通规划和工具执行路径不一定复现。
+
+### 根因
+
+Evidence Transition、Action Preconditions 和 Action Receipt 原本分别在不同阶段投影。接入 revalidation 时把新的前置条件计算提前到了 receipt canonical projection 之前，隐含依赖了尚未建立的局部变量；同时没有明确区分预留阶段的 receipt 和完成阶段的 receipt。
+
+### 处理与预防
+
+完成路径现在先确保 receipt 由预留结果或安全空态建立，再按“transition evidence → evidence revalidation → action preconditions → receipt/timeline 持久化”的顺序生成 canonical projection。所有失败、取消、重试和恢复分支都复用同一顺序；未知或缺失 evidence 只投影为 `unavailable`，不抛出变量错误。以后扩展 Action Receipt 时，必须为预留、完成、失败和 replay 分别覆盖初始化状态，并通过公共 Contract Harness 验证响应、Artifact、Timeline 和 SQLite replay 的一致性。

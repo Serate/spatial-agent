@@ -1933,3 +1933,10 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - 已补通用 workflow 自定义事实进入 LLM Planner 的有界提示摘要，并跳过敏感键；真实模型 selection → facts → run **1/1** 通过。
 - M192-B 专项 **5/5**，M192-A/B 与相邻 M191/M183.2/M184/M189 联合回归 **21/21**；Docker full-stage、production acceptance 通过，容器 healthy，preview fingerprint 匹配。
 - M192 已完成并待提交推送；下一阶段重点是证据变化后的 readiness 重验、preview 失效阻断/修复和跨入口恢复一致性。
+## M193-A：Evidence Revalidation 结构化投影（已完成实现，待版本提交）
+
+- 新增领域无关 `agent/evidence_revalidation.py` 与 `spatial-agent.evidence-revalidation.v1`，将 readiness、coverage、alignment、provenance 的 transition evidence 投影为 `current`、`changed`、`degraded`、`blocked` 或 `unavailable` 状态，并给出有界下一步动作。
+- Action Receipt 完成路径生成 canonical revalidation；Action Preconditions 可读取该状态，Execution Timeline、Artifact/恢复和 Contract Harness 复用同一投影，未知 schema 安全降级。
+- 新增 `tests/test_m193_evidence_revalidation.py` **4/4**；M184–M192 相关回归 **31/31**；Docker 重建后容器 `healthy`。
+- 当前工作树仍有 M193-A 未提交改动，尚未执行阶段最终的 full-stage、production acceptance、敏感信息检查和版本推送；未加入 API key、私有配置、原始模型响应或 GIS 原始数据。
+- 本阶段发现的 receipt 初始化顺序问题已记录到 `docs/agent-development-issues.md`。下一切片 M193-B 需要让 revalidation 真正驱动 preview 失效、重新核验、阻断、有限 repair 和恢复，而不只是结构化展示。
