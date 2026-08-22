@@ -1913,3 +1913,10 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - Docker 专项 **3/3**、受影响回归 **23/23**、compileall、quick、stage、full-stage、生产 acceptance 均通过；容器 healthy。
 - 真实 DeepSeek Planner **1/1**、真实模型 + Docker GIS 空间总览 **1/1** 通过。M190 已完成，版本提交推送后进入 M191。
 - M191 入口：把 `select_capability`/`provide_facts` 接入通用 RequestFacts → Workflow → TaskPlan → preview/confirm/run/recovery 纵向链路；优先跨 Domain 契约，不增加 GIS 专用分支。
+
+## M191 最新恢复位置
+
+- 已完成 `provide_facts` 的通用 capability-to-workflow 恢复：客户端可以提交 bounded `capability_id + facts`，Service 通过 Domain `resolve_capability_selection` 生成 workflow，再按统一 Runtime 路径 preview/run。
+- Runtime 已把 Domain 的 `clarification + missing_fields` 作为执行前门控；缺事实时状态为 `NEEDS_CLARIFICATION`，步骤数为 0，补齐后继续执行。
+- Docker M191 专项 **2/2**，选择/身份/交互受影响回归 **25/25**，compileall、quick、stage、full-stage、production acceptance 通过；容器 healthy。
+- M191 已完成并待提交推送。M192 入口是 selection transition 的 identity/evidence 关联、补事实后的数据 readiness 重验和跨入口计划一致性。

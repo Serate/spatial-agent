@@ -1965,26 +1965,23 @@ class AgentService:
             )
 
         workflow_value = data.get("workflow")
-        if action == "select_capability" and not isinstance(workflow_value, dict):
-            capability_id = str(data.get("capability_id") or "").strip()
-            if not capability_id:
+        if action in {"select_capability", "provide_facts"} and not isinstance(
+            workflow_value, dict
+        ):
+            capability_id = self._interaction_capability_id(data, interaction)
+            if action == "select_capability" and not capability_id:
                 raise ValueError("interaction capability_id must be a non-empty string")
-            selected_runtime = self._runtime(selected_planner, selected_backend)
-            resolver = getattr(
-                getattr(selected_runtime, "_domain_pack", None),
-                "resolve_capability_selection",
-                None,
-            )
-            if not callable(resolver):
-                raise ValueError("selected capability cannot be converted to a workflow")
-            workflow_value = resolver(
-                capability_id,
-                request_facts=current.get("request_facts"),
-                selection=interaction.get("selection"),
-            )
-            if not isinstance(workflow_value, dict):
+            if capability_id:
+                workflow_value = self._resolve_interaction_capability(
+                    capability_id,
+                    interaction=interaction,
+                    request_facts=current.get("request_facts"),
+                    planner=selected_planner,
+                    backend=selected_backend,
+                )
+            elif action == "provide_facts":
                 raise ValueError(
-                    "selected capability has no executable workflow: " + capability_id
+                    "interaction facts require a capability_id or selected capability"
                 )
         if action == "provide_facts" and isinstance(workflow_value, dict):
             workflow_value = dict(workflow_value)
@@ -2085,6 +2082,61 @@ class AgentService:
                 # artifact navigation retains the interaction lineage.
                 self._artifact_store.write_run(response)
         return response
+
+    def _interaction_capability_id(
+        self,
+        payload: Mapping[str, Any],
+        interaction: Mapping[str, Any],
+    ) -> str:
+        """Resolve a bounded capability id from an interaction payload.
+
+        ``provide_facts`` may continue a selected capability without forcing
+        the Console to echo the Domain-owned workflow object.  An implicit
+        candidate is accepted only when the selection is unambiguous.
+        """
+        explicit = str(payload.get("capability_id") or "").strip()
+        if explicit:
+            return explicit[:96]
+        selection = interaction.get("selection")
+        if not isinstance(selection, Mapping):
+            return ""
+        selected = str(selection.get("selected_capability_id") or "").strip()
+        if selected:
+            return selected[:96]
+        candidates = selection.get("candidate_ids")
+        if isinstance(candidates, (list, tuple)) and len(candidates) == 1:
+            candidate = str(candidates[0] or "").strip()
+            return candidate[:96]
+        return ""
+
+    def _resolve_interaction_capability(
+        self,
+        capability_id: str,
+        *,
+        interaction: Mapping[str, Any],
+        request_facts: Any,
+        planner: str,
+        backend: str,
+    ) -> Dict[str, Any]:
+        """Resolve a selected Domain capability into canonical workflow data."""
+        selected_runtime = self._runtime(planner, backend)
+        resolver = getattr(
+            getattr(selected_runtime, "_domain_pack", None),
+            "resolve_capability_selection",
+            None,
+        )
+        if not callable(resolver):
+            raise ValueError("selected capability cannot be converted to a workflow")
+        workflow_value = resolver(
+            capability_id,
+            request_facts=request_facts,
+            selection=interaction.get("selection"),
+        )
+        if not isinstance(workflow_value, dict):
+            raise ValueError(
+                "selected capability has no executable workflow: " + capability_id
+            )
+        return dict(workflow_value)
 
     def list_runs(self, limit: int = 20) -> Dict:
         if self._state.persistent:

@@ -4670,3 +4670,17 @@ Runtime 给 Planner context 的候选建议限制为 4 项，保留 bounded labe
 ### 处理与预防
 
 为 `PlanningError` 增加有界 `category/code/retryable` 元数据；OpenAI 兼容客户端将暂态 HTTP、鉴权、限流、网络、超时和无效模型响应映射到稳定语义，401/403 不重试，暂态和超时保留可重试标记。HTTP provider 正文不再写入运行错误，只保留状态类别和 versioned failure evidence。规划失败且没有候选计划时统一标记 `phase=planning`。以后新增 Planner/provider 时必须同时验证异常元数据、Runtime failure、planner metrics、Artifact、异步和 SQLite 重启，不得从原始错误文本推断核心分类或持久化 provider 响应。
+
+## M191：结构化缺失事实未被 Runtime 生命周期门控
+
+### 现象
+
+Domain 已返回 `workflow_selection.state=clarification` 和 `missing_fields`，但 Runtime 只把 `ambiguous` 视为必须暂停的选择状态。规则 Planner 仍可能在事实不完整时直接生成并执行计划；同时 `provide_facts` 要求客户端重复提交完整 workflow，前端无法只提交 capability ID 和新增事实继续任务。
+
+### 根因
+
+能力发现、选择证据和 Runtime 门控之间缺少统一的事实状态转换。Service 的交互处理只在有 workflow payload 时合并 facts，没有复用 Domain 的 `resolve_capability_selection` 来恢复 canonical workflow；Runtime 也没有把 Domain 声明的 `missing_fields` 转换为统一 `NEEDS_CLARIFICATION` 生命周期。
+
+### 处理与预防
+
+Runtime 现在在无显式 workflow 时对 `clarification + missing_fields` 生成结构化澄清并停止工具执行；Service 增加 bounded capability ID 解析和统一 capability-to-workflow seam，`provide_facts` 可从已选/唯一候选能力恢复 workflow 后再合并 facts，旧的完整 workflow payload 仍兼容。以后 Domain 只声明事实和解析能力，不能让前端拼装 Domain workflow；测试必须覆盖“缺事实不执行、补事实后继续、HTTP/Artifact/SQLite 重启一致”。

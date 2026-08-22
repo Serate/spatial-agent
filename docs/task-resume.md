@@ -2250,3 +2250,10 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - Docker 专项 `tests.test_m190_model_failure` **3/3**，M61/M97/M98/M190 受影响回归 **23/23**；compileall、quick、stage、full-stage、生产 acceptance 通过。
 - 真实 DeepSeek Planner **1/1**、真实模型 + Docker GIS 总览 **1/1** 通过。M190 已完成，当前工作树待敏感信息检查、提交和推送。
 - M191 入口是“候选能力选择 → 补事实 → 计划预览/确认 → 执行/恢复”的通用纵向链路，按全局七维度推进，不增加单区域规则。
+
+## M191 当前完成状态
+
+- `AgentRuntime._require_workflow_selection()` 现在门控 `clarification + missing_fields`，未补齐事实时返回结构化 clarification，不进入 ToolRegistry。
+- `AgentService.apply_run_interaction()` 统一从显式 capability ID、已选 capability 或唯一候选恢复 Domain workflow；`provide_facts` 可不携带 workflow。
+- Docker M191 专项 **2/2**，M164/M166/M167 受影响回归 **25/25**；quick、stage、full-stage 和 production acceptance 通过，容器 healthy。
+- M191 已完成，下一阶段 M192 聚焦 selection transition 的 request/plan identity、数据证据重验和跨入口 evidence equality；当前工作树待检查、提交和推送。

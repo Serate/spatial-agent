@@ -1194,7 +1194,23 @@ class AgentRuntime:
             if isinstance(sections, Mapping)
             else None
         )
-        if selection.get("state") != "ambiguous":
+        selection_state = selection.get("state")
+        if selection_state == "clarification" and selection.get("missing_fields"):
+            missing_fields = [
+                item
+                for item in (selection.get("missing_fields") or [])[:16]
+                if isinstance(item, Mapping)
+            ]
+            raise ClarificationNeeded(
+                "当前能力还缺少必要输入事实，请补充后继续。",
+                {
+                    "schema_version": "spatial-agent.clarification.v1",
+                    "state": "capability_facts_required",
+                    "missing_fields": missing_fields,
+                    "next_actions": ["补充必要输入事实", "选择其他能力"],
+                },
+            )
+        if selection_state != "ambiguous":
             return
         candidates = [
             str(item)[:96]

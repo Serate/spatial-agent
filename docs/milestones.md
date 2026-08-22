@@ -3800,3 +3800,22 @@ M190 已把开放式能力发现、结构化澄清和模型失败证据接入 Ru
 5. **部署**：选择/补事实后的 preview fingerprint、异步提交、SQLite 重启、Artifact 和重复提交必须保持一致，不能重复执行工具。
 6. **体验**：前端只消费结构化 selection、facts、plan、allowed_actions、failure 和 result projection，动态展示下一步，不新增 GIS 页面分支。
 7. **测试**：保持 compact quick/CI；新增一个跨 Domain 的 selection-to-run Contract Harness，阶段收口执行 Docker、HTTP、Artifact、浏览器和必要 live/GIS 验收。
+
+## M191 当前切片：Selection-to-Run 通用纵向链路（已完成）
+
+- Service 新增 bounded `_interaction_capability_id()` 和 `_resolve_interaction_capability()` seam；`provide_facts` 可以只接收 `capability_id + facts`，由 Domain 恢复 canonical workflow，不要求前端重复提交内部 workflow。
+- Runtime 对 Domain 返回的 `workflow_selection.state=clarification` 且存在 `missing_fields` 统一进入 `NEEDS_CLARIFICATION`，缺失事实未补齐前不执行任何工具；显式 workflow 仍可作为用户决定绕过选择门控。
+- 新增 `tests/test_m191_selection_to_run.py` **2/2**，覆盖 Text Domain 的补事实继续、HTTP interaction、Artifact 和 SQLite restart；M164/M166/M167 受影响回归合计 **25/25**（Node smoke 按 Docker 环境跳过）。
+- Docker compileall、quick、stage、full-stage、生产 acceptance 通过，容器 healthy；未新增 GIS 工具或固定问句分支。M191 已完成并具备版本推送条件。
+
+## M192 全局重规划参考
+
+M191 已打通能力选择到运行，但下一阶段需要从“能继续执行”推进到“选择后的事实、数据证据和计划身份可证明”：
+
+1. **产品**：在同一工作区显示候选能力、缺失事实、补事实后的新计划、确认状态、执行结果和恢复入口，解释每次选择如何改变计划。
+2. **架构**：建立 selection transition 的 request/plan identity 与 action receipt 关联，避免把一次补事实误当成新的无关请求。
+3. **数据**：补事实后重新执行 Domain readiness、coverage、alignment、provenance 检查，并把前后差异作为结构化 evidence。
+4. **模型**：脱敏 replay 覆盖候选选择、事实补全、模型计划绑定和有限修复；配置可用时做一条真实模型选择→执行基线。
+5. **部署**：验证重复补事实、异步提交、重启接管和旧 Artifact replay 不重复执行；preview fingerprint 必须与最终执行计划一致。
+6. **体验**：Console 动态显示 selection transition、计划变化和阻断原因，保持 Text/GIS 共用 renderer。
+7. **测试**：新增一条最小 selection identity/evidence Harness；quick/CI 不扩张，阶段末执行 Docker、HTTP、Artifact、浏览器和必要 live/GIS 验收。
