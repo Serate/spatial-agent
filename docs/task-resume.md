@@ -2308,3 +2308,11 @@ M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194
 5. **部署**：覆盖多 worker、滚动重启、旧 schema/Receipt、Artifact-only、异步取消/超时和幂等不重复执行。
 6. **体验**：Console 只消费结构化 selection/plan/evidence/action/result/views/artifact，动态生成工作区。
 7. **测试**：默认 quick/CI 保持精简；阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、浏览器、Docker 和必要 live。
+
+## M194-A 当前进度：Workflow Composition Seam
+
+- 新增 `spatial-agent.workflow-composition.v1`，公共编译器支持最多 8 个模板组件、依赖环检查、component ID 命名空间、引用重写和组件依赖终点合并。
+- GIS `Domain Pack` 支持显式 `workflow.components`，Rule Planner 将组件编译为统一 `TaskPlan`；组合策略使用各组件工具 allowlist 并集与 max-step 总预算。
+- Text Domain 对组件工作流明确拒绝，避免公共 Runtime 或 Text Pack 意外加载 GIS 模板。
+- M194-A 专项 **5/5**，M193/M191/M192 联合回归 **12/12**；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP smoke 通过。
+- 组合策略误拒绝问题已记录到中文问题文档；当前工作树待敏感信息检查、提交和推送。

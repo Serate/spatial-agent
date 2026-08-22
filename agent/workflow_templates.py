@@ -61,6 +61,7 @@ KNOWN_RESULT_TYPES = [
 ]
 
 DEFAULT_TEMPLATE_VERSION = "1.0.0"
+WORKFLOW_COMPOSITION_SCHEMA_VERSION = "spatial-agent.workflow-composition.v1"
 SUPPORTED_CONSTRAINT_TYPES = {"string", "number", "integer", "boolean", "enum"}
 
 
@@ -663,6 +664,206 @@ def compile_workflow_plan(
         "output": output,
     }
     return validate_workflow_plan(normalized_template, plan)
+
+
+def normalize_workflow_composition(
+    workflow: Mapping[str, Any],
+    *,
+    component_normalizer: Any = None,
+    composition_template_id: str | None = None,
+) -> Dict[str, Any]:
+    """Normalize a bounded list of Domain-owned workflow components.
+
+    The public interface is deliberately small: each component names one
+    template, its constraints/evidence, and optional component dependencies.
+    Domain Packs may inject their existing single-template normalizer; the
+    compiler itself never interprets domain fields or tool names.
+    """
+
+    if not isinstance(workflow, Mapping):
+        raise WorkflowTemplateError("workflow must be an object")
+    raw_components = workflow.get("components")
+    if not isinstance(raw_components, (list, tuple)) or not raw_components:
+        raise WorkflowTemplateError("workflow.components must be a non-empty array")
+    if len(raw_components) > 8:
+        raise WorkflowTemplateError("workflow.components may contain at most 8 items")
+
+    components: list[Dict[str, Any]] = []
+    seen = set()
+    for index, raw in enumerate(raw_components):
+        if not isinstance(raw, Mapping):
+            raise WorkflowTemplateError("workflow component must be an object")
+        template_id = str(raw.get("template_id") or "").strip()
+        if not template_id:
+            raise WorkflowTemplateError("workflow component.template_id is required")
+        component_id = str(raw.get("component_id") or template_id or f"component-{index + 1}").strip()
+        if not component_id or component_id in seen:
+            raise WorkflowTemplateError("workflow component IDs must be unique")
+        seen.add(component_id)
+        normalizer = component_normalizer
+        normalized = (
+            normalizer(dict(raw))
+            if callable(normalizer)
+            else normalize_workflow_selection(
+                template_id,
+                raw.get("constraints") if isinstance(raw.get("constraints"), Mapping) else {},
+                raw.get("evidence"),
+            )
+        )
+        if not isinstance(normalized, Mapping):
+            raise WorkflowTemplateError("component normalizer must return an object")
+        normalized = dict(normalized)
+        dependencies = raw.get("depends_on_components", raw.get("depends_on", []))
+        if not isinstance(dependencies, (list, tuple)):
+            raise WorkflowTemplateError("component dependencies must be an array")
+        dependencies = [str(item).strip() for item in dependencies[:8] if str(item).strip()]
+        if component_id in dependencies:
+            raise WorkflowTemplateError("workflow component cannot depend on itself")
+        normalized["component_id"] = component_id[:96]
+        normalized["depends_on_components"] = list(dict.fromkeys(dependencies))
+        components.append(normalized)
+
+    component_ids = {item["component_id"] for item in components}
+    for component in components:
+        unknown = sorted(set(component["depends_on_components"]) - component_ids)
+        if unknown:
+            raise WorkflowTemplateError(
+                "workflow component dependency is unknown: " + ", ".join(unknown)
+            )
+    if _has_component_cycle(components):
+        raise WorkflowTemplateError("workflow component dependencies contain a cycle")
+
+    template_ids = [str(item.get("template_id")) for item in components]
+    evidence = []
+    for component in components:
+        for value in component.get("evidence") or []:
+            if value not in evidence:
+                evidence.append(value)
+    result: Dict[str, Any] = {
+        "schema_version": WORKFLOW_COMPOSITION_SCHEMA_VERSION,
+        "template_id": composition_template_id or (template_ids[0] if len(template_ids) == 1 else "workflow_composition"),
+        "template_version": "1.0.0",
+        "components": components,
+        "component_template_ids": template_ids[:8],
+        "constraints": dict(components[0].get("constraints") or {}) if len(components) == 1 else {},
+        "evidence": evidence[:16],
+    }
+    if len(components) == 1:
+        result["template_version"] = components[0].get("template_version") or "1.0.0"
+    return result
+
+
+def compile_workflow_composition(
+    components: Iterable[Mapping[str, Any]],
+    *,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    output_type: str = "workflow_composition_result",
+    goal: str = "compose selected workflow components",
+    output_overrides: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Compile selected templates into one isolated, dependency-safe DAG."""
+
+    values = list(components) if isinstance(components, Iterable) and not isinstance(components, (str, bytes, Mapping)) else []
+    if not values:
+        raise WorkflowTemplateError("workflow composition requires components")
+    normalized = normalize_workflow_composition(
+        {"components": values},
+        component_normalizer=None,
+    )
+    compiled: list[Dict[str, Any]] = []
+    component_steps: Dict[str, list[Dict[str, Any]]] = {}
+    for component in normalized["components"]:
+        component_id = str(component["component_id"])
+        prefix = _safe_component_prefix(component_id)
+        plan = compile_workflow_plan(
+            str(component["template_id"]),
+            component.get("constraints") if isinstance(component.get("constraints"), Mapping) else {},
+            evidence=component.get("evidence"),
+            catalog=catalog,
+        )
+        steps = []
+        old_ids = {str(item["id"]): f"{prefix}--{item['id']}" for item in plan["steps"]}
+        for item in plan["steps"]:
+            step = {
+                "id": old_ids[str(item["id"])],
+                "tool": item["tool"],
+                "args": _rewrite_component_references(item.get("args", {}), old_ids),
+                "depends_on": [old_ids.get(str(dep), f"{prefix}--{dep}") for dep in item.get("depends_on", [])],
+            }
+            steps.append(step)
+        depended_on = set(dep for step in steps for dep in step["depends_on"])
+        roots = [step for step in steps if step["id"] not in depended_on]
+        component_steps[component_id] = steps
+        compiled.extend(steps)
+
+    for component in normalized["components"]:
+        dependencies = component.get("depends_on_components") or []
+        if not dependencies:
+            continue
+        component_id = str(component["component_id"])
+        own_steps = component_steps[component_id]
+        depended_on = {dep for step in own_steps for dep in step["depends_on"]}
+        roots = [step for step in own_steps if step["id"] not in depended_on]
+        terminals = []
+        for dependency in dependencies:
+            dependency_steps = component_steps[str(dependency)]
+            dependency_ids = {step["id"] for step in dependency_steps}
+            dependency_inputs = {item for step in dependency_steps for item in step["depends_on"]}
+            terminals.extend(step for step in dependency_steps if step["id"] not in dependency_inputs and step["id"] in dependency_ids)
+        for root in roots:
+            root["depends_on"] = list(dict.fromkeys(root["depends_on"] + [item["id"] for item in terminals]))
+
+    return {
+        "schema_version": WORKFLOW_COMPOSITION_SCHEMA_VERSION,
+        "goal": goal,
+        "steps": compiled,
+        "output": {
+            "type": output_type,
+            "summary": True,
+            "component_template_ids": normalized["component_template_ids"],
+        } | (dict(output_overrides) if output_overrides else {}),
+        "assumptions": [
+            "workflow components are Domain-owned and each component remains independently schema-validated",
+        ],
+        "components": normalized["components"],
+    }
+
+
+def _has_component_cycle(components: Iterable[Mapping[str, Any]]) -> bool:
+    graph = {str(item["component_id"]): set(item.get("depends_on_components") or []) for item in components}
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(node: str) -> bool:
+        if node in visiting:
+            return True
+        if node in visited:
+            return False
+        visiting.add(node)
+        if any(visit(dep) for dep in graph.get(node, ())):
+            return True
+        visiting.remove(node)
+        visited.add(node)
+        return False
+
+    return any(visit(node) for node in graph)
+
+
+def _safe_component_prefix(value: str) -> str:
+    prefix = re.sub(r"[^A-Za-z0-9_-]+", "-", str(value)).strip("-")[:48]
+    return prefix or "component"
+
+
+def _rewrite_component_references(value: Any, old_ids: Mapping[str, str]) -> Any:
+    if isinstance(value, Mapping):
+        result = {key: _rewrite_component_references(item, old_ids) for key, item in value.items()}
+        for key in ("step", "from", "to"):
+            if key in result and str(result[key]) in old_ids:
+                result[key] = old_ids[str(result[key])]
+        return result
+    if isinstance(value, list):
+        return [_rewrite_component_references(item, old_ids) for item in value]
+    return value
 
 
 def normalize_workflow_constraints(

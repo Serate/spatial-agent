@@ -9,6 +9,8 @@ from typing import Any, Mapping
 from agent.capability_catalog import capability_catalog
 from agent.workflow_templates import (
     WorkflowTemplateError,
+    normalize_workflow_composition,
+    normalize_workflow_selection,
     workflow_template_catalog,
     workflow_template_context_summary,
 )
@@ -211,10 +213,26 @@ class GisDomainPack:
 
     def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
         """Normalize GIS workflow input inside the GIS Domain Pack."""
-        from agent.workflow_templates import normalize_workflow_selection
-
         if not isinstance(workflow, Mapping):
             raise ValueError("workflow must be an object")
+        if isinstance(workflow.get("components"), (list, tuple)):
+            def normalize_component(component: Mapping[str, Any]) -> Mapping[str, Any]:
+                template_id = str(component.get("template_id") or "").strip()
+                if not template_id:
+                    raise ValueError("workflow component.template_id is required")
+                return normalize_workflow_selection(
+                    template_id,
+                    component.get("constraints", {})
+                    if isinstance(component.get("constraints"), Mapping)
+                    else {},
+                    component.get("evidence"),
+                )
+
+            return normalize_workflow_composition(
+                workflow,
+                component_normalizer=normalize_component,
+                composition_template_id="spatial_analysis",
+            )
         template_id = workflow.get("template_id")
         if not isinstance(template_id, str) or not template_id.strip():
             raise ValueError("workflow.template_id must be a non-empty string")
@@ -234,6 +252,25 @@ class GisDomainPack:
 
         if not isinstance(workflow, Mapping):
             raise WorkflowTemplateError("workflow selection is incomplete")
+        if isinstance(workflow.get("components"), (list, tuple)):
+            def normalize_component(component: Mapping[str, Any]) -> Mapping[str, Any]:
+                template_id = str(component.get("template_id") or "").strip()
+                return normalize_workflow_selection(
+                    template_id,
+                    component.get("constraints", {})
+                    if isinstance(component.get("constraints"), Mapping)
+                    else {},
+                    component.get("evidence"),
+                )
+
+            normalize_workflow_composition(
+                workflow,
+                component_normalizer=normalize_component,
+                composition_template_id="spatial_analysis",
+            )
+            if not getattr(plan, "steps", None):
+                raise WorkflowTemplateError("workflow composition produced no steps")
+            return
         template_id = workflow.get("template_id")
         constraints = workflow.get("constraints")
         evidence = workflow.get("evidence")
@@ -306,6 +343,40 @@ class GisDomainPack:
         output_type = output.get("type") if isinstance(output, Mapping) else None
         if not output_type:
             return
+        component_ids = (
+            output.get("component_template_ids")
+            if isinstance(output, Mapping)
+            else None
+        )
+        if isinstance(component_ids, list) and component_ids:
+            templates = [
+                workflow_template_catalog().get(str(item))
+                for item in component_ids[:8]
+            ]
+            templates = [item for item in templates if isinstance(item, Mapping)]
+            if templates:
+                allowed = {
+                    str(tool)
+                    for template in templates
+                    for tool in (template.get("allowed_tools") or [])
+                }
+                tools = [str(step.tool) for step in getattr(plan, "steps", ())]
+                unexpected = sorted(set(tools) - allowed)
+                if unexpected:
+                    raise WorkflowTemplateError(
+                        "domain workflow composition rejected tools: "
+                        + ", ".join(unexpected)
+                    )
+                max_steps = sum(
+                    int(template.get("max_steps") or 0) for template in templates
+                )
+                if max_steps and len(tools) > max_steps:
+                    raise WorkflowTemplateError(
+                        "domain workflow composition exceeded max steps: {} > {}".format(
+                            len(tools), max_steps
+                        )
+                    )
+                return
         candidates = [
             template
             for template in workflow_template_catalog().values()
@@ -345,6 +416,52 @@ class GisDomainPack:
         output = getattr(plan, "output", None)
         output_type = output.get("type") if isinstance(output, Mapping) else None
         catalog = workflow_template_catalog()
+        components = workflow.get("components") if isinstance(workflow, Mapping) else None
+        if isinstance(components, list) and components:
+            selected_templates = [
+                catalog.get(str(item.get("template_id")))
+                for item in components[:8]
+                if isinstance(item, Mapping)
+            ]
+            selected_templates = [
+                item for item in selected_templates if isinstance(item, Mapping)
+            ]
+            if selected_templates:
+                allowed_tools = list(dict.fromkeys(
+                    str(tool)
+                    for template in selected_templates
+                    for tool in (template.get("allowed_tools") or [])
+                ))[:32]
+                component_ids = [
+                    str(item.get("template_id"))
+                    for item in components[:8]
+                    if isinstance(item, Mapping) and item.get("template_id")
+                ]
+                return {
+                    "schema_version": "spatial-agent.plan-policy.v1",
+                    "available": True,
+                    "domain_id": self.domain_id,
+                    "policy_id": "gis.workflow.composition",
+                    "source": "explicit_workflow",
+                    "selected_by": "user",
+                    "workflow_template_id": "spatial_analysis",
+                    "workflow_template_version": "1.0.0",
+                    "allowed_tools": allowed_tools,
+                    "max_steps": sum(
+                        int(template.get("max_steps") or 0)
+                        for template in selected_templates
+                    ),
+                    "result_types": [str(output_type)] if output_type else [],
+                    "required_constraints": list(dict.fromkeys(
+                        str(field)
+                        for template in selected_templates
+                        for field in (template.get("required_constraints") or [])
+                    ))[:16],
+                    "component_template_ids": component_ids,
+                    "candidate_policy_ids": [
+                        "gis.workflow." + item for item in component_ids
+                    ],
+                }
         explicit_id = (
             str(workflow.get("template_id"))
             if isinstance(workflow, Mapping) and workflow.get("template_id")

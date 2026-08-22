@@ -3879,3 +3879,10 @@ M193-A 将 M192 的 transition evidence 从“可见差异”推进为统一的 
 ## M194 全局规划参考
 
 M194 从证据安全恢复继续推进通用开放式多能力编排，覆盖能力发现、Workflow 组合、DAG、repair lineage、Action Receipt、跨入口恢复和动态工作区；数据集只作为 evidence provider，不能成为 Runtime 专用策略。阶段验收继续按产品、架构、数据、模型、部署、体验、测试七个维度组织，默认 quick/CI 精简，真实模型/GIS/Docker/浏览器作为显式路径。
+
+## M194-A：Workflow Composition Seam（实现完成，待推送）
+
+- 新增 `spatial-agent.workflow-composition.v1`，实现组件归一化、最多 8 个组件限制、依赖环检测、步骤 ID 隔离、引用重写和跨组件 DAG 依赖。
+- GIS Domain 已接入显式组件 workflow；Domain policy 根据组件模板并集校验工具和总步数。Text Domain 负向隔离通过。
+- M194-A 专项 **5/5**；M193/M191/M192 联合回归 **12/12**；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP smoke 全部通过。
+- 本阶段没有新增默认 CI 网络访问、真实模型 token、私有配置或原始 GIS 数据。下一步提交推送后进入 M194-B：跨入口 selection/evidence/recovery 统一投影。

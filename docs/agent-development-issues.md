@@ -4753,3 +4753,17 @@ Evidence Transition、Action Preconditions 和 Action Receipt 原本分别在不
 ### 处理与预防
 
 将选择交互浏览器 smoke 的有界等待从约 20 秒调整为 60 秒，并保留 `__consoleBootstrapReady` 作为唯一就绪条件；本次实际恢复约 22.5 秒，之后 preview、confirmation、complete 和 fingerprint equality 全部通过。以后浏览器 smoke 必须等待 bootstrap ready，而不是只等待 DOM 或固定短延迟；若恢复耗时继续增长，应优化历史恢复或增加明确的恢复进度/超时证据，不能提前放宽为无界等待。
+
+## M194-A：组合工作流误用单模板执行策略
+
+### 现象
+
+组合 `admin_boundary_query` 与 `raster_metadata` 时，模板编译器和 Domain Planner 已生成带命名空间的三步 DAG，但 Service preview 仍失败，错误为 `domain workflow policy rejected tools: get_raster_metadata`。
+
+### 根因
+
+组合计划的输出类型暂时复用了 `spatial_analysis_result`，GIS `plan_policy` 和 `validate_plan` 因此只按单个 `spatial_analysis` 模板读取 allowlist。公共组合编译器已经合并了组件，但 Domain 策略投影没有同步表达组件模板的工具并集和总步数预算。
+
+### 处理与预防
+
+GIS Domain 现在从组合输出中的 `component_template_ids` 和显式 workflow components 计算 allowlist 并集、组件总 max steps、required constraints 和组合 policy ID；Runtime 仍只调用 Domain policy seam，ToolRegistry 仍是唯一 dispatch 边界。以后新增组合结果类型或组件策略时，必须同时验证“编译 DAG、Domain policy、Runtime plan validation、preview/HTTP/artifact”一致，不能仅验证模板编译器的纯函数。

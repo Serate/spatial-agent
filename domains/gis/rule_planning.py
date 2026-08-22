@@ -10,7 +10,11 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional
 
 from agent.errors import ClarificationNeeded
 from agent.models import PlanStep, TaskPlan
-from agent.workflow_templates import compile_workflow_plan, get_workflow_template
+from agent.workflow_templates import (
+    compile_workflow_composition,
+    compile_workflow_plan,
+    get_workflow_template,
+)
 
 from .request_model import SpatialRequest
 from .intent import clarification_details, clarification_message, classify_spatial_intent
@@ -82,6 +86,30 @@ class RuleBasedPlanComposer:
 
         if not isinstance(workflow, Mapping):
             raise TypeError("workflow must be an object")
+        if isinstance(workflow.get("components"), (list, tuple)):
+            compiled = compile_workflow_composition(
+                workflow["components"],
+                output_type="spatial_analysis_result",
+                goal="compose selected spatial workflow components",
+                output_overrides={
+                    "evidence": list(workflow.get("evidence") or []),
+                    "constraints": dict(workflow.get("constraints") or {}),
+                },
+            )
+            return TaskPlan(
+                compiled["goal"],
+                [
+                    PlanStep(
+                        str(step["id"]),
+                        str(step["tool"]),
+                        dict(step["args"]),
+                        list(step.get("depends_on", [])),
+                    )
+                    for step in compiled["steps"]
+                ],
+                dict(compiled["output"]),
+                list(compiled.get("assumptions") or []),
+            )
         template_id = workflow.get("template_id")
         if not isinstance(template_id, str) or not template_id.strip():
             raise ValueError("workflow.template_id must be a non-empty string")

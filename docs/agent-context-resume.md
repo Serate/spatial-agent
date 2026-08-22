@@ -1961,3 +1961,11 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 5. 部署：补多 worker、滚动重启、旧 Receipt/schema、Artifact-only 和异步取消/超时的组合验收，确保不会重复 dispatch 或丢失 evidence。
 6. 体验：前端统一消费 selection、plan、revalidation、action、result、views 和 artifact，不为每个结果类型增加固定页面。
 7. 测试：保持默认 quick/CI 精简，新增跨 Text/GIS Domain 的最小组合 Harness，阶段收口再执行 Docker、HTTP、Artifact、SQLite、浏览器和必要 live 验收。
+
+## M194-A 当前完成状态：Workflow Composition Seam
+
+- 新增 `spatial-agent.workflow-composition.v1`，公共模板编译器支持最多 8 个组件、唯一 component ID、组件依赖环检测、步骤命名空间隔离和跨组件终点依赖合并。
+- GIS Domain 接入组件归一化、组合计划编译和组件 allowlist/max-step 策略；Text Domain 保持隔离，不导入 GIS 模板。
+- M194-A 专项 **5/5**；M193/M191/M192 联合回归 **12/12**；Docker compileall、quick、stage、full-stage、production acceptance 和 Chrome/CDP smoke 通过。
+- 本阶段修复了组合计划被单模板策略误拒绝的问题，已记录到 `docs/agent-development-issues.md`。当前尚未提交推送 M194-A。
+- 下一切片继续补组合 workflow 在 selection evidence、HTTP/async/SQLite/artifact/restart 和跨 Domain capability contract 中的统一投影；不把 GIS 组件字段解释放入公共 Runtime。
