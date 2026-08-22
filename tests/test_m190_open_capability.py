@@ -12,6 +12,7 @@ from agent.capability_discovery import (
 from agent.errors import ClarificationNeeded
 from agent.request_model import RequestFacts
 from agent.selection_interaction import build_selection_interaction
+from evaluation.model_evaluation import _build_recorded_runtime, project_repair_evidence
 from run_demo import build_runtime
 
 
@@ -103,6 +104,21 @@ class M190OpenCapabilityTests(unittest.TestCase):
             status="NEEDS_CLARIFICATION",
         )
         self.assertIn("select_capability", interaction["allowed_actions"])
+
+    def test_recorded_llm_clarification_keeps_catalog_guidance(self):
+        runtime = _build_recorded_runtime(
+            {"outcome": "needs_clarification", "message": "请补充空间对象"},
+            {"usage": {"total_tokens": 24}, "latency_ms": 3},
+        )
+        result = runtime.run("查询一个尚未注册的空间对象", session_id="m190-model")
+
+        self.assertEqual(result.status.value, "NEEDS_CLARIFICATION")
+        self.assertEqual(result.steps, [])
+        selection = result.plan_evidence["workflow_selection"]
+        self.assertTrue(selection["suggested_capability_details"])
+        report = project_repair_evidence(result)
+        self.assertEqual(report["workflow_selection"]["state"], "unavailable")
+        self.assertTrue(report["workflow_selection"]["suggested_capability_ids"])
 
 
 if __name__ == "__main__":

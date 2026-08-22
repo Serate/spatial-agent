@@ -2240,3 +2240,10 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - `workflow_selection`、`selection_interaction` 和 Console 复用建议能力卡片；事实不足时仍可 `provide_facts`，同时可 `select_capability`，未知请求不再只有一段错误文本。
 - Docker 专项 `tests.test_m190_open_capability` **3/3**；相邻能力发现/选择/跨入口/Action Effect 回归 **27/27**；compileall、quick、stage 通过，容器 healthy。
 - 已记录上下文预算问题到 `docs/agent-development-issues.md`。M190 尚未完成真实模型闭环，下一步是 Service/Artifact/restart 一致性、脱敏 replay 和最小 live-short。
+
+## M190-B/C 当前进展
+
+- 新增 `tests/test_m190_guidance_cross_entry.py`，2 个高价值场景覆盖 Service/HTTP/Artifact 以及 async/SQLite restart；M190 当前专项累计 **6/6**。
+- `evaluation.model_evaluation.project_workflow_selection_evidence()` 现在保留有界 `missing_fields` 和 `suggested_capability_ids`，脱敏 replay 可审计结构化澄清，而不是只看最终状态。
+- 真实 DeepSeek live-short：未知空间对象返回 `NEEDS_CLARIFICATION`、0 工具步骤、4 个候选能力；真实模型 + Docker GIS 空间总览 **1/1** 通过。
+- M190 后续仍需验证 provider 超时/重试/错误分类与模型证据跨异步、Artifact、重启的一致性，当前 goal 保持 active。

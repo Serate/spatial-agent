@@ -1903,3 +1903,9 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - guidance 从 Domain Catalog 生成有界 `missing_fields`、`suggested_capability_details`、`next_actions` 和 `reason_code`。未匹配请求可以展示能力卡片；事实不足时可以补事实或选择能力。
 - Docker 已按当前工作树重建并 healthy。M190 专项 3/3、相邻回归 27/27、compileall、quick、stage 通过。
 - 继续工作前优先检查 `agent/capability_discovery.py`、`agent/workflow_selection.py`、`agent/selection_interaction.py`、`agent/runtime.py`、`tests/test_m190_open_capability.py`；下一步补跨 Service/HTTP/Artifact/SQLite/restart 和 replay/live-short 验收。
+
+## M190-B/C 最新恢复位置
+
+- M190-A/B 专项目前 **6/6**：新增跨入口 guidance equality，覆盖 Service、HTTP、Artifact、async 和 SQLite restart；评测 projection 已纳入 missing fields 与 suggested capability IDs。
+- 真实模型未知空间对象 live-short 返回结构化澄清、4 个候选能力且未调用工具；真实模型 + Docker GIS 空间总览 live 验收通过。
+- 下一步从模型 live 能力转向 provider 错误/超时/重试与异步、Artifact、restart 的证据连续性；不要把真实模型输出或 key 写入仓库。

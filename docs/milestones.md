@@ -3779,3 +3779,10 @@ M189 将 M188 的 Action Effect 从结构化投影验证推进到真实 Service 
 1. 将 discovery guidance 在 Service、HTTP、Artifact、SQLite/async/restart 中做 equality 验收，并补前端动态 smoke。
 2. 用脱敏模型回放验证候选能力 → 结构化澄清 → 计划预览/修复的连续链路。
 3. 在配置可用时执行最小真实模型 + Docker/GIS live-short，记录 provider 错误分类和模型证据，不进入默认 CI。
+
+## M190-B/C 当前验收更新
+
+- M190-A 专项扩展为 **4/4**，新增 M190-B 跨入口 **2/2**；Service、HTTP、Artifact、SQLite/async/restart 的 guidance state、候选能力 ID 和允许动作保持一致。
+- 脱敏 LLM replay 验证 `LLMPlanner` 在未知空间对象上返回结构化澄清，未执行工具，评测 projection 已保留 guidance state、missing fields 和 suggested capability IDs。
+- 真实模型 `M16LiveOpenAIPlannerTests` **1/1** 通过；真实模型 + Docker GIS `M66LiveSpatialOverviewTests` **1/1** 通过，复杂空间总览计划进入真实 GIS 工具链并完成。
+- M190 仍未收口：还需补模型 provider 超时/错误分类与异步/Artifact/restart 证据一致性，之后再进行阶段全局复盘和版本推送。

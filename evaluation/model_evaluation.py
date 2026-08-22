@@ -298,6 +298,20 @@ def project_workflow_selection_evidence(payload: Any) -> Dict[str, Any]:
             "selected_capability_id": normalized.get("selected_capability_id"),
             "candidate_ids": list(normalized.get("candidate_ids") or [])[:16],
             "candidate_count": normalized.get("candidate_count"),
+            "missing_fields": [
+                {
+                    "id": str(item.get("id"))[:80],
+                    "label": str(item.get("label"))[:120],
+                    "kind": str(item.get("kind") or "fact")[:32],
+                }
+                for item in (normalized.get("missing_fields") or [])[:8]
+                if isinstance(item, Mapping) and item.get("id") and item.get("label")
+            ],
+            "suggested_capability_ids": [
+                str(item)[:96]
+                for item in (normalized.get("suggested_capability_ids") or [])[:8]
+                if str(item).strip()
+            ],
         }
     normalized = normalize_workflow_selection_evidence(None)
     return {
