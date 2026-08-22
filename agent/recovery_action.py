@@ -14,7 +14,6 @@ import json
 from collections.abc import Mapping
 from typing import Any, Iterable
 
-
 RECOVERY_ACTION_SCHEMA_VERSION = "spatial-agent.recovery-action.v1"
 ACTION_RECEIPT_SCHEMA_VERSION = "spatial-agent.action-receipt.v1"
 
@@ -156,6 +155,13 @@ def project_action_receipt(
     error_code = str(value.get("error_code") or "")[:96]
     if error_code:
         result["error_code"] = error_code
+    # Import lazily: action_identity reads Evidence Projection, whose
+    # lifecycle registry imports this module for the action allowlist.
+    from .action_identity import normalize_action_receipt_identity_linkage
+
+    linkage = normalize_action_receipt_identity_linkage(value.get("identity_linkage"))
+    if linkage is not None:
+        result["identity_linkage"] = linkage
     return result
 
 

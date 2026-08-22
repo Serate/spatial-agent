@@ -1774,3 +1774,12 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - Action Contract 独立于默认 Result Contract equality，避免“提供 facts 后继续执行”与“直接执行”因动作历史不同而误报结果漂移。
 - M183.1 专项 2/2，M182/M181/M169/M165/M166/M178/M179/M108 相邻回归 50/50；Docker compileall、quick、stage、full-stage、compact discovery、production acceptance 通过，容器 healthy。
 - M183 总目标仍 active；下一条切片继续统一 Request/Plan/Result/Evidence identity，并覆盖异步、Artifact-only、重启和多 Domain 关联。M183.1 已提交并推送，版本为 `d4e7607`。
+
+## M183.2 当前完成状态：Action Receipt Identity Linkage
+
+- 新增领域无关 `spatial-agent.action-receipt-linkage.v1`，只关联已有的 Request Identity、Plan Identity、Result Envelope 和 Evidence Projection；不重新哈希不完整动作响应，也不引入第二套 Runtime 状态机。
+- Action Receipt 的 linkage 已接入 Service 完成/重放、AgentRunResult、SQLite history、Artifact、开发 HTTP 和 async result evidence；取消等只有最小响应的动作会从源运行快照补齐身份，重启 replay 保留 linkage。
+- `evaluation.contract_harness` 新增独立的 `ActionReceiptIdentityLinkageContract`、normalize 和 compare；它与 Action Contract、默认 Result Contract equality 正交，避免 transition evidence 污染最终结果一致性。
+- M183.2 专项 3/3，M183.1 专项 2/2，M182/M181/M169/M165/M166/M178/M179/M108 回归 48/48；Docker compileall、quick、stage、full-stage、smoke、严格 `ResourceWarning` 和 production acceptance 通过，容器 healthy，核心/可选数据 ready。
+- GIS core profile 3 项中 1 项通过、2 项因本地样例文件未挂载按环境跳过；本阶段未修改 GIS 工具、前端专用分支或模型调用，未保存私有配置和原始数据。
+- 本阶段发现的循环导入和重启 replay linkage 丢失问题已记录到 `docs/agent-development-issues.md`；当前总 Goal 仍 active，下一阶段继续做跨 Domain/多 worker 的 identity 与 action 前置条件验收。

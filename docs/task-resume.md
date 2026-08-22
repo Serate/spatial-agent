@@ -2096,3 +2096,22 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - Service detail、Artifact、SQLite history 的 cancel receipt 通过同一投影比较；run/result ID 与 `reused` 不参与语义 equality，fingerprint/状态/动作类型漂移会被发现。
 - M183.1 专项 2/2；M182/M181/M169/M165/M166/M178/M179/M108 相邻回归 50/50；Docker compileall、quick、stage、full-stage、compact discovery 和 production acceptance 通过，容器 healthy。
 - 该切片未修改 GIS 工具、前端页面或默认 CI；M183 总目标保持 active，下一条继续处理 Request/Plan/Result/Evidence identity 与异步/Artifact-only/restart 的统一关联。M183.1 已提交并推送，版本为 `d4e7607`。
+
+## M183.2 当前完成状态：Action Receipt Identity Linkage
+
+- 新增 `agent/action_identity.py` 与 `spatial-agent.action-receipt-linkage.v1`，以有界投影关联已有 Request/Plan/Result/Evidence identity，不把动作历史并入默认 Result equality。
+- Service、SQLite、Artifact、开发 HTTP、async evidence 和重启 replay 共享同一 linkage；源运行响应缺少 result envelope 时，从持久化运行快照恢复，不生成伪造身份。
+- 新增独立 linkage Contract Harness 和 3 项专项，覆盖纯投影、HTTP → Artifact/history、SQLite 重启 replay 以及 async evidence；M183.1 2 项和 M182/M181/M169/M165/M166/M178/M179/M108 48 项相邻回归全部通过。
+- Docker 按当前工作树重建并 healthy；compileall、quick、stage、full-stage、smoke、严格 ResourceWarning 和 production acceptance 通过，生产核心/可选数据与 runtime capability 均 ready。
+- GIS core profile 的 2 个历史真实文件样例因容器未挂载按环境跳过；未把该跳过误报为真实 GIS 通过。本阶段未增加 live token、前端分支或私有数据。
+- 循环导入、SQLite replay fallback 丢失 linkage 两个问题已用中文记录；M183 总目标保持 active，下一阶段应从七个维度规划跨 Domain、多 worker、Action 前置条件和完整动作时间线。
+
+## M184 全局重规划参考
+
+1. 产品：把 linkage 接入统一 action timeline，清晰显示动作作用的请求、计划、结果和证据状态。
+2. 架构：验证多 worker/CAS、跨 Domain 和旧 schema 下 linkage 的边界，保持 Action Receipt、Result Contract、Runtime 状态机三者正交。
+3. 数据：将 readiness、coverage、alignment、provenance 和 evidence migration 状态纳入 action 前置条件与恢复提示。
+4. 模型：用脱敏 replay 和最小 live-short 验证澄清、repair、确认、retry 的 linkage 不漂移；不扩大默认 CI。
+5. 部署：补生产 FastAPI、异步接管、滚动重启、Artifact-only 和历史迁移的 linkage equality 矩阵。
+6. 体验：Console 统一展示 action receipt 与 identity linkage，按结构化状态动态处理缺失、降级和阻断，不增加 GIS 专用分支。
+7. 测试：保持 quick/CI 精简，阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、多 worker、浏览器和必要 live-short。

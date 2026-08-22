@@ -28,6 +28,7 @@ from agent.selection_interaction import normalize_selection_interaction
 from agent.execution_timeline import normalize_execution_timeline
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
+from agent.recovery_action import normalize_action_receipt
 from result_contract import build_lineage_index
 
 
@@ -231,7 +232,7 @@ def build_async_result_evidence(
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
     registry = evidence_projection["evidence_registry"]
     selection = evidence_projection["selection"]
-    return {
+    result = {
         "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value),
         "state": state,
@@ -264,6 +265,11 @@ def build_async_result_evidence(
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
     }
+    if isinstance(value.get("action_receipt"), Mapping):
+        result["action_receipt"] = normalize_action_receipt(
+            value.get("action_receipt")
+        )
+    return result
 
 
 def _normalize_lifecycle(value: Any, status: str) -> Dict[str, Any]:
@@ -468,6 +474,10 @@ def normalize_async_result_evidence(
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
     }
+    if isinstance(value.get("action_receipt"), Mapping):
+        result["action_receipt"] = normalize_action_receipt(
+            value.get("action_receipt")
+        )
     for key in ("availability", "reason_code", "source"):
         if value.get(key) is not None:
             result[key] = str(value[key])[:96]

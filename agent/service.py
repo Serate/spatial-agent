@@ -21,6 +21,7 @@ from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
+from agent.action_identity import build_action_receipt_identity_linkage
 from agent.recovery_action import (
     action_input_fingerprint,
     project_action_receipt,
@@ -1646,8 +1647,17 @@ class AgentService:
                     )
                 if replay is None:
                     raise ValueError("action receipt result is unavailable")
+                replay_receipt = dict(receipt)
+                stored_receipt = replay.get("action_receipt")
+                if isinstance(stored_receipt, Mapping):
+                    # The SQLite receipt row intentionally stores only CAS
+                    # fields; durable identity linkage lives on the result
+                    # snapshot or bounded response payload.
+                    replay_receipt["identity_linkage"] = stored_receipt.get(
+                        "identity_linkage"
+                    )
                 replay["action_receipt"] = project_action_receipt(
-                    receipt, reused=True
+                    replay_receipt, reused=True
                 )
                 return replay, True
             if receipt.get("status") == "FAILED":
@@ -1723,16 +1733,13 @@ class AgentService:
             result_run_id = response.get("run_id")
         if response_payload is None and status == "COMPLETED" and not result_run_id:
             response_payload = response
-        self._state.complete_interaction(
-            domain_id=str(receipt.get("domain_id") or self._resolved_domain_id),
-            run_id=str(receipt.get("run_id") or ""),
-            action=str(receipt.get("action") or ""),
-            input_fingerprint=str(receipt.get("input_fingerprint") or ""),
-            status=status,
-            result_run_id=str(result_run_id) if result_run_id else None,
-            response_payload=response_payload,
-            error_code=error_code,
-        )
+        identity_payload = response
+        if not isinstance(response.get("result"), Mapping):
+            identity_payload = self._action_identity_source(
+                receipt,
+                planner=None,
+                backend=None,
+            ) or response
         receipt = dict(receipt)
         receipt.update(
             {
@@ -1742,7 +1749,32 @@ class AgentService:
                 "error_code": error_code,
             }
         )
+        identity_linkage = build_action_receipt_identity_linkage(identity_payload)
+        if identity_linkage.get("available"):
+            receipt["identity_linkage"] = identity_linkage
         action_receipt = project_action_receipt(receipt, reused=False)
+        stored_response_payload = response_payload
+        if not result_run_id:
+            # A failed/non-run action is replayed from this bounded payload;
+            # keep the linkage there because no result snapshot is available.
+            stored_response_payload = dict(response_payload or response)
+            stored_response_payload["action_receipt"] = action_receipt
+        elif isinstance(response_payload, dict):
+            # Some lifecycle actions have a result reference but also retain
+            # a small response payload (for example cancel).  Persist the
+            # linkage there as a replay fallback alongside the result snapshot.
+            stored_response_payload = dict(response_payload)
+            stored_response_payload["action_receipt"] = action_receipt
+        self._state.complete_interaction(
+            domain_id=str(receipt.get("domain_id") or self._resolved_domain_id),
+            run_id=str(receipt.get("run_id") or ""),
+            action=str(receipt.get("action") or ""),
+            input_fingerprint=str(receipt.get("input_fingerprint") or ""),
+            status=status,
+            result_run_id=str(result_run_id) if result_run_id else None,
+            response_payload=stored_response_payload,
+            error_code=error_code,
+        )
         if result_run_id:
             self._persist_action_receipt(result_run_id, action_receipt)
         if include_legacy:
@@ -1753,6 +1785,26 @@ class AgentService:
         if isinstance(response.get("result"), dict):
             response["result"]["action_receipt"] = response["action_receipt"]
         return response
+
+    def _action_identity_source(
+        self,
+        receipt: Mapping[str, Any],
+        *,
+        planner: Optional[str],
+        backend: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        """Load the source run when an action response has no result envelope."""
+        source_run_id = receipt.get("run_id") if isinstance(receipt, Mapping) else None
+        if not source_run_id:
+            return None
+        try:
+            return self.get_run(
+                str(source_run_id),
+                planner=planner or "rule",
+                backend=backend or "memory",
+            )
+        except (LookupError, RuntimeError, TypeError, ValueError, OSError):
+            return None
 
     def _persist_action_receipt(
         self, result_run_id: str, action_receipt: Dict[str, Any]

@@ -38,6 +38,10 @@ from agent.recovery_action import (
     ACTION_RECEIPT_SCHEMA_VERSION,
     normalize_action_receipt,
 )
+from agent.action_identity import (
+    ACTION_RECEIPT_LINKAGE_SCHEMA_VERSION,
+    normalize_action_receipt_identity_linkage as _normalize_action_receipt_identity_linkage,
+)
 
 
 @dataclass(frozen=True)
@@ -69,6 +73,22 @@ class ActionReceiptContract:
         return _differences(self.values, other.values)
 
     def equivalent_to(self, other: "ActionReceiptContract") -> bool:
+        return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class ActionReceiptIdentityLinkageContract:
+    """Stable linkage of one action to its run-level identities."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "ActionReceiptIdentityLinkageContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "ActionReceiptIdentityLinkageContract") -> bool:
         return not self.differences(other)
 
 
@@ -122,6 +142,44 @@ def compare_action_receipts(
     if len(payloads) < 2:
         raise ValueError("at least two action receipts are required")
     contracts = [normalize_action_receipt_contract(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_action_receipt_identity_linkage(
+    payload: Mapping[str, Any],
+) -> ActionReceiptIdentityLinkageContract:
+    """Project Request/Plan/Result/Evidence linkage independently of action semantics."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("action receipt linkage payload must be a mapping")
+    raw = payload.get("action_receipt")
+    if not isinstance(raw, Mapping) and isinstance(payload.get("result"), Mapping):
+        raw = payload["result"].get("action_receipt")
+    raw_linkage = raw.get("identity_linkage") if isinstance(raw, Mapping) else None
+    linkage = _normalize_action_receipt_identity_linkage(raw_linkage)
+    if linkage is None:
+        return ActionReceiptIdentityLinkageContract(
+            {
+                "available": False,
+                "schema_version": ACTION_RECEIPT_LINKAGE_SCHEMA_VERSION,
+            }
+        )
+    return ActionReceiptIdentityLinkageContract(linkage)
+
+
+def compare_action_receipt_identity_linkages(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return bounded linkage drift paths across persistence/transport entries."""
+    if len(payloads) < 2:
+        raise ValueError("at least two action receipt linkages are required")
+    contracts = [normalize_action_receipt_identity_linkage(item) for item in payloads]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):
@@ -516,6 +574,9 @@ def _async_result_evidence_projection(
         "selection_interaction": _selection_interaction_projection(
             evidence.get("selection_interaction")
         ),
+        "action_receipt_identity_linkage": normalize_action_receipt_identity_linkage(
+            evidence
+        ).as_dict(),
         "execution_timeline": normalize_execution_timeline(
             evidence.get("execution_timeline")
         ),

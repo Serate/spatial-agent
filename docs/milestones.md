@@ -3616,3 +3616,24 @@ M183.1 将动作回执纳入现有 Contract Harness 的领域无关能力中，�
 - 新增 `tests/test_m183_action_contract.py` 2 项；M183.1 与 M182/M181/M169/M165/M166/M178/M179/M108 相邻回归共 50/50 通过。
 - Docker 重建后 healthy；compileall、quick、stage、full-stage、compact discovery 4/4 和 production acceptance 均通过。生产核心/可选数据 ready，同步/异步/Artifact contract ok。
 - 本阶段只扩展测试与公共投影，没有新增 GIS 工具、前端专用分支、私有配置或 live 输出；M183 总目标继续推进下一条 identity/recovery 切片。M183.1 已提交并推送，版本为 `d4e7607`。
+
+## M183.2：Action Receipt Identity Linkage（已完成）
+
+M183.2 将 Action Receipt 从“动作语义可比较”推进到“动作与其运行契约可关联”，但保持 transition evidence 与最终 Result Contract 的正交边界。
+
+- 新增 `agent/action_identity.py` 和 `spatial-agent.action-receipt-linkage.v1`，关联已有的 Request Identity、Plan Identity、Result Envelope 与 Evidence Projection；不对不完整动作响应重新计算请求 fingerprint。
+- Service 完成/重放、AgentRunResult、SQLite history、Artifact、开发 HTTP 和 async result evidence 均保留同一有界 linkage。取消等最小动作响应在缺少 result envelope 时从源 run 快照恢复；重启 replay 从 result snapshot 或 bounded response payload 复用 linkage。
+- `evaluation.contract_harness` 新增 `ActionReceiptIdentityLinkageContract`、`normalize_action_receipt_identity_linkage()` 和 `compare_action_receipt_identity_linkages()`；Action Receipt semantic contract 与 linkage contract 分开比较，默认 Result equality 不受动作历史污染。
+- M183.2 专项 3/3，M183.1 专项 2/2，M182/M181/M169/M165/M166/M178/M179/M108 相邻回归 48/48；Docker compileall、quick、stage、full-stage、smoke、严格 `ResourceWarning` 和 production acceptance 通过，容器 healthy，核心/可选数据 ready。
+- GIS core profile 3 项中 1 项通过、2 项因容器未挂载历史本地样例文件而跳过；该跳过仅是环境边界，不作为真实 GIS 通过证据。本阶段未增加 GIS 工具、前端专用分支、live token、私有配置或原始数据。
+- 本阶段发现的循环导入、重启 replay 未携带 linkage 两个问题已记录到中文开发问题文档。M183.2 已完成，下一阶段按七个维度进入 M184 全局规划；总 Goal 仍 active。
+
+## M184 全局规划参考
+
+1. 产品：将 linkage 纳入通用 action timeline，展示动作作用的请求、计划、结果和证据状态。
+2. 架构：覆盖跨 Domain、多 worker/CAS、旧 schema 和动作前置条件，继续保持 Action/Result/Runtime 三个边界正交。
+3. 数据：将 readiness、coverage、alignment、provenance、过期和 migration 状态与恢复动作关联。
+4. 模型：以脱敏 replay 和最小 live-short 验证开放式澄清、repair、确认、retry 的身份连续性。
+5. 部署：补 FastAPI、异步接管、滚动重启、Artifact-only recovery 和历史迁移 equality 矩阵。
+6. 体验：Console 动态渲染 action receipt/linkage 的缺失、降级、阻断和可恢复状态，保持 Text/GIS 共用 renderer。
+7. 测试：quick/CI 保持精简，阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、多 worker、浏览器和必要 live-short。

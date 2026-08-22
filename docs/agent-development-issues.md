@@ -4530,3 +4530,31 @@ Action Receipt 描述的是导致结果产生的生命周期动作，属于 tran
 ### 处理与预防
 
 在同一个 `evaluation.contract_harness` 模块中增加独立的 `ActionReceiptContract`、`normalize_action_receipt_contract()` 和 `compare_action_receipts()`，只在动作入口比较动作语义；默认 Result equality 不携带 Action Receipt。以后新增跨入口证据字段时，必须先判断它属于结果语义还是触发结果的 transition，不能为了“字段都比较”把正交契约混在一起。
+
+## M183.2：Action Receipt linkage 在导入阶段形成循环依赖
+
+### 现象
+
+新增 Action Receipt 与 Request/Plan/Result/Evidence 的关联投影后，Docker 生产服务启动失败，容器无法进入 `healthy`。错误链路是 `recovery_action -> action_identity -> evidence_projection -> action_lifecycle -> recovery_action`。
+
+### 根因
+
+`recovery_action` 是 Runtime 初始化阶段最早加载的公共模块；如果它在模块顶层导入依赖 Evidence Projection 的 linkage normalizer，Evidence Registry 又会加载 Action Lifecycle，最终在 `recovery_action` 尚未定义完 `normalize_action_ids()` 时回到该模块，触发 partially initialized module 错误。
+
+### 处理与预防
+
+将 linkage normalizer 改为 `project_action_receipt()` 内的惰性导入，保持启动阶段的动作 allowlist 与证据投影不互相初始化；Docker 重建后容器恢复 healthy。以后新增公共投影时，必须画出模块导入图并在生产容器启动测试中验证，不能只运行未触发完整 HTTP import 的单元测试。
+
+## M183.2：SQLite Action Receipt replay 可能丢失 identity linkage
+
+### 现象
+
+取消动作首次响应、Artifact 和 SQLite history 均有 identity linkage，但服务重启后使用同一幂等键 replay 时，返回的 Action Receipt 只剩动作字段，缺少 Request/Plan/Result/Evidence linkage。
+
+### 根因
+
+SQLite `interaction_receipts` 的 CAS 行只保存动作幂等字段和 `result_run_id`。取消入口同时提供了一个不含新回执的最小 `response_payload`，replay 优先读取该 payload，因此不会继续读取已持久化的 result snapshot；随后从 CAS 行重新投影时自然没有 linkage。
+
+### 处理与预防
+
+完成动作时，将 bounded identity linkage 同步写入带有最小响应的 `response_payload`；有 result reference 的动作仍同步写入 AgentRunResult/Artifact。replay 优先复用已保存回执，必要时从 result snapshot 补回 linkage，并由 Contract Harness 比较 HTTP、Artifact、history 和重启入口。以后新增持久化证据不能只看即时响应，必须覆盖“CAS 行 + response payload + result snapshot”三种 replay 来源。
