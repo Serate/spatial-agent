@@ -1,6 +1,6 @@
 # Agent 当前恢复快照（唯一短入口）
 
-> 这是 Spatial Agent 的当前状态与恢复协议。新对话或上下文压缩后，先只阅读本文件；不要默认全文阅读历史交接文档。只有本文件列出的目标文件或通过 `rg` 定位到的历史问题需要按需读取。
+> 这是 Spatial Agent 的当前状态与恢复协议。新对话或上下文压缩后，先只阅读本文件；不要默认全文阅读历史交接文档或当前工作集。工作集只是有序索引，不是一次性阅读清单；代码必须按 seam 分批读取。
 
 ## 压缩恢复触发规则
 
@@ -14,6 +14,14 @@
 
 本文件只保存“现在继续工作所必需的信息”，不记录完整日志、长测试输出、原始模型响应或大段代码；目标是让压缩恢复稳定且低 token。若本文件与代码、测试或最新提交冲突，以代码和可复现验证结果为准，并在继续开发前修正本快照。
 
+## 文件读取预算
+
+- 恢复首轮只允许读取本文件、`git status --short --branch` 和 `git log -1 --oneline`；不要在首轮打开源码、历史文档或完整测试文件。
+- 代码侦察先用 `rg -n "符号|schema|入口" 目标文件` 获取定位；随后只读取命中行附近的范围，不使用 `Get-Content -Raw` 批量加载模块。
+- 单个工作回合默认最多读取 3 个源码文件和 1 个直接相关测试文件；先完成一个 seam，再决定是否扩展到下一个 seam。
+- 当前工作集按“先读 / 后读 / 集成时才读”分层；未到对应实现步骤的文件保持不读。若确实需要超过预算，先在快照中写明新增 seam、原因和精确文件，再继续。
+- 测试优先选择一个专项或 contract 入口；只有专项通过且需要证明跨入口一致性时，才读取或运行下一层测试。
+
 ## 当前目标
 
 建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。请求应经过 RequestFacts、能力发现、Planner、TaskPlan/DAG 校验、ToolRegistry、结果组合、结构化 Evidence 和可恢复生命周期；不得为单一区域或固定问句堆叠规则。
@@ -21,9 +29,9 @@
 ## 当前仓库状态
 
 - 分支：`main`
-- 恢复时以 `git log -1 --oneline` 和 `git status --short` 为准；本轮起始基线为 `15012ab feat: carry capability evidence into workflow selection`。
-- 当前切片：M196-B.2 capability evidence 接管，以及本文件定义的精简恢复协议。
-- 本切片涉及 `tests/test_m196_capability_evidence_provider.py`、阶段文档、中文问题日志和本短快照；这些变更应一起审计，不覆盖既有实现。
+- 恢复时以 `git log -1 --oneline` 和 `git status --short` 为准；不要把快照中的历史提交号当作当前基线。
+- 当前切片：M196-C evidence/action projection 与开放式澄清工作区。
+- 本切片先只处理 `agent/workflow_selection.py` 与 `agent/selection_interaction.py` 的公共 seam；跨入口接入和测试文件按“文件读取预算”逐步展开。
 
 ## M196-B.2 已完成内容
 
@@ -42,12 +50,14 @@
 5. 覆盖 production FastAPI、async、SQLite restart、旧 Artifact 和静态资源 allowlist。
 6. Text/GIS 共用动态 renderer；默认 quick/CI 保持精简。
 
-## 当前工作集
+## 当前工作集（按读取顺序）
 
-- Runtime 边界：`agent/runtime.py`、`agent/evidence_contract.py`、`agent/workflow_selection.py`。
-- 交互边界：`agent/selection_interaction.py`、`web/console_selection_interaction.js`、`web/console_workflow_evidence.js`、`web/console_evidence_registry.js`。
-- 领域边界：`domains/text/`、`domains/gis/`；领域提供 evidence-to-action 建议，公共 Runtime 不增加 GIS 专用分支。
-- 验证入口：`tests/test_m190_open_capability.py`、`tests/test_m164_selection_interaction.py`、`tests/test_m167_candidate_selection.py`、`tests/test_m196_capability_evidence_provider.py`。
+1. **先读**：`agent/workflow_selection.py`、`agent/selection_interaction.py`；先收敛 evidence/action projection seam。
+2. **再读**：`agent/domain_contract.py`、`agent/runtime.py`；只在需要接入 Domain 建议或 Runtime 门控时读取。
+3. **集成时才读**：`result_contract.py`、`agent/service_async.py`、`agent/artifact_store.py`、`serve_api.py`、`production_api.py` 和 `web/console_*.js`；不要在设计阶段全部打开。
+4. **按需验证**：优先一个 `tests/test_m196_*.py` 专项，再补 `test_m164_selection_interaction.py` 或 `test_m167_candidate_selection.py`；Text/GIS 只在跨 Domain 证据不足时读取对应 Domain 文件。
+
+工作回合结束后，将“已读文件、关键行范围、下一次唯一首读文件”压缩回本节，避免下一次从目录重新扫描。
 
 ## 测试与部署规则
 
