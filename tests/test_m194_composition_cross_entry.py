@@ -12,8 +12,10 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 from agent.artifact_store import ArtifactStore
+from agent.execution_contract import execution_record_summary
 from agent.service import AgentService
 from domains.gis.domain import GIS_DOMAIN_PACK
+from evaluation.contract_harness import compare_results
 from serve_api import AgentApiHandler
 
 
@@ -58,6 +60,42 @@ def _complex_result_projection(payload):
         "evidence_entry_ids": [
             item.get("id") for item in registry.get("entries", []) if isinstance(item, dict)
         ],
+    }
+
+
+def _execution_workspace_projection(payload):
+    result = payload.get("result") if isinstance(payload, dict) else {}
+    result = result if isinstance(result, dict) else {}
+    record = payload.get("execution_record") or result.get("execution")
+    record = execution_record_summary(record) if isinstance(record, dict) else None
+    timeline = result.get("execution_timeline") or payload.get("execution_timeline")
+    timeline = timeline if isinstance(timeline, dict) else {}
+    events = timeline.get("events") if isinstance(timeline.get("events"), list) else []
+    workspace = result.get("workspace")
+    workspace = workspace if isinstance(workspace, dict) else {}
+    views = result.get("views")
+    views = views if isinstance(views, dict) else {}
+    return {
+        "execution": record,
+        "timeline": {
+            "schema_version": timeline.get("schema_version"),
+            "events": [
+                {
+                    "kind": item.get("kind"),
+                    "id": item.get("id"),
+                    "tool": item.get("tool"),
+                    "status": item.get("status"),
+                }
+                for item in events
+                if isinstance(item, dict)
+            ],
+        },
+        "workspace": {
+            "schema_version": workspace.get("schema_version"),
+            "panels": workspace.get("panels"),
+            "view_specs": workspace.get("view_specs"),
+        },
+        "view_schema": views.get("schema_version"),
     }
 
 
@@ -167,6 +205,15 @@ class M194CompositionCrossEntryTests(unittest.TestCase):
         self.assertEqual({tuple(item["evidence_entry_ids"]) for item in projections}, {
             ("result", "plan_quality", "execution_timeline", "action_lifecycle", "replanning", "workflow_selection", "planner_selection")
         })
+        execution_projections = [
+            _execution_workspace_projection(item)
+            for item in (http_result, http_detail, sync_artifact, async_result, recovered, async_artifact)
+        ]
+        self.assertEqual(len({json.dumps(item, sort_keys=True) for item in execution_projections}), 1)
+        differences = compare_results(
+            [http_result, http_detail, sync_artifact, async_result, recovered, async_artifact]
+        )
+        self.assertEqual(differences, [])
 
     def test_http_preview_run_detail_and_artifact_keep_component_identity(self):
         with tempfile.TemporaryDirectory(prefix="m194-http-composition-") as directory:

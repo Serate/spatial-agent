@@ -822,6 +822,14 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
                 views=views,
             ),
             "workspace_panels": workspace.get("panels", []),
+            "workspace_view_specs": [
+                {
+                    "id": str(item.get("id"))[:64],
+                    "renderer": str(item.get("renderer") or "view")[:64],
+                }
+                for item in (workspace.get("view_specs") or [])
+                if isinstance(item, Mapping) and item.get("id")
+            ][:20],
             "views_schema": views.get("schema_version"),
             "view_panels": sorted(str(key) for key in panels),
             "view_kinds": {

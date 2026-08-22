@@ -2,6 +2,20 @@
 
 > 上下文压缩恢复时不要全文阅读本文件。先读取 `docs/agent-context-current.md`，再用 `rg -n -i "关键词" docs/agent-development-issues.md` 定位相关问题，并只读取命中附近内容。
 
+## M214：复杂请求 harness 漏比 execution/workspace，且误报可选 Async evidence
+
+### 现象
+
+既有复杂 GIS 跨入口测试只比较状态、结果类型、工具序列和 evidence entry IDs，无法证明 execution summary、timeline 和 workspace/view specs 一致；直接把同步、异步投影全部比较又会把同步入口缺少的可选 `async_result_evidence` 误报为核心漂移。
+
+### 根因
+
+测试在 M194 内部定义了局部结果投影，没有复用完整 `evaluation.contract_harness`；公共 harness 虽已包含 execution/timeline，但没有稳定的 workspace `view_specs` 摘要。异步 evidence 是 transport-specific optional projection，不能强制要求同步入口生成。
+
+### 修复与预防
+
+contract harness 现在纳入有界 workspace view spec，并由复杂请求测试使用 `compare_results()` 比较所有核心字段；比较器在任一入口缺少可选 async evidence 时只排除该字段，其余 execution、timeline、workspace、lifecycle 和 evidence 仍严格比较。以后新增跨入口测试必须声明 optional transport projection，不能用局部 happy-path 投影替代公共契约。
+
 ## M213：Async evidence 缺少执行摘要且 live/Artifact 生命周期不一致
 
 ### 现象

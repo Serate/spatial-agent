@@ -4246,3 +4246,20 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：进行生产 HTTP、SQLite restart、Artifact-only 和浏览器缓存禁用的组合验收，确认结果类型、步骤序列和 evidence entry 一致。
 6. 体验：Console 的中心结果窗按 workspace/view/evidence 动态渲染文本、GIS、表格或失败恢复提示，保持 Text/GIS 共用 renderer。
 7. 测试：精简一条复杂请求跨入口 harness，加一次 Docker/HTTP/Console smoke；默认 quick/CI 继续离线、少量和可重复。
+
+## M214-A：复杂开放式请求统一执行与 workspace contract（已完成）
+
+- M194 复杂洪山区综合空间分析现在通过公共 `compare_results()` 比较 HTTP、detail、同步 Artifact、Async、SQLite recovery 和 Artifact-only recovery 的核心结果；新增 execution summary、timeline、workspace 面板/view spec 比较。
+- Contract harness 增加有界 `workspace_view_specs`；比较器继续将 `async_result_evidence` 视为可选 transport projection，其余字段严格等价，避免局部测试掩盖漂移或误报可选字段。
+- Docker 复杂 GIS 纵向测试通过（1/1，约 10 秒）；Console workflow evidence smoke 通过；未增加 GIS 页面分支或默认网络测试。
+- 下一阶段转入全局验收缺口：真实模型 + 真实 GIS/Docker 的显式 live-short、前端结果展示和失败降级证据。
+
+## M215：下一阶段全局规划参考
+
+1. 产品：用一个开放式空间请求完成真实模型理解、规划、工具执行、结果展示和 Artifact 导出，前端能解释失败或降级。
+2. 架构：验证 LLM Planner 输出与 Rule Planner 共享 TaskPlan、DAG、Result、execution timeline 和 evidence，不为 live 路径复制流程。
+3. 数据：使用 Docker 内真实 GIS 数据，检查栅格对齐、几何导出、道路/水体约束和缺失数据的结构化降级；不把演示数据当法定结论。
+4. 模型：通过已配置中转 provider 做一次脱敏 live-short，验证 JSON 计划、工具 schema 校验、失败修复/澄清和 token/超时边界；不把 key 或原始响应写入仓库。
+5. 部署：生产 HTTP、Docker health、Artifact、SQLite/restart 和浏览器缓存禁用共同验收；provider 不可用时保留可恢复离线路径。
+6. 体验：Console 动态消费真实 Result/workspace/evidence，显示执行轨迹、地图/结构化结果、降级原因和下一步动作，不增加固定问句分支。
+7. 测试：新增一条显式 live-short + 真实 GIS/Docker/Console 验收，脱敏 replay 进入专项；默认 CI 仍离线精简。
