@@ -2,6 +2,20 @@
 
 > 上下文压缩恢复时不要全文阅读本文件。先读取 `docs/agent-context-current.md`，再用 `rg -n -i "关键词" docs/agent-development-issues.md` 定位相关问题，并只读取命中附近内容。
 
+## M212：失败 Action HTTP 响应缺少执行投影
+
+### 现象
+
+成功 Action 响应包含 `action_execution` 和 `execution_record`，但失败的首次执行或幂等重放只返回错误文本、执行 ID 和 Artifact 引用。Console 只能再次读取 Artifact 才能知道失败处于哪个执行阶段，导致成功与失败边界的结构化展示不对称。
+
+### 根因
+
+`AgentService` 将执行投影写入失败 Artifact，却没有把有界投影绑定到抛出的异常；幂等重放从 Artifact 重建异常时也只恢复身份字段。HTTP 层只能序列化异常已有的有限属性。
+
+### 修复与预防
+
+失败边界和重放边界现在都附加 `action_execution` 与 `execution_record`，`error_response()` 以同层字段返回它们；投影不包含原始 action 参数、模型响应或完整结果。以后扩展执行错误时，必须同时检查成功响应、失败响应、Artifact-only recovery 和前端通用 renderer，不能只补异常消息。
+
 ## M211：动作失败首次执行与幂等重放的错误契约漂移
 
 ### 现象

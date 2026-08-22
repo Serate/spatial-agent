@@ -4212,3 +4212,20 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：覆盖 HTTP/CLI、SQLite、多 Service 重启和 Artifact-only recovery 的 action envelope 一致性，并明确不可恢复状态。
 6. 体验：通用 workspace renderer 动态消费失败 Artifact、allowed actions、receipt 和恢复建议，不增加 GIS 专用页面分支。
 7. 测试：新增一个精简跨入口 action contract，叠加现有 Docker failure/replay smoke；默认 CI 继续离线，不复制历史大矩阵。
+
+## M212-A：失败 Action 统一返回执行 envelope（已完成）
+
+- 失败 Action 的首次异常和幂等重放现在都携带有界 `action_execution` 与 `execution_record`；HTTP `error_response()` 与成功响应使用同一执行记录 schema，Artifact 仍保存完整结构化结果与 evidence 引用。
+- Docker 验证：M211 failure/restart 专项 **1/1**、既有 failure replay **1/1**、HTTP/Artifact/recovery action contract **1/1**；错误投影探针确认首次和重放的执行 ID、执行记录与失败状态一致。
+- 未加入原始参数、模型响应、私有路径或 GIS 页面分支；默认 CI 和测试矩阵未扩大。
+- 下一阶段从全局目标检查 Run、Action、Async、SQLite 和 Artifact-only recovery 是否都能消费同一领域无关执行 envelope，并补一条跨入口证据等价验收。
+
+## M213：下一阶段全局规划参考
+
+1. 产品：把同步运行、领域 Action、异步轮询和恢复详情统一成用户可读的执行时间线与下一步动作。
+2. 架构：以 `execution-record.v1` 为公共 seam，核对 Run/Action 的状态、错误、Artifact、receipt 和 recovery 字段，不复制第二套 envelope。
+3. 数据：对 SQLite snapshot、Artifact 和 HTTP response 做有界证据比较；旧记录缺字段时明确 unavailable 或迁移，不静默补成功。
+4. 模型：用脱敏 replay/live-short 验证模型规划失败、工具失败和修复后的执行记录仍可被 Runtime 组合。
+5. 部署：验证异步多 worker、服务重启和 Artifact-only recovery 的执行 ID、结果类型、lifecycle 与 evidence 连续性。
+6. 体验：Console 只根据结构化 execution/evidence 动态渲染文本、GIS 或不可用状态，不为 action 类型增加页面分支。
+7. 测试：精简一个 Run/Action/Async cross-entry harness，加 Docker restart smoke；默认 CI 保持离线和小规模。

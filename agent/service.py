@@ -2445,6 +2445,10 @@ class AgentService:
                     )
                     error.action_execution_id = existing.get("action_execution_id")
                     error.artifact_ref = existing.get("artifact_ref")
+                    error.action_execution = existing.get("action_execution")
+                    error.execution_record = existing.get("execution_record") or build_execution_record(
+                        existing, kind="action"
+                    )
                     raise error
                 return _action_response_from_artifact(existing)
         execution_id = "action-" + uuid.uuid4().hex
@@ -2518,8 +2522,11 @@ class AgentService:
                 },
             )
             for name, value in {
+                "action_id": action_id,
                 "action_execution_id": execution_id,
                 "artifact_ref": artifact_ref,
+                "action_execution": record["action_execution"],
+                "execution_record": record["execution_record"],
             }.items():
                 try:
                     setattr(exc, name, value)

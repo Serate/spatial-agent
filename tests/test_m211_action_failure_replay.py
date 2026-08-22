@@ -41,7 +41,9 @@ class M211ActionFailureReplayTests(unittest.TestCase):
             finally:
                 service.close()
 
-        self.assertEqual(error_response(first.exception), error_response(replay.exception))
+        first_error = error_response(first.exception)
+        replay_error = error_response(replay.exception)
+        self.assertEqual(first_error, replay_error)
         self.assertEqual(first.exception.action_id, "gis.buildability_threshold_comparison")
         self.assertEqual(first.exception.code, "action_execution_failed")
         self.assertEqual(
@@ -52,6 +54,9 @@ class M211ActionFailureReplayTests(unittest.TestCase):
         self.assertEqual(artifact["status"], "FAILED")
         self.assertEqual(artifact["idempotency_key"], "m211-failure")
         self.assertEqual(artifact["action_id"], first.exception.action_id)
+        self.assertEqual(first_error["action_execution"]["status"], "FAILED")
+        self.assertEqual(first_error["execution_record"]["kind"], "action")
+        self.assertEqual(first_error["execution_record"], replay_error["execution_record"])
 
 
 if __name__ == "__main__":

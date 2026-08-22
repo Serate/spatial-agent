@@ -233,6 +233,10 @@ def error_response(
             response["action_execution_id"] = str(exc.action_execution_id)[:128]
         if getattr(exc, "artifact_ref", None):
             response["artifact_ref"] = str(exc.artifact_ref)[:240]
+        if isinstance(getattr(exc, "action_execution", None), dict):
+            response["action_execution"] = dict(exc.action_execution)
+        if isinstance(getattr(exc, "execution_record", None), dict):
+            response["execution_record"] = dict(exc.execution_record)
     return response
 
 
