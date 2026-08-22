@@ -3569,7 +3569,7 @@ M181 将 Evidence Recovery、Decision、Interaction 和 Lifecycle Action 收敛�
 - 新增 `tests/test_m181_recovery_action.py`，并补充 HTTP → Service → Artifact → SQLite history 的 receipt equality 契约；M181/M169/M164/M153/M151/M180/M159 Docker 回归 46/46 通过，Node 容器缺失项单独跳过。
 - Docker 当前镜像按工作树重建并 healthy；compileall、quick、stage、full-stage、production acceptance 均通过，`-W error::ResourceWarning` 下 Service/HTTP emitter 生命周期回归通过。
 - Node renderer smoke、Chrome/CDP 预览→确认→完成、空间总览地图分层和候选选择 smoke 均通过；本阶段未新增 live token、私有配置或原始 GIS 数据。
-- 阶段问题已记录到 `docs/agent-development-issues.md`；完成最终敏感信息检查、提交和推送后，按七个全局维度进入 M182。
+- 阶段问题已记录到 `docs/agent-development-issues.md`；敏感信息检查和 `git diff --cached --check` 已通过，M181 已提交并推送，版本为 `38d7c6d`。下一阶段按七个全局维度进入 M182。
 
 ## M182 全局规划参考
 

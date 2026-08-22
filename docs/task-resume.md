@@ -2065,7 +2065,7 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 M181 专项 5 项；HTTP → Service → Artifact → SQLite history equality 回归已加入 M169；Docker M181/M169/M164/M153/M151/M180/M159 共 46 项通过，Node 容器缺失项单独跳过。
 - Docker 当前镜像按工作树重建并 healthy；compileall、quick、stage、full-stage、production acceptance 通过；`-W error::ResourceWarning` 验证测试 Service、HTTP handler 和 observability emitter 均显式关闭。
 - Node renderer、Chrome/CDP 预览确认完成、空间总览和候选选择 smoke 通过；未新增 live token、私有配置、原始模型输出或原始 GIS 数据。
-- M181 代码与验收已完成，待最终 Git/敏感信息检查、commit 和 push；完成后进入 M182，规划必须继续覆盖产品、架构、数据、模型、部署、体验和测试七个维度。
+- M181 代码与验收已完成；敏感信息检查、`git diff --cached --check`、commit 和 push 已完成，版本为 `38d7c6d`。下一阶段进入 M182，规划必须继续覆盖产品、架构、数据、模型、部署、体验和测试七个维度。
 
 ## M182 全局规划参考
 

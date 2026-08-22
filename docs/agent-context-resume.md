@@ -1744,7 +1744,7 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - `AgentRunResult`、SQLite snapshot/history、Artifact 和 HTTP 结果均可保存同一 bounded `action_receipt`；旧持久化运行缺字段时，SQLite history 从已完成 interaction receipt 有界补投影。
 - 新增 `tests/test_m181_recovery_action.py` 和跨入口 HTTP/Artifact/history 契约；Docker M181/M169/M164/M153/M151/M180/M159 回归 46/46，通过 `-W error::ResourceWarning`，Node 容器缺失项单独跳过。
 - Docker compileall、quick、stage、full-stage、production acceptance，以及 Node/Chrome/CDP 前端验收均通过；浏览器 smoke 必须串行使用共享 CDP 页面。
-- M181 阶段实现与验收完成，当前只剩最终敏感信息检查、commit/push；不提交 API key、私有配置、原始模型输出或 GIS 原始数据。下一阶段为 M182，继续按七个全局维度规划。
+- M181 阶段实现与验收完成；敏感信息检查、`git diff --cached --check`、commit 和 push 已完成，版本为 `38d7c6d`。不提交 API key、私有配置、原始模型输出或 GIS 原始数据。下一阶段为 M182，继续按七个全局维度规划。
 
 ## M182 全局规划参考
 
