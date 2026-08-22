@@ -63,6 +63,25 @@ class M158EvidenceRegistryTests(unittest.TestCase):
             stored = store.read_run(Path(path).stem)
             self.assertEqual(stored["evidence_registry"], contract["evidence_registry"])
 
+    def test_registry_preserves_nonterminal_lifecycle_reason(self):
+        cases = (
+            (
+                {"status": "FAILED", "failure": {"retryable": True}},
+                "recoverable",
+            ),
+            (
+                {"status": "FAILED", "failure": {"category": "planning_repairable"}},
+                "repairable",
+            ),
+        )
+        for extra, expected_state in cases:
+            with self.subTest(expected_state=expected_state):
+                registry = build_evidence_registry({**_payload(), **extra})
+                lifecycle = next(
+                    item for item in registry["entries"] if item["id"] == "action_lifecycle"
+                )
+                self.assertEqual(lifecycle["state"], expected_state)
+
     def test_unknown_registry_version_is_unavailable(self):
         result = normalize_evidence_registry({
             "schema_version": "spatial-agent.evidence-registry.v99",

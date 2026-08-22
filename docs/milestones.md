@@ -4078,3 +4078,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：验证非完成状态下 HTTP、async、SQLite、Artifact-only 和多 Service 幂等接管不重复执行、不丢 evidence。
 6. 体验：通用 renderer 动态显示状态、证据、允许动作和 repair lineage，不增加 GIS 页面分支。
 7. 测试：保持 quick/CI 精简，优先一个跨 Domain interaction contract，再做 Docker/HTTP/Artifact/浏览器显式验收。
+
+## M201-A：Evidence Registry 非完成生命周期投影（已完成，待版本推送）
+
+- `build_evidence_registry()` 现在把完整的受限 payload 交给公共 `project_action_lifecycle()`，不再只传递 `status`，因此 `recoverable` 与 `repairable` 状态不会在 registry 边界降级为 `failed`。
+- 复用 M158 测试加入两类非终态断言；Docker 专项 **5/5**，M153/M158/M180 联合回归 **14/14**，未增加 GIS Runtime 分支或默认 CI 依赖。
+- 阶段完成后提交推送；下一阶段 M202 继续验证 clarification/repair/recovery interaction 在 HTTP、async、Artifact 和 SQLite restart 中的 equality。
+
+## M202：下一阶段全局规划参考
+
+1. 产品：统一非完成状态的原因、下一步动作和可恢复边界。
+2. 架构：组合 `action_lifecycle`、`decision_lifecycle`、`repair_lineage` 和 Action Receipt 的 interaction envelope equality。
+3. 数据：使用有界跨 Domain fixture 覆盖缺失事实、计划过期和 evidence 变化。
+4. 模型：脱敏 replay 验证结构化 clarification/repair context 的消费与安全降级。
+5. 部署：HTTP、async、Artifact-only、SQLite restart 和幂等 action 提交不重复 dispatch。
+6. 体验：通用 Console renderer 动态显示状态、allowed actions、receipt 和 lineage。
+7. 测试：精简跨入口 contract 优先，Docker/浏览器/live 保持显式验收。

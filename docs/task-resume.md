@@ -2497,3 +2497,20 @@ M200 从 M199 的复杂真实纵向链路继续验证“同一请求在不同入
 5. 部署：验证 HTTP、async、SQLite restart、Artifact-only 和多 Service 幂等接管在非完成状态下不重复 dispatch、不丢 evidence。
 6. 体验：Console 继续使用通用 renderer 展示状态、证据、允许动作和 repair lineage，结果区由公共 view contract 动态决定。
 7. 测试：保持 quick/CI 精简，优先补一个跨 Domain interaction contract，再做 Docker/HTTP/Artifact/浏览器显式验收。
+
+## M201-A：Evidence Registry 保持非完成生命周期状态（已完成，待版本推送）
+
+- 修复 `build_evidence_registry()` 只把顶层 `status` 传给 `project_action_lifecycle()` 的问题；现在复用有界完整 payload，保留失败可重试、计划可修复和其他生命周期元数据。
+- 在现有 M158 注册表契约中增加失败可重试与计划可修复两种状态断言，避免新增重复测试文件；Docker 专项 **5/5**，M153/M158/M180 受影响回归 **14/14**。
+- 本切片不增加 GIS 分支、不改变 ToolRegistry dispatch、不引入默认网络或私有数据；Evidence Registry 仍是索引，不成为新的状态事实源。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M202，覆盖非完成 interaction 在 HTTP/async/Artifact/restart 的统一投影。
+
+## M202：下一阶段全局规划参考
+
+1. 产品：让 clarification、repairable、recoverable、awaiting confirmation 等非完成状态在所有入口给出一致的下一步动作。
+2. 架构：建立领域无关的 interaction envelope equality，统一 `action_lifecycle`、`decision_lifecycle`、`repair_lineage` 和 Action Receipt 的公共引用。
+3. 数据：只使用有界 Text/GIS fixture 验证缺失事实、计划过期和 evidence 变化，不增加区域专用数据逻辑。
+4. 模型：用脱敏 replay 验证模型在结构化 clarification/repair context 下继续规划，未知状态必须安全降级。
+5. 部署：覆盖 HTTP detail、async polling、Artifact-only、SQLite restart 和幂等 action 提交，确保非完成状态不会重复 dispatch。
+6. 体验：Console 动态展示状态原因、allowed actions、receipt/lineage 和恢复提示，不增加 Domain 页面分支。
+7. 测试：新增一个精简跨入口 interaction contract，复用现有 Harness；默认 quick/CI 仍不联网，Docker/浏览器/live 只做显式验收。

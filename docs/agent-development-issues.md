@@ -4934,6 +4934,20 @@ replay runner 现在按 turn 将对应的脱敏响应绑定到独立的 recorded
 
 新增 `expected_tools`、`expected_result_type` 和既有 `evaluate_plan_quality` 的通用路径；它会同时检查工具覆盖、DAG 边、结果类型、模板匹配和答案质量。以后新增复杂 live/replay case 优先使用显式 contract，不为单个请求增加 evaluator 分支。
 
+## M201-A：Evidence Registry 只传状态导致非完成生命周期信息丢失
+
+### 现象
+
+Result 没有预先生成 `lifecycle` 时，Evidence Registry 只根据顶层 `status` 生成生命周期条目。失败请求携带 `failure.retryable=true` 或 `failure.category=planning_repairable`，在 registry 中可能分别被错误投影为 `failed`，丢失 `recoverable` 或 `repairable` 语义。
+
+### 根因
+
+Registry 是公共证据索引，但构建 fallback projection 时只传递了状态字段，没有复用 Runtime 生命周期投影所需的有界失败元数据，造成结果边界与 registry 边界的状态漂移。
+
+### 处理与预防
+
+fallback 现在把完整受限 payload 交给 `project_action_lifecycle()`，由同一个 Runtime-owned projection 解释状态；新增 M158 两类非终态回归，并通过 M153/M158/M180 **14/14**。以后新增 evidence index 时必须复用权威 projection，不得从单一 status 字段重建生命周期语义。
+
 ## M200-A：复杂请求跨入口只验证完成状态导致结果证据漂移
 
 ### 现象

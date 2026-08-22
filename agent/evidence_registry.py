@@ -59,7 +59,10 @@ def build_evidence_registry(
     timeline = normalize_execution_timeline(result.get("execution_timeline"))
     lifecycle = result.get("lifecycle")
     if not isinstance(lifecycle, Mapping):
-        lifecycle = project_action_lifecycle({"status": source.get("status")})
+        # Keep the lifecycle projection aligned with the authoritative result
+        # payload.  Passing only status loses retryable/repairable failure
+        # metadata at this public evidence boundary.
+        lifecycle = project_action_lifecycle(source)
     replanning = result.get("replanning") if isinstance(result.get("replanning"), Mapping) else {}
     events = replanning.get("events") if isinstance(replanning.get("events"), list) else []
     selection = planning.get("workflow_selection") if isinstance(planning.get("workflow_selection"), Mapping) else {}
