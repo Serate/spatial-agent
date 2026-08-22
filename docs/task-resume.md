@@ -2095,4 +2095,4 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - `evaluation.contract_harness` 已新增独立的 `ActionReceiptContract`、稳定 normalize 和 drift comparison；Action Receipt 与默认 Result equality 保持正交。
 - Service detail、Artifact、SQLite history 的 cancel receipt 通过同一投影比较；run/result ID 与 `reused` 不参与语义 equality，fingerprint/状态/动作类型漂移会被发现。
 - M183.1 专项 2/2；M182/M181/M169/M165/M166/M178/M179/M108 相邻回归 50/50；Docker compileall、quick、stage、full-stage、compact discovery 和 production acceptance 通过，容器 healthy。
-- 该切片未修改 GIS 工具、前端页面或默认 CI；M183 总目标保持 active，下一条继续处理 Request/Plan/Result/Evidence identity 与异步/Artifact-only/restart 的统一关联。
+- 该切片未修改 GIS 工具、前端页面或默认 CI；M183 总目标保持 active，下一条继续处理 Request/Plan/Result/Evidence identity 与异步/Artifact-only/restart 的统一关联。M183.1 已提交并推送，版本为 `d4e7607`。

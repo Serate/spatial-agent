@@ -3615,4 +3615,4 @@ M183.1 将动作回执纳入现有 Contract Harness 的领域无关能力中，�
 - Service detail、Artifact 和 SQLite history 的 cancel receipt 现在可用同一 Action Contract 投影比较；语义 fingerprint 漂移会被 Harness 报告，恢复入口 ID 差异不会造成误报。
 - 新增 `tests/test_m183_action_contract.py` 2 项；M183.1 与 M182/M181/M169/M165/M166/M178/M179/M108 相邻回归共 50/50 通过。
 - Docker 重建后 healthy；compileall、quick、stage、full-stage、compact discovery 4/4 和 production acceptance 均通过。生产核心/可选数据 ready，同步/异步/Artifact contract ok。
-- 本阶段只扩展测试与公共投影，没有新增 GIS 工具、前端专用分支、私有配置或 live 输出；M183 总目标继续推进下一条 identity/recovery 切片。
+- 本阶段只扩展测试与公共投影，没有新增 GIS 工具、前端专用分支、私有配置或 live 输出；M183 总目标继续推进下一条 identity/recovery 切片。M183.1 已提交并推送，版本为 `d4e7607`。
