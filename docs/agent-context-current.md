@@ -30,17 +30,18 @@ rg -n -C 6 "错误关键词" docs/agent-development-issues.md
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M200-A 已完成实现与 Docker 验收，待版本推送；下一阶段为 M201。
-- 最新提交：`a2942a8 test: validate complex live plan contracts`。
-- 工作树：M200-A 的恢复卡、阶段记录、问题记录和跨入口专项测试有未提交修改；后续实现以 Git 实际状态为准。
+- 当前阶段：M201，非完成状态的 clarification/repair/recovery 跨入口契约。
+- 最新提交：`49d0069 test: verify complex cross-entry evidence equality`。
+- 工作树：本卡有 M201 恢复位置修改；后续实现以 Git 实际状态为准。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
 - 本轮验证：M198-A Node/Chrome/Evidence Registry/nested workspace smoke 通过；Rule + 本地 GIS 复杂请求 9 步完成；真实模型 + Docker GIS 复杂请求 9 工具、14 DAG edges、结果类型和答案质量通过；M200/M195/HTTP 跨入口专项 9/9；diff 和敏感信息门禁通过。
 
 ## 当前唯一工作切片
 
-1. 提交并推送 M200-A；推送前不加载历史文档全文。
-2. 推送后按 M201 的七个全局维度重规划 clarification/repair/recovery 跨入口一致性。
-3. 继续保持 Docker 测试、精简默认门禁和有界上下文恢复协议。
+1. 只读现有 interaction、repair lineage、Action Receipt 和 recovery contract 的命中范围，确定一个公共缺口。
+2. 在不增加 GIS 专用分支的前提下，实现该缺口的跨入口投影或状态契约。
+3. 用一条精简跨 Domain/入口专项在 Docker 中验证，再按七个全局维度重规划。
+4. 继续保持精简默认门禁和有界上下文恢复协议。
 
 ## 读取预算
 
