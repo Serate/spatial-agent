@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import unittest
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from agent.artifact_store import ArtifactStore
+from agent.models import AgentRunResult, RunStatus, TaskPlan
 from agent.selection_interaction import build_selection_interaction
 from agent.domain_contract import evidence_action_guidance
 from agent.runtime_factory import build_runtime
+from agent.service_async import (
+    build_async_result_evidence,
+    normalize_async_result_evidence,
+)
+from agent.sqlite_store import SQLiteStateStore
 from domains.gis.domain import GIS_DOMAIN_PACK
 from domains.text.domain import TEXT_DOMAIN_PACK
 from result_contract import build_result_contract
@@ -19,6 +27,35 @@ from agent.workflow_selection import (
 
 
 class M196EvidenceActionTests(unittest.TestCase):
+    @staticmethod
+    def _guidance_selection():
+        return build_workflow_selection_evidence(
+            domain_id="example",
+            discovery={"candidate_ids": ["capability_a"]},
+            evidence_action_guidance={
+                "schema_version": EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
+                "state": "degraded",
+                "reason_code": "needs_review",
+                "recommended_actions": ["preview", "repair"],
+                "source": "domain",
+            },
+        )
+
+    @classmethod
+    def _guidance_contract(cls, run_id):
+        selection = cls._guidance_selection()
+        return selection, build_result_contract(
+            {
+                "run_id": run_id,
+                "status": "NEEDS_CLARIFICATION",
+                "result_type": "text_summary_result",
+                "answer": "等待选择",
+                "plan": {"output": {"type": "text_summary_result"}},
+                "plan_evidence": {"workflow_selection": selection},
+                "steps": [],
+            }
+        )
+
     def test_guidance_is_bounded_and_keeps_only_action_ids(self):
         selection = build_workflow_selection_evidence(
             domain_id="example",
@@ -175,6 +212,88 @@ class M196EvidenceActionTests(unittest.TestCase):
         ]
         self.assertEqual(planning_guidance["reason_code"], "needs_review")
         self.assertEqual(interaction_guidance, planning_guidance)
+
+    def test_async_build_and_recovery_preserve_the_same_guidance_projection(self):
+        _, contract = self._guidance_contract("m196-async-guidance")
+        async_value = build_async_result_evidence(
+            contract, status="NEEDS_CLARIFICATION"
+        )
+        recovered = normalize_async_result_evidence(
+            async_value, status="NEEDS_CLARIFICATION"
+        )
+
+        expected = contract["selection_interaction"]
+        self.assertEqual(async_value["selection_interaction"], expected)
+        self.assertEqual(recovered["selection_interaction"], expected)
+        self.assertEqual(
+            recovered["planning"]["workflow_selection"][
+                "evidence_action_guidance"
+            ]["reason_code"],
+            "needs_review",
+        )
+
+    def test_artifact_round_trip_preserves_guidance_projection(self):
+        selection, contract = self._guidance_contract("m196-artifact-guidance")
+
+        with TemporaryDirectory() as root:
+            store = ArtifactStore(root)
+            store.write_run(
+                {
+                    "run_id": "m196-artifact-guidance",
+                    "domain_id": "example",
+                    "status": "NEEDS_CLARIFICATION",
+                    "result_type": "text_summary_result",
+                    "answer": "等待选择",
+                    "plan": {"output": {"type": "text_summary_result"}},
+                    "plan_evidence": {"workflow_selection": selection},
+                    "result": contract,
+                    "steps": [],
+                }
+            )
+            recovered = store.read_run("m196-artifact-guidance", domain_id="example")
+
+        self.assertIsNotNone(recovered)
+        self.assertEqual(
+            recovered["result"]["selection_interaction"],
+            contract["selection_interaction"],
+        )
+        self.assertEqual(
+            recovered["result"]["planning"]["workflow_selection"][
+                "evidence_action_guidance"
+            ],
+            contract["planning"]["workflow_selection"][
+                "evidence_action_guidance"
+            ],
+        )
+
+    def test_sqlite_restart_preserves_guidance_projection(self):
+        selection = self._guidance_selection()
+        result = AgentRunResult(
+            run_id="m196-sqlite-guidance",
+            status=RunStatus.NEEDS_CLARIFICATION,
+            request="等待选择",
+            domain_id="example",
+            answer="等待选择",
+            plan=TaskPlan(
+                goal="等待选择",
+                steps=[],
+                output={"type": "text_summary_result"},
+            ),
+            plan_evidence={"workflow_selection": selection},
+        )
+        expected = build_result_contract(result.to_dict())
+
+        with TemporaryDirectory() as root:
+            state_path = f"{root}/state.db"
+            SQLiteStateStore(state_path).save(result)
+            recovered = SQLiteStateStore(state_path).get(
+                result.run_id, domain_id="example"
+            )
+
+        self.assertIsNotNone(recovered)
+        actual = build_result_contract(recovered.to_dict())
+        self.assertEqual(actual["selection_interaction"], expected["selection_interaction"])
+        self.assertEqual(actual["planning"], expected["planning"])
 
 
 if __name__ == "__main__":

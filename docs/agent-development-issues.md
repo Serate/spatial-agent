@@ -4867,3 +4867,17 @@ Runtime 现在按 Domain、backend、Provider 和数据配置路径使用有界�
 ### 处理与预防
 
 新增 `docs/agent-context-current.md` 作为唯一短恢复入口，记录当前 Goal、提交、工作树、阶段、目标文件、测试规则和下一步。历史文档保留完整审计内容，但新对话只按快照和 `rg` 命中结果定向读取。每个阶段收口必须先更新短快照，再追加详细历史；短快照过期时以 Git 状态和当前工作树校正，不能盲信旧文字。
+
+## M196-C：Docker 容器未重建导致专项测试读取旧代码
+
+### 现象
+
+宿主工作树新增测试后，直接在已运行的 Docker 容器中执行专项，测试数量仍是旧版本，新增用例没有被发现，容易误判为验证完成。
+
+### 根因
+
+生产 compose 使用镜像复制源码，运行中的容器不会自动同步宿主文件；只执行 `docker exec` 不会触发源码更新。
+
+### 处理与预防
+
+代码或测试发生变化后，Docker 验收前先执行 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate`，确认容器 healthy，再运行专项并核对测试数量。默认 quick/CI 可继续使用既有流水线，但不能把旧容器输出当作当前工作树的证据。

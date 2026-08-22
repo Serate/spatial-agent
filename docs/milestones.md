@@ -4000,3 +4000,9 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 5. **部署**：覆盖 production FastAPI、async polling、SQLite restart、旧 artifact 和前端资源 allowlist 的 evidence/action 一致性。
 6. **体验**：Console 动态展示候选卡片、证据状态、缺失字段和 allowed actions；Text/GIS 共用 renderer。
 7. **测试**：保持 quick/CI 精简，以少量跨入口 contract + Docker/HTTP/浏览器显式验收，不恢复历史全量默认门禁。
+
+## M196-C：evidence/action projection 跨入口收口（实现完成，待版本推送）
+
+- `evidence_action_guidance.v1` 已成为通用 advisory guidance contract；Runtime 保留生命周期安全门，Domain 不直接授予动作权限。
+- Result Contract、async、Artifact、SQLite restart、HTTP、旧 Artifact 与 Console 通用 renderer 已验证同一 projection；Provider 异常和未知 schema 均安全降级。
+- Docker 专项与跨入口回归：10/10、10/10、16/16、8/8、3/3；容器 healthy。阶段提交前仅剩 diff 检查、敏感信息审计和版本推送。

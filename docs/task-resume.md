@@ -2411,3 +2411,10 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 5. 部署：production FastAPI、async、SQLite restart、旧 artifact 和静态资源 allowlist 的一致性。
 6. 体验：Text/GIS 共用动态 renderer，显示候选、状态、缺失字段和允许动作。
 7. 测试：quick/CI 精简，跨入口 contract、Docker、HTTP、浏览器和显式 live 分层验收。
+
+## M196-C 当前完成状态：evidence/action projection 跨入口收口
+
+- Runtime 与 Text/GIS Domain 已共享 `evidence_action_guidance.v1`；Domain 仅提供 advisory 建议，Runtime 统一执行生命周期 gate 和 `allowed_actions`。
+- Result Contract、async、Artifact、SQLite restart、HTTP preview/detail、旧 Artifact 和 Console 通用交互保持同一 guidance/action projection；未知 schema、Provider 异常和不可用数据均有界降级。
+- 本轮 Docker 验证：M196-C **10/10**，capability provider **10/10**，M164/M168/M148 **16/16**，M194/M195/HTTP **8/8**，旧 Artifact **3/3**；容器 healthy。
+- 阶段收口动作：完成敏感信息审计与 `git diff --check` 后提交推送；下一阶段从全局七维度规划开放式 workspace、脱敏 replay/live-short、恢复接管和动态 renderer 的剩余缺口。
