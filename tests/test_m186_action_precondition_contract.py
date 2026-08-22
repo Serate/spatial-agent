@@ -126,6 +126,32 @@ class M186ActionPreconditionContractTests(unittest.TestCase):
             ("confirm",)
         })
 
+    def test_interaction_binds_receipt_and_sanitized_repair_lineage(self):
+        receipt = project_action_receipt({
+            "action_id": "repair",
+            "status": "COMPLETED",
+            "result_ref": "run-m204",
+        })
+        contract = build_result_contract({
+            "status": "FAILED",
+            "result_type": "generic_result",
+            "action_receipt": receipt,
+            "replan_events": [{
+                "phase": "planning",
+                "repair_status": "repaired",
+                "repair_reason_code": "replacement_selected",
+                "error": "private provider response must not survive",
+            }],
+        })
+        async_value = build_async_result_evidence(contract, status="FAILED")
+        recovered = normalize_async_result_evidence(async_value, status="FAILED")
+        expected = contract["selection_interaction"]
+        self.assertEqual(expected["action_receipt"], receipt)
+        self.assertEqual(len(expected["repair_lineage"]), 1)
+        self.assertNotIn("error", expected["repair_lineage"][0])
+        self.assertEqual(async_value["selection_interaction"], expected)
+        self.assertEqual(recovered["selection_interaction"], expected)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -240,9 +240,15 @@ def normalize_evidence_action_guidance(value: Any) -> dict[str, Any]:
         source.get("recommended_actions") or source.get("actions"),
         allowed=ACTION_IDS,
     )
+    declared_available = source.get("available")
+    available = (
+        declared_available
+        if isinstance(declared_available, bool)
+        else bool(source)
+    )
     return {
         "schema_version": EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
-        "available": bool(source),
+        "available": available,
         "state": state,
         "reason_code": _text(source.get("reason_code"))
         or "evidence_action_guidance_unavailable",

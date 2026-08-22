@@ -4126,3 +4126,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：HTTP、async、Artifact、SQLite restart 和重复 action 共享 receipt identity/幂等结果。
 6. 体验：通用 renderer 显示 receipt、阻断原因、repair lineage 和允许动作。
 7. 测试：精简 receipt/lineage 跨入口 contract，默认 CI 继续离线。
+
+## M204-A：Receipt/repair lineage 统一进入 interaction projection（已完成，待版本推送）
+
+- `selection-interaction.v1` 可选携带规范化 Action Receipt 与脱敏 repair lineage；Result、async 和 recovery 保持同一 selection projection。
+- M204-A 专项 **7/7**，M196/M165/M183 受影响回归 **19/19**；同时修复规范 `available=false` guidance 的二次归一化漂移。
+- 阶段完成后推送；下一阶段 M205 让 Console/HTTP/Artifact/浏览器直接消费统一 interaction projection，不增加 GIS 页面分支。
+
+## M205：下一阶段全局规划参考
+
+1. 产品：Console 展示统一状态、动作、Receipt、前置条件和 repair lineage。
+2. 架构：renderer 直接消费 interaction envelope，避免前端拼装权限。
+3. 数据：只展示有界 identity/fingerprint，不展示原始模型或工具错误。
+4. 模型：脱敏 replay/live-short 验证 repair/clarification 状态可读。
+5. 部署：HTTP、async、Artifact、SQLite restart 和浏览器共享 schema/version。
+6. 体验：Text/GIS 共用动态 renderer，按钮只来自 Runtime allowed actions。
+7. 测试：精简 Node/Chrome/HTTP/Artifact interaction smoke，默认 CI 保持离线。

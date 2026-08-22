@@ -4976,6 +4976,20 @@ Result Contract 同时输出 `selection_interaction.allowed_actions` 和 `action
 
 Result Contract 先构建唯一前置条件 projection，再传给 `selection_interaction`；交互层复用同一个 Runtime gate，保存有界 `blocked_actions` 和前置条件摘要，安全取消仍可用。M203-A/M196/M165 回归 **20/20**。以后任何 UI allowed action 必须来自同一 Runtime gate，不得从 Domain guidance 或单独状态分支推导可执行权限。
 
+## M204-A：Selection interaction 二次归一化丢失 Receipt/repair lineage 或 guidance 状态
+
+### 现象
+
+Result Contract 中的 Action Receipt 和 repair lineage 原本只在 Result 顶层存在，async/recovery 的 selection interaction 无法直接携带；同时规范化的 `evidence_action_guidance.available=false` 在第二次归一化后会变成 `true`，导致跨入口 equality 失败。
+
+### 根因
+
+Selection interaction 只保存候选、生命周期和前置条件，没有绑定 Receipt/repair lineage；guidance normalizer 用 `bool(source)` 推断可用性，忽略了规范对象的显式 `available` 字段。
+
+### 处理与预防
+
+selection projection 现在复用 `normalize_action_receipt()` 和 `project_repair_lineage()`，只保存有界、脱敏字段；guidance normalizer 在存在布尔 `available` 时优先保留它，旧输入无该字段时才按非空推断。M204-A/M196/M165/M183 **26/26** 通过。以后新增跨入口字段必须验证一次构建和至少一次 normalize/recovery 的幂等 equality。
+
 ## M200-A：复杂请求跨入口只验证完成状态导致结果证据漂移
 
 ### 现象

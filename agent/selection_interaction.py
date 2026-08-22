@@ -17,6 +17,8 @@ from .action_precondition import (
     project_action_preconditions,
 )
 from .action_lifecycle import project_action_lifecycle
+from .plan_policy import project_repair_lineage
+from .recovery_action import normalize_action_receipt
 from .recovery_action import normalize_action_ids, project_available_actions
 from .workflow_selection import (
     normalize_evidence_action_guidance,
@@ -63,6 +65,8 @@ def build_selection_interaction(
     decision: Any = None,
     lifecycle: Any = None,
     action_preconditions: Any = None,
+    action_receipt: Any = None,
+    repair_lineage: Any = None,
     status: str | None = None,
     subject_id: str | None = None,
 ) -> dict[str, Any]:
@@ -86,6 +90,16 @@ def build_selection_interaction(
     precondition_map = (
         project_action_preconditions({"action_preconditions": action_preconditions})
         if action_preconditions is not None
+        else None
+    )
+    receipt_map = (
+        normalize_action_receipt(action_receipt)
+        if isinstance(action_receipt, Mapping)
+        else None
+    )
+    repair_map = (
+        project_repair_lineage(repair_lineage)
+        if isinstance(repair_lineage, (list, tuple))
         else None
     )
     missing = _missing_fields(normalized_selection.get("missing_fields"))
@@ -169,6 +183,10 @@ def build_selection_interaction(
     }
     if precondition_map is not None:
         result["action_preconditions"] = precondition_map
+    if receipt_map is not None:
+        result["action_receipt"] = receipt_map
+    if repair_map is not None:
+        result["repair_lineage"] = repair_map
     if blocked_actions:
         result["blocked_actions"] = blocked_actions[:_MAX_ITEMS]
     guidance = normalize_evidence_action_guidance(
@@ -207,6 +225,8 @@ def normalize_selection_interaction(value: Any) -> dict[str, Any]:
         decision=value.get("decision"),
         lifecycle=value.get("lifecycle"),
         action_preconditions=value.get("action_preconditions"),
+        action_receipt=value.get("action_receipt"),
+        repair_lineage=value.get("repair_lineage"),
         status=_text(value.get("status")) or "UNKNOWN",
         subject_id=_text(value.get("subject_id")) or None,
     )

@@ -111,9 +111,20 @@ def build_result_contract(
         result_type=result_type,
         registry=registry,
     )
-    replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
+    repair_events = _replanning_events_from_payload(payload)
+    replanning = build_replanning_evidence(repair_events)
     lifecycle = project_action_lifecycle(payload)
     action_preconditions = project_action_preconditions(payload)
+    action_receipt = payload.get("action_receipt") or payload.get("interaction_receipt")
+    if not isinstance(action_receipt, Mapping):
+        nested_payload = payload.get("result")
+        nested_payload = nested_payload if isinstance(nested_payload, Mapping) else {}
+        action_receipt = nested_payload.get("action_receipt")
+    action_receipt = (
+        normalize_action_receipt(action_receipt)
+        if isinstance(action_receipt, Mapping)
+        else None
+    )
     planning_evidence = _normalize_planning_evidence(payload.get("plan_evidence"))
     selection_interaction = build_selection_interaction(
         selection=planning_evidence.get("workflow_selection")
@@ -123,6 +134,8 @@ def build_result_contract(
         decision=payload.get("decision_evidence"),
         lifecycle=lifecycle,
         action_preconditions=action_preconditions,
+        action_receipt=action_receipt,
+        repair_lineage=repair_events,
         status=payload.get("status"),
         subject_id=payload.get("run_id"),
     )
@@ -204,9 +217,8 @@ def build_result_contract(
     contract["evidence_recovery"] = project_evidence_recovery(
         {"result": contract}
     )
-    action_receipt = payload.get("action_receipt") or payload.get("interaction_receipt")
-    if isinstance(action_receipt, Mapping):
-        contract["action_receipt"] = normalize_action_receipt(action_receipt)
+    if action_receipt is not None:
+        contract["action_receipt"] = action_receipt
     if normalized_runtime_context is not None:
         contract["runtime_context"] = normalized_runtime_context
     if payload.get("run_id") or payload.get("action_execution_id"):

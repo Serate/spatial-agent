@@ -2548,3 +2548,20 @@ M200 从 M199 的复杂真实纵向链路继续验证“同一请求在不同入
 5. 部署：HTTP、async、Artifact-only、SQLite restart 和重复 action 提交共享 receipt identity 与幂等结果。
 6. 体验：Console 以通用 renderer 展示 receipt 状态、阻断原因、repair lineage 和允许动作，不增加 GIS 页面分支。
 7. 测试：一个 receipt/lineage 跨入口 contract 配合既有前置条件回归；默认 quick/CI 继续精简。
+
+## M204-A：Receipt/repair lineage 进入统一 interaction projection（已完成，待版本推送）
+
+- `selection_interaction.v1` 现在可选地携带规范化 `action_receipt` 与脱敏 `repair_lineage`；Result Contract、async evidence 和 async recovery 复用同一 projection，不复制原始错误或私有路径。
+- Result Contract 支持从当前或嵌套结果位置读取 Receipt，并只构建一次 repair event 输入；新增跨 Result → async → recovery equality 用例，Receipt、repair lineage 和 sanitized boundary 均通过。
+- 修复 `normalize_evidence_action_guidance()` 对规范 `available=false` 对象的二次归一化漂移；M204-A 专项 **7/7**，M196/M165/M183 受影响回归 **19/19**。
+- 本切片没有新增 GIS Runtime 分支、模型网络访问或默认 CI 依赖；阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新。
+
+## M205：下一阶段全局规划参考
+
+1. 产品：让 Console 直接消费统一 interaction projection，展示状态、动作、Receipt、前置条件和 repair lineage。
+2. 架构：将 selection/workspace/view renderer 与 interaction envelope 对齐，避免前端从多个字段自行拼装权限。
+3. 数据：前端只接收有界 identity/fingerprint 摘要，不展示原始模型响应、工具错误或私有路径。
+4. 模型：脱敏 replay/live-short 验证模型生成的 repair/clarification 状态在前端和 Artifact 中可读。
+5. 部署：HTTP、async、Artifact、SQLite restart 和浏览器加载同一 envelope schema/version。
+6. 体验：Text/GIS 共用动态 renderer，安全动作按钮只来自 Runtime `allowed_actions`。
+7. 测试：一个 Node/Chrome/HTTP/Artifact interaction smoke 加少量跨入口 contract，默认 CI 保持精简。
