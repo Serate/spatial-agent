@@ -28,6 +28,10 @@ from agent.action_identity import (
 from agent.action_precondition import project_action_preconditions
 from agent.action_lineage import append_action_lineage
 from agent.action_effect import project_action_effect
+from agent.transition_evidence import (
+    build_transition_evidence,
+    project_transition_evidence,
+)
 from agent.execution_timeline import attach_action_receipt_timeline
 from agent.recovery_action import (
     action_input_fingerprint,
@@ -1671,6 +1675,10 @@ class AgentService:
                         replay_receipt["transition_identity"] = stored_receipt.get(
                             "transition_identity"
                         )
+                    if "transition_evidence" in stored_receipt:
+                        replay_receipt["transition_evidence"] = stored_receipt.get(
+                            "transition_evidence"
+                        )
                 replay["action_receipt"] = project_action_receipt(
                     replay_receipt, reused=True
                 )
@@ -1693,6 +1701,9 @@ class AgentService:
         )
         if source_identity_linkage.get("available"):
             receipt["source_identity_linkage"] = source_identity_linkage
+        receipt["source_transition_evidence"] = project_transition_evidence(
+            source_payload or {}
+        )
         return receipt, False
 
     def _reserve_interaction_receipt(
@@ -1837,6 +1848,15 @@ class AgentService:
                 source_identity_linkage,
                 result_identity_linkage,
             )
+        source_evidence = receipt.get("source_transition_evidence")
+        if not isinstance(source_evidence, Mapping):
+            source_evidence = project_transition_evidence(
+                prior_source or {}
+            )
+        receipt["transition_evidence"] = build_transition_evidence(
+            source_evidence,
+            project_transition_evidence(identity_payload),
+        )
         action_receipt = project_action_receipt(receipt, reused=False)
         # Refresh before persisting response_payload: a replay can be served
         # entirely from SQLite and must retain the same action timeline as the

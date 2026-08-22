@@ -3826,3 +3826,25 @@ M191 已打通能力选择到运行，但下一阶段需要从“能继续执行
 - Action Receipt、execution timeline、Artifact、SQLite replay 和 `evaluation.contract_harness` 共用 transition projection；未知版本安全降级，不复制 request 文本、transport ID 或 provider 原文。
 - 新增 `tests/test_m192_transition_identity.py` **2/2**；M191 selection-to-run、M183.2 linkage、M184 timeline、M189 action effect 联合回归 **16/16**；Docker compileall、full-stage 和 production acceptance 通过，容器 healthy，preview fingerprint 与同步执行计划一致。
 - 当前阶段暂未扩展数据 readiness 重验或 live selection；下一步按 M192 全局规划补“补事实前后 evidence 差异、preview fingerprint 和真实模型选择基线”。
+
+## M192-B：Selection Transition Evidence 与真实模型基线（已完成）
+
+M192-B 将 M192-A 的 source/result identity 推进为“补事实到底改变了哪些数据证据和执行计划”的可验证纵向切片，仍保持公共 Runtime 不解释 GIS 专用字段。
+
+- 新增 `agent/transition_evidence.py` 与 `spatial-agent.action-transition-evidence.v1`，对 readiness、coverage、alignment、provenance 做有界摘要、fingerprint 和 added/removed/changed 差异；不复制原始数据、路径或 provider 响应。
+- Action Receipt、execution timeline、Artifact/SQLite replay 与 Contract Harness 使用同一 transition evidence；未知版本安全降级，跨入口不重新推导。
+- `workflow_request_hint()` 现在把 Domain 自定义 workflow constraints 以安全、有界摘要传给 LLM Planner，修复补事实后真实模型上下文缺失的问题；敏感键被过滤。
+- M192-B 专项 **5/5**；M192-A/B、M191、M183.2、M184、M189 联合回归 **21/21**；Docker full-stage、production acceptance、容器 healthy 和 preview fingerprint 匹配均通过。
+- 显式真实模型 selection → facts → run **1/1** 通过；该 live 路径不进入默认 CI。相关真实问题已记录到 `docs/agent-development-issues.md`。
+
+## M193 全局重规划参考
+
+M192 已能证明选择过渡的身份、数据证据变化和计划指纹，但证据变化目前主要是可见投影，还没有成为统一生命周期中的重验/阻断/修复输入。下一阶段从整体 Agent Runtime 推进“证据驱动的安全恢复”：
+
+1. **产品**：在同一工作区解释证据变化，并给出重新预览、确认、修复、重试或安全退出动作。
+2. **架构**：建立 Evidence Transition → Action Preconditions 的公共适配 seam，保持 Domain 只声明证据和恢复建议，Runtime 负责状态门控。
+3. **数据**：验证 readiness、coverage、alignment、provenance 在 preview→run、跨进程和重启时重新核验；数据变化时不得沿用旧计划。
+4. **模型**：用脱敏 replay 验证证据变化触发有限 repair/clarification；用最小 live-short 验证模型能消费新事实和恢复上下文。
+5. **部署**：覆盖多 worker CAS、SQLite 重启、Artifact-only recovery、旧 evidence schema 迁移和重复提交不重复执行。
+6. **体验**：前端动态显示证据前后状态、阻断原因、可执行动作和新的 plan fingerprint，不增加 GIS 页面分支。
+7. **测试**：新增最小 Evidence Revalidation Contract Harness，阶段收口覆盖 Docker、HTTP、Artifact、SQLite、浏览器和必要 live；默认 quick/CI 保持精简。

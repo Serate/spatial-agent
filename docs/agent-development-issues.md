@@ -4698,3 +4698,17 @@ Action Receipt 的既有 identity contract 为兼容取消、重试等动作只�
 ### 处理与预防
 
 新增领域无关 `spatial-agent.action-transition-identity.v1`，在不改变旧 `identity_linkage` 和默认 Result equality 的前提下保存 bounded `source`/`result` Request/Plan/Result/Evidence identities。Action Receipt、execution timeline、Artifact、SQLite replay 和 Contract Harness 统一读取该 projection；未知版本安全降级为 unavailable。以后新增跨运行过渡证据必须明确 source/target 的唯一持久化来源，并覆盖首次响应、HTTP、Artifact、history、异步和重启 replay，不能只凭 transport ID 建立关联。
+
+## M192-B：补充事实未进入通用 LLM Planner 提示
+
+### 现象
+
+selection → provide_facts 的规则路径可以继续运行，但真实模型路径在补充事实后仍返回 `NEEDS_CLARIFICATION`。Text Domain 的 `source` 事实已经合并进 workflow constraints，模型却继续认为没有可摘要文本。
+
+### 根因
+
+`workflow_request_hint()` 只渲染了少量 GIS 约束（行政区、数据集、坡度等），没有把 Domain 自定义的 workflow constraints 传给 LLM Planner。这样事实合并虽然在 Service/Runtime 内部成功，模型看到的用户提示仍然缺少新事实，形成“状态已补齐、模型上下文未补齐”的边界漂移。
+
+### 处理与预防
+
+增加通用、有界的自定义约束摘要：允许安全键和值进入 Planner 提示，限制长度和数组规模，并跳过 password、secret、token、credential、api_key 等敏感键。该逻辑不解释 Text 或 GIS 语义，由 workflow contract 统一承载；同时增加显式 live selection → facts → run 验收。以后新增 Domain fact 时，必须验证事实同时出现在 canonical workflow、Planner context、计划参数和跨入口结果中，不能只检查 Service 内部合并结果。

@@ -1926,3 +1926,10 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - 已新增 `agent.action_identity` 的 `spatial-agent.action-transition-identity.v1`；它在旧 `identity_linkage` 之外保存 bounded `source` 与 `result` identity。
 - `recovery_action`、execution timeline、Service replay、Artifact/SQLite projection 和 `evaluation.contract_harness` 已接入同一 transition identity；未知版本降级为 unavailable。
 - Docker M192 专项 **2/2**，M191/M183.2/M184/M189 联合回归 **16/16**；compileall、full-stage 和 production acceptance 通过，容器 healthy，preview fingerprint 与同步执行计划一致。下一步补事实前后 evidence 差异和 live selection 验收。
+
+## M192-B 当前状态
+
+- 已新增 `spatial-agent.action-transition-evidence.v1`，统一保存 selection/provide_facts 源与目标之间的 readiness、coverage、alignment、provenance 有界差异；Receipt、timeline、Artifact、SQLite replay 和 Contract Harness 共用该 projection。
+- 已补通用 workflow 自定义事实进入 LLM Planner 的有界提示摘要，并跳过敏感键；真实模型 selection → facts → run **1/1** 通过。
+- M192-B 专项 **5/5**，M192-A/B 与相邻 M191/M183.2/M184/M189 联合回归 **21/21**；Docker full-stage、production acceptance 通过，容器 healthy，preview fingerprint 匹配。
+- M192 已完成并待提交推送；下一阶段重点是证据变化后的 readiness 重验、preview 失效阻断/修复和跨入口恢复一致性。

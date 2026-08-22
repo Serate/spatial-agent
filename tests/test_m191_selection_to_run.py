@@ -14,7 +14,10 @@ from agent.artifact_store import ArtifactStore
 from agent.domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION
 from agent.service import AgentService
 from domains.text.domain import TextDomainPack
-from evaluation.contract_harness import compare_action_transition_identities
+from evaluation.contract_harness import (
+    compare_action_transition_evidence,
+    compare_action_transition_identities,
+)
 from serve_api import AgentApiHandler
 
 
@@ -164,6 +167,12 @@ class M191SelectionToRunTests(unittest.TestCase):
             ),
             [],
         )
+        self.assertEqual(
+            compare_action_transition_evidence(
+                [completed, artifact, history, recovered]
+            ),
+            [],
+        )
         for payload in (completed, artifact, recovered):
             self.assertEqual(payload["status"], "COMPLETED")
             self.assertEqual(payload["result"]["type"], "text_summary_result")
@@ -176,6 +185,7 @@ class M191SelectionToRunTests(unittest.TestCase):
         self.assertTrue(
             completed["action_receipt"]["transition_identity"]["available"]
         )
+        self.assertIn("transition_evidence", completed["action_receipt"])
 
 
 if __name__ == "__main__":

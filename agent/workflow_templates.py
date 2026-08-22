@@ -7,6 +7,7 @@ parser contract.
 """
 
 import copy
+import json
 import math
 import re
 from collections.abc import Iterable, Mapping
@@ -767,6 +768,26 @@ def workflow_request_hint(request: str, workflow: Optional[Mapping[str, Any]]) -
         parts.append("排除水体")
     if constraints.get("include_geometry") is False:
         parts.append("不需要空间几何导出")
+    known_keys = {
+        "admin_name",
+        "dataset",
+        "slope_limit_degrees",
+        "road_distance_m",
+        "exclude_water",
+        "include_geometry",
+    }
+    for key, value in constraints.items():
+        key_text = str(key or "").strip()[:64]
+        if (
+            not key_text
+            or key_text in known_keys
+            or not re.fullmatch(r"[A-Za-z0-9_.-]+", key_text)
+            or any(token in key_text.lower() for token in ("password", "secret", "token", "credential", "api_key"))
+        ):
+            continue
+        safe_value = _workflow_hint_value(value)
+        if safe_value is not None:
+            parts.append("{}={}".format(key_text, safe_value))
     if not parts:
         return request
     label = {
@@ -776,6 +797,26 @@ def workflow_request_hint(request: str, workflow: Optional[Mapping[str, Any]]) -
         "constrained_buildability": "道路与水体约束筛选",
     }.get(str(template_id), "受控空间工作流")
     return "{}\n[{}参数：{}]".format(request.strip(), label, "；".join(parts))
+
+
+def _workflow_hint_value(value: Any) -> str | None:
+    """Render custom Domain constraints without copying unbounded input."""
+
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)[:64]
+    if isinstance(value, str) and value.strip():
+        return value.strip()[:160]
+    if isinstance(value, (list, tuple)):
+        values = [
+            item
+            for item in value[:8]
+            if isinstance(item, (str, int, float, bool))
+        ]
+        if values:
+            return json.dumps(values, ensure_ascii=False, separators=(",", ":"))[:240]
+    return None
 
 
 def validate_workflow_plan(

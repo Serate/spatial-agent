@@ -204,6 +204,7 @@ def _action_event(
         normalize_action_receipt_identity_linkage,
         normalize_action_transition_identity,
     )
+    from .transition_evidence import normalize_transition_evidence
     from .action_precondition import (
         normalize_action_preconditions,
         project_action_preconditions,
@@ -223,6 +224,9 @@ def _action_event(
         }
     transition_identity = normalize_action_transition_identity(
         normalized.get("transition_identity")
+    )
+    transition_evidence = normalize_transition_evidence(
+        normalized.get("transition_evidence")
     )
     subject = normalized.get("subject")
     subject = subject if isinstance(subject, Mapping) else {}
@@ -251,6 +255,7 @@ def _action_event(
             "result_kind": _text(result_ref.get("kind")) or None,
             "identity_linkage": identity,
             "transition_identity": transition_identity,
+            "transition_evidence": transition_evidence,
             "preconditions": preconditions,
             "transition_lineage": normalize_action_lineage(
                 normalized.get("transition_lineage")
@@ -275,6 +280,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
         }
     from .action_identity import normalize_action_receipt_identity_linkage
     from .action_identity import normalize_action_transition_identity
+    from .transition_evidence import normalize_transition_evidence
     from .action_precondition import normalize_action_preconditions
     from .action_lineage import normalize_action_lineage
     from .action_effect import normalize_action_effect
@@ -290,6 +296,9 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
     transition_identity = normalize_action_transition_identity(
         value.get("transition_identity")
     )
+    transition_evidence = normalize_transition_evidence(
+        value.get("transition_evidence")
+    )
     result = {
         "schema_version": ACTION_TIMELINE_LINKAGE_SCHEMA_VERSION,
         "available": bool(value.get("available")),
@@ -300,6 +309,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
         "result_kind": _text(value.get("result_kind")) or None,
         "identity_linkage": identity,
         "transition_identity": transition_identity,
+        "transition_evidence": transition_evidence,
         "preconditions": normalize_action_preconditions(
             value.get("preconditions")
         ),

@@ -2263,3 +2263,12 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 `spatial-agent.action-transition-identity.v1`，Action Receipt 保存源/目标 bounded identity；旧 `identity_linkage` 仍作为兼容的目标投影。
 - Receipt、execution timeline、Artifact、SQLite replay 和 Contract Harness 共享 transition identity；M192 专项 **2/2**，M191/M183.2/M184/M189 受影响回归 **16/16**；Docker compileall、full-stage 和 production acceptance 通过，容器 healthy，preview fingerprint 与同步执行计划一致。
 - 下一步继续 M192：补事实前后数据 readiness/coverage/alignment/provenance evidence 差异、preview fingerprint 一致性和真实模型 selection 基线。
+
+## M192-B 当前完成状态
+
+- 新增领域无关 `spatial-agent.action-transition-evidence.v1`，从源/目标结果中提取有界 readiness、coverage、alignment、provenance 摘要和 fingerprint，输出 added/removed/changed 差异；不复制原始路径、数据记录或模型响应。
+- `Action Receipt`、execution timeline、Artifact/SQLite replay 和 `evaluation.contract_harness` 共享 transition evidence；未知 schema 安全降级，跨 Receipt/Artifact/history/timeline 比较保持一致。
+- 补充通用 workflow constraints 到 LLM Planner 的有界提示摘要，修复真实模型 selection → facts 后仍缺事实的问题；敏感键不会进入提示。
+- M192-B 专项 **5/5**，M192-A/M192-B、M191、M183.2、M184、M189 联合回归 **21/21**；Docker compileall、full-stage、production acceptance 通过，容器 healthy，preview fingerprint 匹配。
+- 显式真实模型 selection → facts → run **1/1** 通过；默认 live 测试仍跳过，不进入 CI。新问题已记录到中文开发问题文档。
+- M192 已完成，下一阶段从“证据变化可见”推进到“证据变化触发重验、阻断、修复或恢复”，继续按全局七个维度规划。

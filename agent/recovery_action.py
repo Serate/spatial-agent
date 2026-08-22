@@ -188,6 +188,14 @@ def project_action_receipt(
         )
         if transition_identity is not None:
             result["transition_identity"] = transition_identity
+    if "transition_evidence" in value:
+        from .transition_evidence import normalize_transition_evidence
+
+        transition_evidence = normalize_transition_evidence(
+            value.get("transition_evidence")
+        )
+        if transition_evidence is not None:
+            result["transition_evidence"] = transition_evidence
     return result
 
 

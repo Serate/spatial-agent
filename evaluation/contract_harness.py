@@ -54,6 +54,10 @@ from agent.action_identity import (
     normalize_action_receipt_identity_linkage as _normalize_action_receipt_identity_linkage,
     normalize_action_transition_identity as _normalize_action_transition_identity,
 )
+from agent.transition_evidence import (
+    TRANSITION_EVIDENCE_SCHEMA_VERSION,
+    normalize_transition_evidence as _normalize_transition_evidence,
+)
 
 
 @dataclass(frozen=True)
@@ -117,6 +121,22 @@ class ActionTransitionIdentityContract:
         return _differences(self.values, other.values)
 
     def equivalent_to(self, other: "ActionTransitionIdentityContract") -> bool:
+        return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class ActionTransitionEvidenceContract:
+    """Stable data-evidence change carried by a selection transition."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "ActionTransitionEvidenceContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "ActionTransitionEvidenceContract") -> bool:
         return not self.differences(other)
 
 
@@ -294,6 +314,59 @@ def compare_action_transition_identities(
     if len(payloads) < 2:
         raise ValueError("at least two action transition identities are required")
     contracts = [normalize_action_transition_identity(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_action_transition_evidence(
+    payload: Mapping[str, Any],
+) -> ActionTransitionEvidenceContract:
+    """Project the canonical source/result data-evidence transition."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("action transition evidence payload must be a mapping")
+    raw = payload.get("action_receipt")
+    if not isinstance(raw, Mapping) and isinstance(payload.get("result"), Mapping):
+        raw = payload["result"].get("action_receipt")
+    if not isinstance(raw, Mapping):
+        timeline = payload.get("execution_timeline")
+        events = timeline.get("events") if isinstance(timeline, Mapping) else None
+        if isinstance(events, list):
+            raw = next(
+                (
+                    item.get("action_linkage")
+                    for item in reversed(events)
+                    if isinstance(item, Mapping)
+                    and item.get("kind") == "action"
+                    and isinstance(item.get("action_linkage"), Mapping)
+                ),
+                None,
+            )
+    raw_transition = raw.get("transition_evidence") if isinstance(raw, Mapping) else None
+    transition = _normalize_transition_evidence(raw_transition)
+    if transition is None:
+        return ActionTransitionEvidenceContract(
+            {
+                "schema_version": TRANSITION_EVIDENCE_SCHEMA_VERSION,
+                "available": False,
+                "state": "unavailable",
+            }
+        )
+    return ActionTransitionEvidenceContract(transition)
+
+
+def compare_action_transition_evidence(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return data-evidence transition drift across recovery entries."""
+    if len(payloads) < 2:
+        raise ValueError("at least two action transition evidence payloads are required")
+    contracts = [normalize_action_transition_evidence(item) for item in payloads]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):
