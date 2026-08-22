@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .recovery_action import normalize_action_ids, project_available_actions
+from .action_precondition import is_action_allowed
 
 
 ACTION_LIFECYCLE_SCHEMA_VERSION = "spatial-agent.action-lifecycle.v1"
@@ -79,6 +80,15 @@ def project_action_lifecycle(payload: Mapping[str, Any] | None) -> dict[str, Any
         retryable=retryable,
         explicit_repairable=value.get("repairable"),
     )
+    blocked_actions = [
+        action for action in actions
+        if not is_action_allowed(value, action)
+    ]
+    if blocked_actions:
+        actions = tuple(
+            action for action in actions if action not in blocked_actions
+        )
+        reason = "action_preconditions_blocked"
     subject_id = value.get("run_id") or value.get("action_execution_id")
     result_value = {
         "schema_version": ACTION_LIFECYCLE_SCHEMA_VERSION,
@@ -99,6 +109,8 @@ def project_action_lifecycle(payload: Mapping[str, Any] | None) -> dict[str, Any
     }
     if subject_id:
         result_value["subject_id"] = str(subject_id)[:_MAX_ID]
+    if blocked_actions:
+        result_value["blocked_actions"] = list(blocked_actions[:_MAX_ACTIONS])
     if decision.get("decision_id"):
         result_value["decision_id"] = str(decision["decision_id"])[:_MAX_ID]
     return result_value

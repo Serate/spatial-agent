@@ -1820,3 +1820,21 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 4. 以脱敏 replay 和最小 live-short 覆盖复杂请求的多轮模型与动作连续性。
 5. 验证 FastAPI、SQLite 多 worker、重启接管、Artifact-only recovery 的幂等和 evidence equality。
 6. 继续让 Console 消费结构化状态，不增加 GIS 专用页面分支；quick/CI 维持精简。
+
+## M186 当前完成状态
+
+- `evaluation.contract_harness` 新增 Action Precondition Contract、normalize 和 compare，可单独检测 Receipt/Result/async/transport 的前置条件漂移。
+- `project_action_lifecycle()` 对显式 enforced preconditions 过滤执行/恢复动作并输出 `blocked_actions`；reject/cancel 保持安全退出，advisory/旧 schema 不改变行为。
+- M186 专项 4/4、M185/M184 受影响回归 10/10；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP overview smoke 通过，容器 healthy。
+- 强制前置条件误伤安全退出动作的问题已追加到 `docs/agent-development-issues.md`；未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- M186 当前切片待最终检查、commit/push；之后进入 M187 多动作 transition lineage 阶段。
+
+## M187 全局规划参考
+
+下一阶段从“单动作可执行性”推进到“多动作连续生命周期与结果影响”：
+
+1. 建立能力选择、澄清、确认、repair、retry、cancel、recovery 到结果影响的多动作 timeline。
+2. 统一 transition lineage、旧 Receipt/schema 迁移和跨入口 Contract Harness。
+3. 扩展 Domain evidence 的 readiness、coverage、alignment、provenance 复用/重验语义。
+4. 用脱敏多轮 replay、最小 live-short、SQLite 多 worker、重启和 Artifact-only recovery 验证连续性。
+5. Console 消费 blocked actions、安全退出、结果影响和下一步动作；quick/CI 继续精简，不增加 GIS 专用分支。

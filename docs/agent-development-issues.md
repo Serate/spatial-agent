@@ -4586,3 +4586,17 @@ M185 初版已经把 Action Preconditions 接入 Result Contract、执行时间�
 ### 处理与预防
 
 将有界的 `spatial-agent.action-precondition.v1` projection 写入 Action Receipt，且必须在 SQLite `response_payload` 完成前写入。`execution_timeline`、Result Contract、async evidence、Artifact attach、SQLite replay 和 Console 优先读取 Receipt 中的 canonical preconditions；没有该字段的旧 Receipt 才走兼容推导。回放时同时复制已保存的 preconditions，并对未知 schema 安全降级，不解释未知字段。以后新增 transition evidence，必须先确定唯一持久化来源，再覆盖即时响应、SQLite、Artifact、异步、多 worker 和重启 replay 的 equality 测试，不能让各入口分别重新推导。
+
+## M186：强制前置条件不能误伤安全退出动作
+
+### 现象
+
+将 `enforce=true` 的前置条件接入生命周期 `allowed_actions` 后，最初的专项测试把 `reject` 也当成应被移除的执行动作。这样会在确认条件阻断时同时隐藏拒绝和取消，用户可能被锁在待确认状态。
+
+### 根因
+
+“动作需要满足数据条件”和“动作是否改变/继续执行任务”不是同一类语义。`approve`、`repair`、`retry`、`recover` 等动作会继续执行或恢复工作流，`reject` 与 `cancel` 是安全控制出口，不应被数据 readiness 或 alignment 条件阻断。
+
+### 处理与预防
+
+生命周期只对显式 gated execution/recovery actions 应用 enforced preconditions，`reject` 和 `cancel` 保留为安全退出路径，并将被阻断动作单独投影为 `blocked_actions`。以后新增动作必须先分类为执行、恢复、确认或安全退出，再决定是否受前置条件影响；测试必须覆盖“执行动作被阻断、拒绝/取消仍可用、未知 schema 不阻断”三种情况。

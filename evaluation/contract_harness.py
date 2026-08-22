@@ -29,6 +29,11 @@ from agent.planner_selection import normalize_planner_selection_evidence
 from agent.selection_interaction import normalize_selection_interaction
 from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.execution_timeline import normalize_execution_timeline
+from agent.action_precondition import (
+    ACTION_PRECONDITION_SCHEMA_VERSION,
+    normalize_action_preconditions,
+    project_action_preconditions,
+)
 from agent.evidence_registry import (
     normalize_evidence_registry,
     project_evidence_registry_completeness,
@@ -105,6 +110,22 @@ class ActionTimelineContract:
         return _differences(self.values, other.values)
 
     def equivalent_to(self, other: "ActionTimelineContract") -> bool:
+        return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class ActionPreconditionContract:
+    """Stable evidence of whether one lifecycle action is executable."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "ActionPreconditionContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "ActionPreconditionContract") -> bool:
         return not self.differences(other)
 
 
@@ -244,6 +265,67 @@ def compare_action_timelines(
     if len(payloads) < 2:
         raise ValueError("at least two action timelines are required")
     contracts = [normalize_action_timeline_contract(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_action_precondition_contract(
+    payload: Mapping[str, Any],
+) -> ActionPreconditionContract:
+    """Normalize preconditions independently of the timeline contract.
+
+    The Action Receipt projection is preferred over stale transport/result
+    copies.  This allows HTTP, SQLite, Artifact and async acceptance to report
+    exactly which precondition changed without comparing unrelated timeline
+    or identity fields.
+    """
+    if not isinstance(payload, Mapping):
+        raise ValueError("action precondition payload must be a mapping")
+    result = payload.get("result")
+    result = result if isinstance(result, Mapping) else {}
+    receipt = payload.get("action_receipt")
+    if not isinstance(receipt, Mapping):
+        receipt = result.get("action_receipt")
+    receipt = receipt if isinstance(receipt, Mapping) else {}
+    raw = receipt.get("preconditions")
+    if not isinstance(raw, Mapping):
+        raw = payload.get("action_preconditions")
+    if not isinstance(raw, Mapping):
+        raw = result.get("action_preconditions")
+    if isinstance(raw, Mapping) and "schema_version" in raw:
+        projection = normalize_action_preconditions(raw)
+    else:
+        projection = project_action_preconditions(payload)
+    return ActionPreconditionContract({
+        "schema_version": projection.get(
+            "schema_version", ACTION_PRECONDITION_SCHEMA_VERSION
+        ),
+        "available": bool(projection.get("available")),
+        "action_id": projection.get("action_id"),
+        "state": projection.get("state"),
+        "action_allowed": projection.get("action_allowed"),
+        "enforcement": projection.get("enforcement"),
+        "reason_code": projection.get("reason_code"),
+        "condition_count": projection.get("condition_count", 0),
+        "conditions": projection.get("conditions", []),
+    })
+
+
+def compare_action_preconditions(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return bounded precondition drift across public/recovery entries."""
+    if len(payloads) < 2:
+        raise ValueError("at least two action preconditions are required")
+    contracts = [
+        normalize_action_precondition_contract(item) for item in payloads
+    ]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):

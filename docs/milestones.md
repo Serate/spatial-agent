@@ -3679,3 +3679,23 @@ M185 将 Action Timeline 从动作身份关联推进到“动作前置条件 →
 5. 部署：验证 FastAPI、SQLite 多 worker、异常重启、滚动接管和 Artifact-only recovery 不会重复执行动作或丢失前置条件。
 6. 体验：Console 根据 `allowed_actions` 与结构化前置条件动态展示可执行、等待、阻断、降级和恢复，不新增 GIS 专用分支。
 7. 测试：quick/CI 继续精简；阶段收口增加一条跨 Domain 多动作 Contract Harness，再执行 Docker、HTTP、Artifact、浏览器和必要 live-short。
+
+## M186：Action Precondition Contract 与生命周期门控（已完成）
+
+M186 将 M185 的 canonical Action Preconditions 推进到可独立比较、可解释的生命周期动作投影，仍不引入第二套 Runtime 状态机。
+
+- `evaluation.contract_harness` 新增 `ActionPreconditionContract`、`normalize_action_precondition_contract()` 和 `compare_action_preconditions()`；可以独立定位 HTTP、SQLite、Artifact、async 之间的前置条件漂移。
+- `project_action_lifecycle()` 接入显式 `enforce=true` 的前置条件：只移除 approve/confirm/repair/retry/recover/rebuild 等执行或恢复动作，并输出有界 `blocked_actions`；reject/cancel 始终保留为安全退出路径，advisory 和旧 schema 不改变旧行为。
+- 新增 M186 专项 **4/4**；M185/M184 受影响回归 **10/10**；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP overview smoke 均通过。
+- 生产容器 healthy，核心/可选数据和 runtime capability ready；本阶段未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- 强制前置条件误伤安全退出动作的问题已记录到 `docs/agent-development-issues.md`。M186 该切片完成后，下一阶段进入 M187。
+
+## M187 全局重规划参考
+
+1. 产品：将连续动作从“当前可执行列表”推进为能力选择、澄清、确认、repair、retry、cancel、recovery 到结果影响的可读时间线。
+2. 架构：补充多动作 transition lineage 的公共投影和旧 Receipt/schema 迁移，不复制 Runtime 状态机。
+3. 数据：为每个 Domain 的 readiness、coverage、alignment、provenance 和过期证据声明复用/重验策略。
+4. 模型：用脱敏多轮 replay 和最小 live-short 验证模型计划与动作门控的一致性。
+5. 部署：验证多 worker、SQLite CAS、重启接管和 Artifact-only recovery 的动作序列不丢失、不重复。
+6. 体验：Console 动态展示 blocked actions、安全退出、结果影响和下一步动作，不增加 GIS 专用分支。
+7. 测试：保持 quick/CI 精简，新增一条多动作跨入口 Harness，阶段收口运行 Docker、HTTP、Artifact、浏览器和必要 live-short。

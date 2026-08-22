@@ -148,6 +148,25 @@ def normalize_action_preconditions(value: Any) -> dict[str, Any]:
     }
 
 
+def is_action_allowed(value: Any, action: str) -> bool:
+    """Return whether a lifecycle action passes an enforced projection.
+
+    Preconditions are advisory by default.  Only the explicitly enforced
+    projection can narrow the existing lifecycle action list, and only gated
+    actions are affected; cancel remains available as a safe escape hatch.
+    """
+    action_id = _text(action).lower()
+    if not action_id or action_id not in _GATED_ACTIONS:
+        return True
+    projection = project_action_preconditions(value)
+    if projection.get("enforcement") != "enforced":
+        return True
+    expected_action = _text(projection.get("action_id")).lower()
+    if expected_action and expected_action != action_id:
+        return True
+    return projection.get("action_allowed") is not False
+
+
 def _explicit_conditions(value: Any) -> list[dict[str, Any]]:
     if isinstance(value, Mapping):
         values = [
@@ -281,6 +300,7 @@ def _text(value: Any) -> str:
 
 __all__ = [
     "ACTION_PRECONDITION_SCHEMA_VERSION",
+    "is_action_allowed",
     "normalize_action_preconditions",
     "project_action_preconditions",
 ]

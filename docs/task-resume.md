@@ -2154,3 +2154,23 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 验证 FastAPI、SQLite 多 worker、重启接管、Artifact-only recovery 的动作幂等与证据连续性。
 6. 让 Console 仅消费结构化 `allowed_actions`、preconditions 和 evidence，动态显示可执行、等待、阻断、降级和恢复。
 7. 保持 Docker quick/CI 精简，阶段收口再执行 HTTP、Artifact、浏览器和必要 live-short。
+
+## M186 当前完成状态
+
+- `evaluation.contract_harness` 新增独立 Action Precondition Contract，Receipt、Result、async 和 transport projection 可以单独进行 equality 比较与漂移定位。
+- 生命周期接入显式 enforced preconditions：执行/恢复类动作被阻断时输出 `blocked_actions`，reject/cancel 保留安全退出；advisory、旧 Receipt 和未知 schema 保持兼容。
+- M186 专项 4/4；M185/M184 受影响回归 10/10；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP overview smoke 通过，容器 healthy。
+- 发现的“强制前置条件误伤安全退出动作”已写入中文问题文档。本阶段未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- M186 当前切片已完成；下一步按 M187 七个全局维度推进多动作 transition lineage 和结果影响投影。
+
+## M187 下一阶段全局规划参考
+
+从 M186 的单动作可执行性继续推进多动作连续生命周期：
+
+1. 建立能力选择、澄清、确认、repair、retry、cancel、recovery 到结果影响的多动作时间线。
+2. 统一 transition lineage 与旧 Receipt/schema 迁移，继续保持 Runtime lifecycle 唯一。
+3. 扩展 Domain evidence adapter 的 readiness/coverage/alignment/provenance 复用和重验语义。
+4. 用脱敏多轮 replay 与最小 live-short 验证模型计划、动作门控和证据连续性。
+5. 覆盖 SQLite 多 worker、重启接管、Artifact-only recovery 的动作不重复、不丢失。
+6. Console 动态展示 blocked actions、安全退出、结果影响和下一步动作。
+7. quick/CI 保持精简，阶段收口再运行 Docker、HTTP、Artifact、浏览器和必要 live-short。
