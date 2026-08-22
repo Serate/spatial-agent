@@ -21,6 +21,7 @@ from agent.action_lifecycle import (
 from agent.runtime_context import runtime_context_fingerprint
 from agent.request_identity import normalize_request_identity
 from agent.plan_identity import normalize_plan_identity
+from agent.evidence_revalidation import normalize_evidence_binding
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
 from agent.plan_quality import project_plan_quality_evidence
@@ -234,6 +235,7 @@ def build_async_result_evidence(
     evidence_recovery = project_evidence_recovery(value)
     request_identity = normalize_request_identity(value.get("request_identity"))
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
+    evidence_binding = normalize_evidence_binding(planning.get("evidence_binding"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
     registry = evidence_projection["evidence_registry"]
     selection = evidence_projection["selection"]
@@ -258,6 +260,7 @@ def build_async_result_evidence(
         "artifact": {"available": bool(ref), "ref": ref},
         "planning": {
             "plan_identity": plan_identity,
+            "evidence_binding": evidence_binding,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
             "workflow_selection": selection["workflow_selection"],
             "planner_selection": selection["planner_selection"],
@@ -440,6 +443,7 @@ def normalize_async_result_evidence(
     evidence_recovery = project_evidence_recovery(value)
     request_identity = normalize_request_identity(value.get("request_identity"))
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
+    evidence_binding = normalize_evidence_binding(planning.get("evidence_binding"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
     registry = evidence_projection["evidence_registry"]
     selection = evidence_projection["selection"]
@@ -469,6 +473,7 @@ def normalize_async_result_evidence(
         "artifact": {"available": bool(ref), "ref": ref},
         "planning": {
             "plan_identity": plan_identity,
+            "evidence_binding": evidence_binding,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
             "workflow_selection": selection["workflow_selection"],
             "planner_selection": selection["planner_selection"],

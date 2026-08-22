@@ -37,6 +37,7 @@ def run_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "spatial_context": payload.get("spatial_context"),
         "workflow": payload.get("workflow"),
         "preview_fingerprint": payload.get("preview_fingerprint"),
+        "preview_evidence_fingerprint": payload.get("preview_evidence_fingerprint"),
         "require_confirmation": bool(payload.get("require_confirmation", False)),
         "decision_id": payload.get("decision_id"),
         "decision_version": payload.get("decision_version"),

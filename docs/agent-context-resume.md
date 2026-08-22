@@ -1940,3 +1940,24 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 - 新增 `tests/test_m193_evidence_revalidation.py` **4/4**；M184–M192 相关回归 **31/31**；Docker 重建后容器 `healthy`。
 - 当前工作树仍有 M193-A 未提交改动，尚未执行阶段最终的 full-stage、production acceptance、敏感信息检查和版本推送；未加入 API key、私有配置、原始模型响应或 GIS 原始数据。
 - 本阶段发现的 receipt 初始化顺序问题已记录到 `docs/agent-development-issues.md`。下一切片 M193-B 需要让 revalidation 真正驱动 preview 失效、重新核验、阻断、有限 repair 和恢复，而不只是结构化展示。
+
+## M193 当前完成状态（M193-A/B 收口）
+
+- M193-A 已由 `65faccc` 提交并推送；M193-B 新增 `spatial-agent.evidence-binding.v1`，将 preview fingerprint 与 evidence fingerprint 绑定。
+- 证据发生变化时，Runtime 在 ToolRegistry dispatch 前返回 `preview_evidence_changed`，状态进入 `repairable`，不执行旧计划；repair 只重新生成 preview，不复用旧计划。`cancel` 保持安全退出路径。
+- M193-B 专项 **8/8**，M184–M192 联合回归 **51/51**；Docker compileall、quick、stage、full-stage、production acceptance 通过，容器 healthy，核心/可选数据 ready。
+- 浏览器 CDP selection/preview/confirmation/complete smoke 通过，三阶段 plan fingerprint 一致，artifact、模块加载和完成状态均通过；因历史恢复耗时超出原窗口，smoke 等待窗口已调整为有界 60 秒。
+- Docker 内真实模型 Planner **1/1**、真实模型 + Docker GIS 空间总览 **1/1** 通过；live 路径仍是显式验收，不进入默认 CI。
+- M193-B 当前代码、测试、文档和 smoke 修复已完成收口，下一步提交并推送 M193-B 版本，再按七个全局维度进入 M194。
+
+## M194 全局规划参考
+
+M193 已把证据变化接入预览失效、执行阻断和有限 repair。下一阶段从“证据驱动的安全恢复”推进到“通用开放式多能力编排闭环”：
+
+1. 产品：让开放式请求在能力发现、澄清、选择、预览、证据重验、确认、执行和恢复之间形成一条可操作时间线。
+2. 架构：把多能力选择、Workflow 组合、TaskPlan DAG、repair lineage 和 Action Receipt 统一到一个公共 Runtime seam，避免 Domain 或前端拼装第二套流程。
+3. 数据：把数据集 manifest、版本、覆盖、对齐、过期和 provenance 作为可组合 capability evidence，而不是 GIS 专用条件。
+4. 模型：用脱敏 replay 和最小 live-short 验证模型在候选能力、缺失事实、证据变化和 repair 上下文中保持结构化输出与工具边界。
+5. 部署：补多 worker、滚动重启、旧 Receipt/schema、Artifact-only 和异步取消/超时的组合验收，确保不会重复 dispatch 或丢失 evidence。
+6. 体验：前端统一消费 selection、plan、revalidation、action、result、views 和 artifact，不为每个结果类型增加固定页面。
+7. 测试：保持默认 quick/CI 精简，新增跨 Text/GIS Domain 的最小组合 Harness，阶段收口再执行 Docker、HTTP、Artifact、SQLite、浏览器和必要 live 验收。

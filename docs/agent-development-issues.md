@@ -4725,3 +4725,31 @@ Evidence Transition、Action Preconditions 和 Action Receipt 原本分别在不
 ### 处理与预防
 
 完成路径现在先确保 receipt 由预留结果或安全空态建立，再按“transition evidence → evidence revalidation → action preconditions → receipt/timeline 持久化”的顺序生成 canonical projection。所有失败、取消、重试和恢复分支都复用同一顺序；未知或缺失 evidence 只投影为 `unavailable`，不抛出变量错误。以后扩展 Action Receipt 时，必须为预留、完成、失败和 replay 分别覆盖初始化状态，并通过公共 Contract Harness 验证响应、Artifact、Timeline 和 SQLite replay 的一致性。
+
+## M193-B：新增 evidence binding 时遗漏 projection import
+
+### 现象
+
+首个 M193-B 预览指纹切片接入后，Text Domain 的 preview 在计划生成成功后仍返回 `FAILED`，错误为 `name 'project_transition_evidence' is not defined`。原有 M193-A 专项并未覆盖新的 preview binding 路径。
+
+### 根因
+
+`evidence_revalidation` 模块原先只需要规范化已生成的 transition evidence，因此只导入了 `normalize_transition_evidence`。新增 `build_evidence_binding()` 后需要从任意 Planner context 生成 projection，却遗漏了对应的 `project_transition_evidence` import；错误发生在统一 plan evidence 收口处，容易被误判为 Planner 或 Domain 失败。
+
+### 处理与预防
+
+补齐 projection import，并在 Docker 中用 preview→run 的公共 Service 测试覆盖“指纹匹配继续执行、指纹变化在 dispatch 前阻断”两条路径。以后新增 evidence projection 函数时，必须同时覆盖：模块直接调用、Runtime preview、Runtime run、未知/缺失证据降级，以及 HTTP/异步持久化投影；不能只验证纯函数。
+
+## M193-C：Console 历史恢复超过浏览器 smoke 的启动窗口
+
+### 现象
+
+当 Console 的 SQLite 历史记录较多时，页面虽然已经加载了业务脚本，但 `restoreSession()` 仍在恢复历史运行和 artifact。原浏览器 smoke 只等待约 20 秒，因此误报“Console 页面脚本未就绪”；直接访问页面和 HTTP 接口均正常。
+
+### 根因
+
+`__consoleBootstrapReady` 被设计为等待历史恢复完成后才置为 `true`，这是为了避免新任务被旧历史渲染覆盖。浏览器验收脚本仍使用固定的短等待窗口，没有把“页面已加载”和“历史恢复完成”区分开，随着历史数据量增长出现了测试时序假失败。
+
+### 处理与预防
+
+将选择交互浏览器 smoke 的有界等待从约 20 秒调整为 60 秒，并保留 `__consoleBootstrapReady` 作为唯一就绪条件；本次实际恢复约 22.5 秒，之后 preview、confirmation、complete 和 fingerprint equality 全部通过。以后浏览器 smoke 必须等待 bootstrap ready，而不是只等待 DOM 或固定短延迟；若恢复耗时继续增长，应优化历史恢复或增加明确的恢复进度/超时证据，不能提前放宽为无界等待。

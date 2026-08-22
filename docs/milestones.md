@@ -3866,3 +3866,16 @@ M193-A 将 M192 的 transition evidence 从“可见差异”推进为统一的 
 4. 验证 HTTP、异步、SQLite 重启、Artifact-only、多 worker CAS 的计划不复用和工具不重复执行。
 5. 通过脱敏 replay 和必要 live-short 验证真实模型能消费 revalidation 上下文。
 6. 前端动态展示状态变化、失效原因、最新计划指纹和允许动作。
+
+## M193-B：Evidence Binding 与失效计划阻断（已完成）
+
+- 新增 `spatial-agent.evidence-binding.v1`，preview 与 run 共享 evidence fingerprint；证据变化时在 ToolRegistry dispatch 前阻断旧计划并返回结构化 `preview_evidence_changed`。
+- `repair` 只重新生成预览，不沿用旧计划；同步、HTTP、Artifact、异步、SQLite 重启和多 worker 相关证据使用同一绑定投影。
+- M193-B 专项 **8/8**，M184–M192 联合回归 **51/51**；Docker compileall、quick、stage、full-stage、production acceptance 全部通过。
+- Chrome/CDP 浏览器验收通过：preview → confirmation → complete 指纹一致，artifact 可用，动态 Console 模块加载正常；历史恢复较慢导致的 smoke 短窗口问题已记录并修复。
+- Docker 内真实模型 Planner **1/1**、真实模型 + Docker GIS 空间总览 **1/1** 通过；默认 CI 保持离线精简。
+- 版本：M193-A 已推送 `65faccc`；M193-B 在文档、敏感信息和差异检查后提交推送。
+
+## M194 全局规划参考
+
+M194 从证据安全恢复继续推进通用开放式多能力编排，覆盖能力发现、Workflow 组合、DAG、repair lineage、Action Receipt、跨入口恢复和动态工作区；数据集只作为 evidence provider，不能成为 Runtime 专用策略。阶段验收继续按产品、架构、数据、模型、部署、体验、测试七个维度组织，默认 quick/CI 精简，真实模型/GIS/Docker/浏览器作为显式路径。

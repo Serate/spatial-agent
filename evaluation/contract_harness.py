@@ -60,6 +60,7 @@ from agent.transition_evidence import (
 )
 from agent.evidence_revalidation import (
     EVIDENCE_REVALIDATION_SCHEMA_VERSION,
+    normalize_evidence_binding as _normalize_evidence_binding,
     normalize_evidence_revalidation as _normalize_evidence_revalidation,
 )
 
@@ -157,6 +158,22 @@ class EvidenceRevalidationContract:
         return _differences(self.values, other.values)
 
     def equivalent_to(self, other: "EvidenceRevalidationContract") -> bool:
+        return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class EvidenceBindingContract:
+    """Stable preview evidence identity across transport projections."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "EvidenceBindingContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "EvidenceBindingContract") -> bool:
         return not self.differences(other)
 
 
@@ -441,6 +458,53 @@ def compare_evidence_revalidations(
     if len(payloads) < 2:
         raise ValueError("at least two evidence revalidation payloads are required")
     contracts = [normalize_evidence_revalidation(item) for item in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences
+
+
+def normalize_evidence_binding(
+    payload: Mapping[str, Any],
+) -> EvidenceBindingContract:
+    """Project preview evidence identity from result, async, or artifact data."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("evidence binding payload must be a mapping")
+    raw = payload.get("evidence_binding")
+    if not isinstance(raw, Mapping):
+        planning = payload.get("planning")
+        raw = planning.get("evidence_binding") if isinstance(planning, Mapping) else None
+    if not isinstance(raw, Mapping) and isinstance(payload.get("plan_evidence"), Mapping):
+        raw = payload["plan_evidence"].get("evidence_binding")
+    if not isinstance(raw, Mapping) and isinstance(payload.get("result"), Mapping):
+        result = payload["result"]
+        planning = result.get("planning")
+        raw = planning.get("evidence_binding") if isinstance(planning, Mapping) else None
+    if not isinstance(raw, Mapping) and isinstance(payload.get("async_result_evidence"), Mapping):
+        async_evidence = payload["async_result_evidence"]
+        planning = async_evidence.get("planning")
+        raw = planning.get("evidence_binding") if isinstance(planning, Mapping) else None
+    value = _normalize_evidence_binding(raw)
+    if value is None:
+        value = {
+            "schema_version": "spatial-agent.evidence-binding.v1",
+            "available": False,
+            "fingerprint": None,
+            "field_names": [],
+            "field_count": 0,
+        }
+    return EvidenceBindingContract(value)
+
+
+def compare_evidence_bindings(payloads: Sequence[Mapping[str, Any]]) -> List[str]:
+    """Return preview evidence binding drift across entry points."""
+    if len(payloads) < 2:
+        raise ValueError("at least two evidence binding payloads are required")
+    contracts = [normalize_evidence_binding(item) for item in payloads]
     baseline = contracts[0]
     differences: List[str] = []
     for index, contract in enumerate(contracts[1:], start=1):

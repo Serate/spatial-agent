@@ -41,14 +41,17 @@ await command("Page.enable");
 await command("Runtime.enable");
 await command("Page.navigate", {url: consoleUrl});
 
-for (let attempt = 0; attempt < 80; attempt++) {
+// History restoration can legitimately take longer than the request itself
+// when the Console has a large persisted session. Keep the browser gate
+// bounded, but allow enough time for the bootstrap promise to settle.
+for (let attempt = 0; attempt < 240; attempt++) {
   const ready = await command("Runtime.evaluate", {
     expression: "window.__consoleBootstrapReady === true && typeof previewPlan === 'function' && typeof sendChat === 'function' && typeof renderRun === 'function' && !!document.getElementById('requireConfirmation')",
     returnByValue: true,
   });
   if (ready.result?.result?.value) break;
   await sleep(250);
-  if (attempt === 79) throw new Error("Console 页面脚本未就绪");
+  if (attempt === 239) throw new Error("Console 页面脚本未就绪");
 }
 
 const result = await command("Runtime.evaluate", {

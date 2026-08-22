@@ -8,10 +8,12 @@ from typing import Any
 from .transition_evidence import (
     TRANSITION_EVIDENCE_SCHEMA_VERSION,
     normalize_transition_evidence,
+    project_transition_evidence,
 )
 
 
 EVIDENCE_REVALIDATION_SCHEMA_VERSION = "spatial-agent.evidence-revalidation.v1"
+EVIDENCE_BINDING_SCHEMA_VERSION = "spatial-agent.evidence-binding.v1"
 _FIELDS = ("readiness", "coverage", "alignment", "provenance")
 _STATES = frozenset({"current", "changed", "degraded", "blocked", "unavailable"})
 _MAX_TEXT = 96
@@ -132,6 +134,91 @@ def project_evidence_revalidation(value: Any) -> dict[str, Any]:
     return _unavailable("action_receipt_missing")
 
 
+def build_evidence_binding(value: Any) -> dict[str, Any]:
+    """Create a bounded fingerprint for evidence used by a plan preview."""
+
+    transition = project_transition_evidence(value)
+    fields = transition.get("fields") if isinstance(transition, Mapping) else {}
+    fields = fields if isinstance(fields, Mapping) else {}
+    field_names = [str(item)[:32] for item in _FIELDS if item in fields]
+    return {
+        "schema_version": EVIDENCE_BINDING_SCHEMA_VERSION,
+        "transition_schema_version": TRANSITION_EVIDENCE_SCHEMA_VERSION,
+        "available": bool(transition.get("available")),
+        "fingerprint": str(transition.get("fingerprint") or "")[:96],
+        "field_names": field_names,
+        "field_count": len(field_names),
+    }
+
+
+def normalize_evidence_binding(value: Any) -> dict[str, Any] | None:
+    """Normalize a preview binding without copying evidence observations."""
+
+    if not isinstance(value, Mapping):
+        return None
+    if value.get("schema_version") != EVIDENCE_BINDING_SCHEMA_VERSION:
+        return None
+    fingerprint = str(value.get("fingerprint") or "")[:96]
+    if not fingerprint.startswith("sha256:"):
+        return None
+    fields = [
+        str(item)[:32]
+        for item in (value.get("field_names") or [])[: len(_FIELDS)]
+        if str(item) in _FIELDS
+    ]
+    return {
+        "schema_version": EVIDENCE_BINDING_SCHEMA_VERSION,
+        "transition_schema_version": TRANSITION_EVIDENCE_SCHEMA_VERSION,
+        "available": bool(value.get("available")),
+        "fingerprint": fingerprint,
+        "field_names": list(dict.fromkeys(fields)),
+        "field_count": len(list(dict.fromkeys(fields))),
+    }
+
+
+def build_evidence_revalidation_gate(
+    expected_fingerprint: Any,
+    current_binding: Any,
+) -> dict[str, Any]:
+    """Compare preview and execution evidence at the Runtime gate."""
+
+    expected = str(expected_fingerprint or "")[:96]
+    current = normalize_evidence_binding(current_binding)
+    actual = str(current.get("fingerprint") or "") if current else ""
+    if current is None:
+        return {
+            "schema_version": EVIDENCE_REVALIDATION_SCHEMA_VERSION,
+            "transition_schema_version": TRANSITION_EVIDENCE_SCHEMA_VERSION,
+            "available": False,
+            "state": "unavailable",
+            "reason_code": "preview_evidence_unavailable",
+            "expected_fingerprint": expected,
+            "current_fingerprint": None,
+            "next_actions": ["preview", "cancel"],
+        }
+    if expected == actual:
+        return {
+            "schema_version": EVIDENCE_REVALIDATION_SCHEMA_VERSION,
+            "transition_schema_version": TRANSITION_EVIDENCE_SCHEMA_VERSION,
+            "available": bool(current.get("available")),
+            "state": "current",
+            "reason_code": "preview_evidence_current",
+            "expected_fingerprint": expected,
+            "current_fingerprint": actual,
+            "next_actions": [],
+        }
+    return {
+        "schema_version": EVIDENCE_REVALIDATION_SCHEMA_VERSION,
+        "transition_schema_version": TRANSITION_EVIDENCE_SCHEMA_VERSION,
+        "available": bool(current.get("available")),
+        "state": "changed",
+        "reason_code": "preview_evidence_changed",
+        "expected_fingerprint": expected,
+        "current_fingerprint": actual,
+        "next_actions": ["preview", "cancel"],
+    }
+
+
 def _field_state(value: Any) -> str:
     if not isinstance(value, list) or not value:
         return "unavailable"
@@ -175,8 +262,12 @@ def _unavailable(reason_code: str) -> dict[str, Any]:
 
 
 __all__ = [
+    "EVIDENCE_BINDING_SCHEMA_VERSION",
     "EVIDENCE_REVALIDATION_SCHEMA_VERSION",
+    "build_evidence_binding",
     "build_evidence_revalidation",
+    "build_evidence_revalidation_gate",
+    "normalize_evidence_binding",
     "normalize_evidence_revalidation",
     "project_evidence_revalidation",
 ]

@@ -2287,3 +2287,24 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 4. 覆盖同步、HTTP、异步、SQLite 重启、Artifact-only 和多 worker CAS，确保旧计划不会被错误复用且不会重复执行工具。
 5. 用脱敏 replay 验证证据变化触发澄清/repair；配置可用时补一条真实模型 + Docker/GIS live-short，不进入默认 CI。
 6. 前端动态显示证据前后状态、新 fingerprint、失效原因和允许动作，不增加固定 GIS 页面分支。
+
+## M193-B 当前完成状态（最终收口）
+
+- 新增 `spatial-agent.evidence-binding.v1`；preview 生成 evidence binding/fingerprint，run 接收 `preview_evidence_fingerprint`，Runtime 在 dispatch 前执行 evidence gate。
+- fingerprint 变化时返回 `preview_evidence_changed`、状态 `repairable`，工具步骤为 0；repair 重新生成预览，不复用旧计划。HTTP、Artifact、async evidence、SQLite restart 和 Contract Harness 均接入该绑定。
+- M193-B 专项 **8/8**；M184–M192 联合回归 **51/51**；Docker compileall、quick、stage、full-stage、生产 acceptance 通过；容器 healthy，核心/可选数据 ready。
+- Chrome/CDP 浏览器 smoke 通过：preview/submit/final fingerprint 一致，confirmation_required → completed，artifact 和 Console 模块加载正常。历史恢复启动窗口已从约 20 秒调整为有界 60 秒，并记录到中文问题文档。
+- Docker 内真实模型 Planner **1/1**、真实模型 + Docker GIS 空间总览 **1/1** 通过；默认 CI 不访问网络、密钥或私有 GIS 数据。
+- M193-B 已达到提交条件；下一步进行敏感信息检查、stage/commit/push，并进入 M194 全局规划。
+
+## M194 全局规划参考
+
+M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194 不再围绕单个 GIS 数据集加规则，重点是通用开放式多能力编排：
+
+1. **产品**：统一能力发现、澄清、选择、计划预览、证据重验、确认、执行、恢复和结果时间线。
+2. **架构**：统一 Capability Catalog → Workflow 组合 → TaskPlan DAG → Action Receipt/repair lineage 的 Runtime 边界，跨 Domain 复用。
+3. **数据**：把 manifest、版本、覆盖、对齐、过期和 provenance 变成 capability evidence，支持组合能力的可用性判断。
+4. **模型**：脱敏 replay + 最小 live-short 验证候选能力、缺失事实、evidence revalidation 和有限 repair 的结构化输出。
+5. **部署**：覆盖多 worker、滚动重启、旧 schema/Receipt、Artifact-only、异步取消/超时和幂等不重复执行。
+6. **体验**：Console 只消费结构化 selection/plan/evidence/action/result/views/artifact，动态生成工作区。
+7. **测试**：默认 quick/CI 保持精简；阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、浏览器、Docker 和必要 live。

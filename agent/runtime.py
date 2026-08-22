@@ -44,6 +44,10 @@ from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .plan_repair import PlanRepairEngine, PlanRepairInput
 from .observability import ObservabilityEmitter
 from .plan_identity import build_plan_identity
+from .evidence_revalidation import (
+    build_evidence_binding,
+    build_evidence_revalidation_gate,
+)
 from .plan_quality import diagnose_plan, project_plan_quality_evidence, repair_context
 from .plan_policy import build_plan_policy_evidence
 from .planner_selection import build_planner_selection_evidence
@@ -363,6 +367,7 @@ class AgentRuntime:
         run_id: Optional[str] = None,
         workflow: Optional[Mapping[str, Any]] = None,
         expected_plan_fingerprint: Optional[str] = None,
+        expected_evidence_fingerprint: Optional[str] = None,
         require_confirmation: bool = False,
         decision_evidence: Optional[Dict[str, Any]] = None,
         decision_id: Optional[str] = None,
@@ -450,6 +455,9 @@ class AgentRuntime:
                 repair_lineage=result.replan_events,
             )
             result.plan_evidence["execution_policy"] = self._execution_policy_evidence(plan)
+            result.plan_evidence["evidence_binding"] = build_evidence_binding(
+                context_packet.payload
+            )
             if expected_plan_fingerprint is not None:
                 actual_fingerprint = (result.plan_evidence.get("plan_identity") or {}).get("fingerprint")
                 result.plan_evidence["expected_plan_fingerprint"] = str(expected_plan_fingerprint)
@@ -458,6 +466,28 @@ class AgentRuntime:
                 )
                 if not result.plan_evidence["plan_fingerprint_match"]:
                     raise ToolError("preview plan fingerprint mismatch")
+            if expected_evidence_fingerprint is not None:
+                current_binding = result.plan_evidence["evidence_binding"]
+                revalidation = build_evidence_revalidation_gate(
+                    expected_evidence_fingerprint,
+                    current_binding,
+                )
+                result.plan_evidence["expected_evidence_fingerprint"] = str(
+                    expected_evidence_fingerprint
+                )[:96]
+                result.plan_evidence["evidence_fingerprint_match"] = (
+                    revalidation["state"] == "current"
+                )
+                result.plan_evidence["evidence_revalidation"] = revalidation
+                if not result.plan_evidence["evidence_fingerprint_match"]:
+                    raise ToolError(
+                        "preview evidence fingerprint mismatch",
+                        category="evidence",
+                        code="preview_evidence_changed"
+                        if revalidation["state"] == "changed"
+                        else "preview_evidence_unavailable",
+                        retryable=False,
+                    )
             result.planner_metrics = self._planner_metrics()
             if require_confirmation:
                 if self._decision_store is None:
@@ -822,6 +852,9 @@ class AgentRuntime:
                 repair_lineage=[repair_event] if repair_event is not None else [],
             )
             plan_evidence["execution_policy"] = self._execution_policy_evidence(plan)
+            plan_evidence["evidence_binding"] = build_evidence_binding(
+                context_packet.payload
+            )
             payload.update({
                 "status": "PLANNED",
                 "plan": plan_payload,
@@ -1914,6 +1947,7 @@ def _build_plan_evidence(
             workflow=workflow,
             planner_kind=planner_kind,
         ),
+        "evidence_binding": build_evidence_binding(context_packet.payload),
     }
     # Keep the selected domain visible in the generic planning envelope.  The
     # Runtime must not import or interpret domain-specific identifiers; both

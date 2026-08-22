@@ -279,6 +279,7 @@ class AgentService:
         workflow: Dict[str, Any] = None,
         run_id: str = None,
         preview_fingerprint: str = None,
+        preview_evidence_fingerprint: str = None,
         require_confirmation: bool = False,
         decision_id: str = None,
         decision_version: int = None,
@@ -302,6 +303,13 @@ class AgentService:
             not isinstance(preview_fingerprint, str) or not preview_fingerprint.strip()
         ):
             raise ValueError("preview_fingerprint must be a non-empty string")
+        if preview_evidence_fingerprint is not None and (
+            not isinstance(preview_evidence_fingerprint, str)
+            or not preview_evidence_fingerprint.strip()
+        ):
+            raise ValueError(
+                "preview_evidence_fingerprint must be a non-empty string"
+            )
         if run_id is not None and not _force_run_id:
             domain_id = self._domain_id(planner, backend)
             existing = (
@@ -337,6 +345,7 @@ class AgentService:
                     "timeout_seconds": timeout_seconds,
                     "run_id": run_id,
                     "expected_plan_fingerprint": preview_fingerprint,
+                    "expected_evidence_fingerprint": preview_evidence_fingerprint,
                     "require_confirmation": bool(require_confirmation),
                     "decision_id": decision_id,
                     "decision_version": decision_version,
@@ -420,6 +429,11 @@ class AgentService:
             cost.release_concurrency()
         payload["spatial_context"] = normalized_context
         payload["result_type"] = _result_type(payload)
+        plan_evidence = payload.get("plan_evidence")
+        if isinstance(plan_evidence, dict) and isinstance(
+            plan_evidence.get("evidence_binding"), dict
+        ):
+            payload["evidence_binding"] = dict(plan_evidence["evidence_binding"])
         cost.charge(session_id, _extract_tokens(payload.get("planner_metrics")))
         try:
             cost.check_run_cap(_extract_tokens(payload.get("planner_metrics")))
@@ -653,6 +667,11 @@ class AgentService:
             payload["_async_requested"] = True
         payload["spatial_context"] = normalized_context
         payload["result_type"] = _result_type(payload)
+        plan_evidence = payload.get("plan_evidence")
+        if isinstance(plan_evidence, dict) and isinstance(
+            plan_evidence.get("evidence_binding"), dict
+        ):
+            payload["evidence_binding"] = dict(plan_evidence["evidence_binding"])
         payload["trace_summary"] = format_trace(result)
         payload["provenance"] = build_provenance(
             payload,
@@ -2029,6 +2048,8 @@ class AgentService:
             )
 
         workflow_value = data.get("workflow")
+        if action in {"repair", "preview"} and not isinstance(workflow_value, dict):
+            workflow_value = current.get("workflow")
         if action in {"select_capability", "provide_facts"} and not isinstance(
             workflow_value, dict
         ):
@@ -2055,11 +2076,12 @@ class AgentService:
                 raise ValueError("interaction facts must be an object")
             constraints.update(facts)
             workflow_value["constraints"] = constraints
-        if not isinstance(workflow_value, dict):
+        if action not in {"repair", "preview"} and not isinstance(workflow_value, dict):
             raise ValueError("interaction workflow selection must be an object")
-        workflow_value = self._normalize_workflow_payload(
-            workflow_value, selected_planner, selected_backend
-        )
+        if isinstance(workflow_value, dict):
+            workflow_value = self._normalize_workflow_payload(
+                workflow_value, selected_planner, selected_backend
+            )
         continuation_request = str(
             current.get("request") or current.get("resolved_request") or ""
         ).strip()
@@ -2074,6 +2096,7 @@ class AgentService:
             "select_capability",
             "select_workflow",
             "preview",
+            "repair",
         }
         if action in receipt_actions:
             receipt, replay = self._reserve_interaction_receipt(
@@ -2096,7 +2119,7 @@ class AgentService:
             clear_pending = getattr(continuation_runtime, "clear_session", None)
             if callable(clear_pending):
                 clear_pending(str(current.get("session_id") or "default"))
-        if action == "preview":
+        if action in {"preview", "repair"}:
             try:
                 response = self.preview(
                     request=continuation_request,

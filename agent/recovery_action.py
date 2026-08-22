@@ -42,6 +42,7 @@ _RECEIPT_ACTIONS = frozenset(
     {
         "confirm",
         "reject",
+        "repair",
         "retry",
         "recover",
         "cancel",

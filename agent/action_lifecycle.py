@@ -129,6 +129,13 @@ def _state_for(
         return "awaiting_confirmation", "planning", _decision_actions(decision), "awaiting_confirmation"
     if status == "NEEDS_CLARIFICATION":
         return "clarification_required", "planning", ("clarify", "cancel"), "clarification_required"
+    if str(failure.get("code") or "").startswith("preview_evidence_"):
+        return (
+            "repairable",
+            "planning",
+            ("repair", "reject", "cancel"),
+            "evidence_revalidation_requires_preview",
+        )
     if status in {"CREATED", "PLANNING", "QUEUED"}:
         return "planning", "planning", ("cancel",), "planning_in_progress"
     if status in {"EXECUTING", "RUNNING", "CANCEL_REQUESTED"}:

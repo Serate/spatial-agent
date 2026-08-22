@@ -23,6 +23,7 @@ SELECTION_INTERACTION_STATES = frozenset(
         "candidate_selection",
         "facts_required",
         "confirmation_required",
+        "repairable",
         "recoverable",
         "processing",
         "completed",
@@ -35,6 +36,7 @@ SELECTION_INTERACTION_ACTIONS = frozenset(
         "select_workflow",
         "provide_facts",
         "preview",
+        "repair",
         "confirm",
         "reject",
         "retry",
@@ -103,6 +105,10 @@ def build_selection_interaction(
         state = "confirmation_required"
         reason = "plan_confirmation_required"
         actions = ("confirm", "reject", "cancel")
+    elif lifecycle_map.get("state") == "repairable":
+        state = "repairable"
+        reason = "evidence_revalidation_requires_preview"
+        actions = ("repair", "preview", "cancel")
     elif lifecycle_map.get("state") == "recoverable":
         state = "recoverable"
         reason = "recovery_available"
