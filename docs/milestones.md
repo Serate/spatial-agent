@@ -3592,7 +3592,7 @@ M182 将 M181 的领域无关 Action Receipt 从“交互与恢复描述”推�
 - `ServiceState` 与 `SQLiteStateStore` 复用原 `interaction_receipts` 表；失败 retry 通过受控 reopen 更新同一动作记录，不创建第二套 Runtime 状态机，内存与 SQLite 保持相同语义。
 - Action Receipt 会同步写入 `AgentRunResult`、SQLite history 和已有 run Artifact；新增 `ArtifactStore.attach_action_receipt()`，避免动作完成后 Artifact 与 history 漂移。旧 Interaction Receipt 兼容路径保持不变。
 - 新增 `tests/test_m182_lifecycle_receipt.py` 6 项，覆盖 HTTP contract 参数传递、cancel replay、approve 重启 replay、reject、Artifact/history equality、显式 retry replay 和无键 retry 新尝试；M181/M169/M151 相邻回归 25 项通过。
-- 当前工作树重建 Docker 后 healthy；M182 专项 6/6、相邻回归 25/25、`-W error::ResourceWarning`、compileall、quick、stage、full-stage、compact discovery 4/4 和 production acceptance 均通过。生产 acceptance 报告核心/可选数据 ready、同步/异步/Artifact contract ok。
+- 当前工作树重建 Docker 后 healthy；M182 专项 6/6、相邻回归 25/25、`-W error::ResourceWarning`、compileall、quick、stage、full-stage、compact discovery 4/4 和 production acceptance 均通过。生产 acceptance 报告核心/可选数据 ready、同步/异步/Artifact contract ok。M182 已提交并推送，版本为 `77044e3`。
 - 发现并修复 `tests/test_http_contract.py` 直接关闭内部 executor 导致的 `observability.log` ResourceWarning，统一改用公开 `AgentService.close()`；问题已记录到中文开发问题文档。本阶段未修改前端，沿用 M181 已验证的通用 action/evidence renderer。
 
 ## M183 全局规划参考

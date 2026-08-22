@@ -1758,7 +1758,7 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 - M182 专项 6/6、M181/M169/M151 相邻回归 25/25、ResourceWarning 严格检查、compileall、quick、stage、full-stage、compact discovery 4/4、production acceptance 均通过；Docker 当前 healthy，核心/可选数据 ready。
 - `tests/test_http_contract.py` 的内部 executor 关闭问题已改为公开 `AgentService.close()`，中文问题文档已记录；本阶段未修改前端，因此没有重复执行前端浏览器 smoke。
 
-M182 已完成。下一阶段为 M183，继续按以下七个维度规划：
+M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继续按以下七个维度规划：
 
 1. 产品：开放式多工具请求的统一能力发现、澄清、确认、repair、retry、cancel 和历史恢复时间线。
 2. 架构：Request/Plan/Result/Evidence identity 跨同步、异步、Artifact-only、重启和跨 Domain 的公共投影；Action Receipt 继续作为唯一动作状态 seam。

@@ -2078,7 +2078,7 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 已有 Artifact 的动作完成后会通过 `ArtifactStore.attach_action_receipt()` 同步 bounded receipt；SQLite snapshot/history、Service response 和 Artifact 具备一致字段。
 - 新增 M182 专项 6 项；M181/M169/M151 相邻回归 25 项；Docker `-W error::ResourceWarning`、compileall、quick、stage、full-stage、compact discovery 和 production acceptance 全部通过。容器 healthy，生产数据与 runtime capability ready。
 - 修复开发门禁 HTTP 测试未调用公开 `AgentService.close()` 导致的 ResourceWarning，并记录到中文问题文档。本阶段没有新增 GIS 工具、私有配置、原始模型输出或前端专用分支。
-- M182 已完成；下一阶段进入 M183，规划继续从产品、架构、数据、模型、部署、体验、测试七个维度展开。
+- M182 已完成并提交推送，版本为 `77044e3`；下一阶段进入 M183，规划继续从产品、架构、数据、模型、部署、体验、测试七个维度展开。
 
 ## M183 全局重规划参考
 
