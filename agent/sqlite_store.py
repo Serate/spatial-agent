@@ -230,6 +230,46 @@ class SQLiteStateStore:
             )
         return cursor.rowcount == 1
 
+    def reopen_interaction(
+        self,
+        *,
+        domain_id: str,
+        run_id: str,
+        action: str,
+        idempotency_key: str,
+        input_fingerprint: str,
+    ) -> Dict[str, Any]:
+        """Replace a failed retry attempt while preserving the CAS row."""
+        with self._connection() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE interaction_receipts
+                   SET idempotency_key = ?, input_fingerprint = ?,
+                       status = 'IN_PROGRESS', result_run_id = NULL,
+                       response_payload = NULL, error_code = NULL,
+                       updated_at = ?
+                 WHERE domain_id = ? AND run_id = ? AND action = ?
+                   AND status = 'FAILED'
+                """,
+                (
+                    idempotency_key,
+                    input_fingerprint,
+                    time.time(),
+                    domain_id,
+                    run_id,
+                    action,
+                ),
+            )
+            row = connection.execute(
+                _INTERACTION_RECEIPT_SELECT
+                + " WHERE domain_id = ? AND run_id = ? AND action = ?",
+                (domain_id, run_id, action),
+            ).fetchone()
+        result = _interaction_receipt_from_row(row)
+        result["reopened"] = cursor.rowcount == 1
+        result["created"] = cursor.rowcount == 1
+        return result
+
     def get_async_job(
         self, run_id: str, domain_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:

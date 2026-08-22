@@ -1749,3 +1749,21 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 ## M182 全局规划参考
 
 以 Action Contract Harness 为主线继续验证开放式能力发现、澄清/确认/repair、SQLite 多 worker 与异常恢复、Artifact-only 接管、数据 readiness/provenance 前置条件和通用前端 action/evidence workspace；保持 quick/CI 离线精简，以 Docker、HTTP、Artifact、浏览器和必要 live-short 作为阶段收口证据。
+
+## M182 当前完成状态
+
+- Service 的 cancel、retry、decision approve/reject 已接入统一 Action Receipt seam；HTTP contract 统一传递 `idempotency_key`。
+- 显式键 replay 与无键 retry 新尝试均由原 `interaction_receipts` CAS 表承载；内存/SQLite 适配器共享 failed-reopen 语义，没有引入第二套 Runtime 状态机。
+- Action Receipt 已同步到 AgentRunResult、SQLite history 和已有 Artifact；旧 Interaction Receipt 兼容投影仍通过 M169 回归。
+- M182 专项 6/6、M181/M169/M151 相邻回归 25/25、ResourceWarning 严格检查、compileall、quick、stage、full-stage、compact discovery 4/4、production acceptance 均通过；Docker 当前 healthy，核心/可选数据 ready。
+- `tests/test_http_contract.py` 的内部 executor 关闭问题已改为公开 `AgentService.close()`，中文问题文档已记录；本阶段未修改前端，因此没有重复执行前端浏览器 smoke。
+
+M182 已完成。下一阶段为 M183，继续按以下七个维度规划：
+
+1. 产品：开放式多工具请求的统一能力发现、澄清、确认、repair、retry、cancel 和历史恢复时间线。
+2. 架构：Request/Plan/Result/Evidence identity 跨同步、异步、Artifact-only、重启和跨 Domain 的公共投影；Action Receipt 继续作为唯一动作状态 seam。
+3. 数据：readiness、coverage、alignment、provenance、过期状态与动作前置条件绑定。
+4. 模型：脱敏 replay 与最小 live-short 验证开放式组合、计划错配、repair 和确认回执。
+5. 部署：SQLite 多 worker、异常退出、滚动重启、Artifact-only 接管和旧 receipt/schema 迁移。
+6. 体验：通用 action/evidence workspace 动态展示澄清、确认、阻断、可恢复、重试中和完成状态。
+7. 测试：Action Contract Harness 为主，quick/CI 精简，阶段收口使用 Docker、HTTP、Artifact、history、restart、浏览器和必要 live-short。

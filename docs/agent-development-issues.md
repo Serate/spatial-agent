@@ -4460,3 +4460,59 @@ M181 初版已经在 Service response 和 Artifact 输出 `action_receipt`，但
 ### 处理与预防
 
 将 bounded `action_receipt` 纳入 `AgentRunResult` 和 SQLite 反序列化；history 优先读取快照字段，旧快照缺失时按 `result_run_id` 参数化查询 interaction receipt 并使用公共 normalize 投影。以后新增跨入口证据字段，必须同时验证 Service、Artifact、history、HTTP、重启恢复和旧数据兼容，不能只测试即时响应。
+
+## M182：Service 生命周期入口没有复用统一 Action Receipt
+
+### 现象
+
+取消、重试和决策确认虽然已有公共动作描述，但 Service 入口仍各自直接调用 Runtime 或 DecisionStore，导致这些动作没有统一的幂等键、失败回执和跨重启 replay 证据。
+
+### 根因
+
+M181 先统一了动作 projection，却没有把 reserve/complete 的 CAS 调用提升为 Service 内部公共 seam；继续在每个入口复制逻辑会重新形成多个生命周期协议。
+
+### 处理与预防
+
+新增 `_reserve_action_receipt()` 和 `_complete_action_receipt()`，复用 `ServiceState`/SQLite 原有 `interaction_receipts` CAS 表；cancel、retry、approve/reject 均通过同一 seam 完成。以后新增生命周期入口，必须先接入 Action Receipt，再实现具体 Runtime/Domain 动作。
+
+## M182：无幂等键的 retry 被旧失败 receipt 永久阻断
+
+### 现象
+
+第一次 retry 执行失败后，同一 run 的第二次 retry 即使底层故障已恢复，也会因为 `(domain_id, run_id, action)` 已有 FAILED receipt 而无法再次执行。
+
+### 根因
+
+原 interaction receipt 的 CAS 设计默认一个 source run/action 只有一次交互；retry 的语义却允许用户不提供显式幂等键时发起新的真实尝试。
+
+### 处理与预防
+
+保持同一 receipt 表和 CAS seam，仅对“未传显式幂等键且 action 为 retry”的 FAILED 记录执行受控 reopen，生成新的内部幂等键并清理旧结果引用；显式幂等键仍保持 replay/冲突语义。以后要区分“安全重放”和“用户要求的新尝试”，不能简单复用同一个 idempotency key。
+
+## M182：动作完成后 Artifact 与 SQLite history 证据漂移
+
+### 现象
+
+Action Receipt 已能写入即时响应和 SQLite snapshot/history，但对已经导出的 run，取消或决策动作完成后旧 Artifact 仍缺少最新回执。
+
+### 根因
+
+`_persist_action_receipt()` 原来只更新 AgentRunResult 和 SQLite；ArtifactStore 没有“给已有 run artifact 附加 bounded receipt”的公共写入 seam。
+
+### 处理与预防
+
+新增 `ArtifactStore.attach_action_receipt()`，在已有 Artifact 存在时重写受限的 `action_receipt` projection，并增加 Artifact/history equality 测试。以后新增跨入口状态字段，必须覆盖“已有 Artifact + 动作完成后更新”的场景；Artifact 不存在时仍按可恢复降级处理，不能重新执行动作。
+
+## M182：compact discovery 的 HTTP 测试未释放 Service 公开资源
+
+### 现象
+
+Docker compact discovery 的业务测试通过，但进程退出时出现 `observability.log` 未关闭的 `ResourceWarning`。
+
+### 根因
+
+`tests/test_http_contract.py` 直接调用私有 `_async_executor.shutdown()`，没有关闭 `AgentService` 持有的 Observability emitter；只停止线程池不能释放全部 Service 资源。
+
+### 处理与预防
+
+改为调用公开 `AgentService.close()`，并在 Docker 中使用 `python -W error::ResourceWarning` 和 compact discovery 验证无警告。以后测试只能通过公开 close/cleanup seam 释放 Service、SQLite、HTTP handler 和 emitter，不能只关闭内部线程池。

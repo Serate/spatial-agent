@@ -3582,3 +3582,27 @@ M182 继续从统一动作回执推进到“开放式请求可组合、失败可
 5. **部署可靠性**：验证 SQLite CAS、多 worker 重复动作、异常退出、artifact-only 接管和版本迁移后的回执连续性，确保动作不会无意重复调用工具。
 6. **用户体验**：统一前端 action/evidence workspace 的处理中、需澄清、需确认、可恢复、已阻断和完成空态，继续避免 GIS 专用分支。
 7. **测试证据**：保持 quick/CI 极简，以跨入口 Action Contract Harness 为主；阶段末运行 Docker、HTTP、Artifact、浏览器和必要 live-short 后再整体复盘。
+
+## M182：Service 生命周期动作回执纵向切片（已完成）
+
+M182 将 M181 的领域无关 Action Receipt 从“交互与恢复描述”推进到 Service 的真实取消、重试和决策确认入口，确保这些动作不会各自维护一套幂等和恢复逻辑。
+
+- `AgentService.cancel()`、`retry()`、`resolve_decision()` 现在通过同一 `_reserve_action_receipt()` / `_complete_action_receipt()` seam 完成 reserve、CAS、完成、失败和 replay；`api_contract.py` 将三个入口的 `idempotency_key` 统一传递到 Service。
+- 取消、批准、拒绝和重试均输出版本化 `spatial-agent.action-receipt.v1`；显式幂等键可 replay，未显式传键的 retry 在失败后可通过同一 CAS receipt 开启下一次真实尝试，不会重复执行已完成的 retry。
+- `ServiceState` 与 `SQLiteStateStore` 复用原 `interaction_receipts` 表；失败 retry 通过受控 reopen 更新同一动作记录，不创建第二套 Runtime 状态机，内存与 SQLite 保持相同语义。
+- Action Receipt 会同步写入 `AgentRunResult`、SQLite history 和已有 run Artifact；新增 `ArtifactStore.attach_action_receipt()`，避免动作完成后 Artifact 与 history 漂移。旧 Interaction Receipt 兼容路径保持不变。
+- 新增 `tests/test_m182_lifecycle_receipt.py` 6 项，覆盖 HTTP contract 参数传递、cancel replay、approve 重启 replay、reject、Artifact/history equality、显式 retry replay 和无键 retry 新尝试；M181/M169/M151 相邻回归 25 项通过。
+- 当前工作树重建 Docker 后 healthy；M182 专项 6/6、相邻回归 25/25、`-W error::ResourceWarning`、compileall、quick、stage、full-stage、compact discovery 4/4 和 production acceptance 均通过。生产 acceptance 报告核心/可选数据 ready、同步/异步/Artifact contract ok。
+- 发现并修复 `tests/test_http_contract.py` 直接关闭内部 executor 导致的 `observability.log` ResourceWarning，统一改用公开 `AgentService.close()`；问题已记录到中文开发问题文档。本阶段未修改前端，沿用 M181 已验证的通用 action/evidence renderer。
+
+## M183 全局规划参考
+
+M183 从“Service 动作入口统一”继续推进“开放式请求组合、失败可恢复、证据可验证”的完整 Agent 闭环，优先做跨入口 Contract Harness 和运行时前置条件，不围绕单个 GIS 数据集增加分支。
+
+1. **产品能力**：把能力发现、澄清、确认、repair、retry、cancel 和历史恢复串成可读的统一动作时间线，支持开放式多工具请求的有限重新规划。
+2. **架构边界**：建立 Request/Plan/Result/Evidence identity 的统一关联投影，覆盖同步、异步、Artifact-only、重启和跨 Domain；Action Receipt 继续作为唯一动作状态 seam。
+3. **数据质量**：把 readiness、coverage、alignment、provenance 和过期状态绑定到动作前置条件；重试/恢复时明确哪些证据可复用、哪些必须重新核验。
+4. **真实模型**：用脱敏 replay 和最小 live-short 验证开放式能力发现、模型计划错配、有限 repair、用户确认和动作回执，不把真实模型纳入默认 CI。
+5. **部署可靠性**：补 SQLite 多 worker 重复动作、异常退出、滚动重启、Artifact-only 接管和旧 receipt/schema 迁移验收，确保动作不会无意重复调用模型或工具。
+6. **用户体验**：前端通用 workspace 动态展示 action receipt、澄清、确认、阻断、可恢复、重试中和完成状态，并保持 Text/GIS 共用 renderer。
+7. **测试证据**：保持 quick/CI 精简，以 Action Contract Harness 为主线，增加 HTTP/Artifact/history/restart equality；阶段收口运行 Docker、必要浏览器和 live-short。

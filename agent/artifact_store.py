@@ -142,6 +142,20 @@ class ArtifactStore:
         path.write_text(json.dumps(artifact, ensure_ascii=True, indent=2), encoding="utf-8")
         return path.as_posix()
 
+    def attach_action_receipt(
+        self,
+        run_id: str,
+        action_receipt: Dict,
+        domain_id: Optional[str] = None,
+    ) -> bool:
+        """Attach a bounded lifecycle receipt to an existing run artifact."""
+        payload = self.read_run(run_id, domain_id=domain_id)
+        if not isinstance(payload, dict):
+            return False
+        payload["action_receipt"] = normalize_action_receipt(action_receipt)
+        self.write_run(payload)
+        return True
+
     def write_action(self, payload: Dict) -> str:
         """Persist one Domain Action execution for replay and recovery."""
         execution_id = payload.get("action_execution_id")

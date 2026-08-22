@@ -70,6 +70,7 @@ def retry_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "export_artifact": bool(payload.get("export_artifact", False)),
         "export_geojson": bool(payload.get("export_geojson", False)),
         "geojson_max_features": payload.get("geojson_max_features", 100),
+        "idempotency_key": payload.get("idempotency_key"),
     }
 
 
@@ -77,6 +78,7 @@ def cancel_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "planner": payload.get("planner", "rule"),
         "backend": payload.get("backend", "memory"),
+        "idempotency_key": payload.get("idempotency_key"),
     }
 
 
@@ -86,6 +88,7 @@ def decision_resolve_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "expected_version": payload.get("expected_version"),
         "planner": payload.get("planner", "rule"),
         "backend": payload.get("backend", "memory"),
+        "idempotency_key": payload.get("idempotency_key"),
     }
 
 

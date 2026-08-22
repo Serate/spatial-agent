@@ -388,6 +388,51 @@ class ServiceState:
             )
             return True
 
+    def reopen_interaction(
+        self,
+        *,
+        domain_id: str,
+        run_id: str,
+        action: str,
+        idempotency_key: str,
+        input_fingerprint: str,
+    ) -> Dict[str, Any]:
+        """Open a new attempt for a previously failed action.
+
+        Retry is the only action that may intentionally execute again without
+        an explicit idempotency key.  The same receipt row remains the CAS
+        seam; only its failed attempt is replaced, so memory and SQLite keep
+        identical lifecycle semantics without introducing a second state
+        machine.
+        """
+        if self._state_store is not None:
+            return self._state_store.reopen_interaction(
+                domain_id=domain_id,
+                run_id=run_id,
+                action=action,
+                idempotency_key=idempotency_key,
+                input_fingerprint=input_fingerprint,
+            )
+        key = (domain_id, run_id, action)
+        with self._interaction_lock:
+            current = self._interactions.get(key)
+            if not current or current.get("status") != "FAILED":
+                return {"reopened": False}
+            current.update(
+                {
+                    "idempotency_key": idempotency_key,
+                    "input_fingerprint": input_fingerprint,
+                    "status": "IN_PROGRESS",
+                    "result_run_id": None,
+                    "response_payload": None,
+                    "error_code": None,
+                }
+            )
+            result = dict(current)
+            result["reopened"] = True
+            result["created"] = True
+            return result
+
     def claim_async_job(
         self,
         run_id: str,

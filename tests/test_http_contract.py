@@ -29,7 +29,7 @@ class HttpContractTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
-            TestHandler.service._async_executor.shutdown(wait=True)
+            TestHandler.service.close()
 
         self.assertEqual(response.status, 200)
         self.assertEqual(body["status"], "ok")

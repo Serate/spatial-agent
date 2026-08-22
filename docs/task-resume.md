@@ -2070,3 +2070,22 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 ## M182 全局规划参考
 
 从统一动作回执继续推进开放式请求组合与可靠恢复：补齐 Action Receipt 与 Request/Plan/Result/Evidence identity 的跨入口关联，验证 SQLite 多 worker/异常退出/Artifact-only 接管，使用脱敏 replay 与最小 live-short 验证能力发现和有限 repair，前端统一展示澄清、确认、恢复、阻断和完成状态；默认 quick/CI 保持精简，阶段末统一执行 Docker、HTTP、Artifact、浏览器和必要 live 验收。
+
+## M182 当前完成状态
+
+- `AgentService.cancel()`、`retry()`、`resolve_decision()` 已统一复用 Action Receipt reserve/complete/replay seam；API contract 已向三个 HTTP 入口传递 `idempotency_key`。
+- 显式幂等键可稳定 replay；retry 未传键时，失败 receipt 可在同一 CAS 行上安全 reopen 为新尝试。approve、reject、cancel、retry 均保留公共动作分类和结果引用。
+- 已有 Artifact 的动作完成后会通过 `ArtifactStore.attach_action_receipt()` 同步 bounded receipt；SQLite snapshot/history、Service response 和 Artifact 具备一致字段。
+- 新增 M182 专项 6 项；M181/M169/M151 相邻回归 25 项；Docker `-W error::ResourceWarning`、compileall、quick、stage、full-stage、compact discovery 和 production acceptance 全部通过。容器 healthy，生产数据与 runtime capability ready。
+- 修复开发门禁 HTTP 测试未调用公开 `AgentService.close()` 导致的 ResourceWarning，并记录到中文问题文档。本阶段没有新增 GIS 工具、私有配置、原始模型输出或前端专用分支。
+- M182 已完成；下一阶段进入 M183，规划继续从产品、架构、数据、模型、部署、体验、测试七个维度展开。
+
+## M183 全局重规划参考
+
+1. 产品：统一开放式请求的能力发现、澄清、确认、repair、retry、cancel 和历史恢复动作时间线。
+2. 架构：建立 Request/Plan/Result/Evidence identity 跨同步、异步、Artifact-only、重启和跨 Domain 的公共投影；Action Receipt 保持唯一动作状态 seam。
+3. 数据：把 readiness、coverage、alignment、provenance 和过期状态绑定到动作前置条件与恢复证据。
+4. 模型：用脱敏 replay 和最小 live-short 验证开放式组合、计划错配、有限 repair 和用户确认，不扩大默认 CI。
+5. 部署：覆盖 SQLite 多 worker、异常退出、滚动重启、Artifact-only 接管和旧 receipt/schema 迁移。
+6. 体验：通用前端 workspace 动态展示 action receipt、澄清、确认、阻断、可恢复、重试中和完成状态。
+7. 测试：以 Action Contract Harness 为主，保持 quick/CI 精简，阶段末运行 Docker、HTTP、Artifact、history、restart、浏览器和必要 live-short。

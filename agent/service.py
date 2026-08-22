@@ -437,6 +437,74 @@ class AgentService:
         expected_version: int = None,
         planner: str = "rule",
         backend: str = "memory",
+        idempotency_key: str = None,
+    ) -> Dict[str, Any]:
+        """Resolve one decision through the shared Action Receipt seam."""
+        aliases = {"accept": "approve", "confirm": "approve", "deny": "reject"}
+        normalized_choice = aliases.get(str(choice or "").strip().lower(), str(choice or "").strip().lower())
+        if normalized_choice not in {"approve", "reject"}:
+            # Preserve the existing DecisionStore validation and error code;
+            # only the two governed actions receive a public receipt.
+            return self._resolve_decision_impl(
+                decision_id,
+                choice,
+                expected_version=expected_version,
+                planner=planner,
+                backend=backend,
+            )
+        if not isinstance(decision_id, str) or not decision_id.strip():
+            raise ValueError("decision_id must be a non-empty string")
+        domain_id = self._resolved_domain_id or self._configured_domain_id or "unknown"
+        record = self._decision_record(decision_id, domain_id)
+        receipt, reused = self._reserve_action_receipt(
+            source_run_id=record.subject_id,
+            action=normalized_choice,
+            payload={
+                "decision_id": decision_id,
+                "choice": normalized_choice,
+                "expected_version": expected_version,
+                "idempotency_key": idempotency_key,
+            },
+            planner=planner,
+            backend=backend,
+        )
+        if reused:
+            return receipt
+        try:
+            response = self._resolve_decision_impl(
+                decision_id,
+                choice,
+                expected_version=expected_version,
+                planner=planner,
+                backend=backend,
+            )
+        except Exception as exc:
+            self._complete_action_receipt(
+                receipt,
+                {"run_id": record.subject_id, "status": "FAILED", "error": str(exc)},
+                status="FAILED",
+                error_code="decision_resolution_failed",
+                response_payload={
+                    "run_id": record.subject_id,
+                    "status": "FAILED",
+                    "error": str(exc),
+                },
+            )
+            raise
+        return self._complete_action_receipt(
+            receipt,
+            response,
+            status="COMPLETED",
+            result_run_id=response.get("run_id") or record.subject_id,
+        )
+
+    def _resolve_decision_impl(
+        self,
+        decision_id: str,
+        choice: str,
+        expected_version: int = None,
+        planner: str = "rule",
+        backend: str = "memory",
     ) -> Dict[str, Any]:
         """Approve/reject a waiting run and resume only its persisted plan."""
         if not isinstance(decision_id, str) or not decision_id.strip():
@@ -1164,6 +1232,65 @@ class AgentService:
         export_artifact: bool = False,
         export_geojson: bool = False,
         geojson_max_features: int = 100,
+        idempotency_key: str = None,
+    ) -> Dict:
+        """Retry a failed run with explicit replay or a fresh implicit attempt."""
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("run_id must be a non-empty string")
+        receipt, reused = self._reserve_action_receipt(
+            source_run_id=run_id,
+            action="retry",
+            payload={
+                "export_artifact": bool(export_artifact),
+                "export_geojson": bool(export_geojson),
+                "geojson_max_features": int(geojson_max_features),
+                "idempotency_key": idempotency_key,
+            },
+            planner=planner,
+            backend=backend,
+            auto_key=idempotency_key is not None,
+        )
+        if reused:
+            return receipt
+        try:
+            response = self._retry_payload(
+                run_id,
+                planner=planner,
+                backend=backend,
+                export_artifact=export_artifact,
+                export_geojson=export_geojson,
+                geojson_max_features=geojson_max_features,
+            )
+        except Exception as exc:
+            self._complete_action_receipt(
+                receipt,
+                {"run_id": run_id, "status": "FAILED", "error": str(exc)},
+                status="FAILED",
+                error_code="retry_failed",
+                response_payload={
+                    "run_id": run_id,
+                    "status": "FAILED",
+                    "error": str(exc),
+                },
+            )
+            raise
+        action_status = "COMPLETED" if response.get("status") == "COMPLETED" else "FAILED"
+        return self._complete_action_receipt(
+            receipt,
+            response,
+            status=action_status,
+            error_code=None if action_status == "COMPLETED" else "retry_failed",
+            result_run_id=response.get("run_id") or run_id,
+        )
+
+    def _retry_payload(
+        self,
+        run_id: str,
+        planner: str = "rule",
+        backend: str = "memory",
+        export_artifact: bool = False,
+        export_geojson: bool = False,
+        geojson_max_features: int = 100,
     ) -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
@@ -1219,23 +1346,57 @@ class AgentService:
             self._state.save_run(result)
         return payload
 
-    def cancel(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
+    def cancel(
+        self,
+        run_id: str,
+        planner: str = "rule",
+        backend: str = "memory",
+        idempotency_key: str = None,
+    ) -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
-        result = self._runtime(planner, backend).cancel(run_id)
-        if not self._state.persistent:
-            self._mark_memory_cancel_requested(run_id)
-        if result.status == RunStatus.CANCELLED:
-            return {
+        receipt, reused = self._reserve_action_receipt(
+            source_run_id=run_id,
+            action="cancel",
+            payload={"idempotency_key": idempotency_key},
+            planner=planner,
+            backend=backend,
+        )
+        if reused:
+            return receipt
+        try:
+            result = self._runtime(planner, backend).cancel(run_id)
+            if not self._state.persistent:
+                self._mark_memory_cancel_requested(run_id)
+            response = {
                 "run_id": run_id,
-                "status": "CANCELLED",
+                "status": (
+                    "CANCELLED"
+                    if result.status == RunStatus.CANCELLED
+                    else "CANCEL_REQUESTED"
+                ),
                 "current_status": result.status.value,
             }
-        return {
-            "run_id": run_id,
-            "status": "CANCEL_REQUESTED",
-            "current_status": result.status.value,
-        }
+        except Exception as exc:
+            self._complete_action_receipt(
+                receipt,
+                {"run_id": run_id, "status": "FAILED", "error": str(exc)},
+                status="FAILED",
+                error_code="cancel_failed",
+                response_payload={
+                    "run_id": run_id,
+                    "status": "FAILED",
+                    "error": str(exc),
+                },
+            )
+            raise
+        return self._complete_action_receipt(
+            receipt,
+            response,
+            status="COMPLETED",
+            result_run_id=run_id,
+            response_payload=response,
+        )
 
     def get_run(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
@@ -1397,7 +1558,7 @@ class AgentService:
             "interaction": interaction,
         }
 
-    def _reserve_interaction_receipt(
+    def _reserve_action_receipt(
         self,
         *,
         source_run_id: str,
@@ -1405,28 +1566,34 @@ class AgentService:
         payload: Dict[str, Any],
         planner: str,
         backend: str,
+        fingerprint_namespace: str = "",
+        auto_key: bool = True,
     ) -> tuple[Dict[str, Any], bool]:
-        """Reserve one user interaction and replay a completed receipt.
+        """Reserve one action and replay a completed receipt.
 
-        Interaction continuation creates a new governed run, so normal
-        ``run_async`` idempotency cannot protect it. This seam gives
-        candidate/facts/preview actions the same CAS boundary as async jobs.
+        The persistence adapter remains the CAS owner. This small Service seam
+        only supplies a stable input identity and reconstructs a bounded
+        replay, so interaction, decision, retry, and cancellation callers do
+        not each implement a different receipt protocol.
         """
         data = dict(payload)
         explicit_key = data.pop("idempotency_key", None)
+        had_explicit_key = explicit_key is not None
         input_fingerprint = _action_input_fingerprint(
-            "run_interaction:" + action,
+            fingerprint_namespace + action,
             {"planner": planner, "backend": backend, "payload": data},
         )
-        if explicit_key is None:
+        if explicit_key is None and auto_key:
             explicit_key = (
-                "interaction:"
+                "action:"
                 + str(source_run_id)[:48]
                 + ":"
                 + action[:24]
                 + ":"
                 + input_fingerprint.rsplit(":", 1)[-1][:20]
             )
+        if explicit_key is None:
+            explicit_key = "action:" + uuid.uuid4().hex
         explicit_key = str(explicit_key).strip()
         if (
             not explicit_key
@@ -1434,7 +1601,7 @@ class AgentService:
             or "/" in explicit_key
             or "\\" in explicit_key
         ):
-            raise ValueError("interaction idempotency_key must be a safe non-empty value")
+            raise ValueError("action idempotency_key must be a safe non-empty value")
         domain_id = self._domain_id(planner, backend)
         receipt = self._state.reserve_interaction(
             domain_id=domain_id,
@@ -1444,6 +1611,22 @@ class AgentService:
             input_fingerprint=input_fingerprint,
         )
         if not receipt.get("created"):
+            if (
+                receipt.get("status") == "FAILED"
+                and not had_explicit_key
+                and not auto_key
+            ):
+                reopened = self._state.reopen_interaction(
+                    domain_id=domain_id,
+                    run_id=str(source_run_id),
+                    action=action,
+                    idempotency_key=explicit_key,
+                    input_fingerprint=input_fingerprint,
+                )
+                if reopened.get("reopened"):
+                    reopened["idempotency_key"] = explicit_key
+                    reopened["input_fingerprint"] = input_fingerprint
+                    return reopened, False
             same_input = receipt.get("input_fingerprint") == input_fingerprint
             same_subject = (
                 receipt.get("domain_id") == domain_id
@@ -1451,34 +1634,55 @@ class AgentService:
                 and receipt.get("action") == action
             )
             if not same_input or not same_subject:
-                raise ValueError("interaction idempotency key conflicts with a previous input")
+                raise ValueError("action idempotency key conflicts with a previous input")
             if receipt.get("status") == "COMPLETED":
                 replay = None
+                if isinstance(receipt.get("response_payload"), dict):
+                    replay = dict(receipt["response_payload"])
                 result_run_id = receipt.get("result_run_id")
-                if result_run_id:
+                if replay is None and result_run_id:
                     replay = self.get_run(
                         str(result_run_id), planner=planner, backend=backend
                     )
-                if replay is None and isinstance(receipt.get("response_payload"), dict):
-                    replay = dict(receipt["response_payload"])
                 if replay is None:
-                    raise ValueError("interaction receipt result is unavailable")
-                replay["interaction_receipt"] = self._interaction_receipt_projection(
-                    receipt, reused=True
-                )
+                    raise ValueError("action receipt result is unavailable")
                 replay["action_receipt"] = project_action_receipt(
                     receipt, reused=True
                 )
                 return replay, True
             if receipt.get("status") == "FAILED":
                 raise ValueError(
-                    "interaction previously failed: "
-                    + str(receipt.get("error_code") or "interaction_failed")
+                    "action previously failed: "
+                    + str(receipt.get("error_code") or "action_failed")
                 )
-            raise ValueError("interaction is already in progress")
+            raise ValueError("action is already in progress")
         receipt["idempotency_key"] = explicit_key
         receipt["input_fingerprint"] = input_fingerprint
         return receipt, False
+
+    def _reserve_interaction_receipt(
+        self,
+        *,
+        source_run_id: str,
+        action: str,
+        payload: Dict[str, Any],
+        planner: str,
+        backend: str,
+    ) -> tuple[Dict[str, Any], bool]:
+        """Keep the legacy interaction seam while using generic receipts."""
+        receipt, reused = self._reserve_action_receipt(
+            source_run_id=source_run_id,
+            action=action,
+            payload=payload,
+            planner=planner,
+            backend=backend,
+            fingerprint_namespace="run_interaction:",
+        )
+        if reused:
+            receipt["interaction_receipt"] = project_legacy_interaction_receipt(
+                receipt.get("action_receipt"), reused=True
+            )
+        return receipt, reused
 
     @staticmethod
     def _interaction_receipt_projection(
@@ -1494,11 +1698,31 @@ class AgentService:
         status: str,
         error_code: Optional[str] = None,
     ) -> Dict[str, Any]:
-        response = response if isinstance(response, dict) else {}
-        result_run_id = response.get("run_id") if status == "COMPLETED" else None
-        response_payload = (
-            response if status == "COMPLETED" and not result_run_id else None
+        return self._complete_action_receipt(
+            receipt,
+            response,
+            status=status,
+            error_code=error_code,
+            include_legacy=True,
         )
+
+    def _complete_action_receipt(
+        self,
+        receipt: Dict[str, Any],
+        response: Optional[Dict[str, Any]],
+        *,
+        status: str,
+        error_code: Optional[str] = None,
+        result_run_id: Optional[str] = None,
+        response_payload: Optional[Dict[str, Any]] = None,
+        include_legacy: bool = False,
+    ) -> Dict[str, Any]:
+        """Complete one generic receipt and attach its bounded projection."""
+        response = response if isinstance(response, dict) else {}
+        if result_run_id is None and status == "COMPLETED":
+            result_run_id = response.get("run_id")
+        if response_payload is None and status == "COMPLETED" and not result_run_id:
+            response_payload = response
         self._state.complete_interaction(
             domain_id=str(receipt.get("domain_id") or self._resolved_domain_id),
             run_id=str(receipt.get("run_id") or ""),
@@ -1521,9 +1745,10 @@ class AgentService:
         action_receipt = project_action_receipt(receipt, reused=False)
         if result_run_id:
             self._persist_action_receipt(result_run_id, action_receipt)
-        response["interaction_receipt"] = self._interaction_receipt_projection(
-            receipt, reused=False
-        )
+        if include_legacy:
+            response["interaction_receipt"] = self._interaction_receipt_projection(
+                receipt, reused=False
+            )
         response["action_receipt"] = action_receipt
         if isinstance(response.get("result"), dict):
             response["result"]["action_receipt"] = response["action_receipt"]
@@ -1544,6 +1769,18 @@ class AgentService:
         result.action_receipt = dict(action_receipt)
         if self._state.persistent:
             self._state.save_run(result)
+        if result.artifact_ref:
+            try:
+                self._artifact_store.attach_action_receipt(
+                    result_run_id,
+                    action_receipt,
+                    domain_id=domain_id,
+                )
+            except (OSError, TypeError, ValueError):
+                # The durable receipt remains authoritative; an unavailable
+                # artifact is reported through the existing artifact boundary
+                # instead of making the already-completed action execute again.
+                pass
 
     def apply_run_interaction(
         self,
