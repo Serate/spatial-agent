@@ -8,6 +8,7 @@ from unittest.mock import patch
 from agent.selection_interaction import build_selection_interaction
 from agent.domain_contract import evidence_action_guidance
 from agent.runtime_factory import build_runtime
+from domains.gis.domain import GIS_DOMAIN_PACK
 from domains.text.domain import TEXT_DOMAIN_PACK
 from agent.workflow_selection import (
     EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
@@ -125,6 +126,22 @@ class M196EvidenceActionTests(unittest.TestCase):
         ]
         self.assertEqual(projected["reason_code"], "data_needs_review")
         self.assertEqual(projected["recommended_actions"], ["preview", "repair"])
+
+    def test_builtin_text_and_gis_domains_supply_the_same_guidance_contract(self):
+        for domain in (TEXT_DOMAIN_PACK, GIS_DOMAIN_PACK):
+            guidance = evidence_action_guidance(
+                domain,
+                {
+                    "state": "selected",
+                    "selected_capability_id": "capability_a",
+                    "candidate_details": [],
+                },
+            )
+            self.assertEqual(
+                guidance["schema_version"], EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION
+            )
+            self.assertEqual(guidance["source"], "domain")
+            self.assertTrue(guidance["recommended_actions"])
 
 
 if __name__ == "__main__":

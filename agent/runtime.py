@@ -1189,9 +1189,18 @@ class AgentRuntime:
             spatial_request,
             workflow=workflow,
         )
+        workflow_selection = build_workflow_selection_evidence(
+            discovery=discovery_payload,
+            domain_selection=domain_selection,
+            workflow=workflow,
+            capability_catalog=catalog,
+            domain_seams=workflow_seam_summary(self._domain_pack),
+            request_facts=spatial_request,
+            domain_id=self.domain_id,
+        )
         domain_guidance = resolve_evidence_action_guidance(
             self._domain_pack,
-            domain_selection,
+            workflow_selection,
             request_facts=spatial_request,
         )
         workflow_selection = build_workflow_selection_evidence(

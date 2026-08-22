@@ -223,6 +223,54 @@ class GisDomainPack:
             )
         return selection
 
+    def evidence_action_guidance(
+        self,
+        selection: Mapping[str, Any],
+        *,
+        request_facts: Any = None,
+    ) -> Mapping[str, Any]:
+        """Recommend safe next steps from GIS capability evidence only."""
+        del request_facts
+        from agent.workflow_selection import EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION
+
+        value = selection if isinstance(selection, Mapping) else {}
+        missing = value.get("missing_fields")
+        selected = str(value.get("selected_capability_id") or "").strip()
+        state = str(value.get("state") or "unknown").strip()
+        candidate_details = value.get("candidate_details")
+        statuses = [
+            str((item.get("evidence") or {}).get("status") or "unknown")
+            for item in (candidate_details if isinstance(candidate_details, list) else [])
+            if isinstance(item, Mapping)
+        ]
+        if isinstance(missing, list) and missing:
+            guidance_state = "degraded"
+            reason = "selection_requires_facts"
+            actions = ["provide_facts"]
+        elif state == "ambiguous":
+            guidance_state = "degraded" if "unavailable" in statuses else "unknown"
+            reason = "selection_requires_user_choice"
+            actions = ["select_capability", "select_workflow"]
+        elif selected and "unavailable" in statuses:
+            guidance_state = "unavailable"
+            reason = "selected_capability_evidence_unavailable"
+            actions = ["preview", "repair"]
+        elif selected:
+            guidance_state = "degraded" if "degraded" in statuses else "ready"
+            reason = "gis_capability_ready_for_preview"
+            actions = ["preview"]
+        else:
+            guidance_state = "unknown"
+            reason = "gis_capability_selection_unavailable"
+            actions = ["select_capability"]
+        return {
+            "schema_version": EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
+            "state": guidance_state,
+            "reason_code": reason,
+            "recommended_actions": actions,
+            "source": "domain",
+        }
+
     def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
         """Normalize GIS workflow input inside the GIS Domain Pack."""
         if not isinstance(workflow, Mapping):

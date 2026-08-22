@@ -135,6 +135,44 @@ class TextDomainPack:
             "candidate_count": context.get("candidate_count"),
         }
 
+    def evidence_action_guidance(
+        self,
+        selection: Mapping[str, Any],
+        *,
+        request_facts: Any = None,
+    ) -> Mapping[str, Any]:
+        """Recommend safe next steps from the text capability projection."""
+        del request_facts
+        from agent.workflow_selection import EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION
+
+        value = selection if isinstance(selection, Mapping) else {}
+        missing = value.get("missing_fields")
+        selected = str(value.get("selected_capability_id") or "").strip()
+        state = str(value.get("state") or "unknown").strip()
+        if isinstance(missing, list) and missing:
+            reason = "selection_requires_facts"
+            actions = ["provide_facts"]
+            guidance_state = "degraded"
+        elif selected:
+            reason = "text_capability_ready_for_preview"
+            actions = ["preview"]
+            guidance_state = "ready"
+        elif state == "ambiguous":
+            reason = "selection_requires_user_choice"
+            actions = ["select_capability", "select_workflow"]
+            guidance_state = "unknown"
+        else:
+            reason = "text_capability_selection_unavailable"
+            actions = ["select_capability"]
+            guidance_state = "unknown"
+        return {
+            "schema_version": EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
+            "state": guidance_state,
+            "reason_code": reason,
+            "recommended_actions": actions,
+            "source": "domain",
+        }
+
     def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
         """Normalize a text workflow without importing GIS templates."""
         if not isinstance(workflow, Mapping):

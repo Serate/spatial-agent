@@ -32,6 +32,7 @@
 - 恢复时以 `git log -1 --oneline` 和 `git status --short` 为准；不要把快照中的历史提交号当作当前基线。
 - 当前切片：M196-C evidence/action projection 与开放式澄清工作区。
 - M196-C.1 已完成 `workflow_selection` / `selection_interaction` 的 evidence/action guidance 公共 seam、Domain 适配器和 Runtime 单次 context 注入；Docker 专项与旧交互回归 13/13 通过。
+- M196-C.2 已让 Text/GIS Domain 提供同一 guidance contract；M196-C 专项 14/14、M196 capability evidence contract 10/10 通过，容器 healthy。
 
 ## M196-B.2 已完成内容
 
@@ -52,9 +53,9 @@
 
 ## 当前工作集（按读取顺序）
 
-1. **已完成**：`agent/workflow_selection.py`、`agent/selection_interaction.py`、`agent/domain_contract.py`、`agent/runtime.py`；已验证 guidance 归一化、Domain 异常降级、Runtime 注入和生命周期门控。
-2. **下一首读**：`domains/text/domain.py`、`domains/gis/domain.py` 中 `capability_catalog` / `evidence_action_guidance` 附近；只补领域建议 Adapter。
-3. **集成时才读**：`result_contract.py`、`agent/service_async.py`、`agent/artifact_store.py`、`serve_api.py`、`production_api.py` 和 `web/console_*.js`；不要在设计阶段全部打开。
+1. **已完成**：`agent/workflow_selection.py`、`agent/selection_interaction.py`、`agent/domain_contract.py`、`agent/runtime.py`、`domains/text/domain.py`、`domains/gis/domain.py`；已验证 guidance 归一化、Domain 异常降级、双 Domain 注入和生命周期门控。
+2. **下一首读**：`result_contract.py` 中 `build_result_contract` 相关范围；先把 selection interaction 的 guidance 保留在结果契约。
+3. **随后才读**：`agent/service_async.py`、`agent/artifact_store.py`、`serve_api.py`、`production_api.py` 和 `web/console_*.js`；按跨入口 equality 逐个接入，不要一次性打开。
 4. **按需验证**：优先一个 `tests/test_m196_*.py` 专项，再补 `test_m164_selection_interaction.py` 或 `test_m167_candidate_selection.py`；Text/GIS 只在跨 Domain 证据不足时读取对应 Domain 文件。
 
 工作回合结束后，将“已读文件、关键行范围、下一次唯一首读文件”压缩回本节，避免下一次从目录重新扫描。
