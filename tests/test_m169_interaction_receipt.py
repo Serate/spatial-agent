@@ -3,7 +3,10 @@
 from pathlib import Path
 import json
 import tempfile
+import threading
 import unittest
+from http.client import HTTPConnection
+from http.server import ThreadingHTTPServer
 
 from agent.artifact_store import ArtifactStore
 from agent.contract_versions import (
@@ -14,6 +17,7 @@ from agent.contract_versions import (
 from agent.capability_catalog import capability_catalog
 from agent.evidence_contract import build_capability_evidence
 from agent.service import AgentService
+from serve_api import AgentApiHandler
 from agent.workflow_selection import build_workflow_selection_evidence
 from evaluation.model_evaluation import _build_recorded_runtime
 from result_contract import build_result_contract
@@ -94,9 +98,92 @@ class M169InteractionReceiptTests(unittest.TestCase):
             "spatial-agent.interaction-receipt.v1",
         )
         self.assertEqual(
+            artifact["action_receipt"]["schema_version"],
+            "spatial-agent.action-receipt.v1",
+        )
+        self.assertEqual(
             replay["interaction_receipt"]["schema_version"],
             "spatial-agent.interaction-receipt.v1",
         )
+        self.assertEqual(
+            replay["action_receipt"]["action_id"],
+            "select_capability",
+        )
+
+    def test_http_artifact_and_history_share_action_receipt_projection(self):
+        with tempfile.TemporaryDirectory(prefix="m181-cross-entry-") as directory:
+            root = Path(directory)
+            service = self._service(root)
+            self.addCleanup(service.close)
+
+            class TextHandler(AgentApiHandler):
+                pass
+
+            TextHandler.service = service
+            server = ThreadingHTTPServer(("127.0.0.1", 0), TextHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                port = server.server_address[1]
+                pending = _request_json(
+                    port,
+                    "POST",
+                    "/runs",
+                    {
+                        "request": "请处理这段内容",
+                        "session_id": "m181-http",
+                        "planner": "rule",
+                        "backend": "memory",
+                    },
+                )
+                response = _request_json(
+                    port,
+                    "POST",
+                    "/runs/{}/interaction".format(pending["run_id"]),
+                    {
+                        "action": "select_capability",
+                        "capability_id": "text_summary",
+                        "require_confirmation": False,
+                        "export_artifact": True,
+                        "idempotency_key": "m181-http-1",
+                        "planner": "rule",
+                        "backend": "memory",
+                    },
+                )
+                artifact = json.loads(
+                    Path(response["artifact_ref"]).read_text(encoding="utf-8")
+                )
+                history = service.list_runs()["runs"]
+                history_record = next(
+                    item for item in history if item["run_id"] == response["run_id"]
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+        fields = (
+            "schema_version",
+            "status",
+            "action_id",
+            "action_kind",
+            "subject",
+            "result_ref",
+            "idempotency_key",
+            "input_fingerprint",
+        )
+        http_receipt = response["action_receipt"]
+        artifact_receipt = artifact["action_receipt"]
+        history_receipt = history_record["action_receipt"]
+        self.assertEqual(
+            {key: http_receipt.get(key) for key in fields},
+            {key: artifact_receipt.get(key) for key in fields},
+        )
+        self.assertEqual(
+            {key: http_receipt.get(key) for key in fields},
+            {key: history_receipt.get(key) for key in fields},
+        )
+        self.assertEqual(response["result"]["action_receipt"], http_receipt)
 
     def test_source_run_action_is_compare_and_swap_boundary(self):
         with tempfile.TemporaryDirectory(prefix="m169-cas-") as directory:
@@ -299,6 +386,21 @@ class M169InteractionReceiptTests(unittest.TestCase):
         self.assertEqual(events[0]["repair_status"], "failed")
         self.assertEqual(events[0]["repair_reason_code"], "replacement_invalid")
         self.assertEqual(events[0]["replanned_step_ids"], [])
+
+
+def _request_json(port, method, path, payload=None):
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        body = None if payload is None else json.dumps(payload).encode("utf-8")
+        headers = {"Content-Type": "application/json"} if body is not None else {}
+        connection.request(method, path, body=body, headers=headers)
+        response = connection.getresponse()
+        data = json.loads(response.read().decode("utf-8"))
+    finally:
+        connection.close()
+    if response.status >= 400:
+        raise AssertionError("HTTP {}: {}".format(response.status, data))
+    return data
 
 
 if __name__ == "__main__":

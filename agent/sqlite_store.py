@@ -11,6 +11,7 @@ from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .runtime_context import normalize_runtime_context
 from .runtime import PendingClarification
 from .evidence_registry import normalize_evidence_registry
+from .recovery_action import normalize_action_receipt
 
 
 _ASYNC_JOB_SELECT = """
@@ -490,7 +491,7 @@ class SQLiteStateStore:
         records = []
         for payload, updated_at in rows:
             item = json.loads(payload)
-            records.append({
+            record = {
                 "run_id": item.get("run_id"),
                 "domain_id": self._payload_domain(item),
                 "session_id": item.get("session_id"),
@@ -505,8 +506,34 @@ class SQLiteStateStore:
                 ),
                 "planner_metrics": item.get("planner_metrics"),
                 "modified_at": updated_at,
-            })
+            }
+            action_receipt = item.get("action_receipt")
+            if action_receipt is None:
+                action_receipt = self.interaction_receipt_for_result_run(
+                    item.get("run_id"), domain_id=domain_id
+                )
+            if action_receipt:
+                record["action_receipt"] = normalize_action_receipt(action_receipt)
+            records.append(record)
         return records
+
+    def interaction_receipt_for_result_run(
+        self, result_run_id: Optional[str], domain_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Return the bounded interaction record that produced one child run."""
+        if not result_run_id:
+            return {}
+        clause = " WHERE result_run_id = ?"
+        parameters: tuple[Any, ...] = (str(result_run_id),)
+        if domain_id:
+            clause += " AND domain_id = ?"
+            parameters += (str(domain_id),)
+        with self._connection() as connection:
+            row = connection.execute(
+                _INTERACTION_RECEIPT_SELECT + clause + " ORDER BY updated_at DESC LIMIT 1",
+                parameters,
+            ).fetchone()
+        return _interaction_receipt_from_row(row)
 
     def clear_session_runs(self, session_id: str) -> int:
         with self._connection() as connection:
@@ -1067,4 +1094,5 @@ def _result_from_dict(
         plan_evidence=payload.get("plan_evidence"),
         replan_events=payload.get("replan_events") or [],
         decision_evidence=payload.get("decision_evidence"),
+        action_receipt=payload.get("action_receipt"),
     )

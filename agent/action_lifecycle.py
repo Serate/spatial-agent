@@ -12,6 +12,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .recovery_action import normalize_action_ids, project_available_actions
+
 
 ACTION_LIFECYCLE_SCHEMA_VERSION = "spatial-agent.action-lifecycle.v1"
 
@@ -84,6 +86,7 @@ def project_action_lifecycle(payload: Mapping[str, Any] | None) -> dict[str, Any
         "phase": phase,
         "status": status or "UNKNOWN",
         "allowed_actions": list(actions[:_MAX_ACTIONS]),
+        "actions": project_available_actions(actions, subject_id=subject_id),
         "reason_code": reason[:_MAX_REASON],
         "attempt": min(10000, retry_count + 1),
         "lineage": {
@@ -181,14 +184,7 @@ def _decision_state(decision: Mapping[str, Any]) -> str | None:
 
 
 def _safe_actions(raw: Any) -> tuple[str, ...]:
-    if isinstance(raw, (str, bytes)) or not isinstance(raw, (list, tuple)):
-        return ()
-    result: list[str] = []
-    for item in raw:
-        token = _token(item)
-        if token in LIFECYCLE_ACTIONS and token not in result:
-            result.append(token)
-    return tuple(result)
+    return tuple(normalize_action_ids(raw, allowed=LIFECYCLE_ACTIONS))
 
 
 def _token(value: Any) -> str:

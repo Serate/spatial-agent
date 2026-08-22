@@ -3558,3 +3558,27 @@ M181 从项目整体继续推进“恢复状态可操作 → 统一生命周期�
 5. **部署可靠性**：验证 SQLite 多 worker、重复 action、滚动重启、artifact-only 接管和迁移幂等；恢复动作不得重复调用模型或工具，除非动作契约明确要求重新运行。
 6. **用户体验**：前端根据结构化 action/evidence 动态展示“可恢复、需要确认、已阻断、重新开始”状态，并让任意 Domain 共享同一结果/证据工作区。
 7. **测试证据**：保持 Docker quick/CI 精简；阶段收口增加 Text/GIS Contract Harness、HTTP、Artifact、浏览器和必要 live-short，验证同步/异步/重启/恢复的核心结果与 evidence equality。
+
+## M181：RecoveryAction/ActionReceipt 统一生命周期（已完成）
+
+M181 将 Evidence Recovery、Decision、Interaction 和 Lifecycle Action 收敛到领域无关的动作描述与回执边界，使恢复、确认、选择、取消和重试可以使用同一套幂等输入、状态和结果引用。
+
+- 新增 `agent/recovery_action.py`，提供版本化 `RecoveryAction`/`ActionReceipt` projection、动作分类、稳定 input fingerprint 和安全 normalize；`action_lifecycle`、`decision_lifecycle`、`selection_interaction` 和 Service 共用该 seam，旧 Interaction Receipt 保持兼容投影。
+- 新增根目录 `CONTEXT.md`，记录 Run、Lifecycle Action、Interaction Action、Recovery Action、Action Receipt、Decision、Evidence Recovery 和 Domain Pack 的领域术语，避免把 RecoveryAction 扩展成第二套 Runtime 状态机。
+- `AgentRunResult`、SQLite snapshot/history 和 Artifact 均可持久化同一 bounded `action_receipt`；旧 SQLite snapshot 缺少该字段时，history 会从已完成 interaction receipt 安全补投影，跨重启不丢失动作证据。
+- 新增 `tests/test_m181_recovery_action.py`，并补充 HTTP → Service → Artifact → SQLite history 的 receipt equality 契约；M181/M169/M164/M153/M151/M180/M159 Docker 回归 46/46 通过，Node 容器缺失项单独跳过。
+- Docker 当前镜像按工作树重建并 healthy；compileall、quick、stage、full-stage、production acceptance 均通过，`-W error::ResourceWarning` 下 Service/HTTP emitter 生命周期回归通过。
+- Node renderer smoke、Chrome/CDP 预览→确认→完成、空间总览地图分层和候选选择 smoke 均通过；本阶段未新增 live token、私有配置或原始 GIS 数据。
+- 阶段问题已记录到 `docs/agent-development-issues.md`；完成最终敏感信息检查、提交和推送后，按七个全局维度进入 M182。
+
+## M182 全局规划参考
+
+M182 继续从统一动作回执推进到“开放式请求可组合、失败可恢复、证据可验证”的完整纵向链路：
+
+1. **产品能力**：让开放式请求在能力发现、澄清、确认、执行失败和历史恢复之间使用统一动作目录，并支持有限的重新规划。
+2. **架构边界**：审计 Action Receipt 与 Request/Plan/Result/Evidence identity 的关联，补齐异步、多 worker、滚动重启和跨 Domain 的公共 contract harness。
+3. **数据质量**：把 readiness、coverage、alignment、provenance 和过期状态绑定到 action 前置条件与结果证据，恢复或重试时明确哪些数据需要重新核验。
+4. **真实模型**：用脱敏 replay 和最小 live-short 验证开放式能力发现、计划错配、repair、confirmation 与 action receipt 的一致性，不把模型调用变成默认测试依赖。
+5. **部署可靠性**：验证 SQLite CAS、多 worker 重复动作、异常退出、artifact-only 接管和版本迁移后的回执连续性，确保动作不会无意重复调用工具。
+6. **用户体验**：统一前端 action/evidence workspace 的处理中、需澄清、需确认、可恢复、已阻断和完成空态，继续避免 GIS 专用分支。
+7. **测试证据**：保持 quick/CI 极简，以跨入口 Action Contract Harness 为主；阶段末运行 Docker、HTTP、Artifact、浏览器和必要 live-short 后再整体复盘。

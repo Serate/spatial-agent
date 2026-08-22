@@ -4432,3 +4432,31 @@ M179 将多轮聚合字段命名为 `evidence_projection_summary`，单条证据
 ### 处理与预防
 
 阶段验收改为串行执行共享 CDP 的浏览器 smoke，并在每个脚本中显式设置 planner、backend、workflow、会话和关键表单状态。以后若要并行浏览器验收，必须先为每个脚本启动独立 CDP 端口和独立 Chrome profile，不能仅依赖不同 Node 进程连接同一 page；看到 `UnknownProcessId` 时先检查 CDP 竞争，再判断业务失败。
+
+## M181：Docker 未重建导致测试代码与工作树不一致
+
+### 现象
+
+为 M151 测试补充 `AgentService.close()` 清理后，宿主工作树已经有 `addCleanup`，但 Docker 中运行的 `-W error::ResourceWarning` 仍报告多个 `observability.log` 未关闭；对象级探针显示容器仍运行旧测试代码。
+
+### 根因
+
+Docker 镜像在本地测试补丁之前已经构建完成，`COPY . /app` 使用了旧层。只看宿主 diff 或直接复用旧容器，会把旧实现的警告误判为当前补丁无效。
+
+### 处理与预防
+
+按项目约定使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate` 重建，并确认容器为 healthy 后再测试。阶段验收记录必须标明镜像是否按当前工作树重建；修改代码后不能把旧容器结果当作新代码证据。
+
+## M181：Action Receipt 只在响应和 Artifact 时无法证明 SQLite history 一致
+
+### 现象
+
+M181 初版已经在 Service response 和 Artifact 输出 `action_receipt`，但 `AgentRunResult` 没有保存该字段，SQLite history 也没有展示动作回执；重启后业务结果可恢复，却无法证明历史入口保留同一动作证据。
+
+### 根因
+
+交互 receipt 的完成发生在 `run()` 持久化结果之后，公共结果模型没有动作回执字段；SQLite history 只投影运行快照，没有从 `interaction_receipts.result_run_id` 关联已完成动作。
+
+### 处理与预防
+
+将 bounded `action_receipt` 纳入 `AgentRunResult` 和 SQLite 反序列化；history 优先读取快照字段，旧快照缺失时按 `result_run_id` 参数化查询 interaction receipt 并使用公共 normalize 投影。以后新增跨入口证据字段，必须同时验证 Service、Artifact、history、HTTP、重启恢复和旧数据兼容，不能只测试即时响应。

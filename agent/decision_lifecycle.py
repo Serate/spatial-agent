@@ -18,6 +18,8 @@ import uuid
 from contextlib import contextmanager
 from typing import Any, Iterable, Mapping, Protocol
 
+from .recovery_action import normalize_action_ids, project_available_actions
+
 
 DECISION_LIFECYCLE_SCHEMA_VERSION = "spatial-agent.decision-lifecycle.v1"
 
@@ -565,6 +567,9 @@ class DecisionLifecycle:
             "schema_version": DECISION_LIFECYCLE_SCHEMA_VERSION,
             "state": self.state,
             "allowed_actions": list(self.allowed_actions),
+            "actions": project_available_actions(
+                self.allowed_actions, subject_id=self.run_id
+            ),
         }
         for key, item in (
             ("reason_code", self.reason_code),
@@ -652,14 +657,7 @@ def _state(value: Any) -> str:
 
 
 def _actions(values: Iterable[str]) -> tuple[str, ...]:
-    if isinstance(values, (str, bytes)):
-        values = [values]
-    result = []
-    for value in values or ():
-        token = _safe_token(value)
-        if token and token not in result:
-            result.append(token)
-    return tuple(result[:8])
+    return tuple(normalize_action_ids(values, allowed=DECISION_ACTIONS)[:8])
 
 
 def _safe_token(value: Any) -> str | None:

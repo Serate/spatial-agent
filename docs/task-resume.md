@@ -2057,3 +2057,16 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 3. 保护 request/plan identity、数据 readiness/provenance 和 artifact 引用在恢复、重启、异步和多 worker 间的一致性。
 4. 用脱敏 replay 与最小 live-short 验证开放式能力发现、模型计划错配、repair 和 recovery action，不扩大默认测试成本。
 5. 以 Docker、HTTP、Contract Harness、Artifact、浏览器和必要 live 组成阶段证据，完成后再次按七维度整体重规划。
+
+## M181 当前完成状态
+
+- 新增 `agent/recovery_action.py` 和 `CONTEXT.md`，统一 RecoveryAction/ActionReceipt 的动作分类、可用动作描述、输入 fingerprint、receipt projection 和旧 Interaction Receipt 兼容投影。
+- Decision、Lifecycle、Selection 和 Service 已复用公共动作 seam；`AgentRunResult`、SQLite history、Artifact 和 HTTP response 共享 bounded `action_receipt`，旧 SQLite 记录可从 interaction receipt 安全补投影。
+- 新增 M181 专项 5 项；HTTP → Service → Artifact → SQLite history equality 回归已加入 M169；Docker M181/M169/M164/M153/M151/M180/M159 共 46 项通过，Node 容器缺失项单独跳过。
+- Docker 当前镜像按工作树重建并 healthy；compileall、quick、stage、full-stage、production acceptance 通过；`-W error::ResourceWarning` 验证测试 Service、HTTP handler 和 observability emitter 均显式关闭。
+- Node renderer、Chrome/CDP 预览确认完成、空间总览和候选选择 smoke 通过；未新增 live token、私有配置、原始模型输出或原始 GIS 数据。
+- M181 代码与验收已完成，待最终 Git/敏感信息检查、commit 和 push；完成后进入 M182，规划必须继续覆盖产品、架构、数据、模型、部署、体验和测试七个维度。
+
+## M182 全局规划参考
+
+从统一动作回执继续推进开放式请求组合与可靠恢复：补齐 Action Receipt 与 Request/Plan/Result/Evidence identity 的跨入口关联，验证 SQLite 多 worker/异常退出/Artifact-only 接管，使用脱敏 replay 与最小 live-short 验证能力发现和有限 repair，前端统一展示澄清、确认、恢复、阻断和完成状态；默认 quick/CI 保持精简，阶段末统一执行 Docker、HTTP、Artifact、浏览器和必要 live 验收。

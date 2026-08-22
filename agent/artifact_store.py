@@ -18,6 +18,7 @@ from agent.evidence_registry import (
     normalize_evidence_registry,
     project_evidence_registry_completeness,
 )
+from agent.recovery_action import normalize_action_receipt
 
 
 def _safe_run_id(run_id: object) -> str | None:
@@ -108,6 +109,7 @@ class ArtifactStore:
             "decision_evidence": payload.get("decision_evidence"),
             "decision_record": payload.get("_decision_record"),
             "interaction_receipt": payload.get("interaction_receipt"),
+            "action_receipt": payload.get("action_receipt"),
             "lifecycle": project_action_lifecycle(payload),
             "geojson_ref": payload.get("geojson_ref"),
             "artifact_ref": path.as_posix(),
@@ -458,7 +460,7 @@ class ArtifactStore:
                 continue
             if domain_id and self._payload_domain(payload) != domain_id:
                 continue
-            records.append({
+            record = {
                 "run_id": payload.get("run_id"),
                 "domain_id": self._payload_domain(payload),
                 "status": payload.get("status"),
@@ -472,7 +474,12 @@ class ArtifactStore:
                 "execution_record": payload.get("execution_record")
                 or build_execution_record(payload, kind="run"),
                 "modified_at": path.stat().st_mtime,
-            })
+            }
+            if payload.get("action_receipt") is not None:
+                record["action_receipt"] = normalize_action_receipt(
+                    payload.get("action_receipt")
+                )
+            records.append(record)
             if len(records) >= limit:
                 break
         return records

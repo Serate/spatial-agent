@@ -1737,3 +1737,15 @@ M172 从项目整体继续推进“开放式能力发现与跨入口证据闭环
 3. 保护 request/plan identity、数据 readiness/provenance 和 artifact 引用在恢复、重启、异步和多 worker 间的一致性。
 4. 用脱敏 replay 与最小 live-short 验证开放式能力发现、模型计划错配、repair 和 recovery action，不扩大默认测试成本。
 5. 以 Docker、HTTP、Contract Harness、Artifact、浏览器和必要 live 组成阶段证据，完成后再次按七维度整体重规划。
+
+## M181 当前完成状态
+
+- 新增 `agent/recovery_action.py`，统一 RecoveryAction/ActionReceipt 的版本、动作分类、可用动作、幂等输入 fingerprint 和安全 receipt projection；Decision、Lifecycle、Selection 与 Service 共享该领域无关 seam。
+- `AgentRunResult`、SQLite snapshot/history、Artifact 和 HTTP 结果均可保存同一 bounded `action_receipt`；旧持久化运行缺字段时，SQLite history 从已完成 interaction receipt 有界补投影。
+- 新增 `tests/test_m181_recovery_action.py` 和跨入口 HTTP/Artifact/history 契约；Docker M181/M169/M164/M153/M151/M180/M159 回归 46/46，通过 `-W error::ResourceWarning`，Node 容器缺失项单独跳过。
+- Docker compileall、quick、stage、full-stage、production acceptance，以及 Node/Chrome/CDP 前端验收均通过；浏览器 smoke 必须串行使用共享 CDP 页面。
+- M181 阶段实现与验收完成，当前只剩最终敏感信息检查、commit/push；不提交 API key、私有配置、原始模型输出或 GIS 原始数据。下一阶段为 M182，继续按七个全局维度规划。
+
+## M182 全局规划参考
+
+以 Action Contract Harness 为主线继续验证开放式能力发现、澄清/确认/repair、SQLite 多 worker 与异常恢复、Artifact-only 接管、数据 readiness/provenance 前置条件和通用前端 action/evidence workspace；保持 quick/CI 离线精简，以 Docker、HTTP、Artifact、浏览器和必要 live-short 作为阶段收口证据。

@@ -12,6 +12,7 @@ from agent.plan_quality import project_plan_quality_evidence
 from agent.execution_timeline import build_execution_timeline
 from agent.evidence_registry import build_evidence_registry
 from agent.evidence_recovery import project_evidence_recovery
+from agent.recovery_action import normalize_action_receipt
 from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -194,6 +195,9 @@ def build_result_contract(
     contract["evidence_recovery"] = project_evidence_recovery(
         {"result": contract}
     )
+    action_receipt = payload.get("action_receipt") or payload.get("interaction_receipt")
+    if isinstance(action_receipt, Mapping):
+        contract["action_receipt"] = normalize_action_receipt(action_receipt)
     if normalized_runtime_context is not None:
         contract["runtime_context"] = normalized_runtime_context
     if payload.get("run_id") or payload.get("action_execution_id"):

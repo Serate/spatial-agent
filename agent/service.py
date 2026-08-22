@@ -1,6 +1,4 @@
 import os
-import json
-import hashlib
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -23,6 +21,11 @@ from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
+from agent.recovery_action import (
+    action_input_fingerprint,
+    project_action_receipt,
+    project_legacy_interaction_receipt,
+)
 from agent.selection_interaction import normalize_selection_interaction
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
@@ -129,13 +132,7 @@ def _action_result_type(runtime, action_id: str) -> str:
 
 
 def _action_input_fingerprint(action_id: str, payload: Any) -> str:
-    encoded = json.dumps(
-        {"action_id": str(action_id), "payload": payload},
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+    return action_input_fingerprint(action_id, payload)
 
 
 def _action_response_from_artifact(artifact: Dict[str, Any]) -> Dict[str, Any]:
@@ -1469,6 +1466,9 @@ class AgentService:
                 replay["interaction_receipt"] = self._interaction_receipt_projection(
                     receipt, reused=True
                 )
+                replay["action_receipt"] = project_action_receipt(
+                    receipt, reused=True
+                )
                 return replay, True
             if receipt.get("status") == "FAILED":
                 raise ValueError(
@@ -1484,15 +1484,7 @@ class AgentService:
     def _interaction_receipt_projection(
         receipt: Dict[str, Any], *, reused: bool
     ) -> Dict[str, Any]:
-        return {
-            "schema_version": "spatial-agent.interaction-receipt.v1",
-            "status": str(receipt.get("status") or "UNKNOWN")[:32],
-            "action": str(receipt.get("action") or "unknown")[:64],
-            "source_run_id": str(receipt.get("run_id") or "")[:160],
-            "result_run_id": str(receipt.get("result_run_id") or "")[:160] or None,
-            "idempotency_key": str(receipt.get("idempotency_key") or "")[:128],
-            "reused": bool(reused),
-        }
+        return project_legacy_interaction_receipt(receipt, reused=reused)
 
     def _complete_interaction_receipt(
         self,
@@ -1526,10 +1518,32 @@ class AgentService:
                 "error_code": error_code,
             }
         )
+        action_receipt = project_action_receipt(receipt, reused=False)
+        if result_run_id:
+            self._persist_action_receipt(result_run_id, action_receipt)
         response["interaction_receipt"] = self._interaction_receipt_projection(
             receipt, reused=False
         )
+        response["action_receipt"] = action_receipt
+        if isinstance(response.get("result"), dict):
+            response["result"]["action_receipt"] = response["action_receipt"]
         return response
+
+    def _persist_action_receipt(
+        self, result_run_id: str, action_receipt: Dict[str, Any]
+    ) -> None:
+        """Attach a bounded receipt to the child run's durable snapshot."""
+        domain_id = self._resolved_domain_id or self._configured_domain_id
+        result = (
+            self._state.get_run(result_run_id, domain_id=domain_id)
+            if self._state.persistent
+            else self._memory_run(result_run_id)
+        )
+        if result is None:
+            return
+        result.action_receipt = dict(action_receipt)
+        if self._state.persistent:
+            self._state.save_run(result)
 
     def apply_run_interaction(
         self,

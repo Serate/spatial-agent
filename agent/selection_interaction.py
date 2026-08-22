@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .action_lifecycle import project_action_lifecycle
+from .recovery_action import normalize_action_ids, project_available_actions
 from .workflow_selection import normalize_workflow_selection_evidence
 
 
@@ -122,13 +123,18 @@ def build_selection_interaction(
         "state": state if state in SELECTION_INTERACTION_STATES else "unavailable",
         "reason_code": reason[:_MAX_TEXT],
         "status": status_value or "UNKNOWN",
-        "allowed_actions": [item for item in actions if item in SELECTION_INTERACTION_ACTIONS],
+        "allowed_actions": normalize_action_ids(
+            actions, allowed=SELECTION_INTERACTION_ACTIONS
+        ),
         "selection": normalized_selection,
         "missing_fields": missing,
         "lifecycle": _lifecycle_summary(lifecycle_map),
     }
     if subject_id:
         result["subject_id"] = _text(subject_id)
+    result["actions"] = project_available_actions(
+        result["allowed_actions"], subject_id=subject_id
+    )
     decision_summary = _decision_summary(decision_map)
     if decision_summary:
         result["decision"] = decision_summary
@@ -190,11 +196,10 @@ def _lifecycle_summary(value: Mapping[str, Any]) -> dict[str, Any]:
         "schema_version": _text(value.get("schema_version")),
         "state": _text(value.get("state")) or "failed",
         "phase": _text(value.get("phase")) or "unknown",
-        "allowed_actions": [
-            _text(item)
-            for item in (value.get("allowed_actions") or [])[:8]
-            if _text(item) in {"approve", "reject", "clarify", "repair", "retry", "recover", "cancel"}
-        ],
+        "allowed_actions": normalize_action_ids(
+            value.get("allowed_actions"),
+            allowed={"approve", "reject", "clarify", "repair", "retry", "recover", "cancel"},
+        ),
     }
     return result
 

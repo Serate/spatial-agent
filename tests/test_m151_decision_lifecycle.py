@@ -41,6 +41,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
         class TestHandler(AgentApiHandler):
             service = AgentService()
 
+        self.addCleanup(TestHandler.service.close)
         server = ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -73,6 +74,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
 
     def test_service_pauses_then_resumes_the_persisted_plan(self):
         service = AgentService()
+        self.addCleanup(service.close)
         waiting = service.run(
             "查询DEM栅格元数据",
             session_id="m151-service",
@@ -95,6 +97,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
 
     def test_rejection_does_not_dispatch_waiting_plan(self):
         service = AgentService()
+        self.addCleanup(service.close)
         waiting = service.run(
             "查询DEM栅格元数据",
             session_id="m151-reject",
@@ -114,6 +117,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = directory + "/state.db"
             first = AgentService(state_db_path=path)
+            self.addCleanup(first.close)
             waiting = first.run(
                 "查询DEM栅格元数据",
                 session_id="m151-reopen",
@@ -121,6 +125,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
             )
             evidence = waiting["decision_evidence"]
             second = AgentService(state_db_path=path)
+            self.addCleanup(second.close)
             self.assertEqual(
                 second.get_decision(evidence["decision_id"])["decision"]["status"],
                 "PENDING",
@@ -138,6 +143,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
 
             root = directory + "/runs"
             first = AgentService(artifact_store=ArtifactStore(root))
+            self.addCleanup(first.close)
             waiting = first.run(
                 "查询DEM栅格元数据",
                 session_id="m151-artifact",
@@ -146,6 +152,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
             )
             evidence = waiting["decision_evidence"]
             second = AgentService(artifact_store=ArtifactStore(root))
+            self.addCleanup(second.close)
             self.assertEqual(
                 second.get_decision(evidence["decision_id"])["decision"]["status"],
                 "PENDING",
@@ -206,6 +213,7 @@ class M151DecisionLifecycleTests(unittest.TestCase):
 
     def test_waiting_plan_can_be_cancelled_without_dispatch(self):
         service = AgentService()
+        self.addCleanup(service.close)
         waiting = service.run(
             "查询DEM栅格元数据",
             session_id="m151-cancel",

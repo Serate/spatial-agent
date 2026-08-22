@@ -101,6 +101,8 @@ class AgentRunResult:
     decision_evidence: Optional[Dict[str, Any]] = None
     # Versioned evidence index retained in SQLite/history snapshots (M159).
     evidence_registry: Optional[Dict[str, Any]] = None
+    # Generic, bounded receipt for an interaction/lifecycle/recovery action.
+    action_receipt: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         data = asdict(self)
@@ -133,4 +135,6 @@ class AgentRunResult:
             data.pop("decision_evidence", None)
         if data.get("evidence_registry") is None:
             data.pop("evidence_registry", None)
+        if data.get("action_receipt") is None:
+            data.pop("action_receipt", None)
         return data
