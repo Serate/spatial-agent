@@ -2323,3 +2323,9 @@ M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194
 - 组合组件身份已进入 preview、完成结果、run detail 和 Artifact 的 selection evidence；旧单模板字段保持兼容。
 - M194-A/B 专项 **5/5**，M193/M191/M192 联合回归 **17/17**，Docker compileall 通过。
 - 当前工作树待 quick/stage/full-stage、生产 acceptance、敏感检查、提交和推送；下一切片继续做 HTTP/async/SQLite restart 的组合 evidence equality。
+
+## M194-C 当前进度：组合跨入口恢复
+
+- 新增 HTTP、Artifact、async 和 SQLite restart 组合证据测试；组件 ID/template ID 在 preview、完成结果、detail、Artifact 和重启恢复中保持一致。
+- M194-A/B/C 专项 **7/7**；M193/M191/M192 联合回归 **19/19**；Docker compileall 通过。
+- 当前切片待执行阶段最终 quick/stage/full-stage、生产 acceptance、敏感检查、提交和推送；下一阶段从全局角度评估跨 Domain 组合与异步取消/超时边界。

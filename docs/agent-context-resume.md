@@ -1976,3 +1976,10 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - Service preview、完成结果、run detail 和 Artifact 对同一组合 workflow 的组件身份保持一致；旧单模板 selection 继续兼容。
 - M194-B 专项与 M194-A 联合验证 **5/5**；M193/M191/M192 受影响回归 **17/17**；Docker compileall 通过。
 - 当前切片待重新执行阶段 profile/生产收口、敏感检查、提交和推送；下一步继续补 async/restart 和 HTTP Contract Harness 的组合证据矩阵。
+
+## M194-C 当前完成状态：组合组件跨入口恢复
+
+- 新增 `tests/test_m194_composition_cross_entry.py`，验证 HTTP preview/run/detail/Artifact 以及 async 完成、SQLite 重启恢复的组件身份一致性。
+- M194-A/B/C 联合专项 **7/7**；与 M193/M191/M192 联合回归 **19/19**；Docker compileall 通过。
+- 当前切片未新增 Runtime 专用 GIS 分支，未调用真实模型或新增私有数据；阶段收口继续使用 Docker quick/stage/full-stage、生产 acceptance 和已有浏览器证据。
+- M194-C 当前代码和文档待最终检查、提交和推送；完成后从全局七维度重新评估是否进入跨 Domain 组合或数据 manifest 组合阶段。

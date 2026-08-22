@@ -3892,3 +3892,9 @@ M194 从证据安全恢复继续推进通用开放式多能力编排，覆盖能
 - `workflow-selection.v1` 增加有界组件身份投影，跨 preview、完成结果、detail 和 Artifact 保持 component ID、template ID、版本、依赖和 constraint keys 一致。
 - M194-A/B 专项 **5/5**，M193/M191/M192 联合回归 **17/17**，Docker compileall 通过；单模板 selection 兼容回归通过。
 - 下一步执行阶段最终 profile、生产接口和敏感检查后推送版本，再进入 M194-C 的 HTTP/async/SQLite restart evidence matrix。
+
+## M194-C：组合组件跨入口恢复（实现完成，待推送）
+
+- 新增 HTTP preview/run/detail/Artifact 与 async 完成/SQLite restart 组合证据矩阵，组件 ID、模板 ID、版本和依赖在各入口一致。
+- M194-A/B/C 专项 **7/7**；M193/M191/M192 联合回归 **19/19**；Docker compileall 通过。
+- 本切片没有新增 Runtime GIS 专用分支、真实模型调用或私有数据；阶段收口后推送版本并进入下一次全局七维度规划。
