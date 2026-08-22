@@ -10,6 +10,7 @@ from agent.domain_contract import evidence_action_guidance
 from agent.runtime_factory import build_runtime
 from domains.gis.domain import GIS_DOMAIN_PACK
 from domains.text.domain import TEXT_DOMAIN_PACK
+from result_contract import build_result_contract
 from agent.workflow_selection import (
     EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
     build_workflow_selection_evidence,
@@ -142,6 +143,38 @@ class M196EvidenceActionTests(unittest.TestCase):
             )
             self.assertEqual(guidance["source"], "domain")
             self.assertTrue(guidance["recommended_actions"])
+
+    def test_result_contract_normalizes_guidance_for_planning_and_interaction(self):
+        selection = build_workflow_selection_evidence(
+            domain_id="example",
+            discovery={"candidate_ids": ["capability_a"]},
+            evidence_action_guidance={
+                "schema_version": EVIDENCE_ACTION_GUIDANCE_SCHEMA_VERSION,
+                "state": "degraded",
+                "reason_code": "needs_review",
+                "recommended_actions": ["preview", "repair"],
+                "source": "domain",
+            },
+        )
+        contract = build_result_contract(
+            {
+                "status": "NEEDS_CLARIFICATION",
+                "result_type": "text_summary_result",
+                "answer": "需要进一步选择能力",
+                "plan": {"output": {"type": "text_summary_result"}},
+                "plan_evidence": {"workflow_selection": selection},
+                "steps": [],
+            }
+        )
+
+        planning_guidance = contract["planning"]["workflow_selection"][
+            "evidence_action_guidance"
+        ]
+        interaction_guidance = contract["selection_interaction"][
+            "evidence_action_guidance"
+        ]
+        self.assertEqual(planning_guidance["reason_code"], "needs_review")
+        self.assertEqual(interaction_guidance, planning_guidance)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,8 @@ from agent.action_effect import project_action_effect
 from agent.evidence_registry import build_evidence_registry
 from agent.evidence_recovery import project_evidence_recovery
 from agent.recovery_action import normalize_action_receipt
+from agent.planner_selection import normalize_planner_selection_evidence
+from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.contract_versions import (
     MODEL_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
@@ -111,9 +113,10 @@ def build_result_contract(
     )
     replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
     lifecycle = project_action_lifecycle(payload)
+    planning_evidence = _normalize_planning_evidence(payload.get("plan_evidence"))
     selection_interaction = build_selection_interaction(
-        selection=(payload.get("plan_evidence") or {}).get("workflow_selection")
-        if isinstance(payload.get("plan_evidence"), Mapping)
+        selection=planning_evidence.get("workflow_selection")
+        if isinstance(planning_evidence, Mapping)
         else None,
         clarification=payload.get("clarification"),
         decision=payload.get("decision_evidence"),
@@ -158,7 +161,7 @@ def build_result_contract(
         "selection_interaction": selection_interaction,
         "lifecycle": lifecycle,
         "context": payload.get("context_evidence") or {"available": False},
-        "planning": payload.get("plan_evidence") or {"available": False},
+        "planning": planning_evidence,
         "references": references,
         "lineage": lineage,
         "replanning": replanning,
@@ -221,6 +224,23 @@ def build_result_contract(
     # remain untouched; nested versions and required panel shape are checked
     # before the result reaches HTTP, artifact, async or Console consumers.
     return normalize_result_contract(contract)
+
+
+def _normalize_planning_evidence(value: Any) -> Dict[str, Any]:
+    """Normalize public selection evidence before result/async/artifact use."""
+
+    if not isinstance(value, Mapping):
+        return {"available": False}
+    result = dict(value)
+    if "workflow_selection" in result:
+        result["workflow_selection"] = normalize_workflow_selection_evidence(
+            result.get("workflow_selection")
+        )
+    if "planner_selection" in result:
+        result["planner_selection"] = normalize_planner_selection_evidence(
+            result.get("planner_selection")
+        )
+    return result
 
 
 def _model_evidence(metrics: Any, runtime_context: Any) -> Dict[str, Any]:
