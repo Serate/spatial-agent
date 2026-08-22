@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from agent.artifact_store import ArtifactStore
+from agent.action_lifecycle import project_action_lifecycle
 from agent.action_contract import ActionContractError
 from agent.cost_governance import RunTokenCapExceeded, extract_tokens as _extract_tokens
 from agent.decision_lifecycle import DecisionLifecycleError, DecisionRecord
@@ -441,6 +442,7 @@ class AgentService:
             payload["status"] = "FAILED"
             payload["error"] = str(exc)
             payload["error_category"] = "budget"
+        payload["lifecycle"] = project_action_lifecycle(payload)
         return payload
 
     def get_decision(self, decision_id: str) -> Dict[str, Any]:

@@ -40,6 +40,7 @@ from .domain_contract import (
 )
 from .deployment_evidence import build_deployment_evidence
 from .decision_lifecycle import DecisionLifecycleError, DecisionRequest, DecisionStore
+from .action_lifecycle import project_action_lifecycle
 from .evidence_contract import project_capability_catalog_evidence
 from .failure_contract import build_failure_evidence
 from .memory import FactMemory
@@ -943,6 +944,7 @@ class AgentRuntime:
                 context_packet=context_packet,
                 repair_lineage=payload.get("replan_events"),
             )
+        payload["lifecycle"] = project_action_lifecycle(payload)
         if payload.get("workflow") is None:
             payload.pop("workflow", None)
         return payload

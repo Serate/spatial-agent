@@ -4166,3 +4166,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 根因是 `clearChat()` 在调用 `resetConversationView()` 前等待会话清理请求；网络延迟时页面仍保留旧地图、选区和工作区。修复为先清理 UI，再异步持久化清理，并在失败时显示有界提示。
 - 验证：Docker 重建健康；复杂 `scripts/console_map_smoke.js` 连续 3 次通过；`git diff --check` 通过；默认测试仍未扩大。
 - 下一阶段按全局目标检查动态能力发现、结果契约、异步恢复和跨入口证据是否仍有缺口，不新增单区域专用分支。
+
+## M207-A：Preview 生命周期投影统一（已完成）
+
+- Runtime `preview()` 和 Service `preview()` 复用既有 `project_action_lifecycle()`，为只规划响应增加版本化顶层 `lifecycle` 投影。
+- 预算门控改写状态后由 Service 重新计算生命周期，避免 preview 在 `FAILED`、`NEEDS_CLARIFICATION` 或 `PLANNED` 之间出现状态与动作不一致。
+- 未匹配空间能力的 production `/runs/preview` 已返回 `clarification_required`、`planning` 和 `clarify/cancel`，与正式 `/runs` 的结果生命周期一致；没有新增 GIS 专用分支。
+- Docker 验证：`tests.test_m190_open_capability` 4/4；production HTTP clarification probe 通过。
+- 下一阶段继续从全局目标审计同步、异步、Artifact 和 Console 对 pending/repair/recovery 生命周期的完整投影，而不是扩展单个页面。

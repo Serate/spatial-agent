@@ -17,17 +17,17 @@
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M206-A 已完成，复杂开放式请求的生产 HTTP→Console/Artifact 纵向验收与 Console 清空状态修复待推送。
-- 最新提交：`21bf1f3 feat: render interaction evidence in console`。
+- 当前阶段：M207-A 已完成，Preview 生命周期投影统一待推送。
+- 最近功能提交：`e44af15 fix: clear console workspace before session persistence`。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
 - 已通过：M200–M205 的跨入口、恢复、证据、Node/Chrome/DOM smoke 及生产 acceptance。
-- 当前无阻塞：地图渲染、选区清理和工作区清理回归已通过。
+- 当前无阻塞：M206 地图清理和 M207 preview 生命周期回归均已通过。
 
 ## 当前唯一工作切片
 
-1. 复核 M206-A 的最小 diff、敏感信息和文档摘要。
-2. 提交并推送 M206-A；保留 Docker/浏览器验收证据引用，不提交原始响应。
-3. 推送后按全局七个维度规划 M207，再选择一个最小纵向切片实现。
+1. 复核 M207-A 的最小 diff、敏感信息和文档摘要。
+2. 提交并推送 M207-A；保留 Docker/HTTP 验收证据引用，不提交原始响应。
+3. 推送后按全局七个维度规划 M208，再选择一个 pending/repair/recovery 纵向切片实现。
 
 ## 不变量
 

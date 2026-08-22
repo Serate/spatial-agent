@@ -91,6 +91,8 @@ class M190OpenCapabilityTests(unittest.TestCase):
         payload = runtime.preview("查询一个尚未注册的空间对象")
 
         self.assertEqual(payload["status"], "NEEDS_CLARIFICATION")
+        self.assertEqual(payload["lifecycle"]["state"], "clarification_required")
+        self.assertEqual(payload["lifecycle"]["allowed_actions"], ["clarify", "cancel"])
         selection = payload["plan_evidence"]["workflow_selection"]
         self.assertEqual(selection["state"], "unavailable")
         self.assertTrue(selection["suggested_capability_details"])
