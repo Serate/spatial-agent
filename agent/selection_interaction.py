@@ -12,6 +12,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .action_precondition import (
+    is_action_allowed,
+    project_action_preconditions,
+)
 from .action_lifecycle import project_action_lifecycle
 from .recovery_action import normalize_action_ids, project_available_actions
 from .workflow_selection import (
@@ -58,6 +62,7 @@ def build_selection_interaction(
     clarification: Any = None,
     decision: Any = None,
     lifecycle: Any = None,
+    action_preconditions: Any = None,
     status: str | None = None,
     subject_id: str | None = None,
 ) -> dict[str, Any]:
@@ -78,6 +83,11 @@ def build_selection_interaction(
     )
     status_value = _text(status or lifecycle_map.get("status")).upper()
     clarification_map = _mapping(clarification)
+    precondition_map = (
+        project_action_preconditions({"action_preconditions": action_preconditions})
+        if action_preconditions is not None
+        else None
+    )
     missing = _missing_fields(normalized_selection.get("missing_fields"))
     if not missing:
         missing = _missing_fields(
@@ -133,6 +143,17 @@ def build_selection_interaction(
         reason = "selection_interaction_unavailable"
         actions = ()
 
+    blocked_actions = []
+    if precondition_map is not None:
+        blocked_actions = [
+            action
+            for action in actions
+            if not is_action_allowed(
+                {"action_preconditions": precondition_map}, action
+            )
+        ]
+        actions = tuple(action for action in actions if action not in blocked_actions)
+
     result: dict[str, Any] = {
         "schema_version": SELECTION_INTERACTION_SCHEMA_VERSION,
         "available": state != "unavailable",
@@ -146,6 +167,10 @@ def build_selection_interaction(
         "missing_fields": missing,
         "lifecycle": _lifecycle_summary(lifecycle_map),
     }
+    if precondition_map is not None:
+        result["action_preconditions"] = precondition_map
+    if blocked_actions:
+        result["blocked_actions"] = blocked_actions[:_MAX_ITEMS]
     guidance = normalize_evidence_action_guidance(
         normalized_selection.get("evidence_action_guidance")
     )
@@ -181,6 +206,7 @@ def normalize_selection_interaction(value: Any) -> dict[str, Any]:
         clarification={"missing_fields": value.get("missing_fields")},
         decision=value.get("decision"),
         lifecycle=value.get("lifecycle"),
+        action_preconditions=value.get("action_preconditions"),
         status=_text(value.get("status")) or "UNKNOWN",
         subject_id=_text(value.get("subject_id")) or None,
     )

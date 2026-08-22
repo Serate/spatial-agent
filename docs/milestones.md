@@ -4110,3 +4110,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：HTTP、async、Artifact、SQLite restart 和多 Service 幂等动作统一。
 6. 体验：通用 renderer 展示动作可执行性、阻断原因、receipt 和修复链。
 7. 测试：一个跨入口 envelope contract 配合少量前端/浏览器 smoke，默认 CI 保持精简。
+
+## M203-A：Interaction 前置条件统一投影（已完成，待版本推送）
+
+- Result Contract 先生成唯一 `action_preconditions`，再将其交给 `selection_interaction`；强制阻断动作从交互层 `allowed_actions` 移除，安全退出动作不受影响。
+- `selection-interaction.v1` 保留有界前置条件与 `blocked_actions`，Result、async 和 recovery 对阻断场景保持相同投影；Docker M203-A/M196/M165 **20/20** 通过。
+- 下一阶段 M204 统一 Action Receipt、transition lineage、repair lineage 和 interaction lifecycle 的 identity 引用；本阶段没有新增 GIS 分支或默认网络依赖。
+
+## M204：下一阶段全局规划参考
+
+1. 产品：待确认/可修复/可恢复状态同时展示动作、凭据、前置条件和修复链。
+2. 架构：绑定 Receipt、transition lineage、repair lineage 与 interaction lifecycle 的有界 subject/identity。
+3. 数据：动作绑定 request/plan/evidence fingerprint，证据变化只产生阻断或 repair。
+4. 模型：脱敏 replay 验证有限 repair 后的 receipt/lineage 消费。
+5. 部署：HTTP、async、Artifact、SQLite restart 和重复 action 共享 receipt identity/幂等结果。
+6. 体验：通用 renderer 显示 receipt、阻断原因、repair lineage 和允许动作。
+7. 测试：精简 receipt/lineage 跨入口 contract，默认 CI 继续离线。

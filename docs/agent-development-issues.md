@@ -4962,6 +4962,20 @@ Async result evidence 在 `WAITING_FOR_DECISION` 或 `NEEDS_CLARIFICATION` 时�
 
 现在规划、执行、确认和澄清状态统一映射为 `pending`，可修复、可恢复及其他失败控制态映射为 `degraded`；M165/M146/M148 回归 **8/8**。以后新增 async/view 状态必须先映射公共 lifecycle，再决定展示层状态，不能仅凭“没有 degradation”推断成功。
 
+## M203-A：交互层允许动作没有复用强制前置条件
+
+### 现象
+
+Result Contract 同时输出 `selection_interaction.allowed_actions` 和 `action_preconditions`，但交互层先于前置条件构建。当前置条件被强制阻断时，前端仍可能看到可点击的 `confirm`、`repair` 或 `retry`，随后才在 Runtime 动作入口失败。
+
+### 根因
+
+两个公共 projection 各自独立计算：`action_lifecycle` 已经使用 `is_action_allowed()`，而 `selection_interaction` 只根据状态和候选选择生成动作，且 async/recovery 归一化没有可复用的阻断字段。
+
+### 处理与预防
+
+Result Contract 先构建唯一前置条件 projection，再传给 `selection_interaction`；交互层复用同一个 Runtime gate，保存有界 `blocked_actions` 和前置条件摘要，安全取消仍可用。M203-A/M196/M165 回归 **20/20**。以后任何 UI allowed action 必须来自同一 Runtime gate，不得从 Domain guidance 或单独状态分支推导可执行权限。
+
 ## M200-A：复杂请求跨入口只验证完成状态导致结果证据漂移
 
 ### 现象

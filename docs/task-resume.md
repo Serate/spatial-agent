@@ -2531,3 +2531,20 @@ M200 从 M199 的复杂真实纵向链路继续验证“同一请求在不同入
 5. 部署：HTTP、async、Artifact、SQLite restart 和多 Service 幂等动作共享同一 precondition/receipt 结果。
 6. 体验：Console 通用 renderer 展示动作是否可执行、阻断原因、receipt 和修复链，不增加 GIS 页面分支。
 7. 测试：一个跨入口 interaction envelope contract 加上少量前端/浏览器 smoke；默认 quick/CI 继续精简。
+
+## M203-A：Interaction 前置条件统一投影（已完成，待版本推送）
+
+- `result_contract` 现在只构建一次 `action_preconditions`，并将同一有界 projection 传给 `selection_interaction`；强制阻断的执行动作不会继续出现在交互层 `allowed_actions`，安全退出动作仍保留。
+- `selection_interaction.v1` 持久化有界前置条件与 `blocked_actions`，async 和 recovery 归一化会复用该投影；Result Contract → async evidence → async recovery 的阻断场景保持一致。
+- Docker M203-A/M196/M165 精简回归 **20/20** 通过；未增加 GIS Runtime 分支、第二状态机或默认网络依赖。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M204，补齐 Action Receipt/repair lineage 在同一 interaction envelope 中的跨入口引用。
+
+## M204：下一阶段全局规划参考
+
+1. 产品：在待确认、可修复和可恢复状态中同时展示当前动作、动作凭据、前置条件和修复链。
+2. 架构：把 Action Receipt、transition lineage、repair lineage 和 interaction lifecycle 绑定到同一个有界 subject/identity 引用。
+3. 数据：动作必须绑定 request/plan/evidence fingerprint；过期或变化的 evidence 只能产生结构化阻断或 repair。
+4. 模型：脱敏 replay 验证有限 repair 后 receipt/lineage 仍可被 Planner 与 Runtime 消费，禁止原始 provider 文本进入 envelope。
+5. 部署：HTTP、async、Artifact-only、SQLite restart 和重复 action 提交共享 receipt identity 与幂等结果。
+6. 体验：Console 以通用 renderer 展示 receipt 状态、阻断原因、repair lineage 和允许动作，不增加 GIS 页面分支。
+7. 测试：一个 receipt/lineage 跨入口 contract 配合既有前置条件回归；默认 quick/CI 继续精简。

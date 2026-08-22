@@ -113,6 +113,7 @@ def build_result_contract(
     )
     replanning = build_replanning_evidence(_replanning_events_from_payload(payload))
     lifecycle = project_action_lifecycle(payload)
+    action_preconditions = project_action_preconditions(payload)
     planning_evidence = _normalize_planning_evidence(payload.get("plan_evidence"))
     selection_interaction = build_selection_interaction(
         selection=planning_evidence.get("workflow_selection")
@@ -121,6 +122,7 @@ def build_result_contract(
         clarification=payload.get("clarification"),
         decision=payload.get("decision_evidence"),
         lifecycle=lifecycle,
+        action_preconditions=action_preconditions,
         status=payload.get("status"),
         subject_id=payload.get("run_id"),
     )
@@ -166,7 +168,7 @@ def build_result_contract(
         "lineage": lineage,
         "replanning": replanning,
         "execution_timeline": build_execution_timeline(payload),
-        "action_preconditions": project_action_preconditions(payload),
+        "action_preconditions": action_preconditions,
         "action_effect": project_action_effect(payload),
         "degradation": degradation,
         "workspace": workspace,
