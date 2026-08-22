@@ -4263,3 +4263,20 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：生产 HTTP、Docker health、Artifact、SQLite/restart 和浏览器缓存禁用共同验收；provider 不可用时保留可恢复离线路径。
 6. 体验：Console 动态消费真实 Result/workspace/evidence，显示执行轨迹、地图/结构化结果、降级原因和下一步动作，不增加固定问句分支。
 7. 测试：新增一条显式 live-short + 真实 GIS/Docker/Console 验收，脱敏 replay 进入专项；默认 CI 仍离线精简。
+
+## M215-A：真实模型 + 真实 GIS/Docker + Console 显式验收（已完成）
+
+- Docker live-short 使用已配置的 OpenAI-compatible 中转与 `deepseek-v4-flash`，真实 LLM Planner 成功生成 `raster_metadata` 计划并完成工具执行；未输出或提交 key、原始响应。
+- 真实复杂洪山区请求通过 Service 和生产 HTTP 两条入口，各完成 9 个 GIS 工具步骤，返回 `spatial_analysis_result`、`live_model` evidence、Artifact 和 7 项 evidence registry；Artifact evidence 生命周期为 `completed`。
+- 真实 GIS 输出明确报告 geometry 有界截断（79 个要素、warning），没有把 metadata-only/截断结果伪装成完整几何；Console 地图 smoke 修正数据事实后通过，Leaflet 57 个路径、洪山区选区和完成状态可见。
+- 默认 CI 未接入网络；live、HTTP、Docker、浏览器均作为显式验收路径。下一阶段聚焦 live 失败/修复/降级和可按需恢复的 geometry/artifact 体验。
+
+## M216：下一阶段全局规划参考
+
+1. 产品：让真实模型失败、计划修复、澄清、降级和 geometry 按需恢复都能在对话与中心结果窗中解释清楚。
+2. 架构：验证 LLM Planner 的 schema 校验、有限 repair、拒绝/确认和 fallback 与 Rule Planner 共用同一生命周期、timeline、Result 和 evidence。
+3. 数据：为截断几何、metadata-only 输出和缺失/未对齐栅格设计可恢复的 artifact/分片引用，不把展示上限变成分析成功。
+4. 模型：用脱敏 replay 构造无效 JSON、工具参数错误、超时和 provider 不可用场景，再做一次 live-short 修复/澄清验证；控制重试和 token。
+5. 部署：验证中转不可用时的明确错误分类、离线 Rule fallback、Docker 重启和已有 Artifact 读取，不泄露凭证。
+6. 体验：Console 动态显示“已完成但几何截断”“需要澄清”“可修复”“provider 不可用”等状态及安全下一步，不增加问句专用分支。
+7. 测试：增加少量脱敏模型 replay + 一条 live failure/recovery + geometry artifact smoke；默认 CI 继续离线、精简。

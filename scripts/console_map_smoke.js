@@ -2,7 +2,7 @@
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const consoleUrl = process.env.CONSOLE_URL || "http://127.0.0.1:8088/";
-const mapRequest = process.env.MAP_REQUEST || "分析洪山区建设适宜性，坡度不超过20度";
+const mapRequest = process.env.MAP_REQUEST || "请分析洪山区建设适宜性，使用DEM和土地利用数据，坡度不超过20度";
 const cdpUrl = process.env.CDP_URL || "http://127.0.0.1:9222";
 const response = await fetch(`${cdpUrl}/json/list`);
 const pages = await response.json();

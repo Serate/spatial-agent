@@ -2,6 +2,26 @@
 
 > 上下文压缩恢复时不要全文阅读本文件。先读取 `docs/agent-context-current.md`，再用 `rg -n -i "关键词" docs/agent-development-issues.md` 定位相关问题，并只读取命中附近内容。
 
+## M215：Console 地图 smoke 的默认问句缺少数据集事实
+
+### 现象
+
+`console_map_smoke.js` 默认请求“分析洪山区建设适宜性，坡度不超过20度”时，Runtime 返回结构化 `capability_facts_required`，缺少 `dataset`，因此没有可点击几何；这不是 Leaflet 或地图渲染失败。补充“使用 DEM 和土地利用数据”后，同一 smoke 生成 57 个矢量路径并完成洪山区选区。
+
+### 原因与处理
+
+当前 Runtime 对信息不足的请求按设计进入澄清，不能为了通过地图 smoke 在 Rule Planner 中增加单问句默认分支。验收样例已改为明确数据事实的自然语言请求；真实 live/HTTP 复杂请求仍由 LLM Planner 动态生成 9 步计划。以后 UI smoke 必须区分“合法澄清”与“应生成几何但没有几何”，不能把所有非地图结果当成前端故障。
+
+## M215：真实模型复杂请求出现有界几何降级
+
+### 现象
+
+真实中转模型 + Docker GIS 的洪山区复杂请求成功完成 9 个工具步骤并导出 Artifact，但 geometry 被有界输出策略标记为 `truncated_geometry`，79 个要素未作为完整地图几何返回；Result 仍明确给出 warning。
+
+### 处理与预防
+
+保留 `geometry_truncated`、`output_manifest_metadata_only` 等降级证据，不把截断结果标为完整空间结论；Artifact、HTTP 和前端仍可读取摘要与导出引用。后续应优先完善按需 geometry/artifact 分片或地图摘要交互，并在 live 验收中同时检查“成功状态”和几何完整性，不能只看 9/9 工具完成。
+
 ## M214：复杂请求 harness 漏比 execution/workspace，且误报可选 Async evidence
 
 ### 现象
