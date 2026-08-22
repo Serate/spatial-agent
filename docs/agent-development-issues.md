@@ -4919,3 +4919,17 @@ replay runner 现在按 turn 将对应的脱敏响应绑定到独立的 recorded
 ### 处理与预防
 
 浏览器 smoke 在导航前调用 CDP `Network.setCacheDisabled`，并继续要求容器按当前工作树重建。前端验收必须同时核对容器资源版本、Node normalization 和真实 DOM 文本，不能只看其中一层。
+
+## M199-A：自定义 live case 只检查状态导致复杂 DAG 证据过弱
+
+### 现象
+
+真实复杂请求返回 `COMPLETED` 时，原 live baseline 对没有预置 `kind` 的自定义 case 不检查实际工具集合、结果类型和依赖关系，状态通过不等于 Planner 真的完成了目标编排。
+
+### 根因
+
+评测器只为少数历史 GIS case 绑定了内部 `kind` 分支，没有提供领域无关的显式 expected tools/result type contract。
+
+### 处理与预防
+
+新增 `expected_tools`、`expected_result_type` 和既有 `evaluate_plan_quality` 的通用路径；它会同时检查工具覆盖、DAG 边、结果类型、模板匹配和答案质量。以后新增复杂 live/replay case 优先使用显式 contract，不为单个请求增加 evaluator 分支。

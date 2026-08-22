@@ -4038,8 +4038,26 @@ M198 从 M197 的模型与 replay 证据链继续推进“任意结果由公共�
 6. 体验：Text/GIS/未来 Domain 共用候选卡、状态、建议动作和缺失事实 UI。
 7. 测试：Node/Chrome/public workspace smoke 精简分层，不扩张默认 CI。
 
-## M198-A：通用 evidence/action guidance renderer（已完成，待版本推送）
+## M198-A：通用 evidence/action guidance renderer（已完成，版本 0ad2c72）
 
 - Console selection interaction 现在归一化 `evidence_action_guidance.v1`，展示 advisory 建议动作、原因和缺失事实；按钮严格来自 `allowed_actions`。
 - Node interaction、Chrome CDP candidate selection、Evidence Registry 和 nested workspace smoke 均通过；浏览器 smoke 显式禁用缓存以保证加载当前镜像资源。
-- 阶段提交前仅剩 `git diff --check`、敏感信息审计和版本推送。
+- 已完成 `git diff --check`、敏感信息审计和版本推送；下一阶段进入 M199-A。
+
+## M199：全局规划参考
+
+M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求的真实纵向链路”，不把综合空间分析写成前端固定流程：
+
+1. 产品：从对话到多工具 DAG、答案、地图、轨迹、证据和 artifact 的完整展示。
+2. 架构：live baseline 使用领域无关的 expected tools/result type/DAG quality contract。
+3. 数据：Rule 与 LLM 共享 Docker GIS 的健康、覆盖、对齐和 provenance 边界。
+4. 模型：比较能力选择、工具集合、依赖、结果类型、答案质量、token 和延迟。
+5. 部署：真实模型 + Docker GIS 仅显式验收，默认 CI 不联网不依赖私有数据。
+6. 体验：继续由 workspace/view 与通用 guidance renderer 决定结果内容。
+7. 测试：复杂 live-short、explicit contract 单测和少量跨入口回归分层执行。
+
+## M199-A：复杂开放式真实纵向链路（已完成，待版本推送）
+
+- Rule + 本地 GIS 复杂请求完成 9 个工具步骤；真实模型 + Docker GIS 同一请求实际选择 9 个工具、14 条 DAG 依赖边，`spatial_analysis_result`、计划质量和答案质量均通过。
+- `live_baseline` 新增通用 `expected_tools` / `expected_result_type` 验收字段和 explicit composed case 单测；M194/M195/HTTP **8/8**。
+- 复杂 live-short 仅保存结构化摘要，1/1、无重试；阶段提交前仅剩 diff/敏感信息门禁和版本推送。

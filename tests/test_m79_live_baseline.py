@@ -110,6 +110,39 @@ class M79LiveBaselineExtensionTests(unittest.TestCase):
         self.assertEqual(report["cases"][0]["result_type"], "constrained_buildability_result")
         self.assertIn("get_zonal_constrained_buildability_analysis", report["cases"][0]["actual_tools"])
 
+    def test_explicit_case_contract_checks_tools_and_result_type(self):
+        plan = TaskPlan(
+            "组合分析",
+            [
+                PlanStep("first", "tool_a", {}, []),
+                PlanStep("second", "tool_b", {}, ["first"]),
+            ],
+            {"type": "composed_result"},
+        )
+        result = _result(
+            "COMPLETED",
+            metrics={"status": "success", "usage": {"total_tokens": 12}, "latency_ms": 4, "attempts": 1, "retries": 0},
+            plan=plan,
+            steps=[StepRun(item.id, item.tool, item.args, item.depends_on, status="COMPLETED") for item in plan.steps],
+        )
+        with patch("evaluation.live_baseline.runtime_capability_snapshot", return_value={
+            "environment": "local", "health_status": "ready", "data_readiness": "ready",
+            "capabilities": [], "data_evidence": {}, "runtime": {},
+        }):
+            report = run_live_baseline(
+                runtime_factory=lambda planner, backend: type("Runtime", (), {"run": lambda self, request, session_id: result})(),
+                replay_evaluator=lambda fixture: {"failed": 0, "passed": 4, "evidence_registry_completeness": {"passed": True}},
+                cases=[{
+                    "id": "explicit-composed",
+                    "request": "组合分析",
+                    "expected_status": "COMPLETED",
+                    "expected_tools": ["tool_a", "tool_b"],
+                    "expected_result_type": "composed_result",
+                }],
+            )
+        self.assertTrue(report["passed"])
+        self.assertTrue(report["cases"][0]["plan_quality"]["passed"])
+
     def test_region_comparison_case_requires_service(self):
         with patch("evaluation.live_baseline.runtime_capability_snapshot", return_value={
             "environment": "local", "health_status": "ready", "data_readiness": "ready",

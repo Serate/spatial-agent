@@ -720,7 +720,17 @@ def _result_evidence(
     actual_tools = [step.tool for step in result.steps]
     kind = str(case.get("kind") or "")
     quality = None
-    if kind == "spatial_overview" and plan:
+    explicit_tools = case.get("expected_tools")
+    explicit_result_type = case.get("expected_result_type")
+    if plan and (isinstance(explicit_tools, (list, tuple)) or explicit_result_type):
+        quality = evaluate_plan_quality(
+            plan,
+            expected_tools=[item for item in (explicit_tools or []) if isinstance(item, str)],
+            expected_result_type=explicit_result_type,
+            expected_template_id=case.get("expected_template_id"),
+            answer=result.answer,
+        )
+    elif kind == "spatial_overview" and plan:
         expected_tools = _capability_tools(snapshot, "spatial_overview")
         quality = evaluate_plan_quality(
             plan,

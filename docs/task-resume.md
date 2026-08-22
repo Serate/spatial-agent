@@ -2446,8 +2446,25 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 6. 体验：Text/GIS/未来 Domain 共用候选卡、状态 badge、建议动作和缺失事实展示。
 7. 测试：只增加 Node normalization、Chrome CDP interaction 和已有公共 workspace smoke，不扩张默认 CI。
 
-## M198-A 当前完成状态：通用 evidence/action guidance renderer
+## M198-A 当前完成状态：通用 evidence/action guidance renderer（已推送）
 
 - `web/console_selection_interaction.js` 归一化 `evidence_action_guidance.v1`，候选/澄清卡片显示建议动作与缺失事实；只有 Runtime `allowed_actions` 会生成可点击按钮。
 - Node interaction smoke、Chrome candidate-selection smoke、Evidence Registry smoke 和 nested workspace smoke 均通过；Chrome smoke 已禁用缓存，避免旧容器脚本造成误判。
-- 下一步：执行 diff/敏感信息门禁，提交推送 M198-A，再按全局目标规划下一切片。
+- 已完成 diff/敏感信息门禁，版本为 `0ad2c72`；下一阶段进入 M199-A。
+
+## M199 全局规划参考
+
+1. 产品：验证一个开放式复杂空间问题可以从对话进入多工具 DAG，并在结果工作区展示答案、地图、轨迹、证据和 artifact。
+2. 架构：把 live baseline 的 `expected_tools`、`expected_result_type` 和 DAG quality 做成领域无关验收契约，不增加固定问句分支。
+3. 数据：Rule 与真实模型共享同一 Docker GIS 数据健康、覆盖和 provenance 边界；数据缺失仍必须结构化降级。
+4. 模型：比较 Rule/LLM 的能力选择、工具集合、依赖关系、结果类型和答案质量；记录 token/延迟但不保存原始响应。
+5. 部署：真实模型 + Docker GIS 只作为显式验收；HTTP、async、SQLite、Artifact 使用已有跨入口 contract 回归。
+6. 体验：复杂结果继续由 `workspace/view` 和通用 guidance renderer 驱动，避免把综合分析拆成前端固定流程。
+7. 测试：保留一条复杂 live-short、一个 explicit live contract 单测和少量 HTTP/生命周期回归，不扩大默认 CI。
+
+## M199-A 当前完成状态：复杂开放式真实纵向链路
+
+- Rule + 本地 GIS 复杂请求完成 **9** 个工具步骤；真实模型 + Docker GIS 同一请求实际选择 **9** 个工具、形成 **14** 条 DAG 依赖边，结果类型 `spatial_analysis_result`，计划质量和中文答案质量均通过。
+- `live_baseline` 支持通用 `expected_tools` / `expected_result_type` contract，并新增 explicit composed case 单测；M194/M195/HTTP 回归 **8/8**。
+- 复杂 live-short 只保留结构化摘要：1/1、无重试、token/延迟可见，原始模型响应不进入仓库。
+- 下一步：执行 M199-A 门禁、更新中文问题日志并推送版本，再按全局目标规划下一切片。
