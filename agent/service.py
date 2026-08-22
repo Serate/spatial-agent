@@ -2457,6 +2457,16 @@ class AgentService:
         except Exception as exc:
             duration_ms = round((time.perf_counter() - started) * 1000, 3)
             action_error_code = str(getattr(exc, "code", "action_execution_failed"))[:96]
+            # Domain handlers may raise a plain ValueError for semantic input
+            # failures.  Attach the same bounded action identity that replay
+            # reconstructs from the persisted artifact so the first response
+            # and an idempotent replay expose one public error contract.
+            try:
+                setattr(exc, "action_id", action_id)
+                if not getattr(exc, "code", None):
+                    setattr(exc, "code", action_error_code)
+            except Exception:
+                pass
             record = {
                 "action_execution_id": execution_id,
                 "action_id": action_id,

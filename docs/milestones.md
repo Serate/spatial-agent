@@ -4195,3 +4195,20 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 真实 production 确认→批准流程验证：`WAITING_FOR_DECISION` → `COMPLETED`，Result 与 Artifact evidence 都保留 `approve / COMPLETED` receipt 和 transition 状态。
 - Docker 回归：M178 Contract Harness 7/7、M195 composed lifecycle 5/5；未新增 transport 或 GIS 页面分支。
 - 下一阶段从全局目标检查动作失败、幂等重放和服务重启接管时的 receipt/recovery evidence，确保失败也可解释、可恢复。
+
+## M211-A：Action 失败、幂等重放与重启接管的错误契约统一（已完成）
+
+- `AgentService.execute_action()` 在公共失败边界为 Domain handler 的普通异常补齐有界 `action_id` 与稳定 `code`；首次失败、幂等重放和 HTTP `error_response()` 不再因异常类型不同而丢失 action 身份。
+- 失败 action 继续写入版本化 Artifact、Result、lifecycle、execution record 和 trace；固定幂等键的成功重放复用同一 `action_execution_id` 与 Artifact，失败重放在服务重建后仍复用同一失败记录。
+- Docker 验证：M211 专项 **1/1**、既有 schema failure replay **1/1**；重启接管 probe 验证成功/失败两条路径的执行 ID、Artifact 和错误码稳定。
+- 未增加 GIS 页面分支、模型网络依赖或默认 CI 测试矩阵；新增测试只覆盖公共 Service/Artifact 契约。
+
+## M212：下一阶段全局规划参考
+
+1. 产品：让失败、重放、恢复和可执行下一步在 CLI、HTTP、Artifact 与 Console 中都能被用户理解，而不是只显示异常文本。
+2. 架构：抽出领域无关的 Action Execution envelope，统一 action result、error、lifecycle、receipt、recovery 和 idempotency 的可迁移边界。
+3. 数据：失败与恢复证据只保留有界状态、fingerprint、引用和降级原因；验证真实 GIS 缺失时不泄露原始响应或私有路径。
+4. 模型：用脱敏 replay/live-short 验证模型触发的工具失败、计划修复和用户确认仍进入同一 Runtime 生命周期。
+5. 部署：覆盖 HTTP/CLI、SQLite、多 Service 重启和 Artifact-only recovery 的 action envelope 一致性，并明确不可恢复状态。
+6. 体验：通用 workspace renderer 动态消费失败 Artifact、allowed actions、receipt 和恢复建议，不增加 GIS 专用页面分支。
+7. 测试：新增一个精简跨入口 action contract，叠加现有 Docker failure/replay smoke；默认 CI 继续离线，不复制历史大矩阵。

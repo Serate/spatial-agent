@@ -2,6 +2,20 @@
 
 > 上下文压缩恢复时不要全文阅读本文件。先读取 `docs/agent-context-current.md`，再用 `rg -n -i "关键词" docs/agent-development-issues.md` 定位相关问题，并只读取命中附近内容。
 
+## M211：动作失败首次执行与幂等重放的错误契约漂移
+
+### 现象
+
+Domain action 的首次执行可能由 handler 抛出普通 `ValueError`，同一 `idempotency_key` 在服务重启后重放时则由 Artifact 恢复为 `ActionContractError`。两次调用虽然指向同一个失败 Artifact，但首次错误缺少 `action_id` 和稳定 action error code，HTTP 调用方无法获得一致的失败证据。
+
+### 根因
+
+`AgentService.execute_action()` 只在失败 Artifact 中保存 action 身份，未把公共 action 身份和错误码投影回首次抛出的异常；幂等重放只能从持久化记录重新构造这些字段，导致首次执行与重放的异常边界不对称。
+
+### 修复与预防
+
+失败边界现在为异常附加有界 `action_id` 和 `code`，保留原有错误类型，同时让首次错误、幂等重放、HTTP `error_response()` 和失败 Artifact 共享同一 action 身份与错误码。Docker 专项覆盖首次失败、服务重启后的失败重放和 Artifact 恢复；以后新增 action 失败路径必须同时验证首次异常、幂等重放、Artifact 和跨入口错误投影，不能只验证成功 happy path。
+
 ## M206：清空对话不能等待持久化请求后再清理界面
 
 ### 现象
