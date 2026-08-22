@@ -2,6 +2,18 @@
 
 > 这是 Spatial Agent 的当前状态与恢复协议。新对话或上下文压缩后，先只阅读本文件；不要默认全文阅读历史交接文档。只有本文件列出的目标文件或通过 `rg` 定位到的历史问题需要按需读取。
 
+## 压缩恢复触发规则
+
+当出现“上下文已压缩”“继续之前的工作”、新对话接续，或当前上下文只提供摘要时，立即把本文件作为唯一恢复入口。恢复阶段只做以下动作：
+
+1. 读取本文件，获取当前目标、切片、工作集和验证边界。
+2. 用 `git status --short --branch`、`git log -1 --oneline` 核对仓库事实；仓库现状优先于过期快照。
+3. 只读取“当前工作集”中的文件；历史文档必须先用 `rg -n -i "关键词" <文件>` 定位，再读取命中行附近的有限范围。
+4. 先执行当前切片的最小 Docker 专项检查，确认后再修改代码；不要因恢复而自动加载或运行完整历史矩阵。
+5. 完成一个可验证的小阶段后，先更新本文件的状态，再更新详细历史文档。
+
+本文件只保存“现在继续工作所必需的信息”，不记录完整日志、长测试输出、原始模型响应或大段代码；目标是让压缩恢复稳定且低 token。若本文件与代码、测试或最新提交冲突，以代码和可复现验证结果为准，并在继续开发前修正本快照。
+
 ## 当前目标
 
 建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。请求应经过 RequestFacts、能力发现、Planner、TaskPlan/DAG 校验、ToolRegistry、结果组合、结构化 Evidence 和可恢复生命周期；不得为单一区域或固定问句堆叠规则。
@@ -29,6 +41,13 @@
 4. 用脱敏 replay，必要时用 live-short，验证模型消费 evidence、补事实和有限 repair。
 5. 覆盖 production FastAPI、async、SQLite restart、旧 Artifact 和静态资源 allowlist。
 6. Text/GIS 共用动态 renderer；默认 quick/CI 保持精简。
+
+## 当前工作集
+
+- Runtime 边界：`agent/runtime.py`、`agent/evidence_contract.py`、`agent/workflow_selection.py`。
+- 交互边界：`agent/selection_interaction.py`、`web/console_selection_interaction.js`、`web/console_workflow_evidence.js`、`web/console_evidence_registry.js`。
+- 领域边界：`domains/text/`、`domains/gis/`；领域提供 evidence-to-action 建议，公共 Runtime 不增加 GIS 专用分支。
+- 验证入口：`tests/test_m190_open_capability.py`、`tests/test_m164_selection_interaction.py`、`tests/test_m167_candidate_selection.py`、`tests/test_m196_capability_evidence_provider.py`。
 
 ## 测试与部署规则
 
