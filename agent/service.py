@@ -23,6 +23,7 @@ from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.action_identity import build_action_receipt_identity_linkage
 from agent.action_precondition import project_action_preconditions
+from agent.action_lineage import append_action_lineage
 from agent.execution_timeline import attach_action_receipt_timeline
 from agent.recovery_action import (
     action_input_fingerprint,
@@ -1758,7 +1759,6 @@ class AgentService:
         identity_linkage = build_action_receipt_identity_linkage(identity_payload)
         if identity_linkage.get("available"):
             receipt["identity_linkage"] = identity_linkage
-        action_receipt = project_action_receipt(receipt, reused=False)
         action_preconditions = project_action_preconditions(
             identity_payload,
             action=receipt.get("action"),
@@ -1767,6 +1767,27 @@ class AgentService:
         # response is written.  Subsequent replay, Artifact and timeline
         # readers therefore share one canonical, bounded value.
         receipt["preconditions"] = action_preconditions
+        prior_source = identity_payload
+        if not isinstance(prior_source.get("action_receipt"), Mapping):
+            prior_source = self._action_identity_source(
+                receipt,
+                planner=None,
+                backend=None,
+            ) or prior_source
+        prior_receipt = prior_source.get("action_receipt")
+        prior_result = prior_source.get("result")
+        if not isinstance(prior_receipt, Mapping) and isinstance(prior_result, Mapping):
+            prior_receipt = prior_result.get("action_receipt")
+        prior_lineage = prior_source.get("transition_lineage")
+        if not isinstance(prior_lineage, Mapping) and isinstance(prior_result, Mapping):
+            prior_lineage = prior_result.get("transition_lineage")
+        if not isinstance(prior_lineage, Mapping) and isinstance(prior_receipt, Mapping):
+            prior_lineage = prior_receipt.get("transition_lineage")
+        receipt["transition_lineage"] = append_action_lineage(
+            prior_lineage or ([prior_receipt] if isinstance(prior_receipt, Mapping) else []),
+            receipt,
+        )
+        action_receipt = project_action_receipt(receipt, reused=False)
         # Refresh before persisting response_payload: a replay can be served
         # entirely from SQLite and must retain the same action timeline as the
         # immediate response.

@@ -3699,3 +3699,23 @@ M186 将 M185 的 canonical Action Preconditions 推进到可独立比较、可�
 5. 部署：验证多 worker、SQLite CAS、重启接管和 Artifact-only recovery 的动作序列不丢失、不重复。
 6. 体验：Console 动态展示 blocked actions、安全退出、结果影响和下一步动作，不增加 GIS 专用分支。
 7. 测试：保持 quick/CI 精简，新增一条多动作跨入口 Harness，阶段收口运行 Docker、HTTP、Artifact、浏览器和必要 live-short。
+
+## M187：bounded transition lineage 与跨入口恢复（已完成）
+
+M187 将 Action Receipt 从“最后一次动作”推进为可恢复的 bounded transition lineage，仍复用现有 CAS 和 Runtime lifecycle，不新增数据库状态机。
+
+- 新增 `agent/action_lineage.py` 与 `spatial-agent.action-lineage.v1`，每次新动作从源运行/旧 Receipt 追加有界动作语义、身份关联和前置条件；未知 schema 安全降级，最多保留 16 个事件。
+- Receipt、execution timeline、SQLite detail/replay、Artifact 和 Service 集成路径共享同一 lineage；Console 动态显示连续动作步数，不增加 GIS 专用分支。
+- 新增 M187 专项 **4/4**；M184/M185/M186 受影响回归 **19/19**，另有 M182/M183/M156/M157 回归 **16/16**；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP overview smoke 均通过。
+- 生产容器 healthy、核心/可选数据和 runtime capability ready；未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- 固定幂等键导致的默认 SQLite 测试污染已记录到 `docs/agent-development-issues.md`。M187 已完成，下一阶段进入 M188。
+
+## M188 全局重规划参考
+
+1. 产品：让连续动作时间线展示每一步的结果影响、可复用证据、下一步动作和安全退出原因。
+2. 架构：建立 transition lineage 的跨入口 Contract Harness、旧 Receipt 迁移和多 worker CAS 序列一致性。
+3. 数据：把每一动作依赖的 readiness/coverage/alignment/provenance 变化与 lineage 事件关联，区分复用和重验。
+4. 模型：用脱敏多轮 replay 和最小 live-short 验证模型计划、repair、确认和重试在 lineage 中连续。
+5. 部署：验证 SQLite 重启接管、Artifact-only recovery、滚动升级和多 worker 不丢失/重复动作。
+6. 体验：Console 动态显示结果影响与证据引用，支持长 lineage 的折叠/截断/恢复，不增加 GIS 分支。
+7. 测试：quick/CI 继续精简，阶段收口增加多动作 HTTP/Artifact/SQLite/restart Harness 及必要浏览器/live-short。

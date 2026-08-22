@@ -4600,3 +4600,17 @@ M185 初版已经把 Action Preconditions 接入 Result Contract、执行时间�
 ### 处理与预防
 
 生命周期只对显式 gated execution/recovery actions 应用 enforced preconditions，`reject` 和 `cancel` 保留为安全退出路径，并将被阻断动作单独投影为 `blocked_actions`。以后新增动作必须先分类为执行、恢复、确认或安全退出，再决定是否受前置条件影响；测试必须覆盖“执行动作被阻断、拒绝/取消仍可用、未知 schema 不阻断”三种情况。
+
+## M187：动作 lineage 测试不能复用默认持久化库
+
+### 现象
+
+新增 Service → SQLite/detail → Artifact 的 `transition_lineage` 验收时，使用固定幂等键的测试偶发报告“action idempotency key conflicts with a previous input”，而代码和临时 Artifact 目录都是新的。
+
+### 根因
+
+测试只为 Artifact 创建了临时目录，却让 `AgentService` 使用默认 state DB。默认 SQLite 会保留其他测试或本地运行的 interaction receipt，固定幂等键因此跨测试污染；这不是 CAS 或 lineage 逻辑的失败。
+
+### 处理与预防
+
+Service 集成测试同时为 `state_db_path` 和 ArtifactStore 使用同一临时目录，测试结束显式调用 `close()`。以后凡是验证幂等、Action Receipt、重启或多 worker 的测试，都必须显式隔离 SQLite/Artifact 根目录，不能只隔离文件输出目录；固定幂等键只允许在测试私有存储中使用。

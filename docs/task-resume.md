@@ -2174,3 +2174,23 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 5. 覆盖 SQLite 多 worker、重启接管、Artifact-only recovery 的动作不重复、不丢失。
 6. Console 动态展示 blocked actions、安全退出、结果影响和下一步动作。
 7. quick/CI 保持精简，阶段收口再运行 Docker、HTTP、Artifact、浏览器和必要 live-short。
+
+## M187 当前完成状态
+
+- 新增领域无关 `agent/action_lineage.py` 与 `spatial-agent.action-lineage.v1`，canonical Action Receipt 可保留最多 16 个连续动作事件，包含动作语义、identity linkage 和 preconditions，不复制私有输入或 transport ID。
+- Service 完成动作时从源运行/旧 Receipt 追加 lineage；execution timeline、SQLite detail/replay、Artifact 和 Console 共享同一投影，前端显示连续动作步数。
+- M187 专项 4/4；M184/M185/M186 回归 19/19，M182/M183/M156/M157 回归 16/16；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP overview smoke 通过。
+- 测试固定幂等键复用默认 SQLite 的问题已记录到中文问题文档；现已显式隔离临时 state DB 和 Artifact。未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- M187 已完成，下一阶段按 M188 七个全局维度推进结果影响与多动作 Contract Harness。
+
+## M188 下一阶段全局规划参考
+
+从 M187 的连续动作 lineage 继续推进可解释恢复闭环：
+
+1. 补充每个动作的结果影响、证据复用/重验和下一步动作投影。
+2. 建立 lineage 跨 HTTP、async、SQLite、Artifact-only、重启和多 worker 的 Contract Harness。
+3. 补旧 Receipt/schema 迁移与未知版本安全空态，不伪造历史动作。
+4. 用脱敏多轮 replay 和最小 live-short 验证模型计划、repair、确认、重试连续性。
+5. 验证滚动升级和异常接管不重复执行动作、不丢失 lineage。
+6. Console 动态渲染长 lineage 的折叠/截断/恢复，不增加 GIS 专用分支。
+7. quick/CI 维持精简，阶段收口执行 Docker、HTTP、Artifact、浏览器和必要 live-short。

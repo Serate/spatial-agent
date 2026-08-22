@@ -1838,3 +1838,21 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 3. 扩展 Domain evidence 的 readiness、coverage、alignment、provenance 复用/重验语义。
 4. 用脱敏多轮 replay、最小 live-short、SQLite 多 worker、重启和 Artifact-only recovery 验证连续性。
 5. Console 消费 blocked actions、安全退出、结果影响和下一步动作；quick/CI 继续精简，不增加 GIS 专用分支。
+
+## M187 当前完成状态
+
+- 新增 `agent/action_lineage.py` 与 `spatial-agent.action-lineage.v1`，canonical Receipt 追加最多 16 个 bounded transition events；未知 schema 不解释、不伪造历史。
+- Service 从源运行/旧 Receipt 追加 lineage；Timeline、SQLite/detail/replay、Artifact 和 Console 共用该投影，前端显示连续动作步数。
+- M187 专项 4/4，M184/M185/M186 回归 19/19，M182/M183/M156/M157 回归 16/16；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP overview smoke 通过，容器 healthy。
+- 固定幂等键与默认 SQLite 测试污染问题已追加中文问题记录；测试已显式隔离 state DB/Artifact。未调用 live 模型、未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- 当前工作树待最终敏感信息检查、commit/push；之后进入 M188。
+
+## M188 全局规划参考
+
+下一阶段从“连续动作可恢复”推进到“每一步结果影响可解释且可比较”：
+
+1. 增加结果影响、证据复用/重验和下一步动作投影。
+2. 建立多动作 lineage 的 HTTP/async/SQLite/Artifact/restart/multi-worker Contract Harness。
+3. 处理旧 Receipt/schema 迁移和未知版本安全空态。
+4. 以脱敏 replay、最小 live-short 和 Docker 生产接管验证模型/动作连续性。
+5. Console 动态展示长 lineage 的折叠、截断和恢复，不增加 GIS 专用页面分支。

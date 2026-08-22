@@ -170,6 +170,12 @@ def project_action_receipt(
         result["preconditions"] = normalize_action_preconditions(
             value.get("preconditions")
         )
+    if "transition_lineage" in value:
+        from .action_lineage import normalize_action_lineage
+
+        result["transition_lineage"] = normalize_action_lineage(
+            value.get("transition_lineage")
+        )
     return result
 
 

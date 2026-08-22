@@ -207,6 +207,7 @@ def _action_event(
         normalize_action_preconditions,
         project_action_preconditions,
     )
+    from .action_lineage import normalize_action_lineage
     from .recovery_action import normalize_action_receipt
 
     normalized = normalize_action_receipt(receipt)
@@ -245,6 +246,9 @@ def _action_event(
             "result_kind": _text(result_ref.get("kind")) or None,
             "identity_linkage": identity,
             "preconditions": preconditions,
+            "transition_lineage": normalize_action_lineage(
+                normalized.get("transition_lineage")
+            ),
         },
     }
 
@@ -264,6 +268,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
         }
     from .action_identity import normalize_action_receipt_identity_linkage
     from .action_precondition import normalize_action_preconditions
+    from .action_lineage import normalize_action_lineage
 
     identity = normalize_action_receipt_identity_linkage(
         value.get("identity_linkage")
@@ -284,6 +289,9 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
         "identity_linkage": identity,
         "preconditions": normalize_action_preconditions(
             value.get("preconditions")
+        ),
+        "transition_lineage": normalize_action_lineage(
+            value.get("transition_lineage")
         ),
     }
     return result
