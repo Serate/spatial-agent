@@ -12,6 +12,7 @@ from .capability_catalog import (
     capability_context_summary,
 )
 from .capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION
+from .capability_discovery import enrich_discovery_context
 from .context_engineering import ContextBuilder, ContextPacket
 from .domain_contract import (
     DOMAIN_DISCOVERY_SCHEMA_VERSION,
@@ -1102,6 +1103,14 @@ class AgentRuntime:
         understanding_payload = request_understanding_guidance(self._domain_pack)
         catalog = self._domain_pack.capability_catalog(
             environment=self._backend_name or "unknown"
+        )
+        discovery_payload = enrich_discovery_context(
+            discovery_payload,
+            spatial_request,
+            catalog,
+            # Keep the planner context compact while retaining enough choices
+            # for an open request to continue without a fixed question page.
+            max_suggestions=4,
         )
         workflow_selection = build_workflow_selection_evidence(
             discovery=discovery_payload,

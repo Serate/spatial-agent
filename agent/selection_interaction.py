@@ -85,6 +85,13 @@ def build_selection_interaction(
         state = "facts_required"
         reason = "selection_requires_facts"
         actions = ("provide_facts", "select_workflow", "cancel")
+        if normalized_selection.get("suggested_capability_details") or normalized_selection.get(
+            "suggested_capability_ids"
+        ):
+            # A request can be underspecified and still have useful catalog
+            # choices. Keep both recovery paths available: provide facts or
+            # explicitly select one of the Domain-declared capabilities.
+            actions = ("provide_facts", "select_capability", "select_workflow", "cancel")
     elif status_value == "NEEDS_CLARIFICATION" or selection_state == "ambiguous":
         state = "candidate_selection"
         reason = "selection_requires_user_choice"

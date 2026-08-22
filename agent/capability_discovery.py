@@ -11,6 +11,7 @@ from typing import Any, Mapping, Sequence, Tuple
 
 
 CAPABILITY_DISCOVERY_SCHEMA_VERSION = "spatial-agent.capability-discovery.v1"
+DISCOVERY_GUIDANCE_SCHEMA_VERSION = "spatial-agent.capability-discovery-guidance.v1"
 
 
 @dataclass(frozen=True)
@@ -264,6 +265,164 @@ def discover_from_catalog(
         selection_state=state,
         source="catalog",
     )
+
+
+def enrich_discovery_context(
+    discovery: Any,
+    request_facts: Any,
+    capability_catalog: Mapping[str, Any] | None,
+    *,
+    max_fields: int = 8,
+    max_suggestions: int = 8,
+) -> dict[str, Any]:
+    """Add bounded, domain-neutral next-step guidance to discovery.
+
+    Discovery itself answers "what matched".  This projection answers the
+    follow-up question needed by an Agent UI and Planner: "what is missing, or
+    what can the user choose next?"  The catalog remains the only source of
+    labels, input facts, result types and availability; the Runtime does not
+    interpret capability IDs or domain vocabulary.
+
+    The function accepts either ``CapabilityDiscovery`` or its JSON projection
+    so it can be used before persistence without introducing a second domain
+    routing implementation.
+    """
+
+    source = discovery
+    as_context = getattr(discovery, "as_context_dict", None)
+    if callable(as_context):
+        source = as_context()
+    result = dict(source) if isinstance(source, Mapping) else {}
+    catalog = capability_catalog if isinstance(capability_catalog, Mapping) else {}
+    definitions = [
+        item
+        for item in (catalog.get("capabilities") or [])
+        if isinstance(item, Mapping) and str(item.get("id") or "").strip()
+    ]
+    candidate_ids = _bounded_strings(
+        result.get("candidate_ids") or result.get("selected_capability_id")
+    )
+    if result.get("selected_capability_id") and result.get("selected_capability_id") not in candidate_ids:
+        candidate_ids.insert(0, str(result["selected_capability_id"])[:96])
+    candidate_ids = candidate_ids[:16]
+
+    # Import lazily so the value-object module remains safe for compatibility
+    # callers that only need lexical discovery.
+    from .capability_catalog import project_clarification_requirements
+
+    requirements = project_clarification_requirements(
+        candidate_ids,
+        request_facts,
+        capability_definitions=definitions,
+        max_fields=max_fields,
+    )
+    missing_fields = [
+        item for item in (requirements.get("missing_fields") or [])
+        if isinstance(item, Mapping)
+    ][: max(1, int(max_fields))]
+
+    suggestions = []
+    if not candidate_ids:
+        suggestions = _catalog_guidance_cards(
+            definitions,
+            only_ids=None,
+            max_items=max_suggestions,
+        )
+    state = str(result.get("selection_state") or "unavailable")
+    if missing_fields:
+        guidance_state = "clarification"
+        reason_code = "selected_capability_missing_facts" if len(candidate_ids) == 1 else "candidate_capabilities_missing_facts"
+        next_actions = ["补充" + "、".join(str(item.get("label")) for item in missing_fields)]
+    elif state == "ambiguous":
+        guidance_state = "ambiguous"
+        reason_code = "multiple_capabilities"
+        next_actions = ["选择一个候选能力", "或补充更明确的任务目标和条件"]
+    elif candidate_ids:
+        guidance_state = "selected"
+        reason_code = "capability_selected"
+        next_actions = ["预览计划或继续执行"]
+    else:
+        guidance_state = "unavailable"
+        reason_code = "no_matching_capability"
+        next_actions = ["补充任务对象、区域或分析条件", "或从能力目录选择一个能力"]
+
+    guidance = {
+        "schema_version": DISCOVERY_GUIDANCE_SCHEMA_VERSION,
+        "state": guidance_state,
+        "reason_code": reason_code,
+        "missing_fields": _normalize_guidance_fields(missing_fields),
+        "suggested_capability_ids": [
+            str(item.get("id"))[:96] for item in suggestions if item.get("id")
+        ][:max(1, int(max_suggestions))],
+        "suggested_capability_details": suggestions,
+        "next_actions": [str(item)[:160] for item in next_actions[:4]],
+    }
+    result["guidance"] = guidance
+    # Keep the two most useful fields at the discovery boundary as well. This
+    # supports older consumers that do not yet understand the nested guidance
+    # object while preserving the versioned nested contract for new consumers.
+    result["missing_fields"] = guidance["missing_fields"]
+    result["suggested_capability_ids"] = guidance["suggested_capability_ids"]
+    result["suggested_capability_details"] = guidance["suggested_capability_details"]
+    result["discovery_reason_code"] = reason_code
+    return result
+
+
+def _catalog_guidance_cards(
+    definitions: Sequence[Mapping[str, Any]],
+    *,
+    only_ids: Sequence[str] | None,
+    max_items: int,
+) -> list[dict[str, Any]]:
+    allowed = set(only_ids or ())
+    cards = []
+    for definition in definitions:
+        capability_id = str(definition.get("id") or "").strip()
+        if not capability_id or (allowed and capability_id not in allowed):
+            continue
+        requirements = definition.get("request_requirements")
+        fields = []
+        if isinstance(requirements, Mapping):
+            fields = _normalize_guidance_fields(
+                requirements.get("clarification_fields") or []
+            )
+        cards.append(
+            {
+                "id": capability_id[:96],
+                "label": str(definition.get("label") or capability_id)[:120],
+                "description": str(
+                    definition.get("description")
+                    or "提供“{}”能力。".format(definition.get("label") or capability_id)
+                )[:320],
+                "available": definition.get("available") is not False,
+                "input_facts": fields[:16],
+                "result_types": _bounded_strings(definition.get("result_types"))[:8],
+                "data": {
+                    "dataset_gate": str(definition.get("dataset_gate") or "unknown")[:32],
+                    "availability_mode": str(definition.get("availability_mode") or "unknown")[:32],
+                    "availability_reason": str(definition.get("availability_reason") or "unknown")[:96],
+                    "missing_datasets": _bounded_strings(definition.get("missing_datasets"))[:8],
+                },
+                "actions": ["select_capability", "preview"],
+            }
+        )
+        if len(cards) >= max(1, int(max_items)):
+            break
+    return cards
+
+
+def _normalize_guidance_fields(value: Any) -> list[dict[str, str]]:
+    values = value if isinstance(value, (list, tuple)) else []
+    result = []
+    for item in values[:16]:
+        if not isinstance(item, Mapping):
+            continue
+        field_id = str(item.get("id") or "").strip()[:80]
+        label = str(item.get("label") or "").strip()[:120]
+        kind = str(item.get("kind") or "fact").strip()[:32]
+        if field_id and label:
+            result.append({"id": field_id, "label": label, "kind": kind})
+    return result
 
 
 def _facts_snapshot(request_facts: Any) -> dict[str, Any]:

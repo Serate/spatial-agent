@@ -1896,3 +1896,10 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 5. 部署：验证模型超时、暂态重试、provider 错误分类与异步/Artifact/重启恢复的一致性。
 6. 体验：前端动态展示候选能力、缺失事实、计划校验、修复原因和下一步动作。
 7. 测试：quick/CI 继续精简，阶段末覆盖开放式回放、HTTP/Artifact、Docker 和必要真实模型/GIS 验收。
+
+## M190 当前恢复位置
+
+- 已完成一个开放式 Discovery Guidance 纵向切片：`agent/capability_discovery.py` 提供 `enrich_discovery_context()` 与 `spatial-agent.capability-discovery-guidance.v1`；Runtime、workflow selection、selection interaction、LLM planner context 和 Console 已接入。
+- guidance 从 Domain Catalog 生成有界 `missing_fields`、`suggested_capability_details`、`next_actions` 和 `reason_code`。未匹配请求可以展示能力卡片；事实不足时可以补事实或选择能力。
+- Docker 已按当前工作树重建并 healthy。M190 专项 3/3、相邻回归 27/27、compileall、quick、stage 通过。
+- 继续工作前优先检查 `agent/capability_discovery.py`、`agent/workflow_selection.py`、`agent/selection_interaction.py`、`agent/runtime.py`、`tests/test_m190_open_capability.py`；下一步补跨 Service/HTTP/Artifact/SQLite/restart 和 replay/live-short 验收。

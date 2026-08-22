@@ -2232,3 +2232,11 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 4. 验证 provider 超时/重试/错误分类与异步、Artifact、重启恢复的模型证据一致性。
 5. 让前端消费候选能力、缺失事实、计划校验、修复原因和下一步动作的结构化 projection。
 6. 阶段收口继续使用 Docker、HTTP、Artifact、浏览器和必要真实 GIS/模型验收，默认 quick/CI 不膨胀。
+
+## M190 当前实现状态
+
+- `agent.capability_discovery.enrich_discovery_context()` 新增领域无关 `spatial-agent.capability-discovery-guidance.v1`，从当前 Domain Catalog 投影有界缺失事实、建议能力卡片、下一步动作和原因；不解释 GIS capability ID。
+- Runtime 在构建 Planner context 后统一注入 guidance，并将其传入 `workflow_selection`；上下文候选压缩为最多 4 项，避免候选卡片挤掉核心 selection evidence。
+- `workflow_selection`、`selection_interaction` 和 Console 复用建议能力卡片；事实不足时仍可 `provide_facts`，同时可 `select_capability`，未知请求不再只有一段错误文本。
+- Docker 专项 `tests.test_m190_open_capability` **3/3**；相邻能力发现/选择/跨入口/Action Effect 回归 **27/27**；compileall、quick、stage 通过，容器 healthy。
+- 已记录上下文预算问题到 `docs/agent-development-issues.md`。M190 尚未完成真实模型闭环，下一步是 Service/Artifact/restart 一致性、脱敏 replay 和最小 live-short。

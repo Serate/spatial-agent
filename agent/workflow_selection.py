@@ -38,6 +38,7 @@ def build_workflow_selection_evidence(
     workflow: Mapping[str, Any] | None = None,
     capability_catalog: Mapping[str, Any] | None = None,
     candidate_details: Any = None,
+    suggested_capability_details: Any = None,
     domain_seams: Mapping[str, Any] | None = None,
     request_facts: Any = None,
     domain_id: str = "unknown",
@@ -83,19 +84,32 @@ def build_workflow_selection_evidence(
             capability_catalog,
             candidate_ids,
         )
+    discovery_guidance = _mapping(discovery_map.get("guidance"))
+    suggested_detail_values = (
+        selected.get("suggested_capability_details")
+        or discovery_map.get("suggested_capability_details")
+        or discovery_guidance.get("suggested_capability_details")
+        or suggested_capability_details
+    )
     source = _text(selected.get("source")) or (
         "explicit_workflow" if template_id and explicit.get("template_id") else
         "domain_discovery" if selected_capability or candidate_ids else "none"
     )
     if source not in WORKFLOW_SELECTION_SOURCES:
         source = "none"
-    missing = _normalize_missing(selected.get("missing_fields"))
+    missing = _normalize_missing(
+        selected.get("missing_fields")
+        or discovery_map.get("missing_fields")
+        or discovery_guidance.get("missing_fields")
+    )
     declared_state = _text(selected.get("state"))
     if state not in WORKFLOW_SELECTION_STATES:
-        if declared_state in WORKFLOW_SELECTION_STATES and not template_id:
-            state = declared_state
+        if template_id:
+            state = "selected"
         elif missing:
             state = "clarification"
+        elif declared_state in WORKFLOW_SELECTION_STATES:
+            state = declared_state
         elif template_id or selected_capability:
             state = "selected"
         elif len(candidate_ids) > 1:
@@ -135,6 +149,14 @@ def build_workflow_selection_evidence(
         "workflow_template_version": template_version,
         "candidate_workflow_ids": candidate_templates[:_MAX_ITEMS],
         "candidate_details": _normalize_candidate_details(candidate_detail_values),
+        "suggested_capability_ids": _string_list(
+            selected.get("suggested_capability_ids")
+            or discovery_map.get("suggested_capability_ids")
+            or discovery_guidance.get("suggested_capability_ids")
+        ),
+        "suggested_capability_details": _normalize_candidate_details(
+            suggested_detail_values
+        ),
         "known_capability_result_types": known_result_types,
         "domain_seams": _normalize_domain_seams(domain_seams or selected.get("domain_seams")),
         "missing_fields": missing,
@@ -167,6 +189,7 @@ def normalize_workflow_selection_evidence(value: Any) -> dict[str, Any]:
         state=_text(value.get("state")) or "unavailable",
         reason_code=_text(value.get("reason_code")) or "workflow_selection_unavailable",
         candidate_details=value.get("candidate_details"),
+        suggested_capability_details=value.get("suggested_capability_details"),
         domain_seams=value.get("domain_seams"),
     )
 

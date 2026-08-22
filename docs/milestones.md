@@ -3763,3 +3763,19 @@ M189 将 M188 的 Action Effect 从结构化投影验证推进到真实 Service 
 5. 部署：补模型超时、暂态重试、provider 错误分类、异步接管和恢复后的模型证据一致性。
 6. 体验：前端动态展示候选能力、缺失事实、计划校验、修复原因和下一步动作，不增加固定问题页面。
 7. 测试：保持 quick/CI 精简，阶段收口覆盖开放式回放、HTTP/Artifact、Docker 和必要真实模型/GIS 验收。
+
+## M190 当前切片：开放式 Discovery Guidance（实现中）
+
+本切片把已有的能力匹配、缺失事实投影和前端候选展示收敛为一个领域无关的 discovery guidance projection，服务于“未预定义表达也能继续澄清或选择能力”的系统目标，不新增 GIS 专用问句分支。
+
+- 新增 `agent.capability_discovery.enrich_discovery_context()` 和 `spatial-agent.capability-discovery-guidance.v1`，从 Domain 提供的 Capability Catalog 生成有界的 `missing_fields`、候选能力卡片、`next_actions` 和 `reason_code`。
+- Runtime 将 guidance 接入 Planner context 与 `workflow_selection`；LLM Planner 明确使用缺失事实/候选能力元数据，不为生成计划而臆造输入事实。
+- `selection_interaction` 在存在候选能力但事实不完整时同时保留 `provide_facts` 与 `select_capability`，Console 复用现有动态候选卡片显示建议能力，不增加固定 GIS 页面。
+- 新增 M190 专项 3 项，覆盖自定义能力缺失事实、未匹配请求的有界候选、Runtime plan evidence 和下一步动作；Docker 专项 **3/3**、相邻 M111/M140/M166/M172/M173/M176/M189 回归 **27/27**、compileall、quick、stage 均通过。
+- Docker 按当前工作树重建并 healthy。当前切片未调用 live 模型，下一步仍需补脱敏 replay/live-short 的模型 schema、工具选择、DAG、澄清和 repair lineage 验收。
+
+## M190 后续切片参考
+
+1. 将 discovery guidance 在 Service、HTTP、Artifact、SQLite/async/restart 中做 equality 验收，并补前端动态 smoke。
+2. 用脱敏模型回放验证候选能力 → 结构化澄清 → 计划预览/修复的连续链路。
+3. 在配置可用时执行最小真实模型 + Docker/GIS live-short，记录 provider 错误分类和模型证据，不进入默认 CI。

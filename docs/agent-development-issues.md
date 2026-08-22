@@ -4642,3 +4642,17 @@ Console 初始化 Promise 在调用异步 `restoreSession()` 之前就设置 `wi
 ### 处理与预防
 
 将 bootstrap ready 延后到 `await restoreSession()` 完成之后；异常路径仍设置 ready，避免服务不可用时页面永久等待。浏览器 smoke 必须等待该 ready 标记后再开始交互，并同时断言 preview、submit、complete 三阶段 fingerprint、状态、Artifact 和页面模块加载。
+
+## M190：开放式能力候选过多导致 workflow selection 被上下文预算省略
+
+### 现象
+
+M190 首次接入未匹配请求的候选能力卡片后，Discovery Guidance 本身生成成功，但 Planner context 超过默认预算。`ContextBuilder` 为保留请求和工具基础信息，按顺序将 `workflow_selection` 标记为 omitted，最终 plan evidence 无法携带建议能力卡片；运行没有报错，但前端和模型看不到下一步选择。
+
+### 根因
+
+同一批候选卡片同时出现在 `capability_discovery`、`workflow_selection` 和 `capability_catalog`，每张卡片还包含描述、结果类型和数据可用性。上下文压缩没有识别“候选能力是开放式澄清的必要信息”，因此先省略了 workflow selection。
+
+### 处理与预防
+
+Runtime 给 Planner context 的候选建议限制为 4 项，保留 bounded label、input facts、result type 和 availability；完整结构化投影仍保存在 discovery/workflow selection 中供 Result、Artifact 和 Console 使用。以后扩展开放式上下文时，应区分 Planner 所需的最小候选摘要与跨入口持久化证据，并对 `context_evidence.truncated` 和关键 selection section 同时做断言，不能只检查请求最终是否返回。

@@ -1055,11 +1055,12 @@
       const actionLabels={select_capability:'选择能力',select_workflow:'选择工作流',provide_facts:'补充事实',preview:'预览计划',confirm:'批准执行',reject:'拒绝执行',retry:'重试',recover:'恢复',cancel:'取消'};
       const selection=model.selection||{};
       const candidates=[...(selection.candidate_ids||[]),...(selection.candidate_workflow_ids||[])].filter((item,index,array)=>item&&array.indexOf(item)===index).slice(0,8);
-      const details=(selection.candidate_details||[]).filter(item=>item&&item.id).slice(0,8);
+      const detailSource=(selection.candidate_details&&selection.candidate_details.length)?selection.candidate_details:(selection.suggested_capability_details||[]);
+      const details=detailSource.filter(item=>item&&item.id).slice(0,8);
       const missing=(model.missing_fields||[]).map(item=>escapeHtml(item.label||item.id)).join('、');
       const allowed=model.allowed_actions||[];
       const candidateText=details.length
-        ? '<div class="selection-candidate-grid">'+details.map(item=>{
+        ? '<div class="selection-candidate-grid"><small class="muted">'+(selection.candidate_details&&selection.candidate_details.length?'候选能力':'可选能力')+'</small>'+details.map(item=>{
             const facts=(item.input_facts||[]).map(f=>f.label||f.id).join('、');
             const results=(item.result_types||[]).join('、');
             const evidence=item.evidence||{};
