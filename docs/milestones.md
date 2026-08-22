@@ -4174,3 +4174,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 未匹配空间能力的 production `/runs/preview` 已返回 `clarification_required`、`planning` 和 `clarify/cancel`，与正式 `/runs` 的结果生命周期一致；没有新增 GIS 专用分支。
 - Docker 验证：`tests.test_m190_open_capability` 4/4；production HTTP clarification probe 通过。
 - 下一阶段继续从全局目标审计同步、异步、Artifact 和 Console 对 pending/repair/recovery 生命周期的完整投影，而不是扩展单个页面。
+
+## M208-A：Pending 生命周期贯通 Artifact evidence（已完成）
+
+- 公共 `project_evidence_projection()` 现在包含稳定的 `lifecycle`，Artifact evidence、async result evidence 和同步结果都能表达状态、阶段与允许动作。
+- evidence projection 去除 run/action subject identity，避免同步与异步仅因 transport 标识不同而产生虚假的 contract drift；可执行身份仍保留在 interaction/action envelope。
+- Docker 回归：M178 Contract Harness + M190 open capability 共 9/9；真实 async clarification → Artifact evidence 验证 `clarification_required / planning / clarify,cancel` 一致。
+- 下一阶段从全局目标继续检查 repair、retry、recover 和重启接管的证据血缘，尤其验证失败后用户动作与 Artifact/Console 的可恢复性。

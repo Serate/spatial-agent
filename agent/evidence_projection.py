@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .action_lifecycle import project_action_lifecycle
 from .evidence_registry import (
     EVIDENCE_REGISTRY_SCHEMA_VERSION,
     normalize_evidence_registry,
@@ -50,9 +51,11 @@ def project_evidence_projection(
         planning.get("planner_selection")
     )
     migration = _migration_projection(raw_registry, completeness)
+    lifecycle = _stable_lifecycle_projection(payload)
     return {
         "schema_version": EVIDENCE_PROJECTION_SCHEMA_VERSION,
         "available": bool(registry.get("available") or planning),
+        "lifecycle": lifecycle,
         "evidence_registry": registry,
         "evidence_registry_completeness": completeness,
         "migration": migration,
@@ -61,6 +64,27 @@ def project_evidence_projection(
             "planner_selection": planner,
         },
     }
+
+
+def _stable_lifecycle_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep lifecycle semantics while omitting transport-specific identities.
+
+    Artifact evidence and async result evidence are compared across entries.
+    Run/action subject IDs belong to the executable interaction envelope, not
+    to this shared evidence projection; retaining them would create false
+    sync/async drift for otherwise identical lifecycle states.
+    """
+    lifecycle = project_action_lifecycle(payload)
+    lifecycle.pop("subject_id", None)
+    actions = lifecycle.get("actions")
+    if isinstance(actions, list):
+        lifecycle["actions"] = [
+            {key: value for key, value in item.items() if key != "subject_id"}
+            if isinstance(item, Mapping)
+            else item
+            for item in actions
+        ]
+    return lifecycle
 
 
 def _migration_projection(

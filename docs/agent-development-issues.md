@@ -26,6 +26,16 @@
 
 Runtime 与 Service preview 统一复用 `project_action_lifecycle()`，返回顶层 `lifecycle`；Service 在预算门控改写状态后重新计算。以后新增 preview 状态时，必须同时验证状态、阶段、允许动作和正式运行结果的生命周期语义，不能让 transport 自己拼装。
 
+## M208：Artifact evidence 缺少 pending 生命周期且带入 transport identity
+
+### 现象
+
+异步澄清运行的正式响应带有 `result.lifecycle`，但 `/artifacts/runs/{file}/evidence` 的公共 `evidence_projection` 没有生命周期；补字段后又发现同步和异步 projection 仅因 `subject_id` 不同而不相等。
+
+### 修复与约束
+
+公共 `project_evidence_projection()` 统一生成稳定 lifecycle，并移除 run/action subject identity。身份属于可执行 interaction/action envelope，不属于跨入口 evidence 等价契约；回归必须同时覆盖 pending 状态和 sync/async projection 等价。
+
 ## 超大空间范围请求不能直接作为单次下载
 
 ### 现象

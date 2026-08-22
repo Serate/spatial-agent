@@ -125,6 +125,16 @@ class M178ContractHarnessTests(unittest.TestCase):
         )
         self.assertFalse(unknown_projection["migration"]["migratable"])
 
+    def test_pending_lifecycle_survives_artifact_evidence_projection(self):
+        pending = _payload()
+        pending["status"] = "NEEDS_CLARIFICATION"
+        pending["clarification"] = {"state": "unmatched_spatial_capability"}
+
+        projection = project_evidence_projection(pending)
+
+        self.assertEqual(projection["lifecycle"]["state"], "clarification_required")
+        self.assertEqual(projection["lifecycle"]["allowed_actions"], ["clarify", "cancel"])
+
     def test_planner_selection_drift_is_reported_through_projection(self):
         changed = _full_payload()
         changed["result"]["planning"]["planner_selection"]["state"] = "mismatch"
