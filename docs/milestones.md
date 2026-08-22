@@ -4158,3 +4158,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：production FastAPI、SQLite restart、Artifact-only 和禁缓存浏览器共同验收。
 6. 体验：workspace/view 动态决定结果内容，地图和文本共用 renderer。
 7. 测试：复杂 live-short、HTTP/Console browser contract 和精简回归分层执行。
+
+## M206-A：生产纵向验收与 Console 清空状态修复（已完成）
+
+- 复杂开放式请求已从 production HTTP 进入 Docker GIS Runtime，完成 9 个工具步骤，并在 Result、Artifact、interaction、evidence registry 和 Console 间保持核心结果与证据一致。
+- 真实地图 browser smoke 验证 Leaflet 交互图层、行政区选区和候选区域展示；清空对话回归同时检查点击后立即清理及等待异步请求后不被旧状态写回。
+- 根因是 `clearChat()` 在调用 `resetConversationView()` 前等待会话清理请求；网络延迟时页面仍保留旧地图、选区和工作区。修复为先清理 UI，再异步持久化清理，并在失败时显示有界提示。
+- 验证：Docker 重建健康；复杂 `scripts/console_map_smoke.js` 连续 3 次通过；`git diff --check` 通过；默认测试仍未扩大。
+- 下一阶段按全局目标检查动态能力发现、结果契约、异步恢复和跨入口证据是否仍有缺口，不新增单区域专用分支。

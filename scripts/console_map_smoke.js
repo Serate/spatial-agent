@@ -90,20 +90,23 @@ if (!snapshot.selection.includes("洪山区") || !snapshot.selectionEnabled) {
 }
 
 const cleared = await command("Runtime.evaluate", {
-  expression: "(()=>{ $('clearChat').click(); return JSON.stringify({selection: $('mapSelection')?.textContent, selectionEnabled: !$('useMapSelection')?.disabled, answer: $('answer')?.textContent, steps: $('steps')?.textContent, map: $('map')?.textContent})})()",
+  expression: "(()=>{ $('clearChat').click(); return JSON.stringify({selection: $('mapSelection')?.textContent, selectionEnabled: !$('useMapSelection')?.disabled, selectedSpatialContext: typeof selectedSpatialContext==='undefined'?'unavailable':selectedSpatialContext, leafletMap: typeof leafletMap!=='undefined'&&Boolean(leafletMap), mapHtml: $('map')?.innerHTML?.slice(0,240), answer: $('answer')?.textContent, steps: $('steps')?.textContent, map: $('map')?.textContent})})()",
   returnByValue: true,
 });
+const hasClearResidue = snapshot => !String(snapshot.selection || '').includes("点击地图要素后") || snapshot.selectionEnabled || snapshot.selectedSpatialContext === "unavailable" || Object.keys(snapshot.selectedSpatialContext || {}).length || snapshot.leafletMap || snapshot.answer || snapshot.steps || snapshot.map;
+const compactClearState = snapshot => JSON.stringify({selection:snapshot.selection,selectionEnabled:snapshot.selectionEnabled,selectedKeys:Object.keys(snapshot.selectedSpatialContext || {}).length,leafletMap:snapshot.leafletMap,answer:Boolean(snapshot.answer),steps:Boolean(snapshot.steps),map:Boolean(snapshot.map)});
+const clearedImmediately = JSON.parse(cleared.result.result.value);
+if (hasClearResidue(clearedImmediately)) {
+  throw new Error("清空对话未立即清除工作区：" + compactClearState(clearedImmediately));
+}
 await sleep(1000);
 const clearedAfterWait = await command("Runtime.evaluate", {
-  expression: "JSON.stringify({selection: $('mapSelection')?.textContent, selectionEnabled: !$('useMapSelection')?.disabled, answer: $('answer')?.textContent, steps: $('steps')?.textContent, map: $('map')?.textContent})",
+  expression: "JSON.stringify({selection: $('mapSelection')?.textContent, selectionEnabled: !$('useMapSelection')?.disabled, selectedSpatialContext: typeof selectedSpatialContext==='undefined'?'unavailable':selectedSpatialContext, leafletMap: typeof leafletMap!=='undefined'&&Boolean(leafletMap), mapHtml: $('map')?.innerHTML?.slice(0,240), answer: $('answer')?.textContent, steps: $('steps')?.textContent, map: $('map')?.textContent})",
   returnByValue: true,
 });
 const clearSnapshot = JSON.parse(clearedAfterWait.result.result.value);
-if (!clearSnapshot.selection.includes("点击地图要素后") || clearSnapshot.selectionEnabled) {
-  throw new Error("清空对话没有清除地图选区");
-}
-if (clearSnapshot.answer || clearSnapshot.steps || clearSnapshot.map) {
-  throw new Error("清空对话没有清除工作区结果");
+if (hasClearResidue(clearSnapshot)) {
+  throw new Error("清空对话后工作区状态被重新写回：" + compactClearState(clearSnapshot));
 }
 socket.close();
 process.exit(0);

@@ -1376,7 +1376,19 @@
     }
     async function loadWorkflows() { try { const response=await nativeFetch('/workflows'); if(!response.ok) throw new Error('workflow catalog unavailable'); const data=await response.json(); workflowTemplates=data.templates||{}; $('workflow').innerHTML='<option value="">智能选择（默认）</option>'+Object.values(workflowTemplates).map(template=>'<option value="'+escapeHtml(template.id)+'">'+escapeHtml(template.label)+' · v'+escapeHtml(template.version)+'</option>').join(''); renderWorkflowEditor(); } catch(error) { $('workflowValidation').textContent='工作流目录暂不可用，继续使用智能选择。'; } }
     async function newSession() { let session; try { const response=await fetch('/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); if(response.ok) session=await response.json(); } catch(error) { /* Fall back when the dependency-free server has no state database. */ } if(!session){ const nextNumber=$('session').options.length+1; session={session_id:'conversation-'+nextNumber,display_name:'对话'+nextNumber}; } addConversationOption(session); $('session').value=session.session_id; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); resetConversationView(); welcome(); }
-    async function clearChat() { try { await fetch('/sessions/'+encodeURIComponent($('session').value)+'/clear',{method:'POST'}); } catch(error) { /* Memory mode has no persistent session store. */ } resetConversationView(); welcome(); loadHistory(); $('prompt').focus(); }
+    async function clearChat() {
+      const sessionId=$('session').value;
+      resetConversationView();
+      welcome();
+      loadHistory();
+      $('prompt').focus();
+      try {
+        const response=await fetch('/sessions/'+encodeURIComponent(sessionId)+'/clear',{method:'POST'});
+        if(!response.ok) throw new Error('对话历史清理失败（HTTP '+response.status+'）');
+      } catch(error) {
+        $('error').innerHTML='<div class="error">界面已清空，但对话持久化清理失败：'+escapeHtml(error.message)+'</div>';
+      }
+    }
     async function deleteConversation() { const sessionId=$('session').value; if(!sessionId || !window.confirm('删除当前对话及其历史任务？')) return; try { const response=await fetch('/sessions/'+encodeURIComponent(sessionId),{method:'DELETE'}); if(!response.ok) throw new Error('删除对话失败'); const option=$('session').selectedOptions[0]; option?.remove(); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; return; } let option=$('session').options[0]; if(!option){ await newSession(); return; } $('session').value=option.value; await restoreSession(); }
     function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>'<div class="metric"><b>'+escapeHtml(x[1])+'</b><small>'+escapeHtml(x[0])+'</small></div>').join(''); }
     function stepResult(result) { if(!result) return '未返回工具结果'; if(result.error) return '业务错误：'+result.error; if(result.datasets) return '整体状态 '+(result.status||'未知')+' · 检查 '+result.datasets.length+' 个数据集'; const s=result.statistics||{}; if(result.admin_name&&result.statistics) return result.admin_name+' · 有效像元 '+(s.valid_pixel_count??'-')+' · 均值 '+(s.mean??'-')+' · NoData '+(s.nodata_ratio===null||s.nodata_ratio===undefined?'-':(Number(s.nodata_ratio)*100).toFixed(3)+'%'); if(result.dataset&&s.categories) return result.dataset+' · 有效像元 '+(s.valid_pixel_count??'-')+' · 类别 '+(s.category_count??s.categories.length)+' 个'; if(result.dataset&&result.statistics) return result.dataset+' · 有效像元 '+(s.valid_pixel_count??'-')+' · 均值 '+(s.mean??'-'); if(result.dataset&&result.metadata) return result.dataset+' · 文件 '+(result.file_count??0)+' 个 · 抽样 '+((result.metrics||{}).probed_files??0)+' 个'; if(result.count!==undefined) return '命中 '+result.count+' 条 · 结果引用 '+(result.result_ref||'-'); return '已返回结构化结果'; }
