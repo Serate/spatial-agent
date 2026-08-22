@@ -2214,3 +2214,21 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 4. 验证真实模型 + 真实 GIS + Docker 的代表性复杂请求，并保持默认测试离线、精简。
 5. 让前端动态呈现长动作 lineage、结果影响、证据状态、阻断原因和下一步动作。
 6. 阶段收口继续执行整体规划、实现、Docker 集成验收、文档更新和版本推送。
+
+## M189 当前完成状态
+
+- 新增 `tests/test_m189_action_effect_cross_entry.py`，以 3 个精简集成场景覆盖 Service、HTTP、detail、history、Artifact、async、SQLite restart 和双 worker CAS。
+- M189 专项 3/3；M184–M188 联合回归 28/28；Docker compileall、quick、stage、full-stage、生产 acceptance 均通过，容器 healthy，核心/可选数据 ready。
+- 同一 Action Effect 在首次响应、HTTP detail、Artifact、history、async evidence、重启 replay 和重复提交之间保持 equality；重复动作只复用已完成 receipt，不重复 dispatch。
+- 本阶段没有新增 GIS 工具、前端专用分支或 live token；保持默认测试离线和精简。M189 已具备提交推送条件。
+
+## M190 下一阶段全局规划参考
+
+下一阶段从跨入口证据一致性转向开放式请求闭环：
+
+1. 强化未预定义请求的能力发现、结构化澄清、计划预览、有限修复和用户确认。
+2. 进一步收敛 RequestFacts、Capability Catalog、Workflow 和 Planner 的动态组合边界，减少固定问句规则。
+3. 用脱敏 replay 和最小 live-short 验证真实模型的 schema、工具选择、DAG、澄清和 repair lineage。
+4. 验证 provider 超时/重试/错误分类与异步、Artifact、重启恢复的模型证据一致性。
+5. 让前端消费候选能力、缺失事实、计划校验、修复原因和下一步动作的结构化 projection。
+6. 阶段收口继续使用 Docker、HTTP、Artifact、浏览器和必要真实 GIS/模型验收，默认 quick/CI 不膨胀。

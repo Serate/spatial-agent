@@ -1877,3 +1877,22 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 5. 部署：验证异常接管、滚动升级、幂等和旧历史恢复不重复执行、不丢证据。
 6. 体验：前端动态展示长 lineage、结果影响、证据状态、阻断原因和下一步动作。
 7. 测试：quick/CI 继续精简，阶段末再执行跨入口 Harness、Docker、HTTP、浏览器和必要真实模型/GIS 验收。
+
+## M189 当前完成状态
+
+- 新增 `tests/test_m189_action_effect_cross_entry.py`，用 3 个精简集成场景覆盖 Service、HTTP、detail、history、Artifact、async、SQLite restart 和双 worker CAS。
+- M189 专项 3/3；M184–M188 联合回归 28/28；Docker compileall、quick、stage、full-stage、生产 acceptance 通过，容器 healthy，核心/可选数据 ready。
+- 首次响应、HTTP detail、Artifact、history、async evidence、重启 replay 和重复提交的 Action Effect equality 均通过；相同幂等动作不会重复 dispatch。
+- 本阶段没有新增 GIS 工具、前端专用分支或 live token；工作树当前包含 M189 测试和文档修改，尚未提交推送。Goal 仍 active。
+
+## M190 全局规划参考
+
+从跨入口证据一致性转向开放式请求闭环：
+
+1. 产品：未预定义表达的能力匹配、结构化澄清、计划预览、有限修复和用户确认。
+2. 架构：强化 RequestFacts、Capability Catalog、Workflow、Planner 的动态 discovery seam，减少固定问句规则。
+3. 数据：Domain 只提供能力、数据健康和证据适配器，公共 Runtime 不携带 GIS 专用意图分支。
+4. 模型：脱敏 replay + 最小 live-short 验证真实模型 schema、工具选择、DAG、澄清和 repair lineage。
+5. 部署：验证模型超时、暂态重试、provider 错误分类与异步/Artifact/重启恢复的一致性。
+6. 体验：前端动态展示候选能力、缺失事实、计划校验、修复原因和下一步动作。
+7. 测试：quick/CI 继续精简，阶段末覆盖开放式回放、HTTP/Artifact、Docker 和必要真实模型/GIS 验收。
