@@ -70,6 +70,12 @@ def build_workflow_selection_evidence(
         explicit.get("template_version")
         or selected.get("workflow_template_version")
     ) or None
+    workflow_components = _normalize_workflow_components(
+        explicit.get("components")
+        or explicit.get("workflow_components")
+        or selected.get("workflow_components")
+        or selected.get("components")
+    )
     candidate_templates = _string_list(
         selected.get("candidate_workflow_ids")
         or selected.get("candidate_template_ids")
@@ -147,6 +153,9 @@ def build_workflow_selection_evidence(
         ) if selected.get("candidate_count") is not None else len(candidate_ids),
         "workflow_template_id": template_id,
         "workflow_template_version": template_version,
+        "workflow_components": workflow_components,
+        "workflow_component_ids": [item["component_id"] for item in workflow_components],
+        "workflow_component_template_ids": [item["template_id"] for item in workflow_components],
         "candidate_workflow_ids": candidate_templates[:_MAX_ITEMS],
         "candidate_details": _normalize_candidate_details(candidate_detail_values),
         "suggested_capability_ids": _string_list(
@@ -389,6 +398,41 @@ def _normalize_domain_seams(value: Any) -> dict[str, Any]:
         "plan_validation": bool(source.get("plan_validation", False)),
         "capability_resolution": bool(source.get("capability_resolution", False)),
     }
+    return result
+
+
+def _normalize_workflow_components(value: Any) -> list[dict[str, Any]]:
+    """Project component identity without copying arbitrary constraints."""
+
+    values = value if isinstance(value, (list, tuple)) else []
+    result = []
+    seen = set()
+    for index, item in enumerate(values[:8]):
+        if not isinstance(item, Mapping):
+            continue
+        template_id = _text(item.get("template_id"))
+        component_id = _text(item.get("component_id") or template_id or f"component-{index + 1}")
+        if not template_id or not component_id or component_id in seen:
+            continue
+        seen.add(component_id)
+        dependencies = _string_list(
+            item.get("depends_on_components") or item.get("depends_on")
+        )
+        constraints = item.get("constraints")
+        constraint_keys = (
+            sorted(_text(key) for key in constraints.keys() if _text(key))[:16]
+            if isinstance(constraints, Mapping)
+            else []
+        )
+        result.append(
+            {
+                "component_id": component_id,
+                "template_id": template_id,
+                "template_version": _text(item.get("template_version")) or "1.0.0",
+                "depends_on_components": dependencies,
+                "constraint_keys": constraint_keys,
+            }
+        )
     return result
 
 

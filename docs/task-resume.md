@@ -2316,3 +2316,10 @@ M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194
 - Text Domain 对组件工作流明确拒绝，避免公共 Runtime 或 Text Pack 意外加载 GIS 模板。
 - M194-A 专项 **5/5**，M193/M191/M192 联合回归 **12/12**；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP smoke 通过。
 - 组合策略误拒绝问题已记录到中文问题文档；当前工作树待敏感信息检查、提交和推送。
+
+## M194-B 当前进度：组合 Selection Evidence
+
+- `workflow-selection.v1` 新增有界组合组件投影：`workflow_components`、`workflow_component_ids`、`workflow_component_template_ids`，同时保留版本、依赖和约束键。
+- 组合组件身份已进入 preview、完成结果、run detail 和 Artifact 的 selection evidence；旧单模板字段保持兼容。
+- M194-A/B 专项 **5/5**，M193/M191/M192 联合回归 **17/17**，Docker compileall 通过。
+- 当前工作树待 quick/stage/full-stage、生产 acceptance、敏感检查、提交和推送；下一切片继续做 HTTP/async/SQLite restart 的组合 evidence equality。

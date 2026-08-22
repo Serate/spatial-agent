@@ -3886,3 +3886,9 @@ M194 从证据安全恢复继续推进通用开放式多能力编排，覆盖能
 - GIS Domain 已接入显式组件 workflow；Domain policy 根据组件模板并集校验工具和总步数。Text Domain 负向隔离通过。
 - M194-A 专项 **5/5**；M193/M191/M192 联合回归 **12/12**；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP smoke 全部通过。
 - 本阶段没有新增默认 CI 网络访问、真实模型 token、私有配置或原始 GIS 数据。下一步提交推送后进入 M194-B：跨入口 selection/evidence/recovery 统一投影。
+
+## M194-B：组合组件 Selection Evidence（实现完成，待推送）
+
+- `workflow-selection.v1` 增加有界组件身份投影，跨 preview、完成结果、detail 和 Artifact 保持 component ID、template ID、版本、依赖和 constraint keys 一致。
+- M194-A/B 专项 **5/5**，M193/M191/M192 联合回归 **17/17**，Docker compileall 通过；单模板 selection 兼容回归通过。
+- 下一步执行阶段最终 profile、生产接口和敏感检查后推送版本，再进入 M194-C 的 HTTP/async/SQLite restart evidence matrix。

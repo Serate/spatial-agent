@@ -113,6 +113,10 @@ class M194WorkflowCompositionTests(unittest.TestCase):
                     preview_fingerprint=preview["plan_identity"]["fingerprint"],
                     export_artifact=True,
                 )
+                detail = service.get_run(completed["run_id"])
+                artifact = service._artifact_store.read_run(
+                    completed["run_id"], domain_id="gis"
+                )
             finally:
                 service.close()
 
@@ -124,6 +128,18 @@ class M194WorkflowCompositionTests(unittest.TestCase):
         )
         self.assertTrue(all("--" in step["id"] for step in completed["plan"]["steps"]))
         self.assertTrue(completed.get("artifact_ref"))
+        selections = [
+            preview["plan_evidence"]["workflow_selection"],
+            completed["plan_evidence"]["workflow_selection"],
+            detail["plan_evidence"]["workflow_selection"],
+            artifact["plan_evidence"]["workflow_selection"],
+        ]
+        for selection in selections:
+            self.assertEqual(selection["workflow_component_ids"], ["boundary", "dem"])
+            self.assertEqual(
+                selection["workflow_component_template_ids"],
+                ["admin_boundary_query", "raster_metadata"],
+            )
 
     def test_text_domain_does_not_import_gis_component_templates(self):
         with self.assertRaises(ValueError):

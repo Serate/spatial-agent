@@ -1969,3 +1969,10 @@ M193 已把证据变化接入预览失效、执行阻断和有限 repair。下�
 - M194-A 专项 **5/5**；M193/M191/M192 联合回归 **12/12**；Docker compileall、quick、stage、full-stage、production acceptance 和 Chrome/CDP smoke 通过。
 - 本阶段修复了组合计划被单模板策略误拒绝的问题，已记录到 `docs/agent-development-issues.md`。当前尚未提交推送 M194-A。
 - 下一切片继续补组合 workflow 在 selection evidence、HTTP/async/SQLite/artifact/restart 和跨 Domain capability contract 中的统一投影；不把 GIS 组件字段解释放入公共 Runtime。
+
+## M194-B 当前完成状态：组合组件 Selection Evidence
+
+- `spatial-agent.workflow-selection.v1` 现在保留有界 `workflow_components`、组件 ID、模板 ID、版本、依赖和 constraint keys；不复制任意约束值。
+- Service preview、完成结果、run detail 和 Artifact 对同一组合 workflow 的组件身份保持一致；旧单模板 selection 继续兼容。
+- M194-B 专项与 M194-A 联合验证 **5/5**；M193/M191/M192 受影响回归 **17/17**；Docker compileall 通过。
+- 当前切片待重新执行阶段 profile/生产收口、敏感检查、提交和推送；下一步继续补 async/restart 和 HTTP Contract Harness 的组合证据矩阵。
