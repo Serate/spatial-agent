@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from agent.execution_contract import build_execution_record
+from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.action_lifecycle import project_action_lifecycle
 from agent.runtime_context import normalize_runtime_context
 from agent.contract_versions import (
@@ -134,6 +134,10 @@ class ArtifactStore:
                 else None
             )
             if evidence is not None:
+                evidence = dict(evidence)
+                evidence.setdefault(
+                    "execution", execution_record_summary(execution_record)
+                )
                 artifact["async_result_evidence"] = normalize_async_result_evidence(
                     evidence,
                     status=payload.get("status"),

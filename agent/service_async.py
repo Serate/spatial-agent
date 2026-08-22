@@ -32,6 +32,7 @@ from agent.action_precondition import (
 from agent.action_effect import normalize_action_effect, project_action_effect
 from agent.selection_interaction import normalize_selection_interaction
 from agent.execution_timeline import normalize_execution_timeline
+from agent.execution_contract import execution_record_summary
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.recovery_action import normalize_action_receipt
@@ -177,6 +178,9 @@ def build_async_result_evidence(
     lifecycle_input = dict(value)
     lifecycle_input["status"] = status
     lifecycle = project_action_lifecycle(lifecycle_input)
+    projection_input = dict(value)
+    projection_input["status"] = status
+    projection_input["lifecycle"] = lifecycle
     degradation = value.get("degradation")
     degradation_status = (
         str(degradation.get("status") or "none")
@@ -241,12 +245,20 @@ def build_async_result_evidence(
         ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
-    evidence_projection = project_evidence_projection(value)
-    evidence_recovery = project_evidence_recovery(value)
+    evidence_projection = project_evidence_projection(projection_input)
+    evidence_recovery = project_evidence_recovery(projection_input)
     request_identity = normalize_request_identity(value.get("request_identity"))
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     evidence_binding = normalize_evidence_binding(planning.get("evidence_binding"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
+    execution_source = value.get("execution")
+    if not isinstance(execution_source, Mapping):
+        execution_source = value.get("execution_record")
+    execution = (
+        execution_record_summary(execution_source)
+        if isinstance(execution_source, Mapping)
+        else None
+    )
     registry = evidence_projection["evidence_registry"]
     selection = evidence_projection["selection"]
     result = {
@@ -285,6 +297,8 @@ def build_async_result_evidence(
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
     }
+    if execution is not None:
+        result["execution"] = execution
     if isinstance(value.get("action_receipt"), Mapping):
         result["action_receipt"] = normalize_action_receipt(
             value.get("action_receipt")
@@ -455,6 +469,14 @@ def normalize_async_result_evidence(
     plan_identity = normalize_plan_identity(planning.get("plan_identity"))
     evidence_binding = normalize_evidence_binding(planning.get("evidence_binding"))
     timeline = normalize_execution_timeline(value.get("execution_timeline"))
+    execution_source = value.get("execution")
+    if not isinstance(execution_source, Mapping):
+        execution_source = value.get("execution_record")
+    execution = (
+        execution_record_summary(execution_source)
+        if isinstance(execution_source, Mapping)
+        else None
+    )
     registry = evidence_projection["evidence_registry"]
     selection = evidence_projection["selection"]
     artifact = value.get("artifact")
@@ -500,6 +522,8 @@ def normalize_async_result_evidence(
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
     }
+    if execution is not None:
+        result["execution"] = execution
     if isinstance(value.get("action_receipt"), Mapping):
         result["action_receipt"] = normalize_action_receipt(
             value.get("action_receipt")

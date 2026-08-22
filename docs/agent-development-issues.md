@@ -2,6 +2,20 @@
 
 > 上下文压缩恢复时不要全文阅读本文件。先读取 `docs/agent-context-current.md`，再用 `rg -n -i "关键词" docs/agent-development-issues.md` 定位相关问题，并只读取命中附近内容。
 
+## M213：Async evidence 缺少执行摘要且 live/Artifact 生命周期不一致
+
+### 现象
+
+同步 Run、Action 和 Artifact 有 `execution-record.v1`，但 async polling 的 compact `result_evidence` 没有执行摘要；补齐后又发现 live projection 将未带 status 的原始 result 投影成 `UNKNOWN`，Artifact normalize 则投影成 `COMPLETED`，导致 Artifact-only recovery equality 失败。
+
+### 根因
+
+Async evidence 为了保持轻量没有复用已有 `execution_record_summary()`；Artifact 写入复制较早的 async 快照，未从最终执行记录补字段。同时 `build_async_result_evidence()` 只用 status 计算顶层 lifecycle，没有把规范化 status/lifecycle 传给嵌套 evidence projection。
+
+### 修复与预防
+
+Async live/normalize projection 现在复用不含运行实例 ID 的 `execution_record_summary()`；Artifact 写入在持久化前从最终 execution record 补齐摘要；evidence projection 使用同一规范化 status/lifecycle 输入。以后新增 async evidence 必须同时比较 live、SQLite restart、Artifact-only recovery 和旧无字段 Artifact 的明确 unavailable 降级，不能只验证轮询成功。
+
 ## M212：失败 Action HTTP 响应缺少执行投影
 
 ### 现象

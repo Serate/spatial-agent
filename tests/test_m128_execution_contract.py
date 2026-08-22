@@ -10,7 +10,7 @@ from pathlib import Path
 import threading
 
 from agent.artifact_store import ArtifactStore
-from agent.execution_contract import EXECUTION_RECORD_SCHEMA_VERSION
+from agent.execution_contract import EXECUTION_RECORD_SCHEMA_VERSION, execution_record_summary
 from agent.service import AgentService
 from domains.text.runtime import build_text_runtime
 from evaluation.contract_harness import normalize_execution, normalize_result
@@ -174,6 +174,7 @@ class M128ExecutionContractTests(unittest.TestCase):
                     time.sleep(0.01)
                 completed = first.get_run(submitted["run_id"])
                 expected = completed["execution_record"]
+                async_observation = first.get_async_observability(submitted["run_id"])
             finally:
                 first.close()
 
@@ -184,12 +185,24 @@ class M128ExecutionContractTests(unittest.TestCase):
             )
             try:
                 restored = second.get_run(submitted["run_id"])
+                restored_async_observation = second.get_async_observability(submitted["run_id"])
             finally:
                 second.close()
+
+            artifact = json.loads(
+                Path(completed["artifact_ref"]).read_text(encoding="utf-8")
+            )
 
         self.assertEqual(restored["status"], "COMPLETED")
         self.assertEqual(restored["execution_record"], expected)
         self.assertEqual(restored["result"]["execution"]["kind"], "run")
+        expected_summary = execution_record_summary(expected)
+        self.assertEqual(async_observation["result_evidence"]["execution"], expected_summary)
+        self.assertEqual(
+            restored_async_observation["result_evidence"]["execution"],
+            expected_summary,
+        )
+        self.assertEqual(artifact["async_result_evidence"]["execution"], expected_summary)
 
     def test_development_http_preserves_run_and_action_execution_records(self):
         from serve_api import AgentApiHandler

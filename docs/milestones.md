@@ -4229,3 +4229,20 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：验证异步多 worker、服务重启和 Artifact-only recovery 的执行 ID、结果类型、lifecycle 与 evidence 连续性。
 6. 体验：Console 只根据结构化 execution/evidence 动态渲染文本、GIS 或不可用状态，不为 action 类型增加页面分支。
 7. 测试：精简一个 Run/Action/Async cross-entry harness，加 Docker restart smoke；默认 CI 保持离线和小规模。
+
+## M213-A：Async execution summary 与 Artifact recovery 统一（已完成）
+
+- Async compact `result_evidence` 复用 `execution_record_summary()`，向轮询、SQLite recovery 和 Console 提供同一无实例 ID 的执行摘要；Artifact 写入从最终 execution record 补齐旧快照可能缺少的字段。
+- `build_async_result_evidence()` 将规范化 status/lifecycle 传入嵌套 evidence projection，修复 live evidence 与 Artifact normalize 在 `UNKNOWN`/`COMPLETED` 之间漂移的问题；旧 Artifact 无 async evidence 仍明确返回 unavailable。
+- Docker 验证：M148 Artifact-only async recovery 2/2、M128 execution contract 7/7、M146 async view/restart 2/2，共 **11/11**；未增加默认 CI 矩阵或 Domain 页面分支。
+- 下一阶段从全局目标检查复杂请求的 Run/Action/Async 执行时间线、receipt、repair/recovery evidence 是否能被同一个通用前端 workspace 消费。
+
+## M214：下一阶段全局规划参考
+
+1. 产品：让复杂开放式请求的规划、工具步骤、Action、异步状态和最终答案在同一时间线上可读、可恢复。
+2. 架构：把 execution summary、execution timeline、lifecycle、receipt 和 repair lineage 组合为稳定的公共 evidence seam，避免前端拼装。
+3. 数据：验证 GIS 几何、降级、Artifact 和 evidence registry 在 async/restart 中仍有界；缺失数据明确 unavailable，不伪造结果。
+4. 模型：用脱敏复杂请求 replay 与一次 live-short 检查真实模型工具失败/修复后时间线，不把网络依赖放入默认测试。
+5. 部署：进行生产 HTTP、SQLite restart、Artifact-only 和浏览器缓存禁用的组合验收，确认结果类型、步骤序列和 evidence entry 一致。
+6. 体验：Console 的中心结果窗按 workspace/view/evidence 动态渲染文本、GIS、表格或失败恢复提示，保持 Text/GIS 共用 renderer。
+7. 测试：精简一条复杂请求跨入口 harness，加一次 Docker/HTTP/Console smoke；默认 quick/CI 继续离线、少量和可重复。
