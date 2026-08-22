@@ -46,6 +46,16 @@ Runtime 与 Service preview 统一复用 `project_action_lifecycle()`，返回�
 
 复用结果契约已有的 `build_replanning_evidence()`，向公共 projection 增加有界 `replanning`；不要复制第二套 repair schema。由于结果契约和 evidence recovery 存在反向依赖，复用入口必须避免模块初始化循环；新增字段仍需验证 sync/async/Artifact 的稳定等价。
 
+## M210：批准动作 receipt 没有进入 Artifact evidence projection
+
+### 现象
+
+真实确认流程的正式 Result 包含 `action_receipt`、`transition_lineage` 和 `transition_evidence`，但同一运行的 Artifact `/evidence` 只返回生命周期、选择和 registry，无法从证据入口解释用户批准动作。
+
+### 修复与约束
+
+公共 evidence projection 复用 `normalize_action_receipt()`，保留动作语义和 transition evidence，移除 subject/result/idempotency 等运行实例字段，避免跨入口比较因身份漂移失败。Console 若需要提交动作，继续使用完整 interaction envelope，不从 evidence projection 反推执行身份。
+
 ## 超大空间范围请求不能直接作为单次下载
 
 ### 现象

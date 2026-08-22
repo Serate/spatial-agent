@@ -4188,3 +4188,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - stale preview evidence 的真实 production HTTP 探针返回 `repairable / repair,reject,cancel`；M178、M190、M195 Docker 回归通过，验证 repair、retry、async/artifact 仍共享稳定 projection。
 - 为避免 evidence projection 与 result contract 的循环依赖，规范化函数采用延迟导入；sync/async 的 subject identity 继续从 evidence 等价契约中剔除。
 - 下一阶段按全局目标检查用户动作执行后的 transition receipt、repair lineage 和重启接管是否能在 Console/Artifact 中形成闭环。
+
+## M210-A：Action receipt 与 transition evidence 贯通 Artifact（已完成）
+
+- 公共 evidence projection 复用 `normalize_action_receipt()`，保留 action id/status/kind、transition lineage、effect 和 transition evidence；运行实例 identity 仍只在可执行 interaction envelope 中保留。
+- 真实 production 确认→批准流程验证：`WAITING_FOR_DECISION` → `COMPLETED`，Result 与 Artifact evidence 都保留 `approve / COMPLETED` receipt 和 transition 状态。
+- Docker 回归：M178 Contract Harness 7/7、M195 composed lifecycle 5/5；未新增 transport 或 GIS 页面分支。
+- 下一阶段从全局目标检查动作失败、幂等重放和服务重启接管时的 receipt/recovery evidence，确保失败也可解释、可恢复。

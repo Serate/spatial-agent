@@ -5,6 +5,7 @@ import unittest
 
 from agent.evidence_projection import project_evidence_projection
 from agent.service_async import build_async_result_evidence
+from agent.transition_evidence import build_transition_evidence
 from evaluation.contract_harness import compare_results, normalize_result
 from result_contract import build_result_contract
 
@@ -150,6 +151,29 @@ class M178ContractHarnessTests(unittest.TestCase):
 
         self.assertEqual(projection["replanning"]["count"], 1)
         self.assertEqual(projection["replanning"]["events"][0]["failed_tool"], "tool_a")
+
+    def test_action_receipt_survives_artifact_evidence_projection(self):
+        payload = _payload()
+        transition = build_transition_evidence(
+            {"readiness": {"status": "metadata_only"}},
+            {"readiness": {"status": "ready"}},
+        )
+        payload["result"] = {
+            "action_receipt": {
+                "schema_version": "spatial-agent.action-receipt.v1",
+                "status": "COMPLETED",
+                "action_id": "approve",
+                "action_kind": "decision",
+                "subject": {"kind": "run", "id": "volatile-run"},
+                "transition_evidence": transition,
+            }
+        }
+
+        projection = project_evidence_projection(payload)
+
+        self.assertEqual(projection["action_receipt"]["action_id"], "approve")
+        self.assertNotIn("subject", projection["action_receipt"])
+        self.assertEqual(projection["transition_evidence"]["state"], "changed")
 
     def test_planner_selection_drift_is_reported_through_projection(self):
         changed = _full_payload()

@@ -19,6 +19,7 @@ from .evidence_registry import (
     project_evidence_registry_completeness,
 )
 from .planner_selection import normalize_planner_selection_evidence
+from .recovery_action import normalize_action_receipt
 from .workflow_selection import normalize_workflow_selection_evidence
 
 
@@ -58,7 +59,13 @@ def project_evidence_projection(
     migration = _migration_projection(raw_registry, completeness)
     lifecycle = _stable_lifecycle_projection(payload)
     replanning = build_replanning_evidence(_replanning_events(payload, envelope))
-    return {
+    receipt = _stable_action_receipt(
+        envelope.get("action_receipt")
+        or envelope.get("interaction_receipt")
+        or payload.get("action_receipt")
+        or payload.get("interaction_receipt")
+    )
+    result = {
         "schema_version": EVIDENCE_PROJECTION_SCHEMA_VERSION,
         "available": bool(registry.get("available") or planning),
         "lifecycle": lifecycle,
@@ -71,6 +78,11 @@ def project_evidence_projection(
             "planner_selection": planner,
         },
     }
+    if receipt is not None:
+        result["action_receipt"] = receipt
+        if isinstance(receipt.get("transition_evidence"), Mapping):
+            result["transition_evidence"] = dict(receipt["transition_evidence"])
+    return result
 
 
 def _stable_lifecycle_projection(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -103,6 +115,23 @@ def _replanning_events(payload: Mapping[str, Any], envelope: Mapping[str, Any]) 
     if isinstance(nested, Mapping) and isinstance(nested.get("events"), list):
         return nested["events"]
     return []
+
+
+def _stable_action_receipt(value: Any) -> dict[str, Any] | None:
+    """Keep action semantics while omitting run-specific identity fields."""
+    if not isinstance(value, Mapping):
+        return None
+    receipt = normalize_action_receipt(value)
+    for key in (
+        "subject",
+        "result_ref",
+        "idempotency_key",
+        "input_fingerprint",
+        "identity_linkage",
+        "transition_identity",
+    ):
+        receipt.pop(key, None)
+    return receipt
 
 
 def _migration_projection(
