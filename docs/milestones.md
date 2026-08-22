@@ -4006,3 +4006,22 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 - `evidence_action_guidance.v1` 已成为通用 advisory guidance contract；Runtime 保留生命周期安全门，Domain 不直接授予动作权限。
 - Result Contract、async、Artifact、SQLite restart、HTTP、旧 Artifact 与 Console 通用 renderer 已验证同一 projection；Provider 异常和未知 schema 均安全降级。
 - Docker 专项与跨入口回归：10/10、10/10、16/16、8/8、3/3；容器 healthy。阶段提交前仅剩 diff 检查、敏感信息审计和版本推送。
+
+## M197：全局规划参考
+
+M197 从 M196 的 Runtime evidence/action projection 继续推进“模型评测与真实运行可证明”，不增加 GIS 专用能力：
+
+1. 产品：统一 replay/live/前端看到的 guidance、候选能力、缺失事实和下一步动作；完整证据与终端摘要分离。
+2. 架构：统一 repair evidence projection，并修复多轮 replay 中 Domain 提前澄清导致的模型响应错位。
+3. 数据：只使用脱敏 fixture 和有界 capability/evidence 字段，拒绝 Provider 原文、密钥和私有路径。
+4. 模型：用脱敏 replay 与最小 live-short 验证结构化 clarification、计划选择和 Runtime 结果契约。
+5. 部署：Docker 负责 Python、GIS、replay 与 live 验收；live 不进入默认 CI。
+6. 体验：动态 renderer 消费公共 evidence/action contract，不添加 GIS 页面分支。
+7. 测试：以少量 replay/Contract Harness/summary CLI/真实 GIS case 形成阶段证据。
+
+## M197-A：evidence-aware replay/live 与显式 live-short（已完成，待版本推送）
+
+- `evidence_action_guidance.v1` 已接入 Runtime repair evidence、live result 和多轮 replay 汇总；未知 schema 与 Provider 字段不会进入评测报告。
+- replay runner 现在按 turn 绑定脱敏响应，避免 Domain 在 Planner 前完成澄清时错消费 FIFO 响应；离线 suite **4/4** 通过。
+- M197-A/M196 专项 **17/17**，M174/M150 **7/7**；真实模型 memory clarification **1/1**，真实模型 + Docker GIS spatial overview **1/1**，无重试。
+- `scripts/live_baseline.py --summary` 提供有界终端输出，完整报告仍可通过 `--output` 显式保存；下一步执行 diff/敏感信息门禁并推送版本。

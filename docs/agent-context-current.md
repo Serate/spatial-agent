@@ -5,17 +5,17 @@
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M196-C，evidence/action projection 与开放式澄清工作区。
-- 最新提交：`25215cc feat: normalize guidance in result contracts`。
-- 工作树：本卡与 `tests/test_m196_evidence_action.py` 有未提交修改；以 Git 实际状态为准。
+- 当前阶段：M197-A，evidence-aware replay/live 评测与真实模型短基线。
+- 最新提交：`fd8b15d test: verify evidence guidance persistence`。
+- 工作树：本卡、`evaluation/model_evaluation.py`、`scripts/live_baseline.py` 和 `tests/test_m179_evidence_evaluation.py` 有未提交修改；以 Git 实际状态为准。
 - 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
-- 本轮验证：M196-C 专项 10/10，capability provider 10/10，M164/M168/M148 16/16，M194/M195/HTTP 8/8，旧 Artifact 3/3。
+- 本轮验证：M197-A/M196 专项 17/17，M174/M150 回归 7/7，离线 replay 4/4；真实模型 memory clarification 1/1、真实模型 + Docker GIS spatial overview 1/1。
 
 ## 当前唯一工作切片
 
-1. 将本轮 Artifact/SQLite equality 测试与阶段记录整理为最小提交。
-2. 执行 `git diff --check` 和敏感信息检查，确认 Docker 容器 healthy。
-3. 提交并推送 M196-C 版本；推送前不加载历史文档全文。
+1. 运行 M197-A 最小专项、replay summary、compileall 和 `git diff --check`。
+2. 更新阶段文档与中文问题日志；只记录 live 的结构化摘要，不保存原始模型响应。
+3. 提交并推送 M197-A 版本；推送前不加载历史文档全文。
 4. 版本推送后按项目全局七维度重规划下一阶段。
 
 ## 读取预算

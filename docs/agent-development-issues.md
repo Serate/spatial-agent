@@ -4881,3 +4881,27 @@ Runtime 现在按 Domain、backend、Provider 和数据配置路径使用有界�
 ### 处理与预防
 
 代码或测试发生变化后，Docker 验收前先执行 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate`，确认容器 healthy，再运行专项并核对测试数量。默认 quick/CI 可继续使用既有流水线，但不能把旧容器输出当作当前工作树的证据。
+
+## M197-A：Domain 提前澄清导致 replay 模型响应错位
+
+### 现象
+
+多轮脱敏 replay 的第一轮由 Domain 在调用 Planner 前直接返回澄清，第二轮却误消费了第一轮的 clarification 响应，导致原本应完成的 follow-up 被评估为 `NEEDS_CLARIFICATION`，离线 suite 变成 3/4。
+
+### 根因
+
+评测器把所有 turn 的响应放入一个 FIFO client；它假设每一轮都会调用模型，但 Runtime 的能力发现和事实门控允许某些轮次在 Planner 前结束。
+
+### 处理与预防
+
+replay runner 现在按 turn 将对应的脱敏响应绑定到独立的 recorded runtime，同时保留同一 session identity；离线 suite 恢复为 4/4。以后新增 replay case 必须验证“未调用 Planner 的澄清轮”和后续计划轮的响应绑定，不得仅按响应数量推断模型调用次数。
+
+## M197-A：真实 live baseline 完整报告污染终端上下文
+
+### 现象
+
+真实模型验收虽然只运行一个 case，但默认打印完整 capability snapshot、候选详情和 evidence registry，终端输出达到数万字符，增加上下文恢复和排障成本。
+
+### 处理与预防
+
+`scripts/live_baseline.py` 新增 `--summary`，终端只输出执行模式、总体状态、case 状态、错误分类、token 和延迟；完整安全报告仍通过 `--output` 显式保存。后续 live 验收默认使用摘要模式。

@@ -16,6 +16,37 @@ from evaluation.live_baseline import (
 )
 
 
+def _summary_report(report):
+    """Return a terminal-sized view without dropping the persisted report."""
+    summary = report.get("summary") if isinstance(report, dict) else {}
+    replay = report.get("plan_repair_replay") if isinstance(report, dict) else {}
+    cases = report.get("cases") if isinstance(report, dict) else []
+    compact_cases = []
+    for case in cases if isinstance(cases, list) else []:
+        if not isinstance(case, dict):
+            continue
+        compact_cases.append({
+            "id": case.get("case_id"),
+            "status": case.get("status"),
+            "error_class": case.get("error_class"),
+            "passed": bool(case.get("passed")),
+            "attempt_count": case.get("attempt_count"),
+        })
+    return {
+        "schema_version": report.get("schema_version"),
+        "execution_mode": report.get("execution_mode"),
+        "backend": report.get("backend"),
+        "passed": bool(report.get("passed")),
+        "summary": summary if isinstance(summary, dict) else {},
+        "replay": {
+            "passed": replay.get("passed"),
+            "total": replay.get("total"),
+            "failed": replay.get("failed"),
+        },
+        "cases": compact_cases,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the safe live Spatial Agent baseline.")
     parser.add_argument("--backend", choices=("local", "memory"), default="local")
@@ -27,6 +58,11 @@ def main() -> int:
         "--allow-network",
         action="store_true",
         help="明确允许调用真实模型；仍需设置 live 环境变量",
+    )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="只打印有界验收摘要；完整报告仍可通过 --output 保存",
     )
     args = parser.parse_args()
     if not args.allow_network:
@@ -48,7 +84,8 @@ def main() -> int:
         cases=cases,
         service_factory=AgentService,
     )
-    encoded = json.dumps(report, ensure_ascii=True, indent=2)
+    output_report = _summary_report(report) if args.summary else report
+    encoded = json.dumps(output_report, ensure_ascii=True, indent=2)
     print(encoded)
     if args.output:
         output = Path(args.output)

@@ -21,7 +21,10 @@ from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
 from agent.plan_quality import project_plan_quality_evidence
 from agent.planner_selection import normalize_planner_selection_evidence
-from agent.workflow_selection import normalize_workflow_selection_evidence
+from agent.workflow_selection import (
+    normalize_evidence_action_guidance,
+    normalize_workflow_selection_evidence,
+)
 from agent.evidence_registry import (
     EVIDENCE_COMPLETENESS_SCHEMA_VERSION,
     project_evidence_registry_completeness,
@@ -197,6 +200,7 @@ def project_repair_evidence(payload: Any) -> Dict[str, Any]:
         "capability_guidance": _project_capability_guidance(source),
         "workflow_selection": project_workflow_selection_evidence(source),
         "planner_selection": project_planner_selection_evidence(source),
+        "evidence_action_guidance": project_evidence_action_guidance(source),
         "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
         "lineage": {
             "available": bool(projected_events),
@@ -323,6 +327,45 @@ def project_workflow_selection_evidence(payload: Any) -> Dict[str, Any]:
         "candidate_ids": [],
         "candidate_count": 0,
     }
+
+
+def project_evidence_action_guidance(payload: Any) -> Dict[str, Any]:
+    """Project the bounded action advice shared by replay, live and Runtime."""
+
+    if hasattr(payload, "to_dict") and callable(payload.to_dict):
+        try:
+            payload = payload.to_dict()
+        except Exception:
+            payload = {}
+    source = dict(payload) if isinstance(payload, Mapping) else {}
+    candidates = []
+    nested_result = source.get("result")
+    if isinstance(nested_result, Mapping):
+        candidates.extend(
+            nested_result.get(key)
+            for key in ("planning", "plan_evidence", "selection_interaction")
+        )
+    candidates.extend(
+        source.get(key)
+        for key in ("plan_evidence", "planning", "selection_interaction")
+    )
+    direct = source.get("evidence_action_guidance")
+    if isinstance(direct, Mapping):
+        return normalize_evidence_action_guidance(direct)
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            continue
+        guidance = candidate.get("evidence_action_guidance")
+        if not isinstance(guidance, Mapping):
+            workflow = candidate.get("workflow_selection")
+            guidance = (
+                workflow.get("evidence_action_guidance")
+                if isinstance(workflow, Mapping)
+                else None
+            )
+        if isinstance(guidance, Mapping):
+            return normalize_evidence_action_guidance(guidance)
+    return normalize_evidence_action_guidance(None)
 
 
 def summarize_selection_evidence(report_or_results: Any) -> Dict[str, Any]:
@@ -816,10 +859,12 @@ def project_replay_repair_evidence(
             "status_match": bool(turn.get("status_match")),
             "repair_count": min(int(evidence.get("repair_count") or 0), _MAX_REPAIR_EVENTS),
             "result_type": _safe_repair_token(result.get("result_type")) or "unknown",
+            "evidence_action_guidance": project_evidence_action_guidance(evidence),
         })
 
     runtime_events = []
     capability_guidance = _empty_capability_guidance()
+    action_guidance = normalize_evidence_action_guidance(None)
     for turn in turn_evidence[:_MAX_REPAIR_TURNS]:
         if not isinstance(turn, Mapping):
             continue
@@ -838,6 +883,13 @@ def project_replay_repair_evidence(
                 "candidate_ids": _safe_capability_ids(guidance.get("candidate_ids")),
                 "source": "plan_evidence",
             }
+        candidate_action_guidance = evidence.get("evidence_action_guidance")
+        if isinstance(candidate_action_guidance, Mapping):
+            normalized_action_guidance = normalize_evidence_action_guidance(
+                candidate_action_guidance
+            )
+            if normalized_action_guidance.get("available"):
+                action_guidance = normalized_action_guidance
         lineage = evidence.get("lineage")
         events = lineage.get("events") if isinstance(lineage, Mapping) else []
         for event in events if isinstance(events, list) else []:
@@ -881,6 +933,7 @@ def project_replay_repair_evidence(
         "repair_count": min(inferred_count, _MAX_REPAIR_EVENTS),
         "repair_class": _repair_class(final_status, inferred_count),
         "capability_guidance": capability_guidance,
+        "evidence_action_guidance": action_guidance,
         "clarification_count": sum(
             1 for turn in safe_turns if turn["status"] == "NEEDS_CLARIFICATION"
         ),
@@ -943,16 +996,21 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
     metrics = _fixture_metrics(fixture)
     safe_metrics = sanitize_provider_metrics(metrics)
     domain = str(fixture.get("domain") or "gis")[:32]
-    runtime = _build_recorded_runtime(
-        responses,
-        metrics,
-        domain=domain,
-    )
     session_id = "m69-replay-" + fixture_id
     turn_results = []
     for turn in turns:
         expected = turn.get("expected") or {}
         try:
+            # A Domain may resolve a clarification before the Planner is
+            # called.  Bind each recorded response to its own turn instead of
+            # using one FIFO model queue, otherwise that response is consumed
+            # by the next turn and the replay no longer represents the
+            # captured conversation.
+            runtime = _build_recorded_runtime(
+                turn.get("response"),
+                metrics,
+                domain=domain,
+            )
             result = runtime.run(str(turn.get("request") or ""), session_id=session_id)
             status = result.status.value
             status_match = status == str(expected.get("expected_status") or status)

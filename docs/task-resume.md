@@ -2418,3 +2418,20 @@ M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵�
 - Result Contract、async、Artifact、SQLite restart、HTTP preview/detail、旧 Artifact 和 Console 通用交互保持同一 guidance/action projection；未知 schema、Provider 异常和不可用数据均有界降级。
 - 本轮 Docker 验证：M196-C **10/10**，capability provider **10/10**，M164/M168/M148 **16/16**，M194/M195/HTTP **8/8**，旧 Artifact **3/3**；容器 healthy。
 - 阶段收口动作：完成敏感信息审计与 `git diff --check` 后提交推送；下一阶段从全局七维度规划开放式 workspace、脱敏 replay/live-short、恢复接管和动态 renderer 的剩余缺口。
+
+## M197 全局规划参考
+
+1. 产品：让模型评测、真实运行和前端工作区看到同一份 guidance、候选能力、缺失事实与下一步动作；终端默认只输出有界摘要，完整证据进入 artifact。
+2. 架构：replay/live/Runtime 共用 repair evidence projection；每个 replay turn 绑定自己的脱敏模型响应，避免 Domain 提前澄清造成响应错位。
+3. 数据：扩展脱敏 fixture 的 guidance/action 字段，拒绝未知 schema 和 Provider 原文；GIS 数据只作为显式 evidence provider。
+4. 模型：验证真实模型能消费 readiness/degradation 并返回结构化澄清或计划；保留 Rule Planner 对照与失败分类。
+5. 部署：Docker 中执行离线 replay、真实模型 memory baseline 和真实模型 + 本地 GIS baseline；不把 live 依赖放进默认 CI。
+6. 体验：Console 继续通过通用 result/evidence renderer 消费 guidance，不增加 Domain 页面分支。
+7. 测试：保持专项精简，覆盖 replay 4/4、projection equality、summary CLI 和一条真实 GIS/live case。
+
+## M197-A 当前完成状态：evidence-aware replay/live 与显式 live-short
+
+- `project_repair_evidence()` 与多轮 replay/live 汇总已纳入 `evidence_action_guidance.v1`，未知 schema/Provider 字段安全降级；新增 guidance 跨 live/replay equality 回归。
+- 修复 replay response FIFO 与 Domain 提前澄清的错位问题；离线 replay suite 从 **3/4** 恢复为 **4/4**，M197-A/M196 专项 **17/17**，M174/M150 回归 **7/7**。
+- 真实模型 memory clarification **1/1**；真实模型 + Docker 本地 GIS spatial overview **1/1**，均无重试。`scripts/live_baseline.py --summary` 已提供有界终端输出，完整报告仍可显式保存。
+- 下一步：执行敏感信息审计与 `git diff --check`，提交推送 M197-A，再从全局目标规划下一切片。

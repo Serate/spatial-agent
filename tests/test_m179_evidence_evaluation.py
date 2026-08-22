@@ -9,6 +9,8 @@ from agent.models import AgentRunResult, PlanStep, RunStatus, TaskPlan
 from evaluation.live_baseline import _result_evidence
 from evaluation.model_evaluation import (
     evaluate_model_replay_suite_file,
+    project_evidence_action_guidance,
+    project_replay_repair_evidence,
     project_repair_evidence,
     summarize_evidence_projection,
 )
@@ -47,6 +49,13 @@ def _result():
                 "planner_kind": "RuleBasedPlanner",
                 "candidate_ids": ["text_summary"],
             },
+            "evidence_action_guidance": {
+                "schema_version": "spatial-agent.evidence-action-guidance.v1",
+                "state": "degraded",
+                "reason_code": "needs_review",
+                "recommended_actions": ["provide_facts", "repair"],
+                "source": "domain",
+            },
         },
         answer="已完成摘要。",
     )
@@ -81,6 +90,46 @@ class M179EvidenceEvaluationTests(unittest.TestCase):
 
         self.assertEqual(live["evidence_projection"], direct["evidence_projection"])
         self.assertEqual(live["evidence_migration"], direct["evidence_migration"])
+
+    def test_action_guidance_is_preserved_by_live_and_replay_projection(self):
+        direct = project_repair_evidence(_result())
+        live = _result_evidence(
+            _result(),
+            {"id": "m197-live", "kind": "untyped", "expected_status": "COMPLETED"},
+            {},
+            1,
+        )["repair_evidence"]
+        replay = project_replay_repair_evidence(
+            "m197-replay",
+            "repair",
+            [{"status": "COMPLETED", "repair_evidence": direct}],
+        )
+
+        expected = direct["evidence_action_guidance"]
+        self.assertEqual(live["evidence_action_guidance"], expected)
+        self.assertEqual(replay["evidence_action_guidance"], expected)
+        self.assertEqual(replay["turns"][0]["evidence_action_guidance"], expected)
+
+    def test_unknown_action_guidance_schema_degrades_without_private_fields(self):
+        projected = project_evidence_action_guidance(
+            {
+                "plan_evidence": {
+                    "workflow_selection": {
+                        "evidence_action_guidance": {
+                            "schema_version": "future.v9",
+                            "recommended_actions": ["repair"],
+                            "provider_response": "private provider payload",
+                        }
+                    }
+                }
+            }
+        )
+
+        self.assertFalse(projected["available"])
+        self.assertEqual(
+            projected["reason_code"], "evidence_action_guidance_unknown_schema"
+        )
+        self.assertNotIn("provider_response", json.dumps(projected).lower())
 
     def test_replay_report_exposes_projection_summary(self):
         report = evaluate_model_replay_suite_file(
