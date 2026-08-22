@@ -4656,3 +4656,17 @@ M190 首次接入未匹配请求的候选能力卡片后，Discovery Guidance �
 ### 处理与预防
 
 Runtime 给 Planner context 的候选建议限制为 4 项，保留 bounded label、input facts、result type 和 availability；完整结构化投影仍保存在 discovery/workflow selection 中供 Result、Artifact 和 Console 使用。以后扩展开放式上下文时，应区分 Planner 所需的最小候选摘要与跨入口持久化证据，并对 `context_evidence.truncated` 和关键 selection section 同时做断言，不能只检查请求最终是否返回。
+
+## M190-D：LLM provider 失败被降级为普通执行错误，且原始响应可能进入结果
+
+### 现象
+
+真实模型请求发生超时、鉴权失败或中转网关错误时，LLM Planner 只抛出普通 `PlanningError`。Runtime 无法从异常本身得到稳定的 provider 分类，可能把规划阶段故障归为普通执行错误；HTTP 错误响应正文还可能被拼入 `error`，进而进入 Artifact 或历史结果。
+
+### 根因
+
+工具 provider 已通过 `ToolError(category/code/retryable)` 传递机器语义，但 Planner 的 `PlanningError` 没有同等元数据。OpenAI 兼容客户端只在内存 metrics 中记录 `error_type` 和 HTTP 状态，Runtime 的失败投影只能依赖人类可读错误文本猜测阶段与类别。
+
+### 处理与预防
+
+为 `PlanningError` 增加有界 `category/code/retryable` 元数据；OpenAI 兼容客户端将暂态 HTTP、鉴权、限流、网络、超时和无效模型响应映射到稳定语义，401/403 不重试，暂态和超时保留可重试标记。HTTP provider 正文不再写入运行错误，只保留状态类别和 versioned failure evidence。规划失败且没有候选计划时统一标记 `phase=planning`。以后新增 Planner/provider 时必须同时验证异常元数据、Runtime failure、planner metrics、Artifact、异步和 SQLite 重启，不得从原始错误文本推断核心分类或持久化 provider 响应。

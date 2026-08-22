@@ -2246,4 +2246,7 @@ M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/s
 - 新增 `tests/test_m190_guidance_cross_entry.py`，2 个高价值场景覆盖 Service/HTTP/Artifact 以及 async/SQLite restart；M190 当前专项累计 **6/6**。
 - `evaluation.model_evaluation.project_workflow_selection_evidence()` 现在保留有界 `missing_fields` 和 `suggested_capability_ids`，脱敏 replay 可审计结构化澄清，而不是只看最终状态。
 - 真实 DeepSeek live-short：未知空间对象返回 `NEEDS_CLARIFICATION`、0 工具步骤、4 个候选能力；真实模型 + Docker GIS 空间总览 **1/1** 通过。
-- M190 后续仍需验证 provider 超时/重试/错误分类与模型证据跨异步、Artifact、重启的一致性，当前 goal 保持 active。
+- M190-D 已完成：`PlanningError` 支持 bounded `category/code/retryable`，OpenAI-compatible Planner 对暂态 HTTP、鉴权、限流、网络、超时和无效模型响应提供稳定分类；HTTP provider 原始响应正文不再进入运行错误。
+- Docker 专项 `tests.test_m190_model_failure` **3/3**，M61/M97/M98/M190 受影响回归 **23/23**；compileall、quick、stage、full-stage、生产 acceptance 通过。
+- 真实 DeepSeek Planner **1/1**、真实模型 + Docker GIS 总览 **1/1** 通过。M190 已完成，当前工作树待敏感信息检查、提交和推送。
+- M191 入口是“候选能力选择 → 补事实 → 计划预览/确认 → 执行/恢复”的通用纵向链路，按全局七维度推进，不增加单区域规则。

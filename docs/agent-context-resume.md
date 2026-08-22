@@ -1908,4 +1908,8 @@ M182 已完成并提交推送，版本为 `77044e3`。下一阶段为 M183，继
 
 - M190-A/B 专项目前 **6/6**：新增跨入口 guidance equality，覆盖 Service、HTTP、Artifact、async 和 SQLite restart；评测 projection 已纳入 missing fields 与 suggested capability IDs。
 - 真实模型未知空间对象 live-short 返回结构化澄清、4 个候选能力且未调用工具；真实模型 + Docker GIS 空间总览 live 验收通过。
-- 下一步从模型 live 能力转向 provider 错误/超时/重试与异步、Artifact、restart 的证据连续性；不要把真实模型输出或 key 写入仓库。
+- M190-D 已完成 `PlanningError` 的 bounded failure metadata，以及 OpenAI-compatible Planner 的 provider timeout/transient/auth/network/invalid-response 分类；401/403 不重试，暂态和超时可重试。
+- HTTP provider 原始响应正文不再进入运行错误；Runtime 对无候选计划的 Planner 失败明确写入 `failure.phase=planning`。
+- Docker 专项 **3/3**、受影响回归 **23/23**、compileall、quick、stage、full-stage、生产 acceptance 均通过；容器 healthy。
+- 真实 DeepSeek Planner **1/1**、真实模型 + Docker GIS 空间总览 **1/1** 通过。M190 已完成，版本提交推送后进入 M191。
+- M191 入口：把 `select_capability`/`provide_facts` 接入通用 RequestFacts → Workflow → TaskPlan → preview/confirm/run/recovery 纵向链路；优先跨 Domain 契约，不增加 GIS 专用分支。

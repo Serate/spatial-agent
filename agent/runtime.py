@@ -608,7 +608,11 @@ class AgentRuntime:
                     context_packet=context_packet,
                     repair_lineage=result.replan_events,
                 )
-            _record_run_failure(result, exc)
+            _record_run_failure(
+                result,
+                exc,
+                phase="planning" if candidate_plan is None else None,
+            )
             result.answer = self._answer_composer.compose_failure(result)
         if result.planner_metrics is None:
             result.planner_metrics = self._planner_metrics()

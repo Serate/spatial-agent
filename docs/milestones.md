@@ -3785,4 +3785,18 @@ M189 将 M188 的 Action Effect 从结构化投影验证推进到真实 Service 
 - M190-A 专项扩展为 **4/4**，新增 M190-B 跨入口 **2/2**；Service、HTTP、Artifact、SQLite/async/restart 的 guidance state、候选能力 ID 和允许动作保持一致。
 - 脱敏 LLM replay 验证 `LLMPlanner` 在未知空间对象上返回结构化澄清，未执行工具，评测 projection 已保留 guidance state、missing fields 和 suggested capability IDs。
 - 真实模型 `M16LiveOpenAIPlannerTests` **1/1** 通过；真实模型 + Docker GIS `M66LiveSpatialOverviewTests` **1/1** 通过，复杂空间总览计划进入真实 GIS 工具链并完成。
-- M190 仍未收口：还需补模型 provider 超时/错误分类与异步/Artifact/restart 证据一致性，之后再进行阶段全局复盘和版本推送。
+- M190-D 新增 `tests/test_m190_model_failure.py` **3/3**：覆盖暂态 HTTP 重试、鉴权失败不重试、超时可恢复标记，以及 Runtime、Artifact、异步和 SQLite 重启的同一 failure contract。
+- 受影响回归 **23/23**；Docker compileall、quick、stage、full-stage 和生产 acceptance 通过，容器 healthy；真实 DeepSeek Planner **1/1**、真实模型 + Docker GIS **1/1** 通过。
+- M190-D 修复了 LLM provider 失败被误归类为普通执行错误、规划失败阶段缺失以及 HTTP provider 原始响应可能进入结果的问题；详情已写入中文开发问题文档。M190 已完成，下一阶段按全局七维度规划并提交推送版本。
+
+## M191 全局重规划参考
+
+M190 已把开放式能力发现、结构化澄清和模型失败证据接入 Runtime，但“选择候选能力后继续补事实、预览、确认、执行”的通用闭环仍需验证。下一阶段不增加洪山区专用规则，优先做开放式能力选择到执行的纵向切片：
+
+1. **产品**：候选能力选择、补充事实、计划预览、用户确认、执行、失败恢复和结果展示必须形成同一连续交互。
+2. **架构**：统一 `select_capability`/`provide_facts` 与 RequestFacts、Workflow、TaskPlan 的转换边界，避免 Console 或 Service 各自拼接请求。
+3. **数据**：候选能力的必需事实、数据 readiness、coverage、alignment 和 provenance 必须在选择后重新核验，并能说明缺失原因。
+4. **模型**：脱敏 replay 验证模型能消费能力 guidance、保留选择后的事实和 DAG；live-short 只验证代表性开放式请求，不进入默认 CI。
+5. **部署**：选择/补事实后的 preview fingerprint、异步提交、SQLite 重启、Artifact 和重复提交必须保持一致，不能重复执行工具。
+6. **体验**：前端只消费结构化 selection、facts、plan、allowed_actions、failure 和 result projection，动态展示下一步，不新增 GIS 页面分支。
+7. **测试**：保持 compact quick/CI；新增一个跨 Domain 的 selection-to-run Contract Harness，阶段收口执行 Docker、HTTP、Artifact、浏览器和必要 live/GIS 验收。

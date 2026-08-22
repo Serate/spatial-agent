@@ -234,37 +234,60 @@ class OpenAIPlannerClient:
                 break
             except json.JSONDecodeError as exc:
                 self._record_error(started, "response_json_error", attempts)
-                raise PlanningError("OpenAI response was not valid JSON") from exc
+                raise _planner_error(
+                    "OpenAI response was not valid JSON",
+                    "response_json_error",
+                ) from exc
             except urllib.error.HTTPError as exc:
                 if _retryable_http_status(exc.code) and attempts <= self._max_retries:
                     self._wait_before_retry(attempts)
                     continue
                 self._record_error(started, "http_error", attempts, exc.code)
-                detail = exc.read().decode("utf-8", errors="replace")
-                raise PlanningError("OpenAI request failed: " + detail) from exc
+                # Do not copy provider response bodies into the run error or
+                # artifact; gateways sometimes echo credentials or private
+                # request details.  The status and bounded failure contract
+                # are sufficient for diagnosis and recovery.
+                raise _planner_error(
+                    "OpenAI request failed (HTTP {})".format(exc.code),
+                    "http_error",
+                    response_status=exc.code,
+                    retryable=_retryable_http_status(exc.code),
+                ) from exc
             except urllib.error.URLError as exc:
-                if _retryable_url_error(exc) and attempts <= self._max_retries:
+                is_retryable = _retryable_url_error(exc)
+                if is_retryable and attempts <= self._max_retries:
                     self._wait_before_retry(attempts)
                     continue
                 self._record_error(started, "url_error", attempts)
-                raise PlanningError("OpenAI request failed: " + str(exc)) from exc
+                raise _planner_error(
+                    "OpenAI request failed (network)",
+                    "url_error",
+                    retryable=is_retryable,
+                ) from exc
             except (TimeoutError, socket.timeout) as exc:
                 if attempts <= self._max_retries:
                     self._wait_before_retry(attempts)
                     continue
                 self._record_error(started, "timeout", attempts)
-                raise PlanningError("OpenAI request timed out") from exc
+                raise _planner_error(
+                    "OpenAI request timed out",
+                    "timeout",
+                    retryable=True,
+                ) from exc
 
         try:
             text = self._extract_text(payload)
-        except PlanningError:
+        except PlanningError as exc:
             self._record_error(started, "response_shape_error", attempts)
-            raise
+            raise _planner_error(str(exc), "response_shape_error") from exc
         try:
             return json.loads(text)
         except json.JSONDecodeError as exc:
             self._record_error(started, "response_json_error", attempts)
-            raise PlanningError("OpenAI response was not valid JSON") from exc
+            raise _planner_error(
+                "OpenAI response was not valid JSON",
+                "response_json_error",
+            ) from exc
 
     def metrics(self) -> Dict[str, Any]:
         return dict(self._last_metrics)
@@ -439,6 +462,50 @@ def _retryable_url_error(error: urllib.error.URLError) -> bool:
         errno.ECONNABORTED,
         errno.ECONNREFUSED,
     }
+
+
+def _planner_error(
+    message: str,
+    error_type: str,
+    *,
+    response_status: Optional[int] = None,
+    retryable: Optional[bool] = None,
+) -> PlanningError:
+    """Create a bounded Planner failure with stable recovery metadata."""
+    category, code, default_retryable = _planner_failure_metadata(
+        error_type,
+        response_status,
+    )
+    return PlanningError(
+        message,
+        category=category,
+        code=code,
+        retryable=default_retryable if retryable is None else retryable,
+    )
+
+
+def _planner_failure_metadata(
+    error_type: str,
+    response_status: Optional[int] = None,
+) -> tuple[str, str, bool]:
+    """Map provider-specific transport failures to bounded Agent semantics."""
+    if error_type == "http_error":
+        if response_status in (401, 403):
+            return "provider", "provider_authentication", False
+        if response_status == 429:
+            return "provider", "provider_rate_limited", True
+        if response_status in (408, 425) or (
+            response_status is not None and response_status >= 500
+        ):
+            return "provider", "provider_transient_http", True
+        return "provider", "provider_http_error", False
+    if error_type == "timeout":
+        return "provider", "provider_timeout", True
+    if error_type == "url_error":
+        return "provider", "provider_network", False
+    if error_type in {"response_json_error", "response_shape_error"}:
+        return "planning", "invalid_model_response", False
+    return "planning", "planner_error", False
 
 
 def _usage_summary(usage: Any) -> Dict[str, int]:
