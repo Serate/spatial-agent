@@ -9,6 +9,7 @@ from agent.contract_versions import (
     RESULT_ENVELOPE_SCHEMA_VERSION,
     TASK_PLAN_SCHEMA_VERSION,
 )
+from agent.model_evidence import project_model_evidence
 from agent.runtime_context import (
     RUNTIME_CONTEXT_SCHEMA_VERSION,
     RuntimeContextMismatchError,
@@ -181,6 +182,23 @@ class M135RuntimeContextTests(unittest.TestCase):
         self.assertNotIn("private provider response", encoded)
         self.assertNotIn("sk-never-return-this", encoded)
         self.assertNotIn("private_path", encoded)
+
+    def test_model_evidence_preserves_explicit_unavailable_state(self):
+        context = build_runtime("rule", "memory", domain_id="text").runtime_context()
+
+        evidence = project_model_evidence(
+            {
+                "schema_version": "spatial-agent.model-evidence.v1",
+                "available": False,
+                "execution_mode": "rule",
+                "raw_response": "must-not-cross-the-public-seam",
+            },
+            context,
+        )
+
+        self.assertFalse(evidence["available"])
+        self.assertEqual(evidence["execution_mode"], "rule")
+        self.assertNotIn("raw_response", evidence)
 
     def test_submission_snapshot_does_not_initialize_gis_backend(self):
         with patch(

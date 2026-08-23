@@ -34,9 +34,15 @@ def project_model_evidence(
     """
 
     value = metrics if isinstance(metrics, Mapping) else {}
+    explicit_available = value.get("available")
+    available = (
+        explicit_available
+        if isinstance(explicit_available, bool)
+        else bool(value)
+    )
     result: Dict[str, Any] = {
         "schema_version": MODEL_EVIDENCE_SCHEMA_VERSION,
-        "available": bool(value),
+        "available": available,
     }
     execution_mode = str(value.get("execution_mode") or "").strip().lower()
     if execution_mode not in _EXECUTION_MODES:

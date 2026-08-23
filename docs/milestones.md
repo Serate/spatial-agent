@@ -4435,3 +4435,18 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **部署**：验证组合 workflow 在 HTTP、Async、SQLite restart、Artifact-only recovery 中的幂等和核心 evidence equality。
 6. **体验**：Console 动态展示组件状态、证据变化、修复链和动作，不增加 GIS 页面分支。
 7. **测试**：新增一个精简组合跨入口 harness；默认 CI 继续离线，Docker/HTTP/浏览器/live 只作显式验收。
+
+## M221-B2：真实模型 HTTP/异步/Artifact 一致性（已完成）
+
+- 新增 `scripts/live_http_acceptance.py`，显式 opt-in 后验证同步运行、异步提交与轮询、run detail、artifact、manifest 和 evidence 端点；输出固定有界摘要，不保存模型原始响应。
+- 同一 run 严格比较 result type、完整安全 model evidence、context fingerprint、plan identity、workspace 和 view panel；独立 live run 比较稳定核心投影并分别保留计划身份。
+- 修复公共 `project_model_evidence` 重复投影时把显式 `available=false` 改成 `true` 的幂等性问题；异步 view 状态增强不再被误判为 panel identity 漂移。
+- Docker rule+memory 验收六组比较全部通过；真实 DeepSeek 中转 + Docker sync/async 均完成，异步证据记录 5228 tokens；M135/M146 回归 12/12，`compileall` 通过。
+
+## M222：恢复接管与展示边界收敛（下一阶段全局规划）
+
+1. **恢复**：在真实 HTTP 异步运行完成后重启生产容器，验证 SQLite 接管、artifact-only fallback、model/context/plan/evidence 同一性且不重复调用模型。
+2. **架构**：审计 CLI、HTTP、async、Artifact 和前端的公共投影入口，删除仍自行拼接 Result/Evidence 的兼容分支。
+3. **体验**：移除剩余旧 GIS renderer，让通用 view slot 覆盖非地图结果；地图仅保留作为声明式 renderer plugin。
+4. **可观测性**：把接管来源、恢复次数和 evidence freshness 以有界结构化字段暴露给前端，不泄漏进程、路径或 provider 原文。
+5. **测试**：新增一条 opt-in 的 Docker 重启接管纵向验收和一个浏览器动态 view smoke；默认 quick/CI 不扩容。

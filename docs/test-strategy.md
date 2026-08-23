@@ -104,6 +104,16 @@ docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile li
 
 使用 `--dataset-config` 显式绑定 analysis-ready 配置，避免默认 raw 栅格配置触发 `grid_mismatch` 并把数据准备问题误判为模型或 Planner 问题。
 
+### live-http
+
+HTTP/异步/artifact 的真实模型一致性使用独立 opt-in 脚本，默认不进入 CI：
+
+~~~powershell
+docker exec -e SPATIAL_AGENT_LIVE_HTTP=1 ai-agent-spatial-agent-1 python scripts/live_http_acceptance.py --planner openai --backend memory
+~~~
+
+先用 `--planner rule` 做无模型费用预检。live 路径只输出有界的 result type、模型身份与 usage、context/plan fingerprint、workspace/view panel 和比较状态；不写文件，不输出 prompt、provider 原始响应、API key 或宿主路径。同一 run 的 full result、polling、artifact 必须严格保持 plan/model evidence 一致；两个独立 live run 允许 plan fingerprint 不同，但核心结果投影必须一致。
+
 ### docker
 
 Docker profile 只做 production acceptance，不在容器里默认跑完整 live baseline：
