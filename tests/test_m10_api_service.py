@@ -132,7 +132,8 @@ class M10HttpApiTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         self.assertIn("正在检查运行环境", body)
-        self.assertIn("本地 GIS", body)
+        self.assertIn("capabilityHealthLabel", body)
+        self.assertNotIn("data-domain-control", body)
         self.assertIn("真实大模型", body)
         self.assertIn("对话", body)
         self.assertIn("发送", body)
@@ -148,9 +149,10 @@ class M10HttpApiTests(unittest.TestCase):
         self.assertIn("运行血缘", body)
         self.assertIn("function provenance", body)
         self.assertIn("依赖：", body)
-        self.assertIn("有效像元", body)
         self.assertIn("空间智能体", body)
-        self.assertIn("data-request", body)
+        self.assertIn("console_renderer_registry.js", body)
+        self.assertIn("console_action_host.js", body)
+        self.assertIn("console_gis_plugin.js", body)
 
     def test_http_api_returns_not_found_for_unknown_route(self):
         class TestHandler(AgentApiHandler):

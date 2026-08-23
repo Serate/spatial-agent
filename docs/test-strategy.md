@@ -288,3 +288,19 @@ node scripts/console_session_smoke.js
 ~~~
 
 四个浏览器 smoke 必须串行复用 CDP 页面。它们验证统一动态结果容器、地图插件、错误空态和会话 identity；不得重新增加 raster/health/overview/composite/buildability 专用 DOM 断言。
+
+## M223 Console 插件边界专项
+
+Renderer/Action/GIS plugin 或 Console Shell 发生变化时，先重建当前 Docker 镜像，再运行一组小而正交的验收：
+
+~~~powershell
+docker compose -f docker-compose.prod.yml up -d --build
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m30_console_result_summary tests.test_m124_domain_actions tests.test_m148_console_domain_static tests.test_m165_cross_entry_contract -v
+docker exec ai-agent-spatial-agent-1 node scripts/console_plugin_smoke.js
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains production_api.py serve_api.py
+node scripts/console_overview_smoke.js
+node scripts/console_clear_smoke.js
+~~~
+
+该专项只保留四类证据：Shell 领域隔离、Action Catalog/schema、renderer 故障/代次保护、真实浏览器的 generic/visual surface 与选择 reset。`console_overview_smoke.js` 同时验证动态 Action 表单，因此不再为每个 GIS Action 保留固定表单 smoke。地图交互使用内联 GeoJSON；真实 GIS 数据和 live planner 仍走显式 GIS/live profile，不能由 fixture 代替。

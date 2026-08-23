@@ -85,6 +85,9 @@ WEB_ASSETS = frozenset({
     "console_selection_interaction.js",
     "console_evidence_registry.js",
     "console_workflow_evidence.js",
+    "console_renderer_registry.js",
+    "console_action_host.js",
+    "console_gis_plugin.js",
 })
 
 

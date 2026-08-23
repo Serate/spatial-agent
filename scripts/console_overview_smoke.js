@@ -105,24 +105,58 @@ if (!run.stats.includes("工具步骤") || !run.stats.includes("数据来源") |
   throw new Error(`空间总览摘要缺少公共指标：${JSON.stringify(run)}`);
 }
 
-// 用固定的最小结果验证前端分层，不依赖 Docker 是否挂载可选道路/水体文件。
-const layersSnapshot = await evaluate(`(()=>{
+// 用固定的最小 workspace 验证 Registry 的视觉与通用 surface，不依赖可选数据文件。
+const layersSnapshot = await evaluate(`(async()=>{
   const polygon=(x,y)=>({type:'Feature',properties:{...x},geometry:{type:'Polygon',coordinates:[[[y,y],[y+0.02,y],[y+0.02,y+0.02],[y,y+0.02],[y,y]]]}});
-  const fixture={result_type:'spatial_overview_result',features:[
+  const geojson={type:'FeatureCollection',features:[
     polygon({geometry_source:'geojson',name:'洪山区'},114.30),
     {type:'Feature',properties:{dataset:'roads',name:'道路示例'},geometry:{type:'LineString',coordinates:[[114.31,30.48],[114.33,30.50]]}},
     polygon({dataset:'water',name:'水体示例'},114.34)
   ]};
-  const rendered=spatialOverviewMapPreview(fixture);
+  const report=await rendererRegistry.renderWorkspace({
+    panels:{
+      overview_map:{kind:'map',title:'空间概览地图',mode:'geojson',geojson},
+      overview_metrics:{kind:'metrics',title:'概览统计',metrics:[
+        {label:'空间要素',value:3},
+        {label:'数据来源',value:'内联契约 fixture'}
+      ]}
+    },
+    specs:[
+      {id:'overview_map',renderer:'map',title:'空间概览地图'},
+      {id:'overview_metrics',renderer:'metrics',title:'概览统计'}
+    ],
+    run:{run_id:'renderer-registry-smoke'},
+    surfaces:{generic:$('genericResult'),visual:$('map')},
+    onSurface:(surface,visible)=>{
+      if(surface==='generic') setResultPanel('.generic-result',visible);
+      if(surface==='visual') setResultPanel('.map-result',visible);
+    }
+  });
+  await new Promise(resolve=>setTimeout(resolve,50));
   const labels=[...document.querySelectorAll('#leafletMap .leaflet-control-layers-overlays label')].map(x=>x.textContent.trim());
   const paths=[...document.querySelectorAll('#leafletMap .leaflet-overlay-pane path')];
   const colors=paths.map(x=>x.getAttribute('stroke')||x.style.stroke||'');
-  return JSON.stringify({rendered,labels,colors,pathCount:paths.length,map:Boolean(document.querySelector('#leafletMap'))});
+  return JSON.stringify({
+    report,
+    labels,
+    colors,
+    pathCount:paths.length,
+    map:Boolean(document.querySelector('#leafletMap')),
+    visualSurface:Boolean(document.querySelector('.map-result.is-visible')),
+    genericSurface:Boolean(document.querySelector('.generic-result.is-visible')),
+    genericText:$('genericResult')?.textContent||''
+  });
 })()`);
 const layers = JSON.parse(layersSnapshot || "{}");
 console.log(JSON.stringify({run, layers}));
-if (!layers.rendered || !layers.map || layers.pathCount < 3) {
+if (layers.report?.status !== "rendered" || !layers.report?.rendered_surfaces?.includes("visual") || !layers.report?.rendered_surfaces?.includes("generic")) {
+  throw new Error(`Renderer Registry 没有完成两个 surface：${JSON.stringify(layers)}`);
+}
+if (!layers.visualSurface || !layers.map || layers.pathCount < 3) {
   throw new Error(`空间总览地图没有渲染足够要素：${JSON.stringify(layers)}`);
+}
+if (!layers.genericSurface || !layers.genericText.includes("概览统计") || !layers.genericText.includes("空间要素") || !layers.genericText.includes("内联契约 fixture")) {
+  throw new Error(`通用结构化结果没有通过 Registry 渲染：${JSON.stringify(layers)}`);
 }
 for (const label of ["行政区边界", "道路", "水体"]) {
   if (!layers.labels.some(value => value.includes(label))) {
@@ -133,6 +167,25 @@ for (const color of ["#087f8c", "#d97706", "#2563eb"]) {
   if (!layers.colors.some(value => value.toLowerCase() === color)) {
     throw new Error(`地图缺少颜色 ${color}：${JSON.stringify(layers.colors)}`);
   }
+}
+
+const actionSnapshot = await evaluate(`(()=>{
+  const target=document.createElement('div'); document.body.appendChild(target);
+  const mounted=window.ConsoleActionHost.mount({target,catalog:{domain_id:'text',actions:[
+    {id:'text.normalize',label:'文本规范化',input_schema:{type:'object',required:['text'],properties:{text:{type:'string',title:'文本',default:'示例'}}}},
+    {id:'text.stats',label:'文本统计',input_schema:{type:'object',required:['limit'],properties:{limit:{type:'integer',title:'限制',default:10,minimum:1,maximum:20}}}}
+  ]}});
+  const select=target.querySelector('#domainActionSelect');
+  const first={options:select.options.length,text:target.textContent,value:target.querySelector('[data-action-field]')?.value||''};
+  select.value='text.stats'; select.dispatchEvent(new Event('change'));
+  const second={text:target.textContent,type:target.querySelector('[data-action-field]')?.dataset.actionType||'',value:target.querySelector('[data-action-field]')?.value||''};
+  const actualOptions=document.querySelector('#domainActionSelect')?.options.length||0;
+  target.remove();
+  return JSON.stringify({mounted,first,second,actualOptions});
+})()`);
+const action = JSON.parse(actionSnapshot || "{}");
+if (action.mounted?.action_count !== 2 || action.first?.options !== 2 || action.first?.value !== "示例" || action.second?.type !== "integer" || action.second?.value !== "10" || action.actualOptions < 1) {
+  throw new Error(`Action Host 未按 schema 动态生成表单：${JSON.stringify(action)}`);
 }
 
 const releaseSnapshot = await evaluate(`(()=>{

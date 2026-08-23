@@ -87,16 +87,23 @@ _VIEW_RENDERERS = {
     "generic": "generic",
 }
 
+_MAP_RENDER_TYPES = set(_TITLES) - {"direct_answer", "dataset_health_result"}
+
 
 def _view_specs_for(result_type: str) -> tuple[ViewSpec, ...]:
-    return tuple(
+    specs = [
         ViewSpec(
             view_id=panel,
             renderer=_VIEW_RENDERERS.get(panel, "generic"),
             title=_VIEW_TITLES.get(panel),
         )
         for panel in _PANELS.get(result_type, ())
-    )
+    ]
+    if result_type in _MAP_RENDER_TYPES and not any(
+        item.view_id == "map" for item in specs
+    ):
+        specs.append(ViewSpec(view_id="map", renderer="map", title=_VIEW_TITLES["map"]))
+    return tuple(specs)
 
 GIS_RESULT_REGISTRY = ResultContractRegistry(
     {

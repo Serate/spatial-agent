@@ -53,6 +53,7 @@ class DomainActionSpec:
                     "maxItems",
                     "items",
                     "enum",
+                    "default",
                 )
                 if key in definition
             }

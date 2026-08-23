@@ -15,10 +15,11 @@ class M66ConsoleAcceptanceContractTests(unittest.TestCase):
         self.assertNotIn("Stop-Process", source)
         self.assertIn("--remote-debugging-port=$Port", source)
 
-    def test_overview_smoke_checks_result_panel_and_all_vector_layers(self):
+    def test_overview_smoke_checks_registry_surfaces_and_vector_layers(self):
         source = (ROOT / "scripts" / "console_overview_smoke.js").read_text(encoding="utf-8")
         for marker in (
-            "spatial_overview_result",
+            "rendererRegistry.renderWorkspace",
+            "rendered_surfaces",
             ".generic-result.is-visible",
             "genericResult",
             "工具步骤",

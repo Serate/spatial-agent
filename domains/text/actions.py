@@ -18,7 +18,7 @@ TEXT_ACTION_SPECS = (
             "type": "object",
             "required": ["text"],
             "properties": {
-                "text": {"type": "string", "minLength": 1, "maxLength": 4000},
+                "text": {"type": "string", "title": "文本", "minLength": 1, "maxLength": 4000},
             },
             "additionalProperties": False,
         },
@@ -34,6 +34,7 @@ TEXT_ACTION_SPECS = (
             "properties": {
                 "text": {
                     "type": "string",
+                    "title": "文本",
                     "minLength": 1,
                     "maxLength": 4000,
                 },
@@ -50,7 +51,7 @@ TEXT_ACTION_SPECS = (
             "type": "object",
             "required": ["text"],
             "properties": {
-                "text": {"type": "string", "minLength": 1, "maxLength": 4000},
+                "text": {"type": "string", "title": "文本", "minLength": 1, "maxLength": 4000},
             },
             "additionalProperties": False,
         },

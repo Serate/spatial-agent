@@ -4461,3 +4461,23 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **体验**：把“空间计划”等核心文案改为领域中立语义；无插件、未知 renderer 或降级 artifact 返回有界空态与恢复链接。
 6. **隔离**：增加 Console core 静态隔离检查，GIS 专用 result/action/style 字面量只能存在于 GIS plugin；用 Text fixture 证明新增 Domain 无需修改 shell。
 7. **测试**：只保留一条 Text/GIS 跨域动态 renderer/action 纵向 smoke，叠加现有 compact 与显式浏览器验收；默认 CI 不增加 live、GIS 或浏览器负担。
+
+## M223：Console Renderer/Action 插件边界（已完成）
+
+- 新增版本化 `ConsoleRendererRegistry` 深 Module；Shell 只调用 `register/renderWorkspace/reset/context`，内置 generic/metrics/table/chart adapter，并统一处理未知 renderer、adapter 故障、surface 聚合和异步请求代次保护。
+- 新增 schema 驱动的 `ConsoleActionHost`；string、number/integer、boolean、array、object 和 enum 共用一套表单、约束、提交与结果回调。GIS 三个固定对比表单和 Action ID 已从页面删除，Text/GIS Action Catalog 通过同一接口。
+- 地图加载、GeoJSON/raster bounds、Leaflet/SVG fallback、图层分类/样式、点击选择与空间上下文全部迁入 `ConsoleGisPlugin`；预览和正式执行都从 Registry 获取领域上下文，清空会话通过统一 reset 清理 adapter 状态。
+- GIS 可绘制结果通过 `view_specs.renderer=map` 声明展示意图；生产 FastAPI 和开发 HTTP 仅通过静态资源 allowlist 提供三个插件文件。Action schema 增加安全标题、默认值、枚举和范围约束。
+- Console Shell 删除固定 GIS 示例、对比 DOM/函数、领域控件 gate、专用步骤摘要和“空间计划”文案；未知 view 和插件故障返回通用有界空态与 artifact 恢复入口。
+- 历史静态测试收敛为接口/隔离契约，删除两条依赖固定 GIS 表单的重复浏览器 smoke；新增单文件 Node smoke 覆盖 renderer 分发、故障隔离、代次保护、Action 参数转换和 reset。
+- Docker 精简静态/Domain/HTTP 回归、quick、compileall 与 Node smoke 通过；health、overview、error、session、map、clear 六条浏览器验收串行通过。真实 GIS 数据缺失与插件交互 fixture 保持分层，没有用内联 GeoJSON 冒充真实数据验收。
+
+## M224：多 Domain Runtime Host 与选择恢复（下一阶段全局规划）
+
+1. **产品**：让同一个 HTTP/Console 部署可处理 GIS、Text 和未来 Domain 请求；用户可显式选择 Domain，也可由结构化能力发现返回唯一选择或候选澄清，不再为每个 Domain 启动独立服务。
+2. **架构**：在 `AgentRuntime` 外建立版本化 `DomainRuntimeHost` seam，管理每个 Domain 的 `AgentService` adapter；Domain 选择发生在 Planner 前，输出统一 `DomainSelection`，不把跨域路由写进任一 Planner 或 Runtime。
+3. **生命周期与恢复**：session、run、decision、action、async、SQLite 和 artifact 都持久化 selected domain；轮询和重启恢复按运行身份路由回原 adapter，未知或冲突 Domain 返回结构化澄清/拒绝，禁止跨域串读。
+4. **契约与入口**：`/domains`、`/capabilities`、`/workflows`、`/actions` 和 run/action 入口共享显式 `domain_id`/selection contract；CLI、生产 FastAPI、开发 HTTP 和 Console 对同一选择产生一致的 runtime context、result 和 evidence。
+5. **模型与能力发现**：先用离线 capability catalog router 验证唯一、歧义和不匹配；LLM Domain router 作为未来可替换 adapter，不与 LLM Planner 混合，也不保存原始响应。
+6. **体验**：Console 从 `/domains` 动态生成领域选择并随会话/运行恢复；renderer/action plugin 继续消费所选 Domain 声明，不新增 GIS/Text 页面分支。
+7. **测试**：新增一条 Text/GIS 跨 Domain HTTP→async→artifact→restart Harness 和一条浏览器选择 smoke；默认 quick/CI 仍保持离线极简，真实 GIS/live 不进入默认门禁。

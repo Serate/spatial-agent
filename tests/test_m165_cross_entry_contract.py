@@ -69,8 +69,14 @@ class M165CrossEntryContractTests(unittest.TestCase):
         production = (root / "production_api.py").read_text(encoding="utf-8")
         development = (root / "serve_api.py").read_text(encoding="utf-8")
         for source in (production, development):
-            self.assertIn("console_selection_interaction.js", source)
-            self.assertIn("console_evidence_registry.js", source)
+            for asset in (
+                "console_selection_interaction.js",
+                "console_evidence_registry.js",
+                "console_renderer_registry.js",
+                "console_action_host.js",
+                "console_gis_plugin.js",
+            ):
+                self.assertIn(asset, source)
             self.assertIn("application/javascript", source)
 
     def test_selection_interaction_is_transport_neutral(self):

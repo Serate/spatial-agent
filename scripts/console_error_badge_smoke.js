@@ -97,22 +97,19 @@ if (ok.badge || ok.error !== '') {
   throw new Error(`成功结果不应渲染错误徽标：${okSnapshot}`);
 }
 
-// 空态收敛：统一结果容器保持隐藏且为空；比较面板显示可操作提示。
+// 空态收敛：统一结果容器保持隐藏且为空，领域 adapter 上下文同时清空。
 const placeholderSnapshot = await evaluate(`(()=>{
   resetConversationView();
   return JSON.stringify({
     generic: document.querySelector('#genericResult')?.textContent || '',
     genericVisible: Boolean(document.querySelector('.generic-result.is-visible')),
-    compare: document.querySelector('#compareResults')?.textContent || '',
-    regionCompare: document.querySelector('#regionCompareResults')?.textContent || ''
+    emptyVisible: getComputedStyle(document.querySelector('#resultEmpty')).display !== 'none',
+    domainContext: rendererRegistry.context()
   });
 })()`, true);
 const placeholders = JSON.parse(placeholderSnapshot || "{}");
-if (placeholders.generic !== '' || placeholders.genericVisible) {
+if (placeholders.generic !== '' || placeholders.genericVisible || !placeholders.emptyVisible || Object.keys(placeholders.domainContext || {}).length) {
   throw new Error(`统一结果容器没有恢复为空态：${placeholderSnapshot}`);
-}
-if (!placeholders.compare.includes('对比') || !placeholders.regionCompare.includes('多区域对比')) {
-  throw new Error(`比较面板缺少可操作提示：${placeholderSnapshot}`);
 }
 
 console.log(JSON.stringify({tool, rejected, ok, placeholders}));

@@ -14,13 +14,13 @@ pwsh -NoProfile -File scripts/resume_context.ps1
 
 ## 当前状态
 
-- M222 已完成：Docker 重启后，rule 与真实 DeepSeek existing-run 的 run、polling、artifact 和 evidence 同一性均已验证，完成态任务未被重新认领。
-- 非地图 view 已统一进入 `genericResult`；五套旧 DOM/renderer 已删除，地图待插件化。
-- Docker 静态测试 8/8、`compileall` 与四条浏览器 smoke 均通过。
+- M223 已完成：Console Shell 只通过 Renderer Registry 与 Action Host 消费 `view_specs`/Action schema，GIS 地图、样式、选择上下文和 reset 均位于 GIS plugin。
+- 固定 GIS 对比 DOM/Action ID、领域控件 gate 和专用步骤摘要已删除；Text/GIS 动态表单、unknown/failure fallback、请求代次保护和清空选择均已验证。
+- Docker 精简契约、quick、compileall、Node plugin smoke 与六条串行浏览器验收通过；真实 GIS/live 仍保持独立显式路径。
 
 ## 下一步
 
-推送 M222；随后进入 M223，把地图、Domain Action 和领域控件迁出 Console 核心，建立由 `view_specs`、renderer id 与 action schema 驱动的插件边界。
+提交并推送 M223；随后进入 M224，建立多 Domain Runtime Host 和版本化 DomainSelection，让同一 HTTP/Console 部署可选择、执行并恢复 GIS/Text 运行，而不是每个服务实例固定一个 Domain。
 
 ## 不变量
 

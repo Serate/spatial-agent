@@ -38,7 +38,7 @@ for (let attempt = 0; attempt < 60; attempt++) {
   if (attempt === 59) throw new Error("Console 页面脚本未就绪");
 }
 const result = await command("Runtime.evaluate", {
-  expression: "(async()=>{ $('answer').textContent='旧分析结论'; $('steps').textContent='旧执行步骤'; selectedSpatialContext={admin_name:'洪山区'}; $('mapSelection').textContent='已选中：洪山区'; $('useMapSelection').disabled=false; await clearChat(); return JSON.stringify({answer:$('answer').textContent,steps:$('steps').textContent,selection:$('mapSelection').textContent,selectionEnabled:!$('useMapSelection').disabled})})()",
+  expression: "(async()=>{ $('answer').textContent='旧分析结论'; $('steps').textContent='旧执行步骤'; const feature={type:'Feature',properties:{name:'洪山区',geometry_source:'fixture'},geometry:{type:'Polygon',coordinates:[[[114.30,30.48],[114.32,30.48],[114.32,30.50],[114.30,30.50],[114.30,30.48]]]}}; await rendererRegistry.renderWorkspace({panels:{map:{kind:'map',mode:'geojson',geojson:{type:'FeatureCollection',features:[feature]}}},specs:[{id:'map',renderer:'map'}],surfaces:{generic:$('genericResult'),visual:$('map')}}); const path=document.querySelector('#leafletMap .leaflet-overlay-pane path'); if(!path) throw new Error('地图 fixture 未渲染'); path.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(resolve=>setTimeout(resolve,50)); const before=rendererRegistry.context(); await clearChat(); return JSON.stringify({before,after:rendererRegistry.context(),answer:$('answer').textContent,steps:$('steps').textContent,selection:$('mapSelection').textContent,selectionEnabled:!$('useMapSelection').disabled})})()",
   awaitPromise: true,
   returnByValue: true,
 });
@@ -47,7 +47,7 @@ if (result.result.exceptionDetails) {
 }
 const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
-if (snapshot.answer || snapshot.steps || !snapshot.selection.includes("点击地图要素后") || snapshot.selectionEnabled) {
+if (!snapshot.before?.spatial_context?.admin_name || Object.keys(snapshot.after || {}).length || snapshot.answer || snapshot.steps || !snapshot.selection.includes("下一次请求的领域上下文") || snapshot.selectionEnabled) {
   throw new Error("清空对话没有清除当前工作区");
 }
 socket.close();

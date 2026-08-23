@@ -39,15 +39,20 @@ class M124DomainActionTests(unittest.TestCase):
         source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
             encoding="utf-8"
         )
+        action_host = (
+            Path(__file__).parents[1] / "web" / "console_action_host.js"
+        ).read_text(encoding="utf-8")
         self.assertIn("loadActions", source)
         self.assertIn("nativeFetch('/actions'+query)", source)
         self.assertIn("executeDomainAction", source)
+        self.assertIn("window.ConsoleActionHost.mount", source)
+        self.assertIn("input_schema", action_host)
         for action_id in (
             "gis.buildability_threshold_comparison",
             "gis.buildability_region_comparison",
             "gis.constrained_buildability_comparison",
         ):
-            self.assertIn(action_id, source)
+            self.assertNotIn(action_id, source)
         self.assertNotIn("fetch('/comparisons'", source)
         self.assertNotIn("fetch('/region-comparisons'", source)
         self.assertNotIn("fetch('/constrained-comparisons'", source)
@@ -70,6 +75,10 @@ class M124DomainActionTests(unittest.TestCase):
                 actions["actions"][0]["input_schema"]["required"],
                 ["admin_name", "thresholds"],
             )
+            first_properties = actions["actions"][0]["input_schema"]["properties"]
+            self.assertEqual(first_properties["admin_name"]["default"], "洪山区")
+            self.assertEqual(first_properties["thresholds"]["default"], [15, 20, 25])
+            self.assertEqual(first_properties["planner"]["enum"], ["rule", "openai"])
             execution = service.execute_action(
                 "gis.buildability_threshold_comparison",
                 {
@@ -114,11 +123,17 @@ class M124DomainActionTests(unittest.TestCase):
         try:
             actions = service.actions()
             self.assertEqual(actions["domain_id"], "text")
-            self.assertEqual(actions["actions"][0]["id"], "text.summarize")
+            self.assertEqual(
+                [item["id"] for item in actions["actions"]],
+                ["text.normalize", "text.summarize", "text.stats"],
+            )
             catalog = service.capabilities()
         finally:
             service.close()
-        self.assertEqual(catalog["actions"]["actions"][0]["id"], "text.summarize")
+        self.assertEqual(
+            [item["id"] for item in catalog["actions"]["actions"]],
+            ["text.normalize", "text.summarize", "text.stats"],
+        )
         self.assertNotIn("gis", json.dumps(catalog, ensure_ascii=False).lower())
 
     def test_dev_http_exposes_selected_domain_actions(self):
@@ -137,7 +152,10 @@ class M124DomainActionTests(unittest.TestCase):
             TextHandler.service.close()
         self.assertEqual(status, 200)
         self.assertEqual(payload["domain_id"], "text")
-        self.assertEqual(payload["actions"][0]["id"], "text.summarize")
+        self.assertEqual(
+            [item["id"] for item in payload["actions"]],
+            ["text.normalize", "text.summarize", "text.stats"],
+        )
 
     def test_text_replay_is_consistent_across_http_artifact_and_recovery(self):
         with tempfile.TemporaryDirectory() as directory:
