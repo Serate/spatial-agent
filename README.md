@@ -8,6 +8,7 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 - Agent Runtime：Planner、TaskPlan、依赖执行、重试、超时、取消和失败恢复相互分离。
 - 双 Planner：默认规则规划器保证确定性；可选 OpenAI 兼容大模型规划器处理更开放的表达。
 - 受控多领域：`DomainSelector` 先从有界能力目录自动选择、澄清或说明无匹配，再由 `DomainRuntimeHost` 隔离运行 GIS/Text；执行结果携带版本化 routing identity、lineage 和 binding evidence。
+- 统一交互：选域、能力选择、事实补充、计划确认、修复、重试和恢复统一投影为版本化 `interaction`；所有动作在重新读取权威状态后，经 revision、动作目录和输入 schema 校验再由 `InteractionHost` 分发。
 - 工具安全边界：所有工具经过 schema 校验和 Registry 分发，不让模型直接调用后端。
 - 真实数据接入：支持行政区 GeoJSON、DEM/土地利用栅格，以及武汉 OSM 道路和水体 GeoPackage。
 - 数据质量预检：检查可读性、CRS、覆盖关系和几何质量，并在分析结果中保留证据。
@@ -137,6 +138,8 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 - `GET /runs/{run_id}`
 - `GET /runs/{run_id}/observability`
 - `GET /runs/{run_id}/async`
+- `GET /runs/{run_id}/interaction`
+- `POST /runs/{run_id}/interaction`
 - `GET /capabilities/runtime`
 - `GET /workflows`
 - `POST /workflows/{template_id}/validate`
@@ -147,7 +150,7 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 - `GET /sessions`
 - `POST /sessions/{session_id}/clear`
 
-Console 默认可使用“智能选择”：唯一匹配直接执行，歧义通过 schema-driven Action Host 改选，无匹配展示能力边界。选域前只创建中立 session identity，不初始化任何 Domain；首次执行后会话固定归属所选领域，刷新、轮询、取消、重试和 artifact 始终沿记录身份恢复。结构化 `domain_routing_evidence` 在 Result、异步轮询、SQLite、artifact 和重启恢复中保持同一 decision identity，并在通用证据区展示；旧无领域路径仍保留兼容。
+Console 默认可使用“智能选择”：唯一匹配直接执行，歧义通过 schema-driven Action Host 改选，无匹配展示能力边界。选域、能力选择和计划确认均消费同一个 `spatial-agent.interaction.v1`，Console 不再为三种状态分别维护动作策略。选域前只创建中立 session identity，不初始化任何 Domain；首次执行后会话固定归属所选领域，刷新、轮询、取消、重试和 artifact 始终沿记录身份恢复。结构化 `domain_routing_evidence` 与 `interaction` 在 Result、异步轮询、SQLite、artifact 和重启恢复中保持同一 journey，并在通用证据区展示；旧无领域路径仍保留兼容。
 
 ## 测试与验证
 

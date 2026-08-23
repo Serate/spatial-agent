@@ -348,3 +348,19 @@ node scripts/console_clear_smoke.js
 ~~~
 
 专项比较同一 decision identity 在同步、嵌套 Result、异步 polling、SQLite、artifact 和重启后的稳定 binding，并覆盖 run/idempotency 冲突、未知 schema、脱敏 metrics 和 provider fallback。真实 Model Selector + 本地 GIS 只作为显式 Docker 验收：只记录状态、identity、重试/延迟和 token usage，不保存请求、模型原文、密钥或私有路径；该路径不进入 quick/CI。
+
+## M227 统一 Interaction Contract 专项
+
+修改 interaction 投影、动作 schema、revision/CAS、Result/Async/Artifact/SQLite 迁移、HTTP interaction 入口或 Console Action Host 时，按当前工作树重建 Docker 后运行：
+
+~~~powershell
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m227_interaction_contract tests.test_m226_domain_routing_evidence_flow tests.test_m225_domain_entrypoints tests.test_m169_interaction_receipt tests.test_m186_action_precondition_contract -v
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick --profile smoke
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evaluation production_api.py serve_api.py run_demo.py result_contract.py
+node scripts/console_domain_routing_browser_smoke.js
+node scripts/console_candidate_selection_browser_smoke.js
+node scripts/console_selection_interaction_browser_smoke.js
+~~~
+
+三条浏览器脚本必须串行复用 CDP 页面。专项只验证一个 canonical interaction/command/Host seam、三个稳定 HTTP 拒绝码、持久化 journey 和三类代表性 UI 状态；不为每个动作复制测试，也不把真实模型或真实 GIS 加入默认 CI。

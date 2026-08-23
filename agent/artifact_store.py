@@ -27,6 +27,7 @@ from agent.evidence_registry import (
     project_evidence_registry_completeness,
 )
 from agent.recovery_action import normalize_action_receipt
+from agent.interaction_contract import project_interaction
 
 
 def _safe_run_id(run_id: object) -> str | None:
@@ -104,6 +105,9 @@ class ArtifactStore:
         if isinstance(nested_result, dict):
             nested_result = dict(nested_result)
             nested_result["domain_routing_evidence"] = routing_evidence
+        interaction = project_interaction(payload, prefer_existing=False)
+        if isinstance(nested_result, dict):
+            nested_result["interaction"] = interaction
         artifact = {
             "artifact_schema_version": RUN_ARTIFACT_SCHEMA_VERSION,
             "artifact_migration": payload.get("artifact_migration"),
@@ -146,6 +150,7 @@ class ArtifactStore:
             "decision_record": payload.get("_decision_record"),
             "interaction_receipt": payload.get("interaction_receipt"),
             "action_receipt": payload.get("action_receipt"),
+            "interaction": interaction,
             "lifecycle": project_action_lifecycle(payload),
             "geojson_ref": payload.get("geojson_ref"),
             "artifact_ref": path.as_posix(),

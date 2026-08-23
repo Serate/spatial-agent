@@ -110,3 +110,15 @@ Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8091/release-evidence?max_f
 - `console_map_smoke.js` 的真实几何失败：不能用内存后端替代，应确认已使用 `-Mode gis` 并挂载武汉数据。
 
 这些 smoke 脚本不会把 Planner 成功、工具成功或 GeoJSON 引用存在误判为真实几何可绘制。
+
+## M227 统一交互验收
+
+领域路由、能力选择和计划确认不再各自维护 renderer。页面必须加载 `console_interaction.js`，将 `spatial-agent.interaction.v1` 归一化后交给同一个 `ConsoleActionHost`，并提交 `spatial-agent.interaction-command.v1`。验收命令：
+
+```powershell
+node scripts/console_domain_routing_browser_smoke.js
+node scripts/console_candidate_selection_browser_smoke.js
+node scripts/console_selection_interaction_browser_smoke.js
+```
+
+三条脚本必须串行执行，分别验证：歧义选域和无匹配安全空态、领域中立能力候选与 facts/receipt/lineage 展示、预览指纹经过确认后保持一致并产出 artifact。静态断言只能检查 canonical seam，不能要求 `select_domain` 等具体动作 ID 硬编码在 `index.html`；动作身份必须来自服务返回的 `interaction.actions`。

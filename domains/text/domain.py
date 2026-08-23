@@ -446,12 +446,13 @@ class TextDomainPack:
     ) -> Mapping[str, Any] | None:
         del selection
         capability_id = str(capability_id or "").strip()
+        text = getattr(request_facts, "text", "")
+        if isinstance(request_facts, Mapping):
+            text = request_facts.get("text", "")
         if capability_id == "text_analysis":
             tasks = getattr(request_facts, "tasks", None)
-            text = getattr(request_facts, "text", "")
             if isinstance(request_facts, Mapping):
                 tasks = request_facts.get("tasks")
-                text = request_facts.get("text", "")
             components = build_text_workflow_components(tasks, text)
             if len(components) >= 2:
                 return {
@@ -463,7 +464,10 @@ class TextDomainPack:
                 }
         if capability_id not in self.workflow_template_catalog():
             return None
-        return {"template_id": capability_id, "constraints": {}, "evidence": []}
+        constraints = {}
+        if capability_id in {"text_normalize", "text_summary", "text_stats"} and str(text or "").strip():
+            constraints["text"] = str(text).strip()[:4000]
+        return {"template_id": capability_id, "constraints": constraints, "evidence": []}
 
     def workflow_template_context(
         self,

@@ -75,21 +75,25 @@ const result = await command("Runtime.evaluate", {
 
     await sendChat('查询DEM栅格元数据');
     const plannedRun=lastRunData||{};
-    const initialState=document.querySelector('[data-selection-state]')?.getAttribute('data-selection-state')||'';
+    const initialState=document.querySelector('[data-interaction-state]')?.getAttribute('data-interaction-state')||'';
     const submittedFingerprint=(plannedRun.plan_identity||plannedRun.plan_evidence?.plan_identity||{}).fingerprint||'';
     const selectedCapability=plannedRun.result?.selection_interaction?.selection?.selected_capability_id||'';
-    const confirm=document.querySelector('[data-selection-action="confirm"]');
-    if(!confirm) throw new Error('确认动作未渲染');
+    const host=document.querySelector('[data-canonical-action-host]');
+    const actionSelect=host?.querySelector('#domainActionSelect');
+    const confirm=host?.querySelector('#domainActionExecute');
+    if(!confirm||![...(actionSelect?.options||[])].some(item=>item.value==='confirm')) throw new Error('interaction.v1 确认动作未渲染');
     if(initialState!=='confirmation_required') throw new Error('请求未进入 confirmation_required');
     if(submittedFingerprint!==previewFingerprint) {
       throw new Error('预览与提交计划不一致: preview=' + previewFingerprint + ' submitted=' + submittedFingerprint);
     }
 
+    actionSelect.value='confirm';
+    actionSelect.dispatchEvent(new Event('change',{bubbles:true}));
     confirm.click();
     let finalState='';
     let finalStatus='';
     for(let attempt=0;attempt<100;attempt++){
-      finalState=document.querySelector('[data-selection-state]')?.getAttribute('data-selection-state')||'';
+      finalState=lastRunData?.result?.interaction?.state||document.querySelector('[data-interaction-state]')?.getAttribute('data-interaction-state')||'';
       finalStatus=$('status')?.textContent||'';
       if(finalState==='completed') break;
       await sleep(250);
@@ -107,7 +111,7 @@ const result = await command("Runtime.evaluate", {
       finalStatus,
       status:completedRun.status||'',
       artifact:Boolean(completedRun.artifact_ref),
-      moduleLoaded:Boolean(window.ConsoleSelectionInteraction),
+      moduleLoaded:Boolean(window.ConsoleInteraction),
     });
   })()`,
   awaitPromise: true,

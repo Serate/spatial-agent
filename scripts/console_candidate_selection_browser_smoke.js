@@ -48,15 +48,11 @@ await command("Page.addScriptToEvaluateOnNewDocument", {source: `
         run_id: 'm167-browser-candidate',
         status: 'COMPLETED',
         answer: '已完成能力选择',
-        result: {selection_interaction: {
-          schema_version: 'spatial-agent.selection-interaction.v1',
-          available: true,
-          state: 'completed',
-          reason_code: 'run_completed',
-          status: 'COMPLETED',
-          allowed_actions: [],
-          selection: {state: 'selected', candidate_ids: ['text_summary'], candidate_details: []},
-          missing_fields: [],
+        result: {interaction: {
+          schema_version: 'spatial-agent.interaction.v1', available: true, actionable: false,
+          subject: {root: {kind: 'run', id: 'm167-browser-candidate'}, current: {kind: 'run', id: 'm167-browser-candidate'}, revision: 4, domain_id: 'text'},
+          kind: 'lifecycle', state: 'completed', phase: 'execution', status: 'COMPLETED', reason_code: 'run_completed',
+          actions: [], blocked_actions: [], content: {}, receipt: null, lineage: {},
         }},
       }), {status: 200, headers: {'Content-Type': 'application/json'}});
     }
@@ -67,7 +63,7 @@ await command("Page.navigate", {url: consoleUrl});
 
 for (let attempt = 0; attempt < 60; attempt++) {
   const ready = await command("Runtime.evaluate", {
-    expression: "typeof $ === 'function' && typeof renderSelectionInteraction === 'function'",
+    expression: "typeof $ === 'function' && typeof renderCanonicalInteraction === 'function' && Boolean(window.ConsoleInteraction)",
     returnByValue: true,
   });
   if (ready.result?.result?.value) break;
@@ -90,66 +86,31 @@ const result = await command("Runtime.evaluate", {
     const data={
       run_id:'m167-browser-candidate',
       status:'NEEDS_CLARIFICATION',
-      result:{
-        selection_interaction:{
-          schema_version:'spatial-agent.selection-interaction.v1',
-          available:true,
-          state:'candidate_selection',
-          reason_code:'selection_requires_user_choice',
-          status:'NEEDS_CLARIFICATION',
-          allowed_actions:['select_capability','cancel'],
-          selection:{
-            state:'ambiguous',
-            candidate_ids:['text_summary'],
-            candidate_workflow_ids:[],
-            candidate_details:[candidate],
-          },
-          blocked_actions:['repair'],
-          action_preconditions:{
-            schema_version:'spatial-agent.action-precondition.v1',
-            available:true,
-            state:'blocked',
-            action_allowed:false,
-            enforcement:'enforced',
-            reason_code:'action_preconditions_blocked',
-            condition_count:1,
-            conditions:[{id:'alignment',status:'blocked',blocking:true}],
-          },
-          action_receipt:{
-            schema_version:'spatial-agent.action-receipt.v1',
-            action_id:'repair',
-            status:'FAILED',
-            reused:true,
-          },
-          repair_lineage:[{phase:'planning',repair_status:'repaired',repair_reason_code:'replacement_selected'}],
-          evidence_action_guidance:{
-            schema_version:'spatial-agent.evidence-action-guidance.v1',
-            available:true,
-            state:'degraded',
-            reason_code:'selection_requires_facts',
-            recommended_actions:['provide_facts'],
-            missing_fields:[{id:'region',label:'区域',kind:'entity'}],
-            source:'domain',
-          },
-          missing_fields:[],
-        },
+      interaction:{
+        schema_version:'spatial-agent.interaction.v1',available:true,actionable:true,
+        subject:{root:{kind:'run',id:'m167-browser-candidate'},current:{kind:'run',id:'m167-browser-candidate'},revision:1,domain_id:'text'},
+        kind:'workflow_selection',state:'candidate_selection',phase:'planning',status:'NEEDS_CLARIFICATION',reason_code:'selection_requires_user_choice',
+        actions:[{schema_version:'spatial-agent.interaction-action.v1',id:'select_capability',kind:'interaction',label:'选择能力',description:'选择一个已发现能力。',input_schema:{type:'object',properties:{capability_id:{type:'string',title:'能力',enum:['text_summary']}},required:['capability_id'],additionalProperties:false},idempotency_required:true}],
+        blocked_actions:['repair'],content:{candidates:[candidate],missing_fields:[{id:'region',label:'区域',kind:'entity'}]},receipt:{schema_version:'spatial-agent.action-receipt.v1',action_id:'repair',status:'FAILED',reused:true},lineage:{repair_count:1},
       },
     };
     lastRunData=data;
-    renderRun=()=>{};
     const panel=$('decisionEvidence');
-    panel.innerHTML=renderSelectionInteraction(data);
-    panel.querySelectorAll('[data-selection-action]').forEach(button=>button.addEventListener('click',()=>selectionInteractionAction(button.dataset.selectionAction,button.dataset.runId,button.dataset.selectionValue)));
+    panel.innerHTML='';
+    renderCanonicalInteraction(data);
     const card=panel.querySelector('.selection-candidate');
-    const button=panel.querySelector('[data-selection-action="select_capability"]');
+    const host=panel.querySelector('[data-canonical-action-host]');
+    const field=host?.querySelector('[data-action-field="capability_id"]');
+    const button=host?.querySelector('#domainActionExecute');
     if(!card||!button) throw new Error('候选卡片或选择按钮未渲染');
+    field.value='text_summary';
     button.click();
     for(let attempt=0;attempt<40&&!window.__m167Captured;attempt++) await new Promise(resolve=>setTimeout(resolve,50));
     return JSON.stringify({
       cardText:card.textContent||'',
       guidanceText:panel.textContent||'',
-      capabilityId:window.__m167Captured?.body?.capability_id||'',
-      action:window.__m167Captured?.body?.action||'',
+      capabilityId:window.__m167Captured?.body?.input?.capability_id||'',
+      action:window.__m167Captured?.body?.action_id||'',
       editorOpen:Boolean($('workflowEditor')?.open),
     });
   })()`,
@@ -160,8 +121,8 @@ if (result.result.exceptionDetails) throw new Error(JSON.stringify(result.result
 const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
 if (!snapshot.cardText.includes("文本摘要")) throw new Error("候选卡片未显示领域标签");
-if (!snapshot.guidanceText.includes("系统建议") || !snapshot.guidanceText.includes("补充事实")) throw new Error("指导动作未通过通用 renderer 展示");
-if (!snapshot.guidanceText.includes("动作凭据") || !snapshot.guidanceText.includes("修复链") || !snapshot.guidanceText.includes("已阻断")) throw new Error("interaction receipt/precondition/lineage 未通过通用 renderer 展示");
+if (!snapshot.guidanceText.includes("待补充：区域") || !snapshot.guidanceText.includes("selection_requires_user_choice")) throw new Error("结构化澄清未通过 interaction.v1 renderer 展示");
+if (!snapshot.guidanceText.includes("动作凭据") || !snapshot.guidanceText.includes("交互链") || !snapshot.guidanceText.includes("已阻断")) throw new Error("interaction receipt/block/lineage 未通过通用 renderer 展示");
 if (snapshot.action !== "select_capability" || snapshot.capabilityId !== "text_summary") {
   throw new Error(`capability_id action was not submitted: ${JSON.stringify(snapshot)}`);
 }

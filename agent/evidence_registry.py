@@ -14,6 +14,7 @@ from .action_lifecycle import ACTION_LIFECYCLE_SCHEMA_VERSION, project_action_li
 from .component_evidence import WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION
 from .contract_versions import (
     DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION,
+    INTERACTION_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
 )
 from .evidence_contract import DOMAIN_EVIDENCE_SCHEMA_VERSION
@@ -48,6 +49,7 @@ _KNOWN_SCHEMA_VERSIONS = {
     WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION,
     DOMAIN_EVIDENCE_SCHEMA_VERSION,
     DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION,
+    INTERACTION_SCHEMA_VERSION,
 }
 
 
@@ -75,6 +77,8 @@ def build_evidence_registry(
     planner_selection = planning.get("planner_selection") if isinstance(planning.get("planner_selection"), Mapping) else {}
     routing = result.get("domain_routing_evidence")
     routing = routing if isinstance(routing, Mapping) else {}
+    interaction = result.get("interaction")
+    interaction = interaction if isinstance(interaction, Mapping) else {}
     entries = [
         _entry("result", RESULT_ENVELOPE_SCHEMA_VERSION, bool(result), "available" if result else "unavailable", "result"),
         _entry("plan_quality", PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, quality["available"], quality["state"], "result.planning.plan_quality"),
@@ -133,6 +137,17 @@ def build_evidence_registry(
                     or ("available" if routing_available else "unavailable")
                 ),
                 "result.domain_routing_evidence",
+            )
+        )
+    if interaction.get("schema_version") == INTERACTION_SCHEMA_VERSION and len(entries) < _MAX_ENTRIES:
+        entries.append(
+            _entry(
+                "interaction",
+                INTERACTION_SCHEMA_VERSION,
+                bool(interaction.get("available")),
+                str(interaction.get("state") or "unavailable"),
+                "result.interaction",
+                count=len(interaction.get("actions") or ()),
             )
         )
     for item in custom_entries or ():

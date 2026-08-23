@@ -15,8 +15,17 @@ from agent.domain_selector import (
     DomainRouter,
     DomainRoutingDecision,
     build_domain_routing_interaction,
+    resolve_domain_routing_decision,
 )
 from agent.domain_routing_evidence import build_domain_routing_evidence
+from agent.interaction_contract import (
+    INTERACTION_COMMAND_SCHEMA_VERSION,
+    InteractionContractError,
+    legacy_domain_routing_interaction,
+    project_interaction,
+)
+from agent.interaction_host import InteractionHost
+from agent.recovery_action import action_input_fingerprint
 from agent.domain_selector_provider import domain_selector_from_environment
 from agent.sqlite_store import SQLiteConversationStore
 
@@ -122,6 +131,28 @@ class DomainRoutingState:
             current = restored
         values.reverse()
         return values
+
+    def child(
+        self,
+        parent_decision_id: str,
+        session_id: str | None,
+    ) -> Mapping[str, Any] | None:
+        """Return the immutable direct child of a routing decision, if any."""
+
+        if self._store is not None and session_id:
+            listing = getattr(self._store, "list_domain_routing_decisions", None)
+            if callable(listing):
+                for item in listing(session_id, limit=32):
+                    if item.get("parent_decision_id") == parent_decision_id:
+                        return item
+        with self._lock:
+            for record in reversed(tuple(self._decisions.values())):
+                if session_id is not None and record["session_id"] != session_id:
+                    continue
+                decision = record["decision"]
+                if decision.get("parent_decision_id") == parent_decision_id:
+                    return decision
+        return None
 
     def clear(self, session_id: str) -> None:
         if self._store is not None:
@@ -258,6 +289,8 @@ class DomainRoutingApplication:
         return self._routing_response(decision)
 
     def override(self, decision_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Apply a legacy payload or canonical command through InteractionHost."""
+
         session_id = _session_id(payload, default=None)
         prior = self._state.get(decision_id, session_id)
         if prior is None:
@@ -265,8 +298,70 @@ class DomainRoutingApplication:
                 "domain routing decision not found",
                 code="domain_routing_decision_not_found",
             )
+        authoritative_source = self._routing_response(
+            resolve_domain_routing_decision(prior)
+        )
+        interaction = project_interaction(authoritative_source)
+        if payload.get("schema_version") == INTERACTION_COMMAND_SCHEMA_VERSION:
+            command = dict(payload)
+        else:
+            action_input = {"domain_id": str(payload.get("domain_id") or "")}
+            idempotency_key = str(payload.get("idempotency_key") or "").strip()
+            if not idempotency_key:
+                fingerprint = action_input_fingerprint("select_domain", action_input)
+                idempotency_key = (
+                    "interaction:"
+                    + decision_id[:48]
+                    + ":select_domain:"
+                    + fingerprint.rsplit(":", 1)[-1][:20]
+                )
+            command = {
+                "schema_version": INTERACTION_COMMAND_SCHEMA_VERSION,
+                "subject": interaction["subject"],
+                "action_id": "select_domain",
+                "input": action_input,
+                "idempotency_key": idempotency_key,
+            }
+        host = InteractionHost(
+            loader=lambda _subject: self._routing_response(
+                resolve_domain_routing_decision(
+                    self._state.get(decision_id, session_id) or prior
+                )
+            ),
+            dispatcher=lambda checked, _interaction: self._override_authorized(
+                decision_id,
+                checked["input"],
+                session_id=session_id,
+                prior=prior,
+            ),
+        )
+        return host.invoke(command)
+
+    def _override_authorized(
+        self,
+        decision_id: str,
+        payload: Mapping[str, Any],
+        *,
+        session_id: str | None,
+        prior: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Dispatch a Host-validated selection with immutable-lineage CAS."""
+
+        requested_domain_id = str(payload.get("domain_id") or "")
+        existing_child = self._state.child(decision_id, session_id)
+        if existing_child is not None:
+            existing = resolve_domain_routing_decision(existing_child)
+            existing_domain_id = (
+                existing.selection.domain_id if existing.selection is not None else ""
+            )
+            if existing_domain_id != requested_domain_id:
+                raise InteractionContractError(
+                    "routing decision was already resolved with another domain",
+                    code="interaction_revision_conflict",
+                )
+            return self._routing_response(existing)
         started = perf_counter()
-        decision = self._router.override(prior, str(payload.get("domain_id") or ""))
+        decision = self._router.override(prior, requested_domain_id)
         self._metrics.observe(
             decision,
             latency_ms=(perf_counter() - started) * 1000,
@@ -376,9 +471,13 @@ class DomainRoutingApplication:
     @staticmethod
     def _routing_response(decision: DomainRoutingDecision) -> dict[str, Any]:
         response = {"domain_routing": decision.to_dict()}
+        legacy = build_domain_routing_interaction(decision)
+        response["interaction"] = project_interaction(
+            {**response, "domain_routing_interaction": legacy}
+        )
         if decision.needs_clarification:
-            response["domain_routing_interaction"] = build_domain_routing_interaction(
-                decision
+            response["domain_routing_interaction"] = legacy_domain_routing_interaction(
+                response["interaction"], legacy
             )
         return response
 

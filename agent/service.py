@@ -48,6 +48,11 @@ from agent.recovery_action import (
     project_legacy_interaction_receipt,
 )
 from agent.selection_interaction import normalize_selection_interaction
+from agent.interaction_contract import (
+    INTERACTION_COMMAND_SCHEMA_VERSION,
+    project_interaction,
+)
+from agent.interaction_host import InteractionHost
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
@@ -324,11 +329,16 @@ class AgentService:
                 else self._runtime(planner, backend).get_run(run_id)
             )
             if existing is not None:
-                _domain_routing_evidence = getattr(
+                restored_routing_evidence = getattr(
                     existing,
                     "domain_routing_evidence",
                     None,
                 )
+                if (
+                    isinstance(restored_routing_evidence, Mapping)
+                    and restored_routing_evidence.get("available") is True
+                ):
+                    _domain_routing_evidence = restored_routing_evidence
         routing_evidence = (
             normalize_domain_routing_evidence(
                 _domain_routing_evidence,
@@ -1717,14 +1727,17 @@ class AgentService:
         """
         payload = self.get_run(run_id, planner=planner, backend=backend)
         envelope = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-        interaction = normalize_selection_interaction(
-            envelope.get("selection_interaction")
-        )
+        interaction = project_interaction(payload)
         return {
+            # Keep the reference envelope compatible; the nested contract is
+            # independently versioned as spatial-agent.interaction.v1.
             "schema_version": "spatial-agent.selection-interaction-reference.v1",
             "run_id": str(payload.get("run_id") or run_id)[:160],
             "domain_id": str(payload.get("domain_id") or self._resolved_domain_id or "unknown")[:80],
             "interaction": interaction,
+            "selection_interaction": normalize_selection_interaction(
+                envelope.get("selection_interaction")
+            ),
         }
 
     def _reserve_action_receipt(
@@ -2132,6 +2145,80 @@ class AgentService:
         planner: str = "rule",
         backend: str = "memory",
     ) -> Dict[str, Any]:
+        """Invoke one legacy or canonical command through InteractionHost."""
+
+        data = dict(payload) if isinstance(payload, dict) else {}
+        selected_planner, selected_backend = self._infer_run_runtime_selection(
+            run_id, planner, backend
+        )
+        if data.get("schema_version") == INTERACTION_COMMAND_SCHEMA_VERSION:
+            command = data
+        else:
+            current = self.get_run(
+                run_id,
+                planner=selected_planner,
+                backend=selected_backend,
+            )
+            interaction = project_interaction(current)
+            action_id = str(action or data.get("action_id") or data.get("action") or "").strip().lower()
+            action_input = dict(data)
+            for key in (
+                "schema_version",
+                "subject",
+                "action_id",
+                "action",
+                "idempotency_key",
+                "planner",
+                "backend",
+            ):
+                action_input.pop(key, None)
+            idempotency_key = str(data.get("idempotency_key") or "").strip()
+            if not idempotency_key:
+                fingerprint = _action_input_fingerprint(action_id, action_input)
+                idempotency_key = (
+                    "interaction:"
+                    + str(run_id)[:48]
+                    + ":"
+                    + action_id[:24]
+                    + ":"
+                    + fingerprint.rsplit(":", 1)[-1][:20]
+                )
+            command = {
+                "schema_version": INTERACTION_COMMAND_SCHEMA_VERSION,
+                "subject": interaction.get("subject"),
+                "action_id": action_id,
+                "input": action_input,
+                "idempotency_key": idempotency_key,
+            }
+
+        host = InteractionHost(
+            loader=lambda _subject: self.get_run(
+                run_id,
+                planner=selected_planner,
+                backend=selected_backend,
+            ),
+            dispatcher=lambda checked, _interaction: self._dispatch_run_interaction(
+                run_id,
+                str(checked["action_id"]),
+                {
+                    **dict(checked["input"]),
+                    "idempotency_key": checked["idempotency_key"],
+                },
+                planner=selected_planner,
+                backend=selected_backend,
+            ),
+        )
+        return host.invoke(command)
+
+    def _dispatch_run_interaction(
+        self,
+        run_id: str,
+        action: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
         """Apply one allowlisted next action through existing Runtime seams.
 
         Selection changes are resumed as a new governed run using the same
@@ -2167,12 +2254,14 @@ class AgentService:
                 expected_version=expected_version,
                 planner=selected_planner,
                 backend=selected_backend,
+                idempotency_key=data.get("idempotency_key"),
             )
         if action == "cancel":
             return self.cancel(
                 run_id,
                 planner=selected_planner,
                 backend=selected_backend,
+                idempotency_key=data.get("idempotency_key"),
             )
         if action in {"retry", "recover"}:
             return self.retry(
@@ -2182,6 +2271,7 @@ class AgentService:
                 export_artifact=bool(data.get("export_artifact", True)),
                 export_geojson=bool(data.get("export_geojson", False)),
                 geojson_max_features=int(data.get("geojson_max_features", 100)),
+                idempotency_key=data.get("idempotency_key"),
             )
 
         workflow_value = data.get("workflow")
@@ -2197,7 +2287,11 @@ class AgentService:
                 workflow_value = self._resolve_interaction_capability(
                     capability_id,
                     interaction=interaction,
-                    request_facts=current.get("request_facts"),
+                    request_facts=self._interaction_request_facts(
+                        current,
+                        planner=selected_planner,
+                        backend=selected_backend,
+                    ),
                     planner=selected_planner,
                     backend=selected_backend,
                 )
@@ -2361,6 +2455,37 @@ class AgentService:
                 "selected capability has no executable workflow: " + capability_id
             )
         return dict(workflow_value)
+
+    def _interaction_request_facts(
+        self,
+        current: Mapping[str, Any],
+        *,
+        planner: str,
+        backend: str,
+    ) -> Any:
+        """Rebuild private Domain facts instead of reusing their public view.
+
+        Public RequestFacts intentionally omit verbatim text and other
+        potentially large values. Capability resolution may need those facts,
+        so continuation re-enters the selected Domain Pack's extractor using
+        the already-authorized stored request. Runtime stays domain-neutral.
+        """
+
+        selected_runtime = self._runtime(planner, backend)
+        extractor = getattr(
+            getattr(selected_runtime, "_domain_pack", None),
+            "extract_request_facts",
+            None,
+        )
+        request = str(
+            current.get("resolved_request") or current.get("request") or ""
+        ).strip()
+        if callable(extractor) and request:
+            try:
+                return extractor(request)
+            except (TypeError, ValueError):
+                pass
+        return current.get("request_facts")
 
     def list_runs(self, limit: int = 20) -> Dict:
         if self._state.persistent:

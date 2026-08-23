@@ -37,6 +37,7 @@ from agent.action_precondition import (
 )
 from agent.action_effect import normalize_action_effect, project_action_effect
 from agent.selection_interaction import normalize_selection_interaction
+from agent.interaction_contract import normalize_interaction, project_interaction
 from agent.execution_timeline import normalize_execution_timeline
 from agent.execution_contract import execution_record_summary
 from agent.evidence_projection import project_evidence_projection
@@ -322,6 +323,11 @@ def build_async_result_evidence(
         "selection_interaction": normalize_selection_interaction(
             value.get("selection_interaction")
         ),
+        "interaction": (
+            normalize_interaction(value.get("interaction"))
+            if value.get("interaction") is not None
+            else project_interaction(value)
+        ),
         "execution_timeline": timeline,
         "action_preconditions": project_action_preconditions(value),
         "action_effect": project_action_effect(value),
@@ -562,6 +568,11 @@ def normalize_async_result_evidence(
         },
         "selection_interaction": normalize_selection_interaction(
             value.get("selection_interaction")
+        ),
+        "interaction": (
+            normalize_interaction(value.get("interaction"))
+            if value.get("interaction") is not None
+            else project_interaction(value)
         ),
         "execution_timeline": timeline,
         "action_preconditions": normalize_action_preconditions(

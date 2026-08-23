@@ -31,6 +31,7 @@ ACTION_IDS = frozenset(
         "confirm",
         "select_capability",
         "select_workflow",
+        "select_domain",
         "provide_facts",
         "preview",
         "rebuild_from_result",
@@ -252,7 +253,7 @@ def normalize_action_receipt(value: Any) -> dict[str, Any]:
 
 
 def _action_kind(action_id: str) -> str:
-    if action_id in {"select_capability", "select_workflow", "provide_facts", "preview"}:
+    if action_id in {"select_domain", "select_capability", "select_workflow", "provide_facts", "preview"}:
         return "interaction"
     if action_id in {"approve", "confirm", "reject", "clarify", "repair"}:
         return "decision"

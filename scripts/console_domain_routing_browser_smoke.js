@@ -7,7 +7,7 @@ import {fileURLToPath} from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
-for (const seam of ["/runs/auto", "domain_routing", "ConsoleActionHost.mount", "select_domain", "spatial-agent.domain-routing-evidence.v1"]) {
+for (const seam of ["/runs/auto", "domain_routing", "ConsoleActionHost.mount", "renderCanonicalInteraction", "spatial-agent.domain-routing-evidence.v1"]) {
   if (!source.includes(seam)) throw new Error(`Console 缺少智能领域路由 seam：${seam}`);
 }
 
@@ -176,19 +176,54 @@ function installDomainRoutingMock() {
             input_schema: {type: "object", required: ["domain_id"], properties: {domain_id: {type: "string", title: "领域", enum: ["gis", "text"]}}, additionalProperties: false},
           }],
         },
+        interaction: {
+          schema_version: "spatial-agent.interaction.v1",
+          available: true,
+          actionable: true,
+          subject: {root: {kind: "routing_decision", id: "route-ambiguous"}, current: {kind: "routing_decision", id: "route-ambiguous"}, revision: 1},
+          kind: "domain_selection",
+          state: "candidate_selection",
+          phase: "routing",
+          status: "NEEDS_CLARIFICATION",
+          reason_code: "multiple_domains_matched",
+          actions: [{
+            schema_version: "spatial-agent.interaction-action.v1",
+            id: "select_domain",
+            kind: "interaction",
+            label: "选择领域",
+            description: "fixture canonical routing action",
+            input_schema: {type: "object", required: ["domain_id"], properties: {domain_id: {type: "string", title: "领域", enum: ["gis", "text"]}}, additionalProperties: false},
+            idempotency_required: true,
+          }],
+          blocked_actions: [],
+          content: {candidates: [
+            {domain_id: "gis", label: "空间能力", capability_ids: ["boundary_lookup"]},
+            {domain_id: "text", label: "文本能力", capability_ids: ["direct_answer"]},
+          ], missing_fields: []},
+          receipt: null,
+          lineage: {root_subject_id: "route-ambiguous", current_subject_id: "route-ambiguous"},
+        },
       });
       if (String(body.request || "").includes("no match")) return json({
         status: "NEEDS_CLARIFICATION",
         domain_routing: {decision_id: "route-none", status: "NO_MATCH", reason_code: "no_domain_matched", candidates: []},
+        interaction: {
+          schema_version: "spatial-agent.interaction.v1", available: false, actionable: false,
+          subject: {root: {kind: "routing_decision", id: "route-none"}, current: {kind: "routing_decision", id: "route-none"}, revision: 1},
+          kind: "domain_selection", state: "unavailable", phase: "routing", status: "NEEDS_CLARIFICATION", reason_code: "no_domain_matched",
+          actions: [], blocked_actions: [], content: {candidates: [], missing_fields: []}, receipt: null, lineage: {},
+        },
       });
       return json(queue("text", body.request, body.session_id, "unique"), 202);
     }
     const selectMatch = target.pathname.match(/^\/domain-routing\/decisions\/([^/]+)\/select$/);
-    if (selectMatch && method === "POST") return json({
+    if (selectMatch && method === "POST") {
+      const domainId = body.input?.domain_id || body.domain_id;
+      return json({
       status: "SELECTED",
-      decision_id: `route-override-${body.domain_id}`,
-      selection: {domain_id: body.domain_id},
-    });
+      domain_routing: {decision_id: `route-override-${domainId}`, parent_decision_id: "route-ambiguous", status: "selected", selection: {domain_id: domainId}},
+      });
+    }
     const match = target.pathname.match(/^\/domains\/([^/]+)(\/.*)?$/);
     if (!match) return json({detail: {code: "not_found", message: `mock route missing: ${url}`}}, 404);
     const domainId = decodeURIComponent(match[1]);
@@ -266,9 +301,10 @@ if (restored.domain !== "auto" || restored.session !== firstAuto.body.session_id
 await navigateReady();
 const ambiguousRaw = await evaluate(`(async()=>{
   await sendChat('ambiguous route');
-  const host=$('decisionEvidence').querySelector('[data-domain-routing-action-host]');
+  const host=$('decisionEvidence').querySelector('[data-canonical-action-host]');
   const field=host?.querySelector('[data-action-field="domain_id"]');
   const before={answer:$('answer').textContent,interaction:$('decisionEvidence').textContent,options:[...(field?.options||[])].map(item=>item.value),schemaVersion:host?.dataset.schemaVersion||''};
+  if(!host||!field) return JSON.stringify({before,after:{answer:$('answer').textContent,html:$('decisionEvidence').innerHTML},requests:window.__domainRoutingSmoke.requests});
   field.value='gis';
   host.querySelector('#domainActionExecute').click();
   for(let i=0;i<150&&!$('answer').textContent.includes('gis completed');i++) await new Promise(resolve=>setTimeout(resolve,20));
@@ -276,21 +312,21 @@ const ambiguousRaw = await evaluate(`(async()=>{
   return JSON.stringify({before,after:{domain:$('domain').value,session:$('session').value,answer:$('answer').textContent,evidenceCount:$('decisionEvidence').querySelectorAll('[data-domain-routing-evidence-card]').length,evidenceState:routing?.dataset.domainRoutingEvidenceState||'',evidenceText:$('decisionEvidence').textContent},requests:window.__domainRoutingSmoke.requests});
 })()`);
 const ambiguous = JSON.parse(ambiguousRaw || "{}");
-if (ambiguous.before.options.join(",") !== ",gis,text" || ambiguous.before.schemaVersion !== "spatial-agent.domain-routing-interaction.v1" || !ambiguous.before.interaction.includes("boundary_lookup")) throw new Error(`歧义候选没有通过版本化 Action Host 进入通用交互区域：${JSON.stringify(ambiguous.before)}`);
+if (ambiguous.before.options.join(",") !== ",gis,text" || ambiguous.before.schemaVersion !== "spatial-agent.interaction.v1" || !ambiguous.before.interaction.includes("boundary_lookup")) throw new Error(`歧义候选没有通过 interaction.v1 Action Host 进入通用交互区域：${JSON.stringify(ambiguous.before)}`);
 const overrideRun = ambiguous.requests.find(item => item.url === "/runs/auto" && item.body.domain_routing_decision_id === "route-override-gis");
 const overrideSelect = ambiguous.requests.find(item => item.url === "/domain-routing/decisions/route-ambiguous/select");
-if (!overrideSelect || !overrideSelect.body.session_id || !overrideRun || overrideRun.body.session_id !== overrideSelect.body.session_id || overrideRun.body.async !== true || "domain_id" in overrideRun.body || !ambiguous.requests.some(item => item.url.startsWith("/domains/gis/runs/gis-run-")) || !ambiguous.after.answer.includes("gis completed")) throw new Error(`select_domain 没有携带会话化异步 override decision lineage 继续执行：${JSON.stringify(ambiguous.after)}`);
+if (!overrideSelect || !overrideSelect.body.session_id || !overrideRun || overrideRun.body.session_id !== overrideSelect.body.session_id || overrideRun.body.async !== true || "domain_id" in overrideRun.body || !ambiguous.requests.some(item => item.url.startsWith("/domains/gis/runs/gis-run-")) || !ambiguous.after.answer.includes("gis completed")) throw new Error(`select_domain 没有携带会话化异步 override decision lineage 继续执行：${JSON.stringify(ambiguous)}`);
 if (ambiguous.after.evidenceCount !== 1 || ambiguous.after.evidenceState !== "available" || !ambiguous.after.evidenceText.includes("route-ambiguous") || !ambiguous.after.evidenceText.includes("route-override-gis") || !ambiguous.after.evidenceText.includes("2 个事件") || !ambiguous.after.evidenceText.includes("user_override")) throw new Error(`override lineage 没有进入通用路由证据区：${JSON.stringify(ambiguous.after)}`);
 
 await navigateReady();
 const noMatchRaw = await evaluate(`(async()=>{
   await sendChat('no match route');
-  const host=$('decisionEvidence').querySelector('[data-domain-routing-action-host]');
+  const host=$('decisionEvidence').querySelector('[data-canonical-action-host]');
   const field=host?.querySelector('[data-action-field="domain_id"]');
   return JSON.stringify({interaction:$('decisionEvidence').textContent,domains:[...(field?.options||[])].map(item=>item.value).filter(Boolean)});
 })()`);
 const noMatch = JSON.parse(noMatchRaw || "{}");
-if (noMatch.domains.join(",") !== "gis,text" || !noMatch.interaction.includes("no_domain_matched")) throw new Error(`无匹配时没有展示可改选的动态领域：${JSON.stringify(noMatch)}`);
+if (noMatch.domains.length !== 0 || !noMatch.interaction.includes("no_domain_matched") || !noMatch.interaction.includes("没有可安全执行")) throw new Error(`无匹配时没有安全展示结构化澄清：${JSON.stringify(noMatch)}`);
 
 await navigateReady();
 const manualRaw = await evaluate(`(async()=>{

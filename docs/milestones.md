@@ -4541,3 +4541,22 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **体验**：Console 只用通用 Action Host 渲染 `interaction`，删除 `renderDomainRoutingInteraction` 与 selection/confirmation 的独立状态判断；无 GIS/Text 或固定问题分支。
 6. **模型与领域**：Planner/Selector 只提交结构化候选、缺失事实或计划结果；Domain Pack 可声明字段/动作 schema，但不能改写公共生命周期状态机。
 7. **测试**：保留一条从路由歧义→用户改选→计划确认/事实补充→执行/恢复的跨入口 Harness 和一条浏览器 smoke；删除被统一 contract 覆盖的重复局部断言，默认 CI 仍保持 quick + smoke。
+
+## M227：统一请求交互与生命周期契约（已完成）
+
+- 新增领域中立的 `spatial-agent.interaction.v1`、`interaction-action.v1` 和 `interaction-command.v1`；`InteractionContract` 统一投影、bounded schema、输入校验、动作 allowlist、subject/revision 与 legacy adapter，`InteractionHost` 统一权威状态重读、授权和 dispatch。
+- routing、selection、facts、confirmation、repair、retry、recover 和 cancel 共享同一状态/动作语言；`interaction.actions` 成为授权唯一来源，旧 lifecycle、selection 和 routing 字段只作为兼容投影保留。
+- `interaction` 已贯穿 Result、async evidence、SQLite/restart、artifact、Evidence Registry 和领域路由；重复选域通过不可变 child lineage 幂等复用，冲突选择 fail closed。
+- HTTP 现有 interaction 入口直接接受 canonical command；stale revision、未授权动作和额外输入字段分别返回稳定 `interaction_revision_conflict`、`interaction_action_not_allowed` 和 `interaction_input_additional_property`。
+- Console 新增 `ConsoleInteraction` adapter；领域选择、能力选择和计划确认共用 `renderCanonicalInteraction` 与 `ConsoleActionHost`。旧 routing/selection 专用 renderer 已从活动页面删除，不再把动作 ID 固化在 Shell。
+- 修复 continuation 使用公共 RequestFacts 丢失私有领域约束的问题：Service 从已授权持久请求重新进入 Domain Pack extractor；Text Domain 可恢复摘要、统计和规范化所需文本事实。
+- 最新生产镜像按 `.env.production` 重建并保持 healthy；M227 **4/4**、相关专项 **25/25**、Registry/completeness **13/13**、quick/smoke、compileall 与三条串行浏览器验收全部通过。
+
+## M228：跨入口 Interaction Journey Harness 与持久回执（下一阶段全局规划）
+
+1. **纵向旅程**：建立领域中立 Harness，覆盖路由歧义、用户选域、能力/事实选择、计划确认、执行完成和失败恢复；比较 journey identity、revision、actions、receipt、result 与 evidence，而不是复制各入口内部实现。
+2. **持久回执**：为 pre-run routing interaction 增加有界、持久且可幂等恢复的 command receipt，使选域与 run action 使用同一 receipt/lineage 语义，重启后重复命令仍能复用原结果。
+3. **入口一致性**：让 CLI application、开发 HTTP、FastAPI 和 Console adapter 共用同一 inspect/invoke interface；传输层只解析路径和序列化错误，不重新解释动作。
+4. **迁移收口**：审计并删除活动路径对 legacy routing/selection 授权字段的读取；兼容字段只由 canonical interaction 单向生成，未知 schema 继续 fail closed。
+5. **开放请求**：用 GIS、Text 和第三 fixture Domain 验证未预定义问题能动态选择已有能力或返回结构化 facts/capability 澄清，不新增区域或固定问句分支。
+6. **测试分层**：默认仍只保留 quick/smoke；M228 使用一个跨入口 Harness 和一个串行浏览器 journey，真实模型 + 真实 GIS 留给后续显式纵向验收。

@@ -1016,6 +1016,7 @@
 <script src="./console_workflow_evidence.js"></script>
 <script src="./console_renderer_registry.js"></script>
 <script src="./console_action_host.js"></script>
+<script src="./console_interaction.js"></script>
 <script src="./console_gis_plugin.js"></script>
   <script>
     const $ = id => document.getElementById(id);
@@ -1087,153 +1088,10 @@
       const eventRows=lineage.events.map((item,index)=>'<li>#'+escapeHtml(index+1)+' '+escapeHtml(item.decision_id)+' · '+escapeHtml(item.status)+' · '+escapeHtml(item.reason_code)+(item.selected_domain_id?' · '+escapeHtml(item.selected_domain_id)+' / '+escapeHtml(item.selection_source):'')+'</li>').join('');
       return '<div class="decision-evidence" data-domain-routing-evidence-state="available" data-schema-version="'+DOMAIN_ROUTING_EVIDENCE_SCHEMA+'"><div class="decision-evidence-head"><strong>领域路由证据</strong><span>结构化执行绑定</span></div><div class="decision-evidence-grid"><section class="decision-evidence-card" data-domain-routing-evidence-card><h4>路由决策</h4><div>'+escapeHtml(decision.decision_id)+parent+'</div><p>'+escapeHtml(decision.reason_code)+' · '+escapeHtml(decision.selector_id)+' → '+escapeHtml(decision.selected_domain_id)+' · '+escapeHtml(decision.selection_source)+'</p></section><section class="decision-evidence-card"><h4>执行绑定与观测</h4><div>'+escapeHtml(binding.state)+' · '+escapeHtml(binding.domain_id)+' · '+escapeHtml(binding.run_id)+'</div><p>'+escapeHtml(observation.selector_mode)+' · 候选 '+escapeHtml(observation.candidate_count)+latency+fallback+'</p><p>候选领域：'+candidates+'</p></section><section class="decision-evidence-card"><h4>决策 lineage</h4><div>'+escapeHtml(lineage.root)+' → '+escapeHtml(lineage.current)+' · '+escapeHtml(lineage.events.length)+' 个事件'+(lineage.truncated?' · 已截断':'')+'</div>'+(eventRows?'<ul>'+eventRows+'</ul>':'<p>没有可读 lineage 事件。</p>')+'</section></div></div>';
     }
-    function normalizeSelectionInteraction(data) {
-      const source=(data?.result||{}).selection_interaction||data?.selection_interaction;
-      return (window.ConsoleSelectionInteraction && typeof window.ConsoleSelectionInteraction.normalize === 'function')
-        ? window.ConsoleSelectionInteraction.normalize(source)
-        : {available:false,state:'unavailable',allowed_actions:[],selection:{candidate_ids:[],candidate_workflow_ids:[]},missing_fields:[]};
-    }
-    async function selectionInteractionAction(action, runId, selectionValue) {
-      if(!runId) return;
-      const domainId=domainForRun(runId);
-      try {
-        const body=withDomainPayload({action,planner:$('planner').value,backend:$('backend').value},domainId);
-        const decision=lastRunData?.decision_evidence||lastRunData?.result?.decision||{};
-        if(action==='confirm'||action==='reject') body.expected_version=decision.version;
-        if(action==='select_capability' && selectionValue) {
-          body.capability_id=selectionValue;
-          body.require_confirmation=$('requireConfirmation').checked;
-          body.export_artifact=true;
-          body.export_geojson=true;
-        } else if(action==='select_workflow'||action==='provide_facts'||action==='preview') {
-          const editor=$('workflowEditor'); if(editor) editor.open=true;
-          const workflow=await validateWorkflowSelection();
-          if(!workflow) { const first=document.querySelector('[data-workflow-field]'); if(first) first.focus(); return; }
-          body.workflow=workflow;
-          body.require_confirmation=$('requireConfirmation').checked;
-          body.export_artifact=true;
-          body.export_geojson=true;
-        }
-        document.querySelectorAll('[data-selection-action]').forEach(button=>button.disabled=true);
-        const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId)+'/interaction',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-        const data=await response.json().catch(()=>({}));
-        if(!response.ok) throw new Error(responseError(data,'交互动作提交失败'));
-        rememberRunDomain(data,domainId);
-        renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status),data.run_id);
-      } catch(error) {
-        $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';
-        document.querySelectorAll('[data-selection-action]').forEach(button=>button.disabled=false);
-      }
-    }
-    function renderSelectionInteraction(data) {
-      const model=normalizeSelectionInteraction(data);
-      if(!model.available && model.state==='unavailable') return '';
-      const labels={candidate_selection:'需要选择能力或工作流',facts_required:'需要补充事实',confirmation_required:'等待计划确认',repairable:'需要修复计划',recoverable:'可以恢复',processing:'处理中',completed:'已完成',unavailable:'不可用'};
-      const actionLabels={select_capability:'选择能力',select_workflow:'选择工作流',provide_facts:'补充事实',preview:'预览计划',confirm:'批准执行',reject:'拒绝执行',retry:'重试',recover:'恢复',cancel:'取消'};
-      const selection=model.selection||{};
-      const candidates=[...(selection.candidate_ids||[]),...(selection.candidate_workflow_ids||[])].filter((item,index,array)=>item&&array.indexOf(item)===index).slice(0,8);
-      const detailSource=(selection.candidate_details&&selection.candidate_details.length)?selection.candidate_details:(selection.suggested_capability_details||[]);
-      const details=detailSource.filter(item=>item&&item.id).slice(0,8);
-      const missing=(model.missing_fields||[]).map(item=>escapeHtml(item.label||item.id)).join('、');
-      const allowed=model.allowed_actions||[];
-      const candidateText=details.length
-        ? '<div class="selection-candidate-grid"><small class="muted">'+(selection.candidate_details&&selection.candidate_details.length?'候选能力':'可选能力')+'</small>'+details.map(item=>{
-            const facts=(item.input_facts||[]).map(f=>f.label||f.id).join('、');
-            const results=(item.result_types||[]).join('、');
-            const evidence=item.evidence||{};
-            const evidenceText=evidence.status&&evidence.status!=='unknown'?'数据证据：'+evidence.status+(evidence.availability_mode&&evidence.availability_mode!=='unknown'?' · '+(evidence.availability_mode==='demo'?'演示模式':'原生模式'):'')+(evidence.readiness&&evidence.readiness!=='unknown'?' · 就绪 '+evidence.readiness:''):'';
-            const selectButton=allowed.includes('select_capability')
-              ? '<button type="button" class="secondary selection-action" data-selection-action="select_capability" data-selection-value="'+escapeHtml(item.id)+'" data-run-id="'+escapeHtml(data.run_id||'')+'">选择此能力</button>' : '';
-            return '<article class="selection-candidate"><h4>'+escapeHtml(item.label||item.id)+'</h4><p>'+escapeHtml(item.description||'可执行的领域能力。')+'</p>'+(facts?'<small>输入：'+escapeHtml(facts)+'</small>':'')+(results?'<small>结果：'+escapeHtml(results)+'</small>':'')+(evidenceText?'<small>'+escapeHtml(evidenceText)+'</small>':'')+selectButton+'</article>';
-          }).join('')+'</div>'
-        : (candidates.length?'<div class="selection-candidates"><span>候选：</span>'+candidates.map(item=>'<code>'+escapeHtml(item)+'</code>').join('')+'</div>':'');
-      const actions=allowed.filter(action=>!(details.length&&action==='select_capability')).map(action=>'<button type="button" class="secondary selection-action" data-selection-action="'+escapeHtml(action)+'" data-run-id="'+escapeHtml(data.run_id||'')+'">'+escapeHtml(actionLabels[action]||action)+'</button>').join('');
-      const guidance=model.evidence_action_guidance||{};
-      const guidanceActions=(guidance.recommended_actions||[]).map(action=>actionLabels[action]||action).filter(Boolean).slice(0,8);
-      const guidanceMissing=(guidance.missing_fields||[]).map(item=>item.label||item.id).filter(Boolean).slice(0,8);
-      const guidanceBlock=guidance.available
-        ? '<div class="selection-guidance" data-guidance-state="'+escapeHtml(guidance.state||'unknown')+'"><strong>系统建议</strong><span>'+escapeHtml(guidance.reason_code||'未提供原因')+'</span>'+(guidanceActions.length?'<span>建议动作：'+guidanceActions.map(action=>'<code>'+escapeHtml(action)+'</code>').join('')+'</span>':'')+(guidanceMissing.length?'<span>待补充：'+escapeHtml(guidanceMissing.join('、'))+'</span>':'')+'</div>'
-        : '';
-      const preconditions=model.action_preconditions||{};
-      const preconditionText=(model.blocked_actions||[]).length
-        ? '<div class="selection-guidance" data-precondition-state="blocked"><strong>执行前置条件</strong><span>'+escapeHtml(preconditions.reason_code||'动作被阻断')+'</span><span>已阻断：'+escapeHtml(model.blocked_actions.join('、'))+'</span></div>'
-        : (preconditions.available&&preconditions.state&&preconditions.state!=='ready'
-          ? '<div class="selection-guidance" data-precondition-state="'+escapeHtml(preconditions.state)+'"><strong>执行前置条件</strong><span>'+escapeHtml(preconditions.reason_code||preconditions.state)+'</span></div>' : '');
-      const receipt=model.action_receipt;
-      const receiptText=receipt&&receipt.available
-        ? '<small class="selection-lineage">动作凭据：'+escapeHtml(receipt.action_id||'未知')+' · '+escapeHtml(receipt.status||'UNKNOWN')+(receipt.reused?' · 已复用':'')+'</small>' : '';
-      const repairLineage=(model.repair_lineage||[]).filter(item=>item&&item.repair_status);
-      const repairText=repairLineage.length
-        ? '<small class="selection-lineage">修复链：'+escapeHtml(repairLineage.length)+' 次 · '+escapeHtml(repairLineage.map(item=>item.repair_status).join('、'))+'</small>' : '';
-      return '<section class="selection-interaction-card" data-selection-state="'+escapeHtml(model.state)+'"><div class="selection-interaction-head"><strong>下一步交互</strong><span>'+escapeHtml(labels[model.state]||model.state)+'</span></div><p>'+escapeHtml(model.reason_code||'')+(missing?' · 待补充：'+missing:'')+'</p>'+guidanceBlock+preconditionText+receiptText+repairText+candidateText+(actions?'<div class="selection-actions">'+actions+'</div>':'')+'</section>';
-    }
-    function domainRoutingInteraction(data) {
-      const routing=data?.domain_routing||data?.result?.domain_routing||{};
-      const supplied=data?.domain_routing_interaction||data?.result?.domain_routing_interaction||routing.interaction||{};
-      const decisionId=supplied.decision_id||routing.decision_id||'';
-      let candidates=Array.isArray(supplied.candidates)&&supplied.candidates.length?supplied.candidates:(Array.isArray(routing.candidates)?routing.candidates:[]);
-      if(!candidates.length) candidates=(domainCatalog.domains||[]).map(item=>({domain_id:item.id,label:item.label||item.id,capability_ids:[]}));
-      candidates=candidates.filter(item=>item&&item.domain_id).filter((item,index,items)=>items.findIndex(candidate=>String(candidate.domain_id)===String(item.domain_id))===index).slice(0,24);
-      const suppliedCatalog=supplied.action_catalog&&Array.isArray(supplied.action_catalog.actions)?supplied.action_catalog:{schema_version:supplied.schema_version,actions:supplied.actions};
-      const actions=Array.isArray(suppliedCatalog.actions)&&suppliedCatalog.actions.some(item=>item?.id==='select_domain')?suppliedCatalog.actions:[{
-        id:'select_domain',label:'选择领域',description:'选择由哪个已注册领域继续处理当前请求。',
-        input_schema:{type:'object',required:['domain_id'],properties:{domain_id:{type:'string',title:'领域',enum:candidates.map(item=>item.domain_id)}},additionalProperties:false},
-      }];
-      return {schema_version:supplied.schema_version||'spatial-agent.domain-routing-interaction.v1',decision_id:decisionId,reason_code:supplied.reason_code||routing.reason_code||'domain_selection_required',candidates,catalog:{schema_version:suppliedCatalog.schema_version||'spatial-agent.actions.v1',actions}};
-    }
-    async function invokeDomainRoutingAction(decisionId,actionId,payload) {
-      if(actionId!=='select_domain') throw new Error('不支持的领域路由动作：'+actionId);
-      const pending=domainRoutingRequests.get(String(decisionId));
-      if(!pending) throw new Error('领域路由上下文已失效，请重新提交请求。');
-      const domainId=String(payload?.domain_id||'');
-      if(!domainId) throw new Error('请选择领域。');
-      const response=await nativeFetch('/domain-routing/decisions/'+encodeURIComponent(decisionId)+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain_id:domainId,session_id:pending.payload.session_id})});
-      let data=await response.json().catch(()=>({}));
-      if(!response.ok) throw new Error(responseError(data,'领域选择提交失败'));
-      const selectedDomain=data.domain_id||data.selection?.domain_id||data.domain_selection?.domain_id||domainId;
-      if(data.run_id&&['QUEUED','PLANNING','EXECUTING'].includes(data.status)) data=await pollQueuedRun(data,pending.payload,selectedDomain);
-      if(!data.run_id) {
-        const overrideDecisionId=data.decision_id||data.domain_routing?.decision_id||data.domain_routing_decision_id;
-        if(!overrideDecisionId) throw new Error('领域选择响应缺少 override decision identity。');
-        const runPayload=Object.assign({},pending.payload,{domain_id:undefined,domain_routing_decision_id:overrideDecisionId});
-        const runResponse=await fetch('/runs/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(runPayload)});
-        data=await runResponse.json().catch(()=>({}));
-        if(!runResponse.ok) throw new Error(responseError(data,'所选领域执行失败'));
-      }
-      bindAutoDomain(data,selectedDomain);
-      rememberRunDomain(data,selectedDomain);
-      domainRoutingRequests.delete(String(decisionId));
-      return data;
-    }
-    function renderDomainRoutingInteraction(data) {
-      if(data?.status!=='NEEDS_CLARIFICATION'||!(data.domain_routing||data.result?.domain_routing||data.domain_routing_interaction||data.result?.domain_routing_interaction)) return false;
-      const model=domainRoutingInteraction(data);
-      if(!model.decision_id) return false;
-      domainRoutingRequests.set(String(model.decision_id),{request:data._console_auto_request||data.request||'',payload:Object.assign({},data._console_auto_payload||{})});
-      const details=model.candidates.map(item=>'<article class="selection-candidate"><h4>'+escapeHtml(item.label||item.domain_id)+'</h4><p><code>'+escapeHtml(item.domain_id)+'</code></p>'+(Array.isArray(item.capability_ids)&&item.capability_ids.length?'<small>能力：'+escapeHtml(item.capability_ids.join('、'))+'</small>':'')+'</article>').join('');
-      const html='<section class="selection-interaction-card" data-domain-routing-state="candidate_selection"><div class="selection-interaction-head"><strong>请选择处理领域</strong><span>'+escapeHtml(model.reason_code)+'</span></div><div class="selection-candidate-grid">'+details+'</div><div data-domain-routing-action-host data-schema-version="'+escapeHtml(model.schema_version)+'"></div></section>';
-      $('decisionEvidence').insertAdjacentHTML('afterbegin',html);
-      setResultPanel('.decision-evidence-result',true);
-      $('answer').textContent='运行时需要你选择一个领域后继续。';
-      $('answer').className='answer';
-      const target=$('decisionEvidence').querySelector('[data-domain-routing-action-host]');
-      if(!window.ConsoleActionHost){ target.innerHTML='<div class="error">通用 Action Host 不可用。</div>'; return true; }
-      window.ConsoleActionHost.mount({
-        target,
-        catalog:model.catalog,
-        invoke:(actionId,payload)=>invokeDomainRoutingAction(model.decision_id,actionId,payload),
-        onResult:async result=>{ renderRun(result); appendMessage('assistant',result.answer||result.error||statusName(result.status),result.run_id); await hydrateAutoDomainState(result); },
-      });
-      return true;
-    }
     function renderDecisionEvidence(data) {
       const routingHtml=renderDomainRoutingEvidence(data);
       const html=(window.ConsoleDecisionEvidence && typeof window.ConsoleDecisionEvidence.render === 'function')?(window.ConsoleDecisionEvidence.render(data).html||''):'';
-      const decision=data.decision_evidence||data.result?.decision||{};
-      const actions=Array.isArray(decision.allowed_actions)?decision.allowed_actions:[];
-      if(data.status!=='WAITING_FOR_DECISION'||!decision.decision_id||!actions.includes('approve')) return html+routingHtml;
-      const id=escapeHtml(decision.decision_id), version=escapeHtml(decision.version??'');
-      return html+routingHtml+'<div class="decision-action-bar"><span>计划已生成，执行前需要你的确认。</span><button type="button" class="primary" onclick="resolveRunDecision(\''+id+'\',\'approve\','+JSON.stringify(decision.version??null)+')">批准执行</button><button type="button" class="secondary" onclick="resolveRunDecision(\''+id+'\',\'reject\','+JSON.stringify(decision.version??null)+')">拒绝执行</button><small>计划指纹：'+escapeHtml(String(decision.plan_fingerprint||'').slice(0,16))+'</small></div>';
+      return html+routingHtml;
     }
     function dockWorkspaceControls() {
       const controls = $('workspaceControls');
@@ -1845,18 +1703,86 @@
     function validateSelection(request) { const caps=health.capabilities||{}; if(!String(request||'').trim()) throw new Error('请输入问题后再发送。'); if($('planner').value==='openai'&&!caps.live_llm_configured) throw new Error('当前服务没有可用的大模型配置。请先配置本地模型配置或环境变量。'); if($('planner').value==='openai'&&!caps.live_llm_network) throw new Error('当前服务进程不能访问大模型网络。请从允许出站网络的终端重新启动服务，或先切回规则规划器。'); }
     async function retryRun(runId) { const domainId=domainForRun(runId); setStatus('EXECUTING'); $('subtitle').textContent='正在从失败步骤恢复，已完成步骤不会重复执行。'; try { const body=withDomainPayload({planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true},domainId); const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId)+'/retry',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json(); if(!response.ok) throw new Error(responseError(data,'重试失败')); rememberRunDomain(data,domainId); if(domainId===currentDomainId()){ renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status)); } } catch(e) { if(domainId===currentDomainId()){ setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } } }
     async function resolveRunDecision(decisionId, choice, version) { if(!decisionId) return; const domainId=decisionDomains.get(String(decisionId))||responseDomain(lastRunData); document.querySelectorAll('.decision-action-bar button').forEach(button=>button.disabled=true); try { const body=withDomainPayload({choice,expected_version:version,planner:$('planner').value,backend:$('backend').value},domainId); const response=await nativeFetch(domainPath('/decisions/'+encodeURIComponent(decisionId)+'/resolve',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(responseError(data,'决策提交失败')); rememberRunDomain(data,domainId); if(domainId===currentDomainId()){ renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status),data.run_id); } } catch(error) { if(domainId===currentDomainId()){ $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; document.querySelectorAll('.decision-action-bar button').forEach(button=>button.disabled=false); } } }
-    const baseRenderRunForSelection = renderRun;
-    renderRun = function(data) {
-      baseRenderRunForSelection(data);
-      const normalized=normalizeConsoleResult(data).data;
-      const panel=$('decisionEvidence');
-      renderDomainRoutingInteraction(normalized);
-      const interaction=renderSelectionInteraction(normalized);
-      if(interaction) {
-        panel.insertAdjacentHTML('afterbegin',interaction);
-        setResultPanel('.decision-evidence-result',true);
-        panel.querySelectorAll('[data-selection-action]').forEach(button=>button.addEventListener('click',()=>selectionInteractionAction(button.dataset.selectionAction,button.dataset.runId,button.dataset.selectionValue)));
+    const interactionCommandKeys=new Map();
+    function interactionCommandKey(model,actionId){
+      const subject=model.subject||{},current=subject.current||{};
+      const identity=[current.kind,current.id,subject.revision,actionId].join(':');
+      if(!interactionCommandKeys.has(identity)){
+        const nonce=(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')?globalThis.crypto.randomUUID():(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+        interactionCommandKeys.set(identity,('console:'+String(current.id||'interaction').slice(0,40)+':'+String(actionId).slice(0,24)+':'+nonce).slice(0,128));
       }
+      return interactionCommandKeys.get(identity);
+    }
+    async function invokeCanonicalInteraction(model,actionId,input,data){
+      if(!window.ConsoleInteraction) throw new Error('统一交互契约模块不可用。');
+      const command=window.ConsoleInteraction.command(model,actionId,input,interactionCommandKey(model,actionId));
+      const current=model.subject.current||{};
+      if(current.kind==='routing_decision'){
+        const pending=domainRoutingRequests.get(String(current.id));
+        if(!pending) throw new Error('领域路由上下文已失效，请重新提交请求。');
+        const body=Object.assign({},command,{session_id:pending.payload.session_id});
+        const response=await nativeFetch('/domain-routing/decisions/'+encodeURIComponent(current.id)+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        let result=await response.json().catch(()=>({}));
+        if(!response.ok) throw new Error(responseError(result,'领域选择提交失败'));
+        const selectedDomain=result.domain_id||result.domain_routing?.selection?.domain_id||String(input?.domain_id||'');
+        if(!result.run_id){
+          const overrideDecisionId=result.domain_routing?.decision_id||result.domain_routing_decision_id;
+          if(!overrideDecisionId) throw new Error('领域选择响应缺少 override decision identity。');
+          const runPayload=Object.assign({},pending.payload,{domain_id:undefined,domain_routing_decision_id:overrideDecisionId});
+          const runResponse=await nativeFetch('/runs/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(runPayload)});
+          result=await runResponse.json().catch(()=>({}));
+          if(!runResponse.ok) throw new Error(responseError(result,'所选领域执行失败'));
+        }
+        if(result.run_id&&['SUBMITTED','QUEUED','PLANNING','EXECUTING'].includes(String(result.status||'').toUpperCase())) result=await pollQueuedRun(result,pending.payload,selectedDomain);
+        bindAutoDomain(result,selectedDomain);
+        rememberRunDomain(result,selectedDomain);
+        domainRoutingRequests.delete(String(current.id));
+        return result;
+      }
+      if(current.kind!=='run'||!current.id) throw new Error('当前交互没有可执行的运行主体。');
+      const domainId=model.subject.domain_id||domainForRun(current.id)||responseDomain(data);
+      const body=withDomainPayload(Object.assign({},command,{planner:$('planner').value,backend:$('backend').value}),domainId);
+      const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(current.id)+'/interaction',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(responseError(result,'交互动作提交失败'));
+      rememberRunDomain(result,domainId);
+      return result;
+    }
+    function renderCanonicalInteraction(data){
+      if(!window.ConsoleInteraction||!window.ConsoleActionHost) return false;
+      const model=window.ConsoleInteraction.normalize(data);
+      const present=data?.interaction?.schema_version===window.ConsoleInteraction.VERSION||data?.result?.interaction?.schema_version===window.ConsoleInteraction.VERSION;
+      if(!present||(!model.actionable&&model.state!=='unavailable')) return false;
+      const current=model.subject.current||{};
+      if(current.kind==='routing_decision'){
+        domainRoutingRequests.set(String(current.id),{request:data._console_auto_request||data.request||'',payload:Object.assign({},data._console_auto_payload||{})});
+      }
+      const labels={domain_selection:'选择处理领域',workflow_selection:'选择执行能力',facts_collection:'补充执行信息',plan_confirmation:'确认执行计划',plan_repair:'修复执行计划',recovery:'恢复运行',lifecycle:'运行控制'};
+      const candidates=window.ConsoleInteraction.candidates(model);
+      const candidateHtml=candidates.length?'<div class="selection-candidate-grid">'+candidates.map(item=>'<article class="selection-candidate"><h4>'+escapeHtml(item.label||item.id)+'</h4><p><code>'+escapeHtml(item.id)+'</code></p>'+(item.description?'<small>'+escapeHtml(item.description)+'</small>':'')+(item.capability_ids.length?'<small>能力：'+escapeHtml(item.capability_ids.join('、'))+'</small>':'')+'</article>').join('')+'</div>':'';
+      const missing=(Array.isArray(model.content.missing_fields)?model.content.missing_fields:[]).map(item=>item&&(item.label||item.id)).filter(Boolean).slice(0,16);
+      const blocked=model.blocked_actions.length?'<small class="selection-lineage">已阻断动作：'+escapeHtml(model.blocked_actions.join('、'))+'</small>':'';
+      const receipt=model.receipt?'<small class="selection-lineage">动作凭据：'+escapeHtml(model.receipt.action_id||model.receipt.action||'未知')+' · '+escapeHtml(model.receipt.status||'UNKNOWN')+(model.receipt.reused?' · 已复用':'')+'</small>':'';
+      const lineageCount=Number(model.lineage.repair_count||model.lineage.event_count||0);
+      const lineage=lineageCount?'<small class="selection-lineage">交互链：'+escapeHtml(lineageCount)+' 个历史事件</small>':'';
+      const html='<section class="selection-interaction-card" data-interaction-state="'+escapeHtml(model.state)+'" data-interaction-kind="'+escapeHtml(model.kind)+'" data-schema-version="'+escapeHtml(model.schema_version)+'"><div class="selection-interaction-head"><strong>'+escapeHtml(labels[model.kind]||'下一步交互')+'</strong><span>'+escapeHtml(model.reason_code)+'</span></div>'+(missing.length?'<p>待补充：'+escapeHtml(missing.join('、'))+'</p>':'')+blocked+receipt+lineage+candidateHtml+(model.actions.length?'<div data-canonical-action-host data-schema-version="'+escapeHtml(model.schema_version)+'"></div>':'<p class="distribution-note">当前没有可安全执行的后续动作，请补充问题范围后重新提交。</p>')+'</section>';
+      const panel=$('decisionEvidence');
+      panel.insertAdjacentHTML('afterbegin',html);
+      setResultPanel('.decision-evidence-result',true);
+      const target=panel.querySelector('[data-canonical-action-host]');
+      if(!target) return true;
+      window.ConsoleActionHost.mount({
+        target,
+        catalog:window.ConsoleInteraction.catalog(model),
+        invoke:(actionId,input)=>invokeCanonicalInteraction(model,actionId,input,data),
+        onResult:async result=>{ renderRun(result); appendMessage('assistant',result.answer||result.error||statusName(result.status),result.run_id); await hydrateAutoDomainState(result); },
+      });
+      return true;
+    }
+    const baseRenderRunForInteraction = renderRun;
+    renderRun = function(data) {
+      baseRenderRunForInteraction(data);
+      renderCanonicalInteraction(data);
     };
     function matchingPreviewFingerprint(request, workflow, domainContext) { if(!lastPlanPreview?.fingerprint) return null; const same=lastPlanPreview.request===request&&lastPlanPreview.session_id===$('session').value&&lastPlanPreview.domain_id===currentDomainId()&&lastPlanPreview.planner===$('planner').value&&lastPlanPreview.backend===$('backend').value&&lastPlanPreview.workflow===JSON.stringify(workflow||null)&&lastPlanPreview.domain_context===JSON.stringify(domainContext||{}); return same?lastPlanPreview.fingerprint:null; }
     async function sendChat(text) {

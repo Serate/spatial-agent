@@ -177,3 +177,27 @@
 - **诊断**：对首次结果、同 ID 复用、强制续跑、SQLite 和 artifact 只比较 `{decision_id, request_fingerprint, selected_domain_id, binding.run_id}`；不要读取请求或模型响应。
 - **修复**：同步复用先比较 routing identity，冲突 fail closed；内部续跑在调用方未提供 evidence 时从同 Domain 的既有 run 恢复并重新严格归一化；测试中的 Service 始终显式关闭。
 - **预防**：新增任何 retry/confirm/recover/replay 路径时，都要证明 routing evidence 要么继承同一 identity，要么明确 unavailable，禁止静默替换；资源生命周期测试不得忽略 `ResourceWarning`。
+
+## 公共 RequestFacts 省略原文导致 continuation 工作流丢失约束
+
+- **现象**：首次能力选择正常，但用户从澄清或确认状态继续后，Text 摘要/统计/规范化工作流缺少 `text` 约束，生成的计划无法执行或行为与首次规划不同。
+- **根因**：公共 RequestFacts 为脱敏和控制体积有意省略原文；续跑却把这个公共投影误当成 Domain Pack 的私有规划输入。
+- **诊断**：比较首次规划与 `select_capability/provide_facts` 续跑进入 Domain workflow builder 的事实字段，确认持久请求仍存在但公共 facts 已省略正文。
+- **修复**：Service 从已授权持久请求重新调用当前 Domain Pack 的 `extract_request_facts`；公共 Runtime 不解析领域字段，Text Domain 自己恢复文本约束。
+- **预防**：公共证据投影与领域内部规划输入必须分离；任何 continuation 都从权威请求和 Domain extractor 重建私有事实，不能依赖为展示而裁剪的 RequestFacts。
+
+## 新增 Console 模块未加入静态资源 allowlist 导致页面看似未变化
+
+- **现象**：HTML 已引用新的 canonical interaction 模块，但浏览器加载后仍走旧交互或提示模块不可用，界面看起来完全没有生效。
+- **根因**：生产 FastAPI 与开发 HTTP 都使用显式静态资源 allowlist；新增 JS 文件只写入仓库，未同时加入两个传输入口的允许列表。
+- **诊断**：在浏览器 Network 中检查脚本是否 404，再分别检查 `production_api.py` 与 `serve_api.py` 的资源集合，不能只看本地文件存在。
+- **修复**：把 `console_interaction.js` 同时加入生产和开发静态资源 allowlist，并按当前工作树重建镜像、禁用缓存后复验。
+- **预防**：新增 Console 模块时把“脚本标签、两个静态 allowlist、Node 语法、生产镜像浏览器加载”作为一个原子检查。
+
+## 前端 smoke 把动态动作 ID 固化在 Shell 源码位置
+
+- **现象**：统一交互已能在浏览器完成选域，但 smoke 在打开页面前报 `index.html` 缺少 `select_domain`。
+- **根因**：旧静态断言验证具体动作字符串出现在哪个文件，而不是验证 canonical contract 与 Action Host seam；动作目录迁入服务响应后，正确解耦反而被判失败。
+- **诊断**：先区分静态 seam 失败和真实浏览器行为失败；检查测试是否搜索具体动作、局部函数或 DOM，而这些内容本应由结构化响应动态提供。
+- **修复**：静态门禁改为检查 `renderCanonicalInteraction`、`ConsoleActionHost` 和版本化 interaction 模块；具体动作由浏览器 fixture 经 `interaction.actions` 注入并执行。
+- **预防**：Shell 测试只锁定稳定 interface，不锁定 Domain/action identity 或实现位置；删除模块后若复杂度不会回到调用方，该断言就不应存在。

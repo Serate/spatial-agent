@@ -8,17 +8,17 @@
 
 ## 当前状态
 
-- M226 已完成：routing evidence 已贯穿 Result、async、SQLite、artifact、restart；受控 Model Selector、脱敏 metrics、Harness 和 Console 展示已落地。
-- 当前生产镜像 healthy；M224–M226 46/46、quick/smoke、compileall 和三条浏览器验收通过；真实模型 + 本地 GIS 选择 `gis` 且无 fallback。
+- M227 已完成：`interaction.v1`、action、command 与 `InteractionHost` 统一选域、能力/事实选择、确认、修复和恢复；Result、async、SQLite/restart、artifact、Evidence Registry、HTTP 与 Console 已贯通。
+- 最新生产镜像 healthy；M227 4/4、相关专项 25/25、Registry 13/13、quick/smoke、compileall 和领域/能力/确认三条浏览器验收通过。
 
 ## 下一步
 
-启动 M227，从全局收敛路由澄清、事实补充、能力选择、确认、修复和恢复为统一 interaction contract。
+启动 M228：跨入口 Interaction Journey Harness 与持久 pre-run command receipt；收口 legacy 活动读取，验证开放请求动态匹配或结构化澄清。
 
 ## 不变量
 
 - Runtime 领域中立；能力通过 facts/catalog/schema/workflow/result/view 扩展，不写区域或固定问句分支。
-- Python 测试和 compileall 只在 Docker；默认门禁离线精简，live/GIS/browser 仅显式验收。
+- Python 测试和 compileall 只在 Docker；Docker compose 必须显式使用 `--env-file .env.production`；默认门禁离线精简。
 - 不读取、输出或提交密钥、`.env.production`、模型原文、真实原始数据或私有路径。
 
 ## 读取预算

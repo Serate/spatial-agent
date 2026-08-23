@@ -13,6 +13,9 @@ ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION = "spatial-agent.async-result-evidence.v1"
 REQUEST_IDENTITY_SCHEMA_VERSION = "spatial-agent.request-identity.v1"
 ARTIFACT_REFERENCE_SCHEMA_VERSION = "spatial-agent.artifact-reference.v1"
 DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION = "spatial-agent.domain-routing-evidence.v1"
+INTERACTION_SCHEMA_VERSION = "spatial-agent.interaction.v1"
+INTERACTION_ACTION_SCHEMA_VERSION = "spatial-agent.interaction-action.v1"
+INTERACTION_COMMAND_SCHEMA_VERSION = "spatial-agent.interaction-command.v1"
 
 __all__ = [
     "TASK_PLAN_SCHEMA_VERSION",
@@ -28,4 +31,7 @@ __all__ = [
     "REQUEST_IDENTITY_SCHEMA_VERSION",
     "ARTIFACT_REFERENCE_SCHEMA_VERSION",
     "DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION",
+    "INTERACTION_SCHEMA_VERSION",
+    "INTERACTION_ACTION_SCHEMA_VERSION",
+    "INTERACTION_COMMAND_SCHEMA_VERSION",
 ]

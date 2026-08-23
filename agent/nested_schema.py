@@ -24,6 +24,7 @@ from agent.contract_versions import (
 )
 from agent.artifact_reference import normalize_artifact_reference
 from agent.conversation_turn import normalize_conversation_turn
+from agent.interaction_contract import normalize_interaction, project_interaction
 from agent.domain_routing_evidence import (
     normalize_domain_routing_evidence,
     unavailable_domain_routing_evidence,
@@ -65,6 +66,11 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
     )
     result["domain_routing_evidence"] = normalize_domain_routing_evidence_contract(
         result.get("domain_routing_evidence")
+    )
+    result["interaction"] = (
+        normalize_interaction(result.get("interaction"))
+        if result.get("interaction") is not None
+        else project_interaction(result)
     )
     _normalize_artifact_references(result)
     return result

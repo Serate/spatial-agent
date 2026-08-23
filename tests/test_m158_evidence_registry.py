@@ -32,19 +32,23 @@ class M158EvidenceRegistryTests(unittest.TestCase):
         contract = build_result_contract(_payload())
         registry = contract["evidence_registry"]
         self.assertEqual(registry["schema_version"], EVIDENCE_REGISTRY_SCHEMA_VERSION)
-        self.assertEqual(registry["entry_count"], 7)
-        self.assertEqual(
-            {item["id"] for item in registry["entries"]},
-            {
-                "result",
-                "plan_quality",
-                "execution_timeline",
-                "action_lifecycle",
-                "replanning",
-                "workflow_selection",
-                "planner_selection",
-            },
+        expected_ids = {
+            "result",
+            "plan_quality",
+            "execution_timeline",
+            "action_lifecycle",
+            "replanning",
+            "workflow_selection",
+            "planner_selection",
+            "interaction",
+        }
+        self.assertEqual(registry["entry_count"], len(expected_ids))
+        self.assertEqual({item["id"] for item in registry["entries"]}, expected_ids)
+        interaction = next(
+            item for item in registry["entries"] if item["id"] == "interaction"
         )
+        self.assertEqual(interaction["schema_version"], "spatial-agent.interaction.v1")
+        self.assertEqual(interaction["reference"], "result.interaction")
         self.assertTrue(all(item["reference"].startswith(("result",)) for item in registry["entries"]))
 
     def test_result_async_artifact_and_harness_share_registry(self):

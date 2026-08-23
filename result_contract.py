@@ -22,6 +22,10 @@ from agent.planner_selection import normalize_planner_selection_evidence
 from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
 from agent.selection_interaction import build_selection_interaction
+from agent.interaction_contract import (
+    legacy_selection_interaction,
+    project_interaction,
+)
 from agent.nested_schema import (
     NestedSchemaError,
     normalize_domain_routing_evidence_contract,
@@ -166,6 +170,21 @@ def build_result_contract(
         status=payload.get("status"),
         subject_id=payload.get("run_id"),
     )
+    interaction = project_interaction(
+        {
+            **payload,
+            "selection_interaction": selection_interaction,
+            "lifecycle": lifecycle,
+            "action_receipt": action_receipt,
+        },
+        prefer_existing=False,
+    )
+    # Compatibility readers keep the old shape, but its authorization fields
+    # are now projected from canonical interaction.actions.
+    selection_interaction = legacy_selection_interaction(
+        interaction,
+        selection_interaction,
+    )
     workspace = _workspace_contract(
         result_type,
         registry=registry,
@@ -208,6 +227,7 @@ def build_result_contract(
         "clarification": payload.get("clarification"),
         "decision": payload.get("decision_evidence") or {"available": False},
         "selection_interaction": selection_interaction,
+        "interaction": interaction,
         "lifecycle": lifecycle,
         "context": payload.get("context_evidence") or {"available": False},
         "planning": planning_evidence,
