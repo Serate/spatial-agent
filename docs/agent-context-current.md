@@ -10,7 +10,7 @@
 
 - Text Domain 已接入声明式 workflow catalog、组合 DAG、ToolRegistry/schema 校验、Result/View/Answer、HTTP、Artifact、Async 和 SQLite recovery。
 - 公共 `component_evidence` 已接入 workflow selection，用于组件状态、覆盖、时效、来源、冲突和重验投影。
-- M220-B2 已完成实现，当前工作树包含待提交的 Text/证据/组合测试改动；具体版本号以 `git log -1 --oneline --decorate` 为准。
+- M220-B2 已完成实现并推送；当前工作树应保持干净，具体版本号以 `git log -1 --oneline --decorate` 为准。
 - Docker 容器 `ai-agent-spatial-agent-1` healthy；Python、compileall、阶段测试默认在 Docker 中执行。
 
 ## 阶段证据与下一步
