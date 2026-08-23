@@ -70,7 +70,7 @@ class M165CrossEntryContractTests(unittest.TestCase):
         development = (root / "serve_api.py").read_text(encoding="utf-8")
         for source in (production, development):
             for asset in (
-                "console_selection_interaction.js",
+                "console_interaction.js",
                 "console_evidence_registry.js",
                 "console_renderer_registry.js",
                 "console_action_host.js",

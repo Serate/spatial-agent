@@ -201,3 +201,19 @@
 - **诊断**：先区分静态 seam 失败和真实浏览器行为失败；检查测试是否搜索具体动作、局部函数或 DOM，而这些内容本应由结构化响应动态提供。
 - **修复**：静态门禁改为检查 `renderCanonicalInteraction`、`ConsoleActionHost` 和版本化 interaction 模块；具体动作由浏览器 fixture 经 `interaction.actions` 注入并执行。
 - **预防**：Shell 测试只锁定稳定 interface，不锁定 Domain/action identity 或实现位置；删除模块后若复杂度不会回到调用方，该断言就不应存在。
+
+## pre-run 选域只有 child decision，没有持久 command receipt
+
+- **现象**：重复选择同一 Domain 能复用 child decision，但响应没有动作回执；重启后无法证明幂等键、输入指纹和 result reference 与首次命令一致，并发 worker 还可能同时创建 sibling decision。
+- **根因**：run action 已有 SQLite receipt/CAS，routing action 发生在 run 创建前，只用“先查 child、再保存 decision”的进程级流程模拟幂等，没有原子持久化命令身份。
+- **诊断**：用两套独立 `DomainRoutingState/SQLiteConversationStore` 并发提交同一 parent/action，比较 child 数、receipt subject/result、幂等键和重启回放；单进程顺序重试不能证明跨 worker 安全。
+- **修复**：在 `BEGIN IMMEDIATE` 事务中校验 parent/session，原子提交唯一 child 与 `action-receipt.v1`；receipt 的 subject/result kind 使用 `routing_decision`，相同 command 回放、不同选择返回 revision conflict。
+- **预防**：任何发生在 run 之前的新 interaction action 也必须通过同一 command/receipt 语义；不能用“结果看起来一样”替代持久 idempotency identity。
+
+## canonical Host 授权后仍读取 legacy allowed_actions 二次判断
+
+- **现象**：`InteractionHost` 已根据最新 `interaction.actions` 验证命令，但 Service dispatcher 又读取 `selection_interaction.allowed_actions`；两套投影短暂漂移时，合法 canonical command 会被旧字段拒绝。
+- **根因**：迁移时保留旧防线却没有区分授权与兼容展示，导致 legacy alias 仍处在活动策略路径。
+- **诊断**：从 HTTP command 追踪到 Host 和 dispatcher，搜索所有 `allowed_actions` 读取；若动作在 Host 后再次根据 legacy selection 判定，就是重复授权。
+- **修复**：dispatcher 只接收 Host 已验证的 normalized command；legacy selection 字段仅作为响应兼容投影。Console 异步状态也改读 canonical interaction，并删除旧 selection 模块与静态资源入口。
+- **预防**：兼容 adapter 必须单向从 canonical contract 生成，不能反向参与授权、状态机或 UI 动作选择；阶段测试同时断言旧脚本未加载。

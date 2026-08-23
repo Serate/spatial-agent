@@ -97,7 +97,7 @@ def project_interaction(
     receipt = _legacy(value, nested, "action_receipt")
 
     if _is_schema(routing, "spatial-agent.domain-routing-interaction.v1"):
-        return _project_routing(value, routing)
+        return _project_routing(value, routing, receipt=receipt)
     if _is_schema(selection, "spatial-agent.selection-interaction.v1"):
         return _project_selection(
             value,
@@ -488,7 +488,12 @@ def unavailable_interaction(reason_code: str = "interaction_unavailable") -> dic
     }
 
 
-def _project_routing(source: Mapping[str, Any], routing: Mapping[str, Any]) -> dict[str, Any]:
+def _project_routing(
+    source: Mapping[str, Any],
+    routing: Mapping[str, Any],
+    *,
+    receipt: Mapping[str, Any],
+) -> dict[str, Any]:
     decision_id = _identity(routing.get("decision_id"), "unknown")
     domain_routing = _mapping(source.get("domain_routing"))
     parent_id = _identity(domain_routing.get("parent_decision_id"), "")
@@ -513,7 +518,7 @@ def _project_routing(source: Mapping[str, Any], routing: Mapping[str, Any]) -> d
             "actions": actions,
             "blocked_actions": routing.get("blocked_actions") or [],
             "content": {"candidates": candidates, "missing_fields": []},
-            "receipt": None,
+            "receipt": receipt,
             "lineage": {
                 "root_subject_id": root_id,
                 "current_subject_id": decision_id,

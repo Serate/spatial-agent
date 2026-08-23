@@ -71,13 +71,13 @@ class M167CandidateSelectionTests(unittest.TestCase):
     def test_console_submits_capability_id_and_renders_cards(self):
         root = Path(__file__).parents[1]
         html = (root / "web" / "index.html").read_text(encoding="utf-8")
-        module = (root / "web" / "console_selection_interaction.js").read_text(
+        module = (root / "web" / "console_interaction.js").read_text(
             encoding="utf-8"
         )
         self.assertIn("selection-candidate-grid", html)
-        self.assertIn("data-selection-value", html)
-        self.assertIn("body.capability_id=selectionValue", html)
-        self.assertIn("candidate_details", module)
+        self.assertIn("data-canonical-action-host", html)
+        self.assertIn("renderCanonicalInteraction", html)
+        self.assertIn("function candidates", module)
         self.assertNotIn("admin_name", module)
         browser_smoke = root / "scripts" / "console_candidate_selection_browser_smoke.js"
         self.assertTrue(browser_smoke.exists())

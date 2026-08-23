@@ -8,7 +8,7 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 - Agent Runtime：Planner、TaskPlan、依赖执行、重试、超时、取消和失败恢复相互分离。
 - 双 Planner：默认规则规划器保证确定性；可选 OpenAI 兼容大模型规划器处理更开放的表达。
 - 受控多领域：`DomainSelector` 先从有界能力目录自动选择、澄清或说明无匹配，再由 `DomainRuntimeHost` 隔离运行 GIS/Text；执行结果携带版本化 routing identity、lineage 和 binding evidence。
-- 统一交互：选域、能力选择、事实补充、计划确认、修复、重试和恢复统一投影为版本化 `interaction`；所有动作在重新读取权威状态后，经 revision、动作目录和输入 schema 校验再由 `InteractionHost` 分发。
+- 统一交互：选域、能力选择、事实补充、计划确认、修复、重试和恢复统一投影为版本化 `interaction`；所有动作在重新读取权威状态后，经 revision、动作目录和输入 schema 校验再由 `InteractionHost` 分发。选域 command 的 child decision 与 receipt 在 SQLite 中原子提交，跨 worker/重启可安全回放。
 - 工具安全边界：所有工具经过 schema 校验和 Registry 分发，不让模型直接调用后端。
 - 真实数据接入：支持行政区 GeoJSON、DEM/土地利用栅格，以及武汉 OSM 道路和水体 GeoPackage。
 - 数据质量预检：检查可读性、CRS、覆盖关系和几何质量，并在分析结果中保留证据。
@@ -197,6 +197,7 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/core-acceptance.md`](docs/core-acceptance.md)：核心空间流程验收标准。
 - [`docs/test-strategy.md`](docs/test-strategy.md)：精简测试 profile、真实验收和扩展矩阵边界。
 - [`evaluation/contract_harness.py`](evaluation/contract_harness.py)：CLI、HTTP、artifact 和 recovery 的结果契约一致性 Harness。
+- [`evaluation/interaction_journey_harness.py`](evaluation/interaction_journey_harness.py)：跨 Application、HTTP、artifact 和重启的 interaction root/revision/action/receipt 旅程 Harness。
 - [`evaluation/cases/global-acceptance.json`](evaluation/cases/global-acceptance.json)：全局场景验收矩阵。
 - [`docs/agent-context-resume.md`](docs/agent-context-resume.md)：新对话和上下文压缩后的唯一恢复卡、当前状态源与按需检索入口。
 - [`docs/task-resume.md`](docs/task-resume.md)：当前任务短指针；详细历史按需检索。

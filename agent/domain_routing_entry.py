@@ -25,7 +25,7 @@ from agent.interaction_contract import (
     project_interaction,
 )
 from agent.interaction_host import InteractionHost
-from agent.recovery_action import action_input_fingerprint
+from agent.recovery_action import action_input_fingerprint, project_action_receipt
 from agent.domain_selector_provider import domain_selector_from_environment
 from agent.sqlite_store import SQLiteConversationStore
 
@@ -45,6 +45,9 @@ class DomainRoutingState:
         self._store = store
         self._max_decisions = max(16, min(int(max_decisions), 1024))
         self._decisions: OrderedDict[str, dict[str, Any]] = OrderedDict()
+        self._interaction_receipts: OrderedDict[tuple[str, str], dict[str, Any]] = (
+            OrderedDict()
+        )
         self._bindings: dict[str, str] = {}
         self._lock = RLock()
 
@@ -78,13 +81,7 @@ class DomainRoutingState:
             if callable(saver):
                 saver(session_id, payload)
         with self._lock:
-            self._decisions[decision.decision_id] = {
-                "decision": payload,
-                "session_id": session_id,
-            }
-            self._decisions.move_to_end(decision.decision_id)
-            while len(self._decisions) > self._max_decisions:
-                self._decisions.popitem(last=False)
+            self._remember_decision(decision, session_id)
 
     def get(self, decision_id: str, session_id: str | None = None) -> Mapping[str, Any] | None:
         if self._store is not None:
@@ -154,6 +151,155 @@ class DomainRoutingState:
                     return decision
         return None
 
+    def commit_interaction(
+        self,
+        *,
+        subject_decision_id: str,
+        decision: DomainRoutingDecision,
+        session_id: str | None,
+        action: str,
+        idempotency_key: str,
+        input_fingerprint: str,
+    ) -> dict[str, Any]:
+        """Atomically commit one routing child and its bounded command receipt."""
+
+        if self._store is not None and session_id:
+            committer = getattr(
+                self._store,
+                "commit_domain_routing_interaction",
+                None,
+            )
+            if callable(committer):
+                result = committer(
+                    session_id=session_id,
+                    subject_decision_id=subject_decision_id,
+                    decision=decision,
+                    action=action,
+                    idempotency_key=idempotency_key,
+                    input_fingerprint=input_fingerprint,
+                )
+                restored = resolve_domain_routing_decision(result["decision"])
+                with self._lock:
+                    self._remember_decision(restored, session_id)
+                    self._remember_receipt(
+                        subject_decision_id,
+                        action,
+                        result["receipt"],
+                    )
+                return result
+
+        key = (subject_decision_id, action)
+        requested_domain = (
+            decision.selection.domain_id if decision.selection is not None else ""
+        )
+        with self._lock:
+            existing_receipt = self._interaction_receipts.get(key)
+            if existing_receipt is not None:
+                if (
+                    existing_receipt.get("idempotency_key") != idempotency_key
+                    or existing_receipt.get("input_fingerprint") != input_fingerprint
+                ):
+                    raise InteractionContractError(
+                        "routing interaction conflicts with an existing command",
+                        code="interaction_revision_conflict",
+                    )
+                result_id = str(
+                    (existing_receipt.get("result_ref") or {}).get("id") or ""
+                )
+                result_record = self._decisions.get(result_id)
+                if result_record is None:
+                    raise ValueError("routing interaction receipt result is missing")
+                return {
+                    "created": False,
+                    "decision": result_record["decision"],
+                    "receipt": project_action_receipt(
+                        existing_receipt,
+                        reused=True,
+                    ),
+                }
+
+            for receipt_key, receipt in self._interaction_receipts.items():
+                if (
+                    receipt_key != key
+                    and receipt.get("idempotency_key") == idempotency_key
+                ):
+                    raise InteractionContractError(
+                        "interaction idempotency key already belongs to another subject",
+                        code="interaction_idempotency_conflict",
+                    )
+
+            existing_child = None
+            for record in reversed(tuple(self._decisions.values())):
+                if session_id is not None and record["session_id"] != session_id:
+                    continue
+                if record["decision"].get("parent_decision_id") == subject_decision_id:
+                    existing_child = resolve_domain_routing_decision(record["decision"])
+                    break
+            created = existing_child is None
+            if existing_child is not None:
+                existing_domain = (
+                    existing_child.selection.domain_id
+                    if existing_child.selection is not None
+                    else ""
+                )
+                if existing_domain != requested_domain:
+                    raise InteractionContractError(
+                        "routing decision was already resolved with another domain",
+                        code="interaction_revision_conflict",
+                    )
+                committed = existing_child
+            else:
+                committed = decision
+                self._remember_decision(committed, session_id)
+
+            receipt = project_action_receipt(
+                {
+                    "status": "COMPLETED",
+                    "action_id": action,
+                    "subject": {
+                        "kind": "routing_decision",
+                        "id": subject_decision_id,
+                    },
+                    "result_ref": {
+                        "kind": "routing_decision",
+                        "id": committed.decision_id,
+                    },
+                    "idempotency_key": idempotency_key,
+                    "input_fingerprint": input_fingerprint,
+                }
+            )
+            self._remember_receipt(subject_decision_id, action, receipt)
+            return {
+                "created": created,
+                "decision": committed.to_dict(),
+                "receipt": receipt,
+            }
+
+    def _remember_decision(
+        self,
+        decision: DomainRoutingDecision,
+        session_id: str | None,
+    ) -> None:
+        self._decisions[decision.decision_id] = {
+            "decision": decision.to_dict(),
+            "session_id": session_id,
+        }
+        self._decisions.move_to_end(decision.decision_id)
+        while len(self._decisions) > self._max_decisions:
+            self._decisions.popitem(last=False)
+
+    def _remember_receipt(
+        self,
+        subject_decision_id: str,
+        action: str,
+        receipt: Mapping[str, Any],
+    ) -> None:
+        key = (subject_decision_id, action)
+        self._interaction_receipts[key] = dict(receipt)
+        self._interaction_receipts.move_to_end(key)
+        while len(self._interaction_receipts) > self._max_decisions:
+            self._interaction_receipts.popitem(last=False)
+
     def clear(self, session_id: str) -> None:
         if self._store is not None:
             clearer = getattr(self._store, "clear_session", None)
@@ -165,12 +311,19 @@ class DomainRoutingState:
         """Discard process-local routing state after an authoritative clear."""
 
         with self._lock:
-            for decision_id in [
+            decision_ids = [
                 key
                 for key, record in self._decisions.items()
                 if record["session_id"] == session_id
-            ]:
+            ]
+            for decision_id in decision_ids:
                 self._decisions.pop(decision_id, None)
+            for receipt_key in [
+                key
+                for key in self._interaction_receipts
+                if key[0] in decision_ids
+            ]:
+                self._interaction_receipts.pop(receipt_key, None)
             if not keep_binding:
                 self._bindings.pop(session_id, None)
 
@@ -330,7 +483,7 @@ class DomainRoutingApplication:
             ),
             dispatcher=lambda checked, _interaction: self._override_authorized(
                 decision_id,
-                checked["input"],
+                checked,
                 session_id=session_id,
                 prior=prior,
             ),
@@ -340,40 +493,45 @@ class DomainRoutingApplication:
     def _override_authorized(
         self,
         decision_id: str,
-        payload: Mapping[str, Any],
+        command: Mapping[str, Any],
         *,
         session_id: str | None,
         prior: Mapping[str, Any],
     ) -> dict[str, Any]:
         """Dispatch a Host-validated selection with immutable-lineage CAS."""
 
-        requested_domain_id = str(payload.get("domain_id") or "")
-        existing_child = self._state.child(decision_id, session_id)
-        if existing_child is not None:
-            existing = resolve_domain_routing_decision(existing_child)
-            existing_domain_id = (
-                existing.selection.domain_id if existing.selection is not None else ""
-            )
-            if existing_domain_id != requested_domain_id:
-                raise InteractionContractError(
-                    "routing decision was already resolved with another domain",
-                    code="interaction_revision_conflict",
-                )
-            return self._routing_response(existing)
+        action_input = command.get("input")
+        action_input = action_input if isinstance(action_input, Mapping) else {}
+        requested_domain_id = str(action_input.get("domain_id") or "")
         started = perf_counter()
         decision = self._router.override(prior, requested_domain_id)
-        self._metrics.observe(
-            decision,
-            latency_ms=(perf_counter() - started) * 1000,
-        )
         bound_domain = self._state.bound_domain(session_id)
         if bound_domain and bound_domain != decision.selection.domain_id:
             raise DomainSelectionError(
                 "session belongs to another domain: " + str(session_id),
                 code="session_domain_mismatch",
             )
-        self._state.save(decision, session_id)
-        return self._routing_response(decision)
+        committed = self._state.commit_interaction(
+            subject_decision_id=decision_id,
+            decision=decision,
+            session_id=session_id,
+            action=str(command.get("action_id") or "select_domain"),
+            idempotency_key=str(command.get("idempotency_key") or ""),
+            input_fingerprint=action_input_fingerprint(
+                command.get("action_id"),
+                action_input,
+            ),
+        )
+        restored = resolve_domain_routing_decision(committed["decision"])
+        if committed.get("created"):
+            self._metrics.observe(
+                restored,
+                latency_ms=(perf_counter() - started) * 1000,
+            )
+        return self._routing_response(
+            restored,
+            receipt=committed.get("receipt"),
+        )
 
     def run(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         normalized = dict(payload)
@@ -469,8 +627,17 @@ class DomainRoutingApplication:
         return decision, latency_ms
 
     @staticmethod
-    def _routing_response(decision: DomainRoutingDecision) -> dict[str, Any]:
+    def _routing_response(
+        decision: DomainRoutingDecision,
+        *,
+        receipt: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         response = {"domain_routing": decision.to_dict()}
+        if isinstance(receipt, Mapping):
+            response["action_receipt"] = project_action_receipt(
+                receipt,
+                reused=receipt.get("reused") is True,
+            )
         legacy = build_domain_routing_interaction(decision)
         response["interaction"] = project_interaction(
             {**response, "domain_routing_interaction": legacy}

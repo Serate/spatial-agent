@@ -2231,12 +2231,6 @@ class AgentService:
             raise ValueError("interaction action must be a non-empty string")
         current = self.get_run(run_id, planner=planner, backend=backend)
         envelope = current.get("result") if isinstance(current.get("result"), dict) else {}
-        interaction = normalize_selection_interaction(
-            envelope.get("selection_interaction")
-        )
-        allowed = set(interaction.get("allowed_actions") or ())
-        if action not in allowed:
-            raise ValueError("interaction action is not allowed: " + action)
         data = dict(payload) if isinstance(payload, dict) else {}
         selected_planner, selected_backend = self._infer_run_runtime_selection(
             run_id, planner, backend

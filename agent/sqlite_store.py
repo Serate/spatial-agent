@@ -17,6 +17,7 @@ from .evidence_registry import normalize_evidence_registry
 from .recovery_action import normalize_action_receipt
 from .execution_timeline import normalize_execution_timeline
 from .nested_schema import normalize_domain_routing_evidence_contract
+from .interaction_contract import InteractionContractError
 
 
 _ASYNC_JOB_SELECT = """
@@ -32,6 +33,12 @@ _INTERACTION_RECEIPT_SELECT = """
            status, result_run_id, response_payload, error_code,
            created_at, updated_at
     FROM interaction_receipts
+"""
+
+_ROUTING_INTERACTION_RECEIPT_SELECT = """
+    SELECT subject_decision_id, action, idempotency_key, input_fingerprint,
+           status, result_decision_id, error_code, created_at, updated_at
+      FROM domain_routing_interaction_receipts
 """
 
 
@@ -994,6 +1001,12 @@ class SQLiteConversationStore:
             ).fetchone()
             if binding is None:
                 connection.execute(
+                    "DELETE FROM domain_routing_interaction_receipts "
+                    "WHERE subject_decision_id IN ("
+                    "SELECT decision_id FROM domain_routing_decisions WHERE session_id = ?)",
+                    (session_id,),
+                )
+                connection.execute(
                     "DELETE FROM domain_routing_decisions WHERE session_id = ?",
                     (session_id,),
                 )
@@ -1005,6 +1018,12 @@ class SQLiteConversationStore:
                 )
             connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
+            connection.execute(
+                "DELETE FROM domain_routing_interaction_receipts "
+                "WHERE subject_decision_id IN ("
+                "SELECT decision_id FROM domain_routing_decisions WHERE session_id = ?)",
+                (session_id,),
+            )
             connection.execute(
                 "DELETE FROM domain_routing_decisions WHERE session_id = ?",
                 (session_id,),
@@ -1035,6 +1054,12 @@ class SQLiteConversationStore:
             connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM memory_facts WHERE session_id = ?", (session_id,))
+            connection.execute(
+                "DELETE FROM domain_routing_interaction_receipts "
+                "WHERE subject_decision_id IN ("
+                "SELECT decision_id FROM domain_routing_decisions WHERE session_id = ?)",
+                (session_id,),
+            )
             connection.execute(
                 "DELETE FROM domain_routing_decisions WHERE session_id = ?",
                 (session_id,),
@@ -1146,6 +1171,163 @@ class SQLiteConversationStore:
             if row is None or row[1] != session_id or row[5] != encoded:
                 raise ValueError("domain routing decision id already exists")
         return self._domain_routing_decision_from_row(row)
+
+    def commit_domain_routing_interaction(
+        self,
+        *,
+        session_id: str,
+        subject_decision_id: str,
+        decision: Any,
+        action: str,
+        idempotency_key: str,
+        input_fingerprint: str,
+    ) -> Dict[str, Any]:
+        """Atomically commit one immutable routing child and command receipt."""
+
+        resolved = resolve_domain_routing_decision(
+            decision,
+            registry=self._routing_registry,
+        )
+        if resolved.parent_decision_id != subject_decision_id:
+            raise ValueError("routing interaction child does not match its subject")
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        action_id = str(action or "")[:48]
+        key = str(idempotency_key or "")[:128]
+        fingerprint = str(input_fingerprint or "")[:160]
+        if not action_id or not key or not fingerprint:
+            raise ValueError("routing interaction receipt identity is incomplete")
+        encoded = json.dumps(
+            resolved.to_dict(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        requested_domain = (
+            resolved.selection.domain_id if resolved.selection is not None else None
+        )
+        now = time.time()
+        with self._connection() as connection:
+            # Writers across Uvicorn workers serialize before checking the
+            # parent/action pair, so two commands cannot create sibling
+            # decisions from the same interaction revision.
+            connection.execute("BEGIN IMMEDIATE")
+            parent = connection.execute(
+                "SELECT session_id FROM domain_routing_decisions WHERE decision_id = ?",
+                (subject_decision_id,),
+            ).fetchone()
+            if parent is None or parent[0] != session_id:
+                raise ValueError("routing interaction subject was not found")
+
+            receipt_row = connection.execute(
+                _ROUTING_INTERACTION_RECEIPT_SELECT
+                + " WHERE subject_decision_id = ? AND action = ?",
+                (subject_decision_id, action_id),
+            ).fetchone()
+            if receipt_row is not None:
+                if receipt_row[2] != key or receipt_row[3] != fingerprint:
+                    raise InteractionContractError(
+                        "routing interaction conflicts with an existing command",
+                        code="interaction_revision_conflict",
+                    )
+                child = connection.execute(
+                    """
+                    SELECT decision_id, session_id, domain_id, parent_decision_id,
+                           request_fingerprint, decision_json, created_at
+                      FROM domain_routing_decisions
+                     WHERE decision_id = ? AND session_id = ?
+                    """,
+                    (receipt_row[5], session_id),
+                ).fetchone()
+                if child is None:
+                    raise ValueError("routing interaction receipt result is missing")
+                return {
+                    "created": False,
+                    "decision": self._domain_routing_decision_from_row(child),
+                    "receipt": _routing_interaction_receipt_from_row(
+                        receipt_row, reused=True
+                    ),
+                }
+
+            child = connection.execute(
+                """
+                SELECT decision_id, session_id, domain_id, parent_decision_id,
+                       request_fingerprint, decision_json, created_at
+                  FROM domain_routing_decisions
+                 WHERE parent_decision_id = ? AND session_id = ?
+                 ORDER BY created_at, decision_id
+                 LIMIT 1
+                """,
+                (subject_decision_id, session_id),
+            ).fetchone()
+            if child is not None:
+                existing = self._domain_routing_decision_from_row(child)
+                existing_domain = str(existing.get("domain_id") or "")
+                if existing_domain != str(requested_domain or ""):
+                    raise InteractionContractError(
+                        "routing decision was already resolved with another domain",
+                        code="interaction_revision_conflict",
+                    )
+                result_decision_id = str(existing["decision_id"])
+            else:
+                result_decision_id = resolved.decision_id
+                connection.execute(
+                    """
+                    INSERT INTO domain_routing_decisions (
+                        decision_id, session_id, domain_id, parent_decision_id,
+                        request_fingerprint, decision_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        result_decision_id,
+                        session_id,
+                        requested_domain,
+                        subject_decision_id,
+                        resolved.request_fingerprint,
+                        encoded,
+                        now,
+                    ),
+                )
+                child = connection.execute(
+                    """
+                    SELECT decision_id, session_id, domain_id, parent_decision_id,
+                           request_fingerprint, decision_json, created_at
+                      FROM domain_routing_decisions
+                     WHERE decision_id = ?
+                    """,
+                    (result_decision_id,),
+                ).fetchone()
+
+            connection.execute(
+                """
+                INSERT INTO domain_routing_interaction_receipts (
+                    subject_decision_id, action, idempotency_key,
+                    input_fingerprint, status, result_decision_id,
+                    error_code, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'COMPLETED', ?, NULL, ?, ?)
+                """,
+                (
+                    subject_decision_id,
+                    action_id,
+                    key,
+                    fingerprint,
+                    result_decision_id,
+                    now,
+                    now,
+                ),
+            )
+            receipt_row = connection.execute(
+                _ROUTING_INTERACTION_RECEIPT_SELECT
+                + " WHERE subject_decision_id = ? AND action = ?",
+                (subject_decision_id, action_id),
+            ).fetchone()
+        return {
+            "created": True,
+            "decision": self._domain_routing_decision_from_row(child),
+            "receipt": _routing_interaction_receipt_from_row(
+                receipt_row, reused=False
+            ),
+        }
 
     def get_domain_routing_decision(
         self, decision_id: str, session_id: Optional[str] = None
@@ -1351,6 +1533,20 @@ class SQLiteConversationStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_domain_routing_decisions_session
                     ON domain_routing_decisions(session_id, created_at DESC);
+                CREATE TABLE IF NOT EXISTS domain_routing_interaction_receipts (
+                    subject_decision_id TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    input_fingerprint TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    result_decision_id TEXT,
+                    error_code TEXT,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY (subject_decision_id, action)
+                );
+                CREATE INDEX IF NOT EXISTS idx_domain_routing_receipts_result
+                    ON domain_routing_interaction_receipts(result_decision_id);
                 """
             )
             # Pre-M224 conversation rows had no Domain identity. A single,
@@ -1380,6 +1576,27 @@ class SQLiteConversationStore:
                 yield connection
         finally:
             connection.close()
+
+
+def _routing_interaction_receipt_from_row(
+    row: Any,
+    *,
+    reused: bool,
+) -> Dict[str, Any]:
+    if row is None:
+        raise ValueError("routing interaction receipt is missing")
+    return normalize_action_receipt(
+        {
+            "status": row[4],
+            "action_id": row[1],
+            "subject": {"kind": "routing_decision", "id": row[0]},
+            "result_ref": {"kind": "routing_decision", "id": row[5]},
+            "idempotency_key": row[2],
+            "input_fingerprint": row[3],
+            "error_code": row[6],
+            "reused": reused,
+        }
+    )
 
 
 def _async_job_from_row(row, *, legacy_domain_id: str = "gis") -> Dict[str, Any]:

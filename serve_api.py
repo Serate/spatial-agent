@@ -287,7 +287,6 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             allowed = {
                 "console_nested_schema.js",
                 "console_decision_evidence.js",
-                "console_selection_interaction.js",
                 "console_evidence_registry.js",
                 "console_workflow_evidence.js",
                 "console_renderer_registry.js",

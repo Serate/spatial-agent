@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import unittest
 import tempfile
-import json
-import shutil
-import subprocess
 from pathlib import Path
 
 from agent.service import AgentService
@@ -160,38 +157,17 @@ class M164SelectionInteractionTests(unittest.TestCase):
             finally:
                 service.close()
 
-    def test_console_consumes_selection_interaction_without_domain_branch(self):
+    def test_console_consumes_canonical_interaction_without_domain_branch(self):
         root = Path(__file__).parents[1]
         html = (root / "web" / "index.html").read_text(encoding="utf-8")
-        module = (root / "web" / "console_selection_interaction.js").read_text(
+        module = (root / "web" / "console_interaction.js").read_text(
             encoding="utf-8"
         )
-        self.assertIn('console_selection_interaction.js', html)
-        self.assertIn('normalizeSelectionInteraction', html)
-        self.assertIn('selection-interaction.v1', module)
+        self.assertIn('console_interaction.js', html)
+        self.assertNotIn('console_selection_interaction.js', html)
+        self.assertIn('renderCanonicalInteraction', html)
+        self.assertIn('spatial-agent.interaction.v1', module)
         self.assertNotIn('admin_name', module)
-        smoke = root / "scripts" / "console_selection_interaction_smoke.js"
-        self.assertTrue(smoke.exists())
-        self.assertIn(
-            'require("../web/console_selection_interaction.js")',
-            smoke.read_text(encoding="utf-8"),
-        )
-
-    @unittest.skipUnless(shutil.which("node"), "Node.js is not installed")
-    def test_node_selection_interaction_smoke(self):
-        root = Path(__file__).parents[1]
-        completed = subprocess.run(
-            ["node", str(root / "scripts" / "console_selection_interaction_smoke.js")],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=20,
-            check=False,
-        )
-        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-        self.assertEqual(json.loads(completed.stdout)["status"], "ok")
 
 
 if __name__ == "__main__":

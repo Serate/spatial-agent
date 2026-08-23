@@ -143,13 +143,21 @@ def project_action_receipt(
     result_id = str(
         value.get("result_run_id") or result_ref.get("id") or ""
     )[:_MAX_TEXT] or None
+    subject_kind = _receipt_reference_kind(
+        subject.get("kind") or value.get("subject_kind"),
+        fallback="run",
+    )
+    result_kind = _receipt_reference_kind(
+        result_ref.get("kind") or value.get("result_kind"),
+        fallback="run",
+    )
     result: dict[str, Any] = {
         "schema_version": ACTION_RECEIPT_SCHEMA_VERSION,
         "status": status,
         "action_id": action_id or "unknown",
         "action_kind": _action_kind(action_id),
-        "subject": {"kind": "run", "id": source_id} if source_id else None,
-        "result_ref": {"kind": "run", "id": result_id} if result_id else None,
+        "subject": {"kind": subject_kind, "id": source_id} if source_id else None,
+        "result_ref": {"kind": result_kind, "id": result_id} if result_id else None,
         "idempotency_key": str(value.get("idempotency_key") or "")[:128],
         "input_fingerprint": str(value.get("input_fingerprint") or "")[:160],
         "reused": bool(reused),
@@ -262,6 +270,11 @@ def _action_kind(action_id: str) -> str:
     if action_id in {"retry", "recover", "cancel"}:
         return "lifecycle"
     return "unknown"
+
+
+def _receipt_reference_kind(value: Any, *, fallback: str) -> str:
+    kind = str(value or fallback).strip().lower()[:32]
+    return kind if kind in {"run", "routing_decision", "action"} else fallback
 
 
 __all__ = [

@@ -4560,3 +4560,22 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 4. **迁移收口**：审计并删除活动路径对 legacy routing/selection 授权字段的读取；兼容字段只由 canonical interaction 单向生成，未知 schema 继续 fail closed。
 5. **开放请求**：用 GIS、Text 和第三 fixture Domain 验证未预定义问题能动态选择已有能力或返回结构化 facts/capability 澄清，不新增区域或固定问句分支。
 6. **测试分层**：默认仍只保留 quick/smoke；M228 使用一个跨入口 Harness 和一个串行浏览器 journey，真实模型 + 真实 GIS 留给后续显式纵向验收。
+
+## M228：跨入口 Interaction Journey Harness 与持久回执（已完成）
+
+- `action-receipt.v1` 的 subject/result reference 扩展为领域中立的 `run`、`routing_decision` 或 `action`；选域完成响应的 canonical interaction 现在携带持久 receipt，不再只依靠 child decision 猜测回放结果。
+- `SQLiteConversationStore.commit_domain_routing_interaction()` 在 `BEGIN IMMEDIATE` 事务中原子校验 parent/session、提交唯一 child decision 和 command receipt；同 command 跨 store/worker 并发只生成一个 child，重启回放返回同一 result decision 且 `reused=true`，冲突改选返回 revision conflict。
+- `DomainRoutingState` 为内存与 SQLite 提供同一 `commit_interaction` interface；旧的无 receipt child 可在相同选择下有界迁移，clear/delete 同时清理 routing receipt，metrics 不重复统计回放。
+- 新增 `interaction_journey_harness.py`，只捕获 root/current/revision/state/action/receipt 等公共语义，不读取请求、工具参数或领域数据；一个测试贯穿 Application、开发 HTTP、routing 重启、确认、artifact、Service 重启和双 store 并发。
+- Service 删除 Host 授权后的 legacy `selection_interaction.allowed_actions` 二次判断；Console 异步摘要改读 canonical interaction。旧 `console_selection_interaction.js`、Node smoke、页面引用和两个静态 allowlist 已删除，兼容 JSON 字段仍由服务端 canonical contract 单向投影。
+- 最新生产镜像 healthy；M228/M227/持久化与 legacy 迁移聚焦回归 **31/31**、quick/smoke、compileall 和三条串行 canonical 浏览器验收全部通过。
+
+## M229：复杂开放请求纵向验收与能力缺口闭环（下一阶段全局规划）
+
+1. **真实纵向路径**：选择一个复杂开放式空间请求，在 Docker 中使用真实模型与真实 GIS，贯穿自动选域、能力发现、规划/校验、工具执行、答案组合、动态前端、artifact 和 run detail 恢复。
+2. **入口一致性**：用 Harness 比较 CLI application、HTTP sync/async、artifact 与 restart 的核心 Result、Evidence、Interaction 和 routing identity；只允许传输位置、时间和 token 等显式瞬时差异。
+3. **开放性证明**：请求表达不使用固定测试句模板；通过 facts/catalog/schema/workflow 动态匹配已有能力，缺事实或能力不足时返回结构化澄清/能力缺口，不新增区域分支。
+4. **真实降级**：显式验证至少一个数据缺失、栅格未对齐或后端不可用场景，返回可恢复说明与 next action，不能用 memory fixture 冒充真实 GIS 成功。
+5. **前端结果**：确认 Console 只依据 workspace/view/evidence/interaction 动态选择结果面板，地图只是 GIS renderer adapter；未知 view 或 artifact 降级有界展示。
+6. **安全与成本**：只记录状态、identity、工具名、重试/延迟和 token usage；不保存模型原文、密钥、URL、请求全文、私有路径或原始数据。该验收不进入默认 CI。
+7. **收口输出**：形成一个可重复的显式验收脚本和有界报告；完成后按 Goal 九项核心要求与八项验收标准做全局缺口审计，决定是否进入最终收尾阶段。

@@ -8,12 +8,12 @@
 
 ## 当前状态
 
-- M227 已完成：`interaction.v1`、action、command 与 `InteractionHost` 统一选域、能力/事实选择、确认、修复和恢复；Result、async、SQLite/restart、artifact、Evidence Registry、HTTP 与 Console 已贯通。
-- 最新生产镜像 healthy；M227 4/4、相关专项 25/25、Registry 13/13、quick/smoke、compileall 和领域/能力/确认三条浏览器验收通过。
+- M228 已完成：pre-run routing child + receipt 在 SQLite 原子提交并可跨 worker/重启回放；Journey Harness 贯穿 Application、HTTP、artifact 和 restart；legacy 前端 selection 活动路径已删除。
+- 最新生产镜像 healthy；聚焦回归 31/31、quick/smoke、compileall 和领域/能力/确认三条 canonical 浏览器验收通过。
 
 ## 下一步
 
-启动 M228：跨入口 Interaction Journey Harness 与持久 pre-run command receipt；收口 legacy 活动读取，验证开放请求动态匹配或结构化澄清。
+启动 M229：用真实模型 + 真实 GIS/Docker 完成复杂开放请求纵向验收和结构化能力缺口/降级闭环，再按完整 Goal 做全局审计。
 
 ## 不变量
 

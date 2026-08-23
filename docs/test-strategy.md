@@ -364,3 +364,19 @@ node scripts/console_selection_interaction_browser_smoke.js
 ~~~
 
 三条浏览器脚本必须串行复用 CDP 页面。专项只验证一个 canonical interaction/command/Host seam、三个稳定 HTTP 拒绝码、持久化 journey 和三类代表性 UI 状态；不为每个动作复制测试，也不把真实模型或真实 GIS 加入默认 CI。
+
+## M228 Interaction Journey 与 routing receipt 专项
+
+修改 pre-run interaction、routing SQLite、command receipt、legacy UI 迁移或 Journey Harness 时运行：
+
+~~~powershell
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m228_interaction_journey tests.test_m227_interaction_contract tests.test_m164_selection_interaction tests.test_m165_cross_entry_contract tests.test_m167_candidate_selection tests.test_m168_capability_evidence tests.test_m225_domain_routing_persistence -v
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick --profile smoke
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evaluation production_api.py serve_api.py run_demo.py result_contract.py
+node scripts/console_domain_routing_browser_smoke.js
+node scripts/console_candidate_selection_browser_smoke.js
+node scripts/console_selection_interaction_browser_smoke.js
+~~~
+
+M228 只增加一个纵向 Python 测试；同一测试同时证明 Application/HTTP/artifact/restart 等价和两个独立 SQLite store 并发回放。旧 selection Node smoke 已删除，三条浏览器验收继续串行复用，不进入默认 CI。

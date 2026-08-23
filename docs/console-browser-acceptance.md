@@ -122,3 +122,5 @@ node scripts/console_selection_interaction_browser_smoke.js
 ```
 
 三条脚本必须串行执行，分别验证：歧义选域和无匹配安全空态、领域中立能力候选与 facts/receipt/lineage 展示、预览指纹经过确认后保持一致并产出 artifact。静态断言只能检查 canonical seam，不能要求 `select_domain` 等具体动作 ID 硬编码在 `index.html`；动作身份必须来自服务返回的 `interaction.actions`。
+
+M228 起不再加载或提供 `console_selection_interaction.js`。领域路由 smoke 还必须断言选域请求是完整的 `interaction-command.v1`，包含 subject revision、`action_id`、嵌套 input 和幂等键；不能退回 `{domain_id}` 专用请求。服务端 routing receipt 的跨重启一致性由 Docker Journey Harness 验证，浏览器不复制 SQLite 断言。
