@@ -1,11 +1,13 @@
 [CmdletBinding()]
 param(
-    [int]$MaxCurrentChars = 3000,
+    [ValidateRange(800, 4000)]
+    [int]$MaxCurrentChars = 1800,
     [string]$Topic = '',
     [ValidateRange(1, 12)]
     [int]$MaxMatches = 4,
     [ValidateRange(0, 20)]
-    [int]$ContextLines = 8
+    [int]$ContextLines = 8,
+    [switch]$Diagnostics
 )
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -22,12 +24,18 @@ if ($current.Length -gt $MaxCurrentChars) {
 
 Write-Output '=== Agent current context ==='
 Write-Output $current
-Write-Output '=== Git status ==='
-git -C $repoRoot status --short --branch
-Write-Output '=== Latest commit ==='
-git -C $repoRoot log -1 --oneline --decorate
-Write-Output '=== History policy ==='
-Write-Output 'Historical files are not loaded by default. With -Topic, only bounded matches from the current issue index and archives are returned.'
+
+if ($Diagnostics) {
+    Write-Output '=== Git status ==='
+    git -C $repoRoot status --short --branch
+    Write-Output '=== Latest commit ==='
+    git -C $repoRoot log -1 --oneline --decorate
+}
+
+if ([string]::IsNullOrWhiteSpace($Topic)) {
+    Write-Output '=== Read policy ==='
+    Write-Output 'Only the current snapshot was loaded. Use -Diagnostics or -Topic explicitly for more context.'
+}
 
 if (-not [string]::IsNullOrWhiteSpace($Topic)) {
     $historyPaths = @(

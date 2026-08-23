@@ -217,6 +217,18 @@ class GisDomainPack:
             "candidate_ids": list(context.get("candidate_ids") or [])[:8],
             "candidate_count": context.get("candidate_count"),
         }
+        if (
+            not isinstance(workflow, Mapping)
+            and selection.get("selected_capability_id") == "buildability_screening"
+        ):
+            constraints = getattr(request_facts, "constraints", {}) or {}
+            if isinstance(request_facts, Mapping):
+                constraints = request_facts.get("constraints") or {}
+            if "slope_max" not in constraints:
+                # The GIS Domain owns this bounded demo default.  Explicitly
+                # clear discovery's missing field so Runtime can proceed;
+                # the planner records the assumption in the TaskPlan.
+                selection["missing_fields"] = []
         if isinstance(workflow, Mapping) and isinstance(workflow.get("components"), (list, tuple)):
             normalized = self.normalize_workflow(workflow)
             selection.update(

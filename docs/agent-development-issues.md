@@ -7,8 +7,8 @@
 - **现象**：新对话按旧约定依次读取恢复档案、任务档案和完整问题日志，三份文件累计数十万字符，当前阶段和阻塞项被历史内容淹没。
 - **根因**：历史文档长期追加，虽然文首写了“不要全文读取”，但文件路径本身仍会诱发全文加载；启动入口和历史档案没有物理分离。
 - **诊断**：先检查文件大小和恢复脚本的默认路径，再确认当前短快照是否能独立说明目标、阶段、证据和下一步。
-- **修复**：将 `docs/agent-context-current.md` 定为唯一状态源，`scripts/resume_context.ps1` 定为唯一恢复命令；启动命令默认只输出当前卡、Git 状态和最近提交，历史仅通过主题参数有界检索。
-- **预防**：恢复默认历史文件数为 0；源码最多按需定位 2 个文件、测试最多 1 个文件；短快照超过约 3KB 时先压缩或轮换，不继续堆叠启动文档。`task-resume`、问题日志和 milestones 只按需读取。
+- **修复**：将 `docs/agent-context-current.md` 定为唯一状态源，`scripts/resume_context.ps1` 定为唯一恢复命令；默认只输出短卡，Git 诊断改为显式 `-Diagnostics`，历史仅通过 `-Topic` 有界检索。
+- **预防**：恢复默认历史文件数为 0；源码最多按需定位 2 个文件、测试最多 1 个文件；短快照超过约 2KB 时先压缩或轮换，不继续堆叠启动文档。`task-resume`、问题日志和 milestones 只按需读取。
 
 ## 复合能力的 HTTP 首次结果缺少组件证据
 
@@ -33,3 +33,11 @@
 - **诊断**：比较宿主与容器中的测试模块路径、测试方法列表和镜像构建时间；不要仅依据容器 `healthy` 判断代码版本同步。
 - **修复**：源码变化后使用 `docker compose -f docker-compose.prod.yml build spatial-agent`，再使用 `docker compose -f docker-compose.prod.yml up -d spatial-agent` 重建容器，然后在容器内执行测试和 compileall。
 - **预防**：默认 Docker 验收必须先确认镜像包含当前提交；开发阶段可使用专用源码挂载 Compose 配置，但生产 Compose 继续保持不可变镜像，不把宿主源码直接暴露给生产容器。
+
+## 精简回归暴露候选路由与能力目录证据不稳定
+
+- **现象**：泛化请求“洪山区有哪些地方适合建设”被选为专用 `buildability_screening`；HTTP 复杂请求的 `capability_catalog_available` 变为 `false`，结果中缺少 `capability_catalog_ids`。
+- **根因**：专用 GIS 路由只依据 `buildability` 任务排序，没有区分明确的建设适宜性信号；上下文裁剪先丢弃了紧凑能力目录；证据投影没有为目录不可用场景提供稳定的空数组。
+- **诊断**：只运行 M77 的路由用例和 M81 的 HTTP/Artifact 契约用例，检查 `selected_capability_id`、`context_evidence.section_chars`、`plan_evidence.capability_catalog_available` 和 `capability_catalog_ids`。
+- **修复**：GIS Domain 增加独立 `buildability` lexical signal；ContextBuilder 优先裁剪 advisory discovery、保留能力目录和 workflow selection；Runtime 证据始终输出 `capability_catalog_ids` 与 schema count 的默认值。
+- **预防**：新增专用路由必须同时验证泛化表达、明确表达和复杂组合表达；上下文裁剪按“可执行目录/工作流优先、advisory 信息可丢弃”排序；所有公共证据字段在不可用时也保持契约形状。

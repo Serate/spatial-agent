@@ -2115,6 +2115,11 @@ def _build_plan_evidence(
         "request_understanding_available": understanding_available,
         "capability_discovery_available": capability_available,
         "capability_catalog_available": capability_catalog_available,
+        # Keep the projection shape stable even when a bounded context has
+        # omitted the catalog. Consumers can distinguish an empty projection
+        # from unavailable catalog evidence via the boolean above.
+        "capability_catalog_ids": [],
+        "capability_catalog_tool_schema_count": 0,
         "plan_identity": build_plan_identity(
             plan,
             request=str(request_section.get("original") or ""),

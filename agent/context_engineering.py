@@ -109,12 +109,15 @@ class ContextBuilder:
         # identify the planner's allowed path.
         for name in (
             "memory",
-            "capability_catalog",
+            # Discovery is advisory and can be reconstructed from the
+            # selected workflow. Keep the compact capability catalog because
+            # it is the public capability/tool boundary used in evidence.
             "capability_discovery",
             "request_understanding",
             "available_tools",
             "workflow",
             "planner",
+            "capability_catalog",
             "workflow_selection",
             "workflow_templates",
         ):

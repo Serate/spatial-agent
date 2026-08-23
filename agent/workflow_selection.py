@@ -139,11 +139,13 @@ def build_workflow_selection_evidence(
     )
     if source not in WORKFLOW_SELECTION_SOURCES:
         source = "none"
-    missing = _normalize_missing(
+    missing_source = (
         selected.get("missing_fields")
-        or discovery_map.get("missing_fields")
+        if "missing_fields" in selected
+        else discovery_map.get("missing_fields")
         or discovery_guidance.get("missing_fields")
     )
+    missing = _normalize_missing(missing_source)
     declared_state = _text(selected.get("state"))
     if state not in WORKFLOW_SELECTION_STATES:
         if template_id:

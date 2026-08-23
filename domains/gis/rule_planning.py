@@ -47,6 +47,7 @@ class RuleBasedPlanComposer:
             "dataset_health": self._build_health,
             "spatial_analysis": self._build_composed,
             "constrained_buildability_screening": self._build_constrained,
+            "buildability_screening": self._build_terrain,
             "zonal_terrain_land_use": self._build_terrain,
             "admin_raster_composite": self._build_admin_raster_composite,
             "spatial_overview": self._build_overview,
@@ -300,7 +301,10 @@ class RuleBasedPlanComposer:
             steps.append(PlanStep("zonal-land-use", "get_zonal_land_use_distribution", {"admin_name": ref, "max_files": 10}, ["filter-admin"]))
         if "buildability" in parsed.tasks:
             steps.append(PlanStep("buildability-screening", "get_zonal_buildability_analysis", {"admin_name": ref, "max_files": 10, "slope_limit_degrees": float(parsed.constraints.get("slope_max", 15.0))}, ["filter-admin"]))
-        return TaskPlan("analyze elevation, derived slope, land-use distribution, and demo buildability screening inside an administrative area", steps, {"type": "terrain_land_use_analysis_result", "summary": True})
+        assumptions = []
+        if "buildability" in parsed.tasks and "slope_max" not in parsed.constraints:
+            assumptions.append("未提供坡度阈值，采用 GIS Domain 默认值 15 度")
+        return TaskPlan("analyze elevation, derived slope, land-use distribution, and demo buildability screening inside an administrative area", steps, {"type": "terrain_land_use_analysis_result", "summary": True}, assumptions)
 
     def _build_admin_raster_composite(self, facts: PlanningFacts) -> TaskPlan:
         parsed = facts.spatial

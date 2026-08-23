@@ -22,6 +22,14 @@ SIGNAL_TERMS: Mapping[str, Tuple[str, ...]] = {
         "统计", "分析", "均值", "平均", "最小", "最大", "高程概况", "分布",
         "情况", "如何", "怎么样", "概况",
     ),
+    # Keep an explicit buildability signal separate from the broader
+    # ``buildability`` task.  Phrases such as “有哪些地方适合建设” can still
+    # use the generic terrain/land-use route, while an explicit suitability or
+    # candidate-screening request can select the dedicated capability.
+    "buildability": (
+        "建设适宜性", "适宜建设", "建设候选", "建设筛选", "建设潜力", "建设用地",
+        "buildability",
+    ),
     "composition": ("综合", "同时", "分别", "汇总", "全面", "整体", "并"),
     "overview": ("空间概况", "空间总览", "整体空间分析", "综合空间概览", "全面分析"),
     "relation": ("距离", "附近", "以内", "邻近", "周边"),
@@ -90,6 +98,10 @@ DEFAULT_ROUTES: Tuple[CapabilityRoute, ...] = (
     CapabilityRoute("dataset_health", 10, all_signals=("health",)),
     CapabilityRoute("spatial_analysis", 20, required_entity="admin_name", min_task_count=3, all_signals=("composition",)),
     CapabilityRoute("constrained_buildability_screening", 30, all_tasks=("buildability",), any_tasks=VECTOR_TASKS),
+    CapabilityRoute(
+        "buildability_screening", 35, required_entity="admin_name",
+        all_tasks=("buildability",), all_signals=("buildability",),
+    ),
     CapabilityRoute(
         "zonal_terrain_land_use", 40, required_entity="admin_name",
         any_task_groups=(("buildability",), RASTER_TASKS),

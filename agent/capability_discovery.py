@@ -310,8 +310,19 @@ def enrich_discovery_context(
     # callers that only need lexical discovery.
     from .capability_catalog import project_clarification_requirements
 
+    requirement_ids = candidate_ids
+    # Once a Domain has declared a selected candidate, its requirements are
+    # authoritative.  Unioning every lower-ranked candidate would surface
+    # irrelevant facts (for example a raster dataset required by a terrain
+    # candidate) and block an otherwise executable plan.  Keep the full
+    # candidate set for evidence; only ambiguous selections need a union.
+    if (
+        str(result.get("selection_state") or "") == "selected"
+        and result.get("selected_capability_id")
+    ):
+        requirement_ids = [str(result["selected_capability_id"])[:96]]
     requirements = project_clarification_requirements(
-        candidate_ids,
+        requirement_ids,
         request_facts,
         capability_definitions=definitions,
         max_fields=max_fields,

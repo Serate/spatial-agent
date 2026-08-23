@@ -1,36 +1,33 @@
 # Agent 当前恢复卡
 
-这是新对话或上下文压缩后的唯一默认状态源。启动时只读本卡、Git 状态和最近提交；不要自动读取任务历史、问题日志、完整测试、模型响应或数据文件。
+本文件是新对话或上下文压缩后的唯一默认状态源。默认不要打开其他上下文文档、归档、完整测试、模型响应或数据文件。
 
-## 当前目标
+## 目标
 
-建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。当前切片为 **M220-B4：Domain-owned 自动 workflow 物化**。
+建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
 
-## 当前进度
+## 当前阶段
 
-- Text Domain 已接入声明式 workflow catalog、组合 DAG、ToolRegistry/schema 校验、Result/View/Answer、HTTP、Artifact、Async 和 SQLite recovery。
-- Text Domain 的自然语言请求现在可提取多个任务，Domain 自动物化组合组件，planner 通过公共 workflow selection 编译多步骤 DAG；单任务和显式 workflow 保持兼容。
-- 公共 `component_evidence` 已接入 workflow selection，用于组件状态、覆盖、时效、来源、冲突和重验投影。
-- `RequestFacts.entities` 已成为通用实体事实袋；能力发现、澄清和计划证据可消费任意 Domain 实体，`admin_name` 只保留为兼容别名。
-- ContextBuilder 在预算不足时优先保留 workflow catalog/selection，先裁剪大型 advisory catalog，避免计划契约因上下文扩展而退化。
-- M220-B3 已提交为 `2811446`；M220-B4 已提交为 `1d2904a`，具体版本号以 `git log -1 --oneline --decorate` 为准。
-- Docker 容器 `ai-agent-spatial-agent-1` healthy；Python、compileall、阶段测试默认在 Docker 中执行。
+M220-B4 收尾已完成：Domain-owned 自动 workflow 物化，并修复真实 GIS 链路中的能力路由、上下文裁剪和证据投影问题。
 
-## 阶段证据与下一步
+## 已验证
 
-- M220-B4 Text Domain 回归 10/10；与 M194/M195/M220 公共组合、evidence、跨 Domain seam 的精简回归 31/31，Docker compileall 通过。
-- 已验证非 GIS 自定义实体 `document_id` 可驱动 capability discovery 和 clarification，不需要 Runtime 增加领域字段。
-- 下一步按全局能力矩阵：验证自动组合 workflow 的真实模型路径、GIS/Docker 端到端路径和前端动态结果展示；随后补齐 replay/live evidence 闭环。
+- Docker 精简回归 37/37；M194/M195/M220 组合回归 33/33；`compileall` 返回 0。
+- production acceptance：`ready`；真实数据、同步/异步、artifact、预览指纹和失败契约通过。
+- 明确“建设适宜性”请求走专用能力；泛化“适合建设”请求保持通用地形/土地利用能力。
+
+## 下一阶段
+
+按全局能力矩阵规划并实现：真实模型 + 真实 GIS 的端到端证据闭环、前端动态消费结构化 evidence、replay/live 一致性与重启恢复验收。先做全局规划，再拆成可验证切片。
 
 ## 不变量
 
-- Runtime 负责生命周期、校验、恢复和 `allowed_actions`；Domain 只提供能力、数据和 advisory guidance。
-- 新能力扩展 catalog、facts、schema、workflow、result/view，不增加区域或固定问句分支。
-- 默认测试离线、精简；真实模型、真实 GIS、Docker、HTTP 和浏览器只在显式验收路径启用。
-- 不提交 API key、`.env.production`、原始模型响应、真实 GIS 原始数据或私有路径。
+- Runtime 保持领域中立；新增能力扩展 facts、catalog、schema、workflow、result/view，不写区域或固定问句分支。
+- 默认测试离线且精简；真实模型、GIS、Docker、HTTP 和浏览器只走显式验收。
+- 不提交 API key、`.env.production`、原始模型响应、真实数据或私有路径。
 
 ## 读取预算
 
-- 默认历史文件数：0；源码最多按需读 2 个文件；测试最多先读 1 个文件。
-- 需要历史时先执行 `pwsh -NoProfile -File scripts/resume_context.ps1 -Topic "关键词" -MaxMatches 4 -ContextLines 8`，只读命中附近窗口。
-- 当前卡超过约 2KB 时压缩旧证据，只保留目标、阶段、阻塞、下一步、最近验证和约束。
+- 默认只读本卡；源码最多按需 2 个文件，测试最多先读 1 个文件。
+- 需要历史时只用恢复脚本的 `-Topic` 有界检索，不全文读取历史文件。
+- 本卡超过 2KB 就压缩，只保留目标、阶段、阻塞、下一步、最近证据和约束。
