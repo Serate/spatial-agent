@@ -4362,3 +4362,21 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 3. 对比 GIS/Text 的 request/plan/result/evidence 核心契约，证明 Domain 数据字段不泄漏进公共 Runtime 策略。
 4. 增加一个通用结果的 CLI/HTTP/Artifact/Console smoke，动态消费 view registry，不新增 GIS 页面判断。
 5. 阶段收口执行 Docker 精简回归、Domain isolation、跨入口 harness 和显式 live/replay 验收，再按七维全局重规划。
+
+## M219-A：Domain Pack 可移植性与开放式能力发现（已完成）
+
+- Text Domain 通过同一 Runtime、ToolRegistry、Planner、Result/View/Answer contract、HTTP、Artifact、Async 和 SQLite recovery 链路，证明公共运行时不依赖 GIS 专用策略。
+- 开放式能力发现、未知能力澄清、缺失事实、坏 schema 拒绝/有限修复和 Domain isolation 均有结构化证据；未增加固定问句或单区域分支。
+- Docker 精简回归 **35/35**；通用 Console nested schema 与 Evidence Registry smoke **2/2**；保留 GIS/Text 核心 Result/Evidence 的跨入口比较。
+- 发现并修正 Text Domain 隔离测试把公共 `demo_available/demo_supported` 误判为 GIS 泄漏的问题，改为检查明确的 GIS 能力标识。
+- 上下文恢复规则同步收口：默认只读当前恢复卡，历史追溯使用有界主题检索，避免阶段文档持续膨胀。
+
+## M220：通用能力组合与证据驱动恢复（下一阶段全局规划）
+
+1. **产品**：让开放式请求可以从能力发现、组合计划、澄清/确认、执行、失败修复到结果/Artifact 形成一条通用可恢复链，而不是只证明单个 Domain 可移植。
+2. **架构**：验证多能力 workflow/DAG、Planner 替换、ToolRegistry 治理、Result/Evidence 和生命周期动作共享同一公共边界；Domain 只声明能力与证据，不维护第二套编排状态机。
+3. **数据**：把能力所需数据的覆盖、时效、来源和冲突作为通用 Evidence Provider 状态，验证缺失/过期/不一致时的澄清、阻断或有限恢复，不绑定具体 GIS 数据集。
+4. **模型**：用脱敏 replay 覆盖多能力选择、坏计划、工具失败和有限 repair；补一次显式 live-short，确认真实模型消费能力目录与恢复上下文，不保存原始响应。
+5. **部署**：验证同步、HTTP、Async、SQLite 重启和 Artifact-only 接管在组合 workflow 中保持幂等、可观测、可恢复，并明确 provider/Domain 不可用边界。
+6. **体验**：通用 Console 根据 view/evidence/action registry 展示组合步骤、证据变化、阻断原因和下一步动作，Text/GIS 共用 renderer，不增加页面专用分支。
+7. **测试**：只新增一条精简的组合跨入口 contract harness，叠加 Docker/HTTP/Console 显式验收；默认 quick/CI 继续离线，阶段收口再做代表性 live/replay。

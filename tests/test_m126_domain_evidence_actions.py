@@ -45,7 +45,16 @@ class M126DomainEvidenceActionTests(unittest.TestCase):
         self.assertEqual(runtime["data_readiness"], "not_applicable")
         self.assertEqual(release["domain_id"], "text")
         self.assertEqual(release["status"], "not_applicable")
-        self.assertNotIn("dem", json.dumps(runtime, ensure_ascii=False).lower())
+        encoded = json.dumps(runtime, ensure_ascii=False).lower()
+        for gis_marker in (
+            "get_raster_metadata",
+            "get_zonal_",
+            "raster_metadata_result",
+            "spatial_analysis_result",
+            "admin_area_result",
+            "洪山区",
+        ):
+            self.assertNotIn(gis_marker, encoded)
 
     def test_text_action_has_result_trace_artifact_and_recovery(self):
         with tempfile.TemporaryDirectory() as directory:

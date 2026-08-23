@@ -1,6 +1,11 @@
 [CmdletBinding()]
 param(
-    [int]$MaxCurrentChars = 6000
+    [int]$MaxCurrentChars = 6000,
+    [string]$Topic = '',
+    [ValidateRange(1, 12)]
+    [int]$MaxMatches = 4,
+    [ValidateRange(0, 20)]
+    [int]$ContextLines = 8
 )
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -23,3 +28,31 @@ Write-Output '=== Latest commit ==='
 git -C $repoRoot log -1 --oneline --decorate
 Write-Output '=== History policy ==='
 Write-Output 'Historical resume/task/issues files are not loaded. Use rg to locate a specific stage or keyword first.'
+
+if (-not [string]::IsNullOrWhiteSpace($Topic)) {
+    $historyPaths = @(
+        (Join-Path $repoRoot 'docs/task-resume.md'),
+        (Join-Path $repoRoot 'docs/agent-development-issues.md'),
+        (Join-Path $repoRoot 'docs/milestones.md')
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+
+    Write-Output '=== Targeted history ==='
+    Write-Output ("topic={0}; max_matches={1}; context_lines={2}" -f $Topic, $MaxMatches, $ContextLines)
+
+    $rgArgs = @(
+        '--no-heading',
+        '--line-number',
+        '--max-count', [string]$MaxMatches,
+        '--context', [string]$ContextLines,
+        '--', $Topic
+    ) + $historyPaths
+
+    $matches = & rg @rgArgs 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $maxOutputLines = [Math]::Max(40, $MaxMatches * (1 + (2 * $ContextLines) + 2))
+        $matches | Select-Object -First $maxOutputLines
+    }
+    else {
+        Write-Output '[no bounded history matches]'
+    }
+}
