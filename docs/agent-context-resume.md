@@ -11,11 +11,12 @@
 - M228 已完成：pre-run routing child + receipt 在 SQLite 原子提交并可跨 worker/重启回放；Journey Harness 贯穿 Application、HTTP、artifact 和 restart；legacy 前端 selection 活动路径已删除。
 - M229 已实现并完成验收：Planner 输入投影与完整 source evidence 分离；async-first auto-domain live 验收只提交一个 run；GIS 后端初始化不可用时进入统一 recoverable lifecycle。
 - M230 全局审计完成：CLI/HTTP/async/artifact/SQLite/重启、Text Domain、能力澄清、repair lineage、未对齐 gate、真实 DeepSeek + local GIS 和真实 run Console 动态展示均有证据。
-- 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和显式浏览器验收全部通过。
+- M231 已完成：使用 `ui-ux-pro-max` 固化 `design-system/spatial-agent-console/MASTER.md`；控制台完成紫/粉品牌 token、玻璃层级、紧凑对话输入、动态结果空态、可访问焦点和 reduced-motion 收口；Docker 生产镜像、9 项精简契约、前端 smoke 和 HTTP 200 验证通过。
+- 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的验收标准已全部闭环；如需继续扩展，应创建新的 Goal，不在恢复时重新扫描历史文档。
+当前 Goal 的 Runtime 验收标准和 M231 控制台视觉阶段均已闭环；浏览器控制运行时本轮初始化异常退出，已记录为环境问题，后续恢复浏览器后只需补做视觉验收。继续扩展应创建新的 Goal，不在恢复时重新扫描历史文档。
 
 ## 不变量
 
