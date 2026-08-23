@@ -130,10 +130,11 @@
     if (helpers.leaflet) {
       helpers.destroyMap();
       target.innerHTML = '<div id="leafletMap" aria-label="交互式空间预览"></div>';
-      const map = helpers.leaflet.map("leafletMap", {zoomControl: true, attributionControl: false});
+      const map = helpers.leaflet.map("leafletMap", {zoomControl: true, attributionControl: true});
       helpers.setMap(map);
       if (hasOverviewLayers) renderOverviewLayers(map, all, helpers);
       else renderCandidateLayers(map, all, helpers);
+      appendHtml(target, mapLegendEntries(all, escapeHtml));
       setTimeout(() => map.invalidateSize(), 0);
       return;
     }
@@ -148,6 +149,22 @@
   function selectable(kind, feature, layer, helpers) {
     layer.on("click", () => helpers.selectFeature(feature));
     layer.bindPopup("<strong>" + kind + "</strong><br>" + popup(feature, helpers.escapeHtml));
+  }
+
+  function mapLegendEntries(features, escapeHtml) {
+    const props = feature => feature.properties || {};
+    const entries = [];
+    if (features.some(feature => props(feature).geometry_source === "geojson")) entries.push({className: "boundary", label: "行政区边界"});
+    if (features.some(feature => props(feature).geometry_source === "raster-buildability-screening")) entries.push({className: "candidate", label: "建设候选区域"});
+    if (features.some(feature => props(feature).dataset === "roads")) entries.push({className: "road", label: "道路"});
+    if (features.some(feature => props(feature).dataset === "water")) entries.push({className: "water", label: "水体"});
+    if (!entries.length && features.length) entries.push({className: "feature", label: "空间要素"});
+    return '<div class="map-legend" role="group" aria-label="地图图例">' + entries.map(item => '<span><i class="map-swatch ' + item.className + '" aria-hidden="true"></i>' + escapeHtml(item.label) + '</span>').join("") + '</div>';
+  }
+
+  function appendHtml(target, html) {
+    if (typeof target.insertAdjacentHTML === "function") target.insertAdjacentHTML("beforeend", html);
+    else target.innerHTML += html;
   }
 
   function renderOverviewLayers(map, all, helpers) {
@@ -165,7 +182,10 @@
     if (groups.roads.length) layers["道路"] = make(groups.roads, {color: "#d97706", weight: 1.2, opacity: .85}, "道路");
     if (groups.water.length) layers["水体"] = make(groups.water, {color: "#2563eb", weight: 1.5, fillColor: "#60a5fa", fillOpacity: .35}, "水体");
     if (groups.other.length) layers["空间要素"] = make(groups.other, {color: "#64748b", weight: 1, fillOpacity: .35}, "空间要素");
-    L.control.layers({}, layers, {collapsed: false, position: "topright"}).addTo(map);
+    const vectorOnly = L.layerGroup();
+    const openStreetMap = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "&copy; OpenStreetMap"});
+    L.control.layers({"纯矢量": vectorOnly, "OpenStreetMap": openStreetMap}, layers, {collapsed: false, position: "topright"}).addTo(map);
+    vectorOnly.addTo(map);
     Object.values(layers).forEach(layer => layer.addTo(map));
     fitLayers(map, layers, L);
   }
@@ -196,8 +216,7 @@
 
   function renderSvg(target, all, helpers) {
     const escapeHtml = helpers.escapeHtml;
-    const candidates = all.filter(feature => (feature.properties || {}).geometry_source === "raster-buildability-screening");
-    const selected = candidates.length ? candidates : all;
+    const selected = all;
     const coords = [];
     const walk = value => {
       if (!Array.isArray(value) || !value.length) return;
@@ -215,6 +234,12 @@
     const sy = y => 248 - (y - miny) / (maxy - miny || 1) * 236;
     const path = feature => {
       let output = "";
+      const line = values => {
+        const points = (values || []).filter(point => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]));
+        if (!points.length) return;
+        output += "M " + sx(points[0][0]) + " " + sy(points[0][1]) + " ";
+        points.slice(1).forEach(point => { output += "L " + sx(point[0]) + " " + sy(point[1]) + " "; });
+      };
       const ring = values => {
         const points = (values || []).filter(point => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1]));
         if (!points.length) return;
@@ -222,13 +247,24 @@
         points.slice(1).forEach(point => { output += "L " + sx(point[0]) + " " + sy(point[1]) + " "; });
         output += "Z ";
       };
+      if (feature.geometry.type === "LineString") line(feature.geometry.coordinates);
+      if (feature.geometry.type === "MultiLineString") feature.geometry.coordinates.forEach(line);
       if (feature.geometry.type === "Polygon") feature.geometry.coordinates.forEach(ring);
       if (feature.geometry.type === "MultiPolygon") feature.geometry.coordinates.forEach(polygon => polygon.forEach(ring));
       return output;
     };
-    const paths = selected.map((feature, index) => '<path data-feature-index="' + index + '" tabindex="0" d="' + path(feature) + '" fill="#e09a5b" stroke="#a6622b" stroke-width="1.1" opacity=".78"></path>').join("");
+    const styles = feature => {
+      const props = feature.properties || {};
+      if (props.dataset === "roads") return {fill: "none", stroke: "#d97706", opacity: ".9", width: "1.4"};
+      if (props.dataset === "water") return {fill: "#60a5fa", stroke: "#2563eb", opacity: ".42", width: "1.2"};
+      if (props.geometry_source === "geojson") return {fill: "#87c7d1", stroke: "#087f8c", opacity: ".32", width: "2.2"};
+      if (props.geometry_source === "raster-buildability-screening") return {fill: "#e09a5b", stroke: "#a6622b", opacity: ".78", width: "1.1"};
+      return {fill: "#94a3b8", stroke: "#64748b", opacity: ".38", width: "1"};
+    };
+    const paths = selected.map((feature, index) => { const style = styles(feature); return '<path data-feature-index="' + index + '" tabindex="0" d="' + path(feature) + '" fill="' + style.fill + '" stroke="' + style.stroke + '" stroke-width="' + style.width + '" opacity="' + style.opacity + '"></path>'; }).join("");
     target.innerHTML = '<svg viewBox="0 0 500 260" role="img" aria-label="GeoJSON 空间预览"><rect width="500" height="260" fill="#edf3f1"></rect>' + paths
-      + '<text x="12" y="22" fill="#176a49" font-size="12">' + escapeHtml(candidates.length ? "建设候选区域" : "空间要素") + " · " + selected.length + ' 个面</text></svg>';
+      + '<text x="12" y="22" fill="#176a49" font-size="12">空间要素 · ' + selected.length + ' 个</text></svg>';
+    appendHtml(target, mapLegendEntries(selected, escapeHtml));
     if (typeof target.querySelectorAll !== "function") return;
     target.querySelectorAll("path[data-feature-index]").forEach(element => {
       const choose = () => {

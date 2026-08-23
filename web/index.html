@@ -8,31 +8,39 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <style>
     :root {
-      --ink: #132a33;
-      --ink-soft: #27404a;
-      --muted: #5b707a;
-      --muted-2: #84949b;
-      --line: #dbe5ea;
-      --line-soft: #e9f0f2;
+      --ink: #0f172a;
+      --ink-soft: #1e293b;
+      --muted: #475569;
+      --muted-2: #64748b;
+      --line: #e2e8f0;
+      --line-soft: #eef2f7;
       --surface: #ffffff;
-      --surface-soft: #f4f8f9;
-      --surface-mist: #edf4f6;
-      --teal: #0b7f8c;
-      --teal-deep: #0a5e6b;
-      --teal-ink: #0c3942;
-      --teal-soft: #e1f2f3;
-      --mint: #dff3ee;
-      --amber: #e09a5b;
-      --amber-deep: #b56f2a;
-      --amber-soft: #fdf1e3;
+      --surface-soft: #f8f7fc;
+      --surface-mist: #f1edff;
+      --teal: #7c3aed;
+      --teal-deep: #5b21b6;
+      --teal-ink: #312e81;
+      --teal-soft: #f1ecff;
+      --mint: #fce7f3;
+      --amber: #d97706;
+      --amber-deep: #a85d1c;
+      --amber-soft: #fff7ed;
       --green: #177a55;
       --green-soft: #e0f2ea;
       --red: #b3402f;
       --red-soft: #fbeae6;
       --blue: #2563eb;
-      --shadow-sm: 0 1px 2px rgba(19, 42, 51, .05), 0 2px 6px rgba(19, 42, 51, .05);
-      --shadow-md: 0 4px 14px rgba(19, 42, 51, .08), 0 2px 4px rgba(19, 42, 51, .04);
-      --shadow-lg: 0 18px 40px rgba(12, 57, 66, .14), 0 4px 10px rgba(12, 57, 66, .06);
+      --color-primary: #7c3aed;
+      --color-secondary: #6366f1;
+      --color-accent: #ec4899;
+      --color-background: #faf5ff;
+      --color-foreground: #0f172a;
+      --glass: rgba(255, 255, 255, .72);
+      --glass-strong: rgba(255, 255, 255, .86);
+      --focus-ring: rgba(124, 58, 237, .52);
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, .05), 0 2px 6px rgba(15, 23, 42, .05);
+      --shadow-md: 0 8px 22px rgba(67, 56, 202, .08), 0 2px 5px rgba(15, 23, 42, .04);
+      --shadow-lg: 0 22px 54px rgba(49, 46, 129, .18), 0 5px 14px rgba(15, 23, 42, .06);
       --radius-sm: 8px;
       --radius-md: 12px;
       --radius-lg: 16px;
@@ -46,31 +54,33 @@
       font-family: var(--font-ui);
       color: var(--ink);
       background:
-        radial-gradient(1100px 520px at 88% -8%, rgba(11, 127, 140, .10), transparent 60%),
-        radial-gradient(900px 480px at -6% 18%, rgba(224, 154, 91, .08), transparent 55%),
-        linear-gradient(180deg, #f3f8f9 0%, #edf3f5 100%);
+        radial-gradient(1100px 520px at 88% -8%, rgba(124, 58, 237, .16), transparent 60%),
+        radial-gradient(900px 480px at -6% 18%, rgba(236, 72, 153, .10), transparent 55%),
+        linear-gradient(180deg, #fbfaff 0%, #f5f3fb 100%);
       background-attachment: fixed;
       -webkit-font-smoothing: antialiased;
       line-height: 1.55;
     }
-    ::selection { background: rgba(11, 127, 140, .18); }
+    ::selection { background: rgba(124, 58, 237, .18); }
     ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-thumb { background: #c3d3d8; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
-    ::-webkit-scrollbar-thumb:hover { background: #a8bcc3; border: 2px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-thumb:hover { background: #a78bfa; border: 2px solid transparent; background-clip: content-box; }
     ::-webkit-scrollbar-track { background: transparent; }
 
     /* ---------- Header ---------- */
     header {
-      position: relative;
+      position: sticky;
+      top: 0;
+      z-index: 50;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 18px;
       min-height: 72px;
       padding: 14px max(24px, calc((100vw - 1440px) / 2));
-      background: linear-gradient(120deg, #0b2b34 0%, #0e3d48 55%, #0c5560 100%);
-      color: #eaf4f6;
-      box-shadow: 0 6px 24px rgba(11, 43, 52, .28);
+      background: linear-gradient(120deg, #0f172a 0%, #312e81 58%, #5b21b6 100%);
+      color: #f5f3ff;
+      box-shadow: 0 10px 30px rgba(49, 46, 129, .28);
       border-bottom: 3px solid transparent;
       border-image: linear-gradient(90deg, var(--teal), var(--amber)) 1;
     }
@@ -85,20 +95,20 @@
       color: #fff;
     }
     header h1::before {
-      content: "S";
+      content: "AI";
       display: grid;
       place-items: center;
       width: 34px;
       height: 34px;
       border-radius: 10px;
-      background: linear-gradient(135deg, #16a3b1, #0b7f8c 60%, #0a5e6b);
+      background: linear-gradient(135deg, #a78bfa, #7c3aed 60%, #5b21b6);
       color: #fff;
-      font-size: 17px;
+      font-size: 11px;
       font-weight: 900;
       box-shadow: 0 0 0 5px rgba(255, 255, 255, .10), 0 6px 14px rgba(0, 0, 0, .28);
     }
     header > span {
-      color: #9fc1c9;
+      color: #ddd6fe;
       font-size: 12.5px;
       letter-spacing: .04em;
       background: rgba(255, 255, 255, .07);
@@ -111,6 +121,7 @@
     /* ---------- Layout ---------- */
     main {
       position: relative;
+      isolation: isolate;
       max-width: 1440px;
       margin: 0 auto;
       padding: 24px 24px 48px;
@@ -118,16 +129,29 @@
       grid-template-columns: 1fr;
       gap: 20px;
     }
-    .content { display: grid; grid-template-columns: minmax(0, 1fr) 348px; align-items: start; gap: 20px; }
+    main::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      inset: 12px 4% auto 34%;
+      height: 260px;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, rgba(167, 139, 250, .13), transparent 72%);
+      filter: blur(18px);
+      pointer-events: none;
+    }
+    .content { display: grid; grid-template-columns: minmax(0, 1fr) 380px; align-items: start; gap: 20px; }
     .content > .hero { grid-column: 1 / -1; }
     .content > .chat { grid-column: 2; grid-row: 2; position: sticky; top: 20px; }
     .content > .grid { grid-column: 1; grid-row: 2; }
 
     section, .panel {
-      background: var(--surface);
-      border: 1px solid var(--line);
+      background: var(--glass);
+      border: 1px solid rgba(255, 255, 255, .78);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-md);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
     }
 
     /* ---------- Hero ---------- */
@@ -141,9 +165,9 @@
       min-height: 108px;
       padding: 26px 30px;
       background:
-        radial-gradient(560px 220px at 92% 0%, rgba(22, 163, 177, .34), transparent 62%),
-        radial-gradient(420px 200px at 4% 110%, rgba(224, 154, 91, .22), transparent 60%),
-        linear-gradient(125deg, #0c3942 0%, #105560 58%, #0d6b77 100%);
+        radial-gradient(560px 220px at 92% 0%, rgba(167, 139, 250, .38), transparent 62%),
+        radial-gradient(420px 200px at 4% 110%, rgba(236, 72, 153, .26), transparent 60%),
+        linear-gradient(125deg, #111827 0%, #312e81 58%, #6d28d9 100%);
       color: #fff;
       box-shadow: var(--shadow-lg);
     }
@@ -158,7 +182,7 @@
     }
     .hero > * { position: relative; z-index: 1; }
     .hero h2 { margin: 0 0 8px; font-size: 23px; font-weight: 800; letter-spacing: -.01em; }
-    .hero p { margin: 0; color: #b9d3d8; font-size: 13.5px; max-width: 640px; }
+    .hero p { margin: 0; color: #e9e7ff; font-size: 13.5px; max-width: 640px; }
     .hero .decision-mode {
       display: inline-block;
       margin-top: 13px;
@@ -166,7 +190,7 @@
       border-radius: 999px;
       background: rgba(255, 255, 255, .10);
       border: 1px solid rgba(255, 255, 255, .16);
-      color: #d8ecef;
+      color: #ede9fe;
       font-size: 12px;
       font-weight: 600;
       letter-spacing: .02em;
@@ -191,11 +215,11 @@
     .badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .85; }
     .badge.completed, .badge.ok { background: var(--green-soft); color: var(--green); border-color: rgba(23, 122, 85, .25); }
     .badge.planning, .badge.needs_clarification, .badge.waiting_for_decision { background: var(--amber-soft); color: var(--amber-deep); border-color: rgba(224, 154, 91, .30); }
-    .badge.executing { background: var(--teal-soft); color: var(--teal-deep); border-color: rgba(11, 127, 140, .28); }
+    .badge.executing { background: var(--teal-soft); color: var(--teal-deep); border-color: rgba(124, 58, 237, .28); }
     .badge.executing::before { animation: status-pulse 1.4s ease-in-out infinite; }
     .badge.failed, .badge.rejected { background: var(--red-soft); color: var(--red); border-color: rgba(179, 64, 47, .28); }
     .badge.cancelled, .badge.timed_out, .badge.blocked { background: #f3edf5; color: #7c4a9c; border-color: rgba(124, 74, 156, .25); }
-    @keyframes status-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(11, 127, 140, .35); } 50% { box-shadow: 0 0 0 6px rgba(11, 127, 140, 0); } }
+    @keyframes status-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, .35); } 50% { box-shadow: 0 0 0 6px rgba(124, 58, 237, 0); } }
 
     /* ---------- Chat panel ---------- */
     .chat {
@@ -204,10 +228,12 @@
       min-height: 560px;
       max-height: calc(100vh - 40px);
       overflow: hidden;
-      background: var(--surface);
+      background: rgba(255, 255, 255, .74);
       border-radius: var(--radius-lg);
-      border: 1px solid var(--line);
+      border: 1px solid rgba(255, 255, 255, .82);
       box-shadow: var(--shadow-md);
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
     }
     .chat-head {
       display: flex;
@@ -216,13 +242,15 @@
       gap: 12px;
       padding: 16px 18px;
       border-bottom: 1px solid var(--line-soft);
-      background: linear-gradient(180deg, #fbfdfe, #f6fafb);
+      background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(248,247,252,.78));
     }
+    .chat-title { display: grid; gap: 1px; min-width: 0; }
+    .chat-title > span { color: var(--teal-deep); font: 700 9px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
     .chat-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--ink-soft); }
     .chat-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
     .chat-actions span { color: var(--muted-2); font-size: 11.5px; margin-right: 4px; }
-    .chat-actions button { padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); border-radius: 7px; font-size: 11.5px; font-weight: 600; box-shadow: none; }
-    .chat-actions button:hover { background: var(--surface-soft); color: var(--teal-deep); border-color: #bcd6db; transform: none; box-shadow: none; }
+    .chat-actions button { min-height: 34px; padding: 6px 10px; background: rgba(255,255,255,.72); border: 1px solid var(--line); color: var(--muted); border-radius: 8px; font-size: 11.5px; font-weight: 650; box-shadow: none; }
+    .chat-actions button:hover { background: var(--teal-soft); color: var(--teal-deep); border-color: #c4b5fd; transform: none; box-shadow: none; }
 
     .messages {
       overflow-y: auto;
@@ -231,8 +259,8 @@
       flex-direction: column;
       gap: 13px;
       background:
-        radial-gradient(420px 180px at 100% 0%, rgba(11, 127, 140, .05), transparent 60%),
-        linear-gradient(180deg, #f7fafb, #f3f8f9);
+        radial-gradient(420px 180px at 100% 0%, rgba(124, 58, 237, .08), transparent 60%),
+        linear-gradient(180deg, #fbfaff, #f7f5fc);
       scrollbar-gutter: stable;
     }
     .msg { display: grid; gap: 4px; max-width: 82%; animation: msg-rise .3s ease both; }
@@ -253,16 +281,16 @@
       box-shadow: var(--shadow-sm);
     }
     .msg.user .bubble {
-      background: linear-gradient(135deg, #0d8f9d, #0b7f8c);
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
       color: #fff;
       border-bottom-right-radius: 5px;
-      box-shadow: 0 4px 12px rgba(11, 127, 140, .22);
+      box-shadow: 0 4px 16px rgba(124, 58, 237, .24);
     }
     .msg.assistant .bubble { background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
     .msg.system .bubble { background: var(--amber-soft); border: 1px solid rgba(224, 154, 91, .30); color: #7a5a33; }
     .msg.msg-linked { cursor: pointer; }
     .msg.msg-linked .bubble { transition: border-color .15s, box-shadow .15s; }
-    .msg.msg-linked:hover .bubble { border-color: var(--teal); box-shadow: 0 3px 10px rgba(11, 127, 140, .14); }
+    .msg.msg-linked:hover .bubble { border-color: var(--teal); box-shadow: 0 3px 12px rgba(124, 58, 237, .16); }
     .msg.msg-linked .role::after { content: "打开详情 ↗"; font-size: 10px; font-weight: 600; color: var(--teal); margin-left: 6px; }
     @keyframes msg-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -272,8 +300,9 @@
       gap: 10px;
       padding: 14px 16px;
       border-top: 1px solid var(--line-soft);
-      background: #fff;
+      background: rgba(255, 255, 255, .88);
     }
+    .composer-actions { display: grid; grid-template-rows: 1fr 1fr; gap: 7px; min-width: 86px; }
     .composer textarea {
       min-height: 54px;
       max-height: 150px;
@@ -281,12 +310,16 @@
       line-height: 1.5;
       padding: 12px 13px;
     }
+    .composer textarea::placeholder { color: #94a3b8; }
+    .composer #send { min-height: 42px; }
+    .composer #previewPlan { min-height: 34px; padding: 7px 10px; font-size: 11.5px; background: var(--surface-soft); color: var(--teal-deep); border: 1px solid #c4b5fd; box-shadow: none; }
+    .composer #previewPlan:hover { background: var(--teal-soft); box-shadow: none; }
 
     /* ---------- Controls / settings ---------- */
     .controls, .chat-settings {
       position: relative;
-      background: var(--surface);
-      border: 1px solid var(--line);
+      background: var(--glass-strong);
+      border: 1px solid rgba(255,255,255,.88);
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-md);
       padding: 20px;
@@ -315,28 +348,34 @@
       outline: none;
       border-color: var(--teal);
       background: #fff;
-      box-shadow: 0 0 0 3px rgba(11, 127, 140, .13);
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, .15);
+    }
+    button:focus-visible, a:focus-visible, summary:focus-visible,
+    input:focus-visible, textarea:focus-visible, select:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 3px solid rgba(124, 58, 237, .48);
+      outline-offset: 2px;
     }
     button {
       border: 0;
       border-radius: var(--radius-sm);
       padding: 10px 14px;
-      background: linear-gradient(135deg, #0d8f9d, #0b7f8c);
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
       color: #fff;
       font: inherit;
       font-weight: 700;
       font-size: 13px;
       cursor: pointer;
-      box-shadow: 0 3px 8px rgba(11, 127, 140, .22);
+      box-shadow: 0 3px 10px rgba(124, 58, 237, .24);
       transition: transform .15s, box-shadow .15s, filter .15s;
     }
-    button:hover { filter: brightness(1.06); box-shadow: 0 5px 14px rgba(11, 127, 140, .28); transform: translateY(-1px); }
+    button:hover { filter: brightness(1.06); box-shadow: 0 6px 16px rgba(124, 58, 237, .28); transform: translateY(-1px); }
     button:active { transform: translateY(0); }
     button:disabled { background: #b8c7cc; color: #f2f6f7; cursor: not-allowed; box-shadow: none; transform: none; filter: none; }
     .hint {
       margin: 17px 0 0;
       padding: 11px 13px;
-      border-left: 3px solid #7fc9bd;
+      border-left: 3px solid #a78bfa;
       background: var(--teal-soft);
       border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
       color: var(--muted);
@@ -420,11 +459,11 @@
       width: 4px;
       height: 15px;
       border-radius: 4px;
-      background: linear-gradient(180deg, var(--teal), var(--amber));
+      background: linear-gradient(180deg, var(--color-primary), var(--color-accent));
     }
     .result-panel { display: none; }
     .result-panel.is-visible { display: block; animation: panel-rise .3s ease both; }
-    .generic-result { grid-column: 1 / -1; }
+    .generic-result, .answer-result, .map-result { grid-column: 1 / -1; }
     #genericResult {
       max-height: 420px;
       margin: 0;
@@ -497,8 +536,9 @@
 
     .result-empty {
       grid-column: 1 / -1;
-      min-height: 440px;
+      min-height: 280px;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       padding: 40px;
@@ -508,14 +548,20 @@
       border: 1.5px dashed rgba(132, 148, 155, .45);
       border-radius: var(--radius-lg);
       background: rgba(255, 255, 255, .55);
+      gap: 8px;
     }
     .result-empty::before {
-      content: "◌";
+      content: "";
       display: block;
-      font-size: 30px;
-      color: #b8c9cf;
-      margin-bottom: 2px;
+      width: 15px;
+      height: 15px;
+      border: 2px solid var(--color-primary);
+      border-radius: 5px;
+      transform: rotate(45deg);
+      color: var(--color-primary);
+      opacity: .62;
     }
+    .result-empty::after { content: "结构化结果、证据和可视化将在这里按需出现"; color: #94a3b8; font-size: 11.5px; }
 
     .answer { color: var(--ink-soft); font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
     .muted { color: var(--muted); }
@@ -711,6 +757,10 @@
     .evidence-result { grid-column: 1 / -1; }
     .evidence-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: var(--muted); font-size: 12.5px; }
     .evidence-summary strong { color: var(--ink-soft); font-size: 13.5px; }
+    .evidence-disclosure { border-top: 1px solid var(--line-soft); padding-top: 10px; }
+    .evidence-disclosure summary { cursor: pointer; color: var(--teal-deep); font-size: 12px; font-weight: 750; }
+    .evidence-disclosure summary::marker { color: var(--teal); }
+    .evidence-disclosure[open] summary { margin-bottom: 4px; }
     .evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
     .evidence-card {
       min-width: 0;
@@ -718,7 +768,7 @@
       border: 1px solid var(--line);
       border-top: 3px solid #b8c9cf;
       border-radius: var(--radius-md);
-      background: linear-gradient(180deg, #fff, var(--surface-soft));
+      background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(248,247,252,.78));
       color: var(--muted);
       font-size: 12px;
       line-height: 1.6;
@@ -786,7 +836,7 @@
     }
     .evidence-status.ready, .evidence-status.passed, .evidence-status.real_geometry, .evidence-status.boundary_geometry { background: var(--green-soft); color: var(--green); }
     .evidence-status.degraded, .evidence-status.warning, .evidence-status.truncated_geometry { background: var(--amber-soft); color: var(--amber-deep); }
-    .evidence-status.unavailable, .evidence-status.no_geometry { background: var(--red-soft); color: var(--red); }
+.evidence-status.unavailable, .evidence-status.no_geometry { background: var(--red-soft); color: var(--red); }
     .evidence-state { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; color: var(--ink-soft); }
     .evidence-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #8aa0a8; }
     .evidence-card.ready .evidence-state::before, .evidence-card.passed .evidence-state::before { background: var(--green); }
@@ -816,9 +866,28 @@
     .degradation-item.unavailable { border-left-color: var(--danger); background: #fff3f3; color: #9b1c1c; }
     .degradation-item.ok { border-left-color: #3ba57f; background: var(--green-soft); color: #2d5c48; }
 
+    /* ---------- Brand alignment for generated result components ---------- */
+    .error-category.invalid_input { background: #ede9fe; color: #5b21b6; }
+    .decision-action-bar, .selection-interaction-card { border-color: rgba(124,58,237,.2); background: linear-gradient(135deg, #f5f3ff, #fff7fb); }
+    .decision-action-bar button.primary { background: var(--color-primary); }
+    .selection-guidance { border-color: rgba(124,58,237,.16); background: rgba(255,255,255,.78); }
+    .selection-guidance code, .selection-candidates code { background: rgba(124,58,237,.1); color: var(--teal-deep); }
+    .selection-candidate { border-color: rgba(124,58,237,.16); }
+    .selection-actions button { background: #ede9fe; color: #5b21b6; }
+    .metric:hover, .compare-detail:hover, .workflow-component-card:hover { border-color: #c4b5fd; }
+    .range-track { background: linear-gradient(90deg, #ddd6fe, #7c3aed); }
+    .distribution-bar, .chart-fill { background: linear-gradient(180deg, #a78bfa, #6366f1); }
+    .chart-fill { background: linear-gradient(90deg, #a78bfa, #ec4899); }
+    .step-tool { color: var(--teal-deep); background: var(--teal-soft); border-color: rgba(124,58,237,.16); }
+    .provenance-item { border-left-color: #a78bfa; }
+    .links a, .evidence-reference { border-bottom-color: rgba(124,58,237,.3); }
+    .action-evidence, .execution-evidence { border-color: rgba(124,58,237,.16); background: rgba(245,243,255,.78); }
+    .execution-evidence strong, .action-evidence-head strong { color: var(--teal-deep); }
+    .degradation-item.unavailable { border-left-color: var(--red); background: #fff3f3; }
+
     /* ---------- Map ---------- */
     .map {
-      min-height: 280px;
+      min-height: 320px;
       border: 1px solid var(--line);
       border-radius: var(--radius-md);
       overflow: hidden;
@@ -826,8 +895,9 @@
       position: relative;
       box-shadow: inset 0 1px 4px rgba(19, 42, 51, .06);
     }
-    .map > svg { width: 100%; height: 280px; display: block; }
-    #leafletMap { width: 100%; height: 280px; }
+    .map > svg { width: 100%; height: 320px; display: block; }
+    #leafletMap { width: 100%; height: 320px; }
+    .leaflet-container { background: linear-gradient(180deg, #eef5f4, #e6f0ef); }
     .leaflet-overlay-pane svg { width: auto; height: auto; }
     .map-empty { color: var(--muted-2); font-size: 12.5px; padding: 24px; text-align: center; display: grid; place-items: center; min-height: 200px; }
     .map-legend {
@@ -843,16 +913,22 @@
       color: var(--muted);
       font-size: 11px;
       box-shadow: var(--shadow-sm);
+      z-index: 500;
     }
     .map-legend span { display: flex; align-items: center; gap: 5px; }
     .map-swatch { width: 12px; height: 8px; border-radius: 2px; display: inline-block; }
     .map-swatch.boundary { background: #87c7d1; border: 1px solid #087f8c; }
     .map-swatch.candidate { background: #e09a5b; border: 1px solid #a6622b; }
+    .map-swatch.road { background: #d97706; border: 1px solid #a85d1c; }
+    .map-swatch.water { background: #60a5fa; border: 1px solid #2563eb; }
+    .map-swatch.feature { background: #94a3b8; border: 1px solid #64748b; }
 
     /* ---------- Motion ---------- */
     .content > .hero { animation: panel-rise .4s ease both; }
     .content > .chat { animation: panel-rise .4s .05s ease both; }
-    .grid > .panel { animation: panel-rise .35s ease both; }
+    .grid > .panel { animation: none; }
+    .result-panel.is-visible:nth-child(3n) { animation-delay: .06s; }
+    .result-panel.is-visible:nth-child(4n) { animation-delay: .1s; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
     }
@@ -866,17 +942,22 @@
         border-bottom: 1px solid var(--line-soft);
         border-radius: 0;
         box-shadow: none;
-        background: var(--surface-soft);
+        background: rgba(255,255,255,.58);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
         display: flex;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         align-items: center;
         gap: 8px;
       }
       .chat-settings::before, .chat-settings label, .chat-settings .suggestions, .chat-settings .hint, .chat-settings .env, .chat-settings .history, .chat-settings #capabilityStatus, .chat-settings .workflow-validation { display: none; }
       .chat-settings .row { display: contents; }
       .chat-settings .row > div { display: contents; }
-      .chat-settings input, .chat-settings select { flex: 0 0 auto; width: 84px; min-width: 0; padding: 7px 8px; font-size: 11.5px; border-radius: 7px; }
-      .chat-settings #session { width: 110px; }
+      .chat-settings input, .chat-settings select { flex: 0 1 auto; width: auto; min-width: 94px; max-width: 142px; padding: 7px 8px; font-size: 11.5px; border-radius: 7px; }
+      .chat-settings #domain { min-width: 112px; }
+      .chat-settings #planner { min-width: 98px; }
+      .chat-settings #backend { min-width: 104px; }
+      .chat-settings #session { min-width: 96px; }
       .chat-settings .workflow-editor { margin: 0; border: 0; padding: 0; }
       .chat-settings .workflow-editor summary { display: none; }
       .chat-settings .workflow-fields { grid-template-columns: repeat(3, minmax(0, auto)); gap: 7px; margin: 0; align-items: center; }
@@ -905,14 +986,16 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 14px;
         padding: 18px;
-        background: var(--surface);
-        border: 1px solid var(--line);
+        background: rgba(255,255,255,.64);
+        border: 1px solid rgba(255,255,255,.86);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-md);
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
       }
       .content > .grid::before { content: "分析结果工作区"; grid-column: 1 / -1; display: block; padding: 0 0 12px 1px; color: var(--ink-soft); font-size: 14px; font-weight: 800; letter-spacing: .02em; }
-      .content > .grid > .result-empty { min-height: 500px; }
-      .content > .grid > .panel { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 15px 13px; }
+      .content > .grid > .result-empty { min-height: 260px; }
+      .content > .grid > .panel { background: rgba(255,255,255,.38); border: 1px solid rgba(255,255,255,.7); border-radius: 14px; box-shadow: none; padding: 15px 13px; }
       .content > .grid > .panel:hover { transform: none; box-shadow: none; }
       .content > .grid > .panel:nth-last-child(1) { grid-column: 1 / -1; border-top: 1px solid var(--line-soft); }
       .content > .grid > .panel:nth-child(2n+1) { border-right: 1px solid var(--line-soft); }
@@ -923,7 +1006,7 @@
       .metric b { font-size: 14.5px; }
       .metric small { font-size: 10.5px; }
       .distribution { height: 78px; margin-top: 12px; }
-      .map, .map > svg, #leafletMap { min-height: 240px; height: 240px; }
+      .map, .map > svg, #leafletMap { min-height: 320px; height: 320px; }
       .evidence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .trace { max-height: 170px; font-size: 12px; }
       .steps li { padding: 10px 0; }
@@ -963,11 +1046,11 @@
   <header><h1>Agent Runtime 控制台</h1><span>对话 / 规划器 / 工作流 / 领域适配器</span></header>
   <main>
     <aside id="workspaceControls" class="controls panel">
-      <div class="row"><div><label for="domain">领域</label><select id="domain" aria-label="当前领域"><option value="">正在读取领域目录…</option></select></div><div><label for="planner">规划器</label><select id="planner"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">执行后端</label><select id="backend"><option value="memory">内存适配器</option><option value="local">本地适配器</option></select></div></div>
-      <label for="session">选择对话</label><select id="session"><option value="conversation-1">对话1</option></select>
+      <div class="row"><div><label for="domain">领域</label><select id="domain" aria-label="当前领域"><option value="">正在读取领域目录…</option></select></div><div><label for="planner">规划器</label><select id="planner" aria-label="规划器"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">执行后端</label><select id="backend" aria-label="执行后端"><option value="memory">内存适配器</option><option value="local">本地适配器</option></select></div></div>
+      <label for="session">选择对话</label><select id="session" aria-label="选择对话"><option value="conversation-1">对话1</option></select>
       <details id="workflowEditor" class="workflow-editor">
         <summary>工作流与约束</summary>
-        <label for="workflow">工作流</label><select id="workflow"><option value="">智能选择（默认）</option></select>
+        <label for="workflow">工作流</label><select id="workflow" aria-label="工作流"><option value="">智能选择（默认）</option></select>
         <div id="workflowFields" class="workflow-fields"></div>
         <div id="workflowEvidence" class="workflow-evidence"></div>
         <div id="workflowValidation" class="workflow-validation" aria-live="polite"></div>
@@ -983,27 +1066,26 @@
       <div class="history"><div class="history-head"><strong>历史任务</strong><button id="refreshHistory" class="history-refresh" type="button">刷新</button></div><div id="runtimeMetrics" class="distribution-note">正在读取运行指标…</div><div id="historyList" class="history-list"><div class="muted">正在读取历史任务…</div></div></div>
     </aside>
     <div class="content">
-      <section class="hero"><div><h2 id="title">准备好执行任务</h2><p id="subtitle">输入自然语言请求，Agent 会发现能力、生成计划、调用工具并组合结构化结果。</p><span id="decisionMode" class="decision-mode">等待决策</span></div><div><span id="status" class="badge">待机</span><button id="cancelRun" type="button" hidden style="margin-left:8px">取消分析</button></div></section>
+      <section class="hero"><div><h2 id="title">准备好执行任务</h2><p id="subtitle" role="status" aria-live="polite">输入自然语言请求，Agent 会发现能力、生成计划、调用工具并组合结构化结果。</p><span id="decisionMode" class="decision-mode">等待决策</span></div><div><span id="status" class="badge" role="status" aria-live="polite" aria-atomic="true">待机</span><button id="cancelRun" type="button" hidden style="margin-left:8px">取消分析</button></div></section>
       <section id="chatPanel" class="chat">
-        <div class="chat-head"><h3>对话</h3><div class="chat-actions"><span id="chatMeta">当前对话：对话1</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button><button id="deleteSession" type="button">删除对话</button></div></div>
+        <div class="chat-head"><div class="chat-title"><span>Agent workspace</span><h3>对话</h3></div><div class="chat-actions"><span id="chatMeta">当前对话：对话1</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button><button id="deleteSession" type="button">删除对话</button></div></div>
         <div id="messages" class="messages" aria-live="polite"></div>
         <div class="composer">
           <textarea id="prompt" placeholder="请输入希望 Agent 完成的任务"></textarea>
-          <button id="previewPlan" type="button">预览计划</button>
-          <button id="send">发送</button>
+          <div class="composer-actions"><button id="previewPlan" type="button">预览计划</button><button id="send">发送</button></div>
         </div>
       </section>
-      <div class="grid" aria-label="分析结果工作区">
+      <div id="resultWorkspace" class="grid" role="region" aria-label="分析结果工作区" aria-live="polite" aria-busy="false">
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
         <section class="panel result-panel plan-preview-result"><h3>计划预览</h3><div id="planPreview" class="plan-preview muted">点击“预览计划”查看工具 DAG；预览不会执行工具。</div></section>
         <section class="panel result-panel workflow-evidence-result"><h3>工作流编排</h3><div id="workflowEvidenceWorkspace"></div></section>
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><div id="genericResult" class="raw-json"></div></section>
-        <section class="panel result-panel common-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
+        <section class="panel result-panel common-result answer-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
         <section class="panel result-panel decision-evidence-result"><h3>决策证据</h3><div id="decisionEvidence"></div></section>
-        <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="selectionEvidence" class="evidence-card"></div><div id="dataEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="releaseEvidence" class="evidence-card release-evidence"></div><div id="memoryEvidence" class="evidence-card memory-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></section>
-        <section class="panel result-panel common-result"><h3>规划指标</h3><div id="metrics" class="metric-grid"></div></section>
-        <section class="panel result-panel common-result"><h3>任务计划与步骤</h3><div id="goal" class="muted" style="margin-bottom:14px"></div><ul id="steps" class="steps"></ul></section>
-        <section class="panel result-panel common-result"><h3>运行血缘</h3><div id="provenance" class="provenance"></div></section>
+        <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><details class="evidence-disclosure"><summary>展开详细证据</summary><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="selectionEvidence" class="evidence-card"></div><div id="dataEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="releaseEvidence" class="evidence-card release-evidence"></div><div id="memoryEvidence" class="evidence-card memory-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></details></section>
+        <section class="panel result-panel common-result metrics-result"><h3>规划指标</h3><div id="metrics" class="metric-grid"></div></section>
+        <section class="panel result-panel common-result steps-result"><h3>任务计划与步骤</h3><div id="goal" class="muted" style="margin-bottom:14px"></div><ul id="steps" class="steps"></ul></section>
+        <section class="panel result-panel common-result provenance-result"><h3>运行血缘</h3><div id="provenance" class="provenance"></div></section>
         <section class="panel result-panel map-result"><h3>可视化预览</h3><div id="map" class="map"></div><div id="mapSelection" class="muted" style="margin-top:10px">当前 renderer 尚未提供可交互选择。</div><button id="useMapSelection" type="button" disabled style="margin-top:8px">使用选中上下文继续</button></section>
         <section class="panel result-panel common-result trace-result" style="grid-column:1/-1"><h3>执行轨迹</h3><ol id="trace" class="trace"></ol><div id="links" class="links" style="margin-top:14px"></div></section>
       </div>
@@ -1130,9 +1212,23 @@
       data=contract.data;
       geometryEvidence(data);
       const hasRun = Boolean(data.run_id || data.status);
+      const envelope=data.result||{};
+      const status=String(data.status||'').toUpperCase();
+      const plannerMetrics=data.planner_metrics||{};
+      const hasMetrics=Boolean(plannerMetrics.model||plannerMetrics.wire_api||plannerMetrics.latency_ms||plannerMetrics.usage);
+      const stepsData=Array.isArray(data.steps)?data.steps:[];
+      const provenanceData=data.provenance||{};
+      const hasProvenance=Boolean(provenanceData.execution_policy||(Array.isArray(provenanceData.steps)&&provenanceData.steps.length));
+      const hasTrace=Array.isArray(data.trace_summary)&&data.trace_summary.length>0;
+      const hasEvidence=Boolean(data.evidence||data.evidence_registry||data.plan_evidence||data.runtime_context||data.artifact_ref||data.artifacts||envelope.evidence_registry||envelope.lineage||envelope.geometry);
       $('resultEmpty').style.display = hasRun ? 'none' : 'flex';
-      setResultPanel('.common-result', hasRun);
-      setResultPanel('.evidence-result', hasRun);
+      setResultPanel('.common-result', false);
+      setResultPanel('.answer-result', hasRun);
+      setResultPanel('.metrics-result', hasMetrics);
+      setResultPanel('.steps-result', stepsData.length>0);
+      setResultPanel('.provenance-result', hasProvenance);
+      setResultPanel('.trace-result', hasTrace);
+      setResultPanel('.evidence-result', hasEvidence);
       setResultPanel('.decision-evidence-result', hasRun && (normalizeDecisionEvidence(data).visible||domainRoutingEvidenceSource(data).present));
       setResultPanel('.generic-result', false);
       setResultPanel('.map-result', false);
@@ -1145,7 +1241,7 @@
     function renderExecutionRecord(data) { const record=data.execution_record||(data.result||{}).execution_record||{}; const asyncEvidence=renderAsyncResultEvidence(data); const actionTimeline=renderActionTimeline(data); if(!record.schema_version) return actionTimeline+asyncEvidence; const envelope=data.result||{}; const context=data.runtime_context||envelope.runtime_context||{}; const provider=context.tool_provider||{}; const model=envelope.model_evidence||{}; const deployment=envelope.deployment_evidence||{}; const deploymentData=deployment.data||{}; const degradation=deployment.degradation||{}; const contextText=context.schema_version?' · 领域 '+escapeHtml(context.domain_id||record.domain_id||'unknown')+' · Planner '+escapeHtml(context.planner||'unknown')+' · Backend '+escapeHtml(context.backend||'unknown')+' · Provider '+escapeHtml(provider.id||'unknown')+' · Context '+escapeHtml(context.schema_version)+(context.fingerprint?' · 指纹 '+escapeHtml(String(context.fingerprint).slice(0,19)):''):''; const modelText=model.schema_version?' · 模型 '+escapeHtml(model.execution_mode||'unknown')+(model.model?' / '+escapeHtml(model.model):'')+(model.fixture_id?' / '+escapeHtml(model.fixture_id):''):''; const deploymentText=deployment.schema_version?' · 部署证据 '+escapeHtml(deployment.status||'unknown')+' · 数据 '+escapeHtml(deploymentData.runtime_readiness||deploymentData.runtime_status||'unknown')+' · 降级 '+escapeHtml(degradation.status||'none'):''; const releaseRef=(envelope.lineage||{}).release_evidence?.ref||''; const releaseText=releaseRef?' · <a href="'+escapeHtml(scopedReference(releaseRef,responseDomain(data)))+'" target="_blank">发布证据</a>':''; const reused=record.idempotency_reused?' · 幂等结果复用':''; return actionTimeline+asyncEvidence+'<div class="execution-evidence"><strong>统一执行记录</strong> · '+escapeHtml(record.kind||'unknown')+' · '+escapeHtml(statusName(record.status||'UNKNOWN'))+' · '+escapeHtml(record.domain_id||'unknown')+' · 轨迹 '+escapeHtml(record.trace_count??0)+' 条 · artifact '+escapeHtml(record.artifact_available?'可恢复':'未导出')+escapeHtml(reused)+contextText+modelText+deploymentText+releaseText+'</div>'; }
     function renderActionEvidence(data) { const envelope=data.result||{}; const execution=data.action_execution||envelope.action_execution||{}; const actionId=data.action_id||envelope.action?.id; if(!actionId) return ''; const executionId=data.action_execution_id||envelope.lineage?.action_execution?.ref||''; const domainId=responseDomain(data,domainForAction(executionId)); if(executionId) actionDomains.set(String(executionId),domainId); const status=data.status||execution.status||'UNKNOWN'; const reused=data.idempotency_reused===true?' · 幂等结果复用':''; const artifactPath=artifactReferencePath(envelope.artifacts?.action||data.artifact_reference||execution.artifact_reference,data.artifact_ref,'actions',domainId); const links=[]; if(executionId) links.push('<a href="'+escapeHtml(domainPath('/action-executions/'+encodeURIComponent(executionId),domainId))+'" target="_blank">恢复执行证据</a>'); if(artifactPath) links.push('<a href="'+escapeHtml(artifactPath)+'" target="_blank">打开 Action artifact</a>'); const traceItems=(data.trace_summary||[]).slice(0,4).map(item=>'<li>'+escapeHtml(item)+'</li>').join(''); return '<div class="action-evidence"><div class="action-evidence-head"><strong>Action 执行证据</strong><span class="step-status '+String(status).toLowerCase()+'">'+escapeHtml(statusName(status))+'</span><span>'+escapeHtml(actionId)+'</span></div><div class="action-evidence-meta">执行 ID：'+escapeHtml(executionId||'-')+' · 领域：'+escapeHtml(domainId||'-')+' · 耗时：'+escapeHtml(execution.duration_ms??'-')+' 毫秒'+escapeHtml(reused)+'</div>'+(links.length?'<div class="action-evidence-links">'+links.join('')+'</div>':'')+(traceItems?'<ol class="action-trace">'+traceItems+'</ol>':'')+'</div>'; }
     function scopeWorkspaceArtifactLinks(data) { const domainId=responseDomain(data); $('genericResult').querySelectorAll('a[href^="/artifacts/"]').forEach(link=>link.setAttribute('href',domainPath(link.getAttribute('href'),domainId))); }
-    function genericResult(data) { const contract=normalizeConsoleResult(data); const safeData=contract.data; const workspace=(safeData.result||{}).workspace||{}; const prefixHtml=renderExecutionRecord(safeData)+renderActionEvidence(safeData); if(!rendererRegistry){ setResultPanel('.generic-result',true); $('genericResult').className='structured-view'; $('genericResult').innerHTML=prefixHtml+'<div class="error">Renderer Registry 不可用，结构化 view 已安全降级。</div>'; scopeWorkspaceArtifactLinks(safeData); return Promise.resolve({status:'unavailable'}); } $('genericResult').className='structured-view'; return rendererRegistry.renderWorkspace({panels:resultViewPanels(safeData),specs:workspace.view_specs||[],declaredPanels:workspace.panels||[],run:safeData,prefixHtml,surfaces:{generic:$('genericResult'),visual:$('map')},onSurface:(surface,visible)=>{ if(surface==='generic') setResultPanel('.generic-result',visible); if(surface==='visual') setResultPanel('.map-result',visible); }}).then(report=>{ scopeWorkspaceArtifactLinks(safeData); $('genericResult').querySelectorAll('[data-run-id]').forEach(button=>button.addEventListener('click',()=>openRunDetail(button.getAttribute('data-run-id')))); return report; }).catch(error=>{ setResultPanel('.generic-result',true); $('genericResult').innerHTML=prefixHtml+'<div class="error">结构化 view 渲染失败：'+escapeHtml(error.message)+'</div>'; scopeWorkspaceArtifactLinks(safeData); return {status:'failed'}; }); }
+    function genericResult(data) { const contract=normalizeConsoleResult(data); const safeData=contract.data; const workspace=(safeData.result||{}).workspace||{}; const prefixHtml=renderExecutionRecord(safeData)+renderActionEvidence(safeData); if(!rendererRegistry){ setResultPanel('.generic-result',true); $('resultEmpty').style.display='none'; $('genericResult').className='structured-view'; $('genericResult').innerHTML=prefixHtml+'<div class="error">Renderer Registry 不可用，结构化 view 已安全降级。</div>'; scopeWorkspaceArtifactLinks(safeData); return Promise.resolve({status:'unavailable'}); } $('genericResult').className='structured-view'; return rendererRegistry.renderWorkspace({panels:resultViewPanels(safeData),specs:workspace.view_specs||[],declaredPanels:workspace.panels||[],run:safeData,prefixHtml,surfaces:{generic:$('genericResult'),visual:$('map')},onSurface:(surface,visible)=>{ if(surface==='generic') { setResultPanel('.generic-result',visible); if(visible) $('resultEmpty').style.display='none'; } if(surface==='visual') { setResultPanel('.map-result',visible); if(visible) $('resultEmpty').style.display='none'; } }}).then(report=>{ scopeWorkspaceArtifactLinks(safeData); $('genericResult').querySelectorAll('[data-run-id]').forEach(button=>button.addEventListener('click',()=>openRunDetail(button.getAttribute('data-run-id')))); return report; }).catch(error=>{ setResultPanel('.generic-result',true); $('resultEmpty').style.display='none'; $('genericResult').innerHTML=prefixHtml+'<div class="error">结构化 view 渲染失败：'+escapeHtml(error.message)+'</div>'; scopeWorkspaceArtifactLinks(safeData); return {status:'failed'}; }); }
     function resultViewPanels(data) { const safe=normalizeConsoleResult(data); const views=(safe.result||{}).views||{}; return (views.panels)||{}; }
     function planDagFromPlan(plan) {
       const nodes=(plan?.steps||[]).map(step=>({id:step.id,tool:step.tool,depends_on:step.depends_on||[],arg_keys:Object.keys(step.args||{})}));
@@ -1179,6 +1275,7 @@
       const exact=(data.plan_evidence||{}).exact_template_ids||[];
       const source=(data.plan_evidence||{}).source||'未知';
       const summary=nodes.length?'共 '+nodes.length+' 个节点 · '+(dag.edges||[]).length+' 条依赖':'无工具节点（直接回答或等待澄清）';
+      $('resultEmpty').style.display='none';
       $('planPreview').innerHTML='<div class="plan-preview-head"><span class="plan-preview-status">'+escapeHtml(statusName(status))+'</span><small>'+escapeHtml(summary)+'</small></div><div class="muted">'+escapeHtml(plan.goal||data.error||'尚未生成任务计划。')+'</div>'+(exact.length?'<div class="distribution-note">模板：'+escapeHtml(exact.join('、'))+' · 来源：'+escapeHtml(source)+'</div>':'')+planIdentitySummary(data)+'<div class="plan-dag">'+nodes.map(node=>'<div class="plan-dag-node"><strong>'+escapeHtml(node.id)+' · '+escapeHtml(node.tool)+'</strong><small>依赖：'+escapeHtml((node.depends_on||[]).join('、')||'无')+' · 参数：'+escapeHtml((node.arg_keys||[]).join('、')||'无')+'</small></div>').join('')+'</div>';
       setResultPanel('.plan-preview-result', true);
     }
@@ -1190,6 +1287,7 @@
       const renderer=window.ConsoleWorkflowEvidence;
       const html=renderer&&typeof renderer.render==='function'?renderer.render(data):'';
       $('workflowEvidenceWorkspace').innerHTML=html;
+      if(html) $('resultEmpty').style.display='none';
       setResultPanel('.workflow-evidence-result',Boolean(html));
     }
     async function previewPlan() {
@@ -1288,7 +1386,15 @@
       for(let attempt=0; attempt<600 && ['QUEUED','PLANNING','EXECUTING'].includes(data.status); attempt++) {
         await sleep(250);
         const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(queued.run_id),runDomain)+'?planner='+encodeURIComponent(payload.planner||'rule')+'&backend='+encodeURIComponent(payload.backend||'memory'));
-        if(response.ok) { data=await response.json(); rememberRunDomain(data,runDomain); }
+        if(response.ok) {
+          data=await response.json();
+          rememberRunDomain(data,runDomain);
+          if(data.status) {
+            setStatus(data.status);
+            const progress={QUEUED:'已进入运行队列，等待运行时接管。',PLANNING:'正在理解请求并生成任务计划。',EXECUTING:'正在调用工具并组合结构化结果。'}[String(data.status).toUpperCase()];
+            if(progress) $('subtitle').textContent=progress;
+          }
+        }
       }
       if(activeRunId===queued.run_id) { activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); }
       return data;
@@ -1324,7 +1430,17 @@
     function errorCategoryBadge(category) { if(!category) return ''; const key=String(category).toLowerCase(); const failure=(typeof lastRunData!=='undefined'&&lastRunData)?(lastRunData.failure||(lastRunData.result||{}).failure):null; return '<span class="error-category '+key+'" title="结构化错误分类：'+escapeHtml(key)+'">'+escapeHtml(errorCategoryLabels[key]||category)+'</span>'+failureEvidenceBadge(failure); }
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
-    function setStatus(value) { const el=$('status'); el.textContent=statusName(value); el.className='badge '+String(value).toLowerCase(); }
+    function setStatus(value) {
+      const label=statusName(value);
+      const normalized=String(value||'').toUpperCase();
+      const busy=['QUEUED','PLANNING','EXECUTING'].includes(normalized);
+      const el=$('status');
+      el.textContent=label;
+      el.className='badge '+String(value).toLowerCase();
+      el.setAttribute('aria-label','运行状态：'+label);
+      $('chatPanel')?.setAttribute('aria-busy',busy?'true':'false');
+      $('resultWorkspace')?.setAttribute('aria-busy',busy?'true':'false');
+    }
     function appendMessage(role, text, runId) { const labels={user:'你',assistant:'智能体',system:'系统'}; const wrap=document.createElement('div'); wrap.className='msg '+role; wrap.innerHTML='<div class="role">'+labels[role]+'</div><div class="bubble">'+escapeHtml(text)+'</div>'; if(runId){ wrap.classList.add('msg-linked'); wrap.dataset.runId=runId; wrap.title='打开该次运行的完整详情（不重新执行模型）'; wrap.addEventListener('click',()=>openRunDetail(runId)); } $('messages').appendChild(wrap); $('messages').scrollTop=$('messages').scrollHeight; }
     function selectedDomainLabel() { return $('domain').selectedOptions[0]?.textContent||'默认领域'; }
     function welcome() { appendMessage('assistant','当前领域：'+selectedDomainLabel()+'。你可以直接提出开放式问题；能力、工具与展示方式由该 Domain Pack 动态提供。'); }
@@ -1646,6 +1762,7 @@
         links.push('<a download href="'+escapeHtml(geojsonPath)+'">下载 GeoJSON</a>');
       }
       $('links').innerHTML=links.join('');
+      updateResultPanels(data);
       loadRuntimeEvidence(domainId);
     }
     function loadRuntimeEvidence(domainId=currentDomainId()) { if(domainId===AUTO_DOMAIN_VALUE||runtimeEvidenceSnapshot||runtimeEvidencePromise) return; const generation=domainGeneration; runtimeEvidencePromise=nativeFetch(domainPath('/capabilities/runtime?max_files=3',domainId)).then(response=>{if(!response.ok) throw new Error('runtime evidence unavailable');return response.json();}).then(snapshot=>{if(generation!==domainGeneration||domainId!==currentDomainId()) return; runtimeEvidenceSnapshot=snapshot;if(lastRunData&&responseDomain(lastRunData)===domainId) renderEvidence(lastRunData);}).catch(()=>null).finally(()=>{runtimeEvidencePromise=null;}); }
@@ -1660,7 +1777,7 @@
     async function executeDomainAction(actionId,payload) { const domainId=currentDomainId(); if(actionCatalogPromise) await actionCatalogPromise; if(domainId!==currentDomainId()) throw new Error('领域已切换，请在新领域重新选择动作。'); if(!actionSpec(actionId)) await loadActions(domainId); if(!actionSpec(actionId)) throw new Error('当前领域未注册动作：'+actionId); const body=withDomainPayload(payload||{},domainId); const response=await nativeFetch(domainPath('/actions/'+encodeURIComponent(actionId),domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(responseError(data,'动作执行失败')); const executionId=data.action_execution_id||data.result?.lineage?.action_execution?.ref; if(executionId) actionDomains.set(String(executionId),responseDomain(data,domainId)); return data; }
     async function openRunDetail(runId,domainId=domainForRun(runId)) { if(!runId) return; $('error').innerHTML=''; try { const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId),domainId)+'?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value)); if(!response.ok){ const body=await response.json().catch(()=>({})); throw new Error(responseError(body,'运行详情不可用（HTTP '+response.status+'）')); } const data=await response.json(); rememberRunDomain(data,domainId); const sessionId=data.session_id; if(sessionId&&domainId===currentDomainId()){ const option=[...$('session').options].find(item=>item.value===sessionId); if(!option) addConversationOption({session_id:sessionId,display_name:'对话'+($('session').options.length+1)},domainId); $('session').value=sessionId; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); } resetConversationView(); appendMessage('user',data.request||'未命名任务'); appendMessage('assistant',data.answer||data.error||statusName(data.status||'未知'),data.run_id); renderRun(data); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; } }
     async function openActionDetail(executionId,domainId=domainForAction(executionId)) { if(!executionId) return; try { const response=await nativeFetch(domainPath('/action-executions/'+encodeURIComponent(executionId),domainId)); if(!response.ok){ const body=await response.json().catch(()=>({})); throw new Error(responseError(body,'Action 详情不可用（HTTP '+response.status+'）')); } const data=await response.json(); data._console_domain_id=domainId; actionDomains.set(String(executionId),domainId); resetConversationView(); appendMessage('assistant','已恢复 Action：'+(data.action_id||'未知动作')); renderActionExecution(data); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; } }
-    function renderActionExecution(data) { lastRunData=data; const envelope=data.result||{}; $('resultEmpty').style.display='none'; setResultPanel('.common-result',true); setResultPanel('.trace-result',true); $('title').textContent='Action：'+(data.action_id||envelope.action?.id||'未知'); $('subtitle').textContent=envelope.summary||'已从 artifact 恢复 Action 结果，未重新执行。'; $('decisionMode').textContent='Domain Action · 结构化执行'; $('answer').textContent=envelope.summary||data.error||'已恢复结构化 Action 结果。'; $('answer').className='answer'; $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; genericResult(data); $('trace').innerHTML=(data.trace_summary||[]).map(item=>'<li>'+escapeHtml(item)+'</li>').join('')||'<li class="muted">暂无 Action 轨迹。</li>'; $('links').innerHTML=renderActionEvidence(data); $('goal').textContent='Action 结果类型：'+escapeHtml(envelope.type||data.result_type||'unknown'); setResultPanel('.evidence-result',false); setResultPanel('.plan-preview-result',false); setResultPanel('.workflow-evidence-result',false); }
+    function renderActionExecution(data) { lastRunData=data; const envelope=data.result||{}; $('resultEmpty').style.display='none'; setResultPanel('.common-result',false); setResultPanel('.answer-result',true); setResultPanel('.trace-result',Boolean((data.trace_summary||[]).length)); $('title').textContent='Action：'+(data.action_id||envelope.action?.id||'未知'); $('subtitle').textContent=envelope.summary||'已从 artifact 恢复 Action 结果，未重新执行。'; $('decisionMode').textContent='Domain Action · 结构化执行'; $('answer').textContent=envelope.summary||data.error||'已恢复结构化 Action 结果。'; $('answer').className='answer'; $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; genericResult(data); $('trace').innerHTML=(data.trace_summary||[]).map(item=>'<li>'+escapeHtml(item)+'</li>').join('')||'<li class="muted">暂无 Action 轨迹。</li>'; $('links').innerHTML=renderActionEvidence(data); $('goal').textContent='Action 结果类型：'+escapeHtml(envelope.type||data.result_type||'unknown'); setResultPanel('.evidence-result',false); setResultPanel('.plan-preview-result',false); setResultPanel('.workflow-evidence-result',false); }
     async function restoreSession(domainId=currentDomainId()) {
       const sessionId=$('session').value;
       const viewGeneration=conversationGeneration;
@@ -1819,7 +1936,7 @@
         rememberRunDomain(data,responseDomainId);
         if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){ renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status),data.run_id); if(unboundAuto&&data.domain_id) await hydrateAutoDomainState(data); }
       } catch(e) {
-        if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){ setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); }
+        if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){ setStatus('FAILED'); $('resultEmpty').style.display='none'; setResultPanel('.answer-result',true); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); }
       } finally { button.disabled=window.__consoleDomainReady===false; $('prompt').focus(); }
     }
     $('send').addEventListener('click',()=>sendChat());
