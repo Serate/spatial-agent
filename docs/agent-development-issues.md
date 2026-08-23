@@ -30,6 +30,20 @@
 阶段测试前按当前工作树执行 `docker compose ... up -d --build --force-recreate`，确认容器 healthy 后再运行 Docker 测试。
 若宿主与容器结果不一致，先比较镜像同步状态，不要直接修改 Runtime 迎合旧镜像。阶段证据必须注明 Docker 镜像构建时间和是否使用当前工作树。
 
+## M218-A：请求级降级状态污染部署 readiness
+
+### 现象
+
+待澄清请求的 `degradation.status=warning` 被 `deployment_evidence.status` 聚合为 `degraded`，生产验收看起来像环境故障，实际是业务结果尚未完成。
+
+### 根因
+
+部署证据聚合器把 runtime/release readiness 与本次请求的结果降级共用一个状态汇总，混淆了环境事实和请求事实。
+
+### 处理与预防
+
+部署 `status` 只由 runtime、data、release 和 context 观测决定；请求降级保留在独立的 `degradation` 投影。跨入口验收同时检查两者，不能用部署状态替代结果状态。
+
 ## M216-A：恢复协议存在但默认读取路径仍然过宽
 
 ### 现象

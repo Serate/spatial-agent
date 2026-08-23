@@ -4315,7 +4315,7 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - stage 离线验收 3/3；live GIS/model 两个案例 2/2，合计 13,239 tokens、0 重试、0 provider 错误；production acceptance 为 ok，readiness/runtime/release ready，但同步 memory 入口显示 degraded/warning，作为下一阶段的环境语义缺口。
 - 阶段版本：`6ba9b2e feat: complete M217 turn and artifact contracts`，已推送 `origin/main`。
 
-## M218：开放式请求的纵向验收与通用结果/生命周期证据闭环
+## M218：开放式请求的纵向验收与通用结果/生命周期证据闭环（已完成并推送）
 
 ### 全局重规划依据
 
@@ -4335,6 +4335,30 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 4. 固化 opt-in live model + real GIS/Docker 短验收的脱敏报告，不保存 API key、原始模型响应或私有绝对路径。
 5. 阶段验收：Docker stage、HTTP contract、replay/repair、cross-entry harness、浏览器复杂请求 smoke、production acceptance；真实 live 只显式执行，不进入默认 CI。
 
-### M218 完成门槛
+### M218 完成证据
 
-一个非固定问句的开放式请求必须在至少两个入口产生相同核心 Result/Evidence，并能从 Artifact/SQLite 恢复；前端只消费结构化 view/evidence；任何 readiness 或模型失败都返回可操作的结构化状态；阶段完成后更新本卡、推送版本并再次进行七维全局盘点。
+- 新增 `normalize_core_result` / `compare_core_results` 深模块接口，明确排除 execution、Async 和 Artifact 传输观察，保留 Result/Evidence 语义；同步、Async、Artifact、SQLite、CLI、HTTP developer gate 已覆盖。
+- 修复部署 evidence 聚合：结果 `degradation=warning` 不再污染部署 `status`；生产 acceptance 当前明确为 `sync_deployment_status=context_only`、`sync_degradation_status=warning`。
+- M218 Docker 专项 **4/4**，核心/CLI/HTTP/部署/生命周期回归 **43/43**；compileall 通过；复杂空间总览 browser smoke 通过。
+- 当前代码 live GIS/model **2/2**，13,882 tokens、0 重试、0 provider 错误；未保存原始模型响应或密钥。
+- 阶段版本：`c0a4bd7 feat: add M218 core acceptance seam`，已推送 `origin/main`。
+
+## M219：Domain Pack 可移植性与开放式能力发现
+
+### 全局重规划依据
+
+- 产品：跨入口纵向闭环已具备，下一步要让“非 GIS、非固定问句”的能力也能走同一条对话、结果和恢复链。
+- 架构：公共 Runtime/ToolRegistry/Result seam 已有证据；需要用第二个 Domain Pack 和外部能力目录证明没有 GIS 隐式依赖。
+- 数据：GIS readiness/降级已分层；下一步把数据需求作为 Domain capability 声明验证，不把数据集路径写进 Runtime。
+- 模型：live 结构化计划可用；要验证 Planner 通过能力目录发现新能力，并在 schema/工具不可用时返回澄清或有限修复。
+- 部署：Docker/HTTP/SQLite 已可验收；需验证不同 Domain 的 runtime context、artifact 和 restart 仍保持可迁移。
+- 体验：GIS 动态面板已通过；需要一个通用/文本结果的动态 view smoke，证明前端不依赖 GIS 分支。
+- 测试：保持精简，新增 Domain isolation、能力发现和跨入口一条纵向 acceptance，不复制 GIS 全量矩阵。
+
+### 目标与任务
+
+1. 用 Text 或测试 Domain Pack 作为第二适配器，验证能力目录、ToolRegistry、Planner、Answer/View contract 和 Runtime 生命周期完全复用。
+2. 增加开放式能力发现测试：未预定义问句能匹配已声明能力；未知能力、缺事实和坏 schema 返回结构化澄清/拒绝/有限修复。
+3. 对比 GIS/Text 的 request/plan/result/evidence 核心契约，证明 Domain 数据字段不泄漏进公共 Runtime 策略。
+4. 增加一个通用结果的 CLI/HTTP/Artifact/Console smoke，动态消费 view registry，不新增 GIS 页面判断。
+5. 阶段收口执行 Docker 精简回归、Domain isolation、跨入口 harness 和显式 live/replay 验收，再按七维全局重规划。

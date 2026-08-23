@@ -14,7 +14,7 @@
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- M217 已完成并推送：`6ba9b2e feat: complete M217 turn and artifact contracts`。
+- M217 已完成并推送：`6ba9b2e feat: complete M217 turn and artifact contracts`；M218 已完成并推送 `c0a4bd7`。
 - Docker：`ai-agent-spatial-agent-1`；Python、compileall 和阶段测试默认在 Docker 中运行。
 - 工作树应保持干净；不得提交 API key、`.env.production`、原始模型响应、原始 GIS 数据或仓库外 evidence。
 
@@ -25,15 +25,18 @@
 - opt-in live GIS/model 2/2：13,239 tokens、0 重试、0 provider 错误；只保留脱敏摘要。
 - 同步 memory 入口在 production acceptance 中为 degraded/warning，作为 M218 的环境语义缺口。
 
-## 当前唯一工作切片：M218
+## M218 收口证据
 
-开放式请求的纵向验收与通用结果/生命周期证据闭环：
+- `normalize_core_result` / `compare_core_results` 已接入跨入口 harness；M218 专项 4/4，核心/CLI/HTTP/部署/生命周期回归 43/43。
+- production acceptance 明确区分 `sync_deployment_status=context_only` 与 `sync_degradation_status=warning`。
+- 当前代码 live GIS/model 2/2：13,882 tokens、0 重试、0 provider 错误；复杂空间总览 browser smoke 通过。
 
-1. 建立 CLI/HTTP/Async/Artifact/SQLite/Console 的核心 Result/Evidence 对比 harness。
-2. 收敛 lifecycle、decision、selection interaction 和 readiness 的语义投影，保留 receipt/transport lineage 差异。
-3. 用动态 Result/View/Answer contract 驱动复杂请求前端 smoke，不增加 GIS 页面分支。
-4. 固化真实模型 + 真实 GIS/Docker 的脱敏短验收、token/延迟和错误分层。
-5. Docker 精简 stage、HTTP contract、replay/repair 和浏览器 smoke 分层验收，完成后再次全局重规划。
+## 当前唯一工作切片：M219
+
+1. 用第二个 Domain Pack 验证 Runtime、ToolRegistry、Planner 和 Result/View contract 可移植。
+2. 验证开放式能力发现、未知能力澄清、坏 schema 拒绝/有限修复，不增加固定问句分支。
+3. 对比 GIS/Text 的核心 Result/Evidence，并完成通用结果前端 smoke。
+4. Docker 精简回归、Domain isolation、跨入口 harness 和显式 live/replay 验收。
 
 ## 不变量
 
