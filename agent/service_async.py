@@ -249,7 +249,11 @@ def build_async_result_evidence(
         # Artifacts can originate on Windows and be recovered by a Linux
         # worker.  Do not rely on the host platform's Path separator.
         ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
-    artifact_reference = build_artifact_reference(ref, kind="run")
+    artifact_reference = build_artifact_reference(
+        ref,
+        kind="run",
+        domain_id=value.get("domain_id"),
+    )
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
     evidence_projection = project_evidence_projection(projection_input)
@@ -505,6 +509,7 @@ def normalize_async_result_evidence(
     ) if artifact.get("reference") is not None else build_artifact_reference(
         ref,
         kind="run",
+        domain_id=value.get("domain_id"),
     )
     result = {
         "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,

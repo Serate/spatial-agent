@@ -35,7 +35,9 @@ from agent.artifact_access import resolve_artifact_path
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.artifact_manifest import build_artifact_manifest
-from agent.domain_registry import domain_registry
+from agent.domain_http import assert_domain_payload
+from agent.domain_registry import resolve_domain_id
+from agent.domain_runtime_host import DomainRuntimeHost
 from agent.service import AgentService
 
 class UTF8JSONResponse(JSONResponse):
@@ -44,29 +46,28 @@ class UTF8JSONResponse(JSONResponse):
     media_type = "application/json; charset=utf-8"
 
 
-service = AgentService()
-service.start_reaper()
+host = DomainRuntimeHost()
+host.start()
+LEGACY_DOMAIN_ID = resolve_domain_id()
+service = host.service(LEGACY_DOMAIN_ID)
 
 
-def _close_service() -> None:
-    """Release the module-level service on app and interpreter shutdown.
+def _close_host() -> None:
+    """Release every module-level Domain service exactly once.
 
-    The production entry point owns a long-lived ``AgentService``.  FastAPI
-    normally invokes the shutdown hook, while direct imports in contract
-    tests bypass the ASGI lifespan; the atexit fallback covers that second
-    path and prevents observability/SQLite handles from being left to the
-    interpreter finalizer.
+    ``DomainRuntimeHost.close`` is idempotent, so FastAPI lifespan shutdown
+    and the direct-import atexit fallback can safely share this hook.
     """
-    service.close()
+    host.close()
 
 
 @asynccontextmanager
 async def _lifespan(_app):
-    """Own the module-level Service for the complete ASGI application life."""
+    """Own all enabled Domain services for the ASGI application life."""
     try:
         yield
     finally:
-        _close_service()
+        _close_host()
 
 
 app = FastAPI(
@@ -74,7 +75,7 @@ app = FastAPI(
     default_response_class=UTF8JSONResponse,
     lifespan=_lifespan,
 )
-atexit.register(_close_service)
+atexit.register(_close_host)
 
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))
 GEOJSON_ROOT = Path(os.environ.get("SPATIAL_AGENT_GEOJSON_ROOT", "outputs/geojson"))
@@ -110,6 +111,17 @@ def _raise_for(exc: Exception, *, not_found: bool = False, service_unavailable: 
     raise HTTPException(status_code=status, detail=error_response(
         exc, not_found=not_found, service_unavailable=service_unavailable
     )) from exc
+
+
+def _domain_service(
+    domain_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+) -> AgentService:
+    """Select the URL Domain before validating any redundant body claim."""
+
+    selection = host.select(domain_id, source="explicit")
+    assert_domain_payload(selection, payload)
+    return host.service(selection)
 
 
 @app.get("/health/live")
@@ -158,7 +170,7 @@ def capabilities(
 
 @app.get("/domains")
 def domains() -> Dict[str, Any]:
-    return domain_registry().catalog()
+    return host.catalog()
 
 
 @app.get("/actions")
@@ -539,7 +551,7 @@ def run_artifact(name: str):
             ARTIFACT_ROOT,
             name,
             ".json",
-            domain_id=getattr(service, "_resolved_domain_id", "gis"),
+            domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
             metadata_root=ARTIFACT_ROOT,
         ),
         media_type="application/json",
@@ -552,7 +564,7 @@ def run_artifact_manifest(name: str):
         ARTIFACT_ROOT,
         name,
         ".json",
-        domain_id=getattr(service, "_resolved_domain_id", "gis"),
+        domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
         metadata_root=ARTIFACT_ROOT,
     )
     try:
@@ -568,7 +580,7 @@ def run_artifact_evidence(name: str):
         ARTIFACT_ROOT,
         name,
         ".json",
-        domain_id=getattr(service, "_resolved_domain_id", "gis"),
+        domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
         metadata_root=ARTIFACT_ROOT,
     )
     try:
@@ -597,7 +609,7 @@ def action_artifact(name: str):
             name,
             ".json",
             prefix="action-",
-            domain_id=getattr(service, "_resolved_domain_id", "gis"),
+            domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
             metadata_root=ARTIFACT_ROOT,
         ),
         media_type="application/json",
@@ -611,8 +623,472 @@ def geojson_artifact(name: str):
             GEOJSON_ROOT,
             name,
             ".geojson",
-            domain_id=getattr(service, "_resolved_domain_id", "gis"),
+            domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
             metadata_root=ARTIFACT_ROOT,
         ),
+        media_type="application/geo+json",
+    )
+
+
+# Explicit multi-Domain routes.  The URL selection is authoritative; legacy
+# routes above intentionally retain their original module-level Service.
+
+
+@app.get("/domains/{domain_id}/capabilities")
+def domain_capabilities(
+    domain_id: str,
+    planner: str = "rule",
+    backend: str = "memory",
+) -> Dict[str, Any]:
+    try:
+        return _domain_service(domain_id).capabilities(planner=planner, backend=backend)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/capabilities/runtime")
+def domain_runtime_capabilities(domain_id: str, max_files: int = 10) -> Dict[str, Any]:
+    try:
+        if max_files < 1 or max_files > 10:
+            raise ValueError("max_files must be between 1 and 10")
+        return _domain_service(domain_id).runtime_capabilities(
+            max_files=max_files,
+            backend="local",
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/release-evidence")
+def domain_release_evidence(domain_id: str, max_files: int = 10) -> Dict[str, Any]:
+    try:
+        if max_files < 1 or max_files > 10:
+            raise ValueError("max_files must be between 1 and 10")
+        return _domain_service(domain_id).release_evidence(
+            max_files=max_files,
+            backend="local",
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/actions")
+def domain_actions(
+    domain_id: str,
+    planner: str = "rule",
+    backend: str = "memory",
+) -> Dict[str, Any]:
+    try:
+        return _domain_service(domain_id).actions(planner=planner, backend=backend)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/action-executions/{execution_id}")
+def domain_action_execution(domain_id: str, execution_id: str) -> Dict[str, Any]:
+    try:
+        return _domain_service(domain_id).get_action_execution(execution_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.get("/domains/{domain_id}/action-executions")
+def domain_action_executions(domain_id: str, limit: int = 20) -> Dict[str, Any]:
+    try:
+        return _domain_service(domain_id).list_action_executions(limit=limit)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/workflows")
+def domain_workflows(
+    domain_id: str,
+    planner: str = "rule",
+    backend: str = "memory",
+) -> Dict[str, Any]:
+    try:
+        contract = _domain_service(domain_id).workflow_contract(
+            planner=planner,
+            backend=backend,
+        )
+        return {
+            "domain_id": contract.get("domain_id", domain_id),
+            "templates": contract.get("catalog", {}),
+        }
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/workflows/{template_id}/validate")
+def domain_validate_workflow(
+    domain_id: str,
+    template_id: str,
+    payload: Dict[str, Any],
+):
+    try:
+        selected_service = _domain_service(domain_id, payload)
+        contract = selected_service.workflow_contract(
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "memory"),
+        )
+        return workflow_action_result(
+            template_id,
+            "validate",
+            payload,
+            catalog=contract.get("catalog"),
+            known_tools=contract.get("known_tools"),
+            known_result_types=contract.get("known_result_types"),
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/workflows/{template_id}/revise")
+def domain_revise_workflow(
+    domain_id: str,
+    template_id: str,
+    payload: Dict[str, Any],
+):
+    try:
+        selected_service = _domain_service(domain_id, payload)
+        contract = selected_service.workflow_contract(
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "memory"),
+        )
+        return workflow_action_result(
+            template_id,
+            "revise",
+            payload,
+            catalog=contract.get("catalog"),
+            known_tools=contract.get("known_tools"),
+            known_result_types=contract.get("known_result_types"),
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/runs")
+def domain_run(domain_id: str, payload: Dict[str, Any]):
+    try:
+        return _domain_service(domain_id, payload).run(**run_kwargs(payload))
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/runs/preview")
+def domain_preview(domain_id: str, payload: Dict[str, Any]):
+    try:
+        return _domain_service(domain_id, payload).preview(**preview_kwargs(payload))
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/runs/async")
+def domain_run_async(domain_id: str, payload: Dict[str, Any]):
+    try:
+        return _domain_service(domain_id, payload).run_async(**async_run_kwargs(payload))
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/runs")
+def domain_list_runs(domain_id: str, limit: int = 20):
+    try:
+        return _domain_service(domain_id).list_runs(limit=limit)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/runs/{run_id}")
+def domain_get_run(
+    domain_id: str,
+    run_id: str,
+    planner: str = "rule",
+    backend: str = "memory",
+):
+    try:
+        return _domain_service(domain_id).get_run(
+            run_id=run_id,
+            planner=planner,
+            backend=backend,
+        )
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.get("/domains/{domain_id}/runs/{run_id}/evidence")
+def domain_run_evidence(domain_id: str, run_id: str):
+    try:
+        return _domain_service(domain_id).get_run_evidence(run_id=run_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.get("/domains/{domain_id}/runs/{run_id}/interaction")
+def domain_run_interaction(
+    domain_id: str,
+    run_id: str,
+    planner: str = "rule",
+    backend: str = "memory",
+):
+    try:
+        return _domain_service(domain_id).get_run_interaction(
+            run_id=run_id,
+            planner=planner,
+            backend=backend,
+        )
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.post("/domains/{domain_id}/runs/{run_id}/interaction")
+def domain_apply_run_interaction(
+    domain_id: str,
+    run_id: str,
+    payload: Dict[str, Any],
+):
+    try:
+        return _domain_service(domain_id, payload).apply_run_interaction(
+            run_id,
+            **interaction_kwargs(payload),
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/runs/{run_id}/observability")
+@app.get("/domains/{domain_id}/runs/{run_id}/async")
+def domain_async_observability(domain_id: str, run_id: str):
+    try:
+        return _domain_service(domain_id).get_async_observability(run_id=run_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.post("/domains/{domain_id}/runs/{run_id}/retry")
+def domain_retry(domain_id: str, run_id: str, payload: Dict[str, Any]):
+    try:
+        return _domain_service(domain_id, payload).retry(
+            run_id=run_id,
+            **retry_kwargs(payload),
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/runs/{run_id}/cancel")
+def domain_cancel(domain_id: str, run_id: str, payload: Dict[str, Any]):
+    try:
+        return _domain_service(domain_id, payload).cancel(
+            run_id=run_id,
+            **cancel_kwargs(payload),
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/decisions/{decision_id}")
+def domain_get_decision(domain_id: str, decision_id: str):
+    try:
+        return _domain_service(domain_id).get_decision(decision_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.post("/domains/{domain_id}/decisions/{decision_id}/resolve")
+def domain_resolve_decision(
+    domain_id: str,
+    decision_id: str,
+    payload: Dict[str, Any],
+):
+    try:
+        return _domain_service(domain_id, payload).resolve_decision(
+            decision_id,
+            **decision_resolve_kwargs(payload),
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/sessions")
+def domain_list_sessions(domain_id: str, limit: int = 50):
+    try:
+        return _domain_service(domain_id).list_sessions(limit=limit)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/sessions")
+def domain_create_session(
+    domain_id: str, payload: Optional[Dict[str, Any]] = None
+):
+    try:
+        return _domain_service(domain_id, payload).create_session()
+    except Exception as exc:
+        _raise_for(exc, service_unavailable=True)
+
+
+@app.get("/domains/{domain_id}/sessions/{session_id}/runs")
+def domain_list_session_runs(domain_id: str, session_id: str, limit: int = 20):
+    try:
+        return _domain_service(domain_id).list_session_runs(
+            session_id=session_id,
+            limit=limit,
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/sessions/{session_id}/clear")
+def domain_clear_session(
+    domain_id: str,
+    session_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+):
+    try:
+        return _domain_service(domain_id, payload).clear_session(session_id)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.delete("/domains/{domain_id}/sessions/{session_id}")
+def domain_delete_session(domain_id: str, session_id: str):
+    try:
+        return _domain_service(domain_id).delete_session(session_id)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/metrics")
+def domain_metrics(domain_id: str):
+    try:
+        return _domain_service(domain_id).metrics()
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/memory")
+def domain_memory(
+    domain_id: str,
+    session_id: Optional[str] = None,
+    query: Optional[str] = None,
+    limit: int = 20,
+    global_scope: bool = False,
+):
+    try:
+        return _domain_service(domain_id).list_memory(
+            session_id=session_id,
+            query=query,
+            limit=limit,
+            global_scope=global_scope,
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domains/{domain_id}/actions/{action_id}")
+def domain_execute_action(
+    domain_id: str,
+    action_id: str,
+    payload: Dict[str, Any],
+):
+    try:
+        selected_service = _domain_service(domain_id, payload)
+        action_payload = dict(payload)
+        action_payload.pop("domain_id", None)
+        action_payload.pop("domain_selection", None)
+        return selected_service.execute_action(
+            action_id,
+            action_payload,
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "local"),
+            idempotency_key=payload.get("idempotency_key"),
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+def _domain_artifact_path(
+    domain_id: str,
+    root: Path,
+    name: str,
+    suffix: str,
+    prefix: str = "",
+) -> Path:
+    """Resolve an artifact against the explicit URL Domain only."""
+
+    try:
+        selection = host.select(domain_id, source="explicit")
+        return _safe_artifact(
+            root,
+            name,
+            suffix,
+            prefix,
+            domain_id=selection.domain_id,
+            metadata_root=ARTIFACT_ROOT,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _raise_for(exc)
+
+
+def _artifact_json(path: Path) -> Dict[str, Any]:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="artifact not found") from exc
+
+
+@app.get("/domains/{domain_id}/artifacts/runs/{name}")
+def domain_run_artifact(domain_id: str, name: str):
+    return FileResponse(
+        _domain_artifact_path(domain_id, ARTIFACT_ROOT, name, ".json"),
+        media_type="application/json",
+    )
+
+
+@app.get("/domains/{domain_id}/artifacts/runs/{name}/manifest")
+def domain_run_artifact_manifest(domain_id: str, name: str):
+    path = _domain_artifact_path(domain_id, ARTIFACT_ROOT, name, ".json")
+    return build_artifact_manifest(_artifact_json(path), artifact_ref=path.name)
+
+
+@app.get("/domains/{domain_id}/artifacts/runs/{name}/evidence")
+def domain_run_artifact_evidence(domain_id: str, name: str):
+    path = _domain_artifact_path(domain_id, ARTIFACT_ROOT, name, ".json")
+    payload = _artifact_json(path)
+    from agent.evidence_registry import normalize_evidence_registry
+
+    registry = normalize_evidence_registry(payload.get("evidence_registry"))
+    return {
+        "schema_version": "spatial-agent.evidence-reference.v1",
+        "run_id": payload.get("run_id"),
+        "domain_id": payload.get("domain_id", domain_id),
+        "artifact": {"available": True, "ref": path.name},
+        "evidence_registry": registry,
+        "evidence_projection": project_evidence_projection(payload),
+        "evidence_recovery": project_evidence_recovery(payload),
+    }
+
+
+@app.get("/domains/{domain_id}/artifacts/actions/{name}")
+def domain_action_artifact(domain_id: str, name: str):
+    return FileResponse(
+        _domain_artifact_path(
+            domain_id,
+            ARTIFACT_ROOT,
+            name,
+            ".json",
+            prefix="action-",
+        ),
+        media_type="application/json",
+    )
+
+
+@app.get("/domains/{domain_id}/artifacts/geojson/{name}")
+def domain_geojson_artifact(domain_id: str, name: str):
+    return FileResponse(
+        _domain_artifact_path(domain_id, GEOJSON_ROOT, name, ".geojson"),
         media_type="application/geo+json",
     )

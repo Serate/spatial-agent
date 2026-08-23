@@ -63,7 +63,7 @@ class M134DomainRegistryTests(unittest.TestCase):
             text = AgentService(state_db_path=database, domain_id="text")
             try:
                 self.assertEqual(text.list_runs()["runs"], [])
-                with self.assertRaisesRegex(ValueError, "run not found"):
+                with self.assertRaisesRegex(ValueError, "run not found|another domain"):
                     text.get_run("gis-owned")
             finally:
                 text.close()
@@ -80,16 +80,26 @@ class M134DomainRegistryTests(unittest.TestCase):
     def test_artifact_history_is_filtered_by_selected_domain(self):
         with tempfile.TemporaryDirectory() as directory:
             store = ArtifactStore(directory)
-            text = AgentService(artifact_store=store, domain_id="text")
+            database = os.path.join(directory, "agent.db")
+            text = AgentService(
+                artifact_store=store,
+                state_db_path=database,
+                domain_id="text",
+            )
             try:
                 result = text.run(
                     "请摘要这段文本并保留执行证据。",
+                    session_id="m134-text-artifact",
                     export_artifact=True,
                 )
             finally:
                 text.close()
 
-            gis = AgentService(artifact_store=store, domain_id="gis")
+            gis = AgentService(
+                artifact_store=store,
+                state_db_path=database,
+                domain_id="gis",
+            )
             try:
                 self.assertEqual(gis.list_runs()["runs"], [])
                 with self.assertRaisesRegex(ValueError, "another domain"):

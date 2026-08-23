@@ -4481,3 +4481,23 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **模型与能力发现**：先用离线 capability catalog router 验证唯一、歧义和不匹配；LLM Domain router 作为未来可替换 adapter，不与 LLM Planner 混合，也不保存原始响应。
 6. **体验**：Console 从 `/domains` 动态生成领域选择并随会话/运行恢复；renderer/action plugin 继续消费所选 Domain 声明，不新增 GIS/Text 页面分支。
 7. **测试**：新增一条 Text/GIS 跨 Domain HTTP→async→artifact→restart Harness 和一条浏览器选择 smoke；默认 quick/CI 仍保持离线极简，真实 GIS/live 不进入默认门禁。
+
+## M224：多 Domain Runtime Host 与选择恢复（已完成）
+
+- 新增版本化 `DomainSelection` 与 `DomainRuntimeHost` 深 Module；Host 通过 allowlist 管理独立 per-Domain `AgentService`，并发创建只发生一次，启动时预热全部启用领域以接管各自异步任务，关闭统一且幂等。
+- 生产 FastAPI 和开发 HTTP 保留旧无领域兼容路由，同时增加 `/domains/{domain_id}/...`，覆盖 capability/workflow/action、同步/预览/异步 run、interaction/decision/retry/cancel、session、metrics 和 run/action/GeoJSON artifact；URL 领域为权威，body 冲突返回 `domain_mismatch`。
+- SQLite 新增持久化 session-domain binding；跨领域会话访问返回 `session_domain_mismatch`。异步和 interaction 幂等键在 adapter 内按 Domain 命名空间化，清空会话按领域删除 run/job；Host 使用固定 legacy policy，避免旧记录随当前请求改变归属。
+- 同步自定义 run ID 和扁平 artifact 文件写入增加跨领域冲突保护；结构化 artifact reference 生成领域化访问路径，轮询、恢复、重试和 artifact 读取不再依赖当前服务或下拉框的隐式领域。
+- Console 从 `/domains` 动态生成领域下拉，切换时重载该领域 capability/workflow/action/session/history 并 reset workspace；每个 run/action/decision 记录自身领域，切换下拉后原异步任务仍沿原领域轮询；目录不可用时保留有界 legacy 降级。
+- GIS SVG fallback 增加鼠标和键盘选择，使无 Leaflet/外网时仍能生成结构化空间上下文；清空会话先完成领域化持久化清理再刷新历史，避免旧工作区回写。
+- Docker Host/SQLite/HTTP 聚焦契约 **17/17** 通过，M134/M148/M170/M171 等相邻兼容回归通过；Node plugin smoke、动态 Domain 浏览器 smoke 和清空/reset smoke 串行通过。
+
+## M225：自动 Domain 路由与跨领域澄清（下一阶段全局规划）
+
+1. **产品**：在显式选择之外提供“智能选择”，让开放式自然语言请求先匹配整个部署的能力目录；唯一匹配直接执行，歧义返回可选择候选，完全不匹配返回结构化能力边界说明。
+2. **架构**：新增可替换 `DomainSelector` seam；离线 Catalog Selector 与未来 LLM Selector 共享同一版本化 selection/候选/理由契约，独立于 Planner、Runtime 和 Host，Host 只消费已验证选择。
+3. **能力目录**：建立跨 Domain 的有界 discovery snapshot，只公开 capability id、用途、所需事实和风险，不把完整工具 schema 或领域数据重复塞进路由上下文。
+4. **生命周期**：自动选择、用户改选和澄清继续必须持久化 selection lineage；session 一旦执行即绑定选择，恢复、interaction、async 和 artifact 始终沿用记录身份，不重新猜测。
+5. **入口与体验**：CLI、开发 HTTP、FastAPI 和 Console 共用自动路由入口；Console 的“智能选择”由目录契约驱动，候选选择使用现有 selection interaction/Action Host，不新增 GIS/Text 页面分支。
+6. **模型与安全**：LLM Selector 只输出候选 Domain/capability identity，不生成工具计划；所有输出经过 allowlist/schema 校验，失败时回退离线 selector 或澄清，禁止反射导入和任意路由。
+7. **测试**：用 GIS/Text/第三 fixture Domain 覆盖唯一、歧义、无匹配、错误 LLM 输出、用户改选和 SQLite 重启；保留一条跨入口 Harness 和一条浏览器 smoke，默认 CI 不增加 live/GIS 依赖。

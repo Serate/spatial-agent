@@ -16,12 +16,12 @@ class M171DomainDefaultTests(unittest.TestCase):
         source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
             encoding="utf-8"
         )
-        bootstrap = source.split(
-            "window.__consoleBootstrapReady = false;", 1
-        )[1].split("function renderCategoryList", 1)[0]
+        reload_domain = source.split(
+            "async function reloadDomainContext()", 1
+        )[1].split("function workflowFieldId", 1)[0]
         self.assertLess(
-            bootstrap.index("window.__consoleBootstrapReady = true;"),
-            bootstrap.index("return restoreSession();"),
+            reload_domain.index("window.__consoleDomainReady=true"),
+            reload_domain.index("restoreSession(domainId)"),
         )
 
     def test_legacy_artifact_domain_is_configurable_without_gis_fallback(self):

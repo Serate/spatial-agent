@@ -99,6 +99,7 @@ def build_result_contract(
     artifact_reference = build_artifact_reference(
         payload.get("artifact_ref"),
         kind="run",
+        domain_id=payload.get("domain_id"),
     )
     geojson_reference = build_artifact_reference(
         payload.get("geojson_ref"),
@@ -106,6 +107,7 @@ def build_result_contract(
         status=geometry_evidence.get("status", "unknown"),
         truncated=bool(geometry_evidence.get("truncated")),
         geometry_status=geometry_evidence.get("status"),
+        domain_id=payload.get("domain_id"),
     )
     if payload.get("artifact_ref"):
         references.append({

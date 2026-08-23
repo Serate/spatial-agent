@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .conversation_turn import normalize_conversation_turn
+from .domain_registry import DomainSelectionError
 from .runtime_context import normalize_runtime_context
 from .runtime import PendingClarification
 from .evidence_registry import normalize_evidence_registry
@@ -30,6 +31,18 @@ _INTERACTION_RECEIPT_SELECT = """
            created_at, updated_at
     FROM interaction_receipts
 """
+
+
+_DOMAIN_KEY_PREFIX = "spatial-agent-domain-key.v1:"
+
+
+def _domain_scoped_key(domain_id: str, key: str) -> str:
+    return _DOMAIN_KEY_PREFIX + str(domain_id) + ":" + str(key)
+
+
+def _public_domain_key(domain_id: str, key: str) -> str:
+    prefix = _DOMAIN_KEY_PREFIX + str(domain_id) + ":"
+    return key[len(prefix):] if str(key).startswith(prefix) else key
 
 
 def _connect_sqlite(path: Path) -> sqlite3.Connection:
@@ -118,7 +131,23 @@ class SQLiteStateStore:
         """Atomically register an async submission and return the canonical job."""
         serialized = json.dumps(payload, ensure_ascii=True, sort_keys=True)
         created_at = time.time()
+        domain_id = self._payload_domain(payload)
+        storage_key = _domain_scoped_key(domain_id, idempotency_key)
         with self._connection() as connection:
+            # A pre-M224 row used the public key directly. It remains a valid
+            # replay only for the Domain recorded by that row's payload.
+            legacy_row = connection.execute(
+                _ASYNC_JOB_SELECT + " WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+            if legacy_row is not None:
+                legacy_payload = json.loads(legacy_row[2])
+                if self._payload_domain(legacy_payload) == domain_id:
+                    result = _async_job_from_row(
+                        legacy_row, legacy_domain_id=self._legacy_domain_id
+                    )
+                    result["created"] = False
+                    return result
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO async_jobs
@@ -126,9 +155,11 @@ class SQLiteStateStore:
                      created_at, recovery_count, last_event)
                 VALUES (?, ?, ?, 'QUEUED', NULL, CURRENT_TIMESTAMP, ?, 0, 'submitted')
                 """,
-                (idempotency_key, run_id, serialized, created_at),
+                (storage_key, run_id, serialized, created_at),
             )
-            row = connection.execute(_ASYNC_JOB_SELECT + " WHERE idempotency_key = ?", (idempotency_key,)).fetchone()
+            row = connection.execute(
+                _ASYNC_JOB_SELECT + " WHERE idempotency_key = ?", (storage_key,)
+            ).fetchone()
             if row is None:
                 row = connection.execute(_ASYNC_JOB_SELECT + " WHERE run_id = ?", (run_id,)).fetchone()
         result = _async_job_from_row(row, legacy_domain_id=self._legacy_domain_id)
@@ -152,6 +183,7 @@ class SQLiteStateStore:
         a caller can safely replay a request after a transport failure.
         """
         now = time.time()
+        storage_key = _domain_scoped_key(domain_id, idempotency_key)
         with self._connection() as connection:
             created = False
             try:
@@ -166,7 +198,7 @@ class SQLiteStateStore:
                         domain_id,
                         run_id,
                         action,
-                        idempotency_key,
+                        storage_key,
                         input_fingerprint,
                         now,
                         now,
@@ -184,7 +216,7 @@ class SQLiteStateStore:
                 row = connection.execute(
                     _INTERACTION_RECEIPT_SELECT
                     + " WHERE idempotency_key = ?",
-                    (idempotency_key,),
+                    (storage_key,),
                 ).fetchone()
         result = _interaction_receipt_from_row(row)
         result["created"] = created
@@ -242,6 +274,7 @@ class SQLiteStateStore:
         input_fingerprint: str,
     ) -> Dict[str, Any]:
         """Replace a failed retry attempt while preserving the CAS row."""
+        storage_key = _domain_scoped_key(domain_id, idempotency_key)
         with self._connection() as connection:
             cursor = connection.execute(
                 """
@@ -254,7 +287,7 @@ class SQLiteStateStore:
                    AND status = 'FAILED'
                 """,
                 (
-                    idempotency_key,
+                    storage_key,
                     input_fingerprint,
                     time.time(),
                     domain_id,
@@ -582,24 +615,48 @@ class SQLiteStateStore:
             ).fetchone()
         return _interaction_receipt_from_row(row)
 
-    def clear_session_runs(self, session_id: str) -> int:
+    def clear_session_runs(
+        self, session_id: str, domain_id: Optional[str] = None
+    ) -> int:
+        domain_clause = ""
+        domain_parameters: tuple[Any, ...] = ()
+        if domain_id:
+            domain_clause = (
+                " AND COALESCE(json_extract(payload, '$.domain_id'), ?) = ?"
+            )
+            domain_parameters = (self._legacy_domain_id, domain_id)
         with self._connection() as connection:
             rows = connection.execute(
-                "SELECT run_id FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?",
-                (session_id,),
+                "SELECT run_id FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?"
+                + domain_clause,
+                (session_id,) + domain_parameters,
             ).fetchall()
             if rows:
+                run_ids = tuple(row[0] for row in rows)
+                placeholders = ",".join("?" for _ in run_ids)
                 connection.execute(
-                    "DELETE FROM run_controls WHERE run_id IN (SELECT run_id FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?)",
-                    (session_id,),
+                    "DELETE FROM run_controls WHERE run_id IN (" + placeholders + ")",
+                    run_ids,
                 )
                 connection.execute(
-                    "DELETE FROM agent_runs WHERE json_extract(payload, '$.session_id') = ?",
-                    (session_id,),
+                    "DELETE FROM agent_runs WHERE run_id IN (" + placeholders + ")",
+                    run_ids,
                 )
+                connection.execute(
+                    "DELETE FROM async_jobs WHERE run_id IN (" + placeholders + ")",
+                    run_ids,
+                )
+            async_domain_clause = ""
+            async_parameters: tuple[Any, ...] = ()
+            if domain_id:
+                async_domain_clause = (
+                    " AND COALESCE(json_extract(payload, '$.domain_id'), ?) = ?"
+                )
+                async_parameters = (self._legacy_domain_id, domain_id)
             connection.execute(
-                "DELETE FROM async_jobs WHERE json_extract(payload, '$.session_id') = ?",
-                (session_id,),
+                "DELETE FROM async_jobs WHERE json_extract(payload, '$.session_id') = ?"
+                + async_domain_clause,
+                (session_id,) + async_parameters,
             )
         return len(rows)
 
@@ -755,13 +812,58 @@ class SQLiteStateStore:
 class SQLiteConversationStore:
     """Persist pending clarification and last completed request by session."""
 
-    def __init__(self, path: str = "outputs/spatial-agent.db"):
+    def __init__(
+        self,
+        path: str = "outputs/spatial-agent.db",
+        *,
+        domain_id: str = "gis",
+        legacy_domain_id: str = "gis",
+    ):
         self._path = Path(path)
+        self._domain_id = self._bounded_domain(domain_id, "domain_id")
+        self._legacy_domain_id = self._bounded_domain(
+            legacy_domain_id, "legacy_domain_id"
+        )
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
+    @staticmethod
+    def _bounded_domain(value: str, field: str) -> str:
+        normalized = str(value or "").strip()
+        if not normalized or len(normalized) > 80:
+            raise ValueError(field + " must be a non-empty bounded value")
+        return normalized
+
+    def _session_binding(
+        self,
+        connection: sqlite3.Connection,
+        session_id: str,
+        *,
+        create: bool,
+    ) -> bool:
+        row = connection.execute(
+            "SELECT domain_id FROM session_domains WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        if row is None:
+            if not create:
+                return False
+            connection.execute(
+                "INSERT INTO session_domains (session_id, domain_id) VALUES (?, ?)",
+                (session_id, self._domain_id),
+            )
+            return True
+        if str(row[0]) != self._domain_id:
+            raise DomainSelectionError(
+                "session belongs to another domain: " + session_id,
+                code="session_domain_mismatch",
+            )
+        return True
+
     def get_pending(self, session_id: str) -> Optional[PendingClarification]:
         with self._connection() as connection:
+            if not self._session_binding(connection, session_id, create=False):
+                return None
             row = connection.execute(
                 "SELECT request, error FROM pending_clarifications WHERE session_id = ?",
                 (session_id,),
@@ -772,6 +874,7 @@ class SQLiteConversationStore:
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
         with self._connection() as connection:
+            self._session_binding(connection, session_id, create=True)
             row = connection.execute(
                 "SELECT session_id, display_name FROM conversation_sessions WHERE session_id = ?",
                 (session_id,),
@@ -796,7 +899,15 @@ class SQLiteConversationStore:
     def create_session(self) -> Dict[str, Any]:
         with self._connection() as connection:
             count = connection.execute(
-                "SELECT COUNT(*) FROM conversation_sessions WHERE session_id LIKE 'conversation-%'"
+                """
+                SELECT COUNT(*)
+                  FROM conversation_sessions AS sessions
+                  JOIN session_domains AS domains
+                    ON domains.session_id = sessions.session_id
+                 WHERE sessions.session_id LIKE 'conversation-%'
+                   AND domains.domain_id = ?
+                """,
+                (self._domain_id,),
             ).fetchone()[0]
             number = count + 1
             session_id = f"conversation-{number}"
@@ -810,6 +921,10 @@ class SQLiteConversationStore:
                 "INSERT INTO conversation_sessions (session_id, display_name, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
                 (session_id, display_name),
             )
+            connection.execute(
+                "INSERT INTO session_domains (session_id, domain_id) VALUES (?, ?)",
+                (session_id, self._domain_id),
+            )
         return {"session_id": session_id, "display_name": display_name}
 
     def list_sessions(self, limit: int = 50) -> List[Dict[str, Any]]:
@@ -817,8 +932,18 @@ class SQLiteConversationStore:
             raise ValueError("limit must be positive")
         with self._connection() as connection:
             rows = connection.execute(
-                "SELECT session_id, display_name, created_at, updated_at FROM conversation_sessions WHERE session_id LIKE 'conversation-%' ORDER BY updated_at DESC, created_at ASC LIMIT ?",
-                (limit,),
+                """
+                SELECT sessions.session_id, sessions.display_name,
+                       sessions.created_at, sessions.updated_at
+                  FROM conversation_sessions AS sessions
+                  JOIN session_domains AS domains
+                    ON domains.session_id = sessions.session_id
+                 WHERE sessions.session_id LIKE 'conversation-%'
+                   AND domains.domain_id = ?
+                 ORDER BY sessions.updated_at DESC, sessions.created_at ASC
+                 LIMIT ?
+                """,
+                (self._domain_id, limit),
             ).fetchall()
         return [
             {"session_id": row[0], "display_name": row[1], "created_at": row[2], "updated_at": row[3]}
@@ -839,12 +964,16 @@ class SQLiteConversationStore:
 
     def clear_pending(self, session_id: str) -> None:
         with self._connection() as connection:
+            if not self._session_binding(connection, session_id, create=False):
+                return
             connection.execute(
                 "DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,)
             )
 
     def clear_session(self, session_id: str) -> None:
         with self._connection() as connection:
+            if not self._session_binding(connection, session_id, create=False):
+                return
             connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
             connection.execute(
@@ -854,12 +983,16 @@ class SQLiteConversationStore:
 
     def delete_session(self, session_id: str) -> bool:
         with self._connection() as connection:
+            if not self._session_binding(connection, session_id, create=False):
+                return False
             exists = connection.execute(
                 "SELECT 1 FROM conversation_sessions WHERE session_id = ?", (session_id,)
             ).fetchone()
             connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM memory_facts WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM conversation_sessions WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM session_domains WHERE session_id = ?", (session_id,))
         return bool(exists)
 
     def save_completed(self, session_id: str, request: str) -> None:
@@ -876,6 +1009,8 @@ class SQLiteConversationStore:
 
     def get_last_request(self, session_id: str) -> Optional[str]:
         with self._connection() as connection:
+            if not self._session_binding(connection, session_id, create=False):
+                return None
             row = connection.execute(
                 "SELECT request FROM completed_sessions WHERE session_id = ?", (session_id,)
             ).fetchone()
@@ -883,6 +1018,7 @@ class SQLiteConversationStore:
 
     def insert_memory_fact(self, fact: Dict[str, Any]) -> None:
         """Persist one bounded memory fact (M80.2)."""
+        self.ensure_session(str(fact.get("session_id") or "default"))
         with self._connection() as connection:
             connection.execute(
                 """
@@ -916,11 +1052,22 @@ class SQLiteConversationStore:
         with self._connection() as connection:
             if session_id is None:
                 rows = connection.execute(
-                    "SELECT run_id, session_id, result_type, admin_names, summary, facts, created_at "
-                    "FROM memory_facts ORDER BY created_at DESC, run_id DESC LIMIT ?",
-                    (limit,),
+                    """
+                    SELECT facts.run_id, facts.session_id, facts.result_type,
+                           facts.admin_names, facts.summary, facts.facts,
+                           facts.created_at
+                      FROM memory_facts AS facts
+                      JOIN session_domains AS domains
+                        ON domains.session_id = facts.session_id
+                     WHERE domains.domain_id = ?
+                     ORDER BY facts.created_at DESC, facts.run_id DESC
+                     LIMIT ?
+                    """,
+                    (self._domain_id, limit),
                 ).fetchall()
             else:
+                if not self._session_binding(connection, session_id, create=False):
+                    return []
                 rows = connection.execute(
                     "SELECT run_id, session_id, result_type, admin_names, summary, facts, created_at "
                     "FROM memory_facts WHERE session_id = ? ORDER BY created_at DESC, run_id DESC LIMIT ?",
@@ -941,6 +1088,8 @@ class SQLiteConversationStore:
 
     def delete_memory_facts(self, session_id: str) -> None:
         with self._connection() as connection:
+            if not self._session_binding(connection, session_id, create=False):
+                return
             connection.execute(
                 "DELETE FROM memory_facts WHERE session_id = ?", (session_id,)
             )
@@ -975,8 +1124,29 @@ class SQLiteConversationStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_memory_facts_session
                     ON memory_facts(session_id, created_at DESC);
+                CREATE TABLE IF NOT EXISTS session_domains (
+                    session_id TEXT PRIMARY KEY,
+                    domain_id TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_session_domains_domain
+                    ON session_domains(domain_id, session_id);
                 """
             )
+            # Pre-M224 conversation rows had no Domain identity. A single,
+            # deployment-level compatibility policy claims them once; future
+            # service instances observe the persisted binding.
+            for table in (
+                "conversation_sessions",
+                "pending_clarifications",
+                "completed_sessions",
+                "memory_facts",
+            ):
+                connection.execute(
+                    "INSERT OR IGNORE INTO session_domains (session_id, domain_id) "
+                    + "SELECT DISTINCT session_id, ? FROM "
+                    + table,
+                    (self._legacy_domain_id,),
+                )
 
     def _connect(self) -> sqlite3.Connection:
         return _connect_sqlite(self._path)
@@ -1015,8 +1185,13 @@ def _async_job_from_row(row, *, legacy_domain_id: str = "gis") -> Dict[str, Any]
     decoded_payload = json.loads(payload)
     if isinstance(decoded_payload, dict):
         decoded_payload.setdefault("domain_id", legacy_domain_id)
+    domain_id = (
+        str(decoded_payload.get("domain_id") or legacy_domain_id)
+        if isinstance(decoded_payload, dict)
+        else legacy_domain_id
+    )
     return {
-        "idempotency_key": key,
+        "idempotency_key": _public_domain_key(domain_id, key),
         "run_id": run_id,
         "payload": decoded_payload,
         "status": status,
@@ -1048,7 +1223,7 @@ def _interaction_receipt_from_row(row) -> Dict[str, Any]:
         "domain_id": row[0],
         "run_id": row[1],
         "action": row[2],
-        "idempotency_key": row[3],
+        "idempotency_key": _public_domain_key(str(row[0]), row[3]),
         "input_fingerprint": row[4],
         "status": row[5],
         "result_run_id": row[6],

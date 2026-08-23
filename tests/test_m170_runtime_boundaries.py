@@ -14,26 +14,23 @@ from domains.text.domain import TEXT_DOMAIN_PACK
 
 class M170RuntimeBoundaryTests(unittest.TestCase):
     def test_production_app_uses_lifespan_to_close_owned_service(self):
-        original = production_api.service
         replacement = Mock()
 
         async def exercise_lifespan():
             async with production_api.app.router.lifespan_context(production_api.app):
                 pass
 
-        try:
-            with patch.object(production_api, "service", replacement):
-                asyncio.run(exercise_lifespan())
-            replacement.close.assert_called_once_with()
-            self.assertEqual(production_api.app.router.on_shutdown, [])
-        finally:
-            original.close()
+        with patch.object(production_api, "host", replacement):
+            asyncio.run(exercise_lifespan())
+        replacement.close.assert_called_once_with()
+        self.assertEqual(production_api.app.router.on_shutdown, [])
 
     def test_text_artifact_domain_survives_read_and_domain_filter(self):
         with tempfile.TemporaryDirectory(prefix="m170-text-artifact-") as directory:
             store = ArtifactStore(Path(directory) / "runs")
             service = AgentService(
                 artifact_store=store,
+                state_db_path=str(Path(directory) / "state.db"),
                 domain_pack=TEXT_DOMAIN_PACK,
             )
             try:

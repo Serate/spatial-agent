@@ -304,3 +304,17 @@ node scripts/console_clear_smoke.js
 ~~~
 
 该专项只保留四类证据：Shell 领域隔离、Action Catalog/schema、renderer 故障/代次保护、真实浏览器的 generic/visual surface 与选择 reset。`console_overview_smoke.js` 同时验证动态 Action 表单，因此不再为每个 GIS Action 保留固定表单 smoke。地图交互使用内联 GeoJSON；真实 GIS 数据和 live planner 仍走显式 GIS/live profile，不能由 fixture 代替。
+
+## M224 多 Domain Host 专项
+
+Host、显式领域 HTTP 路由、SQLite 会话/幂等隔离或 Console 领域切换发生变化时，在当前 Docker 镜像中运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m224_domain_runtime_host tests.test_m224_domain_persistence tests.test_m224_domain_http -v
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m134_domain_registry tests.test_m170_runtime_boundaries tests.test_m171_domain_defaults -v
+docker exec ai-agent-spatial-agent-1 node scripts/console_plugin_smoke.js
+node scripts/console_domain_browser_smoke.js
+node scripts/console_clear_smoke.js
+~~~
+
+该专项验证同一进程中的 GIS/Text Service 隔离、全部领域启动恢复、URL/body 领域一致性、会话固定领域、跨领域幂等、artifact 访问身份，以及切换下拉后仍按原领域轮询。浏览器脚本必须先有界确认隔离 CDP，串行复用一个页面；live 模型和真实 GIS 不进入该专项。

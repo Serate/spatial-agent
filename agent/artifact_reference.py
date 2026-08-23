@@ -25,6 +25,7 @@ _KINDS = {
     ),
 }
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$")
+_SAFE_DOMAIN_ID = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
 
 def build_artifact_reference(
@@ -35,6 +36,7 @@ def build_artifact_reference(
     truncated: bool = False,
     representation: Optional[str] = None,
     geometry_status: Optional[str] = None,
+    domain_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build a bounded reference without exposing a host filesystem path."""
 
@@ -56,10 +58,17 @@ def build_artifact_reference(
         "truncated": bool(truncated),
     }
     if name:
+        selected_domain = _safe_domain_id(domain_id)
+        if selected_domain:
+            result["domain_id"] = selected_domain
         result["access"] = {
             "transport": "http",
             "method": "GET",
-            "path": f"/artifacts/{route}/{name}",
+            "path": (
+                f"/domains/{selected_domain}/artifacts/{route}/{name}"
+                if selected_domain
+                else f"/artifacts/{route}/{name}"
+            ),
         }
     else:
         result["status"] = "unavailable"
@@ -89,6 +98,7 @@ def normalize_artifact_reference(value: Any) -> Dict[str, Any]:
         truncated=bool(value.get("truncated")),
         representation=value.get("representation"),
         geometry_status=value.get("geometry_status"),
+        domain_id=value.get("domain_id"),
     )
     if value.get("available") is False:
         result["available"] = False
@@ -109,6 +119,11 @@ def _safe_name(ref: Any, suffix: str) -> Optional[str]:
     ):
         return None
     return value
+
+
+def _safe_domain_id(value: Any) -> Optional[str]:
+    candidate = str(value or "").strip().lower()
+    return candidate if _SAFE_DOMAIN_ID.fullmatch(candidate) else None
 
 
 def _unavailable(kind: str, reason_code: str) -> Dict[str, Any]:

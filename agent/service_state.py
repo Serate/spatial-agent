@@ -80,13 +80,15 @@ class ServiceState:
         state_db_path: Optional[str] = None,
         runtime_factory: Callable[[str, str], Any] | None = None,
         domain_id: Optional[str] = None,
+        legacy_domain_id: Optional[str] = None,
     ) -> None:
         self._state_db_path = state_db_path
         self._domain_id = domain_id
+        self._legacy_domain_id = legacy_domain_id or domain_id or "gis"
         self._state_store = (
             SQLiteStateStore(
                 state_db_path,
-                legacy_domain_id=domain_id or "gis",
+                legacy_domain_id=self._legacy_domain_id,
             )
             if state_db_path
             else None
@@ -97,7 +99,13 @@ class ServiceState:
             else InMemoryDecisionStore()
         )
         self._conversation_store = (
-            SQLiteConversationStore(state_db_path) if state_db_path else None
+            SQLiteConversationStore(
+                state_db_path,
+                domain_id=domain_id or self._legacy_domain_id,
+                legacy_domain_id=self._legacy_domain_id,
+            )
+            if state_db_path
+            else None
         )
         self._memory = FactMemory(sqlite_conversation_store=self._conversation_store)
         self._observability = ObservabilityEmitter()
@@ -247,7 +255,9 @@ class ServiceState:
 
     def clear_session_runs(self, session_id: str) -> int:
         if self._state_store is not None:
-            return self._state_store.clear_session_runs(session_id)
+            return self._state_store.clear_session_runs(
+                session_id, domain_id=self._domain_id
+            )
         return 0
 
     # ------------------------------------------------------------------ #

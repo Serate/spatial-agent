@@ -30,6 +30,7 @@ def build_artifact_manifest(
     run_reference = build_artifact_reference(
         artifact_ref or payload.get("artifact_ref"),
         kind="run",
+        domain_id=payload.get("domain_id"),
     )
     geometry = result.get("geometry") if isinstance(result, Mapping) else {}
     geometry = geometry if isinstance(geometry, Mapping) else {}
@@ -45,6 +46,7 @@ def build_artifact_manifest(
             status=geometry.get("status") or "unavailable",
             truncated=bool(geometry.get("truncated")),
             geometry_status=geometry.get("status"),
+            domain_id=payload.get("domain_id"),
         )
     artifact_name = run_reference.get("ref")
     evidence_available = bool(
@@ -58,7 +60,7 @@ def build_artifact_manifest(
             "evidence",
             evidence_available,
             "application/json",
-            _evidence_reference(artifact_name),
+            _evidence_reference(artifact_name, payload.get("domain_id")),
         ),
         _entry(
             "geometry",
@@ -185,8 +187,12 @@ def _entry(
     return result
 
 
-def _evidence_reference(artifact_name: Optional[str]) -> Dict[str, Any]:
-    reference = build_artifact_reference(artifact_name, kind="run")
+def _evidence_reference(
+    artifact_name: Optional[str], domain_id: Optional[str] = None
+) -> Dict[str, Any]:
+    reference = build_artifact_reference(
+        artifact_name, kind="run", domain_id=domain_id
+    )
     access = reference.get("access")
     if isinstance(access, dict):
         reference["access"] = dict(access)

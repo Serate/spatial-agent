@@ -137,7 +137,7 @@
       setTimeout(() => map.invalidateSize(), 0);
       return;
     }
-    renderSvg(target, all, helpers.escapeHtml);
+    renderSvg(target, all, helpers);
   }
 
   function popup(feature, escapeHtml) {
@@ -194,7 +194,8 @@
     if (bounds.isValid()) map.fitBounds(bounds.pad(.08));
   }
 
-  function renderSvg(target, all, escapeHtml) {
+  function renderSvg(target, all, helpers) {
+    const escapeHtml = helpers.escapeHtml;
     const candidates = all.filter(feature => (feature.properties || {}).geometry_source === "raster-buildability-screening");
     const selected = candidates.length ? candidates : all;
     const coords = [];
@@ -225,9 +226,23 @@
       if (feature.geometry.type === "MultiPolygon") feature.geometry.coordinates.forEach(polygon => polygon.forEach(ring));
       return output;
     };
-    const paths = selected.map(feature => '<path d="' + path(feature) + '" fill="#e09a5b" stroke="#a6622b" stroke-width="1.1" opacity=".78"></path>').join("");
+    const paths = selected.map((feature, index) => '<path data-feature-index="' + index + '" tabindex="0" d="' + path(feature) + '" fill="#e09a5b" stroke="#a6622b" stroke-width="1.1" opacity=".78"></path>').join("");
     target.innerHTML = '<svg viewBox="0 0 500 260" role="img" aria-label="GeoJSON 空间预览"><rect width="500" height="260" fill="#edf3f1"></rect>' + paths
       + '<text x="12" y="22" fill="#176a49" font-size="12">' + escapeHtml(candidates.length ? "建设候选区域" : "空间要素") + " · " + selected.length + ' 个面</text></svg>';
+    if (typeof target.querySelectorAll !== "function") return;
+    target.querySelectorAll("path[data-feature-index]").forEach(element => {
+      const choose = () => {
+        const feature = selected[Number(element.dataset.featureIndex)];
+        if (feature) helpers.selectFeature(feature);
+      };
+      element.addEventListener("click", choose);
+      element.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          choose();
+        }
+      });
+    });
   }
 
   return Object.freeze({SCHEMA_VERSION, createMapAdapter});

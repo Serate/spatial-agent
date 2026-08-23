@@ -26,7 +26,9 @@ from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.artifact_manifest import build_artifact_manifest
-from agent.domain_registry import domain_registry
+from agent.domain_http import assert_domain_payload, parse_domain_path
+from agent.domain_registry import resolve_domain_id
+from agent.domain_runtime_host import DomainRuntimeHost
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
@@ -38,21 +40,39 @@ from agent.workflow_templates import (
 _legacy_runtime_capability_snapshot = runtime_capability_snapshot
 
 
+domain_host = DomainRuntimeHost()
+domain_host.start()
+legacy_service = domain_host.service(resolve_domain_id())
+
+
 def runtime_capability_snapshot(max_files: int = 10) -> dict:
     """Compatibility function retained for isolated runtime snapshot tests."""
     return _legacy_runtime_capability_snapshot(max_files=max_files)
 
 
 class AgentApiHandler(BaseHTTPRequestHandler):
-    service = AgentService()
-    service.start_reaper()
+    host = domain_host
+    service = legacy_service
     artifact_root = Path("outputs/runs")
     geojson_root = Path("outputs/geojson")
     web_root = Path(__file__).parent / "web"
 
 
     def do_GET(self):
-        parsed = urlparse(self.path)
+        try:
+            parsed, selection = self._domain_request(urlparse(self.path))
+        except Exception as exc:
+            self._write_json(error_status(exc), error_response(exc))
+            return
+        if selection is not None and parsed.path in (
+            "/health",
+            "/",
+            "/index.html",
+            "/observability/health",
+            "/tools/dynamic",
+        ):
+            self._write_json(404, {"error": "not found", "error_code": "not_found"})
+            return
         if parsed.path == "/health":
             payload = {"status": "ok"}
             payload.update(environment_status())
@@ -68,7 +88,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 self._write_json(200, self.service.capabilities(planner=planner, backend=backend))
             return
         if parsed.path == "/domains":
-            self._write_json(200, domain_registry().catalog())
+            self._write_json(200, self.host.catalog())
             return
         if parsed.path == "/actions":
             query = parse_qs(parsed.query)
@@ -315,7 +335,11 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         self._write_json(404, {"error": "not found"})
 
     def do_POST(self):
-        parsed = urlparse(self.path)
+        try:
+            parsed, selection = self._domain_request(urlparse(self.path))
+        except Exception as exc:
+            self._write_json(error_status(exc), error_response(exc))
+            return
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
         is_preview = parsed.path == "/runs/preview"
@@ -328,11 +352,11 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             parsed.path.startswith("/runs/")
             and parsed.path.endswith("/interaction")
         )
-        is_comparison = parsed.path == "/comparisons"
-        is_region_comparison = parsed.path == "/region-comparisons"
-        is_constrained_comparison = parsed.path == "/constrained-comparisons"
+        is_comparison = selection is None and parsed.path == "/comparisons"
+        is_region_comparison = selection is None and parsed.path == "/region-comparisons"
+        is_constrained_comparison = selection is None and parsed.path == "/constrained-comparisons"
         is_domain_action = parsed.path.startswith("/actions/")
-        is_tool_register = parsed.path == "/tools"
+        is_tool_register = selection is None and parsed.path == "/tools"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
         workflow_action = None
@@ -346,6 +370,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         try:
             payload = self._read_json()
+            if selection is not None:
+                assert_domain_payload(selection, payload)
             if workflow_action is not None:
                 contract = self.service.workflow_contract(
                     planner=payload.get("planner", "rule"),
@@ -428,7 +454,11 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         self._write_json(200, result)
 
     def do_DELETE(self):
-        parsed = urlparse(self.path)
+        try:
+            parsed, _selection = self._domain_request(urlparse(self.path))
+        except Exception as exc:
+            self._write_json(error_status(exc), error_response(exc))
+            return
         if not parsed.path.startswith("/sessions/"):
             self._write_json(404, {"error": "not found"})
             return
@@ -452,6 +482,21 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if not raw:
             return {}
         return json.loads(raw.decode("utf-8"))
+
+    def _domain_request(self, parsed):
+        """Bind this handler request to the service selected by its URL."""
+        self.service = type(self).service
+        self._request_domain_id = getattr(self.service, "_resolved_domain_id", "gis")
+        scope = parse_domain_path(parsed.path)
+        if scope is None:
+            return parsed, None
+        host = getattr(type(self), "host", None)
+        if host is None:
+            raise ValueError("multi-domain host is unavailable")
+        selection = host.select(scope.domain_id)
+        self.service = host.service(selection)
+        self._request_domain_id = selection.domain_id
+        return parsed._replace(path=scope.path), selection
 
     def _write_json(self, status_code, payload):
         body = json.dumps(payload, ensure_ascii=True, indent=2).encode("utf-8")
@@ -478,7 +523,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             store_root = getattr(getattr(self.service, "_artifact_store", None), "_root", None)
             if store_root is not None:
                 root = Path(store_root)
-        domain_id = getattr(self.service, "_resolved_domain_id", "gis") if self.service is not None else "gis"
+        domain_id = getattr(self, "_request_domain_id", "gis")
         metadata_root = self.artifact_root if parts[1] == "geojson" else None
         candidate = resolve_artifact_path(
             root,
@@ -501,10 +546,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
 
 
 def _close_default_service() -> None:
-    """Release the development handler's module-level Service at exit."""
-    current = AgentApiHandler.service
-    if current is not None:
-        current.close()
+    """Release every Domain service owned by the development Host."""
+    AgentApiHandler.host.close()
 
 
 atexit.register(_close_default_service)

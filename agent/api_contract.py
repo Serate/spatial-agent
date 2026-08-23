@@ -247,9 +247,15 @@ def error_response(
     same bounded labels as the async observability layer.
     """
     status = error_status(exc, not_found=not_found, service_unavailable=service_unavailable)
+    declared_code = getattr(exc, "code", None)
+    stable_code = (
+        str(declared_code)[:96]
+        if isinstance(declared_code, str) and declared_code.strip()
+        else _ERROR_CODE_BY_STATUS.get(status, "internal_error")
+    )
     response = {
         "error": str(exc),
-        "error_code": _ERROR_CODE_BY_STATUS.get(status, "internal_error"),
+        "error_code": stable_code,
         "error_category": failure_category_for_error(exc),
     }
     action_id = getattr(exc, "action_id", None)

@@ -15,7 +15,7 @@ from agent.failure_contract import build_failure_evidence, failure_from_payload
 from agent.geojson_exporter import export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
-from agent.domain_registry import resolve_domain_id
+from agent.domain_registry import DomainSelectionError, resolve_domain_id
 from agent.domain_registry import domain_registry
 from agent.runtime_context import assert_runtime_context_compatible
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
@@ -183,6 +183,7 @@ class AgentService:
         runtime_factory: Callable[..., Any] = None,
         domain_pack: Any = None,
         domain_id: str = None,
+        legacy_domain_id: str = None,
     ):
         self._artifact_store = artifact_store
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
@@ -210,17 +211,24 @@ class AgentService:
             self._configured_domain_id = resolve_domain_id()
             self._runtime_factory = build_runtime
         self._resolved_domain_id = self._configured_domain_id
+        selected_legacy_domain = str(
+            legacy_domain_id or self._configured_domain_id or "gis"
+        ).strip()
+        if not selected_legacy_domain or len(selected_legacy_domain) > 80:
+            raise ValueError("legacy_domain_id must be a non-empty bounded value")
+        self._legacy_domain_id = selected_legacy_domain
         if self._artifact_store is None:
             # A legacy artifact without domain_id belongs to the selected
             # Domain, not implicitly to GIS. Explicitly supplied stores keep
             # their own compatibility configuration for shared repositories.
             self._artifact_store = ArtifactStore(
-                legacy_domain_id=self._configured_domain_id or "gis"
+                legacy_domain_id=self._legacy_domain_id
             )
         self._state = ServiceState(
             state_db_path=self._state_db_path,
             runtime_factory=self._runtime_factory,
             domain_id=self._configured_domain_id,
+            legacy_domain_id=self._legacy_domain_id,
         )
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(
@@ -313,6 +321,16 @@ class AgentService:
             )
         if run_id is not None and not _force_run_id:
             domain_id = self._domain_id(planner, backend)
+            if self._state.persistent:
+                existing_any = self._state.get_run(run_id)
+                if (
+                    existing_any is not None
+                    and str(getattr(existing_any, "domain_id", "")) != domain_id
+                ):
+                    raise DomainSelectionError(
+                        "run_id belongs to another domain: " + run_id,
+                        code="run_domain_mismatch",
+                    )
             existing = (
                 self._state.get_run(run_id, domain_id=domain_id)
                 if self._state.persistent
@@ -563,7 +581,7 @@ class AgentService:
 
                 restored = _result_from_dict(
                     artifact,
-                    legacy_domain_id=self._resolved_domain_id or "gis",
+                    legacy_domain_id=self._legacy_domain_id,
                 )
                 context = restored.runtime_context if isinstance(restored.runtime_context, dict) else {}
                 runtime = self._runtime(

@@ -48,7 +48,7 @@ $arguments = @(
 if ($Headless) {
   $arguments = @("--headless=new", "--disable-gpu", "--no-sandbox") + $arguments
 }
-$process = Start-Process -FilePath $chromePath -ArgumentList $arguments -PassThru
+$process = Start-Process -FilePath $chromePath -ArgumentList $arguments -WindowStyle Hidden -PassThru
 
 $deadline = (Get-Date).AddSeconds($WaitSeconds)
 $version = $null

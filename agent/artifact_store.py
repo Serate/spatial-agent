@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.conversation_turn import normalize_conversation_turn
 from agent.artifact_manifest import build_artifact_manifest
+from agent.domain_registry import DomainSelectionError
 from agent.action_lifecycle import project_action_lifecycle
 from agent.runtime_context import normalize_runtime_context
 from agent.contract_versions import (
@@ -66,6 +67,19 @@ class ArtifactStore:
         normalized = str(value or "").strip()
         return normalized[:80] if normalized else self._legacy_domain_id
 
+    def _assert_domain_compatible(self, path: Path, domain_id: str) -> None:
+        if not path.exists():
+            return
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError("existing artifact is unreadable: " + path.name) from exc
+        if not isinstance(existing, dict) or self._payload_domain(existing) != domain_id:
+            raise DomainSelectionError(
+                "artifact identity belongs to another domain: " + path.name,
+                code="artifact_domain_mismatch",
+            )
+
     def write_run(self, payload: Dict) -> str:
         run_id = payload.get("run_id")
         run_id = _safe_run_id(run_id)
@@ -73,6 +87,7 @@ class ArtifactStore:
             raise ValueError("payload must include a safe run_id")
         self._root.mkdir(parents=True, exist_ok=True)
         path = self._root / (run_id + ".json")
+        self._assert_domain_compatible(path, self._payload_domain(payload))
         execution_record = build_execution_record(
             {**payload, "artifact_ref": path.as_posix()}, kind="run"
         )
@@ -181,6 +196,7 @@ class ArtifactStore:
             raise ValueError("action_execution_id must be a safe file name")
         self._root.mkdir(parents=True, exist_ok=True)
         path = self._root / ("action-" + execution_id + ".json")
+        self._assert_domain_compatible(path, self._payload_domain(payload))
         execution_record = build_execution_record(
             {**payload, "artifact_ref": path.as_posix()}, kind="action"
         )

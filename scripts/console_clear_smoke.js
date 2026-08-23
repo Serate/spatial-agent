@@ -30,7 +30,7 @@ await command("Runtime.enable");
 await command("Page.navigate", {url: consoleUrl});
 for (let attempt = 0; attempt < 60; attempt++) {
   const ready = await command("Runtime.evaluate", {
-    expression: "typeof $ === 'function' && typeof sendChat === 'function'",
+    expression: "typeof $ === 'function' && typeof sendChat === 'function' && Boolean(window.__consoleBootstrapReady && window.__consoleDomainReady)",
     returnByValue: true,
   });
   if (ready.result?.result?.value) break;
@@ -38,7 +38,7 @@ for (let attempt = 0; attempt < 60; attempt++) {
   if (attempt === 59) throw new Error("Console 页面脚本未就绪");
 }
 const result = await command("Runtime.evaluate", {
-  expression: "(async()=>{ $('answer').textContent='旧分析结论'; $('steps').textContent='旧执行步骤'; const feature={type:'Feature',properties:{name:'洪山区',geometry_source:'fixture'},geometry:{type:'Polygon',coordinates:[[[114.30,30.48],[114.32,30.48],[114.32,30.50],[114.30,30.50],[114.30,30.48]]]}}; await rendererRegistry.renderWorkspace({panels:{map:{kind:'map',mode:'geojson',geojson:{type:'FeatureCollection',features:[feature]}}},specs:[{id:'map',renderer:'map'}],surfaces:{generic:$('genericResult'),visual:$('map')}}); const path=document.querySelector('#leafletMap .leaflet-overlay-pane path'); if(!path) throw new Error('地图 fixture 未渲染'); path.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(resolve=>setTimeout(resolve,50)); const before=rendererRegistry.context(); await clearChat(); return JSON.stringify({before,after:rendererRegistry.context(),answer:$('answer').textContent,steps:$('steps').textContent,selection:$('mapSelection').textContent,selectionEnabled:!$('useMapSelection').disabled})})()",
+  expression: "(async()=>{ $('answer').textContent='旧分析结论'; $('steps').textContent='旧执行步骤'; const feature={type:'Feature',properties:{name:'洪山区',geometry_source:'fixture'},geometry:{type:'Polygon',coordinates:[[[114.30,30.48],[114.32,30.48],[114.32,30.50],[114.30,30.50],[114.30,30.48]]]}}; const report=await rendererRegistry.renderWorkspace({panels:{map:{kind:'map',mode:'geojson',geojson:{type:'FeatureCollection',features:[feature]}}},specs:[{id:'map',renderer:'map'}],surfaces:{generic:$('genericResult'),visual:$('map')}}); const path=document.querySelector('#leafletMap .leaflet-overlay-pane path')||document.querySelector('#map svg path'); if(!path) throw new Error('地图 fixture 未渲染：'+JSON.stringify(report)+' · '+$('map').textContent); path.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(resolve=>setTimeout(resolve,50)); const before=rendererRegistry.context(),selectionBefore=$('mapSelection').textContent,pathIndex=path.dataset.featureIndex; await clearChat(); return JSON.stringify({before,after:rendererRegistry.context(),answer:$('answer').textContent,steps:$('steps').textContent,selectionBefore,pathIndex,selection:$('mapSelection').textContent,selectionEnabled:!$('useMapSelection').disabled})})()",
   awaitPromise: true,
   returnByValue: true,
 });

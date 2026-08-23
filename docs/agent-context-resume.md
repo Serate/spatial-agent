@@ -14,13 +14,14 @@ pwsh -NoProfile -File scripts/resume_context.ps1
 
 ## 当前状态
 
-- M223 已完成：Console Shell 只通过 Renderer Registry 与 Action Host 消费 `view_specs`/Action schema，GIS 地图、样式、选择上下文和 reset 均位于 GIS plugin。
-- 固定 GIS 对比 DOM/Action ID、领域控件 gate 和专用步骤摘要已删除；Text/GIS 动态表单、unknown/failure fallback、请求代次保护和清空选择均已验证。
-- Docker 精简契约、quick、compileall、Node plugin smoke 与六条串行浏览器验收通过；真实 GIS/live 仍保持独立显式路径。
+- M224 已完成：版本化 `DomainSelection`、按 Domain 隔离/缓存/恢复的 `DomainRuntimeHost`，以及 `/domains/{domain_id}/...` HTTP 边界已落地。
+- SQLite 会话绑定、幂等键、run/job 清理和 artifact 均按 Domain 隔离；旧无领域路由保留为固定部署级兼容边界。
+- Console 从 `/domains` 动态发现领域；运行、轮询、Action、历史和 artifact 使用领域路径，切换领域与清空对话会重置工作区。
+- Docker 核心/兼容测试、quick、smoke、compileall、Node plugin smoke 和两条浏览器领域验收全部通过。
 
 ## 下一步
 
-提交并推送 M223；随后进入 M224，建立多 Domain Runtime Host 和版本化 DomainSelection，让同一 HTTP/Console 部署可选择、执行并恢复 GIS/Text 运行，而不是每个服务实例固定一个 Domain。
+提交并推送 M224；随后进入 M225，新增独立、可替换的 `DomainSelector`，统一处理自然语言请求的唯一匹配、歧义澄清、无匹配和用户改选，不把选择策略塞入 Host 或前端。
 
 ## 不变量
 

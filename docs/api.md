@@ -22,7 +22,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up --build 
 
 The container uses a domestic Docker proxy for the base image and Tsinghua University's Conda mirror for GIS packages. It sets `GDAL_DATA`, `PROJ_LIB`, `SPATIAL_AGENT_DATASET_CONFIG`, and `SPATIAL_AGENT_REQUIRE_GIS` itself. It does not depend on `conda activate` or the operator's shell. Conversation state and run snapshots are persisted in `outputs/spatial-agent.db` through `SPATIAL_AGENT_STATE_DB`, so the production container can use multiple Uvicorn workers. Use `/health/live` for process liveness and `/health/ready` for GIS readiness; a missing required GIS dependency, GDAL/PROJ data directory, or data mount returns HTTP 503 from readiness.
 
-The deployment Domain is selected once at the service boundary with `SPATIAL_AGENT_DOMAIN` (`gis` or `text`). The value is checked against the static Domain Registry; it is never treated as a Python import path. `GET /domains` returns the bounded catalog, and every run/preview/artifact includes the selected `domain_id`. Keep separate state/artifact roots when different deployments need independent retention; shared roots are safe because reads and recovery are Domain-filtered.
+One deployment hosts every enabled Domain behind `DomainRuntimeHost`. `SPATIAL_AGENT_DOMAIN` now selects only the legacy unprefixed-route default; new clients select an allowlisted Domain with `/domains/{domain_id}/...`. A path value is never treated as a Python import path. The Host eagerly starts every enabled Domain so queued work can be recovered after restart. Shared SQLite/artifact roots remain safe because sessions, idempotency, reads, recovery, and artifact writes enforce Domain identity.
 
 For local GIS backend demos, start the server from the GIS conda environment so GeoPandas and Rasterio are available:
 
@@ -42,11 +42,13 @@ Returns a basic process health response.
 
 ## GET /domains
 
-Returns the bounded Domain Registry used by the deployment and CLI. This endpoint is informational; Domain selection is configured with `SPATIAL_AGENT_DOMAIN` rather than supplied as an arbitrary request import path.
+Returns the bounded, enabled Domain catalog and the version of the transport-neutral selection contract.
 
 ~~~json
 {
-  "schema_version": "spatial-agent.domain-registry.v1",
+  "schema_version": "spatial-agent.domain-runtime-host.v1",
+  "selection_schema_version": "spatial-agent.domain-selection.v1",
+  "legacy_domain_id": "gis",
   "domain_ids": ["gis", "text"],
   "domains": [
     {"id": "gis", "label": "空间 GIS"},
@@ -54,6 +56,28 @@ Returns the bounded Domain Registry used by the deployment and CLI. This endpoin
   ]
 }
 ~~~
+
+## Explicit Domain routes
+
+Console and new clients use the following route family:
+
+```text
+GET  /domains/{domain_id}/capabilities
+GET  /domains/{domain_id}/workflows
+GET  /domains/{domain_id}/actions
+POST /domains/{domain_id}/runs
+POST /domains/{domain_id}/runs/preview
+POST /domains/{domain_id}/runs/async
+GET  /domains/{domain_id}/runs/{run_id}
+POST /domains/{domain_id}/runs/{run_id}/retry
+POST /domains/{domain_id}/runs/{run_id}/cancel
+GET  /domains/{domain_id}/sessions
+GET  /domains/{domain_id}/artifacts/runs/{name}
+```
+
+The URL `domain_id` is authoritative. A redundant `domain_id` or versioned `domain_selection` in the JSON body must match it; otherwise the response is HTTP 400 with `error_code: domain_mismatch`. Unknown or disabled IDs are rejected. A session is persistently bound to one Domain, and every poll/retry/cancel/artifact request must use the Domain returned by the originating record rather than a UI's current selection.
+
+The unprefixed routes below remain as a compatibility layer and use the deployment's legacy default Domain.
 
 ## POST /runs
 

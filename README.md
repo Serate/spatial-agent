@@ -7,7 +7,7 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 - 对话式空间分析：支持行政区边界、DEM 高程、坡度、土地利用、道路/水体和建设候选演示筛选。
 - Agent Runtime：Planner、TaskPlan、依赖执行、重试、超时、取消和失败恢复相互分离。
 - 双 Planner：默认规则规划器保证确定性；可选 OpenAI 兼容大模型规划器处理更开放的表达。
-- 受控多领域：GIS/Text 通过静态 Domain Registry 选择，HTTP/生产 API 可查询 `/domains`，不允许请求参数反射导入任意模块。
+- 受控多领域：同一 HTTP/Console 部署通过 `DomainRuntimeHost` 隔离运行 GIS/Text；`/domains` 动态发布允许目录，`/domains/{domain_id}/...` 显式选择、执行和恢复，不允许请求参数反射导入任意模块。
 - 工具安全边界：所有工具经过 schema 校验和 Registry 分发，不让模型直接调用后端。
 - 真实数据接入：支持行政区 GeoJSON、DEM/土地利用栅格，以及武汉 OSM 道路和水体 GeoPackage。
 - 数据质量预检：检查可读性、CRS、覆盖关系和几何质量，并在分析结果中保留证据。
@@ -25,6 +25,7 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 
 ```text
 用户请求
+  -> DomainSelection / DomainRuntimeHost / Domain Pack
   -> RuleBasedPlanner / LLMPlanner
   -> TaskPlan 与 schema 校验
   -> AgentRuntime
@@ -115,6 +116,11 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 - `GET /health`
 - `GET /domains`
+- `GET /domains/{domain_id}/capabilities`
+- `POST /domains/{domain_id}/runs`
+- `POST /domains/{domain_id}/runs/async`
+- `GET /domains/{domain_id}/runs/{run_id}`
+- `GET /domains/{domain_id}/artifacts/runs/{name}`
 - `POST /runs`
 - `POST /runs/async`
 - `GET /runs/{run_id}`
@@ -129,6 +135,8 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 - `POST /runs/{run_id}/retry`
 - `GET /sessions`
 - `POST /sessions/{session_id}/clear`
+
+Console 和新客户端使用显式领域路径；旧无领域路径暂时保留兼容。URL 中的 `domain_id` 是权威来源，body 中重复声明且不一致时返回 `domain_mismatch`。会话固定归属一个领域，轮询、取消、重试和 artifact 链接始终沿用记录自身的 `domain_id`。
 
 ## 测试与验证
 
