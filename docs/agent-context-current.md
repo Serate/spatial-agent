@@ -13,7 +13,7 @@
 - 公共 `component_evidence` 已接入 workflow selection，用于组件状态、覆盖、时效、来源、冲突和重验投影。
 - `RequestFacts.entities` 已成为通用实体事实袋；能力发现、澄清和计划证据可消费任意 Domain 实体，`admin_name` 只保留为兼容别名。
 - ContextBuilder 在预算不足时优先保留 workflow catalog/selection，先裁剪大型 advisory catalog，避免计划契约因上下文扩展而退化。
-- M220-B3 已提交为 `2811446`；M220-B4 当前实现待提交，具体版本号以 `git log -1 --oneline --decorate` 为准。
+- M220-B3 已提交为 `2811446`；M220-B4 已提交为 `1d2904a`，具体版本号以 `git log -1 --oneline --decorate` 为准。
 - Docker 容器 `ai-agent-spatial-agent-1` healthy；Python、compileall、阶段测试默认在 Docker 中执行。
 
 ## 阶段证据与下一步
