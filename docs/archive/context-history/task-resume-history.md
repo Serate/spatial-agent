@@ -1,0 +1,2589 @@
+# Spatial Agent Task Resume
+
+## 启动协议
+
+本文件不是启动清单。恢复上下文时只读取 `docs/agent-context-current.md`；需要追溯某个阶段时，
+先用 `rg` 定位，再读取命中附近的有限行。不要全文读取本文件，也不要自动连读问题日志和里程碑。
+
+> 快速恢复入口：新对话或上下文压缩后先阅读 [agent-context-current.md](agent-context-current.md)，再按需读取本文件的相关阶段。不要默认全文扫描本历史任务档案。
+
+This document is a historical handoff note for continuing development of the Spatial Agent project in a fresh conversation or work session. The compact current snapshot is authoritative for the active stage.
+
+## 当前全局执行规则
+
+当前总体目标已重组为建设通用、可组合、可解释的空间智能体：请求理解、空间实体、任务意图、数据需求、约束条件和输出证据必须形成独立中间表示，再由能力目录和 Tool Registry 动态组合多工具 DAG。具体行政区或单个分析问句只能作为回归样例，不能成为架构中心。
+
+后续实现优先解决通用请求建模、能力发现、组合编排和统一结果契约。RuleBasedPlanner、LLMPlanner 与澄清流程共享 `TaskPlan`、工作流校验、执行门控、result envelope 和恢复协议。任何局部工具、数据或前端修复都必须说明其服务的系统级目标。
+
+### 当前测试环境规则
+
+项目测试统一使用当前 Docker 镜像。Python 单元测试、`test_profile.py`、`compileall`、GIS 回归和阶段验收都通过 `docker exec ai-agent-spatial-agent-1 ...` 在容器内执行；宿主 Python 仅用于诊断 Windows alias、依赖缺失或 Docker 环境问题，不能作为阶段完成证据。
+
+执行 Docker 测试前，先按当前工作树重建服务并确认健康状态：
+
+~~~powershell
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate
+docker ps --format "{{.Names}} {{.Status}}"
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick
+~~~
+
+宿主侧 `scripts/production_acceptance.ps1` 只作为 HTTP 编排器，验收目标仍是当前 Docker 服务，不能把它放进 Linux 容器执行。阶段记录必须明确区分 Docker 容器通过、宿主环境诊断以及真实模型/GIS/浏览器等显式验收未执行。Docker 化只改变执行环境，不扩大默认测试矩阵；测试仍按 `quick`、`stage`、专项、`docker` 和 `live-short` 分层运行。
+
+- 当前 goal 的最大并发度为 5。
+- 该规则优先于历史阶段记录中的并行度；后文旧阶段数字仅用于记录当时的执行事实。
+- 阶段规划的总体参考见 `docs/agent-project-direction.md`，必须先确认完整 Agent 闭环和面试展示能力。
+- 边界清晰的子任务可以并行，最多 5 路；共享公共契约仍按依赖顺序由主线统一集成。
+- 阶段规划不得从最近一次数据报错或局部页面现象直接开始；必须先复盘产品能力、架构边界、数据质量、真实模型、部署可靠性、前端体验和测试证据，并把局部任务挂到明确的系统级目标下。
+- 每次重规划记录全局缺口、阶段排序依据、跨模块依赖和验收证据；如果某项数据修复只是支撑条件，应明确标注为支撑任务，不能把它写成阶段唯一目标。
+
+## Project
+
+- Local path: D:\Project\job\ai-agent
+- GitHub: https://github.com/Serate/spatial-agent
+- Branch: main
+- Git safe-directory form: git -c safe.directory=D:/Project/job/ai-agent ...
+
+## Positioning
+
+Spatial Agent is a job-search portfolio project focused on AI Agent engineering with geospatial data as the domain carrier.
+
+The project should demonstrate:
+
+- Agent Runtime orchestration
+- Planner and LLM Planner separation
+- Tool schema validation
+- Tool Registry dispatch
+- SpatialBackend adapter design
+- Real local geospatial data integration
+- Multi-turn clarification
+- User-facing answer composition
+- HTTP API boundary
+- Readable execution trace
+- Artifact export
+- Smoke checks and CI
+
+The project should not be framed as a simple GIS script. The core point is a testable, observable, replaceable Agent Runtime.
+
+## Current Status
+
+- Latest completed milestone: M131 Domain-owned Rule Planner seam 与重复测试门禁收敛；当前进行 M132 GIS Planner 物理归属收口。
+- Last pushed commit: 以 `git log -1 --oneline` 为准；不要在同一提交中硬编码自身 hash。
+- Current work: M132 已完成 GIS Planner 物理归属收口和代码/测试清理；下一阶段继续做无直接 import 模块、动态入口和真正重复测试 profile 的全局审计。
+- Production container has passed GIS readiness and real DeepSeek zonal smoke tests; local provider files remain ignored.
+- M79.1 验收：离线全量 441 项（42 跳过，+9）、Smoke、严格全局评测 8/8、console 浏览器 smoke 5/5（health/clear/session/overview/lineage）通过；map smoke 仍为 GIS 环境门控。
+- M79.1.5 部署实测：Docker Linux engine 恢复后重建镜像并实测生产链路，发现并修复两个真实缺陷（内存模式重复异步提交死锁、生产容器 SPATIAL_AGENT_STATE_DB 配置回归导致内存模式）；离线全量 446 项、Smoke、严格评测 8/8、production acceptance（幂等 true）、真实 GIS 洪山区 DEM 分析、容器重启恢复、真实模型 live（deepseek-v4-flash 1662 tokens）全部通过。
+- M79.2 收敛：error_category 徽标 + 面板空态收敛 + 比较子运行 artifact 持久化；相关测试 26 项、浏览器 smoke（error badge/session/health/overview）通过；生产容器重建后比较子运行落盘实测通过。
+- M79.3 基线扩展：live baseline 扩至 5 case（澄清 + 总览 + 建设筛选 + 道路/水体约束 + 跨区域比较）5/5 通过（deepseek-v4-flash，19,375 tokens）；实测发现并修复 3 个真实模型问题（admin 前缀贪婪匹配、buildability result_type prompt 契约、vector_summary max_files 参数名）；相关测试 51 项 + 浏览器 smoke 4 类通过；容器内 live 复验（建设筛选 COMPLETED + 区域比较洪山 22,800/江夏 58,419 与宿主机一致）。
+
+## Development Loop
+
+- Overall loop: global planning -> sequential implementation -> integrated testing -> global replanning.
+- A large milestone may use up to five dependency-safe parallel task streams; shared contracts remain integrated by the mainline.
+- Each completed milestone must update `docs/milestones.md`, refresh this handoff document, and create one GitHub commit/version.
+- Shared tool schema, runtime contract, focused tests, full regression, and GIS/browser verification are integrated by the single mainline.
+
+## Completed Milestones
+
+### M0: Design Baseline
+
+- Project design documents
+- Tool schema
+- Evaluation cases
+
+### M1: Minimal Agent Runtime
+
+- AgentRuntime
+- ToolRegistry
+- RuleBasedPlanner
+- In-memory spatial adapter
+- Basic runtime tests
+
+### M2: LLM Planner Seam
+
+- LLMPlanner
+- OpenAIPlannerClient
+- TaskPlan JSON schema
+- Fake LLM client tests
+
+The fake LLM client is used only for deterministic tests. It returns fixed structured JSON so parser behavior, schema validation, tool-name validation, clarification flow, and rejection flow can be tested without network access, API keys, or token cost.
+
+### M3: Spatial Backend Interface
+
+- SpatialBackend protocol
+- InMemorySpatialBackend
+- SpatialToolAdapter
+
+### M4: Evaluation And Trace Metrics
+
+- Evaluation runner
+- StepRun timing fields
+- JSON evaluation reports
+
+### M5: Dataset Probe
+
+- GeoPandas/Rasterio metadata probe
+- environment.yml
+- Local dataset inspection scripts
+
+### M6: Real Admin GeoJSON Backend
+
+- GeoJSONAdminBackend
+- HybridSpatialBackend
+- run_demo.py --backend local
+
+### M7: Natural-Language Admin Queries
+
+- RuleBasedPlanner supports requests such as: 查询洪山区行政区边界
+- Planner generates admin_areas schema and range query steps.
+
+### M8: Answer Composition
+
+- AnswerComposer converts tool traces into user-facing natural-language answers.
+
+### M9: Multi-Turn Clarification
+
+- Runtime stores pending clarification by session_id.
+- Example flow: 查询行政区边界 -> missing admin area name -> 洪山区 -> completed query.
+
+### M10: HTTP API
+
+- AgentService
+- serve_api.py
+- GET /health
+- POST /runs
+
+### M11: Smoke Check And CI
+
+- scripts/smoke_check.py
+- GitHub Actions workflow
+- Smoke check runs unit tests and service-level checks
+
+### M12: API Contract
+
+- docs/api.md
+- API request/response examples
+- Error response examples
+- HTTP boundary tests
+
+### M13: Trace Formatter
+
+- agent/trace_formatter.py
+- trace_summary added to AgentService responses
+- Trace covers completed, clarification, rejected, and failed states
+
+### M14: Artifact Export
+
+- agent/artifact_store.py
+- export_artifact=true
+- artifact_ref returned from AgentService and HTTP API
+- outputs/ ignored by Git
+
+### M15: Real Raster / Land-Use Metadata Query
+
+- agent/raster_backend.py
+- get_raster_metadata tool
+- DEM and land-use raster metadata inspection
+- RuleBasedPlanner handles DEM and land-use metadata requests
+- local backend reads real Rasterio metadata; memory backend returns deterministic placeholders
+- README and docs/data-adapter-plan.md updated
+- Pushed commit: 0ae304a feat: add raster metadata backend
+
+### M16: Real LLM API Demo Path In Progress
+
+Implemented locally but not yet committed at the time of this handoff:
+
+- agent/openai_config.py loads OpenAI planner settings from config/openai.local.json or environment variables.
+- config/openai.example.json provides a safe committed template.
+- .gitignore ignores .env and config/*.local.json.
+- OpenAIPlannerClient supports OPENAI_BASE_URL, OPENAI_MODEL, and OPENAI_REASONING_EFFORT.
+- OpenAIPlannerClient supports Responses and Chat Completions wire APIs through wire_api/OPENAI_WIRE_API.
+- DeepSeek Chat Completions has been validated with deepseek-v4-flash and https://api.deepseek.com.
+- OpenAIPlannerClient now also supports exact OPENAI_API_URL plus query-string auth via OPENAI_AUTH_LOCATION=query and OPENAI_API_KEY_QUERY_PARAM.
+- Default model is gpt-5.6-luna and default reasoning effort is medium.
+- tests/test_m16_openai_config.py covers local config loading, env overrides, URL normalization, and skipped live smoke behavior.
+- README.md and docs/api.md document the OpenAI planner setup.
+
+Local private config:
+
+- config/openai.local.json was written with the provided provider URL, key, model, and reasoning effort.
+- The file is ignored by Git and must not be committed.
+
+Validation so far:
+
+- Target offline tests passed:
+  - python -m unittest tests.test_m16_openai_config tests.test_m2_llm_planner -v
+- git diff --check passed, with only Windows LF/CRLF warnings.
+- Live OpenAI planner smoke reached the provider only after running with escalated network permission.
+
+Known M16 issues observed:
+
+- Without network permission, live OpenAI calls fail with WinError 10013 socket access denied.
+- With network permission, the configured provider returned HTTP 403 Forbidden for the live Responses API smoke.
+- HTTP 403 means the network path and code path reached the provider; next checks are provider authorization, API key validity, model access, account balance, or whether the provider supports /v1/responses for this model.
+- Do not run live API tests in CI. Keep SPATIAL_AGENT_LIVE_OPENAI unset unless doing manual provider validation.
+- Codex config was inspected and shows model_provider custom, wire_api responses, requires_openai_auth true, base_url https://crs.ruinique.com. This implies header auth and Responses protocol, not key-in-query auth.
+- config/openai.local.json was changed back to base_url https://crs.ruinique.com and auth_location header. Query auth remains available in code only as an optional provider compatibility mode.
+- Root cause found for provider HTTP 403 / error code 1010: crs.ruinique.com rejects Python urllib's default User-Agent. Adding a normal User-Agent plus Accept: application/json returns HTTP 200 for both /responses and /v1/responses probes.
+- The configured crs.ruinique.com provider still times out on model POST requests from this client, while DeepSeek Chat Completions succeeds.
+
+## Model API Position
+
+The project may connect to a real LLM API.
+
+Current design:
+
+- Default path uses RuleBasedPlanner for deterministic tests, CI, and reliable local demos.
+- Optional path uses LLMPlanner with OpenAIPlannerClient.
+- Tests use a fake LLM client to avoid network dependency and token usage.
+
+Recommended position:
+
+- Do not make CI depend on a real model API.
+- Keep RuleBasedPlanner as the default for deterministic behavior.
+- Keep real LLM API integration available through --planner openai or API payload field planner=openai.
+- Add documentation and smoke demos for real model integration when an API key is available.
+
+This is not avoiding real model integration. It is separating deterministic engineering tests from live model behavior.
+
+## Local Data
+
+- Dataset root: D:\dataset\agent
+- Admin GeoJSON: D:\dataset\agent\湖北省_县.geojson
+- Admin GeoJSON details: 103 county-level features, EPSG:4490, fields name and gb, MultiPolygon geometry
+- DEM: 9 ASTER .img tiles, EPSG:32649, 30m
+- Land use: 4 .tif files, EPSG:32649, 30m
+- Land-use sidecar SHP: 4 .shp files, EPSG:4326
+
+Do not commit raw datasets from D:\dataset\agent.
+
+## Python Environments
+
+- Default Python: C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe
+- Conda executable: D:\code\conda\Scripts\conda.exe
+- GIS conda env: spatial-agent-gis
+- GIS Python: C:\Users\torch\.conda\envs\spatial-agent-gis\python.exe
+
+## Standard Validation
+
+Run quick profile:
+
+~~~powershell
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\test_profile.py --profile quick
+~~~
+
+Run service smoke:
+
+~~~powershell
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' scripts\test_profile.py --profile smoke
+~~~
+
+Run all non-GIS tests:
+
+~~~powershell
+& 'C:\Users\torch\AppData\Local\Programs\Python\Python314\python.exe' -m unittest discover -s tests -t . -v
+~~~
+
+Run GIS-focused tests:
+
+~~~powershell
+& 'D:\code\conda\Scripts\conda.exe' run -n spatial-agent-gis python -m unittest tests.test_m6_geojson_admin_backend tests.test_m7_admin_planner tests.test_m8_answer_composer tests.test_m9_clarification_loop -v
+~~~
+
+Check Git state:
+
+~~~powershell
+git -c safe.directory=D:/Project/job/ai-agent status --short --branch
+git -c safe.directory=D:/Project/job/ai-agent diff --check
+~~~
+
+## Next Recommended Milestone
+
+### Finish M16: Commit And Hand Off Real LLM API Demo Path
+
+Goal: finish and commit the optional real-model demo path without making CI depend on a live model API.
+
+Suggested next steps:
+
+- Rotate any key exposed in chat and update only the ignored local config.
+- Keep config/openai.local.json untracked and verify it with git check-ignore.
+- Do not make CI depend on either live provider.
+- Run full offline tests and smoke check.
+- Commit with a clear message such as feat: document openai planner config.
+
+## Current Production Validation
+
+- Docker Desktop Linux engine runs through WSL2 with domestic image mirrors.
+- The production Dockerfile installs GIS dependencies in cacheable Conda layers and uses Tsinghua Conda/PyPI mirrors.
+- Production Compose requires `docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d` so the host data path participates in volume interpolation.
+- The production image uses Linux `share/gdal` and `share/proj` runtime data paths and readiness checks both marker files.
+- Real DeepSeek smoke tests for DEM metadata and 洪山区 zonal DEM analysis pass inside the container.
+- `.env.production`, `config/openai.local.json`, raw GIS data, and API keys remain local-only.
+
+## Later Milestones
+
+### M26: Console Raster Statistics Overview
+
+- 完成区域/栅格统计结果的中文可视化概览。
+- 前端展示最小值、最大值、均值、标准差、有效像元和 NoData 比例。
+- 使用原生 HTML/CSS/JavaScript，不增加构建依赖；保留无结果和业务错误空态。
+
+### M27: Raster Value Distribution Summary
+
+- 后端在分块统计过程中保留受限样本，生成 10 桶值分布摘要。
+- Console 用原生 CSS 条形图展示分布，并明确样本统计口径。
+
+### M28: Console Conversation Controls
+
+- 增加新建会话和清空对话操作。
+- 新会话使用新的 session_id，保持服务端澄清状态隔离。
+
+### M29: Live Zonal Analysis Smoke
+
+- 增加真实模型“分析洪山区 DEM 高程概况”的可选端到端测试。
+- 验证模型工具选择、GIS 后端执行、真实统计结果和中文答案。
+- 默认跳过，只有显式设置 `SPATIAL_AGENT_LIVE_OPENAI=1` 才访问 provider。
+
+### M30: Per-step Result Summary
+
+- 在 Console 任务步骤中展示每个工具的关键结构化结果。
+- 失败步骤显示业务错误，避免执行轨迹只有生命周期状态而缺少实际结果。
+
+### M31: Raster Footprint Preview
+
+- 栅格统计结果携带合并 bounds/CRS。
+- Console 在无矢量几何时显示栅格覆盖范围矩形。
+
+### M32: Multi-step Result References
+
+- 统一结果引用格式为 `{"$from":"步骤ID","path":"结果字段"}`。
+- 计划解析阶段校验引用来源、依赖声明和执行顺序。
+- 已有行政区 schema → 过滤 → 区域 DEM 统计的真实 GIS 示例链路。
+- Console 展示步骤依赖、执行状态和解析后的结果摘要。
+
+### M33: Failure-aware Multi-step Execution
+
+- 多步骤工具失败后 fail-fast。
+- 保留已完成结果，并将未执行步骤标记为 BLOCKED。
+
+### M34: Retry Failed Run
+
+- Runtime 支持从第一个失败步骤恢复。
+- API 和 Console 提供失败运行重试入口。
+
+### M35: Run Provenance
+
+- API/artifact 记录安全的步骤血缘摘要。
+- Console 展示依赖、输入绑定、执行策略和结果引用。
+
+### M36: Planner Evaluation Metrics
+
+- 评测报告统计状态/工具匹配、步骤耗时、Planner 延迟、Token 总量和依赖链有效率。
+
+### M38: Real Land-use Zonal Analysis
+
+- 增加真实土地利用栅格行政区分析示例。
+- 不伪造当前尚未接入的真实坡度栅格能力。
+
+### M37: Cooperative Runtime Control
+
+- Runtime 支持线程安全的协作式取消和步骤边界超时。
+- API 提供 cancel 入口；状态包括 `CANCELLED` 和 `TIMED_OUT`。
+
+### M39: Showcase Convergence
+
+- 新增中文演示验收清单，覆盖离线、GIS、真实模型、失败恢复和回归命令。
+
+### M40.1: Real Terrain And Land-use Analysis
+
+- `get_zonal_slope_statistics` 从真实 DEM 像元动态计算坡度统计，不伪造坡度数据。
+- `get_zonal_land_use_distribution` 返回行政区内土地利用栅格类别编码、像元数和占比。
+- 规则规划器支持高程、坡度和土地利用联合请求，生成多工具、有依赖的执行计划。
+- Console 增加综合分析卡片和土地利用类别占比图，并明确类别编码未做语义映射。
+- GIS 验收：洪山区真实 DEM 坡度和土地利用类别统计通过。
+
+### M16: Real LLM API Demo Path
+
+- Add .env.example
+- Document OPENAI_API_KEY
+- Add --planner openai demo instructions
+- Add tests that skip when no API key is available
+- Keep CI deterministic and offline
+
+### M17: Trace Or Artifact Viewer
+
+- Add a simple CLI or static HTML viewer for run artifacts
+- Focus on interview demo readability
+
+### M18: Lightweight Map Or Export Enhancement
+
+- Export small GeoJSON summaries or map-ready artifacts
+- Keep raw datasets out of Git
+
+## Development Rule Of Thumb
+
+For each milestone:
+
+1. Implement the smallest useful slice.
+2. Add tests.
+3. Run targeted tests.
+4. Run smoke check.
+5. Run git diff --check.
+6. Commit with a clear message.
+7. Push to origin/main.
+
+Prefer small, explainable increments over large rewrites.
+
+## Current Extended Demo Capabilities
+
+- 同一 session_id 支持基于上一轮请求的受控追问，例如“继续分析这个结果”。
+- `POST /comparisons` 支持同一行政区的多个坡度阈值建设适宜性对比。
+- Console 支持阈值对比表、历史任务列表和运行指标摘要。
+- Leaflet 支持纯矢量模式与可选 OpenStreetMap 底图，外部网络不可用时不影响矢量结果。
+- `GET /runs` 和 `GET /metrics` 在生产 SQLite 模式下直接读取持久化运行快照，不要求每次运行导出 artifact；内存模式仍使用 artifact store。
+- 生产接口已验证洪山区三个坡度阈值均可完成真实 GIS 分析。
+- Planner 支持结构化 `direct_answer` 决策；通用问题不强行调用 GIS 工具，空间问题仍必须通过 TaskPlan 和 ToolRegistry。
+- Console 在运行结果顶部显示决策模式：通用回答不会调用空间工具，澄清/拒绝不会执行工具，空间计划显示实际工具步骤数量。
+- 未知或暂不支持的空间问题保持 `NEEDS_CLARIFICATION`，不能由通用回答替代空间结果，也不能绕过 ToolRegistry。
+- M42 新增 SQLite 状态存储，Service/Runtime 重建后仍可恢复澄清上下文和运行快照。
+- M43 将取消标记、运行索引和指标也持久化到 SQLite，支持跨 worker 的取消检查和失败运行查询。
+- M43 提供 `GET /runs/{run_id}`，支持服务重启后读取完整运行快照。
+- M44 建立整体产品验收基线，集中覆盖 DEM 元数据、行政区区域分析、建设适宜性、澄清追问和不支持空间领域。
+- M44 扩展自然语言变体识别，并统一真实模型对土地利用、坡度和建设候选结果的中文摘要。
+- M45 增加 Chrome CDP 浏览器烟测，覆盖会话恢复、结果隔离和真实 GIS 地图矢量渲染。
+- M46 建立统一 `result` envelope，包含结果类型、标题、摘要、证据步骤、引用和空间几何可用性；核心评测新增结果类型与协议完整性断言。
+- M47 增加受控 `spatial_context`，地图要素点击后可作为下一次 Planner 请求的结构化区域上下文；浏览器烟测验证洪山区选区和后续分析入口。
+- M48 明确会话生命周期：清空会话删除持久化运行快照但保留会话编号，删除会话移除会话及其历史；前端同步清理工作区，并通过浏览器烟测等待异步清空完成。
+- M49 增加异步运行入口：`POST /runs/async` 先返回 `run_id`，Console 轮询最终结果并支持真正的协作式取消；同步 `POST /runs` 保持兼容。
+- M50 接入武汉 OSM 道路/水体 GeoPackage，并完成真实 DEM、土地利用候选与道路/水体约束的联合演示筛选；修复 Rasterio window native 崩溃和全量矢量 union 内存暴涨。
+- M51 增加 `get_dataset_health_report`，对武汉行政区、DEM、土地利用、道路和水体执行有界的可读性、CRS、覆盖范围和基础几何质量检查，并接入规则 Planner、LLM guidance 与中文答案。
+- M52 健康报告增加 DEM 与土地利用的跨栅格覆盖关系，显示可重叠文件对数量和 CRS 组合；检查只读取元数据，不加载完整像元。
+- M53 为联合建设筛选增加显式数据健康 preflight，并在工具依赖和答案中保留预检证据。
+- M54 将健康 preflight 接入综合高程、坡度、土地利用和建设候选分析。
+- M55 将健康 preflight 扩展到单独区域栅格统计和复合行政区栅格流程；189 个离线测试、36 个 GIS 测试、smoke 与浏览器健康烟测通过。
+- M56 为健康报告增加 `usable_for`/`capabilities`，Runtime 在下游 dispatch 前阻止明确不可用的数据，并完成 README 与阶段记录分离；191 个离线测试、38 个 GIS 测试、smoke 与浏览器健康烟测通过。
+- M57.1 抽取 `BuildabilityComparisonScenario`，统一阈值对比和多区域对比的输入验证与 `scenario` 输出；194 个离线测试、19 个 GIS/真实数据重点测试通过。
+- M57.2 新增 `evaluation/cases/global-acceptance.json` 和矩阵契约测试，覆盖通用问答、单区域、多数据集、阈值对比、多区域、不可用数据、真实 GIS 和真实模型；197 个离线测试、36 个 GIS 测试、smoke 与浏览器健康烟测通过。
+- M58.1 将 environment、execution_mode、planner 写入评测报告，并新增 `scripts/evaluate_global.py`；全局矩阵离线执行 7/7 通过、3 个可选环境跳过。
+- M58.2 新增 `scripts/production_acceptance.ps1` 和 SQLite 异步快照重建测试。
+- M58.3 完成 Docker/Compose 配置、healthy/readiness、异步业务验收和容器重启后的 SQLite 快照验证；生产验收脚本修复了 session 隔离和 PowerShell UTF-8 编码问题。离线 200 个测试、GIS 190 个测试、smoke 和浏览器健康烟测通过。
+- M59.1 新增统一能力目录、跨入口 `/capabilities` 契约、能力驱动的全局评测字段和 Console 摘要；生产容器重建后返回 8 项能力。离线 206 个测试、GIS 196 个测试、production acceptance 和浏览器健康烟测通过。
+
+### M59.2：跨进程运行与结果证据验收
+
+- 将能力目录中的环境要求接入评测 optional gating，区分 planner/tool 成功和真实 GIS 能力完成。
+- 增加生产 SQLite 会话、运行、重试、取消和结果引用的跨进程契约矩阵。
+- 细化真实 artifact 几何、边界几何、无几何演示和截断不可绘制等证据状态，并接入 Console 与全局报告。
+- 大阶段按依赖拆分后最多并行 3 路，集成后运行全量、GIS、浏览器和部署验收，再基于全局结果规划下一阶段。
+
+- M59.2 验证：内存导出为 `no_geometry`，真实 GIS 建设筛选为 `real_geometry`、101 个要素；离线 207 个测试、GIS 197 个测试、smoke、全局评测、生产 acceptance 和浏览器烟测通过。
+
+### M60：真实数据能力与异步可靠性深化（已完成）
+
+- 将能力目录扩展为带数据覆盖、CRS、质量等级和更新时间的运行时能力快照。
+- 完成生产 SQLite 的重试、取消、会话清空和结果引用跨进程矩阵，覆盖异常重启和重复请求。
+- 将真实几何证据状态接入评测报告、答案组合和地图渲染，明确截断与不可绘制原因。
+- 按依赖最多拆分 3 路并行任务，集成后重新验收真实模型、GIS 数据和部署链路。
+
+### M60 当前进展与验证边界
+
+- 已新增运行时能力快照模块，包含数据质量、覆盖范围、CRS、文件数、检查文件数和更新时间。
+- 已接入 `runtime_capability_catalog()`、数据健康报告 `updated_at`、`GET /capabilities/runtime` 和生产验收脚本的 `runtime_health` 输出。
+- 运行时能力和入口契约测试通过；默认环境缺少 FastAPI 的测试按环境条件跳过。
+- 生产容器已重建并通过快照、健康和异步业务验收；容器完整健康状态为 `unavailable`，仅因示例数据卷未提供道路/水体，核心栅格与行政区逐项证据为 `ready`。
+- SQLite 跨进程结果引用、会话清空、取消和失败重试测试 4/4 通过；离线 208 项、GIS 205 项、smoke、全局评测和浏览器烟测通过。
+
+### M60 并行执行规则（历史）
+
+- M60 当时最大并行度为 5；当前全局规则已调整为最大并发度 3。只有依赖独立、修改边界清晰且可单独验收的子任务才并行。
+- 推荐五路：运行时能力快照、SQLite 异步可靠性、几何证据、评测/答案契约、部署与 Console 验收。
+- 所有并行任务必须遵守统一工具 schema、runtime 状态、result envelope、能力目录和测试夹具；公共契约变更由集成阶段统一合并。
+- 每路先做聚焦测试，集成后统一执行离线、GIS、HTTP/浏览器、Docker 和可选真实模型验证；阶段版本只在联合验收通过后创建。
+
+### M61 后续全局规划
+
+1. 从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度整体推进 M61。
+2. 将武汉道路/水体数据卷和可选数据健康分层纳入生产部署，避免缺失可选数据掩盖核心能力。
+3. 深化异步幂等、重启恢复、真实模型超时重试和 Console 动态结果展示。
+
+### M61 当前实现
+
+- 数据健康分为核心层与可选层，能力目录新增 `data_layer`、`capability_status`、`available`，逐能力门控道路/水体约束分析。
+- SQLite 异步入口支持默认请求指纹和显式 `idempotency_key`，并发重复提交、显式运行 ID 重放、清空去重键和重启接管均有契约测试。
+- 真实模型客户端支持超时、暂态重试、指数退避和安全请求指标；默认 CI 仍不访问网络。
+- M61 专项测试已通过 20 项；全量回归与生产验收待集成后执行。
+
+### M62 当前实现
+
+- 新增轻量空间意图分类器，识别空间请求和候选能力，但不把意图识别当作工具成功或真实几何证据。
+- 未命中固定规则的空间问题现在返回可操作澄清；已支持的道路/坡度、多轮澄清和 ToolRegistry 契约保持不变。
+- 下一步扩展能力目录与澄清动作的结构化 API/Console 展示，并补全 Docker 新镜像验收。
+
+M62.1 已完成结构化澄清第一阶段：`ClarificationNeeded`、运行快照、SQLite、结果 envelope 和 Console 均支持 `clarification`；下一步做 HTTP/评测契约和能力目录驱动的前端动作。阶段验收仍需全量离线、HTTP/浏览器、GIS 以及 Docker（环境恢复后）验证。
+
+M62.2 已完成能力目录和 HTTP 集成：澄清详情带能力中文标签，标准 HTTP 返回和全量离线测试已验证。下一步从全局推进多工具开放式编排、真实 GIS/模型证据矩阵和生产 Docker 复验。
+
+## M63 当前实现：受控空间总览编排
+
+- 新增 `spatial_overview` 能力；规则 Planner 支持“分析洪山区空间概况”等请求。
+- 计划固定为健康检查、行政区解析、高程、坡度、土地利用、道路和水体摘要 8 步，所有工具仍经过 Registry 和数据门控。
+- 专用结果类型和中文答案已接入；下一步补全局评测、HTTP/Console 结果类型验证，并在 GIS 数据环境执行真实证据验收。
+- M63 集成验收已完成：全局评测 8/8 离线场景通过，GIS 回归 41 项通过，Docker 生产验收和容器空间总览请求通过。同步生产路由的异步参数回归已修复并增加契约测试。
+
+下一阶段从全局推进：真实 GIS 空间总览的几何证据、真实模型对总览计划的结构化一致性、Console 按 `spatial_overview_result` 动态展示，以及生产数据卷/多进程观测矩阵。
+
+## M64 当前进展
+
+- 真实武汉配置下总览返回 `real_geometry`，GeoJSON 达到大小上限时返回 `truncated_geometry`，并包含最终 feature_count 与来源。
+- 道路/水体导出 feature 保留 dataset 标签；Console 已增加 `spatial_overview_result` 结果注册和总览地图渲染入口。
+- 下一步执行浏览器烟测、真实模型结构化总览测试、Docker 多进程矩阵，并完成阶段联合验收。
+- DeepSeek live 总览规划已通过，返回完整 8 步注册工具计划；浏览器和重建后容器验收仍待完成。
+
+## Development Issues Log
+
+- 新对话恢复优先阅读 docs/agent-context-resume.md。
+- Maintain docs/agent-development-issues.md as the project-level log of practical AI Agent engineering issues.
+- This log is not milestone-specific. It covers planner behavior, tool schemas, runtime validation, real model APIs, local data, answer composition, trace/artifact safety, and documentation drift.
+- When a new development issue appears, update docs/agent-development-issues.md with symptom, root cause, diagnosis, fix, and prevention before relying on chat history.
+
+## M65 当前进展
+
+- 生产异步链路已增加多 worker 并发提交、独立轮询和 claim 后崩溃恢复测试；修复首次提交幂等标记和 Windows 进程存活探测。
+- 真实模型链路已用脱敏录制响应验证空间总览 8 步计划、依赖和 ToolRegistry 执行，测试不访问网络。
+- Console 已增加 `spatial_overview_result` 紧凑摘要面板；跨区域对比沿用现有服务/HTTP/前端能力。
+- 阶段验收尚未完成，下一步运行全量离线、GIS、HTTP/浏览器和 Docker 验收，之后提交并推送一个 M65 版本。
+
+## M66 已完成
+
+- 真实模型区域分析已确认必须在 `spatial-agent-gis` conda 环境运行；元数据、区域 DEM、复合区域分析和空间总览均有 live 端到端验证入口。
+- 异步结果快照新增内部 `geometry_evidence`，同步、异步轮询和服务重启后的 GeoJSON 引用与几何状态由证据矩阵验证。
+- Console 浏览器验收增加隔离 CDP 启动脚本、可配置 `CDP_URL`/`CONSOLE_URL` 和空间总览面板/行政区-道路-水体颜色分层 smoke。
+- 开放式空间澄清和多区域对比已加入 M66 全局评测契约。
+- 离线全量 271 项通过，GIS 全量 271 项通过；Docker production acceptance 确认核心数据 ready、可选 roads/water 缺口可见，异步完成与重复提交幂等通过。
+- Chrome CDP 总览面板、行政区/道路/水体颜色分层、真实 GIS 建设适宜性地图（59 条路径、洪山区选区）、会话恢复和清空工作区 smoke 均通过。
+- M66 已具备阶段版本收口证据；后续进入 M67 全局规划。
+
+## M67 当前实现与验证
+
+- 数据目录和 runtime 能力快照已暴露受控 provenance；旧数据配置和无 provenance 配置保持兼容。
+- 脱敏模型回放评测已接入全局评测，覆盖 8 步空间总览工具覆盖、依赖 DAG、结果类型、中文答案、token/延迟和 provider 错误分类。
+- 异步作业观测已接入服务与 SQLite，包括生命周期、队列/执行耗时、失败分类、取消和重启接管；新增两个单独观测入口。
+- Console 结果证据面板按响应动态显示几何、运行时数据、provenance 和降级状态；总览地图支持行政区、道路和水体三色分层。
+- M67 专项 22 项、离线全量 293 项（35 项跳过）、GIS 全量 293 项（9 项跳过）、smoke、全局评测、Docker 和串行 Chrome CDP 验收通过。
+
+## M68 全局规划
+
+1. 产品能力：配置化空间工作流、结构化约束和证据选择。
+2. 数据质量：可复现道路/水体数据卷、provenance 校验和跨栅格覆盖/对齐报告。
+3. 真实模型：开放式空间问答、澄清、失败修复的脱敏回放与可选 live 基线。
+4. 部署可靠性：SQLite 升级、多 worker 观测一致性、取消/超时边界和滚动重启恢复。
+5. 用户体验：统一动态答案、轨迹、证据和地图工作区，减少空面板并解释降级状态。
+
+## 持续目标扩展
+
+每个大阶段必须从产品能力、数据质量、真实模型、部署可靠性和用户体验五个维度做全局规划；当前所有工作按单线程顺序执行，公共 schema、runtime、result envelope 和能力目录由主线统一集成。阶段完成后必须有专项测试、全量回归、真实 GIS/浏览器/部署证据、中文问题记录、里程碑更新和 GitHub 版本，再依据全局结果规划下一阶段。
+
+## M68 已完成
+
+- 受控工作流模板目录位于 `agent/workflow_templates.py`，提供模板目录、模板校验、计划校验和依赖 DAG 校验；能力目录与 `GET /workflows` 已接入。
+- `agent/raster_alignment.py` 提供 metadata-only DEM/土地利用对齐报告；健康报告和 runtime 快照保留 `relationships.dem_land_use.grid_alignment`，明确不读取像元。
+- SQLite 旧 schema 生命周期字段迁移、异步 worker 配置（`SPATIAL_AGENT_ASYNC_WORKERS`，1-16，默认 4）和内存会话 CRUD/历史恢复已完成。
+- M68 专项 47 项，另加 smoke 回归 1 项；离线全量 340 项（35 项跳过）、GIS 全量 340 项（9 项跳过）、`scripts/smoke_check.py` 和 `scripts/evaluate_global.py --strict` 均通过；全局评测 8/8 执行场景通过、3 个可选场景跳过。
+- Docker Desktop 仍不可用：`dockerDesktopLinuxEngine` named pipe 不存在，`docker info` 无法连接；新镜像、容器 readiness 和 production acceptance 保留为外部环境待办，不能引用旧容器作为 M68 证据。
+
+## M69 下一步
+
+从项目整体推进三个可并行方向，最多并发 3：
+
+1. 工作流编辑与计划契约：把模板校验扩展为版本化约束编辑、计划修订和 Console 交互，保持 Planner/Runtime/ToolRegistry 的统一边界。
+2. 数据 manifest 与对齐门控：为武汉道路、水体、DEM、土地利用和行政区建立可复现 manifest、校验命令、版本/provenance 检查及像元级对齐前置诊断。
+3. 模型回放与可靠性矩阵：覆盖开放式澄清补全、非法计划修复、失败重试、多 worker 取消/超时/滚动重启，并保留可选 live provider 基线。
+
+主线集成后再做动态 Console 结果工作区统一、全量离线/GIS/HTTP/串行浏览器验收；Docker Desktop 恢复后补新镜像和 production acceptance，阶段通过后提交并推送一个版本。
+
+## M69 当前实现进展
+
+- 工作流模板已增加语义版本、约束规格、证据选项和默认选择；`validate_workflow_plan` 输出 `template_version`、归一化 `constraints` 与 `evidence`，`revise_workflow_plan` 提供受控修订。
+- 开发服务和生产 FastAPI 已提供 `/workflows/{template_id}/validate`、`/workflows/{template_id}/revise`；接口只校验契约，不直接执行工具。
+- 新增 `agent/dataset_manifest.py`、`scripts/dataset_manifest.py` 和 M69 manifest 测试；完整哈希校验是显式动作，健康报告只做轻量检查。
+- 新增脱敏模型回放套件并接入全局评测：澄清补全、非法计划修复各 1 条，均通过；当前尚未完成 Console 编辑器、武汉 manifest 实际绑定、多 worker 组合矩阵、Docker 和 live provider 验收。
+
+### M69 工作流与对齐子阶段已完成
+
+- Console 从 `GET /workflows` 动态加载模板，折叠式设置区渲染结构化约束和证据选项；发送前调用 `/validate`，归一化 `workflow` 随同步/异步 `/runs` 提交。
+- `AgentService`、Planner、Runtime、内存状态和 SQLite 快照统一传播模板版本、约束和证据；生成计划在 ToolRegistry 执行前再次经过模板 allowlist、结果类型和 DAG 校验。
+- 像元联合工具 `get_zonal_buildability_analysis` 与 `get_zonal_constrained_buildability_analysis` 增加显式 `grid_alignment=aligned` 前置门控；只存在文件覆盖关系或网格不一致时不会 dispatch 真实联合像元工具。
+- 修复新增 `workflow=None` 关键字破坏旧 Runtime 替身导致异步几何证据失败的问题；无工作流请求保持旧方法调用兼容。
+- 子阶段验证：工作流/对齐专项 22 项通过，浏览器工作流交互通过，`scripts/smoke_check.py` 通过并包含离线全量 355 项（35 项跳过）。
+
+### M69 尚未完成与下一步
+
+1. 将武汉道路、水体、DEM、土地利用和行政区 manifest 绑定到正式本地配置并执行完整哈希核验。（代码入口、本机绑定配置和完整证据已完成。）
+2. 补齐 SQLite 多 worker 的超时、取消、幂等和滚动重启组合矩阵，并保留不同状态后端的一致结果契约。（M69.2 专项已完成。）
+3. Docker Desktop 恢复后构建新镜像、执行 readiness/production acceptance/容器重启恢复；再做可选 live provider 验收。
+
+### M69.2 当前进展
+
+- `DatasetCatalog` 已支持必需 manifest 的结构化配置；`scripts/bind_dataset_manifest.py` 可从已提交模板生成被忽略的本地绑定配置。
+- `scripts/dataset_manifest.py --verify ... --evidence-output ...` 执行完整 SHA-256 校验并生成不含机器绝对路径的安全证据摘要；健康检查保持 metadata-only。
+- runtime capability snapshot 增加 `manifest` 和 `data_readiness` 证据；生产 `/health/ready` 可通过 `SPATIAL_AGENT_REQUIRE_DATASET_MANIFEST=1` 启用门控。
+- 本机真实武汉配置在 `D:\tmp\wuhan-gis\datasets.wuhan.local.json`，manifest 16 个文件，SHA-256 核验通过；这些文件均不在仓库中。
+- M69.2 下一步先完成 SQLite 多 worker 可靠性组合测试，再串行执行全量离线/GIS/HTTP/部署验收。
+
+### M69.2 验收结果
+
+- manifest 专项 6 项通过；SQLite 多 worker 矩阵 5 项通过；既有取消、幂等、崩溃接管和观测回归 14 项通过（1 项生产 FastAPI 依赖缺失跳过）。
+- 全量离线 363 项通过、35 项跳过；GIS 全量 363 项通过、9 项跳过；`scripts/smoke_check.py` 和 `scripts/evaluate_global.py --strict` 通过，执行场景 8/8、脱敏模型回放 2/2。
+- 真实武汉配置下行政区/道路/水体可读且几何有效；DEM 与土地利用均完整读取但 CRS 混合，像元对齐状态为 `grid_mismatch`，联合像元工具继续在 dispatch 前阻止。
+- Docker 新镜像、readiness、production acceptance 和容器重启恢复仍待宿主机 Docker Linux engine 恢复；当前 `docker info` 报 `dockerDesktopLinuxEngine` named pipe 不存在。
+- M69.2 代码尚未提交推送；下一步是审查 diff、收口中文文档并创建阶段提交/版本。
+
+### M70 当前任务
+
+- 新增 `scripts/prepare_analysis_rasters.py`：保持原始栅格只读，按武汉 13 区融合边界生成固定 `EPSG:32649`/30 米目标网格，并输出 DEM、土地利用和 metadata-only 对齐报告。
+- 本机真实派生层位于 `D:\tmp\wuhan-gis\analysis-ready`，派生配置为 `D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`；这些文件不提交。
+- 派生层 manifest 已完成 5 个数据项的完整 SHA-256 校验；真实建设候选请求已返回 576,040 个有效像元、23,172 个候选像元和可导出真实几何。
+- M70 已完成：分析就绪流水线、目标网格/派生版本证据、runtime/Console/中文答案和失败路径均已接入；M70 专项 19 项、离线全量 369 项、GIS 全量 369 项、Smoke 和严格全局评测均通过。
+- M70 真实验收：绑定配置下 `analysis_ready=ready`、`data_readiness=ready`、目标网格 `EPSG:32649`/30 米/4562×5277、对齐 `aligned`；洪山区建设候选执行得到 576,040 个有效像元和 23,172 个候选像元。
+- M70 还保留外部边界：Docker Linux engine 未恢复，生产容器新镜像和 FastAPI 生产入口验收不能宣称通过；真实派生文件、配置、manifest 和 evidence 均位于 `D:\tmp\wuhan-gis`，不提交。
+
+### M71 全局下一步
+
+- 将分析就绪版本证据贯通空间总览、道路/水体约束筛选和多区域比较，确保多工作流的答案、轨迹、GeoJSON 和地图引用一致。
+- 增加派生报告/manifest 变更检测、nodata 与重采样证据，以及真实能力快照驱动的开放式问题脱敏回放。
+- Docker Linux engine 恢复后进行新镜像、readiness、重启恢复和生产 FastAPI 矩阵；Console 补绑定真实配置的浏览器 smoke。
+
+### M71 验收结果
+
+- `/comparisons` 和 `/region-comparisons` 的总体响应与每个结果行均保留 `analysis_ready`：派生版本 `analysis-ready-v1`、目标 CRS `EPSG:32649`、30 米分辨率和 `aligned` 状态。
+- 道路/水体约束建设筛选真实 GIS 调用完成，答案显示 500 米道路阈值、161 个满足道路约束样本和 14 个水体排除样本，并引用同一分析就绪证据。
+- M71 专项 3 项通过；离线全量 373 项通过、42 项跳过；GIS 全量 373 项通过、9 项跳过；Smoke、严格全局评测 8/8 和脱敏模型回放 2/2 通过。
+- 真实绑定配置下阈值比较返回洪山区 15°/20° 候选 22,800/23,172 个；多区域 20° 比较返回洪山区 23,172 个、江夏区 59,045 个候选像元。
+- GIS 首次全量运行的嵌套 smoke 曾出现一次 artifact 引用缺失，但目标测试 5/5、独立 smoke 和完整 GIS 复跑通过；详见中文开发问题日志。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用旧容器或离线测试代替。
+
+### M72 全局下一步
+
+- 统一空间总览、比较、约束筛选和动态 Console 的证据引用与地图图层状态，增加真实配置浏览器 smoke。
+- 增加源数据/派生层版本绑定、变更检测、nodata/边界/重采样报告，区分 metadata readiness 与完整哈希校验。
+- 用真实能力快照驱动开放式问题澄清、计划修复和可选 live GIS 模型基线；Docker 恢复后完成生产镜像、readiness、重启恢复和 FastAPI acceptance。
+
+### M72 验收结果
+
+- 新增源数据绑定模块和 `scripts/verify_analysis_ready.py`；分析就绪报告为行政区、DEM、土地利用源文件记录确定性 SHA-256 指纹，源文件变更或缺失会在显式 verifier 中被标记。
+- 健康报告只输出绑定版本、指纹和数据集摘要，保留 `verification_mode=metadata` 与 `hashes_verified=false` 的运行时边界；不将普通 readiness 误报为完整哈希校验。
+- M72 专项 3 项、离线全量 375 项（42 项跳过）、GIS 全量 375 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉 `analysis-ready-report.json` 的源绑定 verifier 通过 14 个文件、0 个 mismatch，指纹 `sha256:b648973f4707b9cb63ecfeb9c680c692dd34cd491ec8e8fed2b4ffbea6584f5f`。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用旧容器或离线结果替代。
+
+### M73 全局下一步
+
+- 将源绑定与派生版本接入能力快照、发布检查、总览/比较/约束结果和地图证据；补 nodata、边界、重采样与输出 manifest 联动校验。
+- 基于真实能力快照执行模型澄清/计划修复回放和可选 live GIS 基线，并区分 provider、计划、工具门控和后端错误。
+- Docker 恢复后完成当前版本生产镜像、数据卷、readiness、重启恢复、多 worker 和 FastAPI acceptance；同时补真实配置浏览器 smoke。
+
+### M73 验收结果
+
+- 运行时能力快照、数据证据、比较结果和 Console 统一传播 `analysis_ready.source_binding`，包含绑定版本、SHA-256 指纹、核验模式、源数据集和状态；不暴露逐文件哈希。
+- M73 专项 3 项、兼容回归 17 项、离线全量 379 项（42 项跳过）、GIS 全量 379 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉快照验证 `data_readiness=ready`、`analysis-ready-v1`、`EPSG:32649`、`aligned` 和源绑定指纹 `sha256:b648973f4707b9cb63ecfeb9c680c692dd34cd491ec8e8fed2b4ffbea6584f5f`；manifest 仍明确为 metadata-only。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用离线或旧容器结果替代。
+
+### M74 全局下一步
+
+- 增加 nodata、边界范围、重采样策略、派生输出 manifest 与源绑定的联动校验和发布报告。
+- 把统一证据摘要接入总览/比较/约束地图工作区，补真实配置浏览器 smoke；执行真实能力快照驱动的模型澄清、计划修复和 live GIS 基线。
+- Docker 恢复后完成当前版本数据卷、readiness、重启恢复、多 worker 与 FastAPI production acceptance。
+
+### M74 验收结果
+
+- 分析就绪报告新增并校验 `derivation`：DEM `bilinear`、土地利用 `nearest`，nodata `-9999/0`，边界源 CRS `EPSG:4490`、13 个行政区；非法土地利用策略会进入 `not_ready`。
+- M74 专项 2 项、离线全量 381 项（42 项跳过）、GIS 全量 381 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉报告和 readiness 已返回派生策略、边界证据、`analysis-ready-v1`、`aligned`；源绑定 verifier 14 个文件、0 mismatch。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成，不能用旧容器或离线结果替代。
+
+### M75 全局下一步
+
+- 增加派生输出 manifest 一致性报告，区分 metadata、源绑定 SHA-256 和输出文件 SHA-256 证据。
+- 将完整性摘要接入地图/轨迹/答案和真实配置浏览器 smoke；执行真实能力快照驱动的模型澄清、计划修复和 live GIS 基线。
+- Docker 恢复后验收当前版本数据卷、readiness、重启恢复、多 worker 和 FastAPI production 接口。
+
+### M75 验收结果
+
+- 健康报告将 `analysis_ready.outputs` 与 manifest 中的受控文件名关联，返回 `output_manifest` 匹配状态、核验模式、完整哈希状态和 mismatch 数；能力快照、比较响应与 Console 已同步展示。
+- M75 专项 4 项、离线全量 385 项（42 项跳过）、GIS 全量 385 项（9 项跳过）、Smoke 和严格全局评测均通过；全局执行场景 8/8，脱敏模型回放 2/2。
+- 真实武汉输出 `dem_aligned.tif`、`land_use_aligned.tif` 均与 manifest 匹配，`output_manifest=ready`、`data_readiness=ready`；运行时 manifest 仍是 metadata-only，完整哈希通过 verifier 单独证明。
+- 修复 manifest 健康摘要缺少 basename 导致输出一致性误报 unavailable 的问题，详见中文开发问题日志。
+- Docker Linux engine、生产镜像/readiness、FastAPI acceptance、浏览器真实配置 smoke 和 live provider 仍未完成。
+
+### M76 全局下一步
+
+- 完成动态地图/结果工作区的完整性、源绑定、输出 manifest、几何证据统一展示和真实配置浏览器 smoke。
+- 建立 metadata、源绑定 SHA-256、输出 SHA-256 三层发布校验，并执行真实能力快照驱动的模型澄清/修复/live GIS 基线。
+- Docker 恢复后验收当前版本数据卷、readiness、重启恢复、多 worker 和 FastAPI production 接口。
+
+### M76.1 验收结果
+
+- Console 结果证据区新增“发布完整性”卡片，按元数据/目标网格、源绑定 SHA-256、输出 manifest 三层显示状态，同时保留几何证据的可绘制/截断边界。
+- 能力快照和比较响应保留输出文件的受控 basename 匹配摘要；不会输出绝对路径、逐文件哈希或私有数据配置。
+- M76.1 专项 3 项通过；离线全量 388 项（42 项跳过）、GIS 全量 388 项（9 项跳过）；Smoke、严格全局评测 8/8 通过。
+- 内存总览浏览器 smoke、真实武汉 GIS 总览浏览器 smoke 和真实 GIS 建设候选地图 smoke 通过；真实总览 79 个要素、几何截断状态和行政区/道路/水体三色图层均通过。
+- 真实运行时快照为 `health=ready`、`data_readiness=ready`、`analysis_ready=ready`、`output_manifest=ready`，但 `verification_mode=metadata`、`hashes_verified=false` 仍明确保留。
+- GIS 全量首次运行出现既有 artifact 引用竞态，目标测试连续 5 次和完整 GIS 复跑通过；详见中文开发问题日志，不能把一次套件时序失败当作 M76 代码失败。
+
+### M76.2 下一阶段
+
+- 输出可下载的三层发布校验报告，接入运行 ID、轨迹、答案和地图证据，并明确启动轻量检查与完整 SHA-256 verifier 的差异。
+- 执行真实能力快照驱动的澄清、计划修复和 live GIS 总览基线，记录安全的 provider/计划/工具/后端错误分类及 token/延迟。
+- Docker 恢复后完成当前版本生产数据卷、readiness、重启、多 worker 和 FastAPI acceptance。
+
+### M76.2.1 验收结果
+
+- 新增三层发布报告模块和脚本，分别输出 metadata、源绑定 SHA-256、派生输出 SHA-256 和全量 manifest 摘要；输出不包含绝对路径或逐文件哈希。
+- 开发 HTTP、生产 FastAPI 和 Console 下载链接均已接入 `/release-evidence`；缺失配置和 provenance/输出失配具备结构化失败状态。
+- M76.2.1 专项 6 项、离线全量 391 项（42 项跳过）、GIS 全量 391 项（9 项跳过）、Smoke、严格全局评测 8/8 通过。
+- 真实武汉报告总体 `ready`：源绑定 14 文件、manifest 5 文件、输出 2 文件完整 SHA-256 均通过，修复派生 catalog 误验源 binding 的集成问题。
+- 新代码端口的真实武汉总览和建设候选浏览器 smoke 通过；真实报告 API 返回 `ready`、`output_manifest.hashes_verified=true`。
+
+### M76.2.2 全局下一步
+
+- 执行真实模型的能力快照驱动澄清、计划修复、live GIS 总览和 token/延迟/错误分层验收。
+- Docker 恢复后完成生产数据卷、readiness、发布报告、重启、多 worker 和 FastAPI acceptance。
+- 继续贯通运行 ID 与发布报告、答案、轨迹、地图和 GeoJSON，并覆盖数据换数后的 degraded/unavailable 浏览器状态。
+
+### M76.2.2 当前完成状态
+
+- 新增 opt-in live baseline：`scripts/live_baseline.py --allow-network`；真实请求复用正常 `LLMPlanner -> TaskPlan -> ToolRegistry -> SpatialBackend` 链路。
+- 真实能力快照显示武汉分析就绪数据为 `ready`，目标网格为 `EPSG:32649`/30 米且 `aligned`；报告移除绝对路径和私有 provenance，只保留能力、数据状态和运行时依赖摘要。
+- 真实模型对未注册的地下管线三维风险问题返回 `NEEDS_CLARIFICATION` 且不执行工具；真实武汉空间总览返回 8 步合法计划并完成真实行政区、DEM、坡度、土地利用、道路和水体链路。
+- 计划修复/澄清脱敏回放 2/2；live 基线 2/2；离线全量 394（跳过 42）、GIS 全量 394（跳过 9）、Smoke、严格全局评测 8/8 均通过。
+- 最终 live 指标：两次请求共 5051 token，延迟范围 3706.899–11176.822 ms，provider 错误分类为 0，重试 0。安全报告写入仓库外 `D:\tmp\wuhan-gis`，不提交真实配置和数据。
+
+### M76.2.3 全局下一步
+
+- Docker Linux engine 恢复后完成当前版本生产 acceptance，并逐层记录宿主机、镜像、readiness、重启、多 worker 和 FastAPI 证据。
+- 统一运行 ID 到答案、轨迹、发布报告、GeoJSON 和地图图层的引用，覆盖数据换数失配、几何截断和失败/重试状态。
+- 继续扩展真实模型可选基线到建设筛选和跨区域比较；先为同名工具多次调用、结果证据和能力门控补充稳定契约。
+- 规划 M76.2.3 及后续阶段时，先从项目整体能力矩阵重排优先级，检查产品、架构、数据、模型、部署、体验和测试是否形成闭环；不得因为某个数据集或单个失败现象把阶段目标收窄为局部修补。
+
+### M76.2.3 当前完成状态
+
+- `result.lineage` 统一索引运行 ID、答案、轨迹、artifact、GeoJSON、地图图层和发布报告；旧的顶层 `references`、`geometry` 和导出字段继续保留。
+- 同步、异步轮询、服务重启和 retry 的 envelope 构建顺序已统一；新增回归覆盖真实几何、无几何和资源引用归一化。
+- Console 立即显示运行证据索引，运行时能力快照随后补充数据证据；总览、地图、健康、会话和清空浏览器 smoke 均通过。
+- M76.2.3 专项 3 项；离线 397（跳过 42）、GIS 397（跳过 9）；Smoke、严格全局评测 8/8 通过。当前代码服务 smoke 使用 `http://127.0.0.1:8093/`，旧 8092 服务未覆盖。
+
+### M76.2.4 全局下一步
+
+- 从产品/架构闭环出发，把 lineage 接入异步观测、比较 API、失败重试和会话历史。
+- 在稳定结果契约上扩展真实模型建设筛选、道路水体约束和跨区域比较 live 验收，分层判断计划、门控、后端和答案。
+- Docker 恢复后做生产 acceptance；武汉数据 provenance、对齐和发布报告继续作为产品与部署证据层维护，不作为唯一阶段中心。
+
+### M76.2.4 当前完成状态
+
+- `result_contract.py` 提供统一的运行 lineage、历史 lineage 和比较集合 lineage 构造；同步结果、异步观测、会话历史、阈值比较和多区域比较均保留可回溯 `run_id` 与受控证据引用。
+- `AgentRunResult` 持久化 `retry_count`，失败重试在同一运行 ID 下保留重试状态；未发生重试时不生成随机引用，保证同步/异步结果归一化一致。
+- M76.2.4 新增 4 项专项（内存/SQLite、开发 HTTP、比较和重试）通过；离线全量 401 项通过、42 项跳过；GIS 全量 401 项通过、9 项跳过；严格全局评测 8/8、脱敏回放 2/2、Smoke 通过。
+- 修复 Windows `OpenProcess` 查询失败被误判为 worker 已退出，造成 SQLite job 重复接管和 `async_jobs=COMPLETED`/`agent_runs=PLANNING` 撕裂的问题；三 worker 精确场景连续 12 次通过，详见中文开发问题日志。
+- Docker Linux engine、生产镜像、真实数据卷 readiness、FastAPI production acceptance 和容器重启证据仍未获得，不能用离线/GIS 结果替代。
+
+### M76.3 全局规划
+
+1. 产品与体验：让 Console 的会话历史、比较结果和失败重试直接消费 lineage，支持从结果行回到完整运行、轨迹、地图和发布证据。
+2. 架构与部署：把 lineage/observability 契约在开发 HTTP 与生产 FastAPI 中做版本化一致性验收；Docker 恢复后完成当前版本的数据卷、readiness、多 worker、重启和生产接口矩阵。
+3. 真实模型：在统一证据契约上增加建设筛选、道路/水体约束和跨区域比较 live 基线，分别记录模型计划、能力门控、后端执行、答案质量和安全 token/延迟指标。
+4. 数据与测试：继续以 provenance、栅格对齐、输出 manifest 和发布报告作为跨工作流证据层，补换数失配、截断、失败重试和生产恢复的端到端回归，不把单个数据修复作为阶段中心。
+
+M76.3 按产品、架构/部署、真实模型的依赖顺序单线程执行，公共 result envelope、能力目录和证据索引由主线统一集成；当前最大并发度为 1。规划执行前仍必须先复盘七维全局能力矩阵。
+
+### M76.3.1 当前完成状态：Harness 与上下文工程
+
+- `ContextBuilder` 为 Planner 请求提供版本化结构化上下文，包含请求、会话绑定、工作流、可用工具和 Planner 类型；上下文预算通过结构化省略与二分裁剪实现。
+- 敏感键过滤、长度限制、请求 SHA-256、section 大小、输入长度和裁剪状态形成安全 `context_evidence`；原始上下文不写入运行结果、artifact 或前端。
+- `AgentRuntime` 支持带上下文 Planner 与旧签名 Planner；`LLMPlanner` 将上下文标记为可信运行时元数据，仍由 TaskPlan schema 和 ToolRegistry 作为执行边界。
+- 上下文证据已接入 `AgentRunResult`、SQLite、artifact、result envelope 和 Console，覆盖同步与恢复读取。
+- 验证：M76.3.1 专项 7 项、离线全量 408 项通过（42 项跳过）、Smoke 通过。GIS、Docker、FastAPI production 和 live 模型未重新执行，不能宣称本阶段已验证。
+
+### M77 下一阶段
+
+先按七维能力矩阵复盘，再按依赖顺序实现：历史/比较/retry 的 lineage 详情导航；HTTP 与生产结果/观测契约一致性 Harness；按意图受控扩展会话摘要、能力快照和工具结果上下文；上下文污染、超长、成本和 token 评测；Docker 恢复后的生产 acceptance；以及建设筛选、道路/水体约束、跨区域比较的可选 live baseline。当前不启动并行任务，公共契约由主线集成。
+
+### M81.3 当前完成状态：模板蓝图驱动的确定性 Planner
+
+- 工作流模板从“校验契约”推进为“声明式 DAG 蓝图”：`goal_template`、`step_blueprint`、`output_template` 和 `compile_workflow_plan` 已接入。
+- `compile_workflow_plan` 支持受控 `$constraint` 与 `$result_ref` 占位符，生成后仍走 `validate_workflow_plan`，继续校验工具 allowlist、result type、约束、evidence 和 DAG。
+- RuleBasedPlanner 的行政区边界、栅格元数据、空间总览、道路/水体约束建设筛选已改为模板编译路径；复杂组合式分析仍保留在 composer，后续再逐步模板化。
+- Planner 内部 evidence 按模板能力过滤，外部 workflow evidence 继续严格校验；对应问题已写入中文开发问题日志。
+- 验证：M68/M69/M77 专项 32 项通过；`python scripts/test_profile.py --profile quick` 通过；Smoke 通过，内嵌离线全量 550 项通过、42 项跳过；真实 GIS 全量 550 项通过、9 项跳过；analysis-ready 配置下 `live-short` 两个代表 case 2/2 通过；服务 smoke 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+- 精简测试策略继续收敛：`quick` 用于日常开发，只跑 3 个核心契约 tripwire；服务 smoke 独立为 `smoke` profile；`stage` 运行 `quick + smoke + strict global evaluation`，`gis-core` 使用真实数据抽样用例，`live-short` 只跑空间总览和约束建设筛选两个真实模型 case，`docker` 只做 production acceptance。完整 unittest/GIS/live 只在对应共享契约或部署数据改动时按需运行。
+
+### M81.4 下一阶段规划
+
+1. LLMPlanner 与模板契约统一：把 workflow template 蓝图、约束、result type 和工具 allowlist 纳入模型上下文，减少 prompt 内手写工具编排。
+2. 计划来源可观测：记录 plan 来源、template_id、约束、模板证据和裁剪状态，让答案、trace、artifact 和前端能解释计划来源。
+3. 前端计划预览：基于模板蓝图和最终执行状态展示 DAG、工具状态和 result lineage，避免按工具名推断。
+4. 离线回放与 CI：增加脱敏模型回放和 planner 契约测试，默认不访问网络、不依赖私有数据。
+5. 暂不扩展单个 GIS 功能，除非它服务于模板化 planner、Runtime 可观测或跨入口验收。
+6. 每阶段记录实际运行 profile；完整 unittest、完整 live baseline 和容器内 live 只在对应共享契约、真实模型评测或部署数据卷改动时运行。
+
+### M81.4 当前完成状态：模板上下文与计划来源证据
+
+- `agent/workflow_templates.py` 新增 `workflow_template_context_summary()`，向 Planner 暴露受控、可裁剪的模板摘要：template id、约束、result type、allowed tools、step blueprint 形状和输出类型。
+- `ContextBuilder` 新增 `workflow_templates` section；预算裁剪优先省略重复的 `available_tools`，尽量保留模板契约，并把安全裁剪深度放宽到 5，避免把 `allowed_tools`/`result_types` 裁成不可用占位。
+- `LLMPlanner` prompt 已明确要求真实模型优先使用 `workflow_templates` 中的模板契约，按模板 DAG、参数名、依赖和 result type 输出普通 `TaskPlan`。
+- `AgentRuntime` 新增 `plan_evidence`：记录 planner kind、source、output type、step count、工具序列、template context 状态、外部 workflow 约束和匹配/精确匹配模板；SQLite、artifact、result envelope 和 Console 均已传播。
+- Console 证据区现在显示“计划来源”，同一响应中可同时看到上下文工程、计划来源、运行血缘、几何、数据质量和发布证据。
+- 验证：M68/M77/M2 目标测试 53 项通过；`python scripts/test_profile.py --profile quick` 通过；`python scripts/test_profile.py --profile stage` 通过；`git diff --check` 仅有 Windows LF/CRLF 提示。
+- 新增中文问题日志：上下文预算裁剪不能先丢模板契约。
+
+### M81.5 下一阶段规划
+
+- 增加脱敏 LLM 回放，验证真实模型输出能稳定匹配模板 allowlist、result type、DAG 和 result reference。
+- 将 `plan_evidence` 接入更多 HTTP/前端验收样例，证明 CLI、HTTP 和 Console 对同一复杂请求看到一致的计划来源、步骤状态和 artifact 引用。
+- 评估是否将更多复杂 composer 路径逐步模板化，优先处理 `spatial_analysis` 这种已有工作流契约但还没有 `step_blueprint` 的组合能力。
+- 保持默认 `quick` 不膨胀；新增验证优先放在脱敏回放、`smoke`、`stage` 或专项测试，只有最核心契约 tripwire 才进入 quick。真实 GIS/live 仍作为可选验收。
+
+### M81.6.1 当前完成状态：阶段测试例再精简
+
+- `stage` profile 已从 `quick + smoke + 完整全局评测 + 模型回放` 收敛为 `quick + evaluation/cases/stage-acceptance.json`。
+- 新增 `full-stage` profile 保留旧式重型阶段门禁，用于共享 Runtime、HTTP/SQLite、模型评测或发布前强验证。
+- `evaluate_global.py` 新增 `--no-model-replay`，可在小型 stage 中显式跳过多轮模型回放。
+- 默认验证建议：日常 `quick`，需要服务边界时 `smoke`，普通阶段 `stage`；完整 discover、full-stage、GIS/live/Docker 都按风险显式触发。
+
+### M81.7 当前完成状态：计划预览与 DAG 展示
+
+M81.7 已完成计划预览与 DAG 展示。`AgentRuntime.preview()` 和 `AgentService.preview()` 只生成结构化计划，不调用工具、不写运行状态、不导出 artifact；开发 HTTP 与生产 FastAPI 均提供 `POST /runs/preview`。Console 通过显式“预览计划”按钮显示 Runtime 返回的 DAG，不在浏览器端硬编码编排逻辑。
+
+专项验收为 `tests.test_m81_plan_evidence_acceptance` 5 项通过；复杂综合空间请求返回 9 个节点、8 条依赖。预览响应没有 `run_id`、`artifact_ref` 或执行步骤结果，并带有 `execution.planned_only/tool_execution/artifact_export` 安全标记。内嵌 JavaScript 已抽取检查语法，未运行真实模型、真实 GIS 或私有数据。
+
+M81.7 阶段规划（已执行）：先做 Service/开发 HTTP/生产 FastAPI/Console 的 preview envelope 一致性 Harness，再补 `spatial_analysis` 脱敏 LLM 计划回放和 preview fingerprint/plan version 设计。当前并发度仍为 1，新增验证不进入默认 `quick`。
+
+### M81.8 当前完成状态
+
+已完成跨入口 preview Harness 和复杂模型脱敏回放。目标/相关回归 41 项、精简 `stage`、Python 编译和 `git diff --check` 通过。生产 FastAPI 因当前 Python 环境未安装 `fastapi` 只完成静态契约验证，不能宣称生产运行时 acceptance 已通过。当前 DeepSeek 配置为 `deepseek-v4-flash` + Chat Completions 网关，配置文件不含 key，当前进程也未注入 `OPENAI_API_KEY`；真实调用仍需显式配置和 live profile。
+
+### M81.9 当前完成状态
+
+已完成 `spatial-agent.plan-identity.v1` fingerprint：preview 返回身份，执行可携带 `preview_fingerprint`，Runtime 在工具 dispatch 前拒绝不匹配计划；异步 payload 也保留该字段。真实直连 DeepSeek 的元数据请求和修正后的 9 步复合空间分析 preview/执行均成功，后者 matched/exact 均命中 `spatial_analysis`。本轮相关回归 38 项通过。
+
+生产 FastAPI 运行时 acceptance 尚未完成，因为当前宿主 Python 未安装 `fastapi`；不要把源码静态契约当成运行时证据。下一阶段 M81.10 先在生产依赖环境中补 `/runs/preview`、`/runs`、readiness 和错误响应验收，再接入 Console/artifact 的预览匹配显示。当前并发度为 1，默认 quick/stage 不访问网络。
+
+### M81.10 当前完成状态
+
+生产 FastAPI acceptance 已在 Docker 生产容器中跑通，覆盖 readiness、runtime capability、真实武汉数据卷、`/runs/preview`、带 `preview_fingerprint` 的 `/runs`、错误响应 envelope 和异步幂等。Console 已显示计划身份与预览匹配状态，并在预览后执行同一请求时自动携带 fingerprint。真实本地 GIS backend 的行政区边界 preview -> execute 样例完成并导出 artifact/GeoJSON；当前 DeepSeek-compatible 中转 smoke 完成 `raster_metadata_result`，3546 tokens，无重试。
+
+生产部署注意：`.env.production` 作为 `env_file` 只注入容器，不参与 Compose 文件中的 volume 插值；重建必须使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build`，否则 `/data` 会回退到仓库空目录并导致核心数据不可用。
+
+### M82 下一步
+
+M82.1 已完成能力发现上下文：`CapabilityRouter.discover()` 输出 `spatial-agent.capability-discovery.v1`，Runtime 将 `capability_discovery` 注入 Planner 受信上下文，`plan_evidence` 和 Console 显示选中能力与候选能力。目标测试 27 项通过。实现中发现新增上下文 section 会挤掉 `workflow_templates` 的预算风险，已通过紧凑摘要和裁剪顺序修复，并写入中文问题日志。
+
+M82.2 已完成 Planner 能力目录摘要：新增 `spatial-agent.capability-catalog-context.v1`，只展开候选能力范围内的能力目录、数据门控、后端支持、analysis-ready 摘要和工具参数形状；`ToolRegistry.definition_summary()` 暴露只读 schema 摘要，Runtime factory 将 backend_name 注入 Runtime，`plan_evidence` 记录能力目录可用性、后端和工具 schema 数量。默认上下文预算提高到 12,000 字符。M59/M77/M81 目标测试 37 项通过（1 项因缺少 FastAPI 依赖跳过）。
+
+M82.3 已完成 CLI/HTTP/artifact/session 跨入口 Harness：`run_demo.py` 改为复用 `AgentService.run()` 输出统一 payload，新增 `--export-artifact`、`--artifact-root`、`--export-geojson`；M81 Harness 覆盖 direct service、CLI、开发 HTTP、run detail、artifact fallback recovery、session history 和 Console 静态证据，断言 `capability_discovery`、`capability_catalog`、`workflow_templates`、`plan_identity`、trace、artifact 一致。Console 已显示“能力目录”。目标测试 18 项通过（1 项 GIS 跳过），M59/M77/M81 回归 38 项通过（1 项 FastAPI 跳过）。
+
+M82.4 已完成生产入口 M82 证据门禁：`scripts/production_acceptance.ps1` 新增 `Assert-PlanningEvidence`，同步生产运行现在检查 `capability_discovery`、`capability_catalog`、选中能力、候选能力、能力目录后端和 plan identity 在 `plan_evidence` / `result.planning` / artifact 中一致；同步运行启用 `export_artifact=true` 并读取 `/artifacts/runs/{name}` 校验 artifact 证据。目标测试 16 项通过（2 项 live Docker / FastAPI 跳过），PowerShell parser、quick、stage、编译和 diff check 通过。
+
+下一步从项目整体继续：进入真实数据降级矩阵（空数据卷、缺道路/水体、栅格未对齐、后端不可用、GeoJSON 截断），并把降级结果接入 result envelope / answer / trace 的一致性 Harness。当前并发度为 1，默认 quick/stage 不访问网络，真实 GIS/Docker/live 模型只作为显式验收路径。
+
+M82.5 已完成结构化降级矩阵：`result_contract.py` 输出 `spatial-agent.degradation.v1`，在 `result.degradation` 与 `result.data.degradations` 中统一暴露运行状态、几何证据、工具错误、数据健康、analysis-ready、source binding 和 output manifest 限制。`ArtifactStore` 刷新 artifact 时保存 `result` 与顶层 `degradation`，artifact recovery 能恢复同一矩阵；Console 优先读取后端矩阵，旧响应才走前端兼容推断；production acceptance 新增 `Assert-DegradationEvidence` 和 `sync_degradation_status`。
+
+M82.5 验证：M76/M76.2.4/M81/M66 目标测试 26 项通过（1 项 live Docker acceptance 跳过），`production_acceptance.ps1` PowerShell parser 通过。抽样复杂内存综合空间分析为 `COMPLETED + result.degradation.status=degraded`，明确列出内存后端、DEM/土地利用像元、道路/水体几何和约束建设筛选限制。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段需要先做项目全局盘点，再规划 M83。建议方向：结果类型与前端动态工作区 contract，让不同 `result.type` 决定可视化、表格、地图、证据和 artifact 展示；同时继续保持 Rule/LLM Planner、ToolRegistry、Result envelope 和生产入口的一致性，不围绕单一 GIS 样例堆页面分支。
+
+M83 已完成后端驱动的动态工作区契约：`result_contract.py` 输出 `spatial-agent.workspace.v1`，在 `result.workspace` 中声明 `result_type`、`registered_type`、`primary_panel`、`common_panels`、`panels` 和 `map` 证据；覆盖能力目录中的全部 `result_types`。Console 删除前端 result-type registry，不再按工具名推断面板，只把 workspace panel 名映射到 DOM 区域；工具结果只填充已选中的 panel。`renderRun` 去掉后置 monkey patch，栅格元数据面板现在能显示元数据摘要。production acceptance 新增 `Assert-WorkspaceEvidence` 和 `sync_workspace_panels`。
+
+M83 验证：M46/M79/M81/M76 目标测试 29 项通过；M66 生产静态门禁 6 项通过（1 项 live Docker acceptance 跳过）；PowerShell parser、quick、stage 和 Python 编译通过，`git diff --check` 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M84 建议继续全局规划，不陷入页面局部：把 panel 内部 metrics/table/chart/map payload 逐步变成后端 view model，减少前端继续扫描 `steps` 填内容；稳定后再做 Docker/GIS/live 小型 acceptance。
+
+M84 已完成后端结果视图模型契约：`result_contract.py` 输出 `spatial-agent.views.v1`，在 `result.views.panels` 中统一给出栅格元数据、栅格统计、空间总览和地图预览所需的有界 view model。Console 的 raster/overview 面板改为消费 `resultViewPanels(data)`，共享 `renderMetricGrid()`，不再扫描 `steps` 自行生成栅格/总览指标；栅格 bounds 预览也改用后端 map view。M46/M79 红测覆盖 `raster_metadata`、`raster_statistics`、`spatial_overview` 与 `raster_bounds/geojson` map view。
+
+M84 验证：M46/M79 目标测试 15 项通过；M46/M79/M81/M76/M66 相关回归 37 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage 和 `git diff --check` 通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M85 需要先做全局盘点：优先把 health、composite、buildability、vector/table/chart 等剩余复杂面板继续下沉到 backend view model，并把 `views` 纳入 artifact、HTTP run detail、session recovery 和 production acceptance 证据。等 `workspace/degradation/planning/lineage/views` 五类 result envelope 证据稳定后，再做小型真实 GIS + live LLM + Docker acceptance。
+
+M85 已完成复杂结果面板 view model 收敛：`result.views.panels` 扩展 `dataset_health`、`spatial_composite` 和 `buildability_screening`，把健康检查、综合分析和建设筛选的 metrics、rows、categories、coverage、note 下沉到后端 result contract。Console 的 `healthStats`、`compositeStats` 和 `buildabilityStats` 改为消费 `resultViewPanels(data)`，删除按工具名扫描 `steps` 的页面端业务聚合。`production_acceptance.ps1` 新增 `Assert-ViewEvidence`，同步响应和 artifact 都必须包含 `spatial-agent.views.v1`，且 view panel 不能越过 workspace 声明。
+
+M85 验证：M46/M79 目标测试 16 项通过；M46/M79/M81/M76/M66 相关回归 38 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。
+
+下一阶段 M86 需要先做全局盘点：优先补 `views` 在 CLI/HTTP/artifact/run detail/session recovery/Console 的跨入口一致性 Harness，并评估 vector/table/chart 通用 view contract。真实 GIS、live LLM 和 Docker production acceptance 仍作为显式验收路径。
+
+M86 已完成 `views` 跨入口一致性 Harness：`tests/test_m81_plan_evidence_acceptance.py` 的 `_normalized_contract()` 纳入 `result.views.schema_version`、view panel 集合和 panel kind，直接比较 direct service、HTTP `/runs`、HTTP run detail、CLI、artifact 和 artifact fallback recovery。红测发现 `AgentService.get_run()` 从 artifact fallback 恢复时会重新 `build_result_contract()`，在缺少完整 `steps` 时把 `views.panels` 重建为空；现已在恢复路径保留 artifact 中已有的 `result.views`，旧 artifact 仍可重建基础 envelope，新 artifact 不丢展示契约。
+
+M86 验证：M81 目标 Harness 9 项通过。阶段收口还需运行 M46/M79/M81/M76/M66 相关回归、Python 编译、quick、stage、PowerShell parser、`git diff --check`，通过后提交推送。
+
+下一阶段 M87 需要先做全局盘点：评估并设计 vector/table/chart 通用 view contract，让新结果类型优先扩展 result envelope，而不是继续增加页面 DOM 专用分支；同时考虑把 artifact viewer 也改为消费 `result.views`。
+
+M87 已完成 artifact viewer 消费 `result.views`：`agent/artifact_viewer.py` 新增 `Result Views` 区块，从 artifact 的 `result.views.panels` 渲染 schema、panel 名、kind、metrics 和 note；旧 artifact 没有 views 时仍按原有 Plan / Tool Steps / Answer / Trace 展示。`tests/test_m17_artifact_viewer.py` 新增 views 渲染测试，M17 目标测试 3 项通过，`agent/artifact_viewer.py` Python 编译通过。
+
+下一阶段 M88 需要先做全局盘点：优先设计 vector/table/chart 通用 view contract，补齐非栅格/非建设类结果的可复现展示 payload，并把该 contract 纳入 Console、artifact viewer、CLI/HTTP artifact 的一致性 Harness。
+
+M88 已完成矢量结果 view contract：`result_contract.py` 在 `spatial-agent.views.v1` 下新增 `vector` panel，覆盖 `range_query`、`get_zonal_vector_summary` 和 `spatial_join`，输出有界 metrics、rows 和可选 table，不内联原始几何。`zonal_vector_summary_result`、`zonal_vector_result`、`vector_result`、`spatial_relation_result` 和 `spatial_result` 都走后端声明的 vector workspace/view。Console 的结构化结果区优先消费 `resultViewPanels(data).vector` 并渲染 metric grid、rows 和 `renderViewTable(view.table)`；没有 vector view 时才保留 JSON fallback。
+
+M88 验证：M46/M79 目标测试 17 项通过；M17/M46/M79/M81/M76/M66 相关回归 42 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage 和 production acceptance PowerShell parser 均通过。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M89 需要先做全局盘点：继续把 table/chart 等通用结果展示 payload 下沉到 `result.views`，并把 artifact viewer 对 table payload 的渲染能力补齐；随后再安排一个小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致。
+
+M89 已完成 artifact viewer 的 rows/table view 渲染：`agent/artifact_viewer.py` 的 `Result Views` 区块不再只显示 metrics/note，而是通用渲染 view `rows` 和 `table` payload，并继续做 HTML escape、行列数量裁剪和自包含样式。新增 M17 测试覆盖矢量分类 table、rows 和 `<water>` escape，确保 artifact 作为可复现展示面不会落后于 Console。
+
+M89 验证：M17 目标测试 4 项通过；M17/M46/M79/M81 相关回归 30 项通过；Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M90 需要先做全局盘点：从全局上评估 chart view contract 与真实 GIS/live LLM/Docker 小型 acceptance 哪个更能补面试展示短板；不要被单一页面或单一数据集细节带偏。
+
+M90 已完成对比图 chart view contract：`result_contract.py` 新增 `build_comparison_views()`，把阈值对比、多区域对比和道路距离约束对比统一生成为 `spatial-agent.views.v1` 的 `chart` panel，包含有界 metrics、bar chart series、encodings、table 和 note。`AgentService.compare_buildability()`、`compare_buildability_regions()`、`compare_constrained_buildability()` 均返回顶层 `views.panels.chart`，不再让前端独自定义对比图语义。
+
+Console 的对比面板现在优先消费 `resultViewPanels(data).chart` 和 `renderChartView(view)`，旧 `results` 表格只作为兼容 fallback。`agent/artifact_viewer.py` 同步渲染 `comparison_chart` series，并继续保留 rows/table 渲染、HTML escape 和数量裁剪。
+
+M90 验证：M46/M57/M79/M17 目标测试 29 项通过；M17/M46/M57/M79/M81/M76/M66 相关回归 51 项通过（1 项 live Docker acceptance 跳过）；Python 编译、quick、stage、production acceptance PowerShell parser 和 `git diff --check` 均通过，diff check 仅有 Windows LF/CRLF 提示。尚未运行 Docker production acceptance、真实 GIS 或 live LLM。
+
+下一阶段 M91 需要先做全局盘点：在 result views 的 metrics/table/chart/map 展示契约基本稳定后，优先安排小型真实 GIS + live LLM + Docker acceptance，验证真实入口仍保持 planning/lineage/degradation/workspace/views 一致；MCP 只作为后续 ToolProvider adapter 方向，不应替代当前 ToolRegistry 核心 seam。
+
+M92 已开始工具来源可替换性收敛：新增 `agent/tool_provider.py` 的 `ToolProvider` seam 和 `NativeToolProvider`，`ToolRegistry.from_provider()` 可以接收非 native provider；旧的 `ToolRegistry(definitions, adapter)` 与 `from_json()` 保持兼容。Registry 继续独占 schema 校验、参数校验、动态工具注册、统一 dispatch 和结果导出，provider 不获得绕过边界的权限。
+
+能力上下文和 `plan_evidence` 现在记录安全的 `tool_provider` 身份与工具数量，证明 Planner 看到的工具 schema 来自当前 Registry provider。MCP 仍未成为依赖，也没有替换 ToolRegistry；未来若接入 MCP，只实现 `MCPToolProvider` adapter。
+
+M92 当前验证：ToolProvider 专项 5 项通过；M59 capability catalog、M77 context engineering、M81 dynamic tools 相关回归 29 项通过，M30/M35/M66/M67/M79 相关回归 18 项通过；quick、stage 通过；离线全量 591 项通过、42 项按环境跳过；M69 多进程幂等测试连续复跑 5 次通过；Python 编译和 `git diff --check` 通过。GIS profile 的 3 项在当前普通 Python 环境全部按依赖条件跳过，不能宣称真实 GIS 验收。Docker production acceptance 仍等待宿主环境恢复。
+
+M91 已完成小型真实入口验收：Docker production 容器使用当前代码和 `.env.production` 重建后 healthy，`scripts/production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088` 通过，数据卷状态 `ready`、核心/可选数据均 `ready`、同步/异步运行和重复提交幂等通过。生产验收中发现内存 admin boundary 响应可以合法返回空 `workspace.panels` / `views.panels`，旧 `Assert-ViewEvidence` 会把 PowerShell 空属性名误判成未声明 view panel；已过滤空 panel 名并增加静态门禁，保持“非空 view panel 必须由 workspace 声明”的真实契约。
+
+M91 真实本地 GIS 抽样通过：生产 `/runs` 请求 `查询洪山区行政区边界`（rule planner + local backend + artifact/GeoJSON）返回 `admin_area_result`，`geometry.available=true`、`feature_count=1`、`workspace.panels=[map]`、`views.panels.map.kind=map`、`mode=geojson`。生产 live LLM 抽样通过：`planner=openai` 请求 `查询DEM栅格元数据` 返回 `COMPLETED`、`raster_metadata_result`、1 个工具步骤、`workspace.panels=[raster,map]`、`views.panels=[raster,map]`，未输出任何密钥。
+
+M91 验证：`tests.test_m66_data_volume` 6 项通过（1 项 live Docker acceptance 按门控跳过），production acceptance PowerShell parser 通过，Docker production acceptance 通过。手工 PowerShell 发送中文 JSON 时会出现编码/mojibake 风险，CLI/生产手动验收优先使用 JSON unicode escape 或显式 UTF-8 body。下一阶段 M92 从全局 Agent Runtime 角度规划：工具数量继续增加前，先把 ToolProvider/ToolRegistry 深化为可替换工具来源的接口，MCP 作为未来 adapter 接入，不替代 Runtime 核心执行 seam。
+
+M92 当前部署复验被宿主环境阻塞：`docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build` 无法连接 `dockerDesktopLinuxEngine` named pipe；`com.docker.service` 显示 Stopped，尝试启动时又无法打开该 service handle。不能把 M91 旧容器响应当作 M92 当前代码证据。离线 provider 契约和精简 profile 仍可继续验证，Docker acceptance 留作环境恢复后的显式验收。
+
+下一阶段 M93 从项目整体规划 provider 治理：在不引入 MCP 依赖的前提下，统一 provider 健康、权限/数据依赖、超时/错误分类、trace/metrics 和 HTTP/artifact/recovery 证据；完成后再决定是否需要真实外部工具 adapter。
+
+## M93 当前完成状态
+
+M93 已完成 provider 治理基础闭环：Native provider 健康检查、Registry 健康/治理摘要、权限与数据依赖元数据、ToolProviderError 分类，以及步骤、SQLite、artifact、result envelope 和 observability 的安全错误证据均已接入。内置 12 个工具声明了空间数据读取权限和数据依赖；Planner 上下文只展开选中工具 schema，避免重复治理摘要挤掉能力目录。
+
+M93 验证：专项 6 项、M92/M81 相关回归 14 项通过；离线全量 597 项通过、42 项按环境跳过；quick、stage、Python 编译和 `git diff --check` 通过。GIS profile 仍因当前普通 Python 环境缺少真实 GIS 依赖/数据而跳过；Docker Linux engine 仍不可用，当前版本 production acceptance 尚未执行。
+
+下一阶段 M94 从全局角度评估 provider health/runtime capability 暴露、权限/数据依赖实际门控和 per-tool timeout 执行，再决定是否需要真实 `MCPToolProvider`；没有外部工具来源时不增加 MCP 运行时依赖。
+
+## M94 当前完成状态
+
+M94 已完成 provider 治理的执行闭环：runtime capability snapshot 暴露 `tool_provider`、`tool_provider_health` 和 `tool_governance`；生产 acceptance 校验这些 schema 和 tool count。`ToolRegistry` 提供单工具治理读取接口，Runtime 在 dispatch 前执行权限、审批和可选严格数据依赖证据门控；不可用数据保留 `policy/data_unavailable` 分类。工具声明的 `timeout_seconds` 已在 Registry 真实执行，run-level timeout 仍保持步骤边界语义。12 个内置工具均声明了 timeout，runtime factory 支持权限/审批/依赖证据环境配置。
+
+M94 专项 8 项、M92/M93 provider 回归 11 项、M37/M60/M81 contract 共 22 项通过；stage 通过；离线全量 605 项通过、42 项按环境跳过；编译、schema、PowerShell 静态契约和 diff check 通过。普通 Python 环境下真实 GIS 仍按依赖条件跳过，Docker Linux engine 仍未恢复，不能引用旧容器作为当前版本生产证据。
+
+下一阶段 M95 必须先进行全局盘点：统一 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry governance 和 Result envelope 中重复的约束字段，建立计划证据与执行门控的一致性矩阵；随后补 HTTP/生产配置与 trace/artifact normalization。没有真实外部工具来源时不实现 MCP 运行时依赖，只保留未来 `MCPToolProvider` adapter seam。当前最大并发度为 1，默认 quick/stage 离线。
+
+## M95 已完成
+
+- `SpatialRequest` 已明确命名为 `RequestFacts`（保留兼容别名），输出版本化 `spatial-agent.request-facts.v1`；Runtime 在规划前只抽取一次，并把 context-safe projection 写入运行结果和 preview。
+- RequestFacts 已贯通 direct service、result envelope、SQLite recovery 和 artifact；复杂请求的同一 facts 在 3 项 M95 专项测试中保持一致，且不携带原始请求文本。
+- 工具治理证据开始收敛到 `ToolRegistry.governance_for()`：plan evidence 输出 `spatial-agent.execution-policy.v1`，实际 StepRun 保存治理快照，result evidence、artifact 和 SQLite 恢复保留同一快照；step observability 增加安全 `error_code`。
+- M81 跨入口 acceptance 已把 RequestFacts、execution policy 和 StepRun governance 纳入 direct/HTTP/CLI/artifact/recovery normalization。
+- quick、stage、Python 编译、PowerShell acceptance 解析和 diff check 通过；离线全量 608 项通过、42 项按环境跳过。
+- 生产 acceptance 已加入版本化 RequestFacts、execution policy 及 artifact 证据门禁；本轮没有执行真实 GIS、Docker production acceptance 或 live LLM。
+
+下一阶段要从全局 Agent Runtime 目标重新排序真实环境验收、错误修复/重规划、契约演进和工具来源扩展；没有真实远程工具来源时不实现 MCP 运行时依赖。
+
+## M96 已完成
+
+- `ToolRegistry` 在 provider 接入时校验工具定义合同，拒绝错误名称、schema、治理字段和 timeout；新增 `spatial-agent.tool-provider-contract.v1`。
+- provider health、runtime capability、plan evidence 和生产 acceptance 均记录安全的合同状态；非 Native provider 回放验证同一 Registry、权限、timeout、治理和结果边界。
+- M96 专项 4 项、M92–M95 回归 26 项、quick/stage、编译、PowerShell 解析和 diff check 已通过；离线全量 612 项通过、42 项按环境跳过；真实 GIS core 3 项通过。
+- Docker Linux engine 仍无法连接，因此没有把旧容器或未执行的 Docker acceptance 当作 M96 证据；live LLM 仍为可选门控。
+
+下一阶段从全局角度优先安排当前版本的 Docker/真实入口复验（环境恢复时）以及“失败观察 -> 受控重规划 -> 结果证据”组合验收；没有真实远程工具来源时不实现 MCP 运行时依赖。
+
+## M97 已完成
+
+- 已新增 `spatial-agent.failure.v1`，运行级 failure evidence 统一包含 `status/category/code/phase/retryable`，不携带 provider 原始错误、URL 或密钥。
+- 已贯通 Runtime、result envelope、HTTP、artifact、SQLite recovery 和 production acceptance；旧运行 payload 可通过 `failure_from_payload()` 安全归一化。
+- M97 专项 4 项和离线全量 616 项通过、42 项按环境跳过；quick、stage、GIS core、编译、PowerShell 解析和 diff check 通过。
+- Docker Linux engine 仍不可用，未宣称当前版本 Docker production acceptance；live LLM 仍按环境门控。
+
+下一阶段从全局角度安排 Docker/真实模型复验或更深的计划修复/动态能力扩展；MCP 仍只作为未来真实外部工具来源的 adapter。
+
+## M98 已完成
+
+- observability run span 已消费 failure 的 `error_code`、`failure_phase`、`failure_retryable`；allowlist 仍拒绝原始错误和敏感字段。
+- 异步 worker 异常写入 SQLite 后，轮询/恢复保留 `spatial-agent.failure.v1`；Console 增加通用失败证据徽章。
+- M98 专项 3 项、M80 observability 回归 6 项、Console 回归 2 项通过；离线全量 620 项通过、42 项按环境跳过；quick、stage、GIS core、编译、PowerShell 解析和 diff check 通过。
+
+下一阶段优先做当前版本真实 Docker/LLM/GIS 入口验收；Docker 恢复前可继续做脱敏模型计划修复与开放式能力组合回放。MCP 仍只作为未来真实外部工具来源的 adapter。
+
+## M99 已完成
+
+自适应重规划此前只有顶层 `replan_events`，没有进入统一 `result` envelope 和 lineage。本阶段新增 `spatial-agent.replanning.v1`，由 `result_contract.py` 对事件做有界归一化，生成 `result.replanning` 与 `result.lineage.replanning`；trace 增加重规划说明，Console 优先读取 envelope，旧字段只作 fallback。M99 专项及相关回归 36 项通过；离线全量 624 项通过、42 项按环境跳过，真实 GIS core 31 项、真实模型 planner smoke 和显式绑定武汉配置的 live GIS 总览均通过。Docker engine 仍不可用，不能宣称当前版本 production acceptance。MCP 仍只作为未来真实外部工具来源的 adapter，不进入核心 Runtime。
+
+下一阶段从全局七维矩阵规划 M100：优先在 Docker engine 恢复后重建当前版本并执行 production acceptance；若继续受宿主环境阻塞，则推进开放式能力组合、失败重规划和跨入口恢复的脱敏回放，不引入没有真实外部工具来源支撑的 MCP。
+
+## M100 已完成
+
+`live-short` 本地 GIS profile 现在要求显式的 `--dataset-config` 或 `SPATIAL_AGENT_DATASET_CONFIG`，缺少时在启动模型前直接失败，避免回退示例配置造成 roads/water 数据门控的误判。M100 profile 回归 8 项通过，离线全量 625 项通过、42 项按环境跳过；M99 的真实 GIS/live 证据保持通过。Docker Linux engine 仍不可用，下一阶段 M101 优先做当前版本 Docker/HTTP/SQLite/artifact/Console 部署复验。
+
+## M101 已完成
+
+生产 acceptance 新增 `Assert-ReplanningEvidence`，同步运行和 artifact 必须携带并保持一致的 `spatial-agent.replanning.v1` 与 lineage 计数。full-stage、strict offline evaluation、smoke、PowerShell 解析和离线全量 625 项通过、42 项跳过；M101 相关回归 10 项通过。Docker engine 仍不可用，下一阶段 M102 优先进行当前版本容器 readiness、真实数据卷及 HTTP/artifact/recovery/Console 联合验收。
+
+## M102 已完成
+
+重规划结果契约现在兼容当前顶层 `replan_events` 和旧 artifact 的嵌套 `result.replanning.events`，历史恢复不会因字段位置变化丢失证据。M102 相关回归 30 项、离线全量 627 项（42 项按环境跳过）和 GIS core 31 项通过。Docker engine 仍不可用，下一阶段 M103 优先进行当前版本容器 readiness、真实数据卷和 HTTP/artifact/recovery/Console 联合验收。
+
+## M103 已完成
+
+M103 完成当前版本的跨入口验收。离线全量 627 项通过、42 项按环境跳过；quick、stage、smoke、Python 编译和 `git diff --check` 通过。GIS Python 环境下的 GIS core 抽样 3/3 通过，覆盖行政区查询、DEM 元数据和 analysis-ready 数据报告。
+
+真实模型 + 武汉本地 GIS 的 `live-short` 2/2 通过：空间总览返回 `spatial_overview_result`、约束建设筛选返回 `constrained_buildability_result`，均为 `COMPLETED`，0 次重试；本轮安全记录 token 总量为 11,546，不保存或输出模型原始响应和密钥。数据配置显式绑定 `D:\tmp\wuhan-gis\datasets.wuhan.analysis-ready.bound.json`。
+
+本地 HTTP 入口验证了健康检查、运行时能力快照、同步运行、异步提交/轮询和 artifact 引用；result envelope 的 `result.type`、`result.views`、`result.workspace` 和重规划证据保持统一，顶层兼容字段仍可读取。完整 FastAPI/Docker production acceptance 尚未执行：Docker Linux engine 仍因 `dockerDesktopLinuxEngine` named pipe 不存在而不可用。隔离 Chrome CDP 也因宿主 Chrome headless 进程退出码 13 未完成动态浏览器 smoke；前端静态契约和已有浏览器测试仍在离线全量中通过，不能把本轮动态浏览器检查记为通过。
+
+### M104 全局规划
+
+1. 部署可靠性：Docker engine 恢复后使用当前代码重建镜像，执行 readiness、核心/可选数据卷、同步/异步、SQLite 恢复、artifact、失败/重规划和 FastAPI acceptance。
+2. 架构与契约：对 dev HTTP、production FastAPI、CLI、artifact 和 recovery 做统一结果契约矩阵，明确 `result.type` 与兼容顶层字段的读取规则。
+3. 产品能力：从整体 Agent Runtime 角度扩展开放式请求理解、澄清和多工具编排，新增能力优先进入 RequestFacts、CapabilityCatalog 和 WorkflowTemplate，不增加区域专用分支。
+4. 数据与模型：继续使用真实数据和可选真实模型验收，同时保留脱敏回放、数据 provenance、CRS/栅格对齐和降级说明作为默认可重复证据。
+5. 前端与测试：恢复可控的隔离浏览器 CDP 后完成动态 workspace、views、trace、地图和清空状态 smoke；将上述证据纳入跨入口发布门禁。
+6. 工具来源：继续以 ToolRegistry 为唯一执行 seam；只有出现真实远程 GIS、数据库或第三方工具来源时，才实现满足现有合同的 `MCPToolProvider` adapter。
+
+## M104 已完成
+
+M104 从全局工程质量角度补齐 CI 门禁：GitHub Actions 现在依次执行服务 smoke、stage 契约 profile 和完整离线 unittest 回归。CI 不访问真实模型、私有配置、原始 GIS 数据或 Docker；真实 GIS、真实模型和 Docker 继续由显式阶段 profile 验收。与 CI 等价的本地 smoke、stage 和离线 627 项回归已通过，42 项按环境跳过。
+
+### M105 全局规划
+
+1. 生产入口与部署：Docker engine 恢复后重建当前镜像，执行 `/health/live`、`/health/ready`、FastAPI、SQLite 多 worker、artifact 和重启恢复矩阵。
+2. 开放式 Agent 能力：以 RequestFacts、CapabilityCatalog 和 WorkflowTemplate 为公共扩展点，增加跨区域、跨任务的开放式请求回放和受控澄清，不增加区域专用分支。
+3. 模型与工具：继续用脱敏回放和可选真实模型验证结构化计划、失败分类、token/延迟和重规划；ToolRegistry 仍是唯一 dispatch seam，暂不引入没有真实外部来源支撑的 MCP。
+4. 数据与前端：保留真实数据 provenance、对齐/覆盖降级证据，并在可控浏览器 CDP 环境恢复后完成动态 workspace、views、trace、地图和会话清空验收。
+
+## M105 已完成
+
+M105 增加了一个脱敏的 `open_region_query` 模型回放：将“查询江夏区行政区边界”通过同一能力目录、工具 DAG、TaskPlan 和 result type 执行，证明区域名称是 RequestFacts 参数而不是区域专用规则。`RequestFacts`、result envelope 和计划参数的跨入口断言已补齐；既有结构化空间澄清、Console 规划证据和 HTTP/artifact/recovery 契约继续通过。
+
+回放套件 3/3 通过，M105 相关 RequestFacts/意图/跨入口回归通过；full-stage、严格离线评测和离线全量 628 项通过、42 项按环境跳过。Docker Linux engine 仍无法连接，Chrome CDP headless 仍受宿主退出码 13 阻塞，真实部署与动态浏览器证据保持未宣称状态。
+
+### M106 全局规划
+
+1. 部署与架构：Docker 恢复后执行当前版本 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和 dev/production 结果契约矩阵。
+2. 产品与模型：增加一个非固定“总览/建设筛选”表达的开放式空间请求 live/replay 基线，并让澄清由能力目录驱动；不把新表达写成区域分支。
+3. 数据：继续验证真实武汉数据的 provenance、对齐、覆盖和可选数据降级，明确数据证据与模型规划证据的边界。
+4. 体验与测试：恢复可控 CDP 后验收动态 workspace、views、地图、轨迹和清空状态；保持 CI 离线门禁，不引入 MCP 运行时依赖。
+
+## M106 已完成
+
+M106 完成了一个非固定表达的真实模型 + 本地 GIS 基线：通过 `AgentService` 执行“查询江夏区道路与水体分布”，返回 `zonal_vector_summary_result`，生成 5 个工具步骤，workspace/views 均为 `vector`，真实命中道路 10,051 个、水体 1,189 个，0 次重试。该请求没有使用总览或建设筛选的固定模板，仍经过同一 Planner、ToolRegistry 和结果格式化层。
+
+## M107 已完成
+
+- GitHub Actions 最近失败的具体步骤已定位为 `Run stage contract profile`；smoke 成功，完整 unittest 因 job fail-fast 被跳过。
+- `scripts/test_profile.py` 与 CI workflow 已统一使用 UTF-8 子进程环境和显式解码，并增加中文子进程输出回归；stage profile 本身保留，不为绕过失败而删除。
+- 本地验证：smoke 通过、stage 通过、离线全量 629 项通过、42 项按环境跳过。
+- GitHub Actions 原始日志接口返回 403（当前凭据无 repository admin 权限），因此记录了 job step/annotation 证据和本地等价复现，未声称已读取原始异常堆栈。
+
+下一阶段 M108 从全局角度先确认 CI 修复后的远程 run，再推进生产入口矩阵、开放式能力组合与动态 Console 验收；默认 CI 继续不访问真实模型、私有配置、原始 GIS 数据或 Docker，ToolRegistry 仍是唯一执行 seam。
+
+### M108 全局规划
+
+1. 架构与测试：以跨入口 Contract Harness 统一 CLI、HTTP、artifact、recovery 和 Console 结果证据，避免各入口复制 envelope 投影。
+2. 部署可靠性：Docker 恢复后执行 FastAPI/readiness、SQLite 多 worker、artifact/recovery 和真实数据卷矩阵。
+3. 产品与模型：将开放式空间基线扩展为“同一能力的不同表达 + 未注册能力的结构化澄清”，用脱敏回放和可选 live 证据评估计划质量。
+4. 数据与体验：验证 provenance、栅格对齐/覆盖和可选数据降级；恢复可控 CDP 后完成动态 workspace/views/地图/轨迹/清空验收。
+
+## M108 当前进展
+
+- 新增 `evaluation/contract_harness.py`，统一 CLI、HTTP、artifact 和 recovery 的稳定结果投影、等价比较及有界差异路径。
+- M81 复杂空间分析跨入口回归已改用 Harness；新增 M108 专项 4 项，连同既有跨入口验收共 13 项通过。
+- 修复异步服务在 Runtime 中间 `COMPLETED` 快照与 artifact/GeoJSON 最终引用之间的轮询竞态；50 次 targeted loop 全部通过。
+- 下一步运行 full-stage、离线全量和 CI，再将 Harness 证据接入 release/production acceptance；Docker 恢复后继续真实部署和动态前端验收。
+
+## M108 已完成 / M109 已完成
+
+- Contract Harness 已统一 CLI、HTTP、artifact 和 recovery 的稳定结果投影与比较，并忽略运行 id、路径、时间等传输字段。
+- 异步 artifact/GeoJSON 轮询竞态已修复；50 次 targeted loop 全部通过。
+- 新增脱敏 `open_capability_query` 回放，使用“请概括江夏区的道路和水体分布”验证非固定模板的开放式多工具能力。计划包含道路/水体 schema 与分区矢量汇总两个 DAG 分支，结果类型为 `zonal_vector_summary_result`。
+- M109 回放 4/4、full-stage 和离线全量 634 项通过，42 项按环境跳过；没有访问真实模型、私有配置或原始 GIS 数据。
+- Docker Linux engine 与动态 Chrome CDP 的宿主限制仍保持记录；本回放不替代真实 GIS、Docker 或浏览器证据。
+
+### 下一阶段
+
+1. Docker engine 恢复后重建当前版本，完成 FastAPI/readiness、真实数据卷、SQLite 多 worker、artifact/recovery 和跨入口 acceptance。
+2. 从全局 Agent Runtime 角度扩展结构化澄清、能力发现和受控失败修复，继续复用 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry 和 Result contract。
+3. 恢复可控浏览器后验收动态 workspace、views、地图、轨迹和会话清空；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M110 已完成
+
+- 新增 `scripts/contract_harness_check.py`，生产 acceptance 通过同一 `evaluation/contract_harness.py` 比较同步结果与 artifact，不再在 PowerShell 中复制结果投影逻辑。
+- PowerShell 使用 UTF-8 临时 JSON 数组并显式固定 Python 仓库导入根目录；真实 Service/artifact、等价结果和差异结果回归通过。
+- M110 专项 4 项、full-stage 和完整离线测试 638 项通过、42 项按环境跳过；PowerShell parser 和 `git diff --check` 通过。
+- Docker Linux engine 仍不可用，因此当前版本的 FastAPI/Docker production acceptance 仍待真实环境重建后执行。
+
+### 下一阶段
+
+1. Docker 恢复后执行当前版本 readiness、数据卷、同步/异步、SQLite 恢复和跨入口 production acceptance。
+2. 从整体 Runtime 继续扩展结构化澄清、能力发现和受控失败修复，复用 RequestFacts、CapabilityCatalog、WorkflowTemplate、ToolRegistry 与 Result contract。
+3. 之后进行真实武汉 GIS、可选真实模型和动态 Console 验收；没有真实远程工具来源时不引入 MCP 运行时依赖。
+
+## M111 已完成
+
+- 结构化澄清增加 `spatial-agent.clarification.v1`，保留 CapabilityCatalog 的中文标签和有界候选详情，修复前端只能显示能力 ID 的问题。
+- Service 与 HTTP 的未注册空间能力澄清一致；“请概括江夏区的道路和水体分布”的计划预览在 Service 与 HTTP 之间保持一致。
+- M111 专项 2 项、空间意图/HTTP 回归通过；真实 Docker/FastAPI 仍未执行，原因是 Docker Linux engine named pipe 不可用。
+
+### 下一阶段
+
+1. Docker 恢复后执行当前版本 readiness、真实数据卷、同步/异步、SQLite 重启恢复和 production acceptance。
+2. 继续扩展非固定表达回放、结构化澄清多轮闭环和受控失败修复，不增加区域专用分支。
+3. 完成真实武汉 GIS、可选真实模型和动态 Console 入口验收。
+
+## M112 已完成：Domain Pack 与数据集解耦
+
+- 已新增 `DomainPack` 接口，`AgentRuntime`/runtime factory 可注入领域包；默认 GIS 通过懒加载保持向后兼容。
+- GIS 数据集工具映射、数据分组、能力定义、discovery 和 workflow context 已迁入 `domains/gis`；`agent/capability_catalog.py` 只保留通用构造逻辑和 GIS 兼容别名。
+- catalog 构造器支持自定义 domain id、能力定义、数据组、工具映射、workflow templates 和 analysis-ready 能力集合。
+- 非 GIS fake Domain Pack、非 GIS catalog builder 和无 GIS workflow context 的 Runtime 回归已加入 `tests/test_m112_domain_pack.py`。
+- M112 专项 3 项、`full-stage`、编译和 `git diff --check` 通过；三 worker SQLite 幂等测试单独连续 20 次通过。
+- 完整离线套件在测试顺序/资源压力下再次偶发既有 M69 三 worker 用例失败，已确认不是 M112 专项回归；不要把该单次失败误判为 Domain Pack 失败，也不要删除该并发门禁。
+
+### M113 全局重规划
+
+1. 产品：用跨领域能力示例验证“自然语言请求 -> RequestFacts -> 能力发现 -> TaskPlan -> ToolRegistry -> 结果证据”的完整闭环，而不是继续增加洪山区专用分析。
+2. 架构：补真正独立于 GIS 的最小 adapter/replay，并审查 workflow、result views、provenance 和 failure/replanning 是否仍有 GIS 字段泄漏。
+3. 数据与模型：把 GIS 数据仅作为一个 Domain Pack 做真实验收；保持脱敏模型回放和真实模型可选，不把某个数据集作为 CI 前置条件。
+4. 部署与体验：Docker 恢复后重建当前版本，验证 Domain Pack 选择、HTTP/SQLite/artifact/recovery、动态 Console workspace/views 和地图证据。
+5. 测试：继续保留 GIS core 与真实数据验收，同时新增跨领域 contract harness；最大并发度保持 1。
+
+## M113 已完成
+
+- 新增无 GIS 术语的 `domains/text` Domain Pack，验证自定义 RequestFacts、CapabilityCatalog、discovery、Planner、ToolProvider、AnswerComposer 和结果类型可以由同一 Runtime 编排。
+- `AgentService` 新增可注入 `runtime_factory`，文本 Runtime 可以导出 artifact；Service 结果与 artifact 使用 Contract Harness 保持一致。
+- 通用 planning evidence 增加 `domain_id`，来源优先为 Domain discovery，其次为 capability catalog；Runtime 不解析具体领域值。
+- M113 专项与 M112 回归、`full-stage`、离线全量 646 项（42 项按环境跳过）、编译和 `git diff --check` 全部通过。
+
+### M114 下一步
+
+1. 进行全局领域泄漏审计，重点检查 Service/HTTP capability、result views、provenance、failure/replanning 和前端动态 workspace。
+2. 将仍然 GIS 特有的公共契约下沉到 GIS Domain Pack，并补跨 GIS/非 GIS 的 contract harness。
+3. Docker 可用后执行真实 GIS Domain Pack 的 HTTP、SQLite、artifact/recovery、地图和 live model 验收；保留离线 CI 门禁。
+
+## M114 已完成
+
+- Runtime 默认 composer 与默认权限已改为由 Domain Pack 提供；GIS 保留兼容 fallback，Text Domain Pack 可独立提供 `TextAnswerComposer` 和 `text_data:read`。
+- 移除公共结果契约中 `text_summary_result` 的专用标题映射，标题由计划 output 提供；通用结果仍可落入 generic workspace。
+- M114 定向 17 项、full-stage、离线全量 646 项（42 项跳过）、编译和 diff check 通过。
+- 仍待处理的边界：GIS result views/panels、生产 capability endpoint、provenance 和数据健康逻辑仍有领域语义。
+
+### M115 下一步
+
+1. 设计并实现 Domain Pack 驱动的 result type/view 注册契约。
+2. 让 HTTP capability snapshot 复用实际 Runtime 的 Domain Pack，补 Text/GIS 双入口测试。
+3. 继续审计 provenance、failure/replanning 和前端动态结果消费，随后进行真实 Docker/GIS 验收。
+
+## M115 已完成
+
+- 新增通用 `ResultContractRegistry`/`ResultTypeSpec`，Domain Pack 可以注册 result type 的标题和 workspace panels；GIS metadata 位于 `domains/gis`，Text metadata 位于 `domains/text`。
+- `build_result_contract()` 支持注入 registry，Runtime/Service/artifact 复用同一 registry；旧自定义 Runtime 没有 registry 方法时自动回退到兼容默认值。
+- M115 定向 16 项、full-stage、离线全量 646 项（42 项跳过）、编译和 diff check 通过。
+
+### M116 下一步
+
+1. 让 HTTP capability endpoints 读取实际 Runtime/Domain Pack，而不是直接调用 GIS catalog。
+2. 增加 Text/GIS capability snapshot 的 Service/HTTP 契约回归，并将 GIS data health 作为可选领域证据。
+3. 继续处理 provenance/failure/replanning/前端领域泄漏，再安排真实 Docker/GIS 验收。
+
+## M116 已完成
+
+- `AgentRuntime.capability_catalog()` 与 `AgentService.capabilities()` 已接通；开发 HTTP 和生产 FastAPI 的普通 `/capabilities` 均从实际 Runtime/Domain Pack 取目录。
+- Text Domain Pack 的 Service/HTTP 能力目录回归通过，HTTP 结果不再包含 GIS capability；生产/开发模块不再直接导入 GIS catalog。
+- M116 定向 18 项、full-stage、离线全量回归、编译和 diff check 通过。
+
+### M117 下一步
+
+1. 抽象 `/capabilities/runtime` 的通用 provider/governance snapshot 与 Domain Pack 可选数据 evidence。
+2. 补生产 FastAPI 与开发 HTTP 的双领域 snapshot 契约测试。
+3. 继续处理 provenance、failure/replanning、前端动态展示，再进行 Docker/GIS/live model 验收。
+
+## M117 已完成
+
+- 新增 `AgentRuntime.runtime_capabilities()`/`AgentService.runtime_capabilities()`，统一 provider、governance、domain、backend 和通用 runtime metadata。
+- Domain Pack 可选提供 `runtime_evidence()`；Text 已返回 `not_applicable` 数据状态，旧 Domain Pack 缺少该方法时安全降级为 `not_evaluated`。
+- M117 定向 25 项、full-stage、离线全量回归、编译和 diff check 通过；旧 GIS runtime snapshot 保持兼容，HTTP runtime endpoint 留待 M118。
+
+### M118 下一步
+
+1. 迁移 `/capabilities/runtime` 到 Service/Runtime snapshot。
+2. 为 GIS Domain Pack 接入数据健康/manifest/alignment/provenance evidence，并保留旧字段。
+3. 补开发/生产 HTTP 双领域契约测试，随后做真实环境验收。
+
+## M118 已完成
+
+- 开发 `/capabilities/runtime` 和生产 FastAPI runtime snapshot 已接入 Service/Runtime；旧 provider 名称保留为兼容包装，`service=None` 隔离测试仍可用旧探针。
+- GIS Domain Pack 适配旧数据健康/manifest/analysis-ready/provenance 与 capability runtime evidence；Text HTTP snapshot 验证 `not_applicable`。
+- M118 定向 23 项、full-stage、离线全量回归、编译和 diff check 通过；FastAPI 依赖缺失导致生产专用用例按环境跳过。
+
+### M119 下一步
+
+1. 拆分 release evidence/provenance/failure/replanning 的通用与 GIS evidence 边界。
+2. Docker/FastAPI 可用后执行 readiness、runtime snapshot、SQLite、artifact/recovery 的生产验收。
+3. 补前端 Text/GIS 动态 result/workspace/views/runtime evidence 契约，再做真实模型与数据组合验收。
+
+## M119 已完成
+
+- `ResultTypeSpec.requires_geometry` 已替代公共结果模块中的 GIS 类型集合，几何降级由 Domain Pack result metadata 控制。
+- provenance 增加 schema/domain id 和有界通用计数摘要；Text 结果不会生成空间几何未知告警，failure/replanning 保持通用。
+- M119 相关回归、full-stage、离线全量 650 项（42 项跳过）、编译和 diff check 通过。
+
+### M120 下一步
+
+1. 继续把 result views 的 GIS tool/type 判断下沉为 Domain Pack view registry。
+2. 将 provenance 的 GIS 字段变成可选领域 evidence，保留旧 artifact 兼容。
+3. 补前端 Text/GIS 动态展示契约，再进行真实 Docker/FastAPI/GIS/LLM 验收。
+
+## M120 已完成
+
+- `ResultContractRegistry` 增加 Domain-owned view builder；GIS 使用惰性注册的既有 view model，Text 不执行 GIS view builder 并返回 generic empty views。
+- `build_result_contract()` 通过 registry dispatch views；M120 定向 25 项、full-stage、离线全量 650 项（42 项跳过）、编译和 diff check 通过。
+
+### M121 下一步
+
+1. 将 GIS view builder 实现移入 `domains/gis`，公共结果模块只保留 envelope/dispatch。
+2. 将 provenance GIS 字段改为可选领域 projection，保持旧 artifact/recovery 兼容。
+3. 补前端 Text generic views 与 GIS views smoke，随后做真实环境验收。
+
+## M121 已完成
+
+- provenance 已增加 Domain projection：通用层只保留安全计数和血缘，GIS registry 负责 `admin_name/crs` 等兼容字段，Text 不泄漏 GIS 字段。
+- M121 定向回归、full-stage、离线全量 651 项（42 项跳过）、编译和 diff check 通过。
+
+### M122 下一步
+
+1. 将 GIS view builder 代码移动到 `domains/gis`。
+2. 前端继续只消费 result views/workspace，补 Text generic views smoke。
+3. 真实依赖可用后执行 Docker/FastAPI/数据/模型生产验收。
+
+## M122 已完成
+
+- GIS view builder 已物理迁移到 `domains/gis/views.py`，GIS registry 直接注册该实现；公共 `result_contract.py` 不再包含 GIS view 构造逻辑。
+- 前端继续由 `result.views`/`result.workspace` 控制结果面板；新增 `tests/test_m122_domain_views.py` 验证 Text generic workspace 不触发 GIS 页面分支。
+- 全量离线测试 653 项通过（42 项按环境跳过），quick、full-stage、compileall、`git diff --check` 通过。
+- 当前工作树仍需在提交前确认没有私有配置、API key、原始 GIS 数据；FastAPI/Docker/真实模型/真实 GIS 验收仍属于环境条件路径。
+
+### M123 全局规划
+
+1. 继续从项目整体审计前端静态 GIS controls、专用 comparison HTTP 入口和 GIS 兼容 fallback，优先识别公共层仍然泄漏的领域知识。
+2. 设计并实现 Domain-owned view metadata/renderer seam，让前端只消费通用 view kind、schema 和 renderer metadata。
+3. 增加第二个非 GIS Domain Pack 回放与 Service/HTTP/artifact/Console generic contract harness，证明扩展不需要复制 GIS 页面。
+4. 在 Docker/FastAPI/真实数据/真实模型恢复后执行生产验收矩阵；继续保持单线程开发、离线 CI 和中文问题记录。
+
+## M123 已完成
+
+- `ViewSpec` 已加入 Domain-owned result registry；`result.workspace.view_specs` 和 capability context 都提供有界 renderer metadata。
+- Console 的 generic workspace 可以消费未知 panel id，并按 metrics/table/chart renderer 展示结构化结果；Text 和自定义 registry replay 已覆盖。
+- 前端发送前不再解析 DEM、土地利用等 GIS 关键词，也不再自行判断本地 GIS 后端是否可用；请求由 Runtime 的能力和数据门控处理。
+- 全量离线 654 项通过（42 项按环境跳过），full-stage、Node 脚本语法、compileall 和 diff check 通过；真实生产依赖未宣称完成。
+
+### M124 全局规划
+
+1. 把 GIS comparison endpoints/controls 改造成 Domain-owned action metadata，避免公共 HTTP 和前端继续知道建设适宜性语义。
+2. 增加第二个完整非 GIS Domain Pack replay，覆盖 Service、HTTP、artifact、recovery、generic Console 和 Contract Harness。
+3. 复验 Docker/FastAPI/真实 GIS 数据、SQLite 恢复、能力快照、降级证据和可选真实模型路径。
+4. 以项目整体验收重新规划下一阶段，继续保持单线程、离线 CI、不提交私有配置和中文问题记录。
+
+## 当前 M124 已完成
+
+- `DomainActionSpec`、action catalog 和显式 Domain Pack action dispatch 已接入 Runtime、Service、开发 HTTP 与生产 FastAPI。
+- GIS comparison 已通过三个 Domain-owned action 声明；旧比较路由仅作为兼容 wrapper。
+- Console 已加载 `/actions`，通过 `executeDomainAction()` 调用动作；页面不再直接调用旧 comparison 路由。
+- Text Domain Pack 的 HTTP、artifact、recovery、generic Console 和 Contract Harness replay 已通过；Text action catalog 为空且不包含 GIS 语义。
+- 验证：M124/Console 24 项通过；离线全量 659 项通过，42 项按环境跳过；Node inline script syntax、`git diff --check` 通过。
+
+## 下一阶段 M125
+
+以项目整体为基准收口公共 Runtime 的领域耦合：先迁移答案组合、数据健康和 analysis-ready 的 Domain provider，再补通用 Action schema/error/observability contract；同时让 Console 只消费 Runtime snapshot、action catalog、ViewSpec 和 result evidence。完成后用 Text/第二非 GIS Domain Pack、GIS 真实数据、artifact/recovery、HTTP/生产入口和可选真实模型做矩阵验收。
+
+## M125.1 已完成
+
+- Runtime 的 GIS 数据健康、DEM/土地利用网格对齐和像元工具列表已移入 `DomainPack.preflight_tool()` 与 `domains/gis/preflight.py`；Runtime 只负责通用权限/审批后调用领域预检。
+- Domain action 增加 bounded input schema 校验，拒绝缺少必填字段、未知字段和错误的嵌套类型；action 仍只能由 Domain Pack 显式声明和 dispatch。
+- 验证：M124/M125.1 相关回归通过；全量离线 662 项通过，42 项按环境跳过；compileall、quick/full-stage、`git diff --check` 通过。
+
+## 下一小阶段 M125.2
+
+继续物理收敛 GIS AnswerComposer、数据健康/analysis-ready legacy provider 和 release evidence；补 Action 的结构化错误、观测、artifact/recovery 契约，并以非 GIS Domain Pack 验证完整跨入口闭环。
+
+## 当前阶段节奏调整
+
+后续阶段将合并更多相互依赖的纵向任务，至少同时覆盖一个架构 seam、一个跨入口结果契约和对应文档/部署影响；开发中只做必要的专项回归，阶段完成时统一执行一次专项验收和一次全量测试，避免频繁重复长时间测试。
+
+## M126 收尾状态
+
+- `DomainPack` 新增可选 `release_evidence()` seam；`AgentRuntime`、`AgentService`、开发 HTTP 和生产 FastAPI 的正常路径均从当前 Domain Pack 读取 release evidence。GIS 通过 `domains/gis/evidence.py` 适配既有 data-quality、analysis-ready 和 release provider；旧模块继续作为兼容入口。
+- Domain Action 已统一生成 `spatial-agent.action-execution.v1`、有界 trace、`result` envelope 和独立 action artifact；新增 `/action-executions/{execution_id}` 只读恢复入口，不会重复执行动作。artifact store 不会把 action artifact 混入普通 run 列表和运行指标。
+- Text Domain Pack 新增 `text.summarize`，验证非 GIS action 的成功、输入 schema 失败、artifact recovery、开发 HTTP 和 release evidence；其 runtime/release snapshot 不含 GIS 数据语义。
+- M126 专项与 M124 兼容回归已通过；阶段末按新节奏只保留一次代表性专项回归和一次全量离线回归。Docker、FastAPI 依赖、真实 GIS 数据和真实模型仍需在依赖可用时做显式环境验收，不能以离线证据代替。
+
+## 下一阶段规划原则
+
+下一阶段继续以完整 Agent 闭环为单位合并任务，至少同时覆盖架构 seam、跨入口结果契约、可替换领域回放、部署影响和中文文档。开发期间只运行编译/静态检查与必要的局部专项；阶段结束集中运行代表性专项和全量回归，然后再根据产品、架构、数据、模型、部署、体验、测试七个维度整体重规划。
+
+## M127 已完成
+
+- 已完成版本化 Domain Evidence Provider/Envelope、Action 幂等与失败重放、Action metrics/observability、Action history/artifact HTTP 入口，以及 Console 通用 Action evidence 展示。
+- 已完成脱敏回放的 Domain 选择：Text 使用 Text Domain Pack，GIS 使用 Demo GIS adapter；新增 Text 开放请求与 GIS 复杂总览 fixture。
+- M127 专项 7 项、离线全量 674 项通过（42 项跳过）；smoke、stage profile、`git diff --check` 和远端 CI 稳定门禁通过。
+- M127 已提交并推送阶段版本；FastAPI/Docker/真实 GIS/LLM 仍需在依赖可用时执行显式验收。
+
+## M128 全局规划
+
+1. 抽取 Run 与 Action 共用的 Execution Record/事件投影 seam，统一状态、trace、metrics、artifact/recovery 和幂等证据，避免公共 Runtime 继续维护两套近似执行模型。
+2. 用 Contract Harness 覆盖 CLI、开发 HTTP、生产 FastAPI、同步/异步、artifact 和 Console 的跨入口一致性，并使用 Text 与复杂 GIS 两类回放。
+3. 将数据健康/降级与执行结果建立通用关联；真实武汉数据继续只由 GIS Domain evidence 提供，真实模型继续作为可选 live 基线。
+4. 阶段末集中执行专项+全量，补充 Docker/FastAPI 可用性证据；环境不可用时记录明确阻塞，不把离线测试当成生产验收。
+
+## M128 当前进度
+
+- 已新增 `spatial-agent.execution-record.v1`，统一 Run 与 Domain Action 的身份、状态、结果类型、trace、artifact、幂等和错误投影；不复制原始请求、Action 参数或工具结果。
+- Runtime、Service、ArtifactStore、result envelope、Contract Harness、开发 HTTP 和 Console 已消费同一执行记录；旧的无执行身份 fixture 仍按原契约工作。
+- M128 专项 7 项、受影响的 M108/M110/M127 等契约回归 13 项、离线全量 681 项通过（42 项跳过）；smoke、stage profile、compileall 和 `git diff --check` 通过，阶段版本随后推送。
+
+## M129 收尾状态：Domain-owned Planner Guidance
+
+- 公共 LLM Planner 已不再维护 GIS 数据集、区域或建设筛选规则；只消费通用 TaskPlan/ToolRegistry/安全协议和选定 Domain Pack guidance。
+- `GIS_DOMAIN_PACK` 与 `TEXT_DOMAIN_PACK` 都提供版本化 planner guidance；guidance 字段、工具语义和结果类型经过 bounded normalization。
+- 运行时工厂与模型回放入口会把当前 Domain Pack guidance 注入同一个 `LLMPlanner`；Text 负向测试确认 prompt 不含 GIS 语义。
+- M129 专项与受影响旧 Planner/Context/Domain 回归已通过；阶段末验证已完成：685 项离线测试通过、42 项按环境跳过，stage、full-stage、smoke、compileall 和 `git diff --check` 均通过，当前待提交并推送阶段版本。
+
+## 下一阶段 M130
+
+优先收口 Capability Routing/Catalog 的 GIS 兼容实现，建立通用 Request Understanding 与 capability discovery guidance，并让其进入计划证据和跨入口回放；不新增单区域 GIS 规则。
+
+## M131 当前进度
+
+- `DomainPack.rule_planner()` 已加入通用 Contract；GIS/Text Domain Pack 分别提供确定性 Planner，Runtime factory 与 Text Runtime 通过该 seam 选择，不再由公共 factory 假定单一 Planner。
+- M131 适配回归、Text/GIS 既有跨入口回归和 M77 请求链路均通过；旧 `RuleBasedPlanner()` 入口保持兼容。
+- 剩余缺口：GIS Rule Planner 的构建策略和固定回答仍在公共兼容实现中，下一步物理下沉到 GIS Domain，并补自定义非 GIS Planner 的完整跨入口 replay。
+
+## M131 测试门禁收敛
+
+- `quick` 从 3 个用例收敛为 2 个核心 tripwire：工作流编译契约和 Domain Planner 选择契约；复杂空间运行由 CI 的代表性阶段场景覆盖。
+- `stage` 只运行 `stage-acceptance.json` 的 3 个离线场景，不再重复执行 `quick`；`full-stage` 只运行完整全局离线评测和模型回放，不再重复 `quick`/service smoke。
+- 历史单测、负向边界、HTTP、GIS、live 和 Docker 验收均保留，按代码风险或阶段收口显式运行；未删除测试，只减少 profile 叠加造成的重复执行。
+
+## M132 当前实现：GIS Planner 物理归属收口
+
+- GIS `RuleBasedPlanner` 和 `RuleBasedPlanComposer` 已移动到 `domains/gis/planner.py` 与 `domains/gis/rule_planning.py`；`GisDomainPack.rule_planner()` 直接构造 Domain-owned 实现。
+- `agent/planner.py` 与 `agent/rule_planning.py` 仅保留 Planner 协议、旧导入适配和惰性委托，不再定义 GIS 规划策略；旧直连测试和调用保持兼容。
+- M132 专项已验证实现模块归属、旧 facade 委托、能力 route/builder 一致性、M130 facts 复用和复杂空间 Runtime 闭环；下一步完成阶段集成验证并按七维全局盘点重规划。
+
+## M132 代码清理进度
+
+- 新增 `docs/code-cleanup-plan.md`，记录 105 个运行/脚本/评测 Python 文件、124 个测试文件的清理基线、保留判据和阶段顺序。
+- 清理了可证明无效的运行代码/测试导入、未使用局部变量和测试替身参数；修复静态检查暴露的 `DATASET_GROUPS` 未定义与 `List` 缺失导入问题。
+- Pyflakes、Ruff（F401/F821/F841）和 Vulture 均通过；受影响专项 102 项通过、5 项按环境跳过，`ci`、`stage`、compileall 和 `git diff --check` 通过。
+- M81 profile 测试 9 项通过；重复的 subprocess dry-run 样板已集中到测试 helper。测试方法不按数量删除：没有发现无入口死测试或完全重复方法体；后续只继续合并重复 profile/重复断言，并保留失败、恢复、跨入口和环境专项契约。
+
+## M132.1 可疑死代码审计
+
+- 相对导入调用图确认 `agent/`、`domains/`、`evaluation/` 没有孤立运行模块；脚本类无直接 import 文件均保留为有文档或自动化入口的 CLI/验收脚本。
+- 删除了 `AgentService._ensure_memory_session()`、`ServiceState` 中 7 个无调用的旧 state 操作，以及测试替身中只赋值不读取的字段；公共兼容 alias、动态导出、registry 查询和反射字段保留。
+- 43 项异步/重启/重规划/几何/profile 专项通过（1 项按 FastAPI 环境跳过），`ci`、`stage` 和静态检查通过；下一步继续审计跨入口重复断言，不按测试数量删除独立契约。
+
+## M132.2 跨入口重复 fixture 审计
+
+- 删除与 M67 canonical 模型响应完全重复的 `m65_spatial_overview_response.json`，M65 Runtime/ToolRegistry 测试改为读取 M67 fixture 的 `response`。
+- M127 的同内容响应仍保留在自包含 Domain replay suite 中；Service、HTTP、artifact、Console 和模型质量测试没有因“相同输入”而删除独立断言。
+- 相关回归 30 项通过；重复断言样板、删除 fixture 残留引用和过期运行注释复核完成，没有新增可安全删除项。
+
+## M133 全局规划：跨领域 Runtime 闭环验收
+
+下一阶段从项目整体推进，不围绕单个 GIS 数据集堆规则：
+
+1. 验证 Text/GIS 共用 `RequestFacts -> CapabilityCatalog -> TaskPlan -> Runtime -> Result/Trace/Artifact` 闭环。
+2. 统一 Domain Pack、Planner、ToolProvider、Result Registry 与 HTTP/Console 的跨入口契约，保持公共 Runtime 与 GIS 策略解耦。
+3. 将 provenance、CRS/栅格对齐、核心/可选数据降级纳入统一证据；真实模型以脱敏回放为默认、live 为显式基线。
+4. 验证同步/异步、SQLite 重启、artifact 恢复、多进程观测和动态 Console workspace 的一致性。
+5. 保持 `quick`/`ci`/`stage` 分层，先做最小跨领域契约，再运行 GIS/live/Docker 专项，最后整体重规划。
+
+## M133.1 当前实现：Domain-owned ToolProvider seam
+
+- 通用 Runtime Factory 现在通过 `DomainPack.tool_provider(backend_name, root)` 获得工具定义和 dispatch provider；GIS/Text 不再由公共工厂共享 GIS Registry。
+- 默认权限改为从选定 Domain Pack 读取；Text Runtime 通过通用 Factory 支持 rule/openai Planner 选择，旧 Domain Pack 保留兼容 fallback。
+- 新增跨领域行为回归，验证 Text provider、权限、结果类型和 fake LLM Planner 均经过统一 Runtime；M112/M113/M124/M126-M131 与 M133.1 共 49 项通过，静态检查和 compileall 通过。
+- 下一步：补同一 Domain Pack 在 HTTP、异步、artifact 和重启恢复入口的选择/结果一致性矩阵，再运行阶段 profile。
+
+## M133.2 当前实现：Service/HTTP 的显式 Domain Pack 选择
+
+- `AgentService(domain_pack=...)` 现在可以直接选择 Domain Pack；与 `runtime_factory` 同时传入会明确报错，默认构造路径保持 GIS 兼容。
+- Text Domain 通过同一 Service 入口验证同步、HTTP、artifact、异步 SQLite 和重启恢复，统一返回 Text result、planning 和 execution evidence。
+- M133.2 受影响回归 65 项通过；离线全量 700 项通过、42 项跳过；`ci`、`stage`、静态检查和 compileall 通过。
+
+## M134 全局规划：部署边界的 Domain Registry 与跨入口矩阵
+
+1. 增加受控 Domain Registry/选择器，让 CLI、HTTP、生产 API 和 Console 从同一配置解析 Domain Pack，禁止任意模块反射导入。
+2. 将 Domain、Planner、Backend、provenance、健康/对齐降级状态在 capabilities、结果和 readiness 中统一暴露。
+3. 验证 Text/GIS 的脱敏 LLM 回放、可选 live 基线、SQLite 重启、artifact 恢复和多 worker 缓存不会串域。
+4. 让前端按 Domain 与结果类型动态展示能力和 workspace，切换配置时清理旧会话/缓存；补配置错误负向测试与跨入口 Harness。
+
+## M134 当前实现状态
+
+- `agent/domain_registry.py` 提供 GIS/Text 静态 allowlist、惰性 Domain Pack 加载、环境/显式选择和非法值拒绝；`AgentService`、Runtime Factory、CLI、开发 HTTP 与生产 API 已统一使用该边界，新增 `/domains` 目录接口。
+- `AgentRunResult`、preview、run artifact、SQLite snapshot、async job 和 execution evidence 均带 `domain_id`；历史查询、metrics、artifact/recovery、Action history 和异步恢复按 Domain 过滤，跨 Domain run_id 覆盖会被拒绝。
+- M134 专项 7 项、受影响 SQLite/异步/Action/Text/GIS 回归通过；离线全量 707 项（42 项按环境跳过）、full-stage、quick、ci、stage、Ruff、Pyflakes、Vulture、compileall 和 diff check 通过。当前工作树已完成实现，阶段提交/推送后进入 M135 全局重规划。
+
+## M135 全局重规划方向
+
+1. 产品与体验：让 `/domains`、capabilities、会话和结果 workspace 形成统一的当前运行上下文，前端在领域切换或服务配置变化时清理旧会话与缓存，并展示领域/Planner/Backend 证据。
+2. 架构：建立版本化 `RuntimeContext`/deployment snapshot，将 Domain、Planner、Backend、ToolProvider、权限和 schema 版本作为一次运行的不可变配置，避免仅靠环境变量推断历史运行上下文。
+3. 数据与模型：把 Domain-owned provenance、数据健康/网格对齐降级和脱敏模型 replay 统一关联到该 snapshot；真实模型仅做可选基线，不让 provider 差异改变结果契约。
+4. 部署与可靠性：验证生产 API、开发 HTTP、Console、SQLite 重启、多 worker 和 artifact 在同一 snapshot 下的一致性；补配置变更、滚动重启和旧 artifact 兼容证据。
+5. 测试与收口：保持单线程和精简 profile，增加一组跨入口 context snapshot contract，再按全局七维盘点决定是否进入真实 GIS/live/Docker 验收。
+
+## M135 当前实现状态
+
+- 已新增版本化 `spatial-agent.runtime-context.v1`，Runtime Factory 将选定的 Domain、Planner、Backend、ToolProvider、权限和核心契约版本构造成有界快照；TaskPlan/result envelope 版本由 `agent/contract_versions.py` 统一定义，直接 Runtime 未提供显式 Planner 名称时保留 `unknown`，生产 Factory 路径记录实际 `rule/openai`。
+- 同步 run、preview、runtime capabilities、Domain Action、异步 SQLite job、run snapshot、artifact/recovery 和 Console 统一消费该快照；前端执行证据旁显示 Planner、Backend 和 Provider；异步 worker 在执行前校验快照，发现配置漂移时返回 `runtime_context_mismatch`。
+- M135 专项 8 项通过，M128 执行记录兼容回归 7 项通过；完整离线回归 715 项通过、42 项按环境跳过，`quick`/`ci`/`stage`/`full-stage`、GIS-core profile、Ruff、Pyflakes、Vulture、compileall 和 diff check 均通过，M135 已具备阶段提交条件。
+
+## M136 全局规划：跨入口 Runtime Context 与 Deployment Evidence Contract
+
+M135 已把一次运行的配置快照持久化，但当前 Cross-entry Contract Harness 还没有把该快照纳入一致性投影；HTTP、异步、artifact/recovery 和 Action 的 Context 证据也缺少一组统一的正负验收。因此 M136 以“可信运行身份可比较、配置漂移可解释、数据/模型证据可关联”为阶段目标，不新增区域专用规则。
+
+七维度盘点与顺序任务：
+
+1. **产品能力**：让用户和面试演示能回答“这次运行使用了哪个 Domain、Planner、Backend、Provider 和策略”，并能区分配置漂移、数据降级和工具失败。
+2. **架构边界**：把有界 `RuntimeContext` 纳入 `evaluation/contract_harness.py` 的 canonical projection；统一 Service、开发 HTTP、生产 API、异步恢复、artifact 和 Domain Action 的读取路径，保留旧 payload 兼容。
+3. **数据质量**：为 Context 预留安全的 data/provenance snapshot 引用，只保存 manifest/版本/健康状态等有界证据，不保存原始路径、栅格内容或大 GeoJSON；验证数据降级不会覆盖 Runtime 身份。
+4. **真实模型**：为 rule、脱敏 replay 和 live provider 统一记录 planner/provider/model 的非敏感身份与 token/延迟/错误分类引用；不把 API key 或 provider 原文写入 Context。
+5. **部署可靠性**：增加滚动重启、异步接管和配置漂移的负向矩阵；当前 Context 与 Runtime 不一致时，HTTP/SQLite/artifact 保留同一个机器错误码和恢复证据。
+6. **用户体验**：Console 通过结构化 Context 和 failure/degradation evidence 动态展示可信度状态，不增加 GIS 专属 DOM 分支。
+7. **测试证据**：先补 Harness canonical projection 与漂移负向测试，再按直接 Service、HTTP、异步轮询、artifact、重启恢复、Action、Text/GIS 逐层验收；默认路径不访问真实模型或私有数据。
+
+执行顺序：
+
+1. Runtime Context canonical projection 与正负 Harness。
+2. HTTP/异步/artifact/recovery/Action 的 Context 一致性矩阵。
+3. 安全 data/provenance 与模型 replay evidence binding。
+4. Console 动态 Context/降级/漂移展示。
+5. `quick` -> `ci` -> `stage` -> `full-stage`，再按环境条件运行 GIS/live/Docker，更新全局规划并推送版本。
+
+## M136 当前实现状态
+
+- `RuntimeContext` 已进入 Contract Harness canonical projection；同时比较 result envelope 中的 Context、模型证据和 provenance Context fingerprint，支持顶层与嵌套 transport 位置兼容，并能报告 backend/domain 等漂移路径。
+- 新增版本化、白名单化 `model_evidence`；结果 envelope、`AgentRunResult`、run/action artifact 写入边界统一规范化 Runtime Context。模型证据不复制 provider 原始响应、API key、私有路径或未知 usage 字段。
+- 异步生命周期观测返回 `runtime_context_fingerprint`；新增异步轮询/重启/幂等、Action artifact 恢复、Text/GIS 领域隔离回归。M136 专项 3 项，受影响跨入口矩阵 83 项，完整离线 722 项通过、42 项按环境跳过。
+- M136 已完成离线契约范围。下一阶段先深化 data provenance/manifest 与真实模型 replay/live 证据，再进行生产 Docker/GIS 显式验收；仍按七维度整体规划，最大并发度保持 1。
+
+## M137 全局规划：统一 Deployment Evidence Contract
+
+M136 已让 Context、model evidence 和 provenance fingerprint 可以跨 transport 比较，但 release/runtime data evidence 和模型 replay/live 身份仍是独立接口。M137 的纵向目标是把“运行配置、数据发布状态、模型证据、可恢复性”关联为一个安全、可比较的 deployment evidence projection，不新增区域专用规则。
+
+1. **产品**：一次运行/发布检查/模型评测都能解释配置、数据可信度、模型证据来源和恢复能力；Console 使用结构化 evidence 动态展示。
+2. **架构**：复用 `RuntimeContext`、`evidence_contract`、`result envelope`、`provenance` 和 `model_evidence`，新增公共聚合/归一化 seam；Domain Pack 只负责提供数据领域证据。
+3. **数据**：绑定 `data_provenance`、manifest、CRS/栅格对齐、source binding 和 output manifest 的安全摘要；不输出私有路径、大几何或原始配置。
+4. **真实模型**：区分 rule、offline replay、live provider，加入受控 fixture/replay identity 与 provider error classification；默认仍离线。
+5. **部署**：`/release-evidence`、readiness、run、async、artifact/recovery 共享 Context fingerprint；Docker 当前宿主不可用，恢复后只做显式 acceptance，不伪造通过证据。
+6. **体验**：把数据/模型/Runtime/恢复状态放进通用证据区，避免 GIS 专用 DOM 分支。
+7. **测试**：先补 release/runtime 与 Text/GIS 正负矩阵，再补 replay/live 投影和生产脚本；保持 quick/ci/stage/full-stage 分层。
+
+执行顺序：release evidence binding -> model replay/live identity -> deployment canonical projection -> Console evidence -> offline/full + explicit environment acceptance。
+
+## M137 当前实现进展
+
+- Runtime 的 runtime/release evidence 已带同一 `runtime_context_fingerprint`；Text/GIS 的 domain evidence contract、数据降级状态和 Runtime 配置身份保持分离。
+- `model_evidence` 已标记 `rule`、`offline_replay`、`live_model`，脱敏 replay 报告关联有界 fixture identity；result/artifact/recovery 仍只消费白名单证据。
+- `agent/deployment_evidence.py` 提供 `spatial-agent.deployment-evidence.v1`，结果 envelope、runtime capabilities、release evidence 和 Console 执行证据均可读取 Context、模型、数据/manifest、降级状态的统一摘要。
+- M137 专项 4 项、M135/M136 相邻 Context/跨入口专项 12 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 均通过；完整离线回归 726 项通过、42 项按环境跳过。Docker 当前宿主不可用，不能把历史容器验收当作本版本证据。
+
+## M138 全局规划：Deployment Evidence 跨入口验收与发布 readiness
+
+M137 已建立统一 deployment evidence projection，但生产 acceptance 尚未把它作为门禁，runtime capabilities、`/release-evidence`、运行结果、artifact/recovery、异步终态和前端展示也缺少一套完整的跨入口断言。M138 以“证据生成、传输、恢复和验收一致”为纵向目标，不新增区域专用规则。
+
+七维度盘点与顺序任务：
+
+1. **产品能力**：用户和面试演示可以从同一证据卡看到 Runtime 配置、数据发布状态、模型执行模式、降级状态和可恢复性，并能跳转到发布证据。
+2. **架构边界**：统一 runtime/release/result/artifact/async 的 deployment evidence schema、Context fingerprint 和状态语义；Contract Harness 对这些公共证据做有界比较。
+3. **数据质量**：验收 `ready`、`degraded`、`unavailable`、metadata-only、hash verified、source/output mismatch 等状态均能安全表达，不输出原始路径、栅格内容或大几何。
+4. **真实模型**：验证 rule、offline replay、live model 的执行模式和 bounded fixture/provider identity；模型失败分类与部署状态关联，但不写入 prompt、原响应或密钥。
+5. **部署可靠性**：生产 acceptance 增加 runtime capabilities、`/release-evidence`、同步/异步、失败运行和 artifact 的 evidence gate；Docker/FastAPI 恢复后运行当前版本验收，环境不可用时明确记录。
+6. **用户体验**：Console 只消费结构化 deployment evidence，展示配置、数据、模型和恢复状态，不增加 GIS 专用 DOM 分支。
+7. **测试证据**：新增少量跨入口正负契约与 PowerShell acceptance 静态门禁；默认 `quick`/`ci`/`stage`/`full-stage` 仍离线，真实 GIS/live/Docker 按显式 profile 验收。
+
+执行顺序：
+
+1. 为 runtime capabilities、release evidence、run、artifact、failure 和 async payload 增加统一 deployment evidence 检查。
+2. 将生产 acceptance 的 evidence gate 与 release endpoint、Context fingerprint 和敏感字段检查接通。
+3. 完善 Console evidence card 与发布证据链接的通用渲染，并验证 Text/GIS 领域隔离。
+4. 用 Contract Harness、离线回归和可用环境下的 Docker/FastAPI/GIS/live acceptance 收口，再进行七维度重规划。
+
+## M138 当前实现状态
+
+- `scripts/production_acceptance.ps1` 新增 `Assert-DeploymentEvidence`，覆盖 runtime capabilities、`/release-evidence`、同步 run、失败 run、异步终态和 run artifact；校验 schema、状态、Context fingerprint、模型执行模式、必需 section 和敏感字段，并比较 runtime/release fingerprint。
+- Console 的统一执行证据卡显示 deployment 状态、数据 readiness、降级状态和 lineage 发布证据链接；Text/GIS 共用同一结构化渲染路径。
+- M138 关联回归 19 项通过（1 项真实 Docker acceptance 按环境跳过）；PowerShell parser、Node 内嵌 JS、`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 通过；完整离线回归 726 项通过、42 项按环境跳过。
+- Docker Linux engine 当前不可用，当前版本 FastAPI/Docker/GIS/live production acceptance 尚未执行；不能用旧容器证据替代本版本验收。
+
+## M139 当前实现状态
+
+- GIS intent/clarification 的词汇、能力提示和缺参策略已物理迁移至 `domains/gis/intent.py`；`agent/spatial_intent.py` 仅保留惰性兼容 facade，GIS Planner 直接依赖 Domain-owned 实现。
+- `DomainPack.clarification_details()` 与 Runtime fallback seam 已接入：Rule/LLM Planner 未提供 details 时，preview/run 会从当前 Domain 补充结构化澄清；Text Domain 返回中性空策略，不继承 GIS 词汇。
+- M139 专项 3 项、M62/M130 相关回归 11 项通过；`quick`、`ci`、`stage`、`full-stage`、compileall、Ruff、Pyflakes、Vulture 和 `git diff --check` 通过；完整离线回归 729 项通过、42 项按环境跳过。
+- 真实 GIS、live LLM、FastAPI/Docker production acceptance 仍按环境条件未执行；旧兼容导入已验证，下一步继续扩展通用 capability requirement/开放式回放，不新增区域专用分支。
+
+## M139 全局规划：Domain-owned 开放式澄清与能力发现
+
+M138 已把部署可信度闭环接入验收；全局盘点发现公共 `agent/spatial_intent.py` 仍持有 GIS 词汇和缺参判断，开放式问题的澄清策略没有完全归属于 Domain Pack。M139 以“请求理解与澄清策略可替换”为纵向目标，让新增领域不必继承 GIS 规则，同时保持旧导入和现有结果契约兼容。
+
+七维度盘点与顺序任务：
+
+1. **产品能力**：开放式空间问题能返回结构化匹配能力、缺失信息和下一步动作；非空间/非 GIS 领域不被误导到 GIS 选项。
+2. **架构边界**：将 GIS lexical intent、clarification message/details 物理下沉到 `domains/gis`，公共层只保留领域无关 seam 与惰性兼容 facade。
+3. **数据质量**：澄清结果引用能力目录的 dataset/tool gate 和环境状态，但不提前执行工具、不伪造数据可用性；实际数据降级仍由 Runtime preflight/evidence 负责。
+4. **真实模型**：LLM Planner 继续消费 Domain guidance、RequestFacts 和 capability discovery；增加脱敏开放式澄清回放，验证模型不会绕过 Domain policy 或工具 Registry。
+5. **部署可靠性**：澄清/preview 不初始化业务 backend，不生成 run/artifact；异步和恢复继续沿用 M138 的 Context/deployment evidence。
+6. **用户体验**：Console 以通用 clarification contract 渲染候选能力、缺失字段和动作，不增加 GIS 专用 DOM。
+7. **测试证据**：补 GIS/Text 正负隔离、旧 facade 兼容、preview/HTTP result contract 和一条开放式模型回放；默认 profile 保持精简离线。
+
+执行顺序：
+
+1. 建立 Domain-owned intent/clarification seam 与版本化安全 projection。
+2. 迁移 GIS 实现，公共兼容入口改为惰性委托；Text 提供中性实现或明确“不适用”。
+3. 让 Rule/LLM preview、run 和 clarification 共用同一 discovery/clarification evidence。
+4. 补跨入口和脱敏回放，运行分层测试后再进行全局重规划。
+
+## M140 当前实现：CapabilityCatalog-owned 请求需求
+
+- `agent/capability_catalog.py` 提供版本化 `request_requirements` 归一化和通用 `project_clarification_requirements()`；投影只比较 RequestFacts，不检查 capability ID，因此可供非 GIS Domain 复用。
+- GIS catalog 为区域、数据集、筛选阈值声明需求；`domains/gis/intent.py` 删除按能力 ID 推断缺参的分支，并返回结构化 `missing_fields`。Text catalog 保持空的领域无关需求。
+- `domains/gis/evidence.py` 在 Domain adapter 内把旧 `capabilities` 适配为 Runtime 要求的 `capabilities_runtime`，不让公共 Runtime 认识 GIS 历史字段。
+- production acceptance 自动解析可运行 Python、跳过 WindowsApps alias，并在 Harness 失败时报告解释器和退出码。Docker 重建必须显式使用 `docker compose --env-file .env.production -f docker-compose.prod.yml ...`，当前真实数据卷 `/data` 已验证。
+
+## M140 验证结果
+
+- M140/M139/M62 专项 15 项通过；`quick`、`ci`、`stage`、`full-stage`、GIS-core、compileall、Ruff、Pyflakes、PowerShell parser 和 `git diff --check` 通过。
+- 全量离线测试 735 项通过、42 项按环境跳过。当前 Docker production acceptance 通过：16 项能力、核心/可选数据 ready、同步/artifact Contract Harness、失败证据、400 错误边界、异步终态与幂等均通过。
+- live smoke 已确认 provider 和真实 GIS 可达；约束建设案例通过。空间总览案例因真实模型产生重复 `range_query` 与未声明依赖，被严格 ToolRegistry/DAG 校验拒绝，分类为 `tool_validation`，不将其伪称为全量 live 通过。
+
+## 下一阶段 M141 规划参考
+
+围绕整体 Agent Runtime 建立通用的 capability-guided plan repair 与模型计划稳健性闭环：规则、脱敏 replay 和 live Planner 共享 TaskPlan schema、DAG、ToolRegistry、repair lineage 和 result/artifact/async 证据。先补有界 repair seam 与重复/未声明引用的契约测试，再扩展复杂开放式任务 replay/live 基线；数据健康、部署证据、Console 动态展示和跨领域隔离作为同一纵向切片验收，最大并发度保持 1。
+
+## M142 测试精简阶段当前状态
+
+- 默认 discovery 已收敛为 `python -m unittest discover -s tests -t . -v`，通过 `tests/__init__.py` 只加载 4 个 compact active gate 测试；历史测试文件保留，按模块显式运行。
+- `quick` 仅 2 个 Runtime/artifact/澄清契约，`ci` 仅 quick + service smoke；stage、full-stage、GIS、live、Docker 继续按风险显式执行。
+- compact discovery、quick、ci、stage 和 smoke（含 compact unit gate）均已通过；本阶段目标是缩短反馈，不宣称历史全量回归已运行。
+
+## M143 跨入口最小契约当前状态
+
+- active suite 仍为 4 项；其中 Runtime/artifact 契约已扩展为 direct Service、`run_demo.py` CLI、HTTP `/runs` 和 artifact 的统一 `compare_results` 比较。
+- README、测试策略和恢复文档已说明该 gate 的覆盖边界；没有增加真实模型、真实私有数据或默认历史矩阵。
+- compact discovery、CI、Pyflakes、compileall 和 `git diff --check` 已通过。下一阶段从全局检查 Domain-owned view spec 与前端动态 renderer 的跨领域一致性。
+
+## M144 跨领域动态 view 当前状态
+
+- Text Domain 已新增 Domain-owned `generic` ViewSpec 和摘要 view model；Console generic renderer 会消费结构化 `metrics/rows`，不再为 Text 结果显示 raw JSON。
+- M122/M113/M124/M133 相关 21 项、Console 静态 smoke 14 项、compact、Pyflakes、compileall、Node 脚本语法检查和 Docker production acceptance 已通过。
+- 宿主 Chrome CDP 启动失败，动态浏览器 smoke 保持未验证；该环境限制不影响 Docker/API 和静态 renderer 契约证据，也不替代动态浏览器验收。
+
+## M145 统一 view 空态与恢复证据当前状态
+
+- 公共 result envelope 为声明但无结果的 view 生成 `unavailable` view，包含有界降级原因和 artifact 可恢复标志；前端 generic renderer 显示该结构化空态和运行 artifact 链接。
+- 恢复旧 artifact 时，空 view map 不会覆盖新契约；非空 artifact view 仍保留。M122/M113/M124/M133 相关 22 项、Console 静态 14 项、compact、CI、Pyflakes、compileall、Node 语法检查和 Docker production acceptance 已通过。
+- Chrome CDP 动态 smoke 仍未执行；下一阶段验证 SQLite/异步/多 worker 恢复后的 view evidence 一致性。
+
+## M146 当前阶段：异步 view evidence 生命周期
+
+- async observability 新增 `spatial-agent.async-result-evidence.v1`，用 `pending`、`success`、`degraded`、`unavailable` 统一描述轮询状态；仅返回 bounded workspace/view/artifact 元数据。
+- SQLite 终态、服务重启、artifact 恢复和标准库 HTTP `/runs/{run_id}/async` 的证据投影一致；完整结果仍通过 `/runs/{run_id}` 获取。
+- 专项测试 2 项通过；宿主 compact discovery 4 项、CI、Docker 容器专项、容器 compact/CI 和 production acceptance 通过。Docker 冷启动能力快照实测约 8 秒，acceptance GET 预算改为 30 秒。
+- 本阶段未扩大默认 active suite，也未提交真实数据、私有配置或密钥；Chrome CDP 动态 smoke 仍未执行。
+
+## M147 全局规划参考
+
+下一阶段从整体 Runtime 视角检查证据版本化、旧 artifact 兼容、跨 Domain 负向隔离和 Console 消费边界；不要为单一 GIS 场景增加专用分支。顺序为：契约迁移负向检查 -> Text/GIS 跨入口最小矩阵 -> Docker/HTTP 显式验收 -> 全局七维度重规划。
+
+## M147 当前阶段：artifact 版本与安全恢复边界
+
+- run artifact 新增 `spatial-agent.run-artifact.v1`；缺失 schema 的历史 artifact 兼容读取，未知版本拒绝读取，避免未来格式被静默误解释。
+- run artifact 的 `run_id` 写入/读取与 Action 一样进行安全文件名校验，跨 Domain recovery/list/read 仍返回空而不串域；Console 通用 renderer 已消费 async result evidence。
+- M147 专项 3 项、M146/M122/M124/M133 相邻专项共 19 项、compact、CI、Docker 专项 5 项、生产 acceptance 和内嵌 JS 语法检查通过。
+
+## M148 全局规划参考
+
+下一阶段优先把 artifact/async evidence 版本投影纳入 Contract Harness，再验证 Text/GIS 双 Domain 的 HTTP、artifact、Console 负向隔离；真实模型 replay/live 与 Docker 作为显式验收，不扩大默认测试。M148 起允许并行开发，边界清晰的子任务最大并发度为 5；共享 schema、result envelope 和公共 Runtime 改动仍由主线统一集成。
+
+## 当前并行开发策略
+
+- 最大并发度：5。
+- 适合并行：独立 Domain 测试、文档/验收脚本、前端静态契约、互不重叠的 adapter 或 provider 边界。
+- 不直接并行：同时修改同一公共 schema、`result_contract.py`、Runtime 状态迁移或同一组前端核心函数；这些由主线先确定契约，再合并实现。
+- 每个并行子任务必须有显式专项测试，合并后仍按 compact -> 专项 -> Docker/HTTP 的顺序集成验证。
+
+## M148 当前阶段完成状态
+
+- `evaluation.contract_harness` 已比较 artifact schema、async result evidence、降级/视图状态和 artifact 可用性，同时忽略路径、run_id 与时间等易变字段。
+- 新增统一 Domain-aware artifact file access；开发 HTTP 与生产 FastAPI 的 run/action/GeoJSON 下载均执行 Domain 过滤，Text 请求 GIS artifact 返回 404。
+- artifact 持久化有界 async evidence；只有 artifact 时可恢复 evidence，缺失时明确为 `unavailable` 且 `availability=unknown`。
+- 修复自定义 Runtime 异步提交的 Context 快照字符串/tuple key 漂移，并让无 query 的 run detail 从持久化 Runtime Context 推断 planner/backend。
+- Console 依据 `/capabilities.domain_id` 隐藏/禁用 GIS 专用控件；新增 Text Domain 静态负向契约。
+- Docker opt-in replay：`docker exec -e SPATIAL_AGENT_M148_DOCKER_REPLAY=1 ai-agent-spatial-agent-1 python -m unittest tests.test_m148_docker_replay -v` 通过 Text/GIS 两个 case；production acceptance 通过。GIS degraded 证据按契约保留，不视为失败。
+- 默认 compact gate 未扩大；M148 专项与相邻回归 25 项通过。动态浏览器/CDP 和 live provider 未混入本阶段通过结论。
+
+## M149 全局规划参考
+
+下一阶段先从项目全局收敛嵌套 schema 迁移/未知版本边界，再增强 capability-guided replay/live plan repair 的统一证据，随后执行生产 FastAPI 与 Console 动态浏览器矩阵；不围绕单一 GIS 数据集增加规则，最大并发度保持 5。
+
+## M149 当前执行规则：并发度调整为 5（已完成）
+
+本阶段按用户最新要求将可用并发度提高为 5。只并行执行边界清晰、可独立验收且写入集合不重叠的支线；共享嵌套 schema、result envelope、Runtime 状态迁移和前端核心渲染仍由主线统一集成。历史记录中的并发度 1/3 均为当时阶段约束，不覆盖本阶段规则。
+
+## M150 全局规划参考
+
+下一阶段从整体 Agent Runtime 推进 capability-guided plan repair 的真实执行闭环：先定义有预算的 Runtime repair seam，再接入同步/异步/artifact/recovery 和 Text/GIS 双 Domain；同时建立 FastAPI 生产依赖矩阵、可选 live/replay 计划修复基线和 Console 浏览器/CDP 动态验收。默认 active suite 不扩张，数据任务只服务于 runtime evidence，最多并发 5 路。
+
+## M150 收尾状态
+
+- M150 已将 capability-guided plan repair 从评测层接入 Runtime seam，并贯通 replay/live 投影、HTTP、异步、artifact/recovery、生产 acceptance 与 Console 决策证据。
+- 当前代码已修复 async final/artifact Contract Harness 的证据来源不一致；生产镜像已重建并通过 acceptance。容器 offline replay 覆盖 Text/GIS、模型调用、ToolRegistry、异步轮询和重启恢复。
+- 测试保持分层：M150 15 项宿主通过、1 项环境跳过；相邻 M141/M148/M149 31 项通过、3 项跳过；M80 32 项通过；quick/ci/stage/full-stage 通过。FastAPI TestClient 由于缺少 `httpx2` 明确跳过，Uvicorn 生产入口不受影响；Chrome/CDP 和外部 live provider 未执行。
+
+## M151 规划参考
+
+下一阶段从项目整体推进 repair decision 的可控生命周期：统一 repair/拒绝/澄清/恢复 action contract，支持跨 Domain 的多轮继续执行，并保证同步、异步、artifact、HTTP、Console 和评测使用同一状态投影。先做公共状态与恢复边界，再做入口适配，最后进行 Docker、可选 live 模型和浏览器显式验收；不为单个 GIS 数据集增加专用分支，默认 active suite 不扩大，最多并行 5 路。
+
+## M151 当前完成状态
+
+- 已完成计划执行前确认闭环：`WAITING_FOR_DECISION`、版本化 DecisionStore、CAS、批准/拒绝、原计划快照继续执行和结构化 evidence。
+- 已接入 Service、HTTP、异步、SQLite 重启、result envelope、Console 确认按钮；M151 专项 8 项和 M46/M10 相关回归 19 项通过。
+- 未完成 Docker、真实模型和动态浏览器验收；下一阶段先做决策生命周期的过期、取消、artifact-only 恢复和澄清/修复 action 统一。
+
+## M152 规划参考
+
+以完整 Agent 闭环为基准，统一用户决策、澄清、计划修复和失败恢复的 action/状态/证据契约，再验证 Text/GIS、同步/异步/artifact/restart 和 HTTP/Console 的一致性；不因单个 GIS 数据集增加专用分支，默认测试保持精简。
+
+## M152 当前完成状态
+
+- 已完成 artifact-only decision recovery：artifact 保存有界 decision record 和完整计划节点，重启后的无 SQLite 服务可以查询、批准并继续原计划。
+- 已完成 SQLite 过期决策、默认 30 分钟 TTL 和待确认运行取消边界；取消不执行工具。
+- 相关 artifact/SQLite/嵌套契约与 M151 专项共 40 项通过，quick/ci 通过；Docker/live/CDP 留待显式验收。
+
+## M153 规划参考
+
+把澄清、修复、确认、拒绝、重试和恢复统一为通用 action/version/evidence contract，优先验证重复提交、未知 action、artifact、HTTP、异步和 Console 的一致性。
+
+## M153 当前进展
+
+- 已新增 `agent/action_lifecycle.py`，与 `DecisionLifecycle` 分离，提供无 I/O 的 `spatial-agent.action-lifecycle.v1` bounded projection。
+- result envelope、run artifact、async result evidence 和 Console 已接入同一 lifecycle 字段；旧 async evidence 缺少字段时生成安全 fallback。
+- M153 专项 4 项、M151 决策 11 项、M149/M150 相邻契约 16 项、quick、compact discovery、Python 编译和 Node 语法检查通过；Docker production acceptance 已通过。
+- live-short 已实际调用真实模型和武汉 GIS，但两个案例因模型重复步骤触发 `tool_gate` 失败，详见中文问题文档；动态浏览器尚未验收。下一阶段修复通用 Planner/Workflow repair seam，默认 active suite 不扩大。
+
+## M154 当前完成状态
+
+- 新增 `agent/plan_quality.py`，对唯一 workflow blueprint 进行有界步骤质量诊断；规划 repair 和执行 replan 共用 blueprint context，合并计划不满足 blueprint 时拒绝继续，不静默去重。
+- LLM Planner 增加 `range_query` 条件比较符的有限 canonical normalization，保留 ToolRegistry/schema 作为最终边界。
+- 容器内专项 30 项、Docker `ci`、`stage`、production acceptance 均通过；Docker 内真实模型 + 真实 GIS `live-short` 2/2 通过，token 总量约 11849，未发生 provider retry。
+- M153 的重复步骤问题已闭合；宿主 Python 缺少 Rasterio 的失败被确认是环境选择错误，不能替代 Docker GIS 证据。动态 Chrome/CDP 尚未验收。
+
+## 下一阶段 M155 规划参考
+
+从全局推进计划质量证据跨入口一致性：统一 replay/live、同步/异步、artifact/recovery、HTTP 和 Console 对 plan-quality、repair lineage、拒绝原因和最终状态的投影；同时验证无唯一 workflow blueprint 的开放式能力不会被误套模板。阶段默认门禁保持精简，Docker/GIS/live/browser 使用显式 profile。
+
+## M155 当前完成状态
+
+- 新增 `spatial-agent.plan-quality-evidence.v1`，对唯一 workflow blueprint 的通过、不匹配和不可用状态做统一有界投影。
+- 规划修复与执行重规划事件保存 `plan_quality_before/after`；最终 `plan_evidence`、result envelope、artifact、异步 evidence、replay/live 投影和 Contract Harness 共用该证据。
+- 开放式请求没有唯一 blueprint 时保持 `available=false`、`state=unavailable`、`reason_code=workflow_blueprint_unavailable`，不会被强行套用模板。
+- Console 计划证据区显示计划质量状态；不引入 GIS 专用页面分支。
+- M155 专项 4 项；M155 及相邻契约合计 26 项、quick、stage、compileall、Node 语法检查通过；当前 Docker 镜像专项 8 项和 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，继续作为后续显式验收，不得用已有 Docker/API/静态证据替代。
+
+## M156 下一阶段执行顺序
+
+1. 先盘点 Evidence、lifecycle、result envelope、artifact、async 和 Console 的公共边界，确认是否需要独立 Evidence Registry。
+2. 设计并实现统一执行时间线/证据引用的领域无关契约，保持旧 artifact 有界兼容和未知版本安全降级。
+3. 用 Contract Harness 覆盖同步、异步、artifact-only recovery、重启和 Text/GIS 隔离，再补 Console 静态/动态入口。
+4. 在可用 Docker/GIS 环境运行最小 live baseline，分别验证唯一模板、无唯一模板开放请求和失败修复；不把 live 结果纳入默认 CI。
+5. 阶段收口后更新 milestones、恢复文档和中文问题日志，提交并推送版本，再按七维度整体重规划。
+
+## M156 当前完成状态
+
+- 新增领域无关 `spatial-agent.execution-timeline.v1`，组合 planning、step、repair 和 lifecycle 事件；不包含请求、参数、原始错误和时间戳。
+- result envelope、artifact、async evidence 和 Contract Harness 统一保留/比较时间线；缺失或未知版本安全降级为 unavailable。
+- Console 通用证据区显示时间线是否可追溯及事件数量，没有新增 GIS 专用页面分支。
+- M156 专项 3 项、M155/M156 相邻契约 7 项、quick、stage、compileall、Node smoke 和 diff check 通过；Docker 当前镜像专项 7 项与 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，仍需后续显式验收。
+
+## M157 下一阶段执行顺序
+
+1. 盘点 timeline 与 action lifecycle 的字段重叠，定义允许动作和事件引用的最小公共接口。
+2. 实现 Evidence Registry/lineage index 的领域无关适配，保持旧 artifact 兼容和未知版本降级。
+3. 补 Text/GIS、开放式无模板、修复失败、数据降级的跨入口 Harness，并保持 quick/stage 不膨胀。
+4. 运行 Docker/GIS/live/browser 显式验收，完成阶段文档与版本推送后再重规划。
+
+## M157 当前完成状态
+
+- execution timeline 生命周期事件增加 `allowed_actions`，构建与归一化只接受 `ActionLifecycle` allowlist，未知动作被过滤。
+- Console 可从时间线显示当前可执行动作；result、async、artifact 和 Harness 继续共用相同时间线投影。
+- M157 专项 2 项；M155/M156 相邻契约合计 9 项、quick、stage、compileall、Node smoke 和 diff check 通过；Docker 当前镜像专项 5 项与 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，仍作为后续显式验收。
+
+## M158 下一阶段执行顺序
+
+1. 定义最小领域无关 Evidence Registry/lineage reference 接口，避免各入口拼接证据。
+2. 将 result、async、artifact、Console 和 Domain Pack 接入该引用索引，保持旧 artifact 兼容与未知版本安全降级。
+3. 验证允许动作只能由 lifecycle/Runtime 决定，ToolRegistry 仍是工具执行最终边界。
+4. 补 Text/GIS、live、Docker 和浏览器显式验收后再整体重规划。
+
+## M158 当前完成状态
+
+- 新增 `spatial-agent.evidence-registry.v1`，登记 result、plan quality、execution timeline、action lifecycle 和 replanning 的版本、状态与 JSON 引用。
+- result、async、artifact、Contract Harness 和 Console 共用 Registry；未知 Registry/entry schema 与外部引用安全降级为 unavailable。
+- M158 专项 4 项；M155/M156/M157 相邻契约合计 13 项、quick、stage、compileall、Node smoke 和 diff check 通过；Docker 当前镜像专项 4 项与 production acceptance 通过。
+- 外部 live provider、动态 Chrome/CDP 未执行，继续作为后续显式验收。
+
+## M159 下一阶段执行顺序
+
+1. 把 Registry 引用接入 artifact 下载、run history、async artifact-only recovery 和 Console 导航。
+2. 用 Text/GIS 双 Domain 验证 Registry 形状、跨 Domain 隔离和自定义 evidence 扩展。
+3. 让 replay/live baseline 使用 Registry 做证据完整性检查，保持默认 CI 离线精简。
+4. 完成 Docker/GIS/live/browser 显式验收后进行全局重规划。
+
+## M159 当前完成状态
+
+- 历史运行和 SQLite 快照保留规范化 `spatial-agent.evidence-registry.v1`；artifact history 不输出原始证据内容，只提供安全 Registry 投影。
+- 开发 HTTP 与生产 FastAPI 新增 `/runs/{run_id}/evidence`、`/artifacts/runs/{name}/evidence`；Console 历史与运行证据区可以导航到同一索引。
+- async artifact-only recovery 在旧/半写入 async evidence 缺失 Registry 时复用 artifact 顶层 Registry；Domain-owned result registry 支持有界自定义 evidence entry。
+- M159 专项 4 项、M155-M158 相邻专项 17 项、M148/M149/M146/M133 回归 13 项通过；当前代码镜像已用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate` 重建，Docker Engine 29.6.2 healthy，production acceptance 通过。新增检查覆盖同步/异步结果、artifact、轮询和两个 evidence 导航端点的 Registry 一致性；容器专项 10 项通过。
+
+## M160 全局重规划参考
+
+优先把 Registry 用于 replay/live 的证据完整性评测和当前版本真实入口验收：先补 Registry completeness contract 与开放式/澄清/修复/失败回放，再做 Docker/GIS/live/browser 矩阵；继续验证 Text/GIS 隔离、SQLite/artifact 重启恢复和 Console 动态证据导航。默认 quick/CI 保持离线精简，公共 Runtime/Result/ToolRegistry seam 由主线统一集成。
+
+## M160 当前完成状态
+
+- 新增 `spatial-agent.evidence-completeness.v1`，Registry 核心 entry 缺失、重复、数量失配、未知 schema 或非法引用时，replay/Contract Harness 明确失败；历史兼容读取仍安全降级。
+- 脱敏 replay 和 live baseline 均消费该 completeness 投影；GIS/Text 核心 Registry 结构一致，跨 Domain 执行记录不混用。
+- 新增可选 `DomainPack.validate_plan()` 执行前 seam。GIS 对唯一结果类型工作流执行 Domain-owned allowlist/max-step 门控，Text 不引入 GIS 策略；ToolRegistry、TaskPlan 和 DAG 校验仍是公共最终边界。
+- M160 专项 5 项、相邻回归、quick/stage/full-stage、compileall 和 diff check 通过；当前镜像 Docker production acceptance 通过，容器 M160/M159/M158 13 项通过。
+- 当前 Docker GIS/live-short 2/2 通过；脱敏 replay 4/4、live case Registry completeness 2/2，token 11,862、重试 0。动态 Chrome/CDP 因 Chrome 进程提前退出未验证，脚本的 Windows PowerShell 5.1 编码解析问题已修复并记录。
+
+## M161 全局重规划参考
+
+优先把 Domain plan policy 的选择依据、allowlist、repair lineage 和拒绝/澄清原因纳入公共 plan evidence，再评估显式 workflow selection 与开放式自动匹配的统一契约；继续做 Text/GIS 同步/异步/artifact/recovery 隔离和当前镜像动态浏览器验收。Registry 只做证据索引，不拥有 Runtime 状态或执行策略，默认 quick/CI 继续离线精简。
+
+## 持续有效：测试环境规则
+
+从 M161 起，项目测试统一以 Docker 当前镜像为准。宿主 Python 不再作为单元测试、GIS 测试或阶段完成的有效证据；宿主解释器只能用于诊断 WindowsApps alias、依赖缺失等环境问题。
+
+标准流程：
+
+1. 使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate` 让容器包含当前工作树。
+2. 确认 `ai-agent-spatial-agent-1` 为 `healthy`，并确认 `/data` 数据卷与容器内解释器/GIS 依赖可用。
+3. 通过 `docker exec ai-agent-spatial-agent-1 python ...` 执行 M 专项、`test_profile.py`、compileall 和必要的回归；生产 API 使用宿主侧 `scripts/production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088` 验收，该脚本只编排容器 HTTP 入口。
+4. 阶段记录必须区分容器通过、宿主诊断和外部 live/browser 未验证三类证据。
+
+切换到 Docker 只改变执行环境，不扩大默认测试矩阵；仍按 quick、stage、专项、docker、live-short 分层运行。
+
+## M161 当前收尾状态
+
+- `spatial-agent.plan-policy.v1` 已接入 Domain Pack、Runtime、result/artifact/async evidence、Contract Harness 和 Console；GIS policy 支持显式 workflow/唯一自动匹配，Text 不继承 GIS 策略。
+- 当前工作树镜像已重建为 healthy。容器内 M161 专项 6/6、compileall、quick、stage、M160/M159/M154/M148 相邻契约 21 项通过；宿主侧 production acceptance 针对 Docker HTTP 入口通过。
+- 当前 Docker 服务动态 Console 的 overview、health、clear、map 和 lineage smoke 通过；lineage 首次 CDP 页面生命周期异常在复跑中通过，暂记为环境波动。
+- M161 最终 diff/敏感配置检查、提交并推送已完成，版本为 `83ba60c`；随后按产品、架构、数据、模型、部署、体验、测试七个维度进入 M162。
+
+## M162 当前实现与验证状态
+
+- 新增 `spatial-agent.workflow-selection.v1`，将候选能力、显式 workflow、Domain 自动发现、歧义/澄清状态、事实键和选择原因纳入公共证据。
+- Runtime Context、计划/澄清/失败 evidence、Contract Harness 和 Console 共用该投影；Text/GIS 均通过 Domain seam 提供选择元数据，公共 Runtime 不读取 GIS 专用字段。
+- 当前 Docker 镜像 healthy；容器内 M162 6 项、M161 6 项、quick/stage、compileall 通过；宿主侧 production acceptance 检查同步/artifact 的 workflow selection，overview/health/map/lineage 动态 smoke 通过。
+- M162 后续工作已并入 M163，完成异步、artifact-only recovery、用户确认和真实模型/GIS 验收。
+
+## M163 当前完成状态
+
+- 异步结果证据、artifact-only recovery、Contract Harness 和 Console 统一保留 `spatial-agent.workflow-selection.v1` 的 selection projection。
+- Text runtime 工厂补齐 `decision_store` 传递；SQLite DecisionStore 支持安全恢复 artifact 中的决策记录，避免新服务批准时丢失 CAS 状态。
+- 新增 `tests.test_m163_workflow_selection_lifecycle`，2 项测试验证异步等待确认 → artifact-only 重启 → 批准继续执行的完整链路，并覆盖 SQLite 决策恢复的 Domain 隔离和不覆盖现有记录。
+- Docker 验证：M163 专项 2 项；M148/M151/M154-M162 相邻契约 54 项；quick、stage、compileall、smoke 均通过；容器为 healthy。
+- 当前 Docker 生产 HTTP acceptance 通过；动态 Console health、clear、overview/地图分层和 lineage smoke 通过；真实模型 + 真实 GIS `live-short` 2/2 通过（12,140 tokens，0 次重试）。
+- 发现的 Text 确认 store 丢失和 SQLite artifact 决策恢复问题已记录到中文开发问题文档；私有配置、API key、原始 live 输出和真实 GIS 数据未提交。
+
+## M164 全局规划参考
+
+下一阶段从项目整体推进能力选择的交互和迁移能力：产品侧补候选能力/补充事实/确认的连续交互；架构侧统一显式 workflow、Domain discovery、用户选择与 action lifecycle；数据侧保持 readiness/provenance 作为 capability evidence；模型侧补多候选与选择失败 replay/live；部署侧验证 SQLite 多 worker、artifact-only、滚动重启和旧 schema；体验侧让 Console 动态显示候选、选择、确认和恢复；测试侧保持 Docker 内 quick/CI 精简，新增显式 selection interaction/replay 专项后再执行 HTTP、browser 和 live 验收。
+
+## M164 当前收尾状态
+
+- 新增 `agent/selection_interaction.py` 与 `spatial-agent.selection-interaction.v1`，统一投影候选能力、缺失事实、确认、恢复、处理中和完成状态，并生成 bounded `allowed_actions`。
+- `result_contract.py`、`agent/service_async.py`、artifact recovery、开发/生产 HTTP 和 `web/index.html` 已接入同一投影；POST 交互动作经过 allowlist 校验并复用既有 DecisionLifecycle、Service.run/preview 和 ToolRegistry 边界。
+- Docker 当前镜像重建并 healthy；M164/M163/M162 相关专项 16 项中 15 项通过、容器缺少 Node 导致 1 项跳过；quick、stage、compileall、宿主 Node smoke 和 production acceptance 通过。
+- HTTP 已验证默认 GIS Domain 的确认、非法动作拒绝和交互读脱敏；当前 Docker `live-short` 2/2 通过，真实模型 + 真实 GIS 使用 12,153 tokens、0 次重试。动态 Chrome/CDP 未验证，不以静态 Node smoke 替代。
+- 修复了 M164 测试中的错误自引用断言；问题原因与预防规则已写入中文开发问题文档。
+
+## M165 全局重规划
+
+下一阶段不再围绕单个 GIS 请求扩展规则，优先建立“开放式请求 → selection → plan → execution → result/evidence → recovery”的跨入口可比较验收：
+
+1. 新增最小 Contract Harness，比较 CLI/HTTP/异步/artifact-only recovery/Console 的核心结果、plan fingerprint、lifecycle 和 evidence。
+2. 用 Text/GIS 双 Domain 覆盖多候选、缺失事实、开放式无模板、计划修复失败和数据降级；保持 Domain 策略不泄漏到公共 Runtime。
+3. 验证 SQLite 多 worker、滚动重启、旧 evidence/schema、重复 action 和 CAS 的恢复与幂等边界。
+4. 增加 selection interaction 的动态浏览器 smoke；默认仍只运行 Docker quick/CI，live/browser 作为显式验收。
+5. 阶段结束后更新全局文档、运行分层验收、敏感配置检查并推送版本。
+
+## M165 当前收尾状态
+
+- `evaluation/contract_harness.py` 已把 `selection_interaction` 纳入跨入口稳定比较，排除 run/decision identity，只保留状态、原因、候选、缺失事实、生命周期、允许动作和决策版本/选项。
+- 新增 `tests.test_m165_cross_entry_contract` 3 项；真实 Text/GIS selection lifecycle、artifact-only、SQLite 决策恢复、M68 旧 schema、M69 三 worker/滚动重启和 nested schema 回归均通过。
+- 修复生产与开发 HTTP 未提供 `console_*.js` 静态资源的问题，使用受限 allowlist 路由；三份脚本 HTTP 200，避免任意文件访问。
+- 新增真实 Chrome CDP smoke：`scripts/console_selection_interaction_browser_smoke.js` 已在 Docker 服务上通过，页面显示 `confirmation_required` 和 confirm/reject/cancel，证明前端实际加载并消费结构化 interaction。
+- M165/M164/M163/M68/M69 专项 23 项中 22 项通过、1 项因容器缺少 Node 跳过；quick、stage、compileall、production acceptance 通过。M164 的 Docker `live-short` 2/2 结果继续有效，未重复消耗 live token。
+
+## M166 全局重规划
+
+下一阶段围绕跨入口纵向链路，不增加单区域专用规则：
+
+1. 用同一 request fingerprint、plan identity、result、lifecycle 和 evidence 比较 CLI/HTTP/async/artifact-only recovery/重启/Console。
+2. Text/GIS 双 Domain 覆盖多候选、开放式无模板、补充事实、计划修复失败和数据降级。
+3. 验证旧 schema、未知 evidence、静态资源、SQLite 多 worker、重复 action 和 CAS 的兼容/恢复边界。
+4. 增加浏览器候选选择、补充事实、确认后完成和恢复空态 smoke；默认 Docker quick/CI 继续精简。
+5. 阶段完成后更新中文文档、运行显式 live/browser 验收并推送版本。
+
+## M166 当前进展（继续中）
+
+- request identity 公共 seam 已实现并接入 result、async、artifact、SQLite recovery 和 Contract Harness；plan identity 增加稳定 fingerprint 漂移比较。
+- 为保证请求语义不在入口切换时变化，`AgentRunResult` 与 artifact 现在保存 spatial context，async 重建使用持久化上下文；该修复已通过真实 Docker production acceptance 的 async/artifact Harness。
+- 修复显式 `spatial_analysis` workflow 被 GIS 自然语言路由重新覆盖的问题；新增显式 workflow 9 步计划回归，避免 `zonal_raster_statistics_result` 与模板契约冲突。
+- Runtime 从 canonical `workflow_selection` 提供 compact context 裁剪后的旧版能力证据兼容别名；M166/相邻 Docker 回归 57 项中 56 项通过、1 项因容器没有 Node 跳过。
+- Docker 证据：M166 专项 5/5；相邻专项 36 项中 35 项通过、1 项因 Node 缺失跳过；quick、stage、compileall、production acceptance 通过。
+- 下一步继续 M166 的纵向验收：补浏览器候选选择/补充事实/确认后完成/恢复空态，验证 Text/GIS 开放式请求和计划修复跨入口一致性，再决定阶段是否收口。
+
+## M166 本轮继续位置
+
+- 已将 Domain 声明的 `ambiguous` 选择统一接入 Runtime：未提供显式 workflow 时在 Planner 前进入 `NEEDS_CLARIFICATION`，结果保留候选能力和 `candidate_selection` allowed actions；用户选择后重新经过 Domain normalizer、Planner、workflow 校验和 ToolRegistry。
+- `AgentService` 不再把所有显式 workflow 交给 GIS normalizer。新增 Domain-owned `normalize_workflow`、`validate_workflow_plan` 和 `resolve_capability_selection` seam；GIS 保留原模板行为，Text 不携带 GIS 模板依赖。
+- 新增 `tests/test_m166_multi_candidate_selection.py`，已在 Docker 验证歧义停止和 `select_capability` 续接完成；M69 旧测试已调整为验证显式模板优先于自然语言路由。
+- 本轮 Docker 验证：新增/相邻 Contract Harness 专项共 97 项通过、Node 缺失跳过 1 项；quick、stage、full-stage、compileall、gis-core、production acceptance 通过。
+- 下一步仍是浏览器真实候选动作、Text/GIS 开放式跨入口 Contract Harness、模型选择不一致/有限 repair 失败回放和显式 live 基线；完成后再更新阶段版本并 push。不要提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M166 已完成，进入 M167 全局重规划
+
+- M166 的开放请求、Domain 歧义选择、`select_capability` 续接、Text/GIS 同步异步核心 Contract、浏览器交互和真实 live-short 已完成验收。
+- 阶段证据：Docker 97 项通过、Node 1 项因容器缺失跳过；quick、stage、full-stage、compileall、gis-core、production acceptance、browser smoke、live-short 2/2 和 repair/failure/evidence 专项均已记录。
+- 当前阶段尚未提交或推送；提交前继续检查 diff、敏感配置和文档一致性。推送后基于七维度进入 M167：候选详情/动作、Domain seam 版本化、数据证据绑定、模型选择回放、SQLite 矩阵和前端真实候选卡片。
+
+## M166 本轮恢复位置
+
+- 已修复交互续接重复使用 pending clarification 的问题。`provide_facts`、`select_workflow` 和 `preview` 续接现在消费 pending 状态，并使用已有 run 的 `resolved_request`，避免 `_resolve_request()` 二次拼接。
+- M166 回归现在覆盖 `provide_facts`、`select_workflow`、多轮原始 request/ resolved request、request/plan identity 传播和直接 workflow 对比；Docker 中 M166 相关 9/9 通过，Contract Harness 真实比较为零差异。
+- Docker quick、stage、compileall、production acceptance 通过；Chrome CDP smoke 已通过确认→完成、补事实→完成、恢复→完成三条动态路径。容器内 Node 测试仍因未安装 Node 跳过，宿主 Node/browser 已补验。
+- 当前仍未提交或推送。下一步从项目全局补 Text/GIS 开放式请求、多候选选择不一致、有限修复失败和跨入口恢复矩阵，再决定 M166 是否收口并推送版本。
+
+## M167 当前实现与验证状态
+
+- `spatial-agent.workflow-selection.v1` 已增加有界 `candidate_details`：候选能力包含 ID、名称、描述、输入事实、结果类型、可用性、数据门控、动作和可执行 workflow 摘要；由 Domain capability catalog 提供，公共 Runtime 只负责裁剪和规范化。
+- `agent/runtime.py` 已将 Domain catalog 传入 selection projection；GIS/Text 的 catalog 均能生成候选详情，旧的 `candidate_ids` 和未知/无详情数据保持兼容。
+- Console 已新增领域无关候选卡片，选择卡片直接提交 `capability_id`，不再强制打开 GIS workflow editor；`console_selection_interaction.js` 只处理通用结构化字段。
+- 新增 `tests/test_m167_candidate_selection.py`。Docker 中 M167 与 M162/M164/M165/M166 相邻专项 25 项通过，Node 测试 1 项因容器没有 Node 跳过；quick、stage、compileall、宿主 Node smoke、HTTP production acceptance 通过，容器保持 healthy。
+- 本阶段首次重建曾因 Runtime 缩进错误导致容器 unhealthy，已修复并将根因写入 `docs/agent-development-issues.md`。当前工作树仍未提交，下一步继续完成 M167 的 Domain seam 版本化、数据 evidence 绑定、SQLite 恢复矩阵和真实候选浏览器动作验收。
+
+## M168 当前实现与验证状态
+
+- 新增 `spatial-agent.capability-evidence.v1`，候选详情绑定有界 readiness、coverage、alignment、provenance、状态和缺失原因摘要；未知 schema 降级为 `unavailable`，不泄露文件路径或原始数据。
+- 新增 `spatial-agent.domain-workflow-seam.v1`，selection、workflow normalization、plan validation 和 capability resolution 的 Domain 能力声明进入 selection evidence。
+- M168/M167/M166/M165 专项 17 项通过；SQLite/artifact/restart 相邻矩阵 15 项通过；quick、stage、compileall、HTTP production acceptance 和 Chrome candidate smoke 通过，Docker 保持 healthy。
+
+## M169 当前恢复位置
+
+- M168 已提交并推送 `9e9b76d`。Docker 重建后容器 healthy；M169/M168/M167 专项 12 项通过，容器内 compileall 通过。
+- `interaction_receipts` 已接入 SQLiteStateStore 和 ServiceState memory fallback。候选选择、补事实、workflow 选择和预览现在有 CAS/idempotency receipt；重复请求复用结果，源 run/action 的不同输入被拒绝。
+- 交互完成后 receipt projection 写入子 run artifact，服务重启可以通过 receipt 找到原子续接的子 run；未执行第二次 Planner/ToolRegistry。
+- 新增 Planner selection evidence、旧 artifact 显式迁移、未知版本拒绝和失败 repair lineage；`AgentService.close()`、生产入口 shutdown/atexit 以及开发门禁的 `addCleanup` 均释放 observability 资源。
+- Docker 当前工作树已重建 healthy；compileall、quick、stage、M127/M148/M162-M169 专项 90 项通过（Node 相关 2 项按容器环境跳过），production acceptance 通过。
+- 宿主 Chrome CDP 已验证真实 Console 的预览 fingerprint、提交计划和最终计划一致，确认后完成且 artifact 可用；候选卡片、补事实和恢复 smoke 也通过。浏览器脚本使用显式 CommonJS 异步入口。
+- M169 当前仍未提交/推送。下一步是敏感信息扫描、`git diff --check`、版本提交与推送；随后按全局七维度规划 M170，不再只围绕单个 GIS 数据集扩展规则。
+
+## M170 当前恢复位置
+
+- `production_api.py` 已使用 FastAPI `lifespan` 管理模块级 Service，直接 import 仍由 `atexit` 兜底，避免 `on_event` 弃用告警和资源未释放。
+- `tests/test_m170_runtime_boundaries.py` 覆盖 lifespan close 与 Text Domain artifact 的 domain filter；不引入 `fastapi.testclient` 或额外 `httpx2` 依赖，直接使用原生 lifespan context。
+- Docker M170/M169/M127/M133/M148 专项、quick、stage、compileall 和 production acceptance 通过；真实 Chrome 预览 fingerprint 与最终计划一致，确认后完成。
+- 当前工作树包含未提交 M170 修改；提交前需完成敏感信息、diff 和文档一致性检查。推送后从公共 Runtime 的 GIS 兼容默认、能力发现广度和真实 evidence 可信度三条主线规划 M171。
+
+## M171 当前恢复位置
+
+- `ArtifactStore`、`SQLiteStateStore` 和 `AgentService` 已支持显式 `legacy_domain_id`；旧数据的兼容归属跟随当前 Domain，不再由公共持久化层硬编码 GIS。SQLite 的 domain 查询使用参数化 SQL，artifact、async、decision 和 recovery 过滤共用该归属。
+- 新增 `tests/test_m171_domain_defaults.py`，M171 专项 6/6 通过；M60/M61/M67 相邻回归已补齐 Service close，并在 Docker `-W error::ResourceWarning` 下 20/20 通过。
+- `web/index.html` 的 bootstrap 标记在基础目录加载完成后设置，历史恢复不再阻塞 smoke；`scripts/console_selection_interaction_browser_smoke.js` 已清理临时诊断并改用 DOM 就绪检查。
+- 当前 Docker 镜像 healthy；compileall、quick、stage、production acceptance 和正式 Chrome/CDP preview → confirmation → completed smoke 通过。Chrome smoke 连续 3 次通过，指纹无漂移。
+- M171 已提交并推送，版本为 `90ab4ef`；提交前已执行 `git diff --check`、敏感信息扫描和状态核对。现在按七维度进入 M172，不继续围绕单个数据集增加规则。
+
+## M172 下一阶段规划
+
+从全局完成“能力发现 → 规划 → 执行/澄清 → 证据 → 恢复”的开放式链路：先审计跨 Domain 公共契约和剩余 GIS 默认，再补未预定义请求的动态匹配/澄清、脱敏模型计划回放、跨入口证据比较和真实部署验收；前端只扩展通用结构化 renderer，默认测试继续精简并在 Docker 内执行。
+
+## M172 当前完成状态
+
+- `agent/capability_discovery.py` 新增领域无关的 catalog matcher：按 Domain 声明的 `request_hints` 比较 phrase、task、dataset、constraint 和 entity 证据；单一候选自动选择，多候选返回 `ambiguous`，无候选返回 `unavailable`，并保留 bounded score/source/matched hints。
+- GIS Domain 保留历史 `GisCapabilityRouter` 作为兼容优先路径；未命中旧路由时才使用 GIS catalog hints。Text Domain 已改为消费同一 matcher，不再固定返回 `text_summary` 字面路由。
+- GIS Rule Planner 新增 Domain-owned `compose_capability` 入口，使 catalog 选中的既有能力仍通过原有 Planner、TaskPlan 校验和 ToolRegistry 执行；公共 Runtime 没有新增 GIS 分支。
+- Context planner surface 增加领域无关的候选详情/模板 compact projection：已选请求保留全量 candidate IDs，只在预算内保留选中详情和选中模板；澄清状态仍保留候选卡片，避免复杂请求把 capability discovery/catalog 从 16KB context 中裁掉。
+- 新增 `tests/test_m172_capability_discovery.py`，覆盖单候选、歧义、无候选、GIS/Text 双 Domain、catalog fallback 执行以及 HTTP/artifact 结果契约；M172 专项 5/5 通过。
+- Docker 当前镜像 healthy；M172 与 M15/M112/M113/M166/M167/M171 受影响回归 42 项通过（8 项真实 Windows GIS 数据测试按环境跳过）；quick、stage、compileall、production acceptance 和真实 Chrome/CDP 预览→确认→完成 smoke 通过。M77/M81 上下文/计划证据回归业务断言通过，旧测试仍有少量历史 observability 句柄警告，未作为 M172 严格资源证据。
+- 本阶段没有新增 live 模型调用；既有真实模型/GIS 证据继续作为显式验收，不进入默认 CI。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M173 全局重规划参考
+
+下一阶段从完整 Agent Runtime 继续推进“模型理解/计划 → Domain 选择 → 跨入口证据”的闭环：
+
+1. 用脱敏 LLM replay 和最小 live-short 验证模型能读取 catalog/discovery evidence，输出与选中能力、workflow、DAG、result type 一致的计划。
+2. 将 model selection、规则 selection、repair lineage 和 unresolved/ambiguous 状态纳入同一 Contract Harness，确保 HTTP、异步、artifact-only recovery 不漂移。
+3. 继续审计公共层残留 GIS 兼容默认，但不为单一表达增加规则；新能力只通过 Domain catalog、facts、workflow 和 result contract 扩展。
+4. 保持 Docker quick/stage 精简，阶段末补最小 live/browser/production evidence，并在收口后再更新全局规划。
+
+## M173 当前完成状态
+
+- `evaluation/contract_harness.py` 现在将 `spatial-agent.planner-selection.v1` 和脱敏 `repair_lineage` 纳入跨入口稳定投影；repair 的 latency/occurred_at 等易变观测字段不会造成同步、异步、HTTP 和 artifact-only recovery 的伪漂移，但 repair phase、失败工具、替换步骤、状态和 reason 会被严格比较。
+- Runtime context 在保留选中能力完整卡片的同时，由 Domain catalog 提供有界 `known_capability_result_types` 摘要；模型选择一个已知但非当前候选的能力时记录 `mismatch`，完全无法绑定到已知能力时记录 `unresolved`，多候选仍在 Planner 前进入 `ambiguous` 澄清。
+- 新增 `tests/test_m173_selection_contract.py`，覆盖脱敏模型 replay 与 Rule Planner selection 一致性、模型错配、真正 unresolved、ambiguous 生命周期、repair lineage 稳定比较。
+- Docker 证据：M173 专项 5/5；受影响 M160/M166/M169/M172 回归 35/35；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 均通过。
+- 显式真实模型 + GIS/Docker `live-short` 2/2 通过，token 总量 13,001、0 次重试；只保存安全摘要，没有提交原始模型输出、API key、私有配置或 GIS 原始数据。
+- 本阶段问题已记录到 `docs/agent-development-issues.md`。下一阶段继续从全局七维度规划跨 Domain 的 replay/live 证据完整性、公共 GIS 兼容清理和更通用的动态结果展示。
+
+## M174 当前完成状态
+
+- `evaluation/model_evaluation.py` 新增安全的 `project_workflow_selection_evidence()`、`project_planner_selection_evidence()` 和 `summarize_selection_evidence()`；replay 与 live baseline 的报告现在同时表达 workflow selection state、planner alignment state 和有界状态计数。
+- `evaluation/live_baseline.py` 接入同一 selection summary；不复制请求文本、工具参数、provider 原文、URL 或密钥，保持 replay/live 报告形状一致。
+- 新增 `tests/test_m174_replay_selection_evidence.py`，覆盖脱敏 replay 每轮 selection、live/replay 投影一致、ambiguous Service 状态和 summary 聚合。
+- Docker 证据：M174 专项 3/3；M149/M150/M160/M166/M169/M172/M173 受影响回归 45/45；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 通过。
+- 本阶段没有改变 Runtime 工具执行路径，也没有新增 live token 消耗；下一阶段从全局七维度继续规划跨 Domain 评测矩阵、公共 GIS 兼容清理和结果 evidence 的前端动态消费。
+
+## M175 当前完成状态
+
+- Evidence Registry 正式索引 `workflow_selection` 与 `planner_selection` 两类公共证据，来源仍是 `result.planning`，Registry 只做索引，不创建第二套状态机。
+- 严格完整性投影升级为 `spatial-agent.evidence-completeness.v2`，required entries 从 5 类扩展为 7 类；旧 Registry 仍可由兼容 normalizer 读取，缺少新 entry 的旧结果不会被伪装成当前版本完整证据。
+- 新增 `tests/test_m175_selection_registry.py`，覆盖 Text/GIS 相同 Registry 形状、缺失 selection entry 的严格失败和 Contract Harness 检测 Registry 丢失。
+- Docker 证据：M175 专项 3/3；M158/M160/M174 回归 7/7；compileall、quick、stage、production acceptance 和 Chrome/CDP preview → confirmation → completed 通过。
+- 本阶段没有新增 live token 消耗或 GIS 工具；下一阶段从全局七维度规划 Evidence Registry 的前端/异步展示一致性、旧 artifact 迁移和跨 Domain 评测矩阵。
+
+## M176 当前完成状态
+
+- 新增 `web/console_evidence_registry.js` 作为领域无关的前端 Evidence Registry renderer；它只消费版本化 Registry entry 和 `result.planning` selection evidence，不解释 GIS 字段。
+- Console 结果证据区域新增 `selectionEvidence`，展示 Registry 可用性、所有有界入口及 workflow/planner selection 卡片；同步详情、历史/Artifact recovery 继续经过同一 `renderEvidence()`。
+- `renderAsyncResultEvidence()` 复用同一 renderer 的 compact projection；`agent/service_async.py` 的 async result evidence 新增规范化 `planner_selection`，未知/旧 schema 保持不可用降级。
+- `serve_api.py` 与 `production_api.py` 均 allowlist `console_evidence_registry.js`，避免静态入口和生产入口出现资源漂移。
+- Docker 当前镜像 healthy。M176 专项与相邻回归通过；compileall、quick、stage、production acceptance 通过。Node 独立 smoke 通过，容器因未安装 Node 跳过旧 Node smoke。
+- Chrome/CDP `console_overview_smoke.js` 通过：显式固定 Rule Planner/backend 后空间总览 8 步完成，Evidence Registry、两类 selection evidence、图层和颜色均可见；候选选择 preview → confirmation → completed 继续通过。
+- M176 遇到的静态资源 allowlist 缺口和浏览器表单状态继承问题已记录到 `docs/agent-development-issues.md`。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M177 全局重规划参考
+
+下一阶段从七个维度继续推进“证据可迁移、可恢复、可被不同入口解释”的完整 Agent Runtime：
+
+1. 产品能力：让前端从 Registry/Result 动态生成答案、轨迹、证据和 artifact 导航，验证澄清、拒绝、修复和完成态都不依赖 GIS 页面分支。
+2. 架构边界：建立统一 Evidence Projection/registry reader seam，清理同步结果、async projection、artifact viewer 与前端之间重复的字段解释；补旧 Registry 的显式迁移语义。
+3. 数据质量：把 Domain evidence 的 readiness、provenance 和降级状态绑定到 Registry 引用，验证缺失/过期/未知证据不会被 UI 标成成功。
+4. 真实模型：扩展脱敏 replay 与最小 live-short，比较模型选择、repair lineage、Registry completeness 和最终答案的一致性。
+5. 部署可靠性：补跨进程 SQLite、artifact-only、重启接管和前端历史恢复的 evidence equality 矩阵。
+6. 用户体验：验证长结果、空结果、旧 artifact、异步处理中和未知 schema 的通用空态与可读提示。
+7. 测试证据：保持 Docker quick/stage 精简，新增少量跨 Domain Contract Harness；阶段末执行一次 Docker、HTTP、Chrome 和必要 live 验收并推送版本。
+
+## M177 当前完成状态
+
+- 新增 `agent/evidence_projection.py`，统一输出 `spatial-agent.evidence-projection.v1`，聚合 Registry、completeness、workflow/planner selection 和 `spatial-agent.evidence-migration.v1`。
+- `AgentService.get_run_evidence()`、开发/生产 Artifact evidence endpoint、async result evidence 和 Artifact viewer 均消费该 projection；移除 transport-specific source，确保核心 projection equality 不因入口变化而漂移。
+- 旧 Registry 缺少当前 required entry 时显式返回 `legacy_incomplete`、`migratable=true`、`rebuild_from_result`；未知 schema 为 `unknown_schema`，不自动伪造或覆盖历史证据。
+- 新增 `tests/test_m177_evidence_projection.py`，M177/M176/M159/M158/M146/M165 相关 Docker 回归 16/16 通过；compileall、quick、stage、production acceptance 通过，Docker healthy。
+- Artifact viewer 已展示 Registry 入口、两类 selection、完整性和迁移状态；HTTP 两个 evidence endpoint 的 projection equality 已纳入生产 acceptance。
+- M177 已完成并推送，版本为 `ce5aff1`；随后进入 M178 全局七维度规划。未提交 API key、私有配置、原始 live 输出或 GIS 原始数据。
+
+## M178 全局重规划参考
+
+下一阶段继续从全局闭环推进，而不是新增单个 GIS 功能：
+
+1. 产品：让前端、Artifact viewer 和历史恢复共同展示完整性/迁移状态，并对旧证据提供可读的恢复动作或安全空态。
+2. 架构：把 projection 纳入更广泛的 Result/Contract Harness，统一同步、异步、Artifact-only、重启和 Text/GIS 的核心比较字段。
+3. 数据：验证 Domain readiness、provenance、coverage/alignment 降级能通过 projection 绑定到证据入口，而不是只停留在页面摘要。
+4. 模型：在脱敏 replay/live 报告中加入 projection completeness 与 migration 状态，区分模型问题和历史证据问题。
+5. 部署：补生产重启/多 worker 后 evidence endpoint、artifact 和前端历史恢复的连续验收。
+6. 体验：验证未知 schema、旧 artifact、异步处理中、失败修复和无证据结果的动态空态与操作边界。
+7. 测试：保持 quick/stage 极简，新增一条跨 Domain/入口 Harness，再运行必要 Docker、HTTP、Chrome 和 live-short 验收。
+
+## M178 当前完成状态
+
+- `evaluation.contract_harness` 已直接消费 `agent.evidence_projection.project_evidence_projection()`；同步结果、async compact evidence 和 Artifact-only payload 现在共享同一 Registry、完整性、workflow/planner selection 与 migration projection。
+- Harness 的稳定投影新增 `evidence_projection`，async 子投影补齐 `planner_selection`、迁移状态和完整性；transport-specific source、run id、路径和时间字段仍不会进入 equality。
+- 新增 `tests/test_m178_contract_harness.py`，覆盖 Text/GIS projection 形状一致、同步/async/Artifact-only equality、旧 Registry `legacy_incomplete`、未知 schema `unknown_schema` 和 planner selection 漂移检测。
+- Docker M178 与 M177/M176/M165/M160/M158 相邻专项 **22/22** 通过；`compileall`、quick、stage、production acceptance 通过，容器 healthy，生产数据卷和 runtime capability 均 ready。
+- `console_selection_evidence_smoke.js` 与 Chrome/CDP `console_overview_smoke.js` 通过；前端继续通过通用 Evidence renderer 展示 Registry、selection、迁移和动态结果，不新增 GIS 专用分支。
+- 本阶段未新增 live token 消耗、GIS 工具或私有数据；M178 已完成，下一阶段按全局七维度进入 M179。
+
+## M179 全局重规划参考
+
+下一阶段从“统一证据投影已可比较”继续推进通用 Runtime 的可恢复产品闭环：
+
+1. 产品：让证据完整性、旧版本迁移、未知 schema 和不可用结果都能进入统一的可读状态与有限恢复动作，而不是只停留在诊断字段。
+2. 架构：把 Evidence Projection 同时接入 replay/live 评测、Artifact-only recovery 和生产 evidence endpoint，明确公共读取 seam 与 Domain evidence adapter 的职责。
+3. 数据：将 readiness、coverage、alignment、provenance 和过期状态绑定到版本化证据入口，验证降级信息不会因同步/异步/重启而漂移。
+4. 模型：用脱敏 replay 和最小 live-short 验证模型选择、计划修复、结果类型和 evidence completeness 的一致性；不把原始模型输出写入仓库。
+5. 部署：补 SQLite 多 worker、滚动重启和 artifact-only 接管后的 evidence 连续性，并验证生产 HTTP 与历史查看器消费同一 projection。
+6. 体验：完善通用结果工作区的空态、迁移提示、失败恢复和证据导航，继续避免 GIS 页面专用分支。
+7. 测试：保持 quick/CI 极简，以跨 Domain Contract Harness 为主线，阶段收口运行 Docker、HTTP、浏览器和必要 live 验收后再全局重规划。
+
+## M179 当前完成状态
+
+- `evaluation/model_evaluation.py` 的 `project_repair_evidence()` 已通过 `agent.evidence_projection` 读取 Registry、完整性、selection 和 migration；不再为 replay/live 复制一套 Registry 解释逻辑。
+- replay 与 live-safe repair evidence 新增有界 `evidence_projection`、`evidence_migration`；多轮 replay 的聚合字段使用 `evidence_projection_summary`，避免与单条版本化 projection 混淆。
+- 离线 replay 与 live baseline 顶层均输出 projection summary，统计 `current`、`legacy_incomplete`、`unknown_schema`、`unavailable` 和完整性状态；无结果的澄清轮次保留为 unavailable，不伪造失败，旧/未知 schema 不通过。
+- 新增 `tests/test_m179_evidence_evaluation.py`，M179 专项 4/4；M179 与 M178/M177/M174/M149/M160/M158 相邻评测回归 25/25 通过。
+- Docker 重建后 compileall、quick、stage、production acceptance、Evidence/总览 Chrome/CDP smoke 均通过，容器 healthy，生产数据卷和 runtime capability ready。
+- 本阶段沿用 M173 的真实模型 + GIS/Docker 基线，未重复 live 调用、未新增 GIS 工具、未保存原始模型输出；命名冲突问题已记录到中文开发问题文档。
+- M179 已完成，下一阶段按全局七维度进入 M180。
+
+## M180 全局重规划参考
+
+从整体 Agent Runtime 继续推进“证据可迁移”到“证据可恢复、可操作”的生产闭环：
+
+1. 产品：将 `legacy_incomplete`、`unknown_schema`、`unavailable` 转化为统一的安全空态和有界恢复动作，确保用户能区分“等待结果”“历史不可迁移”和“数据不可用”。
+2. 架构：建立 Evidence Migration/Recovery 的领域无关 seam，让 artifact、SQLite snapshot、async 接管和 HTTP evidence endpoint 使用同一迁移判定，不在各入口猜测版本。
+3. 数据：把 readiness、coverage、alignment、provenance 和过期状态作为 Domain evidence adapter 输入，验证恢复前后数据来源与降级状态不漂移。
+4. 模型：在 replay/live 对照中加入 evidence recovery 状态，区分模型计划失败、工具执行失败和历史 evidence 不可恢复；仅保留安全摘要。
+5. 部署：验证多 worker、滚动重启、旧 artifact 接管和 evidence endpoint 的 CAS/幂等边界，补生产恢复后的连续读取验收。
+6. 体验：前端动态展示迁移状态与允许动作，覆盖处理中、澄清、拒绝、失败修复、历史恢复和无证据空态，不增加 GIS 专用分支。
+7. 测试：保持 quick/CI 极简，以 migration/recovery Contract Harness 为核心，阶段末运行 Docker、HTTP、Artifact、浏览器和必要 live-short 后再全局重规划。
+
+## M180 当前完成状态
+
+- 新增 `agent/evidence_recovery.py`，统一投影 Evidence Registry 的 `ready`、`recoverable`、`blocked`、`unavailable` 状态、原因、迁移动作和允许动作。
+- 同步结果、异步轮询、Service evidence index、开发/生产 HTTP Artifact evidence、Artifact viewer 和 Console 均消费同一 recovery projection；前端同步/异步调用已显式传入 recovery，recoverable/blocked 状态分别使用警告/阻断样式。
+- `ArtifactStore.migrate_run()` 现在能对兼容的旧/当前 artifact 从 result contract 重建缺失 Registry entry；未知 artifact/schema 不自动迁移，重复调用保持安全。
+- Docker 按当前工作树重建并 healthy；M180 专项 5/5、M159/M176/M177/M178/M179 相邻回归 23/23、compileall、quick、stage、full-stage、production acceptance 通过。
+- 前端 `console_selection_evidence_smoke.js`、Chrome/CDP 空间总览、候选选择→预览→确认→完成均通过；浏览器 smoke 必须串行使用共享 CDP 页面。
+- M180 已完成本地实现与验收，当前工作树等待最终敏感信息检查、提交和推送；不提交 API key、私有配置、原始模型输出或原始 GIS 数据。
+
+## M181 全局重规划参考
+
+1. 将 Evidence Recovery、Decision、Interaction、Retry/Cancel/Confirm 统一为可幂等的 RecoveryAction/ActionReceipt 生命周期。
+2. 保持公共 Runtime 不携带 GIS 策略，Text/GIS/未来 Domain 通过 catalog、facts、workflow、result 和 action contract 扩展。
+3. 保护 request/plan identity、数据 readiness/provenance 和 artifact 引用在恢复、重启、异步和多 worker 间的一致性。
+4. 用脱敏 replay 与最小 live-short 验证开放式能力发现、模型计划错配、repair 和 recovery action，不扩大默认测试成本。
+5. 以 Docker、HTTP、Contract Harness、Artifact、浏览器和必要 live 组成阶段证据，完成后再次按七维度整体重规划。
+
+## M181 当前完成状态
+
+- 新增 `agent/recovery_action.py` 和 `CONTEXT.md`，统一 RecoveryAction/ActionReceipt 的动作分类、可用动作描述、输入 fingerprint、receipt projection 和旧 Interaction Receipt 兼容投影。
+- Decision、Lifecycle、Selection 和 Service 已复用公共动作 seam；`AgentRunResult`、SQLite history、Artifact 和 HTTP response 共享 bounded `action_receipt`，旧 SQLite 记录可从 interaction receipt 安全补投影。
+- 新增 M181 专项 5 项；HTTP → Service → Artifact → SQLite history equality 回归已加入 M169；Docker M181/M169/M164/M153/M151/M180/M159 共 46 项通过，Node 容器缺失项单独跳过。
+- Docker 当前镜像按工作树重建并 healthy；compileall、quick、stage、full-stage、production acceptance 通过；`-W error::ResourceWarning` 验证测试 Service、HTTP handler 和 observability emitter 均显式关闭。
+- Node renderer、Chrome/CDP 预览确认完成、空间总览和候选选择 smoke 通过；未新增 live token、私有配置、原始模型输出或原始 GIS 数据。
+- M181 代码与验收已完成；敏感信息检查、`git diff --cached --check`、commit 和 push 已完成，版本为 `38d7c6d`。下一阶段进入 M182，规划必须继续覆盖产品、架构、数据、模型、部署、体验和测试七个维度。
+
+## M182 全局规划参考
+
+从统一动作回执继续推进开放式请求组合与可靠恢复：补齐 Action Receipt 与 Request/Plan/Result/Evidence identity 的跨入口关联，验证 SQLite 多 worker/异常退出/Artifact-only 接管，使用脱敏 replay 与最小 live-short 验证能力发现和有限 repair，前端统一展示澄清、确认、恢复、阻断和完成状态；默认 quick/CI 保持精简，阶段末统一执行 Docker、HTTP、Artifact、浏览器和必要 live 验收。
+
+## M182 当前完成状态
+
+- `AgentService.cancel()`、`retry()`、`resolve_decision()` 已统一复用 Action Receipt reserve/complete/replay seam；API contract 已向三个 HTTP 入口传递 `idempotency_key`。
+- 显式幂等键可稳定 replay；retry 未传键时，失败 receipt 可在同一 CAS 行上安全 reopen 为新尝试。approve、reject、cancel、retry 均保留公共动作分类和结果引用。
+- 已有 Artifact 的动作完成后会通过 `ArtifactStore.attach_action_receipt()` 同步 bounded receipt；SQLite snapshot/history、Service response 和 Artifact 具备一致字段。
+- 新增 M182 专项 6 项；M181/M169/M151 相邻回归 25 项；Docker `-W error::ResourceWarning`、compileall、quick、stage、full-stage、compact discovery 和 production acceptance 全部通过。容器 healthy，生产数据与 runtime capability ready。
+- 修复开发门禁 HTTP 测试未调用公开 `AgentService.close()` 导致的 ResourceWarning，并记录到中文问题文档。本阶段没有新增 GIS 工具、私有配置、原始模型输出或前端专用分支。
+- M182 已完成并提交推送，版本为 `77044e3`；下一阶段进入 M183，规划继续从产品、架构、数据、模型、部署、体验、测试七个维度展开。
+
+## M183 全局重规划参考
+
+1. 产品：统一开放式请求的能力发现、澄清、确认、repair、retry、cancel 和历史恢复动作时间线。
+2. 架构：建立 Request/Plan/Result/Evidence identity 跨同步、异步、Artifact-only、重启和跨 Domain 的公共投影；Action Receipt 保持唯一动作状态 seam。
+3. 数据：把 readiness、coverage、alignment、provenance 和过期状态绑定到动作前置条件与恢复证据。
+4. 模型：用脱敏 replay 和最小 live-short 验证开放式组合、计划错配、有限 repair 和用户确认，不扩大默认 CI。
+5. 部署：覆盖 SQLite 多 worker、异常退出、滚动重启、Artifact-only 接管和旧 receipt/schema 迁移。
+6. 体验：通用前端 workspace 动态展示 action receipt、澄清、确认、阻断、可恢复、重试中和完成状态。
+7. 测试：以 Action Contract Harness 为主，保持 quick/CI 精简，阶段末运行 Docker、HTTP、Artifact、history、restart、浏览器和必要 live-short。
+
+## M183.1 当前完成状态
+
+- `evaluation.contract_harness` 已新增独立的 `ActionReceiptContract`、稳定 normalize 和 drift comparison；Action Receipt 与默认 Result equality 保持正交。
+- Service detail、Artifact、SQLite history 的 cancel receipt 通过同一投影比较；run/result ID 与 `reused` 不参与语义 equality，fingerprint/状态/动作类型漂移会被发现。
+- M183.1 专项 2/2；M182/M181/M169/M165/M166/M178/M179/M108 相邻回归 50/50；Docker compileall、quick、stage、full-stage、compact discovery 和 production acceptance 通过，容器 healthy。
+- 该切片未修改 GIS 工具、前端页面或默认 CI；M183 总目标保持 active，下一条继续处理 Request/Plan/Result/Evidence identity 与异步/Artifact-only/restart 的统一关联。M183.1 已提交并推送，版本为 `d4e7607`。
+
+## M183.2 当前完成状态：Action Receipt Identity Linkage
+
+- 新增 `agent/action_identity.py` 与 `spatial-agent.action-receipt-linkage.v1`，以有界投影关联已有 Request/Plan/Result/Evidence identity，不把动作历史并入默认 Result equality。
+- Service、SQLite、Artifact、开发 HTTP、async evidence 和重启 replay 共享同一 linkage；源运行响应缺少 result envelope 时，从持久化运行快照恢复，不生成伪造身份。
+- 新增独立 linkage Contract Harness 和 3 项专项，覆盖纯投影、HTTP → Artifact/history、SQLite 重启 replay 以及 async evidence；M183.1 2 项和 M182/M181/M169/M165/M166/M178/M179/M108 48 项相邻回归全部通过。
+- Docker 按当前工作树重建并 healthy；compileall、quick、stage、full-stage、smoke、严格 ResourceWarning 和 production acceptance 通过，生产核心/可选数据与 runtime capability 均 ready。
+- GIS core profile 的 2 个历史真实文件样例因容器未挂载按环境跳过；未把该跳过误报为真实 GIS 通过。本阶段未增加 live token、前端分支或私有数据。
+- 循环导入、SQLite replay fallback 丢失 linkage 两个问题已用中文记录；M183 总目标保持 active，下一阶段应从七个维度规划跨 Domain、多 worker、Action 前置条件和完整动作时间线。
+
+## M184 全局重规划参考
+
+1. 产品：把 linkage 接入统一 action timeline，清晰显示动作作用的请求、计划、结果和证据状态。
+2. 架构：验证多 worker/CAS、跨 Domain 和旧 schema 下 linkage 的边界，保持 Action Receipt、Result Contract、Runtime 状态机三者正交。
+3. 数据：将 readiness、coverage、alignment、provenance 和 evidence migration 状态纳入 action 前置条件与恢复提示。
+4. 模型：用脱敏 replay 和最小 live-short 验证澄清、repair、确认、retry 的 linkage 不漂移；不扩大默认 CI。
+5. 部署：补生产 FastAPI、异步接管、滚动重启、Artifact-only 和历史迁移的 linkage equality 矩阵。
+6. 体验：Console 统一展示 action receipt 与 identity linkage，按结构化状态动态处理缺失、降级和阻断，不增加 GIS 专用分支。
+7. 测试：保持 quick/CI 精简，阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、多 worker、浏览器和必要 live-short。
+
+## M184 当前完成状态
+
+- `execution_timeline` 已加入版本化 `action` 事件和 `spatial-agent.action-timeline-linkage.v1`；动作事件只携带有界动作语义、Request/Plan/Result/Evidence linkage 与主体/结果类型。
+- `attach_action_receipt_timeline()` 是 Service、Artifact 和 recovery 共享的刷新 seam；`_complete_action_receipt()` 在 SQLite `response_payload` 持久化前刷新时间线，修复并发 CAS replay 缺少 timeline 的问题。
+- SQLite history、Artifact、async polling/recovery、HTTP detail 和 immediate response 可使用 `compare_action_timelines()` 比较同一 transition；默认 Result Contract equality 用 `include_action_events=False` 保持正交。
+- Console 的 `renderActionTimeline()` 从结构化 result/evidence 动态渲染动作和身份状态；没有加入 GIS 类型判断。
+- M184 专项 **6/6**；M183.2/M183/M182/M156/M157 相邻回归 **22/22**；Docker compileall、quick、stage、full-stage、严格 ResourceWarning、production acceptance、Chrome/CDP overview 和 selection evidence smoke 通过。
+- 当前工作树已完成实现但尚未提交；提交前不得加入 API key、`config/openai.local.json`、原始模型输出或 GIS 原始数据。下一步是最终 diff/敏感信息检查、提交推送，然后按 M185 七个维度重新规划。
+
+## M185 下一阶段规划参考
+
+1. 产品：扩展连续 action timeline，表达能力选择、澄清、确认、repair、retry、cancel、recovery 的前置条件与结果影响。
+2. 架构：增加只读 action precondition/transition lineage projection，继续让 Runtime lifecycle 保持唯一状态机，跨 Domain 共用契约。
+3. 数据：将 readiness、coverage、alignment、provenance、过期和 migration 统一投影到动作前置条件和恢复提示。
+4. 模型：使用脱敏 replay 与最小 live-short 验证多轮澄清、确认、失败修复和重试的 identity 连续性。
+5. 部署：补 FastAPI、异步接管、滚动重启、Artifact-only recovery 和多 worker 的完整 timeline/evidence equality。
+6. 体验：Console 按结构化状态动态展示可执行、等待、阻断、降级、恢复和完成，不增加 GIS 专用分支。
+7. 测试：保持 quick/CI 精简，增加跨 Domain action precondition/recovery Harness，阶段末再做 Docker、HTTP、Artifact、浏览器和必要 live-short 验收。
+
+## M185 当前完成状态
+
+- 新增领域无关 `agent/action_precondition.py` 与 `spatial-agent.action-precondition.v1`，支持显式 conditions、数据 readiness、结果降级和 evidence migration 的安全投影；未知 schema 不解释未知字段。
+- Action Preconditions 已写入 canonical Action Receipt。Result Contract、Action Timeline、async evidence、SQLite response/replay、Artifact attach 和 Console 统一读取 Receipt；旧 Receipt 继续兼容回退。
+- M185 专项 5/5；M184/M183.2/M183/M182/M156/M157 相邻回归 27/27；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP overview 和 Evidence Registry smoke 均通过。
+- 本阶段发现的即时响应/SQLite/Artifact 前置条件漂移已记录到中文问题文档。未调用 live 模型，未提交 API key、私有配置、原始模型输出或 GIS 原始数据。
+- 当前工作树已完成 M185 实现和验收，下一步进行敏感信息检查、提交推送，然后按 M186 的七个全局维度继续规划。
+
+## M186 下一阶段全局规划参考
+
+从 M185 的 canonical preconditions 继续推进“可执行动作的连续生命周期”，不围绕单个 GIS 工具增加规则：
+
+1. 统一能力选择、澄清、确认、repair、retry、cancel、recovery 到结果影响的多动作时间线。
+2. 建立 Action Receipt、Precondition、Timeline 的跨 Domain Contract Harness 和旧 schema 迁移语义。
+3. 将 Domain readiness/coverage/alignment/provenance/过期证据映射为可复用或必须重新核验的条件。
+4. 用脱敏 replay 与最小 live-short 验证复杂开放式请求的多轮动作连续性。
+5. 验证 FastAPI、SQLite 多 worker、重启接管、Artifact-only recovery 的动作幂等与证据连续性。
+6. 让 Console 仅消费结构化 `allowed_actions`、preconditions 和 evidence，动态显示可执行、等待、阻断、降级和恢复。
+7. 保持 Docker quick/CI 精简，阶段收口再执行 HTTP、Artifact、浏览器和必要 live-short。
+
+## M186 当前完成状态
+
+- `evaluation.contract_harness` 新增独立 Action Precondition Contract，Receipt、Result、async 和 transport projection 可以单独进行 equality 比较与漂移定位。
+- 生命周期接入显式 enforced preconditions：执行/恢复类动作被阻断时输出 `blocked_actions`，reject/cancel 保留安全退出；advisory、旧 Receipt 和未知 schema 保持兼容。
+- M186 专项 4/4；M185/M184 受影响回归 10/10；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP overview smoke 通过，容器 healthy。
+- 发现的“强制前置条件误伤安全退出动作”已写入中文问题文档。本阶段未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- M186 当前切片已完成；下一步按 M187 七个全局维度推进多动作 transition lineage 和结果影响投影。
+
+## M187 下一阶段全局规划参考
+
+从 M186 的单动作可执行性继续推进多动作连续生命周期：
+
+1. 建立能力选择、澄清、确认、repair、retry、cancel、recovery 到结果影响的多动作时间线。
+2. 统一 transition lineage 与旧 Receipt/schema 迁移，继续保持 Runtime lifecycle 唯一。
+3. 扩展 Domain evidence adapter 的 readiness/coverage/alignment/provenance 复用和重验语义。
+4. 用脱敏多轮 replay 与最小 live-short 验证模型计划、动作门控和证据连续性。
+5. 覆盖 SQLite 多 worker、重启接管、Artifact-only recovery 的动作不重复、不丢失。
+6. Console 动态展示 blocked actions、安全退出、结果影响和下一步动作。
+7. quick/CI 保持精简，阶段收口再运行 Docker、HTTP、Artifact、浏览器和必要 live-short。
+
+## M187 当前完成状态
+
+- 新增领域无关 `agent/action_lineage.py` 与 `spatial-agent.action-lineage.v1`，canonical Action Receipt 可保留最多 16 个连续动作事件，包含动作语义、identity linkage 和 preconditions，不复制私有输入或 transport ID。
+- Service 完成动作时从源运行/旧 Receipt 追加 lineage；execution timeline、SQLite detail/replay、Artifact 和 Console 共享同一投影，前端显示连续动作步数。
+- M187 专项 4/4；M184/M185/M186 回归 19/19，M182/M183/M156/M157 回归 16/16；Docker compileall、quick、stage、full-stage、生产 acceptance 和 Chrome/CDP overview smoke 通过。
+- 测试固定幂等键复用默认 SQLite 的问题已记录到中文问题文档；现已显式隔离临时 state DB 和 Artifact。未调用 live 模型，未提交私有配置、API key、原始模型输出或 GIS 原始数据。
+- M187 已完成，下一阶段按 M188 七个全局维度推进结果影响与多动作 Contract Harness。
+
+## M188 下一阶段全局规划参考
+
+从 M187 的连续动作 lineage 继续推进可解释恢复闭环：
+
+1. 补充每个动作的结果影响、证据复用/重验和下一步动作投影。
+2. 建立 lineage 跨 HTTP、async、SQLite、Artifact-only、重启和多 worker 的 Contract Harness。
+3. 补旧 Receipt/schema 迁移与未知版本安全空态，不伪造历史动作。
+4. 用脱敏多轮 replay 和最小 live-short 验证模型计划、repair、确认、重试连续性。
+5. 验证滚动升级和异常接管不重复执行动作、不丢失 lineage。
+6. Console 动态渲染长 lineage 的折叠/截断/恢复，不增加 GIS 专用分支。
+7. quick/CI 维持精简，阶段收口执行 Docker、HTTP、Artifact、浏览器和必要 live-short。
+
+## M188 当前完成状态
+
+- 新增领域无关 `agent/action_effect.py` 与 `spatial-agent.action-effect.v1`，为每个生命周期动作投影 `state`、`impact`、`result_available`、源/目标状态、下一步动作和结构化原因。
+- Action Effect 已由 Action Receipt 作为 canonical 来源，接入 Result Contract、execution timeline、async evidence、SQLite/detail/replay、Artifact、Contract Harness 和 Console；没有新增 GIS 专用页面分支。
+- M188 专项 6/6；M187/M186/M185/M184/M183/M182/M156/M157 相关回归 41/41；Docker compileall、quick、stage、full-stage、生产 acceptance 通过，容器 healthy，核心/可选数据 ready。
+- `console_selection_interaction_browser_smoke.js` 通过 preview→confirmation→complete，三阶段 plan fingerprint 一致；`console_overview_smoke.js` 与 `console_selection_evidence_smoke.js` 通过，三类空间图层颜色契约保持有效。
+- 本阶段修复了 Service 完成阶段复用旧 Action Effect、以及 Console bootstrap ready 早于历史恢复完成的两个问题，均已追加到 `docs/agent-development-issues.md`。
+- 本阶段未调用 live 模型、未提交私有配置、API key、原始模型输出或 GIS 原始数据。M188 已具备提交推送条件。
+
+## M189 下一阶段全局规划参考
+
+从 M188 的结果影响投影继续推进通用 Agent Runtime，而不是增加单个 GIS 分析功能：
+
+1. 完成 Action Effect 跨同步、异步、Artifact-only、重启和多 worker 的 Contract Harness 与旧 schema 迁移。
+2. 把证据复用/重验、数据过期、覆盖/对齐和恢复动作接入统一生命周期。
+3. 用脱敏 replay 和最小 live-short 验证未预定义请求的动态能力匹配、澄清和有限 repair。
+4. 验证真实模型 + 真实 GIS + Docker 的代表性复杂请求，并保持默认测试离线、精简。
+5. 让前端动态呈现长动作 lineage、结果影响、证据状态、阻断原因和下一步动作。
+6. 阶段收口继续执行整体规划、实现、Docker 集成验收、文档更新和版本推送。
+
+## M189 当前完成状态
+
+- 新增 `tests/test_m189_action_effect_cross_entry.py`，以 3 个精简集成场景覆盖 Service、HTTP、detail、history、Artifact、async、SQLite restart 和双 worker CAS。
+- M189 专项 3/3；M184–M188 联合回归 28/28；Docker compileall、quick、stage、full-stage、生产 acceptance 均通过，容器 healthy，核心/可选数据 ready。
+- 同一 Action Effect 在首次响应、HTTP detail、Artifact、history、async evidence、重启 replay 和重复提交之间保持 equality；重复动作只复用已完成 receipt，不重复 dispatch。
+- 本阶段没有新增 GIS 工具、前端专用分支或 live token；保持默认测试离线和精简。M189 已具备提交推送条件。
+
+## M190 下一阶段全局规划参考
+
+下一阶段从跨入口证据一致性转向开放式请求闭环：
+
+1. 强化未预定义请求的能力发现、结构化澄清、计划预览、有限修复和用户确认。
+2. 进一步收敛 RequestFacts、Capability Catalog、Workflow 和 Planner 的动态组合边界，减少固定问句规则。
+3. 用脱敏 replay 和最小 live-short 验证真实模型的 schema、工具选择、DAG、澄清和 repair lineage。
+4. 验证 provider 超时/重试/错误分类与异步、Artifact、重启恢复的模型证据一致性。
+5. 让前端消费候选能力、缺失事实、计划校验、修复原因和下一步动作的结构化 projection。
+6. 阶段收口继续使用 Docker、HTTP、Artifact、浏览器和必要真实 GIS/模型验收，默认 quick/CI 不膨胀。
+
+## M190 当前实现状态
+
+- `agent.capability_discovery.enrich_discovery_context()` 新增领域无关 `spatial-agent.capability-discovery-guidance.v1`，从当前 Domain Catalog 投影有界缺失事实、建议能力卡片、下一步动作和原因；不解释 GIS capability ID。
+- Runtime 在构建 Planner context 后统一注入 guidance，并将其传入 `workflow_selection`；上下文候选压缩为最多 4 项，避免候选卡片挤掉核心 selection evidence。
+- `workflow_selection`、`selection_interaction` 和 Console 复用建议能力卡片；事实不足时仍可 `provide_facts`，同时可 `select_capability`，未知请求不再只有一段错误文本。
+- Docker 专项 `tests.test_m190_open_capability` **3/3**；相邻能力发现/选择/跨入口/Action Effect 回归 **27/27**；compileall、quick、stage 通过，容器 healthy。
+- 已记录上下文预算问题到 `docs/agent-development-issues.md`。M190 尚未完成真实模型闭环，下一步是 Service/Artifact/restart 一致性、脱敏 replay 和最小 live-short。
+
+## M190-B/C 当前进展
+
+- 新增 `tests/test_m190_guidance_cross_entry.py`，2 个高价值场景覆盖 Service/HTTP/Artifact 以及 async/SQLite restart；M190 当前专项累计 **6/6**。
+- `evaluation.model_evaluation.project_workflow_selection_evidence()` 现在保留有界 `missing_fields` 和 `suggested_capability_ids`，脱敏 replay 可审计结构化澄清，而不是只看最终状态。
+- 真实 DeepSeek live-short：未知空间对象返回 `NEEDS_CLARIFICATION`、0 工具步骤、4 个候选能力；真实模型 + Docker GIS 空间总览 **1/1** 通过。
+- M190-D 已完成：`PlanningError` 支持 bounded `category/code/retryable`，OpenAI-compatible Planner 对暂态 HTTP、鉴权、限流、网络、超时和无效模型响应提供稳定分类；HTTP provider 原始响应正文不再进入运行错误。
+- Docker 专项 `tests.test_m190_model_failure` **3/3**，M61/M97/M98/M190 受影响回归 **23/23**；compileall、quick、stage、full-stage、生产 acceptance 通过。
+- 真实 DeepSeek Planner **1/1**、真实模型 + Docker GIS 总览 **1/1** 通过。M190 已完成，当前工作树待敏感信息检查、提交和推送。
+- M191 入口是“候选能力选择 → 补事实 → 计划预览/确认 → 执行/恢复”的通用纵向链路，按全局七维度推进，不增加单区域规则。
+
+## M191 当前完成状态
+
+- `AgentRuntime._require_workflow_selection()` 现在门控 `clarification + missing_fields`，未补齐事实时返回结构化 clarification，不进入 ToolRegistry。
+- `AgentService.apply_run_interaction()` 统一从显式 capability ID、已选 capability 或唯一候选恢复 Domain workflow；`provide_facts` 可不携带 workflow。
+- Docker M191 专项 **2/2**，M164/M166/M167 受影响回归 **25/25**；quick、stage、full-stage 和 production acceptance 通过，容器 healthy。
+- M191 已完成，下一阶段 M192 聚焦 selection transition 的 request/plan identity、数据证据重验和跨入口 evidence equality；当前工作树待检查、提交和推送。
+
+## M192-A 当前完成状态
+
+- 新增 `spatial-agent.action-transition-identity.v1`，Action Receipt 保存源/目标 bounded identity；旧 `identity_linkage` 仍作为兼容的目标投影。
+- Receipt、execution timeline、Artifact、SQLite replay 和 Contract Harness 共享 transition identity；M192 专项 **2/2**，M191/M183.2/M184/M189 受影响回归 **16/16**；Docker compileall、full-stage 和 production acceptance 通过，容器 healthy，preview fingerprint 与同步执行计划一致。
+- 下一步继续 M192：补事实前后数据 readiness/coverage/alignment/provenance evidence 差异、preview fingerprint 一致性和真实模型 selection 基线。
+
+## M192-B 当前完成状态
+
+- 新增领域无关 `spatial-agent.action-transition-evidence.v1`，从源/目标结果中提取有界 readiness、coverage、alignment、provenance 摘要和 fingerprint，输出 added/removed/changed 差异；不复制原始路径、数据记录或模型响应。
+- `Action Receipt`、execution timeline、Artifact/SQLite replay 和 `evaluation.contract_harness` 共享 transition evidence；未知 schema 安全降级，跨 Receipt/Artifact/history/timeline 比较保持一致。
+- 补充通用 workflow constraints 到 LLM Planner 的有界提示摘要，修复真实模型 selection → facts 后仍缺事实的问题；敏感键不会进入提示。
+- M192-B 专项 **5/5**，M192-A/M192-B、M191、M183.2、M184、M189 联合回归 **21/21**；Docker compileall、full-stage、production acceptance 通过，容器 healthy，preview fingerprint 匹配。
+- 显式真实模型 selection → facts → run **1/1** 通过；默认 live 测试仍跳过，不进入 CI。新问题已记录到中文开发问题文档。
+- M192 已完成，下一阶段从“证据变化可见”推进到“证据变化触发重验、阻断、修复或恢复”，继续按全局七个维度规划。
+## M193-A 当前完成状态
+
+- 新增领域无关 `agent/evidence_revalidation.py` 和 `spatial-agent.evidence-revalidation.v1`，统一表达 evidence transition 的当前、变化、降级、阻断和不可用状态。
+- Receipt、Action Preconditions、Execution Timeline、Artifact/恢复和 Contract Harness 共享 revalidation projection；`cancel` 仍保留为安全退出动作，未知 schema 不被解释为可执行。
+- Docker 专项 `tests.test_m193_evidence_revalidation` **4/4**；M184–M192 相关回归 **31/31**；容器重建后 `healthy`。
+- 当前 M193-A 实现尚未提交。下一步收口：运行 Docker full-stage、生产 acceptance、敏感信息检查和 `git diff --check`，提交并推送版本，再开始 M193-B。
+
+## M193-B 全局规划参考
+
+1. 让 preview fingerprint 绑定 evidence fingerprint；证据发生变化时旧 preview 只能进入重新核验，不能直接 approve/execute。
+2. 在 Runtime 的统一生命周期中接入 revalidation gate：区分 advisory、必须重验、阻断和安全退出，不新增第二套状态机。
+3. 由 Domain 提供最小 revalidation/repair 建议，Runtime 负责有限 repair、用户确认、重试和恢复；不增加 GIS 专用判断。
+4. 覆盖同步、HTTP、异步、SQLite 重启、Artifact-only 和多 worker CAS，确保旧计划不会被错误复用且不会重复执行工具。
+5. 用脱敏 replay 验证证据变化触发澄清/repair；配置可用时补一条真实模型 + Docker/GIS live-short，不进入默认 CI。
+6. 前端动态显示证据前后状态、新 fingerprint、失效原因和允许动作，不增加固定 GIS 页面分支。
+
+## M193-B 当前完成状态（最终收口）
+
+- 新增 `spatial-agent.evidence-binding.v1`；preview 生成 evidence binding/fingerprint，run 接收 `preview_evidence_fingerprint`，Runtime 在 dispatch 前执行 evidence gate。
+- fingerprint 变化时返回 `preview_evidence_changed`、状态 `repairable`，工具步骤为 0；repair 重新生成预览，不复用旧计划。HTTP、Artifact、async evidence、SQLite restart 和 Contract Harness 均接入该绑定。
+- M193-B 专项 **8/8**；M184–M192 联合回归 **51/51**；Docker compileall、quick、stage、full-stage、生产 acceptance 通过；容器 healthy，核心/可选数据 ready。
+- Chrome/CDP 浏览器 smoke 通过：preview/submit/final fingerprint 一致，confirmation_required → completed，artifact 和 Console 模块加载正常。历史恢复启动窗口已从约 20 秒调整为有界 60 秒，并记录到中文问题文档。
+- Docker 内真实模型 Planner **1/1**、真实模型 + Docker GIS 空间总览 **1/1** 通过；默认 CI 不访问网络、密钥或私有 GIS 数据。
+- M193-B 已达到提交条件；下一步进行敏感信息检查、stage/commit/push，并进入 M194 全局规划。
+
+## M194 全局规划参考
+
+M193 完成了证据变化触发重验、阻断和 repair 的公共闭环。M194 不再围绕单个 GIS 数据集加规则，重点是通用开放式多能力编排：
+
+1. **产品**：统一能力发现、澄清、选择、计划预览、证据重验、确认、执行、恢复和结果时间线。
+2. **架构**：统一 Capability Catalog → Workflow 组合 → TaskPlan DAG → Action Receipt/repair lineage 的 Runtime 边界，跨 Domain 复用。
+3. **数据**：把 manifest、版本、覆盖、对齐、过期和 provenance 变成 capability evidence，支持组合能力的可用性判断。
+4. **模型**：脱敏 replay + 最小 live-short 验证候选能力、缺失事实、evidence revalidation 和有限 repair 的结构化输出。
+5. **部署**：覆盖多 worker、滚动重启、旧 schema/Receipt、Artifact-only、异步取消/超时和幂等不重复执行。
+6. **体验**：Console 只消费结构化 selection/plan/evidence/action/result/views/artifact，动态生成工作区。
+7. **测试**：默认 quick/CI 保持精简；阶段收口覆盖 Text/GIS、HTTP、Artifact、SQLite、浏览器、Docker 和必要 live。
+
+## M194-A 当前进度：Workflow Composition Seam
+
+- 新增 `spatial-agent.workflow-composition.v1`，公共编译器支持最多 8 个模板组件、依赖环检查、component ID 命名空间、引用重写和组件依赖终点合并。
+- GIS `Domain Pack` 支持显式 `workflow.components`，Rule Planner 将组件编译为统一 `TaskPlan`；组合策略使用各组件工具 allowlist 并集与 max-step 总预算。
+- Text Domain 对组件工作流明确拒绝，避免公共 Runtime 或 Text Pack 意外加载 GIS 模板。
+- M194-A 专项 **5/5**，M193/M191/M192 联合回归 **12/12**；Docker compileall、quick、stage、full-stage、生产 acceptance、Chrome/CDP smoke 通过。
+- 组合策略误拒绝问题已记录到中文问题文档；当前工作树待敏感信息检查、提交和推送。
+
+## M194-B 当前进度：组合 Selection Evidence
+
+- `workflow-selection.v1` 新增有界组合组件投影：`workflow_components`、`workflow_component_ids`、`workflow_component_template_ids`，同时保留版本、依赖和约束键。
+- 组合组件身份已进入 preview、完成结果、run detail 和 Artifact 的 selection evidence；旧单模板字段保持兼容。
+- M194-A/B 专项 **5/5**，M193/M191/M192 联合回归 **17/17**，Docker compileall 通过。
+- 当前工作树待 quick/stage/full-stage、生产 acceptance、敏感检查、提交和推送；下一切片继续做 HTTP/async/SQLite restart 的组合 evidence equality。
+
+## M194-C 当前进度：组合跨入口恢复
+
+- 新增 HTTP、Artifact、async 和 SQLite restart 组合证据测试；组件 ID/template ID 在 preview、完成结果、detail、Artifact 和重启恢复中保持一致。
+- M194-A/B/C 专项 **7/7**；M193/M191/M192 联合回归 **19/19**；Docker compileall 通过。
+- 当前切片待执行阶段最终 quick/stage/full-stage、生产 acceptance、敏感检查、提交和推送；下一阶段从全局角度评估跨 Domain 组合与异步取消/超时边界。
+
+## 当前任务状态（M194 已完成）
+
+- 上述“待执行/待提交/待推送”是历史记录；M194-A/B/C 已完成，最新提交为 `353e0b1`，已推送到 `origin/main`，工作树干净。
+- 当前完成证据以 `353e0b1` 及阶段验收记录为准：组合 workflow 在同步、HTTP、Artifact、异步和 SQLite 重启入口保持组件身份一致。
+- 下一阶段 M195 的首个纵向切片是通用前端 workflow/evidence projection：动态显示组件、依赖、组件状态和证据摘要，随后补取消/超时/重试/滚动重启的组合恢复验收。
+
+## M195-A 当前状态：已完成实现，待提交
+
+- `ConsoleWorkflowEvidence` 已接入结果工作区；组合 workflow 会动态显示组件、依赖、步骤和 evidence/约束摘要，没有组件时保持空态。
+- HTTP 静态资源 allowlist、Domain canonical selection projection 和二次归一化已补齐；相关问题已记录到中文开发问题文档。
+- Docker M195 专项 **9/9 可执行通过、1 项因容器无 Node 跳过**；M194 组合回归 **7/7**；quick/stage/full-stage、生产 acceptance 和 CDP smoke 通过。
+- 当前工作树包含 M195-A 实现和文档，尚未提交推送。下一步做阶段提交，再进入 M195-B 的组件 evidence 细化和组合生命周期恢复。
+
+## 当前任务状态（M195-B 已实现，待提交推送）
+
+- 当前最新已推送基线为 `decaf1e`；工作树包含 M195-B 的 3 个未提交文件：`agent/workflow_selection.py`、`agent/workflow_templates.py` 和 `tests/test_m195_workflow_evidence.py`。
+- 当前 Docker 已按工作树重建并为 `healthy`，测试镜像已安装 Node.js。M195/M194/M193/M192 联合专项 **21/21 通过**；quick、stage、full-stage 和 `scripts/production_acceptance.ps1` 均通过。
+- Docker Node smoke、宿主 Node 语法检查和 CDP workflow evidence smoke 均通过，浏览器显示 2 个组件、1 条组件依赖。该切片没有调用真实模型、提交私有配置、token 或原始 GIS 数据。
+- M195-B 的组件 `evidence_summary` 保真问题已追加到 `docs/agent-development-issues.md`。下一步提交并推送该切片，再按全局七维度进入 M195-C：取消、超时、重试、多 worker、SQLite/Artifact 重启和组合 evidence 恢复。
+
+## M195-C 当前完成状态：组合 workflow 生命周期恢复
+
+- Runtime 的取消/超时收口现在复用 `_failure_plan_evidence`，即使在正常 `plan_evidence` 生成前退出，也保留有界的组合 selection、组件身份和 evidence 摘要；控制退出不会进入 ToolRegistry dispatch。
+- 新增 `tests/test_m195_composed_lifecycle.py`，覆盖 HTTP preview → run → detail → Artifact、确认后的安全取消、async 超时与轮询、显式 retry lineage、SQLite 重启恢复，以及两个 Service/worker 的幂等提交。
+- M195-C 专项 Docker **5/5 通过**；测试镜像已包含 Node.js。组合组件 evidence 在取消、超时、重试、Artifact 和 SQLite replay 中保持可解释，工具执行次数不会因重复提交增加。
+- 新问题“超时发生在计划 evidence 收口前导致组合 selection 丢失”已追加到 `docs/agent-development-issues.md`。本切片没有新增 GIS 专用 Runtime 分支、默认 CI 网络访问、私有配置、真实模型 token 或原始 GIS 数据。
+- 阶段收口已完成：M195/M194/M193/M192 联合专项 **26/26**，Docker quick、ci、stage、full-stage、生产 acceptance、compileall、Docker Node smoke、宿主 Node 语法检查和 Chrome/CDP workflow evidence smoke 均通过；`git diff --check` 通过，敏感文件未进入版本。下一步提交并推送 M195-C 版本。
+
+## M196 全局规划参考
+
+M195 已完成组合 workflow 从静态 projection 到生命周期恢复的纵向闭环。下一阶段从项目整体推进开放式、多能力、可替换执行能力：
+
+1. 产品：让未预定义请求形成能力发现、澄清、选择、组合、确认、执行、恢复和结果工作区的可操作闭环。
+2. 架构：继续收敛 RequestFacts、Capability Catalog、Workflow、TaskPlan、Result、Evidence 的版本化迁移边界，减少 Domain 与前端重复推导。
+3. 数据：将 readiness、coverage、alignment、provenance 作为可替换 Evidence Provider，验证缺失、过期和跨来源冲突的降级行为。
+4. 模型：用脱敏 replay 覆盖开放式多能力匹配、澄清、无效计划修复和有限确认；配置可用时补一条真实模型基线。
+5. 部署：补多 worker 滚动升级、旧 schema replay、Artifact-only 接管和 provider 不可用时的恢复边界。
+6. 体验：前端用统一 renderer 动态消费任意结果、evidence、lifecycle 和 artifact，不增加固定 GIS 页面分支。
+7. 测试：保持 compact quick/CI；以 Text + GIS 双 Domain、HTTP、Docker、Artifact/SQLite、浏览器和显式 live 验收证明通用性。
+
+## M196-A 当前完成状态：Capability-level Evidence Provider projection
+
+- 新增 `spatial-agent.capability-catalog-evidence.v1` 与 `project_capability_catalog_evidence()`；Runtime capability snapshot 将静态目录和 Provider observation 合并为有界、版本化的 capability evidence。
+- `readiness`、`coverage`、`alignment`、`provenance`、`availability` 和 missing reasons 统一归一化；缺失、过期、冲突、未知 schema 安全降级，Text Domain 的 `not_applicable` 不再误报为 `unknown`。
+- Text、GIS 和自定义 Provider 专项 **5/5**；M168/M140/M194/M195 受影响回归 **31/31**；Docker quick、ci、stage、full-stage、compileall、production acceptance、Node/CDP 验收均通过。
+- 新问题已记录到 `docs/agent-development-issues.md`。该切片没有新增 GIS 专用 Runtime 分支、默认 CI 网络访问、私有配置或真实模型 token。
+
+## M196-B 全局规划参考
+
+1. 产品：将 capability evidence 接入开放式候选能力、澄清、确认和结果工作区，明确下一步动作。
+2. 架构：统一 runtime snapshot、workflow selection、Artifact/SQLite replay 的 evidence projection，避免重复探测和跨入口漂移。
+3. 数据：补充更新时间、覆盖、来源绑定、有效期和跨源冲突的 Provider contract，并验证可恢复降级。
+4. 模型：用脱敏 replay 验证模型消费 evidence、避开不可用能力并生成结构化 clarification/selection。
+5. 部署：验证 HTTP、async、Artifact-only、SQLite restart 和 Provider 不可用时的 equality 与接管。
+6. 体验：复用领域无关 renderer 显示 evidence 状态、缺失原因和允许动作，不增加 GIS 页面分支。
+7. 测试：quick/CI 保持精简，阶段收口增加少量双 Domain、Docker、HTTP、Artifact/SQLite、浏览器和必要 live-short 验收。
+
+## M196-B.1 当前完成状态：per-run workflow selection evidence
+
+- `_build_context_packet()` 通过 Domain Evidence Provider 获取一次有界 runtime evidence，并调用同一 `project_capability_catalog_evidence()`；候选 workflow selection 不再只显示静态 `unknown`，而是与 runtime capability snapshot 共用 `capability-evidence.v1`。
+- Runtime 增加 15 秒、最多 32 项的进程内 advisory cache，降低 CLI/Service/HTTP 多 Runtime 实例重复探测的开销；执行前的 preflight/revalidation 仍是权威安全 gate。
+- M196-B.1 专项 **7/7**，M168/M140/M194/M195 受影响回归 **26/26**，Docker quick **2/2** 通过；Service async/Artifact 的 selection evidence equality 已覆盖。
+- 新性能问题已追加到 `docs/agent-development-issues.md`。下一步提交推送 M196-B.1，随后进入 M196-B.2：HTTP/SQLite equality、Provider unavailable 接管和脱敏 replay。
+
+## M196-B.2 当前完成状态：跨入口 capability evidence 接管
+
+- HTTP `/runs`、SQLite 重启和 Provider unavailable 契约已补齐；Text Domain 的候选 evidence 在 Service、HTTP、async、Artifact 和 restart 中保持 `capability-evidence.v1` 一致。
+- Provider 内部异常被压缩为结构化 `unavailable`，原始异常不会进入 `plan_evidence`、Artifact 或 replay；只保留 bounded status/reason/schema。
+- M196-B.2 专项 **10/10**，M168/M140/M194/M195 受影响回归 **26/26**；Docker ci/stage/full-stage、compileall、production acceptance、HTTP runtime capability、Node/CDP 均通过，`git diff --check` 和敏感信息审计待提交前最后执行。
+
+## M196-C 全局规划参考
+
+1. 产品：开放式候选能力与澄清工作区展示 evidence、缺失事实和下一步动作。
+2. 架构：统一 selection、interaction、workspace、Artifact 的 evidence/action projection。
+3. 数据：Domain-owned status-to-action 建议，Runtime 只负责通用生命周期和安全 gate。
+4. 模型：脱敏 replay/必要 live-short 验证模型消费 evidence、补事实和有限 repair。
+5. 部署：production FastAPI、async、SQLite restart、旧 artifact 和静态资源 allowlist 的一致性。
+6. 体验：Text/GIS 共用动态 renderer，显示候选、状态、缺失字段和允许动作。
+7. 测试：quick/CI 精简，跨入口 contract、Docker、HTTP、浏览器和显式 live 分层验收。
+
+## M196-C 当前完成状态：evidence/action projection 跨入口收口
+
+- Runtime 与 Text/GIS Domain 已共享 `evidence_action_guidance.v1`；Domain 仅提供 advisory 建议，Runtime 统一执行生命周期 gate 和 `allowed_actions`。
+- Result Contract、async、Artifact、SQLite restart、HTTP preview/detail、旧 Artifact 和 Console 通用交互保持同一 guidance/action projection；未知 schema、Provider 异常和不可用数据均有界降级。
+- 本轮 Docker 验证：M196-C **10/10**，capability provider **10/10**，M164/M168/M148 **16/16**，M194/M195/HTTP **8/8**，旧 Artifact **3/3**；容器 healthy。
+- 阶段收口动作：完成敏感信息审计与 `git diff --check` 后提交推送；下一阶段从全局七维度规划开放式 workspace、脱敏 replay/live-short、恢复接管和动态 renderer 的剩余缺口。
+
+## M197 全局规划参考
+
+1. 产品：让模型评测、真实运行和前端工作区看到同一份 guidance、候选能力、缺失事实与下一步动作；终端默认只输出有界摘要，完整证据进入 artifact。
+2. 架构：replay/live/Runtime 共用 repair evidence projection；每个 replay turn 绑定自己的脱敏模型响应，避免 Domain 提前澄清造成响应错位。
+3. 数据：扩展脱敏 fixture 的 guidance/action 字段，拒绝未知 schema 和 Provider 原文；GIS 数据只作为显式 evidence provider。
+4. 模型：验证真实模型能消费 readiness/degradation 并返回结构化澄清或计划；保留 Rule Planner 对照与失败分类。
+5. 部署：Docker 中执行离线 replay、真实模型 memory baseline 和真实模型 + 本地 GIS baseline；不把 live 依赖放进默认 CI。
+6. 体验：Console 继续通过通用 result/evidence renderer 消费 guidance，不增加 Domain 页面分支。
+7. 测试：保持专项精简，覆盖 replay 4/4、projection equality、summary CLI 和一条真实 GIS/live case。
+
+## M197-A 当前完成状态：evidence-aware replay/live 与显式 live-short（已推送）
+
+- `project_repair_evidence()` 与多轮 replay/live 汇总已纳入 `evidence_action_guidance.v1`，未知 schema/Provider 字段安全降级；新增 guidance 跨 live/replay equality 回归。
+- 修复 replay response FIFO 与 Domain 提前澄清的错位问题；离线 replay suite 从 **3/4** 恢复为 **4/4**，M197-A/M196 专项 **17/17**，M174/M150 回归 **7/7**。
+- 真实模型 memory clarification **1/1**；真实模型 + Docker 本地 GIS spatial overview **1/1**，均无重试。`scripts/live_baseline.py --summary` 已提供有界终端输出，完整报告仍可显式保存。
+- 已完成敏感信息审计与 `git diff --check`，版本为 `72819a5`；下一阶段进入 M198-A。
+
+## M198 全局规划参考
+
+1. 产品：让开放式澄清工作区直接显示 Domain guidance 的原因、建议动作和缺失事实，同时保持中心结果区按结果契约动态展示。
+2. 架构：复用现有 `selection_interaction.v1`、`workspace.v1` 和 `view.v1`，只增加 guidance 的通用前端投影，不建立平行页面协议。
+3. 数据：前端只消费后端已裁剪的 guidance/action 字段，不读取 Provider 原文或 GIS 专用字段。
+4. 模型：模型建议动作与 Runtime `allowed_actions` 分离，推荐不可执行动作时仍展示为 advisory，不产生越权按钮。
+5. 部署：HTTP、async、Artifact 恢复继续返回相同 selection interaction；浏览器 smoke 使用禁缓存的显式验收环境。
+6. 体验：Text/GIS/未来 Domain 共用候选卡、状态 badge、建议动作和缺失事实展示。
+7. 测试：只增加 Node normalization、Chrome CDP interaction 和已有公共 workspace smoke，不扩张默认 CI。
+
+## M198-A 当前完成状态：通用 evidence/action guidance renderer（已推送）
+
+- `web/console_selection_interaction.js` 归一化 `evidence_action_guidance.v1`，候选/澄清卡片显示建议动作与缺失事实；只有 Runtime `allowed_actions` 会生成可点击按钮。
+- Node interaction smoke、Chrome candidate-selection smoke、Evidence Registry smoke 和 nested workspace smoke 均通过；Chrome smoke 已禁用缓存，避免旧容器脚本造成误判。
+- 已完成 diff/敏感信息门禁，版本为 `0ad2c72`；下一阶段进入 M199-A。
+
+## M199 全局规划参考
+
+1. 产品：验证一个开放式复杂空间问题可以从对话进入多工具 DAG，并在结果工作区展示答案、地图、轨迹、证据和 artifact。
+2. 架构：把 live baseline 的 `expected_tools`、`expected_result_type` 和 DAG quality 做成领域无关验收契约，不增加固定问句分支。
+3. 数据：Rule 与真实模型共享同一 Docker GIS 数据健康、覆盖和 provenance 边界；数据缺失仍必须结构化降级。
+4. 模型：比较 Rule/LLM 的能力选择、工具集合、依赖关系、结果类型和答案质量；记录 token/延迟但不保存原始响应。
+5. 部署：真实模型 + Docker GIS 只作为显式验收；HTTP、async、SQLite、Artifact 使用已有跨入口 contract 回归。
+6. 体验：复杂结果继续由 `workspace/view` 和通用 guidance renderer 驱动，避免把综合分析拆成前端固定流程。
+7. 测试：保留一条复杂 live-short、一个 explicit live contract 单测和少量 HTTP/生命周期回归，不扩大默认 CI。
+
+## M199-A 当前完成状态：复杂开放式真实纵向链路
+
+- Rule + 本地 GIS 复杂请求完成 **9** 个工具步骤；真实模型 + Docker GIS 同一请求实际选择 **9** 个工具、形成 **14** 条 DAG 依赖边，结果类型 `spatial_analysis_result`，计划质量和中文答案质量均通过。
+- `live_baseline` 支持通用 `expected_tools` / `expected_result_type` contract，并新增 explicit composed case 单测；M194/M195/HTTP 回归 **8/8**。
+- 复杂 live-short 只保留结构化摘要：1/1、无重试、token/延迟可见，原始模型响应不进入仓库。
+- 下一步：执行 M199-A 门禁、更新中文问题日志并推送版本，再按全局目标规划下一切片。
+
+## M200：全局规划参考
+
+M200 从 M199 的复杂真实纵向链路继续验证“同一请求在不同入口仍是同一个 Runtime 事实”，不增加 GIS 专用页面或固定问句分支：
+
+1. 产品：复杂开放式请求在 HTTP、同步、异步、Artifact 和重启恢复中呈现同一结果、工具轨迹和证据。
+2. 架构：建立领域无关的 Result/Evidence projection equality 契约，复用现有 Harness，不复制入口专用断言。
+3. 数据：继续使用 Docker 中真实本地 GIS 数据；只比较有界工具标识、结果类型和 evidence ID，不持久化原始数据或模型响应。
+4. 模型：保留 Rule 与真实模型的独立验收边界；M200 重点验证 Runtime 结果承载，不把 live 输出塞进默认 CI。
+5. 部署：覆盖 HTTP API、async worker、SQLite restart 和 Artifact-only recovery，并先重建容器避免旧镜像证据。
+6. 体验：Console 继续消费公共 result/evidence contract；不为综合空间分析增加前端固定分支。
+7. 测试：新增一条复杂跨入口 contract，配合已有 M194/M195/HTTP 回归，保持默认测试精简。
+
+## M200-A：复杂请求跨入口结果与证据一致性（已完成，待版本推送）
+
+- `tests/test_m194_composition_cross_entry.py` 新增复杂洪山区空间请求的领域无关投影断言：HTTP detail、同步 Artifact、async 完成、SQLite 重启和 Artifact 恢复均必须保持 `COMPLETED`、`spatial_analysis_result`、同一组 9 个工具步骤和同一组 evidence entry IDs。
+- Docker 按当前工作树重建并保持 healthy；M200-A 专项与 M195 生命周期、HTTP contract 合计 **9/9** 通过。
+- 本切片没有新增 Runtime GIS 分支、默认 CI 网络依赖、私有配置、真实模型 token 或原始 GIS 数据；真实模型 + Docker GIS 的 9 工具/14 DAG 证据沿用 M199 显式验收记录。
+- 阶段收口剩余 `git diff --check`、敏感信息审计、提交推送和恢复卡更新；推送后进入 M201 全局重规划。
+
+## M201：下一阶段全局规划参考
+
+1. 产品：让跨入口一致性从“已完成结果”扩展到开放式请求的 clarification、preview、repair、confirmation 和 failure recovery。
+2. 架构：统一 interaction/state transition、repair lineage、Action Receipt 与 Result/Evidence projection，补齐状态迁移的唯一持久化事实。
+3. 数据：用有界 capability/evidence fixture 覆盖缺失、过期、未对齐和 Provider unavailable，不引入新的单区域数据分支。
+4. 模型：用脱敏 replay 和一条 live-short 验证模型能消费结构化缺失事实并产生 clarification 或有限 repair，而非依赖固定问句。
+5. 部署：验证 HTTP、async、SQLite restart、Artifact-only 和多 Service 幂等接管在非完成状态下不重复 dispatch、不丢 evidence。
+6. 体验：Console 继续使用通用 renderer 展示状态、证据、允许动作和 repair lineage，结果区由公共 view contract 动态决定。
+7. 测试：保持 quick/CI 精简，优先补一个跨 Domain interaction contract，再做 Docker/HTTP/Artifact/浏览器显式验收。
+
+## M201-A：Evidence Registry 保持非完成生命周期状态（已完成，待版本推送）
+
+- 修复 `build_evidence_registry()` 只把顶层 `status` 传给 `project_action_lifecycle()` 的问题；现在复用有界完整 payload，保留失败可重试、计划可修复和其他生命周期元数据。
+- 在现有 M158 注册表契约中增加失败可重试与计划可修复两种状态断言，避免新增重复测试文件；Docker 专项 **5/5**，M153/M158/M180 受影响回归 **14/14**。
+- 本切片不增加 GIS 分支、不改变 ToolRegistry dispatch、不引入默认网络或私有数据；Evidence Registry 仍是索引，不成为新的状态事实源。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M202，覆盖非完成 interaction 在 HTTP/async/Artifact/restart 的统一投影。
+
+## M202：下一阶段全局规划参考
+
+1. 产品：让 clarification、repairable、recoverable、awaiting confirmation 等非完成状态在所有入口给出一致的下一步动作。
+2. 架构：建立领域无关的 interaction envelope equality，统一 `action_lifecycle`、`decision_lifecycle`、`repair_lineage` 和 Action Receipt 的公共引用。
+3. 数据：只使用有界 Text/GIS fixture 验证缺失事实、计划过期和 evidence 变化，不增加区域专用数据逻辑。
+4. 模型：用脱敏 replay 验证模型在结构化 clarification/repair context 下继续规划，未知状态必须安全降级。
+5. 部署：覆盖 HTTP detail、async polling、Artifact-only、SQLite restart 和幂等 action 提交，确保非完成状态不会重复 dispatch。
+6. 体验：Console 动态展示状态原因、allowed actions、receipt/lineage 和恢复提示，不增加 Domain 页面分支。
+7. 测试：新增一个精简跨入口 interaction contract，复用现有 Harness；默认 quick/CI 仍不联网，Docker/浏览器/live 只做显式验收。
+
+## M202-A：Async 非完成 interaction 状态投影（已完成，待版本推送）
+
+- 修复 `build_async_result_evidence()` 只根据 degradation 判断外层状态的问题；`planning`、`executing`、`awaiting_confirmation` 和 `clarification_required` 现在统一为 `pending`，`repairable`/`recoverable`/失败控制态统一为 `degraded`，不再把等待用户动作的运行显示为 `success`。
+- 复用 M165 跨入口契约增加等待确认断言；Docker M202-A、M146、M148 合计 **8/8** 通过，覆盖 HTTP polling、SQLite restart 和 Artifact-only recovery。
+- 本切片只调整公共 async projection，不增加 GIS 分支、不改变 ToolRegistry 或默认 CI 网络边界；selection interaction 和 lifecycle 仍由既有 versioned contract 提供。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M203，继续统一 Action Receipt/repair lineage 与非完成 interaction envelope。
+
+## M203：下一阶段全局规划参考
+
+1. 产品：在 pending/recoverable/repairable 状态下展示可执行动作、原因、凭据和下一步，而不是只有状态标签。
+2. 架构：将 `selection_interaction`、`action_lifecycle`、`decision_lifecycle`、Action Receipt 和 repair lineage 组合成一个有界公共 envelope。
+3. 数据：以 request/plan/evidence fingerprint 作为动作前置条件，验证证据变化后旧动作不会继续执行。
+4. 模型：脱敏 replay 验证模型读取 pending/repair context 后生成补事实或有限修复，保留 repair lineage。
+5. 部署：HTTP、async、Artifact、SQLite restart 和多 Service 幂等动作共享同一 precondition/receipt 结果。
+6. 体验：Console 通用 renderer 展示动作是否可执行、阻断原因、receipt 和修复链，不增加 GIS 页面分支。
+7. 测试：一个跨入口 interaction envelope contract 加上少量前端/浏览器 smoke；默认 quick/CI 继续精简。
+
+## M203-A：Interaction 前置条件统一投影（已完成，待版本推送）
+
+- `result_contract` 现在只构建一次 `action_preconditions`，并将同一有界 projection 传给 `selection_interaction`；强制阻断的执行动作不会继续出现在交互层 `allowed_actions`，安全退出动作仍保留。
+- `selection_interaction.v1` 持久化有界前置条件与 `blocked_actions`，async 和 recovery 归一化会复用该投影；Result Contract → async evidence → async recovery 的阻断场景保持一致。
+- Docker M203-A/M196/M165 精简回归 **20/20** 通过；未增加 GIS Runtime 分支、第二状态机或默认网络依赖。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M204，补齐 Action Receipt/repair lineage 在同一 interaction envelope 中的跨入口引用。
+
+## M204：下一阶段全局规划参考
+
+1. 产品：在待确认、可修复和可恢复状态中同时展示当前动作、动作凭据、前置条件和修复链。
+2. 架构：把 Action Receipt、transition lineage、repair lineage 和 interaction lifecycle 绑定到同一个有界 subject/identity 引用。
+3. 数据：动作必须绑定 request/plan/evidence fingerprint；过期或变化的 evidence 只能产生结构化阻断或 repair。
+4. 模型：脱敏 replay 验证有限 repair 后 receipt/lineage 仍可被 Planner 与 Runtime 消费，禁止原始 provider 文本进入 envelope。
+5. 部署：HTTP、async、Artifact-only、SQLite restart 和重复 action 提交共享 receipt identity 与幂等结果。
+6. 体验：Console 以通用 renderer 展示 receipt 状态、阻断原因、repair lineage 和允许动作，不增加 GIS 页面分支。
+7. 测试：一个 receipt/lineage 跨入口 contract 配合既有前置条件回归；默认 quick/CI 继续精简。
+
+## M204-A：Receipt/repair lineage 进入统一 interaction projection（已完成，待版本推送）
+
+- `selection_interaction.v1` 现在可选地携带规范化 `action_receipt` 与脱敏 `repair_lineage`；Result Contract、async evidence 和 async recovery 复用同一 projection，不复制原始错误或私有路径。
+- Result Contract 支持从当前或嵌套结果位置读取 Receipt，并只构建一次 repair event 输入；新增跨 Result → async → recovery equality 用例，Receipt、repair lineage 和 sanitized boundary 均通过。
+- 修复 `normalize_evidence_action_guidance()` 对规范 `available=false` 对象的二次归一化漂移；M204-A 专项 **7/7**，M196/M165/M183 受影响回归 **19/19**。
+- 本切片没有新增 GIS Runtime 分支、模型网络访问或默认 CI 依赖；阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新。
+
+## M205：下一阶段全局规划参考
+
+1. 产品：让 Console 直接消费统一 interaction projection，展示状态、动作、Receipt、前置条件和 repair lineage。
+2. 架构：将 selection/workspace/view renderer 与 interaction envelope 对齐，避免前端从多个字段自行拼装权限。
+3. 数据：前端只接收有界 identity/fingerprint 摘要，不展示原始模型响应、工具错误或私有路径。
+4. 模型：脱敏 replay/live-short 验证模型生成的 repair/clarification 状态在前端和 Artifact 中可读。
+5. 部署：HTTP、async、Artifact、SQLite restart 和浏览器加载同一 envelope schema/version。
+6. 体验：Text/GIS 共用动态 renderer，安全动作按钮只来自 Runtime `allowed_actions`。
+7. 测试：一个 Node/Chrome/HTTP/Artifact interaction smoke 加少量跨入口 contract，默认 CI 保持精简。
+
+## M205-A：Console 动态展示统一 interaction projection（已完成，待版本推送）
+
+- `web/console_selection_interaction.js` 现在归一化 `repairable`、`blocked_actions`、`action_preconditions`、`action_receipt` 和 `repair_lineage`；未知 schema 有界降级，Receipt/lineage 不展示原始错误或路径。
+- `web/index.html` 的领域无关 renderer 动态显示执行前置条件、动作凭据和修复链；可点击按钮仍严格来自 Runtime `allowed_actions`，没有新增 GIS 分支。
+- Node interaction smoke、JS syntax check 和重建当前 Docker 后的 Chrome/DOM candidate smoke 均通过；DOM 已验证 Receipt、阻断原因和 repair lineage 可见。
+- 阶段收口剩余 diff/敏感信息门禁、提交推送和恢复卡更新；推送后进入 M206，做复杂开放式请求从 HTTP 到 Console/Artifact 的显式纵向验收。
+
+## M206：下一阶段全局规划参考
+
+1. 产品：验证复杂开放式请求从聊天输入到计划、执行、答案、交互状态、地图、轨迹和 artifact 的完整展示。
+2. 架构：HTTP、Console、async 和 Artifact 只消费同一 Result/interaction/evidence projection，不在前端新增推断逻辑。
+3. 数据：真实 Docker GIS 的 geometry、degradation、provenance 和输出 manifest 进入有界视图；缺失时明确降级。
+4. 模型：Rule 对照与真实模型 + Docker GIS live-short 比较工具覆盖、DAG、结果类型和前端可读性。
+5. 部署：production FastAPI、SQLite restart、Artifact-only 和浏览器缓存禁用共同验收，保留可恢复失败证据。
+6. 体验：结果区继续由 workspace/view 动态决定，地图和文本共用 interaction/evidence renderer。
+7. 测试：保留一条复杂 live-short、一个 HTTP/Console browser contract 和精简回归，不扩大默认 CI。

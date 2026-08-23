@@ -17,12 +17,14 @@
 
 ## 二、恢复上下文并建立基线
 
-新对话或新一轮清理开始时，按以下顺序阅读：
+新对话或新一轮清理开始时，只读取短快照：
 
-1. `docs/agent-context-resume.md`
-2. `docs/task-resume.md`
-3. `docs/agent-development-issues.md`
-4. `docs/code-cleanup-plan.md`
+1. `docs/agent-context-current.md`
+2. `docs/code-cleanup-plan.md`（仅当本轮确实是代码清理）
+
+`docs/agent-context-resume.md`、`docs/task-resume.md` 和
+`docs/agent-development-issues.md` 现在都是短入口或近期问题索引；历史档案必须先用
+`scripts/resume_context.ps1 -Topic ...` 有界检索，禁止全文读取。
 
 然后检查工作树和当前阶段：
 
@@ -198,8 +200,8 @@ git rev-list --left-right --count main...origin/main
 - `docs/code-cleanup-plan.md`
 - `docs/agent-development-issues.md`（若发现新的工程问题）
 - `docs/milestones.md`
-- `docs/task-resume.md`
-- `docs/agent-context-resume.md`
+- `docs/agent-context-current.md`
+- `docs/archive/context-history/`（仅保存阶段历史，不作为启动输入）
 
 ## 八、本轮清理复盘：可直接复用的执行流
 

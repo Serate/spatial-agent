@@ -55,7 +55,7 @@
 
 ### P3：测试与文档收口
 
-测试不按数量简单删除。只把重复 profile 调用、没有独立断言的重复场景和过期 fixture 归并；保留跨入口、失败、恢复、真实数据和领域隔离契约。清理结果同步到 `docs/milestones.md`、`docs/task-resume.md`、`docs/agent-context-resume.md` 和本项目问题记录。
+测试不按数量简单删除。只把重复 profile 调用、没有独立断言的重复场景和过期 fixture 归并；保留跨入口、失败、恢复、真实数据和领域隔离契约。清理结果同步到 `docs/milestones.md`、`docs/agent-context-current.md` 和本项目问题记录；任务历史只按需归档，不再扩张启动入口。
 
 ## 判定规则
 

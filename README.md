@@ -176,9 +176,10 @@ GIS 回归需使用 GIS Python，并设置 `GDAL_DATA`、`PROJ_LIB`；启动控�
 - [`docs/test-strategy.md`](docs/test-strategy.md)：精简测试 profile、真实验收和扩展矩阵边界。
 - [`evaluation/contract_harness.py`](evaluation/contract_harness.py)：CLI、HTTP、artifact 和 recovery 的结果契约一致性 Harness。
 - [`evaluation/cases/global-acceptance.json`](evaluation/cases/global-acceptance.json)：全局场景验收矩阵。
-- [`docs/agent-context-resume.md`](docs/agent-context-resume.md)：新对话恢复上下文。
-- [`docs/task-resume.md`](docs/task-resume.md)：当前任务和下一阶段规划。
-- [`docs/agent-development-issues.md`](docs/agent-development-issues.md)：中文工程问题记录。
+- [`docs/agent-context-current.md`](docs/agent-context-current.md)：新对话和上下文压缩后的唯一短快照。
+- [`docs/agent-context-resume.md`](docs/agent-context-resume.md)：短恢复入口和按需检索规则。
+- [`docs/task-resume.md`](docs/task-resume.md)：当前任务短指针；详细历史按需检索。
+- [`docs/agent-development-issues.md`](docs/agent-development-issues.md)：近期中文工程问题索引；历史记录见 `docs/archive/context-history/`。
 - [`docs/code-cleanup-process.md`](docs/code-cleanup-process.md)：代码清理的复用流程、判定标准和收尾检查清单。
 - [`docs/data-adapter-plan.md`](docs/data-adapter-plan.md)：真实空间数据接入计划。
 
