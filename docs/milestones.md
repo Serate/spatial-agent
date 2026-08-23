@@ -18,6 +18,14 @@
 - Docker 验证：M158/M194/M195/M220 精简回归 **33/33**，`compileall` 通过；未调用 live 模型，不提交密钥、原始响应或真实 GIS 原始数据。
 - 下一阶段从项目全局规划，不以单一数据集为中心；候选方向是跨 Domain 动态组合发现、恢复/重验策略和显式真实模型 + 真实 GIS/Docker 验收闭环。
 
+## M220-B3：通用实体事实与上下文预算
+
+- `RequestFacts` 增加通用 `entities` 事实袋；旧 `admin_name` 只作为兼容字段保留。Capability Discovery、澄清需求投影和计划证据均支持任意 Domain 实体键。
+- ContextBuilder 调整预算裁剪优先级：优先保留可执行 workflow catalog/selection，先裁剪大型 capability catalog/discovery advisory 内容；复杂 GIS 计划继续保留模板匹配证据。
+- 新增非 GIS `document_id` discovery/clarification 契约测试，证明新增实体不需要修改公共 Runtime 或引入 GIS 策略。
+- Docker 精简回归 **66/66**，`compileall` 通过；未新增默认网络测试、私有数据或密钥。
+- 下一阶段从全局规划进入 M220-B4，重点是自动组合 workflow 物化、真实模型 + 真实 GIS/Docker 端到端和前端动态结果/证据展示。
+
 ## 基础 Agent Runtime
 
 - M0：建立项目定位、设计基线、工具 schema 和评测用例。

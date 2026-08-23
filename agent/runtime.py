@@ -2140,6 +2140,7 @@ def _build_plan_evidence(
             "schema_version": str(
                 request_facts.get("schema_version", "spatial-agent.request-facts.v1")
             )[:80],
+            "entities": _safe_small_mapping(request_facts.get("entities")),
             "admin_name": str(request_facts.get("admin_name"))[:120]
             if request_facts.get("admin_name")
             else None,

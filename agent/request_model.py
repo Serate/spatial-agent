@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
 
@@ -13,9 +13,10 @@ REQUEST_FACTS_SCHEMA_VERSION = "spatial-agent.request-facts.v1"
 class RequestFacts:
     """Planner-neutral facts shared by domain-owned request extractors.
 
-    ``admin_name`` remains as a bounded compatibility field for historical
-    GIS artifacts.  New domains should represent named entities in their own
-    facts implementation rather than adding another shared field here.
+    ``entities`` is the generic entity bag. ``admin_name`` remains as a
+    bounded compatibility field for historical GIS artifacts; new Domains
+    should put their named entities in ``entities`` instead of adding shared
+    fields to this module.
     """
 
     text: str
@@ -24,12 +25,25 @@ class RequestFacts:
     datasets: Tuple[str, ...]
     constraints: Dict[str, Any]
     evidence: Tuple[str, ...]
+    entities: Dict[str, Any] = field(default_factory=dict)
+
+    def entity_snapshot(self) -> Dict[str, Any]:
+        """Return bounded generic entities with the legacy GIS alias merged."""
+        result = {}
+        for key, value in (self.entities or {}).items():
+            text = str(key or "").strip()[:80]
+            if text and value is not None and len(result) < 16:
+                result[text] = value
+        if self.admin_name and "admin_name" not in result:
+            result["admin_name"] = self.admin_name
+        return result
 
     def as_dict(self) -> Dict[str, Any]:
         return {
             "schema_version": REQUEST_FACTS_SCHEMA_VERSION,
             "text": self.text,
             "admin_name": self.admin_name,
+            "entities": self.entity_snapshot(),
             "tasks": list(self.tasks),
             "datasets": list(self.datasets),
             "constraints": dict(self.constraints),
@@ -41,6 +55,7 @@ class RequestFacts:
         return {
             "schema_version": REQUEST_FACTS_SCHEMA_VERSION,
             "admin_name": self.admin_name,
+            "entities": self.entity_snapshot(),
             "tasks": list(self.tasks),
             "datasets": list(self.datasets),
             "constraints": dict(self.constraints),

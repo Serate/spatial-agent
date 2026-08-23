@@ -4,20 +4,22 @@
 
 ## 当前目标
 
-建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。当前切片为 **M220-B2：跨 Domain 组合能力与一致性**。
+建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。当前切片为 **M220-B3：通用实体事实与上下文预算**。
 
 ## 当前进度
 
 - Text Domain 已接入声明式 workflow catalog、组合 DAG、ToolRegistry/schema 校验、Result/View/Answer、HTTP、Artifact、Async 和 SQLite recovery。
 - 公共 `component_evidence` 已接入 workflow selection，用于组件状态、覆盖、时效、来源、冲突和重验投影。
-- M220-B2 已完成实现并推送；当前工作树应保持干净，具体版本号以 `git log -1 --oneline --decorate` 为准。
+- `RequestFacts.entities` 已成为通用实体事实袋；能力发现、澄清和计划证据可消费任意 Domain 实体，`admin_name` 只保留为兼容别名。
+- ContextBuilder 在预算不足时优先保留 workflow catalog/selection，先裁剪大型 advisory catalog，避免计划契约因上下文扩展而退化。
+- M220-B3 当前实现待提交；具体版本号以 `git log -1 --oneline --decorate` 为准。
 - Docker 容器 `ai-agent-spatial-agent-1` healthy；Python、compileall、阶段测试默认在 Docker 中执行。
 
 ## 阶段证据与下一步
 
-- HTTP、detail、sync artifact、async、recovered、async artifact 的组件 evidence 已统一；M158/M194/M195/M220 精简回归 33/33，Docker compileall 通过。
-- 已修复 GIS 自动复合能力缺少稳定 component identity 导致 HTTP 首次结果丢失 Registry entry 的问题；Runtime 不新增 GIS 分支。
-- 下一步按全局能力矩阵重规划 M220-B3，优先评估跨 Domain 动态组合发现、真实数据/模型验收与 replay/live 证据闭环。
+- M220-B2 跨入口组件 evidence 回归 33/33；本切片扩展回归 66/66，Docker compileall 通过。
+- 已验证非 GIS 自定义实体 `document_id` 可驱动 capability discovery 和 clarification，不需要 Runtime 增加领域字段。
+- 下一步按全局能力矩阵进入 M220-B4：自动组合 workflow 的物化、真实模型 + GIS/Docker 端到端验收，以及前端动态结果展示与 replay/live 证据闭环。
 
 ## 不变量
 

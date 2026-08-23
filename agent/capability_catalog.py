@@ -320,11 +320,18 @@ def _request_facts_snapshot(request_facts: Any) -> Dict[str, Any]:
     if isinstance(datasets, str):
         datasets = [datasets]
     constraints = source.get("constraints")
+    raw_entities = source.get("entities")
+    entities = {
+        str(key)[:80]: value
+        for key, value in (raw_entities.items() if isinstance(raw_entities, Mapping) else ())
+        if str(key).strip() and value is not None
+    }
+    # Legacy snapshots predate the generic entity bag.
+    for key in ("admin_name", "region", "entity", "place"):
+        if source.get(key) is not None and key not in entities:
+            entities[key] = source.get(key)
     return {
-        "entities": {
-            key: source.get(key)
-            for key in ("admin_name", "region", "entity", "place")
-        },
+        "entities": entities,
         "datasets": {
             str(value)
             for value in (datasets or [])

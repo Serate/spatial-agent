@@ -103,16 +103,20 @@ class ContextBuilder:
         if len(rendered) <= self.max_chars:
             return rendered, False
         truncated = False
+        # Keep the executable workflow catalog and selection seam available
+        # for planning. Large advisory catalogs/discovery cards are cheaper to
+        # omit because the selected IDs and bounded workflow context already
+        # identify the planner's allowed path.
         for name in (
             "memory",
-            "workflow_templates",
+            "capability_catalog",
+            "capability_discovery",
+            "request_understanding",
             "available_tools",
             "workflow",
             "planner",
-            "request_understanding",
             "workflow_selection",
-            "capability_discovery",
-            "capability_catalog",
+            "workflow_templates",
         ):
             if len(rendered) <= self.max_chars:
                 break

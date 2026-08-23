@@ -145,7 +145,7 @@ class CapabilityDiscovery:
             ],
         }
         # Keep the old GIS field in the projection for artifact compatibility;
-        # new Domain Packs should use ``entities`` instead.
+        # new Domain Packs should use the generic ``entities`` mapping.
         if self.entities.get("admin_name"):
             result["admin_name"] = str(self.entities["admin_name"])[:120]
         return result
@@ -252,9 +252,9 @@ def discover_from_catalog(
     bounded = tuple(candidates[: max(1, int(max_candidates))])
     state = "selected" if len(bounded) == 1 else "ambiguous" if bounded else "unavailable"
     entities = {
-        key: facts["entities"].get(key)
-        for key in ("admin_name", "region", "entity", "place")
-        if facts["entities"].get(key)
+        str(key)[:80]: value
+        for key, value in facts["entities"].items()
+        if str(key).strip() and value is not None
     }
     return CapabilityDiscovery(
         signals=tuple(item for candidate in bounded for item in candidate.signals)[:16],
@@ -440,10 +440,17 @@ def _facts_snapshot(request_facts: Any) -> dict[str, Any]:
         datasets = (datasets,)
     if not isinstance(constraints, Mapping):
         constraints = {}
+    raw_entities = source.get("entities")
     entities = {
-        key: source.get(key)
-        for key in ("admin_name", "region", "entity", "place")
+        str(key)[:80]: value
+        for key, value in (raw_entities.items() if isinstance(raw_entities, Mapping) else ())
+        if str(key).strip() and value is not None
     }
+    # Read old snapshots during migration. The compatibility aliases are not
+    # used as selection policy and are never required by generic Domains.
+    for key in ("admin_name", "region", "entity", "place"):
+        if source.get(key) is not None and key not in entities:
+            entities[key] = source.get(key)
     return {
         "tasks": {str(item).strip() for item in tasks if str(item).strip()},
         "datasets": {str(item).strip() for item in datasets if str(item).strip()},
