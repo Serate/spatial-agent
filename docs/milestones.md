@@ -4305,11 +4305,36 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 6. 体验：Console 根据结构化 turn、interaction、Artifact reference 和 evidence 动态渲染状态与下一步，不增加固定问题页面。
 7. 测试：以一个 compact turn/reference harness 为主，叠加 Docker stage、HTTP contract、浏览器 smoke 和必要 live/replay；默认 quick/CI 不联网。
 
-### M217 当前进度（实现与验证完成，待阶段提交）
+### M217 当前进度（已完成并推送）
 
 - 已实现 `spatial-agent.conversation-turn.v1`：Domain 只提供 advisory 判定，Runtime 负责 pending 消费/清除；澄清短回复继续成功，独立新请求不会继承旧 pending。
 - turn identity 已投影到同步 Result、SQLite restart、Artifact、Async evidence、统一 nested schema 和 Console；M217 专项 **3/3**、M166/M9 回归 **16 项（1 项本地数据跳过）**、M10 + HTTP contract **17/17**、M67/M149/M150 **25/25**、Console **2/2**、Docker compileall 通过。
 - 已新增 `spatial-agent.artifact-manifest.v1` 与开发/生产 HTTP 的 `/artifacts/runs/{name}/manifest`，只发现 section 和安全按需引用，不自动返回完整内容。
 - 浏览器 smoke 已验证 turn 标签、预览状态、动态结果交互与 artifact 生成；真实本地 GIS 缺失数据测试仍按设计跳过，未作为默认 CI 依赖。
 - 收口修复：M150 旧单测改为验证失败 repair event 的脱敏 lineage；Docker 重建后确认测试使用当前工作树。
-- 下一步：提交并推送 M217 阶段版本，随后按产品、架构、数据、模型、部署、前端和测试七个维度全局重规划。
+- stage 离线验收 3/3；live GIS/model 两个案例 2/2，合计 13,239 tokens、0 重试、0 provider 错误；production acceptance 为 ok，readiness/runtime/release ready，但同步 memory 入口显示 degraded/warning，作为下一阶段的环境语义缺口。
+- 阶段版本：`6ba9b2e feat: complete M217 turn and artifact contracts`，已推送 `origin/main`。
+
+## M218：开放式请求的纵向验收与通用结果/生命周期证据闭环
+
+### 全局重规划依据
+
+- 产品：对话轮次、澄清和 Artifact 发现已经具备；仍需证明一个开放式问题可以从请求一路到答案、地图/预览、轨迹、下载和恢复。
+- 架构：Planner/Runtime/ToolRegistry/Domain seam 已稳定；生命周期、selection interaction、decision 和 readiness 仍有多个投影，需要验证语义一致而非强行字节相等。
+- 数据：Docker 容器已有数据卷与 aligned readiness；压缩包/数据版本和缺失数据降级必须继续通过 manifest/evidence 表达，不能把原始数据提交仓库。
+- 模型：当前 live GIS/model 2/2 已通过，但要把脱敏摘要、token/延迟、provider 错误和计划/后端错误分层固化为可重复验收证据。
+- 部署：Docker、HTTP、Async、Artifact 和 SQLite 已有专项；同步 memory 入口的 degraded/warning 需要明确是环境选择、能力降级还是契约问题。
+- 体验：已有 Console 交互和浏览器 smoke；下一步覆盖复杂开放式请求的动态结果消费，不增加区域专用页面判断。
+- 测试：保持 quick/CI 离线精简，新增一个跨入口 acceptance harness 和一个复杂请求浏览器 smoke，避免恢复大而重复的测试矩阵。
+
+### 目标与任务
+
+1. 建立领域无关的 cross-entry acceptance harness：比较 CLI、HTTP、同步/异步轮询、Artifact manifest、SQLite recovery 和 Console 消费的 request/plan/result/evidence 核心语义。
+2. 以一个通用 Result/View/Answer contract 驱动动态展示，验证答案、表格、地图、轨迹、Artifact 和空/降级状态由结构化 registry 决定。
+3. 收敛 action lifecycle、decision lifecycle、selection interaction 和 readiness 的公共状态/原因码投影；动作 receipt 和 transport identity 保持单独 lineage。
+4. 固化 opt-in live model + real GIS/Docker 短验收的脱敏报告，不保存 API key、原始模型响应或私有绝对路径。
+5. 阶段验收：Docker stage、HTTP contract、replay/repair、cross-entry harness、浏览器复杂请求 smoke、production acceptance；真实 live 只显式执行，不进入默认 CI。
+
+### M218 完成门槛
+
+一个非固定问句的开放式请求必须在至少两个入口产生相同核心 Result/Evidence，并能从 Artifact/SQLite 恢复；前端只消费结构化 view/evidence；任何 readiness 或模型失败都返回可操作的结构化状态；阶段完成后更新本卡、推送版本并再次进行七维全局盘点。

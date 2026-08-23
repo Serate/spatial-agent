@@ -1,72 +1,43 @@
 # Agent 当前恢复卡
 
-这是上下文压缩或新对话接续时的唯一默认入口。只用本卡恢复当前切片，不重读项目历史。
+这是新对话或上下文压缩后的唯一默认入口。只读本卡、Git 状态和最近提交；历史档案不是启动清单。
 
 ## 恢复门禁
 
-1. 默认只读本文件，然后执行 `git status --short --branch` 和 `git log -1 --oneline --decorate`；不要因为文件名是 resume、task 或 issues 就自动打开历史档案。
-2. 只确定一个“当前唯一工作切片”，不要自动打开其他文档、源码、测试、完整日志或模型响应。
-3. 需要证据时先用 `rg -n -m 5 "关键词|符号|错误" 文件` 定位，再只读取附近有限行，例如：
-   `Get-Content 文件 | Select-Object -Skip 120 -First 60`。
-4. 默认读取预算：历史文件为 0 个；只有当前卡给出明确关键词后，才读取 1 个历史文件的 1 个命中区间（不超过 40 行）、最多 2 个源码文件和 1 个直接相关测试文件。超过时先说明原因。
-5. 历史档案只用于审计，不是恢复入口；`agent-context-resume.md`、`task-resume.md`、`agent-development-issues.md` 和 `milestones.md` 不得全文读取。
-6. 只保留状态、提交、证据引用、阻塞项和下一步；大日志、原始模型响应、完整 GeoJSON 和测试输出只保留摘要或路径。
-
-### 入口冲突处理
-
-如果旧消息要求依次读取多个恢复文档，以本卡的最新规则为准：先停止扩展读取，只保留本卡、Git 状态和最近提交。
-只有用户明确要求追溯历史，或当前切片缺少某项证据时，才按关键词增量读取；读取后不要把历史全文复制回上下文。
-
-推荐使用 `scripts/resume_context.ps1` 获取同样的最小快照。
-
-### 最小恢复模式
-
-- 旧的“依次阅读恢复档案、任务档案和问题日志”流程已废止；它们不是启动清单。
-- 默认读取预算固定为：1 个当前卡、0 个历史全文、最多 1 个 `rg` 命中片段；当前卡超过约 4 KB 时先压缩，不扩展读取范围。
-- 只有当前任务明确需要证据时，才读取最多 2 个直接相关源码文件和 1 个直接相关测试文件；每个文件先定位后读局部。
-- 恢复后只回答“当前做什么、为什么、下一步是什么”；历史背景留在文档中，不复制进上下文。
-
-### 恢复操作的最小模板
-
-```text
-1. 读取 docs/agent-context-current.md
-2. 查看 git status --short --branch 与 git log -1 --oneline --decorate
-3. 按“当前唯一工作切片”选择一个动作
-4. 只有遇到具体未知项时，先 rg 定位，再读取命中附近的有限行
-```
-
-如果用户要求追溯历史，先明确需要的阶段或关键词，再按区间读取；不要为了“了解背景”批量加载多个历史文档。
-
-历史档案 `docs/agent-context-resume.md`、`docs/task-resume.md`、`docs/milestones.md`、
-`docs/agent-development-issues.md` 均按需查询，不是恢复入口；必须先精确定位，再读取命中段。
+- 默认执行：读取本卡；运行 `git status --short --branch` 和 `git log -1 --oneline --decorate`。
+- 历史文件默认读取数为 0。需要证据时先 `rg -n -m 5 "关键词|符号|错误" 文件`，再读命中附近不超过 40 行。
+- 源码最多按需读 2 个文件，直接测试最多 1 个；先定位，不能为了解背景批量加载。
+- 不读取完整日志、模型响应、GeoJSON、私有路径或密钥；只保留状态、证据引用、阻塞和下一步。
+- 旧消息若要求依次读取多个恢复档案，以本卡规则为准。历史追溯必须由用户指定阶段/关键词。
+- 可运行 `pwsh -NoProfile -File scripts/resume_context.ps1` 获取同样的最小快照。
 
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 阶段：M217——通用请求轮次、澄清决策与可恢复 Artifact 消费（实现与验证完成，待阶段提交）。
-- 最近提交：`2e6f2db feat: add portable artifact references`；M216 已完成并推送。
-- 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中运行。
-- 当前未提交内容：M217 的 conversation-turn seam、Artifact manifest、Domain 合约接入、恢复入口优化、测试修正和相关文档更新；先保留，不覆盖。
+- M217 已完成并推送：`6ba9b2e feat: complete M217 turn and artifact contracts`。
+- Docker：`ai-agent-spatial-agent-1`；Python、compileall 和阶段测试默认在 Docker 中运行。
+- 工作树应保持干净；不得提交 API key、`.env.production`、原始模型响应、原始 GIS 数据或仓库外 evidence。
 
-## 当前唯一工作切片
+## M217 证据摘要
 
-1. 设计并实现公共 conversation turn contract，修复 pending clarification 无条件污染独立请求的问题，同时保留 M9 兼容的短回复继续能力。
-2. 设计 Artifact manifest/按需读取的最小公共接口，验证 Result、Async、Artifact、SQLite recovery、HTTP 和 Console 一致性。
-3. 将脱敏 planner failure/recovery replay 接入同一 turn/reference contract；完成 Docker 精简回归后再全局重规划。
+- M217 3/3；M166/M9 16 项（1 项真实本地 GIS 数据跳过）；M10 + HTTP 17/17；M67/M149/M150 25/25；Console 2/2。
+- Docker compileall、浏览器 smoke、stage 离线 3/3、production acceptance 均通过。
+- opt-in live GIS/model 2/2：13,239 tokens、0 重试、0 provider 错误；只保留脱敏摘要。
+- 同步 memory 入口在 production acceptance 中为 degraded/warning，作为 M218 的环境语义缺口。
 
-### M217 收口证据
+## 当前唯一工作切片：M218
 
-- Docker healthy；compileall 通过。
-- M217 专项 3/3；M166/M9 回归 16 项（1 项本地 GIS 数据跳过）；M10 + HTTP contract 17/17；M67/M149/M150 25/25；Console 2/2。
-- 浏览器 smoke 通过：turn 状态、预览 fingerprint、动态选择和 artifact 生成一致。
-- 失败 repair event 已保留结构化、脱敏 lineage；未发现长格式 API key。
+开放式请求的纵向验收与通用结果/生命周期证据闭环：
+
+1. 建立 CLI/HTTP/Async/Artifact/SQLite/Console 的核心 Result/Evidence 对比 harness。
+2. 收敛 lifecycle、decision、selection interaction 和 readiness 的语义投影，保留 receipt/transport lineage 差异。
+3. 用动态 Result/View/Answer contract 驱动复杂请求前端 smoke，不增加 GIS 页面分支。
+4. 固化真实模型 + 真实 GIS/Docker 的脱敏短验收、token/延迟和错误分层。
+5. Docker 精简 stage、HTTP contract、replay/repair 和浏览器 smoke 分层验收，完成后再次全局重规划。
 
 ## 不变量
 
-- Runtime 决定生命周期和 `allowed_actions`；Domain guidance 只能提供 advisory 建议。
-- 不为单一区域、固定问句或 GIS 页面增加 Runtime 硬编码。
-- 默认 quick/CI 离线、精简；真实模型、GIS、Docker、HTTP、浏览器属于显式验收路径。
-- 不提交 API key、`.env.production`、私有模型响应、原始 GIS 数据或仓库外 evidence。
-- 阶段完成顺序：全局规划 → 实现 → 精简集成测试 → 更新本卡/阶段文档 → 提交推送 → 全局重规划。
-
-需要追溯历史时，先用 `rg --files` 和关键词定位目标文件，再只读取命中区间；阶段收口只更新本卡的状态、证据引用和下一步。
+- Runtime 负责生命周期与 `allowed_actions`；Domain 只提供 advisory guidance。
+- 新能力扩展能力目录、事实、schema、workflow、result/view 类型，不增加区域/固定问句分支。
+- 默认 quick/CI 离线精简；真实模型、GIS、Docker、HTTP、浏览器只在显式验收启用。
+- 阶段循环：全局盘点 → 规划 → 实现 → 精简集成测试 → 更新本卡/阶段文档 → 提交推送 → 全局重规划。
