@@ -50,6 +50,7 @@
 - GIS catalog 已物理下沉到 `domains/gis/workflow_templates.py`；公共模块保留兼容 facade，不再被 Runtime/HTTP 正常路径隐式使用。
 - HTTP 两个入口统一消费 `AgentService.workflow_contract()`；Text 自定义 catalog 的开发/生产 API 测试通过。
 - M220 seam 9/9，跨域/工作流/开发 HTTP 94/94，生产 contract/reliability 21/21，Docker compileall 通过。
+- M220-B1 已推送：`67770bf feat: move workflow catalog into GIS domain`。
 
 ## 当前唯一工作切片：M220-B2
 
