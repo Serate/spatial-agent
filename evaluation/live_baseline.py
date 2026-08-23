@@ -52,7 +52,7 @@ DEFAULT_LIVE_CASES = (
     },
     {
         "id": "live-gis-constrained-buildability",
-        "request": "筛选洪山区坡度不超过15度、距道路1000米内、排除水体的建设候选区域",
+        "request": "使用 DEM、土地利用、道路和水体数据，筛选洪山区坡度不超过15度、距道路1000米内、排除水体的建设候选区域",
         "expected_status": "COMPLETED",
         "kind": "constrained_buildability",
     },

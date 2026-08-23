@@ -5,6 +5,7 @@ import math
 from typing import Any, Dict, List, Mapping
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
+from agent.artifact_reference import build_artifact_reference
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.deployment_evidence import build_deployment_evidence
 from agent.action_lifecycle import project_action_lifecycle
@@ -95,15 +96,39 @@ def build_result_contract(
             else None,
         })
 
-    if payload.get("geojson_ref"):
-        references.append({"kind": "geojson", "ref": payload["geojson_ref"]})
-
     geometry_evidence = _geometry_evidence(payload, geometry_sources)
+    artifact_reference = build_artifact_reference(
+        payload.get("artifact_ref"),
+        kind="run",
+    )
+    geojson_reference = build_artifact_reference(
+        payload.get("geojson_ref"),
+        kind="geojson",
+        status=geometry_evidence.get("status", "unknown"),
+        truncated=bool(geometry_evidence.get("truncated")),
+        geometry_status=geometry_evidence.get("status"),
+    )
+    if payload.get("artifact_ref"):
+        references.append({
+            "kind": "artifact",
+            "ref": artifact_reference.get("ref"),
+            "artifact_reference": artifact_reference,
+        })
+    if payload.get("geojson_ref"):
+        references.append({
+            "kind": "geojson",
+            "ref": geojson_reference.get("ref"),
+            "artifact_reference": geojson_reference,
+        })
     lineage = build_lineage_index(
         payload,
         steps=steps,
         geometry_evidence=geometry_evidence,
     )
+    if isinstance(lineage.get("artifact"), dict):
+        lineage["artifact"]["reference"] = artifact_reference
+    if isinstance(lineage.get("geojson"), dict):
+        lineage["geojson"]["reference"] = geojson_reference
     degradation = _degradation_matrix(
         payload,
         steps=steps,
@@ -178,6 +203,10 @@ def build_result_contract(
         "context": payload.get("context_evidence") or {"available": False},
         "planning": planning_evidence,
         "references": references,
+        "artifacts": {
+            "run": artifact_reference,
+            "geometry": geojson_reference,
+        },
         "lineage": lineage,
         "replanning": replanning,
         "execution_timeline": build_execution_timeline(payload),
@@ -193,6 +222,7 @@ def build_result_contract(
             "feature_count": geometry_evidence["feature_count"],
             "truncated": geometry_evidence["truncated"],
             "geojson_ref": payload.get("geojson_ref"),
+            "reference": geojson_reference,
             "sources": sorted(set(geometry_sources) | set(geometry_evidence.get("sources", []))),
             "crs": sorted(geometry_crs),
         },

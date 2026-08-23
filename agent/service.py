@@ -2796,7 +2796,7 @@ class AgentService:
         rows = []
         for value in scenario.thresholds:
             result = self.run(
-                f"分析{admin_name}建设适宜性，坡度不超过{value:g}度",
+                f"分析{admin_name}建设适宜性，坡度不超过{value:g}度，使用 DEM 和土地利用数据",
                 session_id=f"comparison-{admin_name}-{value:g}",
                 planner=planner,
                 backend=backend,

@@ -2,6 +2,50 @@
 
 > 上下文压缩恢复时不要全文阅读本文件。先读取 `docs/agent-context-current.md`，再用 `rg -n -i "关键词" docs/agent-development-issues.md` 定位相关问题，并只读取命中附近内容。
 
+## M216-A：恢复协议存在但默认读取路径仍然过宽
+
+### 现象
+
+虽然已经有 `docs/agent-context-current.md`，一次新对话仍可能同时读取恢复档案、任务档案和完整问题日志。三份历史文件当前合计数十万字符，真正的当前阶段、阻塞项和下一步容易被长历史淹没。
+
+### 根因
+
+历史文档顶部只有软性提示，无法阻止“先读多个文件”的旧习惯；“优先阅读恢复文档、再阅读任务和问题文档”的旧流程也与单一当前快照冲突。恢复所需的状态信息和审计信息没有形成硬门禁。
+
+### 处理与预防
+
+`docs/agent-context-current.md` 现在明确规定：默认历史文件数为 0，恢复阶段只读当前卡和 Git 状态；只有当前卡或用户明确给出关键词时，才用 `rg` 定位并读取一个不超过 40 行的命中区间。历史档案继续保留审计价值，但不得全文加载。以后阶段收口只更新当前卡中的状态、提交、证据引用、阻塞项和下一步，原始日志只保存路径或摘要；若当前卡超过约 8 KB，应先压缩/轮换，而不是增加默认读取文件。
+
+## M216-B：事实门控和 Runtime 接口演进使旧测试替身失效
+
+### 现象
+
+Docker 专项初次运行时，几何 evidence fixture 因不接受 Runtime 新增的 evidence/confirmation 参数而失败；建设适宜性比较场景因没有声明 DEM/土地利用事实而进入合法澄清，旧测试却仍期待 `COMPLETED`。
+
+### 根因
+
+测试替身复制了某一时刻的具体参数列表，Domain 比较场景也把隐含数据假设藏在旧问句中。Runtime 接口和请求事实门控演进后，测试没有验证 seam 的兼容性和场景请求的完整事实。
+
+### 处理与预防
+
+几何 fixture 接受未来兼容的有界关键字参数；比较场景生成的请求显式声明 DEM 和土地利用数据，保持事实门控而不增加 Runtime 固定问句分支；跨入口 canonicalizer 同时忽略运行身份字段。以后新增 Runtime 参数优先让测试替身通过关键字兼容，Domain 场景必须显式构造所需事实，并在升级后重跑 Docker 专项。
+
+本次收口还发现 `evaluation/cases/core-workflows.json` 中的建设适宜性样例仍依赖旧的隐式数据假设，且在澄清状态未结束时会放大为后续 case 的请求错位；样例已改为显式声明 DEM/土地利用，核心评测恢复 **7/7**。后续评测样例必须与当前 RequestFacts/能力门控同步，不能用旧问句期待被 Runtime 默认补全。
+
+## M216-C：截断几何的公共引用暴露宿主路径
+
+### 现象
+
+GeoJSON 下载路由已经存在，但 Result/Geometry 主要返回 `outputs/...` 或 Windows 绝对路径字符串；Async 只保留裸文件名。跨进程或跨操作系统恢复时，消费者需要自行截取 basename，无法从结构化 evidence 判断引用类型、媒体类型、截断状态和安全访问方式。
+
+### 根因
+
+旧的 `artifact_ref`/`geojson_ref` 兼容字段同时承担持久化路径和公共引用两个职责；Artifact manifest、Result contract、Async projection 与前端各自解释路径，缺少领域无关的版本化 Artifact Reference seam。
+
+### 处理与预防
+
+新增 `spatial-agent.artifact-reference.v1`，只暴露安全文件名、媒体类型、`on_demand` 模式和受控 HTTP 访问路径；Result 的 `geometry.reference`、`artifacts`、`references[].artifact_reference`、Async evidence 和前端优先消费该结构，旧字符串保留兼容。恢复归一化会拒绝宿主路径和路径穿越；截断仍明确为 `truncated_geometry`，不会通过扩大 GeoJSON 上限伪装为完整结果。以后新增 Artifact/geometry 输出必须同时验证首次 Result、Async、Artifact、SQLite recovery、HTTP 路由和前端引用，不能只检查文件存在。
+
 ## M215：Console 地图 smoke 的默认问句缺少数据集事实
 
 ### 现象

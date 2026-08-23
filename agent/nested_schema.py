@@ -21,6 +21,7 @@ from agent.contract_versions import (
     VIEWS_SCHEMA_VERSION,
     WORKSPACE_SCHEMA_VERSION,
 )
+from agent.artifact_reference import normalize_artifact_reference
 
 
 class NestedSchemaError(ValueError):
@@ -53,7 +54,44 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
     if views is None and allow_legacy:
         views = {"schema_version": VIEWS_SCHEMA_VERSION, "panels": {}}
     result["views"] = normalize_views(views, allow_legacy=allow_legacy)
+    _normalize_artifact_references(result)
     return result
+
+
+def _normalize_artifact_references(result: dict[str, Any]) -> None:
+    """Keep persisted artifact locators safe and portable across recovery."""
+
+    artifacts = result.get("artifacts")
+    if isinstance(artifacts, Mapping):
+        normalized_artifacts = dict(artifacts)
+        for key in ("run", "geometry"):
+            if key in normalized_artifacts:
+                normalized_artifacts[key] = normalize_artifact_reference(
+                    normalized_artifacts.get(key)
+                )
+        result["artifacts"] = normalized_artifacts
+
+    geometry = result.get("geometry")
+    if isinstance(geometry, Mapping) and "reference" in geometry:
+        normalized_geometry = dict(geometry)
+        normalized_geometry["reference"] = normalize_artifact_reference(
+            geometry.get("reference")
+        )
+        result["geometry"] = normalized_geometry
+
+    references = result.get("references")
+    if isinstance(references, list):
+        normalized_references = []
+        for item in references[:32]:
+            if not isinstance(item, Mapping):
+                continue
+            reference = dict(item)
+            if "artifact_reference" in reference:
+                reference["artifact_reference"] = normalize_artifact_reference(
+                    reference.get("artifact_reference")
+                )
+            normalized_references.append(reference)
+        result["references"] = normalized_references
 
 
 def normalize_workspace(value: Any, *, allow_legacy: bool = True) -> dict[str, Any]:

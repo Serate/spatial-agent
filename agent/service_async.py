@@ -12,6 +12,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Mapping
 
 from agent.models import AgentRunResult
+from agent.artifact_reference import (
+    build_artifact_reference,
+    normalize_artifact_reference,
+)
 from agent.action_lifecycle import (
     ACTION_LIFECYCLE_SCHEMA_VERSION,
     LIFECYCLE_ACTIONS,
@@ -243,6 +247,7 @@ def build_async_result_evidence(
         # Artifacts can originate on Windows and be recovered by a Linux
         # worker.  Do not rely on the host platform's Path separator.
         ref = str(artifact_ref).replace("\\", "/").rsplit("/", 1)[-1] or None
+    artifact_reference = build_artifact_reference(ref, kind="run")
     planning = value.get("planning")
     planning = planning if isinstance(planning, Mapping) else {}
     evidence_projection = project_evidence_projection(projection_input)
@@ -279,7 +284,11 @@ def build_async_result_evidence(
             "schema_version": str(views.get("schema_version") or "spatial-agent.views.v1")[:80],
             "panels": safe_panels,
         },
-        "artifact": {"available": bool(ref), "ref": ref},
+        "artifact": {
+            "available": bool(ref),
+            "ref": ref,
+            "reference": artifact_reference,
+        },
         "planning": {
             "plan_identity": plan_identity,
             "evidence_binding": evidence_binding,
@@ -482,6 +491,12 @@ def normalize_async_result_evidence(
     artifact = value.get("artifact")
     artifact = artifact if isinstance(artifact, Mapping) else {}
     ref = _safe_ref(artifact.get("ref") or artifact_ref)
+    artifact_reference = normalize_artifact_reference(
+        artifact.get("reference")
+    ) if artifact.get("reference") is not None else build_artifact_reference(
+        ref,
+        kind="run",
+    )
     result = {
         "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value.get("available")) and state != "unavailable",
@@ -502,7 +517,11 @@ def normalize_async_result_evidence(
             )[:80],
             "panels": safe_view_panels,
         },
-        "artifact": {"available": bool(ref), "ref": ref},
+        "artifact": {
+            "available": bool(ref),
+            "ref": ref,
+            "reference": artifact_reference,
+        },
         "planning": {
             "plan_identity": plan_identity,
             "evidence_binding": evidence_binding,

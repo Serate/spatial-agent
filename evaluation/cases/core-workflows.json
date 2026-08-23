@@ -17,7 +17,7 @@
   },
   {
     "id": "core-buildability",
-    "input": "分析洪山区建设适宜性，坡度不超过20度",
+    "input": "使用 DEM 和土地利用数据，分析洪山区建设适宜性，坡度不超过20度",
     "expected_status": "COMPLETED",
     "expected_result_type": "terrain_land_use_analysis_result",
     "expected_tools": [
@@ -57,7 +57,7 @@
   },
   {
     "id": "variant-buildability",
-    "input": "洪山区有哪些地方适合建设",
+    "input": "使用 DEM 和土地利用数据，洪山区有哪些地方适合建设",
     "expected_status": "COMPLETED",
     "expected_result_type": "terrain_land_use_analysis_result",
     "expected_tools": [

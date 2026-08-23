@@ -29,6 +29,8 @@ class _GeometryRuntime:
         timeout_seconds=None,
         run_id=None,
         expected_plan_fingerprint=None,
+        expected_evidence_fingerprint=None,
+        **kwargs,
     ):
         run_id = run_id or "fixture-run"
         plan = TaskPlan(
@@ -85,10 +87,38 @@ def _wait_for_terminal(service, run_id, timeout=8.0):
 
 def _canonical_envelope(payload):
     envelope = json.loads(json.dumps(payload["result"], ensure_ascii=False))
+
+    def normalize_run_id_fields(value):
+        if isinstance(value, dict):
+            normalized = {}
+            for key, item in value.items():
+                if key in {"run_id", "subject_id", "result_run_id"} and item:
+                    normalized[key] = "<run>"
+                else:
+                    normalized[key] = normalize_run_id_fields(item)
+            if value.get("schema_version") == "spatial-agent.artifact-reference.v1":
+                kind = value.get("kind")
+                marker = "<artifact>" if kind == "run" else "<geojson>"
+                if kind in {"run", "geojson"}:
+                    normalized["ref"] = marker
+                    if isinstance(normalized.get("access"), dict):
+                        normalized["access"]["path"] = marker
+            return normalized
+        if isinstance(value, list):
+            return [normalize_run_id_fields(item) for item in value]
+        return value
+
     envelope["geometry"]["geojson_ref"] = "<geojson>"
     envelope["references"] = [
-        {**reference, "ref": "<geojson>"}
-        if reference.get("kind") == "geojson"
+        {
+            **reference,
+            "ref": "<artifact>"
+            if reference.get("kind") == "artifact"
+            else "<geojson>"
+            if reference.get("kind") == "geojson"
+            else reference.get("ref"),
+        }
+        if reference.get("kind") in {"artifact", "geojson"}
         else reference
         for reference in envelope["references"]
     ]
@@ -111,7 +141,7 @@ def _canonical_envelope(payload):
             }
             for reference in lineage.get("references", [])
         ]
-    return envelope
+    return normalize_run_id_fields(envelope)
 
 
 class M66EvidenceMatrixTests(unittest.TestCase):
@@ -191,7 +221,9 @@ class M66EvidenceMatrixTests(unittest.TestCase):
         self.assertTrue(
             any(
                 reference.get("kind") == "geojson"
-                and reference.get("ref") == payload["geojson_ref"]
+                and reference.get("ref") == Path(payload["geojson_ref"]).name
+                and reference.get("artifact_reference", {}).get("ref")
+                == Path(payload["geojson_ref"]).name
                 for reference in payload["result"]["references"]
             )
         )

@@ -4280,3 +4280,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. 部署：验证中转不可用时的明确错误分类、离线 Rule fallback、Docker 重启和已有 Artifact 读取，不泄露凭证。
 6. 体验：Console 动态显示“已完成但几何截断”“需要澄清”“可修复”“provider 不可用”等状态及安全下一步，不增加问句专用分支。
 7. 测试：增加少量脱敏模型 replay + 一条 live failure/recovery + geometry artifact smoke；默认 CI 继续离线、精简。
+
+## M216-A：Docker 失败恢复回归与可迁移 Artifact/geometry 引用（实现中）
+
+- M190 provider failure replay、M18 GeoJSON export、M66 geometry/Artifact/SQLite recovery 和 M79 comparison Artifact 回归初次发现并修复了三类契约漂移：Runtime fixture 参数、Domain 场景事实门控和跨入口运行身份归一化；最终联合专项 **24/24** 通过。核心离线评测样例同步补齐显式 DEM/土地利用事实，核心评测 **7/7**。
+- 新增领域无关 `spatial-agent.artifact-reference.v1`。Result 的 `geometry.reference`、`artifacts`、`references[].artifact_reference`、Async evidence 和 Console 都能从宿主路径恢复为安全 basename 与受控 `/artifacts/...` 按需入口；旧 `artifact_ref`/`geojson_ref` 保持兼容。
+- 截断几何继续保留 `truncated_geometry`、要素数量和降级说明；没有提高默认 GeoJSON 大小上限。新增 M216 reference 专项 **3/3**，M190/M18/M66/M79 联合 Docker 专项 **27/27**，HTTP 结构化引用和 Console 地图 smoke 通过。
+- 当前仍需完成敏感信息检查和阶段提交推送；显式 live-short 已以 2/2 通过，完成后按七维度整体重规划，不把本阶段收缩为单个几何问题。
