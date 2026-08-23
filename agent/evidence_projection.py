@@ -59,6 +59,20 @@ def project_evidence_projection(
     migration = _migration_projection(raw_registry, completeness)
     lifecycle = _stable_lifecycle_projection(payload)
     replanning = build_replanning_evidence(_replanning_events(payload, envelope))
+    replan_events = replanning.get("events")
+    if isinstance(replan_events, list):
+        # Timestamps belong to the detailed run record, not the stable
+        # cross-entry evidence projection used by replay and comparison.
+        replanning["events"] = [
+            {
+                key: item
+                for key, item in event.items()
+                if key != "occurred_at"
+            }
+            if isinstance(event, Mapping)
+            else event
+            for event in replan_events[:32]
+        ]
     receipt = _stable_action_receipt(
         envelope.get("action_receipt")
         or envelope.get("interaction_receipt")

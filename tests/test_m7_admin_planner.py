@@ -24,7 +24,13 @@ class M7AdminPlannerTests(unittest.TestCase):
     def test_rule_planner_asks_for_admin_name(self):
         result = build_runtime("rule").run(GENERIC_ADMIN_QUERY)
         self.assertEqual(result.status.value, "NEEDS_CLARIFICATION")
-        self.assertIn("admin area name", result.error)
+        self.assertEqual(result.clarification["state"], "capability_facts_required")
+        self.assertTrue(
+            any(
+                field.get("id") == "region"
+                for field in result.clarification["missing_fields"]
+            )
+        )
 
 
 @unittest.skipUnless(HAS_GIS and HAS_LOCAL_DATA, "requires geopandas and local admin GeoJSON")

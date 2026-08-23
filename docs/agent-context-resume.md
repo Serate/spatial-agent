@@ -1,5 +1,12 @@
 # Spatial Agent 对话恢复文档
 
+## 启动协议（唯一有效）
+
+新对话或上下文压缩后只读取 `docs/agent-context-current.md`，再查看 Git 状态和最近提交。
+本文件、`docs/task-resume.md`、`docs/agent-development-issues.md` 和 `docs/milestones.md`
+都是历史档案，默认读取数量为 0；只有当前任务给出明确阶段或关键词时，才先用 `rg` 定位并读取
+命中附近的有限行。过去“依次阅读本文件、任务档案和问题日志”的启动顺序已经废止。
+
 > 快速恢复入口：新对话或上下文压缩后先阅读 [agent-context-current.md](agent-context-current.md)。本文件是长期历史档案，不要默认全文阅读；仅按短快照列出的文件、阶段或问题关键词定向读取。
 
 本文档保存 Spatial Agent 的长期开发上下文和阶段历史。当前状态以 `docs/agent-context-current.md` 为准，历史记录用于审计和按需追溯。

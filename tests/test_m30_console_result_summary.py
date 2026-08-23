@@ -44,6 +44,8 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             "runtimeMetrics",
             "fetch('/metrics')",
             "function decisionMode(data)",
+            "function conversationTurnLabel(data)",
+            "本轮：",
             "通用回答 · 未调用空间工具",
             "空间计划 · 已执行",
             "function updateResultPanels(data)",

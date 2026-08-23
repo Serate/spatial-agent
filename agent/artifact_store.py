@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from agent.execution_contract import build_execution_record, execution_record_summary
+from agent.conversation_turn import normalize_conversation_turn
+from agent.artifact_manifest import build_artifact_manifest
 from agent.action_lifecycle import project_action_lifecycle
 from agent.runtime_context import normalize_runtime_context
 from agent.contract_versions import (
@@ -83,6 +85,11 @@ class ArtifactStore:
             "resolved_request": payload.get("resolved_request"),
             "request_facts": payload.get("request_facts"),
             "session_id": payload.get("session_id"),
+            "conversation_turn": (
+                normalize_conversation_turn(payload.get("conversation_turn"))
+                if payload.get("conversation_turn") is not None
+                else None
+            ),
             "domain_id": self._payload_domain(payload),
             "runtime_context": normalize_runtime_context(payload.get("runtime_context")),
             "spatial_context": payload.get("spatial_context"),
@@ -311,6 +318,10 @@ class ArtifactStore:
         if schema not in (None, RUN_ARTIFACT_SCHEMA_VERSION):
             return None
         payload.setdefault("run_id", run_id)
+        if payload.get("conversation_turn") is not None:
+            payload["conversation_turn"] = normalize_conversation_turn(
+                payload.get("conversation_turn")
+            )
         if domain_id and self._payload_domain(payload) != domain_id:
             return None
         # Keep the durable artifact readable while preventing a future nested
@@ -334,6 +345,19 @@ class ArtifactStore:
                 artifact_ref=payload.get("artifact_ref"),
             )
         return payload
+
+    def read_manifest(
+        self, run_id: str, domain_id: Optional[str] = None, *, max_entries: int = 16
+    ) -> Optional[Dict]:
+        """Return bounded discovery metadata without exposing artifact content."""
+        payload = self.read_run(run_id, domain_id=domain_id)
+        if not isinstance(payload, dict):
+            return None
+        return build_artifact_manifest(
+            payload,
+            artifact_ref=payload.get("artifact_ref"),
+            max_entries=max_entries,
+        )
 
     def find_decision(
         self, decision_id: str, domain_id: Optional[str] = None
@@ -490,6 +514,9 @@ class ArtifactStore:
                 "domain_id": self._payload_domain(payload),
                 "status": payload.get("status"),
                 "request": payload.get("request"),
+                "conversation_turn": normalize_conversation_turn(
+                    payload.get("conversation_turn")
+                ),
                 "answer": payload.get("answer"),
                 "error": payload.get("error"),
                 "evidence_registry": normalize_evidence_registry(

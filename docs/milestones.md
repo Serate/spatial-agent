@@ -4281,9 +4281,35 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 6. 体验：Console 动态显示“已完成但几何截断”“需要澄清”“可修复”“provider 不可用”等状态及安全下一步，不增加问句专用分支。
 7. 测试：增加少量脱敏模型 replay + 一条 live failure/recovery + geometry artifact smoke；默认 CI 继续离线、精简。
 
-## M216-A：Docker 失败恢复回归与可迁移 Artifact/geometry 引用（实现中）
+## M216-A：Docker 失败恢复回归与可迁移 Artifact/geometry 引用（历史发现与修复）
 
 - M190 provider failure replay、M18 GeoJSON export、M66 geometry/Artifact/SQLite recovery 和 M79 comparison Artifact 回归初次发现并修复了三类契约漂移：Runtime fixture 参数、Domain 场景事实门控和跨入口运行身份归一化；最终联合专项 **24/24** 通过。核心离线评测样例同步补齐显式 DEM/土地利用事实，核心评测 **7/7**。
 - 新增领域无关 `spatial-agent.artifact-reference.v1`。Result 的 `geometry.reference`、`artifacts`、`references[].artifact_reference`、Async evidence 和 Console 都能从宿主路径恢复为安全 basename 与受控 `/artifacts/...` 按需入口；旧 `artifact_ref`/`geojson_ref` 保持兼容。
 - 截断几何继续保留 `truncated_geometry`、要素数量和降级说明；没有提高默认 GeoJSON 大小上限。新增 M216 reference 专项 **3/3**，M190/M18/M66/M79 联合 Docker 专项 **27/27**，HTTP 结构化引用和 Console 地图 smoke 通过。
-- 当前仍需完成敏感信息检查和阶段提交推送；显式 live-short 已以 2/2 通过，完成后按七维度整体重规划，不把本阶段收缩为单个几何问题。
+- 该段保留收口前的发现过程；最终状态以 M216-B 为准，已完成敏感信息检查、阶段提交推送和显式 live-short 验收。
+
+## M216-B：M216 阶段收口（已完成）
+
+- `spatial-agent.artifact-reference.v1` 已进入 Result/Geometry/Artifact/Async/Console 公共消费路径；旧 `artifact_ref`/`geojson_ref` 保持兼容，公共引用不再传播宿主目录。
+- Docker M216 reference、M190、M18、M66、M79 联合专项 **27/27**；核心离线评测 **7/7**；stage profile、compileall、HTTP 结构化引用、Chrome 地图 smoke 和真实 live-short **2/2** 通过。
+- 真实 live 首次失败被定位为验收样例漏写 DEM/土地利用/道路/水体事实，补齐后没有放宽 Runtime 门禁即通过；该证据保留在问题日志中。
+- 阶段版本：`2e6f2db feat: add portable artifact references`，已推送 `origin/main`。下一阶段从全局目标进入 M217。
+
+## M217：通用请求轮次、澄清决策与可恢复 Artifact 消费
+
+1. 产品：统一表达当前 turn 是澄清回复、用户确认、恢复动作还是新的独立请求，避免旧 pending 状态造成对话错位。
+2. 架构：建立 Domain 可替换的 continuation/turn identity seam；Runtime 负责公共状态、生命周期、request identity、evidence 和恢复，不在 GIS 中写第二套状态机。
+3. 数据：把 Artifact Reference 从安全定位扩展为有界 manifest/内容发现，支持截断几何、metadata-only 和未来 Domain Artifact；默认响应仍只给摘要。
+4. 模型：用脱敏 replay 验证模型失败分类、有限 repair、澄清、拒绝、fallback 和 repair lineage 的跨入口一致性；真实模型只做显式短验收。
+5. 部署：覆盖 HTTP/同步/Async/SQLite restart/Artifact-only recovery 的 turn、reference、evidence equality 和幂等边界。
+6. 体验：Console 根据结构化 turn、interaction、Artifact reference 和 evidence 动态渲染状态与下一步，不增加固定问题页面。
+7. 测试：以一个 compact turn/reference harness 为主，叠加 Docker stage、HTTP contract、浏览器 smoke 和必要 live/replay；默认 quick/CI 不联网。
+
+### M217 当前进度（实现与验证完成，待阶段提交）
+
+- 已实现 `spatial-agent.conversation-turn.v1`：Domain 只提供 advisory 判定，Runtime 负责 pending 消费/清除；澄清短回复继续成功，独立新请求不会继承旧 pending。
+- turn identity 已投影到同步 Result、SQLite restart、Artifact、Async evidence、统一 nested schema 和 Console；M217 专项 **3/3**、M166/M9 回归 **16 项（1 项本地数据跳过）**、M10 + HTTP contract **17/17**、M67/M149/M150 **25/25**、Console **2/2**、Docker compileall 通过。
+- 已新增 `spatial-agent.artifact-manifest.v1` 与开发/生产 HTTP 的 `/artifacts/runs/{name}/manifest`，只发现 section 和安全按需引用，不自动返回完整内容。
+- 浏览器 smoke 已验证 turn 标签、预览状态、动态结果交互与 artifact 生成；真实本地 GIS 缺失数据测试仍按设计跳过，未作为默认 CI 依赖。
+- 收口修复：M150 旧单测改为验证失败 repair event 的脱敏 lineage；Docker 重建后确认测试使用当前工作树。
+- 下一步：提交并推送 M217 阶段版本，随后按产品、架构、数据、模型、部署、前端和测试七个维度全局重规划。

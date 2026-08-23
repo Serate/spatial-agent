@@ -15,6 +15,7 @@ from .capability_catalog import (
 from .capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION
 from .capability_discovery import enrich_discovery_context
 from .context_engineering import ContextBuilder, ContextPacket
+from .conversation_turn import build_conversation_turn, resolve_turn_mode
 from .domain_contract import (
     DOMAIN_DISCOVERY_SCHEMA_VERSION,
     DomainPack,
@@ -393,12 +394,24 @@ class AgentRuntime:
         if decision_ttl_seconds is not None and decision_ttl_seconds <= 0:
             raise ToolError("decision_ttl_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
+        pending = self._conversation_store.get_pending(session_id)
+        turn_advice = resolve_turn_mode(
+            self._domain_pack,
+            request,
+            pending_request=pending.request if pending is not None else None,
+            pending_error=pending.error if pending is not None else None,
+        )
         if resolved_request_override is not None:
             if not isinstance(resolved_request_override, str) or not resolved_request_override.strip():
                 raise ToolError("resolved_request_override must be a non-empty string")
             resolved_request = resolved_request_override.strip()
         else:
-            resolved_request = self._resolve_request(request, session_id)
+            resolved_request = self._resolve_request(
+                request,
+                session_id,
+                pending=pending,
+                turn_advice=turn_advice,
+            )
         request_facts = extract_request_facts(self._domain_pack, resolved_request)
         resolved_run_id = run_id or str(uuid.uuid4())
         if decision_id is not None:
@@ -418,6 +431,23 @@ class AgentRuntime:
             status=RunStatus.PLANNING,
             request=request,
             session_id=session_id,
+            conversation_turn=build_conversation_turn(
+                request,
+                resolved_request,
+                session_id=session_id,
+                mode=str(turn_advice.get("mode") or "unknown"),
+                source=str(turn_advice.get("source") or "runtime"),
+                pending_request=(
+                    pending.request
+                    if resolved_request_override is None
+                    and pending is not None
+                    and str(turn_advice.get("mode"))
+                    in {"clarification_reply", "follow_up", "decision_reply"}
+                    else None
+                ),
+                pending_available=pending is not None,
+                reason_code=turn_advice.get("reason_code"),
+            ),
             domain_id=self.domain_id,
             runtime_context=self.runtime_context(),
             resolved_request=resolved_request,
@@ -828,12 +858,24 @@ class AgentRuntime:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
+        pending = self._conversation_store.get_pending(session_id)
+        turn_advice = resolve_turn_mode(
+            self._domain_pack,
+            request,
+            pending_request=pending.request if pending is not None else None,
+            pending_error=pending.error if pending is not None else None,
+        )
         if resolved_request_override is not None:
             if not isinstance(resolved_request_override, str) or not resolved_request_override.strip():
                 raise ToolError("resolved_request_override must be a non-empty string")
             resolved_request = resolved_request_override.strip()
         else:
-            resolved_request = self._resolve_request(request, session_id)
+            resolved_request = self._resolve_request(
+                request,
+                session_id,
+                pending=pending,
+                turn_advice=turn_advice,
+            )
         request_facts = extract_request_facts(self._domain_pack, resolved_request)
         context_packet = self._build_context_packet(
             request, resolved_request, session_id, workflow, request_facts=request_facts
@@ -843,6 +885,23 @@ class AgentRuntime:
             "request": request,
             "resolved_request": resolved_request,
             "session_id": session_id,
+            "conversation_turn": build_conversation_turn(
+                request,
+                resolved_request,
+                session_id=session_id,
+                mode=str(turn_advice.get("mode") or "unknown"),
+                source=str(turn_advice.get("source") or "runtime"),
+                pending_request=(
+                    pending.request
+                    if resolved_request_override is None
+                    and pending is not None
+                    and str(turn_advice.get("mode"))
+                    in {"clarification_reply", "follow_up", "decision_reply"}
+                    else None
+                ),
+                pending_available=pending is not None,
+                reason_code=turn_advice.get("reason_code"),
+            ),
             "domain_id": self.domain_id,
             "runtime_context": self.runtime_context(),
             "request_facts": request_facts.as_context_dict(),
@@ -1294,10 +1353,32 @@ class AgentRuntime:
                     self._capability_evidence_cache.pop(oldest, None)
         return value
 
-    def _resolve_request(self, request: str, session_id: str) -> str:
-        pending = self._conversation_store.get_pending(session_id)
-        if pending is not None:
+    def _resolve_request(
+        self,
+        request: str,
+        session_id: str,
+        *,
+        pending: Optional[PendingClarification] = None,
+        turn_advice: Optional[Mapping[str, Any]] = None,
+    ) -> str:
+        pending = pending if pending is not None else self._conversation_store.get_pending(session_id)
+        advice = turn_advice or resolve_turn_mode(
+            self._domain_pack,
+            request,
+            pending_request=pending.request if pending is not None else None,
+            pending_error=pending.error if pending is not None else None,
+        )
+        mode = str(advice.get("mode") or "unknown") if isinstance(advice, Mapping) else "unknown"
+        if pending is not None and mode in {
+            "clarification_reply",
+            "follow_up",
+            "decision_reply",
+        }:
             return request.strip() + " " + pending.request.strip()
+        if pending is not None:
+            # A clearly independent request starts a new turn.  Do not let an
+            # old clarification leak into its planner context.
+            self._conversation_store.clear_pending(session_id)
         previous = self._conversation_store.get_last_request(session_id)
         follow_up = ("继续", "刚才", "上面", "这个结果", "该结果", "改成", "调整为", "换成")
         if previous and any(term in request for term in follow_up):

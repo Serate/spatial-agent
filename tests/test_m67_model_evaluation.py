@@ -197,6 +197,15 @@ class M67ModelEvaluationTests(unittest.TestCase):
             {item["repair_count"] for item in report["results"]},
             {0, 1},
         )
+        clarification = next(
+            item
+            for item in report["results"]
+            if item["fixture_id"] == "clarification-follow-up"
+        )
+        self.assertEqual(
+            [turn["conversation_turn"]["mode"] for turn in clarification["turns"]],
+            ["new_request", "clarification_reply"],
+        )
 
 
 if __name__ == "__main__":

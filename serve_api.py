@@ -25,6 +25,7 @@ from agent.artifact_access import resolve_artifact_path
 from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
+from agent.artifact_manifest import build_artifact_manifest
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
@@ -273,6 +274,23 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 "evidence_projection": project_evidence_projection(payload),
                 "evidence_recovery": project_evidence_recovery(payload),
             })
+            return
+        if parsed.path.startswith("/artifacts/runs/") and parsed.path.endswith("/manifest"):
+            name = parsed.path[len("/artifacts/runs/") : -len("/manifest")].strip("/")
+            artifact = self._artifact_file("/artifacts/runs/" + name)
+            if artifact is None:
+                self._write_json(404, {"error": "artifact not found"})
+                return
+            path, _content_type = artifact
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                self._write_json(404, {"error": "artifact not found"})
+                return
+            self._write_json(
+                200,
+                build_artifact_manifest(payload, artifact_ref=path.name),
+            )
             return
         artifact = self._artifact_file(parsed.path)
         if artifact is not None:

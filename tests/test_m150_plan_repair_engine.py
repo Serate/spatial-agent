@@ -108,7 +108,12 @@ class M150PlanRepairEngineTests(unittest.TestCase):
         self.assertEqual(outcome.status, "failed")
         self.assertEqual(outcome.reason_code, "replacement_invalid")
         self.assertIsNone(outcome.plan)
-        self.assertIsNone(outcome.event)
+        self.assertIsInstance(outcome.event, dict)
+        self.assertEqual(outcome.event.get("phase"), "planning")
+        self.assertEqual(outcome.event.get("repair_status"), "failed")
+        self.assertEqual(
+            outcome.event.get("repair_reason_code"), "replacement_invalid"
+        )
 
     def test_rule_planner_does_not_trigger_repair(self):
         planner = _RecordingPlanner()
@@ -155,7 +160,13 @@ class M150PlanRepairEngineTests(unittest.TestCase):
         self.assertNotIn("secret-token", outcome.reason_code)
         self.assertNotIn("raw response", outcome.reason_code)
         self.assertIsNone(outcome.plan)
-        self.assertIsNone(outcome.event)
+        self.assertIsInstance(outcome.event, dict)
+        self.assertEqual(outcome.event.get("repair_status"), "failed")
+        self.assertEqual(
+            outcome.event.get("repair_reason_code"), "replacement_invalid"
+        )
+        self.assertNotIn("secret-token", str(outcome.event))
+        self.assertNotIn("raw response", str(outcome.event))
 
 
 if __name__ == "__main__":

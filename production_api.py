@@ -34,6 +34,7 @@ from agent.environment_status import environment_status
 from agent.artifact_access import resolve_artifact_path
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
+from agent.artifact_manifest import build_artifact_manifest
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
 from agent.workflow_templates import workflow_template_catalog
@@ -515,6 +516,22 @@ def run_artifact(name: str):
         ),
         media_type="application/json",
     )
+
+
+@app.get("/artifacts/runs/{name}/manifest")
+def run_artifact_manifest(name: str):
+    path = _safe_artifact(
+        ARTIFACT_ROOT,
+        name,
+        ".json",
+        domain_id=getattr(service, "_resolved_domain_id", "gis"),
+        metadata_root=ARTIFACT_ROOT,
+    )
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="artifact not found") from exc
+    return build_artifact_manifest(payload, artifact_ref=path.name)
 
 
 @app.get("/artifacts/runs/{name}/evidence")

@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from agent.execution_contract import build_execution_record
+from agent.conversation_turn import normalize_conversation_turn
 from agent.runtime_context import normalize_runtime_context
 
 
@@ -61,6 +62,9 @@ class AgentRunResult:
     status: RunStatus
     request: str
     session_id: Optional[str] = None
+    # Domain-neutral, bounded identity of how this input related to session
+    # continuation.  Raw pending request text is never persisted here.
+    conversation_turn: Optional[Dict[str, Any]] = None
     # Stable Domain Pack identity used to isolate persistence and recovery.
     # Older synthetic fixtures may omit it; real Runtime runs populate it.
     domain_id: Optional[str] = None
@@ -131,6 +135,12 @@ class AgentRunResult:
             data["spatial_context"] = dict(data["spatial_context"])
         if data.get("request_facts") is None:
             data.pop("request_facts", None)
+        if data.get("conversation_turn") is None:
+            data.pop("conversation_turn", None)
+        else:
+            data["conversation_turn"] = normalize_conversation_turn(
+                data["conversation_turn"]
+            )
         if data.get("decision_evidence") is None:
             data.pop("decision_evidence", None)
         if data.get("evidence_registry") is None:

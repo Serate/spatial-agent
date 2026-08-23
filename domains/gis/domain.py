@@ -585,6 +585,35 @@ class GisDomainPack:
 
         return clarification_details(request)
 
+    def classify_conversation_turn(
+        self,
+        request: str,
+        *,
+        pending_request: str = "",
+        pending_error: str = "",
+    ) -> Mapping[str, Any]:
+        """Distinguish a GIS clarification fact from a new spatial intent."""
+        del pending_error
+        if not str(pending_request or "").strip():
+            return {"mode": "new_request", "source": "gis_intent"}
+        from .intent import classify_spatial_intent
+
+        current = classify_spatial_intent(request)
+        pending = classify_spatial_intent(pending_request)
+        current_ids = set(current.get("matched_capabilities") or [])
+        pending_ids = set(pending.get("matched_capabilities") or [])
+        if not current_ids or current_ids.intersection(pending_ids):
+            return {
+                "mode": "clarification_reply",
+                "source": "gis_intent",
+                "reason_code": "pending_capability_continuation",
+            }
+        return {
+            "mode": "new_request",
+            "source": "gis_intent",
+            "reason_code": "independent_capability_request",
+        }
+
     def rule_planner(self) -> Any:
         # Kept lazy so importing the domain catalog does not initialize the
         # Planner or spatial backend graph.

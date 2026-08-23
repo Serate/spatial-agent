@@ -210,6 +210,20 @@ class DomainPack(Protocol):
     def clarification_details(self, request: str) -> Any:
         """Return optional structured clarification details for a request."""
 
+    def classify_conversation_turn(
+        self,
+        request: str,
+        *,
+        pending_request: str = "",
+        pending_error: str = "",
+    ) -> Any:
+        """Optionally classify a pending input as reply or new request.
+
+        The result is advisory metadata with ``mode`` set to
+        ``clarification_reply`` or ``new_request``. Runtime owns the final
+        state transition and keeps a legacy fallback for older packs.
+        """
+
     def rule_planner(self) -> Any:
         """Return the deterministic Planner adapter owned by this domain."""
 

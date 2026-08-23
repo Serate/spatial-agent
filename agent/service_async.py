@@ -16,6 +16,7 @@ from agent.artifact_reference import (
     build_artifact_reference,
     normalize_artifact_reference,
 )
+from agent.conversation_turn import normalize_conversation_turn
 from agent.action_lifecycle import (
     ACTION_LIFECYCLE_SCHEMA_VERSION,
     LIFECYCLE_ACTIONS,
@@ -274,6 +275,9 @@ def build_async_result_evidence(
         "lifecycle": lifecycle,
         "result_type": str(value.get("type") or "unknown")[:96],
         "request_identity": request_identity,
+        "conversation_turn": normalize_conversation_turn(
+            value.get("conversation_turn")
+        ),
         "degradation_status": degradation_status,
         "workspace": {
             "schema_version": str(workspace.get("schema_version") or "")[:80],
@@ -505,6 +509,9 @@ def normalize_async_result_evidence(
         "lifecycle": lifecycle,
         "result_type": str(value.get("result_type") or "unknown")[:96],
         "request_identity": request_identity,
+        "conversation_turn": normalize_conversation_turn(
+            value.get("conversation_turn")
+        ),
         "degradation_status": str(value.get("degradation_status") or "none")[:32],
         "workspace": {
             "schema_version": str(workspace.get("schema_version") or "")[:80],

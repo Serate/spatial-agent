@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
+from .conversation_turn import normalize_conversation_turn
 from .runtime_context import normalize_runtime_context
 from .runtime import PendingClarification
 from .evidence_registry import normalize_evidence_registry
@@ -1115,6 +1116,11 @@ def _result_from_dict(
         status=RunStatus(payload["status"]),
         request=payload["request"],
         session_id=payload.get("session_id"),
+        conversation_turn=(
+            normalize_conversation_turn(payload.get("conversation_turn"))
+            if payload.get("conversation_turn") is not None
+            else None
+        ),
         # Older snapshots omitted domain_id. The adapter's configured legacy
         # domain owns that compatibility decision; the public Runtime must
         # not assume GIS when a Text/future Domain is restoring data.

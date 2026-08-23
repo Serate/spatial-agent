@@ -12,6 +12,20 @@
 5. 历史档案只用于审计，不是恢复入口；`agent-context-resume.md`、`task-resume.md`、`agent-development-issues.md` 和 `milestones.md` 不得全文读取。
 6. 只保留状态、提交、证据引用、阻塞项和下一步；大日志、原始模型响应、完整 GeoJSON 和测试输出只保留摘要或路径。
 
+### 入口冲突处理
+
+如果旧消息要求依次读取多个恢复文档，以本卡的最新规则为准：先停止扩展读取，只保留本卡、Git 状态和最近提交。
+只有用户明确要求追溯历史，或当前切片缺少某项证据时，才按关键词增量读取；读取后不要把历史全文复制回上下文。
+
+推荐使用 `scripts/resume_context.ps1` 获取同样的最小快照。
+
+### 最小恢复模式
+
+- 旧的“依次阅读恢复档案、任务档案和问题日志”流程已废止；它们不是启动清单。
+- 默认读取预算固定为：1 个当前卡、0 个历史全文、最多 1 个 `rg` 命中片段；当前卡超过约 4 KB 时先压缩，不扩展读取范围。
+- 只有当前任务明确需要证据时，才读取最多 2 个直接相关源码文件和 1 个直接相关测试文件；每个文件先定位后读局部。
+- 恢复后只回答“当前做什么、为什么、下一步是什么”；历史背景留在文档中，不复制进上下文。
+
 ### 恢复操作的最小模板
 
 ```text
@@ -29,18 +43,23 @@
 ## 当前状态
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
-- 当前阶段：M216，真实模型失败/修复/降级与 geometry 按需恢复。
-- 最近提交：`8d08ec6 docs: advance recovery card to m216`；最近功能提交为 `4fd8b27 test: add explicit live GIS acceptance path`，M215 已完成。
-- M216 当前未提交改动已补充 `artifact-reference.v1`：Result、Geometry、Artifact、Async 和 Console 共用安全的按需引用；Docker 27 项专项、核心评测 7/7、HTTP 引用检查和 Console 地图 smoke 已通过。
-- 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中执行。
-- 已通过：M200–M215 的跨入口、恢复、证据、Node/Chrome/DOM smoke、生产 acceptance、action/async recovery、复杂 GIS Docker 和 live model 专项。
-- 当前无已知阻塞；M206 地图清理、M207 preview、M208 lifecycle、M209 repair lineage、M210 receipt、M211 failure/replay、M212 failure envelope、M213 async evidence、M214 complex cross-entry 和 M215 live acceptance 均已通过。
+- 阶段：M217——通用请求轮次、澄清决策与可恢复 Artifact 消费（实现与验证完成，待阶段提交）。
+- 最近提交：`2e6f2db feat: add portable artifact references`；M216 已完成并推送。
+- 容器：`ai-agent-spatial-agent-1` 应保持 healthy；Python 测试和 compileall 默认在 Docker 中运行。
+- 当前未提交内容：M217 的 conversation-turn seam、Artifact manifest、Domain 合约接入、恢复入口优化、测试修正和相关文档更新；先保留，不覆盖。
 
 ## 当前唯一工作切片
 
-1. 用脱敏 replay 覆盖无效 JSON、工具参数错误、超时和 provider 不可用，核对有限 repair/澄清/拒绝与 fallback 生命周期。
-2. 已完成 Docker live-short 2/2 与 geometry artifact smoke；确认真实模型路径、已有 Artifact 读取和 `artifact-reference.v1` 一致。
-3. 收口敏感信息检查；提交、推送并做全局重规划。
+1. 设计并实现公共 conversation turn contract，修复 pending clarification 无条件污染独立请求的问题，同时保留 M9 兼容的短回复继续能力。
+2. 设计 Artifact manifest/按需读取的最小公共接口，验证 Result、Async、Artifact、SQLite recovery、HTTP 和 Console 一致性。
+3. 将脱敏 planner failure/recovery replay 接入同一 turn/reference contract；完成 Docker 精简回归后再全局重规划。
+
+### M217 收口证据
+
+- Docker healthy；compileall 通过。
+- M217 专项 3/3；M166/M9 回归 16 项（1 项本地 GIS 数据跳过）；M10 + HTTP contract 17/17；M67/M149/M150 25/25；Console 2/2。
+- 浏览器 smoke 通过：turn 状态、预览 fingerprint、动态选择和 artifact 生成一致。
+- 失败 repair event 已保留结构化、脱敏 lineage；未发现长格式 API key。
 
 ## 不变量
 
@@ -50,17 +69,4 @@
 - 不提交 API key、`.env.production`、私有模型响应、原始 GIS 数据或仓库外 evidence。
 - 阶段完成顺序：全局规划 → 实现 → 精简集成测试 → 更新本卡/阶段文档 → 提交推送 → 全局重规划。
 
-## 按需入口
-
-- 项目方向：`docs/agent-project-direction.md`
-- 阶段历史：`docs/task-resume.md` 或 `docs/milestones.md`（先 `rg`）
-- 中文问题日志：`docs/agent-development-issues.md`（先按错误关键词 `rg`）
-- 恢复历史：`docs/agent-context-resume.md`（仅需追溯时读取）
-
-Docker 重建：
-
-```powershell
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate
-```
-
-每完成一个阶段，只更新本卡的状态、证据引用和下一步；详细过程留在历史文档，禁止把长日志复制回本卡。
+需要追溯历史时，先用 `rg --files` 和关键词定位目标文件，再只读取命中区间；阶段收口只更新本卡的状态、证据引用和下一步。

@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Union
 
 from agent.llm_planner import LLMPlanner
 from agent.domain_contract import planner_guidance
-from agent.runtime import AgentRuntime
+from agent.runtime import AgentRuntime, InMemoryConversationStore
 from agent.tools import DemoSpatialAdapter, ToolRegistry
 from agent.workflow_templates import workflow_template_context_summary
 from agent.plan_quality import project_plan_quality_evidence
@@ -997,6 +997,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
     safe_metrics = sanitize_provider_metrics(metrics)
     domain = str(fixture.get("domain") or "gis")[:32]
     session_id = "m69-replay-" + fixture_id
+    conversation_store = InMemoryConversationStore()
     turn_results = []
     for turn in turns:
         expected = turn.get("expected") or {}
@@ -1010,6 +1011,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
                 turn.get("response"),
                 metrics,
                 domain=domain,
+                conversation_store=conversation_store,
             )
             result = runtime.run(str(turn.get("request") or ""), session_id=session_id)
             status = result.status.value
@@ -1031,6 +1033,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
                 "status_match": status_match,
                 "quality": quality,
                 "repair_evidence": repair_projection,
+                "conversation_turn": result.to_dict().get("conversation_turn"),
             })
         except Exception:
             turn_results.append({
@@ -1039,6 +1042,7 @@ def _evaluate_replay_fixture(fixture: Mapping[str, Any]) -> Dict[str, Any]:
                 "status_match": False,
                 "quality": {"passed": False},
                 "repair_evidence": project_repair_evidence({"status": "FAILED"}),
+                "conversation_turn": None,
             })
     repair_count = sum(1 for item in turn_results[:-1] if item["status"] in {"FAILED", "NEEDS_CLARIFICATION"})
     expected_repair_count = fixture.get("expected_repair_count")
@@ -1309,6 +1313,7 @@ def _build_recorded_runtime(
     metrics: Mapping[str, Any],
     *,
     domain: str = "gis",
+    conversation_store: Optional[InMemoryConversationStore] = None,
 ) -> AgentRuntime:
     if domain == "text":
         from domains.text.domain import TEXT_DOMAIN_PACK
@@ -1321,7 +1326,12 @@ def _build_recorded_runtime(
             registry.names,
             planner_guidance=planner_guidance(TEXT_DOMAIN_PACK),
         )
-        return AgentRuntime(planner, registry, domain_pack=TEXT_DOMAIN_PACK)
+        return AgentRuntime(
+            planner,
+            registry,
+            domain_pack=TEXT_DOMAIN_PACK,
+            conversation_store=conversation_store,
+        )
     if domain != "gis":
         raise ValueError("unsupported replay domain: " + domain)
     adapter = DemoSpatialAdapter()
@@ -1334,7 +1344,12 @@ def _build_recorded_runtime(
         registry.names,
         planner_guidance=planner_guidance(GIS_DOMAIN_PACK),
     )
-    return AgentRuntime(planner, registry, domain_pack=GIS_DOMAIN_PACK)
+    return AgentRuntime(
+        planner,
+        registry,
+        domain_pack=GIS_DOMAIN_PACK,
+        conversation_store=conversation_store,
+    )
 
 
 class _RecordedModelClient:

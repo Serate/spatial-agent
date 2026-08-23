@@ -1,5 +1,10 @@
 # Spatial Agent Task Resume
 
+## 启动协议
+
+本文件不是启动清单。恢复上下文时只读取 `docs/agent-context-current.md`；需要追溯某个阶段时，
+先用 `rg` 定位，再读取命中附近的有限行。不要全文读取本文件，也不要自动连读问题日志和里程碑。
+
 > 快速恢复入口：新对话或上下文压缩后先阅读 [agent-context-current.md](agent-context-current.md)，再按需读取本文件的相关阶段。不要默认全文扫描本历史任务档案。
 
 This document is a historical handoff note for continuing development of the Spatial Agent project in a fresh conversation or work session. The compact current snapshot is authoritative for the active stage.

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Mapping
 
 from agent.result_registry import ResultContractRegistry, default_result_registry
 from agent.artifact_reference import build_artifact_reference
+from agent.conversation_turn import normalize_conversation_turn
 from agent.execution_contract import build_execution_record, execution_record_summary
 from agent.deployment_evidence import build_deployment_evidence
 from agent.action_lifecycle import project_action_lifecycle
@@ -191,6 +192,9 @@ def build_result_contract(
         "title": str(output.get("title") or registry.title_for(result_type)),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
         "request_identity": build_request_identity(payload),
+        "conversation_turn": normalize_conversation_turn(
+            payload.get("conversation_turn")
+        ),
         "request_facts": payload.get("request_facts") or {"available": False},
         "data": {
             "evidence_steps": evidence_steps,

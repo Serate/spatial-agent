@@ -22,6 +22,7 @@ from agent.contract_versions import (
     WORKSPACE_SCHEMA_VERSION,
 )
 from agent.artifact_reference import normalize_artifact_reference
+from agent.conversation_turn import normalize_conversation_turn
 
 
 class NestedSchemaError(ValueError):
@@ -54,6 +55,9 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
     if views is None and allow_legacy:
         views = {"schema_version": VIEWS_SCHEMA_VERSION, "panels": {}}
     result["views"] = normalize_views(views, allow_legacy=allow_legacy)
+    result["conversation_turn"] = normalize_conversation_turn(
+        result.get("conversation_turn")
+    )
     _normalize_artifact_references(result)
     return result
 
