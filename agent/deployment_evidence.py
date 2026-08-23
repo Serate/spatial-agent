@@ -47,7 +47,11 @@ def build_deployment_evidence(
     }
     model = _model_summary(model_evidence)
     context_fingerprint = context.get("fingerprint") if context else ""
-    status = _aggregate_status(data, degradation_summary, context)
+    # Result degradation is an observation about this request, not proof that
+    # the runtime or release environment is degraded.  Keep it in its own
+    # projection so clarification/empty-result warnings cannot poison
+    # cross-entry deployment readiness.
+    status = _aggregate_status(data, context)
     result = {
         "schema_version": DEPLOYMENT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(
@@ -70,14 +74,12 @@ def build_deployment_evidence(
 
 def _aggregate_status(
     data: Mapping[str, Any],
-    degradation: Mapping[str, Any],
     context: Mapping[str, Any] | None,
 ) -> str:
     statuses = [
         data.get("runtime_status"),
         data.get("runtime_readiness"),
         data.get("release_status"),
-        degradation.get("status"),
     ]
     if any(value == "unavailable" for value in statuses):
         return "unavailable"

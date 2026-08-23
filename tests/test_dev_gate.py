@@ -12,7 +12,7 @@ from pathlib import Path
 
 from agent.artifact_store import ArtifactStore
 from agent.service import AgentService
-from evaluation.contract_harness import compare_results
+from evaluation.contract_harness import compare_core_results, compare_results
 from serve_api import AgentApiHandler
 
 
@@ -102,6 +102,12 @@ class DevGateTests(unittest.TestCase):
         self.assertEqual(response.status, 200)
         self.assertEqual(
             compare_results([direct, cli_payload, http_payload, service_artifact, cli_artifact]),
+            [],
+        )
+        self.assertEqual(
+            compare_core_results(
+                [direct, cli_payload, http_payload, service_artifact, cli_artifact]
+            ),
             [],
         )
 

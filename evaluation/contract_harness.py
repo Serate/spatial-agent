@@ -80,6 +80,31 @@ class CrossEntryContract:
     def equivalent_to(self, other: "CrossEntryContract") -> bool:
         return not self.differences(other)
 
+    def core(self) -> "CoreResultContract":
+        """Return the transport-neutral semantic contract for this result."""
+        return CoreResultContract(_core_values(self.values))
+
+
+@dataclass(frozen=True)
+class CoreResultContract:
+    """Stable semantic result shared by entry points and persistence adapters.
+
+    Artifact availability, async polling evidence and execution identity are
+    transport observations.  They have dedicated contracts and must not make
+    otherwise identical Result/Evidence semantics compare unequal.
+    """
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "CoreResultContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "CoreResultContract") -> bool:
+        return not self.differences(other)
+
 
 @dataclass(frozen=True)
 class ActionReceiptContract:
@@ -843,6 +868,21 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
     return CrossEntryContract(values)
 
 
+_CORE_RESULT_TRANSPORT_FIELDS = frozenset(
+    {
+        "async_result_evidence",
+        "artifact_available",
+        "artifact_schema",
+        "execution",
+    }
+)
+
+
+def normalize_core_result(payload: Mapping[str, Any]) -> CoreResultContract:
+    """Project only semantic Result/Evidence fields shared across entries."""
+    return normalize_result(payload).core()
+
+
 def _lifecycle_projection(
     payload: Mapping[str, Any], *, result: Mapping[str, Any] | None = None
 ) -> Dict[str, Any]:
@@ -1254,8 +1294,40 @@ def compare_results(
     return differences[:100]
 
 
+def compare_core_results(
+    payloads: Sequence[Mapping[str, Any]],
+) -> List[str]:
+    """Return semantic drift while ignoring transport-only observations.
+
+    This is the small acceptance seam for CLI/HTTP/Async/Artifact/SQLite
+    comparisons.  Callers can compare lifecycle receipts or Artifact
+    manifests separately without weakening the shared Result/Evidence check.
+    """
+
+    if len(payloads) < 2:
+        raise ValueError("at least two result payloads are required")
+    contracts = [normalize_core_result(payload) for payload in payloads]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[0] vs entry[{index}]: {path}"
+            for path in baseline.differences(contract)
+        )
+    return differences[:100]
+
+
 def _mapping(value: Any) -> Dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _core_values(values: Mapping[str, Any]) -> Dict[str, Any]:
+    """Keep the semantic contract small while preserving evidence detail."""
+    return {
+        key: value
+        for key, value in values.items()
+        if key not in _CORE_RESULT_TRANSPORT_FIELDS
+    }
 
 
 def _differences(left: Any, right: Any, path: str = "$") -> List[str]:
