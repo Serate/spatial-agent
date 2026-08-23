@@ -30,7 +30,7 @@ await command("Runtime.enable");
 await command("Page.navigate", {url: consoleUrl});
 for (let attempt = 0; attempt < 60; attempt++) {
   const ready = await command("Runtime.evaluate", {
-    expression: "typeof $ === 'function' && typeof sendChat === 'function'",
+    expression: "document.readyState==='complete' && typeof $ === 'function' && typeof sendChat === 'function' && $('prompt') && $('status')?.textContent==='待机'",
     returnByValue: true,
   });
   if (ready.result?.result?.value) break;
@@ -38,7 +38,7 @@ for (let attempt = 0; attempt < 60; attempt++) {
   if (attempt === 59) throw new Error("Console 页面脚本未就绪");
 }
 const result = await command("Runtime.evaluate", {
-  expression: "(async()=>{ $('backend').value='memory'; sendChat('检查武汉空间数据质量'); for(let i=0;i<50;i++){ await new Promise(resolve=>setTimeout(resolve,200)); if($('status')?.textContent==='已完成') break; } return JSON.stringify({panel:document.querySelector('.health-result')?.classList.contains('is-visible'), text:$('healthStats')?.textContent||'', output:document.querySelector('.result-panel.health-result')?.querySelector('h3')?.textContent||'', tool:(document.querySelector('.step-tool')?.textContent||''), status:$('status')?.textContent||''}); })()",
+  expression: "(async()=>{ $('backend').value='memory'; if(typeof newSession==='function') await newSession(); await sendChat('检查武汉空间数据质量'); for(let i=0;i<50;i++){ await new Promise(resolve=>setTimeout(resolve,200)); if($('status')?.textContent==='已完成') break; } return JSON.stringify({panel:document.querySelector('.health-result')?.classList.contains('is-visible'), text:$('healthStats')?.textContent||'', output:document.querySelector('.result-panel.health-result')?.querySelector('h3')?.textContent||'', tool:(document.querySelector('.step-tool')?.textContent||''), status:$('status')?.textContent||''}); })()",
   awaitPromise: true,
   returnByValue: true,
 });
@@ -48,7 +48,7 @@ if (result.result.exceptionDetails) {
 const snapshot = JSON.parse(result.result.result.value);
 console.log(JSON.stringify(snapshot));
 if (!snapshot.panel || !snapshot.text.includes("整体状态") || !snapshot.text.includes("核心数据") || !snapshot.text.includes("admin_areas") || snapshot.tool !== "get_dataset_health_report") {
-  throw new Error("数据健康结果没有激活专用前端面板");
+  throw new Error("数据健康结果没有通过动态 view slot 展示");
 }
 socket.close();
 process.exit(0);

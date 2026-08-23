@@ -8,17 +8,18 @@
 
 ## 当前阶段
 
-M220-B4 收尾已完成：Domain-owned 自动 workflow 物化，并修复真实 GIS 链路中的能力路由、上下文裁剪和证据投影问题。
+M221-A1 已完成：前端以 `views.panels + view_specs` 为统一输入，GIS 旧结果容器改为动态 view slot；地图保留交互式专用渲染。
 
 ## 已验证
 
 - Docker 精简回归 37/37；M194/M195/M220 组合回归 33/33；`compileall` 返回 0。
 - production acceptance：`ready`；真实数据、同步/异步、artifact、预览指纹和失败契约通过。
 - 明确“建设适宜性”请求走专用能力；泛化“适合建设”请求保持通用地形/土地利用能力。
+- M221 前端静态契约 13/13；健康 view、空间总览、Leaflet/SVG 地图 smoke 通过。
 
 ## 下一阶段
 
-按全局能力矩阵规划并实现：真实模型 + 真实 GIS 的端到端证据闭环、前端动态消费结构化 evidence、replay/live 一致性与重启恢复验收。先做全局规划，再拆成可验证切片。
+按全局能力矩阵继续实现：真实模型 + 真实 GIS 的端到端证据闭环、replay/live 一致性与重启恢复验收；随后清理剩余旧前端 renderer，并验证 CLI/HTTP/前端/artifact 的同一结果投影。
 
 ## 不变量
 
