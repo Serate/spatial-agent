@@ -57,6 +57,12 @@ class M146AsyncViewEvidenceTests(unittest.TestCase):
             {**completed.to_dict(), "result_type": "text_summary_result"},
             registry=runtime.result_registry(),
         )
+        success["model_evidence"] = {
+            "execution_mode": "offline_replay",
+            "provider": "recorded",
+            "fixture_id": "fixture-safe",
+            "raw_response": "must-not-cross-evidence-seam",
+        }
         degraded = build_result_contract(
             {
                 "result_type": "text_summary_result",
@@ -98,6 +104,11 @@ class M146AsyncViewEvidenceTests(unittest.TestCase):
             unavailable_evidence["views"]["panels"]["generic"]["state"],
             "unavailable",
         )
+        self.assertEqual(
+            success_evidence["model_evidence"]["fixture_id"],
+            "fixture-safe",
+        )
+        self.assertNotIn("raw_response", json.dumps(success_evidence))
 
     def test_sqlite_restart_and_http_polling_preserve_view_evidence(self):
         with tempfile.TemporaryDirectory() as directory:

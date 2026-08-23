@@ -40,6 +40,7 @@ from agent.execution_timeline import normalize_execution_timeline
 from agent.execution_contract import execution_record_summary
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
+from agent.model_evidence import project_model_evidence
 from agent.recovery_action import normalize_action_receipt
 from result_contract import build_lineage_index
 
@@ -300,6 +301,10 @@ def build_async_result_evidence(
             "workflow_selection": selection["workflow_selection"],
             "planner_selection": selection["planner_selection"],
         },
+        "model_evidence": project_model_evidence(
+            value.get("model_evidence"),
+            value.get("runtime_context"),
+        ),
         "selection_interaction": normalize_selection_interaction(
             value.get("selection_interaction")
         ),

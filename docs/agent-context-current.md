@@ -8,7 +8,7 @@
 
 ## 当前阶段
 
-M221-A1 已完成：前端以 `views.panels + view_specs` 为统一输入，GIS 旧结果容器改为动态 view slot；地图保留交互式专用渲染。
+M221-B1 已完成：同步结果、异步轮询和前端异步摘要共享公共 `project_model_evidence` Module；前端 view 动态渲染保持通过。
 
 ## 已验证
 
@@ -17,10 +17,11 @@ M221-A1 已完成：前端以 `views.panels + view_specs` 为统一输入，GIS 
 - 明确“建设适宜性”请求走专用能力；泛化“适合建设”请求保持通用地形/土地利用能力。
 - M221 前端静态契约 13/13；健康 view、空间总览、Leaflet/SVG 地图 smoke 通过。
 - 真实模型 + 本地 GIS Docker live case 1/1（6585 tokens），live baseline replay 4/4；M148 Docker recorded replay 的 text/GIS 两类 case 均完成，重启后模型调用为 0。
+- M135/M136/M137/M146/M148 model/context/evidence 回归 20/20；实际异步 smoke 返回版本化模型证据、上下文指纹和 artifact 引用；Docker `compileall` 返回 0。
 
 ## 下一阶段
 
-按全局能力矩阵继续实现：验证 live 请求在 HTTP/异步/artifact/前端入口的同一结果投影；随后清理剩余旧前端 renderer，并补齐重启接管的 live evidence 验收。
+按全局能力矩阵继续实现：验证 live 请求在 HTTP/异步/artifact/前端入口的同一结果投影；随后删除剩余旧前端 renderer，并补齐重启接管的 live evidence 验收。
 
 ## 不变量
 
