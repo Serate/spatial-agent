@@ -209,7 +209,6 @@ class GisDomainPack:
         workflow: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         """Expose discovery/explicit selection metadata to the generic Runtime."""
-        del request_facts
         context = discovery_context(discovery, domain_id=self.domain_id)
         selection = {
             "source": "explicit_workflow" if workflow and workflow.get("template_id") else "domain_discovery",
@@ -229,6 +228,22 @@ class GisDomainPack:
                     "workflow_components": list(normalized.get("components") or [])[:8],
                 }
             )
+        elif selection.get("selected_capability_id") == "spatial_analysis":
+            # Automatic composite discovery has no explicit workflow payload,
+            # but it still needs a stable component identity for Result,
+            # Artifact, async and recovery evidence.  Keep the declaration
+            # Domain-owned and derive it from structured request facts rather
+            # than adding a fixed natural-language branch in Runtime.
+            tasks = getattr(request_facts, "tasks", ()) or ()
+            task_keys = [str(item)[:64] for item in tasks if str(item).strip()][:16]
+            template = self.workflow_template_catalog().get("spatial_analysis", {})
+            selection["workflow_components"] = [{
+                "component_id": "spatial-analysis",
+                "template_id": "spatial_analysis",
+                "template_version": str(template.get("version") or "1.0.0")[:32],
+                "depends_on_components": [],
+                "evidence_keys": task_keys,
+            }]
         return selection
 
     def evidence_action_guidance(

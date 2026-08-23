@@ -8,12 +8,25 @@ from agent.domain_contract import domain_action_catalog, discovery_context
 from agent.request_model import RequestFacts
 from agent.capability_catalog import capability_catalog
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
+from agent.workflow_templates import (
+    WorkflowTemplateError,
+    normalize_workflow_composition,
+    normalize_workflow_selection,
+    validate_workflow_plan,
+    workflow_request_hint,
+    workflow_template_context_summary,
+)
 
 from .catalog import (
     TEXT_CAPABILITIES,
     TEXT_DATASET_GROUPS,
     TEXT_DATASET_TOOL_CAPABILITIES,
     TEXT_TOOL_DEFINITIONS,
+)
+from .workflow_templates import (
+    KNOWN_RESULT_TYPES,
+    KNOWN_TOOL_NAMES,
+    workflow_template_catalog,
 )
 
 
@@ -60,10 +73,25 @@ class TextDomainPack:
 
         return ResultContractRegistry(
             {
+                "text_normalize_result": ResultTypeSpec(
+                    title="文本规范化",
+                    panels=("generic",),
+                    view_specs=(ViewSpec("generic", "generic", "规范化结果"),),
+                ),
                 "text_summary_result": ResultTypeSpec(
                     title="文本摘要",
                     panels=("generic",),
                     view_specs=(ViewSpec("generic", "generic", "摘要概览"),),
+                ),
+                "text_stats_result": ResultTypeSpec(
+                    title="文本统计",
+                    panels=("generic",),
+                    view_specs=(ViewSpec("generic", "generic", "统计概览"),),
+                ),
+                "text_analysis_result": ResultTypeSpec(
+                    title="组合文本分析",
+                    panels=("generic",),
+                    view_specs=(ViewSpec("generic", "generic", "组合结果"),),
                 ),
             },
             fallback_title="运行结果",
@@ -86,10 +114,18 @@ class TextDomainPack:
         )
 
     def extract_request_facts(self, request: str) -> RequestFacts:
+        text = str(request or "").strip()
+        lowered = text.lower()
+        if any(term in lowered for term in ("统计", "字数", "字符数", "词数", "行数", "statistics")):
+            tasks = ("stats",)
+        elif any(term in lowered for term in ("规范化", "清洗文本", "整理文本", "normalize")):
+            tasks = ("normalize",)
+        else:
+            tasks = ("summarize",)
         return RequestFacts(
-            text=str(request or "").strip(),
+            text=text,
             admin_name=None,
-            tasks=("summarize",),
+            tasks=tasks,
             datasets=("documents",),
             constraints={},
             evidence=("answer",),
@@ -103,7 +139,7 @@ class TextDomainPack:
             dataset_tool_capabilities=TEXT_DATASET_TOOL_CAPABILITIES,
             dataset_groups=TEXT_DATASET_GROUPS,
             analysis_ready_capability_ids=(),
-            workflow_templates={},
+            workflow_templates=self.workflow_template_catalog(),
             actions=domain_action_catalog(self),
         )
 
@@ -127,13 +163,25 @@ class TextDomainPack:
         """Expose text selection metadata without importing spatial policy."""
         del request_facts
         context = discovery_context(discovery, domain_id=self.domain_id)
-        return {
+        selection = {
             "source": "explicit_workflow" if workflow and workflow.get("template_id") else "domain_discovery",
             "selected_by": "user" if workflow and workflow.get("template_id") else "domain",
             "selected_capability_id": context.get("selected_capability_id"),
             "candidate_ids": list(context.get("candidate_ids") or [])[:8],
             "candidate_count": context.get("candidate_count"),
         }
+        if isinstance(workflow, Mapping) and isinstance(workflow.get("components"), (list, tuple)):
+            normalized = self.normalize_workflow(workflow)
+            selection.update(
+                {
+                    "source": "explicit_workflow",
+                    "selected_by": "user",
+                    "workflow_template_id": normalized.get("template_id"),
+                    "workflow_template_version": normalized.get("template_version"),
+                    "workflow_components": list(normalized.get("components") or [])[:8],
+                }
+            )
+        return selection
 
     def evidence_action_guidance(
         self,
@@ -174,9 +222,31 @@ class TextDomainPack:
         }
 
     def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
-        """Normalize a text workflow without importing GIS templates."""
+        """Normalize a Text-owned single or composed workflow."""
         if not isinstance(workflow, Mapping):
             raise ValueError("workflow must be an object")
+        catalog = self.workflow_template_catalog()
+        if isinstance(workflow.get("components"), (list, tuple)):
+            def normalize_component(component: Mapping[str, Any]) -> Mapping[str, Any]:
+                template_id = str(component.get("template_id") or "").strip()
+                if not template_id:
+                    raise ValueError("workflow component.template_id is required")
+                return normalize_workflow_selection(
+                    template_id,
+                    component.get("constraints", {})
+                    if isinstance(component.get("constraints"), Mapping)
+                    else {},
+                    component.get("evidence"),
+                    catalog=catalog,
+                    known_tools=KNOWN_TOOL_NAMES,
+                    known_result_types=KNOWN_RESULT_TYPES,
+                )
+
+            return normalize_workflow_composition(
+                workflow,
+                component_normalizer=normalize_component,
+                composition_template_id="text_analysis",
+            )
         template_id = str(workflow.get("template_id") or "").strip()
         if not template_id:
             raise ValueError("workflow.template_id must be a non-empty string")
@@ -188,18 +258,106 @@ class TextDomainPack:
             evidence = []
         if not isinstance(evidence, (list, tuple)):
             raise ValueError("workflow.evidence must be an array")
-        return {
-            "template_id": template_id[:96],
-            "template_version": "1.0.0",
-            "constraints": dict(constraints),
-            "evidence": [str(item)[:96] for item in evidence[:16]],
-        }
+        return normalize_workflow_selection(
+            template_id,
+            dict(constraints),
+            evidence,
+            catalog=catalog,
+            known_tools=KNOWN_TOOL_NAMES,
+            known_result_types=KNOWN_RESULT_TYPES,
+        )
 
     def validate_workflow_plan(self, plan: Any, workflow: Mapping[str, Any]) -> None:
-        """Validate only the public Text workflow shape."""
-        del plan
-        if not isinstance(workflow, Mapping) or not workflow.get("template_id"):
-            raise ValueError("text workflow selection is incomplete")
+        """Validate Text-owned templates and composed plans."""
+        if not isinstance(workflow, Mapping):
+            raise WorkflowTemplateError("text workflow selection is incomplete")
+        catalog = self.workflow_template_catalog()
+        if isinstance(workflow.get("components"), (list, tuple)):
+            normalize_workflow_composition(
+                workflow,
+                component_normalizer=lambda component: normalize_workflow_selection(
+                    str(component.get("template_id") or ""),
+                    component.get("constraints", {})
+                    if isinstance(component.get("constraints"), Mapping)
+                    else {},
+                    component.get("evidence"),
+                    catalog=catalog,
+                    known_tools=KNOWN_TOOL_NAMES,
+                    known_result_types=KNOWN_RESULT_TYPES,
+                ),
+                composition_template_id="text_analysis",
+            )
+            if not getattr(plan, "steps", None):
+                raise WorkflowTemplateError("text workflow composition produced no steps")
+            self.validate_plan(plan)
+            return
+        template_id = str(workflow.get("template_id") or "").strip()
+        if not template_id:
+            raise WorkflowTemplateError("text workflow selection is incomplete")
+        payload = {
+            "template_id": template_id,
+            "template_version": workflow.get("template_version"),
+            "goal": getattr(plan, "goal", ""),
+            "constraints": workflow.get("constraints", {}),
+            "evidence": workflow.get("evidence") or [],
+            "steps": [
+                {
+                    "id": step.id,
+                    "tool": step.tool,
+                    "args": step.args,
+                    "depends_on": list(step.depends_on),
+                }
+                for step in getattr(plan, "steps", ())
+            ],
+            "output": dict(getattr(plan, "output", {}) or {}),
+            "assumptions": list(getattr(plan, "assumptions", ()) or ()),
+        }
+        validate_workflow_plan(
+            template_id,
+            payload,
+            catalog=catalog,
+            known_tools=KNOWN_TOOL_NAMES,
+            known_result_types=KNOWN_RESULT_TYPES,
+        )
+
+    def validate_plan(self, plan: Any) -> None:
+        """Apply the selected Text template's bounded tool policy."""
+        output = getattr(plan, "output", None)
+        output = output if isinstance(output, Mapping) else {}
+        component_ids = output.get("component_template_ids")
+        catalog = self.workflow_template_catalog()
+        templates = []
+        if isinstance(component_ids, list):
+            templates = [catalog.get(str(item)) for item in component_ids[:8]]
+            templates = [item for item in templates if isinstance(item, Mapping)]
+        if not templates:
+            output_type = output.get("type")
+            templates = [
+                item
+                for item in catalog.values()
+                if output_type in (item.get("result_types") or [])
+            ]
+        if len(templates) != 1 and not component_ids:
+            return
+        allowed = {
+            str(tool)
+            for template in templates
+            for tool in (template.get("allowed_tools") or [])
+        }
+        unexpected = sorted(
+            {str(step.tool) for step in getattr(plan, "steps", ())} - allowed
+        )
+        if unexpected:
+            raise WorkflowTemplateError(
+                "text workflow policy rejected tools: " + ", ".join(unexpected)
+            )
+        max_steps = sum(int(item.get("max_steps") or 0) for item in templates)
+        if max_steps and len(getattr(plan, "steps", ())) > max_steps:
+            raise WorkflowTemplateError(
+                "text workflow policy exceeded max steps: {} > {}".format(
+                    len(getattr(plan, "steps", ())), max_steps
+                )
+            )
 
     def resolve_capability_selection(
         self,
@@ -209,9 +367,10 @@ class TextDomainPack:
         selection: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any] | None:
         del request_facts, selection
-        if str(capability_id or "").strip() != "text_summary":
+        capability_id = str(capability_id or "").strip()
+        if capability_id not in self.workflow_template_catalog():
             return None
-        return {"template_id": "text_summary", "constraints": {}, "evidence": []}
+        return {"template_id": capability_id, "constraints": {}, "evidence": []}
 
     def workflow_template_context(
         self,
@@ -219,11 +378,24 @@ class TextDomainPack:
         include_arg_shape: bool = False,
         compact: bool = True,
     ) -> Mapping[str, Any]:
-        return {}
+        return workflow_template_context_summary(
+            catalog=self.workflow_template_catalog(),
+            known_tools=KNOWN_TOOL_NAMES,
+            known_result_types=KNOWN_RESULT_TYPES,
+            include_arg_shape=include_arg_shape,
+            compact=compact,
+        )
 
     def workflow_template_catalog(self) -> Mapping[str, Mapping[str, Any]]:
-        """Text currently exposes no declarative workflow templates."""
-        return {}
+        """Return the Text-owned declarative workflow catalog."""
+        return workflow_template_catalog()
+
+    def planner_request_hint(
+        self,
+        request: str,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> str:
+        return workflow_request_hint(request, workflow)
 
     def planner_guidance(self) -> Mapping[str, Any]:
         from .planner_guidance import TEXT_PLANNER_GUIDANCE
@@ -236,14 +408,67 @@ class TextDomainPack:
         *,
         workflow: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
-        """Text has no GIS workflow policy; generic Runtime validation applies."""
-        del plan, workflow
+        """Describe the Text-owned tool policy used for this plan."""
+        catalog = self.workflow_template_catalog()
+        components = workflow.get("components") if isinstance(workflow, Mapping) else None
+        component_ids = (
+            [
+                str(item.get("template_id"))
+                for item in components[:8]
+                if isinstance(item, Mapping) and item.get("template_id")
+            ]
+            if isinstance(components, list)
+            else []
+        )
+        selected = [catalog.get(item) for item in component_ids]
+        selected = [item for item in selected if isinstance(item, Mapping)]
+        if selected:
+            allowed_tools = list(dict.fromkeys(
+                str(tool)
+                for item in selected
+                for tool in (item.get("allowed_tools") or [])
+            ))[:32]
+            return {
+                "schema_version": "spatial-agent.plan-policy.v1",
+                "available": True,
+                "domain_id": self.domain_id,
+                "policy_id": "text.workflow.composition",
+                "source": "explicit_workflow",
+                "selected_by": "user",
+                "workflow_template_id": "text_analysis",
+                "workflow_template_version": "1.0.0",
+                "allowed_tools": allowed_tools,
+                "max_steps": sum(int(item.get("max_steps") or 0) for item in selected),
+                "result_types": [str((getattr(plan, "output", {}) or {}).get("type"))],
+                "component_template_ids": component_ids,
+                "candidate_policy_ids": ["text.workflow." + item for item in component_ids],
+            }
+        output = getattr(plan, "output", {})
+        output_type = output.get("type") if isinstance(output, Mapping) else None
+        candidates = [
+            item
+            for item in catalog.values()
+            if isinstance(item, Mapping)
+            and output_type in (item.get("result_types") or [])
+        ]
+        selected_template = candidates[0] if len(candidates) == 1 else None
         return {
             "schema_version": "spatial-agent.plan-policy.v1",
-            "available": False,
+            "available": selected_template is not None,
             "domain_id": self.domain_id,
-            "source": "none",
-            "reason_code": "no_domain_workflow_policy",
+            "policy_id": (
+                "text.workflow." + str(selected_template.get("id"))
+                if selected_template
+                else None
+            ),
+            "source": "domain_auto_match" if selected_template else "none",
+            "selected_by": "domain" if selected_template else "none",
+            "workflow_template_id": selected_template.get("id") if selected_template else None,
+            "workflow_template_version": selected_template.get("version") if selected_template else None,
+            "allowed_tools": list(selected_template.get("allowed_tools") or []) if selected_template else [],
+            "max_steps": selected_template.get("max_steps") if selected_template else None,
+            "result_types": list(selected_template.get("result_types") or []) if selected_template else [],
+            "candidate_policy_ids": [str(item.get("id")) for item in candidates[:8]],
         }
 
     def request_understanding_guidance(self) -> Mapping[str, Any]:

@@ -78,9 +78,12 @@ class M220DomainWorkflowSeamTests(unittest.TestCase):
         self.assertEqual(summary["templates"][0]["id"], "text_summary")
         self.assertNotIn("get_raster_metadata", str(summary))
 
-    def test_domain_catalog_seam_does_not_fallback_to_gis(self):
+    def test_domain_catalog_seam_is_owned_by_selected_domain(self):
         self.assertIn("spatial_analysis", workflow_catalog(GIS_DOMAIN_PACK))
-        self.assertEqual(workflow_catalog(TextDomainPack()), {})
+        catalog = workflow_catalog(TextDomainPack())
+        self.assertIn("text_summary", catalog)
+        self.assertIn("text_normalize", catalog)
+        self.assertNotIn("admin_boundary_query", catalog)
 
     def test_generic_module_contains_no_embedded_gis_catalog_literal(self):
         source = (Path(__file__).parents[1] / "agent" / "workflow_templates.py").read_text(

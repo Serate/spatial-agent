@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [int]$MaxCurrentChars = 4500,
+    [int]$MaxCurrentChars = 3000,
     [string]$Topic = '',
     [ValidateRange(1, 12)]
     [int]$MaxMatches = 4,

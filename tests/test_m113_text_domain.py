@@ -28,7 +28,10 @@ class M113TextDomainTests(unittest.TestCase):
             service.close()
 
         self.assertEqual(catalog["domain_id"], "text")
-        self.assertEqual([item["id"] for item in catalog["capabilities"]], ["text_summary"])
+        self.assertEqual(
+            {item["id"] for item in catalog["capabilities"]},
+            {"text_normalize", "text_summary", "text_stats"},
+        )
         self.assertNotIn("buildability_screening", catalog["capabilities"])
 
     def test_runtime_capabilities_keep_domain_and_provider_evidence(self):
@@ -76,7 +79,10 @@ class M113TextDomainTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         self.assertEqual(payload["domain_id"], "text")
-        self.assertEqual(payload["capabilities"][0]["id"], "text_summary")
+        self.assertIn(
+            payload["capabilities"][0]["id"],
+            {"text_normalize", "text_summary", "text_stats"},
+        )
 
     def test_http_runtime_capabilities_use_domain_evidence(self):
         class TextHandler(AgentApiHandler):

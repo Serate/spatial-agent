@@ -15,6 +15,11 @@ from .evidence_contract import (
     build_capability_evidence,
     normalize_capability_evidence,
 )
+from .component_evidence import (
+    normalize_component_evidence,
+    normalize_workflow_component_evidence,
+    project_workflow_component_evidence,
+)
 from .recovery_action import ACTION_IDS, normalize_action_ids
 
 
@@ -82,6 +87,22 @@ def build_workflow_selection_evidence(
         or explicit.get("workflow_components")
         or selected.get("components")
     )
+    component_source = (
+        explicit.get("components")
+        or selected.get("workflow_components")
+        or selected.get("components")
+    )
+    component_evidence = None
+    if isinstance(component_source, (list, tuple)) and component_source:
+        candidate_component_evidence = (
+            selected.get("workflow_component_evidence")
+            or discovery_map.get("workflow_component_evidence")
+        )
+        component_evidence = (
+            normalize_workflow_component_evidence(candidate_component_evidence)
+            if isinstance(candidate_component_evidence, Mapping)
+            else project_workflow_component_evidence({"components": component_source})
+        )
     candidate_templates = _string_list(
         selected.get("candidate_workflow_ids")
         or selected.get("candidate_template_ids")
@@ -150,7 +171,7 @@ def build_workflow_selection_evidence(
         or discovery_map.get("known_capability_result_types")
         or _known_capability_result_types(capability_catalog)
     )
-    return {
+    result = {
         "schema_version": WORKFLOW_SELECTION_SCHEMA_VERSION,
         "available": available,
         "state": state,
@@ -189,6 +210,9 @@ def build_workflow_selection_evidence(
         "request_facts_schema_version": facts["schema_version"],
         "fact_keys": facts["fact_keys"],
     }
+    if component_evidence is not None and component_evidence.get("available"):
+        result["workflow_component_evidence"] = component_evidence
+    return result
 
 
 def normalize_workflow_selection_evidence(value: Any) -> dict[str, Any]:
@@ -511,21 +535,18 @@ def _normalize_workflow_components(value: Any) -> list[dict[str, Any]]:
             item.get("evidence_keys") or item.get("evidence")
         )[:16]
         evidence_summary = item.get("evidence_summary") or item.get("evidence_state")
-        result.append(
-            {
+        component = {
                 "component_id": component_id,
                 "template_id": template_id,
                 "template_version": _text(item.get("template_version")) or "1.0.0",
                 "depends_on_components": dependencies,
                 "constraint_keys": constraint_keys,
                 "evidence_keys": evidence_keys,
-                **(
-                    {"evidence_summary": normalize_capability_evidence(evidence_summary)}
-                    if isinstance(evidence_summary, Mapping)
-                    else {}
-                ),
+                "component_evidence": normalize_component_evidence(evidence_summary),
             }
-        )
+        if isinstance(evidence_summary, Mapping):
+            component["evidence_summary"] = normalize_capability_evidence(evidence_summary)
+        result.append(component)
     return result
 
 

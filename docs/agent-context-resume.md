@@ -1,31 +1,19 @@
 # Agent 上下文恢复入口
 
-这是新对话或上下文压缩后的短入口，不是历史档案。
+本文件只说明恢复动作，不保存阶段历史。
 
-## 默认动作
-
-1. 只读 [`agent-context-current.md`](agent-context-current.md)。
-2. 执行 `git status --short --branch` 和 `git log -1 --oneline --decorate`。
-3. 只根据当前任务定位源码；默认不读取历史文档、完整日志、模型响应、GeoJSON、私有路径或密钥。
-
-## 需要历史时
-
-先用有界检索，不要全文打开档案：
+新对话或上下文压缩后执行：
 
 ```powershell
-pwsh -NoProfile -File scripts/resume_context.ps1 `
-  -Topic "M220-B2|composition|evidence" `
-  -MaxMatches 4 `
-  -ContextLines 8
+pwsh -NoProfile -File scripts/resume_context.ps1
 ```
 
-历史原文在 `docs/archive/context-history/`，仅用于按阶段或关键词审计。
+该命令只输出 `docs/agent-context-current.md`、Git 状态和最近提交。不要再默认读取 `docs/task-resume.md`、`docs/agent-development-issues.md`、`docs/milestones.md` 或归档目录；它们只在当前卡明确要求或用户给出阶段/关键词时按需读取。
 
-## 当前约束
+按需追溯历史：
 
-- Python、compileall、阶段测试默认通过 Docker。
-- 默认测试离线、精简；真实模型、真实 GIS、浏览器和 live 网络只显式验收。
-- 共享 schema、Runtime 状态和 Result/Evidence 契约按依赖顺序集成。
-- 每阶段遵循“全局规划 → 实现 → 精简集成测试 → 更新短快照 → 提交推送 → 全局重规划”。
+```powershell
+pwsh -NoProfile -File scripts/resume_context.ps1 -Topic "M220|evidence" -MaxMatches 4 -ContextLines 8
+```
 
-当前阶段、阻塞项、最近证据和下一步以 `docs/agent-context-current.md` 为准。
+源码阅读也采用预算：先 `rg -n -m 5` 定位，再读取命中附近不超过 40 行；默认最多 2 个源码文件和 1 个测试文件。当前目标、阻塞项和下一步以 `docs/agent-context-current.md` 为准。

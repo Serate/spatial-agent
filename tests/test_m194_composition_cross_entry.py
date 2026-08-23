@@ -202,9 +202,30 @@ class M194CompositionCrossEntryTests(unittest.TestCase):
             _complex_result_projection(item)
             for item in (http_result, http_detail, sync_artifact, async_result, recovered, async_artifact)
         ]
-        self.assertEqual({tuple(item["evidence_entry_ids"]) for item in projections}, {
-            ("result", "plan_quality", "execution_timeline", "action_lifecycle", "replanning", "workflow_selection", "planner_selection")
-        })
+        expected_evidence_entries = (
+            "result",
+            "plan_quality",
+            "execution_timeline",
+            "action_lifecycle",
+            "replanning",
+            "workflow_selection",
+            "planner_selection",
+            "workflow_component_evidence",
+        )
+        entry_labels = (
+            "http",
+            "http_detail",
+            "sync_artifact",
+            "async",
+            "recovered",
+            "async_artifact",
+        )
+        for label, projection in zip(entry_labels, projections):
+            self.assertEqual(
+                tuple(projection["evidence_entry_ids"]),
+                expected_evidence_entries,
+                label,
+            )
         execution_projections = [
             _execution_workspace_projection(item)
             for item in (http_result, http_detail, sync_artifact, async_result, recovered, async_artifact)

@@ -9,6 +9,15 @@
 - 当前最大并发度为 5；阶段任务按依赖关系拆分，边界清晰的子任务可并行执行，共享契约由主线统一集成。
 - 后文早期阶段保留当时的并行度作为历史事实；它们不代表当前有效规则。
 
+## M220-B2：跨 Domain 组合证据与最小上下文恢复（当前切片）
+
+- Text Domain 新增声明式 `text_normalize`、`text_summary`、`text_stats` workflow catalog、组合 DAG、工具 schema/provider、结果注册、答案组合和动态 view；公共 Runtime、HTTP、Artifact、Async、SQLite recovery 均复用同一契约。
+- 新增公共 `workflow_component_evidence` 投影，统一记录组件状态、覆盖、时效、来源、冲突、重验和 fingerprint；Evidence Registry、workflow selection、异步、artifact 和恢复路径共享该入口。
+- GIS 自动发现的复合能力补充稳定 Domain-owned component identity，修复 HTTP 首次结果与 detail/artifact/recovery 的 Registry 漂移；没有新增固定问句或 GIS 专用 Runtime 分支。
+- 上下文恢复收敛为 `agent-context-current.md` + `scripts/resume_context.ps1`；默认历史文件数为 0，快照约束在 3KB 内，历史和源码按主题/预算读取。
+- Docker 验证：M158/M194/M195/M220 精简回归 **33/33**，`compileall` 通过；未调用 live 模型，不提交密钥、原始响应或真实 GIS 原始数据。
+- 下一阶段从项目全局规划，不以单一数据集为中心；候选方向是跨 Domain 动态组合发现、恢复/重验策略和显式真实模型 + 真实 GIS/Docker 验收闭环。
+
 ## 基础 Agent Runtime
 
 - M0：建立项目定位、设计基线、工具 schema 和评测用例。

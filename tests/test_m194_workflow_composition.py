@@ -141,15 +141,33 @@ class M194WorkflowCompositionTests(unittest.TestCase):
                 ["admin_boundary_query", "raster_metadata"],
             )
 
-    def test_text_domain_does_not_import_gis_component_templates(self):
-        with self.assertRaises(ValueError):
-            TextDomainPack().normalize_workflow(
-                {
-                    "components": [
-                        {"template_id": "text_summary", "constraints": {}}
-                    ]
-                }
-            )
+    def test_text_domain_owns_and_composes_text_templates(self):
+        workflow = TextDomainPack().normalize_workflow(
+            {
+                "components": [
+                    {
+                        "component_id": "normalize",
+                        "template_id": "text_normalize",
+                        "constraints": {"text": " 组合文本 "},
+                    },
+                    {
+                        "component_id": "summary",
+                        "template_id": "text_summary",
+                        "constraints": {"text": " 组合文本 "},
+                        "depends_on_components": ["normalize"],
+                    },
+                ]
+            }
+        )
+        plan = TextDomainPack().rule_planner().plan("组合文本", workflow=workflow)
+
+        self.assertEqual(plan.output["type"], "text_analysis_result")
+        self.assertEqual(
+            plan.output["component_template_ids"],
+            ["text_normalize", "text_summary"],
+        )
+        self.assertTrue(all("--" in step.id for step in plan.steps))
+        TextDomainPack().validate_workflow_plan(plan, workflow)
 
     def test_component_dependency_cycle_is_rejected(self):
         with self.assertRaises(WorkflowTemplateError):

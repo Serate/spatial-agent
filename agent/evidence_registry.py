@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .action_lifecycle import ACTION_LIFECYCLE_SCHEMA_VERSION, project_action_lifecycle
+from .component_evidence import WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION
 from .contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
 from .evidence_contract import DOMAIN_EVIDENCE_SCHEMA_VERSION
 from .execution_timeline import EXECUTION_TIMELINE_SCHEMA_VERSION, normalize_execution_timeline
@@ -41,6 +42,7 @@ _KNOWN_SCHEMA_VERSIONS = {
     REPLANNING_SCHEMA_VERSION,
     WORKFLOW_SELECTION_SCHEMA_VERSION,
     PLANNER_SELECTION_SCHEMA_VERSION,
+    WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION,
     DOMAIN_EVIDENCE_SCHEMA_VERSION,
 }
 
@@ -88,6 +90,30 @@ def build_evidence_registry(
             "result.planning.planner_selection",
         ),
     ][: _MAX_ENTRIES]
+    component_evidence = planning.get("workflow_component_evidence")
+    component_evidence_reference = "result.planning.workflow_component_evidence"
+    if not isinstance(component_evidence, Mapping):
+        component_evidence = selection.get("workflow_component_evidence")
+        component_evidence_reference = "result.planning.workflow_selection.workflow_component_evidence"
+    if (
+        isinstance(component_evidence, Mapping)
+        and component_evidence.get("schema_version")
+        == WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION
+        and len(entries) < _MAX_ENTRIES
+    ):
+        summary = component_evidence.get("summary")
+        summary = summary if isinstance(summary, Mapping) else {}
+        count = summary.get("component_count")
+        entries.append(
+            _entry(
+                "workflow_component_evidence",
+                WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION,
+                bool(component_evidence.get("available")),
+                "available" if component_evidence.get("available") else "unavailable",
+                component_evidence_reference,
+                count=count if isinstance(count, int) and not isinstance(count, bool) else None,
+            )
+        )
     for item in custom_entries or ():
         candidate = _custom_entry(result, item)
         if candidate is not None and len(entries) < _MAX_ENTRIES:
