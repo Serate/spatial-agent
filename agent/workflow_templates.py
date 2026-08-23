@@ -383,15 +383,27 @@ _CHINESE_LABEL = re.compile(r"[\u3400-\u9fff]")
 _SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
 
-def workflow_template_catalog() -> Dict[str, Dict[str, Any]]:
-    """Return an isolated JSON-safe copy of the built-in template directory."""
+def workflow_template_catalog(
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Return an isolated catalog copy.
 
-    return copy.deepcopy(WORKFLOW_TEMPLATE_CATALOG)
+    The built-in catalog remains a compatibility default for legacy callers;
+    Runtime/Domain integrations should pass an explicit Domain-owned catalog.
+    """
+
+    source = WORKFLOW_TEMPLATE_CATALOG if catalog is None else catalog
+    if not isinstance(source, Mapping):
+        raise WorkflowTemplateError("catalog must be an object")
+    return copy.deepcopy(dict(source))
 
 
 def workflow_template_context_summary(
     max_templates: Optional[int] = None,
     *,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    known_tools: Optional[Iterable[str]] = None,
+    known_result_types: Optional[Iterable[str]] = None,
     include_arg_shape: bool = True,
     compact: bool = False,
 ) -> Dict[str, Any]:
@@ -405,12 +417,16 @@ def workflow_template_context_summary(
 
     if max_templates is not None and max_templates < 1:
         raise ValueError("max_templates must be positive")
-    catalog = validate_workflow_template_catalog()
+    validated_catalog = validate_workflow_template_catalog(
+        catalog,
+        known_tools=known_tools,
+        known_result_types=known_result_types,
+    )
     templates = []
-    for index, template_id in enumerate(sorted(catalog)):
+    for index, template_id in enumerate(sorted(validated_catalog)):
         if max_templates is not None and index >= max_templates:
             break
-        template = catalog[template_id]
+        template = validated_catalog[template_id]
         steps = template.get("step_blueprint", [])
         step_summary = [
             {
@@ -451,9 +467,9 @@ def workflow_template_context_summary(
         templates.append(template_summary)
     return {
         "schema_version": "spatial-agent.workflow_templates.v1",
-        "template_count": len(catalog),
+        "template_count": len(validated_catalog),
         "returned_count": len(templates),
-        "omitted_count": max(0, len(catalog) - len(templates)),
+        "omitted_count": max(0, len(validated_catalog) - len(templates)),
         "templates": templates,
     }
 
@@ -493,13 +509,19 @@ def validate_workflow_template_catalog(
     return normalized
 
 
-def get_workflow_template(template_id: str) -> Dict[str, Any]:
-    """Return one built-in template, or raise for an unknown id."""
+def get_workflow_template(
+    template_id: str,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Return one catalog template, or raise for an unknown id."""
 
     if not isinstance(template_id, str) or not template_id.strip():
         raise WorkflowTemplateError("template id must be a non-empty string")
+    selected_catalog = WORKFLOW_TEMPLATE_CATALOG if catalog is None else catalog
+    if not isinstance(selected_catalog, Mapping):
+        raise WorkflowTemplateError("catalog must be an object")
     try:
-        template = WORKFLOW_TEMPLATE_CATALOG[template_id]
+        template = selected_catalog[template_id]
     except KeyError as exc:
         raise WorkflowTemplateError("unknown workflow template: " + template_id) from exc
     return copy.deepcopy(template)
@@ -619,6 +641,8 @@ def compile_workflow_plan(
     *,
     evidence: Optional[Iterable[str]] = None,
     catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    known_tools: Optional[Iterable[str]] = None,
+    known_result_types: Optional[Iterable[str]] = None,
     goal: Optional[str] = None,
     output_overrides: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -631,9 +655,17 @@ def compile_workflow_plan(
     """
 
     template_definition = _resolve_template(template, catalog)
-    normalized_template = validate_workflow_template(template_definition)
+    normalized_template = validate_workflow_template(
+        template_definition,
+        known_tools=known_tools,
+        known_result_types=known_result_types,
+    )
     normalized_constraints = normalize_workflow_constraints(
-        normalized_template, constraints
+        normalized_template,
+        constraints,
+        catalog=catalog,
+        known_tools=known_tools,
+        known_result_types=known_result_types,
     )
     step_blueprint = normalized_template.get("step_blueprint", [])
     if not step_blueprint:
@@ -659,11 +691,23 @@ def compile_workflow_plan(
         "template_version": normalized_template["version"],
         "goal": goal or normalized_template["goal_template"],
         "constraints": normalized_constraints,
-        "evidence": normalize_workflow_evidence(normalized_template, evidence),
+        "evidence": normalize_workflow_evidence(
+            normalized_template,
+            evidence,
+            catalog=catalog,
+            known_tools=known_tools,
+            known_result_types=known_result_types,
+        ),
         "steps": steps,
         "output": output,
     }
-    return validate_workflow_plan(normalized_template, plan)
+    return validate_workflow_plan(
+        normalized_template,
+        plan,
+        catalog=catalog,
+        known_tools=known_tools,
+        known_result_types=known_result_types,
+    )
 
 
 def normalize_workflow_composition(
@@ -760,6 +804,8 @@ def compile_workflow_composition(
     components: Iterable[Mapping[str, Any]],
     *,
     catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    known_tools: Optional[Iterable[str]] = None,
+    known_result_types: Optional[Iterable[str]] = None,
     output_type: str = "workflow_composition_result",
     goal: str = "compose selected workflow components",
     output_overrides: Optional[Mapping[str, Any]] = None,
@@ -769,9 +815,21 @@ def compile_workflow_composition(
     values = list(components) if isinstance(components, Iterable) and not isinstance(components, (str, bytes, Mapping)) else []
     if not values:
         raise WorkflowTemplateError("workflow composition requires components")
+    def normalize_component(component: Mapping[str, Any]) -> Mapping[str, Any]:
+        return normalize_workflow_selection(
+            str(component.get("template_id") or ""),
+            component.get("constraints")
+            if isinstance(component.get("constraints"), Mapping)
+            else {},
+            component.get("evidence"),
+            catalog=catalog,
+            known_tools=known_tools,
+            known_result_types=known_result_types,
+        )
+
     normalized = normalize_workflow_composition(
         {"components": values},
-        component_normalizer=None,
+        component_normalizer=normalize_component,
     )
     compiled: list[Dict[str, Any]] = []
     component_steps: Dict[str, list[Dict[str, Any]]] = {}
@@ -783,6 +841,8 @@ def compile_workflow_composition(
             component.get("constraints") if isinstance(component.get("constraints"), Mapping) else {},
             evidence=component.get("evidence"),
             catalog=catalog,
+            known_tools=known_tools,
+            known_result_types=known_result_types,
         )
         steps = []
         old_ids = {str(item["id"]): f"{prefix}--{item['id']}" for item in plan["steps"]}
@@ -933,23 +993,42 @@ def normalize_workflow_selection(
     template_id: str,
     constraints: Optional[Mapping[str, Any]] = None,
     evidence: Optional[Iterable[str]] = None,
+    *,
+    catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    known_tools: Optional[Iterable[str]] = None,
+    known_result_types: Optional[Iterable[str]] = None,
 ) -> Dict[str, Any]:
     """Normalize the user-selected template before a run is queued."""
 
-    template = get_workflow_template(template_id)
+    template = get_workflow_template(template_id, catalog=catalog)
     normalized_constraints = normalize_workflow_constraints(
-        template, {} if constraints is None else constraints
+        template,
+        {} if constraints is None else constraints,
+        catalog=catalog,
+        known_tools=known_tools,
+        known_result_types=known_result_types,
     )
     return {
         "template_id": template["id"],
         "template_version": template["version"],
         "constraints": normalized_constraints,
-        "evidence": normalize_workflow_evidence(template, evidence),
+        "evidence": normalize_workflow_evidence(
+            template,
+            evidence,
+            catalog=catalog,
+            known_tools=known_tools,
+            known_result_types=known_result_types,
+        ),
     }
 
 
 def workflow_request_hint(request: str, workflow: Optional[Mapping[str, Any]]) -> str:
-    """Add bounded, human-readable workflow context to the planner input."""
+    """Add bounded, domain-neutral workflow context to planner input.
+
+    Domain-specific labels and parsing belong to the active Domain Pack. This
+    compatibility helper only forwards safe, bounded constraint key/value
+    pairs, so a non-GIS Domain can reuse it without inheriting GIS vocabulary.
+    """
 
     if not workflow:
         return request
@@ -958,33 +1037,11 @@ def workflow_request_hint(request: str, workflow: Optional[Mapping[str, Any]]) -
     constraints = workflow.get("constraints", {})
     if not isinstance(constraints, Mapping):
         raise WorkflowTemplateError("workflow.constraints must be an object")
-    template_id = workflow.get("template_id", "")
     parts = []
-    if constraints.get("admin_name"):
-        parts.append("行政区=" + str(constraints["admin_name"]))
-    if constraints.get("dataset"):
-        parts.append("数据集=" + str(constraints["dataset"]))
-    if constraints.get("slope_limit_degrees") is not None:
-        parts.append("坡度不超过{}度".format(constraints["slope_limit_degrees"]))
-    if constraints.get("road_distance_m") is not None:
-        parts.append("道路距离{}米".format(constraints["road_distance_m"]))
-    if constraints.get("exclude_water"):
-        parts.append("排除水体")
-    if constraints.get("include_geometry") is False:
-        parts.append("不需要空间几何导出")
-    known_keys = {
-        "admin_name",
-        "dataset",
-        "slope_limit_degrees",
-        "road_distance_m",
-        "exclude_water",
-        "include_geometry",
-    }
     for key, value in constraints.items():
         key_text = str(key or "").strip()[:64]
         if (
             not key_text
-            or key_text in known_keys
             or not re.fullmatch(r"[A-Za-z0-9_.-]+", key_text)
             or any(token in key_text.lower() for token in ("password", "secret", "token", "credential", "api_key"))
         ):
@@ -994,13 +1051,7 @@ def workflow_request_hint(request: str, workflow: Optional[Mapping[str, Any]]) -
             parts.append("{}={}".format(key_text, safe_value))
     if not parts:
         return request
-    label = {
-        "admin_boundary_query": "行政区边界查询",
-        "raster_metadata": "栅格元数据查询",
-        "spatial_overview": "区域空间总览",
-        "constrained_buildability": "道路与水体约束筛选",
-    }.get(str(template_id), "受控空间工作流")
-    return "{}\n[{}参数：{}]".format(request.strip(), label, "；".join(parts))
+    return "{}\n[workflow parameters: {}]".format(request.strip(), "；".join(parts))
 
 
 def _workflow_hint_value(value: Any) -> str | None:

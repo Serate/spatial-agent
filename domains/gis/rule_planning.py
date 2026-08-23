@@ -13,7 +13,7 @@ from agent.models import PlanStep, TaskPlan
 from agent.workflow_templates import (
     compile_workflow_composition,
     compile_workflow_plan,
-    get_workflow_template,
+    workflow_template_catalog,
 )
 
 from .request_model import SpatialRequest
@@ -38,6 +38,7 @@ class RuleBasedPlanComposer:
 
     def __init__(self, router: Optional[GisCapabilityRouter] = None) -> None:
         self.router = router or GisCapabilityRouter()
+        self._workflow_catalog = workflow_template_catalog()
         self._builders: Dict[str, Builder] = {
             "dataset_health": self._build_health,
             "spatial_analysis": self._build_composed,
@@ -89,6 +90,7 @@ class RuleBasedPlanComposer:
         if isinstance(workflow.get("components"), (list, tuple)):
             compiled = compile_workflow_composition(
                 workflow["components"],
+                catalog=self._workflow_catalog,
                 output_type="spatial_analysis_result",
                 goal="compose selected spatial workflow components",
                 output_overrides={
@@ -138,6 +140,7 @@ class RuleBasedPlanComposer:
             template_id,
             constraints,
             evidence=selected_evidence,
+            catalog=self._workflow_catalog,
             output_overrides=output_overrides,
         )
         steps = [
@@ -156,14 +159,14 @@ class RuleBasedPlanComposer:
             list(compiled.get("assumptions", [])),
         )
 
-    @staticmethod
     def _template_evidence(
+        self,
         template_id: str,
         evidence: Optional[Iterable[str]],
     ) -> Optional[List[str]]:
         if evidence is None:
             return None
-        allowed = set(get_workflow_template(template_id).get("evidence_options", []))
+        allowed = set(self._workflow_catalog.get(template_id, {}).get("evidence_options", []))
         selected = [item for item in evidence if item in allowed]
         return selected or None
 

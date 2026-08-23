@@ -14,6 +14,7 @@ from .domain_contract import (
     DomainPack,
     default_permissions,
     planner_guidance,
+    planner_request_hint,
     rule_planner as resolve_rule_planner,
 )
 from .domain_registry import resolve_domain_pack
@@ -54,6 +55,7 @@ def build_runtime(
             OpenAIPlannerClient(**load_openai_config()),
             registry.names,
             planner_guidance=planner_guidance(selected_domain_pack),
+            request_hint=planner_request_hint(selected_domain_pack),
         )
     else:
         planner = resolve_rule_planner(selected_domain_pack) or RuleBasedPlanner()

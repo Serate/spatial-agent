@@ -16,6 +16,7 @@
 
 - 总目标：建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
 - M217 已完成并推送：`6ba9b2e feat: complete M217 turn and artifact contracts`；M218 已完成并推送 `2466a87 docs: close M218 and plan M219`。
+- M219 已完成并推送：`33a4b6e docs: close M219 and bound context recovery`。
 - Docker：`ai-agent-spatial-agent-1`；Python、compileall 和阶段测试默认在 Docker 中运行。
 - 工作树应保持干净；不得提交 API key、`.env.production`、原始模型响应、原始 GIS 数据或仓库外 evidence。
 
@@ -38,12 +39,18 @@
 - 开放式能力发现、未知能力澄清、缺失事实、坏 schema 拒绝/有限修复和 GIS/Text 隔离已验证；未新增固定问句分支。
 - Docker 精简回归 35/35；通用 Console nested schema 与 Evidence Registry smoke 2/2。
 
-## 当前唯一工作切片：M220
+## M220-A 已完成（当前改造切片）
 
-1. 验证多能力 workflow/DAG、Planner 替换、工具治理和统一 Result/Evidence/生命周期边界。
-2. 让数据覆盖/时效/来源/冲突成为通用 Evidence Provider 状态，驱动澄清、阻断或有限恢复。
-3. 用脱敏 replay 与一次 live-short 验证组合计划、工具失败、repair、同步/Async/SQLite/Artifact 恢复的一致性。
-4. 用一个精简跨入口 contract harness 和通用 Console smoke 收口，不增加 GIS 专用分支。
+- Domain-owned workflow catalog/request-hint seam 已接入；公共编译/组合/校验支持显式 catalog 和工具/结果 allowlist。
+- Runtime 不再执行 GIS 模板 fallback；模板上下文按候选过滤，LLM Planner 通过 Domain 注入 hint。
+- Docker 相关回归 84/84，compileall 通过；旧 GIS catalog 仍保留为兼容默认，物理下沉尚未完成。
+
+## 当前唯一工作切片：M220-B
+
+1. 将 GIS catalog/allowlist 物理下沉到 GIS Domain，HTTP validate/revise 和 Runtime 统一显式注入目录。
+2. 让两个 Domain 的组合能力完成发现、预览、执行、Artifact/SQLite 恢复和结果/evidence 一致性。
+3. 把组合组件的数据覆盖、时效、来源、冲突和重验状态接入通用恢复动作。
+4. 用精简跨入口 harness、Docker/HTTP/Console 和显式 replay/live 收口，不增加 GIS 专用页面或固定问句分支。
 
 ## 不变量
 

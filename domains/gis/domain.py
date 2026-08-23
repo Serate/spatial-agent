@@ -169,12 +169,16 @@ class GisDomainPack:
             capability_definitions=GIS_CAPABILITIES,
             dataset_tool_capabilities=GIS_DATASET_TOOL_CAPABILITIES,
             dataset_groups=GIS_DATASET_GROUPS,
-            workflow_templates=workflow_template_catalog(),
+            workflow_templates=self.workflow_template_catalog(),
             actions=domain_action_catalog(self),
         )
         result = dict(catalog)
         result["domain_id"] = self.domain_id
         return result
+
+    def workflow_template_catalog(self) -> Mapping[str, Mapping[str, Any]]:
+        """Return the GIS-owned declarative workflow catalog."""
+        return workflow_template_catalog()
 
     def discover(self, request: str, request_facts: Any) -> Any:
         from .routing import GisCapabilityRouter
@@ -276,6 +280,8 @@ class GisDomainPack:
         if not isinstance(workflow, Mapping):
             raise ValueError("workflow must be an object")
         if isinstance(workflow.get("components"), (list, tuple)):
+            catalog = self.workflow_template_catalog()
+
             def normalize_component(component: Mapping[str, Any]) -> Mapping[str, Any]:
                 template_id = str(component.get("template_id") or "").strip()
                 if not template_id:
@@ -286,6 +292,7 @@ class GisDomainPack:
                     if isinstance(component.get("constraints"), Mapping)
                     else {},
                     component.get("evidence"),
+                    catalog=catalog,
                 )
 
             return normalize_workflow_composition(
@@ -300,6 +307,7 @@ class GisDomainPack:
             template_id.strip(),
             workflow.get("constraints", {}),
             workflow.get("evidence"),
+            catalog=self.workflow_template_catalog(),
         )
 
     def validate_workflow_plan(
@@ -309,6 +317,7 @@ class GisDomainPack:
     ) -> None:
         """Validate a generated plan against the GIS-owned template catalog."""
         from agent.workflow_templates import validate_workflow_plan
+        catalog = self.workflow_template_catalog()
 
         if not isinstance(workflow, Mapping):
             raise WorkflowTemplateError("workflow selection is incomplete")
@@ -321,6 +330,7 @@ class GisDomainPack:
                     if isinstance(component.get("constraints"), Mapping)
                     else {},
                     component.get("evidence"),
+                    catalog=catalog,
                 )
 
             normalize_workflow_composition(
@@ -354,7 +364,7 @@ class GisDomainPack:
             "output": dict(plan.output),
             "assumptions": list(plan.assumptions),
         }
-        validate_workflow_plan(str(template_id), payload)
+        validate_workflow_plan(str(template_id), payload, catalog=catalog)
 
     def resolve_capability_selection(
         self,
@@ -371,7 +381,7 @@ class GisDomainPack:
         template_id = aliases.get(
             str(capability_id or "").strip(), str(capability_id or "").strip()
         )
-        if template_id not in workflow_template_catalog():
+        if template_id not in self.workflow_template_catalog():
             return None
         return {"template_id": template_id, "constraints": {}, "evidence": []}
 
@@ -382,6 +392,7 @@ class GisDomainPack:
         compact: bool = True,
     ) -> Mapping[str, Any]:
         return workflow_template_context_summary(
+            catalog=self.workflow_template_catalog(),
             include_arg_shape=include_arg_shape,
             compact=compact,
         )
@@ -390,6 +401,16 @@ class GisDomainPack:
         from .planner_guidance import GIS_PLANNER_GUIDANCE
 
         return GIS_PLANNER_GUIDANCE
+
+    def planner_request_hint(
+        self,
+        request: str,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Format GIS workflow facts at the GIS Domain seam."""
+        from agent.workflow_templates import workflow_request_hint
+
+        return workflow_request_hint(request, workflow)
 
     def validate_plan(self, plan: Any) -> None:
         """Apply the selected GIS workflow's bounded tool policy.
@@ -410,7 +431,7 @@ class GisDomainPack:
         )
         if isinstance(component_ids, list) and component_ids:
             templates = [
-                workflow_template_catalog().get(str(item))
+                self.workflow_template_catalog().get(str(item))
                 for item in component_ids[:8]
             ]
             templates = [item for item in templates if isinstance(item, Mapping)]
@@ -439,7 +460,7 @@ class GisDomainPack:
                 return
         candidates = [
             template
-            for template in workflow_template_catalog().values()
+            for template in self.workflow_template_catalog().values()
             if output_type in (template.get("result_types") or [])
             and template.get("step_blueprint")
         ]
@@ -475,7 +496,7 @@ class GisDomainPack:
         """
         output = getattr(plan, "output", None)
         output_type = output.get("type") if isinstance(output, Mapping) else None
-        catalog = workflow_template_catalog()
+        catalog = self.workflow_template_catalog()
         components = workflow.get("components") if isinstance(workflow, Mapping) else None
         if isinstance(components, list) and components:
             selected_templates = [

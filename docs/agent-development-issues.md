@@ -5263,3 +5263,17 @@ selection projection 现在复用 `normalize_action_receipt()` 和 `project_repa
 ### 处理与预防
 
 新增领域无关的复杂结果投影，只比较状态、结果类型、工具标识序列和 evidence entry IDs，并覆盖 HTTP、同步 Artifact、async、SQLite restart 和 Artifact recovery；不比较原始模型响应、私有路径或完整 GIS payload。以后新增复杂开放式验收必须同时声明 `expected_tools`、`expected_result_type` 和跨入口 evidence equality，避免把单入口成功当成 Runtime 闭环证据。
+
+## M220-A：公共工作流校验器默认携带 GIS 目录并侵入 Runtime
+
+### 现象
+
+通用 `agent/workflow_templates.py` 同时承担工作流校验器和 GIS 工具/结果目录；Runtime 的旧兼容路径、通用 planner hint 和部分编译调用因此会隐式使用 GIS 模板。第二个 Domain 即使有自己的能力目录，也无法只通过显式 catalog 完成组合编译和验证。
+
+### 根因
+
+工作流目录没有被建模为 Domain-owned adapter，公共函数的 `catalog`、工具 allowlist 和结果类型 allowlist参数不完整；Runtime 为兼容旧 Domain 保留了模板级 GIS fallback，导致领域策略泄漏到公共编排层。
+
+### 处理与预防
+
+新增 `DomainPack.workflow_template_catalog()` 与 `planner_request_hint()` seam；工作流 context、normalize、compile、composition 和 validate 支持显式 `catalog + known_tools + known_result_types`。Runtime 删除 GIS 模板兜底，通用 LLM Planner 只消费注入的 Domain hint；未选模板时先按候选过滤上下文，避免完整目录挤掉其他证据。旧内置 GIS 目录暂作为兼容默认保留，但不再是 Runtime 默认执行路径；后续继续将其物理下沉到 GIS Domain，并让 HTTP workflow contract 显式注入目录。

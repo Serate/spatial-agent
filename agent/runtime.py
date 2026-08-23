@@ -71,10 +71,6 @@ from .replanning import (
 from .request_model import RequestFacts
 from .runtime_context import build_runtime_context
 from .tools import ToolRegistry
-from .workflow_templates import (
-    WorkflowTemplateError,
-    validate_workflow_plan,
-)
 
 
 class InMemoryStateStore:
@@ -1499,10 +1495,6 @@ class AgentRuntime:
             workflow_validator = getattr(self._domain_pack, "validate_workflow_plan", None)
             if callable(workflow_validator):
                 workflow_validator(plan, workflow)
-            else:
-                # Compatibility path for legacy Domain Packs that predate the
-                # Domain-owned workflow validation seam.
-                _validate_runtime_workflow_plan(plan, workflow)
         domain_validator = getattr(self._domain_pack, "validate_plan", None)
         if callable(domain_validator):
             domain_validator(plan)
@@ -1898,38 +1890,6 @@ class AgentRuntime:
                     failed_step_id, reason
                 )
 
-def _validate_runtime_workflow_plan(
-    plan: TaskPlan, workflow: Mapping[str, Any]
-) -> None:
-    """Recheck planner output against the selected workflow before execution."""
-
-    try:
-        template_id = workflow["template_id"]
-        constraints = workflow["constraints"]
-        evidence = workflow["evidence"]
-    except (KeyError, TypeError) as exc:
-        raise WorkflowTemplateError("workflow selection is incomplete") from exc
-    payload = {
-        "template_id": template_id,
-        "template_version": workflow.get("template_version"),
-        "goal": plan.goal,
-        "constraints": constraints,
-        "evidence": evidence,
-        "steps": [
-            {
-                "id": step.id,
-                "tool": step.tool,
-                "args": step.args,
-                "depends_on": list(step.depends_on),
-            }
-            for step in plan.steps
-        ],
-        "output": dict(plan.output),
-        "assumptions": list(plan.assumptions),
-    }
-    validate_workflow_plan(template_id, payload)
-
-
 def _plan_to_dict(plan: TaskPlan) -> Dict[str, Any]:
     return {
         "goal": plan.goal,
@@ -2032,31 +1992,42 @@ def _compact_workflow_templates_for_context(
     templates: Mapping[str, Any],
     selection: Mapping[str, Any],
 ) -> Mapping[str, Any]:
-    """Keep the selected template deep while retaining catalog counts."""
+    """Keep only matching templates so the catalog cannot consume the budget.
+
+    The planner already receives capability candidates and result types. When
+    no template is selected, an empty but structured template list is more
+    useful than allowing the whole section to be omitted by ContextBuilder.
+    """
     if not isinstance(templates, Mapping) or not isinstance(selection, Mapping):
         return templates
-    if str(selection.get("state") or "") != "selected":
-        return templates
-    selected_id = str(
-        selection.get("workflow_template_id")
-        or selection.get("selected_capability_id")
-        or ""
-    )
     values = templates.get("templates")
-    if not selected_id or not isinstance(values, list) or len(values) <= 1:
+    if not isinstance(values, list) or len(values) <= 1:
         return templates
+    selected_ids = []
+    for value in (
+        selection.get("workflow_template_id"),
+        selection.get("selected_capability_id"),
+    ):
+        text = str(value or "").strip()
+        if text and text not in selected_ids:
+            selected_ids.append(text)
+    candidates = selection.get("candidate_workflow_ids")
+    if isinstance(candidates, list):
+        for value in candidates[:8]:
+            text = str(value or "").strip()
+            if text and text not in selected_ids:
+                selected_ids.append(text)
     selected = [
         item
         for item in values
         if isinstance(item, Mapping)
-        and str(item.get("id") or "") == selected_id
-    ]
-    if not selected:
-        return templates
+        and str(item.get("id") or "") in selected_ids
+    ][:2]
     compact = dict(templates)
-    compact["templates"] = selected[:1]
-    compact["returned_count"] = 1
-    compact["omitted_count"] = max(0, len(values) - 1)
+    compact["templates"] = selected
+    compact["returned_count"] = len(selected)
+    compact["omitted_count"] = max(0, len(values) - len(selected))
+    compact["selection_filtered"] = True
     return compact
 
 

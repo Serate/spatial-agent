@@ -180,8 +180,18 @@ class DomainPack(Protocol):
     ) -> Mapping[str, Any]:
         """Return the domain-owned planner workflow context."""
 
+    def workflow_template_catalog(self) -> Mapping[str, Mapping[str, Any]]:
+        """Return the Domain-owned workflow catalog used for validation."""
+
     def planner_guidance(self) -> Mapping[str, Any]:
         """Return bounded domain vocabulary and planner policy."""
+
+    def planner_request_hint(
+        self,
+        request: str,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> str:
+        """Optionally enrich planner input with Domain-owned workflow facts."""
 
     def validate_plan(self, plan: Any) -> None:
         """Optionally validate a plan against Domain-owned capability policy.
@@ -355,6 +365,22 @@ def workflow_context(domain_pack: DomainPack) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
+def workflow_catalog(domain_pack: DomainPack) -> dict[str, dict[str, Any]]:
+    """Read an optional Domain-owned workflow catalog without a GIS fallback."""
+
+    method = getattr(domain_pack, "workflow_template_catalog", None)
+    if not callable(method):
+        return {}
+    value = method()
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): deepcopy(dict(item))
+        for key, item in value.items()
+        if isinstance(item, Mapping)
+    }
+
+
 def planner_guidance(domain_pack: DomainPack) -> dict[str, Any]:
     """Read planner policy through the Domain Pack seam without GIS fallback."""
     from .planner_guidance import normalize_planner_guidance
@@ -362,6 +388,18 @@ def planner_guidance(domain_pack: DomainPack) -> dict[str, Any]:
     method = getattr(domain_pack, "planner_guidance", None)
     value = method() if callable(method) else {}
     return normalize_planner_guidance(value)
+
+
+def planner_request_hint(domain_pack: DomainPack):
+    """Return an optional Domain-owned request hint adapter.
+
+    The generic LLM Planner does not interpret workflow constraints. A Domain
+    may provide a bounded formatter; absent that seam, the original request is
+    sent unchanged.
+    """
+
+    method = getattr(domain_pack, "planner_request_hint", None)
+    return method if callable(method) else None
 
 
 def request_understanding_guidance(domain_pack: DomainPack) -> dict[str, Any]:

@@ -221,6 +221,10 @@ class TextDomainPack:
     ) -> Mapping[str, Any]:
         return {}
 
+    def workflow_template_catalog(self) -> Mapping[str, Mapping[str, Any]]:
+        """Text currently exposes no declarative workflow templates."""
+        return {}
+
     def planner_guidance(self) -> Mapping[str, Any]:
         from .planner_guidance import TEXT_PLANNER_GUIDANCE
 
