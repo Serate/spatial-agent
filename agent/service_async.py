@@ -29,6 +29,7 @@ from agent.plan_identity import normalize_plan_identity
 from agent.evidence_revalidation import normalize_evidence_binding
 from agent.sqlite_store import SQLiteStateStore
 from agent.nested_schema import NestedSchemaError, validate_async_nested_sections
+from agent.nested_schema import normalize_domain_routing_evidence_contract
 from agent.plan_quality import project_plan_quality_evidence
 from agent.action_precondition import (
     normalize_action_preconditions,
@@ -155,6 +156,11 @@ def build_async_observability(
         "available": False,
         "state": "pending" if status in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"} else "unavailable",
         "status": status,
+        "domain_routing_evidence": normalize_domain_routing_evidence_contract(
+            (job.get("payload") or {}).get("domain_routing_evidence")
+            if isinstance(job.get("payload"), Mapping)
+            else None
+        ),
     }
     context = result.runtime_context if result is not None else None
     if context is None:
@@ -282,6 +288,10 @@ def build_async_result_evidence(
         "request_identity": request_identity,
         "conversation_turn": normalize_conversation_turn(
             value.get("conversation_turn")
+        ),
+        "domain_routing_evidence": normalize_domain_routing_evidence_contract(
+            value.get("domain_routing_evidence"),
+            expected_domain_id=value.get("domain_id"),
         ),
         "degradation_status": degradation_status,
         "workspace": {
@@ -521,6 +531,10 @@ def normalize_async_result_evidence(
         "request_identity": request_identity,
         "conversation_turn": normalize_conversation_turn(
             value.get("conversation_turn")
+        ),
+        "domain_routing_evidence": normalize_domain_routing_evidence_contract(
+            value.get("domain_routing_evidence"),
+            expected_domain_id=value.get("domain_id"),
         ),
         "degradation_status": str(value.get("degradation_status") or "none")[:32],
         "workspace": {

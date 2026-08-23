@@ -107,6 +107,7 @@ class M225DomainEntrypointTests(unittest.TestCase):
         self.assertTrue(
             {
                 ("GET", "/domain-routing/catalog"),
+                ("GET", "/domain-routing/metrics"),
                 ("POST", "/domain-routing/select"),
                 (
                     "POST",
@@ -250,6 +251,10 @@ class M225DomainEntrypointTests(unittest.TestCase):
                 "/runs/auto",
                 {"request": "查询DEM栅格元数据", "session_id": "text-session"},
             )
+            metrics_status, routing_metrics = request(
+                "GET",
+                "/domain-routing/metrics",
+            )
         finally:
             server.shutdown()
             server.server_close()
@@ -293,6 +298,16 @@ class M225DomainEntrypointTests(unittest.TestCase):
         self.assertEqual((after_clear_status, after_clear["domain_id"]), (200, "text"))
         self.assertEqual(delete_status, 200)
         self.assertEqual((after_delete_status, after_delete["domain_id"]), (200, "gis"))
+        self.assertEqual(metrics_status, 200)
+        self.assertEqual(
+            routing_metrics["schema_version"],
+            "spatial-agent.domain-routing-metrics.v1",
+        )
+        self.assertGreater(routing_metrics["selection_count"], 0)
+        self.assertNotIn(
+            "查询DEM栅格元数据",
+            json.dumps(routing_metrics, ensure_ascii=False),
+        )
         self.assertEqual(
             [(item[0], item[1]) for item in host.calls],
             [

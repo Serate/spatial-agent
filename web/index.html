@@ -1042,6 +1042,51 @@
         ? window.ConsoleDecisionEvidence.normalize(data)
         : {status: '', visible: false, repair: {state: 'unavailable'}, rejection: {state: 'not_applicable'}, clarification: {state: 'not_applicable'}};
     }
+    const DOMAIN_ROUTING_EVIDENCE_SCHEMA='spatial-agent.domain-routing-evidence.v1';
+    function domainRoutingEvidenceSource(data) {
+      const result=data?.result;
+      if(result&&typeof result==='object'&&Object.prototype.hasOwnProperty.call(result,'domain_routing_evidence')) return {present:true,value:result.domain_routing_evidence,source:'result'};
+      if(data&&typeof data==='object'&&Object.prototype.hasOwnProperty.call(data,'domain_routing_evidence')) return {present:true,value:data.domain_routing_evidence,source:'alias'};
+      return {present:false,value:null,source:''};
+    }
+    function routingEvidenceText(value,fallback='-',limit=128) {
+      const text=(typeof value==='string'||typeof value==='number')?String(value).replace(/[\u0000-\u001f\u007f]/g,' ').trim():'';
+      return (text||fallback).slice(0,limit);
+    }
+    function normalizeDomainRoutingEvidence(data) {
+      const source=domainRoutingEvidenceSource(data);
+      const unavailable=reason=>({present:source.present,available:false,state:'unavailable',reason,schema_version:null,source:source.source,decision:{},lineage:{events:[]},binding:{},observability:{},candidates:[]});
+      if(!source.present) return {present:false,available:false,state:'missing',reason:'',schema_version:null,source:'',decision:{},lineage:{events:[]},binding:{},observability:{},candidates:[]};
+      const raw=source.value;
+      if(!raw||typeof raw!=='object'||Array.isArray(raw)) return unavailable('领域路由证据不是有效对象，暂时无法安全展示。');
+      if(raw.schema_version!==DOMAIN_ROUTING_EVIDENCE_SCHEMA) return unavailable(raw.schema_version?'领域路由证据使用未知 schema，暂时无法安全展示。':'领域路由证据缺少 schema，暂时无法安全展示。');
+      if(raw.available!==true) return unavailable('领域路由证据不可用：'+routingEvidenceText(raw.reason_code,'未提供原因',96));
+      const decision=raw.decision, lineage=raw.lineage, binding=raw.binding, observability=raw.observability;
+      if(!decision||typeof decision!=='object'||!lineage||typeof lineage!=='object'||!binding||typeof binding!=='object'||!observability||typeof observability!=='object'||!Array.isArray(raw.candidates)||!Array.isArray(lineage.events)) return unavailable('领域路由证据结构不完整，暂时无法安全展示。');
+      const events=lineage.events.slice(0,8).filter(item=>item&&typeof item==='object').map(item=>({
+        decision_id:routingEvidenceText(item.decision_id),parent_decision_id:routingEvidenceText(item.parent_decision_id,''),status:routingEvidenceText(item.status,'unknown'),reason_code:routingEvidenceText(item.reason_code,'unknown'),selector_id:routingEvidenceText(item.selector_id,'unknown'),selected_domain_id:routingEvidenceText(item.selected_domain_id,''),selection_source:routingEvidenceText(item.selection_source,''),
+      }));
+      return {
+        present:true,available:true,state:'available',schema_version:DOMAIN_ROUTING_EVIDENCE_SCHEMA,source:source.source,
+        decision:{decision_id:routingEvidenceText(decision.decision_id),parent_decision_id:routingEvidenceText(decision.parent_decision_id,''),reason_code:routingEvidenceText(decision.reason_code,'unknown'),selector_id:routingEvidenceText(decision.selector_id,'unknown'),selected_domain_id:routingEvidenceText(decision.selected_domain_id),selection_source:routingEvidenceText(decision.selection_source,'unknown')},
+        lineage:{events,root:routingEvidenceText(lineage.root_decision_id??lineage.root),current:routingEvidenceText(lineage.current_decision_id??lineage.current),truncated:lineage.truncated===true},
+        binding:{state:routingEvidenceText(binding.state,'unknown'),run_id:routingEvidenceText(binding.run_id),domain_id:routingEvidenceText(binding.domain_id)},
+        observability:{selector_mode:routingEvidenceText(observability.selector_mode,'unknown'),candidate_count:Number.isInteger(observability.candidate_count)?Math.max(0,observability.candidate_count):raw.candidates.length,fallback_reason:routingEvidenceText(observability.fallback_reason,''),selector_latency_ms:typeof observability.selector_latency_ms==='number'&&Number.isFinite(observability.selector_latency_ms)?Math.max(0,observability.selector_latency_ms):null},
+        candidates:raw.candidates.slice(0,8).filter(item=>item&&typeof item==='object').map(item=>({domain_id:routingEvidenceText(item.domain_id)})),
+      };
+    }
+    function renderDomainRoutingEvidence(data) {
+      const model=normalizeDomainRoutingEvidence(data);
+      if(!model.present) return '';
+      if(!model.available) return '<div class="decision-evidence" data-domain-routing-evidence-state="unavailable"><div class="decision-evidence-head"><strong>领域路由证据</strong><span>不可用</span></div><div class="decision-evidence-grid"><section class="decision-evidence-card" data-domain-routing-evidence-card><h4>路由证据不可用</h4><p>'+escapeHtml(model.reason)+'</p></section></div></div>';
+      const decision=model.decision,lineage=model.lineage,binding=model.binding,observation=model.observability;
+      const parent=decision.parent_decision_id?' · 父决策 '+escapeHtml(decision.parent_decision_id):'';
+      const fallback=observation.fallback_reason?' · fallback '+escapeHtml(observation.fallback_reason):'';
+      const latency=observation.selector_latency_ms===null?'':' · '+escapeHtml(observation.selector_latency_ms)+' ms';
+      const candidates=model.candidates.length?model.candidates.map(item=>'<code>'+escapeHtml(item.domain_id)+'</code>').join('、'):'无';
+      const eventRows=lineage.events.map((item,index)=>'<li>#'+escapeHtml(index+1)+' '+escapeHtml(item.decision_id)+' · '+escapeHtml(item.status)+' · '+escapeHtml(item.reason_code)+(item.selected_domain_id?' · '+escapeHtml(item.selected_domain_id)+' / '+escapeHtml(item.selection_source):'')+'</li>').join('');
+      return '<div class="decision-evidence" data-domain-routing-evidence-state="available" data-schema-version="'+DOMAIN_ROUTING_EVIDENCE_SCHEMA+'"><div class="decision-evidence-head"><strong>领域路由证据</strong><span>结构化执行绑定</span></div><div class="decision-evidence-grid"><section class="decision-evidence-card" data-domain-routing-evidence-card><h4>路由决策</h4><div>'+escapeHtml(decision.decision_id)+parent+'</div><p>'+escapeHtml(decision.reason_code)+' · '+escapeHtml(decision.selector_id)+' → '+escapeHtml(decision.selected_domain_id)+' · '+escapeHtml(decision.selection_source)+'</p></section><section class="decision-evidence-card"><h4>执行绑定与观测</h4><div>'+escapeHtml(binding.state)+' · '+escapeHtml(binding.domain_id)+' · '+escapeHtml(binding.run_id)+'</div><p>'+escapeHtml(observation.selector_mode)+' · 候选 '+escapeHtml(observation.candidate_count)+latency+fallback+'</p><p>候选领域：'+candidates+'</p></section><section class="decision-evidence-card"><h4>决策 lineage</h4><div>'+escapeHtml(lineage.root)+' → '+escapeHtml(lineage.current)+' · '+escapeHtml(lineage.events.length)+' 个事件'+(lineage.truncated?' · 已截断':'')+'</div>'+(eventRows?'<ul>'+eventRows+'</ul>':'<p>没有可读 lineage 事件。</p>')+'</section></div></div>';
+    }
     function normalizeSelectionInteraction(data) {
       const source=(data?.result||{}).selection_interaction||data?.selection_interaction;
       return (window.ConsoleSelectionInteraction && typeof window.ConsoleSelectionInteraction.normalize === 'function')
@@ -1182,13 +1227,13 @@
       return true;
     }
     function renderDecisionEvidence(data) {
-      if (!window.ConsoleDecisionEvidence || typeof window.ConsoleDecisionEvidence.render !== 'function') return '';
-      const html=window.ConsoleDecisionEvidence.render(data).html || '';
+      const routingHtml=renderDomainRoutingEvidence(data);
+      const html=(window.ConsoleDecisionEvidence && typeof window.ConsoleDecisionEvidence.render === 'function')?(window.ConsoleDecisionEvidence.render(data).html||''):'';
       const decision=data.decision_evidence||data.result?.decision||{};
       const actions=Array.isArray(decision.allowed_actions)?decision.allowed_actions:[];
-      if(data.status!=='WAITING_FOR_DECISION'||!decision.decision_id||!actions.includes('approve')) return html;
+      if(data.status!=='WAITING_FOR_DECISION'||!decision.decision_id||!actions.includes('approve')) return html+routingHtml;
       const id=escapeHtml(decision.decision_id), version=escapeHtml(decision.version??'');
-      return html+'<div class="decision-action-bar"><span>计划已生成，执行前需要你的确认。</span><button type="button" class="primary" onclick="resolveRunDecision(\''+id+'\',\'approve\','+JSON.stringify(decision.version??null)+')">批准执行</button><button type="button" class="secondary" onclick="resolveRunDecision(\''+id+'\',\'reject\','+JSON.stringify(decision.version??null)+')">拒绝执行</button><small>计划指纹：'+escapeHtml(String(decision.plan_fingerprint||'').slice(0,32))+'</small></div>';
+      return html+routingHtml+'<div class="decision-action-bar"><span>计划已生成，执行前需要你的确认。</span><button type="button" class="primary" onclick="resolveRunDecision(\''+id+'\',\'approve\','+JSON.stringify(decision.version??null)+')">批准执行</button><button type="button" class="secondary" onclick="resolveRunDecision(\''+id+'\',\'reject\','+JSON.stringify(decision.version??null)+')">拒绝执行</button><small>计划指纹：'+escapeHtml(String(decision.plan_fingerprint||'').slice(0,16))+'</small></div>';
     }
     function dockWorkspaceControls() {
       const controls = $('workspaceControls');
@@ -1231,7 +1276,7 @@
       $('resultEmpty').style.display = hasRun ? 'none' : 'flex';
       setResultPanel('.common-result', hasRun);
       setResultPanel('.evidence-result', hasRun);
-      setResultPanel('.decision-evidence-result', hasRun && normalizeDecisionEvidence(data).visible);
+      setResultPanel('.decision-evidence-result', hasRun && (normalizeDecisionEvidence(data).visible||domainRoutingEvidenceSource(data).present));
       setResultPanel('.generic-result', false);
       setResultPanel('.map-result', false);
     }

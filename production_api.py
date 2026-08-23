@@ -187,6 +187,11 @@ def domain_routing_catalog() -> Dict[str, Any]:
     return domain_routing.catalog()
 
 
+@app.get("/domain-routing/metrics")
+def domain_routing_metrics() -> Dict[str, Any]:
+    return domain_routing.metrics()
+
+
 @app.post("/domain-routing/select")
 def select_domain(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:

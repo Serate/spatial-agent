@@ -63,6 +63,9 @@ from agent.evidence_revalidation import (
     normalize_evidence_binding as _normalize_evidence_binding,
     normalize_evidence_revalidation as _normalize_evidence_revalidation,
 )
+from agent.domain_routing_evidence import (
+    normalize_domain_routing_evidence as _normalize_domain_routing_evidence,
+)
 
 
 @dataclass(frozen=True)
@@ -104,6 +107,39 @@ class CoreResultContract:
 
     def equivalent_to(self, other: "CoreResultContract") -> bool:
         return not self.differences(other)
+
+
+@dataclass(frozen=True)
+class DomainRoutingEvidenceContract:
+    """Stable routing identity, lineage, execution binding and observation."""
+
+    values: Mapping[str, Any]
+
+    def as_dict(self) -> Dict[str, Any]:
+        return dict(self.values)
+
+    def differences(self, other: "DomainRoutingEvidenceContract") -> List[str]:
+        return _differences(self.values, other.values)
+
+    def equivalent_to(self, other: "DomainRoutingEvidenceContract") -> bool:
+        return not self.differences(other)
+
+    def core(self) -> "DomainRoutingEvidenceContract":
+        """Exclude transport/run observations while retaining routing semantics."""
+        values = self.as_dict()
+        if not values.get("available"):
+            return DomainRoutingEvidenceContract(values)
+        values["binding"] = {
+            key: value
+            for key, value in _mapping(values.get("binding")).items()
+            if key != "run_id"
+        }
+        values["observability"] = {
+            key: value
+            for key, value in _mapping(values.get("observability")).items()
+            if key != "selector_latency_ms"
+        }
+        return DomainRoutingEvidenceContract(values)
 
 
 @dataclass(frozen=True)
@@ -248,6 +284,101 @@ class ActionEffectContract:
 
     def equivalent_to(self, other: "ActionEffectContract") -> bool:
         return not self.differences(other)
+
+
+def normalize_domain_routing_evidence_contract(
+    payload: Mapping[str, Any],
+) -> DomainRoutingEvidenceContract:
+    """Extract and project routing evidence from public entry envelopes."""
+    if not isinstance(payload, Mapping):
+        raise ValueError("domain routing evidence payload must be a mapping")
+
+    raw = _domain_routing_evidence(payload)
+    evidence = _normalize_domain_routing_evidence(raw)
+    if not evidence.get("available"):
+        return DomainRoutingEvidenceContract(evidence)
+
+    decision = _mapping(evidence.get("decision"))
+    lineage = _mapping(evidence.get("lineage"))
+    return DomainRoutingEvidenceContract({
+        "schema_version": evidence.get("schema_version"),
+        "available": True,
+        "identity": {
+            "decision_id": decision.get("decision_id"),
+            "request_fingerprint": decision.get("request_fingerprint"),
+            "selected_domain_id": decision.get("selected_domain_id"),
+        },
+        "candidates": [
+            item.get("domain_id")
+            for item in evidence.get("candidates", [])
+            if isinstance(item, Mapping)
+        ],
+        "lineage": {
+            "root_decision_id": lineage.get("root_decision_id"),
+            "current_decision_id": lineage.get("current_decision_id"),
+            "event_count": lineage.get("event_count"),
+            "truncated": lineage.get("truncated"),
+            "events": lineage.get("events", []),
+        },
+        "binding": _mapping(evidence.get("binding")),
+        "observability": _mapping(evidence.get("observability")),
+    })
+
+
+def compare_domain_routing_evidence(
+    payloads: Sequence[Mapping[str, Any]],
+    *,
+    core: bool = False,
+) -> List[str]:
+    """Return bounded routing drift across Result/async/artifact entries."""
+    if len(payloads) < 2:
+        raise ValueError("at least two domain routing evidence payloads are required")
+    contracts = [normalize_domain_routing_evidence_contract(item) for item in payloads]
+    if core:
+        contracts = [contract.core() for contract in contracts]
+    baseline = contracts[0]
+    differences: List[str] = []
+    for index, contract in enumerate(contracts[1:], start=1):
+        differences.extend(
+            f"entry[{index}].{path}"
+            for path in baseline.differences(contract)
+        )
+    return differences[:100]
+
+
+def _domain_routing_evidence(payload: Mapping[str, Any]) -> Any:
+    """Find only documented routing evidence locations, in public precedence."""
+    raw = payload.get("domain_routing_evidence")
+    if isinstance(raw, Mapping):
+        return raw
+
+    result = payload.get("result")
+    if isinstance(result, Mapping):
+        raw = result.get("domain_routing_evidence")
+        if isinstance(raw, Mapping):
+            return raw
+
+    observation = payload.get("async_observability")
+    result_evidence = (
+        observation.get("result_evidence")
+        if isinstance(observation, Mapping)
+        else None
+    )
+    if not isinstance(result_evidence, Mapping):
+        result_evidence = payload.get("result_evidence")
+    if not isinstance(result_evidence, Mapping):
+        result_evidence = payload.get("async_result_evidence")
+    if isinstance(result_evidence, Mapping):
+        raw = result_evidence.get("domain_routing_evidence")
+        if isinstance(raw, Mapping):
+            return raw
+
+    artifact = payload.get("artifact")
+    if isinstance(artifact, Mapping):
+        raw = artifact.get("domain_routing_evidence")
+        if isinstance(raw, Mapping):
+            return raw
+    return None
 
 
 def normalize_action_receipt_contract(

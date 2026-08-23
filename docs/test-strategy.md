@@ -333,3 +333,18 @@ node scripts/console_clear_smoke.js
 ~~~
 
 该专项只验证有界目录、唯一/歧义/无匹配、模型 allowlist/fallback、用户改选、SQLite 重启、共享 HTTP/CLI 入口和 Action Host 状态机。第三 fixture Domain 只证明可替换性；真实 GIS 与 live 模型仍走显式验收，不进入默认 CI。浏览器首次自动请求必须携带未预创建的中立 session identity，选择后才允许读取具体 Domain 的会话和历史。
+
+## M226 路由证据与受控 Model Selector 专项
+
+修改 routing evidence、Result/Async/Artifact/SQLite 边界、Selector provider、跨入口 Harness 或 Console 路由证据展示时，在按当前工作树重建的 Docker 镜像中运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m224_domain_runtime_host tests.test_m224_domain_persistence tests.test_m224_domain_http tests.test_m225_domain_selector tests.test_m225_domain_routing_persistence tests.test_m225_domain_entrypoints tests.test_m226_domain_routing_application tests.test_m226_domain_routing_evidence_flow tests.test_m226_domain_selector_provider tests.test_m226_routing_evidence_harness -v
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile quick --profile smoke
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evaluation production_api.py serve_api.py run_demo.py result_contract.py
+node scripts/console_domain_routing_browser_smoke.js
+node scripts/console_domain_browser_smoke.js
+node scripts/console_clear_smoke.js
+~~~
+
+专项比较同一 decision identity 在同步、嵌套 Result、异步 polling、SQLite、artifact 和重启后的稳定 binding，并覆盖 run/idempotency 冲突、未知 schema、脱敏 metrics 和 provider fallback。真实 Model Selector + 本地 GIS 只作为显式 Docker 验收：只记录状态、identity、重试/延迟和 token usage，不保存请求、模型原文、密钥或私有路径；该路径不进入 quick/CI。

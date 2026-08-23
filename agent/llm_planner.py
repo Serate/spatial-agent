@@ -1,6 +1,7 @@
 import json
 import errno
 import os
+import re
 import socket
 import time
 import urllib.error
@@ -16,7 +17,13 @@ from .planner_guidance import render_planner_guidance
 
 
 class LLMClient(Protocol):
-    def complete_json(self, messages, schema: Mapping[str, Any]) -> Mapping[str, Any]:
+    def complete_json(
+        self,
+        messages,
+        schema: Mapping[str, Any],
+        *,
+        schema_name: Optional[str] = None,
+    ) -> Mapping[str, Any]:
         ...
 
 
@@ -188,12 +195,29 @@ class OpenAIPlannerClient:
             "retry_backoff_max_seconds": self._retry_backoff_max_seconds,
         }
 
-    def complete_json(self, messages, schema: Mapping[str, Any]) -> Mapping[str, Any]:
+    def complete_json(
+        self,
+        messages,
+        schema: Mapping[str, Any],
+        *,
+        schema_name: Optional[str] = None,
+    ) -> Mapping[str, Any]:
+        structured_schema_name = _structured_schema_name(schema_name)
         if self._wire_api == "chat_completions":
+            response_format: Dict[str, Any] = {"type": "json_object"}
+            if schema_name is not None:
+                response_format = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": structured_schema_name,
+                        "schema": schema,
+                        "strict": True,
+                    },
+                }
             body = {
                 "model": self._model,
                 "messages": messages,
-                "response_format": {"type": "json_object"},
+                "response_format": response_format,
             }
             if self._max_output_tokens is not None:
                 body["max_tokens"] = self._max_output_tokens
@@ -205,7 +229,7 @@ class OpenAIPlannerClient:
                 "text": {
                     "format": {
                         "type": "json_schema",
-                        "name": "task_plan",
+                        "name": structured_schema_name,
                         "schema": schema,
                         "strict": True,
                     }
@@ -395,6 +419,15 @@ def _chat_completions_url(base_url: str) -> str:
     if clean.endswith("/v1"):
         return clean + "/chat/completions"
     return clean + "/chat/completions"
+
+
+def _structured_schema_name(value: Optional[str]) -> str:
+    name = value or "task_plan"
+    if not isinstance(name, str) or not re.fullmatch(
+        r"[A-Za-z][A-Za-z0-9_-]{0,63}", name
+    ):
+        raise PlanningError("structured output schema name is invalid")
+    return name
 
 
 def _append_query_param(url: str, key: str, value: str) -> str:

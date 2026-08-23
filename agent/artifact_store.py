@@ -14,7 +14,12 @@ from agent.contract_versions import (
     RUN_ARTIFACT_SCHEMA_VERSION,
 )
 from agent.service_async import normalize_async_result_evidence
-from agent.nested_schema import NestedSchemaError, normalize_result_contract, unavailable_nested_view
+from agent.nested_schema import (
+    NestedSchemaError,
+    normalize_domain_routing_evidence_contract,
+    normalize_result_contract,
+    unavailable_nested_view,
+)
 from agent.evidence_registry import (
     EVIDENCE_REGISTRY_SCHEMA_VERSION,
     build_evidence_registry,
@@ -91,6 +96,14 @@ class ArtifactStore:
         execution_record = build_execution_record(
             {**payload, "artifact_ref": path.as_posix()}, kind="run"
         )
+        routing_evidence = normalize_domain_routing_evidence_contract(
+            payload.get("domain_routing_evidence"),
+            expected_domain_id=self._payload_domain(payload),
+        )
+        nested_result = payload.get("result")
+        if isinstance(nested_result, dict):
+            nested_result = dict(nested_result)
+            nested_result["domain_routing_evidence"] = routing_evidence
         artifact = {
             "artifact_schema_version": RUN_ARTIFACT_SCHEMA_VERSION,
             "artifact_migration": payload.get("artifact_migration"),
@@ -106,6 +119,7 @@ class ArtifactStore:
                 else None
             ),
             "domain_id": self._payload_domain(payload),
+            "domain_routing_evidence": routing_evidence,
             "runtime_context": normalize_runtime_context(payload.get("runtime_context")),
             "spatial_context": payload.get("spatial_context"),
             "result_type": payload.get("result_type"),
@@ -122,7 +136,7 @@ class ArtifactStore:
             "error_code": payload.get("error_code"),
             "failure": payload.get("failure"),
             "clarification": payload.get("clarification"),
-            "result": payload.get("result"),
+            "result": nested_result,
             "degradation": _degradation_summary(payload),
             "retry_count": payload.get("retry_count", 0),
             "replan_events": payload.get("replan_events") or [],
@@ -340,6 +354,10 @@ class ArtifactStore:
             )
         if domain_id and self._payload_domain(payload) != domain_id:
             return None
+        payload["domain_routing_evidence"] = normalize_domain_routing_evidence_contract(
+            payload.get("domain_routing_evidence"),
+            expected_domain_id=self._payload_domain(payload),
+        )
         # Keep the durable artifact readable while preventing a future nested
         # result shape from crossing the recovery boundary.  The service can
         # turn this bounded marker into the normal unavailable view.
@@ -353,6 +371,10 @@ class ArtifactStore:
                     reason_code=exc.reason_code,
                 )
                 payload["nested_schema_warning"] = exc.reason_code
+        if isinstance(payload.get("result"), dict):
+            payload["result"]["domain_routing_evidence"] = payload[
+                "domain_routing_evidence"
+            ]
         nested_evidence = payload.get("async_result_evidence")
         if isinstance(nested_evidence, dict):
             payload["async_result_evidence"] = normalize_async_result_evidence(

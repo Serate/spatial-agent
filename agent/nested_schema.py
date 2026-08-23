@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from agent.contract_versions import (
+    DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION,
     RESULT_ENVELOPE_SCHEMA_VERSION,
     VIEW_SCHEMA_VERSION,
     VIEWS_SCHEMA_VERSION,
@@ -23,6 +24,10 @@ from agent.contract_versions import (
 )
 from agent.artifact_reference import normalize_artifact_reference
 from agent.conversation_turn import normalize_conversation_turn
+from agent.domain_routing_evidence import (
+    normalize_domain_routing_evidence,
+    unavailable_domain_routing_evidence,
+)
 
 
 class NestedSchemaError(ValueError):
@@ -58,8 +63,37 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
     result["conversation_turn"] = normalize_conversation_turn(
         result.get("conversation_turn")
     )
+    result["domain_routing_evidence"] = normalize_domain_routing_evidence_contract(
+        result.get("domain_routing_evidence")
+    )
     _normalize_artifact_references(result)
     return result
+
+
+def normalize_domain_routing_evidence_contract(
+    value: Any,
+    *,
+    expected_domain_id: str | None = None,
+) -> dict[str, Any]:
+    """Normalize routing evidence at persisted/public Result boundaries.
+
+    An explicit unavailable value is the compatibility representation for a
+    run that did not enter through Domain routing.  Preserve that state rather
+    than trying to reinterpret it as selected evidence.
+    """
+
+    if (
+        isinstance(value, Mapping)
+        and value.get("schema_version") == DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION
+        and value.get("available") is False
+    ):
+        return unavailable_domain_routing_evidence(
+            str(value.get("reason_code") or "domain_routing_evidence_missing")
+        )
+    return normalize_domain_routing_evidence(
+        value,
+        expected_domain_id=expected_domain_id,
+    )
 
 
 def _normalize_artifact_references(result: dict[str, Any]) -> None:
@@ -288,6 +322,7 @@ def _version(value: Any, expected: str, *, path: str, allow_legacy: bool) -> str
 __all__ = [
     "NestedSchemaError",
     "normalize_result_contract",
+    "normalize_domain_routing_evidence_contract",
     "normalize_workspace",
     "normalize_views",
     "normalize_panel",

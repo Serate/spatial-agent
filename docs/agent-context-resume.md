@@ -8,12 +8,12 @@
 
 ## 当前状态
 
-- M225 已完成：有界跨 Domain discovery、Catalog/Model/fallback Selector、共享 `DomainRoutingApplication`、版本化澄清/改选、SQLite lineage/binding/restart 和 Console 智能选择均已落地。
-- 生产镜像 healthy；M225 14/14、M224 17/17、quick/smoke、compileall 和三条浏览器验收通过。
+- M226 已完成：routing evidence 已贯穿 Result、async、SQLite、artifact、restart；受控 Model Selector、脱敏 metrics、Harness 和 Console 展示已落地。
+- 当前生产镜像 healthy；M224–M226 46/46、quick/smoke、compileall 和三条浏览器验收通过；真实模型 + 本地 GIS 选择 `gis` 且无 fallback。
 
 ## 下一步
 
-提交推送 M225；M226 将 routing identity/lineage 收敛进 Result、async、artifact、restart evidence，并补受控 Model Selector 与跨入口 Harness。
+启动 M227，从全局收敛路由澄清、事实补充、能力选择、确认、修复和恢复为统一 interaction contract。
 
 ## 不变量
 

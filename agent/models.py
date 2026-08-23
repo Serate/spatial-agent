@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from agent.execution_contract import build_execution_record
 from agent.conversation_turn import normalize_conversation_turn
 from agent.runtime_context import normalize_runtime_context
+from agent.nested_schema import normalize_domain_routing_evidence_contract
 
 
 class RunStatus(str, Enum):
@@ -68,6 +69,9 @@ class AgentRunResult:
     # Stable Domain Pack identity used to isolate persistence and recovery.
     # Older synthetic fixtures may omit it; real Runtime runs populate it.
     domain_id: Optional[str] = None
+    # Bounded evidence proving which Domain routing decision accepted this run.
+    # Direct/legacy runs carry an explicit unavailable representation.
+    domain_routing_evidence: Optional[Dict[str, Any]] = None
     # Immutable, bounded configuration evidence for this execution.
     runtime_context: Optional[Dict[str, Any]] = None
     # Normalized semantic spatial context retained for result reconstruction.
@@ -125,6 +129,10 @@ class AgentRunResult:
             data.pop("workflow", None)
         if data.get("domain_id") is None:
             data.pop("domain_id", None)
+        data["domain_routing_evidence"] = normalize_domain_routing_evidence_contract(
+            data.get("domain_routing_evidence"),
+            expected_domain_id=data.get("domain_id"),
+        )
         if data.get("runtime_context") is not None:
             data["runtime_context"] = normalize_runtime_context(data["runtime_context"])
         if data.get("runtime_context") is None:

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from collections.abc import Mapping
 import os
+from time import perf_counter
 from threading import RLock
 from typing import Any
 
@@ -15,6 +16,8 @@ from agent.domain_selector import (
     DomainRoutingDecision,
     build_domain_routing_interaction,
 )
+from agent.domain_routing_evidence import build_domain_routing_evidence
+from agent.domain_selector_provider import domain_selector_from_environment
 from agent.sqlite_store import SQLiteConversationStore
 
 
@@ -87,6 +90,39 @@ class DomainRoutingState:
                 return None
             return record["decision"]
 
+    def lineage(
+        self,
+        decision: DomainRoutingDecision | Mapping[str, Any],
+        session_id: str | None,
+        *,
+        limit: int = 8,
+    ) -> list[Mapping[str, Any]]:
+        """Return one bounded, root-to-current immutable decision chain."""
+
+        current = (
+            decision.to_dict()
+            if isinstance(decision, DomainRoutingDecision)
+            else dict(decision)
+        )
+        bounded_limit = max(1, min(int(limit), 16))
+        values: list[Mapping[str, Any]] = []
+        seen: set[str] = set()
+        while current and len(values) < bounded_limit:
+            decision_id = str(current.get("decision_id") or "")
+            if not decision_id or decision_id in seen:
+                break
+            seen.add(decision_id)
+            values.append(current)
+            parent_id = str(current.get("parent_decision_id") or "")
+            if not parent_id:
+                break
+            restored = self.get(parent_id, session_id)
+            if restored is None:
+                break
+            current = restored
+        values.reverse()
+        return values
+
     def clear(self, session_id: str) -> None:
         if self._store is not None:
             clearer = getattr(self._store, "clear_session", None)
@@ -108,6 +144,74 @@ class DomainRoutingState:
                 self._bindings.pop(session_id, None)
 
 
+class DomainRoutingMetrics:
+    """Bounded, request-free observations for the routing application."""
+
+    schema_version = "spatial-agent.domain-routing-metrics.v1"
+
+    def __init__(self) -> None:
+        self._lock = RLock()
+        self._count = 0
+        self._clarification_count = 0
+        self._fallback_count = 0
+        self._latency_total_ms = 0.0
+        self._status_counts: Counter[str] = Counter()
+        self._selector_counts: Counter[str] = Counter()
+        self._last: dict[str, Any] | None = None
+
+    def observe(
+        self,
+        decision: DomainRoutingDecision,
+        *,
+        latency_ms: float,
+    ) -> None:
+        latency = round(max(0.0, min(float(latency_ms), 86_400_000.0)), 3)
+        fallback_reason = (
+            decision.reason_code.split(":", 1)[1][:96]
+            if decision.reason_code.startswith("selector_fallback:")
+            and ":" in decision.reason_code
+            else None
+        )
+        item = {
+            "status": decision.status,
+            "selector_id": decision.selector_id,
+            "selector_mode": decision.selector_id.split(".", 1)[0][:32],
+            "candidate_count": len(decision.candidates),
+            "clarification_required": decision.needs_clarification,
+            "fallback_reason": fallback_reason,
+            "latency_ms": latency,
+        }
+        with self._lock:
+            self._count += 1
+            self._latency_total_ms += latency
+            self._status_counts[decision.status] += 1
+            self._selector_counts[decision.selector_id] += 1
+            if decision.needs_clarification:
+                self._clarification_count += 1
+            if fallback_reason:
+                self._fallback_count += 1
+            self._last = item
+
+    def snapshot(self) -> dict[str, Any]:
+        with self._lock:
+            count = self._count
+            return {
+                "schema_version": self.schema_version,
+                "selection_count": count,
+                "clarification_count": self._clarification_count,
+                "clarification_rate": round(
+                    self._clarification_count / count, 6
+                ) if count else 0.0,
+                "fallback_count": self._fallback_count,
+                "average_latency_ms": round(
+                    self._latency_total_ms / count, 3
+                ) if count else 0.0,
+                "status_counts": dict(sorted(self._status_counts.items())),
+                "selector_counts": dict(sorted(self._selector_counts.items())),
+                "last_selection": dict(self._last) if self._last else None,
+            }
+
+
 class DomainRoutingApplication:
     """Select, clarify, override and execute through one transport-neutral interface."""
 
@@ -117,18 +221,39 @@ class DomainRoutingApplication:
         *,
         router: DomainRouter | None = None,
         state: DomainRoutingState | None = None,
+        metrics: DomainRoutingMetrics | None = None,
+        selector_provider: Any = None,
     ) -> None:
         self._host = host
-        self._router = router or DomainRouter(
-            enabled_domain_ids=host.catalog().get("domain_ids")
-        )
+        self._selector_provider = selector_provider
+        if router is None:
+            self._selector_provider = (
+                selector_provider or domain_selector_from_environment()
+            )
+            router = DomainRouter(
+                enabled_domain_ids=host.catalog().get("domain_ids"),
+                selector=self._selector_provider,
+            )
+        self._router = router
         self._state = state or DomainRoutingState()
+        self._metrics = metrics or DomainRoutingMetrics()
 
     def catalog(self) -> dict[str, Any]:
-        return self._router.catalog()
+        result = dict(self._router.catalog())
+        status = getattr(self._selector_provider, "status", None)
+        if callable(status):
+            result["selector_provider"] = status()
+        return result
+
+    def metrics(self) -> dict[str, Any]:
+        result = self._metrics.snapshot()
+        provider_metrics = getattr(self._selector_provider, "metrics", None)
+        if callable(provider_metrics):
+            result["provider"] = provider_metrics()
+        return result
 
     def select(self, payload: Mapping[str, Any]) -> dict[str, Any]:
-        decision = self._route(payload)
+        decision, _latency_ms = self._route_observed(payload)
         self._state.save(decision, _session_id(payload, default=None))
         return self._routing_response(decision)
 
@@ -140,7 +265,12 @@ class DomainRoutingApplication:
                 "domain routing decision not found",
                 code="domain_routing_decision_not_found",
             )
+        started = perf_counter()
         decision = self._router.override(prior, str(payload.get("domain_id") or ""))
+        self._metrics.observe(
+            decision,
+            latency_ms=(perf_counter() - started) * 1000,
+        )
         bound_domain = self._state.bound_domain(session_id)
         if bound_domain and bound_domain != decision.selection.domain_id:
             raise DomainSelectionError(
@@ -155,6 +285,7 @@ class DomainRoutingApplication:
         normalized["session_id"] = _session_id(normalized, default="default")
         decision_id = str(normalized.get("domain_routing_decision_id") or "").strip()
         if decision_id:
+            started = perf_counter()
             restored = self._state.get(decision_id, normalized["session_id"])
             if restored is None:
                 raise DomainRoutingApplicationError(
@@ -173,8 +304,10 @@ class DomainRoutingApplication:
                     "session belongs to another domain: " + normalized["session_id"],
                     code="session_domain_mismatch",
                 )
+            selector_latency_ms = (perf_counter() - started) * 1000
+            self._metrics.observe(decision, latency_ms=selector_latency_ms)
         else:
-            decision = self._route(normalized)
+            decision, selector_latency_ms = self._route_observed(normalized)
             self._state.save(decision, normalized["session_id"])
         if decision.needs_clarification:
             return {
@@ -184,10 +317,22 @@ class DomainRoutingApplication:
                 **self._routing_response(decision),
             }
         selected_service = self._host.service(decision.selection)
+        routing_evidence = build_domain_routing_evidence(
+            decision,
+            lineage=self._state.lineage(
+                decision,
+                normalized["session_id"],
+            ),
+            selector_latency_ms=selector_latency_ms,
+        )
         if bool(normalized.get("async", False)):
-            result = selected_service.run_async(**async_run_kwargs(normalized))
+            execution_kwargs = async_run_kwargs(normalized)
+            execution_kwargs["_domain_routing_evidence"] = routing_evidence
+            result = selected_service.run_async(**execution_kwargs)
         else:
-            result = selected_service.run(**run_kwargs(normalized))
+            execution_kwargs = run_kwargs(normalized)
+            execution_kwargs["_domain_routing_evidence"] = routing_evidence
+            result = selected_service.run(**execution_kwargs)
         self._state.bind(normalized["session_id"], decision.selection.domain_id)
         response = dict(result)
         response["domain_id"] = decision.selection.domain_id
@@ -217,6 +362,16 @@ class DomainRoutingApplication:
         if bound_domain:
             return self._router.restore(request, bound_domain)
         return self._router.route(request, domain_id=payload.get("domain_id"))
+
+    def _route_observed(
+        self,
+        payload: Mapping[str, Any],
+    ) -> tuple[DomainRoutingDecision, float]:
+        started = perf_counter()
+        decision = self._route(payload)
+        latency_ms = (perf_counter() - started) * 1000
+        self._metrics.observe(decision, latency_ms=latency_ms)
+        return decision, latency_ms
 
     @staticmethod
     def _routing_response(decision: DomainRoutingDecision) -> dict[str, Any]:

@@ -1,4 +1,4 @@
-/* M225 smart Domain routing browser smoke. Requires the usual offline Chrome CDP page. */
+/* M226 Console routing evidence browser smoke. Requires the usual offline Chrome CDP page. */
 
 import fs from "node:fs";
 import path from "node:path";
@@ -7,7 +7,7 @@ import {fileURLToPath} from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
-for (const seam of ["/runs/auto", "domain_routing", "ConsoleActionHost.mount", "select_domain"]) {
+for (const seam of ["/runs/auto", "domain_routing", "ConsoleActionHost.mount", "select_domain", "spatial-agent.domain-routing-evidence.v1"]) {
   if (!source.includes(seam)) throw new Error(`Console 缺少智能领域路由 seam：${seam}`);
 }
 
@@ -71,7 +71,27 @@ function installDomainRoutingMock() {
     status,
     headers: {"Content-Type": "application/json"},
   });
-  const completed = (domainId, runId, request, sessionId) => ({
+  const routingEvidence = (domainId, runId, kind = "unique") => {
+    const overridden = kind === "override";
+    const currentId = overridden ? `route-override-${domainId}` : `route-unique-${domainId}`;
+    const events = overridden ? [
+      {decision_id: "route-ambiguous", parent_decision_id: null, status: "ambiguous", reason_code: "multiple_domains_matched", selector_id: "hybrid.fixture", candidate_domain_ids: ["gis", "text"], selected_domain_id: null, selection_source: null},
+      {decision_id: currentId, parent_decision_id: "route-ambiguous", status: "selected", reason_code: "user_override", selector_id: "hybrid.fixture", candidate_domain_ids: ["gis", "text"], selected_domain_id: domainId, selection_source: "user_override"},
+    ] : [
+      {decision_id: currentId, parent_decision_id: null, status: "selected", reason_code: "unique_domain_match", selector_id: "hybrid.fixture", candidate_domain_ids: [domainId], selected_domain_id: domainId, selection_source: "selector"},
+    ];
+    return {
+      schema_version: "spatial-agent.domain-routing-evidence.v1",
+      available: true,
+      decision: {schema_version: "spatial-agent.domain-routing-decision.v1", decision_id: currentId, parent_decision_id: overridden ? "route-ambiguous" : null, status: "selected", reason_code: overridden ? "user_override" : "unique_domain_match", selector_id: "hybrid.fixture", request_fingerprint: "a".repeat(64), selected_domain_id: domainId, selection_source: overridden ? "user_override" : "selector"},
+      candidates: (overridden ? ["gis", "text"] : [domainId]).map(candidate => ({domain_id: candidate})),
+      lineage: {root_decision_id: events[0].decision_id, current_decision_id: currentId, event_count: events.length, truncated: false, events},
+      binding: {state: "execution_bound", domain_id: domainId, run_id: runId},
+      observability: {selector_mode: "hybrid", candidate_count: overridden ? 2 : 1, fallback_reason: null, selector_latency_ms: overridden ? 4.25 : 2.5},
+    };
+  };
+  state.routingEvidence = routingEvidence;
+  const completed = (domainId, runId, request, sessionId, routingKind) => ({
     schema_version: "spatial-agent.run.v1",
     run_id: runId,
     domain_id: domainId,
@@ -98,11 +118,12 @@ function installDomainRoutingMock() {
         panels: {summary: {schema_version: "spatial-agent.view.v1", view_schema_version: "spatial-agent.view.v1", kind: "generic", title: "通用结果", rows: [{label: "Domain", value: domainId}]}}
       },
       runtime_context: {domain_id: domainId},
+      ...(routingKind ? {domain_routing_evidence: routingEvidence(domainId, runId, routingKind)} : {}),
     },
   });
-  const queue = (domainId, request, sessionId) => {
+  const queue = (domainId, request, sessionId, routingKind = "") => {
     const runId = `${domainId}-run-${++state.runCount}`;
-    state[runId] = {domainId, request, sessionId};
+    state[runId] = {domainId, request, sessionId, routingKind};
     state.sessions[domainId] = sessionId;
     try { localStorage.setItem(`spatial-agent.domain-routing-smoke.session.${domainId}`, sessionId); } catch (error) { /* fixture */ }
     return {run_id: runId, domain_id: domainId, session_id: sessionId, status: "QUEUED"};
@@ -124,8 +145,8 @@ function installDomainRoutingMock() {
       ],
     });
     if (target.pathname === "/runs/auto" && method === "POST") {
-      if (body.domain_routing_decision_id === "route-override-gis") return json(queue("gis", body.request, body.session_id), 202);
-      if (body.domain_routing_decision_id === "route-override-text") return json(queue("text", body.request, body.session_id), 202);
+      if (body.domain_routing_decision_id === "route-override-gis") return json(queue("gis", body.request, body.session_id, "override"), 202);
+      if (body.domain_routing_decision_id === "route-override-text") return json(queue("text", body.request, body.session_id, "override"), 202);
       if (String(body.request || "").includes("ambiguous")) return json({
         status: "NEEDS_CLARIFICATION",
         domain_routing: {
@@ -160,7 +181,7 @@ function installDomainRoutingMock() {
         status: "NEEDS_CLARIFICATION",
         domain_routing: {decision_id: "route-none", status: "NO_MATCH", reason_code: "no_domain_matched", candidates: []},
       });
-      return json(queue("text", body.request, body.session_id), 202);
+      return json(queue("text", body.request, body.session_id, "unique"), 202);
     }
     const selectMatch = target.pathname.match(/^\/domain-routing\/decisions\/([^/]+)\/select$/);
     if (selectMatch && method === "POST") return json({
@@ -187,7 +208,7 @@ function installDomainRoutingMock() {
     if (runMatch && method === "GET") {
       const runId = decodeURIComponent(runMatch[1]);
       const item = state[runId] || {domainId, request: "restored", sessionId: `${domainId}-session`};
-      return json(completed(item.domainId, runId, item.request, item.sessionId));
+      return json(completed(item.domainId, runId, item.request, item.sessionId, item.routingKind));
     }
     return json({detail: {code: "not_found", message: `mock route missing: ${url}`}}, 404);
   };
@@ -213,9 +234,15 @@ const uniqueRaw = await evaluate(`(async()=>{
   const initial={options:[...$('domain').options].map(item=>({value:item.value,label:item.textContent})),requests:[...window.__domainRoutingSmoke.requests]};
   await sendChat('unique route');
   for(let i=0;i<100&&!window.__domainRoutingSmoke.requests.some(item=>item.url==='/domains/text/sessions?limit=50');i++) await new Promise(resolve=>setTimeout(resolve,20));
-  const afterFirst={domain:$('domain').value,session:$('session').value,answer:$('answer').textContent,requests:[...window.__domainRoutingSmoke.requests]};
+  const evidence=()=>({count:$('decisionEvidence').querySelectorAll('[data-domain-routing-evidence-card]').length,state:$('decisionEvidence').querySelector('[data-domain-routing-evidence-state]')?.dataset.domainRoutingEvidenceState||'',schema:$('decisionEvidence').querySelector('[data-domain-routing-evidence-state]')?.dataset.schemaVersion||'',text:$('decisionEvidence').textContent});
+  const afterFirst={domain:$('domain').value,session:$('session').value,answer:$('answer').textContent,evidence:evidence(),requests:[...window.__domainRoutingSmoke.requests]};
+  const detailRequest=afterFirst.requests.find(item=>/^\\/domains\\/text\\/runs\\/text-run-/.test(item.url));
+  const runId=detailRequest?.url.match(/\\/runs\\/([^?]+)/)?.[1]||'';
+  resetConversationView();
+  await openRunDetail(runId,'text');
+  const recovered={runId,answer:$('answer').textContent,evidence:evidence()};
   await sendChat('bound follow up');
-  return JSON.stringify({initial,afterFirst,afterSecond:[...window.__domainRoutingSmoke.requests]});
+  return JSON.stringify({initial,afterFirst,recovered,afterSecond:[...window.__domainRoutingSmoke.requests]});
 })()`);
 const unique = JSON.parse(uniqueRaw || "{}");
 if (unique.initial.options.map(item => item.value).join(",") !== "auto,gis,text") throw new Error(`智能选择没有位于动态领域之前：${JSON.stringify(unique.initial.options)}`);
@@ -224,6 +251,8 @@ const firstAuto = unique.afterFirst.requests.find(item => item.url === "/runs/au
 if (!firstAuto || firstAuto.body.async !== true || !String(firstAuto.body.session_id || "").startsWith("conversation-auto-") || "domain_id" in firstAuto.body) throw new Error(`首次 auto 请求必须使用异步和未预创建的中立会话 identity：${JSON.stringify(firstAuto)}`);
 if (!unique.afterFirst.requests.some(item => item.url.startsWith("/domains/text/runs/text-run-"))) throw new Error("唯一匹配后没有按响应领域轮询");
 if (unique.afterFirst.domain !== "auto" || unique.afterFirst.session !== firstAuto.body.session_id || !unique.afterFirst.answer.includes("text completed")) throw new Error(`自动运行没有保留 auto 模式并加载返回领域状态：${JSON.stringify(unique.afterFirst)}`);
+if (unique.afterFirst.evidence.count !== 1 || unique.afterFirst.evidence.state !== "available" || unique.afterFirst.evidence.schema !== "spatial-agent.domain-routing-evidence.v1" || !unique.afterFirst.evidence.text.includes("route-unique-text") || unique.afterFirst.evidence.text.includes("a".repeat(64))) throw new Error(`唯一路由证据没有唯一、脱敏展示：${JSON.stringify(unique.afterFirst.evidence)}`);
+if (!unique.recovered.runId || unique.recovered.evidence.count !== 1 || unique.recovered.evidence.state !== "available" || !unique.recovered.evidence.text.includes("execution_bound") || !unique.recovered.answer.includes("unique route")) throw new Error(`异步运行详情恢复后没有恢复路由证据：${JSON.stringify(unique.recovered)}`);
 const followUp = unique.afterSecond.filter(item => item.url === "/domains/text/runs/async" && item.method === "POST").at(-1);
 if (!followUp || followUp.body.session_id !== firstAuto.body.session_id || followUp.body.domain_id !== "text") throw new Error(`后续 auto 请求没有沿已绑定会话领域：${JSON.stringify(followUp)}`);
 if (unique.afterSecond.filter(item => item.url === "/runs/auto").length !== 1) throw new Error("已绑定后的请求不应再次自动选域");
@@ -243,13 +272,15 @@ const ambiguousRaw = await evaluate(`(async()=>{
   field.value='gis';
   host.querySelector('#domainActionExecute').click();
   for(let i=0;i<150&&!$('answer').textContent.includes('gis completed');i++) await new Promise(resolve=>setTimeout(resolve,20));
-  return JSON.stringify({before,after:{domain:$('domain').value,session:$('session').value,answer:$('answer').textContent},requests:window.__domainRoutingSmoke.requests});
+  const routing=$('decisionEvidence').querySelector('[data-domain-routing-evidence-state]');
+  return JSON.stringify({before,after:{domain:$('domain').value,session:$('session').value,answer:$('answer').textContent,evidenceCount:$('decisionEvidence').querySelectorAll('[data-domain-routing-evidence-card]').length,evidenceState:routing?.dataset.domainRoutingEvidenceState||'',evidenceText:$('decisionEvidence').textContent},requests:window.__domainRoutingSmoke.requests});
 })()`);
 const ambiguous = JSON.parse(ambiguousRaw || "{}");
 if (ambiguous.before.options.join(",") !== ",gis,text" || ambiguous.before.schemaVersion !== "spatial-agent.domain-routing-interaction.v1" || !ambiguous.before.interaction.includes("boundary_lookup")) throw new Error(`歧义候选没有通过版本化 Action Host 进入通用交互区域：${JSON.stringify(ambiguous.before)}`);
 const overrideRun = ambiguous.requests.find(item => item.url === "/runs/auto" && item.body.domain_routing_decision_id === "route-override-gis");
 const overrideSelect = ambiguous.requests.find(item => item.url === "/domain-routing/decisions/route-ambiguous/select");
 if (!overrideSelect || !overrideSelect.body.session_id || !overrideRun || overrideRun.body.session_id !== overrideSelect.body.session_id || overrideRun.body.async !== true || "domain_id" in overrideRun.body || !ambiguous.requests.some(item => item.url.startsWith("/domains/gis/runs/gis-run-")) || !ambiguous.after.answer.includes("gis completed")) throw new Error(`select_domain 没有携带会话化异步 override decision lineage 继续执行：${JSON.stringify(ambiguous.after)}`);
+if (ambiguous.after.evidenceCount !== 1 || ambiguous.after.evidenceState !== "available" || !ambiguous.after.evidenceText.includes("route-ambiguous") || !ambiguous.after.evidenceText.includes("route-override-gis") || !ambiguous.after.evidenceText.includes("2 个事件") || !ambiguous.after.evidenceText.includes("user_override")) throw new Error(`override lineage 没有进入通用路由证据区：${JSON.stringify(ambiguous.after)}`);
 
 await navigateReady();
 const noMatchRaw = await evaluate(`(async()=>{
@@ -273,6 +304,21 @@ const manual = JSON.parse(manualRaw || "{}");
 const manualSubmit = manual.requests.find(item => item.url === "/domains/gis/runs/async" && item.method === "POST");
 if (manual.domain !== "gis" || !manualSubmit || manualSubmit.body.domain_id !== "gis" || !manualSubmit.body.session_id || manual.requests.some(item => item.url === "/runs/auto") || !manual.answer.includes("gis completed")) throw new Error(`手动领域行为发生回归：${JSON.stringify(manual)}`);
 
-console.log(JSON.stringify({unique:{options:unique.initial.options,session:unique.afterFirst.session,answer:unique.afterFirst.answer},restored:{domain:restored.domain,session:restored.session},ambiguous:ambiguous.before,noMatch,manual:{domain:manual.domain,session:manual.session,answer:manual.answer}}));
+const schemaFallbackRaw = await evaluate(`(()=>{
+  const base={schema_version:'spatial-agent.run.v1',run_id:'sync-run',domain_id:'text',session_id:'sync-session',request:'sync alias evidence',status:'COMPLETED',answer:'sync completed',result:{schema_version:'spatial-agent.result-envelope.v1',type:'direct_answer',title:'sync result',summary:'sync completed',workspace:{schema_version:'spatial-agent.workspace.v1',registered_type:'direct_answer',primary_panel:'summary',common_panels:[],panels:[],view_specs:[]},views:{schema_version:'spatial-agent.views.v1',panels:{}}}};
+  base.domain_routing_evidence=window.__domainRoutingSmoke.routingEvidence('text','sync-run','unique');
+  renderRun(base);
+  const valid={count:$('decisionEvidence').querySelectorAll('[data-domain-routing-evidence-card]').length,state:$('decisionEvidence').querySelector('[data-domain-routing-evidence-state]')?.dataset.domainRoutingEvidenceState||'',text:$('decisionEvidence').textContent};
+  const missing=structuredClone(base); delete missing.domain_routing_evidence.schema_version; renderRun(missing);
+  const missingSchema={state:$('decisionEvidence').querySelector('[data-domain-routing-evidence-state]')?.dataset.domainRoutingEvidenceState||'',text:$('decisionEvidence').textContent};
+  const unknown=structuredClone(base); unknown.domain_routing_evidence.schema_version='spatial-agent.domain-routing-evidence.v999'; renderRun(unknown);
+  const unknownSchema={state:$('decisionEvidence').querySelector('[data-domain-routing-evidence-state]')?.dataset.domainRoutingEvidenceState||'',text:$('decisionEvidence').textContent};
+  return JSON.stringify({valid,missingSchema,unknownSchema});
+})()`);
+const schemaFallback = JSON.parse(schemaFallbackRaw || "{}");
+if (schemaFallback.valid.count !== 1 || schemaFallback.valid.state !== "available" || !schemaFallback.valid.text.includes("sync-run")) throw new Error(`同步顶层 alias 没有展示路由证据：${JSON.stringify(schemaFallback.valid)}`);
+if (schemaFallback.missingSchema.state !== "unavailable" || !schemaFallback.missingSchema.text.includes("缺少 schema") || schemaFallback.unknownSchema.state !== "unavailable" || !schemaFallback.unknownSchema.text.includes("未知 schema")) throw new Error(`未知或缺失 schema 没有安全降级：${JSON.stringify(schemaFallback)}`);
+
+console.log(JSON.stringify({unique:{options:unique.initial.options,session:unique.afterFirst.session,answer:unique.afterFirst.answer,evidence:unique.afterFirst.evidence},recovered:unique.recovered,restored:{domain:restored.domain,session:restored.session},ambiguous:{interaction:ambiguous.before,evidence:ambiguous.after.evidenceText},noMatch,manual:{domain:manual.domain,session:manual.session,answer:manual.answer},schemaFallback}));
 socket.close();
 process.exit(0);

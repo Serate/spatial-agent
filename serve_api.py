@@ -103,6 +103,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if selection is None and parsed.path == "/domain-routing/catalog":
             self._write_json(200, self.routing.catalog())
             return
+        if selection is None and parsed.path == "/domain-routing/metrics":
+            self._write_json(200, self.routing.metrics())
+            return
         if parsed.path == "/actions":
             query = parse_qs(parsed.query)
             planner = query.get("planner", ["rule"])[0]

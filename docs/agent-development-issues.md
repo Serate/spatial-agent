@@ -161,3 +161,19 @@
 - **诊断**：让历史恢复保持在途，同时执行清空并检查 answer、steps、renderer context 和地图选择；仅验证 local state 为空不足以发现迟到 DOM 写入。
 - **修复**：增加 `conversationGeneration`；清空、新建、删除、切换会话或重载 Domain 时递增，恢复与发送请求只允许在原世代仍有效时写入视图。
 - **预防**：所有异步 UI 恢复都必须携带可失效的 view identity；清空 smoke 同时断言结构化上下文和可见工作区为空，并等待潜在迟到响应。
+
+## Compose 的服务级 env_file 没有参与宿主数据卷插值
+
+- **现象**：使用 `docker compose -f docker-compose.prod.yml up -d --build` 启动后容器 healthy，但 `/data` 为空，GIS runtime 降级；`.env.production` 明明配置了真实数据目录。
+- **根因**：Compose 的服务级 `env_file` 只向容器注入环境变量，不参与解析 Compose 文件时的宿主机 volume 路径插值；未显式传 `--env-file` 时使用了默认空目录。
+- **诊断**：用 `docker inspect` 核对 `/data` 的实际 `Source`，再在容器内只统计文件数和 runtime readiness；不要输出私有绝对路径、文件内容或密钥。
+- **修复**：统一使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate`，确认 `/data` 文件数非零且 GIS runtime `ready`。
+- **预防**：生产启动、重建和验收脚本都显式传同一 `--env-file`；服务 healthy 只证明进程存活，不能替代 volume identity 和 Domain readiness 检查。
+
+## 路由证据在 run 复用与内部续跑边界可能漂移
+
+- **现象**：同一 `run_id` 可被新的 routing decision 直接复用；用户确认或异步 worker 的 `_force_run_id` 续跑没有显式 evidence 时，已绑定 routing evidence 可能变成 unavailable。
+- **根因**：routing identity 只在异步 job payload 中校验，Service 的同步幂等返回和内部续跑仍把 evidence 当作可选装饰字段，没有把它视为运行身份的一部分。
+- **诊断**：对首次结果、同 ID 复用、强制续跑、SQLite 和 artifact 只比较 `{decision_id, request_fingerprint, selected_domain_id, binding.run_id}`；不要读取请求或模型响应。
+- **修复**：同步复用先比较 routing identity，冲突 fail closed；内部续跑在调用方未提供 evidence 时从同 Domain 的既有 run 恢复并重新严格归一化；测试中的 Service 始终显式关闭。
+- **预防**：新增任何 retry/confirm/recover/replay 路径时，都要证明 routing evidence 要么继承同一 identity，要么明确 unavailable，禁止静默替换；资源生命周期测试不得忽略 `ResourceWarning`。

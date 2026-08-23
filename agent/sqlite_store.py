@@ -16,6 +16,7 @@ from .runtime import PendingClarification
 from .evidence_registry import normalize_evidence_registry
 from .recovery_action import normalize_action_receipt
 from .execution_timeline import normalize_execution_timeline
+from .nested_schema import normalize_domain_routing_evidence_contract
 
 
 _ASYNC_JOB_SELECT = """
@@ -1520,6 +1521,10 @@ def _result_from_dict(
         # domain owns that compatibility decision; the public Runtime must
         # not assume GIS when a Text/future Domain is restoring data.
         domain_id=payload.get("domain_id") or legacy_domain_id,
+        domain_routing_evidence=normalize_domain_routing_evidence_contract(
+            payload.get("domain_routing_evidence"),
+            expected_domain_id=payload.get("domain_id") or legacy_domain_id,
+        ),
         runtime_context=normalize_runtime_context(payload.get("runtime_context")),
         spatial_context=payload.get("spatial_context"),
         resolved_request=payload.get("resolved_request"),

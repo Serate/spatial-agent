@@ -24,6 +24,7 @@ from agent.contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
 from agent.selection_interaction import build_selection_interaction
 from agent.nested_schema import (
     NestedSchemaError,
+    normalize_domain_routing_evidence_contract,
     normalize_result_contract,
     normalize_views,
     unavailable_nested_view,
@@ -194,6 +195,10 @@ def build_result_contract(
         "request_identity": build_request_identity(payload),
         "conversation_turn": normalize_conversation_turn(
             payload.get("conversation_turn")
+        ),
+        "domain_routing_evidence": normalize_domain_routing_evidence_contract(
+            payload.get("domain_routing_evidence"),
+            expected_domain_id=payload.get("domain_id"),
         ),
         "request_facts": payload.get("request_facts") or {"available": False},
         "data": {

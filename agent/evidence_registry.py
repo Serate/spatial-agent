@@ -12,7 +12,10 @@ from typing import Any
 
 from .action_lifecycle import ACTION_LIFECYCLE_SCHEMA_VERSION, project_action_lifecycle
 from .component_evidence import WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION
-from .contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
+from .contract_versions import (
+    DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION,
+    RESULT_ENVELOPE_SCHEMA_VERSION,
+)
 from .evidence_contract import DOMAIN_EVIDENCE_SCHEMA_VERSION
 from .execution_timeline import EXECUTION_TIMELINE_SCHEMA_VERSION, normalize_execution_timeline
 from .plan_quality import PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, project_plan_quality_evidence
@@ -44,6 +47,7 @@ _KNOWN_SCHEMA_VERSIONS = {
     PLANNER_SELECTION_SCHEMA_VERSION,
     WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION,
     DOMAIN_EVIDENCE_SCHEMA_VERSION,
+    DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION,
 }
 
 
@@ -69,6 +73,8 @@ def build_evidence_registry(
     events = replanning.get("events") if isinstance(replanning.get("events"), list) else []
     selection = planning.get("workflow_selection") if isinstance(planning.get("workflow_selection"), Mapping) else {}
     planner_selection = planning.get("planner_selection") if isinstance(planning.get("planner_selection"), Mapping) else {}
+    routing = result.get("domain_routing_evidence")
+    routing = routing if isinstance(routing, Mapping) else {}
     entries = [
         _entry("result", RESULT_ENVELOPE_SCHEMA_VERSION, bool(result), "available" if result else "unavailable", "result"),
         _entry("plan_quality", PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, quality["available"], quality["state"], "result.planning.plan_quality"),
@@ -112,6 +118,21 @@ def build_evidence_registry(
                 "available" if component_evidence.get("available") else "unavailable",
                 component_evidence_reference,
                 count=count if isinstance(count, int) and not isinstance(count, bool) else None,
+            )
+        )
+    if routing.get("available") is True and len(entries) < _MAX_ENTRIES:
+        routing_available = True
+        binding = routing.get("binding") if isinstance(routing.get("binding"), Mapping) else {}
+        entries.append(
+            _entry(
+                "domain_routing_evidence",
+                DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION,
+                routing_available,
+                str(
+                    binding.get("state")
+                    or ("available" if routing_available else "unavailable")
+                ),
+                "result.domain_routing_evidence",
             )
         )
     for item in custom_entries or ():

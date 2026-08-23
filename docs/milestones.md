@@ -4521,3 +4521,23 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **跨入口 Harness**：用 GIS/Text/第三 fixture Domain 比较 Application、CLI、开发 HTTP、FastAPI、async、artifact 和 restart 的 routing/result/evidence 核心投影，删除重复的入口局部断言。
 6. **显式验收**：保留一条真实模型 Selector + 真实 GIS/Docker 纵向路径，失败时证明安全回退；默认 quick/CI 继续离线且不增加私有依赖。
 7. **体验**：Console 在执行结果和历史详情中展示路由理由、候选与 lineage，并继续只消费结构化 evidence/Action schema，不新增 GIS/Text 页面分支。
+
+## M226：自动路由证据收敛与 Selector 评测（已完成）
+
+- 新增 `DomainRoutingEvidence` 深 Module，将 selected decision、最多 8 个 lineage 事件、候选 Domain identity、脱敏 selector 观测和 execution binding 收敛为 `spatial-agent.domain-routing-evidence.v1`；直接/旧入口使用明确 unavailable 兼容态。
+- `AgentRunResult` 成为 routing evidence 的唯一运行载体；同步与嵌套 Result、异步提交/轮询、SQLite、artifact 和重启恢复保持同一 decision/request/domain/run identity。同步 `run_id`、异步幂等键和已完成异步 run 的冲突均 fail closed；确认/内部续跑继承原证据。
+- `DomainRoutingApplication` 成为唯一 evidence 构建与注入点，提供不含请求正文的有界 metrics；Runtime、Planner 和 ToolRegistry 不感知跨 Domain routing。Harness 比较核心语义时忽略传输位置和瞬时延迟。
+- 新增显式 Selector provider：默认 `catalog`，`SPATIAL_AGENT_DOMAIN_SELECTOR_MODE=model` 时复用 OpenAI 兼容结构化传输；模型只能返回 allowlist identity，未知 mode 启动失败，网络、坏 schema 或未知身份在运行期安全回退 catalog。
+- Console 通用证据区展示 routing decision、候选、lineage、binding 与脱敏观测；缺失/未知 schema 安全降级，不新增 GIS/Text 结果分支。开发 HTTP 与 FastAPI 同时公开 `/domain-routing/metrics`。
+- 当前生产镜像 healthy，真实数据卷包含 65 个文件且 GIS runtime ready。Docker M224–M226 **46/46**、quick **2/2**、服务 smoke、compileall 和三条串行浏览器验收通过。
+- 显式真实 Model Selector + 本地 GIS/Docker 验收完成：选择 `gis`、执行 1 个 GIS 工具步骤、无 fallback；provider 1 次调用、1 次重试、3576 tokens。未保存或提交请求、模型原文、密钥、URL 和私有路径。
+
+## M227：统一请求交互与生命周期契约（下一阶段全局规划）
+
+1. **产品**：让选域澄清、能力/工作流选择、事实补充、计划确认、修复、重试、恢复和取消共享一个可解释的下一步交互模型；用户从请求进入执行后不需要理解多套状态语言。
+2. **架构**：建立一个领域中立的深 `InteractionContract` Module，以单一 `project/normalize` interface 隐藏状态优先级、动作 allowlist、precondition、receipt 和 lineage；现有 lifecycle/selection/routing 投影改为兼容 adapter，不再各自维护策略。
+3. **生命周期与恢复**：以 routing root decision 或 run identity 作为稳定 subject，保证 pre-run interaction、执行绑定、SQLite/artifact/restart 和后续动作形成连续 journey；未知 schema、过期动作和 identity 冲突 fail closed。
+4. **入口**：CLI、开发 HTTP、FastAPI、异步 polling 和 artifact 输出同一 `interaction` envelope；传输可保留现有 endpoint，但动作 schema、错误码与 receipt 由公共 Module 决定。
+5. **体验**：Console 只用通用 Action Host 渲染 `interaction`，删除 `renderDomainRoutingInteraction` 与 selection/confirmation 的独立状态判断；无 GIS/Text 或固定问题分支。
+6. **模型与领域**：Planner/Selector 只提交结构化候选、缺失事实或计划结果；Domain Pack 可声明字段/动作 schema，但不能改写公共生命周期状态机。
+7. **测试**：保留一条从路由歧义→用户改选→计划确认/事实补充→执行/恢复的跨入口 Harness 和一条浏览器 smoke；删除被统一 contract 覆盖的重复局部断言，默认 CI 仍保持 quick + smoke。

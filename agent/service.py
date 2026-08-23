@@ -19,6 +19,13 @@ from agent.domain_registry import DomainSelectionError, resolve_domain_id
 from agent.domain_registry import domain_registry
 from agent.runtime_context import assert_runtime_context_compatible
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
+from agent.domain_routing_evidence import (
+    DomainRoutingEvidenceError,
+    bind_domain_routing_evidence,
+    normalize_domain_routing_evidence,
+    routing_evidence_identity,
+    unavailable_domain_routing_evidence,
+)
 from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
@@ -296,18 +303,41 @@ class AgentService:
         _force_run_id: bool = False,
         _async_requested: bool = False,
         _resolved_request: str = None,
+        _domain_routing_evidence: Dict[str, Any] = None,
     ) -> Dict:
         if not isinstance(request, str) or not request.strip():
             raise ValueError("request must be a non-empty string")
         if not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
+        if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
+            raise ValueError("run_id must be a non-empty string")
         if _resolved_request is not None and (
             not isinstance(_resolved_request, str) or not _resolved_request.strip()
         ):
             raise ValueError("_resolved_request must be a non-empty string")
         workflow_context = self._normalize_workflow_payload(workflow, planner, backend)
-        if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
-            raise ValueError("run_id must be a non-empty string")
+        domain_id = self._domain_id(planner, backend)
+        if _domain_routing_evidence is None and run_id is not None and _force_run_id:
+            existing = (
+                self._state.get_run(run_id, domain_id=domain_id)
+                if self._state.persistent
+                else self._runtime(planner, backend).get_run(run_id)
+            )
+            if existing is not None:
+                _domain_routing_evidence = getattr(
+                    existing,
+                    "domain_routing_evidence",
+                    None,
+                )
+        routing_evidence = (
+            normalize_domain_routing_evidence(
+                _domain_routing_evidence,
+                expected_domain_id=domain_id,
+                strict=True,
+            )
+            if _domain_routing_evidence is not None
+            else unavailable_domain_routing_evidence()
+        )
         if preview_fingerprint is not None and (
             not isinstance(preview_fingerprint, str) or not preview_fingerprint.strip()
         ):
@@ -320,7 +350,6 @@ class AgentService:
                 "preview_evidence_fingerprint must be a non-empty string"
             )
         if run_id is not None and not _force_run_id:
-            domain_id = self._domain_id(planner, backend)
             if self._state.persistent:
                 existing_any = self._state.get_run(run_id)
                 if (
@@ -337,6 +366,13 @@ class AgentService:
                 else self._runtime(planner, backend).get_run(run_id)
             )
             if existing is not None:
+                if routing_evidence_identity(
+                    getattr(existing, "domain_routing_evidence", None)
+                ) != routing_evidence_identity(routing_evidence):
+                    raise DomainRoutingEvidenceError(
+                        "run_id conflicts with domain routing identity",
+                        code="domain_routing_evidence_run_conflict",
+                    )
                 payload = _format_result(
                     existing,
                     _normalize_spatial_context(spatial_context),
@@ -381,6 +417,7 @@ class AgentService:
                 geojson_max_features=geojson_max_features,
                 async_requested=_async_requested,
                 resolved_request_override=_resolved_request,
+                domain_routing_evidence=routing_evidence,
             )
         finally:
             cost.release_concurrency()
@@ -665,6 +702,7 @@ class AgentService:
         geojson_max_features: int,
         async_requested: bool = False,
         resolved_request_override: str = None,
+        domain_routing_evidence: Dict[str, Any] = None,
     ) -> Dict:
         runtime = self._runtime(planner, backend)
         if workflow_context is not None:
@@ -678,6 +716,25 @@ class AgentService:
                 resolved_request_override=resolved_request_override,
                 **runtime_kwargs,
             )
+        result.domain_routing_evidence = (
+            bind_domain_routing_evidence(
+                domain_routing_evidence,
+                run_id=result.run_id,
+                domain_id=(
+                    result.domain_id
+                    or self._resolved_domain_id
+                    or self._configured_domain_id
+                    or "gis"
+                ),
+            )
+            if isinstance(domain_routing_evidence, Mapping)
+            and domain_routing_evidence.get("available") is True
+            else unavailable_domain_routing_evidence(
+                (domain_routing_evidence or {}).get(
+                    "reason_code", "domain_routing_evidence_missing"
+                )
+            )
+        )
         result.spatial_context = dict(normalized_context)
         payload = result.to_dict()
         if async_requested:
@@ -812,6 +869,16 @@ class AgentService:
         domain_id = self._domain_id(
             kwargs.get("planner", "rule"), kwargs.get("backend", "memory")
         )
+        routing_evidence = (
+            normalize_domain_routing_evidence(
+                kwargs.get("_domain_routing_evidence"),
+                expected_domain_id=domain_id,
+                strict=True,
+            )
+            if kwargs.get("_domain_routing_evidence") is not None
+            else unavailable_domain_routing_evidence()
+        )
+        kwargs["_domain_routing_evidence"] = routing_evidence
         kwargs["domain_id"] = domain_id
         kwargs["runtime_context"] = self._submission_runtime_context(
             kwargs.get("planner", "rule"), kwargs.get("backend", "memory")
@@ -823,6 +890,12 @@ class AgentService:
             idempotency_key = idempotency_key or _async_fingerprint(job_payload)
             run_id = str(uuid.uuid4())
         job_payload["run_id"] = run_id
+        if routing_evidence.get("available") is True:
+            job_payload["domain_routing_evidence"] = bind_domain_routing_evidence(
+                routing_evidence,
+                run_id=run_id,
+                domain_id=domain_id,
+            )
 
         early = None  # (run_id, status, reused) built under the lock, responded after it.
         with self._async_lock:
@@ -842,6 +915,15 @@ class AgentService:
                 if existing_result is not None and not self._state.async_job(
                     run_id, domain_id=domain_id
                 ):
+                    if routing_evidence_identity(
+                        getattr(existing_result, "domain_routing_evidence", None)
+                    ) != routing_evidence_identity(
+                        job_payload.get("domain_routing_evidence")
+                    ):
+                        raise DomainRoutingEvidenceError(
+                            "run_id conflicts with domain routing identity",
+                            code="domain_routing_evidence_idempotency_conflict",
+                        )
                     early = (run_id, existing_result.status.value, True)
                 else:
                     job = self._state.create_async_job(
@@ -864,6 +946,15 @@ class AgentService:
                             raise ValueError(
                                 "idempotency_key belongs to another domain"
                             )
+                        if routing_evidence_identity(
+                            existing_payload.get("domain_routing_evidence")
+                        ) != routing_evidence_identity(
+                            job_payload.get("domain_routing_evidence")
+                        ):
+                            raise DomainRoutingEvidenceError(
+                                "idempotency_key conflicts with domain routing identity",
+                                code="domain_routing_evidence_idempotency_conflict",
+                            )
                         self._ensure_async_run_snapshot(job)
                         early = (job["run_id"], _async_status(self._state_store, job), True)
                     else:
@@ -874,6 +965,9 @@ class AgentService:
                                 request=request,
                                 session_id=session_id,
                                 domain_id=domain_id,
+                                domain_routing_evidence=job_payload.get(
+                                    "domain_routing_evidence"
+                                ),
                                 runtime_context=job_payload.get("runtime_context"),
                                 workflow=job_payload.get("workflow"),
                             )
@@ -888,6 +982,18 @@ class AgentService:
             else:
                 job = self._async_jobs.get(idempotency_key)
                 if job is not None:
+                    existing_payload = (
+                        job.get("payload") if isinstance(job.get("payload"), dict) else {}
+                    )
+                    if routing_evidence_identity(
+                        existing_payload.get("domain_routing_evidence")
+                    ) != routing_evidence_identity(
+                        job_payload.get("domain_routing_evidence")
+                    ):
+                        raise DomainRoutingEvidenceError(
+                            "idempotency_key conflicts with domain routing identity",
+                            code="domain_routing_evidence_idempotency_conflict",
+                        )
                     early = (job["run_id"], job["status"], True)
                 else:
                     submitted_at = time.time()
@@ -921,6 +1027,7 @@ class AgentService:
         kwargs.pop("run_id", None)
         domain_id = kwargs.pop("domain_id", None) or self._resolved_domain_id
         runtime_context = kwargs.pop("runtime_context", None)
+        routing_evidence = kwargs.pop("domain_routing_evidence", None)
         completed = False
         failure_category = None
         self._mark_async_started(run_id)
@@ -940,6 +1047,12 @@ class AgentService:
                 run_id=run_id,
                 _force_run_id=True,
                 _async_requested=True,
+                _domain_routing_evidence=(
+                    routing_evidence
+                    if isinstance(routing_evidence, Mapping)
+                    and routing_evidence.get("available") is True
+                    else None
+                ),
                 **kwargs,
             )
             status = str(payload.get("status") or "FAILED")
@@ -956,6 +1069,9 @@ class AgentService:
                         request=str(kwargs.get("request") or ""),
                         session_id=kwargs.get("session_id"),
                         domain_id=domain_id,
+                        domain_routing_evidence=job_payload.get(
+                            "domain_routing_evidence"
+                        ),
                         runtime_context=runtime_context,
                         error=str(exc),
                         error_category=failure_category,
@@ -1029,6 +1145,7 @@ class AgentService:
                     or self._configured_domain_id
                     or "gis"
                 ),
+                domain_routing_evidence=payload.get("domain_routing_evidence"),
                 runtime_context=payload.get("runtime_context"),
                 workflow=payload.get("workflow"),
             )

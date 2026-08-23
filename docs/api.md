@@ -434,12 +434,17 @@ Troubleshooting notes from the M16 setup:
 ## 自动领域路由
 
 - `GET /domain-routing/catalog` 返回有界、版本化 discovery snapshot，只含 Domain/Capability identity、用途、请求提示、所需事实和风险，不含工具 schema 或领域数据。
+- `GET /domain-routing/metrics` 返回有界选择次数、澄清率、平均延迟、selector/fallback 计数和受控 provider 指标；不返回请求正文、模型原文、密钥、URL 或完整目录。
 - `POST /domain-routing/select` 接收 `request`、可选 `session_id`/`domain_id`，返回 `spatial-agent.domain-routing-decision.v1`。唯一匹配为 `selected`，歧义为 `ambiguous`，完全不匹配为 `unmatched`。
 - `POST /domain-routing/decisions/{decision_id}/select` 接收 `domain_id` 与原 `session_id`，生成带 `parent_decision_id` 的用户改选；已绑定会话不能改到另一领域。
-- `POST /runs/auto` 支持同步执行和 `async=true`。可传 `domain_routing_decision_id` 继续已持久化的改选，不会重新猜测；响应携带 `domain_id` 与 `domain_routing`。
+- `POST /runs/auto` 支持同步执行和 `async=true`。可传 `domain_routing_decision_id` 继续已持久化的改选，不会重新猜测；响应携带 `domain_id`、入口 decision `domain_routing` 和执行绑定后的 `domain_routing_evidence`。
 - `POST /domain-routing/sessions/{session_id}/clear` 只清理尚未绑定领域的路由澄清 lineage；已绑定会话仍通过 `/domains/{domain_id}/sessions/{session_id}/clear` 清理。
 
-歧义响应同时包含 `domain_routing_interaction`，其 `select_domain` 使用普通 Action schema，Console 通过通用 Action Host 渲染。模型型 Selector 只能返回 discovery snapshot 中的 Domain/Capability identity；输出无效时可由 `FallbackDomainSelector` 回退离线目录选择，Selector 不生成 TaskPlan、不执行工具。
+歧义响应同时包含 `domain_routing_interaction`，其 `select_domain` 使用普通 Action schema，Console 通过通用 Action Host 渲染。模型型 Selector 只能返回 discovery snapshot 中的 Domain/Capability identity；输出无效时由离线目录 Selector 安全回退，Selector 不生成 TaskPlan、不执行工具。
+
+`domain_routing_evidence` 使用 `spatial-agent.domain-routing-evidence.v1`，只包含 decision identity、最多 8 个 lineage 事件、候选 Domain identity、selector 的脱敏观测和 `{domain_id, run_id}` execution binding。同步 Result、嵌套 Result、异步 polling、run detail、SQLite restart 和 run artifact 都使用同一投影；旧显式 Domain/兼容入口返回明确的 `available=false`。同一 `run_id` 或异步幂等键不能绑定不同 routing identity。
+
+Model Selector 由 `SPATIAL_AGENT_DOMAIN_SELECTOR_MODE` 显式控制：默认 `catalog` 保持离线确定性，只有设置为 `model` 才复用 OpenAI 兼容结构化传输；未知 mode 启动失败，运行期网络、schema 或未知身份错误回退 catalog。默认 CI 不启用 model mode。
 
 ## Design Notes
 
