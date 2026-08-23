@@ -4381,13 +4381,14 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 6. **体验**：通用 Console 根据 view/evidence/action registry 展示组合步骤、证据变化、阻断原因和下一步动作，Text/GIS 共用 renderer，不增加页面专用分支。
 7. **测试**：只新增一条精简的组合跨入口 contract harness，叠加 Docker/HTTP/Console 显式验收；默认 quick/CI 继续离线，阶段收口再做代表性 live/replay。
 
-## M220-A：Domain-owned workflow seam 与上下文过滤（已完成，待版本推送）
+## M220-A：Domain-owned workflow seam 与上下文过滤（已完成并推送）
 
 - `DomainPack` 新增显式 `workflow_template_catalog()` 与 `planner_request_hint()` seam；Text Domain 返回空目录，GIS Domain 显式提供自己的目录。
 - 公共工作流 context、单模板编译、组件组合、选择归一化和 plan validate 均支持 `catalog + known_tools + known_result_types`，自定义 `summarize_text` 工具/结果类型无需修改 `agent/` GIS 规则即可编译和组合。
 - Runtime 删除旧的 GIS 模板校验 fallback；LLM Planner 不再导入 GIS-aware hint，改由 Domain 注入；未选模板时只保留匹配候选，避免模板目录被 ContextBuilder 整段淘汰。
 - Docker 专项与跨域/工作流回归 **84/84**，Docker compileall 通过；未新增 GIS 固定问句分支。
 - 当前仍保留 `agent/workflow_templates.py` 中的旧 GIS catalog 作为兼容默认，尚未宣称公共目录物理下沉完成。
+- 阶段版本：`f24de46 feat: add domain-owned workflow seams`，已推送 `origin/main`。
 
 ## M220-B：目录物理下沉、组合生命周期与证据恢复（下一切片全局规划）
 
