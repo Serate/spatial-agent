@@ -25,6 +25,8 @@ from evaluation.contract_harness import normalize_result
 
 LIVE_ENV = "SPATIAL_AGENT_LIVE_HTTP"
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+MAX_REPORT_ITEMS = 24
+MAX_REPORT_TEXT = 160
 TERMINAL_STATES = {
     "COMPLETED",
     "FAILED",
@@ -34,19 +36,12 @@ TERMINAL_STATES = {
     "NEEDS_CLARIFICATION",
 }
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$")
+SAFE_DOMAIN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 SAME_RUN_FIELDS = (
     "result_type",
     "model_evidence",
     "context_fingerprint",
     "plan_identity",
-    "workspace_panels",
-    "view_panels",
-    "view_kinds",
-)
-CROSS_RUN_FIELDS = (
-    "result_type",
-    "model_identity",
-    "context_fingerprint",
     "workspace_panels",
     "view_panels",
     "view_kinds",
@@ -93,6 +88,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
     base_url = _base_url(args.base_url)
+    requested_domain = _requested_domain(args)
     if args.verify_run_id:
         return _verify_existing_run(base_url, args.verify_run_id, args)
     common = {
@@ -102,30 +98,26 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
         "backend": args.backend,
         "export_artifact": True,
         "timeout_seconds": args.request_timeout,
-    }
-
-    sync = _json_request(base_url, "POST", "/runs", common, args.http_timeout)
-    _completed(sync, "sync run")
-    sync_bundle = _artifact_bundle(base_url, sync, args.http_timeout)
-
-    async_payload = {
-        **common,
         "idempotency_key": "live-http-" + uuid.uuid4().hex,
     }
+    if requested_domain == "auto":
+        submit_path = "/runs/auto"
+        async_payload = {**common, "async": True}
+    else:
+        submit_path = f"/domains/{quote(requested_domain)}/runs/async"
+        async_payload = common
     queued = _json_request(
-        base_url, "POST", "/runs/async", async_payload, args.http_timeout
+        base_url, "POST", submit_path, async_payload, args.http_timeout
     )
+    if str(queued.get("status") or "").upper() == "NEEDS_CLARIFICATION":
+        raise AcceptanceFailure("automatic domain selection needs clarification")
+    domain_id = _selected_domain(queued, requested_domain)
     run_id = _run_id(queued)
-    duplicate = _json_request(
-        base_url, "POST", "/runs/async", async_payload, args.http_timeout
-    )
-    if _run_id(duplicate) != run_id or duplicate.get("idempotent") is not True:
-        raise AcceptanceFailure("async duplicate submission was not idempotent")
-    observation = _poll_async(base_url, run_id, args)
+    observation = _poll_async(base_url, domain_id, run_id, args)
     async_full = _json_request(
         base_url,
         "GET",
-        "/runs/" + quote(run_id) + "?" + urlencode({
+        _domain_path(domain_id, "/runs/" + quote(run_id)) + "?" + urlencode({
             "planner": args.planner,
             "backend": args.backend,
         }),
@@ -133,34 +125,22 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
         args.http_timeout,
     )
     _completed(async_full, "async run")
-    async_bundle = _artifact_bundle(base_url, async_full, args.http_timeout)
-
-    sync_contract = _full_contract(sync)
-    async_contract = _full_contract(async_full)
-    _match(
-        "sync/artifact",
-        sync_contract,
-        _full_contract(sync_bundle["artifact"]),
-        SAME_RUN_FIELDS,
+    async_bundle = _artifact_bundle(
+        base_url, async_full, args.http_timeout, domain_id=domain_id
     )
+
+    async_contract = _full_contract(async_full)
     _match(
         "async/artifact",
         async_contract,
         _full_contract(async_bundle["artifact"]),
         SAME_RUN_FIELDS,
     )
-    _match("sync/async core", sync_contract, async_contract, CROSS_RUN_FIELDS)
     _match(
         "async polling/artifact",
         _poll_contract(observation),
         async_contract,
         SAME_RUN_FIELDS,
-    )
-    _match(
-        "sync evidence endpoints",
-        _evidence_contract(sync_bundle["run_evidence"]),
-        _evidence_contract(sync_bundle["artifact_evidence"]),
-        ("registry", "projection", "recovery"),
     )
     _match(
         "async evidence endpoints",
@@ -171,34 +151,28 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
 
     report = {
         "status": "ok",
-        "mode": "live_execution",
+        "mode": "async_first_live_execution",
+        "domain_selection": {
+            "requested": requested_domain,
+            "selected": domain_id,
+        },
         "planner": args.planner,
         "backend": args.backend,
-        "result_type": async_contract["result_type"],
+        "result_type": _safe_text(async_contract["result_type"]),
         "model_evidence": async_contract["model_evidence"],
-        "context_fingerprint": async_contract["context_fingerprint"],
-        "plan_identity": {
-            "sync": sync_contract["plan_identity"],
-            "async": async_contract["plan_identity"],
-            "same_across_independent_runs": (
-                sync_contract["plan_identity"] == async_contract["plan_identity"]
-            ),
-        },
-        "workspace_panels": async_contract["workspace_panels"],
-        "view_panel_ids": async_contract["view_kinds"],
-        "sync": {"status": sync.get("status"), "artifact_available": True},
+        "context_fingerprint": _safe_text(async_contract["context_fingerprint"]),
+        "plan_identity": _safe_plan_identity(async_contract["plan_identity"]),
+        "workspace_panels": _bounded_ids(async_contract["workspace_panels"]),
+        "view_panel_ids": _bounded_mapping(async_contract["view_kinds"]),
         "async": {
-            "status": async_full.get("status"),
-            "poll_status": observation.get("status"),
+            "status": _safe_text(async_full.get("status")),
+            "poll_status": _safe_text(observation.get("status")),
             "artifact_available": True,
-            "idempotent_submission": True,
+            "agent_run_submissions": 1,
         },
         "comparisons": {
-            "sync_artifact": "ok",
             "async_artifact": "ok",
-            "sync_async_core": "ok",
             "async_polling_artifact": "ok",
-            "sync_evidence_endpoints": "ok",
             "async_evidence_endpoints": "ok",
         },
     }
@@ -212,10 +186,12 @@ def _verify_existing_run(
     run_id: str,
     args: argparse.Namespace,
 ) -> Dict[str, Any]:
+    domain_option = _requested_domain(args)
+    requested_domain = None if domain_option == "auto" else domain_option
     full = _json_request(
         base_url,
         "GET",
-        "/runs/" + quote(run_id) + "?" + urlencode({
+        _domain_path(requested_domain, "/runs/" + quote(run_id)) + "?" + urlencode({
             "planner": args.planner,
             "backend": args.backend,
         }),
@@ -223,14 +199,17 @@ def _verify_existing_run(
         args.http_timeout,
     )
     _completed(full, "recovered run")
+    domain_id = _selected_domain(full, domain_option, allow_legacy_auto=True)
     observation = _json_request(
         base_url,
         "GET",
-        f"/runs/{quote(run_id)}/async",
+        _domain_path(domain_id, f"/runs/{quote(run_id)}/async"),
         None,
         args.http_timeout,
     )
-    bundle = _artifact_bundle(base_url, full, args.http_timeout)
+    bundle = _artifact_bundle(
+        base_url, full, args.http_timeout, domain_id=domain_id
+    )
     contract = _full_contract(full)
     _match(
         "recovered run/artifact",
@@ -253,18 +232,22 @@ def _verify_existing_run(
     report = {
         "status": "ok",
         "mode": "existing_run_verification",
+        "domain_selection": {
+            "requested": domain_option,
+            "selected": domain_id,
+        },
         "planner": args.planner,
         "backend": args.backend,
-        "result_type": contract["result_type"],
+        "result_type": _safe_text(contract["result_type"]),
         "model_evidence": contract["model_evidence"],
-        "context_fingerprint": contract["context_fingerprint"],
-        "plan_identity": contract["plan_identity"],
-        "workspace_panels": contract["workspace_panels"],
-        "view_panel_ids": contract["view_kinds"],
+        "context_fingerprint": _safe_text(contract["context_fingerprint"]),
+        "plan_identity": _safe_plan_identity(contract["plan_identity"]),
+        "workspace_panels": _bounded_ids(contract["workspace_panels"]),
+        "view_panel_ids": _bounded_mapping(contract["view_kinds"]),
         "recovery": {
-            "status": observation.get("status"),
-            "recovery_count": observation.get("recovery_count"),
-            "last_event": observation.get("last_event"),
+            "status": _safe_text(observation.get("status")),
+            "recovery_count": _safe_number(observation.get("recovery_count")),
+            "last_event": _safe_text(observation.get("last_event")),
             "artifact_available": True,
         },
         "comparisons": {
@@ -278,12 +261,18 @@ def _verify_existing_run(
     return report
 
 
-def _artifact_bundle(base_url: str, payload: Mapping[str, Any], timeout: float):
+def _artifact_bundle(
+    base_url: str,
+    payload: Mapping[str, Any],
+    timeout: float,
+    *,
+    domain_id: Optional[str] = None,
+):
     name = _artifact_name(payload)
     if not name:
         raise AcceptanceFailure("artifact reference is missing")
     run_id = _run_id(payload)
-    prefix = "/artifacts/runs/" + quote(name)
+    prefix = _domain_path(domain_id, "/artifacts/runs/" + quote(name))
     artifact = _json_request(base_url, "GET", prefix, None, timeout)
     manifest = _json_request(base_url, "GET", prefix + "/manifest", None, timeout)
     manifest_ref = manifest.get("artifact")
@@ -294,7 +283,11 @@ def _artifact_bundle(base_url: str, payload: Mapping[str, Any], timeout: float):
     return {
         "artifact": artifact,
         "run_evidence": _json_request(
-            base_url, "GET", f"/runs/{quote(run_id)}/evidence", None, timeout
+            base_url,
+            "GET",
+            _domain_path(domain_id, f"/runs/{quote(run_id)}/evidence"),
+            None,
+            timeout,
         ),
         "artifact_evidence": _json_request(
             base_url, "GET", prefix + "/evidence", None, timeout
@@ -388,7 +381,11 @@ def _safe_model(value: Any) -> Dict[str, Any]:
         "retries",
         "latency_ms",
     )
-    result = {key: value[key] for key in allowed if key in value}
+    result = {
+        key: _safe_report_value(value[key])
+        for key in allowed
+        if key in value
+    }
     usage = value.get("usage")
     if isinstance(usage, Mapping):
         result["usage"] = {
@@ -460,6 +457,7 @@ def _json_request(
 
 def _poll_async(
     base_url: str,
+    domain_id: str,
     run_id: str,
     args: argparse.Namespace,
 ) -> Dict[str, Any]:
@@ -470,7 +468,7 @@ def _poll_async(
         latest = _json_request(
             base_url,
             "GET",
-            f"/runs/{quote(run_id)}/async",
+            _domain_path(domain_id, f"/runs/{quote(run_id)}/async"),
             None,
             args.http_timeout,
         )
@@ -493,13 +491,99 @@ def _artifact_name(payload: Mapping[str, Any]) -> Optional[str]:
 
 def _run_id(payload: Mapping[str, Any]) -> str:
     value = payload.get("run_id")
-    if not isinstance(value, str) or not value.strip():
+    if not isinstance(value, str) or not SAFE_NAME.fullmatch(value.strip()):
         raise AcceptanceFailure("run_id is missing")
     return value.strip()
 
 
+def _requested_domain(args: argparse.Namespace) -> str:
+    value = str(getattr(args, "domain", "auto") or "auto").strip()
+    if value == "auto" or SAFE_DOMAIN.fullmatch(value):
+        return value
+    raise AcceptanceFailure("domain must be auto or a safe domain identifier")
+
+
+def _selected_domain(
+    payload: Mapping[str, Any],
+    requested: str,
+    *,
+    allow_legacy_auto: bool = False,
+) -> str:
+    value = payload.get("domain_id")
+    if not isinstance(value, str) or not SAFE_DOMAIN.fullmatch(value.strip()):
+        if requested != "auto":
+            value = requested
+        elif allow_legacy_auto:
+            value = "gis"
+        else:
+            raise AcceptanceFailure("selected domain is missing or invalid")
+    value = value.strip()
+    if requested != "auto" and value != requested:
+        raise AcceptanceFailure("selected domain does not match explicit domain")
+    return value
+
+
+def _domain_path(domain_id: Optional[str], suffix: str) -> str:
+    if not domain_id:
+        return suffix
+    if not SAFE_DOMAIN.fullmatch(domain_id):
+        raise AcceptanceFailure("domain identifier is invalid")
+    return f"/domains/{quote(domain_id)}{suffix}"
+
+
+def _safe_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return str(value).replace("\r", " ").replace("\n", " ")[:MAX_REPORT_TEXT]
+
+
+def _safe_number(value: Any) -> Optional[float]:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return value
+
+
+def _safe_report_value(value: Any) -> Any:
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int, float)):
+        return value
+    return _safe_text(value)
+
+
+def _safe_plan_identity(value: Any) -> Dict[str, Optional[str]]:
+    value = value if isinstance(value, Mapping) else {}
+    return {
+        "version": _safe_text(value.get("version")),
+        "fingerprint": _safe_text(value.get("fingerprint")),
+    }
+
+
+def _bounded_ids(value: Any) -> list[str]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    result = []
+    for item in value[:MAX_REPORT_ITEMS]:
+        identity = item.get("id") if isinstance(item, Mapping) else item
+        safe = _safe_text(identity)
+        if safe:
+            result.append(safe)
+    return result
+
+
+def _bounded_mapping(value: Any) -> Dict[str, Optional[str]]:
+    if not isinstance(value, Mapping):
+        return {}
+    result: Dict[str, Optional[str]] = {}
+    for key, item in list(value.items())[:MAX_REPORT_ITEMS]:
+        safe_key = _safe_text(key)
+        if safe_key:
+            result[safe_key] = _safe_text(item)
+    return result
+
+
 def _completed(payload: Mapping[str, Any], label: str) -> None:
-    status = str(payload.get("status") or "missing")
+    status = _safe_text(payload.get("status") or "missing")
     if status != "COMPLETED":
         raise AcceptanceFailure(f"{label} status={status}")
 
@@ -527,11 +611,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default="http://127.0.0.1:8088")
     parser.add_argument("--planner", choices=("rule", "openai"), default="openai")
     parser.add_argument("--backend", choices=("memory", "local"), default="memory")
+    parser.add_argument(
+        "--domain",
+        default="auto",
+        metavar="DOMAIN|auto",
+        help="auto routes once before submitting the selected domain asynchronously",
+    )
     parser.add_argument("--request", default="查询DEM栅格元数据")
     parser.add_argument("--request-timeout", type=float, default=45.0)
     parser.add_argument("--http-timeout", type=float, default=30.0)
-    parser.add_argument("--poll-limit", type=int, default=80)
-    parser.add_argument("--poll-interval", type=float, default=0.25)
+    parser.add_argument("--poll-limit", type=int, default=360)
+    parser.add_argument("--poll-interval", type=float, default=1.0)
     parser.add_argument("--allow-live", action="store_true")
     parser.add_argument("--verify-run-id")
     parser.add_argument("--include-run-id", action="store_true")

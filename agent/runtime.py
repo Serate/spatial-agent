@@ -57,6 +57,10 @@ from .evidence_revalidation import (
 from .plan_quality import diagnose_plan, project_plan_quality_evidence, repair_context
 from .plan_policy import build_plan_policy_evidence
 from .planner_selection import build_planner_selection_evidence
+from .planner_context import (
+    PLANNER_CONTEXT_PROJECTION_SCHEMA_VERSION,
+    project_planner_sections,
+)
 from .workflow_selection import (
     build_workflow_selection_evidence,
     normalize_workflow_selection_evidence,
@@ -1195,7 +1199,9 @@ class AgentRuntime:
         """Create planning evidence even when no executable plan survived."""
         selection = None
         if context_packet is not None:
-            sections = (context_packet.payload or {}).get("sections", {})
+            sections = (
+                context_packet.source_payload or context_packet.payload or {}
+            ).get("sections", {})
             if isinstance(sections, Mapping):
                 selection = sections.get("workflow_selection")
         return {
@@ -1306,7 +1312,13 @@ class AgentRuntime:
             tool_governance=self._registry.governance_summary(max_tools=4),
             selected_capability_ids=selected_capability_ids(capability_discovery)[:1],
             max_capabilities=1,
-            max_tools=4,
+            max_tools=12,
+        )
+        planner_sections = project_planner_sections(
+            capability_discovery=discovery_payload,
+            capability_catalog=capability_catalog,
+            workflow_selection=workflow_selection,
+            workflow_templates=workflow_templates,
         )
         return self._context_builder.build(
             request=request,
@@ -1319,11 +1331,13 @@ class AgentRuntime:
             request_understanding=understanding_payload,
             capability_discovery=discovery_payload,
             capability_catalog=capability_catalog,
-            workflow_selection=_compact_workflow_selection_for_context(
-                workflow_selection
-            ),
+            workflow_selection=workflow_selection,
             memory_section=memory_section,
             workflow_templates=workflow_templates,
+            planner_section_overrides=planner_sections,
+            planner_projection_schema_version=(
+                PLANNER_CONTEXT_PROJECTION_SCHEMA_VERSION
+            ),
         )
 
     def _capability_context_evidence(self) -> Mapping[str, Any]:
@@ -1421,7 +1435,9 @@ class AgentRuntime:
         """
         if isinstance(workflow, Mapping) and workflow.get("template_id"):
             return
-        sections = (context_packet.payload or {}).get("sections", {})
+        sections = (
+            context_packet.source_payload or context_packet.payload or {}
+        ).get("sections", {})
         selection = normalize_workflow_selection_evidence(
             sections.get("workflow_selection")
             if isinstance(sections, Mapping)
@@ -1537,7 +1553,8 @@ class AgentRuntime:
     ) -> tuple[Optional[TaskPlan], Optional[Dict[str, Any]]]:
         capability_context = {}
         if context_packet is not None:
-            sections = context_packet.payload.get("sections", {})
+            source_payload = context_packet.source_payload or context_packet.payload
+            sections = source_payload.get("sections", {})
             if isinstance(sections, Mapping):
                 capability_context = {
                     key: sections[key]
@@ -1954,64 +1971,6 @@ def _plan_dag(plan: TaskPlan) -> Dict[str, Any]:
     }
 
 
-def _compact_workflow_selection_for_context(
-    selection: Mapping[str, Any],
-) -> Mapping[str, Any]:
-    """Bound selected candidate detail without hiding the candidate set.
-
-    The persisted/result projection keeps the full Domain-owned candidate
-    cards.  Planner context is a separate budgeted surface: when a decision
-    is already selected, one detailed card is enough to explain the choice;
-    all candidate IDs and the original count remain available as evidence.
-    Ambiguous selections retain their cards so the clarification UI can
-    render an actionable choice.
-    """
-    if not isinstance(selection, Mapping):
-        return selection
-    if str(selection.get("state") or "") != "selected":
-        return selection
-    details = selection.get("candidate_details")
-    if not isinstance(details, list) or len(details) <= 1:
-        return selection
-    selected_id = str(selection.get("selected_capability_id") or "")
-    selected_details = [
-        item
-        for item in details
-        if isinstance(item, Mapping)
-        and str(item.get("id") or "") == selected_id
-    ]
-    if not selected_details:
-        selected_details = [item for item in details[:1] if isinstance(item, Mapping)]
-    compact = dict(selection)
-    compact["candidate_details"] = selected_details[:1]
-    # Preserve the small result-type binding for every candidate.  This is
-    # not a second selection decision and does not expose full cards to the
-    # model; it lets the public planner-selection evidence distinguish a
-    # model choosing another known capability from a truly unknown result.
-    candidate_result_types = []
-    for item in details[:16]:
-        if not isinstance(item, Mapping):
-            continue
-        capability_id = str(item.get("id") or item.get("capability_id") or "").strip()
-        if not capability_id:
-            continue
-        result_types = list(item.get("result_types") or [])
-        workflow = item.get("workflow")
-        if isinstance(workflow, Mapping):
-            result_types.extend(workflow.get("result_types") or [])
-        bounded_types = []
-        for result_type in result_types:
-            value = str(result_type or "").strip()[:96]
-            if value and value not in bounded_types:
-                bounded_types.append(value)
-        candidate_result_types.append(
-            {"id": capability_id[:96], "result_types": bounded_types[:8]}
-        )
-    compact["candidate_result_types"] = candidate_result_types[:16]
-    compact["candidate_details_truncated"] = True
-    return compact
-
-
 def _compact_workflow_templates_for_context(
     templates: Mapping[str, Any],
     selection: Mapping[str, Any],
@@ -2066,7 +2025,8 @@ def _build_plan_evidence(
 
     output_type = str((plan.output or {}).get("type") or "unknown")
     tool_names = [step.tool for step in plan.steps]
-    sections = (context_packet.payload or {}).get("sections", {})
+    source_payload = context_packet.source_payload or context_packet.payload
+    sections = (source_payload or {}).get("sections", {})
     if not isinstance(sections, Mapping):
         sections = {}
     templates_section = sections.get("workflow_templates")

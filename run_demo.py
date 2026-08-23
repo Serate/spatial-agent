@@ -8,6 +8,7 @@ from agent.domain_routing_entry import (
     DomainRoutingApplication,
     routing_state_from_environment,
 )
+from agent.runtime_factory import build_runtime  # compatibility re-export
 from agent.service import AgentService
 
 

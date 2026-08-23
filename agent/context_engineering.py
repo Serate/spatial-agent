@@ -17,6 +17,7 @@ class ContextPacket:
     payload: Dict[str, Any]
     rendered: str
     evidence: Dict[str, Any]
+    source_payload: Optional[Dict[str, Any]] = None
 
 
 class ContextBuilder:
@@ -47,6 +48,8 @@ class ContextBuilder:
         workflow_selection: Optional[Mapping[str, Any]] = None,
         memory_section: Optional[Mapping[str, Any]] = None,
         workflow_templates: Optional[Mapping[str, Any]] = None,
+        planner_section_overrides: Optional[Mapping[str, Mapping[str, Any]]] = None,
+        planner_projection_schema_version: Optional[str] = None,
     ) -> ContextPacket:
         original = self._text(request)
         resolved = self._text(resolved_request) or original
@@ -76,8 +79,17 @@ class ContextBuilder:
         if memory_section:
             sections["memory"] = self._safe_value(memory_section)
 
-        rendered, truncated = self._bounded_render(sections)
+        planner_sections = dict(sections)
+        if planner_section_overrides:
+            for name, value in planner_section_overrides.items():
+                if name in planner_sections and isinstance(value, Mapping):
+                    planner_sections[str(name)] = self._safe_value(value)
+        rendered, truncated = self._bounded_render(planner_sections)
         section_chars = {
+            name: len(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+            for name, value in planner_sections.items()
+        }
+        source_section_chars = {
             name: len(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
             for name, value in sections.items()
         }
@@ -88,14 +100,20 @@ class ContextBuilder:
             "input_chars": len(rendered),
             "truncated": truncated,
             "section_chars": section_chars,
-            "section_names": list(sections),
+            "section_names": list(planner_sections),
+            "source_section_chars": source_section_chars,
             "request_sha256": hashlib.sha256(resolved.encode("utf-8")).hexdigest(),
             "session_bound": bool(session_id),
         }
+        if planner_projection_schema_version:
+            evidence["projection_schema_version"] = self._text(
+                planner_projection_schema_version
+            )[:96]
         return ContextPacket(
-            payload={"schema_version": CONTEXT_SCHEMA_VERSION, "sections": sections},
+            payload={"schema_version": CONTEXT_SCHEMA_VERSION, "sections": planner_sections},
             rendered=rendered,
             evidence=evidence,
+            source_payload={"schema_version": CONTEXT_SCHEMA_VERSION, "sections": sections},
         )
 
     def _bounded_render(self, sections: Dict[str, Any]):

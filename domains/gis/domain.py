@@ -56,25 +56,38 @@ class GisDomainPack:
         from pathlib import Path
 
         from agent.dataset_catalog import DatasetCatalog
+        from agent.errors import ToolError
         from agent.spatial_backend import (
             HybridSpatialBackend,
             InMemorySpatialBackend,
             SpatialToolAdapter,
         )
-        from agent.tool_provider import NativeToolProvider
+        from agent.tool_provider import NativeToolProvider, UnavailableToolProvider
 
         project_root = Path(root) if root is not None else Path(__file__).resolve().parents[2]
+        definitions_path = project_root / "tools" / "schema" / "tool-definitions.json"
         if backend_name == "local":
             catalog_path = os.environ.get(
                 "SPATIAL_AGENT_DATASET_CONFIG",
                 str(project_root / "config" / "datasets.local.example.json"),
             )
-            catalog = DatasetCatalog.from_json(catalog_path)
-            adapter = SpatialToolAdapter(HybridSpatialBackend(catalog))
+            try:
+                catalog = DatasetCatalog.from_json(catalog_path)
+                adapter = SpatialToolAdapter(HybridSpatialBackend(catalog))
+            except (ImportError, OSError, ValueError, ToolError):
+                return UnavailableToolProvider.from_json(
+                    str(definitions_path),
+                    provider_id="native",
+                    reason_code="backend_initialization_unavailable",
+                    message=(
+                        "GIS backend is unavailable; verify configured dataset "
+                        "files and runtime dependencies"
+                    ),
+                )
         else:
             adapter = SpatialToolAdapter(InMemorySpatialBackend())
         return NativeToolProvider.from_json(
-            str(project_root / "tools" / "schema" / "tool-definitions.json"),
+            str(definitions_path),
             adapter,
         )
 

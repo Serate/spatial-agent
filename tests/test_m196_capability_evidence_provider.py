@@ -200,6 +200,7 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
 
     def test_http_run_exposes_selection_evidence_projection(self):
         service = AgentService(domain_pack=TEXT_DOMAIN_PACK)
+        session_id = "m196-http-" + str(time.time_ns())
 
         class TextHandler(AgentApiHandler):
             pass
@@ -213,7 +214,7 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
                 "127.0.0.1", server.server_address[1], timeout=5
             )
             body = json.dumps(
-                {"request": "概括这段文本", "session_id": "m196-http"},
+                {"request": "概括这段文本", "session_id": session_id},
                 ensure_ascii=False,
             ).encode("utf-8")
             connection.request(

@@ -217,3 +217,35 @@
 - **诊断**：从 HTTP command 追踪到 Host 和 dispatcher，搜索所有 `allowed_actions` 读取；若动作在 Host 后再次根据 legacy selection 判定，就是重复授权。
 - **修复**：dispatcher 只接收 Host 已验证的 normalized command；legacy selection 字段仅作为响应兼容投影。Console 异步状态也改读 canonical interaction，并删除旧 selection 模块与静态资源入口。
 - **预防**：兼容 adapter 必须单向从 canonical contract 生成，不能反向参与授权、状态机或 UI 动作选择；阶段测试同时断言旧脚本未加载。
+
+## Planner 上下文同时承担模型输入和完整证据导致 token 膨胀
+
+- **现象**：复杂开放式 GIS 请求的模型调用耗时很长，原同步验收在 HTTP 客户端超时；Planner 上下文约 15.3K 字符，系统提示约 7.2K 字符，其中能力目录、工作流选择和模板重复描述同一能力。
+- **根因**：`ContextPacket.payload` 同时作为 Planner 输入和 Runtime 证据来源；为了保留 Result/Evidence，只能把大块候选详情、动作目录、工具治理和模板内容一起送给模型。
+- **诊断**：只比较 `context_evidence.section_chars`、Planner system prompt 长度、工具 schema 数量和 source evidence 是否完整；不要保存或输出模型原文、请求全文、密钥或私有路径。
+- **修复**：新增 `planner_context` 投影 seam；`payload` 只保留有界 Planner projection，`source_payload` 保留完整证据来源。复杂请求模型上下文降至约 11.2K，系统提示按已选 workflow DAG/schema 去重至约 3.4K，9 个工作流工具 schema 全部可见。
+- **预防**：公共 Result/Evidence 契约不能为了 token 预算裁剪；每个 Planner 输入投影都要有字段 allowlist、体积上限、schema 数量断言，并验证 source evidence、repair、SQLite/artifact 仍使用完整来源。
+
+## 真实模型验收重复提交同步与异步 run
+
+- **现象**：live 验收脚本先执行同步请求，再执行异步请求，模型被重复调用；同步请求可能先占满 HTTP 超时，即使异步路径本身可以成功。
+- **根因**：脚本把“同步/异步独立运行一致性”误当成同一阶段的必需检查，导致真实模型成本和失败概率随验收步骤翻倍。
+- **诊断**：统计验收报告中的 agent run 提交次数，并比较同一 run 的 polling、detail、artifact、evidence，而不是为传输一致性创建第二个模型 run。
+- **修复**：`live_http_acceptance.py` 改为 async-first、auto-domain、单次提交；轮询终态后复用同一 run 的 detail/artifact/evidence。真实 DeepSeek + local GIS 复杂请求成功，结果类型为 `spatial_analysis_result`，单次 run 提交数为 1。
+- **预防**：live 验收默认只做一次模型执行；独立稳定性对照必须显式单独命令并说明额外 token 成本，默认脚本不能隐式重复调用。
+
+## GIS 数据目录完全缺失时后端初始化越过统一生命周期
+
+- **现象**：`admin_areas` 没有文件时，`HybridSpatialBackend` 在 `AgentService` 创建 Runtime 阶段直接抛异常，HTTP 只能得到启动级错误，无法生成统一的失败证据、恢复动作和 artifact 状态。
+- **根因**：Domain Pack 的 `tool_provider` 只考虑成功构造 native adapter；数据目录错误没有通过 ToolRegistry dispatch，因此没有进入 Runtime 的 provider failure contract。
+- **诊断**：用不含真实文件的 dataset config 启动 local GIS，只输出 status、error_code、interaction state 和 action IDs；不能输出原始异常、绝对路径或数据文件内容。
+- **修复**：新增通用 `UnavailableToolProvider`，GIS Domain 捕获本地后端初始化错误后保留已校验工具定义，调用阶段返回 `backend_initialization_unavailable`；Runtime 统一产生 `FAILED / recoverable` 和 `retry、recover、cancel`。
+- **预防**：Domain adapter 初始化失败也必须落入 ToolRegistry/Runtime failure seam；缺失数据、未对齐和依赖不可用分别保留结构化 reason code，真实 GIS/live 验收与默认离线 smoke 分层。
+
+## 兼容入口丢失 runtime_factory 导出导致历史验收无法导入
+
+- **现象**：`tests.test_m62_spatial_intent` 等旧入口从 `run_demo import build_runtime` 导入失败，实际 Runtime 代码和功能正常。
+- **根因**：`runtime_factory.py` 的模块说明仍承诺 `run_demo` re-export，但重构后根入口只保留 CLI 逻辑，兼容 seam 未同步维护。
+- **诊断**：先运行测试收集阶段和 `rg "from run_demo import build_runtime"`，区分导入兼容故障与业务断言故障。
+- **修复**：恢复 `run_demo` 对 `agent.runtime_factory.build_runtime` 的显式兼容导出；不恢复旧的内部实现或增加重复 Runtime 工厂。
+- **预防**：移动模块后保留的兼容入口要有一个最小 import smoke；历史测试精简时优先修复真实公共 seam，再删除重复矩阵。

@@ -9,11 +9,12 @@
 ## 当前状态
 
 - M228 已完成：pre-run routing child + receipt 在 SQLite 原子提交并可跨 worker/重启回放；Journey Harness 贯穿 Application、HTTP、artifact 和 restart；legacy 前端 selection 活动路径已删除。
-- 最新生产镜像 healthy；聚焦回归 31/31、quick/smoke、compileall 和领域/能力/确认三条 canonical 浏览器验收通过。
+- M229 已实现并完成验收：Planner 输入投影与完整 source evidence 分离；async-first auto-domain live 验收只提交一个 run；GIS 后端初始化不可用时进入统一 recoverable lifecycle。
+- 最新生产镜像 healthy；聚焦回归 23/23、quick/smoke、compileall、真实 DeepSeek + local GIS、重启 artifact/evidence、真实 run Console 动态展示全部通过。
 
 ## 下一步
 
-启动 M229：用真实模型 + 真实 GIS/Docker 完成复杂开放请求纵向验收和结构化能力缺口/降级闭环，再按完整 Goal 做全局审计。
+完成 M229 中文文档、提交并推送版本，然后按完整 Goal 做全局审计和下一阶段规划。
 
 ## 不变量
 

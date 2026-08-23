@@ -109,10 +109,10 @@ docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile li
 HTTP/异步/artifact 的真实模型一致性使用独立 opt-in 脚本，默认不进入 CI：
 
 ~~~powershell
-docker exec -e SPATIAL_AGENT_LIVE_HTTP=1 ai-agent-spatial-agent-1 python scripts/live_http_acceptance.py --planner openai --backend memory
+docker exec -e SPATIAL_AGENT_LIVE_HTTP=1 ai-agent-spatial-agent-1 python scripts/live_http_acceptance.py --planner openai --backend local --domain auto
 ~~~
 
-先用 `--planner rule` 做无模型费用预检。live 路径只输出有界的 result type、模型身份与 usage、context/plan fingerprint、workspace/view panel 和比较状态；不写文件，不输出 prompt、provider 原始响应、API key 或宿主路径。同一 run 的 full result、polling、artifact 必须严格保持 plan/model evidence 一致；两个独立 live run 允许 plan fingerprint 不同，但核心结果投影必须一致。
+先用 `--planner rule` 做无模型费用预检。live 路径默认 async-first、auto-domain 且只提交一个 Agent run；随后复用同一 run 比较 polling、detail、artifact 和 evidence。脚本只输出有界的 result type、模型身份与 usage、context/plan fingerprint、workspace/view panel 和比较状态；不写文件，不输出 prompt、provider 原始响应、API key 或宿主路径。需要重启接管时使用 `--verify-run-id`，不会再次调用模型。
 
 ### docker
 
@@ -266,6 +266,18 @@ docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evalu
 ~~~
 
 当前严格完整性版本为 `spatial-agent.evidence-completeness.v2`，required entries 包含 workflow/planner selection；旧 Registry 允许兼容读取，但不能在当前严格 replay/Contract Harness 中伪装为完整。新增 Registry entry 时必须同步更新 schema 版本、完整性测试、async/artifact projection 和跨 Domain 契约。
+
+## M229 真实纵向链路、后端降级与动态结果视图专项
+
+复杂开放请求的显式验收顺序为：Docker 重建 → async-first live HTTP → existing-run 重启恢复 → Console 只读渲染。真实模型只在第一步 live HTTP 中调用一次：
+
+~~~powershell
+docker exec -e SPATIAL_AGENT_LIVE_HTTP=1 ai-agent-spatial-agent-1 python scripts/live_http_acceptance.py --planner openai --backend local --domain auto --request "请对洪山区进行综合空间分析：查询行政区边界，统计DEM高程与坡度，分析土地利用分布，汇总道路和水体，并筛选坡度不超过20度、距离道路不超过1000米且排除水体的建设候选区域。" --request-timeout 300 --poll-limit 420
+docker exec -e SPATIAL_AGENT_LIVE_HTTP=1 ai-agent-spatial-agent-1 python scripts/live_http_acceptance.py --verify-run-id <run-id> --domain gis --planner openai --backend local
+node scripts/console_existing_run_browser_acceptance.js <run-id> gis
+~~~
+
+该专项只输出有界摘要；浏览器脚本从已有 run 读取详情，不重新执行模型。缺失数据配置应验证 `backend_initialization_unavailable`、`FAILED`、`recoverable` 和 `retry/recover/cancel`，不输出原始异常或本地路径。
 
 ## M221/M222 live HTTP、重启恢复与动态结果视图专项
 

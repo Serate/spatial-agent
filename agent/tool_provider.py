@@ -191,3 +191,67 @@ class NativeToolProvider:
         if not callable(exporter):
             raise AttributeError("native adapter does not support result export")
         return exporter(result_ref, max_features=max_features)
+
+
+class UnavailableToolProvider:
+    """Definition-compatible adapter for a provider that failed to initialize.
+
+    Keeping the catalogue available lets capability discovery, planning, and
+    ToolRegistry validation run normally.  Invocation then enters the shared
+    Runtime failure lifecycle instead of leaking a startup exception past the
+    request boundary.
+    """
+
+    def __init__(
+        self,
+        definitions: Mapping[str, Mapping[str, Any]],
+        *,
+        provider_id: str = "unavailable",
+        reason_code: str = "provider_initialization_unavailable",
+        message: str = "tool provider is unavailable; verify its runtime configuration",
+    ) -> None:
+        self._definitions = deepcopy(dict(definitions))
+        self._provider_id = str(provider_id or "unavailable")[:64]
+        self._reason_code = str(reason_code or "provider_initialization_unavailable")[:96]
+        self._message = str(message or "tool provider is unavailable")[:240]
+
+    @property
+    def provider_id(self) -> str:
+        return self._provider_id
+
+    @classmethod
+    def from_json(
+        cls,
+        path: str,
+        **kwargs: Any,
+    ) -> "UnavailableToolProvider":
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        definitions = {tool["name"]: tool for tool in payload["tools"]}
+        return cls(definitions, **kwargs)
+
+    def definitions(self) -> Mapping[str, Mapping[str, Any]]:
+        return deepcopy(self._definitions)
+
+    def health(self) -> Dict[str, Any]:
+        return {
+            "schema_version": TOOL_PROVIDER_HEALTH_SCHEMA,
+            "status": "unavailable",
+            "reason_code": self._reason_code,
+            "checks": [
+                {"name": "definitions", "status": "passed"},
+                {"name": "adapter", "status": "failed"},
+            ],
+        }
+
+    def invoke(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        raise ToolProviderError(
+            self._message,
+            provider_id=self._provider_id,
+            code=self._reason_code,
+            # Configuration or mounted data can be restored without changing
+            # the request, so expose the standard retry/recover interaction.
+            retryable=True,
+        )
+
+    def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
+        return self.invoke("export_result", {"result_ref": result_ref})
