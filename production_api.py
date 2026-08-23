@@ -38,6 +38,11 @@ from agent.artifact_manifest import build_artifact_manifest
 from agent.domain_http import assert_domain_payload
 from agent.domain_registry import resolve_domain_id
 from agent.domain_runtime_host import DomainRuntimeHost
+from agent.domain_routing_entry import (
+    DomainRoutingApplication,
+    DomainRoutingApplicationError,
+    routing_state_from_environment,
+)
 from agent.service import AgentService
 
 class UTF8JSONResponse(JSONResponse):
@@ -50,6 +55,10 @@ host = DomainRuntimeHost()
 host.start()
 LEGACY_DOMAIN_ID = resolve_domain_id()
 service = host.service(LEGACY_DOMAIN_ID)
+domain_routing = DomainRoutingApplication(
+    host,
+    state=routing_state_from_environment(),
+)
 
 
 def _close_host() -> None:
@@ -173,6 +182,42 @@ def domains() -> Dict[str, Any]:
     return host.catalog()
 
 
+@app.get("/domain-routing/catalog")
+def domain_routing_catalog() -> Dict[str, Any]:
+    return domain_routing.catalog()
+
+
+@app.post("/domain-routing/select")
+def select_domain(payload: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        return domain_routing.select(payload)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/domain-routing/decisions/{decision_id}/select")
+def override_domain_routing_decision(
+    decision_id: str,
+    payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    try:
+        return domain_routing.override(decision_id, payload)
+    except Exception as exc:
+        _raise_for(
+            exc,
+            not_found=isinstance(exc, DomainRoutingApplicationError)
+            and exc.code == "domain_routing_decision_not_found",
+        )
+
+
+@app.post("/domain-routing/sessions/{session_id}/clear")
+def clear_unbound_domain_routing_session(session_id: str) -> Dict[str, Any]:
+    try:
+        return domain_routing.clear_unbound_session(session_id)
+    except Exception as exc:
+        _raise_for(exc)
+
+
 @app.get("/actions")
 def actions(planner: str = "rule", backend: str = "memory") -> Dict[str, Any]:
     return service.actions(planner=planner, backend=backend)
@@ -238,6 +283,18 @@ def run(payload: Dict[str, Any]):
         return service.run(**run_kwargs(payload))
     except Exception as exc:
         _raise_for(exc)
+
+
+@app.post("/runs/auto")
+def run_auto(payload: Dict[str, Any]):
+    try:
+        return domain_routing.run(payload)
+    except Exception as exc:
+        _raise_for(
+            exc,
+            not_found=isinstance(exc, DomainRoutingApplicationError)
+            and exc.code == "domain_routing_decision_not_found",
+        )
 
 
 @app.post("/runs/preview")
@@ -310,7 +367,9 @@ def create_session():
 @app.post("/sessions/{session_id}/clear")
 def clear_session(session_id: str):
     try:
-        return service.clear_session(session_id)
+        result = service.clear_session(session_id)
+        domain_routing.forget_session(session_id, keep_binding=True)
+        return result
     except Exception as exc:
         _raise_for(exc)
 
@@ -318,7 +377,9 @@ def clear_session(session_id: str):
 @app.delete("/sessions/{session_id}")
 def delete_session(session_id: str):
     try:
-        return service.delete_session(session_id)
+        result = service.delete_session(session_id)
+        domain_routing.forget_session(session_id)
+        return result
     except Exception as exc:
         _raise_for(exc)
 
@@ -946,7 +1007,9 @@ def domain_clear_session(
     payload: Optional[Dict[str, Any]] = None,
 ):
     try:
-        return _domain_service(domain_id, payload).clear_session(session_id)
+        result = _domain_service(domain_id, payload).clear_session(session_id)
+        domain_routing.forget_session(session_id, keep_binding=True)
+        return result
     except Exception as exc:
         _raise_for(exc)
 
@@ -954,7 +1017,9 @@ def domain_clear_session(
 @app.delete("/domains/{domain_id}/sessions/{session_id}")
 def domain_delete_session(domain_id: str, session_id: str):
     try:
-        return _domain_service(domain_id).delete_session(session_id)
+        result = _domain_service(domain_id).delete_session(session_id)
+        domain_routing.forget_session(session_id)
+        return result
     except Exception as exc:
         _raise_for(exc)
 

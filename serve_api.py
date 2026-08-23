@@ -29,6 +29,11 @@ from agent.artifact_manifest import build_artifact_manifest
 from agent.domain_http import assert_domain_payload, parse_domain_path
 from agent.domain_registry import resolve_domain_id
 from agent.domain_runtime_host import DomainRuntimeHost
+from agent.domain_routing_entry import (
+    DomainRoutingApplication,
+    DomainRoutingApplicationError,
+    routing_state_from_environment,
+)
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
@@ -43,6 +48,10 @@ _legacy_runtime_capability_snapshot = runtime_capability_snapshot
 domain_host = DomainRuntimeHost()
 domain_host.start()
 legacy_service = domain_host.service(resolve_domain_id())
+domain_routing = DomainRoutingApplication(
+    domain_host,
+    state=routing_state_from_environment(),
+)
 
 
 def runtime_capability_snapshot(max_files: int = 10) -> dict:
@@ -53,6 +62,7 @@ def runtime_capability_snapshot(max_files: int = 10) -> dict:
 class AgentApiHandler(BaseHTTPRequestHandler):
     host = domain_host
     service = legacy_service
+    routing = domain_routing
     artifact_root = Path("outputs/runs")
     geojson_root = Path("outputs/geojson")
     web_root = Path(__file__).parent / "web"
@@ -89,6 +99,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/domains":
             self._write_json(200, self.host.catalog())
+            return
+        if selection is None and parsed.path == "/domain-routing/catalog":
+            self._write_json(200, self.routing.catalog())
             return
         if parsed.path == "/actions":
             query = parse_qs(parsed.query)
@@ -359,20 +372,53 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_tool_register = selection is None and parsed.path == "/tools"
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
+        is_domain_select = selection is None and parsed.path == "/domain-routing/select"
+        is_auto_run = selection is None and parsed.path == "/runs/auto"
+        routing_override_id = None
+        routing_clear_session_id = None
+        routing_parts = parsed.path.strip("/").split("/")
+        if (
+            selection is None
+            and len(routing_parts) == 4
+            and routing_parts[0] == "domain-routing"
+            and routing_parts[1] == "decisions"
+            and routing_parts[2]
+            and routing_parts[3] == "select"
+        ):
+            routing_override_id = routing_parts[2]
+        if (
+            selection is None
+            and len(routing_parts) == 4
+            and routing_parts[0] == "domain-routing"
+            and routing_parts[1] == "sessions"
+            and routing_parts[2]
+            and routing_parts[3] == "clear"
+        ):
+            routing_clear_session_id = routing_parts[2]
         workflow_action = None
         workflow_template_id = None
         workflow_parts = parsed.path.strip("/").split("/")
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and workflow_action is None:
+        if parsed.path != "/runs" and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and not is_domain_select and not is_auto_run and routing_override_id is None and routing_clear_session_id is None and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
             payload = self._read_json()
             if selection is not None:
                 assert_domain_payload(selection, payload)
-            if workflow_action is not None:
+            if is_domain_select:
+                result = self.routing.select(payload)
+            elif routing_override_id is not None:
+                result = self.routing.override(routing_override_id, payload)
+            elif routing_clear_session_id is not None:
+                result = self.routing.clear_unbound_session(
+                    routing_clear_session_id
+                )
+            elif is_auto_run:
+                result = self.routing.run(payload)
+            elif workflow_action is not None:
                 contract = self.service.workflow_contract(
                     planner=payload.get("planner", "rule"),
                     backend=payload.get("backend", "memory"),
@@ -415,6 +461,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             elif is_session_clear:
                 session_id = parsed.path[len("/sessions/") : -len("/clear")].strip("/")
                 result = self.service.clear_session(session_id)
+                self.routing.forget_session(session_id, keep_binding=True)
             elif is_comparison:
                 result = self.service.compare_buildability(**comparison_kwargs(payload))
             elif is_region_comparison:
@@ -445,6 +492,10 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     result = self.service.retry(run_id=parts[1], **retry_kwargs(payload))
             else:
                 result = self.service.run(**run_kwargs(payload))
+        except DomainRoutingApplicationError as exc:
+            status = 404 if exc.code == "domain_routing_decision_not_found" else error_status(exc)
+            self._write_json(status, error_response(exc, not_found=status == 404))
+            return
         except (ValueError, WorkflowTemplateError) as exc:
             self._write_json(error_status(exc), error_response(exc))
             return
@@ -465,6 +516,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         try:
             session_id = parsed.path[len("/sessions/") :].strip("/")
             result = self.service.delete_session(session_id)
+            self.routing.forget_session(session_id)
         except ValueError as exc:
             self._write_json(400, error_response(exc))
             return

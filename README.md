@@ -7,7 +7,7 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 - 对话式空间分析：支持行政区边界、DEM 高程、坡度、土地利用、道路/水体和建设候选演示筛选。
 - Agent Runtime：Planner、TaskPlan、依赖执行、重试、超时、取消和失败恢复相互分离。
 - 双 Planner：默认规则规划器保证确定性；可选 OpenAI 兼容大模型规划器处理更开放的表达。
-- 受控多领域：同一 HTTP/Console 部署通过 `DomainRuntimeHost` 隔离运行 GIS/Text；`/domains` 动态发布允许目录，`/domains/{domain_id}/...` 显式选择、执行和恢复，不允许请求参数反射导入任意模块。
+- 受控多领域：`DomainSelector` 先从有界能力目录自动选择、澄清或说明无匹配，再由 `DomainRuntimeHost` 隔离运行 GIS/Text；显式与自动入口都只能使用注册表身份。
 - 工具安全边界：所有工具经过 schema 校验和 Registry 分发，不让模型直接调用后端。
 - 真实数据接入：支持行政区 GeoJSON、DEM/土地利用栅格，以及武汉 OSM 道路和水体 GeoPackage。
 - 数据质量预检：检查可读性、CRS、覆盖关系和几何质量，并在分析结果中保留证据。
@@ -25,7 +25,8 @@ Spatial Agent 是一个可替换、可观测、可测试的空间智能体 Runti
 
 ```text
 用户请求
-  -> DomainSelection / DomainRuntimeHost / Domain Pack
+  -> DomainSelector / DomainSelection
+  -> DomainRuntimeHost / Domain Pack
   -> RuleBasedPlanner / LLMPlanner
   -> TaskPlan 与 schema 校验
   -> AgentRuntime
@@ -51,6 +52,8 @@ python run_demo.py "查询洪山区行政区边界"
 python run_demo.py "你好"
 # 可选：选择注册表中的领域；也可设置 SPATIAL_AGENT_DOMAIN=text
 python run_demo.py --domain text "请摘要这段文本"
+# 自动匹配整个部署的能力目录；歧义或无匹配时返回结构化澄清
+python run_demo.py --domain auto "请摘要这段文本"
 ```
 
 启动中文 Console：
@@ -116,6 +119,11 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 
 - `GET /health`
 - `GET /domains`
+- `GET /domain-routing/catalog`
+- `POST /domain-routing/select`
+- `POST /domain-routing/decisions/{decision_id}/select`
+- `POST /domain-routing/sessions/{session_id}/clear`
+- `POST /runs/auto`
 - `GET /domains/{domain_id}/capabilities`
 - `POST /domains/{domain_id}/runs`
 - `POST /domains/{domain_id}/runs/async`
@@ -136,7 +144,7 @@ scripts\production_acceptance.ps1 -BaseUrl http://127.0.0.1:8088
 - `GET /sessions`
 - `POST /sessions/{session_id}/clear`
 
-Console 和新客户端使用显式领域路径；旧无领域路径暂时保留兼容。URL 中的 `domain_id` 是权威来源，body 中重复声明且不一致时返回 `domain_mismatch`。会话固定归属一个领域，轮询、取消、重试和 artifact 链接始终沿用记录自身的 `domain_id`。
+Console 默认可使用“智能选择”：唯一匹配直接执行，歧义通过 schema-driven Action Host 改选，无匹配展示能力边界。选域前只创建中立 session identity，不初始化任何 Domain；首次执行后会话固定归属所选领域，刷新、轮询、取消、重试和 artifact 始终沿记录身份恢复。旧无领域路径仍保留兼容；显式 URL 中的 `domain_id` 是权威来源。
 
 ## 测试与验证
 

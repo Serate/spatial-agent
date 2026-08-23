@@ -203,7 +203,7 @@ const snapshotRaw = await evaluate(`(async()=>{
 })()`);
 const snapshot = JSON.parse(snapshotRaw || "{}");
 
-if (snapshot.initial?.options?.length !== 2 || snapshot.initial.options[0].value !== "gis" || snapshot.initial.options[1].value !== "text") {
+if (snapshot.initial?.options?.length !== 3 || snapshot.initial.options[0].value !== "auto" || snapshot.initial.options[1].value !== "gis" || snapshot.initial.options[2].value !== "text") {
   throw new Error(`动态 Domain 下拉不正确：${JSON.stringify(snapshot.initial)}`);
 }
 if (snapshot.initial.session !== "gis-session" || snapshot.reset?.session !== "text-session") {

@@ -318,3 +318,18 @@ node scripts/console_clear_smoke.js
 ~~~
 
 该专项验证同一进程中的 GIS/Text Service 隔离、全部领域启动恢复、URL/body 领域一致性、会话固定领域、跨领域幂等、artifact 访问身份，以及切换下拉后仍按原领域轮询。浏览器脚本必须先有界确认隔离 CDP，串行复用一个页面；live 模型和真实 GIS 不进入该专项。
+
+## M225 自动 Domain 路由专项
+
+Selector、跨 Domain discovery、路由 lineage、自动入口或 Console 智能选择发生变化时，在当前 Docker 镜像中运行：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m225_domain_selector tests.test_m225_domain_routing_persistence tests.test_m225_domain_entrypoints -v
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m224_domain_runtime_host tests.test_m224_domain_persistence tests.test_m224_domain_http -v
+docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains production_api.py serve_api.py run_demo.py
+node scripts/console_domain_routing_browser_smoke.js
+node scripts/console_domain_browser_smoke.js
+node scripts/console_clear_smoke.js
+~~~
+
+该专项只验证有界目录、唯一/歧义/无匹配、模型 allowlist/fallback、用户改选、SQLite 重启、共享 HTTP/CLI 入口和 Action Host 状态机。第三 fixture Domain 只证明可替换性；真实 GIS 与 live 模型仍走显式验收，不进入默认 CI。浏览器首次自动请求必须携带未预创建的中立 session identity，选择后才允许读取具体 Domain 的会话和历史。

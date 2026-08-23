@@ -431,6 +431,16 @@ Troubleshooting notes from the M16 setup:
 - If the live planner reaches the provider but returns HTTP 403 Forbidden / error code 1010, check the HTTP client headers first. This provider rejects Python urllib's default User-Agent; the project client sets a spatial-agent User-Agent and Accept: application/json by default.
 - Live model tests are intentionally skipped by default. Set SPATIAL_AGENT_LIVE_OPENAI=1 only for manual validation, not CI.
 
+## 自动领域路由
+
+- `GET /domain-routing/catalog` 返回有界、版本化 discovery snapshot，只含 Domain/Capability identity、用途、请求提示、所需事实和风险，不含工具 schema 或领域数据。
+- `POST /domain-routing/select` 接收 `request`、可选 `session_id`/`domain_id`，返回 `spatial-agent.domain-routing-decision.v1`。唯一匹配为 `selected`，歧义为 `ambiguous`，完全不匹配为 `unmatched`。
+- `POST /domain-routing/decisions/{decision_id}/select` 接收 `domain_id` 与原 `session_id`，生成带 `parent_decision_id` 的用户改选；已绑定会话不能改到另一领域。
+- `POST /runs/auto` 支持同步执行和 `async=true`。可传 `domain_routing_decision_id` 继续已持久化的改选，不会重新猜测；响应携带 `domain_id` 与 `domain_routing`。
+- `POST /domain-routing/sessions/{session_id}/clear` 只清理尚未绑定领域的路由澄清 lineage；已绑定会话仍通过 `/domains/{domain_id}/sessions/{session_id}/clear` 清理。
+
+歧义响应同时包含 `domain_routing_interaction`，其 `select_domain` 使用普通 Action schema，Console 通过通用 Action Host 渲染。模型型 Selector 只能返回 discovery snapshot 中的 Domain/Capability identity；输出无效时可由 `FallbackDomainSelector` 回退离线目录选择，Selector 不生成 TaskPlan、不执行工具。
+
 ## Design Notes
 
 - The API does not expose arbitrary tool execution.

@@ -4501,3 +4501,23 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **入口与体验**：CLI、开发 HTTP、FastAPI 和 Console 共用自动路由入口；Console 的“智能选择”由目录契约驱动，候选选择使用现有 selection interaction/Action Host，不新增 GIS/Text 页面分支。
 6. **模型与安全**：LLM Selector 只输出候选 Domain/capability identity，不生成工具计划；所有输出经过 allowlist/schema 校验，失败时回退离线 selector 或澄清，禁止反射导入和任意路由。
 7. **测试**：用 GIS/Text/第三 fixture Domain 覆盖唯一、歧义、无匹配、错误 LLM 输出、用户改选和 SQLite 重启；保留一条跨入口 Harness 和一条浏览器 smoke，默认 CI 不增加 live/GIS 依赖。
+
+## M225：自动 Domain 路由与跨领域澄清（已完成）
+
+- 新增 `DomainRouter` 深 Module、版本化 discovery/decision/interaction 契约，以及离线 Catalog、受限 Model 和 fallback Selector adapters；模型输入经过严格重建，只能观察有界 Domain/Capability identity、用途、请求提示、所需事实和风险。
+- `DomainRoutingApplication` 统一 CLI、FastAPI 和开发 HTTP 的目录、选择、恢复、改选、同步/异步执行与澄清，不把自然语言匹配塞入 Planner、Runtime 或 Host；唯一匹配直接执行，歧义/无匹配不生成计划。
+- SQLite 持久化不可变 decision lineage、父决策、请求指纹和 session identity；支持自定义 DomainRegistry、原子幂等写入、损坏记录校验和未绑定澄清清理。会话执行后固定领域，重启读取绑定而不重新选择。
+- 持久化 store 成为 decision/binding 的权威读源，数据库返回不存在时不再回退陈旧进程缓存；Domain 会话 clear 清 decision 并保留绑定，delete 同时清理 binding，两个 HTTP 入口通过共享 application seam 同步本地状态。
+- Console 动态增加“智能选择”；选域前不读取任何 Domain 状态，使用未预创建的中立 session identity；歧义和无匹配复用通用 Action Host，改选后沿同一 decision 执行，刷新恢复已绑定会话。
+- Console 使用 conversation generation 隔离异步视图写入；清空或切换会话后，迟到的历史恢复或运行响应不能重新填充工作区。
+- 最终生产镜像重建并保持 healthy；Docker M225 **14/14**、M224 **17/17**、quick/smoke 和 compileall 通过；CLI 真实离线 Text/无匹配路径通过；智能选择、显式领域和清空工作区三条串行浏览器验收通过。
+
+## M226：自动路由证据收敛与 Selector 评测（下一阶段全局规划）
+
+1. **证据一致性**：将 Domain routing decision/reference 纳入公共 Result/Evidence，而不是只装饰入口响应；同步、异步轮询、run detail、artifact、SQLite restart 和 Console 恢复比较同一 routing identity。
+2. **生命周期**：把自动选择、澄清、用户改选、执行绑定和恢复投影为统一 timeline/lineage 事件；清空、删除、重试和重启不产生孤立 decision。
+3. **模型适配**：为 `ModelDomainSelector` 增加显式 provider adapter 与配置选择，复用现有安全模型传输，但只允许 identity 输出；超时、坏 schema 和未知身份统一回退离线 selector。
+4. **可观测性**：增加有界 selection latency、selector mode、候选数、fallback reason 和澄清率指标，不记录请求正文、模型原文或完整目录。
+5. **跨入口 Harness**：用 GIS/Text/第三 fixture Domain 比较 Application、CLI、开发 HTTP、FastAPI、async、artifact 和 restart 的 routing/result/evidence 核心投影，删除重复的入口局部断言。
+6. **显式验收**：保留一条真实模型 Selector + 真实 GIS/Docker 纵向路径，失败时证明安全回退；默认 quick/CI 继续离线且不增加私有依赖。
+7. **体验**：Console 在执行结果和历史详情中展示路由理由、候选与 lineage，并继续只消费结构化 evidence/Action schema，不新增 GIS/Text 页面分支。

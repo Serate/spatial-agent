@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .conversation_turn import normalize_conversation_turn
-from .domain_registry import DomainSelectionError
+from .domain_registry import DomainRegistry, DomainSelectionError, domain_registry
+from .domain_selector import resolve_domain_routing_decision
 from .runtime_context import normalize_runtime_context
 from .runtime import PendingClarification
 from .evidence_registry import normalize_evidence_registry
@@ -818,12 +819,14 @@ class SQLiteConversationStore:
         *,
         domain_id: str = "gis",
         legacy_domain_id: str = "gis",
+        routing_registry: Optional[DomainRegistry] = None,
     ):
         self._path = Path(path)
         self._domain_id = self._bounded_domain(domain_id, "domain_id")
         self._legacy_domain_id = self._bounded_domain(
             legacy_domain_id, "legacy_domain_id"
         )
+        self._routing_registry = routing_registry or domain_registry()
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
@@ -859,6 +862,18 @@ class SQLiteConversationStore:
                 code="session_domain_mismatch",
             )
         return True
+
+    def get_bound_session_domain(self, session_id: str) -> Optional[str]:
+        """Read an existing session binding without creating or changing it."""
+
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT domain_id FROM session_domains WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+        return str(row[0]) if row else None
 
     def get_pending(self, session_id: str) -> Optional[PendingClarification]:
         with self._connection() as connection:
@@ -972,10 +987,27 @@ class SQLiteConversationStore:
 
     def clear_session(self, session_id: str) -> None:
         with self._connection() as connection:
-            if not self._session_binding(connection, session_id, create=False):
+            binding = connection.execute(
+                "SELECT domain_id FROM session_domains WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if binding is None:
+                connection.execute(
+                    "DELETE FROM domain_routing_decisions WHERE session_id = ?",
+                    (session_id,),
+                )
                 return
+            if str(binding[0]) != self._domain_id:
+                raise DomainSelectionError(
+                    "session belongs to another domain: " + session_id,
+                    code="session_domain_mismatch",
+                )
             connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
+            connection.execute(
+                "DELETE FROM domain_routing_decisions WHERE session_id = ?",
+                (session_id,),
+            )
             connection.execute(
                 "UPDATE conversation_sessions SET updated_at=CURRENT_TIMESTAMP WHERE session_id = ?",
                 (session_id,),
@@ -983,17 +1015,32 @@ class SQLiteConversationStore:
 
     def delete_session(self, session_id: str) -> bool:
         with self._connection() as connection:
-            if not self._session_binding(connection, session_id, create=False):
-                return False
-            exists = connection.execute(
+            binding = connection.execute(
+                "SELECT domain_id FROM session_domains WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if binding is not None and str(binding[0]) != self._domain_id:
+                raise DomainSelectionError(
+                    "session belongs to another domain: " + session_id,
+                    code="session_domain_mismatch",
+                )
+            session_exists = connection.execute(
                 "SELECT 1 FROM conversation_sessions WHERE session_id = ?", (session_id,)
+            ).fetchone()
+            routing_exists = connection.execute(
+                "SELECT 1 FROM domain_routing_decisions WHERE session_id = ? LIMIT 1",
+                (session_id,),
             ).fetchone()
             connection.execute("DELETE FROM pending_clarifications WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM completed_sessions WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM memory_facts WHERE session_id = ?", (session_id,))
+            connection.execute(
+                "DELETE FROM domain_routing_decisions WHERE session_id = ?",
+                (session_id,),
+            )
             connection.execute("DELETE FROM conversation_sessions WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM session_domains WHERE session_id = ?", (session_id,))
-        return bool(exists)
+        return bool(session_exists or routing_exists)
 
     def save_completed(self, session_id: str, request: str) -> None:
         self.ensure_session(session_id)
@@ -1015,6 +1062,168 @@ class SQLiteConversationStore:
                 "SELECT request FROM completed_sessions WHERE session_id = ?", (session_id,)
             ).fetchone()
         return row[0] if row else None
+
+    def save_domain_routing_decision(
+        self, session_id: str, decision: Any
+    ) -> Dict[str, Any]:
+        """Persist one validated routing decision without re-running selection."""
+
+        resolved = resolve_domain_routing_decision(
+            decision,
+            registry=self._routing_registry,
+        )
+        payload = resolved.to_dict()
+        encoded = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        domain_id = resolved.selection.domain_id if resolved.selection else None
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        with self._connection() as connection:
+            binding = connection.execute(
+                "SELECT domain_id FROM session_domains WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if domain_id and binding is not None and str(binding[0]) != domain_id:
+                raise DomainSelectionError(
+                    "session belongs to another domain: " + session_id,
+                    code="session_domain_mismatch",
+                )
+            existing = connection.execute(
+                """
+                SELECT decision_id, session_id, domain_id, parent_decision_id,
+                       request_fingerprint, decision_json, created_at
+                  FROM domain_routing_decisions
+                 WHERE decision_id = ?
+                """,
+                (resolved.decision_id,),
+            ).fetchone()
+            if existing is not None:
+                if existing[1] != session_id or existing[5] != encoded:
+                    raise ValueError("domain routing decision id already exists")
+                return self._domain_routing_decision_from_row(existing)
+
+            if resolved.parent_decision_id:
+                parent = connection.execute(
+                    "SELECT session_id FROM domain_routing_decisions WHERE decision_id = ?",
+                    (resolved.parent_decision_id,),
+                ).fetchone()
+                if parent is None:
+                    raise ValueError("parent domain routing decision does not exist")
+                if parent[0] != session_id:
+                    raise ValueError(
+                        "parent domain routing decision belongs to another session"
+                    )
+
+            created_at = time.time()
+            connection.execute(
+                """
+                INSERT OR IGNORE INTO domain_routing_decisions (
+                    decision_id, session_id, domain_id, parent_decision_id,
+                    request_fingerprint, decision_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    resolved.decision_id,
+                    session_id,
+                    domain_id,
+                    resolved.parent_decision_id,
+                    resolved.request_fingerprint,
+                    encoded,
+                    created_at,
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT decision_id, session_id, domain_id, parent_decision_id,
+                       request_fingerprint, decision_json, created_at
+                  FROM domain_routing_decisions
+                 WHERE decision_id = ?
+                """,
+                (resolved.decision_id,),
+            ).fetchone()
+            if row is None or row[1] != session_id or row[5] != encoded:
+                raise ValueError("domain routing decision id already exists")
+        return self._domain_routing_decision_from_row(row)
+
+    def get_domain_routing_decision(
+        self, decision_id: str, session_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Return the persisted decision; never derive a Domain during reads."""
+
+        if not isinstance(decision_id, str) or not decision_id.strip():
+            raise ValueError("decision_id must be a non-empty string")
+        with self._connection() as connection:
+            if session_id is not None:
+                row = connection.execute(
+                    """
+                    SELECT decision_id, session_id, domain_id, parent_decision_id,
+                           request_fingerprint, decision_json, created_at
+                      FROM domain_routing_decisions
+                     WHERE decision_id = ? AND session_id = ?
+                    """,
+                    (decision_id, session_id),
+                ).fetchone()
+            else:
+                row = connection.execute(
+                    """
+                    SELECT decision_id, session_id, domain_id,
+                           parent_decision_id, request_fingerprint,
+                           decision_json, created_at
+                      FROM domain_routing_decisions
+                     WHERE decision_id = ?
+                    """,
+                    (decision_id,),
+                ).fetchone()
+        return self._domain_routing_decision_from_row(row) if row else None
+
+    def list_domain_routing_decisions(
+        self, session_id: str, limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """List one session's immutable routing lineage, newest first."""
+
+        if not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT decision_id, session_id, domain_id, parent_decision_id,
+                       request_fingerprint, decision_json, created_at
+                  FROM domain_routing_decisions
+                 WHERE session_id = ?
+                 ORDER BY created_at DESC, decision_id DESC
+                 LIMIT ?
+                """,
+                (session_id, limit),
+            ).fetchall()
+        return [self._domain_routing_decision_from_row(row) for row in rows]
+
+    def _domain_routing_decision_from_row(self, row: Any) -> Dict[str, Any]:
+        payload = json.loads(row[5])
+        if not isinstance(payload, dict):
+            raise ValueError("persisted domain routing decision must be an object")
+        decision = resolve_domain_routing_decision(
+            payload,
+            registry=self._routing_registry,
+        )
+        canonical = decision.to_dict()
+        expected_domain = decision.selection.domain_id if decision.selection else None
+        if (
+            payload != canonical
+            or row[0] != decision.decision_id
+            or row[2] != expected_domain
+            or row[3] != decision.parent_decision_id
+            or row[4] != decision.request_fingerprint
+        ):
+            raise ValueError("persisted domain routing decision columns do not match payload")
+        return {
+            **canonical,
+            "session_id": row[1],
+            "domain_id": row[2],
+            "created_at": row[6],
+        }
 
     def insert_memory_fact(self, fact: Dict[str, Any]) -> None:
         """Persist one bounded memory fact (M80.2)."""
@@ -1130,6 +1339,17 @@ class SQLiteConversationStore:
                 );
                 CREATE INDEX IF NOT EXISTS idx_session_domains_domain
                     ON session_domains(domain_id, session_id);
+                CREATE TABLE IF NOT EXISTS domain_routing_decisions (
+                    decision_id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    domain_id TEXT,
+                    parent_decision_id TEXT,
+                    request_fingerprint TEXT NOT NULL,
+                    decision_json TEXT NOT NULL,
+                    created_at REAL NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_domain_routing_decisions_session
+                    ON domain_routing_decisions(session_id, created_at DESC);
                 """
             )
             # Pre-M224 conversation rows had no Domain identity. A single,

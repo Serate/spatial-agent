@@ -3,7 +3,11 @@ import json
 
 from agent.artifact_store import ArtifactStore
 from agent.domain_registry import domain_registry
-from agent.runtime_factory import build_runtime
+from agent.domain_runtime_host import DomainRuntimeHost
+from agent.domain_routing_entry import (
+    DomainRoutingApplication,
+    routing_state_from_environment,
+)
 from agent.service import AgentService
 
 
@@ -28,9 +32,9 @@ def parse_args():
     )
     parser.add_argument(
         "--domain",
-        choices=domain_registry().ids(),
+        choices=(*domain_registry().ids(), "auto"),
         default=None,
-        help="Registered Domain Pack. Defaults to SPATIAL_AGENT_DOMAIN or GIS.",
+        help="Registered Domain Pack or auto. Defaults to SPATIAL_AGENT_DOMAIN or GIS.",
     )
     parser.add_argument(
         "--session-id",
@@ -64,31 +68,57 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     request = " ".join(args.request) or "查询距离主干道500米以内、坡度超过25度的区域。"
-    service = AgentService(
-        artifact_store=ArtifactStore(args.artifact_root),
-        domain_id=args.domain,
-    )
-    result = service.run(
-        request,
-        session_id=args.session_id,
-        planner=args.planner,
-        backend=args.backend,
-        export_artifact=args.export_artifact,
-        export_geojson=args.export_geojson,
-    )
-    if args.follow_up:
-        results = [result]
-        for follow_up in args.follow_up:
-            results.append(
-                service.run(
-                    follow_up,
-                    session_id=args.session_id,
-                    planner=args.planner,
-                    backend=args.backend,
-                    export_artifact=args.export_artifact,
-                    export_geojson=args.export_geojson,
-                )
+    runtime_host = None
+    if args.domain == "auto":
+        artifact_store = ArtifactStore(args.artifact_root)
+        runtime_host = DomainRuntimeHost(
+            service_factory=lambda domain_id: AgentService(
+                artifact_store=artifact_store,
+                domain_id=domain_id,
             )
-        print(json.dumps(results, ensure_ascii=True, indent=2))
+        )
+        routing = DomainRoutingApplication(
+            runtime_host,
+            state=routing_state_from_environment(),
+        )
+
+        def execute(user_request):
+            return routing.run(
+                {
+                    "request": user_request,
+                    "session_id": args.session_id,
+                    "planner": args.planner,
+                    "backend": args.backend,
+                    "export_artifact": args.export_artifact,
+                    "export_geojson": args.export_geojson,
+                }
+            )
     else:
-        print(json.dumps(result, ensure_ascii=True, indent=2))
+        service = AgentService(
+            artifact_store=ArtifactStore(args.artifact_root),
+            domain_id=args.domain,
+        )
+
+        def execute(user_request):
+            return service.run(
+                user_request,
+                session_id=args.session_id,
+                planner=args.planner,
+                backend=args.backend,
+                export_artifact=args.export_artifact,
+                export_geojson=args.export_geojson,
+            )
+
+    try:
+        result = execute(request)
+        if args.follow_up and result.get("status") != "NEEDS_CLARIFICATION":
+            results = [result]
+            results.extend(execute(follow_up) for follow_up in args.follow_up)
+            print(json.dumps(results, ensure_ascii=True, indent=2))
+        else:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+    finally:
+        if runtime_host is not None:
+            runtime_host.close()
+        else:
+            service.close()

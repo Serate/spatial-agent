@@ -1122,6 +1122,65 @@
         ? '<small class="selection-lineage">修复链：'+escapeHtml(repairLineage.length)+' 次 · '+escapeHtml(repairLineage.map(item=>item.repair_status).join('、'))+'</small>' : '';
       return '<section class="selection-interaction-card" data-selection-state="'+escapeHtml(model.state)+'"><div class="selection-interaction-head"><strong>下一步交互</strong><span>'+escapeHtml(labels[model.state]||model.state)+'</span></div><p>'+escapeHtml(model.reason_code||'')+(missing?' · 待补充：'+missing:'')+'</p>'+guidanceBlock+preconditionText+receiptText+repairText+candidateText+(actions?'<div class="selection-actions">'+actions+'</div>':'')+'</section>';
     }
+    function domainRoutingInteraction(data) {
+      const routing=data?.domain_routing||data?.result?.domain_routing||{};
+      const supplied=data?.domain_routing_interaction||data?.result?.domain_routing_interaction||routing.interaction||{};
+      const decisionId=supplied.decision_id||routing.decision_id||'';
+      let candidates=Array.isArray(supplied.candidates)&&supplied.candidates.length?supplied.candidates:(Array.isArray(routing.candidates)?routing.candidates:[]);
+      if(!candidates.length) candidates=(domainCatalog.domains||[]).map(item=>({domain_id:item.id,label:item.label||item.id,capability_ids:[]}));
+      candidates=candidates.filter(item=>item&&item.domain_id).filter((item,index,items)=>items.findIndex(candidate=>String(candidate.domain_id)===String(item.domain_id))===index).slice(0,24);
+      const suppliedCatalog=supplied.action_catalog&&Array.isArray(supplied.action_catalog.actions)?supplied.action_catalog:{schema_version:supplied.schema_version,actions:supplied.actions};
+      const actions=Array.isArray(suppliedCatalog.actions)&&suppliedCatalog.actions.some(item=>item?.id==='select_domain')?suppliedCatalog.actions:[{
+        id:'select_domain',label:'选择领域',description:'选择由哪个已注册领域继续处理当前请求。',
+        input_schema:{type:'object',required:['domain_id'],properties:{domain_id:{type:'string',title:'领域',enum:candidates.map(item=>item.domain_id)}},additionalProperties:false},
+      }];
+      return {schema_version:supplied.schema_version||'spatial-agent.domain-routing-interaction.v1',decision_id:decisionId,reason_code:supplied.reason_code||routing.reason_code||'domain_selection_required',candidates,catalog:{schema_version:suppliedCatalog.schema_version||'spatial-agent.actions.v1',actions}};
+    }
+    async function invokeDomainRoutingAction(decisionId,actionId,payload) {
+      if(actionId!=='select_domain') throw new Error('不支持的领域路由动作：'+actionId);
+      const pending=domainRoutingRequests.get(String(decisionId));
+      if(!pending) throw new Error('领域路由上下文已失效，请重新提交请求。');
+      const domainId=String(payload?.domain_id||'');
+      if(!domainId) throw new Error('请选择领域。');
+      const response=await nativeFetch('/domain-routing/decisions/'+encodeURIComponent(decisionId)+'/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain_id:domainId,session_id:pending.payload.session_id})});
+      let data=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(responseError(data,'领域选择提交失败'));
+      const selectedDomain=data.domain_id||data.selection?.domain_id||data.domain_selection?.domain_id||domainId;
+      if(data.run_id&&['QUEUED','PLANNING','EXECUTING'].includes(data.status)) data=await pollQueuedRun(data,pending.payload,selectedDomain);
+      if(!data.run_id) {
+        const overrideDecisionId=data.decision_id||data.domain_routing?.decision_id||data.domain_routing_decision_id;
+        if(!overrideDecisionId) throw new Error('领域选择响应缺少 override decision identity。');
+        const runPayload=Object.assign({},pending.payload,{domain_id:undefined,domain_routing_decision_id:overrideDecisionId});
+        const runResponse=await fetch('/runs/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(runPayload)});
+        data=await runResponse.json().catch(()=>({}));
+        if(!runResponse.ok) throw new Error(responseError(data,'所选领域执行失败'));
+      }
+      bindAutoDomain(data,selectedDomain);
+      rememberRunDomain(data,selectedDomain);
+      domainRoutingRequests.delete(String(decisionId));
+      return data;
+    }
+    function renderDomainRoutingInteraction(data) {
+      if(data?.status!=='NEEDS_CLARIFICATION'||!(data.domain_routing||data.result?.domain_routing||data.domain_routing_interaction||data.result?.domain_routing_interaction)) return false;
+      const model=domainRoutingInteraction(data);
+      if(!model.decision_id) return false;
+      domainRoutingRequests.set(String(model.decision_id),{request:data._console_auto_request||data.request||'',payload:Object.assign({},data._console_auto_payload||{})});
+      const details=model.candidates.map(item=>'<article class="selection-candidate"><h4>'+escapeHtml(item.label||item.domain_id)+'</h4><p><code>'+escapeHtml(item.domain_id)+'</code></p>'+(Array.isArray(item.capability_ids)&&item.capability_ids.length?'<small>能力：'+escapeHtml(item.capability_ids.join('、'))+'</small>':'')+'</article>').join('');
+      const html='<section class="selection-interaction-card" data-domain-routing-state="candidate_selection"><div class="selection-interaction-head"><strong>请选择处理领域</strong><span>'+escapeHtml(model.reason_code)+'</span></div><div class="selection-candidate-grid">'+details+'</div><div data-domain-routing-action-host data-schema-version="'+escapeHtml(model.schema_version)+'"></div></section>';
+      $('decisionEvidence').insertAdjacentHTML('afterbegin',html);
+      setResultPanel('.decision-evidence-result',true);
+      $('answer').textContent='运行时需要你选择一个领域后继续。';
+      $('answer').className='answer';
+      const target=$('decisionEvidence').querySelector('[data-domain-routing-action-host]');
+      if(!window.ConsoleActionHost){ target.innerHTML='<div class="error">通用 Action Host 不可用。</div>'; return true; }
+      window.ConsoleActionHost.mount({
+        target,
+        catalog:model.catalog,
+        invoke:(actionId,payload)=>invokeDomainRoutingAction(model.decision_id,actionId,payload),
+        onResult:async result=>{ renderRun(result); appendMessage('assistant',result.answer||result.error||statusName(result.status),result.run_id); await hydrateAutoDomainState(result); },
+      });
+      return true;
+    }
     function renderDecisionEvidence(data) {
       if (!window.ConsoleDecisionEvidence || typeof window.ConsoleDecisionEvidence.render !== 'function') return '';
       const html=window.ConsoleDecisionEvidence.render(data).html || '';
@@ -1259,6 +1318,7 @@
     let lastPlanPreview = null;
     let runtimeEvidenceSnapshot = null;
     let runtimeEvidencePromise = null;
+    let conversationGeneration = 0;
     resetResultWorkspace();
     let activeRunId = null;
     let activeRunDomainId = null;
@@ -1269,45 +1329,89 @@
     let domainCatalog = {domains:[]};
     let legacyRouting = false;
     let domainGeneration = 0;
+    let autoDomainBinding = null;
+    let autoDraftSessionId = '';
     const LEGACY_DOMAIN_VALUE = '__legacy__';
+    const AUTO_DOMAIN_VALUE = 'auto';
+    const AUTO_BINDING_STORAGE_KEY = 'spatial-agent.console.auto-binding';
     const runDomains = new Map();
     const actionDomains = new Map();
     const decisionDomains = new Map();
     const sessionDomains = new Map();
+    const domainRoutingRequests = new Map();
     const nativeFetch = window.fetch.bind(window);
     const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-    function currentDomainId() { return $('domain').value||LEGACY_DOMAIN_VALUE; }
+    function selectedDomainModeId() { return $('domain').value||LEGACY_DOMAIN_VALUE; }
+    function usesAutoRouting() { return selectedDomainModeId()===AUTO_DOMAIN_VALUE; }
+    function currentDomainId() { return usesAutoRouting()?(autoDomainBinding?.domain_id||AUTO_DOMAIN_VALUE):selectedDomainModeId(); }
     function usesLegacyRouting(domainId=currentDomainId()) { return legacyRouting||!domainId||domainId===LEGACY_DOMAIN_VALUE; }
     function domainPath(path,domainId=currentDomainId()) { const clean=String(path||'').startsWith('/')?String(path):'/'+String(path||''); if(clean.startsWith('/domains/')||usesLegacyRouting(domainId)) return clean; return '/domains/'+encodeURIComponent(domainId)+clean; }
-    function withDomainPayload(payload,domainId=currentDomainId()) { const result=Object.assign({},payload||{}); if(!usesLegacyRouting(domainId)) result.domain_id=domainId; return result; }
+    function withDomainPayload(payload,domainId=currentDomainId()) { const result=Object.assign({},payload||{}); if(!usesLegacyRouting(domainId)&&domainId!==AUTO_DOMAIN_VALUE) result.domain_id=domainId; return result; }
     function responseError(data,fallback) { const detail=data?.detail; if(typeof data?.error==='string') return data.error; if(typeof detail==='string') return detail; if(detail&&typeof detail==='object') return detail.message||detail.error||detail.code||fallback; return fallback; }
     function responseDomain(data,fallback=currentDomainId()) { if(usesLegacyRouting(fallback)) return fallback; return data?._console_domain_id||data?.domain_id||data?.runtime_context?.domain_id||data?.result?.runtime_context?.domain_id||data?.execution_record?.domain_id||fallback; }
     function rememberRunDomain(data,fallback=currentDomainId()) { const domainId=responseDomain(data,fallback); if(data?.run_id&&domainId) runDomains.set(String(data.run_id),domainId); const decisionId=data?.decision_evidence?.decision_id||data?.result?.decision?.decision_id; if(decisionId&&domainId) decisionDomains.set(String(decisionId),domainId); return domainId; }
     function domainForRun(runId,fallback=currentDomainId()) { return runDomains.get(String(runId||''))||lastRunData?.run_id===runId&&responseDomain(lastRunData,fallback)||fallback; }
     function domainForAction(executionId,fallback=currentDomainId()) { return actionDomains.get(String(executionId||''))||fallback; }
-    function persistSelectedDomain(domainId) { try { window.localStorage.setItem('spatial-agent.console.domain',domainId); } catch(error) { /* Storage can be disabled without disabling the Console. */ } }
+    function persistSelectedDomain(domainId=selectedDomainModeId()) { try { window.localStorage.setItem('spatial-agent.console.domain',domainId); } catch(error) { /* Storage can be disabled without disabling the Console. */ } }
     function preferredDomainId() { try { return window.localStorage.getItem('spatial-agent.console.domain')||''; } catch(error) { return ''; } }
+    function persistAutoDomainBinding() { try { if(autoDomainBinding?.domain_id&&autoDomainBinding?.session_id) window.localStorage.setItem(AUTO_BINDING_STORAGE_KEY,JSON.stringify(autoDomainBinding)); else window.localStorage.removeItem(AUTO_BINDING_STORAGE_KEY); } catch(error) { /* Storage can be disabled without disabling the Console. */ } }
+    function preferredAutoDomainBinding(availableDomains) { try { const value=JSON.parse(window.localStorage.getItem(AUTO_BINDING_STORAGE_KEY)||'null'); if(!value?.domain_id||!value?.session_id||!availableDomains.has(String(value.domain_id))) return null; return {domain_id:String(value.domain_id),session_id:String(value.session_id)}; } catch(error) { return null; } }
     function setCancelState(active) { $('cancelRun').hidden=!active; $('cancelRun').disabled=false; }
     async function cancelActiveRun() { if(!activeRunId) return; const runId=activeRunId,domainId=activeRunDomainId||domainForRun(runId); $('cancelRun').disabled=true; try { const body=withDomainPayload({planner:activeRunParams.planner||'rule',backend:activeRunParams.backend||'memory'},domainId); const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId)+'/cancel',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!response.ok) throw new Error(responseError(await response.json().catch(()=>({})),'取消请求失败')); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; $('cancelRun').disabled=false; } }
+    function bindAutoDomain(data,fallbackDomain='') {
+      if(!usesAutoRouting()) return '';
+      const domainId=data?.domain_id||data?.selection?.domain_id||data?.domain_selection?.domain_id||fallbackDomain;
+      if(!domainId||domainId===AUTO_DOMAIN_VALUE) return '';
+      const sessionId=data?.session_id||autoDomainBinding?.session_id||autoDraftSessionId||'';
+      autoDomainBinding={domain_id:String(domainId),session_id:String(sessionId||'')};
+      if(sessionId) autoDraftSessionId=String(sessionId);
+      persistAutoDomainBinding();
+      if(sessionId){ addConversationOption({session_id:sessionId,display_name:selectedConversationLabel()},domainId); $('session').value=sessionId; }
+      return String(domainId);
+    }
+    function ensureAutoDraftSessionId() {
+      if(autoDomainBinding?.session_id) return autoDomainBinding.session_id;
+      if(autoDraftSessionId) return autoDraftSessionId;
+      const identity=globalThis.crypto?.randomUUID?.()||String(Date.now())+'-'+Math.random().toString(16).slice(2);
+      autoDraftSessionId='conversation-auto-'+String(identity).replace(/[^A-Za-z0-9_-]/g,'').slice(0,64);
+      return autoDraftSessionId;
+    }
+    async function pollQueuedRun(queued,payload,runDomain) {
+      rememberRunDomain(queued,runDomain);
+      activeRunId=queued.run_id;
+      activeRunDomainId=runDomain;
+      activeRunParams=payload;
+      setCancelState(true);
+      let data=queued;
+      for(let attempt=0; attempt<600 && ['QUEUED','PLANNING','EXECUTING'].includes(data.status); attempt++) {
+        await sleep(250);
+        const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(queued.run_id),runDomain)+'?planner='+encodeURIComponent(payload.planner||'rule')+'&backend='+encodeURIComponent(payload.backend||'memory'));
+        if(response.ok) { data=await response.json(); rememberRunDomain(data,runDomain); }
+      }
+      if(activeRunId===queued.run_id) { activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); }
+      return data;
+    }
     window.fetch = async (input, init) => {
       const payload=init?.body&&typeof init.body==='string'?JSON.parse(init.body||'{}'):{};
       const submittedDomain=payload.domain_id||currentDomainId();
+      if(input==='/runs/auto' && init?.method==='POST') {
+        const routingResponse=await nativeFetch('/runs/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(!routingResponse.ok) return routingResponse;
+        let data=await routingResponse.json();
+        const runDomain=data?.domain_id;
+        if(runDomain&&data?.run_id) {
+          bindAutoDomain(data,runDomain);
+          rememberRunDomain(data,runDomain);
+          if(['QUEUED','PLANNING','EXECUTING'].includes(data.status)) data=await pollQueuedRun(data,payload,runDomain);
+        }
+        return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
+      }
       if(input===domainPath('/runs',submittedDomain) && init?.method==='POST') {
         const queuedResponse=await nativeFetch(domainPath('/runs/async',submittedDomain),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(withDomainPayload(payload,submittedDomain))});
         if(!queuedResponse.ok) return queuedResponse;
         const queued=await queuedResponse.json();
-        rememberRunDomain(queued,submittedDomain);
-        activeRunId=queued.run_id;
-        activeRunDomainId=submittedDomain;
-        activeRunParams=payload;
-        setCancelState(true);
-        let data=queued;
-        for(let attempt=0; attempt<600 && ['QUEUED','PLANNING','EXECUTING'].includes(data.status); attempt++) {
-          await sleep(250);
-          const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(queued.run_id),submittedDomain)+'?planner='+encodeURIComponent(payload.planner||'rule')+'&backend='+encodeURIComponent(payload.backend||'memory'));
-          if(response.ok) { data=await response.json(); rememberRunDomain(data,submittedDomain); }
-        }
-        if(activeRunId===queued.run_id) { activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); }
+        if(usesAutoRouting()) bindAutoDomain(queued,submittedDomain);
+        const data=['QUEUED','PLANNING','EXECUTING'].includes(queued.status)?await pollQueuedRun(queued,payload,submittedDomain):queued;
         return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
       }
       return nativeFetch(input,init);
@@ -1350,11 +1454,12 @@
         if(!domains.length) throw new Error('领域目录为空');
         domainCatalog=data;
         legacyRouting=false;
-        $('domain').innerHTML=domains.map(item=>'<option value="'+escapeHtml(item.id)+'" title="'+escapeHtml(item.description||'')+'">'+escapeHtml(item.label||item.id)+'</option>').join('');
+        $('domain').innerHTML='<option value="'+AUTO_DOMAIN_VALUE+'" title="由运行时根据请求和当前会话选择领域">智能选择</option>'+domains.map(item=>'<option value="'+escapeHtml(item.id)+'" title="'+escapeHtml(item.description||'')+'">'+escapeHtml(item.label||item.id)+'</option>').join('');
         const preferred=preferredDomainId();
-        const available=new Set(domains.map(item=>String(item.id)));
+        const available=new Set([AUTO_DOMAIN_VALUE,...domains.map(item=>String(item.id))]);
         $('domain').value=available.has(preferred)?preferred:(available.has(data.legacy_domain_id)?data.legacy_domain_id:String(domains[0].id));
-        persistSelectedDomain(currentDomainId());
+        if($('domain').value===AUTO_DOMAIN_VALUE) autoDomainBinding=preferredAutoDomainBinding(available);
+        persistSelectedDomain();
         return data;
       } catch(error) {
         legacyRouting=true;
@@ -1368,10 +1473,11 @@
     async function reloadDomainContext() {
       const domainId=currentDomainId();
       const generation=++domainGeneration;
+      conversationGeneration++;
       window.__consoleDomainReady=false;
       $('send').disabled=true;
       $('previewPlan').disabled=true;
-      persistSelectedDomain(domainId);
+      persistSelectedDomain();
       workflowTemplates={};
       actionCatalog={schema_version:'spatial-agent.actions.v1',domain_id:domainId,actions:[]};
       actionCatalogPromise=null;
@@ -1381,6 +1487,23 @@
       resetConversationView();
       welcome();
       $('session').innerHTML='';
+      if(usesAutoRouting()&&!autoDomainBinding) {
+        $('workflow').innerHTML='<option value="">智能选择（默认）</option>';
+        renderWorkflowEditor();
+        $('chatMeta').textContent='首次请求将创建领域绑定会话';
+        $('capabilityStatus').textContent='智能选择将在提交请求后匹配已注册领域；当前尚未访问任何领域状态。';
+        $('historyList').innerHTML='<div class="muted">领域选定后显示该领域的历史任务。</div>';
+        $('runtimeMetrics').textContent='领域选定后显示运行指标。';
+        $('actionWorkbenchBody').innerHTML='<div class="distribution-note">领域选定后加载可执行动作。</div>';
+        $('newSession').disabled=true;
+        $('deleteSession').disabled=true;
+        $('previewPlan').disabled=true;
+        window.__consoleDomainReady=true;
+        $('send').disabled=false;
+        return;
+      }
+      $('newSession').disabled=false;
+      $('deleteSession').disabled=false;
       $('historyList').innerHTML='<div class="muted">正在读取当前领域历史任务…</div>';
       $('runtimeMetrics').textContent='正在读取当前领域运行指标…';
       await Promise.all([loadCapabilities(domainId),loadActions(domainId),loadWorkflows(domainId),loadSessions(domainId)]);
@@ -1388,6 +1511,28 @@
       if(generation===domainGeneration&&domainId===currentDomainId()) { window.__consoleDomainReady=true; $('send').disabled=false; $('previewPlan').disabled=false; }
       Promise.allSettled([loadHistory(domainId),restoreSession(domainId)]).catch(()=>{});
     }
+    async function hydrateAutoDomainState(data) {
+      if(!usesAutoRouting()) return;
+      const domainId=bindAutoDomain(data);
+      if(!domainId) return;
+      const generation=domainGeneration;
+      const sessionId=data?.session_id||autoDomainBinding?.session_id||'';
+      $('newSession').disabled=false;
+      $('deleteSession').disabled=false;
+      $('previewPlan').disabled=false;
+      await Promise.all([loadCapabilities(domainId),loadActions(domainId),loadWorkflows(domainId),loadSessions(domainId)]);
+      if(generation!==domainGeneration||!usesAutoRouting()||currentDomainId()!==domainId) return;
+      if(sessionId){
+        const option=[...$('session').options].find(item=>item.value===sessionId);
+        if(!option) addConversationOption({session_id:sessionId,display_name:'对话'+($('session').options.length+1)},domainId);
+        $('session').value=sessionId;
+        $('chatMeta').textContent='当前对话：'+selectedConversationLabel()+' · 已绑定 '+selectedDomainContextLabel(domainId);
+      }
+      window.__consoleDomainReady=true;
+      $('send').disabled=false;
+      loadHistory(domainId).catch(()=>{});
+    }
+    function selectedDomainContextLabel(domainId) { const item=(domainCatalog.domains||[]).find(domain=>String(domain.id)===String(domainId)); return item?.label||domainId; }
     function workflowFieldId(name) { return 'workflow-field-'+String(name).replace(/[^A-Za-z0-9_-]/g,'-'); }
     function renderWorkflowEditor() {
       const template=workflowTemplates[$('workflow').value];
@@ -1424,9 +1569,17 @@
       selection.constraints=data.constraints; selection.evidence=data.evidence; $('workflowValidation').textContent='已通过 '+escapeHtml(data.template.label)+' 契约校验 · v'+escapeHtml(data.template.version); return selection;
     }
     async function loadWorkflows(domainId=currentDomainId()) { try { const response=await nativeFetch(domainPath('/workflows',domainId)); if(!response.ok) throw new Error('workflow catalog unavailable'); const data=await response.json(); if(domainId!==currentDomainId()) return; workflowTemplates=data.templates||{}; $('workflow').innerHTML='<option value="">智能选择（默认）</option>'+Object.values(workflowTemplates).map(template=>'<option value="'+escapeHtml(template.id)+'">'+escapeHtml(template.label)+' · v'+escapeHtml(template.version)+'</option>').join(''); renderWorkflowEditor(); } catch(error) { if(domainId===currentDomainId()) $('workflowValidation').textContent='工作流目录暂不可用，继续使用智能选择。'; } }
-    async function newSession(domainId=currentDomainId(),reset=true) { let session; try { const response=await nativeFetch(domainPath('/sessions',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); if(response.ok) session=await response.json(); } catch(error) { /* Legacy development servers can continue with a local temporary session. */ } if(domainId!==currentDomainId()) return null; if(!session){ const nextNumber=$('session').options.length+1; session={session_id:'conversation-'+String(domainId).replace(/[^a-z0-9_-]/gi,'-')+'-'+nextNumber,display_name:'对话'+nextNumber}; } addConversationOption(session,domainId); $('session').value=session.session_id; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); if(reset){ resetConversationView(); welcome(); } return session; }
+    async function newSession(domainId=currentDomainId(),reset=true) { let session; try { const response=await nativeFetch(domainPath('/sessions',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); if(response.ok) session=await response.json(); } catch(error) { /* Legacy development servers can continue with a local temporary session. */ } if(domainId!==currentDomainId()) return null; if(!session){ const nextNumber=$('session').options.length+1; session={session_id:'conversation-'+String(domainId).replace(/[^a-z0-9_-]/gi,'-')+'-'+nextNumber,display_name:'对话'+nextNumber}; } addConversationOption(session,domainId); $('session').value=session.session_id; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); if(reset){ conversationGeneration++; resetConversationView(); welcome(); } return session; }
     async function clearChat() {
+      conversationGeneration++;
       const sessionId=$('session').value;
+      if(usesAutoRouting()&&!autoDomainBinding){
+        const draftSessionId=autoDraftSessionId;
+        resetConversationView(); welcome(); $('prompt').focus();
+        domainRoutingRequests.clear(); autoDraftSessionId='';
+        if(draftSessionId) nativeFetch('/domain-routing/sessions/'+encodeURIComponent(draftSessionId)+'/clear',{method:'POST'}).catch(()=>{});
+        return;
+      }
       const domainId=sessionDomains.get(sessionId)||currentDomainId();
       resetConversationView();
       welcome();
@@ -1439,7 +1592,7 @@
         $('error').innerHTML='<div class="error">界面已清空，但对话持久化清理失败：'+escapeHtml(error.message)+'</div>';
       }
     }
-    async function deleteConversation() { const sessionId=$('session').value; if(!sessionId || !window.confirm('删除当前对话及其历史任务？')) return; const domainId=sessionDomains.get(sessionId)||currentDomainId(); try { const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(sessionId),domainId),{method:'DELETE'}); if(!response.ok) throw new Error('删除对话失败'); const option=$('session').selectedOptions[0]; option?.remove(); sessionDomains.delete(sessionId); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; return; } let option=$('session').options[0]; if(!option){ await newSession(domainId); return; } $('session').value=option.value; await restoreSession(domainId); }
+    async function deleteConversation() { const sessionId=$('session').value; if(!sessionId || !window.confirm('删除当前对话及其历史任务？')) return; conversationGeneration++; const domainId=sessionDomains.get(sessionId)||currentDomainId(); try { const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(sessionId),domainId),{method:'DELETE'}); if(!response.ok) throw new Error('删除对话失败'); const option=$('session').selectedOptions[0]; option?.remove(); sessionDomains.delete(sessionId); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; return; } let option=$('session').options[0]; if(usesAutoRouting()){ if(!option){ autoDomainBinding=null; autoDraftSessionId=''; persistAutoDomainBinding(); await reloadDomainContext(); return; } $('session').value=option.value; autoDomainBinding={domain_id:sessionDomains.get(option.value)||domainId,session_id:option.value}; persistAutoDomainBinding(); await restoreSession(autoDomainBinding.domain_id); return; } if(!option){ await newSession(domainId); return; } $('session').value=option.value; await restoreSession(domainId); }
     function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>'<div class="metric"><b>'+escapeHtml(x[1])+'</b><small>'+escapeHtml(x[0])+'</small></div>').join(''); }
     function stepResult(result) { if(!result) return '未返回工具结果'; if(result.error) return '业务错误：'+result.error; const summary=result.summary||result.answer||result.message; if(typeof summary==='string'&&summary.trim()) return summary.trim(); const values=Object.entries(result).filter(([key,value])=>!['schema_version','status','result_ref','artifact_ref'].includes(key)&&['string','number','boolean'].includes(typeof value)).slice(0,4); return values.length?values.map(([key,value])=>key+'：'+value).join(' · '):'已返回结构化结果'; }
     function conversationTurnLabel(data) { const turn=data.conversation_turn||data.result?.conversation_turn; if(!turn||turn.available===false) return ''; const labels={new_request:'新请求',clarification_reply:'澄清回复',follow_up:'后续追问',decision_reply:'决策回复',unknown:'未知轮次'}; const mode=labels[turn.mode]||'未知轮次'; const relation=turn.pending_consumed?' · 已消费待澄清请求':turn.pending_available?' · 未消费旧待澄清请求':''; return '本轮：'+mode+relation; }
@@ -1593,7 +1746,7 @@
       $('links').innerHTML=links.join('');
       loadRuntimeEvidence(domainId);
     }
-    function loadRuntimeEvidence(domainId=currentDomainId()) { if(runtimeEvidenceSnapshot||runtimeEvidencePromise) return; const generation=domainGeneration; runtimeEvidencePromise=nativeFetch(domainPath('/capabilities/runtime?max_files=3',domainId)).then(response=>{if(!response.ok) throw new Error('runtime evidence unavailable');return response.json();}).then(snapshot=>{if(generation!==domainGeneration||domainId!==currentDomainId()) return; runtimeEvidenceSnapshot=snapshot;if(lastRunData&&responseDomain(lastRunData)===domainId) renderEvidence(lastRunData);}).catch(()=>null).finally(()=>{runtimeEvidencePromise=null;}); }
+    function loadRuntimeEvidence(domainId=currentDomainId()) { if(domainId===AUTO_DOMAIN_VALUE||runtimeEvidenceSnapshot||runtimeEvidencePromise) return; const generation=domainGeneration; runtimeEvidencePromise=nativeFetch(domainPath('/capabilities/runtime?max_files=3',domainId)).then(response=>{if(!response.ok) throw new Error('runtime evidence unavailable');return response.json();}).then(snapshot=>{if(generation!==domainGeneration||domainId!==currentDomainId()) return; runtimeEvidenceSnapshot=snapshot;if(lastRunData&&responseDomain(lastRunData)===domainId) renderEvidence(lastRunData);}).catch(()=>null).finally(()=>{runtimeEvidencePromise=null;}); }
     function renderCapabilities(data) { const catalog=data.capability_catalog||data||{}; const items=catalog.capabilities||[]; const ready=items.filter(item=>item.dataset_gate==='ready'&&item.environment_supported).length; const unknown=items.filter(item=>item.dataset_gate==='unknown').length; const actions=(catalog.actions?.actions||actionCatalog.actions||[]).length; $('capabilityStatus').textContent='能力目录：'+ready+' / '+items.length+' 项已通过数据门控'+(unknown?'；'+unknown+' 项待健康检查':'')+'；已注册动作 '+actions+' 项；真实几何以运行证据为准。'; }
     function capabilityHealthLabel(id) { return String(id||'').replace(/_/g,' ').replace(/\b\w/g,letter=>letter.toUpperCase()); }
     function renderHealth(data) { health=data; const caps=data.capabilities||{}; const rows=Object.entries(caps).filter(([id,value])=>typeof value==='boolean'&&!['live_llm','live_llm_configured'].includes(id)).slice(0,8).map(([id,available])=>[capabilityHealthLabel(id),available?'可用':'不可用',available]); rows.push(llmHealthLabel(caps)); $('env').innerHTML=rows.map(x=>'<div class="'+(x[2]?'':'bad')+'">'+escapeHtml(x[0])+'：'+escapeHtml(x[1])+'</div>').join(''); renderCapabilities(data); }
@@ -1608,6 +1761,7 @@
     function renderActionExecution(data) { lastRunData=data; const envelope=data.result||{}; $('resultEmpty').style.display='none'; setResultPanel('.common-result',true); setResultPanel('.trace-result',true); $('title').textContent='Action：'+(data.action_id||envelope.action?.id||'未知'); $('subtitle').textContent=envelope.summary||'已从 artifact 恢复 Action 结果，未重新执行。'; $('decisionMode').textContent='Domain Action · 结构化执行'; $('answer').textContent=envelope.summary||data.error||'已恢复结构化 Action 结果。'; $('answer').className='answer'; $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; genericResult(data); $('trace').innerHTML=(data.trace_summary||[]).map(item=>'<li>'+escapeHtml(item)+'</li>').join('')||'<li class="muted">暂无 Action 轨迹。</li>'; $('links').innerHTML=renderActionEvidence(data); $('goal').textContent='Action 结果类型：'+escapeHtml(envelope.type||data.result_type||'unknown'); setResultPanel('.evidence-result',false); setResultPanel('.plan-preview-result',false); setResultPanel('.workflow-evidence-result',false); }
     async function restoreSession(domainId=currentDomainId()) {
       const sessionId=$('session').value;
+      const viewGeneration=conversationGeneration;
       if(!sessionId||domainId!==currentDomainId()||(sessionDomains.get(sessionId)&&sessionDomains.get(sessionId)!==domainId)) return;
       resetConversationView();
       $('chatMeta').textContent='当前对话：'+selectedConversationLabel();
@@ -1615,13 +1769,13 @@
         const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(sessionId)+'/runs?limit=20',domainId));
         if(!response.ok) throw new Error('会话历史读取失败');
         const data=await response.json();
-        if(domainId!==currentDomainId()||sessionId!==$('session').value) return;
+        if(viewGeneration!==conversationGeneration||domainId!==currentDomainId()||sessionId!==$('session').value) return;
         const runs=(data.runs||[]).slice().reverse();
         if(!runs.length){ welcome(); return; }
         runs.forEach(item=>{ rememberRunDomain(item,domainId); appendMessage('user',item.request||'未命名任务'); appendMessage('assistant',item.answer||item.error||statusName(item.status||'未知'),item.run_id); });
         const latest=data.runs[0];
-        if(latest?.run_id){ const detail=await nativeFetch(domainPath('/runs/'+encodeURIComponent(latest.run_id),domainId)+'?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value)); if(detail.ok&&domainId===currentDomainId()&&sessionId===$('session').value){ const detailData=await detail.json(); rememberRunDomain(detailData,domainId); renderRun(detailData); } }
-      } catch(error) { if(domainId===currentDomainId()&&sessionId===$('session').value){ welcome(); appendMessage('system',error.message); } }
+        if(latest?.run_id){ const detail=await nativeFetch(domainPath('/runs/'+encodeURIComponent(latest.run_id),domainId)+'?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value)); if(detail.ok&&viewGeneration===conversationGeneration&&domainId===currentDomainId()&&sessionId===$('session').value){ const detailData=await detail.json(); if(viewGeneration!==conversationGeneration) return; rememberRunDomain(detailData,domainId); renderRun(detailData); } }
+      } catch(error) { if(viewGeneration===conversationGeneration&&domainId===currentDomainId()&&sessionId===$('session').value){ welcome(); appendMessage('system',error.message); } }
     }
     async function loadHistory(domainId=currentDomainId()) {
       try {
@@ -1651,6 +1805,7 @@
       baseRenderRunForSelection(data);
       const normalized=normalizeConsoleResult(data).data;
       const panel=$('decisionEvidence');
+      renderDomainRoutingInteraction(normalized);
       const interaction=renderSelectionInteraction(normalized);
       if(interaction) {
         panel.insertAdjacentHTML('afterbegin',interaction);
@@ -1662,9 +1817,12 @@
     async function sendChat(text) {
       const request=(text ?? $('prompt').value).trim();
       if(!request) return;
-      const button=$('send'),domainId=currentDomainId();
-      let sessionId=$('session').value;
-      if(!sessionId||sessionDomains.get(sessionId)!==domainId){ const session=await newSession(domainId,false); sessionId=session?.session_id||$('session').value; }
+      const button=$('send'),mode=selectedDomainModeId(),generation=domainGeneration;
+      const viewGeneration=conversationGeneration;
+      const unboundAuto=mode===AUTO_DOMAIN_VALUE&&!autoDomainBinding;
+      const domainId=currentDomainId();
+      let sessionId=unboundAuto?ensureAutoDraftSessionId():($('session').value||autoDomainBinding?.session_id||'');
+      if(!unboundAuto&&(!sessionId||sessionDomains.get(sessionId)!==domainId)){ const session=await newSession(domainId,false); sessionId=session?.session_id||$('session').value; }
       button.disabled=true;
       $('prompt').value='';
       $('chatMeta').textContent='当前对话：'+selectedConversationLabel();
@@ -1676,31 +1834,36 @@
       try {
         validateSelection(request);
         const workflow=await validateWorkflowSelection();
-        if(domainId!==currentDomainId()) throw new Error('领域已切换，本次请求未提交。');
+        if(mode!==selectedDomainModeId()||generation!==domainGeneration) throw new Error('领域已切换，本次请求未提交。');
         const domainContext=rendererRegistry?.context()||{};
         const preview_fingerprint=matchingPreviewFingerprint(request,workflow,domainContext);
-        const payload=withDomainPayload(Object.assign({request,session_id:sessionId,planner:$('planner').value,backend:$('backend').value,workflow,preview_fingerprint,require_confirmation:$('requireConfirmation').checked,export_artifact:true,export_geojson:true},domainContext),domainId);
-        const response=await fetch(domainPath('/runs',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const requestPayload=Object.assign({request,session_id:sessionId||undefined,planner:$('planner').value,backend:$('backend').value,workflow,preview_fingerprint,require_confirmation:$('requireConfirmation').checked,export_artifact:true,export_geojson:true},domainContext);
+        if(unboundAuto) requestPayload.async=true;
+        const payload=unboundAuto?requestPayload:withDomainPayload(requestPayload,domainId);
+        const response=await fetch(unboundAuto?'/runs/auto':domainPath('/runs',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         const data=await response.json();
         if(!response.ok) throw new Error(responseError(data,'请求失败'));
-        rememberRunDomain(data,domainId);
-        if(domainId===currentDomainId()&&sessionId===$('session').value){ renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status),data.run_id); }
+        if(unboundAuto&&data.status==='NEEDS_CLARIFICATION'){ data._console_auto_request=request; data._console_auto_payload=payload; }
+        const responseDomainId=data.domain_id||domainId;
+        if(unboundAuto&&data.domain_id) bindAutoDomain(data,data.domain_id);
+        rememberRunDomain(data,responseDomainId);
+        if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){ renderRun(data); appendMessage('assistant',data.answer||data.error||statusName(data.status),data.run_id); if(unboundAuto&&data.domain_id) await hydrateAutoDomainState(data); }
       } catch(e) {
-        if(domainId===currentDomainId()&&sessionId===$('session').value){ setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); }
+        if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){ setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); }
       } finally { button.disabled=window.__consoleDomainReady===false; $('prompt').focus(); }
     }
     $('send').addEventListener('click',()=>sendChat());
     $('previewPlan').addEventListener('click',previewPlan);
     $('prompt').addEventListener('keydown',event=>{ if(event.key==='Enter'&&!event.shiftKey){ event.preventDefault(); sendChat(); } });
-    $('session').addEventListener('change',()=>restoreSession(currentDomainId()));
-    $('domain').addEventListener('change',()=>{ resetConversationView(); persistSelectedDomain(currentDomainId()); reloadDomainContext(); });
+    $('session').addEventListener('change',()=>{ conversationGeneration++; restoreSession(currentDomainId()); });
+    $('domain').addEventListener('change',()=>{ const nextMode=selectedDomainModeId(); autoDraftSessionId=''; domainRoutingRequests.clear(); if(nextMode===AUTO_DOMAIN_VALUE){ const available=new Set((domainCatalog.domains||[]).map(item=>String(item.id))); const sessionId=$('session').value,domainId=sessionDomains.get(sessionId); autoDomainBinding=preferredAutoDomainBinding(available)||(domainId?{domain_id:domainId,session_id:sessionId}:null); } else autoDomainBinding=null; persistAutoDomainBinding(); resetConversationView(); persistSelectedDomain(); reloadDomainContext(); });
     $('newSession').addEventListener('click',newSession);
     $('deleteSession').addEventListener('click',deleteConversation);
-    $('refreshHistory').addEventListener('click',()=>loadHistory(currentDomainId()));
+    $('refreshHistory').addEventListener('click',()=>{ if(!usesAutoRouting()||autoDomainBinding) loadHistory(currentDomainId()); });
     $('clearChat').addEventListener('click',clearChat);
     $('workflow').addEventListener('change',renderWorkflowEditor);
-    $('planner').addEventListener('change',()=>{ const domainId=currentDomainId(); loadActions(domainId); loadCapabilities(domainId); loadWorkflows(domainId); });
-    $('backend').addEventListener('change',()=>{ const domainId=currentDomainId(); loadActions(domainId); loadCapabilities(domainId); loadWorkflows(domainId); });
+    $('planner').addEventListener('change',()=>{ if(usesAutoRouting()&&!autoDomainBinding) return; const domainId=currentDomainId(); loadActions(domainId); loadCapabilities(domainId); loadWorkflows(domainId); });
+    $('backend').addEventListener('change',()=>{ if(usesAutoRouting()&&!autoDomainBinding) return; const domainId=currentDomainId(); loadActions(domainId); loadCapabilities(domainId); loadWorkflows(domainId); });
     window.__consoleBootstrapReady = false;
     (async()=>{
       await Promise.all([loadHealth(),loadDomains()]);
