@@ -16,10 +16,11 @@ M221-A1 已完成：前端以 `views.panels + view_specs` 为统一输入，GIS 
 - production acceptance：`ready`；真实数据、同步/异步、artifact、预览指纹和失败契约通过。
 - 明确“建设适宜性”请求走专用能力；泛化“适合建设”请求保持通用地形/土地利用能力。
 - M221 前端静态契约 13/13；健康 view、空间总览、Leaflet/SVG 地图 smoke 通过。
+- 真实模型 + 本地 GIS Docker live case 1/1（6585 tokens），live baseline replay 4/4；M148 Docker recorded replay 的 text/GIS 两类 case 均完成，重启后模型调用为 0。
 
 ## 下一阶段
 
-按全局能力矩阵继续实现：真实模型 + 真实 GIS 的端到端证据闭环、replay/live 一致性与重启恢复验收；随后清理剩余旧前端 renderer，并验证 CLI/HTTP/前端/artifact 的同一结果投影。
+按全局能力矩阵继续实现：验证 live 请求在 HTTP/异步/artifact/前端入口的同一结果投影；随后清理剩余旧前端 renderer，并补齐重启接管的 live evidence 验收。
 
 ## 不变量
 
