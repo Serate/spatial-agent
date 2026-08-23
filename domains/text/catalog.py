@@ -54,6 +54,20 @@ TEXT_CAPABILITIES = (
             "datasets": ["documents"],
         },
     },
+    {
+        "id": "text_analysis",
+        "label": "组合文本分析",
+        "datasets": ["documents"],
+        "tools": ["normalize_text", "summarize_text", "text_stats"],
+        "result_types": ["text_analysis_result"],
+        "environments": ["memory"],
+        "geometry": "none",
+        "request_hints": {
+            "phrases": ["组合文本分析", "综合文本分析", "text analysis"],
+            "tasks": ["normalize", "summarize", "stats"],
+            "datasets": ["documents"],
+        },
+    },
 )
 
 TEXT_TOOL_DEFINITIONS = {

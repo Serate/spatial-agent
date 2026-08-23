@@ -8,7 +8,13 @@ from agent.errors import ClarificationNeeded
 from agent.models import PlanStep, TaskPlan
 from agent.workflow_templates import compile_workflow_composition, compile_workflow_plan
 
-from .workflow_templates import KNOWN_RESULT_TYPES, KNOWN_TOOL_NAMES, workflow_template_catalog
+from .workflow_templates import (
+    KNOWN_RESULT_TYPES,
+    KNOWN_TOOL_NAMES,
+    TEXT_TASK_TEMPLATE_IDS,
+    build_text_workflow_components,
+    workflow_template_catalog,
+)
 
 
 class TextSummaryPlanner:
@@ -26,12 +32,41 @@ class TextSummaryPlanner:
             return self._compile_workflow(text, workflow, catalog)
         sections = context.get("sections") if isinstance(context, Mapping) else None
         discovery = sections.get("capability_discovery") if isinstance(sections, Mapping) else None
+        selection = sections.get("workflow_selection") if isinstance(sections, Mapping) else None
         selected = (
             discovery.get("selected_capability_id")
             if isinstance(discovery, Mapping)
             and discovery.get("selection_state", "selected") == "selected"
             else None
         )
+        if isinstance(selection, Mapping):
+            selected = selection.get("selected_capability_id") or selected
+            components = selection.get("workflow_components")
+            if selected == "text_analysis" and isinstance(components, list):
+                task_components = [
+                    item
+                    for item in components
+                    if isinstance(item, Mapping)
+                    and str(item.get("template_id") or "") in catalog
+                ]
+                if len(task_components) >= 2:
+                    template_to_task = {
+                        template_id: task
+                        for task, template_id in TEXT_TASK_TEMPLATE_IDS.items()
+                    }
+                    materialized = build_text_workflow_components(
+                        [
+                            template_to_task.get(str(item.get("template_id") or ""), "")
+                            for item in task_components
+                        ],
+                        text,
+                    )
+                    if len(materialized) >= 2:
+                        return self._compile_workflow(
+                            text,
+                            {"components": materialized},
+                            catalog,
+                        )
         if selected in catalog:
             return self._compile_template(
                 selected,

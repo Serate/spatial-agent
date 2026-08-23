@@ -30,7 +30,7 @@ class M113TextDomainTests(unittest.TestCase):
         self.assertEqual(catalog["domain_id"], "text")
         self.assertEqual(
             {item["id"] for item in catalog["capabilities"]},
-            {"text_normalize", "text_summary", "text_stats"},
+            {"text_normalize", "text_summary", "text_stats", "text_analysis"},
         )
         self.assertNotIn("buildability_screening", catalog["capabilities"])
 
@@ -129,6 +129,95 @@ class M113TextDomainTests(unittest.TestCase):
         self.assertEqual(
             result.plan_evidence["selected_capability_id"], "text_summary"
         )
+
+    def test_natural_language_request_materializes_text_composition(self):
+        runtime = build_text_runtime()
+
+        result = runtime.run("请先规范化这段文本，再统计字数并生成摘要。")
+
+        self.assertEqual(result.status.value, "COMPLETED")
+        self.assertEqual(result.plan.output["type"], "text_analysis_result")
+        self.assertEqual(
+            [step.tool for step in result.steps],
+            ["normalize_text", "text_stats", "summarize_text"],
+        )
+        selection = result.plan_evidence["workflow_selection"]
+        self.assertEqual(selection["source"], "domain_composition")
+        self.assertEqual(selection["selected_capability_id"], "text_analysis")
+        self.assertEqual(
+            selection["workflow_component_template_ids"],
+            ["text_normalize", "text_stats", "text_summary"],
+        )
+        self.assertEqual(
+            selection["workflow_component_ids"],
+            ["text-normalize", "text-stats", "text-summarize"],
+        )
+
+    def test_natural_composition_http_and_artifact_share_contract(self):
+        request = "请先规范化这段文本，再统计字数并生成摘要。"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            store = ArtifactStore(root / "artifacts")
+            service = AgentService(
+                state_db_path=str(root / "state.db"),
+                artifact_store=store,
+                runtime_factory=_text_runtime_factory,
+            )
+
+            class TextHandler(AgentApiHandler):
+                pass
+
+            TextHandler.service = service
+            server = ThreadingHTTPServer(("127.0.0.1", 0), TextHandler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                body = json.dumps(
+                    {
+                        "request": request,
+                        "session_id": "m220-b4-http",
+                        "planner": "rule",
+                        "backend": "memory",
+                        "export_artifact": True,
+                    },
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                connection = HTTPConnection(
+                    "127.0.0.1", server.server_address[1], timeout=10
+                )
+                connection.request(
+                    "POST",
+                    "/runs",
+                    body=body,
+                    headers={"Content-Type": "application/json"},
+                )
+                response = connection.getresponse()
+                http_payload = json.loads(response.read().decode("utf-8"))
+                connection.close()
+                artifact = json.loads(
+                    Path(http_payload["artifact_ref"]).read_text(encoding="utf-8")
+                )
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+                service.close()
+
+        self.assertEqual(response.status, 200)
+        for payload in (http_payload, artifact):
+            result = payload.get("result") or {}
+            selection = payload.get("plan_evidence", {}).get("workflow_selection", {})
+            self.assertEqual(payload["status"], "COMPLETED")
+            self.assertEqual(result["type"], "text_analysis_result")
+            self.assertEqual(
+                [item["tool"] for item in payload["steps"]],
+                ["normalize_text", "text_stats", "summarize_text"],
+            )
+            self.assertEqual(selection["workflow_component_ids"], [
+                "text-normalize",
+                "text-stats",
+                "text-summarize",
+            ])
 
     def test_text_tool_schema_rejects_unknown_input(self):
         runtime = build_text_runtime()

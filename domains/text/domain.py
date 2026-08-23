@@ -26,6 +26,7 @@ from .catalog import (
 from .workflow_templates import (
     KNOWN_RESULT_TYPES,
     KNOWN_TOOL_NAMES,
+    build_text_workflow_components,
     workflow_template_catalog,
 )
 
@@ -116,12 +117,19 @@ class TextDomainPack:
     def extract_request_facts(self, request: str) -> RequestFacts:
         text = str(request or "").strip()
         lowered = text.lower()
-        if any(term in lowered for term in ("统计", "字数", "字符数", "词数", "行数", "statistics")):
-            tasks = ("stats",)
-        elif any(term in lowered for term in ("规范化", "清洗文本", "整理文本", "normalize")):
-            tasks = ("normalize",)
-        else:
-            tasks = ("summarize",)
+        task_terms = {
+            "normalize": ("规范化", "清洗文本", "整理文本", "normalize"),
+            "stats": ("统计", "字数", "字符数", "词数", "行数", "statistics"),
+            "summarize": ("摘要", "总结", "概括", "summarize", "summary"),
+        }
+        hits = []
+        for order, (task, terms) in enumerate(task_terms.items()):
+            positions = [lowered.find(term.lower()) for term in terms]
+            positions = [position for position in positions if position >= 0]
+            if positions:
+                hits.append((min(positions), order, task))
+        hits.sort()
+        tasks = tuple(item[2] for item in hits) or ("summarize",)
         return RequestFacts(
             text=text,
             admin_name=None,
@@ -161,7 +169,6 @@ class TextDomainPack:
         workflow: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any]:
         """Expose text selection metadata without importing spatial policy."""
-        del request_facts
         context = discovery_context(discovery, domain_id=self.domain_id)
         selection = {
             "source": "explicit_workflow" if workflow and workflow.get("template_id") else "domain_discovery",
@@ -170,7 +177,7 @@ class TextDomainPack:
             "candidate_ids": list(context.get("candidate_ids") or [])[:8],
             "candidate_count": context.get("candidate_count"),
         }
-        if isinstance(workflow, Mapping) and isinstance(workflow.get("components"), (list, tuple)):
+        if isinstance(workflow, Mapping) and workflow.get("template_id"):
             normalized = self.normalize_workflow(workflow)
             selection.update(
                 {
@@ -181,6 +188,52 @@ class TextDomainPack:
                     "workflow_components": list(normalized.get("components") or [])[:8],
                 }
             )
+            if not normalized.get("components"):
+                selection["workflow_components"] = []
+        else:
+            tasks = getattr(request_facts, "tasks", ())
+            text = getattr(request_facts, "text", "")
+            if isinstance(request_facts, Mapping):
+                tasks = request_facts.get("tasks")
+                text = request_facts.get("text", "")
+            tasks = tuple(
+                str(item).strip()
+                for item in (tasks or ())
+                if str(item).strip()
+            )[:8]
+            components = build_text_workflow_components(
+                tasks,
+                text,
+            )
+            if len(components) >= 2:
+                selection.update(
+                    {
+                        "source": "domain_composition",
+                        "selected_by": "domain",
+                        "selected_capability_id": "text_analysis",
+                        "candidate_ids": ["text_analysis"],
+                        "candidate_count": 1,
+                        "workflow_template_id": "text_analysis",
+                        "workflow_template_version": "1.0.0",
+                        "workflow_components": components,
+                    }
+                )
+            elif selection.get("selected_capability_id") == "text_analysis":
+                template = self.workflow_template_catalog().get("text_summary", {})
+                selection.update(
+                    {
+                        "source": "domain_policy",
+                        "selected_by": "domain",
+                        "selected_capability_id": "text_summary",
+                        "candidate_ids": ["text_summary"],
+                        "candidate_count": 1,
+                        "workflow_template_id": "text_summary",
+                        "workflow_template_version": str(
+                            template.get("version") or "1.0.0"
+                        ),
+                        "workflow_components": [],
+                    }
+                )
         return selection
 
     def evidence_action_guidance(
@@ -227,6 +280,31 @@ class TextDomainPack:
             raise ValueError("workflow must be an object")
         catalog = self.workflow_template_catalog()
         if isinstance(workflow.get("components"), (list, tuple)):
+            shared_constraints = workflow.get("constraints", {})
+            shared_constraints = (
+                dict(shared_constraints)
+                if isinstance(shared_constraints, Mapping)
+                else {}
+            )
+            components = []
+            for raw_component in workflow.get("components") or []:
+                component = (
+                    dict(raw_component)
+                    if isinstance(raw_component, Mapping)
+                    else raw_component
+                )
+                if isinstance(component, Mapping):
+                    constraints = component.get("constraints", {})
+                    constraints = (
+                        dict(constraints)
+                        if isinstance(constraints, Mapping)
+                        else {}
+                    )
+                    for key, value in shared_constraints.items():
+                        constraints.setdefault(key, value)
+                    component["constraints"] = constraints
+                components.append(component)
+
             def normalize_component(component: Mapping[str, Any]) -> Mapping[str, Any]:
                 template_id = str(component.get("template_id") or "").strip()
                 if not template_id:
@@ -243,7 +321,7 @@ class TextDomainPack:
                 )
 
             return normalize_workflow_composition(
-                workflow,
+                {**dict(workflow), "components": components},
                 component_normalizer=normalize_component,
                 composition_template_id="text_analysis",
             )
@@ -366,8 +444,23 @@ class TextDomainPack:
         request_facts: Any = None,
         selection: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any] | None:
-        del request_facts, selection
+        del selection
         capability_id = str(capability_id or "").strip()
+        if capability_id == "text_analysis":
+            tasks = getattr(request_facts, "tasks", None)
+            text = getattr(request_facts, "text", "")
+            if isinstance(request_facts, Mapping):
+                tasks = request_facts.get("tasks")
+                text = request_facts.get("text", "")
+            components = build_text_workflow_components(tasks, text)
+            if len(components) >= 2:
+                return {
+                    "template_id": "text_analysis",
+                    "template_version": "1.0.0",
+                    "components": components,
+                    "constraints": {},
+                    "evidence": ["summary", "trace"],
+                }
         if capability_id not in self.workflow_template_catalog():
             return None
         return {"template_id": capability_id, "constraints": {}, "evidence": []}

@@ -28,6 +28,7 @@ WORKFLOW_SELECTION_STATES = {"selected", "ambiguous", "clarification", "unavaila
 WORKFLOW_SELECTION_SOURCES = {
     "explicit_workflow",
     "domain_discovery",
+    "domain_composition",
     "domain_policy",
     "user_confirmation",
     "none",

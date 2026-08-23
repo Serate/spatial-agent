@@ -19,6 +19,44 @@ KNOWN_RESULT_TYPES = [
     "text_analysis_result",
 ]
 
+# Request task names are Domain-owned vocabulary.  The generic Runtime only
+# sees the resulting workflow component identities.
+TEXT_TASK_TEMPLATE_IDS = {
+    "normalize": "text_normalize",
+    "summarize": "text_summary",
+    "stats": "text_stats",
+}
+
+
+def build_text_workflow_components(
+    tasks: Any,
+    text: str = "",
+) -> list[Dict[str, Any]]:
+    """Materialize recognized text tasks as independently validated components."""
+
+    values = tasks if isinstance(tasks, (list, tuple)) else ()
+    components: list[Dict[str, Any]] = []
+    seen = set()
+    for task in values[:8]:
+        task_id = str(task or "").strip()
+        template_id = TEXT_TASK_TEMPLATE_IDS.get(task_id)
+        if not template_id or template_id in seen:
+            continue
+        seen.add(template_id)
+        constraints = {}
+        if str(text or "").strip():
+            constraints["text"] = str(text).strip()
+        components.append(
+            {
+                "component_id": "text-" + task_id,
+                "template_id": template_id,
+                "constraints": constraints,
+                "evidence": ["summary", "trace"],
+                "depends_on_components": [],
+            }
+        )
+    return components
+
 
 WORKFLOW_TEMPLATE_CATALOG: Dict[str, Dict[str, Any]] = {
     "text_normalize": {
@@ -131,6 +169,8 @@ def workflow_template_catalog(
 __all__ = [
     "KNOWN_RESULT_TYPES",
     "KNOWN_TOOL_NAMES",
+    "TEXT_TASK_TEMPLATE_IDS",
     "WORKFLOW_TEMPLATE_CATALOG",
+    "build_text_workflow_components",
     "workflow_template_catalog",
 ]
