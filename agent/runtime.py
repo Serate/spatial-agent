@@ -36,6 +36,7 @@ from .domain_contract import (
     release_evidence as resolve_release_evidence,
     request_understanding_guidance,
     selected_capability_ids,
+    workflow_catalog as resolve_workflow_catalog,
     workflow_context,
     workflow_seam_summary,
 )
@@ -274,6 +275,29 @@ class AgentRuntime:
             environment=self._backend_name or "unknown"
         )
         return dict(catalog) if isinstance(catalog, Mapping) else {}
+
+    def workflow_template_catalog(self) -> Dict[str, Dict[str, Any]]:
+        """Return the selected Domain's declarative workflow catalog."""
+        return resolve_workflow_catalog(self._domain_pack)
+
+    def workflow_contract(self) -> Dict[str, Any]:
+        """Return bounded catalog and validator allowlists for HTTP seams."""
+        catalog = self.workflow_template_catalog()
+        result_types = sorted(
+            {
+                str(result_type)
+                for template in catalog.values()
+                if isinstance(template, Mapping)
+                for result_type in (template.get("result_types") or [])
+                if str(result_type).strip()
+            }
+        )
+        return {
+            "domain_id": self.domain_id,
+            "catalog": catalog,
+            "known_tools": list(self._registry.names),
+            "known_result_types": result_types,
+        }
 
     def runtime_capabilities(self, *, max_files: int = 10) -> Dict[str, Any]:
         """Return generic provider evidence plus optional domain evidence."""

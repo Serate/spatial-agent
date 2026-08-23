@@ -4399,3 +4399,21 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **部署**：验证组合请求在 HTTP、Async、SQLite restart、Artifact-only 接管中保持幂等、结果/evidence 一致，并覆盖 Domain/provider 不可用。
 6. **体验**：Console 动态展示组合组件、证据变化、修复链和可执行动作，Text/GIS 共用 workspace，不增加领域页面分支。
 7. **测试**：新增一条精简组合跨入口 contract harness；默认 quick/CI 继续离线，Docker/HTTP/浏览器/live 只作显式阶段验收。
+
+## M220-B1：GIS catalog 物理下沉与 HTTP Domain contract（已完成，待版本推送）
+
+- GIS 声明式 workflow catalog、工具 allowlist 和结果类型已移动到 `domains/gis/workflow_templates.py`；`agent/workflow_templates.py` 只保留通用校验/组合算法和受控 legacy facade，通用 schema 常量仍在公共模块。
+- `AgentRuntime.workflow_contract()` 与 `AgentService.workflow_contract()` 统一输出当前 Domain 的 catalog、注册工具名和结果类型；开发 HTTP、生产 FastAPI 的 `/workflows`、validate、revise 均显式消费该 contract。
+- Text 测试 Domain 的自定义 catalog 已通过开发 HTTP 和生产 API 验证；公共模块静态断言确认不存在 GIS catalog 字面量。
+- Docker M220 seam **9/9**、跨域/工作流/开发 HTTP 回归 **94/94**、生产 contract/reliability **21/21**、compileall 均通过。
+- 兼容 facade 仍允许旧直接调用读取 GIS catalog，但 Runtime/HTTP 正常路径不再使用隐式 GIS 默认。
+
+## M220-B2：组合生命周期与证据恢复（下一切片全局规划）
+
+1. **产品**：让两个 Domain 的组合能力都能从发现、预览、确认、执行到结果/Artifact 恢复闭环，而不是只有 HTTP catalog 可替换。
+2. **架构**：统一组合组件的 plan identity、DAG、ToolRegistry governance、Result/Evidence 和 Action Receipt，避免只在 GIS Domain 维护组合状态。
+3. **数据**：把组件级覆盖、时效、来源、冲突和重验状态接入通用 Evidence Provider，驱动澄清、阻断或有限 repair。
+4. **模型**：用脱敏 replay 验证多 Domain 目录选择、坏组合计划、工具失败与 repair lineage；再做一次显式 live-short。
+5. **部署**：验证组合 workflow 在 HTTP、Async、SQLite restart、Artifact-only recovery 中的幂等和核心 evidence equality。
+6. **体验**：Console 动态展示组件状态、证据变化、修复链和动作，不增加 GIS 页面分支。
+7. **测试**：新增一个精简组合跨入口 harness；默认 CI 继续离线，Docker/HTTP/浏览器/live 只作显式验收。

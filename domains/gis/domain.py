@@ -11,7 +11,6 @@ from agent.workflow_templates import (
     WorkflowTemplateError,
     normalize_workflow_composition,
     normalize_workflow_selection,
-    workflow_template_catalog,
     workflow_template_context_summary,
 )
 from agent.domain_contract import domain_action_catalog, discovery_context
@@ -22,6 +21,11 @@ from .catalog import (
     GIS_DATASET_TOOL_CAPABILITIES,
 )
 from .evidence import GIS_EVIDENCE_PROVIDER
+from .workflow_templates import (
+    KNOWN_RESULT_TYPES,
+    KNOWN_TOOL_NAMES,
+    workflow_template_catalog,
+)
 
 
 class GisDomainPack:
@@ -293,6 +297,8 @@ class GisDomainPack:
                     else {},
                     component.get("evidence"),
                     catalog=catalog,
+                    known_tools=KNOWN_TOOL_NAMES,
+                    known_result_types=KNOWN_RESULT_TYPES,
                 )
 
             return normalize_workflow_composition(
@@ -308,6 +314,8 @@ class GisDomainPack:
             workflow.get("constraints", {}),
             workflow.get("evidence"),
             catalog=self.workflow_template_catalog(),
+            known_tools=KNOWN_TOOL_NAMES,
+            known_result_types=KNOWN_RESULT_TYPES,
         )
 
     def validate_workflow_plan(
@@ -331,6 +339,8 @@ class GisDomainPack:
                     else {},
                     component.get("evidence"),
                     catalog=catalog,
+                    known_tools=KNOWN_TOOL_NAMES,
+                    known_result_types=KNOWN_RESULT_TYPES,
                 )
 
             normalize_workflow_composition(
@@ -364,7 +374,13 @@ class GisDomainPack:
             "output": dict(plan.output),
             "assumptions": list(plan.assumptions),
         }
-        validate_workflow_plan(str(template_id), payload, catalog=catalog)
+        validate_workflow_plan(
+            str(template_id),
+            payload,
+            catalog=catalog,
+            known_tools=KNOWN_TOOL_NAMES,
+            known_result_types=KNOWN_RESULT_TYPES,
+        )
 
     def resolve_capability_selection(
         self,
@@ -393,6 +409,8 @@ class GisDomainPack:
     ) -> Mapping[str, Any]:
         return workflow_template_context_summary(
             catalog=self.workflow_template_catalog(),
+            known_tools=KNOWN_TOOL_NAMES,
+            known_result_types=KNOWN_RESULT_TYPES,
             include_arg_shape=include_arg_shape,
             compact=compact,
         )

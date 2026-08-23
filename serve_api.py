@@ -32,7 +32,6 @@ from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
     WorkflowTemplateError,
-    workflow_template_catalog,
 )
 
 
@@ -101,7 +100,17 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 self._write_json(400, error_response(exc))
             return
         if parsed.path == "/workflows":
-            self._write_json(200, {"templates": workflow_template_catalog()})
+            query = parse_qs(parsed.query)
+            planner = query.get("planner", ["rule"])[0]
+            backend = query.get("backend", ["memory"])[0]
+            contract = self.service.workflow_contract(planner=planner, backend=backend)
+            self._write_json(
+                200,
+                {
+                    "domain_id": contract.get("domain_id", "unknown"),
+                    "templates": contract.get("catalog", {}),
+                },
+            )
             return
         if parsed.path.startswith("/workflows/"):
             self._write_json(404, {"error": "not found"})
@@ -335,7 +344,18 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json()
             if workflow_action is not None:
-                result = workflow_action_result(workflow_template_id, workflow_action, payload)
+                contract = self.service.workflow_contract(
+                    planner=payload.get("planner", "rule"),
+                    backend=payload.get("backend", "memory"),
+                )
+                result = workflow_action_result(
+                    workflow_template_id,
+                    workflow_action,
+                    payload,
+                    catalog=contract.get("catalog"),
+                    known_tools=contract.get("known_tools"),
+                    known_result_types=contract.get("known_result_types"),
+                )
             elif is_tool_register:
                 result = self.service.register_tool(
                     name=payload.get("name", ""),

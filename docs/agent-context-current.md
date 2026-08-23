@@ -45,12 +45,18 @@
 - Runtime 不再执行 GIS 模板 fallback；模板上下文按候选过滤，LLM Planner 通过 Domain 注入 hint。
 - Docker 相关回归 84/84，compileall 通过；旧 GIS catalog 仍保留为兼容默认，物理下沉尚未完成。
 
-## 当前唯一工作切片：M220-B
+## M220-B1 已完成（当前改造切片）
 
-1. 将 GIS catalog/allowlist 物理下沉到 GIS Domain，HTTP validate/revise 和 Runtime 统一显式注入目录。
-2. 让两个 Domain 的组合能力完成发现、预览、执行、Artifact/SQLite 恢复和结果/evidence 一致性。
-3. 把组合组件的数据覆盖、时效、来源、冲突和重验状态接入通用恢复动作。
-4. 用精简跨入口 harness、Docker/HTTP/Console 和显式 replay/live 收口，不增加 GIS 专用页面或固定问句分支。
+- GIS catalog 已物理下沉到 `domains/gis/workflow_templates.py`；公共模块保留兼容 facade，不再被 Runtime/HTTP 正常路径隐式使用。
+- HTTP 两个入口统一消费 `AgentService.workflow_contract()`；Text 自定义 catalog 的开发/生产 API 测试通过。
+- M220 seam 9/9，跨域/工作流/开发 HTTP 94/94，生产 contract/reliability 21/21，Docker compileall 通过。
+
+## 当前唯一工作切片：M220-B2
+
+1. 让两个 Domain 的组合能力完成发现、预览、确认、执行、Artifact/SQLite 恢复和核心 Result/Evidence 一致性。
+2. 统一组合组件的 plan identity、DAG、ToolRegistry governance、Result/Evidence 和 Action Receipt。
+3. 把组件级覆盖、时效、来源、冲突和重验状态接入通用恢复动作。
+4. 用精简组合跨入口 harness、Docker/HTTP/Console 和显式 replay/live 收口，不增加 GIS 专用页面或固定问句分支。
 
 ## 不变量
 

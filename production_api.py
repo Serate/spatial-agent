@@ -37,7 +37,6 @@ from agent.evidence_recovery import project_evidence_recovery
 from agent.artifact_manifest import build_artifact_manifest
 from agent.domain_registry import domain_registry
 from agent.service import AgentService
-from agent.workflow_templates import workflow_template_catalog
 
 class UTF8JSONResponse(JSONResponse):
     """Keep JSON responses unambiguous for clients without charset sniffing."""
@@ -360,14 +359,29 @@ def register_tool(payload: Dict[str, Any]):
 
 
 @app.get("/workflows")
-def workflows():
-    return {"templates": workflow_template_catalog()}
+def workflows(planner: str = "rule", backend: str = "memory"):
+    contract = service.workflow_contract(planner=planner, backend=backend)
+    return {
+        "domain_id": contract.get("domain_id", "unknown"),
+        "templates": contract.get("catalog", {}),
+    }
 
 
 @app.post("/workflows/{template_id}/validate")
 def validate_workflow(template_id: str, payload: Dict[str, Any]):
     try:
-        return workflow_action_result(template_id, "validate", payload)
+        contract = service.workflow_contract(
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "memory"),
+        )
+        return workflow_action_result(
+            template_id,
+            "validate",
+            payload,
+            catalog=contract.get("catalog"),
+            known_tools=contract.get("known_tools"),
+            known_result_types=contract.get("known_result_types"),
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -375,7 +389,18 @@ def validate_workflow(template_id: str, payload: Dict[str, Any]):
 @app.post("/workflows/{template_id}/revise")
 def revise_workflow(template_id: str, payload: Dict[str, Any]):
     try:
-        return workflow_action_result(template_id, "revise", payload)
+        contract = service.workflow_contract(
+            planner=payload.get("planner", "rule"),
+            backend=payload.get("backend", "memory"),
+        )
+        return workflow_action_result(
+            template_id,
+            "revise",
+            payload,
+            catalog=contract.get("catalog"),
+            known_tools=contract.get("known_tools"),
+            known_result_types=contract.get("known_result_types"),
+        )
     except Exception as exc:
         _raise_for(exc)
 

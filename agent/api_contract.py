@@ -138,11 +138,31 @@ def constrained_comparison_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def workflow_action_result(template_id: str, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    template = get_workflow_template(template_id)
+def workflow_action_result(
+    template_id: str,
+    action: str,
+    payload: Dict[str, Any],
+    *,
+    catalog: Dict[str, Any] | None = None,
+    known_tools: Any = None,
+    known_result_types: Any = None,
+) -> Dict[str, Any]:
+    template = get_workflow_template(template_id, catalog=catalog)
     if action == "validate":
-        constraints = normalize_workflow_constraints(template, payload.get("constraints", {}))
-        evidence = normalize_workflow_evidence(template, payload.get("evidence"))
+        constraints = normalize_workflow_constraints(
+            template,
+            payload.get("constraints", {}),
+            catalog=catalog,
+            known_tools=known_tools,
+            known_result_types=known_result_types,
+        )
+        evidence = normalize_workflow_evidence(
+            template,
+            payload.get("evidence"),
+            catalog=catalog,
+            known_tools=known_tools,
+            known_result_types=known_result_types,
+        )
         plan = payload.get("plan")
         result = {
             "valid": True,
@@ -151,7 +171,13 @@ def workflow_action_result(template_id: str, action: str, payload: Dict[str, Any
             "evidence": evidence,
         }
         if plan is not None:
-            result["plan"] = validate_workflow_plan(template, plan)
+            result["plan"] = validate_workflow_plan(
+                template,
+                plan,
+                catalog=catalog,
+                known_tools=known_tools,
+                known_result_types=known_result_types,
+            )
         return result
     plan = payload.get("plan")
     if not isinstance(plan, dict):
@@ -164,6 +190,9 @@ def workflow_action_result(template_id: str, action: str, payload: Dict[str, Any
             plan,
             constraints=payload.get("constraints"),
             evidence=payload.get("evidence"),
+            catalog=catalog,
+            known_tools=known_tools,
+            known_result_types=known_result_types,
         ),
     }
 

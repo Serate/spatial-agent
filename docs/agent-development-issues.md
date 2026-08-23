@@ -5236,6 +5236,20 @@ selection projection 现在复用 `normalize_action_receipt()` 和 `project_repa
 
 以 `docs/agent-context-current.md` 作为新对话/压缩恢复的唯一默认入口，只保留当前目标、阶段切片、不变量、阻塞和最小验证证据；历史档案默认读取数为 0。需要追溯时使用 `scripts/resume_context.ps1 -Topic ... -MaxMatches ... -ContextLines ...`，只从指定历史文档返回有界命中片段，再按命中行附近读取，不全文加载。不要把原始模型响应、完整日志、GeoJSON、密钥或私有路径写入恢复卡。新增阶段收口时压缩旧信息、更新当前卡，而不是继续扩张启动文档。
 
+## M220-B：HTTP 工作流入口继续隐式使用 GIS 默认目录
+
+### 现象
+
+即使 Runtime 已有 Domain-owned workflow catalog seam，开发 HTTP 和生产 FastAPI 的 `/workflows`、`validate`、`revise` 仍直接调用公共模板模块默认值；切换到 Text 或测试 Domain 时，HTTP 可能返回 GIS 模板或用错误的工具/结果 allowlist 校验。
+
+### 根因
+
+HTTP contract 只接收 template id 和 payload，没有把当前 Runtime 的 Domain catalog、注册工具名和结果类型作为显式输入；公共模块为了兼容旧调用保留 GIS lazy default，掩盖了入口层的依赖。
+
+### 处理与预防
+
+新增 `AgentRuntime.workflow_contract()` 和 `AgentService.workflow_contract()`，开发 HTTP 与生产 FastAPI 统一从选定 Domain 获取 catalog、`known_tools` 和 `known_result_types`，再传给同一个 `workflow_action_result`。GIS 声明式目录已物理下沉到 `domains/gis/workflow_templates.py`；公共模块只保留有界兼容 facade。以后新增 HTTP workflow 入口必须显式绑定 Domain contract，并用至少一个非 GIS Domain 验证不会回退到 GIS。
+
 ## M205-A：Console 旧 renderer 忽略统一 interaction 字段
 
 ### 现象

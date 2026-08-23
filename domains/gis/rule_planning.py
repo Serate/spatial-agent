@@ -13,12 +13,16 @@ from agent.models import PlanStep, TaskPlan
 from agent.workflow_templates import (
     compile_workflow_composition,
     compile_workflow_plan,
-    workflow_template_catalog,
 )
 
 from .request_model import SpatialRequest
 from .intent import clarification_details, clarification_message, classify_spatial_intent
 from .routing import GisCapabilityRouter, contains_any
+from .workflow_templates import (
+    KNOWN_RESULT_TYPES,
+    KNOWN_TOOL_NAMES,
+    workflow_template_catalog,
+)
 
 
 @dataclass(frozen=True)
@@ -91,6 +95,8 @@ class RuleBasedPlanComposer:
             compiled = compile_workflow_composition(
                 workflow["components"],
                 catalog=self._workflow_catalog,
+                known_tools=KNOWN_TOOL_NAMES,
+                known_result_types=KNOWN_RESULT_TYPES,
                 output_type="spatial_analysis_result",
                 goal="compose selected spatial workflow components",
                 output_overrides={
@@ -141,6 +147,8 @@ class RuleBasedPlanComposer:
             constraints,
             evidence=selected_evidence,
             catalog=self._workflow_catalog,
+            known_tools=KNOWN_TOOL_NAMES,
+            known_result_types=KNOWN_RESULT_TYPES,
             output_overrides=output_overrides,
         )
         steps = [

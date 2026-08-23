@@ -2375,6 +2375,29 @@ class AgentService:
         """Return the capability catalog owned by the selected Domain Pack."""
         return self._runtime(planner, backend).capability_catalog()
 
+    def workflow_contract(
+        self,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Return the selected Domain's workflow catalog and validator inputs."""
+        runtime = self._runtime(planner, backend)
+        resolver = getattr(runtime, "workflow_contract", None)
+        if not callable(resolver):
+            return {
+                "domain_id": self._domain_id(planner, backend),
+                "catalog": {},
+                "known_tools": [],
+                "known_result_types": [],
+            }
+        value = resolver()
+        return dict(value) if isinstance(value, Mapping) else {
+            "domain_id": self._domain_id(planner, backend),
+            "catalog": {},
+            "known_tools": [],
+            "known_result_types": [],
+        }
+
     def domains(self) -> Dict[str, Any]:
         """Return the bounded deployment Domain Registry catalog."""
         return domain_registry().catalog()

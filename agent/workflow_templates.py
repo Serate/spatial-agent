@@ -18,338 +18,37 @@ class WorkflowTemplateError(ValueError):
     """Raised when a workflow template or a plan violates its contract."""
 
 
-# These are the tools currently exposed by SpatialToolAdapter.  They are kept
-# here as a small boundary for template validation rather than importing the
-# adapter, which would make this declarative module depend on GIS backends.
-KNOWN_TOOL_NAMES = [
-    "get_dataset_health_report",
-    "get_dataset_schema",
-    "range_query",
-    "spatial_join",
-    "get_raster_metadata",
-    "get_raster_statistics",
-    "get_zonal_raster_statistics",
-    "get_zonal_slope_statistics",
-    "get_zonal_land_use_distribution",
-    "get_zonal_buildability_analysis",
-    "get_zonal_vector_summary",
-    "get_zonal_constrained_buildability_analysis",
-]
-
-KNOWN_TOOLS = KNOWN_TOOL_NAMES
-
-# Include both the dedicated result contracts and the legacy generic result
-# contracts so validating an old plan remains possible.
-KNOWN_RESULT_TYPES = [
-    "direct_answer",
-    "spatial_overview_result",
-    "spatial_analysis_result",
-    "admin_area_result",
-    "raster_metadata_result",
-    "raster_statistics_result",
-    "zonal_raster_statistics_result",
-    "terrain_land_use_analysis_result",
-    "buildability_result",
-    "buildability_comparison",
-    "constrained_buildability_result",
-    "zonal_vector_summary_result",
-    "dataset_health_result",
-    "spatial_relation_result",
-    "spatial_result",
-    "vector_result",
-    "zonal_vector_result",
-]
-
 DEFAULT_TEMPLATE_VERSION = "1.0.0"
 WORKFLOW_COMPOSITION_SCHEMA_VERSION = "spatial-agent.workflow-composition.v1"
 SUPPORTED_CONSTRAINT_TYPES = {"string", "number", "integer", "boolean", "enum"}
 
 
-# The values use only JSON-native objects, arrays, strings, numbers, booleans,
-# and null.  Keep this directory declarative so it can later be loaded from a
-# signed configuration without changing the validation API.
-WORKFLOW_TEMPLATE_CATALOG = {
-    "admin_boundary_query": {
-        "id": "admin_boundary_query",
-        "version": "1.0.0",
-        "label": "行政区边界查询",
-        "goal_template": "query admin area boundary by name",
-        "allowed_tools": ["get_dataset_schema", "range_query"],
-        "result_types": ["admin_area_result"],
-        "max_steps": 2,
-        "required_constraints": ["admin_name"],
-        "constraint_specs": [
-            {"name": "admin_name", "label": "行政区", "type": "string", "required": True, "min_length": 1}
-        ],
-        "evidence_options": ["summary", "geometry", "trace"],
-        "default_evidence": ["summary", "geometry", "trace"],
-        "step_blueprint": [
-            {
-                "id": "schema-admin",
-                "tool": "get_dataset_schema",
-                "args": {"dataset": "admin_areas"},
-                "depends_on": [],
-            },
-            {
-                "id": "filter-admin",
-                "tool": "range_query",
-                "args": {
-                    "dataset": "admin_areas",
-                    "conditions": [
-                        {"field": "name", "operator": "eq", "value": {"$constraint": "admin_name"}}
-                    ],
-                    "limit": 100,
-                },
-                "depends_on": ["schema-admin"],
-            },
-        ],
-        "output_template": {"type": "admin_area_result", "summary": True},
-    },
-    "raster_metadata": {
-        "id": "raster_metadata",
-        "version": "1.0.0",
-        "label": "栅格元数据查询",
-        "goal_template": "inspect raster dataset metadata",
-        "allowed_tools": ["get_raster_metadata"],
-        "result_types": ["raster_metadata_result"],
-        "max_steps": 1,
-        "required_constraints": ["dataset"],
-        "constraint_specs": [
-            {"name": "dataset", "label": "数据集", "type": "enum", "required": True, "choices": ["dem", "land_use", "slope"]}
-        ],
-        "evidence_options": ["summary", "metadata", "trace"],
-        "default_evidence": ["summary", "metadata", "trace"],
-        "step_blueprint": [
-            {
-                "id": "raster-metadata",
-                "tool": "get_raster_metadata",
-                "args": {"dataset": {"$constraint": "dataset"}, "max_files": 3},
-                "depends_on": [],
-            },
-        ],
-        "output_template": {"type": "raster_metadata_result", "summary": True},
-    },
-    "spatial_overview": {
-        "id": "spatial_overview",
-        "version": "1.0.0",
-        "label": "区域空间总览",
-        "goal_template": "build a cross-source spatial overview for an administrative area",
-        "allowed_tools": [
-            "get_dataset_health_report",
-            "get_dataset_schema",
-            "range_query",
-            "get_zonal_raster_statistics",
-            "get_zonal_slope_statistics",
-            "get_zonal_land_use_distribution",
-            "get_zonal_vector_summary",
-        ],
-        "result_types": ["spatial_overview_result"],
-        "max_steps": 8,
-        "required_constraints": ["admin_name"],
-        "constraint_specs": [
-            {"name": "admin_name", "label": "行政区", "type": "string", "required": True, "min_length": 1},
-            {"name": "include_geometry", "label": "包含空间几何", "type": "boolean", "required": False, "default": True},
-        ],
-        "evidence_options": ["summary", "geometry", "data_health", "trace"],
-        "default_evidence": ["summary", "geometry", "data_health", "trace"],
-        "step_blueprint": [
-            {
-                "id": "dataset-health",
-                "tool": "get_dataset_health_report",
-                "args": {"dataset": "all", "max_files": 10},
-                "depends_on": [],
-            },
-            {
-                "id": "schema-admin",
-                "tool": "get_dataset_schema",
-                "args": {"dataset": "admin_areas"},
-                "depends_on": ["dataset-health"],
-            },
-            {
-                "id": "filter-admin",
-                "tool": "range_query",
-                "args": {
-                    "dataset": "admin_areas",
-                    "conditions": [
-                        {"field": "name", "operator": "eq", "value": {"$constraint": "admin_name"}}
-                    ],
-                    "limit": 100,
-                },
-                "depends_on": ["schema-admin"],
-            },
-            {
-                "id": "overview-elevation",
-                "tool": "get_zonal_raster_statistics",
-                "args": {"dataset": "dem", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "overview-slope",
-                "tool": "get_zonal_slope_statistics",
-                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "overview-land-use",
-                "tool": "get_zonal_land_use_distribution",
-                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "overview-roads",
-                "tool": "get_zonal_vector_summary",
-                "args": {"dataset": "roads", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "overview-water",
-                "tool": "get_zonal_vector_summary",
-                "args": {"dataset": "water", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
-                "depends_on": ["filter-admin"],
-            },
-        ],
-        "output_template": {"type": "spatial_overview_result", "summary": True},
-    },
-    "spatial_analysis": {
-        "id": "spatial_analysis",
-        "version": "1.0.0",
-        "label": "组合式空间分析",
-        "goal_template": "compose a multi-task spatial analysis DAG from request facts",
-        "allowed_tools": [
-            "get_dataset_health_report",
-            "get_dataset_schema",
-            "range_query",
-            "get_zonal_raster_statistics",
-            "get_zonal_slope_statistics",
-            "get_zonal_land_use_distribution",
-            "get_zonal_vector_summary",
-            "get_zonal_buildability_analysis",
-            "get_zonal_constrained_buildability_analysis",
-        ],
-        "result_types": ["spatial_analysis_result"],
-        "max_steps": 12,
-        "required_constraints": ["admin_name"],
-        "constraint_specs": [
-            {"name": "admin_name", "label": "行政区", "type": "string", "required": True, "min_length": 1},
-            {"name": "slope_limit_degrees", "label": "坡度上限（度）", "type": "number", "required": False, "min": 0, "max": 90, "default": 15},
-            {"name": "road_distance_m", "label": "道路距离（米）", "type": "number", "required": False, "min": 0, "default": 1000},
-            {"name": "exclude_water", "label": "排除水体", "type": "boolean", "required": False, "default": False},
-        ],
-        "evidence_options": ["summary", "geometry", "data_health", "trace"],
-        "default_evidence": ["summary", "geometry", "data_health", "trace"],
-        "step_blueprint": [
-            {
-                "id": "dataset-health",
-                "tool": "get_dataset_health_report",
-                "args": {"dataset": "all", "max_files": 10},
-                "depends_on": [],
-            },
-            {
-                "id": "schema-admin",
-                "tool": "get_dataset_schema",
-                "args": {"dataset": "admin_areas"},
-                "depends_on": ["dataset-health"],
-            },
-            {
-                "id": "filter-admin",
-                "tool": "range_query",
-                "args": {
-                    "dataset": "admin_areas",
-                    "conditions": [
-                        {"field": "name", "operator": "eq", "value": {"$constraint": "admin_name"}}
-                    ],
-                    "limit": 100,
-                },
-                "depends_on": ["schema-admin"],
-            },
-            {
-                "id": "composed-elevation",
-                "tool": "get_zonal_raster_statistics",
-                "args": {"dataset": "dem", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "composed-slope",
-                "tool": "get_zonal_slope_statistics",
-                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "composed-land-use",
-                "tool": "get_zonal_land_use_distribution",
-                "args": {"admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_files": 10},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "composed-roads",
-                "tool": "get_zonal_vector_summary",
-                "args": {"dataset": "roads", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "composed-water",
-                "tool": "get_zonal_vector_summary",
-                "args": {"dataset": "water", "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}}, "max_features": 10000},
-                "depends_on": ["filter-admin"],
-            },
-            {
-                "id": "composed-buildability",
-                "tool": "get_zonal_constrained_buildability_analysis",
-                "args": {
-                    "admin_name": {"$result_ref": {"step": "filter-admin", "path": "first_name"}},
-                    "slope_limit_degrees": {"$constraint": "slope_limit_degrees"},
-                    "road_distance_m": {"$constraint": "road_distance_m"},
-                    "exclude_water": {"$constraint": "exclude_water"},
-                    "max_files": 10,
-                },
-                "depends_on": ["filter-admin"],
-            },
-        ],
-        "output_template": {"type": "spatial_analysis_result", "summary": True},
-    },
-    "constrained_buildability": {
-        "id": "constrained_buildability",
-        "version": "1.0.0",
-        "label": "道路与水体约束筛选",
-        "goal_template": "screen construction candidates with raster and vector constraints",
-        "allowed_tools": [
-            "get_dataset_health_report",
-            "get_zonal_constrained_buildability_analysis",
-        ],
-        "result_types": ["constrained_buildability_result"],
-        "max_steps": 2,
-        "required_constraints": ["admin_name", "slope_limit_degrees"],
-        "constraint_specs": [
-            {"name": "admin_name", "label": "行政区", "type": "string", "required": True, "min_length": 1},
-            {"name": "slope_limit_degrees", "label": "坡度上限（度）", "type": "number", "required": True, "min": 0, "max": 90},
-            {"name": "road_distance_m", "label": "道路距离（米）", "type": "number", "required": False, "min": 0, "default": 1000},
-            {"name": "exclude_water", "label": "排除水体", "type": "boolean", "required": False, "default": True},
-        ],
-        "evidence_options": ["summary", "geometry", "data_health", "trace"],
-        "default_evidence": ["summary", "geometry", "data_health", "trace"],
-        "step_blueprint": [
-            {
-                "id": "dataset-health",
-                "tool": "get_dataset_health_report",
-                "args": {"dataset": "all", "max_files": 10},
-                "depends_on": [],
-            },
-            {
-                "id": "constrained-buildability",
-                "tool": "get_zonal_constrained_buildability_analysis",
-                "args": {
-                    "admin_name": {"$constraint": "admin_name"},
-                    "slope_limit_degrees": {"$constraint": "slope_limit_degrees"},
-                    "road_distance_m": {"$constraint": "road_distance_m"},
-                    "exclude_water": {"$constraint": "exclude_water"},
-                    "max_files": 10,
-                },
-                "depends_on": ["dataset-health"],
-            },
-        ],
-        "output_template": {"type": "constrained_buildability_result", "summary": True},
-    },
-}
+# GIS catalog data lives in domains.gis.workflow_templates. The lazy compatibility
+# helpers below preserve old imports without making Runtime depend on that data.
+def _legacy_gis_catalog():
+    from domains.gis.workflow_templates import workflow_template_catalog
+
+    return workflow_template_catalog()
+
+
+def _legacy_known_tools():
+    from domains.gis.workflow_templates import KNOWN_TOOL_NAMES
+
+    return KNOWN_TOOL_NAMES
+
+
+def _legacy_known_result_types():
+    from domains.gis.workflow_templates import KNOWN_RESULT_TYPES
+
+    return KNOWN_RESULT_TYPES
+
+
+def __getattr__(name: str):
+    if name in {"KNOWN_TOOL_NAMES", "KNOWN_TOOLS", "KNOWN_RESULT_TYPES", "WORKFLOW_TEMPLATE_CATALOG"}:
+        from domains.gis import workflow_templates as gis_templates
+
+        return getattr(gis_templates, name)
+    raise AttributeError(name)
 
 
 _TEMPLATE_KEYS = {
@@ -388,11 +87,11 @@ def workflow_template_catalog(
 ) -> Dict[str, Dict[str, Any]]:
     """Return an isolated catalog copy.
 
-    The built-in catalog remains a compatibility default for legacy callers;
+    The legacy GIS catalog is resolved lazily only for old callers;
     Runtime/Domain integrations should pass an explicit Domain-owned catalog.
     """
 
-    source = WORKFLOW_TEMPLATE_CATALOG if catalog is None else catalog
+    source = _legacy_gis_catalog() if catalog is None else catalog
     if not isinstance(source, Mapping):
         raise WorkflowTemplateError("catalog must be an object")
     return copy.deepcopy(dict(source))
@@ -412,7 +111,8 @@ def workflow_template_context_summary(
     This is the public context seam for planners: it exposes the small
     interface they need (ids, constraints, result types, allowed tools, and
     blueprint shape) without requiring them to know the full template schema or
-    every literal argument value. The raw catalog remains owned by this module.
+    every literal argument value. The raw catalog is owned by the caller's
+    Domain Pack.
     """
 
     if max_templates is not None and max_templates < 1:
@@ -482,7 +182,7 @@ def validate_workflow_template_catalog(
 ) -> Dict[str, Dict[str, Any]]:
     """Validate every entry in a keyed template directory."""
 
-    source = WORKFLOW_TEMPLATE_CATALOG if catalog is None else catalog
+    source = _legacy_gis_catalog() if catalog is None else catalog
     _assert_json_safe(source, "catalog")
     if not isinstance(source, Mapping):
         raise WorkflowTemplateError("catalog must be an object")
@@ -517,7 +217,7 @@ def get_workflow_template(
 
     if not isinstance(template_id, str) or not template_id.strip():
         raise WorkflowTemplateError("template id must be a non-empty string")
-    selected_catalog = WORKFLOW_TEMPLATE_CATALOG if catalog is None else catalog
+    selected_catalog = _legacy_gis_catalog() if catalog is None else catalog
     if not isinstance(selected_catalog, Mapping):
         raise WorkflowTemplateError("catalog must be an object")
     try:
@@ -567,11 +267,11 @@ def validate_workflow_template(
     )
 
     available_tools = _value_set(
-        KNOWN_TOOL_NAMES if known_tools is None else known_tools,
+        _legacy_known_tools() if known_tools is None else known_tools,
         "known_tools",
     )
     available_results = _value_set(
-        KNOWN_RESULT_TYPES if known_result_types is None else known_result_types,
+        _legacy_known_result_types() if known_result_types is None else known_result_types,
         "known_result_types",
     )
     unknown_tools = sorted(set(tool_names) - available_tools)
@@ -1092,11 +792,11 @@ def validate_workflow_plan(
 
     template_definition = _resolve_template(template, catalog)
     available_tools = _value_set(
-        KNOWN_TOOL_NAMES if known_tools is None else known_tools,
+        _legacy_known_tools() if known_tools is None else known_tools,
         "known_tools",
     )
     available_results = _value_set(
-        KNOWN_RESULT_TYPES if known_result_types is None else known_result_types,
+        _legacy_known_result_types() if known_result_types is None else known_result_types,
         "known_result_types",
     )
     normalized_template = validate_workflow_template(
@@ -1230,10 +930,18 @@ def revise_workflow_plan(
     constraints: Optional[Mapping[str, Any]] = None,
     evidence: Optional[Iterable[str]] = None,
     catalog: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    known_tools: Optional[Iterable[str]] = None,
+    known_result_types: Optional[Iterable[str]] = None,
 ) -> Dict[str, Any]:
     """Apply a bounded user revision and revalidate the complete plan."""
 
-    current = validate_workflow_plan(template, plan, catalog=catalog)
+    current = validate_workflow_plan(
+        template,
+        plan,
+        catalog=catalog,
+        known_tools=known_tools,
+        known_result_types=known_result_types,
+    )
     merged_constraints = dict(current["constraints"])
     if constraints is not None:
         if not isinstance(constraints, Mapping):
@@ -1243,7 +951,13 @@ def revise_workflow_plan(
     revised["constraints"] = merged_constraints
     if evidence is not None:
         revised["evidence"] = list(evidence)
-    return validate_workflow_plan(template, revised, catalog=catalog)
+    return validate_workflow_plan(
+        template,
+        revised,
+        catalog=catalog,
+        known_tools=known_tools,
+        known_result_types=known_result_types,
+    )
 
 
 def validate_template(
@@ -1266,7 +980,7 @@ def _resolve_template(
     catalog: Optional[Mapping[str, Mapping[str, Any]]],
 ) -> Mapping[str, Any]:
     if isinstance(template, str):
-        selected_catalog = WORKFLOW_TEMPLATE_CATALOG if catalog is None else catalog
+        selected_catalog = _legacy_gis_catalog() if catalog is None else catalog
         if not isinstance(selected_catalog, Mapping):
             raise WorkflowTemplateError("catalog must be an object")
         try:
