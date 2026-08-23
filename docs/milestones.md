@@ -1,6 +1,6 @@
 # Spatial Agent 阶段记录
 
-> 当前阶段快速恢复请先读取 [agent-context-current.md](agent-context-current.md)；本文件是阶段历史档案，按需读取。
+> 当前阶段快速恢复只读取 [agent-context-resume.md](agent-context-resume.md)；本文件是阶段历史档案，按需读取。
 
 本文档记录项目每个阶段完成的功能、验证结果和关键工程决策。README 只保留当前能力与使用方式；后续阶段完成后，先更新本文档，再更新恢复文档，并创建对应 GitHub 版本。
 
@@ -14,7 +14,7 @@
 - Text Domain 新增声明式 `text_normalize`、`text_summary`、`text_stats` workflow catalog、组合 DAG、工具 schema/provider、结果注册、答案组合和动态 view；公共 Runtime、HTTP、Artifact、Async、SQLite recovery 均复用同一契约。
 - 新增公共 `workflow_component_evidence` 投影，统一记录组件状态、覆盖、时效、来源、冲突、重验和 fingerprint；Evidence Registry、workflow selection、异步、artifact 和恢复路径共享该入口。
 - GIS 自动发现的复合能力补充稳定 Domain-owned component identity，修复 HTTP 首次结果与 detail/artifact/recovery 的 Registry 漂移；没有新增固定问句或 GIS 专用 Runtime 分支。
-- 上下文恢复收敛为 `agent-context-current.md` + `scripts/resume_context.ps1`；默认历史文件数为 0，快照约束在 3KB 内，历史和源码按主题/预算读取。
+- 上下文恢复收敛为唯一状态源 `agent-context-resume.md` + `scripts/resume_context.ps1`；默认历史文件数为 0，快照约束在 2KB 内，历史和源码按主题/预算读取。
 - Docker 验证：M158/M194/M195/M220 精简回归 **33/33**，`compileall` 通过；未调用 live 模型，不提交密钥、原始响应或真实 GIS 原始数据。
 - 下一阶段从项目全局规划，不以单一数据集为中心；候选方向是跨 Domain 动态组合发现、恢复/重验策略和显式真实模型 + 真实 GIS/Docker 验收闭环。
 
@@ -4443,10 +4443,21 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 修复公共 `project_model_evidence` 重复投影时把显式 `available=false` 改成 `true` 的幂等性问题；异步 view 状态增强不再被误判为 panel identity 漂移。
 - Docker rule+memory 验收六组比较全部通过；真实 DeepSeek 中转 + Docker sync/async 均完成，异步证据记录 5228 tokens；M135/M146 回归 12/12，`compileall` 通过。
 
-## M222：恢复接管与展示边界收敛（下一阶段全局规划）
+## M222：恢复接管与展示边界收敛（已完成）
 
-1. **恢复**：在真实 HTTP 异步运行完成后重启生产容器，验证 SQLite 接管、artifact-only fallback、model/context/plan/evidence 同一性且不重复调用模型。
-2. **架构**：审计 CLI、HTTP、async、Artifact 和前端的公共投影入口，删除仍自行拼接 Result/Evidence 的兼容分支。
-3. **体验**：移除剩余旧 GIS renderer，让通用 view slot 覆盖非地图结果；地图仅保留作为声明式 renderer plugin。
-4. **可观测性**：把接管来源、恢复次数和 evidence freshness 以有界结构化字段暴露给前端，不泄漏进程、路径或 provider 原文。
-5. **测试**：新增一条 opt-in 的 Docker 重启接管纵向验收和一个浏览器动态 view smoke；默认 quick/CI 不扩容。
+- `scripts/live_http_acceptance.py` 新增 existing-run 只读验证模式；容器重启后分别复验 rule 与真实 DeepSeek 既有运行，run、polling、artifact 和 evidence endpoint 三组投影均一致，`recovery_count=0`、末事件为 `completed`，未再次调用模型。
+- Console 删除 raster、health、overview、composite、buildability 五套旧 DOM slot 和 renderer；除地图外的结构化 view 统一由 `genericResult`/`renderGenericView` 消费，workspace 空态和会话恢复也使用同一容器。
+- 地图继续作为专用 renderer 保留；本阶段没有把 GIS 地图或 Domain Action 伪装成公共 Runtime 策略，其插件化作为下一阶段的全局缺口。
+- Docker compact 静态契约 **8/8**、`compileall` 通过；health、overview、error、session 四条串行浏览器 smoke 通过；Node 语法与旧 renderer 残留检查通过。
+- 修复两个测试设计问题：静态测试不再锁定 CDP 局部变量名；会话隔离改为比较 result/tool identity，而不是把统一容器可见性误判为串话。
+- 恢复上下文进一步收敛为单文件 `agent-context-resume.md`，默认历史文件数为 0。
+
+## M223：Console Renderer/Action 插件边界（下一阶段全局规划）
+
+1. **产品**：让 Text、GIS 和未来 Domain 共用同一个 Console shell；页面根据结构化 workspace/view/action 声明决定展示能力，不预置某个结果类型或固定问句。
+2. **架构**：建立版本化 renderer registry 与 Domain UI plugin seam；Console 核心只分发 renderer id，GIS 地图、图层样式和空间选择迁入 GIS plugin，核心不判断 `spatial_overview_result` 或 GIS geometry source。
+3. **Action**：将建设阈值、区域和道路约束对比从固定 DOM/函数迁为可发现的 Domain Action schema；通用 action form、提交、receipt 和结果 renderer 复用现有生命周期边界。
+4. **契约**：复用并收敛 `workspace.view_specs`、Evidence Registry 和 Action contract，保证 HTTP、async、artifact 与 session restore 对 renderer/action identity 一致，不再新增平行 UI schema。
+5. **体验**：把“空间计划”等核心文案改为领域中立语义；无插件、未知 renderer 或降级 artifact 返回有界空态与恢复链接。
+6. **隔离**：增加 Console core 静态隔离检查，GIS 专用 result/action/style 字面量只能存在于 GIS plugin；用 Text fixture 证明新增 Domain 无需修改 shell。
+7. **测试**：只保留一条 Text/GIS 跨域动态 renderer/action 纵向 smoke，叠加现有 compact 与显式浏览器验收；默认 CI 不增加 live、GIS 或浏览器负担。

@@ -93,6 +93,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
     base_url = _base_url(args.base_url)
+    if args.verify_run_id:
+        return _verify_existing_run(base_url, args.verify_run_id, args)
     common = {
         "request": args.request,
         "session_id": "live-http-" + uuid.uuid4().hex,
@@ -167,8 +169,9 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
         ("registry", "projection", "recovery"),
     )
 
-    return {
+    report = {
         "status": "ok",
+        "mode": "live_execution",
         "planner": args.planner,
         "backend": args.backend,
         "result_type": async_contract["result_type"],
@@ -199,6 +202,80 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
             "async_evidence_endpoints": "ok",
         },
     }
+    if args.include_run_id:
+        report["async"]["run_id"] = run_id
+    return report
+
+
+def _verify_existing_run(
+    base_url: str,
+    run_id: str,
+    args: argparse.Namespace,
+) -> Dict[str, Any]:
+    full = _json_request(
+        base_url,
+        "GET",
+        "/runs/" + quote(run_id) + "?" + urlencode({
+            "planner": args.planner,
+            "backend": args.backend,
+        }),
+        None,
+        args.http_timeout,
+    )
+    _completed(full, "recovered run")
+    observation = _json_request(
+        base_url,
+        "GET",
+        f"/runs/{quote(run_id)}/async",
+        None,
+        args.http_timeout,
+    )
+    bundle = _artifact_bundle(base_url, full, args.http_timeout)
+    contract = _full_contract(full)
+    _match(
+        "recovered run/artifact",
+        contract,
+        _full_contract(bundle["artifact"]),
+        SAME_RUN_FIELDS,
+    )
+    _match(
+        "recovered polling/artifact",
+        _poll_contract(observation),
+        contract,
+        SAME_RUN_FIELDS,
+    )
+    _match(
+        "recovered evidence endpoints",
+        _evidence_contract(bundle["run_evidence"]),
+        _evidence_contract(bundle["artifact_evidence"]),
+        ("registry", "projection", "recovery"),
+    )
+    report = {
+        "status": "ok",
+        "mode": "existing_run_verification",
+        "planner": args.planner,
+        "backend": args.backend,
+        "result_type": contract["result_type"],
+        "model_evidence": contract["model_evidence"],
+        "context_fingerprint": contract["context_fingerprint"],
+        "plan_identity": contract["plan_identity"],
+        "workspace_panels": contract["workspace_panels"],
+        "view_panel_ids": contract["view_kinds"],
+        "recovery": {
+            "status": observation.get("status"),
+            "recovery_count": observation.get("recovery_count"),
+            "last_event": observation.get("last_event"),
+            "artifact_available": True,
+        },
+        "comparisons": {
+            "run_artifact": "ok",
+            "polling_artifact": "ok",
+            "evidence_endpoints": "ok",
+        },
+    }
+    if args.include_run_id:
+        report["run_id"] = run_id
+    return report
 
 
 def _artifact_bundle(base_url: str, payload: Mapping[str, Any], timeout: float):
@@ -456,6 +533,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--poll-limit", type=int, default=80)
     parser.add_argument("--poll-interval", type=float, default=0.25)
     parser.add_argument("--allow-live", action="store_true")
+    parser.add_argument("--verify-run-id")
+    parser.add_argument("--include-run-id", action="store_true")
     return parser
 
 

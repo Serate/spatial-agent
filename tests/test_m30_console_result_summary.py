@@ -9,63 +9,36 @@ class M30ConsoleResultSummaryTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    def test_console_has_structured_result_panels(self):
+    def test_console_uses_one_dynamic_result_surface(self):
         for marker in (
-            "栅格统计概览",
-            "综合空间分析",
-            "运行血缘",
-            "建设适宜性筛选",
-            "function stepResult(result)",
-            "function buildabilityStats(data)",
-            "function validateSelection(request)",
-            "请输入问题后再发送",
-            "function rasterStats(data)",
-            "阈值结果对比",
-            "function compareBuildability()",
-            "candidate_pixel_count",
-            "geometry_source==='raster-buildability-screening'",
-            "空间预览加载失败：",
-            "行政区边界",
-            "map-legend",
-            "leafletMapPreview",
-            "L.control.layers",
-            "交互式空间预览",
-            "if(!boundaryLayer.getLayers().length&&!candidateLayer.getLayers().length)",
-            "catch(error) { destroyMap(); return false; }",
-            ".map > svg",
-            "leaflet-overlay-pane svg",
-            "fillColor:'#e09a5b'",
-            "fillColor:'#87c7d1'",
-            "OpenStreetMap",
-            "纯矢量",
-            "历史任务",
-            "function loadHistory()",
-            "/runs?limit=20",
-            "runtimeMetrics",
-            "fetch('/metrics')",
-            "function decisionMode(data)",
-            "function conversationTurnLabel(data)",
-            "本轮：",
-            "通用回答 · 未调用空间工具",
-            "空间计划 · 已执行",
+            'class="panel result-panel generic-result"',
+            'id="genericResult"',
+            "function genericResult(data)",
+            "function resultViewPanels(data)",
+            "function renderGenericView(viewId,view,spec={},data={})",
+            "Object.entries(panels).filter(([id])=>id!=='map')",
             "function updateResultPanels(data)",
             "function resetResultWorkspace()",
-            "resultEmpty",
-            "result-panel",
-            "数据健康检查",
-            "function resultViewPanels(data)",
-            "const view=resultViewPanels(data).health",
-            "spatial_overview_result",
+        ):
+            self.assertIn(marker, self.html)
+
+        for legacy_id in (
+            'id="rasterStats"',
+            'id="healthStats"',
+            'id="overviewStats"',
+            'id="compositeStats"',
+            'id="buildabilityStats"',
+        ):
+            self.assertNotIn(legacy_id, self.html)
+
+    def test_map_remains_an_optional_renderer_plugin(self):
+        for marker in (
             "spatialOverviewMapPreview",
-            "function healthStats(data)",
-            "view.alignment",
-            "capabilityStatus",
-            "function renderCapabilities(data)",
-            "function geometryEvidence(data)",
-            "空间证据：",
-            "function viewSpecMap(data)",
-            "function renderGenericView(viewId,view,spec={})",
-            "spec.renderer",
+            "leafletMapPreview",
+            "L.control.layers",
+            "行政区边界",
+            "道路",
+            "水体",
         ):
             self.assertIn(marker, self.html)
 

@@ -1,16 +1,42 @@
-# Agent 上下文恢复入口
+# Agent 唯一恢复卡
 
-本文件只说明恢复动作，不保存阶段历史。新对话或上下文压缩后只执行下面这一条命令；不要依次打开任务档案、问题日志和归档。
+本文件同时是恢复入口和当前状态源。新对话或上下文压缩后只执行：
 
 ```powershell
 pwsh -NoProfile -File scripts/resume_context.ps1
 ```
 
-默认只输出短恢复卡。需要 Git 诊断或历史时显式使用：
+不要再默认读取 `task-resume.md`、问题日志、milestones、归档、完整测试或模型响应。
+
+## 目标
+
+建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
+
+## 当前状态
+
+- M222 已完成：Docker 重启后，rule 与真实 DeepSeek existing-run 的 run、polling、artifact 和 evidence 同一性均已验证，完成态任务未被重新认领。
+- 非地图 view 已统一进入 `genericResult`；五套旧 DOM/renderer 已删除，地图待插件化。
+- Docker 静态测试 8/8、`compileall` 与四条浏览器 smoke 均通过。
+
+## 下一步
+
+推送 M222；随后进入 M223，把地图、Domain Action 和领域控件迁出 Console 核心，建立由 `view_specs`、renderer id 与 action schema 驱动的插件边界。
+
+## 不变量
+
+- Runtime 领域中立；新增能力扩展 facts、catalog、schema、workflow、result/view，不写区域或固定问句分支。
+- Python、测试和 `compileall` 在 Docker 中执行；默认测试离线且精简，live/GIS/HTTP/browser 仅显式验收。
+- 不读取、输出或提交 API key、`.env.production`、原始模型响应、真实原始数据或私有路径。
+
+## 读取预算
+
+- 恢复时只加载本卡；不要先读 skill 或其他恢复文档。
+- 源码先用 `rg -n -m 5` 定位，首轮最多读取 2 个源码文件和 1 个测试文件。
+- 只有出现具体缺口时才有界检索历史：
 
 ```powershell
+pwsh -NoProfile -File scripts/resume_context.ps1 -Topic "关键词" -MaxMatches 4 -ContextLines 8
 pwsh -NoProfile -File scripts/resume_context.ps1 -Diagnostics
-pwsh -NoProfile -File scripts/resume_context.ps1 -Topic "M220|evidence" -MaxMatches 4 -ContextLines 8
 ```
 
-源码也按预算读取：先用 `rg -n -m 5` 定位，再只读命中附近窗口；默认最多 2 个源码文件和 1 个测试文件。目标、阻塞项和下一步以 `docs/agent-context-current.md` 为准。
+- 本卡超过 2KB 时先压缩，只保留目标、当前状态、下一步、不变量和读取预算。

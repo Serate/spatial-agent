@@ -11,13 +11,13 @@ param(
 )
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$currentPath = Join-Path $repoRoot 'docs/agent-context-current.md'
+$snapshotPath = Join-Path $repoRoot 'docs/agent-context-resume.md'
 
-if (-not (Test-Path -LiteralPath $currentPath -PathType Leaf)) {
-    throw "Missing context snapshot: $currentPath"
+if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) {
+    throw "Missing context snapshot: $snapshotPath"
 }
 
-$current = Get-Content -LiteralPath $currentPath -Raw
+$current = Get-Content -LiteralPath $snapshotPath -Raw
 if ($current.Length -gt $MaxCurrentChars) {
     $current = $current.Substring(0, $MaxCurrentChars) + "`n[context snapshot truncated]"
 }

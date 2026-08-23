@@ -44,7 +44,7 @@ $env:MAP_REQUEST = '分析洪山区建设适宜性，坡度不超过20度'
 node scripts/console_map_smoke.js
 ```
 
-验证空间总览专用面板和地图分层：
+验证统一动态结果视图中的空间总览和地图分层：
 
 ```powershell
 $env:CONSOLE_URL = 'http://127.0.0.1:8088/'
@@ -52,7 +52,7 @@ $env:CONSOLE_BACKEND = 'memory'
 node scripts/console_overview_smoke.js
 ```
 
-该脚本先提交“分析洪山区空间概况”，断言 `spatial_overview_result` 对应的“空间总览摘要”显示工具步骤、数据来源和空间要素；随后使用固定的最小 GeoJSON 调用页面已有总览地图渲染函数，断言图层控制中存在“行政区边界”“道路”“水体”，且颜色分别为青绿色、橙色和蓝色。固定 GeoJSON 只验证前端分层契约，不替代真实 GIS 数据验收。
+该脚本先提交“分析洪山区空间概况”，断言 `spatial_overview_result` 通过统一 `genericResult` 动态显示工具步骤、数据来源和空间要素，不依赖 overview 专用 DOM；随后使用固定的最小 GeoJSON 调用地图 renderer，断言图层控制中存在“行政区边界”“道路”“水体”，且颜色分别为青绿色、橙色和蓝色。固定 GeoJSON 只验证前端分层契约，不替代真实 GIS 数据验收。
 
 多个 smoke 脚本不要同时复用同一个 CDP 页面。它们都会选择第一个 page 并导航到
 `CONSOLE_URL`，并行执行会互相覆盖页面状态，导致总览面板等断言偶发读取空结果；应使用

@@ -97,18 +97,19 @@ if (ok.badge || ok.error !== '') {
   throw new Error(`成功结果不应渲染错误徽标：${okSnapshot}`);
 }
 
-// 空态收敛：直接回答结果不显示栅格/健康面板的「等待」占位；比较面板显示可操作提示。
+// 空态收敛：统一结果容器保持隐藏且为空；比较面板显示可操作提示。
 const placeholderSnapshot = await evaluate(`(()=>{
   resetConversationView();
   return JSON.stringify({
-    raster: document.querySelector('#rasterStats')?.textContent || '',
+    generic: document.querySelector('#genericResult')?.textContent || '',
+    genericVisible: Boolean(document.querySelector('.generic-result.is-visible')),
     compare: document.querySelector('#compareResults')?.textContent || '',
     regionCompare: document.querySelector('#regionCompareResults')?.textContent || ''
   });
 })()`, true);
 const placeholders = JSON.parse(placeholderSnapshot || "{}");
-if (placeholders.raster.includes('等待')) {
-  throw new Error(`面板仍使用误导性「等待」占位：${placeholderSnapshot}`);
+if (placeholders.generic !== '' || placeholders.genericVisible) {
+  throw new Error(`统一结果容器没有恢复为空态：${placeholderSnapshot}`);
 }
 if (!placeholders.compare.includes('对比') || !placeholders.regionCompare.includes('多区域对比')) {
   throw new Error(`比较面板缺少可操作提示：${placeholderSnapshot}`);

@@ -46,7 +46,7 @@ class M148ConsoleDomainStaticTests(unittest.TestCase):
         cls.controls = parser.controls
 
     def test_text_domain_gates_every_fixed_gis_control(self):
-        self.assertGreaterEqual(len(self.controls), 10)
+        self.assertGreaterEqual(len(self.controls), 4)
         self.assertTrue(
             any(
                 item["tag"] == "option" and item["value"] == "local"
@@ -56,11 +56,6 @@ class M148ConsoleDomainStaticTests(unittest.TestCase):
         expected_classes = {
             "suggestions",
             "hint",
-            "raster-result",
-            "health-result",
-            "overview-result",
-            "composite-result",
-            "buildability-result",
             "compare-result",
             "map-result",
         }

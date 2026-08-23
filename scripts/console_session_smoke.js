@@ -66,13 +66,15 @@ const snapshot = await evaluate(`JSON.stringify({
   selected: $('session').value,
   messages: [...document.querySelectorAll('#messages .bubble')].map(item => item.textContent),
   resultType: document.querySelector('#decisionMode')?.textContent,
-  rasterVisible: document.querySelector('#rasterStats')?.textContent.includes('文件数')
+  genericVisible: Boolean(document.querySelector('.generic-result.is-visible')),
+  genericText: document.querySelector('#genericResult')?.textContent || ''
 })`, true);
 const result = JSON.parse(snapshot);
 console.log(JSON.stringify(result));
 if (result.selected !== sessionA.session_id) throw new Error("conversation selection was not restored");
 if (!result.messages.some(item => item === '你好')) throw new Error("conversation user history was not restored");
 if (!result.messages.some(item => item.includes('空间智能体'))) throw new Error("conversation assistant history was not restored");
-if (result.rasterVisible) throw new Error("result from another conversation leaked into the selected conversation");
+if (!result.genericVisible || !result.genericText.includes('direct_answer')) throw new Error("selected conversation result was not restored into the unified result view");
+if (result.genericText.includes('raster_metadata') || result.genericText.includes('get_raster_metadata')) throw new Error("result from another conversation leaked into the selected conversation");
 socket.close();
 process.exit(0);

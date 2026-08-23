@@ -78,15 +78,14 @@ const runSnapshot = await evaluate(`(async()=>{
   await sendChat(${JSON.stringify(request)});
   for(let i=0;i<120;i++){
     await new Promise(resolve=>setTimeout(resolve,250));
-    const panel=document.querySelector('.overview-result');
+    const panel=document.querySelector('.generic-result');
     if((panel?.classList.contains('is-visible') && $('lineageEvidence')?.textContent.includes('运行 ID')) || $('status')?.textContent==='失败') break;
   }
   return JSON.stringify({
     status:$('status')?.textContent||'',
     decision:$('decisionMode')?.textContent||'',
-    panel:Boolean(document.querySelector('.overview-result.is-visible')),
-    stats:$('overviewStats')?.textContent||'',
-    evidence:$('overviewEvidence')?.textContent||'',
+    panel:Boolean(document.querySelector('.generic-result.is-visible')),
+    stats:$('genericResult')?.textContent||'',
     selectionEvidence:$('selectionEvidence')?.textContent||'',
     lineage:$('lineageEvidence')?.textContent||'',
     error:$('error')?.textContent||''
@@ -94,7 +93,7 @@ const runSnapshot = await evaluate(`(async()=>{
 })()`);
 const run = JSON.parse(runSnapshot || "{}");
 if (!run.panel) {
-  throw new Error(`空间总览面板未显示：${JSON.stringify(run)}`);
+  throw new Error(`统一动态结果视图未显示空间总览：${JSON.stringify(run)}`);
 }
 if (!run.lineage.includes('运行 ID')) {
   throw new Error('结果证据索引未显示运行 ID: ' + run.lineage);

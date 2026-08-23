@@ -8,7 +8,8 @@ ROOT = Path(__file__).parents[1]
 class M66ConsoleAcceptanceContractTests(unittest.TestCase):
     def test_cdp_launcher_is_non_destructive_and_isolates_profile(self):
         source = (ROOT / "scripts" / "console_cdp_start.ps1").read_text(encoding="utf-8")
-        self.assertIn("--user-data-dir=$profile", source)
+        self.assertRegex(source, r'"--user-data-dir=\$[A-Za-z][A-Za-z0-9_]*"')
+        self.assertIn("[IO.Path]::GetTempPath()", source)
         self.assertIn("Get-CdpVersion", source)
         self.assertIn("if ($existing)", source)
         self.assertNotIn("Stop-Process", source)
@@ -18,7 +19,8 @@ class M66ConsoleAcceptanceContractTests(unittest.TestCase):
         source = (ROOT / "scripts" / "console_overview_smoke.js").read_text(encoding="utf-8")
         for marker in (
             "spatial_overview_result",
-            ".overview-result.is-visible",
+            ".generic-result.is-visible",
+            "genericResult",
             "工具步骤",
             "数据来源",
             "空间要素",

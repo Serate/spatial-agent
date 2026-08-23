@@ -266,3 +266,25 @@ docker exec ai-agent-spatial-agent-1 python -m compileall -q agent domains evalu
 ~~~
 
 当前严格完整性版本为 `spatial-agent.evidence-completeness.v2`，required entries 包含 workflow/planner selection；旧 Registry 允许兼容读取，但不能在当前严格 replay/Contract Harness 中伪装为完整。新增 Registry entry 时必须同步更新 schema 版本、完整性测试、async/artifact projection 和跨 Domain 契约。
+
+## M221/M222 live HTTP、重启恢复与动态结果视图专项
+
+涉及真实模型 HTTP/async/artifact 一致性或进程重启后的 existing-run 恢复时，显式运行：
+
+~~~powershell
+docker exec -e SPATIAL_AGENT_LIVE_HTTP=1 ai-agent-spatial-agent-1 python scripts/live_http_acceptance.py --verify-run-id <run-id> --planner <rule|openai> --backend <memory|local>
+~~~
+
+`--verify-run-id` 只读取已有 run、polling、artifact 和 evidence endpoint，不提交新请求、不调用模型。验收比较同一 run 的 result type、model/context/plan identity、workspace/view、Registry projection 和 recovery；输出保持有界，不保存原始模型响应。
+
+旧非地图 renderer 清理后的最小 Console 验收为：
+
+~~~powershell
+docker exec ai-agent-spatial-agent-1 python -m unittest tests.test_m30_console_result_summary tests.test_m66_console_acceptance tests.test_m148_console_domain_static -v
+node scripts/console_health_smoke.js
+node scripts/console_overview_smoke.js
+node scripts/console_error_badge_smoke.js
+node scripts/console_session_smoke.js
+~~~
+
+四个浏览器 smoke 必须串行复用 CDP 页面。它们验证统一动态结果容器、地图插件、错误空态和会话 identity；不得重新增加 raster/health/overview/composite/buildability 专用 DOM 断言。

@@ -6,4 +6,4 @@
 pwsh -NoProfile -File scripts/resume_context.ps1
 ```
 
-当前状态只维护在 [`agent-context-current.md`](agent-context-current.md)。本文件仅在恢复卡明确指向任务历史时按需读取；详细历史位于 `docs/archive/context-history/task-resume-history.md`，不得全文加载。
+当前状态只维护在 [`agent-context-resume.md`](agent-context-resume.md)。本文件仅在恢复卡明确指向任务历史时按需读取；详细历史位于 `docs/archive/context-history/task-resume-history.md`，不得全文加载。
