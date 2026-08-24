@@ -119,7 +119,8 @@ class DevGateTests(unittest.TestCase):
 
         self.assertEqual(first["status"], "NEEDS_CLARIFICATION")
         self.assertEqual(second["status"], "COMPLETED")
-        self.assertIn("memory://range/admin_areas", second["answer"])
+        self.assertIn("行政区边界", second["answer"])
+        self.assertNotIn("memory://", second["answer"])
 
     def test_service_smoke_covers_raster_and_tool_dispatch(self):
         service = AgentService()

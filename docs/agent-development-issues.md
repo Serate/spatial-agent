@@ -2,6 +2,14 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## 用户回答契约升级后 CI 仍断言内部引用
+
+- **现象**：GitHub CI 的稳定契约和 service smoke 同时失败，邮件提示 `Some jobs were not successful`；运行状态和工具步骤实际均已完成。
+- **根因**：回答从模板内部结果引用迁移为用户可读中文后，`tests/test_dev_gate.py` 与 `scripts/smoke_check.py` 仍要求答案包含 `memory://range/admin_areas`，测试契约没有随公共回答边界更新。
+- **诊断**：先运行 `python scripts/test_profile.py --profile ci`，查看 profile 返回的两个子检查；区分“业务运行失败”和“断言只接受旧内部表示”。
+- **修复**：断言行政区边界等用户语义，并明确禁止 `memory://` 出现在回答中；保留工具名、结果类型和结构化证据在内部契约中验证。
+- **预防**：回答文案变更必须同步搜索测试、smoke、评测和前端断言中的内部引用；CI 只验证公共语义和结构化结果，不锁定 Composer 的旧句式或 artifact ref。
+
 ## 领域 Composer 直接拼接最终回答，导致真实模型模式仍像程序日志
 
 - **现象**：工具执行成功后，回答出现“完成几个工具步骤”、内部字段或固定句式；用户难以理解综合结果，且新增领域或开放式问题需要不断增加模板分支。

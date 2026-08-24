@@ -68,7 +68,8 @@ def _run_service_smoke():
         and raster_result["status"] == "COMPLETED"
         and first["status"] == "NEEDS_CLARIFICATION"
         and second["status"] == "COMPLETED"
-        and "memory://range/admin_areas" in second["answer"]
+        and "行政区边界" in second["answer"]
+        and "memory://" not in second["answer"]
         and raster_result["steps"][0]["tool"] == "get_raster_metadata"
     )
     return {

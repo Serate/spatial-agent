@@ -21,6 +21,7 @@
 - M238 已完成：修复桌面端“领域动作”展开层被聊天消息区遮挡的问题。弹出层提升设置栏层级，改为相对设置栏的自适应定位，限制最大高度并允许内部滚动；聊天容器不再裁剪必要的弹出内容。Docker 页面已重建。
 - M239 已完成：修复综合 GIS 结果在 GeoJSON 摘要被截断时错误退回规则栅格矩形的问题。只要仍有 GeoJSON artifact，就继续绘制可用的部分真实几何；没有几何 artifact 时，地图改为虚线“栅格外接范围”，明确不代表有效像元覆盖。补充 result contract、GIS renderer 回归 smoke，Docker 定向验证通过。
 - M240 已完成：新增独立 `agent.answer_generation` 回答生成边界。真实模型模式在工具执行完成后，把请求、目标和工具事实做有界脱敏投影，使用结构化输出生成面向用户的中文总结；schema、长度和内部引用校验失败时回退 Domain Composer。规则/离线模式不额外调用模型，并统一记录 `answer_generation` 有界证据；同步、异步、artifact 和 SQLite 恢复均保留该证据。Docker compileall、精简跨领域/结果契约/异步回归和前端 smoke 通过。
+- M241 已完成：修复 M240 后 GitHub CI 的两条过时 `memory://` 断言，更新 `tests/test_dev_gate.py` 和 `scripts/smoke_check.py` 为用户回答契约；Docker 中 `python scripts/test_profile.py --profile ci` 的核心契约与 service smoke 均通过。
 - 本地阶段提交已完成，当前 HEAD 为 `c0a2780`；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现本阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
