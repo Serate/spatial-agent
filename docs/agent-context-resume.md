@@ -30,12 +30,14 @@
 - M249 已完成：对“裁剪洪山区道路”做开放式 Planner context 验收，确认选中的 capability、workflow、`spatial_operation` schema 和 `spatial_operation_result` 会一起进入 LLM Planner；脱敏 fake LLM 仍通过标准 `LLMPlanner → TaskPlan` 解析，不增加 GIS 专用 prompt 分支。Docker compileall、M249+M229 context 回归 3/3、quick 和 stage 通过。
 - M250 已完成：真实本地 GIS 的 `spatial_operation(distance)` 改为投影后 `sjoin_nearest`，避免对大范围 mask 构造全量 union；真实数据隔离验收完成，68903 条道路与 20923 个水体要素在 100 米阈值下返回 10000 条、保留距离统计和截断证据，未再超时。洪山区裁剪因真实行政区查询未匹配到几何而进入既有有限 replan；Runtime 保留降级完成语义，但公共回答新增明确的“原计划部分步骤未完成、当前为降级结论、可修复后重试”提示。Docker M80/M247/M249/M229 定向回归 23/23、quick、stage、compileall 通过。真实模型显式验收本轮因 provider timeout 在规划阶段失败（0 个工具步骤），已与 GIS 执行问题分开记录。
 - M251 已完成（第一纵向切片）：新增显式注册的 `indicators` Domain Pack，用两个 ToolRegistry 工具支持指标目录发现和 latest/trend/compare 查询；新增领域中立 `array` workflow constraint，区域列表通过标准模板编译、计划校验和 Runtime 澄清。结果分别声明 `metrics`、`timeseries`、`composite`，View 复用 generic/table/chart renderer，HTTP `/domains/indicators/runs` 返回结构化 workspace。默认指标数据明确标注为 demo fixture，可由 `SPATIAL_AGENT_INDICATOR_DATA` 替换；M251 定向回归 3/3，跨 Domain/空间回归 35/35，quick、compileall 和 HTTP contract 通过。
+- M252-A 已完成：M251 已单独提交并推送为 `22cdeee`；新增架构地图、兼容矩阵和 `scripts/architecture_check.py` 静态边界守卫。Docker 指标定向 3/3、compileall、quick、stage 通过；当前未移动业务实现。
+- M252-A CI 回归已修复：GIS `spatial_relation` View 删除未定义且未使用的 `operation` 引用，新增最小 View contract；Docker service smoke、CI profile 和 compileall 通过，待提交推送。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环；最终答案可由真实模型自然表达，空间结果在本地验收中保留真实几何或明确降级，指标结果可由通用 renderer 展示。下一阶段为 M252：为指标 Domain 接入真实、可追溯的武汉/洪山公开数据适配器，完成 async、artifact、SQLite/restart 与 HTTP/Console 的同一结果/evidence Harness，再做一条真实数据纵向验收；数据字段、时间范围或来源不可用时返回结构化澄清/可恢复不可用。继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 已完成基线冻结与架构守卫；下一阶段先执行 M252-B 的 Domain Pack/GIS 物理边界收敛，再拆分 Runtime、Application Service、HTTP、Contract 和 Vite 前端，真实指标数据接入顺延到架构收敛后；继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
 
 ## 不变量
 

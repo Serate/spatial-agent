@@ -536,7 +536,6 @@ def _spatial_relation_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict
         _view_row("结果引用", result.get("result_ref")),
         _view_row("CRS", _first_present(result.get("crs"), metrics.get("crs"))),
     ]
-    overlap_label = "输入要素" if str(operation) in {"buffer", "distance"} else "相交要素"
     return {
         "kind": "spatial_relation",
         "source_step_id": step.get("id"),

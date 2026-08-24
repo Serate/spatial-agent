@@ -456,3 +456,11 @@
 - **诊断**：先区分活动路径、单向兼容投影和真实重复实现；检查 `AgentService`/`AgentRuntime` 的职责簇、两个 HTTP 入口的共享 `api_contract` 使用情况、生产代码中的 `*_contract.py`/`*_evidence.py` 归属以及前端 renderer/plugin 的加载关系。当前生产源码（排除 tests/archive）有 8 个 contract 文件、10 个 evidence 文件；`print` 当前约 26 处且主要位于 CLI/scripts，并非库代码 73 处。`except Exception` 当前约 50 处，必须按恢复边界逐处判断，不能机械替换。
 - **处理计划**：新增能力前先做架构收敛切片：一是建立 canonical Application/Runtime、HTTP transport adapter 和 Domain facade 的活动路径清单；二是按深模块职责拆分 Service/Runtime，保留小型兼容入口；三是把重复的 bounded/normalize/status 基础逻辑收敛到公共 helper，但保留领域证据语义；四是将 Console HTML、CSS、启动编排和 renderer/plugin 继续物理拆分；五是清理可确认的 CDP 临时目录和无引用兼容模块。每次删除都要有最小 import、跨入口 contract 和 artifact/recovery 回归证据。
 - **预防**：兼容层必须单向从 canonical contract 投影，不能重新参与业务决策；两个 HTTP 入口只能共享同一个应用用例和 payload/result contract，不得各自复制业务分支；新增 `contract`/`evidence` 文件前先判断是否能复用已有深模块；静态规模指标只能作为风险信号，不能替代活动路径和删除安全性审计。
+
+## GIS 空间关系 View 引用未定义变量导致 CI smoke 失败
+
+- **现象**：GitHub CI 的 Stable contract gate 在 `scripts/test_profile.py --profile ci` 的 service smoke 阶段失败；道路/坡度请求执行到结果契约构建时抛出 `NameError: name 'operation' is not defined`，导致用户请求无法完成。M251 指标测试和核心 contract tripwire 本身仍通过。
+- **根因**：M250 增加空间算子 View 时，把 `operation` 相关的标签判断复制到 `_spatial_relation_view()`；该 View 的输入是 `spatial_join` 关系结果，不保证 `operation` 参数，且该局部变量在返回结构中也没有被使用。
+- **诊断**：先从 GitHub run 的 job/step 状态确认失败发生在 `test_profile.py --profile ci`，再在 Docker 中运行同一命令；用不含 `operation` 字段的最小 `spatial_relation_result` View 直接复现红色回归，区分 GIS 执行失败与 Result/View 投影失败。
+- **修复**：删除 `_spatial_relation_view()` 中无效且未使用的 `operation` 引用；保留 `spatial_operation` View 自己对 operation 的标签处理。新增最小 View contract 回归，修复前失败、修复后通过；原始 service smoke、CI profile 和 compileall 均恢复通过。
+- **预防**：Domain View builder 必须用对应 result type 的最小输入分别验证；复制字段标签逻辑时不能假设相邻 View 共享参数。CI smoke 失败时先执行同一 profile，再按错误阶段区分规划、工具执行、Result contract 和前端投影。

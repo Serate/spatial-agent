@@ -11,6 +11,34 @@ ROOT = Path(__file__).parents[1]
 
 
 class M247SpatialOperationTests(unittest.TestCase):
+    def test_spatial_relation_view_renders_without_operation_argument(self):
+        from domains.gis.views import build_views
+
+        views = build_views(
+            "spatial_relation_result",
+            steps=[
+                {
+                    "id": "relation",
+                    "tool": "spatial_join",
+                    "args": {
+                        "left_dataset": "roads",
+                        "right_dataset": "water",
+                    },
+                    "result": {
+                        "left_dataset": "roads",
+                        "right_dataset": "water",
+                        "count": 1,
+                        "relation": "intersects",
+                    },
+                }
+            ],
+            geometry_evidence={},
+            workspace={"panels": ["vector"]},
+        )
+
+        self.assertEqual(views["panels"]["vector"]["kind"], "spatial_relation")
+        self.assertEqual(views["panels"]["vector"]["metrics"][0]["value"], 1)
+
     def test_domain_catalog_and_workflow_share_operation_contract(self):
         from domains.gis.catalog import GIS_CAPABILITIES
         from domains.gis.workflow_templates import workflow_template_catalog

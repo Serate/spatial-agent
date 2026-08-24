@@ -4611,3 +4611,18 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 4. **开放 Planner**：用“某区域某指标趋势/比较”开放表达验证能力发现、事实澄清、计划生成和工具 schema；模型不得生成未在目录中的指标或数值。
 5. **前端**：确认指标卡、趋势图、比较表和来源证据均由结构化 View/Artifact 动态展示，GIS 地图插件不被指标 Domain 依赖。
 6. **测试分层**：默认 Docker quick/CI 只使用小型脱敏 fixture；真实数据、真实模型、浏览器和网络来源作为显式验收，阶段完成后全局重规划并推送版本。
+
+## M252-A：整体架构重构基线与边界守卫（已完成）
+
+- M251 指标 Domain 已单独提交并推送为 `22cdeee`，Docker 中指标定向测试 **3/3**、compileall、quick 和 stage 通过；后续架构改动不与 M251 功能混合。
+- 新增 `docs/architecture-map.md` 与 `docs/compatibility-matrix.md`，记录当前活动路径、目标边界、公共入口和删除条件。
+- 新增 `scripts/architecture_check.py`，只对缺失 canonical 入口和通用层顶层 Domain import 失败；Service、Runtime 和前端规模目前作为迁移 warning，不以机械行数阻断基线。
+- 基线收口期间发现并修复 GIS `spatial_relation` View 的未定义 `operation` 回归；最小 View contract 修复前失败、修复后通过，Docker service smoke、CI profile 和 compileall 恢复通过。
+- 当前仍保留旧入口和历史 Artifact 兼容；下一阶段优先把 GIS 适配器从公共 `agent/` 物理下沉到 GIS Domain，活动路径不再依赖 GIS legacy fallback。
+
+## M252-B：Domain Pack 与 GIS 适配器物理边界（下一阶段）
+
+1. 将 GIS Raster/Vector/数据目录/质量检查适配器归入 `domains/gis/adapters`，公共层只保留协议和兼容导出。
+2. 拆分 `domain_contract`、`workflow_templates`、`capability_catalog` 的通用算法与 GIS legacy facade。
+3. 保持 GIS/Text/Indicators 的 Runtime、ToolRegistry、Result/Evidence 和 HTTP contract 一致。
+4. 通过架构静态检查、跨 Domain contract、quick/stage 和 Docker compileall 后提交推送。
