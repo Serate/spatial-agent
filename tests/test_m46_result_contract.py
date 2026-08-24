@@ -61,6 +61,43 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertEqual(result["views"]["panels"]["raster"]["kind"], "raster_statistics")
         self.assertEqual(result["views"]["panels"]["map"]["mode"], "raster_bounds")
         self.assertEqual(result["views"]["panels"]["map"]["bounds"], [114.0, 30.0, 115.0, 31.0])
+        self.assertEqual(result["views"]["panels"]["map"]["coverage_kind"], "bounds_only")
+
+    def test_truncated_geojson_keeps_partial_geometry_map(self):
+        from result_contract import build_result_contract
+
+        result = build_result_contract({
+            "run_id": "truncated-geometry-map",
+            "status": "COMPLETED",
+            "result_type": "spatial_analysis_result",
+            "answer": "已完成",
+            "steps": [
+                {
+                    "id": "elevation",
+                    "tool": "get_zonal_raster_statistics",
+                    "status": "COMPLETED",
+                    "result": {
+                        "dataset": "dem",
+                        "bounds": [114.0, 30.0, 115.0, 31.0],
+                        "statistics": {"mean": 10},
+                    },
+                }
+            ],
+            "_geometry_evidence": {
+                "status": "truncated_geometry",
+                "reason": "GeoJSON 摘要已截断",
+                "feature_count": 79,
+                "sources": ["geojson"],
+            },
+            "geojson_ref": "outputs/geojson/truncated-geometry-map.geojson",
+        })
+
+        map_view = result["views"]["panels"]["map"]
+        self.assertEqual(map_view["mode"], "geojson")
+        self.assertEqual(
+            map_view["geojson_ref"],
+            "outputs/geojson/truncated-geometry-map.geojson",
+        )
 
     def test_view_model_summarizes_overview_panel_without_frontend_step_scans(self):
         from result_contract import build_result_contract

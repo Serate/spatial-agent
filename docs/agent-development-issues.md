@@ -296,3 +296,11 @@
 - **诊断**：检查弹出层的最近定位祖先、设置栏与消息区的 stacking order，以及父容器是否裁剪 overflow；区分“层级被覆盖”和“内容被裁剪”两个问题。
 - **修复**：设置栏建立更高层级，动作窗口相对设置栏自适应定位，使用视口约束的最大高度和内部滚动；聊天容器允许必要的视觉溢出，消息列表继续由自身滚动区域负责裁剪。
 - **预防**：所有浮层都必须明确定位上下文、层级和最大尺寸；不能只添加更大的 `z-index` 而忽略祖先的 overflow 裁剪，也不能使用固定像素偏移替代动态定位。
+
+## GIS 栅格预览被误画成规则实心矩形
+
+- **现象**：综合空间分析已有部分 GeoJSON 要素，但地图仍显示一整块规则矩形“栅格覆盖范围”，看起来像伪造的分析区域。
+- **根因**：GIS view builder 只接受 `real_geometry` 或 `boundary_geometry` 的 GeoJSON；当摘要被截断但仍有 GeoJSON artifact 时，错误回退到第一份 DEM bounds。前端 `raster_bounds` renderer 又用实心 `<rect>` 表示该 bounds，造成外接范围与有效像元覆盖混淆。
+- **诊断**：用 `truncated_geometry + geojson_ref + raster bounds` 的最小 result contract 重现，检查 map view 是否仍为 `raster_bounds`；再单独检查 renderer fallback 是否把 bounds 渲染成实心矩形。
+- **修复**：`truncated_geometry` 只要保留 GeoJSON artifact 就继续走 GeoJSON renderer，显示可用的部分真实几何；没有 artifact 时才显示虚线外接范围，并在无障碍标签和图内标题中声明“非有效像元边界”。
+- **预防**：外接范围、有效像元 footprint、候选区域和部分 GeoJSON 必须使用不同的结果语义；不能仅凭 bounds 生成看似真实的填充区域，也不能因摘要截断而丢弃仍可恢复的几何 artifact。

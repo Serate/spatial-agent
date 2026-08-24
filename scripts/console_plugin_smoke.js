@@ -43,6 +43,15 @@ async function main() {
   assert.match(generic.innerHTML, /通用结果/);
   assert.match(visual.innerHTML, /<svg/);
 
+  const boundsTarget = {innerHTML: ""};
+  await GisPlugin.createMapAdapter().render({
+    target: boundsTarget,
+    view: {mode: "raster_bounds", bounds: [0, 0, 10, 5], dataset: "dem", crs: "EPSG:4326"},
+    isCurrent: () => true,
+  });
+  assert.match(boundsTarget.innerHTML, /栅格外接范围/);
+  assert.doesNotMatch(boundsTarget.innerHTML, /fill-opacity="\.48"/);
+
   registry.register("broken", {surface: "visual", render() { throw new Error("fixture"); }});
   const degraded = await registry.renderWorkspace({
     panels: {broken: {kind: "broken", title: "故障 adapter"}},

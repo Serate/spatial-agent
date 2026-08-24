@@ -250,12 +250,19 @@ def _map_view(
     geojson_ref: Any,
 ) -> Dict[str, Any] | None:
     status = str(geometry_evidence.get("status") or "unknown")
-    if status in {"real_geometry", "boundary_geometry"} and geojson_ref:
+    if status in {"real_geometry", "boundary_geometry", "truncated_geometry"} and geojson_ref:
         return {
             "kind": "map",
             "mode": "geojson",
             "geojson_ref": geojson_ref,
-            "reason": str(geometry_evidence.get("reason") or "GeoJSON 空间要素可绘制")[:240],
+            "reason": str(
+                geometry_evidence.get("reason")
+                or (
+                    "GeoJSON 空间要素可绘制（结果已截断，当前为部分几何）"
+                    if status == "truncated_geometry"
+                    else "GeoJSON 空间要素可绘制"
+                )
+            )[:240],
             "feature_count": geometry_evidence.get("feature_count", 0),
         }
     for step in steps:
@@ -272,7 +279,8 @@ def _map_view(
                 "dataset": result.get("dataset"),
                 "crs": result.get("crs") or metadata.get("crs"),
                 "source_step_id": step.get("id"),
-                "reason": "工具结果包含栅格范围，可绘制覆盖范围预览。",
+                "coverage_kind": "bounds_only",
+                "reason": "当前只有栅格外接范围；不代表有效像元覆盖或分析区域。",
             }
     return None
 
