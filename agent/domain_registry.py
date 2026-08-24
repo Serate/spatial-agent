@@ -93,6 +93,12 @@ def _load_text():
     return TEXT_DOMAIN_PACK
 
 
+def _load_indicators():
+    from domains.indicators import INDICATORS_DOMAIN_PACK
+
+    return INDICATORS_DOMAIN_PACK
+
+
 _REGISTRY = DomainRegistry(
     {
         "gis": DomainEntry(
@@ -106,6 +112,12 @@ _REGISTRY = DomainRegistry(
             label="文本分析",
             description="通用文本摘要能力，用于验证非 GIS Runtime 替换。",
             factory=_load_text,
+        ),
+        "indicators": DomainEntry(
+            domain_id="indicators",
+            label="区域指标",
+            description="可追溯的指标目录、趋势与区域比较能力。",
+            factory=_load_indicators,
         ),
     }
 )

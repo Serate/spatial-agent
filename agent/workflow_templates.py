@@ -20,7 +20,7 @@ class WorkflowTemplateError(ValueError):
 
 DEFAULT_TEMPLATE_VERSION = "1.0.0"
 WORKFLOW_COMPOSITION_SCHEMA_VERSION = "spatial-agent.workflow-composition.v1"
-SUPPORTED_CONSTRAINT_TYPES = {"string", "number", "integer", "boolean", "enum"}
+SUPPORTED_CONSTRAINT_TYPES = {"string", "number", "integer", "boolean", "enum", "array"}
 
 
 # GIS catalog data lives in domains.gis.workflow_templates. The lazy compatibility
@@ -77,7 +77,7 @@ _REQUIRED_TEMPLATE_KEYS = {
 _PLAN_KEYS = {"template_id", "template_version", "goal", "constraints", "evidence", "steps", "output", "assumptions"}
 _STEP_KEYS = {"id", "tool", "args", "depends_on"}
 _STEP_BLUEPRINT_KEYS = _STEP_KEYS
-_CONSTRAINT_SPEC_KEYS = {"name", "label", "type", "required", "min", "max", "min_length", "max_length", "choices", "default"}
+_CONSTRAINT_SPEC_KEYS = {"name", "label", "type", "required", "min", "max", "min_length", "max_length", "min_items", "max_items", "choices", "default"}
 _CHINESE_LABEL = re.compile(r"[\u3400-\u9fff]")
 _SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 
@@ -1090,12 +1090,12 @@ def _normalize_constraint_specs(
         if not isinstance(required, bool):
             raise WorkflowTemplateError(path + ".required must be boolean")
         item = {"name": name, "label": label, "type": kind, "required": required}
-        for key in ("min", "max", "min_length", "max_length"):
+        for key in ("min", "max", "min_length", "max_length", "min_items", "max_items"):
             if key in raw:
                 value = raw[key]
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
                     raise WorkflowTemplateError(path + "." + key + " must be a finite number")
-                item[key] = int(value) if key.endswith("length") else float(value)
+                item[key] = int(value) if key.endswith(("length", "items")) else float(value)
         if "choices" in raw:
             item["choices"] = _string_list(raw["choices"], path + ".choices")
         if kind == "enum" and not item.get("choices"):
@@ -1278,6 +1278,17 @@ def _normalize_constraint_value(value: Any, spec: Mapping[str, Any]) -> Any:
         if not isinstance(value, bool):
             raise WorkflowTemplateError("constraint {} must be boolean".format(name))
         return value
+    if kind == "array":
+        if not isinstance(value, (list, tuple)):
+            raise WorkflowTemplateError("constraint {} must be an array".format(name))
+        values = list(value)
+        if "min_items" in spec and len(values) < spec["min_items"]:
+            raise WorkflowTemplateError("constraint {} has too few items".format(name))
+        if "max_items" in spec and len(values) > spec["max_items"]:
+            raise WorkflowTemplateError("constraint {} has too many items".format(name))
+        if not all(isinstance(item, str) and item.strip() for item in values):
+            raise WorkflowTemplateError("constraint {} items must be non-empty strings".format(name))
+        return [item.strip() for item in values]
     if kind == "enum":
         if value not in spec["choices"]:
             raise WorkflowTemplateError("constraint {} must be one of: {}".format(name, ", ".join(spec["choices"])))

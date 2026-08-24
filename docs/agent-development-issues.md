@@ -424,3 +424,35 @@
 - **诊断**：检查最终计划类型、失败步骤、replan lineage、结果契约 degradation 和回答；不得因缺几何而伪造边界或把健康摘要改名为空间结果。
 - **修复**：保留有限 replan 的 `COMPLETED`/降级结果契约，在 Runtime 的统一回答出口追加“原计划部分步骤未完成、当前为降级结论、修复后可重试”的短提示，并增加回归断言。
 - **预防**：恢复状态的成功必须同时表达替代结果和原目标覆盖范围；所有 Domain Composer/Answer Generator 都经公共回答出口，失败 lineage 不能只放在高级执行详情里。
+
+## 通用 workflow constraint 不支持区域列表
+
+- **现象**：新指标 Domain 需要把多个区域传给同一个工具，但模板编译器只允许 string/number/integer/boolean/enum，区域数组无法通过标准 workflow seam。
+- **根因**：早期模板主要覆盖单值 GIS 约束和 Text 输入，没有把有界列表作为领域中立约束类型建模；如果 Domain 绕过编译器，会破坏统一的计划校验和证据。
+- **诊断**：先在 `workflow_template_context` 阶段检查模板 schema，而不是只直接调用 Provider；验证输入数组的最小/最大长度、元素类型和最终 ToolRegistry 参数形状。
+- **修复**：公共 workflow compiler 增加 `array` constraint，支持有限长度和非空字符串元素，最终仍走同一模板、DAG、TaskPlan 和 ToolRegistry 校验。
+- **预防**：新增 Domain 需要集合参数时优先扩展公共约束类型；所有列表必须有界，不能通过字符串拼接或 Domain 私有绕过层传参。
+
+## 多区域自然语言解析被贪婪正则合并
+
+- **现象**：请求“区域甲和区域乙的趋势”被解析为一个名为“区域甲和区域乙”的区域，Provider 返回无匹配数据。
+- **根因**：区域正则使用贪婪字符类，没有识别“和/与/顿号/逗号”等自然分隔符；这类错误只在多对象请求中出现，单区域测试无法发现。
+- **诊断**：同时用单区域、双区域和三区域短句检查 `RequestFacts.entities.regions` 与最终工具参数；只比较结构化 identity，不保存请求原文到验收报告。
+- **修复**：按常见自然分隔符截断区域 token，并保留通用“市/区/县/区域”后缀识别；增加双区域趋势回归。
+- **预防**：开放式 Planner/Domain extractor 测试至少覆盖一个多对象组合；解析器不能把示例区域名固化成唯一 allowlist。
+
+## 指标 Domain 的 demo fixture 被误当成真实结论
+
+- **现象**：新指标链路可以执行并返回 metrics/timeseries/composite，但默认数据只是架构演示数据，不能支撑武汉/洪山现实判断。
+- **根因**：为了先验证 Runtime seam 使用了内置小 fixture；如果没有 provenance 和验收分层，用户可能把演示值当成真实统计。
+- **诊断**：检查结果 `provenance.source`、数据健康状态和 `SPATIAL_AGENT_INDICATOR_DATA` 配置；不要以“运行成功”替代来源真实性验证。
+- **修复**：fixture 的 attribution 明确写明“不代表真实统计数据”，Provider 支持环境变量注入配置文件；真实公开数据适配、来源校验和跨入口恢复留到 M252。
+- **预防**：任何 Domain 的默认样例都必须带来源/版本/许可摘要，并在 live/real-data 报告中与 offline fixture 分开；未完成来源验收时不得宣称经济或区域结论。
+
+## 当前代码结构已逻辑分层但物理边界尚未收敛
+
+- **现象**：Domain Pack 已承载 GIS、Text 和指标实现，但 `agent/` 仍保留较多兼容 facade、legacy 字段和回退入口；`agent/service.py` 与 `agent/runtime.py` 仍分别约 3,409/2,567 行、87/74 个函数。HTTP 仍同时维护 FastAPI `production_api.py` 和标准库 `serve_api.py` 两套传输映射；前端 `web/index.html` 约 198 KB，内联 CSS/JS 仍然过大。
+- **根因**：多轮迁移优先保证旧 artifact、旧导入、开发环境和生产入口可恢复，真实实现已经下沉，但兼容投影、应用编排、传输适配和展示代码没有同步完成最后一轮物理收敛。图片中的“133 处 legacy”不是当前唯一可靠口径；当前静态宽匹配在 `agent/` 得到约 233 行，且包含有意保留的 schema/历史数据兼容说明，不能直接全部删除。
+- **诊断**：先区分活动路径、单向兼容投影和真实重复实现；检查 `AgentService`/`AgentRuntime` 的职责簇、两个 HTTP 入口的共享 `api_contract` 使用情况、生产代码中的 `*_contract.py`/`*_evidence.py` 归属以及前端 renderer/plugin 的加载关系。当前生产源码（排除 tests/archive）有 8 个 contract 文件、10 个 evidence 文件；`print` 当前约 26 处且主要位于 CLI/scripts，并非库代码 73 处。`except Exception` 当前约 50 处，必须按恢复边界逐处判断，不能机械替换。
+- **处理计划**：新增能力前先做架构收敛切片：一是建立 canonical Application/Runtime、HTTP transport adapter 和 Domain facade 的活动路径清单；二是按深模块职责拆分 Service/Runtime，保留小型兼容入口；三是把重复的 bounded/normalize/status 基础逻辑收敛到公共 helper，但保留领域证据语义；四是将 Console HTML、CSS、启动编排和 renderer/plugin 继续物理拆分；五是清理可确认的 CDP 临时目录和无引用兼容模块。每次删除都要有最小 import、跨入口 contract 和 artifact/recovery 回归证据。
+- **预防**：兼容层必须单向从 canonical contract 投影，不能重新参与业务决策；两个 HTTP 入口只能共享同一个应用用例和 payload/result contract，不得各自复制业务分支；新增 `contract`/`evidence` 文件前先判断是否能复用已有深模块；静态规模指标只能作为风险信号，不能替代活动路径和删除安全性审计。

@@ -4587,7 +4587,7 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 洪山区裁剪验收确认真实行政区查询未匹配几何，`result_ref` 无几何后进入有限 replan；未伪造边界，降级结果回答现在明确说明原计划部分步骤未完成并可修复重试。
 - Docker 生产镜像 healthy；M80/M247/M249/M229 定向回归 **23/23**、quick、stage 和 compileall 通过。真实模型显式验收因 provider timeout 在规划阶段失败，已与 GIS 执行证据分层记录，不纳入默认 CI。
 
-## M251：跨数据形态的开放式组合能力（下一阶段全局规划）
+## M251：跨数据形态的开放式组合能力（阶段规划）
 
 1. **全局能力层**：补齐领域中立的数据发现、指标查询、聚合/比较和时间序列最小接口；优先复用现有 ToolRegistry、RequestFacts、Workflow 和 Result Registry，不在 Runtime 中加入经济或 GIS 策略。
 2. **结果契约**：让 `metrics`、`timeseries` 与现有 `vector/raster/composite` 在 View、Artifact、Evidence、异步轮询和重启恢复中共享同一版本化 envelope；业务语义由 Domain Pack 声明。
@@ -4595,3 +4595,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 4. **跨领域证明**：以 GIS 空间关系和一个最小可追溯指标 Domain Pack 做同一 Runtime/HTTP/artifact Harness，验证前端按 View 动态展示地图、指标卡、趋势或证据，不增加领域页面分支。
 5. **数据与安全**：真实数据作为显式验收输入，默认测试用脱敏 fixture；不引入 RAG，不保存模型原文、密钥、请求全文或私有原始数据。
 6. **分阶段验收**：先完成 offline contract + Docker quick/stage，再做一条真实数据纵向链路；每阶段提交并推送版本，完成后按 Goal 全局审计重新规划，而不是继续堆叠单区域空间算子。
+
+## M251：指标 Domain 第一纵向切片（已完成）
+
+- 新增显式注册的 `indicators` Domain Pack，使用 `list_indicators` 与 `indicator_query` 两个深工具覆盖目录发现、最新值、时间序列和区域比较；Domain 自己拥有 catalog、workflow、planner guidance、provider、result registry、view 和 composer，公共 Runtime 不增加指标策略。
+- 公共 workflow compiler 增加有界 `array` constraint，区域列表继续经过模板约束、TaskPlan/DAG 和 ToolRegistry；缺少指标或区域时 Rule Runtime 返回结构化 `NEEDS_CLARIFICATION`。
+- `metrics`、`timeseries`、`composite` 结果分别进入版本化 data profile，generic/table/chart renderer 动态消费；生产 HTTP 的 indicators Domain run 已返回 `indicator_timeseries_result`、`timeseries` profile 和 generic workspace panel。
+- 默认数据明确为 demo fixture，并支持 `SPATIAL_AGENT_INDICATOR_DATA` 替换；M251 定向 **3/3**，M80/M247/M249/M229/M220 跨域回归 **35/35**，quick、compileall 和 HTTP contract 通过。真实武汉/洪山数据和 async/artifact/restart 纵向验收不在本阶段伪称完成。
+
+## M252：真实指标数据与跨入口恢复一致性（下一阶段全局规划）
+
+1. **数据适配**：接入至少一份公开、可追溯的武汉/洪山指标数据，保留来源、版本、许可、指标定义、区域粒度和期间字段；数据缺失/字段不匹配进入结构化不可用状态。
+2. **通用接口**：继续复用 `list_indicators`/`indicator_query`，必要时只扩展通用筛选、聚合或来源证据字段，不为某个经济问句添加工具分支。
+3. **跨入口恢复**：验证同步/异步、artifact、SQLite/restart、重试和 Console 对同一指标结果保持 data profile、provenance、views、evidence 和 result identity 一致。
+4. **开放 Planner**：用“某区域某指标趋势/比较”开放表达验证能力发现、事实澄清、计划生成和工具 schema；模型不得生成未在目录中的指标或数值。
+5. **前端**：确认指标卡、趋势图、比较表和来源证据均由结构化 View/Artifact 动态展示，GIS 地图插件不被指标 Domain 依赖。
+6. **测试分层**：默认 Docker quick/CI 只使用小型脱敏 fixture；真实数据、真实模型、浏览器和网络来源作为显式验收，阶段完成后全局重规划并推送版本。
