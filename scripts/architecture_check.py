@@ -101,6 +101,7 @@ def build_report() -> dict[str, Any]:
         ROOT / "agent" / "application" / "interactions.py",
         ROOT / "agent" / "application" / "sessions.py",
         ROOT / "agent" / "application" / "catalog.py",
+        ROOT / "agent" / "application" / "run_recovery.py",
         ROOT / "agent" / "web_assets.py",
         ROOT / "run_demo.py",
         ROOT / "domains" / "gis",
@@ -246,6 +247,13 @@ def build_report() -> dict[str, Any]:
                 {
                     "file": _relative(service_path),
                     "code": "service_catalog_application_seam_missing",
+                }
+            )
+        if "from agent.application.run_recovery import RunRecoveryApplication" not in source:
+            errors.append(
+                {
+                    "file": _relative(service_path),
+                    "code": "service_run_recovery_application_seam_missing",
                 }
             )
     if index_path.exists() and index_path.stat().st_size > 100_000:

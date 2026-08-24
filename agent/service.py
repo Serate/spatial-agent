@@ -1,5 +1,4 @@
 import os
-import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Mapping, Optional
 
@@ -9,13 +8,10 @@ from agent.cost_governance import RunTokenCapExceeded, extract_tokens as _extrac
 from agent.errors import ToolError
 from agent.execution_contract import build_execution_record
 from agent.failure_contract import build_failure_evidence, failure_from_payload
-from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES, export_run_summary
-from agent.provenance import build_provenance
+from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.domain_registry import DomainSelectionError, resolve_domain_id
 from agent.domain_registry import domain_registry
-from agent.runtime_context import assert_runtime_context_compatible
-from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.domain_routing_evidence import (
     DomainRoutingEvidenceError,
     bind_domain_routing_evidence,
@@ -23,15 +19,11 @@ from agent.domain_routing_evidence import (
     routing_evidence_identity,
     unavailable_domain_routing_evidence,
 )
-from agent.evidence_registry import normalize_evidence_registry
-from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
 from agent.recovery_action import (
     project_legacy_interaction_receipt,
 )
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
-from agent.trace_formatter import format_trace
-from agent.models import AgentRunResult, RunStatus
 from result_contract import (
     build_comparison_views,
     build_comparison_lineage,
@@ -47,15 +39,11 @@ from agent.service_format import (
     _attach_error_category,
     analysis_ready_summary as _analysis_ready_summary,
     contextualize_request as _contextualize_request,
-    exported_geometry_evidence as _exported_geometry_evidence,
     format_result as _format_result,
     normalize_spatial_context as _normalize_spatial_context,
-    normalize_workflow_payload as _normalize_workflow_payload,
     result_type as _result_type,
-    tag_geometry_features as _tag_geometry_features,
 )
 from agent.service_sessions import (
-    attach_history_lineage as _attach_history_lineage,
     dedupe_run_records as _dedupe_run_records,
     validate_session_id as _validate_session_id,
 )
@@ -66,17 +54,7 @@ from agent.application.interactions import InteractionApplication
 from agent.application.sessions import SessionApplication
 from agent.application.async_runs import AsyncApplication
 from agent.application.catalog import CatalogApplication
-
-
-_TERMINAL_RUN_STATUSES = {
-    RunStatus.COMPLETED,
-    RunStatus.NEEDS_CLARIFICATION,
-    RunStatus.WAITING_FOR_DECISION,
-    RunStatus.REJECTED,
-    RunStatus.FAILED,
-    RunStatus.CANCELLED,
-    RunStatus.TIMED_OUT,
-}
+from agent.application.run_recovery import RunRecoveryApplication
 
 
 def _bind_domain_pack(domain_pack: Any) -> Callable[..., Any]:
@@ -183,6 +161,18 @@ class AgentService:
             runtime_context_snapshot=lambda planner, backend, **kwargs: build_runtime_context_snapshot(
                 planner, backend, **kwargs
             ),
+        )
+        self._run_recovery_application = RunRecoveryApplication(
+            artifact_store=self._artifact_store,
+            state=self._state,
+            runtime_provider=self._runtime,
+            domain_id_provider=self._domain_id,
+            resolved_domain_id=lambda: self._resolved_domain_id,
+            configured_domain_id=lambda: self._configured_domain_id,
+            reserve_action_receipt=self._reserve_action_receipt,
+            complete_action_receipt=self._complete_action_receipt,
+            attach_async_observability=self._attach_async_observability,
+            mark_memory_cancel_requested=self._mark_memory_cancel_requested,
         )
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(
@@ -597,51 +587,14 @@ class AgentService:
         return self._async_application.mark_cancel_requested(run_id)
 
     def _memory_run(self, run_id: str):
-        for runtime in self._runtimes.values():
-            result = runtime.get_run(run_id)
-            if result is not None:
-                return result
-        return None
+        return self._run_recovery_application.memory_run(run_id)
 
     def _infer_run_runtime_selection(
         self, run_id: str, planner: str, backend: str
     ) -> tuple[str, str]:
-        """Use persisted Runtime Context when a detail URL omits selectors.
-
-        HTTP clients historically called ``GET /runs/{id}`` without planner or
-        backend query parameters.  Rebuilding the default rule/memory Runtime
-        for an OpenAI/local run can execute the wrong Domain factory (and can
-        fail before the result is even formatted).  The run snapshot and
-        async submission payload already carry the immutable selection, so
-        recover it without inventing a new Runtime.
-        """
-        if (planner, backend) != ("rule", "memory"):
-            return planner, backend
-
-        context = None
-        if self._state.persistent:
-            domain_id = self._resolved_domain_id or self._configured_domain_id
-            snapshot = self._state.get_run(run_id, domain_id=domain_id)
-            context = getattr(snapshot, "runtime_context", None) if snapshot else None
-            if not isinstance(context, dict):
-                job = self._state.async_job(run_id, domain_id=domain_id)
-                payload = job.get("payload") if isinstance(job, dict) else None
-                context = payload.get("runtime_context") if isinstance(payload, dict) else None
-                if isinstance(payload, dict):
-                    planner = str(payload.get("planner") or planner)
-                    backend = str(payload.get("backend") or backend)
-        else:
-            snapshot = self._memory_run(run_id)
-            context = getattr(snapshot, "runtime_context", None) if snapshot else None
-
-        if isinstance(context, dict):
-            planner = str(context.get("planner") or planner)
-            backend = str(context.get("backend") or backend)
-        if planner not in {"rule", "openai"}:
-            planner = "rule"
-        if backend not in {"memory", "local"}:
-            backend = "memory"
-        return planner, backend
+        return self._run_recovery_application.infer_runtime_selection(
+            run_id, planner, backend
+        )
 
     def retry(
         self,
@@ -653,53 +606,14 @@ class AgentService:
         geojson_max_features: int = DEFAULT_GEOJSON_MAX_FEATURES,
         idempotency_key: str = None,
     ) -> Dict:
-        """Retry a failed run with explicit replay or a fresh implicit attempt."""
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise ValueError("run_id must be a non-empty string")
-        receipt, reused = self._reserve_action_receipt(
-            source_run_id=run_id,
-            action="retry",
-            payload={
-                "export_artifact": bool(export_artifact),
-                "export_geojson": bool(export_geojson),
-                "geojson_max_features": int(geojson_max_features),
-                "idempotency_key": idempotency_key,
-            },
+        return self._run_recovery_application.retry(
+            run_id,
             planner=planner,
             backend=backend,
-            auto_key=idempotency_key is not None,
-        )
-        if reused:
-            return receipt
-        try:
-            response = self._retry_payload(
-                run_id,
-                planner=planner,
-                backend=backend,
-                export_artifact=export_artifact,
-                export_geojson=export_geojson,
-                geojson_max_features=geojson_max_features,
-            )
-        except Exception as exc:
-            self._complete_action_receipt(
-                receipt,
-                {"run_id": run_id, "status": "FAILED", "error": str(exc)},
-                status="FAILED",
-                error_code="retry_failed",
-                response_payload={
-                    "run_id": run_id,
-                    "status": "FAILED",
-                    "error": str(exc),
-                },
-            )
-            raise
-        action_status = "COMPLETED" if response.get("status") == "COMPLETED" else "FAILED"
-        return self._complete_action_receipt(
-            receipt,
-            response,
-            status=action_status,
-            error_code=None if action_status == "COMPLETED" else "retry_failed",
-            result_run_id=response.get("run_id") or run_id,
+            export_artifact=export_artifact,
+            export_geojson=export_geojson,
+            geojson_max_features=geojson_max_features,
+            idempotency_key=idempotency_key,
         )
 
     def _retry_payload(
@@ -711,59 +625,14 @@ class AgentService:
         export_geojson: bool = False,
         geojson_max_features: int = DEFAULT_GEOJSON_MAX_FEATURES,
     ) -> Dict:
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise ValueError("run_id must be a non-empty string")
-        runtime = self._runtime(planner, backend)
-        result = runtime.retry_failed(run_id)
-        payload = result.to_dict()
-        payload["trace_summary"] = format_trace(result)
-        payload["provenance"] = build_provenance(
-            payload,
-            registry=_runtime_result_registry(runtime),
+        return self._run_recovery_application._retry_payload(
+            run_id,
+            planner=planner,
+            backend=backend,
+            export_artifact=export_artifact,
+            export_geojson=export_geojson,
+            geojson_max_features=geojson_max_features,
         )
-        payload["result_type"] = _result_type(payload)
-        if export_artifact:
-            payload["artifact_ref"] = self._artifact_store.write_run(payload)
-            result.artifact_ref = payload["artifact_ref"]
-        if export_geojson:
-            geometry_features = []
-            for step in payload.get("steps", []):
-                result_ref = (step.get("result") or {}).get("result_ref")
-                if result_ref:
-                    exported = runtime.export_result(result_ref, max_features=geojson_max_features)
-                    geometry_features.extend(
-                        _tag_geometry_features(
-                            exported.get("features", []),
-                            source=exported.get("geometry_source"),
-                            crs=exported.get("crs"),
-                            source_crs=exported.get("source_crs"),
-                            dataset=(step.get("result") or {}).get("dataset"),
-                        )
-                    )
-            payload["geojson_ref"] = export_run_summary(
-                payload,
-                geometry_features=geometry_features or None,
-            )
-            payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
-            result.geometry_evidence = payload["_geometry_evidence"]
-            result.geojson_ref = payload["geojson_ref"]
-        payload["result"] = build_result_contract(
-            payload,
-            registry=_runtime_result_registry(runtime),
-        )
-        result.evidence_registry = payload["result"].get("evidence_registry")
-        payload.pop("_geometry_feature_count", None)
-        payload.pop("_geometry_evidence", None)
-        _attach_error_category(payload)
-        payload["execution_record"] = build_execution_record(payload, kind="run")
-        if export_artifact:
-            # Refresh the durable artifact so it carries the final navigational
-            # references (geojson_ref, result_type, session_id) that lineage
-            # navigation needs after the in-memory store is gone.
-            self._artifact_store.write_run(payload)
-        if self._state.persistent:
-            self._state.save_run(result)
-        return payload
 
     def cancel(
         self,
@@ -772,186 +641,17 @@ class AgentService:
         backend: str = "memory",
         idempotency_key: str = None,
     ) -> Dict:
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise ValueError("run_id must be a non-empty string")
-        receipt, reused = self._reserve_action_receipt(
-            source_run_id=run_id,
-            action="cancel",
-            payload={"idempotency_key": idempotency_key},
+        return self._run_recovery_application.cancel(
+            run_id,
             planner=planner,
             backend=backend,
-        )
-        if reused:
-            return receipt
-        try:
-            result = self._runtime(planner, backend).cancel(run_id)
-            if not self._state.persistent:
-                self._mark_memory_cancel_requested(run_id)
-            response = {
-                "run_id": run_id,
-                "status": (
-                    "CANCELLED"
-                    if result.status == RunStatus.CANCELLED
-                    else "CANCEL_REQUESTED"
-                ),
-                "current_status": result.status.value,
-            }
-        except Exception as exc:
-            self._complete_action_receipt(
-                receipt,
-                {"run_id": run_id, "status": "FAILED", "error": str(exc)},
-                status="FAILED",
-                error_code="cancel_failed",
-                response_payload={
-                    "run_id": run_id,
-                    "status": "FAILED",
-                    "error": str(exc),
-                },
-            )
-            raise
-        return self._complete_action_receipt(
-            receipt,
-            response,
-            status="COMPLETED",
-            result_run_id=run_id,
-            response_payload=response,
+            idempotency_key=idempotency_key,
         )
 
     def get_run(self, run_id: str, planner: str = "rule", backend: str = "memory") -> Dict:
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise ValueError("run_id must be a non-empty string")
-        planner, backend = self._infer_run_runtime_selection(run_id, planner, backend)
-        domain_id = self._domain_id(planner, backend)
-        result = None
-        # A terminal run snapshot can be written just before the durable async
-        # job marker is finalized. Wait long enough for readers to observe one
-        # consistent terminal state instead of returning while the worker
-        # still owns the SQLite file.
-        for _ in range(1000):
-            result = (
-                self._state.get_run(run_id, domain_id=domain_id)
-                if self._state.persistent
-                else self._runtime(planner, backend).get_run(run_id)
-            )
-            if result is None or not self._state.persistent:
-                break
-            job = self._state.async_job(run_id, domain_id=domain_id)
-            job_payload = (
-                job.get("payload")
-                if isinstance(job, dict) and isinstance(job.get("payload"), dict)
-                else {}
-            )
-            requested_artifact = job_payload.get("export_artifact") is True
-            requested_geojson = job_payload.get("export_geojson") is True
-            missing_requested_refs = result.status == RunStatus.COMPLETED and (
-                (requested_artifact and not result.artifact_ref)
-                or (requested_geojson and not result.geojson_ref)
-            )
-            if (
-                result.status in _TERMINAL_RUN_STATUSES
-                and job is not None
-                and (
-                    job.get("status") in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}
-                    or missing_requested_refs
-                )
-            ):
-                time.sleep(0.005)
-                continue
-            break
-        if result is None and not self._state.persistent:
-            # Lineage navigation is backend-agnostic: a run created under a
-            # different planner/backend (e.g. a comparison child run) is still
-            # found by scanning every live runtime before falling back to the
-            # durable artifact.
-            result = self._memory_run(run_id)
-        if result is None:
-            # Durable lineage navigation: after a process restart or when the
-            # SQLite row has been removed, the exported artifact may be the
-            # only surviving run snapshot.  Serve a degraded detail from it
-            # instead of requiring the model to re-run the request.
-            payload = (
-                self._artifact_store.read_run(run_id, domain_id=domain_id)
-                if self._artifact_store is not None
-                else None
-            )
-            if payload is not None:
-                artifact_result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-                normalized_artifact_result = None
-                nested_schema_error = payload.get("nested_schema_warning")
-                if artifact_result:
-                    try:
-                        normalized_artifact_result = normalize_result_contract(
-                            artifact_result
-                        )
-                    except NestedSchemaError as exc:
-                        # The artifact itself remains readable, but an
-                        # unknown nested future view must never be copied into
-                        # the current result contract.  Build a bounded
-                        # unavailable view below instead.
-                        nested_schema_error = exc.reason_code
-                if nested_schema_error:
-                    payload["_nested_schema_error"] = nested_schema_error
-                payload["trace_summary"] = payload.get("trace_summary") or []
-                payload["provenance"] = payload.get("provenance") or build_provenance(
-                    payload,
-                    registry=_runtime_result_registry(
-                        self._runtime(planner, backend)
-                    ),
-                )
-                payload["result_type"] = _result_type(payload)
-                payload["result"] = build_result_contract(
-                    payload,
-                    registry=_runtime_result_registry(self._runtime(planner, backend)),
-                )
-                artifact_views = (
-                    normalized_artifact_result.get("views")
-                    if isinstance(normalized_artifact_result, dict)
-                    else None
-                )
-                artifact_panels = (
-                    artifact_views.get("panels")
-                    if isinstance(artifact_views, dict)
-                    else None
-                )
-                # Keep newly generated bounded unavailable views when an old
-                # artifact has an empty view map; a non-empty artifact view
-                # remains authoritative for successful/recovered rendering.
-                if isinstance(artifact_views, dict) and (
-                    isinstance(artifact_panels, dict) and artifact_panels
-                ):
-                    payload["result"]["views"] = artifact_views
-                payload.pop("_nested_schema_error", None)
-                payload.pop("nested_schema_warning", None)
-                _attach_error_category(payload)
-                payload["execution_record"] = payload.get("execution_record") or build_execution_record(
-                    payload, kind="run"
-                )
-                self._attach_async_observability(payload, run_id)
-                return payload
-            self._reject_cross_domain_run_id(run_id, domain_id)
-        if result is None:
-            raise ValueError("run not found: " + run_id)
-        payload = result.to_dict()
-        explicit_geometry = payload.pop("geometry_evidence", None)
-        if explicit_geometry is not None:
-            payload["_geometry_evidence"] = explicit_geometry
-        payload["trace_summary"] = format_trace(result)
-        payload["provenance"] = build_provenance(
-            payload,
-            registry=_runtime_result_registry(
-                self._runtime(planner, backend)
-            ),
+        return self._run_recovery_application.get_run(
+            run_id, planner=planner, backend=backend
         )
-        payload["result_type"] = _result_type(payload)
-        payload["result"] = build_result_contract(
-            payload,
-            registry=_runtime_result_registry(self._runtime(planner, backend)),
-        )
-        payload.pop("_geometry_evidence", None)
-        _attach_error_category(payload)
-        payload["execution_record"] = build_execution_record(payload, kind="run")
-        self._attach_async_observability(payload, run_id)
-        return payload
 
     def get_run_interaction(
         self,
@@ -1129,64 +829,10 @@ class AgentService:
         return current.get("request_facts")
 
     def list_runs(self, limit: int = 20) -> Dict:
-        if self._state.persistent:
-            records = self._state.list_runs(
-                limit=limit, domain_id=self._resolved_domain_id
-            )
-        else:
-            records = self._artifact_store.list_runs(
-                limit=limit, domain_id=self._resolved_domain_id
-            )
-        return {"runs": _attach_history_lineage(records)}
+        return self._run_recovery_application.list_runs(limit=limit)
 
     def get_run_evidence(self, run_id: str) -> Dict[str, Any]:
-        """Return a safe, navigable evidence index for one run.
-
-        This is intentionally smaller than a run artifact: callers receive
-        the versioned registry and a basename-only artifact reference, never
-        a host path or arbitrary file locator.
-        """
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise ValueError("run_id must be a non-empty string")
-        domain_id = self._resolved_domain_id or self._configured_domain_id or "gis"
-        artifact = (
-            self._artifact_store.read_run(run_id, domain_id=domain_id)
-            if self._artifact_store is not None
-            else None
-        )
-        registry = normalize_evidence_registry(
-            artifact.get("evidence_registry") if isinstance(artifact, dict) else None
-        )
-        artifact_ref = artifact.get("artifact_ref") if isinstance(artifact, dict) else None
-        payload = None
-        if not registry.get("available"):
-            try:
-                payload = self.get_run(run_id)
-            except ValueError:
-                payload = None
-            envelope = payload.get("result") if isinstance(payload, dict) else None
-            if isinstance(envelope, dict):
-                registry = normalize_evidence_registry(envelope.get("evidence_registry"))
-                artifact_ref = artifact_ref or payload.get("artifact_ref")
-        safe_ref = str(artifact_ref or "").replace("\\", "/").rsplit("/", 1)[-1]
-        if not registry.get("available") and not safe_ref:
-            self._reject_cross_domain_run_id(run_id, domain_id)
-            raise ValueError("run evidence not found: " + run_id)
-        projection = project_evidence_projection(
-            artifact if isinstance(artifact, dict) else (payload or {})
-        )
-        recovery = project_evidence_recovery(
-            artifact if isinstance(artifact, dict) else (payload or {})
-        )
-        return {
-            "schema_version": "spatial-agent.evidence-reference.v1",
-            "run_id": run_id,
-            "domain_id": domain_id,
-            "artifact": {"available": bool(safe_ref), "ref": safe_ref or None},
-            "evidence_registry": registry,
-            "evidence_projection": projection,
-            "evidence_recovery": recovery,
-        }
+        return self._run_recovery_application.get_run_evidence(run_id)
 
     def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:
         return self._session_application.list_runs(session_id, limit=limit)
@@ -1540,25 +1186,6 @@ class AgentService:
 
     def _domain_id(self, planner: str, backend: str) -> str:
         return self._catalog_application.domain_id(planner, backend)
-
-    def _reject_cross_domain_run_id(self, run_id: str, domain_id: str) -> None:
-        """Never overwrite a durable run owned by another Domain Pack."""
-        if self._state.persistent:
-            other = self._state.get_run(run_id)
-            if other is not None and (
-                getattr(other, "domain_id", None)
-                or self._configured_domain_id
-                or "gis"
-            ) != domain_id:
-                raise ValueError("run_id belongs to another domain: " + str(run_id))
-        else:
-            artifact = self._artifact_store.read_run(run_id)
-            if artifact is not None and (
-                artifact.get("domain_id")
-                or self._configured_domain_id
-                or "gis"
-            ) != domain_id:
-                raise ValueError("run_id belongs to another domain: " + str(run_id))
 
     def compare_constrained_buildability(
         self,

@@ -640,3 +640,11 @@
 - **诊断**：分别验证默认 Domain、显式 Text/Indicators Domain、自定义 Runtime factory 和异步提交；检查提交响应是否在 worker 运行前返回、context 是否绑定 planner/backend/domain，以及 patch Service 入口后是否仍能观测快照调用。不要只验证 `CatalogApplication` 能被 import。
 - **修复**：让 `CatalogApplication` 接收 runtime context snapshot builder；Service 传入运行时查找的 lambda，使旧 `agent.service.build_runtime_context_snapshot` patch 继续有效。Runtime selection、workflow normalization 和 dynamic tool registry 全部只在 catalog seam 实现，Service 仅保留单向 wrapper。
 - **预防**：应用层拆分时保留“构造时依赖”和“调用时可替换点”的清单；涉及异步、Domain factory 或测试 patch 的 helper 必须注入 callable，不能在新模块中复制一份全局策略。每个 catalog seam 至少跑跨 Domain、动态工具、runtime context、异步提交和自定义 factory 回归。
+
+## M260-B Run query/recovery seam 迁移后的 artifact 与生命周期一致性
+
+- **现象**：把 `get_run`、artifact fallback、evidence index、retry 和 cancel 移出 Service 后，若只验证内存成功路径，SQLite 重启、artifact-only 读取或 action receipt 重放可能丢失 result view、异步观测或 Domain fencing；另一个常见错误是 recovery 模块重新创建控制状态，导致取消和重试在不同入口看到不同终态。
+- **根因**：运行查询并不是简单的数据库读取，它还要等待 async job 的最终化、根据持久 runtime context 恢复 planner/backend、重建版本化 result contract，并在没有 SQLite 行时读取 artifact。retry/cancel 又必须复用 ActionApplication 的 receipt 和 Runtime 自己的生命周期状态，不能复制状态 owner。
+- **诊断**：按内存成功、SQLite 重启、artifact-only、跨 Domain、显式 retry idempotency、cancel receipt 六类路径检查；比较 `status`、`result.views`、`execution_record`、`evidence_registry`、`async_observability` 和 receipt lineage。不要只断言 `get_run` 返回 200 或最终状态字符串。
+- **修复**：新增 `RunRecoveryApplication`，统一负责 Runtime selection inference、快照一致性等待、artifact projection、evidence projection、retry/cancel receipt 以及跨 Domain fencing；所有 state、Runtime、Action receipt 和 async observation 都由构造时注入，不在新模块中创建第二份控制状态。
+- **预防**：查询/恢复拆分必须保留“调用图闭包”，把 artifact、result contract、evidence、async 和 Domain identity helper 一起迁移；新 seam 至少运行 SQLite/artifact/receipt/跨 Domain 回归，并保留 Service 的旧方法作为单向 facade，直到所有 transport 迁移完成。
