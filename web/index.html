@@ -231,7 +231,7 @@
       min-height: 0;
       height: min(760px, calc(100vh - 220px));
       max-height: none;
-      overflow: hidden;
+      overflow: visible;
       background: rgba(255, 255, 255, .74);
       border-radius: var(--radius-lg);
       border: 1px solid rgba(255, 255, 255, .82);
@@ -991,6 +991,9 @@
         flex-wrap: wrap;
         align-items: center;
         gap: 8px;
+        position: relative;
+        z-index: 30;
+        overflow: visible;
       }
       .chat-settings::before, .chat-settings label, .chat-settings .suggestions, .chat-settings .hint, .chat-settings .env, .chat-settings .history, .chat-settings #capabilityStatus, .chat-settings .workflow-validation { display: none; }
       .chat-settings .row { display: contents; }
@@ -1007,9 +1010,9 @@
       .chat-settings .workflow-field label { display: none; }
       .chat-settings .workflow-evidence { display: none; }
       .chat-settings .workflow-validation { margin: 0; font-size: 10.5px; }
-      .chat-settings .action-workbench { position: relative; }
+      .chat-settings .action-workbench { position: relative; z-index: 31; }
       .chat-settings .action-workbench summary { display: block; white-space: nowrap; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
-      .chat-settings .action-workbench[open] { position: absolute; z-index: 20; top: 52px; left: 12px; right: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.98); box-shadow: var(--shadow); }
+      .chat-settings .action-workbench[open] { position: absolute; z-index: 40; top: calc(100% + 8px); left: auto; right: 8px; width: min(390px, calc(100vw - 48px)); max-height: min(520px, calc(100vh - 180px)); overflow: auto; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.98); box-shadow: var(--shadow-lg); }
       .chat-settings .action-workbench[open] summary { display: block; margin-bottom: 8px; }
       .chat-settings .action-workbench .workflow-field { display: grid; }
       .chat-settings .action-workbench .workflow-field label { display: block; }
