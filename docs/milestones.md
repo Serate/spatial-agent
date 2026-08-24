@@ -4699,6 +4699,14 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 session application contract；显式清除生产 `SPATIAL_AGENT_STATE_DB` 后 M254/M78/M48/M68 session 回归 **12/12**，architecture strict、compileall、quick、stage 全部通过。
 - 下一切片提取 Action/Decision application seam，再拆异步 worker 与 HTTP dispatcher。
 
+## M254-D：Interaction Application canonical seam（已完成）
+
+- 新增 `agent/application/interactions.py`，统一 interaction command 规范化、权威状态重读、动作 allowlist、能力/事实 continuation、preview/run continuation 和 receipt 完成。
+- `AgentService` 的交互读写入口改为兼容 wrapper；Domain capability resolver 与 request facts extractor 保留为注入适配端口，InteractionApplication 不携带 GIS 策略。
+- 保持 confirm/reject、retry/recover、cancel、select_capability、provide_facts、select_workflow、preview、repair 的既有生命周期、artifact 和幂等语义。
+- Docker action/decision/interaction 回归 **66/66**、M254/M48/M68 回归 **8/8**、architecture strict、compileall、quick、stage 全部通过；Service 规模约从 2,560 行降至 2,282 行。
+- 下一切片处理 async worker/recovery，再收敛 HTTP Application Dispatcher。
+
 ## M254-C：Action/Decision Application canonical seam（已完成）
 
 - 新增 `agent/application/actions.py` 的 `ActionApplication`，统一 Domain action dispatch、输入幂等、失败/成功 artifact、执行记录和 action observability。

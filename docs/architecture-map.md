@@ -28,7 +28,7 @@ CLI / serve_api.py / production_api.py / Console
 
 当前实现已经通过 Domain Pack、ToolRegistry 和 Result Registry 形成逻辑分层，但以下物理边界仍待收敛：
 
-- `agent/service.py` 仍包含异步、交互和目录入口；Run、Action、Decision、Session 的主要应用用例已进入 `agent/application/`，Service 只保留兼容入口和跨用例编排。
+- `agent/service.py` 仍包含异步和目录入口，并保留两个 Domain capability/facts 适配端口；Run、Action、Decision、Session、Interaction 的主要应用用例已进入 `agent/application/`，Service 只保留兼容入口和跨用例编排。
 - `agent/runtime.py` 同时包含规划、校验、执行、重规划、恢复、结果投影和内存状态。
 - FastAPI 与标准库 HTTP 入口共享部分契约，但仍各自维护请求分发。
 - `agent/` 保留历史 GIS facade、legacy 字段和兼容回退。

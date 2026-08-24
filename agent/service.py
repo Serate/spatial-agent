@@ -28,15 +28,8 @@ from agent.evidence_registry import normalize_evidence_registry
 from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.recovery_action import (
-    action_input_fingerprint,
     project_legacy_interaction_receipt,
 )
-from agent.selection_interaction import normalize_selection_interaction
-from agent.interaction_contract import (
-    INTERACTION_COMMAND_SCHEMA_VERSION,
-    project_interaction,
-)
-from agent.interaction_host import InteractionHost
 from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
 from agent.trace_formatter import format_trace
@@ -82,6 +75,7 @@ from agent.service_sessions import (
 from agent.application.run import RunApplication
 from agent.application.actions import ActionApplication
 from agent.application.decisions import DecisionApplication
+from agent.application.interactions import InteractionApplication
 from agent.application.sessions import SessionApplication
 
 
@@ -132,10 +126,6 @@ def _runtime_result_registry(runtime):
     """Read the optional result registry from legacy/custom runtimes."""
     resolver = getattr(runtime, "result_registry", None)
     return resolver() if callable(resolver) else None
-
-
-def _action_input_fingerprint(action_id: str, payload: Any) -> str:
-    return action_input_fingerprint(action_id, payload)
 
 
 class AgentService:
@@ -237,6 +227,24 @@ class AgentService:
             legacy_domain_id=self._legacy_domain_id,
             reserve_action_receipt=self._reserve_action_receipt,
             complete_action_receipt=self._complete_action_receipt,
+        )
+        self._interaction_application = InteractionApplication(
+            artifact_store=self._artifact_store,
+            run_reader=lambda run_id, planner, backend: self.get_run(
+                run_id, planner=planner, backend=backend
+            ),
+            runtime_selector=self._infer_run_runtime_selection,
+            runtime_provider=self._runtime,
+            normalize_workflow=self._normalize_workflow_payload,
+            preview_provider=self.preview,
+            run_provider=self.run,
+            resolve_decision_provider=self.resolve_decision,
+            cancel_provider=self.cancel,
+            retry_provider=self.retry,
+            reserve_receipt=self._reserve_interaction_receipt,
+            complete_receipt=self._complete_interaction_receipt,
+            capability_resolver=self._resolve_interaction_capability,
+            request_facts_resolver=self._interaction_request_facts,
         )
         self._recover_async_jobs()
 
@@ -1424,26 +1432,8 @@ class AgentService:
         planner: str = "rule",
         backend: str = "memory",
     ) -> Dict[str, Any]:
-        """Return only the bounded next-action projection for one run.
-
-        The full run endpoint remains the source of result details. This
-        narrow read seam lets a Console or poller refresh selection state
-        without receiving request text, tool arguments, or raw errors.
-        """
-        payload = self.get_run(run_id, planner=planner, backend=backend)
-        envelope = payload.get("result") if isinstance(payload.get("result"), dict) else {}
-        interaction = project_interaction(payload)
-        return {
-            # Keep the reference envelope compatible; the nested contract is
-            # independently versioned as spatial-agent.interaction.v1.
-            "schema_version": "spatial-agent.selection-interaction-reference.v1",
-            "run_id": str(payload.get("run_id") or run_id)[:160],
-            "domain_id": str(payload.get("domain_id") or self._resolved_domain_id or "unknown")[:80],
-            "interaction": interaction,
-            "selection_interaction": normalize_selection_interaction(
-                envelope.get("selection_interaction")
-            ),
-        }
+        """Read a bounded next-action projection through the application seam."""
+        return self._interaction_application.get(run_id, planner, backend)
 
     def _reserve_action_receipt(
         self,
@@ -1542,282 +1532,14 @@ class AgentService:
         planner: str = "rule",
         backend: str = "memory",
     ) -> Dict[str, Any]:
-        """Invoke one legacy or canonical command through InteractionHost."""
-
-        data = dict(payload) if isinstance(payload, dict) else {}
-        selected_planner, selected_backend = self._infer_run_runtime_selection(
-            run_id, planner, backend
+        """Invoke one legacy or canonical command through the application seam."""
+        return self._interaction_application.apply(
+            run_id,
+            action,
+            payload,
+            planner=planner,
+            backend=backend,
         )
-        if data.get("schema_version") == INTERACTION_COMMAND_SCHEMA_VERSION:
-            command = data
-        else:
-            current = self.get_run(
-                run_id,
-                planner=selected_planner,
-                backend=selected_backend,
-            )
-            interaction = project_interaction(current)
-            action_id = str(action or data.get("action_id") or data.get("action") or "").strip().lower()
-            action_input = dict(data)
-            for key in (
-                "schema_version",
-                "subject",
-                "action_id",
-                "action",
-                "idempotency_key",
-                "planner",
-                "backend",
-            ):
-                action_input.pop(key, None)
-            idempotency_key = str(data.get("idempotency_key") or "").strip()
-            if not idempotency_key:
-                fingerprint = _action_input_fingerprint(action_id, action_input)
-                idempotency_key = (
-                    "interaction:"
-                    + str(run_id)[:48]
-                    + ":"
-                    + action_id[:24]
-                    + ":"
-                    + fingerprint.rsplit(":", 1)[-1][:20]
-                )
-            command = {
-                "schema_version": INTERACTION_COMMAND_SCHEMA_VERSION,
-                "subject": interaction.get("subject"),
-                "action_id": action_id,
-                "input": action_input,
-                "idempotency_key": idempotency_key,
-            }
-
-        host = InteractionHost(
-            loader=lambda _subject: self.get_run(
-                run_id,
-                planner=selected_planner,
-                backend=selected_backend,
-            ),
-            dispatcher=lambda checked, _interaction: self._dispatch_run_interaction(
-                run_id,
-                str(checked["action_id"]),
-                {
-                    **dict(checked["input"]),
-                    "idempotency_key": checked["idempotency_key"],
-                },
-                planner=selected_planner,
-                backend=selected_backend,
-            ),
-        )
-        return host.invoke(command)
-
-    def _dispatch_run_interaction(
-        self,
-        run_id: str,
-        action: str,
-        payload: Optional[Dict[str, Any]] = None,
-        *,
-        planner: str = "rule",
-        backend: str = "memory",
-    ) -> Dict[str, Any]:
-        """Apply one allowlisted next action through existing Runtime seams.
-
-        Selection changes are resumed as a new governed run using the same
-        request/session and a caller-supplied normalized workflow. Approval,
-        retry, recovery and cancellation delegate to their existing lifecycle
-        implementations. No Domain or transport policy is duplicated here.
-        """
-        action = str(action or "").strip().lower()
-        if not action:
-            raise ValueError("interaction action must be a non-empty string")
-        current = self.get_run(run_id, planner=planner, backend=backend)
-        envelope = current.get("result") if isinstance(current.get("result"), dict) else {}
-        interaction = project_interaction(current)
-        data = dict(payload) if isinstance(payload, dict) else {}
-        selected_planner, selected_backend = self._infer_run_runtime_selection(
-            run_id, planner, backend
-        )
-
-        if action in {"confirm", "reject"}:
-            decision = current.get("decision_evidence") or envelope.get("decision")
-            if not isinstance(decision, dict) or not decision.get("decision_id"):
-                raise ValueError("interaction decision evidence is unavailable")
-            choice = "approve" if action == "confirm" else "reject"
-            expected_version = data.get("expected_version", decision.get("version"))
-            return self.resolve_decision(
-                str(decision["decision_id"]),
-                choice,
-                expected_version=expected_version,
-                planner=selected_planner,
-                backend=selected_backend,
-                idempotency_key=data.get("idempotency_key"),
-            )
-        if action == "cancel":
-            return self.cancel(
-                run_id,
-                planner=selected_planner,
-                backend=selected_backend,
-                idempotency_key=data.get("idempotency_key"),
-            )
-        if action in {"retry", "recover"}:
-            return self.retry(
-                run_id,
-                planner=selected_planner,
-                backend=selected_backend,
-                export_artifact=bool(data.get("export_artifact", True)),
-                export_geojson=bool(data.get("export_geojson", False)),
-                geojson_max_features=int(data.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES)),
-                idempotency_key=data.get("idempotency_key"),
-            )
-
-        workflow_value = data.get("workflow")
-        if action in {"repair", "preview"} and not isinstance(workflow_value, dict):
-            workflow_value = current.get("workflow")
-        if action in {"select_capability", "provide_facts"} and not isinstance(
-            workflow_value, dict
-        ):
-            capability_id = self._interaction_capability_id(data, interaction)
-            if action == "select_capability" and not capability_id:
-                raise ValueError("interaction capability_id must be a non-empty string")
-            if capability_id:
-                workflow_value = self._resolve_interaction_capability(
-                    capability_id,
-                    interaction=interaction,
-                    request_facts=self._interaction_request_facts(
-                        current,
-                        planner=selected_planner,
-                        backend=selected_backend,
-                    ),
-                    planner=selected_planner,
-                    backend=selected_backend,
-                )
-            elif action == "provide_facts":
-                raise ValueError(
-                    "interaction facts require a capability_id or selected capability"
-                )
-        if action == "provide_facts" and isinstance(workflow_value, dict):
-            workflow_value = dict(workflow_value)
-            constraints = dict(workflow_value.get("constraints") or {})
-            facts = data.get("facts") or data.get("constraints") or {}
-            if not isinstance(facts, dict):
-                raise ValueError("interaction facts must be an object")
-            constraints.update(facts)
-            workflow_value["constraints"] = constraints
-        if action not in {"repair", "preview"} and not isinstance(workflow_value, dict):
-            raise ValueError("interaction workflow selection must be an object")
-        if isinstance(workflow_value, dict):
-            workflow_value = self._normalize_workflow_payload(
-                workflow_value, selected_planner, selected_backend
-            )
-        continuation_request = str(
-            current.get("request") or current.get("resolved_request") or ""
-        ).strip()
-        resolved_request_override = str(
-            current.get("resolved_request") or continuation_request
-        ).strip()
-        if not continuation_request:
-            raise ValueError("interaction request context is unavailable")
-        receipt = None
-        receipt_actions = {
-            "provide_facts",
-            "select_capability",
-            "select_workflow",
-            "preview",
-            "repair",
-        }
-        if action in receipt_actions:
-            receipt, replay = self._reserve_interaction_receipt(
-                source_run_id=run_id,
-                action=action,
-                payload=data,
-                planner=selected_planner,
-                backend=selected_backend,
-            )
-            if replay:
-                return receipt
-        # A selection interaction continues the stored run; it is not a new
-        # conversational turn.  Consume the clarification marker before
-        # entering Runtime so _resolve_request does not append the same
-        # resolved request a second time.  Preserve the stored raw turn and
-        # resolved semantic context separately when the run came from a prior
-        # conversational clarification.
-        if action in {"provide_facts", "select_capability", "select_workflow", "preview"}:
-            continuation_runtime = self._runtime(selected_planner, selected_backend)
-            clear_pending = getattr(continuation_runtime, "clear_session", None)
-            if callable(clear_pending):
-                clear_pending(str(current.get("session_id") or "default"))
-        if action in {"preview", "repair"}:
-            try:
-                response = self.preview(
-                    request=continuation_request,
-                    session_id=str(current.get("session_id") or "default"),
-                    planner=selected_planner,
-                    backend=selected_backend,
-                    workflow=workflow_value,
-                    spatial_context=current.get("spatial_context"),
-                    _resolved_request=resolved_request_override,
-                )
-            except Exception:
-                if receipt is not None:
-                    self._complete_interaction_receipt(
-                        receipt, {}, status="FAILED", error_code="preview_failed"
-                    )
-                raise
-            return (
-                self._complete_interaction_receipt(receipt, response, status="COMPLETED")
-                if receipt is not None
-                else response
-            )
-        try:
-            response = self.run(
-                request=continuation_request,
-                session_id=str(current.get("session_id") or "default"),
-                planner=selected_planner,
-                backend=selected_backend,
-                workflow=workflow_value,
-                require_confirmation=bool(data.get("require_confirmation", True)),
-                export_artifact=bool(data.get("export_artifact", True)),
-                export_geojson=bool(data.get("export_geojson", False)),
-                geojson_max_features=int(data.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES)),
-                _resolved_request=resolved_request_override,
-            )
-        except Exception:
-            if receipt is not None:
-                self._complete_interaction_receipt(
-                    receipt, {}, status="FAILED", error_code="interaction_failed"
-                )
-            raise
-        if receipt is not None:
-            response = self._complete_interaction_receipt(
-                receipt, response, status="COMPLETED"
-            )
-            if response.get("artifact_ref"):
-                # Refresh the child run artifact with the receipt projection so
-                # artifact navigation retains the interaction lineage.
-                self._artifact_store.write_run(response)
-        return response
-
-    def _interaction_capability_id(
-        self,
-        payload: Mapping[str, Any],
-        interaction: Mapping[str, Any],
-    ) -> str:
-        """Resolve a bounded capability id from an interaction payload.
-
-        ``provide_facts`` may continue a selected capability without forcing
-        the Console to echo the Domain-owned workflow object.  An implicit
-        candidate is accepted only when the selection is unambiguous.
-        """
-        explicit = str(payload.get("capability_id") or "").strip()
-        if explicit:
-            return explicit[:96]
-        selection = interaction.get("selection")
-        if not isinstance(selection, Mapping):
-            return ""
-        selected = str(selection.get("selected_capability_id") or "").strip()
-        if selected:
-            return selected[:96]
-        candidates = selection.get("candidate_ids")
-        if isinstance(candidates, (list, tuple)) and len(candidates) == 1:
-            candidate = str(candidates[0] or "").strip()
-            return candidate[:96]
-        return ""
 
     def _resolve_interaction_capability(
         self,
