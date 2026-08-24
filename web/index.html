@@ -1013,7 +1013,7 @@
       .chat-settings .action-workbench .workflow-field label { display: block; }
       .chat-settings .action-workbench input, .chat-settings .action-workbench select, .chat-settings .action-workbench textarea { width: 100%; }
       .chat {
-        height: clamp(400px, calc(100vh - 200px), 760px);
+        height: clamp(400px, calc(100vh - 175px), 760px);
         min-height: 0;
         max-height: none;
       }
@@ -1055,10 +1055,11 @@
       .trace { max-height: 170px; font-size: 12px; }
       .steps li { padding: 10px 0; }
       .history-list { max-height: 190px; }
-      .hero { min-height: 74px; padding: 12px 20px; }
-      .hero h2 { margin-bottom: 4px; font-size: 19px; }
-      .hero p { font-size: 12.5px; line-height: 1.35; }
-      .hero .decision-mode { margin-top: 0; padding: 4px 9px; font-size: 11.5px; }
+      .hero { min-height: 56px; padding: 8px 16px; gap: 12px; }
+      .hero h2 { margin-bottom: 2px; font-size: 17px; line-height: 1.2; }
+      .hero p { font-size: 11.5px; line-height: 1.3; max-width: 560px; }
+      .hero .decision-mode { margin-top: 0; padding: 4px 8px; font-size: 11px; }
+      .hero .right { gap: 8px; }
     }
 
     /* ---------- Mobile ---------- */
