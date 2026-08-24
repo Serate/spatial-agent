@@ -2,7 +2,7 @@ import unittest
 
 from agent.models import PlanStep, StepRun, TaskPlan
 from agent.context_engineering import ContextPacket
-from agent.errors import ClarificationNeeded, ToolError
+from agent.errors import ClarificationNeeded, RunCancelled, ToolError
 from agent.runtime import _resolve_result_references
 from agent.runtime_core.projection import (
     compact_workflow_templates,
@@ -11,6 +11,7 @@ from agent.runtime_core.projection import (
 )
 from agent.runtime_core.planning import invoke_planner, validate_plan
 from agent.runtime_core.execution import StepExecutionHooks, block_remaining_steps, execute_step
+from agent.runtime_core.control import RunControl
 
 
 class M253RuntimeCoreProjectionTests(unittest.TestCase):
@@ -140,6 +141,29 @@ class M253RuntimeCoreProjectionTests(unittest.TestCase):
         self.assertEqual(steps[0].status, "COMPLETED")
         self.assertEqual(steps[1].status, "FAILED")
         self.assertEqual(steps[2].status, "BLOCKED")
+
+    def test_control_seam_clears_local_and_persistent_cancel(self):
+        class Store:
+            def __init__(self):
+                self.cancelled = set()
+
+            def request_cancel(self, run_id):
+                self.cancelled.add(run_id)
+
+            def clear_cancel(self, run_id):
+                self.cancelled.discard(run_id)
+
+            def is_cancel_requested(self, run_id):
+                return run_id in self.cancelled
+
+        store = Store()
+        control = RunControl(store)
+        control.request_cancel("run-1")
+        with self.assertRaises(RunCancelled):
+            control.check("run-1", None)
+        control.clear_cancel("run-1")
+        control.check("run-1", None)
+        self.assertNotIn("run-1", store.cancelled)
 
 
 if __name__ == "__main__":

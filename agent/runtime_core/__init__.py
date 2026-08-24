@@ -20,6 +20,7 @@ from .projection import (
 )
 from .planning import invoke_planner, require_workflow_selection, validate_plan
 from .execution import StepExecutionHooks, block_remaining_steps, execute_step
+from .control import RunControl
 
 __all__ = [
     "append_execution_degradation_notice",
@@ -44,4 +45,5 @@ __all__ = [
     "StepExecutionHooks",
     "block_remaining_steps",
     "execute_step",
+    "RunControl",
 ]

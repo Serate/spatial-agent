@@ -4669,3 +4669,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `AgentRuntime._execute_step` 与 `_block_remaining_steps` 保留兼容入口并委托 execution seam；公共 execution module 不读取 Domain 数据、不处理 HTTP，也不绕过 ToolRegistry。
 - 新增成功重试、终态事件和失败后 pending 步骤阻断契约；干净 Docker 重建后 M253/M252/M247 定向 **16/16**、architecture strict、compileall、quick、stage 全部通过。
 - 下一切片将继续收敛 cancel/timeout/control gate 与 run/step lifecycle evidence，再进入 Application Service 拆分。
+
+## M253-D：Runtime control canonical seam（已完成）
+
+- 新增 `agent/runtime_core/control.py` 的 `RunControl`，统一管理进程内取消集合、可选持久化取消标记、取消清除和 deadline 检查；取消/超时仍在执行边界抛出原有生命周期异常。
+- `AgentRuntime.cancel`、`retry_failed` 和 `_check_control` 改为调用 `RunControl`；Runtime 不再直接持有控制锁或取消集合，旧 public Runtime 行为和 SQLite cancel contract 保持不变。
+- 新增内存与持久取消清除契约；干净 Docker 重建后 M253/M252/M247 定向 **17/17**、architecture strict、compileall、quick、stage 全部通过。
+- Runtime core 的 projection/planning/execution/control 四个 seam 已完成，下一阶段转入 Application Service 的 run/session/action 活动路径收敛。

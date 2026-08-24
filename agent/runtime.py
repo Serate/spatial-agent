@@ -80,6 +80,7 @@ from .tools import ToolRegistry
 from .runtime_core import projection as _runtime_projection
 from .runtime_core import planning as _runtime_planning
 from .runtime_core import execution as _runtime_execution
+from .runtime_core.control import RunControl
 
 
 class InMemoryStateStore:
@@ -235,8 +236,7 @@ class AgentRuntime:
             str(item) for item in (approved_tools or []) if str(item)
         }
         self._require_dependency_evidence = bool(require_dependency_evidence)
-        self._control_lock = Lock()
-        self._cancelled_runs: Set[str] = set()
+        self._control = RunControl(self._state_store)
         self._run_span_ids: Dict[str, str] = {}
 
     @property
@@ -1072,11 +1072,7 @@ class AgentRuntime:
             return result
         if result.status not in (RunStatus.PLANNING, RunStatus.EXECUTING):
             raise ToolError("run is not active: " + run_id)
-        with self._control_lock:
-            self._cancelled_runs.add(run_id)
-        request_cancel = getattr(self._state_store, "request_cancel", None)
-        if callable(request_cancel):
-            request_cancel(run_id)
+        self._control.request_cancel(run_id)
         return result
 
     def retry_failed(self, run_id: str) -> AgentRunResult:
@@ -1115,11 +1111,7 @@ class AgentRuntime:
         result.error = None
         result.answer = None
         result.retry_count = int(getattr(result, "retry_count", 0) or 0) + 1
-        with self._control_lock:
-            self._cancelled_runs.discard(run_id)
-        clear_cancel = getattr(self._state_store, "clear_cancel", None)
-        if callable(clear_cancel):
-            clear_cancel(run_id)
+        self._control.clear_cancel(run_id)
         try:
             for index in range(failed_index, len(result.steps)):
                 step_run = result.steps[index]
@@ -1845,14 +1837,7 @@ class AgentRuntime:
         )
 
     def _check_control(self, run_id: str, deadline: Optional[float]) -> None:
-        with self._control_lock:
-            is_cancel_requested = getattr(self._state_store, "is_cancel_requested", None)
-            if run_id in self._cancelled_runs or (
-                callable(is_cancel_requested) and is_cancel_requested(run_id)
-            ):
-                raise RunCancelled("run cancellation requested")
-        if deadline is not None and perf_counter() >= deadline:
-            raise RunTimedOut("run exceeded timeout_seconds")
+        return self._control.check(run_id, deadline)
 
     def _block_remaining_steps(
         self, steps, start_index: int, failed_step_id: str, reason: str
