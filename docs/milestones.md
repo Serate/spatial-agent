@@ -4787,3 +4787,9 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `agent/runtime_core/preview.py` 的 `RuntimePreviewSurface`，独立承载 planning-only context/request resolution、DAG/plan identity、repair lineage、clarification/rejection 和 lifecycle 投影；预览不 dispatch 工具、不保存运行状态。
 - `AgentRuntime.preview` 保留兼容入口并只委托 preview seam；preview 与同步 run 共用 `RuntimePlanningSurface`、plan evidence、workflow validator 和 Runtime context，不复制 Domain 页面分支。
 - Docker 重建后 M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；Runtime 剩余主要是 evidence/projection helper 与少量 public facade，随后收敛 Service。
+
+## M259-G：Runtime plan evidence canonical seam（已完成）
+
+- 新增 `agent/runtime_core/plan_evidence.py`，统一生成 bounded plan evidence、planner source、template matching、request facts projection、capability selection、plan identity/binding 和 plan quality；原 Runtime 模块级 `_build_plan_evidence` 保留为单向兼容 facade。
+- Runtime 继续保留 failure-plan evidence 的生命周期组合，但不再承载 plan evidence 的大段纯投影实现；`projection.py` 仍是底层通用纯函数 seam，未复制 evidence 规则到 transport 或 Domain。
+- Docker 重建后 Runtime/M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；Runtime warning 已消除，下一阶段转入 Service 的 catalog/control/compatibility residue，并继续检查 Console 主应用职责簇。

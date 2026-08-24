@@ -92,6 +92,7 @@ def build_report() -> dict[str, Any]:
         ROOT / "agent" / "runtime_core" / "decision_resume.py",
         ROOT / "agent" / "runtime_core" / "recovery.py",
         ROOT / "agent" / "runtime_core" / "preview.py",
+        ROOT / "agent" / "runtime_core" / "plan_evidence.py",
         ROOT / "agent" / "runtime_core" / "capabilities.py",
         ROOT / "agent" / "runtime_state.py",
         ROOT / "agent" / "application" / "run.py",
@@ -191,6 +192,13 @@ def build_report() -> dict[str, Any]:
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_preview_surface_missing",
+                }
+            )
+        if "from .runtime_core.plan_evidence import" not in source:
+            errors.append(
+                {
+                    "file": _relative(runtime_path),
+                    "code": "runtime_plan_evidence_surface_missing",
                 }
             )
     if service_path.exists() and _line_count(service_path) > 1000:

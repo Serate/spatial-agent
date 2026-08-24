@@ -624,3 +624,11 @@
 - **诊断**：对同一请求分别执行 preview 和 run，比较工具调用计数、state store、conversation pending、artifact 和 lifecycle 状态；preview 必须只返回 payload，不产生运行状态或 artifact。
 - **修复**：新增 `RuntimePreviewSurface`，只依赖 Runtime planning/evidence ports；preview 自己完成 `project_action_lifecycle`，不调用 state save、ToolRegistry dispatch、answer composer 或 memory remember。
 - **预防**：preview contract 至少包含“无工具调用、无状态写入、计划 identity 稳定、clarification/rejection 结构一致”四项；不得为了复用代码把 run 的副作用 callback 传给 preview。
+
+## M259-G Plan evidence 迁移后兼容 helper 残留
+
+- **现象**：plan evidence 主函数已经迁移到新模块并能完成正常计划，但澄清/失败路径或 answer fallback 仍引用原 Runtime 中已删除的 helper，造成只在降级分支出现 `NameError`。
+- **根因**：evidence 生成函数与 `_planner_source`、`_safe_small_mapping`、`_append_execution_degradation_notice` 等 helper 原本同处一个文件；只迁移主函数会遗漏“被其他 Runtime 生命周期使用的兼容符号”。
+- **诊断**：除成功请求外，必须运行能力澄清、计划拒绝、工具失败和 answer fallback；搜索原模块中所有被迁移函数引用的 helper，逐一判断是 canonical import、Runtime wrapper 还是应删除的死代码。
+- **修复**：新增 `runtime_core.plan_evidence` canonical projection，Runtime 保留 `_build_plan_evidence` facade，并从 projection 显式导入 answer degradation helper；plan evidence 内部只使用自己的 canonical projection imports。
+- **预防**：大函数迁移使用“调用图闭包”清单，不只复制函数体；架构收敛验收必须同时通过成功与降级路径，静态行数下降不能替代行为验证。
