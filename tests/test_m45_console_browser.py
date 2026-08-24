@@ -44,12 +44,29 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
     def test_async_cancel_and_session_actions_remain_available(self):
         for marker in (
             'id="deleteSession"',
+            'id="clearAllSessions"',
             'id="cancelRun"',
             "/runs/async",
             "/cancel",
             "setCancelState(true)",
         ):
             self.assertIn(marker, self.source)
+
+    def test_session_actions_cover_unbound_auto_and_clear_all(self):
+        script = (ROOT / "scripts" / "console_session_actions_smoke.js").read_text(
+            encoding="utf-8"
+        )
+        for marker in (
+            "自动领域未绑定时新建对话按钮被禁用",
+            "clearAllSessions",
+            "includePersisted:false",
+            "清空全部对话后消息区未重置",
+            "heroRect.height",
+            "chatRect.height",
+        ):
+            self.assertIn(marker, script)
+        self.assertIn("localDraftSessionIds", self.source)
+        self.assertIn("$('newSession').disabled=false", self.source)
 
 
 if __name__ == "__main__":

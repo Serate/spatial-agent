@@ -140,7 +140,7 @@
       filter: blur(18px);
       pointer-events: none;
     }
-    .content { display: grid; grid-template-columns: minmax(0, 1fr) 380px; align-items: start; gap: 20px; }
+    .content { display: grid; grid-template-columns: minmax(0, 1fr) 420px; align-items: start; gap: 20px; }
     .content > .hero { grid-column: 1 / -1; }
     .content > .chat { grid-column: 2; grid-row: 2; position: sticky; top: 20px; }
     .content > .grid { grid-column: 1; grid-row: 2; }
@@ -162,8 +162,8 @@
       justify-content: space-between;
       align-items: center;
       gap: 18px;
-      min-height: 108px;
-      padding: 26px 30px;
+      min-height: 86px;
+      padding: 18px 24px;
       background:
         radial-gradient(560px 220px at 92% 0%, rgba(167, 139, 250, .38), transparent 62%),
         radial-gradient(420px 200px at 4% 110%, rgba(236, 72, 153, .26), transparent 60%),
@@ -181,12 +181,15 @@
       mask-image: linear-gradient(90deg, transparent 40%, #000 100%);
     }
     .hero > * { position: relative; z-index: 1; }
-    .hero h2 { margin: 0 0 8px; font-size: 23px; font-weight: 800; letter-spacing: -.01em; }
-    .hero p { margin: 0; color: #e9e7ff; font-size: 13.5px; max-width: 640px; }
+    .hero > div:first-child { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; row-gap: 3px; }
+    .hero h2 { grid-column: 1; grid-row: 1; margin: 0 0 5px; font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+    .hero p { grid-column: 1 / -1; grid-row: 2; margin: 0; color: #e9e7ff; font-size: 13px; line-height: 1.45; max-width: 640px; }
     .hero .decision-mode {
       display: inline-block;
-      margin-top: 13px;
-      padding: 6px 12px;
+      grid-column: 2;
+      grid-row: 1;
+      margin-top: 0;
+      padding: 5px 10px;
       border-radius: 999px;
       background: rgba(255, 255, 255, .10);
       border: 1px solid rgba(255, 255, 255, .16);
@@ -1004,7 +1007,12 @@
       .chat-settings .action-workbench .workflow-field { display: grid; }
       .chat-settings .action-workbench .workflow-field label { display: block; }
       .chat-settings .action-workbench input, .chat-settings .action-workbench select, .chat-settings .action-workbench textarea { width: 100%; }
-      .chat { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+      .chat {
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        height: clamp(620px, calc(100vh - 150px), 820px);
+        min-height: 0;
+        max-height: none;
+      }
       .chat-head { padding: 13px 15px; }
       .chat-actions { justify-content: flex-end; }
       .chat-actions button { padding: 5px 9px; font-size: 11px; }
@@ -1043,8 +1051,10 @@
       .trace { max-height: 170px; font-size: 12px; }
       .steps li { padding: 10px 0; }
       .history-list { max-height: 190px; }
-      .hero { min-height: 96px; padding: 22px 26px; }
-      .hero h2 { font-size: 21px; }
+      .hero { min-height: 74px; padding: 12px 20px; }
+      .hero h2 { margin-bottom: 4px; font-size: 19px; }
+      .hero p { font-size: 12.5px; line-height: 1.35; }
+      .hero .decision-mode { margin-top: 0; padding: 4px 9px; font-size: 11.5px; }
     }
 
     /* ---------- Mobile ---------- */
@@ -1061,6 +1071,8 @@
       header { padding: 14px 16px; }
       header > span { display: none; }
       .hero { padding: 20px; flex-direction: column; align-items: flex-start; }
+      .hero > div:first-child { display: block; }
+      .hero .decision-mode { margin-top: 6px; }
       .hero h2 { font-size: 19px; }
       .composer { grid-template-columns: 1fr; }
       .composer button { min-height: 44px; }
@@ -1100,7 +1112,7 @@
     <div class="content">
       <section class="hero"><div><h2 id="title">准备好执行任务</h2><p id="subtitle" role="status" aria-live="polite">输入自然语言请求，Agent 会发现能力、生成计划、调用工具并组合结构化结果。</p><span id="decisionMode" class="decision-mode">等待决策</span></div><div><span id="status" class="badge" role="status" aria-live="polite" aria-atomic="true">待机</span><button id="cancelRun" type="button" hidden style="margin-left:8px">取消分析</button></div></section>
       <section id="chatPanel" class="chat">
-        <div class="chat-head"><div class="chat-title"><span>Agent workspace</span><h3>对话</h3></div><div class="chat-actions"><span id="chatMeta">当前对话：对话1</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button><button id="deleteSession" type="button">删除对话</button></div></div>
+        <div class="chat-head"><div class="chat-title"><span>Agent workspace</span><h3>对话</h3></div><div class="chat-actions"><span id="chatMeta">当前对话：对话1</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button><button id="clearAllSessions" type="button">清空全部对话</button><button id="deleteSession" type="button">删除对话</button></div></div>
         <div id="messages" class="messages" aria-live="polite"></div>
         <div class="composer">
           <textarea id="prompt" placeholder="请输入希望 Agent 完成的任务"></textarea>
@@ -1383,6 +1395,7 @@
     const actionDomains = new Map();
     const decisionDomains = new Map();
     const sessionDomains = new Map();
+    const localDraftSessionIds = new Set();
     const domainRoutingRequests = new Map();
     const nativeFetch = window.fetch.bind(window);
     const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -1419,6 +1432,7 @@
       if(autoDraftSessionId) return autoDraftSessionId;
       const identity=globalThis.crypto?.randomUUID?.()||String(Date.now())+'-'+Math.random().toString(16).slice(2);
       autoDraftSessionId='conversation-auto-'+String(identity).replace(/[^A-Za-z0-9_-]/g,'').slice(0,64);
+      localDraftSessionIds.add(autoDraftSessionId);
       return autoDraftSessionId;
     }
     async function pollQueuedRun(queued,payload,runDomain) {
@@ -1558,7 +1572,8 @@
         $('historyList').innerHTML='<div class="muted">领域选定后显示该领域的历史任务。</div>';
         $('runtimeMetrics').textContent='领域选定后显示运行指标。';
         $('actionWorkbenchBody').innerHTML='<div class="distribution-note">领域选定后加载可执行动作。</div>';
-        $('newSession').disabled=true;
+        $('newSession').disabled=false;
+        $('clearAllSessions').disabled=false;
         $('deleteSession').disabled=true;
         $('previewPlan').disabled=true;
         window.__consoleDomainReady=true;
@@ -1632,14 +1647,58 @@
       selection.constraints=data.constraints; selection.evidence=data.evidence; $('workflowValidation').textContent='已通过 '+escapeHtml(data.template.label)+' 契约校验 · v'+escapeHtml(data.template.version); return selection;
     }
     async function loadWorkflows(domainId=currentDomainId()) { try { const response=await nativeFetch(domainPath('/workflows',domainId)); if(!response.ok) throw new Error('workflow catalog unavailable'); const data=await response.json(); if(domainId!==currentDomainId()) return; workflowTemplates=data.templates||{}; $('workflow').innerHTML='<option value="">智能选择（默认）</option>'+Object.values(workflowTemplates).map(template=>'<option value="'+escapeHtml(template.id)+'">'+escapeHtml(template.label)+' · v'+escapeHtml(template.version)+'</option>').join(''); renderWorkflowEditor(); } catch(error) { if(domainId===currentDomainId()) $('workflowValidation').textContent='工作流目录暂不可用，继续使用智能选择。'; } }
-    async function newSession(domainId=currentDomainId(),reset=true) { let session; try { const response=await nativeFetch(domainPath('/sessions',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}); if(response.ok) session=await response.json(); } catch(error) { /* Legacy development servers can continue with a local temporary session. */ } if(domainId!==currentDomainId()) return null; if(!session){ const nextNumber=$('session').options.length+1; session={session_id:'conversation-'+String(domainId).replace(/[^a-z0-9_-]/gi,'-')+'-'+nextNumber,display_name:'对话'+nextNumber}; } addConversationOption(session,domainId); $('session').value=session.session_id; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); if(reset){ conversationGeneration++; resetConversationView(); welcome(); } return session; }
+    function nextConversationName() { return '对话'+String($('session').options.length+1); }
+    function localSession(domainId) {
+      const identity=globalThis.crypto?.randomUUID?.()||String(Date.now())+'-'+Math.random().toString(16).slice(2);
+      const prefix=domainId===AUTO_DOMAIN_VALUE?'conversation-auto-draft-':'conversation-local-';
+      const session={session_id:prefix+String(identity).replace(/[^A-Za-z0-9_-]/g,'').slice(0,64),display_name:nextConversationName()};
+      localDraftSessionIds.add(session.session_id);
+      return session;
+    }
+    async function newSession(domainId=currentDomainId(),reset=true) {
+      if(domainId!==currentDomainId()) return null;
+      let session;
+      if(usesAutoRouting()&&!autoDomainBinding&&domainId===AUTO_DOMAIN_VALUE) {
+        session=localSession(domainId);
+        autoDraftSessionId=session.session_id;
+      } else {
+        try {
+          const response=await nativeFetch(domainPath('/sessions',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+          const data=await response.json().catch(()=>({}));
+          if(!response.ok) throw new Error(responseError(data,'创建会话失败（HTTP '+response.status+'）'));
+          if(!data?.session_id) throw new Error('创建会话失败：服务未返回会话标识');
+          session=Object.assign({display_name:nextConversationName()},data);
+        } catch(error) {
+          if(domainId!==currentDomainId()) return null;
+          if(!usesLegacyRouting(domainId)) {
+            $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>';
+            return null;
+          }
+          session=localSession(domainId);
+        }
+      }
+      if(domainId!==currentDomainId()) return null;
+      addConversationOption(session,domainId);
+      $('session').value=session.session_id;
+      $('deleteSession').disabled=false;
+      if(usesAutoRouting()&&domainId!==AUTO_DOMAIN_VALUE) {
+        autoDomainBinding={domain_id:String(domainId),session_id:String(session.session_id)};
+        autoDraftSessionId='';
+        persistAutoDomainBinding();
+      }
+      $('chatMeta').textContent='当前对话：'+selectedConversationLabel();
+      if(reset){ conversationGeneration++; resetConversationView(); welcome(); }
+      $('prompt').focus();
+      return session;
+    }
     async function clearChat() {
       conversationGeneration++;
       const sessionId=$('session').value;
       if(usesAutoRouting()&&!autoDomainBinding){
-        const draftSessionId=autoDraftSessionId;
+        const draftSessionId=autoDraftSessionId||sessionId;
         resetConversationView(); welcome(); $('prompt').focus();
         domainRoutingRequests.clear(); autoDraftSessionId='';
+        if(draftSessionId) localDraftSessionIds.delete(draftSessionId);
         if(draftSessionId) nativeFetch('/domain-routing/sessions/'+encodeURIComponent(draftSessionId)+'/clear',{method:'POST'}).catch(()=>{});
         return;
       }
@@ -1655,7 +1714,110 @@
         $('error').innerHTML='<div class="error">界面已清空，但对话持久化清理失败：'+escapeHtml(error.message)+'</div>';
       }
     }
-    async function deleteConversation() { const sessionId=$('session').value; if(!sessionId || !window.confirm('删除当前对话及其历史任务？')) return; conversationGeneration++; const domainId=sessionDomains.get(sessionId)||currentDomainId(); try { const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(sessionId),domainId),{method:'DELETE'}); if(!response.ok) throw new Error('删除对话失败'); const option=$('session').selectedOptions[0]; option?.remove(); sessionDomains.delete(sessionId); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; return; } let option=$('session').options[0]; if(usesAutoRouting()){ if(!option){ autoDomainBinding=null; autoDraftSessionId=''; persistAutoDomainBinding(); await reloadDomainContext(); return; } $('session').value=option.value; autoDomainBinding={domain_id:sessionDomains.get(option.value)||domainId,session_id:option.value}; persistAutoDomainBinding(); await restoreSession(autoDomainBinding.domain_id); return; } if(!option){ await newSession(domainId); return; } $('session').value=option.value; await restoreSession(domainId); }
+    async function deleteConversation() {
+      const sessionId=$('session').value;
+      if(!sessionId || !window.confirm('删除当前对话及其历史任务？')) return;
+      conversationGeneration++;
+      if(usesAutoRouting()&&!autoDomainBinding&&localDraftSessionIds.has(sessionId)) {
+        localDraftSessionIds.delete(sessionId);
+        autoDraftSessionId=autoDraftSessionId===sessionId?'':autoDraftSessionId;
+        const option=$('session').selectedOptions[0];
+        option?.remove();
+        sessionDomains.delete(sessionId);
+      } else {
+        const domainId=sessionDomains.get(sessionId)||currentDomainId();
+        try {
+          const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(sessionId),domainId),{method:'DELETE'});
+          if(!response.ok) throw new Error('删除对话失败（HTTP '+response.status+'）');
+          const option=$('session').selectedOptions[0];
+          option?.remove();
+          sessionDomains.delete(sessionId);
+        } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; return; }
+      }
+      let option=$('session').options[0];
+      if(usesAutoRouting()) {
+        if(!option){ autoDomainBinding=null; autoDraftSessionId=''; persistAutoDomainBinding(); await reloadDomainContext(); return; }
+        $('session').value=option.value;
+        if(autoDomainBinding) {
+          autoDomainBinding={domain_id:sessionDomains.get(option.value)||autoDomainBinding.domain_id,session_id:option.value};
+          persistAutoDomainBinding();
+          await restoreSession(autoDomainBinding.domain_id);
+        } else {
+          autoDraftSessionId=option.value;
+          resetConversationView();
+          welcome();
+        }
+        return;
+      }
+      if(!option){ await newSession(currentDomainId()); return; }
+      $('session').value=option.value;
+      await restoreSession(currentDomainId());
+    }
+    function clearAllDomainIds(options={}) {
+      if(Array.isArray(options.domainIds)) return [...new Set(options.domainIds.map(String).filter(id=>id&&id!==AUTO_DOMAIN_VALUE))];
+      if(!usesAutoRouting()) return currentDomainId()===AUTO_DOMAIN_VALUE?[]:[currentDomainId()];
+      const ids=(domainCatalog.domains||[]).map(item=>String(item.id)).filter(Boolean);
+      if(autoDomainBinding?.domain_id) ids.push(String(autoDomainBinding.domain_id));
+      return [...new Set(ids)];
+    }
+    async function clearAllSessions(options={}) {
+      if(options.confirm!==false&&!window.confirm('清空全部对话及其历史任务？此操作不可撤销。')) return {cancelled:true};
+      const button=$('clearAllSessions');
+      if(button) button.disabled=true;
+      conversationGeneration++;
+      const failures=[];
+      let deleted=0;
+      const domains=clearAllDomainIds(options);
+      try {
+        if(options.includePersisted!==false) {
+          for(const domainId of domains) {
+            try {
+              const listResponse=await nativeFetch(domainPath('/sessions?limit=200',domainId));
+              const listData=await listResponse.json().catch(()=>({}));
+              if(!listResponse.ok) throw new Error(responseError(listData,'读取会话目录失败（HTTP '+listResponse.status+'）'));
+              for(const session of (listData.sessions||[])) {
+                const sessionId=String(session?.session_id||'');
+                if(!sessionId) continue;
+                const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(sessionId),domainId),{method:'DELETE'});
+                const data=await response.json().catch(()=>({}));
+                if(!response.ok) throw new Error(responseError(data,'删除会话失败（HTTP '+response.status+'）'));
+                deleted++;
+              }
+            } catch(error) { failures.push((selectedDomainContextLabel(domainId)||domainId)+'：'+error.message); }
+          }
+        }
+        if(options.includeRouting!==false) {
+          for(const sessionId of [...localDraftSessionIds]) {
+            try {
+              const response=await nativeFetch('/domain-routing/sessions/'+encodeURIComponent(sessionId)+'/clear',{method:'POST'});
+              if(!response.ok) throw new Error('清理路由草稿失败（HTTP '+response.status+'）');
+            } catch(error) { failures.push('路由草稿 '+sessionId+'：'+error.message); }
+          }
+        }
+      } finally {
+        sessionDomains.clear();
+        runDomains.clear();
+        actionDomains.clear();
+        decisionDomains.clear();
+        domainRoutingRequests.clear();
+        localDraftSessionIds.clear();
+        autoDraftSessionId='';
+        autoDomainBinding=null;
+        persistAutoDomainBinding();
+        $('session').innerHTML='';
+        resetConversationView();
+        if(usesAutoRouting()) await newSession(AUTO_DOMAIN_VALUE,false);
+        else await newSession(currentDomainId(),false);
+        $('chatMeta').textContent='当前对话：'+selectedConversationLabel();
+        welcome();
+        $('prompt').focus();
+        if(button) button.disabled=false;
+      }
+      const result={deleted,failures,remaining:$('session').options.length};
+      if(failures.length) $('error').innerHTML='<div class="error">已清理 '+deleted+' 个对话，但有 '+failures.length+' 项未完成：'+escapeHtml(failures.join('；'))+'</div>';
+      else appendMessage('system','已清空全部对话，已为你准备一个新的空白对话。');
+      return result;
+    }
     function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>'<div class="metric"><b>'+escapeHtml(x[1])+'</b><small>'+escapeHtml(x[0])+'</small></div>').join(''); }
     function stepResult(result) { if(!result) return '未返回工具结果'; if(result.error) return '业务错误：'+result.error; const summary=result.summary||result.answer||result.message; if(typeof summary==='string'&&summary.trim()) return summary.trim(); const values=Object.entries(result).filter(([key,value])=>!['schema_version','status','result_ref','artifact_ref'].includes(key)&&['string','number','boolean'].includes(typeof value)).slice(0,4); return values.length?values.map(([key,value])=>key+'：'+value).join(' · '):'已返回结构化结果'; }
     function conversationTurnLabel(data) { const turn=data.conversation_turn||data.result?.conversation_turn; if(!turn||turn.available===false) return ''; const labels={new_request:'新请求',clarification_reply:'澄清回复',follow_up:'后续追问',decision_reply:'决策回复',unknown:'未知轮次'}; const mode=labels[turn.mode]||'未知轮次'; const relation=turn.pending_consumed?' · 已消费待澄清请求':turn.pending_available?' · 未消费旧待澄清请求':''; return '本轮：'+mode+relation; }
@@ -1987,10 +2149,20 @@
     $('send').addEventListener('click',()=>sendChat());
     $('previewPlan').addEventListener('click',previewPlan);
     $('prompt').addEventListener('keydown',event=>{ if(event.key==='Enter'&&!event.shiftKey){ event.preventDefault(); sendChat(); } });
-    $('session').addEventListener('change',()=>{ conversationGeneration++; restoreSession(currentDomainId()); });
+    $('session').addEventListener('change',()=>{
+      conversationGeneration++;
+      if(usesAutoRouting()&&!autoDomainBinding) {
+        autoDraftSessionId=$('session').value||'';
+        resetConversationView();
+        welcome();
+        return;
+      }
+      restoreSession(currentDomainId());
+    });
     $('domain').addEventListener('change',()=>{ const nextMode=selectedDomainModeId(); autoDraftSessionId=''; domainRoutingRequests.clear(); if(nextMode===AUTO_DOMAIN_VALUE){ const available=new Set((domainCatalog.domains||[]).map(item=>String(item.id))); const sessionId=$('session').value,domainId=sessionDomains.get(sessionId); autoDomainBinding=preferredAutoDomainBinding(available)||(domainId?{domain_id:domainId,session_id:sessionId}:null); } else autoDomainBinding=null; persistAutoDomainBinding(); resetConversationView(); persistSelectedDomain(); reloadDomainContext(); });
     $('newSession').addEventListener('click',newSession);
     $('deleteSession').addEventListener('click',deleteConversation);
+    $('clearAllSessions').addEventListener('click',()=>clearAllSessions());
     $('refreshHistory').addEventListener('click',()=>{ if(!usesAutoRouting()||autoDomainBinding) loadHistory(currentDomainId()); });
     $('clearChat').addEventListener('click',clearChat);
     $('workflow').addEventListener('change',renderWorkflowEditor);

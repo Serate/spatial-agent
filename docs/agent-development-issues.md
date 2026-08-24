@@ -264,3 +264,12 @@
 - **证据**：M229 真实 HTTP run 为 `spatial_analysis_result`，单次提交并完成 polling/artifact/evidence；重启后 existing-run 校验通过；Console 动态恢复 raster、composite、map workspace；CLI complex local run 成功并导出 artifact；Text Domain、核心 contract、repair、能力澄清和 `grid_mismatch` gate 的分层测试通过。
 - **边界**：真实模型只在显式 live 路径调用，不进入默认 CI；报告不保存请求全文、模型原文、密钥、原始数据或宿主路径。默认 Docker 测试保持 quick/stage/smoke 分层。
 - **结论**：Planner/Runtime、ToolRegistry、Domain Pack、结构化契约、统一生命周期、跨入口恢复、动态前端、通用能力扩展和风险分层测试均已达到当前 Goal 的验收要求。后续功能扩展应创建新 Goal，避免在本 Goal 中继续堆叠领域细节。
+
+## Console 自动领域会话入口与全量清理缺失
+
+- **现象**：自动领域尚未绑定时，“新建会话”被初始化逻辑禁用；页面没有“清空全部对话”入口；切换本地草稿会话时可能误请求 `/domains/auto/...`。
+- **根因**：会话按钮状态只按“已绑定真实 Domain”判断，未把未绑定状态视为可操作的本地草稿；前端只实现了当前会话的 clear，没有统一遍历 Domain 会话并删除的动作；会话切换始终进入持久化恢复路径。
+- **诊断**：浏览器 smoke 先清除自动路由 localStorage 和旧 session 选项，再断言新建按钮可用、会话选项增加并切换；随后只清理 smoke 自己创建的本地草稿，检查消息和结果工作区重置。避免默认 smoke 调用全量删除 API。
+- **修复**：未绑定自动领域使用本地 draft session；已绑定领域通过当前 Domain 的 `/sessions` 创建持久会话；新增带确认的“清空全部对话”，固定领域清理当前 Domain，自动领域遍历注册 Domain，并在失败时保留结构化错误摘要；清理后重置 renderer、证据、轨迹和会话选择并创建一个空白会话。
+- **布局调整**：将“准备好执行任务”改为紧凑状态条，标题与决策状态并排；桌面右侧对话工作区使用更宽的列和按视口高度的长面板，输入区保持在底部；移动端保留原有单列规则。
+- **预防**：会话 smoke 不得依赖浏览器残留绑定，也不得默认删除真实持久会话；全量清理动作必须有用户确认、逐项失败汇总和可用空白会话；UI 尺寸回归同时检查顶部状态卡上限和对话面板最小高度。
