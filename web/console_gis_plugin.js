@@ -17,6 +17,7 @@
     };
     const leaflet = () => options.leaflet || (typeof globalThis !== "undefined" ? globalThis.L : null);
     const selectionTarget = () => typeof options.selectionTarget === "function" ? options.selectionTarget() : options.selectionTarget;
+    const summaryTarget = () => typeof options.summaryTarget === "function" ? options.summaryTarget() : options.summaryTarget;
     const useSelectionButton = () => typeof options.useSelectionButton === "function" ? options.useSelectionButton() : options.useSelectionButton;
     let map = null;
     let selected = {};
@@ -30,8 +31,10 @@
       destroyMap();
       selected = {};
       const label = selectionTarget();
+      const summary = summaryTarget();
       const button = useSelectionButton();
       if (label) label.textContent = "点击可视化要素后，可将其作为下一次请求的领域上下文。";
+      if (summary) summary.textContent = "交互式地图";
       if (button) button.disabled = true;
     }
 
@@ -60,8 +63,10 @@
         geometry_available: Boolean(feature?.geometry),
       };
       const label = selectionTarget();
+      const summary = summaryTarget();
       const button = useSelectionButton();
       if (label) label.textContent = adminName ? "已选中：" + adminName + " · " + (selected.crs || "未知 CRS") : "已选中空间要素，但缺少可绑定的区域名称。";
+      if (summary && adminName) summary.textContent = "已选中 · " + adminName;
       if (button) button.disabled = !adminName;
       if (typeof options.onSelection === "function") options.onSelection(Object.assign({}, selected));
     }
@@ -72,6 +77,8 @@
       if (!target) return {visible: false};
       if (view.mode === "raster_bounds") {
         renderRasterBounds(target, view, escapeHtml);
+        const summary = summaryTarget();
+        if (summary) summary.textContent = "栅格范围 · " + (view.dataset || "当前数据");
         return {visible: true};
       }
       if (view.mode !== "geojson") {
@@ -81,6 +88,9 @@
       try {
         const geojson = view.geojson || await fetchJson(artifactPath(contextValue.run, view));
         if (!contextValue.isCurrent()) return {visible: false};
+        const summary = summaryTarget();
+        const count = Array.isArray(geojson?.features) ? geojson.features.length : 0;
+        if (summary) summary.textContent = "空间图层 · " + count + " 个要素";
         renderGeoJSON(target, geojson, {leaflet: leaflet(), escapeHtml, destroyMap, setMap: value => { map = value; }, selectFeature});
       } catch (error) {
         if (!contextValue.isCurrent()) return {visible: false};
@@ -115,8 +125,8 @@
     const y = height >= width ? 12 : 12 + (1 - width / (height || 1)) * 118;
     const w = width >= height ? 476 : Math.max(8, 476 * width / (height || 1));
     const h = height >= width ? 236 : Math.max(8, 236 * height / (width || 1));
-    target.innerHTML = '<svg viewBox="0 0 500 260" role="img" aria-label="栅格覆盖范围预览"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="6" fill="#b8d9cf" stroke="#087f8c" stroke-width="2"></rect><text x="250" y="244" text-anchor="middle" fill="#53656b" font-size="12">'
-      + escapeHtml(result.dataset || "栅格") + " · " + escapeHtml(result.crs || "未知 CRS") + '</text></svg>';
+    target.innerHTML = '<div class="raster-map-fallback"><svg viewBox="0 0 500 260" role="img" aria-label="栅格覆盖范围预览"><defs><pattern id="rasterGrid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" fill="none" stroke="#c4b5fd" stroke-width=".7" opacity=".55"></path></pattern></defs><rect width="500" height="260" fill="#f5f3ff"></rect><rect width="500" height="260" fill="url(#rasterGrid)"></rect><line x1="250" y1="26" x2="250" y2="238" stroke="#a78bfa" stroke-dasharray="3 5" opacity=".45"></line><line x1="18" y1="132" x2="482" y2="132" stroke="#a78bfa" stroke-dasharray="3 5" opacity=".45"></line><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="8" fill="#c4b5fd" fill-opacity=".48" stroke="#7c3aed" stroke-width="2.4"></rect><text x="18" y="24" fill="#5b21b6" font-size="12" font-weight="700">栅格覆盖范围</text><text x="250" y="247" text-anchor="middle" fill="#475569" font-size="12">'
+      + escapeHtml(result.dataset || "栅格") + " · " + escapeHtml(result.crs || "未知 CRS") + '</text></svg></div>';
   }
 
   function renderGeoJSON(target, geojson, helpers) {
@@ -132,9 +142,10 @@
       target.innerHTML = '<div id="leafletMap" aria-label="交互式空间预览"></div>';
       const map = helpers.leaflet.map("leafletMap", {zoomControl: true, attributionControl: true});
       helpers.setMap(map);
-      if (hasOverviewLayers) renderOverviewLayers(map, all, helpers);
-      else renderCandidateLayers(map, all, helpers);
+      const layers = hasOverviewLayers ? renderOverviewLayers(map, all, helpers) : renderCandidateLayers(map, all, helpers);
       appendHtml(target, mapLegendEntries(all, escapeHtml));
+      appendHtml(target, mapOverlay(all, escapeHtml));
+      mapToolbar(map, layers, helpers.leaflet, target);
       setTimeout(() => map.invalidateSize(), 0);
       return;
     }
@@ -143,12 +154,25 @@
 
   function popup(feature, escapeHtml) {
     const props = feature.properties || {};
-    return Object.keys(props).filter(key => key !== "geometry_source_crs").slice(0, 8).map(key => '<div><b>' + escapeHtml(key) + '</b>：' + escapeHtml(props[key]) + '</div>').join("") || "无属性信息";
+    const labels = {name: "名称", admin_name: "行政区", area_name: "区域", dataset: "数据集", geometry_source: "几何来源", geometry_crs: "坐标系", class: "类别", land_use: "土地利用", slope_max: "最大坡度", distance_to_road: "距道路"};
+    const value = item => typeof item === "object" ? JSON.stringify(item) : item;
+    return Object.keys(props).filter(key => key !== "geometry_source_crs" && !key.startsWith("_")).slice(0, 8).map(key => '<div><b>' + escapeHtml(labels[key] || key) + '</b>：' + escapeHtml(value(props[key])) + '</div>').join("") || "无属性信息";
   }
 
-  function selectable(kind, feature, layer, helpers) {
-    layer.on("click", () => helpers.selectFeature(feature));
-    layer.bindPopup("<strong>" + kind + "</strong><br>" + popup(feature, helpers.escapeHtml));
+  function featureLabel(kind, feature) {
+    const props = feature?.properties || {};
+    return props.name || props.admin_name || props.area_name || ({roads: "道路", water: "水体"}[props.dataset] || kind || "空间要素");
+  }
+
+  function selectable(kind, feature, layer, helpers, style = {}) {
+    const label = featureLabel(kind, feature);
+    if (typeof layer.on === "function") {
+      layer.on("click", () => helpers.selectFeature(feature));
+      layer.on("mouseover", () => layer.setStyle?.({weight: (style.weight || 1) + 1, fillOpacity: Math.min(.78, (style.fillOpacity || .08) + .16), opacity: 1}));
+      layer.on("mouseout", () => layer.setStyle?.(style));
+    }
+    if (typeof layer.bindTooltip === "function") layer.bindTooltip(label, {sticky: true, direction: "top", opacity: .92});
+    if (typeof layer.bindPopup === "function") layer.bindPopup("<strong>" + helpers.escapeHtml(label) + "</strong><br>" + popup(feature, helpers.escapeHtml));
   }
 
   function mapLegendEntries(features, escapeHtml) {
@@ -167,6 +191,33 @@
     else target.innerHTML += html;
   }
 
+  function mapOverlay(features, escapeHtml) {
+    return '<div class="map-overlay-note"><strong>空间预览</strong> · ' + escapeHtml(features.length) + ' 个要素 · 悬停查看名称</div>';
+  }
+
+  function mapToolbar(map, layers, L, target) {
+    if (L.control && typeof L.control.scale === "function") L.control.scale({imperial: false, position: "bottomright"}).addTo(map);
+    appendHtml(target, '<div class="map-command"><button type="button" data-map-fit aria-label="适合所有空间要素">适合视图</button></div>');
+    const button = target.querySelector?.("[data-map-fit]");
+    if (button) button.addEventListener("click", () => fitLayers(map, layers, L));
+  }
+
+  function addBaseLayers(map, layers, L) {
+    const vectorOnly = L.layerGroup();
+    const openStreetMap = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "&copy; OpenStreetMap"});
+    let tileErrors = 0;
+    if (typeof openStreetMap.on === "function") openStreetMap.on("tileerror", () => {
+      tileErrors += 1;
+      if (tileErrors >= 3 && map.hasLayer?.(openStreetMap)) {
+        map.removeLayer(openStreetMap);
+        vectorOnly.addTo(map);
+      }
+    });
+    if (L.control && typeof L.control.layers === "function") L.control.layers({"OpenStreetMap": openStreetMap, "纯矢量": vectorOnly}, layers, {collapsed: false, position: "topright"}).addTo(map);
+    openStreetMap.addTo(map);
+    return vectorOnly;
+  }
+
   function renderOverviewLayers(map, all, helpers) {
     const L = helpers.leaflet, props = feature => feature.properties || {};
     const groups = {
@@ -176,18 +227,16 @@
     };
     const claimed = new Set([...groups.boundary, ...groups.roads, ...groups.water]);
     groups.other = all.filter(feature => !claimed.has(feature));
-    const make = (items, style, kind) => L.geoJSON({type: "FeatureCollection", features: items}, {style, onEachFeature: (feature, layer) => selectable(kind, feature, layer, helpers)});
+    const make = (items, style, kind) => L.geoJSON({type: "FeatureCollection", features: items}, {style, onEachFeature: (feature, layer) => selectable(kind, feature, layer, helpers, style)});
     const layers = {};
     if (groups.boundary.length) layers["行政区边界"] = make(groups.boundary, {color: "#087f8c", weight: 2.5, fillColor: "#87c7d1", fillOpacity: .28}, "行政区边界");
     if (groups.roads.length) layers["道路"] = make(groups.roads, {color: "#d97706", weight: 1.2, opacity: .85}, "道路");
     if (groups.water.length) layers["水体"] = make(groups.water, {color: "#2563eb", weight: 1.5, fillColor: "#60a5fa", fillOpacity: .35}, "水体");
     if (groups.other.length) layers["空间要素"] = make(groups.other, {color: "#64748b", weight: 1, fillOpacity: .35}, "空间要素");
-    const vectorOnly = L.layerGroup();
-    const openStreetMap = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "&copy; OpenStreetMap"});
-    L.control.layers({"纯矢量": vectorOnly, "OpenStreetMap": openStreetMap}, layers, {collapsed: false, position: "topright"}).addTo(map);
-    vectorOnly.addTo(map);
+    addBaseLayers(map, layers, L);
     Object.values(layers).forEach(layer => layer.addTo(map));
     fitLayers(map, layers, L);
+    return layers;
   }
 
   function renderCandidateLayers(map, all, helpers) {
@@ -195,16 +244,14 @@
     const boundary = all.filter(feature => props(feature).geometry_source === "geojson");
     const candidates = all.filter(feature => props(feature).geometry_source === "raster-buildability-screening");
     const remainder = all.filter(feature => !boundary.includes(feature));
-    const make = (items, style, kind) => L.geoJSON({type: "FeatureCollection", features: items}, {style, onEachFeature: (feature, layer) => selectable(kind, feature, layer, helpers)});
+    const make = (items, style, kind) => L.geoJSON({type: "FeatureCollection", features: items}, {style, onEachFeature: (feature, layer) => selectable(kind, feature, layer, helpers, style)});
     const layers = {};
     if (boundary.length) layers["行政区边界"] = make(boundary, {color: "#087f8c", weight: 2.5, fillColor: "#87c7d1", fillOpacity: .28}, "行政区边界");
     layers[candidates.length ? "建设候选区域" : "空间要素"] = make(candidates.length ? candidates : remainder, {color: "#a6622b", weight: 1, fillColor: "#e09a5b", fillOpacity: .78}, "空间候选要素");
-    const vectorOnly = L.layerGroup();
-    const openStreetMap = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "&copy; OpenStreetMap"});
-    L.control.layers({"纯矢量": vectorOnly, "OpenStreetMap": openStreetMap}, layers, {collapsed: false, position: "topright"}).addTo(map);
-    vectorOnly.addTo(map);
+    addBaseLayers(map, layers, L);
     Object.values(layers).forEach(layer => layer.addTo(map));
     fitLayers(map, layers, L);
+    return layers;
   }
 
   function fitLayers(map, layers, L) {
@@ -264,6 +311,7 @@
     const paths = selected.map((feature, index) => { const style = styles(feature); return '<path data-feature-index="' + index + '" tabindex="0" d="' + path(feature) + '" fill="' + style.fill + '" stroke="' + style.stroke + '" stroke-width="' + style.width + '" opacity="' + style.opacity + '"></path>'; }).join("");
     target.innerHTML = '<svg viewBox="0 0 500 260" role="img" aria-label="GeoJSON 空间预览"><rect width="500" height="260" fill="#edf3f1"></rect>' + paths
       + '<text x="12" y="22" fill="#176a49" font-size="12">空间要素 · ' + selected.length + ' 个</text></svg>';
+    appendHtml(target, mapOverlay(selected, escapeHtml));
     appendHtml(target, mapLegendEntries(selected, escapeHtml));
     if (typeof target.querySelectorAll !== "function") return;
     target.querySelectorAll("path[data-feature-index]").forEach(element => {
