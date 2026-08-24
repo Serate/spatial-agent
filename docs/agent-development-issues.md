@@ -632,3 +632,11 @@
 - **诊断**：除成功请求外，必须运行能力澄清、计划拒绝、工具失败和 answer fallback；搜索原模块中所有被迁移函数引用的 helper，逐一判断是 canonical import、Runtime wrapper 还是应删除的死代码。
 - **修复**：新增 `runtime_core.plan_evidence` canonical projection，Runtime 保留 `_build_plan_evidence` facade，并从 projection 显式导入 answer degradation helper；plan evidence 内部只使用自己的 canonical projection imports。
 - **预防**：大函数迁移使用“调用图闭包”清单，不只复制函数体；架构收敛验收必须同时通过成功与降级路径，静态行数下降不能替代行为验证。
+
+## M260-A Service catalog seam 迁移后的运行时选择兼容
+
+- **现象**：将 Service 的 capability、workflow、action、runtime/release evidence 和动态工具逻辑移动到 `CatalogApplication` 后，若直接在新模块捕获 `build_runtime_context_snapshot`，历史测试对 `agent.service.build_runtime_context_snapshot` 的 patch 会失效；异步提交仍可能意外初始化真实 GIS 后端。
+- **根因**：异步入口需要在提交阶段获取轻量 runtime context，但自定义 Runtime factory、默认 factory 和 Domain Pack 的快照路径不同；同时旧 Service facade 是既有测试与 HTTP/Async application 的兼容 seam，不能把模块级可替换点悄悄改成导入时固定的函数对象。
+- **诊断**：分别验证默认 Domain、显式 Text/Indicators Domain、自定义 Runtime factory 和异步提交；检查提交响应是否在 worker 运行前返回、context 是否绑定 planner/backend/domain，以及 patch Service 入口后是否仍能观测快照调用。不要只验证 `CatalogApplication` 能被 import。
+- **修复**：让 `CatalogApplication` 接收 runtime context snapshot builder；Service 传入运行时查找的 lambda，使旧 `agent.service.build_runtime_context_snapshot` patch 继续有效。Runtime selection、workflow normalization 和 dynamic tool registry 全部只在 catalog seam 实现，Service 仅保留单向 wrapper。
+- **预防**：应用层拆分时保留“构造时依赖”和“调用时可替换点”的清单；涉及异步、Domain factory 或测试 patch 的 helper 必须注入 callable，不能在新模块中复制一份全局策略。每个 catalog seam 至少跑跨 Domain、动态工具、runtime context、异步提交和自定义 factory 回归。

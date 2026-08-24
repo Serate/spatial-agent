@@ -65,6 +65,7 @@ from agent.application.decisions import DecisionApplication
 from agent.application.interactions import InteractionApplication
 from agent.application.sessions import SessionApplication
 from agent.application.async_runs import AsyncApplication
+from agent.application.catalog import CatalogApplication
 
 
 _TERMINAL_RUN_STATUSES = {
@@ -172,6 +173,16 @@ class AgentService:
             runtime_factory=self._runtime_factory,
             domain_id=self._configured_domain_id,
             legacy_domain_id=self._legacy_domain_id,
+        )
+        self._catalog_application = CatalogApplication(
+            state=self._state,
+            runtime_factory=self._runtime_factory,
+            configured_domain_id=self._configured_domain_id,
+            configured_domain_pack=self._configured_domain_pack,
+            resolved_domain_id=self._resolved_domain_id,
+            runtime_context_snapshot=lambda planner, backend, **kwargs: build_runtime_context_snapshot(
+                planner, backend, **kwargs
+            ),
         )
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(
@@ -1215,7 +1226,7 @@ class AgentService:
         backend: str = "memory",
     ) -> Dict[str, Any]:
         """Return the capability catalog owned by the selected Domain Pack."""
-        return self._runtime(planner, backend).capability_catalog()
+        return self._catalog_application.capabilities(planner, backend)
 
     def workflow_contract(
         self,
@@ -1223,26 +1234,11 @@ class AgentService:
         backend: str = "memory",
     ) -> Dict[str, Any]:
         """Return the selected Domain's workflow catalog and validator inputs."""
-        runtime = self._runtime(planner, backend)
-        resolver = getattr(runtime, "workflow_contract", None)
-        if not callable(resolver):
-            return {
-                "domain_id": self._domain_id(planner, backend),
-                "catalog": {},
-                "known_tools": [],
-                "known_result_types": [],
-            }
-        value = resolver()
-        return dict(value) if isinstance(value, Mapping) else {
-            "domain_id": self._domain_id(planner, backend),
-            "catalog": {},
-            "known_tools": [],
-            "known_result_types": [],
-        }
+        return self._catalog_application.workflow_contract(planner, backend)
 
     def domains(self) -> Dict[str, Any]:
         """Return the bounded deployment Domain Registry catalog."""
-        return domain_registry().catalog()
+        return self._catalog_application.domains()
 
     def actions(
         self,
@@ -1250,20 +1246,7 @@ class AgentService:
         backend: str = "memory",
     ) -> Dict[str, Any]:
         """Return the bounded actions declared by the selected Domain Pack."""
-        runtime = self._runtime(planner, backend)
-        resolver = getattr(runtime, "domain_actions", None)
-        if not callable(resolver):
-            return {
-                "schema_version": "spatial-agent.actions.v1",
-                "domain_id": "unknown",
-                "actions": [],
-            }
-        value = resolver()
-        return dict(value) if isinstance(value, dict) else {
-            "schema_version": "spatial-agent.actions.v1",
-            "domain_id": "unknown",
-            "actions": [],
-        }
+        return self._catalog_application.actions(planner, backend)
 
     def execute_action(
         self,
@@ -1297,8 +1280,8 @@ class AgentService:
         backend: str = "memory",
     ) -> Dict[str, Any]:
         """Return generic runtime evidence from the selected Domain Pack."""
-        return self._runtime(planner, backend).runtime_capabilities(
-            max_files=max_files
+        return self._catalog_application.runtime_capabilities(
+            max_files=max_files, planner=planner, backend=backend
         )
 
     def release_evidence(
@@ -1309,9 +1292,11 @@ class AgentService:
         backend: str = "local",
     ) -> Dict[str, Any]:
         """Return release evidence from the selected Domain Pack."""
-        return self._runtime(planner, backend).release_evidence(
+        return self._catalog_application.release_evidence(
             config_path=config_path,
             max_files=max_files,
+            planner=planner,
+            backend=backend,
         )
 
     def close(self) -> None:
@@ -1362,28 +1347,10 @@ class AgentService:
         handler,
     ) -> Dict:
         """Register one dynamic tool on every live runtime (M81.2)."""
-        if not isinstance(definition, dict):
-            raise ValueError("definition must be an object")
-        registered = None
-        for runtime in self._state.runtimes().values():
-            registry = getattr(runtime, "_registry", None)
-            if registry is not None and hasattr(registry, "register_tool"):
-                registered = registry.register_tool(name, definition, handler)
-        if registered is None:
-            # No runtime built yet; register lazily by touching the default one.
-            runtime = self._runtime("rule", "memory")
-            registered = runtime._registry.register_tool(name, definition, handler)
-        return registered
+        return self._catalog_application.register_tool(name, definition, handler)
 
     def list_dynamic_tools(self) -> Dict:
-        tools = []
-        for runtime in self._state.runtimes().values():
-            registry = getattr(runtime, "_registry", None)
-            if registry is not None and hasattr(registry, "dynamic_tools"):
-                for item in registry.dynamic_tools():
-                    if item not in tools:
-                        tools.append(item)
-        return {"dynamic_tools": tools, "count": len(tools)}
+        return self._catalog_application.list_dynamic_tools()
 
     @staticmethod
     def estimate_area_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -1549,10 +1516,8 @@ class AgentService:
         }
 
     def _runtime(self, planner: str, backend: str):
-        runtime = self._state.runtime(planner, backend)
-        runtime_domain_id = getattr(runtime, "domain_id", None)
-        if runtime_domain_id:
-            self._resolved_domain_id = str(runtime_domain_id)[:80]
+        runtime = self._catalog_application.runtime(planner, backend)
+        self._resolved_domain_id = self._catalog_application.resolved_domain_id()
         return runtime
 
     def _normalize_workflow_payload(
@@ -1561,70 +1526,20 @@ class AgentService:
         planner: str,
         backend: str,
     ) -> Dict[str, Any] | None:
-        """Use the selected Domain Pack for explicit workflow normalization.
-
-        The historical GIS normalizer remains only as a compatibility
-        fallback for custom/legacy packs. Built-in Domains own their workflow
-        schema, so HTTP, async and interaction entry points cannot silently
-        import GIS templates for a non-GIS request.
-        """
-        if workflow is None:
-            return None
-        runtime = self._runtime(planner, backend)
-        domain_pack = getattr(runtime, "_domain_pack", None)
-        normalizer = getattr(domain_pack, "normalize_workflow", None)
-        if callable(normalizer):
-            value = normalizer(workflow)
-            if not isinstance(value, dict):
-                value = dict(value) if isinstance(value, Mapping) else None
-            if value is None:
-                raise ValueError("Domain workflow normalizer must return an object")
-            return value
-        return _normalize_workflow_payload(workflow)
+        return self._catalog_application.normalize_workflow(
+            workflow, planner, backend
+        )
 
     def _runtime_context(self, planner: str, backend: str) -> Optional[Dict[str, Any]]:
-        runtime = self._runtime(planner, backend)
-        builder = getattr(runtime, "runtime_context", None)
-        value = builder() if callable(builder) else None
-        return dict(value) if isinstance(value, dict) else None
+        return self._catalog_application.runtime_context(planner, backend)
 
     def _submission_runtime_context(
         self, planner: str, backend: str
     ) -> Optional[Dict[str, Any]]:
-        """Build a context snapshot without blocking async submission."""
-        if self._configured_domain_id or self._runtime_factory is build_runtime:
-            return build_runtime_context_snapshot(
-                planner,
-                backend,
-                domain_pack=self._configured_domain_pack,
-                domain_id=(
-                    None
-                    if self._configured_domain_pack is not None
-                    else self._configured_domain_id
-                ),
-            )
-        runtimes = self._state.runtimes()
-        # ServiceState caches runtimes by the validated `(planner, backend)`
-        # tuple.  Looking up a string key silently dropped the context for
-        # custom factories, causing async polling to rebuild the default
-        # rule/memory Runtime and fail before the first HTTP response.
-        runtime = runtimes.get((str(planner), str(backend)))
-        if runtime is None:
-            # Keep compatibility with any legacy state facade that exposed
-            # string keys while making the tuple key the canonical path.
-            runtime = runtimes.get(str(planner) + ":" + str(backend))
-        builder = getattr(runtime, "runtime_context", None) if runtime else None
-        value = builder() if callable(builder) else None
-        return dict(value) if isinstance(value, dict) else None
+        return self._catalog_application.submission_runtime_context(planner, backend)
 
     def _domain_id(self, planner: str, backend: str) -> str:
-        """Return the service's selected domain, resolving custom factories lazily."""
-        if self._resolved_domain_id:
-            return self._resolved_domain_id
-        runtime = self._runtime(planner, backend)
-        return self._resolved_domain_id or str(
-            getattr(runtime, "domain_id", "unknown")
-        )[:80]
+        return self._catalog_application.domain_id(planner, backend)
 
     def _reject_cross_domain_run_id(self, run_id: str, domain_id: str) -> None:
         """Never overwrite a durable run owned by another Domain Pack."""
