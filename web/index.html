@@ -976,6 +976,8 @@
     /* ---------- Desktop workspace ---------- */
     @media (min-width: 901px) {
       main { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 22px 24px 44px; }
+      .content > .hero { grid-column: 1; grid-row: 1; }
+      .content > .chat { grid-column: 2; grid-row: 1 / span 2; height: clamp(560px, calc(100vh - 120px), 820px); }
       .chat-settings {
         padding: 8px 12px;
         border: 0;
