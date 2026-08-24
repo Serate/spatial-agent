@@ -1,6 +1,5 @@
 import os
 import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Mapping, Optional
 
@@ -42,18 +41,8 @@ from result_contract import (
 )
 
 from agent.service_async import (
-    build_async_observability as _build_async_observability,
-    build_async_result_evidence as _build_async_result_evidence,
-    normalize_async_result_evidence as _normalize_async_result_evidence,
-    unavailable_async_result_evidence as _unavailable_async_result_evidence,
-    async_event as _async_event,
-    async_fingerprint as _async_fingerprint,
-    async_response as _async_response,
-    async_status as _async_status,
     async_worker_count as _async_worker_count,
-    duration_summary as _duration_summary,
-    failure_category_for as _failure_category,
-    process_is_alive as _process_is_alive,
+    process_is_alive as _process_is_alive,  # legacy patch/import seam
 )
 from agent.service_format import (
     _attach_error_category,
@@ -67,7 +56,6 @@ from agent.service_format import (
     tag_geometry_features as _tag_geometry_features,
 )
 from agent.service_sessions import (
-    async_job_payload as _async_job_payload,
     attach_history_lineage as _attach_history_lineage,
     dedupe_run_records as _dedupe_run_records,
     validate_session_id as _validate_session_id,
@@ -77,6 +65,7 @@ from agent.application.actions import ActionApplication
 from agent.application.decisions import DecisionApplication
 from agent.application.interactions import InteractionApplication
 from agent.application.sessions import SessionApplication
+from agent.application.async_runs import AsyncApplication
 
 
 _TERMINAL_RUN_STATUSES = {
@@ -246,6 +235,27 @@ class AgentService:
             capability_resolver=self._resolve_interaction_capability,
             request_facts_resolver=self._interaction_request_facts,
         )
+        self._async_application = AsyncApplication(
+            artifact_store=self._artifact_store,
+            state=self._state,
+            runtime_provider=self._runtime,
+            memory_result_provider=self._memory_run,
+            # Resolve the facade method at worker time.  Besides preserving
+            # the compatibility seam, this keeps test/custom adapters that
+            # patch ``AgentService.run`` observable to the worker.
+            run_provider=lambda **kwargs: self.run(**kwargs),
+            domain_id_provider=self._domain_id,
+            resolved_domain_id=lambda: self._resolved_domain_id,
+            configured_domain_id=lambda: self._configured_domain_id,
+            normalize_workflow=self._normalize_workflow_payload,
+            submission_runtime_context=self._submission_runtime_context,
+            runtime_context_provider=self._runtime_context,
+            process_is_alive=lambda pid: _process_is_alive(pid),
+            submit_job=lambda function, payload: self._async_executor.submit(
+                function, payload
+            ),
+            worker_count=self._async_worker_count,
+        )
         self._recover_async_jobs()
 
     def start_reaper(self) -> None:
@@ -277,14 +287,6 @@ class AgentService:
     @property
     def _memory_session_lock(self):
         return self._state.session_lock
-
-    @property
-    def _async_jobs(self):
-        return self._state.jobs_view
-
-    @property
-    def _async_lock(self):
-        return self._state.jobs_lock
 
     def run(
         self,
@@ -567,507 +569,22 @@ class AgentService:
         )
 
     def run_async(self, **kwargs) -> Dict:
-        request = kwargs.get("request", "")
-        session_id = kwargs.get("session_id", "default")
-        if not isinstance(request, str) or not request.strip():
-            raise ValueError("request must be a non-empty string")
-        if not isinstance(session_id, str) or not session_id.strip():
-            raise ValueError("session_id must be a non-empty string")
-        kwargs = dict(kwargs)
-        kwargs["workflow"] = self._normalize_workflow_payload(
-            kwargs.get("workflow"),
-            kwargs.get("planner", "rule"),
-            kwargs.get("backend", "memory"),
-        )
-        run_id = kwargs.get("run_id")
-        if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
-            raise ValueError("run_id must be a non-empty string")
-        idempotency_key = kwargs.get("idempotency_key")
-        if idempotency_key is not None and (
-            not isinstance(idempotency_key, str) or not idempotency_key.strip()
-        ):
-            raise ValueError("idempotency_key must be a non-empty string")
-        self._state.cost.check_budget(session_id)
-
-        domain_id = self._domain_id(
-            kwargs.get("planner", "rule"), kwargs.get("backend", "memory")
-        )
-        routing_evidence = (
-            normalize_domain_routing_evidence(
-                kwargs.get("_domain_routing_evidence"),
-                expected_domain_id=domain_id,
-                strict=True,
-            )
-            if kwargs.get("_domain_routing_evidence") is not None
-            else unavailable_domain_routing_evidence()
-        )
-        kwargs["_domain_routing_evidence"] = routing_evidence
-        kwargs["domain_id"] = domain_id
-        kwargs["runtime_context"] = self._submission_runtime_context(
-            kwargs.get("planner", "rule"), kwargs.get("backend", "memory")
-        )
-        job_payload = _async_job_payload(kwargs)
-        if run_id:
-            idempotency_key = idempotency_key or "run_id:" + run_id.strip()
-        else:
-            idempotency_key = idempotency_key or _async_fingerprint(job_payload)
-            run_id = str(uuid.uuid4())
-        job_payload["run_id"] = run_id
-        if routing_evidence.get("available") is True:
-            job_payload["domain_routing_evidence"] = bind_domain_routing_evidence(
-                routing_evidence,
-                run_id=run_id,
-                domain_id=domain_id,
-            )
-
-        early = None  # (run_id, status, reused) built under the lock, responded after it.
-        with self._async_lock:
-            if self._state.persistent:
-                existing_any = self._state.get_run(run_id)
-                if (
-                    existing_any is not None
-                    and (
-                        getattr(existing_any, "domain_id", None)
-                        or self._resolved_domain_id
-                        or self._configured_domain_id
-                        or "gis"
-                    ) != domain_id
-                ):
-                    raise ValueError("run_id belongs to another domain: " + str(run_id))
-                existing_result = self._state.get_run(run_id, domain_id=domain_id)
-                if existing_result is not None and not self._state.async_job(
-                    run_id, domain_id=domain_id
-                ):
-                    if routing_evidence_identity(
-                        getattr(existing_result, "domain_routing_evidence", None)
-                    ) != routing_evidence_identity(
-                        job_payload.get("domain_routing_evidence")
-                    ):
-                        raise DomainRoutingEvidenceError(
-                            "run_id conflicts with domain routing identity",
-                            code="domain_routing_evidence_idempotency_conflict",
-                        )
-                    early = (run_id, existing_result.status.value, True)
-                else:
-                    job = self._state.create_async_job(
-                        idempotency_key, run_id, job_payload
-                    )
-                    created = bool(job.pop("created", False))
-                    if not created:
-                        existing_payload = (
-                            job.get("payload")
-                            if isinstance(job.get("payload"), dict)
-                            else {}
-                        )
-                        existing_domain = (
-                            existing_payload.get("domain_id")
-                            or self._resolved_domain_id
-                            or self._configured_domain_id
-                            or "gis"
-                        )
-                        if existing_domain != domain_id:
-                            raise ValueError(
-                                "idempotency_key belongs to another domain"
-                            )
-                        if routing_evidence_identity(
-                            existing_payload.get("domain_routing_evidence")
-                        ) != routing_evidence_identity(
-                            job_payload.get("domain_routing_evidence")
-                        ):
-                            raise DomainRoutingEvidenceError(
-                                "idempotency_key conflicts with domain routing identity",
-                                code="domain_routing_evidence_idempotency_conflict",
-                            )
-                        self._ensure_async_run_snapshot(job)
-                        early = (job["run_id"], _async_status(self._state_store, job), True)
-                    else:
-                        self._state.save_run(
-                            AgentRunResult(
-                                run_id=run_id,
-                                status=RunStatus.PLANNING,
-                                request=request,
-                                session_id=session_id,
-                                domain_id=domain_id,
-                                domain_routing_evidence=job_payload.get(
-                                    "domain_routing_evidence"
-                                ),
-                                runtime_context=job_payload.get("runtime_context"),
-                                workflow=job_payload.get("workflow"),
-                            )
-                        )
-                        if not self._state.claim_async_job(run_id, os.getpid()):
-                            # Another worker may claim the just-created job between the
-                            # INSERT and this claim. The caller is still the first
-                            # accepted submission, so preserve idempotent=false.
-                            early = (run_id, "QUEUED", False)
-                        else:
-                            self._async_executor.submit(self._run_async_job, job_payload)
-            else:
-                job = self._async_jobs.get(idempotency_key)
-                if job is not None:
-                    existing_payload = (
-                        job.get("payload") if isinstance(job.get("payload"), dict) else {}
-                    )
-                    if routing_evidence_identity(
-                        existing_payload.get("domain_routing_evidence")
-                    ) != routing_evidence_identity(
-                        job_payload.get("domain_routing_evidence")
-                    ):
-                        raise DomainRoutingEvidenceError(
-                            "idempotency_key conflicts with domain routing identity",
-                            code="domain_routing_evidence_idempotency_conflict",
-                        )
-                    early = (job["run_id"], job["status"], True)
-                else:
-                    submitted_at = time.time()
-                    job = {
-                        "run_id": run_id,
-                        "payload": job_payload,
-                        "status": "QUEUED",
-                        "created_at": submitted_at,
-                        "started_at": None,
-                        "finished_at": None,
-                        "queue_wait_ms": None,
-                        "run_duration_ms": None,
-                        "failure_category": None,
-                        "recovery_count": 0,
-                        "cancel_requested_at": None,
-                        "last_event": "submitted",
-                    }
-                    self._async_jobs[idempotency_key] = job
-                    self._async_executor.submit(self._run_async_job, job_payload)
-        if early is not None:
-            # Never respond while holding _async_lock: get_async_observability
-            # re-acquires the same non-reentrant lock and would deadlock on a
-            # duplicate memory-mode submission (production issue found via the
-            # container acceptance chain).
-            return self._async_submission_response(early[0], early[1], early[2])
-        return self._async_submission_response(run_id, "QUEUED", False)
-
-    def _run_async_job(self, job_payload: Dict[str, Any]) -> None:
-        run_id = job_payload["run_id"]
-        kwargs = dict(job_payload)
-        kwargs.pop("run_id", None)
-        domain_id = kwargs.pop("domain_id", None) or self._resolved_domain_id
-        runtime_context = kwargs.pop("runtime_context", None)
-        routing_evidence = kwargs.pop("domain_routing_evidence", None)
-        completed = False
-        failure_category = None
-        self._mark_async_started(run_id)
-        try:
-            if runtime_context is not None:
-                current_context = self._runtime_context(
-                    kwargs.get("planner", "rule"),
-                    kwargs.get("backend", "memory"),
-                )
-                # Legacy/custom Runtime implementations may not expose the
-                # optional Context seam. Preserve their existing async
-                # behavior; strict drift detection applies when both sides
-                # provide a Context snapshot.
-                if current_context is not None:
-                    assert_runtime_context_compatible(runtime_context, current_context)
-            payload = self.run(
-                run_id=run_id,
-                _force_run_id=True,
-                _async_requested=True,
-                _domain_routing_evidence=(
-                    routing_evidence
-                    if isinstance(routing_evidence, Mapping)
-                    and routing_evidence.get("available") is True
-                    else None
-                ),
-                **kwargs,
-            )
-            status = str(payload.get("status") or "FAILED")
-            completed = True
-        except Exception as exc:
-            status = "FAILED"
-            failure_category = _failure_category(status, str(exc), source="worker")
-            if self._state.persistent:
-                result = self._state.get_run(run_id, domain_id=domain_id)
-                if result is None:
-                    result = AgentRunResult(
-                        run_id=run_id,
-                        status=RunStatus.FAILED,
-                        request=str(kwargs.get("request") or ""),
-                        session_id=kwargs.get("session_id"),
-                        domain_id=domain_id,
-                        domain_routing_evidence=job_payload.get(
-                            "domain_routing_evidence"
-                        ),
-                        runtime_context=runtime_context,
-                        error=str(exc),
-                        error_category=failure_category,
-                        error_code=getattr(exc, "code", None),
-                    )
-                elif result.status in {RunStatus.CREATED, RunStatus.PLANNING, RunStatus.EXECUTING}:
-                    result.status = RunStatus.FAILED
-                    result.error = str(exc)
-                    result.error_category = failure_category
-                    result.error_code = getattr(exc, "code", None)
-                result.failure = build_failure_evidence(
-                    status=result.status.value,
-                    category=result.error_category or failure_category,
-                    code=result.error_code,
-                    retryable=getattr(exc, "retryable", None),
-                )
-                self._state.save_run(result)
-        if self._state.persistent and not completed:
-            self._state.finish_async_job(run_id, status, os.getpid(), failure_category)
-        elif not self._state.persistent:
-            self._finish_memory_async_job(run_id, status, failure_category)
+        return self._async_application.submit(**kwargs)
 
     def _finalize_async_job(self, payload: Dict[str, Any]) -> None:
-        run_id = payload.get("run_id")
-        status = str(payload.get("status") or "FAILED")
-        failure_category = _failure_category(status, payload.get("error"))
-        if not self._state.persistent:
-            self._finish_memory_async_job(run_id, status, failure_category)
-            return
-        job = self._state.async_job(run_id, domain_id=self._resolved_domain_id)
-        if job and job.get("owner_pid") == os.getpid():
-            self._state.finish_async_job(
-                run_id, status, os.getpid(), failure_category
-            )
+        self._async_application.finalize_job(payload)
 
     def _recover_async_jobs(self) -> None:
-        if not self._state.persistent:
-            return
-        for job in self._state.recover_async_jobs(
-            os.getpid(), domain_id=self._configured_domain_id
-        ):
-            run_id = job["run_id"]
-            owner_pid = job.get("owner_pid")
-            if owner_pid and owner_pid != os.getpid() and _process_is_alive(owner_pid):
-                continue
-            if not self._state.claim_async_job(
-                run_id,
-                os.getpid(),
-                recover=True,
-                previous_owner_pid=owner_pid,
-            ):
-                continue
-            self._async_executor.submit(self._run_async_job, job["payload"])
-
-    def _ensure_async_run_snapshot(self, job: Dict[str, Any]) -> None:
-        """Close the idempotent-submit window before a caller starts polling."""
-        if not self._state.persistent or not isinstance(job, dict):
-            return
-        if str(job.get("status") or "") not in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"}:
-            return
-        payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
-        self._state.ensure_run_snapshot(
-            AgentRunResult(
-                run_id=str(job.get("run_id") or ""),
-                status=RunStatus.PLANNING,
-                request=str(payload.get("request") or ""),
-                session_id=payload.get("session_id"),
-                domain_id=(
-                    payload.get("domain_id")
-                    or self._resolved_domain_id
-                    or self._configured_domain_id
-                    or "gis"
-                ),
-                domain_routing_evidence=payload.get("domain_routing_evidence"),
-                runtime_context=payload.get("runtime_context"),
-                workflow=payload.get("workflow"),
-            )
-        )
-
-    def _mark_async_started(self, run_id: str) -> None:
-        """SQLite claims record the start atomically; memory mode needs the same data."""
-        if self._state.persistent:
-            return
-        now = time.time()
-        with self._async_lock:
-            for job in self._async_jobs.values():
-                if job.get("run_id") != run_id:
-                    continue
-                job["status"] = "RUNNING"
-                job["started_at"] = job.get("started_at") or now
-                if job.get("queue_wait_ms") is None:
-                    job["queue_wait_ms"] = max(0, (now - job["created_at"]) * 1000)
-                job["last_event"] = "started"
-                return
-
-    def _finish_memory_async_job(
-        self, run_id: str, status: str, failure_category: str = None
-    ) -> None:
-        finished_at = time.time()
-        with self._async_lock:
-            for job in self._async_jobs.values():
-                if job.get("run_id") != run_id:
-                    continue
-                job["status"] = status
-                job["finished_at"] = finished_at
-                started_at = job.get("started_at")
-                if started_at is not None:
-                    job["run_duration_ms"] = max(0, (finished_at - started_at) * 1000)
-                job["failure_category"] = failure_category
-                job["last_event"] = _async_event(status)
-                return
-
-    def _artifact_async_observability(self, run_id: str) -> Optional[Dict[str, Any]]:
-        """Rebuild async evidence when the SQLite job row is unavailable.
-
-        Only artifacts explicitly marked as async (or carrying the new
-        evidence field) enter this path.  That keeps synchronous run artifacts
-        from unexpectedly gaining an async polling payload while allowing a
-        partially written/legacy async artifact to report an explicit
-        unavailable/unknown evidence state.
-        """
-        artifact = self._artifact_store.read_run(
-            run_id, domain_id=self._resolved_domain_id
-        )
-        if not isinstance(artifact, dict):
-            return None
-        is_async = bool(
-            artifact.get("async_requested")
-            or "async_result_evidence" in artifact
-            or isinstance(artifact.get("async_observability"), dict)
-        )
-        if not is_async:
-            return None
-        status = str(artifact.get("status") or "UNKNOWN")[:32]
-        evidence = artifact.get("async_result_evidence")
-        if evidence is None and isinstance(artifact.get("async_observability"), dict):
-            # Accept the transitional nested shape used by early async
-            # artifacts while keeping the persisted projection flat going
-            # forward.
-            evidence = artifact["async_observability"].get("result_evidence")
-        if evidence is None:
-            evidence = _unavailable_async_result_evidence(
-                status=status,
-                artifact_ref=artifact.get("artifact_ref"),
-            )
-        else:
-            evidence = _normalize_async_result_evidence(
-                evidence,
-                status=status,
-                artifact_ref=artifact.get("artifact_ref"),
-            )
-        artifact_registry = normalize_evidence_registry(
-            artifact.get("evidence_registry")
-        )
-        if artifact_registry.get("available") and not (
-            isinstance(evidence.get("evidence_registry"), dict)
-            and evidence["evidence_registry"].get("available")
-        ):
-            # A partially-written/legacy async projection can omit the
-            # registry even though the run artifact already has the final
-            # result index. Reuse that bounded source rather than guessing
-            # from result_type or discarding the evidence.
-            evidence["evidence_registry"] = artifact_registry
-        return _build_async_observability(
-            {
-                "run_id": run_id,
-                "status": status,
-                "payload": {},
-                "recovery_count": 1,
-                "last_event": "artifact_recovered",
-            },
-            result_evidence=evidence,
-        )
+        return self._async_application.recover()
 
     def get_async_observability(self, run_id: str) -> Dict[str, Any]:
-        """Return a bounded lifecycle summary with no request or error text."""
-        if not isinstance(run_id, str) or not run_id.strip():
-            raise ValueError("run_id must be a non-empty string")
-        job = (
-            self._state.async_job(run_id, domain_id=self._resolved_domain_id)
-            if self._state.persistent
-            else None
-        )
-        if job is None:
-            with self._async_lock:
-                job = next(
-                    (item for item in self._async_jobs.values() if item.get("run_id") == run_id),
-                    None,
-                )
-        if job is None:
-            artifact_observation = self._artifact_async_observability(run_id)
-            if artifact_observation is not None:
-                return artifact_observation
-            raise ValueError("async run not found: " + run_id)
-        result = (
-            self._state.get_run(run_id, domain_id=self._resolved_domain_id)
-            if self._state.persistent
-            else self._memory_run(run_id)
-        )
-        lineage = None
-        result_evidence = None
-        if result is not None:
-            result_payload = result.to_dict()
-            # The runtime result snapshot does not own the request's
-            # transport context.  Reuse the persisted submission payload so
-            # rebuilding the result contract for async polling hashes the
-            # same semantic request as the synchronous/artifact path.
-            submitted_payload = job.get("payload")
-            if isinstance(submitted_payload, dict) and "spatial_context" in submitted_payload:
-                result_payload["spatial_context"] = submitted_payload.get(
-                    "spatial_context"
-                )
-            explicit_geometry = result_payload.pop("geometry_evidence", None)
-            if explicit_geometry is not None:
-                result_payload["_geometry_evidence"] = explicit_geometry
-            result_payload["trace_summary"] = format_trace(result)
-            lineage = build_lineage_index(result_payload)
-            context = result_payload.get("runtime_context")
-            planner = context.get("planner", "rule") if isinstance(context, dict) else "rule"
-            backend = context.get("backend", "memory") if isinstance(context, dict) else "memory"
-            runtime = self._runtime(planner, backend)
-            result_payload["result_type"] = _result_type(result_payload)
-            result_contract = build_result_contract(
-                result_payload,
-                registry=_runtime_result_registry(runtime),
-            )
-            artifact_ref = result_payload.get("artifact_ref")
-            if not artifact_ref and self._artifact_store is not None:
-                # SQLite snapshots can become visible just before the final
-                # artifact_ref column is refreshed.  The artifact itself is
-                # the durable source of truth for this bounded evidence; use
-                # only its safe reference, never its contents.
-                artifact = self._artifact_store.read_run(
-                    run_id, domain_id=self._resolved_domain_id
-                )
-                if isinstance(artifact, dict):
-                    artifact_ref = artifact.get("artifact_ref")
-            result_evidence = _build_async_result_evidence(
-                result_contract,
-                status=result.status.value,
-                artifact_ref=artifact_ref,
-            )
-        return _build_async_observability(
-            job,
-            result,
-            lineage=lineage,
-            result_evidence=result_evidence,
-        )
-
-    def _async_submission_response(self, run_id: str, status: str, reused: bool) -> Dict[str, Any]:
-        response = _async_response(run_id, status, reused)
-        try:
-            response["async_observability"] = self.get_async_observability(run_id)
-        except ValueError:
-            pass
-        return response
+        return self._async_application.get_observability(run_id)
 
     def _attach_async_observability(self, payload: Dict[str, Any], run_id: str) -> None:
-        if not run_id:
-            return
-        try:
-            payload["async_observability"] = self.get_async_observability(run_id)
-        except ValueError:
-            return
+        return self._async_application.attach_observability(payload, run_id)
 
     def _mark_memory_cancel_requested(self, run_id: str) -> None:
-        with self._async_lock:
-            for job in self._async_jobs.values():
-                if job.get("run_id") == run_id and job.get("status") in {"QUEUED", "RUNNING"}:
-                    job["status"] = "CANCEL_REQUESTED"
-                    job["cancel_requested_at"] = time.time()
-                    job["last_event"] = "cancel_requested"
-                    return
+        return self._async_application.mark_cancel_requested(run_id)
 
     def _memory_run(self, run_id: str):
         for runtime in self._runtimes.values():
@@ -1899,35 +1416,7 @@ class AgentService:
         }
 
     def _memory_async_metrics(self) -> Dict[str, Any]:
-        with self._async_lock:
-            jobs = list(self._async_jobs.values())
-        status_counts: Dict[str, int] = {}
-        failure_categories: Dict[str, int] = {}
-        queue_waits = []
-        run_durations = []
-        recovered_jobs = 0
-        for job in jobs:
-            observation = _build_async_observability(job)
-            status = observation["status"]
-            status_counts[status] = status_counts.get(status, 0) + 1
-            category = observation.get("failure_category")
-            if category:
-                failure_categories[category] = failure_categories.get(category, 0) + 1
-            if observation.get("queue_wait_ms") is not None:
-                queue_waits.append(observation["queue_wait_ms"])
-            if observation.get("run_duration_ms") is not None:
-                run_durations.append(observation["run_duration_ms"])
-            if observation.get("recovered"):
-                recovered_jobs += 1
-        return {
-            "count": len(jobs),
-            "worker_count": self._async_worker_count,
-            "status_counts": status_counts,
-            "failure_categories": failure_categories,
-            "recovered_jobs": recovered_jobs,
-            "queue_wait_ms": _duration_summary(queue_waits),
-            "run_duration_ms": _duration_summary(run_durations),
-        }
+        return self._async_application.metrics()
 
     def compare_buildability(
         self,

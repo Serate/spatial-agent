@@ -42,12 +42,13 @@
 - M254-B 已完成：新增 `agent/application/sessions.py` 的 `SessionApplication`，SessionState/SQLite/Runtime clarification 清理收敛到 `ServiceState`，AgentService session 入口改为 wrapper。显式清除生产 DB 环境后 M254/M78/M48/M68 回归 12/12，architecture strict、compileall、quick、stage 全部通过。
 - M254-C 已完成：新增 `agent/application/actions.py` 的 `ActionApplication` 与 `agent/application/decisions.py` 的 `DecisionApplication`；Domain action 的 dispatch、幂等 artifact 回放、执行记录、观测，以及 Decision lookup/approve/reject/原计划恢复均从 Service 下沉。通用 action receipt 的 CAS、transition lineage、evidence revalidation 和 artifact receipt 也收敛到 ActionApplication；修复交互 dispatch 缺失 canonical interaction projection，并清理旧前端静态 URL 断言与矛盾的 action 输入错误码测试。Docker 68 项 action/decision/interaction 定向回归、architecture strict、compileall、quick、stage 全部通过，Service 规模降至约 2,560 行。
 - M254-D 已完成：新增 `agent/application/interactions.py` 的 `InteractionApplication`，统一 interaction command 规范化、权威状态重读、allowlist dispatch、workflow continuation、preview/run continuation 和 receipt 完成；Service 只保留两个 Domain capability/facts 解析适配端口。Docker 66 项 action/decision/interaction 回归、M254/M48/M68 8 项、architecture strict、compileall、quick、stage 全部通过，Service 规模降至约 2,282 行。
+- M255 已完成：新增 `agent/application/async_runs.py` 的 `AsyncApplication`，统一异步提交幂等、SQLite claim、memory job、worker 异常落盘、重启接管、artifact-only 观测恢复、取消标记、终态观测和 metrics；Service 仅保留兼容入口、线程池资源生命周期和 RunApplication 回调端口。修复 worker 动态替换接线，以及 async artifact evidence 规范化遗漏 `model_evidence`、`answer_generation` 和 runtime fingerprint 的跨入口不一致。Docker 异步/SQLite/artifact/restart 回归 28 项通过、1 项按配置跳过；architecture strict、compileall、quick、stage、smoke 全部通过，Service 约 1,773 行。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 基线冻结、M252-B1/B2 GIS 物理边界、M253-A/B/C/D Runtime seams 和 M254-A/B/C/D Run/Session/Action/Decision/Interaction Application seams 已完成；下一步处理 async worker/recovery，再收敛 HTTP、Contract 和 Vite 前端，真实指标数据接入顺延到架构收敛后；继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 基线冻结、M252-B1/B2 GIS 物理边界、M253-A/B/C/D Runtime seams、M254-A/B/C/D Run/Session/Action/Decision/Interaction seams 和 M255 Async Worker/Recovery seam 已完成；下一步从全局架构收敛 HTTP transport/application dispatcher、统一 FastAPI/标准库/Console 的 payload/result/error contract，再处理 Contract/Evidence helper 与 Vite 物理拆分；真实指标数据接入顺延到架构收敛后。继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
 
 ## 不变量
 

@@ -4715,3 +4715,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 修复 interaction dispatcher 缺少 `project_interaction(current)` 导致能力选择路径 `NameError` 的问题，并更新前端重构后的静态契约测试和 action 输入错误码测试。
 - Docker action/decision/interaction 定向回归 **68/68**、architecture strict、compileall、quick、stage 全部通过；Service 规模约从 3,254 行降至 2,560 行。
 - 下一切片提取 `InteractionApplication`，再处理 async worker/recovery 和 HTTP dispatcher。
+
+## M255：Async Worker / Recovery Application canonical seam（已完成）
+
+- 新增 `agent/application/async_runs.py` 的 `AsyncApplication`，统一承载异步提交幂等、SQLite claim、memory job、worker 异常落盘、重启接管、artifact-only 观测恢复、取消标记、终态观测和 async metrics。
+- `AgentService` 只保留 `run_async`、轮询、取消/恢复初始化和 `RunApplication` 所需的兼容端口；线程池创建、关闭和 `ServiceState` reaper 仍由 Service/State 负责。worker 通过注入的 `run_provider` 在执行时解析 Service 方法，保留自定义 Runtime 与测试替换能力。
+- 修复 async artifact evidence 规范化遗漏 `model_evidence`、`answer_generation` 和 runtime context fingerprint 的问题；实时轮询、artifact 恢复和 SQLite 重启现在共享同一有界证据形状。
+- Docker 异步/SQLite/artifact/restart 回归 **28 项通过、1 项按配置跳过**；architecture strict、compileall、quick、stage、smoke 全部通过。Service 规模由约 2,282 行降至约 1,773 行。
+- 下一阶段从全局架构出发收敛 HTTP transport/application dispatcher：FastAPI、标准库入口和 Console 统一使用同一 Application 用例、payload/result/error contract；不在传输层复制 Domain 策略。

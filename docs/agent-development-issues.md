@@ -2,6 +2,22 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## Async Application 迁移后 worker 仍需保留动态执行端口
+
+- **现象**：异步应用已从 `AgentService` 下沉后，测试通过 `patch.object(service, "run", ...)` 注入 worker 异常时，任务仍然执行成功；另外旧测试对 `agent.service._process_is_alive` 的 patch 可能失效。
+- **根因**：迁移时把绑定方法对象直接传给 Application，worker 保存的是构造时的旧引用；同时进程存活判断没有通过可注入端口连接到兼容 facade。
+- **诊断**：用“worker 抛异常”和“重启接管”两条路径分别检查注入函数是否在 worker 执行时解析；不要只看 Application 是否成功构造，也不要把测试 patch 误判为业务执行问题。
+- **修复**：`AsyncApplication` 通过 `run_provider` 和 `process_is_alive` 注入端口，Service 传入运行时解析的 lambda；线程池仍由 Service 创建和关闭，Application 只决定调度与生命周期语义。
+- **预防**：迁移异步 worker 时，凡是允许自定义 Runtime、测试替换或兼容扩展的入口都不能冻结为构造时绑定的方法；为提交、worker 异常、claim/recovery 和资源关闭各保留一条最小契约。
+
+## Async artifact 规范化遗漏模型与回答证据导致恢复结果不一致
+
+- **现象**：实时 `get_async_observability()` 返回了 `model_evidence` 和 `answer_generation`，但写入 artifact 后再恢复时字段消失，或模型运行时 fingerprint 不一致；同一个 run 的 polling 与 artifact evidence 比较失败。
+- **根因**：`build_async_result_evidence()` 已经输出这两段有界证据，但 `normalize_async_result_evidence()` 作为 artifact 边界投影没有同步保留；artifact 又不保存完整 runtime context，导致仅依赖 context 重新计算 fingerprint 会丢失身份。
+- **诊断**：对同一个带 artifact 的 async run，依次比较实时 observation、artifact 的 `async_result_evidence` 和空 SQLite 重启后的 observation；按字段 diff，不要只比较顶层 status。确认请求、模型原文、密钥和主机路径没有进入证据。
+- **修复**：规范化器复用 `project_model_evidence`/`project_answer_generation_evidence`，并只在固定 `sha256:<64位十六进制>` 形状通过校验时保留已有 runtime fingerprint；未通过校验的值丢弃，不猜测上下文。
+- **预防**：新增 Result/Evidence 字段时必须同时审计 builder、async normalize、artifact write/read、SQLite restart 和前端 nested schema；验收至少包含 live polling 与 artifact-only recovery 的等价性，而不是只跑同步结果。
+
 ## 通用空间算子未进入统一 ToolRegistry seam
 
 - **现象**：已有 `spatial_join` 能返回空间关系计数，建设筛选内部也有道路/水体几何约束，但开放式问题无法复用“裁剪”或“相交”这类几何操作；如果继续复制领域专用工具，Planner 和前端会被固定数据集绑定。

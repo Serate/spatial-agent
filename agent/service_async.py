@@ -540,6 +540,29 @@ def normalize_async_result_evidence(
         kind="run",
         domain_id=value.get("domain_id"),
     )
+    model_evidence = project_model_evidence(
+        value.get("model_evidence"),
+        value.get("runtime_context"),
+    )
+    # Artifact evidence intentionally omits the full runtime context.  Keep
+    # the already-projected fingerprint, after validating its fixed shape, so
+    # artifact recovery remains identity-equivalent to live polling.
+    source_model_evidence = value.get("model_evidence")
+    context_fingerprint = (
+        source_model_evidence.get("context_fingerprint")
+        if isinstance(source_model_evidence, Mapping)
+        else None
+    )
+    if (
+        isinstance(context_fingerprint, str)
+        and len(context_fingerprint) == 71
+        and context_fingerprint.startswith("sha256:")
+        and all(char in "0123456789abcdef" for char in context_fingerprint[7:])
+    ):
+        model_evidence["context_fingerprint"] = context_fingerprint
+    answer_generation = project_answer_generation_evidence(
+        value.get("answer_generation")
+    )
     result = {
         "schema_version": ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION,
         "available": bool(value.get("available")) and state != "unavailable",
@@ -580,6 +603,11 @@ def normalize_async_result_evidence(
             "workflow_selection": selection["workflow_selection"],
             "planner_selection": selection["planner_selection"],
         },
+        # Keep the model/answer provenance visible across the artifact seam.
+        # The builder already emits these bounded projections; omitting them
+        # here made live polling and artifact-only recovery disagree.
+        "model_evidence": model_evidence,
+        "answer_generation": answer_generation,
         "selection_interaction": normalize_selection_interaction(
             value.get("selection_interaction")
         ),
