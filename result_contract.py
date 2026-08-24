@@ -210,6 +210,7 @@ def build_result_contract(
     contract = {
         "schema_version": RESULT_ENVELOPE_SCHEMA_VERSION,
         "type": result_type,
+        "data_profile": registry.data_profile_for(result_type),
         "title": str(output.get("title") or registry.title_for(result_type)),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
         "request_identity": build_request_identity(payload),

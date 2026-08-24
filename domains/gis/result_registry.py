@@ -55,6 +55,26 @@ _PANELS = {
     "spatial_result": ("vector",),
 }
 
+_DATA_KINDS = {
+    "direct_answer": ("text",),
+    "spatial_overview_result": ("composite", "vector", "raster", "metrics"),
+    "spatial_analysis_result": ("composite", "vector", "raster", "metrics"),
+    "terrain_land_use_analysis_result": ("composite", "raster", "metrics"),
+    "admin_area_result": ("vector",),
+    "raster_metadata_result": ("raster", "metrics"),
+    "raster_statistics_result": ("raster", "metrics"),
+    "zonal_raster_statistics_result": ("raster", "metrics"),
+    "buildability_result": ("composite", "raster", "vector", "metrics"),
+    "buildability_comparison": ("composite", "vector", "metrics"),
+    "constrained_buildability_result": ("composite", "raster", "vector", "metrics"),
+    "dataset_health_result": ("metrics",),
+    "zonal_vector_summary_result": ("vector", "metrics"),
+    "zonal_vector_result": ("vector", "metrics"),
+    "vector_result": ("vector",),
+    "spatial_relation_result": ("vector", "metrics"),
+    "spatial_result": ("vector",),
+}
+
 _GEOMETRY_TYPES = {
     "spatial_analysis_result",
     "spatial_overview_result",
@@ -112,6 +132,7 @@ GIS_RESULT_REGISTRY = ResultContractRegistry(
             panels=tuple(_PANELS.get(result_type, ())),
             requires_geometry=result_type in _GEOMETRY_TYPES,
             view_specs=_view_specs_for(result_type),
+            data_kinds=_DATA_KINDS.get(result_type, ("unknown",)),
         )
         for result_type in _TITLES
     },

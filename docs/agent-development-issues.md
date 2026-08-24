@@ -2,6 +2,14 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## 结果业务语义与数据形态没有统一分类
+
+- **现象**：结果类型已经能够区分“综合空间分析”或“栅格统计”，但公共 Result Contract 没有明确声明结果包含矢量、栅格、指标、时序或文档证据；前端和新领域只能继续根据工具名或领域结果类型猜测展示方式。
+- **根因**：早期的 `result_type` 同时承担业务语义、数据形态和展示路由，Domain Registry 只有标题、面板和 renderer 信息，没有领域中立的数据形态契约。
+- **诊断**：检查 Result Envelope 是否有版本化数据形态字段，并比较 GIS、Text 等不同 Domain 是否能通过同一 Registry 接口声明；不要只检查某个 GIS View 是否能绘制。
+- **修复**：新增版本化 `data_profile`，支持 `unknown`、`text`、`vector`、`raster`、`metrics`、`timeseries`、`document_evidence` 和 `composite`；由 `ResultTypeSpec` 声明，由公共 Result Contract 统一输出和校验，旧 artifact 缺失该字段时迁移为 `unknown`。
+- **预防**：`result_type` 只表达业务语义，`data_profile` 表达数据形态，View 只表达展示方式；新增 Domain 先声明结果形态，再实现专用 View。不要把行业名称或具体工具名写入公共 Renderer 分支。
+
 ## GeoJSON 空间摘要上限过小导致地图只能看到部分结果
 
 - **现象**：空间分析生成的 GeoJSON 摘要默认只有 100 KB，且默认最多导出 100 个要素；较大的道路、水体或候选区域结果会被截断，前端只能绘制部分空间要素。

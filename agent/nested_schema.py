@@ -22,6 +22,7 @@ from agent.contract_versions import (
     VIEWS_SCHEMA_VERSION,
     WORKSPACE_SCHEMA_VERSION,
 )
+from agent.data_kinds import DataProfileError, normalize_data_profile
 from agent.artifact_reference import normalize_artifact_reference
 from agent.conversation_turn import normalize_conversation_turn
 from agent.interaction_contract import normalize_interaction, project_interaction
@@ -53,6 +54,17 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
         path="result.schema_version",
         allow_legacy=allow_legacy,
     )
+    try:
+        result["data_profile"] = normalize_data_profile(
+            result.get("data_profile"),
+            allow_legacy=allow_legacy,
+        )
+    except DataProfileError as exc:
+        raise NestedSchemaError(
+            str(exc),
+            path="result.data_profile",
+            reason_code="data_profile_invalid",
+        ) from exc
     workspace = result.get("workspace")
     if workspace is None and allow_legacy:
         workspace = {"schema_version": WORKSPACE_SCHEMA_VERSION, "panels": [], "view_specs": []}

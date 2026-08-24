@@ -9,6 +9,7 @@ ARTIFACT_MIGRATION_SCHEMA_VERSION = "spatial-agent.artifact-migration.v1"
 WORKSPACE_SCHEMA_VERSION = "spatial-agent.workspace.v1"
 VIEWS_SCHEMA_VERSION = "spatial-agent.views.v1"
 VIEW_SCHEMA_VERSION = "spatial-agent.view.v1"
+DATA_PROFILE_SCHEMA_VERSION = "spatial-agent.data-profile.v1"
 ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION = "spatial-agent.async-result-evidence.v1"
 REQUEST_IDENTITY_SCHEMA_VERSION = "spatial-agent.request-identity.v1"
 ARTIFACT_REFERENCE_SCHEMA_VERSION = "spatial-agent.artifact-reference.v1"
@@ -27,6 +28,7 @@ __all__ = [
     "WORKSPACE_SCHEMA_VERSION",
     "VIEWS_SCHEMA_VERSION",
     "VIEW_SCHEMA_VERSION",
+    "DATA_PROFILE_SCHEMA_VERSION",
     "ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION",
     "REQUEST_IDENTITY_SCHEMA_VERSION",
     "ARTIFACT_REFERENCE_SCHEMA_VERSION",

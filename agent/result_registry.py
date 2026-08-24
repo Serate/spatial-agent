@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
+from agent.data_kinds import build_data_profile
+
 
 @dataclass(frozen=True)
 class ViewSpec:
@@ -37,6 +39,7 @@ class ResultTypeSpec:
     panels: tuple[str, ...] = ()
     requires_geometry: bool = False
     view_specs: tuple[ViewSpec, ...] = ()
+    data_kinds: tuple[str, ...] = ()
 
 
 class ResultContractRegistry:
@@ -90,6 +93,10 @@ class ResultContractRegistry:
         if spec is None:
             return []
         return [item.as_dict() for item in spec.view_specs[:12] if isinstance(item, ViewSpec)]
+
+    def data_profile_for(self, result_type: str) -> dict[str, Any]:
+        spec = self.spec(result_type)
+        return build_data_profile(spec.data_kinds if spec else ("unknown",))
 
     def build_views(
         self,
@@ -145,6 +152,7 @@ class ResultContractRegistry:
                     "title": spec.title,
                     "panels": list(spec.panels),
                     "requires_geometry": spec.requires_geometry,
+                    "data_kinds": list(spec.data_kinds),
                     "view_specs": [
                         item.as_dict()
                         for item in spec.view_specs[:12]

@@ -56,6 +56,8 @@ class M122DomainViewTests(unittest.TestCase):
         )
 
         self.assertEqual(payload["type"], "text_summary_result")
+        self.assertEqual(payload["data_profile"]["primary"], "text")
+        self.assertIn("document_evidence", payload["data_profile"]["kinds"])
         self.assertEqual(payload["workspace"]["panels"], ["generic"])
         self.assertEqual(payload["views"]["panels"]["generic"]["kind"], "text_summary")
         self.assertEqual(payload["workspace"]["view_specs"][0]["id"], "generic")

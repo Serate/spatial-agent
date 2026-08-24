@@ -46,6 +46,8 @@ class M46ResultContractTests(unittest.TestCase):
 
         result = payload["result"]
         self.assertEqual(result["type"], "raster_metadata_result")
+        self.assertEqual(result["data_profile"]["primary"], "raster")
+        self.assertIn("metrics", result["data_profile"]["kinds"])
         self.assertEqual(result["title"], "栅格元数据")
         self.assertEqual(result["workspace"]["schema_version"], "spatial-agent.workspace.v1")
         self.assertTrue(result["workspace"]["registered_type"])
@@ -89,6 +91,22 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertEqual(result["views"]["panels"]["map"]["mode"], "raster_bounds")
         self.assertEqual(result["views"]["panels"]["map"]["bounds"], [114.0, 30.0, 115.0, 31.0])
         self.assertEqual(result["views"]["panels"]["map"]["coverage_kind"], "bounds_only")
+
+    def test_composite_result_declares_data_shapes_for_dynamic_consumers(self):
+        from result_contract import build_result_contract
+
+        result = build_result_contract({
+            "run_id": "data-profile-composite",
+            "status": "COMPLETED",
+            "result_type": "spatial_analysis_result",
+            "answer": "已完成",
+            "steps": [],
+        })
+
+        profile = result["data_profile"]
+        self.assertEqual(profile["schema_version"], "spatial-agent.data-profile.v1")
+        self.assertEqual(profile["primary"], "composite")
+        self.assertEqual(profile["kinds"], ["composite", "vector", "raster", "metrics"])
 
     def test_truncated_geojson_keeps_partial_geometry_map(self):
         from result_contract import build_result_contract
