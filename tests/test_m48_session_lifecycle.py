@@ -20,7 +20,8 @@ class M48SessionLifecycleTests(unittest.TestCase):
             self.assertEqual(queued["status"], "QUEUED")
             self.assertTrue(queued["run_id"])
             result = None
-            for _ in range(30):
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
                 try:
                     result = service.get_run(queued["run_id"], planner="rule", backend="memory")
                 except ValueError:

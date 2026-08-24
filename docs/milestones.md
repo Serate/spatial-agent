@@ -4691,3 +4691,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `AgentService._run_governed` 保留兼容签名并只委托 `RunApplication.execute`；Runtime、ArtifactStore、ServiceState、async finalize 和 observability 通过注入端口连接。
 - 架构守卫要求 Service 接入 `RunApplication`；修复迁移中两个 Service 内部别名误当源函数名造成的 ImportError。Docker M78/M253/M252 定向 **15/15**、architecture strict、compileall、quick、stage 全部通过。
 - 下一切片提取 Session/Action application seam，再处理 async worker 和 HTTP dispatcher。
+
+## M254-B：Session Application canonical seam（已完成）
+
+- 新增 `agent/application/sessions.py` 的 `SessionApplication`，统一 session list/create/list-runs/clear/delete 的返回契约和 history lineage 投影。
+- `ServiceState` 增加 session run 查询、清理和删除方法，负责 SQLite、内存 session、各 Runtime 状态和 clarification 清理；`AgentService` 的 session 方法只保留兼容 wrapper。
+- 新增 session application contract；显式清除生产 `SPATIAL_AGENT_STATE_DB` 后 M254/M78/M48/M68 session 回归 **12/12**，architecture strict、compileall、quick、stage 全部通过。
+- 下一切片提取 Action/Decision application seam，再拆异步 worker 与 HTTP dispatcher。

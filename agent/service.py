@@ -97,6 +97,7 @@ from agent.service_sessions import (
     validate_session_id as _validate_session_id,
 )
 from agent.application.run import RunApplication
+from agent.application.sessions import SessionApplication
 
 
 _TERMINAL_RUN_STATUSES = {
@@ -256,6 +257,10 @@ class AgentService:
             legacy_domain_id=self._legacy_domain_id,
             attach_async_observability=self._attach_async_observability,
             finalize_async_job=self._finalize_async_job,
+        )
+        self._session_application = SessionApplication(
+            state=self._state,
+            domain_id=lambda: self._resolved_domain_id,
         )
         self._recover_async_jobs()
 
@@ -2430,67 +2435,19 @@ class AgentService:
         }
 
     def list_session_runs(self, session_id: str, limit: int = 20) -> Dict:
-        if not isinstance(session_id, str) or not session_id.strip():
-            raise ValueError("session_id must be a non-empty string")
-        if not self._state.persistent:
-            records = []
-            for runtime in self._runtimes.values():
-                records.extend(runtime._state_store.list_runs(limit=limit, session_id=session_id))
-            records = _dedupe_run_records(records)
-            return {"runs": _attach_history_lineage(records[:limit])}
-        return {"runs": _attach_history_lineage(
-            self._state.list_runs(
-                limit=limit,
-                session_id=session_id,
-                domain_id=self._resolved_domain_id,
-            )
-        )}
+        return self._session_application.list_runs(session_id, limit=limit)
 
     def list_sessions(self, limit: int = 50) -> Dict:
-        if self._conversation_store is None:
-            if limit < 1:
-                raise ValueError("limit must be positive")
-            with self._memory_session_lock:
-                sessions = list(self._memory_sessions.values())
-            return {"sessions": sessions[-limit:][::-1]}
-        return {"sessions": self._conversation_store.list_sessions(limit=limit)}
+        return self._session_application.list_sessions(limit=limit)
 
     def create_session(self) -> Dict:
-        if self._conversation_store is None:
-            with self._memory_session_lock:
-                number = 1
-                while "conversation-{}".format(number) in self._memory_sessions:
-                    number += 1
-                session_id = "conversation-{}".format(number)
-                session = {"session_id": session_id, "display_name": "对话{}".format(number)}
-                self._memory_sessions[session_id] = session
-                return dict(session)
-        return self._conversation_store.create_session()
+        return self._session_application.create_session()
 
     def clear_session(self, session_id: str) -> Dict:
-        _validate_session_id(session_id)
-        cleared_runs = self._state.clear_session_runs(session_id)
-        if self._conversation_store:
-            self._conversation_store.clear_session(session_id)
-        else:
-            for runtime in self._runtimes.values():
-                cleared_runs += runtime._state_store.clear_session_runs(session_id)
-        for runtime in self._runtimes.values():
-            runtime.clear_session(session_id)
-        return {"session_id": session_id, "cleared_runs": cleared_runs}
+        return self._session_application.clear_session(session_id)
 
     def delete_session(self, session_id: str) -> Dict:
-        _validate_session_id(session_id)
-        cleared_runs = self._state.clear_session_runs(session_id)
-        deleted = self._conversation_store.delete_session(session_id) if self._conversation_store else False
-        if self._conversation_store is None:
-            for runtime in self._runtimes.values():
-                cleared_runs += runtime._state_store.clear_session_runs(session_id)
-            with self._memory_session_lock:
-                deleted = self._memory_sessions.pop(session_id, None) is not None
-        for runtime in self._runtimes.values():
-            runtime.clear_session(session_id)
-        return {"session_id": session_id, "deleted": deleted, "cleared_runs": cleared_runs}
+        return self._session_application.delete_session(session_id)
 
     def metrics(self) -> Dict:
         if self._state.persistent:

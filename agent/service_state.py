@@ -235,6 +235,63 @@ class ServiceState:
             sessions = list(self._sessions.values())
         return sessions[-limit:][::-1]
 
+    def list_session_runs(
+        self,
+        session_id: str,
+        limit: int = 20,
+        domain_id: Optional[str] = None,
+    ) -> list:
+        """List runs across persistent or cached Runtime state."""
+        if self._state_store is not None:
+            return self._state_store.list_runs(
+                limit=limit,
+                session_id=session_id,
+                domain_id=domain_id or self._domain_id,
+            )
+        records = []
+        for runtime in self.runtimes().values():
+            store = getattr(runtime, "_state_store", None)
+            list_runs = getattr(store, "list_runs", None)
+            if callable(list_runs):
+                records.extend(list_runs(limit=limit, session_id=session_id))
+        return records
+
+    def clear_session(self, session_id: str) -> int:
+        """Clear persisted/session-memory state owned by this ServiceState."""
+        cleared_runs = self.clear_session_runs(session_id)
+        if self._conversation_store is not None:
+            self._conversation_store.clear_session(session_id)
+        else:
+            for runtime in self.runtimes().values():
+                store = getattr(runtime, "_state_store", None)
+                clear_runs = getattr(store, "clear_session_runs", None)
+                if callable(clear_runs):
+                    cleared_runs += clear_runs(session_id)
+        for runtime in self.runtimes().values():
+            clear = getattr(runtime, "clear_session", None)
+            if callable(clear):
+                clear(session_id)
+        return cleared_runs
+
+    def delete_session(self, session_id: str) -> tuple[bool, int]:
+        """Delete one conversation and all Runtime-local session state."""
+        cleared_runs = self.clear_session_runs(session_id)
+        if self._conversation_store is not None:
+            deleted = self._conversation_store.delete_session(session_id)
+        else:
+            for runtime in self.runtimes().values():
+                store = getattr(runtime, "_state_store", None)
+                clear_runs = getattr(store, "clear_session_runs", None)
+                if callable(clear_runs):
+                    cleared_runs += clear_runs(session_id)
+            with self._session_lock:
+                deleted = self._sessions.pop(session_id, None) is not None
+        for runtime in self.runtimes().values():
+            clear = getattr(runtime, "clear_session", None)
+            if callable(clear):
+                clear(session_id)
+        return deleted, cleared_runs
+
     # Live views for the legacy facade accessors. The facade keeps using the
     # same locks, so direct dict mutation stays correct.
     @property

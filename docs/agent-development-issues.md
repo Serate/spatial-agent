@@ -488,3 +488,19 @@
 - **诊断**：对导入失败的符号回到源模块检查真实定义，再对比旧调用方的 import alias；不要通过在源模块新增私有别名来掩盖迁移边界问题。
 - **修复**：Application module 从 `service_format` 导入真实函数并在本地使用 `as` 建立兼容别名；Docker 重建后 M78 facade import、Runtime/Domain 定向回归恢复通过。
 - **预防**：拆分模块时分别核对“源模块导出名”和“调用方局部别名”；迁移完成后先运行只覆盖模块导入和 facade public method 的最小契约，再运行完整行为回归。
+
+## 生产 Docker 的持久状态环境污染内存 Session 测试
+
+- **现象**：M68 内存 session 测试期望第一次创建为“对话1”，但在生产容器直接运行时收到“对话2”；同一组代码在不使用持久 DB 的环境中通过。
+- **根因**：生产 Docker 通过 `SPATIAL_AGENT_STATE_DB` 指向 `/app/outputs/spatial-agent.db`，而内存测试调用 `AgentService()` 时会读取该环境变量，因此复用了前序测试或服务运行留下的 SQLite session。
+- **诊断**：比较测试进程的 `SPATIAL_AGENT_STATE_DB` 与测试预期；生产 API 的健康运行验证应保留 DB，而 memory session 单测应在容器内显式 unset 该变量。不要删除容器输出或污染真实状态库来“修复”断言。
+- **修复**：使用 `docker exec ... sh -lc "unset SPATIAL_AGENT_STATE_DB; python -m unittest ..."` 运行内存 session 契约；SQLite session 测试继续使用自己的临时数据库。生产 quick/stage 仍使用 compose 的 `.env.production`。
+- **预防**：测试 profile 明确标注 memory/persistent 两种状态模式；依赖默认 `AgentService()` 的内存测试必须由 runner 清除持久状态环境，不能假设生产容器环境天然是空内存。
+
+## 异步 Session 回归用固定短轮询窗口误判未完成
+
+- **现象**：异步接口已经正确返回 `QUEUED` 和 `run_id`，但回归测试在固定约 0.6 秒的轮询结束后得到 `PLANNING`，将正常的慢执行误报为失败。
+- **根因**：测试把异步执行速度当成状态契约；Docker、GIS 依赖初始化或机器负载变化会让合法的 worker 完成时间超过短窗口，生产状态机本身并未改变。
+- **诊断**：先确认初始响应为 `QUEUED`，再单独运行该测试并记录终态；如果扩大有界等待后稳定得到终态，应归类为测试时序问题，不要为了让测试立即完成而修改异步 worker。
+- **修复**：使用 `time.monotonic()` 加有界总超时轮询 `PLANNING`/`EXECUTING`，同时保留最终 `COMPLETED`/失败状态断言；不使用无限等待或固定次数替代时间语义。
+- **预防**：异步测试必须验证“先受理、后终态”的生命周期，而不是假设某个固定毫秒数内完成；默认测试保持秒级上限，live/性能测试另行分层。
