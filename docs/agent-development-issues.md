@@ -2,6 +2,14 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## 新增结果字段只进入同步契约，异步和前端兼容层没有同步接入
+
+- **现象**：同步 HTTP 或 artifact 中已经有新的结构化结果字段，但异步轮询 evidence 或浏览器兼容层恢复旧形状，导致不同入口看不到同一结果分类。
+- **根因**：async evidence 是独立的有界投影，Console 还有独立的 nested-schema 校验；只修改公共 Result Envelope 不会自动覆盖这些传输和恢复 seam。
+- **诊断**：对同一结果分别比较同步 Result、async polling evidence、artifact read/recovery 和 Console Node smoke，重点检查 schema version、字段是否被有界投影保留；不能只验证一次同步调用。
+- **修复**：新增 `data_profile` 后，同时在 async build/normalize、artifact 嵌套 Result 和 Console nested-schema 中增加版本校验与 legacy `unknown` 回退；用 artifact、async 和 Node smoke 做跨入口最小回归。
+- **预防**：任何 Result Contract 新字段都必须列出同步、异步、artifact、SQLite recovery、HTTP 和前端兼容层的传播清单；投影字段缺失时要有明确的 legacy 状态，不得静默猜测业务类型。
+
 ## 结果业务语义与数据形态没有统一分类
 
 - **现象**：结果类型已经能够区分“综合空间分析”或“栅格统计”，但公共 Result Contract 没有明确声明结果包含矢量、栅格、指标、时序或文档证据；前端和新领域只能继续根据工具名或领域结果类型猜测展示方式。

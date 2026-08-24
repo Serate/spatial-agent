@@ -12,6 +12,11 @@ const valid = schema.normalize({
   result: {
     schema_version: "spatial-agent.result-envelope.v1",
     type: "text_summary_result",
+    data_profile: {
+      schema_version: "spatial-agent.data-profile.v1",
+      primary: "text",
+      kinds: ["text", "document_evidence"],
+    },
     workspace: {
       schema_version: "spatial-agent.workspace.v1",
       panels: ["generic"],
@@ -36,6 +41,7 @@ const valid = schema.normalize({
 });
 assert.equal(valid.invalid, false);
 assert.equal(valid.result.views.panels.generic.kind, "text_summary");
+assert.equal(valid.result.data_profile.primary, "text");
 
 const legacy = schema.normalize({
   result_type: "legacy_result",
@@ -47,6 +53,7 @@ const legacy = schema.normalize({
 });
 assert.equal(legacy.invalid, false, "missing nested versions remain legacy-compatible");
 assert.equal(legacy.result.views.panels.generic.schema_version, "spatial-agent.view.v1");
+assert.equal(legacy.result.data_profile.primary, "unknown");
 
 const unknownWorkspace = schema.normalize({
   artifact_ref: "safe-run.json",

@@ -44,6 +44,7 @@ from agent.evidence_projection import project_evidence_projection
 from agent.evidence_recovery import project_evidence_recovery
 from agent.model_evidence import project_model_evidence
 from agent.answer_generation import project_answer_generation_evidence
+from agent.data_kinds import DataProfileError, normalize_data_profile
 from agent.recovery_action import normalize_action_receipt
 from result_contract import build_lineage_index
 
@@ -60,6 +61,13 @@ _TERMINAL_RUN_STATUSES = {
     "CANCELLED",
     "TIMED_OUT",
 }
+
+
+def _safe_data_profile(value: Any) -> Dict[str, Any]:
+    try:
+        return normalize_data_profile(value)
+    except DataProfileError:
+        return normalize_data_profile(None)
 
 
 def terminal_run_statuses():
@@ -287,6 +295,7 @@ def build_async_result_evidence(
         "status": str(status or "UNKNOWN")[:32],
         "lifecycle": lifecycle,
         "result_type": str(value.get("type") or "unknown")[:96],
+        "data_profile": _safe_data_profile(value.get("data_profile")),
         "request_identity": request_identity,
         "conversation_turn": normalize_conversation_turn(
             value.get("conversation_turn")
@@ -538,6 +547,7 @@ def normalize_async_result_evidence(
         "status": str(value.get("status") or status or "UNKNOWN")[:32],
         "lifecycle": lifecycle,
         "result_type": str(value.get("result_type") or "unknown")[:96],
+        "data_profile": _safe_data_profile(value.get("data_profile")),
         "request_identity": request_identity,
         "conversation_turn": normalize_conversation_turn(
             value.get("conversation_turn")

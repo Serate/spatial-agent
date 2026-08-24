@@ -20,6 +20,7 @@
     workspace: "spatial-agent.workspace.v1",
     views: "spatial-agent.views.v1",
     view: "spatial-agent.view.v1",
+    dataProfile: "spatial-agent.data-profile.v1",
     // The shared contract uses spatial-agent.view.v1 for both view specs and
     // concrete panel models; keep the alias explicit in the Console seam.
     panel: "spatial-agent.view.v1",
@@ -32,6 +33,10 @@
     specs: 24,
     issues: 8,
   });
+  const DATA_KINDS = new Set([
+    "unknown", "text", "vector", "raster", "metrics", "timeseries",
+    "document_evidence", "composite",
+  ]);
 
   function isRecord(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -97,6 +102,30 @@
       },
       state: "unavailable",
     };
+  }
+
+  function normalizeDataProfile(raw, issues) {
+    if (raw === undefined || raw === null) {
+      return {
+        schema_version: VERSIONS.dataProfile,
+        primary: "unknown",
+        kinds: ["unknown"],
+      };
+    }
+    if (!isRecord(raw)) {
+      issue(issues, "result.data_profile", "data_profile_not_object");
+      return {schema_version: VERSIONS.dataProfile, primary: "unknown", kinds: ["unknown"]};
+    }
+    const version = checkVersion(raw.schema_version, VERSIONS.dataProfile, "result.data_profile.schema_version", issues);
+    const rawKinds = Array.isArray(raw.kinds) ? raw.kinds.slice(0, 8) : [];
+    const validKinds = rawKinds.every(kind => typeof kind === "string" && DATA_KINDS.has(kind));
+    const kinds = [...new Set(rawKinds)];
+    if (!version || !validKinds || !kinds.length) {
+      issue(issues, "result.data_profile.kinds", "data_profile_kinds_invalid");
+      return {schema_version: VERSIONS.dataProfile, primary: "unknown", kinds: ["unknown"]};
+    }
+    const primary = typeof raw.primary === "string" && kinds.includes(raw.primary) ? raw.primary : kinds[0];
+    return {schema_version: version, primary, kinds};
   }
 
   function normalizePanel(id, raw, issues, artifactAvailable) {
@@ -224,12 +253,14 @@
     };
     const rootVersion = checkVersion(rawResult.schema_version, VERSIONS.result, "result.schema_version", issues);
     const resultType = boundedText(rawResult.type || rawResult.result_type || data.result_type, "unknown", LIMITS.id);
+    const dataProfile = normalizeDataProfile(rawResult.data_profile, issues);
     const workspaceResult = normalizeWorkspace(rawResult.workspace, resultType, issues);
     const viewsResult = normalizeViews(rawResult.views, workspaceResult.value, issues, Boolean(data.artifact_ref));
     const invalid = !rootVersion || workspaceResult.invalid || viewsResult.invalid || (hasResultField && !hasResultObject);
     const result = Object.assign({}, rawResult, {
       schema_version: rootVersion || VERSIONS.result,
       type: resultType,
+      data_profile: dataProfile,
       workspace: workspaceResult.value,
       views: viewsResult.value,
     });
