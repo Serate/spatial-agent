@@ -93,6 +93,21 @@ def build_report() -> dict[str, Any]:
     for path in sorted((ROOT / "agent").glob("*.py")):
         errors.extend(_top_level_domain_imports(path))
 
+    gis_domain = ROOT / "domains" / "gis" / "domain.py"
+    if gis_domain.exists():
+        source = gis_domain.read_text(encoding="utf-8")
+        if "from .adapters.spatial import" not in source:
+            errors.append({"file": _relative(gis_domain), "code": "gis_adapter_seam_missing"})
+        for forbidden in ("from agent.spatial_backend import", "from agent.dataset_catalog import"):
+            if forbidden in source:
+                errors.append(
+                    {
+                        "file": _relative(gis_domain),
+                        "code": "gis_adapter_import_bypasses_domain_seam",
+                        "import": forbidden,
+                    }
+                )
+
     return {
         "schema_version": "spatial-agent.architecture-check.v1",
         "status": "failed" if errors else "ok",

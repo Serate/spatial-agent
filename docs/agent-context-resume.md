@@ -32,12 +32,13 @@
 - M251 已完成（第一纵向切片）：新增显式注册的 `indicators` Domain Pack，用两个 ToolRegistry 工具支持指标目录发现和 latest/trend/compare 查询；新增领域中立 `array` workflow constraint，区域列表通过标准模板编译、计划校验和 Runtime 澄清。结果分别声明 `metrics`、`timeseries`、`composite`，View 复用 generic/table/chart renderer，HTTP `/domains/indicators/runs` 返回结构化 workspace。默认指标数据明确标注为 demo fixture，可由 `SPATIAL_AGENT_INDICATOR_DATA` 替换；M251 定向回归 3/3，跨 Domain/空间回归 35/35，quick、compileall 和 HTTP contract 通过。
 - M252-A 已完成：M251 已单独提交并推送为 `22cdeee`；新增架构地图、兼容矩阵和 `scripts/architecture_check.py` 静态边界守卫。Docker 指标定向 3/3、compileall、quick、stage 通过；当前未移动业务实现。
 - M252-A CI 回归已修复：GIS `spatial_relation` View 删除未定义且未使用的 `operation` 引用，新增最小 View contract；Docker service smoke、CI profile 和 compileall 通过，待提交推送。
+- M252-B1 已完成：新增 `domains/gis/adapters/spatial.py` canonical seam，GIS Domain 不再直接导入公共 `agent` 的 DatasetCatalog/spatial_backend；旧实现暂留兼容。M252 boundary 定向 3/3、architecture check、quick、stage 和 compileall 通过，待提交推送。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 已完成基线冻结与架构守卫；下一阶段先执行 M252-B 的 Domain Pack/GIS 物理边界收敛，再拆分 Runtime、Application Service、HTTP、Contract 和 Vite 前端，真实指标数据接入顺延到架构收敛后；继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 已完成基线冻结与架构守卫，M252-B1 已完成 GIS Adapter canonical seam；下一步将迁移实际 GIS backend 实现，再拆分 Runtime、Application Service、HTTP、Contract 和 Vite 前端，真实指标数据接入顺延到架构收敛后；继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
 
 ## 不变量
 

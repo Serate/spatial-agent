@@ -55,9 +55,9 @@ class GisDomainPack:
         """Build the GIS provider behind the generic Runtime Factory seam."""
         from pathlib import Path
 
-        from agent.dataset_catalog import DatasetCatalog
         from agent.errors import ToolError
-        from agent.spatial_backend import (
+        from .adapters.spatial import (
+            DatasetCatalog,
             HybridSpatialBackend,
             InMemorySpatialBackend,
             SpatialToolAdapter,

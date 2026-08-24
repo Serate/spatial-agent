@@ -4626,3 +4626,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 2. 拆分 `domain_contract`、`workflow_templates`、`capability_catalog` 的通用算法与 GIS legacy facade。
 3. 保持 GIS/Text/Indicators 的 Runtime、ToolRegistry、Result/Evidence 和 HTTP contract 一致。
 4. 通过架构静态检查、跨 Domain contract、quick/stage 和 Docker compileall 后提交推送。
+
+## M252-B1：GIS Adapter canonical import seam（已完成）
+
+- 新增 `domains/gis/adapters/spatial.py` 和 Domain-owned adapter export；`GisDomainPack.tool_provider()` 不再直接从公共 `agent` 模块导入 `DatasetCatalog` 或 `spatial_backend`。
+- 旧 `agent.spatial_backend` 实现暂时保留为兼容实现，后续迁移只需替换 Domain-owned seam，不改变 Domain Pack、Runtime Factory 或 ToolRegistry 接口。
+- 新增 M252 Domain boundary 定向测试 **3/3**；Docker architecture check、quick、stage 和 compileall 通过。
+- 下一切片将把真实 GIS adapter 实现按依赖分组迁入 `domains/gis/adapters`，并为旧导入保留薄兼容 facade。
