@@ -4676,3 +4676,18 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `AgentRuntime.cancel`、`retry_failed` 和 `_check_control` 改为调用 `RunControl`；Runtime 不再直接持有控制锁或取消集合，旧 public Runtime 行为和 SQLite cancel contract 保持不变。
 - 新增内存与持久取消清除契约；干净 Docker 重建后 M253/M252/M247 定向 **17/17**、architecture strict、compileall、quick、stage 全部通过。
 - Runtime core 的 projection/planning/execution/control 四个 seam 已完成，下一阶段转入 Application Service 的 run/session/action 活动路径收敛。
+
+## M254：Application Service 与 HTTP 收敛（阶段规划）
+
+1. **同步 Run**：继续以 `RunApplication` 为 canonical use case，移出 Service 中的输入校验、预算控制和重复格式化，保持 CLI/HTTP/async 结果一致。
+2. **Session/Action**：分别建立 session catalog、action execution 和 decision interaction 的 application seam；状态与 receipt 由 `ServiceState`/SQLite 端口注入。
+3. **Async**：把异步提交、worker、恢复、观测和终态标记收敛到独立 application module，Service 只保留兼容方法和资源生命周期。
+4. **HTTP**：FastAPI 与标准库入口共享统一 Application Dispatcher、payload contract 和异常映射，传输层不复制业务分支。
+5. **验收**：每一刀通过 M78/M253、HTTP contract、artifact/SQLite/restart、quick/stage 和 Docker compileall；阶段完成后更新全局架构图并推送。
+
+## M254-A：同步 Run Application canonical seam（已完成）
+
+- 新增 `agent/application/run.py` 的 `RunApplication`，真实承载 Runtime 结果投影、provenance、failure/result contract、artifact/GeoJSON 发布、SQLite 保存、memory evidence 和 async quiescence 收口。
+- `AgentService._run_governed` 保留兼容签名并只委托 `RunApplication.execute`；Runtime、ArtifactStore、ServiceState、async finalize 和 observability 通过注入端口连接。
+- 架构守卫要求 Service 接入 `RunApplication`；修复迁移中两个 Service 内部别名误当源函数名造成的 ImportError。Docker M78/M253/M252 定向 **15/15**、architecture strict、compileall、quick、stage 全部通过。
+- 下一切片提取 Session/Action application seam，再处理 async worker 和 HTTP dispatcher。

@@ -87,6 +87,7 @@ def build_report() -> dict[str, Any]:
         ROOT / "agent" / "runtime_core" / "planning.py",
         ROOT / "agent" / "runtime_core" / "execution.py",
         ROOT / "agent" / "runtime_core" / "control.py",
+        ROOT / "agent" / "application" / "run.py",
         ROOT / "run_demo.py",
         ROOT / "domains" / "gis",
         ROOT / "domains" / "text",
@@ -129,6 +130,15 @@ def build_report() -> dict[str, Any]:
             )
     if service_path.exists() and _line_count(service_path) > 1000:
         warnings.append({"path": _relative(service_path), "code": "service_god_module"})
+    if service_path.exists():
+        source = service_path.read_text(encoding="utf-8")
+        if "from agent.application.run import RunApplication" not in source:
+            errors.append(
+                {
+                    "file": _relative(service_path),
+                    "code": "service_run_application_seam_missing",
+                }
+            )
     if index_path.exists() and index_path.stat().st_size > 100_000:
         warnings.append({"path": _relative(index_path), "code": "frontend_monolith"})
 

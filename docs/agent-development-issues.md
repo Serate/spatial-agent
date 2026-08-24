@@ -480,3 +480,11 @@
 - **诊断**：对比宿主 `rg --files domains/gis/adapters` 与容器 `/app/domains/gis/adapters` 文件清单；若测试堆栈仍是已修复的旧内容，先判断容器同步问题，不回退代码。
 - **修复**：使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build` 从当前工作树重建并健康检查，再在干净容器执行 compileall、定向回归和 quick/stage。
 - **预防**：所有结构迁移完成后必须重建 Docker 镜像再验收；文档明确“容器复制/镜像”与“实时挂载”区别，禁止把临时 `docker cp` 当作阶段交付同步方式。
+
+## Application seam 迁移把 Service 局部别名误当成源函数名
+
+- **现象**：`AgentService` 引入 `RunApplication` 后，模块加载阶段连续出现 `ImportError`，提示 `service_format` 中不存在 `_exported_geometry_evidence` 和 `_tag_geometry_features`。
+- **根因**：旧 Service 使用 `exported_geometry_evidence as _exported_geometry_evidence`、`tag_geometry_features as _tag_geometry_features` 的局部别名；迁移代码复制了别名名，却没有复制源函数的导入映射。
+- **诊断**：对导入失败的符号回到源模块检查真实定义，再对比旧调用方的 import alias；不要通过在源模块新增私有别名来掩盖迁移边界问题。
+- **修复**：Application module 从 `service_format` 导入真实函数并在本地使用 `as` 建立兼容别名；Docker 重建后 M78 facade import、Runtime/Domain 定向回归恢复通过。
+- **预防**：拆分模块时分别核对“源模块导出名”和“调用方局部别名”；迁移完成后先运行只覆盖模块导入和 facade public method 的最小契约，再运行完整行为回归。

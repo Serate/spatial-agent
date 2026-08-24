@@ -96,6 +96,7 @@ from agent.service_sessions import (
     dedupe_run_records as _dedupe_run_records,
     validate_session_id as _validate_session_id,
 )
+from agent.application.run import RunApplication
 
 
 _TERMINAL_RUN_STATUSES = {
@@ -245,6 +246,16 @@ class AgentService:
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(
             max_workers=self._async_worker_count, thread_name_prefix="spatial-agent"
+        )
+        self._run_application = RunApplication(
+            artifact_store=self._artifact_store,
+            state=self._state,
+            runtime_provider=self._runtime,
+            resolved_domain_id=lambda: self._resolved_domain_id,
+            configured_domain_id=lambda: self._configured_domain_id,
+            legacy_domain_id=self._legacy_domain_id,
+            attach_async_observability=self._attach_async_observability,
+            finalize_async_job=self._finalize_async_job,
         )
         self._recover_async_jobs()
 
@@ -714,144 +725,21 @@ class AgentService:
         resolved_request_override: str = None,
         domain_routing_evidence: Dict[str, Any] = None,
     ) -> Dict:
-        runtime = self._runtime(planner, backend)
-        if workflow_context is not None:
-            runtime_kwargs["workflow"] = workflow_context
-        contextualized_request = _contextualize_request(request, normalized_context)
-        if resolved_request_override is None:
-            result = runtime.run(contextualized_request, **runtime_kwargs)
-        else:
-            result = runtime.run(
-                contextualized_request,
-                resolved_request_override=resolved_request_override,
-                **runtime_kwargs,
-            )
-        result.domain_routing_evidence = (
-            bind_domain_routing_evidence(
-                domain_routing_evidence,
-                run_id=result.run_id,
-                domain_id=(
-                    result.domain_id
-                    or self._resolved_domain_id
-                    or self._configured_domain_id
-                    or "gis"
-                ),
-            )
-            if isinstance(domain_routing_evidence, Mapping)
-            and domain_routing_evidence.get("available") is True
-            else unavailable_domain_routing_evidence(
-                (domain_routing_evidence or {}).get(
-                    "reason_code", "domain_routing_evidence_missing"
-                )
-            )
+        return self._run_application.execute(
+            request,
+            session_id,
+            planner,
+            backend,
+            normalized_context,
+            runtime_kwargs=runtime_kwargs,
+            workflow_context=workflow_context,
+            export_artifact=export_artifact,
+            export_geojson=export_geojson,
+            geojson_max_features=geojson_max_features,
+            async_requested=async_requested,
+            resolved_request_override=resolved_request_override,
+            domain_routing_evidence=domain_routing_evidence,
         )
-        result.spatial_context = dict(normalized_context)
-        payload = result.to_dict()
-        if async_requested:
-            # Internal marker consumed only by ArtifactStore.  It is kept out
-            # of the public result envelope while allowing a partial artifact
-            # to be identified as an async run during recovery.
-            payload["_async_requested"] = True
-        payload["spatial_context"] = normalized_context
-        payload["result_type"] = _result_type(payload)
-        plan_evidence = payload.get("plan_evidence")
-        if isinstance(plan_evidence, dict) and isinstance(
-            plan_evidence.get("evidence_binding"), dict
-        ):
-            payload["evidence_binding"] = dict(plan_evidence["evidence_binding"])
-        payload["trace_summary"] = format_trace(result)
-        payload["provenance"] = build_provenance(
-            payload,
-            registry=_runtime_result_registry(runtime),
-        )
-        if payload.get("status") == RunStatus.WAITING_FOR_DECISION.value:
-            evidence = payload.get("decision_evidence")
-            decision_id = evidence.get("decision_id") if isinstance(evidence, dict) else None
-            if decision_id:
-                record = self._state.decision_store.get(
-                    decision_id,
-                    domain_id=(
-                        payload.get("domain_id")
-                        or self._resolved_domain_id
-                        or self._configured_domain_id
-                        or "gis"
-                    ),
-                )
-                if record is not None:
-                    payload["_decision_record"] = record.as_dict()
-        if payload.get("failure") is None:
-            failure = failure_from_payload(payload)
-            if failure is not None:
-                payload["failure"] = failure
-                payload.setdefault("error_category", failure["category"])
-                payload.setdefault("error_code", failure["code"])
-                result.failure = dict(failure)
-                result.error_category = payload["error_category"]
-                result.error_code = payload["error_code"]
-        if export_artifact:
-            payload["artifact_ref"] = self._artifact_store.write_run(payload)
-            result.artifact_ref = payload["artifact_ref"]
-        if export_geojson:
-            geometry_features = []
-            for step in payload.get("steps", []):
-                result_ref = (step.get("result") or {}).get("result_ref")
-                if result_ref:
-                    exported = runtime.export_result(result_ref, max_features=geojson_max_features)
-                    geometry_features.extend(
-                        _tag_geometry_features(
-                            exported.get("features", []),
-                            source=exported.get("geometry_source"),
-                            crs=exported.get("crs"),
-                            source_crs=exported.get("source_crs"),
-                            dataset=(step.get("result") or {}).get("dataset"),
-                        )
-                    )
-            payload["geojson_ref"] = export_run_summary(
-                payload,
-                geometry_features=geometry_features or None,
-            )
-            payload["_geometry_feature_count"], payload["_geometry_evidence"] = _exported_geometry_evidence(payload["geojson_ref"])
-            result.geometry_evidence = payload["_geometry_evidence"]
-            result.geojson_ref = payload["geojson_ref"]
-        payload["result"] = build_result_contract(
-            payload,
-            registry=_runtime_result_registry(runtime),
-        )
-        result.evidence_registry = payload["result"].get("evidence_registry")
-        payload.pop("_geometry_feature_count", None)
-        payload.pop("_geometry_evidence", None)
-        _attach_error_category(payload)
-        payload["execution_record"] = build_execution_record(payload, kind="run")
-        if export_artifact:
-            # Refresh the durable artifact so it carries the final navigational
-            # references (geojson_ref, result_type, session_id) that lineage
-            # navigation needs after the in-memory store is gone.
-            self._artifact_store.write_run(payload)
-        if self._state.persistent:
-            self._state.save_run(result)
-        self._attach_async_observability(payload, payload.get("run_id"))
-        if export_artifact and async_requested:
-            # The first artifact write happens before the final async
-            # observation exists.  Refresh it once more so artifact-only
-            # recovery can render the same bounded evidence.
-            self._artifact_store.write_run(payload)
-        payload["memory_evidence"] = self._state.memory.evidence(
-            str(payload.get("session_id") or "default")
-        )
-        # Mark the durable job terminal only after every final snapshot read
-        # is complete. Pollers use this marker as the worker quiescence boundary.
-        self._finalize_async_job(payload)
-        if async_requested:
-            # The job is terminal now, so a final observation can be rebuilt
-            # even when the pre-finalization snapshot was not yet visible to
-            # this worker.  Persist that terminal evidence for artifact-only
-            # recovery as well.
-            self._attach_async_observability(payload, payload.get("run_id"))
-            if export_artifact:
-                self._artifact_store.write_run(payload)
-        payload.pop("_async_requested", None)
-        payload.pop("_decision_record", None)
-        return payload
 
     def run_async(self, **kwargs) -> Dict:
         request = kwargs.get("request", "")
