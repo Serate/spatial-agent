@@ -592,3 +592,11 @@
 - **诊断**：先分别检查 `PlanRepairOutcome.status/reason_code`、`plan_quality_before/after` 和 `replan_events.phase`，再与默认 profile 区分；不要只看最终 `FAILED` 或把所有历史 fixture 失败归咎于 Docker/LLM。
 - **修复**：M259-B 保持 `PlanRepairEngine` 的严格 workflow 校验，新增 surface contract 只验证 seam 和默认路径；历史 fixture 漂移单独列为兼容矩阵清理项，待全局规划时决定更新模板、fixture 或显式兼容规则。
 - **预防**：新 planning seam 必须同时覆盖“候选计划、repair lineage、execution replan merge、workflow quality”四类证据；默认 CI 只保留精简 contract，历史专项失败必须记录独立原因，不能通过删除校验来降绿。
+
+## M259-C 运行生命周期抽取时隐式模块依赖导致终态失败
+
+- **现象**：将 `AgentRuntime.run` 抽到 `runtime_core.run_lifecycle` 后，计划能够生成，结果却在执行完成后变为 `FAILED`；错误不是 GIS 或工具错误，而是 lifecycle 文件缺少原 Runtime 中的 evidence helper import。
+- **根因**：物理迁移只复制了方法体，原方法依赖的模块级函数（例如 evidence binding、revalidation 和 failure projection）不会随着 `runtime.` 私有方法替换自动迁移；编译检查只能发现语法问题，正常运行到对应分支才暴露 `NameError`。
+- **诊断**：先用最小真实 Runtime 请求走到 `COMPLETED`，再运行 quick/stage/ci；失败时优先查看 `result.error` 和 `failure.phase`，对照迁移方法中所有不带 `runtime.` 的外部符号，不能只看 import 是否成功。
+- **修复**：lifecycle 只保留自己的异常/契约 import，并显式导入 evidence binding/revalidation；Runtime 模块级 projection/failure helper 通过运行时延迟模块引用调用，避免初始化阶段循环导入。
+- **预防**：方法抽取必须同时做“compileall + 一个成功执行 + 一个澄清/失败路径”三项验证；新 lifecycle seam 的测试应断言终态和 evidence，而不是只断言对象实例存在。

@@ -4763,3 +4763,9 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Runtime 仅保留兼容私有入口和 plan evidence/lineage 回写；`PlanRepairEngine`、ToolRegistry、Domain Pack validator 和 `RunControl` 仍通过注入 seam 协作，公共 Runtime 没有新增 GIS 策略。
 - 增加 planning surface 架构守卫和 M259 Runtime surface 断言。Docker 重建后 M259、quick/stage/ci、architecture strict、compileall 通过；历史 M150 repair matrix 中已有的 workflow blueprint fixture 漂移仍不进入默认 profile，未因本切片扩大失败面。
 - 下一切片拆出 Runtime 的 run lifecycle 与 decision/retry/recovery；完成后继续拆 Service 的 catalog/control/compatibility residue，并把架构检查从 god-module warning 收敛为可解释的剩余职责清单。
+
+## M259-C：Runtime synchronous run lifecycle seam（已完成）
+
+- 新增 `agent/runtime_core/run_lifecycle.py` 的 `RuntimeRunLifecycle`，承载同步运行的生命周期状态转换、计划确认、步骤循环、取消/超时/澄清/拒绝/失败收口、answer 生成和终态保存；`AgentRuntime.run` 只保留兼容入口。
+- lifecycle 通过注入的 Runtime adapter 使用已有 planning/execution/control/evidence seam，不复制 ToolRegistry、Domain 策略或结果契约；`_build_plan_evidence` 与 failure evidence 仍由 Runtime 的 canonical projection/helper 提供。
+- Docker 重建后直接 Runtime、M253 core、M254 application、quick/stage/ci、architecture strict 和 compileall 通过；新增模块在架构守卫登记。下一切片继续拆 decision resume、retry/cancel/recovery 与 Runtime evidence helper。
