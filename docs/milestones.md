@@ -4781,3 +4781,9 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `agent/runtime_core/recovery.py` 的 `RuntimeRecoverySurface`，统一活动运行取消、待确认计划拒绝、失败计划从首个失败步骤重试、前置结果复用和终态保存。
 - `AgentRuntime.cancel` 与 `retry_failed` 保留兼容入口并只委托 recovery seam；取消集合、DecisionStore、ToolRegistry 执行、blocked step 和 answer failure 仍通过已有 Runtime ports，未新增恢复分支到 HTTP 或 Domain。
 - Docker 重建后 M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；Runtime 还剩 preview、export/evidence helper 和少量 public state wrapper，之后进入 Service 残余职责收敛。
+
+## M259-F：Runtime preview seam（已完成）
+
+- 新增 `agent/runtime_core/preview.py` 的 `RuntimePreviewSurface`，独立承载 planning-only context/request resolution、DAG/plan identity、repair lineage、clarification/rejection 和 lifecycle 投影；预览不 dispatch 工具、不保存运行状态。
+- `AgentRuntime.preview` 保留兼容入口并只委托 preview seam；preview 与同步 run 共用 `RuntimePlanningSurface`、plan evidence、workflow validator 和 Runtime context，不复制 Domain 页面分支。
+- Docker 重建后 M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；Runtime 剩余主要是 evidence/projection helper 与少量 public facade，随后收敛 Service。

@@ -616,3 +616,11 @@
 - **诊断**：分别验证 active run cancel、waiting-for-decision reject、failed run retry 和 cancel 清除；检查新模块是否只访问 `runtime._control`/`runtime._state_store`/`runtime._decision_store`，没有新建同名状态。
 - **修复**：新增 `RuntimeRecoverySurface` 只承载转换与重试循环，所有控制、存储、ToolRegistry、answer 和 observability 通过 owner adapter 复用；Runtime public 方法只做单向委托。
 - **预防**：恢复 seam 的契约必须覆盖内存与 SQLite 两种 state adapter 的可见终态，不能只测单进程 happy path；任何新增 recovery state 先登记生命周期契约再实现。
+
+## M259-F Preview 抽取后误写运行状态
+
+- **现象**：把 preview 从 Runtime 主模块抽出时，若直接复用 run lifecycle 的保存逻辑，用户仅点击“预览计划”也会生成运行记录、清理澄清状态或触发工具调用。
+- **根因**：preview 与 run 共用请求解析、计划校验和 evidence，但生命周期副作用不同；物理模块拆分若按调用链复制，而不按副作用边界拆分，会把 planning-only 误接到 execution state。
+- **诊断**：对同一请求分别执行 preview 和 run，比较工具调用计数、state store、conversation pending、artifact 和 lifecycle 状态；preview 必须只返回 payload，不产生运行状态或 artifact。
+- **修复**：新增 `RuntimePreviewSurface`，只依赖 Runtime planning/evidence ports；preview 自己完成 `project_action_lifecycle`，不调用 state save、ToolRegistry dispatch、answer composer 或 memory remember。
+- **预防**：preview contract 至少包含“无工具调用、无状态写入、计划 identity 稳定、clarification/rejection 结构一致”四项；不得为了复用代码把 run 的副作用 callback 传给 preview。

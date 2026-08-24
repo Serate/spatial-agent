@@ -76,6 +76,7 @@ from .runtime_core.capabilities import RuntimeCapabilitySurface
 from .runtime_core.control import RunControl
 from .runtime_core.decision_resume import RuntimeDecisionResume
 from .runtime_core.planning_surface import RuntimePlanningSurface
+from .runtime_core.preview import RuntimePreviewSurface
 from .runtime_core.recovery import RuntimeRecoverySurface
 from .runtime_core.run_lifecycle import RuntimeRunLifecycle
 from .runtime_state import (
@@ -174,6 +175,7 @@ class AgentRuntime:
         self._run_lifecycle = RuntimeRunLifecycle(self)
         self._decision_resume = RuntimeDecisionResume(self)
         self._recovery = RuntimeRecoverySurface(self)
+        self._preview = RuntimePreviewSurface(self)
         self._run_span_ids: Dict[str, str] = {}
 
     @property
@@ -304,160 +306,13 @@ class AgentRuntime:
         workflow: Optional[Mapping[str, Any]] = None,
         resolved_request_override: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Plan a request and return a bounded DAG preview without dispatching tools."""
-        if timeout_seconds is not None and timeout_seconds <= 0:
-            raise ToolError("timeout_seconds must be positive")
-        deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None
-        pending = self._conversation_store.get_pending(session_id)
-        turn_advice = resolve_turn_mode(
-            self._domain_pack,
-            request,
-            pending_request=pending.request if pending is not None else None,
-            pending_error=pending.error if pending is not None else None,
+        return self._preview.preview(
+            request=request,
+            session_id=session_id,
+            timeout_seconds=timeout_seconds,
+            workflow=workflow,
+            resolved_request_override=resolved_request_override,
         )
-        if resolved_request_override is not None:
-            if not isinstance(resolved_request_override, str) or not resolved_request_override.strip():
-                raise ToolError("resolved_request_override must be a non-empty string")
-            resolved_request = resolved_request_override.strip()
-        else:
-            resolved_request = self._resolve_request(
-                request,
-                session_id,
-                pending=pending,
-                turn_advice=turn_advice,
-            )
-        request_facts = extract_request_facts(self._domain_pack, resolved_request)
-        context_packet = self._build_context_packet(
-            request, resolved_request, session_id, workflow, request_facts=request_facts
-        )
-        payload: Dict[str, Any] = {
-            "status": "PLANNING",
-            "request": request,
-            "resolved_request": resolved_request,
-            "session_id": session_id,
-            "conversation_turn": build_conversation_turn(
-                request,
-                resolved_request,
-                session_id=session_id,
-                mode=str(turn_advice.get("mode") or "unknown"),
-                source=str(turn_advice.get("source") or "runtime"),
-                pending_request=(
-                    pending.request
-                    if resolved_request_override is None
-                    and pending is not None
-                    and str(turn_advice.get("mode"))
-                    in {"clarification_reply", "follow_up", "decision_reply"}
-                    else None
-                ),
-                pending_available=pending is not None,
-                reason_code=turn_advice.get("reason_code"),
-            ),
-            "domain_id": self.domain_id,
-            "runtime_context": self.runtime_context(),
-            "request_facts": request_facts.as_context_dict(),
-            "workflow": dict(workflow) if workflow is not None else None,
-            "context_evidence": context_packet.evidence,
-            "execution": {
-                "planned_only": True,
-                "tool_execution": False,
-                "artifact_export": False,
-            },
-        }
-        candidate_plan: Optional[TaskPlan] = None
-        try:
-            self._require_workflow_selection(context_packet, workflow)
-            plan = self._plan(resolved_request, workflow, context_packet)
-            candidate_plan = plan
-            plan, repair_event = self._validate_or_repair_plan(
-                plan,
-                resolved_request,
-                workflow,
-                deadline=deadline,
-                run_id=None,
-                context_packet=context_packet,
-            )
-            plan_payload = _plan_to_dict(plan)
-            plan_evidence = _build_plan_evidence(
-                plan,
-                workflow,
-                context_packet,
-                planner_kind=type(self._planner).__name__,
-            )
-            plan_evidence["plan_policy"] = self._plan_policy_evidence(
-                plan,
-                workflow,
-                state="accepted",
-                reason_code="accepted",
-                repair_lineage=[repair_event] if repair_event is not None else [],
-            )
-            plan_evidence["execution_policy"] = self._execution_policy_evidence(plan)
-            plan_evidence["evidence_binding"] = build_evidence_binding(
-                context_packet.payload
-            )
-            payload.update({
-                "status": "PLANNED",
-                "plan": plan_payload,
-                "dag": _plan_dag(plan),
-                "plan_evidence": plan_evidence,
-                "plan_identity": dict(plan_evidence["plan_identity"]),
-                "planner_metrics": self._planner_metrics(),
-            })
-            if repair_event is not None:
-                payload["replan_events"] = [repair_event]
-        except ClarificationNeeded as exc:
-            payload.update({
-                "status": RunStatus.NEEDS_CLARIFICATION.value,
-                "error": str(exc),
-                "clarification": exc.details or resolve_clarification_details(
-                    self._domain_pack, resolved_request
-                ) or None,
-                "planner_metrics": self._planner_metrics(),
-            })
-            payload["plan_evidence"] = self._failure_plan_evidence(
-                plan=candidate_plan,
-                workflow=workflow,
-                state="clarification",
-                reason_code="clarification_required",
-                context_packet=context_packet,
-                repair_lineage=payload.get("replan_events"),
-            )
-        except RequestRejected as exc:
-            payload.update({
-                "status": RunStatus.REJECTED.value,
-                "error": str(exc),
-                "planner_metrics": self._planner_metrics(),
-            })
-            payload["plan_evidence"] = self._failure_plan_evidence(
-                plan=candidate_plan,
-                workflow=workflow,
-                state="rejected",
-                reason_code="request_rejected",
-                context_packet=context_packet,
-                repair_lineage=payload.get("replan_events"),
-            )
-        except Exception as exc:
-            payload.update({
-                "status": RunStatus.FAILED.value,
-                "error": str(exc),
-                "planner_metrics": self._planner_metrics(),
-            })
-            payload["plan_evidence"] = self._failure_plan_evidence(
-                plan=candidate_plan,
-                workflow=workflow,
-                state="rejected" if candidate_plan is not None else "unavailable",
-                reason_code=(
-                    "plan_validation_rejected"
-                    if candidate_plan is not None
-                    else "planner_failed"
-                ),
-                context_packet=context_packet,
-                repair_lineage=payload.get("replan_events"),
-            )
-        payload["lifecycle"] = project_action_lifecycle(payload)
-        if payload.get("workflow") is None:
-            payload.pop("workflow", None)
-        return payload
-
     def clear_session(self, session_id: str) -> None:
         """Clear runtime-only clarification state for a conversation."""
         self._conversation_store.clear_pending(session_id)
