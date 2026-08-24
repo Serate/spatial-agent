@@ -576,3 +576,11 @@
 - **诊断**：先确认 `web/src` 是否是唯一实现、`web/dist` 是否由当前工作树构建，再区分三类检查：HTML 结构检查只读 `index.html`，应用行为检查通过统一 source reader 组合 shell/CSS/app，Node smoke 直接加载 canonical module；最后分别请求 `/`、`/styles.css` 和 `/console_app.js`。
 - **修复**：新增无依赖、确定性的 `scripts/build_console.py`，Docker 构建时生成 `web/dist`；新增 `agent.web_assets` 作为两个 HTTP transport 共用的静态资源 seam，未构建时回退到 `web/src`；根 HTML/JS 仅保留单向兼容 facade，静态测试迁移到 canonical source helper。
 - **预防**：源码物理拆分后，测试不得重新把实现拼回生产 HTML，也不得锁定旧根路径；新增前端模块必须登记到 `agent.web_assets`、构建器和最小 Node smoke，阶段验收必须重建 Docker，确认容器内服务的是 `web/dist`。兼容 facade 只允许单向转发，不能承载第二份实现。
+
+## M259 Runtime 状态与能力目录混在编排模块
+
+- **现象**：Runtime 同时持有内存运行状态、澄清会话、能力目录、工作流契约、运行时能力快照、发布证据和 capability evidence cache；即使执行路径已有 projection/planning/execution/control seam，`runtime.py` 仍持续膨胀，架构检查只能报告 god-module。
+- **根因**：这些职责都从 Runtime 被调用，但它们的输入、生命周期和变化原因不同；把“被同一个入口调用”误认为“必须放在同一个实现模块”，造成状态 adapter、能力 evidence 和编排生命周期互相耦合。
+- **诊断**：先按变化原因和持久化需求分组，而不是按调用者分组；检查 Runtime 是否直接创建锁、缓存、状态字典，是否直接组合 Domain capability/release provider；再用活动路径回归确认迁移前后 public import、SQLite 导入和 capability snapshot 形状一致。
+- **修复**：新增 `agent.runtime_state` 作为内存状态/澄清 adapter seam，新增 `agent.runtime_core.capabilities.RuntimeCapabilitySurface` 作为能力目录与运行时证据 seam；Runtime 只保留兼容入口并注入小接口，`sqlite_store` 改从 state seam 导入。
+- **预防**：新职责必须先判断是否拥有独立状态、provider 或证据契约；若有，则进入独立深模块，旧入口只做单向兼容委托。Docker 重建后至少运行新增 surface contract、quick/stage/ci、architecture strict 和 compileall；不要为了降低行数只增加无语义的转发函数。

@@ -12,7 +12,7 @@ from .conversation_turn import normalize_conversation_turn
 from .domain_registry import DomainRegistry, DomainSelectionError, domain_registry
 from .domain_selector import resolve_domain_routing_decision
 from .runtime_context import normalize_runtime_context
-from .runtime import PendingClarification
+from .runtime_state import PendingClarification
 from .evidence_registry import normalize_evidence_registry
 from .recovery_action import normalize_action_receipt
 from .execution_timeline import normalize_execution_timeline

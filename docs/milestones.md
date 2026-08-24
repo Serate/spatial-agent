@@ -4749,3 +4749,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 静态测试改为读取 canonical source；新增 `tests/console_source.py` 组合 shell/CSS/app 的应用契约，Node smoke 直接加载 `web/src` 模块；架构检查改为守卫 `web/src`、构建器和静态资源 seam，不再把兼容入口误判为实现。
 - Docker 重建后 Console 相关静态契约 **34/34**、Node nested/decision/plugin/workflow smoke、`web/dist` 构建、HTTP `/`/`styles.css`/`console_app.js` 200、architecture strict 和 compileall 验证通过；当前仅剩 `agent/runtime.py`、`agent/service.py` 两个既有 god-module warning。
 - 下一阶段按全局架构继续拆分 Runtime 的生命周期/恢复/目录职责，再收敛 Service 的 catalog、control 和 compatibility wrapper；前端应用主脚本的职责簇也作为后续物理拆分切片，不复制到根入口。
+
+## M259-A：Runtime state / capability canonical seam（已完成）
+
+- 新增 `agent/runtime_state.py`，将内存运行状态、会话澄清状态和 `PendingClarification` 从 Runtime 编排模块移到独立 adapter；`sqlite_store` 改为从 canonical state seam 导入，旧 Runtime 名称仍保持可用。
+- 新增 `agent/runtime_core/capabilities.py` 的 `RuntimeCapabilitySurface`，统一能力目录、工作流契约、运行时能力快照、发布证据和有界 capability evidence cache；Runtime 不再持有能力证据缓存实现。
+- 新增 Runtime surface contract，并把 architecture guard 扩展到 state/capability seam。Docker 重建后 M259 定向 **3/3**、quick/stage/ci、architecture strict 和 compileall 全部通过。
+- 下一切片继续抽取 Runtime 的计划构建、计划修复和执行重规划；完成后再拆 decision resume、retry、cancel/recovery，直到 Runtime 不再暴露 god-module warning。

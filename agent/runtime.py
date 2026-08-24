@@ -1,10 +1,7 @@
 import uuid
 import inspect
-import os
-from threading import Lock
-from dataclasses import dataclass
 from datetime import datetime, timezone
-from time import monotonic, perf_counter
+from time import perf_counter
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
@@ -25,22 +22,17 @@ from .domain_contract import (
     discovery_context,
     extract_request_facts,
     result_registry as resolve_result_registry,
-    domain_action_catalog,
     execute_domain_action,
     clarification_details as resolve_clarification_details,
     evidence_action_guidance as resolve_evidence_action_guidance,
     preflight_tool as run_domain_preflight,
     plan_policy as resolve_plan_policy,
     select_workflow as resolve_workflow_selection,
-    runtime_evidence as resolve_runtime_evidence,
-    release_evidence as resolve_release_evidence,
     request_understanding_guidance,
     selected_capability_ids,
-    workflow_catalog as resolve_workflow_catalog,
     workflow_context,
     workflow_seam_summary,
 )
-from .deployment_evidence import build_deployment_evidence
 from .decision_lifecycle import DecisionLifecycleError, DecisionRequest, DecisionStore
 from .action_lifecycle import project_action_lifecycle
 from .evidence_contract import project_capability_catalog_evidence
@@ -80,101 +72,17 @@ from .tools import ToolRegistry
 from .runtime_core import projection as _runtime_projection
 from .runtime_core import planning as _runtime_planning
 from .runtime_core import execution as _runtime_execution
+from .runtime_core.capabilities import RuntimeCapabilitySurface
 from .runtime_core.control import RunControl
-
-
-class InMemoryStateStore:
-    def __init__(self):
-        self._runs: Dict[str, AgentRunResult] = {}
-        self._cancelled: Set[str] = set()
-        self._lock = Lock()
-
-    def save(self, result: AgentRunResult) -> None:
-        with self._lock:
-            self._runs[result.run_id] = result
-
-    def get(self, run_id: str) -> Optional[AgentRunResult]:
-        with self._lock:
-            return self._runs.get(run_id)
-
-    def list_runs(self, limit: int = 20, session_id: Optional[str] = None):
-        if limit < 1:
-            raise ValueError("limit must be positive")
-        with self._lock:
-            values = list(self._runs.values())
-        if session_id:
-            values = [item for item in values if item.session_id == session_id]
-        values = list(reversed(values[-limit:]))
-        return [
-            {
-                "run_id": item.run_id,
-                "session_id": item.session_id,
-                "status": item.status.value,
-                "request": item.request,
-                "answer": item.answer,
-                "error": item.error,
-                "planner_metrics": item.planner_metrics,
-            }
-            for item in values
-        ]
-
-    def clear_session_runs(self, session_id: str) -> int:
-        with self._lock:
-            run_ids = [
-                run_id for run_id, item in self._runs.items()
-                if item.session_id == session_id
-            ]
-            for run_id in run_ids:
-                self._runs.pop(run_id, None)
-                self._cancelled.discard(run_id)
-        return len(run_ids)
-
-    def request_cancel(self, run_id: str) -> None:
-        with self._lock:
-            self._cancelled.add(run_id)
-
-    def is_cancel_requested(self, run_id: str) -> bool:
-        with self._lock:
-            return run_id in self._cancelled
-
-    def clear_cancel(self, run_id: str) -> None:
-        with self._lock:
-            self._cancelled.discard(run_id)
-
-
-@dataclass(frozen=True)
-class PendingClarification:
-    request: str
-    error: str
-
-
-class InMemoryConversationStore:
-    def __init__(self):
-        self._pending: Dict[str, PendingClarification] = {}
-        self._last_requests: Dict[str, str] = {}
-
-    def get_pending(self, session_id: str) -> Optional[PendingClarification]:
-        return self._pending.get(session_id)
-
-    def save_pending(self, session_id: str, request: str, error: str) -> None:
-        self._pending[session_id] = PendingClarification(request=request, error=error)
-
-    def clear_pending(self, session_id: str) -> None:
-        self._pending.pop(session_id, None)
-
-    def save_completed(self, session_id: str, request: str) -> None:
-        self._last_requests[session_id] = request
-
-    def get_last_request(self, session_id: str) -> Optional[str]:
-        return self._last_requests.get(session_id)
+from .runtime_state import (
+    InMemoryConversationStore,
+    InMemoryStateStore,
+    PendingClarification,
+)
 
 
 class AgentRuntime:
     """The orchestration seam for planning, validation, execution, and tracing."""
-
-    _capability_evidence_cache: Dict[tuple[Any, ...], tuple[float, Any, Mapping[str, Any]]] = {}
-    _capability_evidence_cache_lock = Lock()
-    _capability_evidence_cache_limit = 32
 
     def __init__(
         self,
@@ -236,6 +144,13 @@ class AgentRuntime:
             str(item) for item in (approved_tools or []) if str(item)
         }
         self._require_dependency_evidence = bool(require_dependency_evidence)
+        self._capability_surface = RuntimeCapabilitySurface(
+            domain_pack=self._domain_pack,
+            backend_name=self._backend_name,
+            registry=self._registry,
+            domain_id=lambda: self.domain_id,
+            runtime_context=self.runtime_context,
+        )
         self._control = RunControl(self._state_store)
         self._run_span_ids: Dict[str, str] = {}
 
@@ -262,7 +177,7 @@ class AgentRuntime:
 
     def domain_actions(self) -> Dict[str, Any]:
         """Return the selected Domain Pack's bounded action catalog."""
-        return domain_action_catalog(self._domain_pack)
+        return self._capability_surface.domain_actions()
 
     def execute_domain_action(
         self,
@@ -281,90 +196,19 @@ class AgentRuntime:
 
     def capability_catalog(self) -> Mapping[str, Any]:
         """Return the selected Domain Pack's bounded capability catalog."""
-        catalog = self._domain_pack.capability_catalog(
-            environment=self._backend_name or "unknown"
-        )
-        return dict(catalog) if isinstance(catalog, Mapping) else {}
+        return self._capability_surface.capability_catalog()
 
     def workflow_template_catalog(self) -> Dict[str, Dict[str, Any]]:
         """Return the selected Domain's declarative workflow catalog."""
-        return resolve_workflow_catalog(self._domain_pack)
+        return self._capability_surface.workflow_template_catalog()
 
     def workflow_contract(self) -> Dict[str, Any]:
         """Return bounded catalog and validator allowlists for HTTP seams."""
-        catalog = self.workflow_template_catalog()
-        result_types = sorted(
-            {
-                str(result_type)
-                for template in catalog.values()
-                if isinstance(template, Mapping)
-                for result_type in (template.get("result_types") or [])
-                if str(result_type).strip()
-            }
-        )
-        return {
-            "domain_id": self.domain_id,
-            "catalog": catalog,
-            "known_tools": list(self._registry.names),
-            "known_result_types": result_types,
-        }
+        return self._capability_surface.workflow_contract()
 
     def runtime_capabilities(self, *, max_files: int = 10) -> Dict[str, Any]:
         """Return generic provider evidence plus optional domain evidence."""
-        if not isinstance(max_files, int) or max_files < 1 or max_files > 10:
-            raise ValueError("max_files must be between 1 and 10")
-        snapshot = dict(self.capability_catalog())
-        snapshot.setdefault("actions", self.domain_actions())
-        snapshot.update({
-            "domain_id": str(getattr(self._domain_pack, "domain_id", "unknown")),
-            "runtime_context": self.runtime_context(),
-            "runtime": {
-                "backend": self._backend_name,
-                "domain_id": str(getattr(self._domain_pack, "domain_id", "unknown")),
-            },
-            "tool_provider": self._registry.provider_info(),
-            "tool_provider_health": self._registry.provider_health(),
-            "tool_governance": self._registry.governance_summary(max_tools=32),
-            "health_status": "not_evaluated",
-            "data_readiness": "not_evaluated",
-            "data_evidence": {},
-            "data_provenance": {},
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        })
-        try:
-            evidence = resolve_runtime_evidence(
-                self._domain_pack,
-                max_files=max_files,
-            )
-        except Exception:
-            evidence = {
-                "health_status": "unavailable",
-                "evidence_error_code": "domain_runtime_evidence_unavailable",
-            }
-        capability_runtime = evidence.get("capabilities_runtime")
-        if isinstance(capability_runtime, list):
-            snapshot["capabilities"] = capability_runtime[:32]
-        for key, value in evidence.items():
-            if key not in {
-                "capabilities",
-                "capabilities_runtime",
-                "tool_provider",
-                "tool_provider_health",
-                "tool_governance",
-            }:
-                snapshot[key] = value
-        context = snapshot.get("runtime_context")
-        if isinstance(context, Mapping) and context.get("fingerprint"):
-            snapshot["runtime_context_fingerprint"] = str(context["fingerprint"])
-        snapshot = project_capability_catalog_evidence(
-            snapshot,
-            runtime_evidence=evidence,
-        )
-        snapshot["deployment_evidence"] = build_deployment_evidence(
-            {"runtime_context": context, "runtime_evidence": snapshot},
-            degradation=snapshot.get("degradation"),
-        )
-        return snapshot
+        return self._capability_surface.runtime_capabilities(max_files=max_files)
 
     def release_evidence(
         self,
@@ -378,29 +222,10 @@ class AgentRuntime:
         implementation. The Domain Pack owns the provider; the Runtime only
         validates the bounded request and returns its JSON-safe projection.
         """
-        if not isinstance(max_files, int) or max_files < 1 or max_files > 10:
-            raise ValueError("max_files must be between 1 and 10")
-        evidence = resolve_release_evidence(
-            self._domain_pack,
+        return self._capability_surface.release_evidence(
             config_path=config_path,
             max_files=max_files,
         )
-        evidence = dict(evidence) if isinstance(evidence, Mapping) else {}
-        evidence.setdefault(
-            "domain_id", str(getattr(self._domain_pack, "domain_id", "unknown"))[:80]
-        )
-        context = self.runtime_context()
-        evidence["runtime_context"] = context
-        evidence["runtime_context_fingerprint"] = context["fingerprint"]
-        evidence["deployment_evidence"] = build_deployment_evidence(
-            {
-                "domain_id": evidence.get("domain_id"),
-                "runtime_context": context,
-                "release_evidence": evidence,
-            },
-            model_evidence=None,
-        )
-        return evidence
 
     def run(
         self,
@@ -1339,51 +1164,7 @@ class AgentRuntime:
         )
 
     def _capability_context_evidence(self) -> Mapping[str, Any]:
-        """Read advisory capability evidence with a short process-local TTL.
-
-        Capability evidence helps discovery and planning explain availability;
-        it is not an execution authorization. The existing Domain preflight
-        and evidence revalidation gates remain authoritative, so a short cache
-        keeps repeated Runtime/CLI/HTTP construction cheap without allowing a
-        stale snapshot to bypass safety checks.
-        """
-
-        provider_factory = getattr(self._domain_pack, "evidence_provider", None)
-        provider = provider_factory() if callable(provider_factory) else None
-        provider_key = id(provider) if provider is not None else id(self._domain_pack)
-        config_key = os.environ.get("SPATIAL_AGENT_DATASET_CONFIG", "")[:240]
-        key = (self.domain_id, self._backend_name, provider_key, config_key)
-        ttl = _capability_evidence_cache_ttl()
-        now = monotonic()
-        if ttl > 0:
-            with self._capability_evidence_cache_lock:
-                cached = self._capability_evidence_cache.get(key)
-                if cached is not None and now - cached[0] < ttl:
-                    value = cached[2]
-                    return dict(value) if isinstance(value, Mapping) else {}
-        try:
-            value = resolve_runtime_evidence(self._domain_pack, max_files=1)
-        except Exception:
-            # Capability discovery must remain usable when a provider is
-            # unavailable. The failure is a bounded evidence state, not a
-            # reason to import a Domain-specific fallback into Runtime.
-            value = {
-                "health_status": "unavailable",
-                "errors": ["capability_evidence_provider_unavailable"],
-            }
-        if not isinstance(value, Mapping):
-            value = {"health_status": "unknown"}
-        value = dict(value)
-        if ttl > 0:
-            with self._capability_evidence_cache_lock:
-                self._capability_evidence_cache[key] = (now, provider, value)
-                while len(self._capability_evidence_cache) > self._capability_evidence_cache_limit:
-                    oldest = min(
-                        self._capability_evidence_cache,
-                        key=lambda item: self._capability_evidence_cache[item][0],
-                    )
-                    self._capability_evidence_cache.pop(oldest, None)
-        return value
+        return self._capability_surface.context_evidence()
 
     def _resolve_request(
         self,
