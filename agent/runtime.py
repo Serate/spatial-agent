@@ -74,6 +74,7 @@ from .runtime_core import planning as _runtime_planning
 from .runtime_core import execution as _runtime_execution
 from .runtime_core.capabilities import RuntimeCapabilitySurface
 from .runtime_core.control import RunControl
+from .runtime_core.planning_surface import RuntimePlanningSurface
 from .runtime_state import (
     InMemoryConversationStore,
     InMemoryStateStore,
@@ -152,6 +153,21 @@ class AgentRuntime:
             runtime_context=self.runtime_context,
         )
         self._control = RunControl(self._state_store)
+        self._planning_surface = RuntimePlanningSurface(
+            planner=self._planner,
+            registry=self._registry,
+            domain_pack=self._domain_pack,
+            backend_name=self._backend_name,
+            context_builder=self._context_builder,
+            conversation_store=self._conversation_store,
+            memory=self._memory,
+            max_steps=self._max_steps,
+            plan_repair_engine=self._plan_repair_engine,
+            replan_policy=self._replan_policy,
+            domain_id=lambda: self.domain_id,
+            capability_context_evidence=self._capability_surface.context_evidence,
+            control_check=self._check_control,
+        )
         self._run_span_ids: Dict[str, str] = {}
 
     @property
@@ -1060,107 +1076,12 @@ class AgentRuntime:
         *,
         request_facts: Optional[RequestFacts] = None,
     ) -> ContextPacket:
-        memory_section = (
-            self._memory.context_section(session_id)
-            if self._memory is not None
-            else None
-        )
-        spatial_request = request_facts or extract_request_facts(
-            self._domain_pack, resolved_request
-        )
-        capability_discovery = self._domain_pack.discover(
+        return self._planning_surface.build_context_packet(
+            request,
             resolved_request,
-            spatial_request,
-        )
-        discovery_payload = discovery_context(
-            capability_discovery,
-            domain_id=str(getattr(self._domain_pack, "domain_id", "unknown")),
-        )
-        understanding_payload = request_understanding_guidance(self._domain_pack)
-        catalog = self._domain_pack.capability_catalog(
-            environment=self._backend_name or "unknown"
-        )
-        catalog_runtime_evidence = self._capability_context_evidence()
-        catalog = project_capability_catalog_evidence(
-            catalog,
-            runtime_evidence=catalog_runtime_evidence,
-        )
-        discovery_payload = enrich_discovery_context(
-            discovery_payload,
-            spatial_request,
-            catalog,
-            # Keep the planner context compact while retaining enough choices
-            # for an open request to continue without a fixed question page.
-            max_suggestions=4,
-        )
-        domain_selection = resolve_workflow_selection(
-            self._domain_pack,
-            discovery_payload,
-            spatial_request,
-            workflow=workflow,
-        )
-        workflow_selection = build_workflow_selection_evidence(
-            discovery=discovery_payload,
-            domain_selection=domain_selection,
-            workflow=workflow,
-            capability_catalog=catalog,
-            domain_seams=workflow_seam_summary(self._domain_pack),
-            request_facts=spatial_request,
-            domain_id=self.domain_id,
-        )
-        domain_guidance = resolve_evidence_action_guidance(
-            self._domain_pack,
-            workflow_selection,
-            request_facts=spatial_request,
-        )
-        workflow_selection = build_workflow_selection_evidence(
-            discovery=discovery_payload,
-            domain_selection=domain_selection,
-            workflow=workflow,
-            capability_catalog=catalog,
-            domain_seams=workflow_seam_summary(self._domain_pack),
-            request_facts=spatial_request,
-            domain_id=self.domain_id,
-            evidence_action_guidance=domain_guidance,
-        )
-        workflow_templates = _compact_workflow_templates_for_context(
-            workflow_context(self._domain_pack),
-            workflow_selection,
-        )
-        capability_catalog = capability_context_summary(
-            catalog=catalog,
-            tool_definitions=self._registry.definition_summary(),
-            tool_provider=self._registry.provider_info(),
-            tool_provider_health=self._registry.provider_health(),
-            tool_governance=self._registry.governance_summary(max_tools=4),
-            selected_capability_ids=selected_capability_ids(capability_discovery)[:1],
-            max_capabilities=1,
-            max_tools=12,
-        )
-        planner_sections = project_planner_sections(
-            capability_discovery=discovery_payload,
-            capability_catalog=capability_catalog,
-            workflow_selection=workflow_selection,
-            workflow_templates=workflow_templates,
-        )
-        return self._context_builder.build(
-            request=request,
-            resolved_request=resolved_request,
-            session_id=session_id,
-            workflow=workflow,
-            available_tools=self._registry.names,
-            planner_kind=type(self._planner).__name__,
-            spatial_request=spatial_request.as_context_dict(),
-            request_understanding=understanding_payload,
-            capability_discovery=discovery_payload,
-            capability_catalog=capability_catalog,
-            workflow_selection=workflow_selection,
-            memory_section=memory_section,
-            workflow_templates=workflow_templates,
-            planner_section_overrides=planner_sections,
-            planner_projection_schema_version=(
-                PLANNER_CONTEXT_PROJECTION_SCHEMA_VERSION
-            ),
+            session_id,
+            workflow,
+            request_facts=request_facts,
         )
 
     def _capability_context_evidence(self) -> Mapping[str, Any]:
@@ -1174,29 +1095,12 @@ class AgentRuntime:
         pending: Optional[PendingClarification] = None,
         turn_advice: Optional[Mapping[str, Any]] = None,
     ) -> str:
-        pending = pending if pending is not None else self._conversation_store.get_pending(session_id)
-        advice = turn_advice or resolve_turn_mode(
-            self._domain_pack,
+        return self._planning_surface.resolve_request(
             request,
-            pending_request=pending.request if pending is not None else None,
-            pending_error=pending.error if pending is not None else None,
+            session_id,
+            pending=pending,
+            turn_advice=turn_advice,
         )
-        mode = str(advice.get("mode") or "unknown") if isinstance(advice, Mapping) else "unknown"
-        if pending is not None and mode in {
-            "clarification_reply",
-            "follow_up",
-            "decision_reply",
-        }:
-            return request.strip() + " " + pending.request.strip()
-        if pending is not None:
-            # A clearly independent request starts a new turn.  Do not let an
-            # old clarification leak into its planner context.
-            self._conversation_store.clear_pending(session_id)
-        previous = self._conversation_store.get_last_request(session_id)
-        follow_up = ("继续", "刚才", "上面", "这个结果", "该结果", "改成", "调整为", "换成")
-        if previous and any(term in request for term in follow_up):
-            return request.strip() + "。基于上一轮请求：" + previous.strip()
-        return request
 
     def _require_workflow_selection(
         self,
@@ -1212,7 +1116,7 @@ class AgentRuntime:
         owner of candidate semantics. An explicit workflow is already a
         user decision and therefore bypasses this gate.
         """
-        return _runtime_planning.require_workflow_selection(context_packet, workflow)
+        return self._planning_surface.require_workflow_selection(context_packet, workflow)
 
     def _planner_metrics(self) -> Optional[Dict]:
         metrics = getattr(self._planner, "metrics", None)
@@ -1268,46 +1172,22 @@ class AgentRuntime:
         run_id: Optional[str] = None,
         context_packet: Optional[ContextPacket] = None,
     ) -> tuple[TaskPlan, Optional[Dict[str, Any]]]:
-        """Validate a plan and make one bounded model repair if needed.
-
-        This is the planning-phase seam: no tool has run, so a repaired plan
-        replaces the whole candidate rather than being merged with execution
-        state.  The replacement still crosses the same workflow and Registry
-        validation as the original plan.
-        """
-
-        try:
-            self._validate_plan_for_execution(plan, workflow)
-            return plan, None
-        except Exception as exc:
-            replacement, event = self._try_plan_repair(
-                request,
-                plan,
-                workflow,
-                exc,
-                deadline,
-                run_id=run_id,
-                context_packet=context_packet,
-            )
-            if result is not None:
-                if event is not None:
-                    result.replan_events.append(event)
-            if replacement is None or event is None:
-                raise
-            return replacement, event
+        replacement, event = self._planning_surface.validate_or_repair(
+            plan,
+            request,
+            workflow,
+            deadline=deadline,
+            run_id=run_id,
+            context_packet=context_packet,
+        )
+        if result is not None and event is not None:
+            result.replan_events.append(event)
+        return replacement, event
 
     def _validate_plan_for_execution(
         self, plan: TaskPlan, workflow: Optional[Mapping[str, Any]]
     ) -> None:
-        if workflow is not None:
-            workflow_validator = getattr(self._domain_pack, "validate_workflow_plan", None)
-            if callable(workflow_validator):
-                workflow_validator(plan, workflow)
-        domain_validator = getattr(self._domain_pack, "validate_plan", None)
-        if callable(domain_validator):
-            domain_validator(plan)
-        if plan.output.get("type") != "direct_answer":
-            self._validate_plan(plan)
+        return self._planning_surface.validate_plan_for_execution(plan, workflow)
 
     def _try_plan_repair(
         self,
@@ -1319,33 +1199,15 @@ class AgentRuntime:
         run_id: Optional[str],
         context_packet: Optional[ContextPacket],
     ) -> tuple[Optional[TaskPlan], Optional[Dict[str, Any]]]:
-        capability_context = {}
-        if context_packet is not None:
-            source_payload = context_packet.source_payload or context_packet.payload
-            sections = source_payload.get("sections", {})
-            if isinstance(sections, Mapping):
-                capability_context = {
-                    key: sections[key]
-                    for key in (
-                        "available_tools",
-                        "capability_discovery",
-                        "capability_catalog",
-                        "workflow_templates",
-                    )
-                    if key in sections
-                }
-        outcome = self._plan_repair_engine.repair(
-            PlanRepairInput(
-                request=request,
-                candidate=plan,
-                workflow=workflow,
-                validation_error=str(exc),
-                run_id=run_id,
-                deadline=deadline,
-                capability_context=capability_context,
-            )
+        del exc
+        return self._planning_surface.validate_or_repair(
+            plan,
+            request,
+            workflow,
+            deadline=deadline,
+            run_id=run_id,
+            context_packet=context_packet,
         )
-        return outcome.plan, outcome.event
 
     def _plan(
         self,
@@ -1353,19 +1215,10 @@ class AgentRuntime:
         workflow: Optional[Mapping[str, Any]],
         context_packet: ContextPacket,
     ) -> TaskPlan:
-        return _runtime_planning.invoke_planner(
-            self._planner,
-            request,
-            workflow,
-            context_packet,
-        )
+        return self._planning_surface.plan(request, workflow, context_packet)
 
     def _validate_plan(self, plan: TaskPlan) -> None:
-        return _runtime_planning.validate_plan(
-            plan,
-            self._registry.names,
-            self._max_steps,
-        )
+        return self._planning_surface.validate_plan(plan)
 
     def _execute_step(
         self,
@@ -1407,117 +1260,46 @@ class AgentRuntime:
         replan_count: int,
         deadline: Optional[float],
     ) -> bool:
-        """Attempt one adaptive replan round after a failed step.
-
-        Returns True when a valid replacement plan was merged and execution can
-        continue; False when the run must fail fast (policy denies, budget
-        exhausted, or replanning itself failed).
-        """
-        if not self._replan_policy.should_replan(
-            replan_count=replan_count,
-            step_status=step_run.status,
-            step_error=str(exc),
-        ):
-            return False
-        completed_steps = [
-            {"id": step_id, "tool": self._tool_for_step(result.plan, step_id)}
-            for step_id in completed
-        ]
-        failed_payload = {
-            "id": step.id,
-            "tool": step.tool,
-            "args": dict(step.args),
-            "error_category": step_run.error_category or failure_category(str(exc)),
-        }
-        original_quality = diagnose_plan(
-            result.plan,
-            workflow_context(self._domain_pack),
-        )
-        feedback = self._replan_policy.feedback_payload(
+        del exc
+        outcome = self._planning_surface.try_replan(
+            original=result.plan,
+            existing_steps=result.steps,
             request=request,
-            completed_steps=completed_steps,
-            failed_step=failed_payload,
-            remaining_tools=self._registry.names,
-            output_type=(result.plan.output or {}).get("type"),
-            plan_quality=original_quality,
+            workflow=result.workflow,
+            step=step,
+            step_run=step_run,
+            completed=completed,
+            completed_results=completed_results,
+            replan_count=replan_count,
+            deadline=deadline,
         )
-        started = perf_counter()
-        try:
-            if getattr(self._planner, "capability_rules", None) is not None:
-                replacement = rule_replan_plan(failed_payload, completed_results)
-            else:
-                replacement = self._planner.plan(
-                    request, context=_replan_context(feedback)
-                )
-            merged = merge_replanned_plan(
-                result.plan, replacement, failed_step_id=step.id
-            )
-            # Validate the merged plan only: replacement steps may legitimately
-            # depend on original steps that survive in the merged plan, which
-            # a standalone validation of the replacement would reject.
-            self._validate_plan_for_execution(merged, result.workflow)
-            merged_quality = diagnose_plan(
-                merged,
-                workflow_context(self._domain_pack),
-            )
-            if merged_quality.get("available") and not merged_quality.get("passed"):
-                raise ToolError("replanned workflow blueprint mismatch")
-            # Rebuild step runs to match the merged plan: keep runs for steps
-            # that still exist (completed ones keep their results, the failed
-            # step keeps its FAILED state), create fresh runs for new steps.
-            old_by_id = {item.id: item for item in result.steps}
-            rebuilt: List[StepRun] = []
-            new_step_ids: List[str] = []
-            for item in merged.steps:
-                previous = old_by_id.get(item.id)
-                if previous is not None:
-                    rebuilt.append(previous)
-                else:
-                    fresh = StepRun(item.id, item.tool, item.args, list(item.depends_on))
-                    rebuilt.append(fresh)
-                    new_step_ids.append(item.id)
-            result.plan = merged
-            result.steps = rebuilt
-            if isinstance(result.plan_evidence, dict):
-                result.plan_evidence["plan_quality"] = project_plan_quality_evidence(
-                    merged_quality
-                )
-            result.replan_events.append(
-                build_replan_event(
-                    failed_step_id=step.id,
-                    failed_tool=step.tool,
-                    failure_category=step_run.error_category or failure_category(str(exc)),
-                    new_step_ids=new_step_ids,
-                    latency_ms=(perf_counter() - started) * 1000,
-                    plan_quality_before=original_quality,
-                    plan_quality_after=merged_quality,
-                )
-            )
-            if isinstance(result.plan_evidence, dict):
-                result.plan_evidence["plan_policy"] = self._plan_policy_evidence(
-                    merged,
-                    result.workflow,
-                    state="accepted",
-                    reason_code="execution_replan_accepted",
-                    repair_lineage=result.replan_events,
-                )
-                result.plan_evidence["plan_identity"] = build_plan_identity(
-                    merged,
-                    request=result.request,
-                    resolved_request=result.resolved_request or result.request,
-                    workflow=result.workflow,
-                    planner_kind=type(self._planner).__name__,
-                )
-            return True
-        except Exception:
-            # Replanning failed; the caller falls back to fail-fast.
+        if outcome is None:
             return False
+        result.plan = outcome.plan
+        result.steps = outcome.steps
+        result.replan_events.append(outcome.event)
+        if isinstance(result.plan_evidence, dict):
+            result.plan_evidence["plan_quality"] = project_plan_quality_evidence(
+                outcome.quality_after
+            )
+            result.plan_evidence["plan_policy"] = self._plan_policy_evidence(
+                outcome.plan,
+                result.workflow,
+                state="accepted",
+                reason_code="execution_replan_accepted",
+                repair_lineage=result.replan_events,
+            )
+            result.plan_evidence["plan_identity"] = build_plan_identity(
+                outcome.plan,
+                request=result.request,
+                resolved_request=result.resolved_request or result.request,
+                workflow=result.workflow,
+                planner_kind=type(self._planner).__name__,
+            )
+        return True
 
     def _tool_for_step(self, plan: TaskPlan, step_id: str) -> Optional[str]:
-        for item in plan.steps:
-            if item.id == step_id:
-                return item.tool
-        return None
+        return self._planning_surface._tool_for_step(plan, step_id)
 
     def _enforce_preflight_policy(
         self,

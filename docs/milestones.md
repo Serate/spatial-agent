@@ -4756,3 +4756,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `agent/runtime_core/capabilities.py` 的 `RuntimeCapabilitySurface`，统一能力目录、工作流契约、运行时能力快照、发布证据和有界 capability evidence cache；Runtime 不再持有能力证据缓存实现。
 - 新增 Runtime surface contract，并把 architecture guard 扩展到 state/capability seam。Docker 重建后 M259 定向 **3/3**、quick/stage/ci、architecture strict 和 compileall 全部通过。
 - 下一切片继续抽取 Runtime 的计划构建、计划修复和执行重规划；完成后再拆 decision resume、retry、cancel/recovery，直到 Runtime 不再暴露 god-module warning。
+
+## M259-B：Runtime planning / repair / replanning surface（已完成）
+
+- 新增 `agent/runtime_core/planning_surface.py` 的 `RuntimePlanningSurface`，将 context packet、会话请求解析、Planner 调用、通用/Domain 计划校验、有限 repair 和执行失败后的 replan merge 收敛到一个可测试接口。
+- Runtime 仅保留兼容私有入口和 plan evidence/lineage 回写；`PlanRepairEngine`、ToolRegistry、Domain Pack validator 和 `RunControl` 仍通过注入 seam 协作，公共 Runtime 没有新增 GIS 策略。
+- 增加 planning surface 架构守卫和 M259 Runtime surface 断言。Docker 重建后 M259、quick/stage/ci、architecture strict、compileall 通过；历史 M150 repair matrix 中已有的 workflow blueprint fixture 漂移仍不进入默认 profile，未因本切片扩大失败面。
+- 下一切片拆出 Runtime 的 run lifecycle 与 decision/retry/recovery；完成后继续拆 Service 的 catalog/control/compatibility residue，并把架构检查从 god-module warning 收敛为可解释的剩余职责清单。

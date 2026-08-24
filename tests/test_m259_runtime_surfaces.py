@@ -6,6 +6,7 @@ import unittest
 
 from agent.runtime import InMemoryConversationStore, InMemoryStateStore
 from agent.runtime_core.capabilities import RuntimeCapabilitySurface
+from agent.runtime_core.planning_surface import RuntimePlanningSurface
 from agent.runtime_state import (
     InMemoryConversationStore as CanonicalConversationStore,
     InMemoryStateStore as CanonicalStateStore,
@@ -21,6 +22,7 @@ class M259RuntimeSurfaceTests(unittest.TestCase):
     def test_runtime_owns_one_capability_surface(self):
         runtime = build_text_runtime()
         self.assertIsInstance(runtime._capability_surface, RuntimeCapabilitySurface)
+        self.assertIsInstance(runtime._planning_surface, RuntimePlanningSurface)
         self.assertEqual(runtime.capability_catalog()["domain_id"], "text")
         contract = runtime.workflow_contract()
         self.assertEqual(contract["domain_id"], "text")

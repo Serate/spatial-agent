@@ -87,6 +87,7 @@ def build_report() -> dict[str, Any]:
         ROOT / "agent" / "runtime_core" / "planning.py",
         ROOT / "agent" / "runtime_core" / "execution.py",
         ROOT / "agent" / "runtime_core" / "control.py",
+        ROOT / "agent" / "runtime_core" / "planning_surface.py",
         ROOT / "agent" / "runtime_core" / "capabilities.py",
         ROOT / "agent" / "runtime_state.py",
         ROOT / "agent" / "application" / "run.py",
@@ -151,6 +152,13 @@ def build_report() -> dict[str, Any]:
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_state_seam_missing",
+                }
+            )
+        if "from .runtime_core.planning_surface import RuntimePlanningSurface" not in source:
+            errors.append(
+                {
+                    "file": _relative(runtime_path),
+                    "code": "runtime_planning_surface_missing",
                 }
             )
     if service_path.exists() and _line_count(service_path) > 1000:

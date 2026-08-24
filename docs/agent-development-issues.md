@@ -584,3 +584,11 @@
 - **诊断**：先按变化原因和持久化需求分组，而不是按调用者分组；检查 Runtime 是否直接创建锁、缓存、状态字典，是否直接组合 Domain capability/release provider；再用活动路径回归确认迁移前后 public import、SQLite 导入和 capability snapshot 形状一致。
 - **修复**：新增 `agent.runtime_state` 作为内存状态/澄清 adapter seam，新增 `agent.runtime_core.capabilities.RuntimeCapabilitySurface` 作为能力目录与运行时证据 seam；Runtime 只保留兼容入口并注入小接口，`sqlite_store` 改从 state seam 导入。
 - **预防**：新职责必须先判断是否拥有独立状态、provider 或证据契约；若有，则进入独立深模块，旧入口只做单向兼容委托。Docker 重建后至少运行新增 surface contract、quick/stage/ci、architecture strict 和 compileall；不要为了降低行数只增加无语义的转发函数。
+
+## M259-B 计划修复与执行重规划迁移后的 workflow evidence 漂移
+
+- **现象**：把计划构建、有限 repair 和执行 replan 从 Runtime 移到 `RuntimePlanningSurface` 后，默认 quick/stage/ci 仍通过，但历史 M150 repair matrix 的文本 fixture 可能因 workflow 模板步骤 ID 演进而显示 `replacement_workflow_invalid`，不能把它误判成 Runtime seam 本身的失败。
+- **根因**：规划模块同时接收 Domain 的 workflow blueprint 和模型生成的 TaskPlan；Domain 模板的步骤 ID 是可演进契约，旧 fixture 仍使用早期的 `summary` ID，而当前模板使用 `summary-text`。迁移只改变调用位置，不应偷偷放宽或重写 blueprint 语义。
+- **诊断**：先分别检查 `PlanRepairOutcome.status/reason_code`、`plan_quality_before/after` 和 `replan_events.phase`，再与默认 profile 区分；不要只看最终 `FAILED` 或把所有历史 fixture 失败归咎于 Docker/LLM。
+- **修复**：M259-B 保持 `PlanRepairEngine` 的严格 workflow 校验，新增 surface contract 只验证 seam 和默认路径；历史 fixture 漂移单独列为兼容矩阵清理项，待全局规划时决定更新模板、fixture 或显式兼容规则。
+- **预防**：新 planning seam 必须同时覆盖“候选计划、repair lineage、execution replan merge、workflow quality”四类证据；默认 CI 只保留精简 contract，历史专项失败必须记录独立原因，不能通过删除校验来降绿。
