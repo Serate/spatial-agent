@@ -81,6 +81,19 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("$('newSession').addEventListener('click',()=>newSession())", self.source)
         self.assertIn("sessionCatalogGeneration", self.source)
 
+    def test_console_defaults_are_live_gis_local(self):
+        """The first-use browser configuration should be ready for live GIS checks."""
+        planner_select = self.source.split('<select id="planner"', 1)[1].split(
+            '</select>', 1
+        )[0]
+        backend_select = self.source.split('<select id="backend"', 1)[1].split(
+            '</select>', 1
+        )[0]
+        self.assertIn('value="openai" selected', planner_select)
+        self.assertIn('value="local" selected', backend_select)
+        self.assertIn("const defaultDomain=available.has('gis')?'gis'", self.source)
+        self.assertIn("$('domain').value=available.has(preferred)?preferred:defaultDomain", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

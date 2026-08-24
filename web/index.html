@@ -140,10 +140,10 @@
       filter: blur(18px);
       pointer-events: none;
     }
-    .content { display: grid; grid-template-columns: minmax(0, 1fr) 420px; align-items: start; gap: 20px; }
+    .content { display: grid; grid-template-columns: minmax(0, 1fr) clamp(360px, 30vw, 430px); grid-template-rows: auto minmax(0, 1fr); align-items: start; gap: 18px; }
     .content > .hero { grid-column: 1 / -1; }
-    .content > .chat { grid-column: 2; grid-row: 2; position: sticky; top: 20px; }
-    .content > .grid { grid-column: 1; grid-row: 2; }
+    .content > .chat { grid-column: 2; grid-row: 2; position: sticky; top: 20px; min-width: 0; }
+    .content > .grid { grid-column: 1; grid-row: 2; min-width: 0; }
 
     section, .panel {
       background: var(--glass);
@@ -226,10 +226,11 @@
 
     /* ---------- Chat panel ---------- */
     .chat {
-      display: grid;
-      grid-template-rows: auto auto minmax(0, 1fr) auto;
-      min-height: 560px;
-      max-height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: min(760px, calc(100vh - 220px));
+      max-height: none;
       overflow: hidden;
       background: rgba(255, 255, 255, .74);
       border-radius: var(--radius-lg);
@@ -239,6 +240,7 @@
       backdrop-filter: blur(18px);
     }
     .chat-head {
+      flex: 0 0 auto;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -256,6 +258,8 @@
     .chat-actions button:hover { background: var(--teal-soft); color: var(--teal-deep); border-color: #c4b5fd; transform: none; box-shadow: none; }
 
     .messages {
+      flex: 1 1 auto;
+      min-height: 0;
       overflow-y: auto;
       padding: 20px;
       display: flex;
@@ -298,14 +302,15 @@
     @keyframes msg-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
     .composer {
+      flex: 0 0 auto;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: 1fr;
       gap: 10px;
       padding: 14px 16px;
       border-top: 1px solid var(--line-soft);
       background: rgba(255, 255, 255, .88);
     }
-    .composer-actions { display: grid; grid-template-rows: 1fr 1fr; gap: 7px; min-width: 86px; }
+    .composer-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; min-width: 0; }
     .composer textarea {
       min-height: 54px;
       max-height: 150px;
@@ -1008,8 +1013,7 @@
       .chat-settings .action-workbench .workflow-field label { display: block; }
       .chat-settings .action-workbench input, .chat-settings .action-workbench select, .chat-settings .action-workbench textarea { width: 100%; }
       .chat {
-        grid-template-rows: auto auto minmax(0, 1fr) auto;
-        height: clamp(620px, calc(100vh - 150px), 820px);
+        height: clamp(400px, calc(100vh - 200px), 760px);
         min-height: 0;
         max-height: none;
       }
@@ -1021,7 +1025,7 @@
       .bubble { padding: 11px 13px; font-size: 13px; }
       .composer { grid-template-columns: 1fr; gap: 8px; padding: 11px 13px; }
       .composer textarea { min-height: 60px; max-height: 130px; padding: 11px 12px; font-size: 13px; }
-      .composer button { min-height: 38px; }
+      .composer button { min-height: 40px; }
       .content > .grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 14px;
@@ -1074,6 +1078,7 @@
       .hero > div:first-child { display: block; }
       .hero .decision-mode { margin-top: 6px; }
       .hero h2 { font-size: 19px; }
+      .chat { height: min(680px, 78vh); min-height: 520px; }
       .composer { grid-template-columns: 1fr; }
       .composer button { min-height: 44px; }
       .msg { max-width: 92%; }
@@ -1090,7 +1095,7 @@
   <header><h1>Agent Runtime 控制台</h1><span>对话 / 规划器 / 工作流 / 领域适配器</span></header>
   <main>
     <aside id="workspaceControls" class="controls panel">
-      <div class="row"><div><label for="domain">领域</label><select id="domain" aria-label="当前领域"><option value="">正在读取领域目录…</option></select></div><div><label for="planner">规划器</label><select id="planner" aria-label="规划器"><option value="rule">规则规划器</option><option value="openai">真实大模型</option></select></div><div><label for="backend">执行后端</label><select id="backend" aria-label="执行后端"><option value="memory">内存适配器</option><option value="local">本地适配器</option></select></div></div>
+      <div class="row"><div><label for="domain">领域</label><select id="domain" aria-label="当前领域"><option value="">正在读取领域目录…</option></select></div><div><label for="planner">规划器</label><select id="planner" aria-label="规划器"><option value="rule">规则规划器</option><option value="openai" selected>真实大模型</option></select></div><div><label for="backend">执行后端</label><select id="backend" aria-label="执行后端"><option value="memory">内存适配器</option><option value="local" selected>本地适配器</option></select></div></div>
       <label for="session">选择对话</label><select id="session" aria-label="选择对话"><option value="conversation-1">对话1</option></select>
       <details id="workflowEditor" class="workflow-editor">
         <summary>工作流与约束</summary>
@@ -1116,7 +1121,7 @@
         <div id="messages" class="messages" aria-live="polite"></div>
         <div class="composer">
           <textarea id="prompt" placeholder="请输入希望 Agent 完成的任务"></textarea>
-          <div class="composer-actions"><button id="previewPlan" type="button">预览计划</button><button id="send">发送</button></div>
+          <div class="composer-actions"><button id="previewPlan" type="button">预览计划</button><button id="send" type="button">发送</button></div>
         </div>
       </section>
       <div id="resultWorkspace" class="grid" role="region" aria-label="分析结果工作区" aria-live="polite" aria-busy="false">
@@ -1537,7 +1542,8 @@
         $('domain').innerHTML='<option value="'+AUTO_DOMAIN_VALUE+'" title="由运行时根据请求和当前会话选择领域">智能选择</option>'+domains.map(item=>'<option value="'+escapeHtml(item.id)+'" title="'+escapeHtml(item.description||'')+'">'+escapeHtml(item.label||item.id)+'</option>').join('');
         const preferred=preferredDomainId();
         const available=new Set([AUTO_DOMAIN_VALUE,...domains.map(item=>String(item.id))]);
-        $('domain').value=available.has(preferred)?preferred:(available.has(data.legacy_domain_id)?data.legacy_domain_id:String(domains[0].id));
+        const defaultDomain=available.has('gis')?'gis':(available.has(data.legacy_domain_id)?data.legacy_domain_id:String(domains[0].id));
+        $('domain').value=available.has(preferred)?preferred:defaultDomain;
         if($('domain').value===AUTO_DOMAIN_VALUE) autoDomainBinding=preferredAutoDomainBinding(available);
         persistSelectedDomain();
         return data;
