@@ -1,4 +1,5 @@
 import json
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Protocol
 
@@ -56,6 +57,7 @@ class SpatialBackend(Protocol):
         input_ref: str,
         mask_ref: str,
         max_features: int = 10000,
+        distance_m: Optional[float] = None,
     ) -> Dict[str, Any]:
         ...
 
@@ -228,8 +230,9 @@ class InMemorySpatialBackend:
         input_ref: str,
         mask_ref: str,
         max_features: int = 10000,
+        distance_m: Optional[float] = None,
     ) -> Dict[str, Any]:
-        del operation, input_ref, mask_ref, max_features
+        del operation, input_ref, mask_ref, max_features, distance_m
         raise ToolError(
             "in-memory backend has no vector geometry for spatial_operation",
             category="data",
@@ -597,8 +600,9 @@ class GeoPackageBackend:
         input_ref: str,
         mask_ref: str,
         max_features: int = 10000,
+        distance_m: Optional[float] = None,
     ) -> Dict[str, Any]:
-        if operation not in {"clip", "intersect"}:
+        if operation not in {"clip", "intersect", "buffer", "distance"}:
             raise ToolError("unsupported spatial operation: " + str(operation))
         if not self.supports(input_ref) and input_ref not in self._result_cache:
             raise ToolError("unknown vector input_ref: " + str(input_ref))
@@ -607,7 +611,7 @@ class GeoPackageBackend:
         left = self._vector_source(input_ref)
         mask = self._vector_source(mask_ref)
         output, summary = _perform_spatial_operation(
-            operation, left, mask, max_features=max_features
+            operation, left, mask, max_features=max_features, distance_m=distance_m
         )
         self._result_number += 1
         result_ref = f"gpkg://operation/{operation}/{self._result_number}"
@@ -620,6 +624,7 @@ class GeoPackageBackend:
             output=output,
             summary=summary,
             backend="geopackage",
+            distance_m=distance_m,
         )
 
     def get_zonal_vector_summary(
@@ -830,13 +835,14 @@ class HybridSpatialBackend:
         input_ref: str,
         mask_ref: str,
         max_features: int = 10000,
+        distance_m: Optional[float] = None,
     ) -> Dict[str, Any]:
-        if operation not in {"clip", "intersect"}:
+        if operation not in {"clip", "intersect", "buffer", "distance"}:
             raise ToolError("unsupported spatial operation: " + str(operation))
         left = self._materialize_vector_source(input_ref, max_features=max_features)
         mask = self._materialize_vector_source(mask_ref, max_features=max_features)
         output, summary = _perform_spatial_operation(
-            operation, left, mask, max_features=max_features
+            operation, left, mask, max_features=max_features, distance_m=distance_m
         )
         self._operation_number += 1
         result_ref = f"spatial://operation/{operation}/{self._operation_number}"
@@ -849,6 +855,7 @@ class HybridSpatialBackend:
             output=output,
             summary=summary,
             backend="hybrid",
+            distance_m=distance_m,
         )
 
     def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
@@ -997,6 +1004,7 @@ def _perform_spatial_operation(
     mask_frame: Any,
     *,
     max_features: int,
+    distance_m: Optional[float] = None,
 ) -> tuple[Any, Dict[str, Any]]:
     """Apply a bounded geometry operation behind the backend seam.
 
@@ -1004,10 +1012,19 @@ def _perform_spatial_operation(
     geometry validity filtering, and result budgets do not drift between
     direct GeoPackage calls and the Hybrid backend's cross-source calls.
     """
-    if operation not in {"clip", "intersect"}:
+    if operation not in {"clip", "intersect", "buffer", "distance"}:
         raise ToolError("unsupported spatial operation: " + str(operation))
     if not isinstance(max_features, int) or isinstance(max_features, bool) or max_features < 1:
         raise ToolError("max_features must be a positive integer")
+    if distance_m is not None and (
+        isinstance(distance_m, bool)
+        or not isinstance(distance_m, (int, float))
+        or not math.isfinite(float(distance_m))
+        or float(distance_m) < 0
+    ):
+        raise ToolError("distance_m must be a finite non-negative number")
+    if operation == "buffer" and distance_m is None:
+        raise ToolError("buffer operation requires distance_m")
     if input_frame is None or mask_frame is None:
         raise ToolError("spatial_operation requires input and mask geometry")
     if getattr(input_frame, "crs", None) is None:
@@ -1030,7 +1047,35 @@ def _perform_spatial_operation(
         raise ToolError("spatial_operation mask geometry is empty")
     intersecting = input_frame[input_frame.geometry.intersects(mask_geometry)].copy()
     intersecting_count = int(len(intersecting))
-    if intersecting.empty:
+    if operation in {"buffer", "distance"}:
+        intersecting_count = int(len(input_frame))
+        original_crs = input_frame.crs
+        metric_crs = _metric_crs(str(original_crs))
+        projected_input = input_frame.to_crs(metric_crs)
+        projected_mask = mask_frame.to_crs(metric_crs)
+        projected_mask_geometry = (
+            projected_mask.geometry.union_all()
+            if callable(getattr(projected_mask.geometry, "union_all", None))
+            else projected_mask.geometry.unary_union
+        )
+        if operation == "buffer":
+            output = projected_input.copy()
+            output["geometry"] = output.geometry.buffer(float(distance_m))
+            output["geometry"] = output.geometry.intersection(projected_mask_geometry)
+            output["buffer_distance_m"] = float(distance_m)
+            output = output.to_crs(original_crs)
+            intersecting_count = int(len(output))
+        else:
+            distances = [
+                float(geometry.distance(projected_mask_geometry))
+                for geometry in projected_input.geometry
+            ]
+            output = projected_input.copy()
+            output["nearest_distance_m"] = distances
+            if distance_m is not None:
+                output = output[output["nearest_distance_m"] <= float(distance_m)].copy()
+            output = output.to_crs(original_crs)
+    elif intersecting.empty:
         output = intersecting
     elif operation == "clip":
         output = intersecting
@@ -1049,7 +1094,7 @@ def _perform_spatial_operation(
     output = _clean_vector_geometries(output)
     truncated = len(output) > max_features
     output = output.head(max_features).copy()
-    return output, {
+    summary = {
         "input_features": int(len(input_frame)),
         "mask_features": int(len(mask_frame)),
         "intersecting_features": intersecting_count,
@@ -1057,7 +1102,16 @@ def _perform_spatial_operation(
         "max_features": int(max_features),
         "truncated": bool(truncated),
         "crs": str(output.crs or input_frame.crs),
+        "distance_m": float(distance_m) if distance_m is not None else None,
     }
+    if operation == "distance" and "nearest_distance_m" in output:
+        values = [float(value) for value in output["nearest_distance_m"].tolist()]
+        summary.update({
+            "nearest_distance_min_m": min(values) if values else None,
+            "nearest_distance_max_m": max(values) if values else None,
+            "nearest_distance_mean_m": sum(values) / len(values) if values else None,
+        })
+    return output, summary
 
 
 def _clean_vector_geometries(frame: Any):
@@ -1085,12 +1139,14 @@ def _spatial_operation_result(
     output: Any,
     summary: Mapping[str, Any],
     backend: str,
+    distance_m: Optional[float] = None,
 ) -> Dict[str, Any]:
     return {
         "result_ref": result_ref,
         "operation": operation,
         "input_ref": input_ref,
         "mask_ref": mask_ref,
+        "distance_m": float(distance_m) if distance_m is not None else None,
         "count": int(len(output)),
         "crs": str(output.crs) if getattr(output, "crs", None) else None,
         "data_profile": build_data_profile(("vector",)),
@@ -1204,6 +1260,7 @@ class SpatialToolAdapter:
                 input_ref=arguments["input_ref"],
                 mask_ref=arguments["mask_ref"],
                 max_features=arguments.get("max_features", 10000),
+                distance_m=arguments.get("distance_m"),
             )
         if name == "get_raster_metadata":
             return self._backend.get_raster_metadata(

@@ -38,6 +38,7 @@ class RuleBasedPlanComposer:
     """Compose a validated-shaped TaskPlan from GIS request facts."""
 
     _DISTANCE_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*米")
+    _ANY_DISTANCE_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*米")
     _SLOPE_PATTERN = re.compile(r"坡度(?:超过|大于)\s*(\d+(?:\.\d+)?)\s*度")
 
     def __init__(self, router: Optional[GisCapabilityRouter] = None) -> None:
@@ -54,6 +55,7 @@ class RuleBasedPlanComposer:
             "legacy_road_slope": self._build_legacy_road_slope,
             "vector_relation": self._build_vector_relation,
             "vector_operation": self._build_vector_operation,
+            "vector_measurement": self._build_vector_operation,
             "vector_summary": self._build_zonal_vector,
             "vector_query": self._build_vector_query,
             "zonal_raster_statistics": self._build_zonal_raster,
@@ -339,26 +341,50 @@ class RuleBasedPlanComposer:
 
     def _build_vector_operation(self, facts: PlanningFacts) -> TaskPlan:
         parsed = facts.spatial
-        if not parsed.admin_name:
-            raise ClarificationNeeded("missing mask region, for example: clip roads to 洪山区")
-        input_dataset = next(
-            (item for item in ("roads", "water") if item in parsed.tasks),
-            None,
-        )
-        if input_dataset is None:
+        vector_datasets = [
+            item for item in ("roads", "water") if item in parsed.tasks
+        ]
+        if not vector_datasets:
             raise ClarificationNeeded("missing vector input, for example: roads or water")
-        operation = "intersect" if any(term in facts.request for term in ("相交", "叠加")) else "clip"
-        steps = self._admin_steps(parsed.admin_name)
+        if any(term in facts.request for term in ("缓冲", "缓冲区")):
+            operation = "buffer"
+        elif any(term in facts.request for term in ("距离测算", "最近距离", "距离分析", "KNN")):
+            operation = "distance"
+        else:
+            operation = "intersect" if any(term in facts.request for term in ("相交", "叠加")) else "clip"
+        distance_match = self._ANY_DISTANCE_PATTERN.search(facts.request)
+        distance_m = float(distance_match.group(1)) if distance_match else None
+        if operation == "buffer" and distance_m is None:
+            raise ClarificationNeeded("missing buffer distance, for example: 500米")
+
+        input_dataset = vector_datasets[0]
+        if parsed.admin_name:
+            steps = self._admin_steps(parsed.admin_name)
+            mask_ref = {"$from": "filter-admin", "path": "result_ref"}
+            dependencies = ["filter-admin"]
+        elif len(vector_datasets) >= 2:
+            steps = [
+                PlanStep("schema-input", "get_dataset_schema", {"dataset": input_dataset}),
+                PlanStep("schema-mask", "get_dataset_schema", {"dataset": vector_datasets[1]}),
+            ]
+            mask_ref = vector_datasets[1]
+            dependencies = ["schema-input", "schema-mask"]
+        else:
+            raise ClarificationNeeded("missing mask source, for example: clip roads to 洪山区 or measure roads to water")
+
+        args = {
+            "operation": operation,
+            "input_ref": input_dataset,
+            "mask_ref": mask_ref,
+            "max_features": 10000,
+        }
+        if distance_m is not None:
+            args["distance_m"] = distance_m
         steps.append(PlanStep(
             "spatial-operation",
             "spatial_operation",
-            {
-                "operation": operation,
-                "input_ref": input_dataset,
-                "mask_ref": {"$from": "filter-admin", "path": "result_ref"},
-                "max_features": 10000,
-            },
-            ["filter-admin"],
+            args,
+            dependencies,
         ))
         return TaskPlan(
             "apply a bounded vector geometry operation inside the requested region",

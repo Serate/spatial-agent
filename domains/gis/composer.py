@@ -252,15 +252,24 @@ class AnswerComposer:
         if result.get("error"):
             return f"空间几何处理没有完成：{_friendly_error(result['error'])}。"
         operation = result.get("operation")
-        operation_label = {"clip": "裁剪", "intersect": "相交"}.get(str(operation), "空间处理")
+        operation_label = {
+            "clip": "裁剪",
+            "intersect": "相交",
+            "buffer": "缓冲",
+            "distance": "距离测算",
+        }.get(str(operation), "空间处理")
         input_label = _spatial_source_label(result.get("input_ref"))
         mask_label = _spatial_source_label(result.get("mask_ref"))
         summary = result.get("summary") or {}
         truncated = bool(summary.get("truncated"))
+        distance_note = ""
+        if operation == "distance":
+            mean_distance = (summary or {}).get("nearest_distance_mean_m")
+            distance_note = f"最近距离平均约 {_fmt_number(mean_distance)} 米。" if mean_distance is not None else ""
         note = "结果达到要素上限，地图和导出内容可能不完整。" if truncated else "空间结果已准备好，可在地图中查看。"
         return (
             f"已完成{operation_label}：将{input_label}按{mask_label}处理，"
-            f"得到约 {_fmt_count(result.get('count', 0))} 个空间要素。{note}"
+            f"得到约 {_fmt_count(result.get('count', 0))} 个空间要素。{distance_note}{note}"
         )
 
     def _compose_constrained_buildability_result(self, steps: Iterable[StepRun]) -> str:

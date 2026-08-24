@@ -205,6 +205,10 @@ def _attach_request_hints(definitions):
             phrases=("裁剪", "空间相交", "几何相交", "叠加分析", "按范围截取"),
             tasks=("roads", "water"),
         ),
+        "vector_measurement": _request_hints(
+            phrases=("缓冲", "缓冲区", "距离测算", "最近距离", "距离分析"),
+            tasks=("roads", "water"),
+        ),
         "legacy_road_slope": _request_hints(
             phrases=("道路邻近高坡度", "道路坡度关系"),
             tasks=("roads", "slope"),
@@ -390,6 +394,16 @@ GIS_CAPABILITIES = _attach_request_hints((
     {
         "id": "vector_operation",
         "label": "通用矢量空间算子",
+        "datasets": ["admin_areas", "roads", "water"],
+        "tools": ["spatial_operation"],
+        "result_types": ["spatial_operation_result"],
+        "environments": ["local", "production"],
+        "demo_supported": True,
+        "geometry": "available_when_artifact_contains_features",
+    },
+    {
+        "id": "vector_measurement",
+        "label": "通用矢量距离算子",
         "datasets": ["admin_areas", "roads", "water"],
         "tools": ["spatial_operation"],
         "result_types": ["spatial_operation_result"],

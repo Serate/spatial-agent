@@ -20,6 +20,24 @@ class M247SpatialOperationTests(unittest.TestCase):
         self.assertEqual(capability["tools"], ["spatial_operation"])
         self.assertEqual(template["allowed_tools"], ["spatial_operation"])
         self.assertEqual(template["output_template"]["type"], "spatial_operation_result")
+        self.assertEqual(
+            workflow_template_catalog()["vector_measurement"]["required_constraints"],
+            ["operation", "input_ref", "mask_ref", "distance_m"],
+        )
+        compiled = RuleBasedPlanner().plan(
+            "空间距离分析",
+            workflow={
+                "template_id": "vector_measurement",
+                "constraints": {
+                    "operation": "distance",
+                    "input_ref": "roads",
+                    "mask_ref": "water",
+                    "distance_m": 500,
+                },
+            },
+        )
+        self.assertEqual(compiled.steps[0].tool, "spatial_operation")
+        self.assertEqual(compiled.steps[0].args["distance_m"], 500.0)
 
     def test_rule_planner_composes_region_masked_operation(self):
         plan = RuleBasedPlanner().plan("裁剪洪山区道路")
@@ -27,6 +45,16 @@ class M247SpatialOperationTests(unittest.TestCase):
         self.assertEqual(plan.steps[-1].args["input_ref"], "roads")
         self.assertEqual(plan.steps[-1].args["operation"], "clip")
         self.assertEqual(plan.steps[-1].depends_on, ["filter-admin"])
+
+    def test_rule_planner_composes_buffer_and_dataset_distance(self):
+        buffered = RuleBasedPlanner().plan("对洪山区道路做500米缓冲")
+        self.assertEqual(buffered.steps[-1].args["operation"], "buffer")
+        self.assertEqual(buffered.steps[-1].args["distance_m"], 500.0)
+
+        measured = RuleBasedPlanner().plan("计算道路与水体的最近距离")
+        self.assertEqual(measured.steps[-1].args["operation"], "distance")
+        self.assertEqual(measured.steps[-1].args["mask_ref"], "water")
+        self.assertEqual(measured.steps[-1].depends_on, ["schema-input", "schema-mask"])
 
     def test_registry_exposes_bounded_operation_and_memory_fails_recoverably(self):
         registry = ToolRegistry.from_json(
@@ -75,6 +103,20 @@ class M247SpatialOperationTests(unittest.TestCase):
         exported = backend.export_result(result["result_ref"], max_features=10)
         self.assertEqual(exported["type"], "FeatureCollection")
         self.assertEqual(len(exported["features"]), 1)
+
+        buffered = backend.spatial_operation(
+            "buffer", "fixture-input", "fixture-mask", max_features=10, distance_m=100
+        )
+        self.assertEqual(buffered["operation"], "buffer")
+        self.assertEqual(buffered["summary"]["distance_m"], 100.0)
+        self.assertGreaterEqual(buffered["count"], 1)
+
+        measured = backend.spatial_operation(
+            "distance", "fixture-input", "fixture-mask", max_features=10, distance_m=100
+        )
+        self.assertEqual(measured["operation"], "distance")
+        self.assertIn("nearest_distance_mean_m", measured["summary"])
+        self.assertGreaterEqual(measured["count"], 1)
 
 
 if __name__ == "__main__":

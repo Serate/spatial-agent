@@ -18,6 +18,22 @@
 - **修复**：本阶段不回退生产回答，也不把该旧测试加入 M247 门禁；后续清理 M50 时，应改断言为结构化来源/结果字段和稳定用户语义，或删除重复的旧文案测试。
 - **预防**：回答测试只锁定公共语义和结构化证据，不锁定 Composer 的历史句式、内部引用或可选来源说明；每次 Answer Generation/Composer 变更都同步审计测试和 smoke。
 
+## 已注册的最近距离能力仍被旧 Planner 入口硬拒绝
+
+- **现象**：M248 已注册 `distance` 空间算子，但 Rule Planner 在进入能力路由前看到“最近”或“KNN”就直接澄清，导致新工具、Catalog 和 workflow 永远无法执行。
+- **根因**：早期 M1 只支持固定范围关系查询，入口保护条件没有随着通用空间算子扩展而迁移；拒绝逻辑位于 Domain Planner 外层，单测后端工具无法发现该问题。
+- **诊断**：从自然语言入口运行“最近距离/缓冲”请求，比较 Planner 是否产生 `spatial_operation`，再分别检查工具 schema、路由、workflow 和后端；不要只直接调用 Adapter。
+- **修复**：删除过时的 KNN/最近硬拒绝，让请求进入 `vector_measurement` 路由；缺少输入、掩膜或缓冲距离时由通用编排返回结构化澄清，已注册能力可以继续执行。
+- **预防**：新增能力时搜索所有入口级拒绝、早退和 capability allowlist；测试至少覆盖自然语言路由、显式 workflow 和 ToolRegistry dispatch，不能只覆盖底层算法。
+
+## 单一 workflow 的可选参数无法表达操作特定约束
+
+- **现象**：`clip/intersect` 不需要距离参数，而 `buffer/distance` 需要 `distance_m`；如果把它们放在一个 workflow blueprint 中，缺少可选约束时会生成 `None`，或为了绕过校验而静默使用不合理默认值。
+- **根因**：workflow schema 采用静态 placeholder，暂不支持按 `operation` 条件渲染参数；强行复用一个 template 会让输入契约变浅或把操作语义隐藏在运行时。
+- **诊断**：分别编译 `vector_operation` 和 `vector_measurement`，检查 required constraints、工具 args 和 Registry schema；不要只验证直接调用时的默认参数。
+- **修复**：保持一个底层 `spatial_operation` 工具 seam，但拆成两个清晰的 Domain workflow：几何裁剪/相交与距离/缓冲各自声明操作枚举和必需约束；实际算法仍共享同一后端实现。
+- **预防**：工具数量可以少，但操作特定约束必须在 schema/workflow 中显式表达；只有真正共享输入、输出和失败语义的能力才共用工具，不能为减少模板数量牺牲可校验性。
+
 ## 新增结果字段只进入同步契约，异步和前端兼容层没有同步接入
 
 - **现象**：同步 HTTP 或 artifact 中已经有新的结构化结果字段，但异步轮询 evidence 或浏览器兼容层恢复旧形状，导致不同入口看不到同一结果分类。

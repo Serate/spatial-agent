@@ -33,8 +33,6 @@ class RuleBasedPlanner:
             raise ClarificationNeeded("empty spatial analysis request")
         if any(term in text for term in ("删除", "全中国", "任意 SQL", "导出全部")):
             raise RequestRejected("request contains destructive, unauthorized, or oversized operations")
-        if "KNN" in text.upper() or "最近" in text:
-            raise ClarificationNeeded("M1 does not support KNN yet; use an explicit range condition")
         if isinstance(workflow, Mapping) and workflow.get("template_id"):
             # Explicit selection is a structured user decision.  Compile that
             # workflow directly instead of routing the natural-language text a

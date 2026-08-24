@@ -21,6 +21,7 @@ _HINTS = (
     ("vector_summary", ("道路", "路网", "水体", "河流", "湖泊")),
     ("constrained_buildability_screening", ("距离道路", "避开水体", "道路附近")),
     ("vector_operation", ("裁剪", "空间相交", "几何相交", "叠加分析", "按范围截取")),
+    ("vector_measurement", ("缓冲", "缓冲区", "距离测算", "最近距离", "距离分析")),
 )
 _HINT_CAPABILITY_IDS = {capability_id for capability_id, _ in _HINTS}
 _SPATIAL_TERMS = tuple(

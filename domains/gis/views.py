@@ -536,6 +536,7 @@ def _spatial_relation_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict
         _view_row("结果引用", result.get("result_ref")),
         _view_row("CRS", _first_present(result.get("crs"), metrics.get("crs"))),
     ]
+    overlap_label = "输入要素" if str(operation) in {"buffer", "distance"} else "相交要素"
     return {
         "kind": "spatial_relation",
         "source_step_id": step.get("id"),
@@ -556,7 +557,12 @@ def _spatial_operation_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dic
     metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
     summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
     operation = _first_present(result.get("operation"), args.get("operation"))
-    operation_label = {"clip": "裁剪", "intersect": "相交"}.get(str(operation), operation)
+    operation_label = {
+        "clip": "裁剪",
+        "intersect": "相交",
+        "buffer": "缓冲",
+        "distance": "距离测算",
+    }.get(str(operation), operation)
     rows = [
         _view_row("输入", _first_present(result.get("input_ref"), args.get("input_ref"))),
         _view_row("掩膜", _first_present(result.get("mask_ref"), args.get("mask_ref"))),
@@ -571,7 +577,9 @@ def _spatial_operation_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dic
         "metrics": [
             _view_metric("操作", operation_label),
             _view_metric("返回要素", _first_present(result.get("count"), summary.get("returned_features"))),
-            _view_metric("相交要素", summary.get("intersecting_features")),
+            _view_metric(overlap_label, summary.get("intersecting_features")),
+            _view_metric("距离阈值", _distance_label(result.get("distance_m"))),
+            _view_metric("最近距离均值", _distance_label(summary.get("nearest_distance_mean_m"))),
             _view_metric("是否截断", _first_present(summary.get("truncated"), metrics.get("truncated"))),
         ],
         "rows": [row for row in rows if row.get("value") != "-"][:8],

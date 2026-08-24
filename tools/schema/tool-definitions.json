@@ -144,7 +144,7 @@
         "properties": {
           "operation": {
             "type": "string",
-            "enum": ["clip", "intersect"]
+            "enum": ["clip", "intersect", "buffer", "distance"]
           },
           "input_ref": {
             "type": "string",
@@ -160,6 +160,11 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000
+          },
+          "distance_m": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           }
         },
         "additionalProperties": false
@@ -169,7 +174,7 @@
         "required": ["result_ref", "operation", "input_ref", "mask_ref", "count", "crs"],
         "properties": {
           "result_ref": {"type": "string"},
-          "operation": {"type": "string", "enum": ["clip", "intersect"]},
+          "operation": {"type": "string", "enum": ["clip", "intersect", "buffer", "distance"]},
           "input_ref": {"type": "string"},
           "mask_ref": {"type": "string"},
           "count": {"type": "integer"},
