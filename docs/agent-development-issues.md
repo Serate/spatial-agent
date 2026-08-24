@@ -544,3 +544,19 @@
 - **诊断**：用最小的能力选择交互覆盖应用、HTTP、artifact/restart 四条路径；看到 500 或缺失 receipt 时先检查交互投影是否在 dispatch 入口完成，不要修改 Domain capability resolver。
 - **修复**：在 dispatcher 读取当前 run 后立即构造 `interaction = project_interaction(current)`，后续能力选择和事实补充均使用同一投影。
 - **预防**：交互 dispatch 的入口必须先完成一次 canonical interaction projection；新增 action 分支不得依赖未声明的隐式局部变量，并至少保留一条具体 selection action 回归。
+
+## HTTP 迁移后静态契约仍锁定旧的 transport 导入
+
+- **现象**：HTTP dispatcher 已将 workflow、payload 和 read/write 语义移入 `HTTPApplication` 后，M78 静态测试仍要求 `serve_api.py` 直接导入 `workflow_action_result`；生产行为和 HTTP contract 正常，但测试失败。
+- **根因**：测试把旧 transport 的实现细节误当成共享契约。新的深模块 interface 是 `HTTPApplication.execute/read`，transport 不应继续复制 workflow 或 read projection。
+- **诊断**：先检查失败测试断言的 token 是否仍位于活动路径，再用 FastAPI、标准库 HTTP 和 application contract 验证用户可见行为；不要为满足静态 token 恢复已删除的旧导入。
+- **修复**：将测试改为断言 `HTTPApplication` seam、共享 error mapping 和稳定 payload contract；保留 `api_contract` 仅用于仍由 transport 使用的错误投影。
+- **预防**：HTTP 重构后，静态测试应锁定 canonical application seam 与行为，不锁定旧 helper import、URL 拼接或分支位置；每次 read/write 迁移都运行双入口 contract 和 artifact/Domain 路由回归。
+
+## 前端 CDP smoke 依赖未启动导致误判代码失败
+
+- **现象**：Docker API healthy、页面可访问，但 `console_map_smoke.js` 首次运行因 `ECONNREFUSED 127.0.0.1:9222` 失败；随后启动项目的 CDP 测试入口后 smoke 正常。
+- **根因**：该 smoke 连接本机 Chrome DevTools Protocol，不会自动启动浏览器；它与 Docker HTTP 服务是两个独立依赖。
+- **诊断**：先确认容器 healthy 和 `/health` 200，再检查本机 9222 是否监听；区分 API/页面故障与浏览器驱动未启动，不要修改前端或后端来规避连接错误。
+- **修复**：运行 `scripts/console_cdp_start.ps1` 启动隔离 Chrome profile，再串行执行 map、session、new-session 和 selection smoke。
+- **预防**：浏览器验收脚本应在文档/runner 中显式声明 CDP 前置条件；默认 CI 继续保持离线精简，浏览器 smoke 作为显式验收路径运行。

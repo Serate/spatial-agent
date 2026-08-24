@@ -6,26 +6,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from agent.api_contract import (
-    async_run_kwargs,
-    cancel_kwargs,
-    comparison_kwargs,
-    constrained_comparison_kwargs,
-    decision_resolve_kwargs,
-    interaction_kwargs,
     error_response,
     error_status,
-    region_comparison_kwargs,
-    retry_kwargs,
-    preview_kwargs,
-    run_kwargs,
-    workflow_action_result,
 )
 from agent.environment_status import environment_status
 from agent.artifact_access import resolve_artifact_path
-from agent.evidence_registry import normalize_evidence_registry
-from agent.evidence_projection import project_evidence_projection
-from agent.evidence_recovery import project_evidence_recovery
-from agent.artifact_manifest import build_artifact_manifest
 from agent.domain_http import assert_domain_payload, parse_domain_path
 from agent.domain_registry import resolve_domain_id
 from agent.domain_runtime_host import DomainRuntimeHost
@@ -35,6 +20,7 @@ from agent.domain_routing_entry import (
     routing_state_from_environment,
 )
 from agent.service import AgentService
+from agent.application.http import HTTPApplication
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
@@ -67,6 +53,16 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     geojson_root = Path("outputs/geojson")
     web_root = Path(__file__).parent / "web"
 
+    def _http_application(self) -> HTTPApplication:
+        return HTTPApplication(
+            self.service,
+            routing=self.routing,
+            action_handler=AgentService.estimate_area_handler,
+            on_session_clear=lambda session_id: self.routing.forget_session(
+                session_id, keep_binding=True
+            ),
+            on_session_delete=self.routing.forget_session,
+        )
 
     def do_GET(self):
         try:
@@ -95,16 +91,21 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             if self.service is None:
                 self._write_json(503, {"error": "service unavailable"})
             else:
-                self._write_json(200, self.service.capabilities(planner=planner, backend=backend))
+                self._write_json(
+                    200,
+                    self._http_application().read(
+                        "capabilities", {"planner": planner, "backend": backend}
+                    ),
+                )
             return
         if parsed.path == "/domains":
             self._write_json(200, self.host.catalog())
             return
         if selection is None and parsed.path == "/domain-routing/catalog":
-            self._write_json(200, self.routing.catalog())
+            self._write_json(200, self._http_application().read("routing_catalog"))
             return
         if selection is None and parsed.path == "/domain-routing/metrics":
-            self._write_json(200, self.routing.metrics())
+            self._write_json(200, self._http_application().read("routing_metrics"))
             return
         if parsed.path == "/actions":
             query = parse_qs(parsed.query)
@@ -113,7 +114,12 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             if self.service is None:
                 self._write_json(503, {"error": "service unavailable"})
             else:
-                self._write_json(200, self.service.actions(planner=planner, backend=backend))
+                self._write_json(
+                    200,
+                    self._http_application().read(
+                        "actions", {"planner": planner, "backend": backend}
+                    ),
+                )
             return
         if parsed.path.startswith("/action-executions/"):
             execution_id = parsed.path[len("/action-executions/") :].strip("/")
@@ -121,7 +127,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 self._write_json(404, {"error": "not found"})
                 return
             try:
-                result = self.service.get_action_execution(execution_id)
+                result = self._http_application().read(
+                    "action_execution", resource_id=execution_id
+                )
             except ValueError as exc:
                 self._write_json(404, error_response(exc, not_found=True))
             else:
@@ -131,7 +139,12 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             try:
                 limit = int(query.get("limit", [20])[0])
-                self._write_json(200, self.service.list_action_executions(limit=limit))
+                self._write_json(
+                    200,
+                    self._http_application().read(
+                        "action_executions", {"limit": limit}
+                    ),
+                )
             except ValueError as exc:
                 self._write_json(400, error_response(exc))
             return
@@ -139,13 +152,11 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             planner = query.get("planner", ["rule"])[0]
             backend = query.get("backend", ["memory"])[0]
-            contract = self.service.workflow_contract(planner=planner, backend=backend)
             self._write_json(
                 200,
-                {
-                    "domain_id": contract.get("domain_id", "unknown"),
-                    "templates": contract.get("catalog", {}),
-                },
+                self._http_application().read(
+                    "workflow", {"planner": planner, "backend": backend}
+                ),
             )
             return
         if parsed.path.startswith("/workflows/"):
@@ -160,9 +171,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 if self.service is None:
                     snapshot = runtime_capability_snapshot(max_files=max_files)
                 else:
-                    snapshot = self.service.runtime_capabilities(
-                        max_files=max_files,
-                        backend="local",
+                    snapshot = self._http_application().read(
+                        "runtime_capabilities",
+                        {"max_files": max_files, "backend": "local"},
                     )
                 self._write_json(200, snapshot)
             except ValueError as exc:
@@ -177,10 +188,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 if self.service is None:
                     evidence = release_evidence_snapshot(max_files=max_files)
                 else:
-                    evidence = self.service.release_evidence(
-                        max_files=max_files,
-                        planner=query.get("planner", ["rule"])[0],
-                        backend=query.get("backend", ["local"])[0],
+                    evidence = self._http_application().read(
+                        "release_evidence",
+                        {
+                            "max_files": max_files,
+                            "planner": query.get("planner", ["rule"])[0],
+                            "backend": query.get("backend", ["local"])[0],
+                        },
                     )
                 self._write_json(200, evidence)
             except ValueError as exc:
@@ -190,7 +204,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             parts = parsed.path.strip("/").split("/")
             if len(parts) == 3 and parts[1] and parts[2] == "evidence":
                 try:
-                    result = self.service.get_run_evidence(parts[1])
+                    result = self._http_application().read(
+                        "run_evidence", resource_id=parts[1]
+                    )
                 except ValueError as exc:
                     self._write_json(404, error_response(exc, not_found=True))
                 else:
@@ -199,10 +215,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             if len(parts) == 3 and parts[1] and parts[2] == "interaction":
                 query = parse_qs(parsed.query)
                 try:
-                    result = self.service.get_run_interaction(
-                        parts[1],
-                        planner=query.get("planner", ["rule"])[0],
-                        backend=query.get("backend", ["memory"])[0],
+                    result = self._http_application().read(
+                        "run_interaction",
+                        {
+                            "planner": query.get("planner", ["rule"])[0],
+                            "backend": query.get("backend", ["memory"])[0],
+                        },
+                        resource_id=parts[1],
                     )
                 except ValueError as exc:
                     self._write_json(404, error_response(exc, not_found=True))
@@ -211,7 +230,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 return
             if len(parts) == 3 and parts[1] and parts[2] in ("observability", "async"):
                 try:
-                    result = self.service.get_async_observability(parts[1])
+                    result = self._http_application().read(
+                        "async_observability", resource_id=parts[1]
+                    )
                 except ValueError as exc:
                     self._write_json(404, error_response(exc, not_found=True))
                 else:
@@ -220,10 +241,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             if len(parts) == 2 and parts[1]:
                 query = parse_qs(parsed.query)
                 try:
-                    result = self.service.get_run(
-                        parts[1],
-                        planner=query.get("planner", ["rule"])[0],
-                        backend=query.get("backend", ["memory"])[0],
+                    result = self._http_application().read(
+                        "run",
+                        {
+                            "planner": query.get("planner", ["rule"])[0],
+                            "backend": query.get("backend", ["memory"])[0],
+                        },
+                        resource_id=parts[1],
                     )
                 except ValueError as exc:
                     self._write_json(404, error_response(exc, not_found=True))
@@ -234,34 +258,60 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             parts = parsed.path.strip("/").split("/")
             if len(parts) == 2 and parts[1]:
                 try:
-                    result = self.service.get_decision(parts[1])
+                    result = self._http_application().read(
+                        "decision", resource_id=parts[1]
+                    )
                 except ValueError as exc:
                     self._write_json(404, error_response(exc, not_found=True))
                 else:
                     self._write_json(200, result)
                 return
         if parsed.path == "/runs":
-            self._write_json(200, self.service.list_runs())
+            query = parse_qs(parsed.query)
+            self._write_json(
+                200,
+                self._http_application().read(
+                    "runs", {"limit": int(query.get("limit", [20])[0])}
+                ),
+            )
             return
         if parsed.path.startswith("/sessions/") and parsed.path.endswith("/runs"):
             session_id = parsed.path[len("/sessions/") : -len("/runs")].strip("/")
             if session_id:
-                self._write_json(200, self.service.list_session_runs(session_id))
+                query = parse_qs(parsed.query)
+                self._write_json(
+                    200,
+                    self._http_application().read(
+                        "session_runs",
+                        {"limit": int(query.get("limit", [20])[0])},
+                        resource_id=session_id,
+                    ),
+                )
                 return
         if parsed.path == "/sessions":
-            self._write_json(200, self.service.list_sessions())
+            query = parse_qs(parsed.query)
+            self._write_json(
+                200,
+                self._http_application().read(
+                    "sessions", {"limit": int(query.get("limit", [50])[0])}
+                ),
+            )
             return
         if parsed.path == "/metrics":
-            self._write_json(200, self.service.metrics())
+            self._write_json(200, self._http_application().read("metrics"))
             return
         if parsed.path == "/memory":
             query = parse_qs(parsed.query)
             try:
-                result = self.service.list_memory(
-                    session_id=query.get("session_id", [None])[0],
-                    query=query.get("query", [None])[0],
-                    limit=int(query.get("limit", ["20"])[0]),
-                    global_scope=query.get("global", ["0"])[0] in ("1", "true", "yes"),
+                result = self._http_application().read(
+                    "memory",
+                    {
+                        "session_id": query.get("session_id", [None])[0],
+                        "query": query.get("query", [None])[0],
+                        "limit": int(query.get("limit", ["20"])[0]),
+                        "global_scope": query.get("global", ["0"])[0]
+                        in ("1", "true", "yes"),
+                    },
                 )
             except ValueError as exc:
                 self._write_json(400, error_response(exc))
@@ -269,15 +319,12 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 self._write_json(200, result)
             return
         if parsed.path == "/observability/health":
-            state = self.service._state.observability
-            self._write_json(200, {
-                "schema_version": "spatial-agent.observability.v1",
-                "enabled": state.enabled,
-                "event_count": state.event_count,
-            })
+            self._write_json(
+                200, self._http_application().read("observability_health")
+            )
             return
         if parsed.path == "/tools/dynamic":
-            self._write_json(200, self.service.list_dynamic_tools())
+            self._write_json(200, self._http_application().read("dynamic_tools"))
             return
         if parsed.path in ("/", "/index.html"):
             self._write_file(self.web_root / "index.html", "text/html")
@@ -311,17 +358,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             except (OSError, ValueError):
                 self._write_json(404, {"error": "artifact not found"})
                 return
-            self._write_json(200, {
-                "schema_version": "spatial-agent.evidence-reference.v1",
-                "run_id": payload.get("run_id"),
-                "domain_id": payload.get("domain_id", "gis"),
-                "artifact": {"available": True, "ref": path.name},
-                "evidence_registry": normalize_evidence_registry(
-                    payload.get("evidence_registry")
+            self._write_json(
+                200,
+                self._http_application().read(
+                    "artifact_evidence",
+                    {"artifact_payload": payload, "artifact_ref": path.name},
                 ),
-                "evidence_projection": project_evidence_projection(payload),
-                "evidence_recovery": project_evidence_recovery(payload),
-            })
+            )
             return
         if parsed.path.startswith("/artifacts/runs/") and parsed.path.endswith("/manifest"):
             name = parsed.path[len("/artifacts/runs/") : -len("/manifest")].strip("/")
@@ -337,7 +380,10 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 return
             self._write_json(
                 200,
-                build_artifact_manifest(payload, artifact_ref=path.name),
+                self._http_application().read(
+                    "artifact_manifest",
+                    {"artifact_payload": payload, "artifact_ref": path.name},
+                ),
             )
             return
         artifact = self._artifact_file(parsed.path)
@@ -412,76 +458,67 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             if selection is not None:
                 assert_domain_payload(selection, payload)
             if is_domain_select:
-                result = self.routing.select(payload)
+                result = self._http_application().execute("domain_select", payload)
             elif routing_override_id is not None:
-                result = self.routing.override(routing_override_id, payload)
+                result = self._http_application().execute(
+                    "domain_routing_override", payload, run_id=routing_override_id
+                )
             elif routing_clear_session_id is not None:
-                result = self.routing.clear_unbound_session(
-                    routing_clear_session_id
+                result = self._http_application().execute(
+                    "domain_routing_clear", {}, run_id=routing_clear_session_id
                 )
             elif is_auto_run:
-                result = self.routing.run(payload)
+                result = self._http_application().execute("run_auto", payload)
             elif workflow_action is not None:
-                contract = self.service.workflow_contract(
-                    planner=payload.get("planner", "rule"),
-                    backend=payload.get("backend", "memory"),
-                )
-                result = workflow_action_result(
-                    workflow_template_id,
-                    workflow_action,
+                result = self._http_application().execute(
+                    "workflow_" + workflow_action,
                     payload,
-                    catalog=contract.get("catalog"),
-                    known_tools=contract.get("known_tools"),
-                    known_result_types=contract.get("known_result_types"),
+                    template_id=workflow_template_id,
                 )
             elif is_tool_register:
-                result = self.service.register_tool(
-                    name=payload.get("name", ""),
-                    definition=payload.get("definition", {}),
-                    handler=AgentService.estimate_area_handler,
-                )
+                result = self._http_application().execute("tool_register", payload)
             elif is_preview:
-                result = self.service.preview(**preview_kwargs(payload))
+                result = self._http_application().execute("preview", payload)
             elif is_async_run:
-                result = self.service.run_async(**async_run_kwargs(payload))
+                result = self._http_application().execute("run_async", payload)
             elif is_decision_resolve:
                 parts = parsed.path.strip("/").split("/")
                 if len(parts) != 3 or not parts[1] or parts[2] != "resolve":
                     self._write_json(404, {"error": "not found"})
                     return
-                result = self.service.resolve_decision(
-                    parts[1], **decision_resolve_kwargs(payload)
+                result = self._http_application().execute(
+                    "resolve_decision", payload, run_id=parts[1]
                 )
             elif is_interaction:
                 parts = parsed.path.strip("/").split("/")
                 if len(parts) != 3 or not parts[1] or parts[2] != "interaction":
                     self._write_json(404, {"error": "not found"})
                     return
-                kwargs = interaction_kwargs(payload)
-                result = self.service.apply_run_interaction(parts[1], **kwargs)
+                result = self._http_application().execute(
+                    "interaction", payload, run_id=parts[1]
+                )
             elif is_session_create:
-                result = self.service.create_session()
+                result = self._http_application().execute("session_create", payload)
             elif is_session_clear:
                 session_id = parsed.path[len("/sessions/") : -len("/clear")].strip("/")
-                result = self.service.clear_session(session_id)
-                self.routing.forget_session(session_id, keep_binding=True)
+                result = self._http_application().execute(
+                    "session_clear", payload, run_id=session_id
+                )
             elif is_comparison:
-                result = self.service.compare_buildability(**comparison_kwargs(payload))
+                result = self._http_application().execute("compare", payload)
             elif is_region_comparison:
-                result = self.service.compare_buildability_regions(**region_comparison_kwargs(payload))
+                result = self._http_application().execute("region_compare", payload)
             elif is_constrained_comparison:
-                result = self.service.compare_constrained_buildability(**constrained_comparison_kwargs(payload))
+                result = self._http_application().execute(
+                    "constrained_compare", payload
+                )
             elif is_domain_action:
                 action_id = parsed.path[len("/actions/") :].strip("/")
                 if not action_id:
                     self._write_json(404, {"error": "not found"})
                     return
-                result = self.service.execute_action(
-                    action_id,
-                    payload,
-                    planner=payload.get("planner", "rule"),
-                    backend=payload.get("backend", "local"),
-                    idempotency_key=payload.get("idempotency_key"),
+                result = self._http_application().execute(
+                    "domain_action", payload, run_id=action_id
                 )
             elif is_retry or is_cancel:
                 parts = parsed.path.strip("/").split("/")
@@ -490,11 +527,15 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     self._write_json(404, {"error": "not found"})
                     return
                 if is_cancel:
-                    result = self.service.cancel(run_id=parts[1], **cancel_kwargs(payload))
+                    result = self._http_application().execute(
+                        "cancel", payload, run_id=parts[1]
+                    )
                 else:
-                    result = self.service.retry(run_id=parts[1], **retry_kwargs(payload))
+                    result = self._http_application().execute(
+                        "retry", payload, run_id=parts[1]
+                    )
             else:
-                result = self.service.run(**run_kwargs(payload))
+                result = self._http_application().execute("run", payload)
         except DomainRoutingApplicationError as exc:
             status = 404 if exc.code == "domain_routing_decision_not_found" else error_status(exc)
             self._write_json(status, error_response(exc, not_found=status == 404))
@@ -518,8 +559,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         try:
             session_id = parsed.path[len("/sessions/") :].strip("/")
-            result = self.service.delete_session(session_id)
-            self.routing.forget_session(session_id)
+            result = self._http_application().execute(
+                "session_delete", {}, run_id=session_id
+            )
         except ValueError as exc:
             self._write_json(400, error_response(exc))
             return

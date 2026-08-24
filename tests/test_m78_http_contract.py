@@ -9,7 +9,8 @@ class M78HttpContractTests(unittest.TestCase):
     def test_both_entrypoints_import_shared_contract(self):
         serve = (Path(__file__).parents[1] / "serve_api.py").read_text(encoding="utf-8")
         self.assertIn("from agent.api_contract import", serve)
-        self.assertIn("workflow_action_result", serve)
+        self.assertIn("from agent.application.http import HTTPApplication", serve)
+        self.assertIn("HTTPApplication", serve)
         self.assertIn("error_status", serve)
 
     def test_shared_contract_maps_payloads_identically(self):

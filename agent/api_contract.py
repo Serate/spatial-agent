@@ -302,25 +302,7 @@ def failure_category_for_error(exc: Exception) -> str | None:
 
 
 def dispatch(service: AgentService, action: str, run_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Route a POST body to the matching service call.
+    """Compatibility wrapper for the canonical HTTP application seam."""
+    from agent.application.http import HTTPApplication
 
-    action is one of: run, run_async, retry, cancel, compare, region_compare,
-    session_create, session_clear, workflow_validate, workflow_revise.
-    """
-    if action == "run":
-        return service.run(**run_kwargs(payload))
-    if action == "run_async":
-        return service.run_async(**async_run_kwargs(payload))
-    if action == "retry":
-        return service.retry(run_id=run_id, **retry_kwargs(payload))
-    if action == "cancel":
-        return service.cancel(run_id=run_id, **cancel_kwargs(payload))
-    if action == "compare":
-        return service.compare_buildability(**comparison_kwargs(payload))
-    if action == "region_compare":
-        return service.compare_buildability_regions(**region_comparison_kwargs(payload))
-    if action == "session_create":
-        return service.create_session()
-    if action == "session_clear":
-        return service.clear_session(run_id)
-    raise ValueError("unknown action: " + action)
+    return HTTPApplication(service).execute(action, payload, run_id=run_id)

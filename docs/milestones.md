@@ -4723,3 +4723,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 修复 async artifact evidence 规范化遗漏 `model_evidence`、`answer_generation` 和 runtime context fingerprint 的问题；实时轮询、artifact 恢复和 SQLite 重启现在共享同一有界证据形状。
 - Docker 异步/SQLite/artifact/restart 回归 **28 项通过、1 项按配置跳过**；architecture strict、compileall、quick、stage、smoke 全部通过。Service 规模由约 2,282 行降至约 1,773 行。
 - 下一阶段从全局架构出发收敛 HTTP transport/application dispatcher：FastAPI、标准库入口和 Console 统一使用同一 Application 用例、payload/result/error contract；不在传输层复制 Domain 策略。
+
+## M256：HTTP transport/application dispatcher 收敛（已完成）
+
+- 新增 `agent/application/http.py` 的 `HTTPApplication`，以一个小的 `execute/read` interface 统一两套 HTTP transport 的语义操作；POST/DELETE 的运行、异步、预览、重试、取消、交互、decision、session、action、workflow 和 domain routing 已复用 application dispatcher。
+- GET/read 语义同步收敛：能力、actions、action history、workflow、runtime/release evidence、run、run evidence、interaction、async observability、decision、sessions、metrics、memory、dynamic tools、observability health 以及 artifact manifest/evidence 投影不再由 FastAPI 与标准库入口分别实现。
+- transport 仍负责 URL 路由、query/body 解析、HTTP 状态码、静态文件和 artifact 路径安全；application 不知道 URL 或框架，artifact 只把已安全解析和读取的 payload 交给公共投影。
+- 更新 M78 静态契约，断言新的 `HTTPApplication` seam；新增 `tests/test_m256_http_application.py` 覆盖读写分发、资源 ID 校验、session/routing 和未知命令拒绝。
+- 验收：Docker M256/HTTP/Domain/artifact 定向 **16/16**，Runtime/Application/async/SQLite/restart/artifact **31/31**，quick/stage/smoke、compileall、architecture strict 和 Console map/session/new-session/selection smoke 全部通过；生产容器 healthy，`GET /health` 返回 200。
+- 下一阶段按全局顺序处理 Contract/Evidence helper 的重复边界，再进行 Vite 前端源码与构建产物物理拆分；不把 helper 提取成无语义的浅层转发层，保留领域 evidence 的独立投影职责。

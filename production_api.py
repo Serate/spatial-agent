@@ -16,25 +16,11 @@ from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 
 from agent.api_contract import (
-    async_run_kwargs,
-    cancel_kwargs,
-    comparison_kwargs,
-    constrained_comparison_kwargs,
-    decision_resolve_kwargs,
-    interaction_kwargs,
     error_response,
     error_status,
-    region_comparison_kwargs,
-    retry_kwargs,
-    preview_kwargs,
-    run_kwargs,
-    workflow_action_result,
 )
 from agent.environment_status import environment_status
 from agent.artifact_access import resolve_artifact_path
-from agent.evidence_projection import project_evidence_projection
-from agent.evidence_recovery import project_evidence_recovery
-from agent.artifact_manifest import build_artifact_manifest
 from agent.domain_http import assert_domain_payload
 from agent.domain_registry import resolve_domain_id
 from agent.domain_runtime_host import DomainRuntimeHost
@@ -44,6 +30,7 @@ from agent.domain_routing_entry import (
     routing_state_from_environment,
 )
 from agent.service import AgentService
+from agent.application.http import HTTPApplication
 
 class UTF8JSONResponse(JSONResponse):
     """Keep JSON responses unambiguous for clients without charset sniffing."""
@@ -133,6 +120,19 @@ def _domain_service(
     return host.service(selection)
 
 
+def _http_application(target_service: AgentService = None) -> HTTPApplication:
+    """Build the shared semantic dispatcher for the selected Service."""
+    return HTTPApplication(
+        target_service or service,
+        routing=domain_routing,
+        action_handler=AgentService.estimate_area_handler,
+        on_session_clear=lambda session_id: domain_routing.forget_session(
+            session_id, keep_binding=True
+        ),
+        on_session_delete=domain_routing.forget_session,
+    )
+
+
 @app.get("/health/live")
 def liveness() -> Dict[str, str]:
     return {"status": "ok"}
@@ -174,7 +174,9 @@ def capabilities(
     planner: str = "rule",
     backend: str = "memory",
 ) -> Dict[str, Any]:
-    return service.capabilities(planner=planner, backend=backend)
+    return _http_application().read(
+        "capabilities", {"planner": planner, "backend": backend}
+    )
 
 
 @app.get("/domains")
@@ -189,7 +191,7 @@ def domain_routing_catalog() -> Dict[str, Any]:
 
 @app.get("/domain-routing/metrics")
 def domain_routing_metrics() -> Dict[str, Any]:
-    return domain_routing.metrics()
+    return _http_application().read("routing_metrics")
 
 
 @app.post("/domain-routing/select")
@@ -225,13 +227,17 @@ def clear_unbound_domain_routing_session(session_id: str) -> Dict[str, Any]:
 
 @app.get("/actions")
 def actions(planner: str = "rule", backend: str = "memory") -> Dict[str, Any]:
-    return service.actions(planner=planner, backend=backend)
+    return _http_application().read(
+        "actions", {"planner": planner, "backend": backend}
+    )
 
 
 @app.get("/action-executions/{execution_id}")
 def action_execution(execution_id: str) -> Dict[str, Any]:
     try:
-        return service.get_action_execution(execution_id)
+        return _http_application().read(
+            "action_execution", resource_id=execution_id
+        )
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -239,7 +245,7 @@ def action_execution(execution_id: str) -> Dict[str, Any]:
 @app.get("/action-executions")
 def action_executions(limit: int = 20) -> Dict[str, Any]:
     try:
-        return service.list_action_executions(limit=limit)
+        return _http_application().read("action_executions", {"limit": limit})
     except Exception as exc:
         _raise_for(exc)
 
@@ -247,9 +253,10 @@ def action_executions(limit: int = 20) -> Dict[str, Any]:
 @app.get("/capabilities/runtime")
 def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
     try:
-        if max_files < 1 or max_files > 10:
-            raise ValueError("max_files must be between 1 and 10")
-        return runtime_capability_snapshot(max_files=max_files)
+        return _http_application().read(
+            "runtime_capabilities",
+            {"max_files": max_files, "backend": "local"},
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -257,9 +264,10 @@ def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
 @app.get("/release-evidence")
 def release_evidence(max_files: int = 10) -> Dict[str, Any]:
     try:
-        if max_files < 1 or max_files > 10:
-            raise ValueError("max_files must be between 1 and 10")
-        return service.release_evidence(max_files=max_files, backend="local")
+        return _http_application().read(
+            "release_evidence",
+            {"max_files": max_files, "backend": "local"},
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -285,7 +293,7 @@ def console_asset(asset_name: str):
 @app.post("/runs")
 def run(payload: Dict[str, Any]):
     try:
-        return service.run(**run_kwargs(payload))
+        return _http_application().execute("run", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -293,7 +301,7 @@ def run(payload: Dict[str, Any]):
 @app.post("/runs/auto")
 def run_auto(payload: Dict[str, Any]):
     try:
-        return domain_routing.run(payload)
+        return _http_application().execute("run_auto", payload)
     except Exception as exc:
         _raise_for(
             exc,
@@ -305,7 +313,7 @@ def run_auto(payload: Dict[str, Any]):
 @app.post("/runs/preview")
 def preview(payload: Dict[str, Any]):
     try:
-        return service.preview(**preview_kwargs(payload))
+        return _http_application().execute("preview", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -313,7 +321,7 @@ def preview(payload: Dict[str, Any]):
 @app.post("/runs/async")
 def run_async(payload: Dict[str, Any]):
     try:
-        return service.run_async(**async_run_kwargs(payload))
+        return _http_application().execute("run_async", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -321,7 +329,7 @@ def run_async(payload: Dict[str, Any]):
 @app.get("/decisions/{decision_id}")
 def get_decision(decision_id: str):
     try:
-        return service.get_decision(decision_id)
+        return _http_application().read("decision", resource_id=decision_id)
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -329,9 +337,8 @@ def get_decision(decision_id: str):
 @app.post("/decisions/{decision_id}/resolve")
 def resolve_decision(decision_id: str, payload: Dict[str, Any]):
     try:
-        return service.resolve_decision(
-            decision_id,
-            **decision_resolve_kwargs(payload),
+        return _http_application().execute(
+            "resolve_decision", payload, run_id=decision_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -340,7 +347,7 @@ def resolve_decision(decision_id: str, payload: Dict[str, Any]):
 @app.get("/runs")
 def list_runs(limit: int = 20):
     try:
-        return service.list_runs(limit=limit)
+        return _http_application().read("runs", {"limit": limit})
     except Exception as exc:
         _raise_for(exc)
 
@@ -348,7 +355,7 @@ def list_runs(limit: int = 20):
 @app.get("/sessions")
 def list_sessions(limit: int = 50):
     try:
-        return service.list_sessions(limit=limit)
+        return _http_application().read("sessions", {"limit": limit})
     except Exception as exc:
         _raise_for(exc)
 
@@ -356,7 +363,9 @@ def list_sessions(limit: int = 50):
 @app.get("/sessions/{session_id}/runs")
 def list_session_runs(session_id: str, limit: int = 20):
     try:
-        return service.list_session_runs(session_id=session_id, limit=limit)
+        return _http_application().read(
+            "session_runs", {"limit": limit}, resource_id=session_id
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -364,7 +373,7 @@ def list_session_runs(session_id: str, limit: int = 20):
 @app.post("/sessions")
 def create_session():
     try:
-        return service.create_session()
+        return _http_application().execute("session_create", {})
     except Exception as exc:
         _raise_for(exc, service_unavailable=True)
 
@@ -372,9 +381,7 @@ def create_session():
 @app.post("/sessions/{session_id}/clear")
 def clear_session(session_id: str):
     try:
-        result = service.clear_session(session_id)
-        domain_routing.forget_session(session_id, keep_binding=True)
-        return result
+        return _http_application().execute("session_clear", {}, run_id=session_id)
     except Exception as exc:
         _raise_for(exc)
 
@@ -382,16 +389,14 @@ def clear_session(session_id: str):
 @app.delete("/sessions/{session_id}")
 def delete_session(session_id: str):
     try:
-        result = service.delete_session(session_id)
-        domain_routing.forget_session(session_id)
-        return result
+        return _http_application().execute("session_delete", {}, run_id=session_id)
     except Exception as exc:
         _raise_for(exc)
 
 
 @app.get("/metrics")
 def metrics():
-    return service.metrics()
+    return _http_application().read("metrics")
 
 
 @app.get("/memory")
@@ -402,11 +407,14 @@ def memory(
     global_scope: bool = False,
 ):
     try:
-        return service.list_memory(
-            session_id=session_id,
-            query=query,
-            limit=limit,
-            global_scope=global_scope,
+        return _http_application().read(
+            "memory",
+            {
+                "session_id": session_id,
+                "query": query,
+                "limit": limit,
+                "global_scope": global_scope,
+            },
         )
     except ValueError as exc:
         _raise_for(exc)
@@ -414,54 +422,34 @@ def memory(
 
 @app.get("/observability/health")
 def observability_health():
-    state = service._state.observability
-    return {
-        "schema_version": "spatial-agent.observability.v1",
-        "enabled": state.enabled,
-        "event_count": state.event_count,
-    }
+    return _http_application().read("observability_health")
 
 
 @app.get("/tools/dynamic")
 def list_dynamic_tools():
-    return service.list_dynamic_tools()
+    return _http_application().read("dynamic_tools")
 
 
 @app.post("/tools")
 def register_tool(payload: Dict[str, Any]):
     try:
-        return service.register_tool(
-            name=payload.get("name", ""),
-            definition=payload.get("definition", {}),
-            handler=AgentService.estimate_area_handler,
-        )
+        return _http_application().execute("tool_register", payload)
     except Exception as exc:
         _raise_for(exc)
 
 
 @app.get("/workflows")
 def workflows(planner: str = "rule", backend: str = "memory"):
-    contract = service.workflow_contract(planner=planner, backend=backend)
-    return {
-        "domain_id": contract.get("domain_id", "unknown"),
-        "templates": contract.get("catalog", {}),
-    }
+    return _http_application().read(
+        "workflow", {"planner": planner, "backend": backend}
+    )
 
 
 @app.post("/workflows/{template_id}/validate")
 def validate_workflow(template_id: str, payload: Dict[str, Any]):
     try:
-        contract = service.workflow_contract(
-            planner=payload.get("planner", "rule"),
-            backend=payload.get("backend", "memory"),
-        )
-        return workflow_action_result(
-            template_id,
-            "validate",
-            payload,
-            catalog=contract.get("catalog"),
-            known_tools=contract.get("known_tools"),
-            known_result_types=contract.get("known_result_types"),
+        return _http_application().execute(
+            "workflow_validate", payload, template_id=template_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -470,17 +458,8 @@ def validate_workflow(template_id: str, payload: Dict[str, Any]):
 @app.post("/workflows/{template_id}/revise")
 def revise_workflow(template_id: str, payload: Dict[str, Any]):
     try:
-        contract = service.workflow_contract(
-            planner=payload.get("planner", "rule"),
-            backend=payload.get("backend", "memory"),
-        )
-        return workflow_action_result(
-            template_id,
-            "revise",
-            payload,
-            catalog=contract.get("catalog"),
-            known_tools=contract.get("known_tools"),
-            known_result_types=contract.get("known_result_types"),
+        return _http_application().execute(
+            "workflow_revise", payload, template_id=template_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -489,7 +468,11 @@ def revise_workflow(template_id: str, payload: Dict[str, Any]):
 @app.get("/runs/{run_id}")
 def get_run(run_id: str, planner: str = "rule", backend: str = "memory"):
     try:
-        return service.get_run(run_id=run_id, planner=planner, backend=backend)
+        return _http_application().read(
+            "run",
+            {"planner": planner, "backend": backend},
+            resource_id=run_id,
+        )
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -497,7 +480,7 @@ def get_run(run_id: str, planner: str = "rule", backend: str = "memory"):
 @app.get("/runs/{run_id}/evidence")
 def run_evidence(run_id: str):
     try:
-        return service.get_run_evidence(run_id=run_id)
+        return _http_application().read("run_evidence", resource_id=run_id)
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -505,10 +488,10 @@ def run_evidence(run_id: str):
 @app.get("/runs/{run_id}/interaction")
 def run_interaction(run_id: str, planner: str = "rule", backend: str = "memory"):
     try:
-        return service.get_run_interaction(
-            run_id=run_id,
-            planner=planner,
-            backend=backend,
+        return _http_application().read(
+            "run_interaction",
+            {"planner": planner, "backend": backend},
+            resource_id=run_id,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -517,9 +500,8 @@ def run_interaction(run_id: str, planner: str = "rule", backend: str = "memory")
 @app.post("/runs/{run_id}/interaction")
 def apply_run_interaction(run_id: str, payload: Dict[str, Any]):
     try:
-        return service.apply_run_interaction(
-            run_id,
-            **interaction_kwargs(payload),
+        return _http_application().execute(
+            "interaction", payload, run_id=run_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -529,7 +511,9 @@ def apply_run_interaction(run_id: str, payload: Dict[str, Any]):
 @app.get("/runs/{run_id}/async")
 def async_observability(run_id: str):
     try:
-        return service.get_async_observability(run_id=run_id)
+        return _http_application().read(
+            "async_observability", resource_id=run_id
+        )
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -537,7 +521,7 @@ def async_observability(run_id: str):
 @app.post("/comparisons")
 def compare(payload: Dict[str, Any]):
     try:
-        return service.compare_buildability(**comparison_kwargs(payload))
+        return _http_application().execute("compare", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -545,7 +529,7 @@ def compare(payload: Dict[str, Any]):
 @app.post("/region-comparisons")
 def compare_regions(payload: Dict[str, Any]):
     try:
-        return service.compare_buildability_regions(**region_comparison_kwargs(payload))
+        return _http_application().execute("region_compare", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -553,7 +537,7 @@ def compare_regions(payload: Dict[str, Any]):
 @app.post("/constrained-comparisons")
 def compare_constrained(payload: Dict[str, Any]):
     try:
-        return service.compare_constrained_buildability(**constrained_comparison_kwargs(payload))
+        return _http_application().execute("constrained_compare", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -561,12 +545,8 @@ def compare_constrained(payload: Dict[str, Any]):
 @app.post("/actions/{action_id}")
 def execute_action(action_id: str, payload: Dict[str, Any]):
     try:
-        return service.execute_action(
-            action_id,
-            payload,
-            planner=payload.get("planner", "rule"),
-            backend=payload.get("backend", "local"),
-            idempotency_key=payload.get("idempotency_key"),
+        return _http_application().execute(
+            "domain_action", payload, run_id=action_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -575,7 +555,7 @@ def execute_action(action_id: str, payload: Dict[str, Any]):
 @app.post("/runs/{run_id}/retry")
 def retry(run_id: str, payload: Dict[str, Any]):
     try:
-        return service.retry(run_id=run_id, **retry_kwargs(payload))
+        return _http_application().execute("retry", payload, run_id=run_id)
     except Exception as exc:
         _raise_for(exc)
 
@@ -583,7 +563,7 @@ def retry(run_id: str, payload: Dict[str, Any]):
 @app.post("/runs/{run_id}/cancel")
 def cancel(run_id: str, payload: Dict[str, Any]):
     try:
-        return service.cancel(run_id=run_id, **cancel_kwargs(payload))
+        return _http_application().execute("cancel", payload, run_id=run_id)
     except Exception as exc:
         _raise_for(exc)
 
@@ -637,7 +617,10 @@ def run_artifact_manifest(name: str):
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="artifact not found") from exc
-    return build_artifact_manifest(payload, artifact_ref=path.name)
+    return _http_application().read(
+        "artifact_manifest",
+        {"artifact_payload": payload, "artifact_ref": path.name},
+    )
 
 
 @app.get("/artifacts/runs/{name}/evidence")
@@ -653,18 +636,13 @@ def run_artifact_evidence(name: str):
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="artifact not found") from exc
-    from agent.evidence_registry import normalize_evidence_registry
-
-    registry = normalize_evidence_registry(payload.get("evidence_registry"))
-    return {
-        "schema_version": "spatial-agent.evidence-reference.v1",
-        "run_id": payload.get("run_id"),
-        "domain_id": payload.get("domain_id", "gis"),
-        "artifact": {"available": True, "ref": path.name},
-        "evidence_registry": registry,
-        "evidence_projection": project_evidence_projection(payload),
-        "evidence_recovery": project_evidence_recovery(payload),
-    }
+    return _http_application().read(
+        "artifact_evidence",
+        {
+            "artifact_payload": payload,
+            "artifact_ref": path.name,
+        },
+    )
 
 
 @app.get("/artifacts/actions/{name}")
@@ -707,7 +685,10 @@ def domain_capabilities(
     backend: str = "memory",
 ) -> Dict[str, Any]:
     try:
-        return _domain_service(domain_id).capabilities(planner=planner, backend=backend)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "capabilities", {"planner": planner, "backend": backend}
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -715,11 +696,9 @@ def domain_capabilities(
 @app.get("/domains/{domain_id}/capabilities/runtime")
 def domain_runtime_capabilities(domain_id: str, max_files: int = 10) -> Dict[str, Any]:
     try:
-        if max_files < 1 or max_files > 10:
-            raise ValueError("max_files must be between 1 and 10")
-        return _domain_service(domain_id).runtime_capabilities(
-            max_files=max_files,
-            backend="local",
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "runtime_capabilities", {"max_files": max_files, "backend": "local"}
         )
     except Exception as exc:
         _raise_for(exc)
@@ -728,11 +707,9 @@ def domain_runtime_capabilities(domain_id: str, max_files: int = 10) -> Dict[str
 @app.get("/domains/{domain_id}/release-evidence")
 def domain_release_evidence(domain_id: str, max_files: int = 10) -> Dict[str, Any]:
     try:
-        if max_files < 1 or max_files > 10:
-            raise ValueError("max_files must be between 1 and 10")
-        return _domain_service(domain_id).release_evidence(
-            max_files=max_files,
-            backend="local",
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "release_evidence", {"max_files": max_files, "backend": "local"}
         )
     except Exception as exc:
         _raise_for(exc)
@@ -745,7 +722,10 @@ def domain_actions(
     backend: str = "memory",
 ) -> Dict[str, Any]:
     try:
-        return _domain_service(domain_id).actions(planner=planner, backend=backend)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "actions", {"planner": planner, "backend": backend}
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -753,7 +733,10 @@ def domain_actions(
 @app.get("/domains/{domain_id}/action-executions/{execution_id}")
 def domain_action_execution(domain_id: str, execution_id: str) -> Dict[str, Any]:
     try:
-        return _domain_service(domain_id).get_action_execution(execution_id)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "action_execution", resource_id=execution_id
+        )
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -761,7 +744,10 @@ def domain_action_execution(domain_id: str, execution_id: str) -> Dict[str, Any]
 @app.get("/domains/{domain_id}/action-executions")
 def domain_action_executions(domain_id: str, limit: int = 20) -> Dict[str, Any]:
     try:
-        return _domain_service(domain_id).list_action_executions(limit=limit)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "action_executions", {"limit": limit}
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -773,14 +759,10 @@ def domain_workflows(
     backend: str = "memory",
 ) -> Dict[str, Any]:
     try:
-        contract = _domain_service(domain_id).workflow_contract(
-            planner=planner,
-            backend=backend,
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "workflow", {"planner": planner, "backend": backend}
         )
-        return {
-            "domain_id": contract.get("domain_id", domain_id),
-            "templates": contract.get("catalog", {}),
-        }
     except Exception as exc:
         _raise_for(exc)
 
@@ -793,17 +775,8 @@ def domain_validate_workflow(
 ):
     try:
         selected_service = _domain_service(domain_id, payload)
-        contract = selected_service.workflow_contract(
-            planner=payload.get("planner", "rule"),
-            backend=payload.get("backend", "memory"),
-        )
-        return workflow_action_result(
-            template_id,
-            "validate",
-            payload,
-            catalog=contract.get("catalog"),
-            known_tools=contract.get("known_tools"),
-            known_result_types=contract.get("known_result_types"),
+        return _http_application(selected_service).execute(
+            "workflow_validate", payload, template_id=template_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -817,17 +790,8 @@ def domain_revise_workflow(
 ):
     try:
         selected_service = _domain_service(domain_id, payload)
-        contract = selected_service.workflow_contract(
-            planner=payload.get("planner", "rule"),
-            backend=payload.get("backend", "memory"),
-        )
-        return workflow_action_result(
-            template_id,
-            "revise",
-            payload,
-            catalog=contract.get("catalog"),
-            known_tools=contract.get("known_tools"),
-            known_result_types=contract.get("known_result_types"),
+        return _http_application(selected_service).execute(
+            "workflow_revise", payload, template_id=template_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -836,7 +800,8 @@ def domain_revise_workflow(
 @app.post("/domains/{domain_id}/runs")
 def domain_run(domain_id: str, payload: Dict[str, Any]):
     try:
-        return _domain_service(domain_id, payload).run(**run_kwargs(payload))
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute("run", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -844,7 +809,8 @@ def domain_run(domain_id: str, payload: Dict[str, Any]):
 @app.post("/domains/{domain_id}/runs/preview")
 def domain_preview(domain_id: str, payload: Dict[str, Any]):
     try:
-        return _domain_service(domain_id, payload).preview(**preview_kwargs(payload))
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute("preview", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -852,7 +818,8 @@ def domain_preview(domain_id: str, payload: Dict[str, Any]):
 @app.post("/domains/{domain_id}/runs/async")
 def domain_run_async(domain_id: str, payload: Dict[str, Any]):
     try:
-        return _domain_service(domain_id, payload).run_async(**async_run_kwargs(payload))
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute("run_async", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -860,7 +827,10 @@ def domain_run_async(domain_id: str, payload: Dict[str, Any]):
 @app.get("/domains/{domain_id}/runs")
 def domain_list_runs(domain_id: str, limit: int = 20):
     try:
-        return _domain_service(domain_id).list_runs(limit=limit)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "runs", {"limit": limit}
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -873,10 +843,11 @@ def domain_get_run(
     backend: str = "memory",
 ):
     try:
-        return _domain_service(domain_id).get_run(
-            run_id=run_id,
-            planner=planner,
-            backend=backend,
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "run",
+            {"planner": planner, "backend": backend},
+            resource_id=run_id,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -885,7 +856,10 @@ def domain_get_run(
 @app.get("/domains/{domain_id}/runs/{run_id}/evidence")
 def domain_run_evidence(domain_id: str, run_id: str):
     try:
-        return _domain_service(domain_id).get_run_evidence(run_id=run_id)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "run_evidence", resource_id=run_id
+        )
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -898,10 +872,11 @@ def domain_run_interaction(
     backend: str = "memory",
 ):
     try:
-        return _domain_service(domain_id).get_run_interaction(
-            run_id=run_id,
-            planner=planner,
-            backend=backend,
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "run_interaction",
+            {"planner": planner, "backend": backend},
+            resource_id=run_id,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -914,9 +889,9 @@ def domain_apply_run_interaction(
     payload: Dict[str, Any],
 ):
     try:
-        return _domain_service(domain_id, payload).apply_run_interaction(
-            run_id,
-            **interaction_kwargs(payload),
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute(
+            "interaction", payload, run_id=run_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -926,7 +901,10 @@ def domain_apply_run_interaction(
 @app.get("/domains/{domain_id}/runs/{run_id}/async")
 def domain_async_observability(domain_id: str, run_id: str):
     try:
-        return _domain_service(domain_id).get_async_observability(run_id=run_id)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "async_observability", resource_id=run_id
+        )
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -934,9 +912,9 @@ def domain_async_observability(domain_id: str, run_id: str):
 @app.post("/domains/{domain_id}/runs/{run_id}/retry")
 def domain_retry(domain_id: str, run_id: str, payload: Dict[str, Any]):
     try:
-        return _domain_service(domain_id, payload).retry(
-            run_id=run_id,
-            **retry_kwargs(payload),
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute(
+            "retry", payload, run_id=run_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -945,9 +923,9 @@ def domain_retry(domain_id: str, run_id: str, payload: Dict[str, Any]):
 @app.post("/domains/{domain_id}/runs/{run_id}/cancel")
 def domain_cancel(domain_id: str, run_id: str, payload: Dict[str, Any]):
     try:
-        return _domain_service(domain_id, payload).cancel(
-            run_id=run_id,
-            **cancel_kwargs(payload),
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute(
+            "cancel", payload, run_id=run_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -956,7 +934,10 @@ def domain_cancel(domain_id: str, run_id: str, payload: Dict[str, Any]):
 @app.get("/domains/{domain_id}/decisions/{decision_id}")
 def domain_get_decision(domain_id: str, decision_id: str):
     try:
-        return _domain_service(domain_id).get_decision(decision_id)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "decision", resource_id=decision_id
+        )
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -968,9 +949,9 @@ def domain_resolve_decision(
     payload: Dict[str, Any],
 ):
     try:
-        return _domain_service(domain_id, payload).resolve_decision(
-            decision_id,
-            **decision_resolve_kwargs(payload),
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute(
+            "resolve_decision", payload, run_id=decision_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -979,7 +960,10 @@ def domain_resolve_decision(
 @app.get("/domains/{domain_id}/sessions")
 def domain_list_sessions(domain_id: str, limit: int = 50):
     try:
-        return _domain_service(domain_id).list_sessions(limit=limit)
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "sessions", {"limit": limit}
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -989,7 +973,8 @@ def domain_create_session(
     domain_id: str, payload: Optional[Dict[str, Any]] = None
 ):
     try:
-        return _domain_service(domain_id, payload).create_session()
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute("session_create", {})
     except Exception as exc:
         _raise_for(exc, service_unavailable=True)
 
@@ -997,9 +982,9 @@ def domain_create_session(
 @app.get("/domains/{domain_id}/sessions/{session_id}/runs")
 def domain_list_session_runs(domain_id: str, session_id: str, limit: int = 20):
     try:
-        return _domain_service(domain_id).list_session_runs(
-            session_id=session_id,
-            limit=limit,
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "session_runs", {"limit": limit}, resource_id=session_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -1012,9 +997,10 @@ def domain_clear_session(
     payload: Optional[Dict[str, Any]] = None,
 ):
     try:
-        result = _domain_service(domain_id, payload).clear_session(session_id)
-        domain_routing.forget_session(session_id, keep_binding=True)
-        return result
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute(
+            "session_clear", payload or {}, run_id=session_id
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -1022,9 +1008,10 @@ def domain_clear_session(
 @app.delete("/domains/{domain_id}/sessions/{session_id}")
 def domain_delete_session(domain_id: str, session_id: str):
     try:
-        result = _domain_service(domain_id).delete_session(session_id)
-        domain_routing.forget_session(session_id)
-        return result
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).execute(
+            "session_delete", {}, run_id=session_id
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -1032,7 +1019,8 @@ def domain_delete_session(domain_id: str, session_id: str):
 @app.get("/domains/{domain_id}/metrics")
 def domain_metrics(domain_id: str):
     try:
-        return _domain_service(domain_id).metrics()
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read("metrics")
     except Exception as exc:
         _raise_for(exc)
 
@@ -1046,11 +1034,15 @@ def domain_memory(
     global_scope: bool = False,
 ):
     try:
-        return _domain_service(domain_id).list_memory(
-            session_id=session_id,
-            query=query,
-            limit=limit,
-            global_scope=global_scope,
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "memory",
+            {
+                "session_id": session_id,
+                "query": query,
+                "limit": limit,
+                "global_scope": global_scope,
+            },
         )
     except Exception as exc:
         _raise_for(exc)
@@ -1067,12 +1059,8 @@ def domain_execute_action(
         action_payload = dict(payload)
         action_payload.pop("domain_id", None)
         action_payload.pop("domain_selection", None)
-        return selected_service.execute_action(
-            action_id,
-            action_payload,
-            planner=payload.get("planner", "rule"),
-            backend=payload.get("backend", "local"),
-            idempotency_key=payload.get("idempotency_key"),
+        return _http_application(selected_service).execute(
+            "domain_action", action_payload, run_id=action_id
         )
     except Exception as exc:
         _raise_for(exc)
@@ -1121,25 +1109,25 @@ def domain_run_artifact(domain_id: str, name: str):
 @app.get("/domains/{domain_id}/artifacts/runs/{name}/manifest")
 def domain_run_artifact_manifest(domain_id: str, name: str):
     path = _domain_artifact_path(domain_id, ARTIFACT_ROOT, name, ".json")
-    return build_artifact_manifest(_artifact_json(path), artifact_ref=path.name)
+    selected_service = _domain_service(domain_id)
+    return _http_application(selected_service).read(
+        "artifact_manifest",
+        {"artifact_payload": _artifact_json(path), "artifact_ref": path.name},
+    )
 
 
 @app.get("/domains/{domain_id}/artifacts/runs/{name}/evidence")
 def domain_run_artifact_evidence(domain_id: str, name: str):
     path = _domain_artifact_path(domain_id, ARTIFACT_ROOT, name, ".json")
-    payload = _artifact_json(path)
-    from agent.evidence_registry import normalize_evidence_registry
-
-    registry = normalize_evidence_registry(payload.get("evidence_registry"))
-    return {
-        "schema_version": "spatial-agent.evidence-reference.v1",
-        "run_id": payload.get("run_id"),
-        "domain_id": payload.get("domain_id", domain_id),
-        "artifact": {"available": True, "ref": path.name},
-        "evidence_registry": registry,
-        "evidence_projection": project_evidence_projection(payload),
-        "evidence_recovery": project_evidence_recovery(payload),
-    }
+    selected_service = _domain_service(domain_id)
+    return _http_application(selected_service).read(
+        "artifact_evidence",
+        {
+            "artifact_payload": _artifact_json(path),
+            "artifact_ref": path.name,
+            "domain_id": domain_id,
+        },
+    )
 
 
 @app.get("/domains/{domain_id}/artifacts/actions/{name}")
