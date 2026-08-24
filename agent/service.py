@@ -3,90 +3,43 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from agent.artifact_store import ArtifactStore
-from agent.action_lifecycle import project_action_lifecycle
-from agent.cost_governance import RunTokenCapExceeded, extract_tokens as _extract_tokens
 from agent.errors import ToolError
-from agent.execution_contract import build_execution_record
-from agent.failure_contract import build_failure_evidence, failure_from_payload
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.domain_registry import DomainSelectionError, resolve_domain_id
-from agent.domain_registry import domain_registry
-from agent.domain_routing_evidence import (
-    DomainRoutingEvidenceError,
-    bind_domain_routing_evidence,
-    normalize_domain_routing_evidence,
-    routing_evidence_identity,
-    unavailable_domain_routing_evidence,
-)
 from agent.recovery_action import (
     project_legacy_interaction_receipt,
 )
-from agent.scenario import BuildabilityComparisonScenario, ConstrainedBuildabilityComparisonScenario
 from agent.service_state import ServiceState
-from result_contract import (
-    build_comparison_views,
-    build_comparison_lineage,
-    build_lineage_index,
-    build_result_contract,
-)
 
 from agent.service_async import (
     async_worker_count as _async_worker_count,
     process_is_alive as _process_is_alive,  # legacy patch/import seam
 )
 from agent.service_format import (
-    _attach_error_category,
-    analysis_ready_summary as _analysis_ready_summary,
-    contextualize_request as _contextualize_request,
-    format_result as _format_result,
+    exported_geometry_evidence as _exported_geometry_evidence,
     normalize_spatial_context as _normalize_spatial_context,
-    result_type as _result_type,
+    tag_geometry_features as _tag_geometry_features,
 )
 from agent.service_sessions import (
     dedupe_run_records as _dedupe_run_records,
     validate_session_id as _validate_session_id,
 )
 from agent.application.run import RunApplication
+from agent.application.submission import SubmissionApplication
 from agent.application.actions import ActionApplication
 from agent.application.decisions import DecisionApplication
 from agent.application.interactions import InteractionApplication
 from agent.application.sessions import SessionApplication
 from agent.application.async_runs import AsyncApplication
-from agent.application.catalog import CatalogApplication
+from agent.application.catalog import (
+    CatalogApplication,
+    _bind_domain_id,
+    _bind_domain_pack,
+)
+from agent.application.comparisons import ComparisonApplication
+from agent.application.inspection import InspectionApplication
 from agent.application.run_recovery import RunRecoveryApplication
-
-
-def _bind_domain_pack(domain_pack: Any) -> Callable[..., Any]:
-    """Bind one explicit Domain Pack to the generic Runtime Factory seam."""
-    if domain_pack is None:
-        raise ValueError("domain_pack is required")
-
-    def factory(planner: str, backend: str, **kwargs: Any) -> Any:
-        return build_runtime(
-            planner,
-            backend,
-            domain_pack=domain_pack,
-            **kwargs,
-        )
-
-    return factory
-
-
-def _bind_domain_id(domain_id: str) -> Callable[..., Any]:
-    """Bind a registered domain id without exposing import paths to callers."""
-    if not isinstance(domain_id, str) or not domain_id.strip():
-        raise ValueError("domain_id must be a non-empty string")
-
-    def factory(planner: str, backend: str, **kwargs: Any) -> Any:
-        return build_runtime(
-            planner,
-            backend,
-            domain_id=domain_id,
-            **kwargs,
-        )
-
-    return factory
 
 
 def _runtime_result_registry(runtime):
@@ -174,6 +127,9 @@ class AgentService:
             attach_async_observability=self._attach_async_observability,
             mark_memory_cancel_requested=self._mark_memory_cancel_requested,
         )
+        self._comparison_application = ComparisonApplication(
+            run_provider=lambda **kwargs: self.run(**kwargs),
+        )
         self._async_worker_count = _async_worker_count()
         self._async_executor = ThreadPoolExecutor(
             max_workers=self._async_worker_count, thread_name_prefix="spatial-agent"
@@ -187,6 +143,14 @@ class AgentService:
             legacy_domain_id=self._legacy_domain_id,
             attach_async_observability=self._attach_async_observability,
             finalize_async_job=self._finalize_async_job,
+        )
+        self._submission_application = SubmissionApplication(
+            state=self._state,
+            runtime_provider=self._runtime,
+            workflow_normalizer=self._normalize_workflow_payload,
+            domain_id_provider=self._domain_id,
+            execute_run=self._run_application.execute,
+            attach_async_observability=self._attach_async_observability,
         )
         self._session_application = SessionApplication(
             state=self._state,
@@ -257,6 +221,13 @@ class AgentService:
             worker_count=self._async_worker_count,
         )
         self._recover_async_jobs()
+        self._inspection_application = InspectionApplication(
+            artifact_store=self._artifact_store,
+            state=self._state,
+            domain_id=lambda: self._resolved_domain_id,
+            worker_count=self._async_worker_count,
+            async_metrics=self._memory_async_metrics,
+        )
 
     def start_reaper(self) -> None:
         """Start the periodic wall-clock timeout reaper (production entry points)."""
@@ -312,149 +283,29 @@ class AgentService:
         _resolved_request: str = None,
         _domain_routing_evidence: Dict[str, Any] = None,
     ) -> Dict:
-        if not isinstance(request, str) or not request.strip():
-            raise ValueError("request must be a non-empty string")
-        if not isinstance(session_id, str) or not session_id.strip():
-            raise ValueError("session_id must be a non-empty string")
-        if run_id is not None and (not isinstance(run_id, str) or not run_id.strip()):
-            raise ValueError("run_id must be a non-empty string")
-        if _resolved_request is not None and (
-            not isinstance(_resolved_request, str) or not _resolved_request.strip()
-        ):
-            raise ValueError("_resolved_request must be a non-empty string")
-        workflow_context = self._normalize_workflow_payload(workflow, planner, backend)
-        domain_id = self._domain_id(planner, backend)
-        if _domain_routing_evidence is None and run_id is not None and _force_run_id:
-            existing = (
-                self._state.get_run(run_id, domain_id=domain_id)
-                if self._state.persistent
-                else self._runtime(planner, backend).get_run(run_id)
-            )
-            if existing is not None:
-                restored_routing_evidence = getattr(
-                    existing,
-                    "domain_routing_evidence",
-                    None,
-                )
-                if (
-                    isinstance(restored_routing_evidence, Mapping)
-                    and restored_routing_evidence.get("available") is True
-                ):
-                    _domain_routing_evidence = restored_routing_evidence
-        routing_evidence = (
-            normalize_domain_routing_evidence(
-                _domain_routing_evidence,
-                expected_domain_id=domain_id,
-                strict=True,
-            )
-            if _domain_routing_evidence is not None
-            else unavailable_domain_routing_evidence()
+        return self._submission_application.run(
+            request=request,
+            session_id=session_id,
+            planner=planner,
+            backend=backend,
+            export_artifact=export_artifact,
+            export_geojson=export_geojson,
+            geojson_max_features=geojson_max_features,
+            timeout_seconds=timeout_seconds,
+            spatial_context=spatial_context,
+            workflow=workflow,
+            run_id=run_id,
+            preview_fingerprint=preview_fingerprint,
+            preview_evidence_fingerprint=preview_evidence_fingerprint,
+            require_confirmation=require_confirmation,
+            decision_id=decision_id,
+            decision_version=decision_version,
+            decision_ttl_seconds=decision_ttl_seconds,
+            _force_run_id=_force_run_id,
+            _async_requested=_async_requested,
+            _resolved_request=_resolved_request,
+            _domain_routing_evidence=_domain_routing_evidence,
         )
-        if preview_fingerprint is not None and (
-            not isinstance(preview_fingerprint, str) or not preview_fingerprint.strip()
-        ):
-            raise ValueError("preview_fingerprint must be a non-empty string")
-        if preview_evidence_fingerprint is not None and (
-            not isinstance(preview_evidence_fingerprint, str)
-            or not preview_evidence_fingerprint.strip()
-        ):
-            raise ValueError(
-                "preview_evidence_fingerprint must be a non-empty string"
-            )
-        if run_id is not None and not _force_run_id:
-            if self._state.persistent:
-                existing_any = self._state.get_run(run_id)
-                if (
-                    existing_any is not None
-                    and str(getattr(existing_any, "domain_id", "")) != domain_id
-                ):
-                    raise DomainSelectionError(
-                        "run_id belongs to another domain: " + run_id,
-                        code="run_domain_mismatch",
-                    )
-            existing = (
-                self._state.get_run(run_id, domain_id=domain_id)
-                if self._state.persistent
-                else self._runtime(planner, backend).get_run(run_id)
-            )
-            if existing is not None:
-                if routing_evidence_identity(
-                    getattr(existing, "domain_routing_evidence", None)
-                ) != routing_evidence_identity(routing_evidence):
-                    raise DomainRoutingEvidenceError(
-                        "run_id conflicts with domain routing identity",
-                        code="domain_routing_evidence_run_conflict",
-                    )
-                payload = _format_result(
-                    existing,
-                    _normalize_spatial_context(spatial_context),
-                    result_registry=_runtime_result_registry(self._runtime(planner, backend)),
-                )
-                self._attach_async_observability(payload, run_id)
-                return payload
-        if self._state.conversation_store is not None:
-            self._state.conversation_store.ensure_session(session_id)
-        else:
-            self._state.ensure_session(session_id)
-        normalized_context = _normalize_spatial_context(spatial_context)
-        cost = self._state.cost
-        cost.acquire_concurrency()
-        try:
-            cost.check_budget(session_id)
-            result = self._run_governed(
-                request,
-                session_id,
-                planner,
-                backend,
-                normalized_context,
-                runtime_kwargs={
-                    "session_id": session_id,
-                    "timeout_seconds": timeout_seconds,
-                    "run_id": run_id,
-                    "expected_plan_fingerprint": preview_fingerprint,
-                    "expected_evidence_fingerprint": preview_evidence_fingerprint,
-                    "require_confirmation": bool(require_confirmation),
-                    "decision_id": decision_id,
-                    "decision_version": decision_version,
-                    "decision_ttl_seconds": decision_ttl_seconds,
-                    "decision_input": {
-                        "export_artifact": bool(export_artifact),
-                        "export_geojson": bool(export_geojson),
-                        "geojson_max_features": int(geojson_max_features),
-                    },
-                },
-                workflow_context=workflow_context,
-                export_artifact=export_artifact,
-                export_geojson=export_geojson,
-                geojson_max_features=geojson_max_features,
-                async_requested=_async_requested,
-                resolved_request_override=_resolved_request,
-                domain_routing_evidence=routing_evidence,
-            )
-        finally:
-            cost.release_concurrency()
-        payload = result
-        if isinstance(payload.get("plan_evidence"), dict) and payload["plan_evidence"].get("plan_identity"):
-            payload["plan_identity"] = dict(payload["plan_evidence"]["plan_identity"])
-        cost.charge(session_id, _extract_tokens(payload.get("planner_metrics")))
-        try:
-            cost.check_run_cap(_extract_tokens(payload.get("planner_metrics")))
-        except RunTokenCapExceeded as exc:
-            payload["status"] = "FAILED"
-            payload["error"] = str(exc)
-            payload["error_category"] = "budget"
-            payload["error_code"] = "budget_exceeded"
-            payload["failure"] = build_failure_evidence(
-                status="FAILED",
-                category="budget",
-                code="budget_exceeded",
-                phase="control",
-            )
-            if isinstance(payload.get("result"), dict):
-                payload["result"]["failure"] = dict(payload["failure"])
-            _attach_error_category(payload)
-        payload["execution_record"] = build_execution_record(payload, kind="run")
-        return payload
 
     def preview(
         self,
@@ -467,50 +318,16 @@ class AgentService:
         workflow: Dict[str, Any] = None,
         _resolved_request: str = None,
     ) -> Dict:
-        if not isinstance(request, str) or not request.strip():
-            raise ValueError("request must be a non-empty string")
-        if not isinstance(session_id, str) or not session_id.strip():
-            raise ValueError("session_id must be a non-empty string")
-        if _resolved_request is not None and (
-            not isinstance(_resolved_request, str) or not _resolved_request.strip()
-        ):
-            raise ValueError("_resolved_request must be a non-empty string")
-        workflow_context = self._normalize_workflow_payload(workflow, planner, backend)
-        normalized_context = _normalize_spatial_context(spatial_context)
-        cost = self._state.cost
-        cost.acquire_concurrency()
-        try:
-            cost.check_budget(session_id)
-            runtime = self._runtime(planner, backend)
-            preview_kwargs = {
-                "session_id": session_id,
-                "timeout_seconds": timeout_seconds,
-                "workflow": workflow_context,
-            }
-            if _resolved_request is not None:
-                preview_kwargs["resolved_request_override"] = _resolved_request
-            payload = runtime.preview(
-                _contextualize_request(request, normalized_context),
-                **preview_kwargs,
-            )
-        finally:
-            cost.release_concurrency()
-        payload["spatial_context"] = normalized_context
-        payload["result_type"] = _result_type(payload)
-        plan_evidence = payload.get("plan_evidence")
-        if isinstance(plan_evidence, dict) and isinstance(
-            plan_evidence.get("evidence_binding"), dict
-        ):
-            payload["evidence_binding"] = dict(plan_evidence["evidence_binding"])
-        cost.charge(session_id, _extract_tokens(payload.get("planner_metrics")))
-        try:
-            cost.check_run_cap(_extract_tokens(payload.get("planner_metrics")))
-        except RunTokenCapExceeded as exc:
-            payload["status"] = "FAILED"
-            payload["error"] = str(exc)
-            payload["error_category"] = "budget"
-        payload["lifecycle"] = project_action_lifecycle(payload)
-        return payload
+        return self._submission_application.preview(
+            request=request,
+            session_id=session_id,
+            planner=planner,
+            backend=backend,
+            timeout_seconds=timeout_seconds,
+            spatial_context=spatial_context,
+            workflow=workflow,
+            _resolved_request=_resolved_request,
+        )
 
     def get_decision(self, decision_id: str) -> Dict[str, Any]:
         """Read one decision through the canonical application seam."""
@@ -533,39 +350,6 @@ class AgentService:
             planner=planner,
             backend=backend,
             idempotency_key=idempotency_key,
-        )
-
-    def _run_governed(
-        self,
-        request: str,
-        session_id: str,
-        planner: str,
-        backend: str,
-        normalized_context: Dict[str, Any],
-        *,
-        runtime_kwargs: Dict[str, Any],
-        workflow_context: Optional[Dict[str, Any]],
-        export_artifact: bool,
-        export_geojson: bool,
-        geojson_max_features: int,
-        async_requested: bool = False,
-        resolved_request_override: str = None,
-        domain_routing_evidence: Dict[str, Any] = None,
-    ) -> Dict:
-        return self._run_application.execute(
-            request,
-            session_id,
-            planner,
-            backend,
-            normalized_context,
-            runtime_kwargs=runtime_kwargs,
-            workflow_context=workflow_context,
-            export_artifact=export_artifact,
-            export_geojson=export_geojson,
-            geojson_max_features=geojson_max_features,
-            async_requested=async_requested,
-            resolved_request_override=resolved_request_override,
-            domain_routing_evidence=domain_routing_evidence,
         )
 
     def run_async(self, **kwargs) -> Dict:
@@ -850,21 +634,7 @@ class AgentService:
         return self._session_application.delete_session(session_id)
 
     def metrics(self) -> Dict:
-        if self._state.persistent:
-            metrics = self._state.store_metrics(domain_id=self._resolved_domain_id)
-            metrics.setdefault("async_jobs", {})["worker_count"] = self._async_worker_count
-        else:
-            metrics = self._artifact_store.metrics(domain_id=self._resolved_domain_id)
-            metrics["async_jobs"] = self._memory_async_metrics()
-        metrics["cost_governance"] = self._state.cost.summary()
-        metrics["actions"] = self._artifact_store.action_metrics(
-            domain_id=self._resolved_domain_id
-        )
-        metrics["observability"] = {
-            "schema_version": "spatial-agent.observability.v1",
-            "event_count": self._state.observability.event_count,
-        }
-        return metrics
+        return self._inspection_application.metrics()
 
     def capabilities(
         self,
@@ -962,29 +732,12 @@ class AgentService:
         limit: int = 20,
         global_scope: bool = False,
     ) -> Dict:
-        """Return bounded memory facts (session-scoped or explicit global)."""
-        if global_scope:
-            facts = self._state.memory.recall_global(query=query, limit=limit)
-        else:
-            if not isinstance(session_id, str) or not session_id.strip():
-                raise ValueError("session_id must be a non-empty string")
-            facts = self._state.memory.recall(session_id=session_id, query=query, limit=limit)
-        return {
-            "memory_enabled": self._state.memory.enabled,
-            "global_scope": bool(global_scope),
-            "fact_count": len(facts),
-            "facts": [
-                {
-                    "run_id": fact.get("run_id"),
-                    "session_id": fact.get("session_id"),
-                    "result_type": fact.get("result_type"),
-                    "admin_names": list(fact.get("admin_names") or []),
-                    "summary": fact.get("summary"),
-                    "facts": dict(fact.get("facts") or {}),
-                }
-                for fact in facts
-            ],
-        }
+        return self._inspection_application.list_memory(
+            session_id=session_id,
+            query=query,
+            limit=limit,
+            global_scope=global_scope,
+        )
 
     def register_tool(
         self,
@@ -1038,75 +791,13 @@ class AgentService:
         backend: str = "local",
         spatial_context: Dict[str, Any] = None,
     ) -> Dict:
-        normalized_context = _normalize_spatial_context(spatial_context)
-        context_admin_name = normalized_context.get("admin_name")
-        if context_admin_name:
-            admin_name = context_admin_name
-        scenario = BuildabilityComparisonScenario.for_thresholds(admin_name, thresholds)
-        admin_name = scenario.admin_names[0]
-        rows = []
-        for value in scenario.thresholds:
-            result = self.run(
-                f"分析{admin_name}建设适宜性，坡度不超过{value:g}度，使用 DEM 和土地利用数据",
-                session_id=f"comparison-{admin_name}-{value:g}",
-                planner=planner,
-                backend=backend,
-                spatial_context=normalized_context,
-                export_artifact=True,
-            )
-            step = next((item for item in result.get("steps", []) if item.get("tool") == "get_zonal_buildability_analysis"), {})
-            tool_result = step.get("result") or {}
-            statistics = tool_result.get("statistics") or {}
-            rows.append({
-                "run_id": result.get("run_id"),
-                "slope_limit_degrees": value,
-                "status": result.get("status"),
-                "candidate_pixel_count": statistics.get("candidate_pixel_count"),
-                "valid_pixel_count": statistics.get("valid_pixel_count"),
-                "candidate_ratio": statistics.get("candidate_ratio"),
-                "error": statistics.get("error") or result.get("error"),
-                "planner_metrics": result.get("planner_metrics"),
-                "actual_tools": [step.get("tool") for step in result.get("steps", []) if isinstance(step, dict)],
-                "failed_steps": [
-                    {
-                        "tool": step.get("tool"),
-                        "error": step.get("error"),
-                    }
-                    for step in result.get("steps", [])
-                    if isinstance(step, dict) and step.get("status") == "FAILED"
-                ],
-                "analysis_ready": _analysis_ready_summary(result),
-                "lineage": (result.get("result") or {}).get("lineage"),
-            })
-        evidence = next(
-            (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
-            None,
+        return self._comparison_application.compare_buildability(
+            admin_name=admin_name,
+            thresholds=thresholds,
+            planner=planner,
+            backend=backend,
+            spatial_context=spatial_context,
         )
-        return {
-            "admin_name": admin_name,
-            "thresholds": list(scenario.thresholds),
-            "scenario": scenario.to_dict(),
-            "spatial_context": normalized_context,
-            "results": rows,
-            "views": build_comparison_views(
-                rows,
-                "buildability_threshold_comparison",
-                title="建设适宜性阈值对比",
-                x_field="slope_limit_degrees",
-                x_label="坡度阈值",
-                y_field="candidate_pixel_count",
-                y_label="候选像元",
-                table_columns=[
-                    ("坡度", "slope_limit_degrees"),
-                    ("候选像元", "candidate_pixel_count"),
-                    ("候选比例", "candidate_ratio"),
-                    ("状态", "status"),
-                ],
-                note="坡度阈值越高，候选像元通常应保持不减；本图用于展示筛选敏感性。",
-            ),
-            "lineage": build_comparison_lineage(rows, "buildability_threshold_comparison"),
-            **({"analysis_ready": evidence} if evidence else {}),
-        }
 
     def compare_buildability_regions(
         self,
@@ -1115,51 +806,12 @@ class AgentService:
         planner: str = "rule",
         backend: str = "local",
     ) -> Dict:
-        try:
-            threshold_value = float(threshold)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("threshold must be a number") from exc
-        scenario = BuildabilityComparisonScenario.for_regions(admin_names, threshold_value)
-        names = list(scenario.admin_names)
-        rows = []
-        for admin_name in names:
-            result = self.compare_buildability(
-                admin_name=admin_name,
-                thresholds=[threshold_value],
-                planner=planner,
-                backend=backend,
-            )
-            row = (result.get("results") or [{}])[0]
-            rows.append({"admin_name": admin_name, **row})
-        return {
-            "admin_names": names,
-            "slope_limit_degrees": threshold_value,
-            "scenario": scenario.to_dict(),
-            "results": rows,
-            "views": build_comparison_views(
-                rows,
-                "buildability_region_comparison",
-                title="多区域建设适宜性对比",
-                x_field="admin_name",
-                x_label="行政区",
-                y_field="candidate_pixel_count",
-                y_label="候选像元",
-                table_columns=[
-                    ("行政区", "admin_name"),
-                    ("候选像元", "candidate_pixel_count"),
-                    ("候选比例", "candidate_ratio"),
-                    ("状态", "status"),
-                ],
-                note="同一坡度阈值下对比不同区域的候选规模。",
-            ),
-            "lineage": build_comparison_lineage(rows, "buildability_region_comparison"),
-            **({
-                "analysis_ready": next(
-                    (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
-                    None,
-                )
-            } if any(row.get("analysis_ready") for row in rows) else {}),
-        }
+        return self._comparison_application.compare_buildability_regions(
+            admin_names=admin_names,
+            threshold=threshold,
+            planner=planner,
+            backend=backend,
+        )
 
     def _runtime(self, planner: str, backend: str):
         runtime = self._catalog_application.runtime(planner, backend)
@@ -1196,117 +848,11 @@ class AgentService:
         backend: str = "local",
         spatial_context: Dict[str, Any] = None,
     ) -> Dict:
-        """Compare eligible constrained candidates across road distances.
-
-        A wider road distance can only keep or add candidates, so the number of
-        eligible features must be monotonic non-decreasing as ``road_distance_m``
-        grows. The response keeps this invariant explicit for the live baseline.
-        """
-        normalized_context = _normalize_spatial_context(spatial_context)
-        context_admin_name = normalized_context.get("admin_name")
-        if context_admin_name:
-            admin_name = context_admin_name
-        scenario = ConstrainedBuildabilityComparisonScenario.for_road_distances(
-            admin_name, slope_limit_degrees, road_distances
+        return self._comparison_application.compare_constrained_buildability(
+            admin_name=admin_name,
+            road_distances=road_distances,
+            slope_limit_degrees=slope_limit_degrees,
+            planner=planner,
+            backend=backend,
+            spatial_context=spatial_context,
         )
-        admin_name = scenario.admin_name
-        rows = []
-        for distance in scenario.road_distances:
-            result = self.run(
-                f"筛选{admin_name}坡度不超过{scenario.slope_limit_degrees:g}度、"
-                f"距道路{distance:g}米内、排除水体的建设候选区域",
-                session_id=f"constrained-compare-{admin_name}-{distance:g}",
-                planner=planner,
-                backend=backend,
-                spatial_context=normalized_context,
-                export_artifact=True,
-            )
-            step = next(
-                (
-                    item
-                    for item in result.get("steps", [])
-                    if item.get("tool") == "get_zonal_constrained_buildability_analysis"
-                ),
-                {},
-            )
-            tool_result = step.get("result") or {}
-            constraint_summary = tool_result.get("constraint_summary") or {}
-            statistics = tool_result.get("statistics") or {}
-            rows.append({
-                "run_id": result.get("run_id"),
-                "road_distance_m": distance,
-                "slope_limit_degrees": scenario.slope_limit_degrees,
-                "status": result.get("status"),
-                "candidate_features": constraint_summary.get("candidate_features"),
-                "eligible_features": constraint_summary.get("eligible_features"),
-                "water_excluded_features": constraint_summary.get("water_excluded_features"),
-                "candidate_pixel_count": statistics.get("candidate_pixel_count"),
-                "candidate_ratio": statistics.get("candidate_ratio"),
-                "error": (
-                    constraint_summary.get("error")
-                    or statistics.get("error")
-                    or result.get("error")
-                ),
-                "planner_metrics": result.get("planner_metrics"),
-                "actual_tools": [
-                    step.get("tool")
-                    for step in result.get("steps", [])
-                    if isinstance(step, dict)
-                ],
-                "failed_steps": [
-                    {
-                        "tool": step.get("tool"),
-                        "error": step.get("error"),
-                    }
-                    for step in result.get("steps", [])
-                    if isinstance(step, dict) and step.get("status") == "FAILED"
-                ],
-                "analysis_ready": _analysis_ready_summary(result),
-                "lineage": (result.get("result") or {}).get("lineage"),
-            })
-        eligible = [
-            row.get("eligible_features")
-            for row in rows
-            if row.get("status") == "COMPLETED"
-            and row.get("eligible_features") is not None
-        ]
-        monotonic = (
-            len(eligible) >= 2
-            and all(
-                later >= earlier
-                for earlier, later in zip(eligible, eligible[1:])
-            )
-        )
-        evidence = next(
-            (row.get("analysis_ready") for row in rows if row.get("analysis_ready")),
-            None,
-        )
-        return {
-            "admin_name": admin_name,
-            "slope_limit_degrees": scenario.slope_limit_degrees,
-            "road_distances": list(scenario.road_distances),
-            "scenario": scenario.to_dict(),
-            "results": rows,
-            "monotonic_eligible_features": monotonic,
-            "views": build_comparison_views(
-                rows,
-                "constrained_buildability_road_distance_comparison",
-                title="道路距离约束对比",
-                x_field="road_distance_m",
-                x_label="道路距离",
-                y_field="eligible_features",
-                y_label="满足道路约束",
-                table_columns=[
-                    ("道路距离", "road_distance_m"),
-                    ("满足道路约束", "eligible_features"),
-                    ("水体排除", "water_excluded_features"),
-                    ("候选几何样本", "candidate_features"),
-                    ("状态", "status"),
-                ],
-                note="道路距离放宽时，满足道路约束的候选数应单调不减；水体排除仅作演示约束。",
-            ),
-            "lineage": build_comparison_lineage(
-                rows, "constrained_buildability_road_distance_comparison"
-            ),
-            **({"analysis_ready": evidence} if evidence else {}),
-        }

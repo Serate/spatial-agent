@@ -648,3 +648,11 @@
 - **诊断**：按内存成功、SQLite 重启、artifact-only、跨 Domain、显式 retry idempotency、cancel receipt 六类路径检查；比较 `status`、`result.views`、`execution_record`、`evidence_registry`、`async_observability` 和 receipt lineage。不要只断言 `get_run` 返回 200 或最终状态字符串。
 - **修复**：新增 `RunRecoveryApplication`，统一负责 Runtime selection inference、快照一致性等待、artifact projection、evidence projection、retry/cancel receipt 以及跨 Domain fencing；所有 state、Runtime、Action receipt 和 async observation 都由构造时注入，不在新模块中创建第二份控制状态。
 - **预防**：查询/恢复拆分必须保留“调用图闭包”，把 artifact、result contract、evidence、async 和 Domain identity helper 一起迁移；新 seam 至少运行 SQLite/artifact/receipt/跨 Domain 回归，并保留 Service 的旧方法作为单向 facade，直到所有 transport 迁移完成。
+
+## M260-C Submission seam 验收发现的 Preview 隐式依赖
+
+- **现象**：Service 的 run/preview 提交逻辑移入 `SubmissionApplication` 后，普通 run 可以完成，但 preview 只在真正走到成功计划分支时暴露 `name '_plan_to_dict' is not defined`，进而缺少 `plan_identity` 和 `evidence_binding`；编译检查无法发现这种运行时调用图遗漏。
+- **根因**：M259-F 把 preview 实现物理迁移到 `runtime_core/preview.py` 时，原 Runtime 模块中的 `_plan_to_dict`、`_plan_dag` 和 `build_evidence_binding` 依赖没有一并迁入或改为 canonical import。此前只覆盖了对象存在与部分降级路径，遗漏了成功 preview contract。
+- **诊断**：对同一个请求同时执行 preview 和 run，至少检查 `status=PLANNED`、`plan_identity`、`plan_evidence.evidence_binding` 和“不调用工具”；若只看 compileall 或 clarification 分支，不能发现成功计划路径的 NameError。
+- **修复**：preview seam 显式导入 `runtime_core.projection.plan_to_dict/plan_dag` 与 `evidence_revalidation.build_evidence_binding`，不再依赖 Runtime 私有全局符号；补充 M192/M193 preview identity/evidence gate 回归。
+- **预防**：迁移大方法时必须迁移“调用图闭包”，并对成功、澄清、拒绝三条路径分别执行最小 contract；新 Application 不能把编排拆分当成只移动入口方法，所有 artifact、evidence、plan identity 字段都必须在 canonical seam 验证。

@@ -22,7 +22,14 @@ class M10AgentServiceTests(unittest.TestCase):
 
         second = service.run(ADMIN_NAME, session_id="m10")
         self.assertEqual(second["status"], "COMPLETED")
-        self.assertIn("memory://range/admin_areas", second["answer"])
+        self.assertIn("已找到", second["answer"])
+        range_step = next(
+            step for step in second["steps"] if step["tool"] == "range_query"
+        )
+        self.assertEqual(
+            range_step["result"]["result_ref"],
+            "memory://range/admin_areas",
+        )
 
     def test_service_validates_request(self):
         service = AgentService()
@@ -132,24 +139,18 @@ class M10HttpApiTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         self.assertIn("正在检查运行环境", body)
-        self.assertIn("capabilityHealthLabel", body)
+        self.assertIn("capabilityStatus", body)
         self.assertNotIn("data-domain-control", body)
         self.assertIn("真实大模型", body)
         self.assertIn("对话", body)
         self.assertIn("发送", body)
         self.assertIn("新建会话", body)
         self.assertIn("清空对话", body)
-        self.assertIn('<select id="session">', body)
+        self.assertIn('<select id="session"', body)
         self.assertIn("对话1", body)
-        self.assertIn("function newSession", body)
-        self.assertIn("function stepResult", body)
-        self.assertIn("已阻塞", body)
-        self.assertIn("retryRun", body)
-        self.assertIn("重试失败步骤", body)
         self.assertIn("运行血缘", body)
-        self.assertIn("function provenance", body)
-        self.assertIn("依赖：", body)
         self.assertIn("空间智能体", body)
+        self.assertIn("console_app.js", body)
         self.assertIn("console_renderer_registry.js", body)
         self.assertIn("console_action_host.js", body)
         self.assertIn("console_gis_plugin.js", body)
@@ -193,7 +194,7 @@ class M10HttpApiTests(unittest.TestCase):
 
         self.assertEqual(first["status"], "NEEDS_CLARIFICATION")
         self.assertEqual(second["status"], "COMPLETED")
-        self.assertIn("memory://range/admin_areas", second["answer"])
+        self.assertIn("已找到", second["answer"])
 
     def test_http_api_returns_an_individual_run_for_async_polling(self):
         class TestHandler(AgentApiHandler):

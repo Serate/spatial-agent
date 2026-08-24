@@ -12,8 +12,10 @@ from typing import Any, Dict, Mapping, Optional
 from ..action_lifecycle import project_action_lifecycle
 from ..conversation_turn import build_conversation_turn, resolve_turn_mode
 from ..domain_contract import clarification_details as resolve_clarification_details, extract_request_facts
+from ..evidence_revalidation import build_evidence_binding
 from ..errors import ClarificationNeeded, RequestRejected, ToolError
 from ..models import RunStatus, TaskPlan
+from .projection import plan_dag as _plan_dag, plan_to_dict as _plan_to_dict
 
 
 class RuntimePreviewSurface:

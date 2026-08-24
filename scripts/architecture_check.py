@@ -102,6 +102,9 @@ def build_report() -> dict[str, Any]:
         ROOT / "agent" / "application" / "sessions.py",
         ROOT / "agent" / "application" / "catalog.py",
         ROOT / "agent" / "application" / "run_recovery.py",
+        ROOT / "agent" / "application" / "comparisons.py",
+        ROOT / "agent" / "application" / "inspection.py",
+        ROOT / "agent" / "application" / "submission.py",
         ROOT / "agent" / "web_assets.py",
         ROOT / "run_demo.py",
         ROOT / "domains" / "gis",
@@ -242,7 +245,7 @@ def build_report() -> dict[str, Any]:
                     "code": "service_interaction_application_seam_missing",
                 }
             )
-        if "from agent.application.catalog import CatalogApplication" not in source:
+        if "agent.application.catalog" not in source or "CatalogApplication" not in source:
             errors.append(
                 {
                     "file": _relative(service_path),
@@ -254,6 +257,27 @@ def build_report() -> dict[str, Any]:
                 {
                     "file": _relative(service_path),
                     "code": "service_run_recovery_application_seam_missing",
+                }
+            )
+        if "from agent.application.comparisons import ComparisonApplication" not in source:
+            errors.append(
+                {
+                    "file": _relative(service_path),
+                    "code": "service_comparison_application_seam_missing",
+                }
+            )
+        if "from agent.application.inspection import InspectionApplication" not in source:
+            errors.append(
+                {
+                    "file": _relative(service_path),
+                    "code": "service_inspection_application_seam_missing",
+                }
+            )
+        if "from agent.application.submission import SubmissionApplication" not in source:
+            errors.append(
+                {
+                    "file": _relative(service_path),
+                    "code": "service_submission_application_seam_missing",
                 }
             )
     if index_path.exists() and index_path.stat().st_size > 100_000:

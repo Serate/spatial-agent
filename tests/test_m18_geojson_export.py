@@ -97,7 +97,7 @@ class M18GeoJSONExportTests(unittest.TestCase):
                     payload, root=tmpdir, geometry_features=geometry_features
                 )
 
-            with patch("agent.service.export_run_summary", side_effect=write_to_temp):
+            with patch("agent.application.run.export_run_summary", side_effect=write_to_temp):
                 result = AgentService().run(
                     "查询DEM栅格元数据", export_geojson=True
                 )
@@ -146,7 +146,7 @@ class M18GeoJSONExportTests(unittest.TestCase):
         self.assertTrue(evidence["truncated"])
 
     def test_map_export_records_display_and_source_crs(self):
-        with patch("agent.geometry_export._transform_geometry", return_value={"type": "Point", "coordinates": [114.4, 30.5]}):
+        with patch("domains.gis.adapters.geometry_export._transform_geometry", return_value={"type": "Point", "coordinates": [114.4, 30.5]}):
             document = normalize_feature_collection({
                 "type": "FeatureCollection",
                 "crs": {"type": "name", "properties": {"name": "EPSG:32650"}},
