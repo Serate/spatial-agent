@@ -14,8 +14,11 @@ from agent.plan_quality import project_plan_quality_evidence
 from agent.execution_timeline import build_execution_timeline
 from agent.action_precondition import project_action_preconditions
 from agent.action_effect import project_action_effect
-from agent.evidence_registry import build_evidence_registry
-from agent.evidence_recovery import project_evidence_recovery
+from agent.evidence_registry import (
+    REPLANNING_SCHEMA_VERSION,
+    build_evidence_registry,
+)
+from agent.evidence_projection import project_evidence_recovery
 from agent.model_evidence import project_model_evidence
 from agent.answer_generation import project_answer_generation_evidence
 from agent.recovery_action import normalize_action_receipt
@@ -53,9 +56,6 @@ GEOMETRY_STATUS = {
     "truncated_geometry",
     "unknown",
 }
-
-REPLANNING_SCHEMA_VERSION = "spatial-agent.replanning.v1"
-
 
 def build_result_contract(
     payload: Dict[str, Any],

@@ -2,8 +2,7 @@ import html
 import json
 from typing import Any, Dict
 
-from .evidence_projection import project_evidence_projection
-from .evidence_recovery import project_evidence_recovery
+from .evidence_projection import project_evidence_projection, project_evidence_recovery
 
 
 def render_artifact_html(artifact: Dict[str, Any]) -> str:

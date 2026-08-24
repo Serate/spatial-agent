@@ -25,6 +25,7 @@ from .workflow_selection import normalize_workflow_selection_evidence
 
 EVIDENCE_PROJECTION_SCHEMA_VERSION = "spatial-agent.evidence-projection.v1"
 EVIDENCE_MIGRATION_SCHEMA_VERSION = "spatial-agent.evidence-migration.v1"
+EVIDENCE_RECOVERY_SCHEMA_VERSION = "spatial-agent.evidence-recovery.v1"
 
 
 def project_evidence_projection(
@@ -202,8 +203,55 @@ def _text(value: Any, fallback: str = "", limit: int = 96) -> str:
     return (text or fallback)[:limit]
 
 
+def project_evidence_recovery(value: Any) -> dict[str, Any]:
+    """Project evidence migration state into one bounded recovery contract.
+
+    Recovery is a read-only interpretation of the canonical evidence
+    projection. Keeping it here means artifact, async and HTTP consumers do
+    not have to learn a second module seam for the same evidence lifecycle.
+    """
+    projection = project_evidence_projection(value)
+    migration = projection.get("migration")
+    migration = migration if isinstance(migration, Mapping) else {}
+    completeness = projection.get("evidence_registry_completeness")
+    completeness = completeness if isinstance(completeness, Mapping) else {}
+    migration_state = str(migration.get("state") or "unavailable")[:32]
+    if migration_state == "current" and completeness.get("passed") is True:
+        state = "ready"
+        action = "none"
+        allowed_actions: list[str] = []
+    elif migration_state == "legacy_incomplete" and migration.get("migratable"):
+        state = "recoverable"
+        action = "rebuild_from_result"
+        allowed_actions = ["rebuild_from_result"]
+    elif migration_state == "unavailable":
+        state = "unavailable"
+        action = "start_new_run"
+        allowed_actions = ["start_new_run"]
+    else:
+        state = "blocked"
+        action = str(
+            migration.get("action") or "reject_until_explicit_migration"
+        )[:96]
+        allowed_actions = [action]
+    return {
+        "schema_version": EVIDENCE_RECOVERY_SCHEMA_VERSION,
+        "state": state,
+        "reason_code": str(
+            migration.get("reason_code") or "evidence_recovery_unavailable"
+        )[:96],
+        "action": action,
+        "allowed_actions": allowed_actions[:4],
+        "migratable": bool(migration.get("migratable")),
+        "migration": dict(migration),
+        "evidence_registry_completeness": dict(completeness),
+    }
+
+
 __all__ = [
     "EVIDENCE_MIGRATION_SCHEMA_VERSION",
     "EVIDENCE_PROJECTION_SCHEMA_VERSION",
+    "EVIDENCE_RECOVERY_SCHEMA_VERSION",
     "project_evidence_projection",
+    "project_evidence_recovery",
 ]

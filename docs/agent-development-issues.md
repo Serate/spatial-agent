@@ -560,3 +560,11 @@
 - **诊断**：先确认容器 healthy 和 `/health` 200，再检查本机 9222 是否监听；区分 API/页面故障与浏览器驱动未启动，不要修改前端或后端来规避连接错误。
 - **修复**：运行 `scripts/console_cdp_start.ps1` 启动隔离 Chrome profile，再串行执行 map、session、new-session 和 selection smoke。
 - **预防**：浏览器验收脚本应在文档/runner 中显式声明 CDP 前置条件；默认 CI 继续保持离线精简，浏览器 smoke 作为显式验收路径运行。
+
+## Evidence recovery 浅层模块与 canonical projection 版本漂移
+
+- **现象**：同步、异步、artifact 和 HTTP 都能返回 evidence，但 recovery 逻辑位于独立薄模块；新增字段或 schema 版本时容易只更新 projection，遗漏 recovery，造成跨入口差异。
+- **根因**：`evidence_recovery.py` 只有一次 `project_evidence_projection()` 调用和状态映射，没有独立的数据来源或 adapter；同时 async/replanning 版本曾在多个模块重复声明。
+- **诊断**：搜索所有 `project_evidence_recovery`、schema version 声明和 import 路径，比较同步 Result、async evidence、artifact viewer 与 HTTP evidence 的嵌套字段；不要仅按文件名判断是否存在独立职责。
+- **修复**：将 recovery 投影并入 `agent.evidence_projection` 的 canonical seam，旧模块只保留兼容 re-export；版本常量分别复用 `contract_versions` 或其所属 registry 的唯一声明。
+- **预防**：只有具有独立输入、状态机或 adapter 的 Contract/Evidence 模块才保留单独 seam；薄投影优先并入深模块，并用活动路径静态断言、artifact/async/HTTP 对等回归锁定兼容行为。

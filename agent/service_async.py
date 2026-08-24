@@ -40,16 +40,15 @@ from agent.selection_interaction import normalize_selection_interaction
 from agent.interaction_contract import normalize_interaction, project_interaction
 from agent.execution_timeline import normalize_execution_timeline
 from agent.execution_contract import execution_record_summary
-from agent.evidence_projection import project_evidence_projection
-from agent.evidence_recovery import project_evidence_recovery
+from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
 from agent.model_evidence import project_model_evidence
 from agent.answer_generation import project_answer_generation_evidence
 from agent.data_kinds import DataProfileError, normalize_data_profile
+from agent.contract_versions import ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION
 from agent.recovery_action import normalize_action_receipt
 from result_contract import build_lineage_index
 
 
-ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION = "spatial-agent.async-result-evidence.v1"
 _ASYNC_RESULT_EVIDENCE_STATES = {"pending", "success", "degraded", "unavailable"}
 
 _TERMINAL_RUN_STATUSES = {

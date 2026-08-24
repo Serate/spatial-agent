@@ -27,8 +27,7 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.artifact_manifest import build_artifact_manifest
-from agent.evidence_projection import project_evidence_projection
-from agent.evidence_recovery import project_evidence_recovery
+from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
 from agent.evidence_registry import normalize_evidence_registry
 
 

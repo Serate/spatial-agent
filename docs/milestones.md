@@ -4732,3 +4732,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 更新 M78 静态契约，断言新的 `HTTPApplication` seam；新增 `tests/test_m256_http_application.py` 覆盖读写分发、资源 ID 校验、session/routing 和未知命令拒绝。
 - 验收：Docker M256/HTTP/Domain/artifact 定向 **16/16**，Runtime/Application/async/SQLite/restart/artifact **31/31**，quick/stage/smoke、compileall、architecture strict 和 Console map/session/new-session/selection smoke 全部通过；生产容器 healthy，`GET /health` 返回 200。
 - 下一阶段按全局顺序处理 Contract/Evidence helper 的重复边界，再进行 Vite 前端源码与构建产物物理拆分；不把 helper 提取成无语义的浅层转发层，保留领域 evidence 的独立投影职责。
+
+## M257：Contract/Evidence helper canonical seam（已完成）
+
+- 审计 Contract/Evidence 活动路径后，确认 `evidence_recovery.py` 只有对 `evidence_projection.py` 的浅层委托；将 recovery 状态投影并入 `agent/evidence_projection.py`，形成一个深的、只读的 evidence projection/recovery interface。
+- `agent/evidence_recovery.py` 保留为单向兼容 facade，旧 artifact reader、测试和历史集成无需立即迁移；同步、异步、artifact、HTTP、评测和 Console artifact viewer 的活动路径均改用 canonical projection 模块。
+- 清理版本漂移：async result evidence 使用 `agent/contract_versions.py` 的唯一版本，根结果契约复用 evidence registry 的唯一 replanning 版本；未合并 Domain evidence provider、Result Envelope 和 nested schema，因为它们拥有不同的接口与生命周期职责。
+- 新增 `tests/test_m257_contract_evidence.py` 验证兼容 import 与 canonical function 同一、活动路径不依赖旧模块；M257/evidence/artifact/async/HTTP/Domain 定向 **53 项通过**，quick/stage、compileall、architecture strict 通过。
+- 下一阶段转入 Vite 前端源码与 `web/dist` 构建产物物理拆分，保持 Console 只消费结构化 workspace/view/evidence，不把 Domain 判断重新写入页面入口。

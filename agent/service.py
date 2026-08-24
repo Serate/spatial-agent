@@ -24,8 +24,7 @@ from agent.domain_routing_evidence import (
     unavailable_domain_routing_evidence,
 )
 from agent.evidence_registry import normalize_evidence_registry
-from agent.evidence_projection import project_evidence_projection
-from agent.evidence_recovery import project_evidence_recovery
+from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
 from agent.recovery_action import (
     project_legacy_interaction_receipt,
 )
