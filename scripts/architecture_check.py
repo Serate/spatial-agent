@@ -20,13 +20,21 @@ ROOT = Path(__file__).resolve().parents[1]
 COMPAT_MODULES = {
     "agent/answer_composer.py",
     "agent/capability_routing.py",
+    "agent/data_quality.py",
+    "agent/dataset_catalog.py",
+    "agent/dataset_manifest.py",
+    "agent/dataset_probe.py",
     "agent/domain_contract.py",
     "agent/domain_registry.py",
+    "agent/geometry_export.py",
     "agent/planner.py",
+    "agent/raster_alignment.py",
+    "agent/raster_backend.py",
     "agent/request_model.py",
     "agent/result_registry.py",
     "agent/rule_planning.py",
     "agent/spatial_intent.py",
+    "agent/spatial_backend.py",
     "agent/workflow_templates.py",
 }
 

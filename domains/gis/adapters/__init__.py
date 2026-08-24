@@ -1,18 +1,4 @@
-"""Canonical GIS adapter seams.
-
-The first migration slice keeps the existing implementations in their
-backwards-compatible modules while making the GIS Domain the only active
-owner of the adapter import path.  The implementations can move behind this
-seam later without changing the Domain Pack or Runtime Factory.
-"""
-
-from .spatial import (
-    DatasetCatalog,
-    GeoPackageBackend,
-    HybridSpatialBackend,
-    InMemorySpatialBackend,
-    SpatialToolAdapter,
-)
+"""Canonical GIS adapter seams with lazy exports to avoid import cycles."""
 
 __all__ = [
     "DatasetCatalog",
@@ -21,3 +7,11 @@ __all__ = [
     "InMemorySpatialBackend",
     "SpatialToolAdapter",
 ]
+
+
+def __getattr__(name):
+    if name in __all__:
+        from .spatial import __dict__ as spatial_exports
+
+        return spatial_exports[name]
+    raise AttributeError(name)

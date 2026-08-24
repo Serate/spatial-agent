@@ -4630,6 +4630,13 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 ## M252-B1：GIS Adapter canonical import seam（已完成）
 
 - 新增 `domains/gis/adapters/spatial.py` 和 Domain-owned adapter export；`GisDomainPack.tool_provider()` 不再直接从公共 `agent` 模块导入 `DatasetCatalog` 或 `spatial_backend`。
-- 旧 `agent.spatial_backend` 实现暂时保留为兼容实现，后续迁移只需替换 Domain-owned seam，不改变 Domain Pack、Runtime Factory 或 ToolRegistry 接口。
+- 旧 `agent.spatial_backend` 实现暂时保留为兼容入口；后续迁移只需替换 Domain-owned seam，不改变 Domain Pack、Runtime Factory 或 ToolRegistry 接口。
 - 新增 M252 Domain boundary 定向测试 **3/3**；Docker architecture check、quick、stage 和 compileall 通过。
-- 下一切片将把真实 GIS adapter 实现按依赖分组迁入 `domains/gis/adapters`，并为旧导入保留薄兼容 facade。
+
+## M252-B2：GIS Adapter 实现物理迁移（已完成）
+
+- 将 `spatial_backend`、`raster_backend`、`raster_alignment`、`data_quality`、`dataset_catalog`、`dataset_manifest`、`dataset_probe` 和 `geometry_export` 的真实实现迁入 `domains/gis/adapters`。
+- `agent/` 中对应模块仅保留单向兼容 facade；GIS Domain 的活动路径通过 Domain-owned adapter seam，不再依赖公共层中的 GIS 实现。
+- 架构守卫登记兼容 facade，仍对其他公共模块的顶层 Domain import 失败；警告仅保留 Runtime、Service 和前端 monolith，作为后续拆分目标。
+- 修复迁移遗漏的 `geometry_export` 相对导入和过时边界断言。干净 Docker 重建后，M252 定向 **9/9**、architecture strict、quick、stage、compileall 全部通过。
+- 下一阶段进入 Runtime / Service 深模块拆分，先建立 canonical Application/Runtime 活动路径，再逐步收敛兼容入口。

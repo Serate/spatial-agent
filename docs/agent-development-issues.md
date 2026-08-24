@@ -464,3 +464,19 @@
 - **诊断**：先从 GitHub run 的 job/step 状态确认失败发生在 `test_profile.py --profile ci`，再在 Docker 中运行同一命令；用不含 `operation` 字段的最小 `spatial_relation_result` View 直接复现红色回归，区分 GIS 执行失败与 Result/View 投影失败。
 - **修复**：删除 `_spatial_relation_view()` 中无效且未使用的 `operation` 引用；保留 `spatial_operation` View 自己对 operation 的标签处理。新增最小 View contract 回归，修复前失败、修复后通过；原始 service smoke、CI profile 和 compileall 均恢复通过。
 - **预防**：Domain View builder 必须用对应 result type 的最小输入分别验证；复制字段标签逻辑时不能假设相邻 View 共享参数。CI smoke 失败时先执行同一 profile，再按错误阶段区分规划、工具执行、Result contract 和前端投影。
+
+## GIS Adapter 物理迁移遗漏相对导出模块
+
+- **现象**：GIS backend 已迁入 `domains/gis/adapters` 后，GeoPackage 空间操作在导出结果时抛出 `ModuleNotFoundError`，而其他空间操作测试仍可通过；同时旧边界测试仍断言已删除的 `agent.spatial_backend` 实现路径。
+- **根因**：迁移按 backend 文件分组时遗漏了被多个执行分支延迟导入的 `geometry_export.py`；测试断言绑定了迁移前的实现位置，而不是 canonical adapter seam。
+- **诊断**：先运行 M252 Domain boundary 与 M247 spatial operation 定向回归；对失败堆栈区分延迟相对导入缺失和测试静态断言过时，不用直接导入 facade 掩盖真实活动路径。
+- **修复**：将 `geometry_export` 真实实现迁入 `domains/gis/adapters`，`agent.geometry_export` 改为单向兼容 facade；边界测试改为断言 `spatial.py` 使用 `dataset_catalog`/`spatial_backend` 相对导入且不依赖 `agent.*`。
+- **预防**：物理迁移前搜索顶层和函数内的相对导入、动态导入与 re-export；每批迁移必须覆盖定向 Domain boundary、真实 adapter 执行/导出和架构静态守卫，不能只验证导入成功。
+
+## Docker 旧容器内容导致架构验证与工作树不一致
+
+- **现象**：宿主工作树已新增 adapter 文件和测试修复，但容器仍缺少新文件；第一次定向测试继续报旧错误，`compileall` 还发现旧容器残留的嵌套 `adapters` 目录和不可写缓存目录。
+- **根因**：生产 compose 使用镜像 `COPY . /app`，容器不是宿主源码实时挂载；仅修改宿主文件不会更新运行中的容器，手工复制又可能留下旧目录状态。
+- **诊断**：对比宿主 `rg --files domains/gis/adapters` 与容器 `/app/domains/gis/adapters` 文件清单；若测试堆栈仍是已修复的旧内容，先判断容器同步问题，不回退代码。
+- **修复**：使用 `docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build` 从当前工作树重建并健康检查，再在干净容器执行 compileall、定向回归和 quick/stage。
+- **预防**：所有结构迁移完成后必须重建 Docker 镜像再验收；文档明确“容器复制/镜像”与“实时挂载”区别，禁止把临时 `docker cp` 当作阶段交付同步方式。

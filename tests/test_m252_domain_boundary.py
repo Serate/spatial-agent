@@ -34,7 +34,10 @@ class M252DomainBoundaryTests(unittest.TestCase):
             for node in tree.body
             if isinstance(node, ast.ImportFrom) and node.module
         ]
-        self.assertIn("agent.spatial_backend", imports)
+        self.assertIn("dataset_catalog", imports)
+        self.assertIn("spatial_backend", imports)
+        self.assertNotIn("agent.spatial_backend", imports)
+        self.assertNotIn("agent.dataset_catalog", imports)
 
 
 if __name__ == "__main__":

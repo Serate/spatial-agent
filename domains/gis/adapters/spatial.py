@@ -1,13 +1,12 @@
 """GIS-owned seam for vector/raster provider implementations.
 
-This module deliberately exposes a small import surface.  The first slice
-delegates to the historical implementation so old imports remain valid; a
-later slice can move the implementation here without changing
-``GisDomainPack.tool_provider``.
+This module deliberately exposes a small import surface for the GIS Domain.
+The implementation now lives beside the Domain Pack; old ``agent.*`` module
+names are compatibility facades that delegate here.
 """
 
-from agent.dataset_catalog import DatasetCatalog
-from agent.spatial_backend import (
+from .dataset_catalog import DatasetCatalog
+from .spatial_backend import (
     GeoPackageBackend,
     HybridSpatialBackend,
     InMemorySpatialBackend,
