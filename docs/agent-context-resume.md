@@ -28,12 +28,13 @@
 - M247 已完成：新增领域中立的 `spatial_operation` 工具 seam，支持 `clip`/`intersect`；输入可为配置矢量数据集或前一步 `result_ref`，Hybrid 后端支持行政区 GeoJSON 与 GeoPackage 矢量跨来源处理，统一完成 CRS 对齐、无效/空几何过滤、要素预算、缓存与 GeoJSON 导出；结果声明 `vector` 数据形态并提供结构化 view。新增规则编排与 M247 精简回归，Docker compileall、M247/M3 定向测试、quick 和 stage 全部通过；M50 中两个旧用户回答文案断言仍需后续清理，不影响本阶段。
 - M248 已完成：沿用同一 `spatial_operation` seam 增加 `buffer` 与 `distance`；buffer 在米制 CRS 中生成并按 mask 限制范围，distance 为输入要素附加最近距离并支持阈值筛选，均保留原始 CRS、来源、预算、缓存、GeoJSON 导出和 `vector` 数据形态。新增 `vector_measurement` workflow/capability，删除 Rule Planner 对 KNN/最近问题的旧硬拒绝；Docker compileall、5 个 M248 定向用例、quick 和 stage 通过。
 - M249 已完成：对“裁剪洪山区道路”做开放式 Planner context 验收，确认选中的 capability、workflow、`spatial_operation` schema 和 `spatial_operation_result` 会一起进入 LLM Planner；脱敏 fake LLM 仍通过标准 `LLMPlanner → TaskPlan` 解析，不增加 GIS 专用 prompt 分支。Docker compileall、M249+M229 context 回归 3/3、quick 和 stage 通过。
+- M250 已完成：真实本地 GIS 的 `spatial_operation(distance)` 改为投影后 `sjoin_nearest`，避免对大范围 mask 构造全量 union；真实数据隔离验收完成，68903 条道路与 20923 个水体要素在 100 米阈值下返回 10000 条、保留距离统计和截断证据，未再超时。洪山区裁剪因真实行政区查询未匹配到几何而进入既有有限 replan；Runtime 保留降级完成语义，但公共回答新增明确的“原计划部分步骤未完成、当前为降级结论、可修复后重试”提示。Docker M80/M247/M249/M229 定向回归 23/23、quick、stage、compileall 通过。真实模型显式验收本轮因 provider timeout 在规划阶段失败（0 个工具步骤），已与 GIS 执行问题分开记录。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子和 M249 开放式 Planner context 验收均已闭环；最终答案现在可由真实模型自然表达，空间结果在本地验收中可保留更完整的 GeoJSON。下一阶段为 M250：进行真实模型 + 真实本地 GIS 数据的开放式空间算子验收，确认模型选择已注册能力、后端执行真实几何、结果/证据/artifact/前端保持一致；数据卷不可用时只保留可恢复降级证据。随后从全局目标评估跨数据形态组合，而不是继续增加固定问句分支。经济仅作为未来多领域地理问题的验证样例，不把 RAG 或行业流程知识纳入当前阶段。
+当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context 和 M250 真实本地 GIS 空间算子验收均已闭环；最终答案可由真实模型自然表达，空间结果在本地验收中保留真实几何或明确降级。下一阶段为 M251：从全局目标推进跨数据形态的开放式组合能力，优先建立领域中立的数据发现/指标查询/时间序列与 composite 结果契约，并让 GIS 现有空间算子与未来多领域数据能力共享同一 Planner、ToolRegistry、Evidence、Artifact 和 View seam；不为洪山区、固定问句或单一数据集增加分支，也不引入 RAG。真实模型超时、数据匹配失败和 GIS 执行失败继续分层验收，默认测试保持 Docker 内精简离线。
 
 ## 不变量
 

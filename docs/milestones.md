@@ -4579,3 +4579,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 5. **前端结果**：确认 Console 只依据 workspace/view/evidence/interaction 动态选择结果面板，地图只是 GIS renderer adapter；未知 view 或 artifact 降级有界展示。
 6. **安全与成本**：只记录状态、identity、工具名、重试/延迟和 token usage；不保存模型原文、密钥、URL、请求全文、私有路径或原始数据。该验收不进入默认 CI。
 7. **收口输出**：形成一个可重复的显式验收脚本和有界报告；完成后按 Goal 九项核心要求与八项验收标准做全局缺口审计，决定是否进入最终收尾阶段。
+
+## M250：真实本地 GIS 空间算子验收与降级回答收口（已完成）
+
+- 将 `distance` 的真实执行路径改为投影后空间索引最近邻查询，避免对大范围水体 mask 做不必要的全量 union；`clip/intersect/buffer` 仍共享原有 CRS、几何清理、预算和导出契约。
+- 真实本地 GIS 隔离验收使用明确的“道路与水体相距不超过 100 米并输出距离统计”目标：68903 条道路、20923 个水体要素，返回 10000 条并保留截断、CRS、后端及距离摘要；最小 0 米作为真实相邻事实保留。
+- 洪山区裁剪验收确认真实行政区查询未匹配几何，`result_ref` 无几何后进入有限 replan；未伪造边界，降级结果回答现在明确说明原计划部分步骤未完成并可修复重试。
+- Docker 生产镜像 healthy；M80/M247/M249/M229 定向回归 **23/23**、quick、stage 和 compileall 通过。真实模型显式验收因 provider timeout 在规划阶段失败，已与 GIS 执行证据分层记录，不纳入默认 CI。
+
+## M251：跨数据形态的开放式组合能力（下一阶段全局规划）
+
+1. **全局能力层**：补齐领域中立的数据发现、指标查询、聚合/比较和时间序列最小接口；优先复用现有 ToolRegistry、RequestFacts、Workflow 和 Result Registry，不在 Runtime 中加入经济或 GIS 策略。
+2. **结果契约**：让 `metrics`、`timeseries` 与现有 `vector/raster/composite` 在 View、Artifact、Evidence、异步轮询和重启恢复中共享同一版本化 envelope；业务语义由 Domain Pack 声明。
+3. **开放 Planner**：让 LLM Planner 根据能力目录、数据形态和可用字段组合跨类型步骤；工具数量保持少而深，未知字段/数据缺失返回结构化澄清或可恢复不可用，不凭空生成指标。
+4. **跨领域证明**：以 GIS 空间关系和一个最小可追溯指标 Domain Pack 做同一 Runtime/HTTP/artifact Harness，验证前端按 View 动态展示地图、指标卡、趋势或证据，不增加领域页面分支。
+5. **数据与安全**：真实数据作为显式验收输入，默认测试用脱敏 fixture；不引入 RAG，不保存模型原文、密钥、请求全文或私有原始数据。
+6. **分阶段验收**：先完成 offline contract + Docker quick/stage，再做一条真实数据纵向链路；每阶段提交并推送版本，完成后按 Goal 全局审计重新规划，而不是继续堆叠单区域空间算子。

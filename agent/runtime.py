@@ -1507,7 +1507,7 @@ class AgentRuntime:
             result.answer_generation_evidence = fallback_answer_generation_evidence(
                 "answer_generation_disabled"
             )
-            return fallback
+            return _append_execution_degradation_notice(result, fallback)
         try:
             generated = generate(result)
             answer = getattr(generated, "answer", None)
@@ -1518,7 +1518,7 @@ class AgentRuntime:
                 dict(evidence) if isinstance(evidence, Mapping) else
                 fallback_answer_generation_evidence("answer_generation_evidence_missing")
             )
-            return answer.strip()
+            return _append_execution_degradation_notice(result, answer.strip())
         except Exception:
             failure_evidence = getattr(generator, "failure_evidence", None)
             if callable(failure_evidence):
@@ -1529,7 +1529,7 @@ class AgentRuntime:
                 result.answer_generation_evidence = fallback_answer_generation_evidence(
                     "answer_generation_failed"
                 )
-            return fallback
+            return _append_execution_degradation_notice(result, fallback)
 
     def _validate_or_repair_plan(
         self,
@@ -2419,6 +2419,30 @@ def _safe_small_mapping(value: Any) -> Dict[str, Any]:
         else:
             result[str(key)[:80]] = str(item)[:160]
     return result
+
+
+def _append_execution_degradation_notice(
+    result: AgentRunResult,
+    answer: str,
+) -> str:
+    """Make a completed fallback visibly distinguishable from full success.
+
+    Execution replanning intentionally preserves the failed step as lineage
+    while allowing a bounded replacement plan to finish.  The public answer
+    must therefore say that the result is degraded; otherwise a health-only
+    fallback could be mistaken for completion of the original request.
+    """
+    if result.status != RunStatus.COMPLETED or not result.replan_events:
+        return answer
+    if not any(step.status == "FAILED" for step in result.steps):
+        return answer
+    notice = (
+        "说明：原计划中的部分步骤未完成，当前内容是根据可用结果生成的降级结论；"
+        "修复相关数据或条件后可重新执行。"
+    )
+    if notice in answer:
+        return answer
+    return answer.rstrip() + "\n\n" + notice
 
 
 def _unique(values: list[str]) -> list[str]:

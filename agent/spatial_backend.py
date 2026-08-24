@@ -1041,24 +1041,31 @@ def _perform_spatial_operation(
     if str(input_frame.crs) != str(mask_frame.crs):
         mask_frame = mask_frame.to_crs(input_frame.crs)
 
-    union_all = getattr(mask_frame.geometry, "union_all", None)
-    mask_geometry = union_all() if callable(union_all) else mask_frame.geometry.unary_union
-    if mask_geometry is None or mask_geometry.is_empty:
-        raise ToolError("spatial_operation mask geometry is empty")
-    intersecting = input_frame[input_frame.geometry.intersects(mask_geometry)].copy()
-    intersecting_count = int(len(intersecting))
+    mask_geometry = None
+    if operation in {"clip", "intersect", "buffer"}:
+        union_all = getattr(mask_frame.geometry, "union_all", None)
+        mask_geometry = union_all() if callable(union_all) else mask_frame.geometry.unary_union
+        if mask_geometry is None or mask_geometry.is_empty:
+            raise ToolError("spatial_operation mask geometry is empty")
+        intersecting = input_frame[input_frame.geometry.intersects(mask_geometry)].copy()
+        intersecting_count = int(len(intersecting))
+    else:
+        # Distance uses the spatial index directly; constructing a full union
+        # of a large mask layer is both unnecessary and expensive.
+        intersecting = input_frame.iloc[0:0].copy()
+        intersecting_count = int(len(input_frame))
     if operation in {"buffer", "distance"}:
         intersecting_count = int(len(input_frame))
         original_crs = input_frame.crs
         metric_crs = _metric_crs(str(original_crs))
         projected_input = input_frame.to_crs(metric_crs)
         projected_mask = mask_frame.to_crs(metric_crs)
-        projected_mask_geometry = (
-            projected_mask.geometry.union_all()
-            if callable(getattr(projected_mask.geometry, "union_all", None))
-            else projected_mask.geometry.unary_union
-        )
         if operation == "buffer":
+            projected_mask_geometry = (
+                projected_mask.geometry.union_all()
+                if callable(getattr(projected_mask.geometry, "union_all", None))
+                else projected_mask.geometry.unary_union
+            )
             output = projected_input.copy()
             output["geometry"] = output.geometry.buffer(float(distance_m))
             output["geometry"] = output.geometry.intersection(projected_mask_geometry)
@@ -1066,14 +1073,19 @@ def _perform_spatial_operation(
             output = output.to_crs(original_crs)
             intersecting_count = int(len(output))
         else:
-            distances = [
-                float(geometry.distance(projected_mask_geometry))
-                for geometry in projected_input.geometry
-            ]
+            import geopandas as gpd
+
+            joined = gpd.sjoin_nearest(
+                projected_input,
+                projected_mask[["geometry"]],
+                how="left",
+                max_distance=float(distance_m) if distance_m is not None else None,
+                distance_col="nearest_distance_m",
+            )
+            distances = joined.groupby(joined.index)["nearest_distance_m"].min()
             output = projected_input.copy()
-            output["nearest_distance_m"] = distances
-            if distance_m is not None:
-                output = output[output["nearest_distance_m"] <= float(distance_m)].copy()
+            output["nearest_distance_m"] = output.index.map(distances)
+            output = output[output["nearest_distance_m"].notna()].copy()
             output = output.to_crs(original_crs)
     elif intersecting.empty:
         output = intersecting
