@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.service import AgentService
 from agent.models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from domains.gis.composer import AnswerComposer
@@ -35,7 +37,7 @@ class M46ResultContractTests(unittest.TestCase):
         self.assertNotIn("roads摘要", answer)
 
     def test_console_consumes_result_envelope_before_legacy_fields(self):
-        html = (Path(__file__).parents[1] / "web" / "index.html").read_text(encoding="utf-8")
+        html = read_console_source(Path(__file__).parents[1])
 
         self.assertRegex(html, r"const envelope\s*=\s*data\.result\|\|\{\}")
         self.assertIn("normalizeConsoleResult", html)

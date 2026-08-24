@@ -6,6 +6,8 @@ import unittest
 import tempfile
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.service import AgentService
 from agent.service_async import build_async_result_evidence
 from agent.selection_interaction import (
@@ -159,8 +161,8 @@ class M164SelectionInteractionTests(unittest.TestCase):
 
     def test_console_consumes_canonical_interaction_without_domain_branch(self):
         root = Path(__file__).parents[1]
-        html = (root / "web" / "index.html").read_text(encoding="utf-8")
-        module = (root / "web" / "console_interaction.js").read_text(
+        html = read_console_source(root)
+        module = (root / "web" / "src" / "console_interaction.js").read_text(
             encoding="utf-8"
         )
         self.assertIn('console_interaction.js', html)

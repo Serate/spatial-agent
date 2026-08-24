@@ -6,7 +6,7 @@ import {fileURLToPath} from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
-const source = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
+const source = fs.readFileSync(path.join(root, "web", "src", "index.html"), "utf8");
 for (const seam of ["/runs/auto", "domain_routing", "ConsoleActionHost.mount", "renderCanonicalInteraction", "spatial-agent.domain-routing-evidence.v1"]) {
   if (!source.includes(seam)) throw new Error(`Console 缺少智能领域路由 seam：${seam}`);
 }

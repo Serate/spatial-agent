@@ -77,7 +77,7 @@ def build_report() -> dict[str, Any]:
     warnings: list[dict[str, Any]] = []
     runtime_path = ROOT / "agent" / "runtime.py"
     service_path = ROOT / "agent" / "service.py"
-    index_path = ROOT / "web" / "index.html"
+    index_path = ROOT / "web" / "src" / "index.html"
 
     for required in (
         ROOT / "agent" / "runtime.py",
@@ -92,10 +92,15 @@ def build_report() -> dict[str, Any]:
         ROOT / "agent" / "application" / "decisions.py",
         ROOT / "agent" / "application" / "interactions.py",
         ROOT / "agent" / "application" / "sessions.py",
+        ROOT / "agent" / "web_assets.py",
         ROOT / "run_demo.py",
         ROOT / "domains" / "gis",
         ROOT / "domains" / "text",
         ROOT / "domains" / "indicators",
+        ROOT / "web" / "src" / "index.html",
+        ROOT / "web" / "src" / "styles.css",
+        ROOT / "web" / "src" / "console_app.js",
+        ROOT / "scripts" / "build_console.py",
     ):
         if not required.exists():
             errors.append({"path": _relative(required), "code": "missing_entrypoint"})
@@ -173,6 +178,17 @@ def build_report() -> dict[str, Any]:
             )
     if index_path.exists() and index_path.stat().st_size > 100_000:
         warnings.append({"path": _relative(index_path), "code": "frontend_monolith"})
+    if index_path.exists():
+        source = index_path.read_text(encoding="utf-8")
+        for marker in ('href="./styles.css"', 'src="./console_app.js"'):
+            if marker not in source:
+                errors.append(
+                    {
+                        "file": _relative(index_path),
+                        "code": "frontend_source_asset_seam_missing",
+                        "marker": marker,
+                    }
+                )
 
     for path in sorted((ROOT / "agent").glob("*.py")):
         errors.extend(_top_level_domain_imports(path))

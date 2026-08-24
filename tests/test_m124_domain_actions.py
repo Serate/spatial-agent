@@ -8,6 +8,8 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.artifact_store import ArtifactStore
 from agent.api_contract import error_response
 from agent.service import AgentService
@@ -36,11 +38,9 @@ def _request(port, method, path, payload=None):
 
 class M124DomainActionTests(unittest.TestCase):
     def test_console_uses_catalog_and_generic_action_dispatch(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        source = read_console_source(Path(__file__).parents[1])
         action_host = (
-            Path(__file__).parents[1] / "web" / "console_action_host.js"
+            Path(__file__).parents[1] / "web" / "src" / "console_action_host.js"
         ).read_text(encoding="utf-8")
         self.assertIn("loadActions", source)
         self.assertIn("domainPath('/actions',domainId)+query", source)

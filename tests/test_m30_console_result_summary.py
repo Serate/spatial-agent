@@ -1,6 +1,8 @@
 """Compact Console result-surface contract."""
 
 from pathlib import Path
+
+from tests.console_source import read_console_source
 import unittest
 
 
@@ -10,11 +12,11 @@ ROOT = Path(__file__).parents[1]
 class M30ConsoleResultSummaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        cls.registry = (ROOT / "web" / "console_renderer_registry.js").read_text(
+        cls.html = read_console_source(ROOT)
+        cls.registry = (ROOT / "web" / "src" / "console_renderer_registry.js").read_text(
             encoding="utf-8"
         )
-        cls.gis_plugin = (ROOT / "web" / "console_gis_plugin.js").read_text(
+        cls.gis_plugin = (ROOT / "web" / "src" / "console_gis_plugin.js").read_text(
             encoding="utf-8"
         )
 

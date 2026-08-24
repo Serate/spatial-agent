@@ -1,6 +1,8 @@
 """Compact static contract for the domain-neutral Console plugin seam."""
 
 from pathlib import Path
+
+from tests.console_source import read_console_source
 import unittest
 
 
@@ -10,14 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 class M148ConsoleDomainStaticTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.shell = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        cls.registry = (ROOT / "web" / "console_renderer_registry.js").read_text(
+        cls.shell = read_console_source(ROOT)
+        cls.registry = (ROOT / "web" / "src" / "console_renderer_registry.js").read_text(
             encoding="utf-8"
         )
-        cls.action_host = (ROOT / "web" / "console_action_host.js").read_text(
+        cls.action_host = (ROOT / "web" / "src" / "console_action_host.js").read_text(
             encoding="utf-8"
         )
-        cls.gis_plugin = (ROOT / "web" / "console_gis_plugin.js").read_text(
+        cls.gis_plugin = (ROOT / "web" / "src" / "console_gis_plugin.js").read_text(
             encoding="utf-8"
         )
 

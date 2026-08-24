@@ -35,7 +35,7 @@ CLI / serve_api.py / production_api.py / Console
 - `agent/runtime.py` 同时包含规划、校验、执行、重规划、恢复、结果投影和内存状态。
 - FastAPI 与标准库 HTTP 入口已经通过 `agent/application/http.py` 共享读写语义；transport 只负责 URL/JSON、HTTP 状态码和 artifact 路径安全。
 - `agent/` 保留历史 GIS facade、legacy 字段和兼容回退；evidence recovery 已并入 `agent/evidence_projection.py`，旧模块只做单向兼容导出。
-- Console 的 HTML、CSS、启动编排仍集中在 `web/index.html`。
+- Console 源码位于 `web/src`，由 `scripts/build_console.py` 生成 `web/dist`；`web/index.html` 和根目录 `console_*.js` 只保留兼容 facade，HTTP 资源通过 `agent/web_assets.py` 选择 dist/source。
 
 ## 目标边界
 
@@ -81,5 +81,5 @@ Transport adapters
 3. Runtime 规划/执行/生命周期/投影拆分。
 4. Application Service、持久化和 HTTP Application 收敛；Run、Session、Action、Decision、Interaction、Async 与 HTTP read/write 已建立 canonical seam。
 5. Contract/Evidence 基础 helper 收敛；evidence projection/recovery 已共享一个 canonical seam，版本常量避免重复声明。
-6. Vite 前端源码与 `web/dist` 构建产物分离。
-7. 删除已确认无引用的兼容入口和临时文件，完成全局验收。
+6. Console 源码与 `web/dist` 构建产物分离，HTTP 静态资源共享 `agent/web_assets.py` seam；后续继续按职责簇拆分 `console_app.js`。
+7. Runtime/Service 剩余职责与前端主应用职责完成物理收敛，删除已确认无引用的兼容入口和临时文件，完成全局验收。

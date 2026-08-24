@@ -3,6 +3,8 @@
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.runtime_factory import build_runtime
 from agent.workflow_selection import (
     WORKFLOW_SELECTION_SCHEMA_VERSION,
@@ -79,7 +81,7 @@ class M162WorkflowSelectionTests(unittest.TestCase):
         self.assertEqual(selection["domain_id"], "gis")
 
     def test_console_renders_selection_from_structured_planning_evidence(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(encoding="utf-8")
+        source = read_console_source(Path(__file__).parents[1])
         self.assertIn("workflowSelection", source)
         self.assertIn("工作流选择：", source)
 

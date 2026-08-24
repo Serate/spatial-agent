@@ -8,6 +8,8 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.artifact_store import ArtifactStore
 from agent.domain_contract import release_evidence, runtime_evidence
 from agent.observability import CollectingEmitter
@@ -181,7 +183,7 @@ class M127RuntimeActionContractTests(unittest.TestCase):
         self.assertEqual(artifact["artifact_schema_version"], "spatial-agent.action-artifact.v1")
 
     def test_console_consumes_generic_action_evidence_and_history(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(encoding="utf-8")
+        source = read_console_source(Path(__file__).parents[1])
         for token in (
             "renderActionEvidence",
             "/action-executions/",

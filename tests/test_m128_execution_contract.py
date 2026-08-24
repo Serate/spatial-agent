@@ -7,6 +7,8 @@ import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+
+from tests.console_source import read_console_source
 import threading
 
 from agent.artifact_store import ArtifactStore
@@ -145,9 +147,7 @@ class M128ExecutionContractTests(unittest.TestCase):
         self.assertNotIn("artifact_ref", normalized_action)
 
     def test_console_renders_the_domain_neutral_execution_record(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        source = read_console_source(Path(__file__).parents[1])
         self.assertIn("renderExecutionRecord", source)
         self.assertIn("execution_record", source)
         self.assertIn("统一执行记录", source)

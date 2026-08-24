@@ -2,6 +2,8 @@ import unittest
 import tempfile
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.action_lineage import (
     ACTION_LINEAGE_SCHEMA_VERSION,
     append_action_lineage,
@@ -101,7 +103,7 @@ class M187ActionLineageTests(unittest.TestCase):
         )
 
     def test_console_consumes_lineage_without_domain_specific_branch(self):
-        source = Path("web/index.html").read_text(encoding="utf-8")
+        source = read_console_source(Path(__file__).parents[1])
         self.assertIn("transition_lineage", source)
         self.assertIn("连续动作", source)
 

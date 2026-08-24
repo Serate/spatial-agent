@@ -1,6 +1,8 @@
 import time
 import unittest
 from pathlib import Path
+
+from tests.console_source import read_console_source
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
@@ -66,9 +68,7 @@ class M98FailureObservabilityTests(unittest.TestCase):
         self.assertEqual(detail["result"]["failure"], detail["failure"])
 
     def test_console_renders_versioned_failure_evidence(self):
-        html = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        html = read_console_source(Path(__file__).parents[1])
         self.assertIn("function failureEvidenceBadge(failure)", html)
         self.assertIn("failure-evidence", html)
         self.assertIn("failure.schema_version", html)

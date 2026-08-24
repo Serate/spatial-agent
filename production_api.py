@@ -31,6 +31,9 @@ from agent.domain_routing_entry import (
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
+from agent.web_assets import console_asset as resolve_console_asset
+from agent.web_assets import console_index as resolve_console_index
+from agent.web_assets import console_root
 
 class UTF8JSONResponse(JSONResponse):
     """Keep JSON responses unambiguous for clients without charset sniffing."""
@@ -75,17 +78,7 @@ atexit.register(_close_host)
 
 ARTIFACT_ROOT = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))
 GEOJSON_ROOT = Path(os.environ.get("SPATIAL_AGENT_GEOJSON_ROOT", "outputs/geojson"))
-WEB_ROOT = Path(__file__).parent / "web"
-WEB_ASSETS = frozenset({
-    "console_nested_schema.js",
-    "console_decision_evidence.js",
-    "console_evidence_registry.js",
-    "console_workflow_evidence.js",
-    "console_renderer_registry.js",
-    "console_action_host.js",
-    "console_interaction.js",
-    "console_gis_plugin.js",
-})
+WEB_ROOT = console_root()
 
 
 def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
@@ -274,20 +267,29 @@ def release_evidence(max_files: int = 10) -> Dict[str, Any]:
 
 @app.get("/")
 def console():
-    return FileResponse(WEB_ROOT / "index.html", media_type="text/html")
+    return FileResponse(resolve_console_index(), media_type="text/html")
 
 
 @app.get("/index.html")
 def console_index():
-    return FileResponse(WEB_ROOT / "index.html", media_type="text/html")
+    return FileResponse(resolve_console_index(), media_type="text/html")
 
 
 @app.get("/console_{asset_name}.js")
 def console_asset(asset_name: str):
     filename = "console_" + asset_name + ".js"
-    if filename not in WEB_ASSETS:
+    path = resolve_console_asset(filename)
+    if path is None:
         raise HTTPException(status_code=404, detail="web asset not found")
-    return FileResponse(WEB_ROOT / filename, media_type="application/javascript")
+    return FileResponse(path, media_type="application/javascript")
+
+
+@app.get("/styles.css")
+def console_styles():
+    path = resolve_console_asset("styles.css")
+    if path is None:
+        raise HTTPException(status_code=404, detail="web asset not found")
+    return FileResponse(path, media_type="text/css")
 
 
 @app.post("/runs")

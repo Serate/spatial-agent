@@ -2,6 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+
+from tests.console_source import read_console_source
 from unittest.mock import patch
 
 from agent.artifact_store import ArtifactStore
@@ -213,9 +215,7 @@ class M135RuntimeContextTests(unittest.TestCase):
         self.assertEqual(snapshot["tool_provider"]["id"], "native")
 
     def test_console_renders_runtime_context_alongside_execution_record(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        source = read_console_source(Path(__file__).parents[1])
 
         self.assertIn("runtime_context", source)
         self.assertIn("context.tool_provider", source)

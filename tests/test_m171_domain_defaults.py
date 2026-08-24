@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.artifact_store import ArtifactStore
 from agent.models import AgentRunResult, RunStatus
 from agent.service import AgentService
@@ -13,9 +15,7 @@ from agent.sqlite_store import SQLiteStateStore
 
 class M171DomainDefaultTests(unittest.TestCase):
     def test_console_bootstrap_ready_does_not_wait_for_history_render(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        source = read_console_source(Path(__file__).parents[1])
         reload_domain = source.split(
             "async function reloadDomainContext()", 1
         )[1].split("function workflowFieldId", 1)[0]

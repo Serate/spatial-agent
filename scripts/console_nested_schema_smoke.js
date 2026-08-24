@@ -2,11 +2,11 @@
  * M149 Console contract smoke.
  *
  * This is intentionally a Node-only check.  It exercises the same bounded
- * normalization module loaded by web/index.html without HTTP, Docker, GIS,
+ * normalization module loaded by web/src/index.html without HTTP, Docker, GIS,
  * credentials, or a browser/CDP session.
  */
 const assert = require("node:assert/strict");
-const schema = require("../web/console_nested_schema.js");
+const schema = require("../web/src/console_nested_schema.js");
 
 const valid = schema.normalize({
   result: {

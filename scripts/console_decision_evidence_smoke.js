@@ -5,7 +5,7 @@
  * live provider, browser, or CDP session is required.
  */
 const assert = require("node:assert/strict");
-const evidence = require("../web/console_decision_evidence.js");
+const evidence = require("../web/src/console_decision_evidence.js");
 
 const repairPayload = {
   status: "COMPLETED",

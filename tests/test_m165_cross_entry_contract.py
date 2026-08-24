@@ -8,6 +8,7 @@ from pathlib import Path
 
 from agent.service_async import build_async_result_evidence
 from agent.selection_interaction import build_selection_interaction
+from agent.web_assets import WEB_ASSETS
 from agent.workflow_selection import build_workflow_selection_evidence
 from evaluation.contract_harness import compare_results, normalize_result
 
@@ -68,16 +69,17 @@ class M165CrossEntryContractTests(unittest.TestCase):
         root = Path(__file__).parents[1]
         production = (root / "production_api.py").read_text(encoding="utf-8")
         development = (root / "serve_api.py").read_text(encoding="utf-8")
-        for source in (production, development):
-            for asset in (
+        for asset in (
                 "console_interaction.js",
                 "console_evidence_registry.js",
                 "console_renderer_registry.js",
                 "console_action_host.js",
                 "console_gis_plugin.js",
             ):
-                self.assertIn(asset, source)
+            self.assertIn(asset, WEB_ASSETS)
+        for source in (production, development):
             self.assertIn("application/javascript", source)
+            self.assertIn("agent.web_assets", source)
 
     def test_selection_interaction_is_transport_neutral(self):
         first = _payload()

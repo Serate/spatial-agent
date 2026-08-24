@@ -568,3 +568,11 @@
 - **诊断**：搜索所有 `project_evidence_recovery`、schema version 声明和 import 路径，比较同步 Result、async evidence、artifact viewer 与 HTTP evidence 的嵌套字段；不要仅按文件名判断是否存在独立职责。
 - **修复**：将 recovery 投影并入 `agent.evidence_projection` 的 canonical seam，旧模块只保留兼容 re-export；版本常量分别复用 `contract_versions` 或其所属 registry 的唯一声明。
 - **预防**：只有具有独立输入、状态机或 adapter 的 Contract/Evidence 模块才保留单独 seam；薄投影优先并入深模块，并用活动路径静态断言、artifact/async/HTTP 对等回归锁定兼容行为。
+
+## M258 前端源码拆分后静态契约仍读取兼容入口
+
+- **现象**：把 Console 从单一 `web/index.html` 拆成 `web/src/index.html`、`styles.css`、`console_app.js` 和 renderer/plugin 源码后，页面与 HTTP 资源可正常访问，但历史静态测试找不到原来写在 HTML 内联脚本中的函数、证据标记和交互 token。
+- **根因**：测试把“页面源码文件”误当成“完整前端应用契约”；同时 HTTP 的 FastAPI 与标准库入口各自维护静态资源根目录和 allowlist，导致源码、构建产物和兼容路径之间可能漂移。
+- **诊断**：先确认 `web/src` 是否是唯一实现、`web/dist` 是否由当前工作树构建，再区分三类检查：HTML 结构检查只读 `index.html`，应用行为检查通过统一 source reader 组合 shell/CSS/app，Node smoke 直接加载 canonical module；最后分别请求 `/`、`/styles.css` 和 `/console_app.js`。
+- **修复**：新增无依赖、确定性的 `scripts/build_console.py`，Docker 构建时生成 `web/dist`；新增 `agent.web_assets` 作为两个 HTTP transport 共用的静态资源 seam，未构建时回退到 `web/src`；根 HTML/JS 仅保留单向兼容 facade，静态测试迁移到 canonical source helper。
+- **预防**：源码物理拆分后，测试不得重新把实现拼回生产 HTML，也不得锁定旧根路径；新增前端模块必须登记到 `agent.web_assets`、构建器和最小 Node smoke，阶段验收必须重建 Docker，确认容器内服务的是 `web/dist`。兼容 facade 只允许单向转发，不能承载第二份实现。

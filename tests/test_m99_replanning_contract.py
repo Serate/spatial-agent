@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.models import AgentRunResult, RunStatus
 from agent.trace_formatter import format_trace
 from result_contract import build_result_contract
@@ -69,9 +71,7 @@ class M99ReplanningContractTests(unittest.TestCase):
         self.assertTrue(any("screening" in line and "fallback" in line for line in trace))
 
     def test_console_prefers_result_envelope_replanning_evidence(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        source = read_console_source(Path(__file__).parents[1])
         self.assertIn("envelope.replanning", source)
         self.assertIn("data.replan_events", source)
 

@@ -3,7 +3,10 @@
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.service_async import build_async_result_evidence, normalize_async_result_evidence
+from agent.web_assets import WEB_ASSETS
 from result_contract import build_result_contract
 
 
@@ -41,7 +44,7 @@ def _payload():
 class M176SelectionFrontendContractTests(unittest.TestCase):
     def test_console_uses_shared_renderer_and_both_http_entries_allow_asset(self):
         root = Path(__file__).parents[1]
-        html = (root / "web" / "index.html").read_text(encoding="utf-8")
+        html = read_console_source(root)
         self.assertIn('src="./console_evidence_registry.js"', html)
         self.assertIn('id="selectionEvidence"', html)
         self.assertIn("ConsoleEvidenceRegistry", html)
@@ -50,7 +53,8 @@ class M176SelectionFrontendContractTests(unittest.TestCase):
         self.assertIn("renderCompact(evidence.planning,evidence.evidence_registry,evidence.evidence_recovery)", html)
         self.assertIn('data-evidence-recovery-state="recoverable"', html)
         for entry in (root / "serve_api.py", root / "production_api.py"):
-            self.assertIn("console_evidence_registry.js", entry.read_text(encoding="utf-8"))
+            self.assertIn("agent.web_assets", entry.read_text(encoding="utf-8"))
+        self.assertIn("console_evidence_registry.js", WEB_ASSETS)
 
     def test_async_projection_keeps_workflow_and_planner_selection(self):
         payload = _payload()

@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.artifact_store import ArtifactStore
 from agent.service import AgentService
 from result_contract import build_result_contract
@@ -17,7 +19,7 @@ COMPLEX_REQUEST = (
 
 class M76ResultLineageTests(unittest.TestCase):
     def test_console_renders_the_shared_lineage_index(self):
-        html = (Path(__file__).parents[1] / "web" / "index.html").read_text(encoding="utf-8")
+        html = read_console_source(Path(__file__).parents[1])
         self.assertIn('id="lineageEvidence"', html)
         self.assertIn("const lineage=envelope.lineage||{}", html)
         self.assertIn("lineage.map_layers", html)

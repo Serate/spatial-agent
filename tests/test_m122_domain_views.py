@@ -3,6 +3,8 @@
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from domains.text.runtime import build_text_runtime
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
 from result_contract import build_result_contract
@@ -14,7 +16,7 @@ ROOT = Path(__file__).parents[1]
 class M122DomainViewTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        cls.html = read_console_source(ROOT)
         cls.result_contract_source = (ROOT / "result_contract.py").read_text(encoding="utf-8")
 
     def test_gis_view_builder_is_owned_by_gis_domain(self):

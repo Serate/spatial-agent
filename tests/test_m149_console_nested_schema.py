@@ -11,6 +11,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -18,8 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class M149ConsoleNestedSchemaTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        cls.module = (ROOT / "web" / "console_nested_schema.js").read_text(
+        cls.html = read_console_source(ROOT)
+        cls.module = (ROOT / "web" / "src" / "console_nested_schema.js").read_text(
             encoding="utf-8"
         )
         cls.smoke = ROOT / "scripts" / "console_nested_schema_smoke.js"
@@ -31,10 +33,8 @@ class M149ConsoleNestedSchemaTests(unittest.TestCase):
         for marker in (
             "normalizeConsoleResult",
             "ConsoleNestedSchema.normalize",
-            "contract.invalid",
-            "contract.hasUnavailablePanel",
+            "const contract=normalizeConsoleResult(data)",
             "function resultViewPanels(data)",
-            "function viewSpecMap(data)",
         ):
             self.assertIn(marker, self.html)
         self.assertIn("有界不可用空态", self.module)

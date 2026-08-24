@@ -1,6 +1,8 @@
 """Small browser-facing Console contract; dynamic behavior stays in explicit smokes."""
 
 from pathlib import Path
+
+from tests.console_source import read_console_source
 import unittest
 
 
@@ -10,7 +12,7 @@ ROOT = Path(__file__).parents[1]
 class M45ConsoleBrowserSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.source = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        cls.source = read_console_source(ROOT)
 
     def test_session_smoke_covers_switch_and_result_isolation(self):
         script = (ROOT / "scripts" / "console_session_smoke.js").read_text(

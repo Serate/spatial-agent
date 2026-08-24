@@ -5,15 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.artifact_store import ArtifactStore
 from agent.contract_versions import RUN_ARTIFACT_SCHEMA_VERSION
 
 
 class M147ArtifactCompatibilityTests(unittest.TestCase):
     def test_console_consumes_async_evidence_without_domain_result_branches(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        source = read_console_source(Path(__file__).parents[1])
         self.assertIn("renderAsyncResultEvidence", source)
         self.assertIn("result_evidence", source)
         self.assertIn("async-result-evidence", source)

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>空间智能体控制台</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header><h1>Agent Runtime 控制台</h1><span>对话 / 规划器 / 工作流 / 领域适配器</span></header>
+  <main>
+    <aside id="workspaceControls" class="controls panel">
+      <div class="row"><div><label for="domain">领域</label><select id="domain" aria-label="当前领域"><option value="">正在读取领域目录…</option></select></div><div><label for="planner">规划器</label><select id="planner" aria-label="规划器"><option value="rule">规则规划器</option><option value="openai" selected>真实大模型</option></select></div><div><label for="backend">执行后端</label><select id="backend" aria-label="执行后端"><option value="memory">内存适配器</option><option value="local" selected>本地适配器</option></select></div></div>
+      <label for="session">选择对话</label><select id="session" aria-label="选择对话"><option value="conversation-1">对话1</option></select>
+      <details id="workflowEditor" class="workflow-editor">
+        <summary>工作流与约束</summary>
+        <label for="workflow">工作流</label><select id="workflow" aria-label="工作流"><option value="">智能选择（默认）</option></select>
+        <div id="workflowFields" class="workflow-fields"></div>
+        <div id="workflowEvidence" class="workflow-evidence"></div>
+        <div id="workflowValidation" class="workflow-validation" aria-live="polite"></div>
+      </details>
+      <details id="actionWorkbench" class="workflow-editor action-workbench">
+        <summary>领域动作</summary>
+        <div id="actionWorkbenchBody"><div class="distribution-note">正在读取动作目录…</div></div>
+      </details>
+      <label class="workflow-boolean compact-decision" for="requireConfirmation"><input id="requireConfirmation" type="checkbox"> 执行前请求确认</label>
+      <div class="hint">直接提出开放式问题；可用能力、工作流、动作和展示方式均由当前 Domain Pack 声明。</div>
+      <div id="env" class="env"><div>正在检查运行环境...</div></div>
+      <div id="capabilityStatus" class="distribution-note">正在读取能力目录...</div>
+      <div class="history"><div class="history-head"><strong>历史任务</strong><button id="refreshHistory" class="history-refresh" type="button">刷新</button></div><div id="runtimeMetrics" class="distribution-note">正在读取运行指标…</div><div id="historyList" class="history-list"><div class="muted">正在读取历史任务…</div></div></div>
+    </aside>
+    <div class="content">
+      <section class="hero"><div><h2 id="title">准备好执行任务</h2><p id="subtitle" role="status" aria-live="polite">输入自然语言请求，Agent 会发现能力、生成计划、调用工具并组合结构化结果。</p><span id="decisionMode" class="decision-mode">等待决策</span></div><div><span id="status" class="badge" role="status" aria-live="polite" aria-atomic="true">待机</span><button id="cancelRun" type="button" hidden style="margin-left:8px">取消分析</button></div></section>
+      <section id="chatPanel" class="chat">
+        <div class="chat-head"><div class="chat-title"><span>Agent workspace</span><h3>对话</h3></div><div class="chat-actions"><span id="chatMeta">当前对话：对话1</span><button id="newSession" type="button">新建会话</button><button id="clearChat" type="button">清空对话</button><button id="clearAllSessions" type="button">清空全部对话</button><button id="deleteSession" type="button">删除对话</button></div></div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <div class="composer">
+          <textarea id="prompt" placeholder="请输入希望 Agent 完成的任务"></textarea>
+          <div class="composer-actions"><button id="previewPlan" type="button">预览计划</button><button id="send" type="button">发送</button></div>
+        </div>
+      </section>
+      <div id="resultWorkspace" class="grid" role="region" aria-label="分析结果工作区" aria-live="polite" aria-busy="false">
+        <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
+        <section class="panel result-panel common-result answer-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
+        <section class="panel result-panel map-result"><div class="map-panel-head"><h3>空间结果</h3><span id="mapSummary" class="map-summary">交互式地图</span></div><div id="map" class="map"></div><div id="mapSelection" class="map-selection muted">点击地图要素查看详情，或将选中区域作为下一次请求的上下文。</div><button id="useMapSelection" type="button" disabled>使用选中上下文继续</button></section>
+        <section class="panel result-panel generic-result"><h3>结构化结果</h3><div id="genericResult" class="raw-json"></div></section>
+        <details id="advancedResults" class="advanced-result" hidden>
+          <summary><span>查看执行详情</span><small id="advancedSummary">计划、证据和执行轨迹</small></summary>
+          <div class="advanced-result-grid">
+            <section class="panel result-panel plan-preview-result"><h3>计划预览</h3><div id="planPreview" class="plan-preview muted">点击“预览计划”查看工具 DAG；预览不会执行工具。</div></section>
+            <section class="panel result-panel workflow-evidence-result"><h3>工作流编排</h3><div id="workflowEvidenceWorkspace"></div></section>
+            <section class="panel result-panel decision-evidence-result"><h3>决策证据</h3><div id="decisionEvidence"></div></section>
+            <section class="panel result-panel common-result metrics-result"><h3>规划指标</h3><div id="metrics" class="metric-grid"></div></section>
+            <section class="panel result-panel evidence-result"><h3>结果证据</h3><div id="evidenceSummary" class="evidence-summary"></div><details class="evidence-disclosure"><summary>展开详细证据</summary><div class="evidence-grid"><div id="lineageEvidence" class="evidence-card"></div><div id="geometryEvidenceDetail" class="evidence-card"></div></div><div class="evidence-grid"><div id="provenanceEvidence" class="evidence-card"></div><div id="runtimeEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="selectionEvidence" class="evidence-card"></div><div id="dataEvidence" class="evidence-card"></div></div><div class="evidence-grid"><div id="releaseEvidence" class="evidence-card release-evidence"></div><div id="memoryEvidence" class="evidence-card memory-evidence"></div></div><div id="degradationEvidence" class="degradation-list"></div></details></section>
+            <section class="panel result-panel common-result steps-result"><h3>任务计划与步骤</h3><div id="goal" class="muted" style="margin-bottom:14px"></div><ul id="steps" class="steps"></ul></section>
+            <section class="panel result-panel common-result provenance-result"><h3>运行血缘</h3><div id="provenance" class="provenance"></div></section>
+            <section class="panel result-panel common-result trace-result"><h3>执行轨迹</h3><ol id="trace" class="trace"></ol><div id="links" class="links" style="margin-top:14px"></div></section>
+          </div>
+        </details>
+      </div>
+    </div>
+  </main>
+  <script src="./console_nested_schema.js"></script>
+  <script src="./console_decision_evidence.js"></script>
+  <script src="./console_evidence_registry.js"></script>
+  <script src="./console_workflow_evidence.js"></script>
+  <script src="./console_renderer_registry.js"></script>
+  <script src="./console_action_host.js"></script>
+  <script src="./console_interaction.js"></script>
+  <script src="./console_gis_plugin.js"></script>
+  <script src="./console_app.js"></script>
+  </body>
+</html>

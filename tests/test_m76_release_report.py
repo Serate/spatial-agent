@@ -2,6 +2,8 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+
+from tests.console_source import read_console_source
 from unittest.mock import patch
 
 from agent.analysis_ready_binding import build_source_binding
@@ -117,10 +119,12 @@ class M76ReleaseReportTests(unittest.TestCase):
     def test_release_report_is_exposed_by_both_http_entrypoints_and_console(self):
         from pathlib import Path
 
+from tests.console_source import read_console_source
+
         root = Path(__file__).parents[1]
         serve = (root / "serve_api.py").read_text(encoding="utf-8")
         production = (root / "production_api.py").read_text(encoding="utf-8")
-        console = (root / "web" / "index.html").read_text(encoding="utf-8")
+        console = read_console_source(root)
         for source in (serve, production, console):
             self.assertIn("release-evidence", source)
 

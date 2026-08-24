@@ -21,6 +21,7 @@ from agent.domain_routing_entry import (
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
+from agent.web_assets import WEB_ASSETS, console_asset, console_index, console_root
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
@@ -51,7 +52,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     routing = domain_routing
     artifact_root = Path("outputs/runs")
     geojson_root = Path("outputs/geojson")
-    web_root = Path(__file__).parent / "web"
+    web_root = console_root()
 
     def _http_application(self) -> HTTPApplication:
         return HTTPApplication(
@@ -327,22 +328,23 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             self._write_json(200, self._http_application().read("dynamic_tools"))
             return
         if parsed.path in ("/", "/index.html"):
-            self._write_file(self.web_root / "index.html", "text/html")
+            self._write_file(console_index(), "text/html")
+            return
+        if parsed.path == "/styles.css":
+            asset = console_asset("styles.css")
+            if asset is None:
+                self._write_json(404, {"error": "web asset not found"})
+            else:
+                self._write_file(asset, "text/css")
             return
         if parsed.path.startswith("/console_") and parsed.path.endswith(".js"):
             name = parsed.path.strip("/")
-            allowed = {
-                "console_nested_schema.js",
-                "console_decision_evidence.js",
-                "console_evidence_registry.js",
-                "console_workflow_evidence.js",
-                "console_renderer_registry.js",
-                "console_action_host.js",
-                "console_interaction.js",
-                "console_gis_plugin.js",
-            }
-            if name in allowed:
-                self._write_file(self.web_root / name, "application/javascript")
+            if name in WEB_ASSETS:
+                asset = console_asset(name)
+                if asset is None:
+                    self._write_json(404, {"error": "web asset not found"})
+                    return
+                self._write_file(asset, "application/javascript")
                 return
             self._write_json(404, {"error": "web asset not found"})
             return

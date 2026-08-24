@@ -1,6 +1,8 @@
 """M167: candidate details stay bounded and drive a domain-neutral Console choice."""
 
 from pathlib import Path
+
+from tests.console_source import read_console_source
 import unittest
 
 from agent.runtime_factory import build_runtime
@@ -70,8 +72,8 @@ class M167CandidateSelectionTests(unittest.TestCase):
 
     def test_console_submits_capability_id_and_renders_cards(self):
         root = Path(__file__).parents[1]
-        html = (root / "web" / "index.html").read_text(encoding="utf-8")
-        module = (root / "web" / "console_interaction.js").read_text(
+        html = read_console_source(root)
+        module = (root / "web" / "src" / "console_interaction.js").read_text(
             encoding="utf-8"
         )
         self.assertIn("selection-candidate-grid", html)

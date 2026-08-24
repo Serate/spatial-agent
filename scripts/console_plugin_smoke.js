@@ -1,9 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const RendererRegistry = require("../web/console_renderer_registry.js");
-const ActionHost = require("../web/console_action_host.js");
-const GisPlugin = require("../web/console_gis_plugin.js");
+const RendererRegistry = require("../web/src/console_renderer_registry.js");
+const ActionHost = require("../web/src/console_action_host.js");
+const GisPlugin = require("../web/src/console_gis_plugin.js");
 
 async function main() {
   const generic = {innerHTML: ""};

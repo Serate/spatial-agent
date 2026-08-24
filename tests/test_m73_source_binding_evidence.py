@@ -1,5 +1,7 @@
 import unittest
 from pathlib import Path
+
+from tests.console_source import read_console_source
 from unittest.mock import patch
 
 from agent.capability_catalog import runtime_capability_catalog
@@ -53,7 +55,7 @@ class M73SourceBindingEvidenceTests(unittest.TestCase):
         self.assertEqual(result["analysis_ready"]["source_binding"]["fingerprint"], "sha256:abc123")
 
     def test_console_has_source_binding_marker(self):
-        html = (Path(__file__).parents[1] / "web" / "index.html").read_text(encoding="utf-8")
+        html = read_console_source(Path(__file__).parents[1])
         self.assertIn("analysisReadyBindingText", html)
         self.assertIn("源绑定 ", html)
 

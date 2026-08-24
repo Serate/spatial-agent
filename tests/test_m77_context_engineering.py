@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.context_engineering import CONTEXT_SCHEMA_VERSION, ContextBuilder
 from agent.domain_contract import planner_guidance
 from agent.llm_planner import LLMPlanner
@@ -182,7 +184,7 @@ class M77ContextEngineeringTests(unittest.TestCase):
         self.assertEqual(contract["planning"]["planner_kind"], "ContextAwarePlanner")
 
     def test_console_surfaces_context_budget_evidence(self):
-        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        html = read_console_source(ROOT)
         self.assertIn("const contextEvidence=envelope.context||data.context_evidence||{}", html)
         self.assertIn("const planEvidence=envelope.planning||data.plan_evidence||{}", html)
         self.assertIn("上下文工程", html)

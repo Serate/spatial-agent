@@ -1,5 +1,7 @@
 import unittest
 from pathlib import Path
+
+from tests.console_source import read_console_source
 from unittest.mock import patch
 
 from agent.capability_catalog import runtime_capability_catalog
@@ -61,7 +63,7 @@ class M76ReleaseEvidenceTests(unittest.TestCase):
 
     def test_console_and_browser_smoke_cover_three_release_evidence_layers(self):
         root = Path(__file__).parents[1]
-        html = (root / "web" / "index.html").read_text(encoding="utf-8")
+        html = read_console_source(root)
         smoke = (root / "scripts" / "console_overview_smoke.js").read_text(encoding="utf-8")
         for marker in (
             "releaseEvidence",

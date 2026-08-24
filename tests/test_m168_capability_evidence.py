@@ -82,7 +82,7 @@ class M168CapabilityEvidenceTests(unittest.TestCase):
 
     def test_console_and_contract_references_are_domain_neutral(self):
         root = Path(__file__).parents[1]
-        module = (root / "web" / "console_interaction.js").read_text(
+        module = (root / "web" / "src" / "console_interaction.js").read_text(
             encoding="utf-8"
         )
         self.assertIn("spatial-agent.interaction.v1", module)

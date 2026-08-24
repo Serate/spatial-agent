@@ -12,6 +12,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,8 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 class M150ConsoleRepairTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
-        cls.module = (ROOT / "web" / "console_decision_evidence.js").read_text(
+        cls.html = read_console_source(ROOT)
+        cls.module = (ROOT / "web" / "src" / "console_decision_evidence.js").read_text(
             encoding="utf-8"
         )
         cls.smoke = ROOT / "scripts" / "console_decision_evidence_smoke.js"

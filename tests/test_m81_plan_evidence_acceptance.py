@@ -8,6 +8,8 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.artifact_store import ArtifactStore
 from agent.service import AgentService
 from evaluation.contract_harness import compare_results, normalize_result
@@ -305,7 +307,7 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
         self.assertEqual(cli_run["result"]["planning"]["capability_catalog_ids"], cli_run["plan_evidence"]["capability_catalog_ids"])
 
     def test_console_uses_result_planning_evidence(self):
-        source = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        source = read_console_source(ROOT)
 
         self.assertIn("const planEvidence=envelope.planning||data.plan_evidence||{}", source)
         self.assertIn("计划来源", source)

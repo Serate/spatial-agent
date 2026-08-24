@@ -1,5 +1,7 @@
 import unittest
 from pathlib import Path
+
+from tests.console_source import read_console_source
 from unittest.mock import patch
 
 from agent.answer_composer import AnswerComposer
@@ -78,7 +80,7 @@ class M71EvidenceConsistencyTests(unittest.TestCase):
         self.assertIn("EPSG:32649", answer)
 
     def test_console_surfaces_comparison_evidence(self):
-        html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        html = read_console_source(ROOT)
         for marker in (
             "function comparisonEvidenceText(data)",
             "data.analysis_ready",

@@ -90,7 +90,9 @@ class M188ActionEffectTests(unittest.TestCase):
     def test_lineage_and_console_keep_effect_as_structured_evidence(self):
         from pathlib import Path
 
-        source = Path("web/index.html").read_text(encoding="utf-8")
+from tests.console_source import read_console_source
+
+        source = read_console_source(Path(__file__).parents[1])
         self.assertIn("effect.impact", source)
         self.assertIn("结果已关联", source)
 

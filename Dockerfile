@@ -40,6 +40,10 @@ RUN PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
 
 COPY . /app
 
+# Generate the static Console asset tree inside the image.  The source tree
+# remains the repository seam; dist is a reproducible deployment artifact.
+RUN micromamba run -n spatial-agent-gis python scripts/build_console.py
+
 ENV PATH=/opt/conda/envs/spatial-agent-gis/bin:/opt/conda/envs/spatial-agent-gis/Library/bin:$PATH \
     GDAL_DATA=/opt/conda/envs/spatial-agent-gis/share/gdal \
     PROJ_LIB=/opt/conda/envs/spatial-agent-gis/share/proj \

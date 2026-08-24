@@ -6,7 +6,7 @@ import {fileURLToPath} from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
-const source = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
+const source = fs.readFileSync(path.join(root, "web", "src", "index.html"), "utf8");
 if (!source.includes('id="domain"') || !source.includes("nativeFetch('/domains')")) {
   throw new Error("Console 没有动态 Domain 目录入口");
 }

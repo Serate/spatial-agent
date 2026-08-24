@@ -8,16 +8,19 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.artifact_store import ArtifactStore
 from agent.service import AgentService
+from agent.web_assets import WEB_ASSETS
 from domains.gis.domain import GIS_DOMAIN_PACK
 
 
 class M195WorkflowEvidenceTests(unittest.TestCase):
     def test_frontend_renderer_and_http_assets_are_registered(self):
         root = Path(__file__).parents[1]
-        html = (root / "web" / "index.html").read_text(encoding="utf-8")
-        module = (root / "web" / "console_workflow_evidence.js").read_text(encoding="utf-8")
+        html = read_console_source(root)
+        module = (root / "web" / "src" / "console_workflow_evidence.js").read_text(encoding="utf-8")
         serve_api = (root / "serve_api.py").read_text(encoding="utf-8")
         production_api = (root / "production_api.py").read_text(encoding="utf-8")
 
@@ -27,8 +30,9 @@ class M195WorkflowEvidenceTests(unittest.TestCase):
         self.assertIn("spatial-agent.workflow-evidence.v1", module)
         self.assertNotIn("洪山区", module)
         self.assertNotIn("get_raster_metadata", module)
-        self.assertIn('"console_workflow_evidence.js"', serve_api)
-        self.assertIn('"console_workflow_evidence.js"', production_api)
+        self.assertIn("agent.web_assets", serve_api)
+        self.assertIn("agent.web_assets", production_api)
+        self.assertIn("console_workflow_evidence.js", WEB_ASSETS)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js is not installed")
     def test_node_workflow_evidence_smoke(self):

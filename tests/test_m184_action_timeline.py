@@ -7,6 +7,8 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 from agent.action_identity import build_action_receipt_identity_linkage
 from agent.artifact_store import ArtifactStore
 from agent.execution_timeline import (
@@ -128,9 +130,7 @@ class M184ActionTimelineTests(unittest.TestCase):
         self.assertNotIn("private", str(action))
 
     def test_console_renders_action_timeline_from_structured_result(self):
-        source = (Path(__file__).parents[1] / "web" / "index.html").read_text(
-            encoding="utf-8"
-        )
+        source = read_console_source(Path(__file__).parents[1])
         self.assertIn("renderActionTimeline", source)
         self.assertIn("action-timeline", source)
 

@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+from tests.console_source import read_console_source
+
 
 ROOT = Path(__file__).parents[1]
 
@@ -8,7 +10,7 @@ ROOT = Path(__file__).parents[1]
 class M67ConsoleEvidenceContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
+        cls.html = read_console_source(ROOT)
         cls.acceptance = (ROOT / "docs" / "console-browser-acceptance.md").read_text(
             encoding="utf-8"
         )

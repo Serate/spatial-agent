@@ -4740,3 +4740,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 清理版本漂移：async result evidence 使用 `agent/contract_versions.py` 的唯一版本，根结果契约复用 evidence registry 的唯一 replanning 版本；未合并 Domain evidence provider、Result Envelope 和 nested schema，因为它们拥有不同的接口与生命周期职责。
 - 新增 `tests/test_m257_contract_evidence.py` 验证兼容 import 与 canonical function 同一、活动路径不依赖旧模块；M257/evidence/artifact/async/HTTP/Domain 定向 **53 项通过**，quick/stage、compileall、architecture strict 通过。
 - 下一阶段转入 Vite 前端源码与 `web/dist` 构建产物物理拆分，保持 Console 只消费结构化 workspace/view/evidence，不把 Domain 判断重新写入页面入口。
+
+## M258：Console 源码 / 静态资源 / HTTP seam 物理拆分（已完成）
+
+- 将原约 198 KB 的 `web/index.html` 拆为 `web/src/index.html`、`web/src/styles.css`、`web/src/console_app.js` 和既有 renderer/plugin canonical modules；页面行为和视觉契约保持不变，根入口与根模块仅保留单向兼容 facade。
+- 新增无 npm 依赖的 `scripts/build_console.py`，Docker 镜像构建时确定性生成 `web/dist`；HTTP 未检测到构建产物时回退到 `web/src`，方便本地源码调试但不改变生产镜像的 dist 语义。
+- 新增 `agent/web_assets.py`，FastAPI 与标准库 HTTP 共享 Console index、资源 allowlist、路径穿越保护和源码/dist 选择；`styles.css`、`console_app.js` 与 renderer/plugin 通过同一资源契约提供。
+- 静态测试改为读取 canonical source；新增 `tests/console_source.py` 组合 shell/CSS/app 的应用契约，Node smoke 直接加载 `web/src` 模块；架构检查改为守卫 `web/src`、构建器和静态资源 seam，不再把兼容入口误判为实现。
+- Docker 重建后 Console 相关静态契约 **34/34**、Node nested/decision/plugin/workflow smoke、`web/dist` 构建、HTTP `/`/`styles.css`/`console_app.js` 200、architecture strict 和 compileall 验证通过；当前仅剩 `agent/runtime.py`、`agent/service.py` 两个既有 god-module warning。
+- 下一阶段按全局架构继续拆分 Runtime 的生命周期/恢复/目录职责，再收敛 Service 的 catalog、control 和 compatibility wrapper；前端应用主脚本的职责簇也作为后续物理拆分切片，不复制到根入口。

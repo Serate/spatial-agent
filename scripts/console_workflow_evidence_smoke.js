@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const assert = require("node:assert/strict");
-const renderer = require("../web/console_workflow_evidence.js");
+const renderer = require("../web/src/console_workflow_evidence.js");
 
 const composed = {
   status: "COMPLETED",
