@@ -11,7 +11,8 @@ CLI / serve_api.py / production_api.py / Console
                     AgentService
                          │
                          ▼
-                   RunApplication
+          Run / Action / Decision / Session
+                    Applications
                          │
                          ▼
                     AgentRuntime
@@ -27,7 +28,7 @@ CLI / serve_api.py / production_api.py / Console
 
 当前实现已经通过 Domain Pack、ToolRegistry 和 Result Registry 形成逻辑分层，但以下物理边界仍待收敛：
 
-- `agent/service.py` 仍包含异步、交互、Action、Session 和目录入口；同步 run 的结果收口已进入 `agent/application/run.py`。
+- `agent/service.py` 仍包含异步、交互和目录入口；Run、Action、Decision、Session 的主要应用用例已进入 `agent/application/`，Service 只保留兼容入口和跨用例编排。
 - `agent/runtime.py` 同时包含规划、校验、执行、重规划、恢复、结果投影和内存状态。
 - FastAPI 与标准库 HTTP 入口共享部分契约，但仍各自维护请求分发。
 - `agent/` 保留历史 GIS facade、legacy 字段和兼容回退。
@@ -47,7 +48,7 @@ Transport adapters
              │
       ┌──────┴──────┐
       ▼             ▼
- Run Application  Catalog/Session/Action
+ Run / Action / Decision / Session  Catalog
       │
       ▼
  agent/runtime_core/
@@ -75,7 +76,7 @@ Transport adapters
 1. 架构地图、兼容矩阵和静态守卫。
 2. Domain Pack 与 GIS 适配器物理下沉。
 3. Runtime 规划/执行/生命周期/投影拆分。
-4. Application Service、持久化和 HTTP Application 收敛；同步 Run 已先建立 canonical use-case seam。
+4. Application Service、持久化和 HTTP Application 收敛；Run、Session、Action、Decision 已建立 canonical use-case seam，Interaction 仍待提取。
 5. Contract/Evidence 基础 helper 收敛。
 6. Vite 前端源码与 `web/dist` 构建产物分离。
 7. 删除已确认无引用的兼容入口和临时文件，完成全局验收。

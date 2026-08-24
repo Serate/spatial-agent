@@ -4698,3 +4698,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `ServiceState` 增加 session run 查询、清理和删除方法，负责 SQLite、内存 session、各 Runtime 状态和 clarification 清理；`AgentService` 的 session 方法只保留兼容 wrapper。
 - 新增 session application contract；显式清除生产 `SPATIAL_AGENT_STATE_DB` 后 M254/M78/M48/M68 session 回归 **12/12**，architecture strict、compileall、quick、stage 全部通过。
 - 下一切片提取 Action/Decision application seam，再拆异步 worker 与 HTTP dispatcher。
+
+## M254-C：Action/Decision Application canonical seam（已完成）
+
+- 新增 `agent/application/actions.py` 的 `ActionApplication`，统一 Domain action dispatch、输入幂等、失败/成功 artifact、执行记录和 action observability。
+- 通用 lifecycle receipt 的 CAS 预留、回放、transition lineage、effect/precondition、evidence revalidation 和 child artifact receipt 均迁入 ActionApplication；Service 只保留兼容 wrapper，Decision/Interaction 通过同一 receipt seam。
+- 新增 `agent/application/decisions.py` 的 `DecisionApplication`，收敛 decision artifact 恢复、approve/reject、版本校验和原计划继续执行；Service 的 public decision 方法只委托应用模块。
+- 修复 interaction dispatcher 缺少 `project_interaction(current)` 导致能力选择路径 `NameError` 的问题，并更新前端重构后的静态契约测试和 action 输入错误码测试。
+- Docker action/decision/interaction 定向回归 **68/68**、architecture strict、compileall、quick、stage 全部通过；Service 规模约从 3,254 行降至 2,560 行。
+- 下一切片提取 `InteractionApplication`，再处理 async worker/recovery 和 HTTP dispatcher。

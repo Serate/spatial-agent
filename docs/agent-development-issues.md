@@ -504,3 +504,27 @@
 - **诊断**：先确认初始响应为 `QUEUED`，再单独运行该测试并记录终态；如果扩大有界等待后稳定得到终态，应归类为测试时序问题，不要为了让测试立即完成而修改异步 worker。
 - **修复**：使用 `time.monotonic()` 加有界总超时轮询 `PLANNING`/`EXECUTING`，同时保留最终 `COMPLETED`/失败状态断言；不使用无限等待或固定次数替代时间语义。
 - **预防**：异步测试必须验证“先受理、后终态”的生命周期，而不是假设某个固定毫秒数内完成；默认测试保持秒级上限，live/性能测试另行分层。
+
+## Action 输入校验测试与执行失败码不一致
+
+- **现象**：GIS action 的数组 `minItems` 校验失败时，旧回归断言要求 `action_execution_failed`，而公共 action contract 返回 `action_invalid_input`；同一套 action replay 因此看起来像首次执行和回放不一致。
+- **根因**：测试把“Domain handler 执行异常”和“进入 handler 前的 schema 校验异常”混为一类；`ActionApplication` 会保留具体的校验错误码，并在 artifact/execution record 中传播。
+- **诊断**：区分 `action_execution.input_validated`、`error_code` 和 `action_error_code`，同时比较首次异常、幂等回放和 artifact；不要为了通过历史断言把合法输入错误改成通用执行错误。
+- **修复**：统一校验失败的测试契约为 `action_invalid_input`，保留 `action_execution_failed` 仅用于 Domain handler 或持久化执行阶段的失败。
+- **预防**：新增 action 测试至少覆盖 schema rejection、Domain execution failure 和 replay 三种路径；公共错误码应与失败阶段对应，不能只按最终 HTTP 状态归类。
+
+## 前端重构后静态测试仍锁定旧 URL 拼接
+
+- **现象**：Action Domain 的运行、artifact 恢复和历史功能正常，但旧静态测试仍要求页面包含 `nativeFetch('/actions'+query)` 或固定 `/artifacts/actions/` 字符串，导致 action 回归失败。
+- **根因**：前端已经统一通过 `domainPath`、`artifactReferencePath` 处理领域作用域和 artifact 链接，静态测试却锁定了迁移前的字面拼接方式。
+- **诊断**：先用 `rg` 对比测试 token 与当前 renderer/transport seam，再用 HTTP action/artifact 回归确认运行行为；不要为了满足旧 token 恢复领域无关的 URL 拼接。
+- **修复**：断言稳定的 helper seam（`domainPath`、`artifactReferencePath`、`renderActionEvidence`）和用户可见契约，删除过时的字面 URL 断言。
+- **预防**：前端静态测试锁定模块 seam、数据属性和行为入口，不锁定可替换的 URL 拼接细节；页面重构后同步清理 compact 测试，避免把历史实现当成契约。
+
+## 交互 dispatch 使用未投影的当前 interaction
+
+- **现象**：交互读取和普通运行可以成功，但 `select_capability`/`provide_facts` 进入 dispatch 时抛出 `NameError`，HTTP 交互返回 500，action receipt 无法形成。
+- **根因**：dispatcher 读取了当前 run 和 result envelope，却没有调用公共 `project_interaction` 生成局部交互投影；代码只在需要能力选择的分支才触发该隐藏错误。
+- **诊断**：用最小的能力选择交互覆盖应用、HTTP、artifact/restart 四条路径；看到 500 或缺失 receipt 时先检查交互投影是否在 dispatch 入口完成，不要修改 Domain capability resolver。
+- **修复**：在 dispatcher 读取当前 run 后立即构造 `interaction = project_interaction(current)`，后续能力选择和事实补充均使用同一投影。
+- **预防**：交互 dispatch 的入口必须先完成一次 canonical interaction projection；新增 action 分支不得依赖未声明的隐式局部变量，并至少保留一条具体 selection action 回归。

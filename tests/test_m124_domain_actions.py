@@ -43,7 +43,7 @@ class M124DomainActionTests(unittest.TestCase):
             Path(__file__).parents[1] / "web" / "console_action_host.js"
         ).read_text(encoding="utf-8")
         self.assertIn("loadActions", source)
-        self.assertIn("nativeFetch('/actions'+query)", source)
+        self.assertIn("domainPath('/actions',domainId)+query", source)
         self.assertIn("executeDomainAction", source)
         self.assertIn("window.ConsoleActionHost.mount", source)
         self.assertIn("input_schema", action_host)

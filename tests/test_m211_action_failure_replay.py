@@ -45,7 +45,7 @@ class M211ActionFailureReplayTests(unittest.TestCase):
         replay_error = error_response(replay.exception)
         self.assertEqual(first_error, replay_error)
         self.assertEqual(first.exception.action_id, "gis.buildability_threshold_comparison")
-        self.assertEqual(first.exception.code, "action_execution_failed")
+        self.assertEqual(first.exception.code, "action_invalid_input")
         self.assertEqual(
             first.exception.action_execution_id,
             replay.exception.action_execution_id,

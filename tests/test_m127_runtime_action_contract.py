@@ -185,7 +185,7 @@ class M127RuntimeActionContractTests(unittest.TestCase):
         for token in (
             "renderActionEvidence",
             "/action-executions/",
-            "/artifacts/actions/",
+            "artifactReferencePath",
             "data-action-execution",
             "/action-executions?limit=20",
             "idempotency_reused",
