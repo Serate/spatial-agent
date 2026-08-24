@@ -9,6 +9,7 @@ those decisions in one place so the two servers cannot drift apart.
 from typing import Any, Dict
 
 from agent.cost_governance import BudgetExceeded, ConcurrencyLimited
+from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
 from agent.service import AgentService
 from agent.workflow_templates import (
     WorkflowTemplateError,
@@ -32,7 +33,7 @@ def run_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "backend": payload.get("backend", "memory"),
         "export_artifact": bool(payload.get("export_artifact", False)),
         "export_geojson": bool(payload.get("export_geojson", False)),
-        "geojson_max_features": payload.get("geojson_max_features", 100),
+        "geojson_max_features": payload.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES),
         "timeout_seconds": payload.get("timeout_seconds"),
         "spatial_context": payload.get("spatial_context"),
         "workflow": payload.get("workflow"),
@@ -70,7 +71,7 @@ def retry_kwargs(payload: Dict[str, Any]) -> Dict[str, Any]:
         "backend": payload.get("backend", "memory"),
         "export_artifact": bool(payload.get("export_artifact", False)),
         "export_geojson": bool(payload.get("export_geojson", False)),
-        "geojson_max_features": payload.get("geojson_max_features", 100),
+        "geojson_max_features": payload.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES),
         "idempotency_key": payload.get("idempotency_key"),
     }
 

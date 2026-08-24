@@ -4,12 +4,31 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent.geojson_exporter import export_run_summary
+from agent.geojson_exporter import (
+    DEFAULT_GEOJSON_MAX_FEATURES,
+    DEFAULT_MAX_BYTES,
+    GEOJSON_MAX_BYTES_ENV,
+    HARD_MAX_BYTES,
+    export_run_summary,
+    resolve_max_bytes,
+)
 from agent.geometry_export import normalize_feature_collection
 from agent.service import AgentService, _exported_geometry_evidence, _tag_geometry_features
 
 
 class M18GeoJSONExportTests(unittest.TestCase):
+    def test_default_export_budget_supports_tens_of_megabytes(self):
+        self.assertGreaterEqual(DEFAULT_MAX_BYTES, 50 * 1024 * 1024)
+        self.assertGreater(DEFAULT_MAX_BYTES, 100_000)
+        self.assertEqual(DEFAULT_GEOJSON_MAX_FEATURES, 10_000)
+        self.assertLessEqual(resolve_max_bytes(), HARD_MAX_BYTES)
+
+    def test_export_budget_is_configurable_but_hard_bounded(self):
+        with patch.dict("os.environ", {GEOJSON_MAX_BYTES_ENV: str(75 * 1024 * 1024)}, clear=False):
+            self.assertEqual(resolve_max_bytes(), 75 * 1024 * 1024)
+        with patch.dict("os.environ", {GEOJSON_MAX_BYTES_ENV: str(250 * 1024 * 1024)}, clear=False):
+            self.assertEqual(resolve_max_bytes(), HARD_MAX_BYTES)
+
     def test_exports_bounded_summary_features_without_args(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = export_run_summary(

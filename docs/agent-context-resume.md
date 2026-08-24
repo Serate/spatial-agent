@@ -22,12 +22,13 @@
 - M239 已完成：修复综合 GIS 结果在 GeoJSON 摘要被截断时错误退回规则栅格矩形的问题。只要仍有 GeoJSON artifact，就继续绘制可用的部分真实几何；没有几何 artifact 时，地图改为虚线“栅格外接范围”，明确不代表有效像元覆盖。补充 result contract、GIS renderer 回归 smoke，Docker 定向验证通过。
 - M240 已完成：新增独立 `agent.answer_generation` 回答生成边界。真实模型模式在工具执行完成后，把请求、目标和工具事实做有界脱敏投影，使用结构化输出生成面向用户的中文总结；schema、长度和内部引用校验失败时回退 Domain Composer。规则/离线模式不额外调用模型，并统一记录 `answer_generation` 有界证据；同步、异步、artifact 和 SQLite 恢复均保留该证据。Docker compileall、精简跨领域/结果契约/异步回归和前端 smoke 通过。
 - M241 已完成：修复 M240 后 GitHub CI 的两条过时 `memory://` 断言，更新 `tests/test_dev_gate.py` 和 `scripts/smoke_check.py` 为用户回答契约；Docker 中 `python scripts/test_profile.py --profile ci` 的核心契约与 service smoke 均通过。
-- 本地阶段提交已完成，当前 HEAD 为 `c0a2780`；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现本阶段代码。
+- M242 已完成：将 GeoJSON 空间摘要默认上限从 100 KB 提升到 50 MiB，支持 `SPATIAL_AGENT_GEOJSON_MAX_BYTES` 配置并限制在 100 MiB 硬上限内；运行、重试、HTTP 和会话入口的默认要素数统一为 10,000。新增预算配置回归，Docker 定向 GeoJSON/结果契约 24/24 通过，compileall 通过。
+- M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段和 M240 回答生成边界均已闭环；最终答案现在可由真实模型自然表达，并在不可用时安全回退。下一阶段应围绕真实模型 + 真实 GIS 的端到端验收、回答事实一致性评估和前端 answer-generation evidence 展示规划，不要继续扩展 GIS 专用模板分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界和 M242 GeoJSON 导出预算均已闭环；最终答案现在可由真实模型自然表达，空间结果在本地验收中可保留更完整的 GeoJSON。下一阶段应围绕真实模型 + 真实 GIS 的端到端验收、回答事实一致性评估、前端 answer-generation evidence 展示，以及大空间结果的分块/矢量瓦片演进规划，不要继续扩展 GIS 专用模板分支。
 
 ## 不变量
 

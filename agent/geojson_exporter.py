@@ -1,24 +1,44 @@
 import json
+import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 DEFAULT_GEOJSON_ROOT = "outputs/geojson"
-DEFAULT_MAX_BYTES = 100_000
+DEFAULT_MAX_BYTES = 50 * 1024 * 1024
+HARD_MAX_BYTES = 100 * 1024 * 1024
+GEOJSON_MAX_BYTES_ENV = "SPATIAL_AGENT_GEOJSON_MAX_BYTES"
+DEFAULT_GEOJSON_MAX_FEATURES = 10_000
+
+
+def resolve_max_bytes(max_bytes: Optional[int] = None) -> int:
+    """Resolve a bounded GeoJSON size from an explicit value or environment."""
+    candidate = max_bytes
+    if candidate is None:
+        configured = os.getenv(GEOJSON_MAX_BYTES_ENV)
+        if configured:
+            try:
+                candidate = int(configured)
+            except ValueError:
+                candidate = None
+    if candidate is None:
+        candidate = DEFAULT_MAX_BYTES
+    if candidate < 1:
+        raise ValueError("max_bytes must be positive")
+    return min(int(candidate), HARD_MAX_BYTES)
 
 
 def export_run_summary(
     payload: Dict[str, Any],
     root: str = DEFAULT_GEOJSON_ROOT,
-    max_bytes: int = DEFAULT_MAX_BYTES,
+    max_bytes: Optional[int] = None,
     geometry_features=None,
 ) -> str:
     """Write a bounded GeoJSON summary without raw tool args or source data."""
     run_id = payload.get("run_id")
     if not isinstance(run_id, str) or not run_id:
         raise ValueError("payload must include run_id")
-    if max_bytes < 1:
-        raise ValueError("max_bytes must be positive")
+    max_bytes = resolve_max_bytes(max_bytes)
 
     features = geometry_features or [_step_feature(step) for step in payload.get("steps", [])]
     if not features:

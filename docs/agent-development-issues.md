@@ -2,6 +2,14 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## GeoJSON 空间摘要上限过小导致地图只能看到部分结果
+
+- **现象**：空间分析生成的 GeoJSON 摘要默认只有 100 KB，且默认最多导出 100 个要素；较大的道路、水体或候选区域结果会被截断，前端只能绘制部分空间要素。
+- **根因**：早期为了限制 artifact 和浏览器负载设置了过于保守的固定上限，字节上限与要素数量上限又分散在多个 Service、HTTP 和会话入口，导致只调大其中一个仍可能看不到完整结果。
+- **诊断**：检查 GeoJSON artifact 的 `properties.geometry_truncated`、实际文件大小和 `features` 数量；同时搜索 `geojson_max_features` 的所有默认值，不能只检查导出器的 `max_bytes`。
+- **修复**：默认 GeoJSON 摘要上限提高到 50 MiB，支持 `SPATIAL_AGENT_GEOJSON_MAX_BYTES` 配置，并设置 100 MiB 硬上限；所有运行、重试、HTTP 和会话入口的默认要素数统一提高到 10,000。保留截断证据，前端继续明确提示“结果可能不完整”。
+- **预防**：大文件上限只适合本地 GIS 或显式验收，不应无限增大；真实生产数据量继续增长时，应按 bbox/zoom 分块或采用矢量瓦片。新增入口必须复用统一默认常量，并用一个精简测试同时覆盖默认预算、环境配置和硬上限。
+
 ## 用户回答契约升级后 CI 仍断言内部引用
 
 - **现象**：GitHub CI 的稳定契约和 service smoke 同时失败，邮件提示 `Some jobs were not successful`；运行状态和工具步骤实际均已完成。

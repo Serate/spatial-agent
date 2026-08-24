@@ -12,7 +12,7 @@ from agent.decision_lifecycle import DecisionLifecycleError, DecisionRecord
 from agent.errors import ToolError
 from agent.execution_contract import build_execution_record
 from agent.failure_contract import build_failure_evidence, failure_from_payload
-from agent.geojson_exporter import export_run_summary
+from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES, export_run_summary
 from agent.provenance import build_provenance
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.domain_registry import DomainSelectionError, resolve_domain_id
@@ -294,7 +294,7 @@ class AgentService:
         backend: str = "memory",
         export_artifact: bool = False,
         export_geojson: bool = False,
-        geojson_max_features: int = 100,
+        geojson_max_features: int = DEFAULT_GEOJSON_MAX_FEATURES,
         timeout_seconds: float = None,
         spatial_context: Dict[str, Any] = None,
         workflow: Dict[str, Any] = None,
@@ -668,7 +668,7 @@ class AgentService:
             backend=selected_backend,
             export_artifact=bool(options.get("export_artifact")),
             export_geojson=bool(options.get("export_geojson")),
-            geojson_max_features=int(options.get("geojson_max_features", 100)),
+            geojson_max_features=int(options.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES)),
             workflow=result.workflow,
             run_id=result.run_id,
             preview_fingerprint=record.subject_fingerprint,
@@ -1410,7 +1410,7 @@ class AgentService:
         backend: str = "memory",
         export_artifact: bool = False,
         export_geojson: bool = False,
-        geojson_max_features: int = 100,
+        geojson_max_features: int = DEFAULT_GEOJSON_MAX_FEATURES,
         idempotency_key: str = None,
     ) -> Dict:
         """Retry a failed run with explicit replay or a fresh implicit attempt."""
@@ -1469,7 +1469,7 @@ class AgentService:
         backend: str = "memory",
         export_artifact: bool = False,
         export_geojson: bool = False,
-        geojson_max_features: int = 100,
+        geojson_max_features: int = DEFAULT_GEOJSON_MAX_FEATURES,
     ) -> Dict:
         if not isinstance(run_id, str) or not run_id.strip():
             raise ValueError("run_id must be a non-empty string")
@@ -2264,7 +2264,7 @@ class AgentService:
                 backend=selected_backend,
                 export_artifact=bool(data.get("export_artifact", True)),
                 export_geojson=bool(data.get("export_geojson", False)),
-                geojson_max_features=int(data.get("geojson_max_features", 100)),
+                geojson_max_features=int(data.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES)),
                 idempotency_key=data.get("idempotency_key"),
             )
 
@@ -2376,7 +2376,7 @@ class AgentService:
                 require_confirmation=bool(data.get("require_confirmation", True)),
                 export_artifact=bool(data.get("export_artifact", True)),
                 export_geojson=bool(data.get("export_geojson", False)),
-                geojson_max_features=int(data.get("geojson_max_features", 100)),
+                geojson_max_features=int(data.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES)),
                 _resolved_request=resolved_request_override,
             )
         except Exception:

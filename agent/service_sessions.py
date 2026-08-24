@@ -2,6 +2,8 @@
 
 from typing import Any, Dict
 
+from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
+
 
 def validate_session_id(session_id: str) -> None:
     if not isinstance(session_id, str) or not session_id.strip():
@@ -60,7 +62,7 @@ def async_job_payload(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         "runtime_context": kwargs.get("runtime_context"),
         "export_artifact": bool(kwargs.get("export_artifact", False)),
         "export_geojson": bool(kwargs.get("export_geojson", False)),
-        "geojson_max_features": kwargs.get("geojson_max_features", 100),
+        "geojson_max_features": kwargs.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES),
         "timeout_seconds": kwargs.get("timeout_seconds"),
         "spatial_context": kwargs.get("spatial_context"),
         "workflow": kwargs.get("workflow"),
