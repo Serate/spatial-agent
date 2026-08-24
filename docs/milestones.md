@@ -4662,3 +4662,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `AgentRuntime` 保留 `_plan`、`_validate_plan`、`_require_workflow_selection` 兼容方法，但实现只委托 planning seam；Domain Pack 专属 workflow validator 和有限 repair 仍由 Runtime 编排，不下沉到公共 helper。
 - 新增旧 Planner、context-aware Planner、空计划和未注册工具契约；干净 Docker 重建后 M253/M252/M247 定向 **14/14**、architecture strict、compileall、quick、stage 全部通过。
 - 下一切片将提取 ToolRegistry dispatch、步骤状态、重试/取消/超时与 replan lineage 的 execution/lifecycle seam。
+
+## M253-C：Runtime execution canonical seam（已完成）
+
+- 新增 `agent/runtime_core/execution.py`，通过 `StepExecutionHooks` 注入 Registry、Domain preflight、协作式控制检查和观测回调；模块统一负责结果引用解析后的 ToolRegistry dispatch、工具超时预算、有限重试、步骤状态和终态事件。
+- `AgentRuntime._execute_step` 与 `_block_remaining_steps` 保留兼容入口并委托 execution seam；公共 execution module 不读取 Domain 数据、不处理 HTTP，也不绕过 ToolRegistry。
+- 新增成功重试、终态事件和失败后 pending 步骤阻断契约；干净 Docker 重建后 M253/M252/M247 定向 **16/16**、architecture strict、compileall、quick、stage 全部通过。
+- 下一切片将继续收敛 cancel/timeout/control gate 与 run/step lifecycle evidence，再进入 Application Service 拆分。

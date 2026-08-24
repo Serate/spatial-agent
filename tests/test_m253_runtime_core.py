@@ -1,6 +1,6 @@
 import unittest
 
-from agent.models import PlanStep, TaskPlan
+from agent.models import PlanStep, StepRun, TaskPlan
 from agent.context_engineering import ContextPacket
 from agent.errors import ClarificationNeeded, ToolError
 from agent.runtime import _resolve_result_references
@@ -10,6 +10,7 @@ from agent.runtime_core.projection import (
     plan_to_dict,
 )
 from agent.runtime_core.planning import invoke_planner, validate_plan
+from agent.runtime_core.execution import StepExecutionHooks, block_remaining_steps, execute_step
 
 
 class M253RuntimeCoreProjectionTests(unittest.TestCase):
@@ -84,6 +85,61 @@ class M253RuntimeCoreProjectionTests(unittest.TestCase):
             )
         with self.assertRaises(ClarificationNeeded):
             validate_plan(TaskPlan("目标", []), {"inspect"}, 4)
+
+    def test_execution_seam_retries_registry_failure_and_emits_terminal_state(self):
+        class Registry:
+            def __init__(self):
+                self.calls = 0
+
+            def governance_for(self, tool):
+                return {"name": tool}
+
+            def timeout_seconds(self, tool):
+                return None
+
+            def invoke(self, tool, arguments, timeout_seconds=None):
+                self.calls += 1
+                if self.calls == 1:
+                    raise ToolError("temporary", retryable=True)
+                return {"ok": True, "arguments": arguments}
+
+        registry = Registry()
+        events = []
+        hooks = StepExecutionHooks(
+            registry=registry,
+            max_retries=1,
+            preflight=lambda tool, args, results: None,
+            control_check=lambda run_id, deadline: None,
+            emit_step=lambda run_id, step_run: events.append(step_run.status),
+            now=lambda: "2026-01-01T00:00:00Z",
+        )
+        step_run = StepRun("one", "inspect", {})
+
+        execute_step(
+            hooks,
+            "run-1",
+            None,
+            step_run,
+            PlanStep("one", "inspect", {}),
+            set(),
+            {},
+        )
+
+        self.assertEqual(registry.calls, 2)
+        self.assertEqual(step_run.status, "COMPLETED")
+        self.assertEqual(step_run.attempts, 2)
+        self.assertEqual(events, ["COMPLETED"])
+
+    def test_execution_seam_blocks_only_pending_steps(self):
+        steps = [
+            StepRun("done", "inspect", {}, status="COMPLETED"),
+            StepRun("failed", "inspect", {}, status="FAILED"),
+            StepRun("pending", "inspect", {}),
+        ]
+        block_remaining_steps(steps, 1, "failed", "backend")
+        self.assertEqual(steps[0].status, "COMPLETED")
+        self.assertEqual(steps[1].status, "FAILED")
+        self.assertEqual(steps[2].status, "BLOCKED")
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from .projection import (
     utc_now,
 )
 from .planning import invoke_planner, require_workflow_selection, validate_plan
+from .execution import StepExecutionHooks, block_remaining_steps, execute_step
 
 __all__ = [
     "append_execution_degradation_notice",
@@ -40,4 +41,7 @@ __all__ = [
     "invoke_planner",
     "require_workflow_selection",
     "validate_plan",
+    "StepExecutionHooks",
+    "block_remaining_steps",
+    "execute_step",
 ]

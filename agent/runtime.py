@@ -79,6 +79,7 @@ from .runtime_context import build_runtime_context
 from .tools import ToolRegistry
 from .runtime_core import projection as _runtime_projection
 from .runtime_core import planning as _runtime_planning
+from .runtime_core import execution as _runtime_execution
 
 
 class InMemoryStateStore:
@@ -1602,63 +1603,23 @@ class AgentRuntime:
         completed: Set[str],
         completed_results: Dict[str, Dict[str, Any]],
     ) -> None:
-        missing = [dependency for dependency in step.depends_on if dependency not in completed]
-        if missing:
-            raise ToolError("Step dependencies are not complete: " + ", ".join(missing))
-        resolved_args = _resolve_result_references(step.args, completed_results)
-        step_run.governance = self._registry.governance_for(step.tool)
-        try:
-            self._enforce_preflight_policy(step.tool, resolved_args, completed_results)
-        except ToolError as exc:
-            step_run.status = "FAILED"
-            step_run.error = str(exc)
-            step_run.error_category = getattr(exc, "category", None) or "tool_gate"
-            step_run.error_code = getattr(exc, "code", None)
-            step_run.retryable = getattr(exc, "retryable", None)
-            step_run.finished_at = _utc_now()
-            self._emit_step_event(run_id, step_run)
-            raise
-        self._check_control(run_id, deadline)
-        step_run.args = resolved_args
-        step_run.status = "RUNNING"
-        step_run.started_at = _utc_now()
-        started = perf_counter()
-        for attempt in range(1, self._max_retries + 2):
-            self._check_control(run_id, deadline)
-            step_run.attempts = attempt
-            try:
-                tool_timeout = self._registry.timeout_seconds(step.tool)
-                if deadline is not None:
-                    remaining = deadline - perf_counter()
-                    if remaining <= 0:
-                        raise RunTimedOut("run exceeded timeout_seconds")
-                    if tool_timeout is not None:
-                        tool_timeout = min(float(tool_timeout), remaining)
-                step_run.result = self._registry.invoke(
-                    step.tool,
-                    resolved_args,
-                    timeout_seconds=tool_timeout,
-                )
-                step_run.status = "COMPLETED"
-                step_run.finished_at = _utc_now()
-                step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
-                self._emit_step_event(run_id, step_run)
-                return
-            except ToolError as exc:
-                step_run.error = str(exc)
-                step_run.error_category = getattr(exc, "category", None) or failure_category(str(exc))
-                step_run.error_code = getattr(exc, "code", None)
-                step_run.retryable = getattr(exc, "retryable", None)
-                if exc.retryable is False or attempt > self._max_retries:
-                    step_run.status = "FAILED"
-                    step_run.finished_at = _utc_now()
-                    step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
-                    self._emit_step_event(run_id, step_run)
-                    raise
-        step_run.status = "FAILED"
-        step_run.finished_at = _utc_now()
-        step_run.latency_ms = round((perf_counter() - started) * 1000, 3)
-        self._emit_step_event(run_id, step_run)
+        hooks = _runtime_execution.StepExecutionHooks(
+            registry=self._registry,
+            max_retries=self._max_retries,
+            preflight=self._enforce_preflight_policy,
+            control_check=self._check_control,
+            emit_step=self._emit_step_event,
+            now=_utc_now,
+        )
+        return _runtime_execution.execute_step(
+            hooks,
+            run_id,
+            deadline,
+            step_run,
+            step,
+            completed,
+            completed_results,
+        )
 
     def _try_replan(
         self,
@@ -1896,12 +1857,12 @@ class AgentRuntime:
     def _block_remaining_steps(
         self, steps, start_index: int, failed_step_id: str, reason: str
     ) -> None:
-        for step in steps[start_index:]:
-            if step.status == "PENDING":
-                step.status = "BLOCKED"
-                step.error = "blocked by failed step {}: {}".format(
-                    failed_step_id, reason
-                )
+        return _runtime_execution.block_remaining_steps(
+            steps,
+            start_index,
+            failed_step_id,
+            reason,
+        )
 
 def _plan_to_dict(plan: TaskPlan) -> Dict[str, Any]:
     return _runtime_projection.plan_to_dict(plan)
