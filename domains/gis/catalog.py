@@ -5,7 +5,7 @@ through ``DomainPack`` and does not need to know these dataset names.
 """
 
 GIS_DATASET_TOOL_CAPABILITIES = {
-    "admin_areas": ["get_dataset_schema", "range_query"],
+    "admin_areas": ["get_dataset_schema", "range_query", "spatial_operation"],
     "dem": [
         "get_raster_metadata",
         "get_raster_statistics",
@@ -23,12 +23,14 @@ GIS_DATASET_TOOL_CAPABILITIES = {
         "range_query",
         "get_zonal_vector_summary",
         "spatial_join",
+        "spatial_operation",
     ],
     "water": [
         "get_dataset_schema",
         "range_query",
         "get_zonal_vector_summary",
         "spatial_join",
+        "spatial_operation",
     ],
 }
 
@@ -198,6 +200,10 @@ def _attach_request_hints(definitions):
             phrases=("空间关系", "空间连接", "相交查询", "附近要素"),
             tasks=("roads", "water"),
             constraints=("road_distance_max",),
+        ),
+        "vector_operation": _request_hints(
+            phrases=("裁剪", "空间相交", "几何相交", "叠加分析", "按范围截取"),
+            tasks=("roads", "water"),
         ),
         "legacy_road_slope": _request_hints(
             phrases=("道路邻近高坡度", "道路坡度关系"),
@@ -380,6 +386,16 @@ GIS_CAPABILITIES = _attach_request_hints((
         "result_types": ["spatial_relation_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "optional",
+    },
+    {
+        "id": "vector_operation",
+        "label": "通用矢量空间算子",
+        "datasets": ["admin_areas", "roads", "water"],
+        "tools": ["spatial_operation"],
+        "result_types": ["spatial_operation_result"],
+        "environments": ["local", "production"],
+        "demo_supported": True,
+        "geometry": "available_when_artifact_contains_features",
     },
     {
         "id": "legacy_road_slope",

@@ -2,6 +2,22 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## 通用空间算子未进入统一 ToolRegistry seam
+
+- **现象**：已有 `spatial_join` 能返回空间关系计数，建设筛选内部也有道路/水体几何约束，但开放式问题无法复用“裁剪”或“相交”这类几何操作；如果继续复制领域专用工具，Planner 和前端会被固定数据集绑定。
+- **根因**：后端缓存、CRS 处理和几何导出能力分散在多个 Adapter 中，没有一个可组合的输入/输出契约；内存后端又没有真实矢量几何，不能伪造成功结果。
+- **诊断**：从 ToolRegistry schema、SpatialToolAdapter、Hybrid/GeoPackage/GeoJSON 结果引用和 `data_profile` 一起检查；用配置数据集 ID 与已完成 `result_ref` 分别验证，确认 CRS、空/无效几何和 `max_features` 是否有界；不要只调用内部建设筛选函数。
+- **修复**：增加领域中立的 `spatial_operation`，第一阶段只允许 `clip`/`intersect`；真实文件 Adapter 共享同一深模块实现 CRS 对齐、几何清理、结果缓存和导出，Hybrid 支持跨来源；内存后端返回 `vector_geometry_unavailable` 的可恢复错误；GIS Catalog、workflow、Result Registry、view 和规则编排均只声明这一小接口。
+- **预防**：新增空间算子优先扩展操作枚举和稳定结果契约，不为区域或固定问句新增分支；输入只接受数据集 ID 或已注册结果引用，不接受原始 GeoJSON、文件路径或未注册数据；每个操作必须保留来源、CRS、预算、截断状态和 `vector` 数据形态，并通过 Registry、Docker 精简测试和显式真实 GIS 验收。
+
+## 历史回答文案断言没有随公共回答契约迁移
+
+- **现象**：M247 定向代码通过，但运行旧 `tests.test_m50_vector_workflow` 时，两个测试仍要求回答包含 `OpenStreetMap` 或“数据预检”；当前回答已经改为面向用户的短中文总结，因此出现失败。
+- **根因**：测试锁定了旧 Composer 的附加文案，而不是验证结构化结果、工具身份和用户语义；这与 M240/M241 的回答边界升级不一致。
+- **诊断**：比较失败断言和当前 `AnswerComposer` 输出，确认运行状态、工具结果和 Result Contract 均正常；不要为了兼容旧句式把内部来源或执行术语重新塞入用户回答。
+- **修复**：本阶段不回退生产回答，也不把该旧测试加入 M247 门禁；后续清理 M50 时，应改断言为结构化来源/结果字段和稳定用户语义，或删除重复的旧文案测试。
+- **预防**：回答测试只锁定公共语义和结构化证据，不锁定 Composer 的历史句式、内部引用或可选来源说明；每次 Answer Generation/Composer 变更都同步审计测试和 smoke。
+
 ## 新增结果字段只进入同步契约，异步和前端兼容层没有同步接入
 
 - **现象**：同步 HTTP 或 artifact 中已经有新的结构化结果字段，但异步轮询 evidence 或浏览器兼容层恢复旧形状，导致不同入口看不到同一结果分类。

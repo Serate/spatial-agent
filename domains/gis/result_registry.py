@@ -32,6 +32,7 @@ _TITLES = {
     "zonal_vector_result": "区域矢量摘要",
     "vector_result": "矢量结果",
     "spatial_relation_result": "空间关系",
+    "spatial_operation_result": "空间算子结果",
     "spatial_result": "空间结果",
 }
 
@@ -52,6 +53,7 @@ _PANELS = {
     "zonal_vector_result": ("vector",),
     "vector_result": ("vector",),
     "spatial_relation_result": ("vector",),
+    "spatial_operation_result": ("vector",),
     "spatial_result": ("vector",),
 }
 
@@ -72,6 +74,7 @@ _DATA_KINDS = {
     "zonal_vector_result": ("vector", "metrics"),
     "vector_result": ("vector",),
     "spatial_relation_result": ("vector", "metrics"),
+    "spatial_operation_result": ("vector", "metrics"),
     "spatial_result": ("vector",),
 }
 
@@ -82,6 +85,7 @@ _GEOMETRY_TYPES = {
     "admin_area_result",
     "zonal_raster_statistics_result",
     "raster_statistics_result",
+    "spatial_operation_result",
 }
 
 _VIEW_TITLES = {

@@ -53,6 +53,7 @@ class RuleBasedPlanComposer:
             "spatial_overview": self._build_overview,
             "legacy_road_slope": self._build_legacy_road_slope,
             "vector_relation": self._build_vector_relation,
+            "vector_operation": self._build_vector_operation,
             "vector_summary": self._build_zonal_vector,
             "vector_query": self._build_vector_query,
             "zonal_raster_statistics": self._build_zonal_raster,
@@ -335,6 +336,35 @@ class RuleBasedPlanComposer:
             PlanStep("schema-water", "get_dataset_schema", {"dataset": "water"}),
             PlanStep("near-water", "spatial_join", {"left_dataset": "roads", "right_dataset": "water", "relation": "near", "distance_m": distance}, ["schema-roads", "schema-water"]),
         ], {"type": "spatial_relation_result", "summary": True})
+
+    def _build_vector_operation(self, facts: PlanningFacts) -> TaskPlan:
+        parsed = facts.spatial
+        if not parsed.admin_name:
+            raise ClarificationNeeded("missing mask region, for example: clip roads to 洪山区")
+        input_dataset = next(
+            (item for item in ("roads", "water") if item in parsed.tasks),
+            None,
+        )
+        if input_dataset is None:
+            raise ClarificationNeeded("missing vector input, for example: roads or water")
+        operation = "intersect" if any(term in facts.request for term in ("相交", "叠加")) else "clip"
+        steps = self._admin_steps(parsed.admin_name)
+        steps.append(PlanStep(
+            "spatial-operation",
+            "spatial_operation",
+            {
+                "operation": operation,
+                "input_ref": input_dataset,
+                "mask_ref": {"$from": "filter-admin", "path": "result_ref"},
+                "max_features": 10000,
+            },
+            ["filter-admin"],
+        ))
+        return TaskPlan(
+            "apply a bounded vector geometry operation inside the requested region",
+            steps,
+            {"type": "spatial_operation_result", "summary": True},
+        )
 
     def _build_vector_query(self, facts: PlanningFacts) -> TaskPlan:
         dataset = "water" if "water" in facts.spatial.tasks else "roads"

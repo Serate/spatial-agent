@@ -27,6 +27,8 @@ class AnswerComposer:
             return self._compose_zonal_vector_result(result.steps)
         if output_type == "spatial_relation_result":
             return self._compose_spatial_relation_result(result.steps)
+        if output_type == "spatial_operation_result":
+            return self._compose_spatial_operation_result(result.steps)
         if output_type == "constrained_buildability_result":
             return self._compose_constrained_buildability_result(result.steps)
         if output_type == "dataset_health_result":
@@ -245,6 +247,22 @@ class AnswerComposer:
             "结果基于演示图层，不代表法定道路、水体边界或规划结论。"
         )
 
+    def _compose_spatial_operation_result(self, steps: Iterable[StepRun]) -> str:
+        result = _first_result(steps, "spatial_operation") or {}
+        if result.get("error"):
+            return f"空间几何处理没有完成：{_friendly_error(result['error'])}。"
+        operation = result.get("operation")
+        operation_label = {"clip": "裁剪", "intersect": "相交"}.get(str(operation), "空间处理")
+        input_label = _spatial_source_label(result.get("input_ref"))
+        mask_label = _spatial_source_label(result.get("mask_ref"))
+        summary = result.get("summary") or {}
+        truncated = bool(summary.get("truncated"))
+        note = "结果达到要素上限，地图和导出内容可能不完整。" if truncated else "空间结果已准备好，可在地图中查看。"
+        return (
+            f"已完成{operation_label}：将{input_label}按{mask_label}处理，"
+            f"得到约 {_fmt_count(result.get('count', 0))} 个空间要素。{note}"
+        )
+
     def _compose_constrained_buildability_result(self, steps: Iterable[StepRun]) -> str:
         health = _first_result(steps, "get_dataset_health_report") or {}
         result = _first_result(steps, "get_zonal_constrained_buildability_analysis") or {}
@@ -342,6 +360,20 @@ class AnswerComposer:
             parts.append(_zh("共涉及约 {counts} 条记录。").format(counts=", ".join(counts)))
         return "".join(parts)
 
+
+def _spatial_source_label(value: Any) -> str:
+    labels = {
+        "roads": "道路数据",
+        "water": "水体数据",
+        "admin_areas": "行政区范围",
+    }
+    text = str(value or "空间数据")
+    if text in labels:
+        return labels[text]
+    if "://" in text:
+        return "前一步空间结果"
+    return text[:80]
+
 def _fmt_count(value: Any) -> str:
     try:
         return f"{int(round(float(value))):,}"
@@ -382,6 +414,7 @@ def _friendly_error(error: Any) -> str:
     text = str(error or "未知错误")
     replacements = {
         "in-memory backend has no raster geometry": "当前后端没有可用的栅格空间信息",
+        "in-memory backend has no vector geometry": "当前后端没有可用的矢量几何",
         "in-memory backend has no DEM pixels": "当前后端没有可用的 DEM 像元",
         "rasterio is required for RasterMetadataBackend": "本地 GIS 环境缺少 rasterio 依赖",
     }

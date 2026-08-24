@@ -25,12 +25,13 @@
 - M242 已完成：将 GeoJSON 空间摘要默认上限从 100 KB 提升到 50 MiB，支持 `SPATIAL_AGENT_GEOJSON_MAX_BYTES` 配置并限制在 100 MiB 硬上限内；运行、重试、HTTP 和会话入口的默认要素数统一为 10,000。新增预算配置回归，Docker 定向 GeoJSON/结果契约 24/24 通过，compileall 通过。
 - M243 已完成：新增领域中立、版本化 `data_profile` 输出契约，支持 `unknown`、`text`、`vector`、`raster`、`metrics`、`timeseries`、`document_evidence` 和 `composite`；Result Registry 声明数据形态，公共 Result Envelope 统一输出和校验，GIS 与 Text Domain 已接入。重建 Docker 后 M243 + M46 定向契约 18/18 通过，compileall 通过；M122 中两个旧 HTML 实现断言仍是后续前端契约清理项，不影响本阶段生产代码。
 - M245 已完成：将 `data_profile` 传播到 async result evidence 和 Console nested-schema，旧异步/前端载荷安全回退为 `unknown`；artifact 恢复继续使用同一嵌套 Result。重建 Docker 后 M245 + M243 + M46 Python 回归 20/20、Node nested-schema smoke 和 compileall 通过。
+- M247 已完成：新增领域中立的 `spatial_operation` 工具 seam，支持 `clip`/`intersect`；输入可为配置矢量数据集或前一步 `result_ref`，Hybrid 后端支持行政区 GeoJSON 与 GeoPackage 矢量跨来源处理，统一完成 CRS 对齐、无效/空几何过滤、要素预算、缓存与 GeoJSON 导出；结果声明 `vector` 数据形态并提供结构化 view。新增规则编排与 M247 精简回归，Docker compileall、M247/M3 定向测试、quick 和 stage 全部通过；M50 中两个旧用户回答文案断言仍需后续清理，不影响本阶段。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243 输出数据形态契约和 M245 跨入口传播均已闭环；最终答案现在可由真实模型自然表达，空间结果在本地验收中可保留更完整的 GeoJSON。下一阶段应基于全局目标推进通用空间算子，并验证前端按 `data_profile` 选择通用 renderer；经济仅作为未来多领域地理问题的验证样例，不把 RAG 或行业流程知识纳入当前阶段。
+当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播和 M247 首个通用空间算子均已闭环；最终答案现在可由真实模型自然表达，空间结果在本地验收中可保留更完整的 GeoJSON。下一阶段为 M248：在同一 `spatial_operation` seam 中补充 `buffer`/`distance` 或最近要素能力，并用真实矢量数据验证组合编排；随后从全局目标评估 Planner 对开放式、多数据形态问题的动态选择。经济仅作为未来多领域地理问题的验证样例，不把 RAG 或行业流程知识纳入当前阶段。
 
 ## 不变量
 

@@ -33,6 +33,7 @@ SIGNAL_TERMS: Mapping[str, Tuple[str, ...]] = {
     "composition": ("综合", "同时", "分别", "汇总", "全面", "整体", "并"),
     "overview": ("空间概况", "空间总览", "整体空间分析", "综合空间概览", "全面分析"),
     "relation": ("距离", "附近", "以内", "邻近", "周边"),
+    "operation": ("裁剪", "空间相交", "几何相交", "叠加分析", "按范围截取"),
 }
 
 RASTER_TASKS = ("elevation", "slope", "land_use")
@@ -112,6 +113,7 @@ DEFAULT_ROUTES: Tuple[CapabilityRoute, ...] = (
     ),
     CapabilityRoute("spatial_overview", 60, required_entity="admin_name", all_signals=("overview",)),
     CapabilityRoute("legacy_road_slope", 65, all_tasks=("roads", "slope"), all_constraints=("slope_value",), any_signals=("relation",)),
+    CapabilityRoute("vector_operation", 75, any_signals=("operation",)),
     CapabilityRoute("vector_relation", 80, all_tasks=VECTOR_TASKS, any_signals=("relation",)),
     CapabilityRoute("vector_summary", 90, required_entity="admin_name", any_tasks=VECTOR_TASKS, no_signals=("relation",)),
     CapabilityRoute("vector_query", 100, any_tasks=VECTOR_TASKS, no_tasks=("slope",), no_signals=("relation",)),

@@ -131,6 +131,56 @@
       }
     },
     {
+      "name": "spatial_operation",
+      "description": "Apply a bounded vector geometry operation to a configured dataset or a previous vector result.",
+      "side_effect": "none",
+      "requires_approval": false,
+      "timeout_seconds": 60,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["$input_ref", "$mask_ref"],
+      "input_schema": {
+        "type": "object",
+        "required": ["operation", "input_ref", "mask_ref"],
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": ["clip", "intersect"]
+          },
+          "input_ref": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Configured vector dataset ID or a previous result_ref."
+          },
+          "mask_ref": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Configured vector dataset ID or a previous result_ref."
+          },
+          "max_features": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["result_ref", "operation", "input_ref", "mask_ref", "count", "crs"],
+        "properties": {
+          "result_ref": {"type": "string"},
+          "operation": {"type": "string", "enum": ["clip", "intersect"]},
+          "input_ref": {"type": "string"},
+          "mask_ref": {"type": "string"},
+          "count": {"type": "integer"},
+          "crs": {"type": ["string", "null"]},
+          "data_profile": {"type": "object"},
+          "summary": {"type": "object"},
+          "metrics": {"type": "object"}
+        }
+      }
+    },
+    {
       "name": "get_raster_metadata",
       "description": "Return lightweight metadata for an allowed raster dataset without reading raster arrays.",
       "side_effect": "none",

@@ -54,6 +54,7 @@ def build_views(
             "zonal_vector_result",
             "vector_result",
             "spatial_relation_result",
+            "spatial_operation_result",
             "spatial_result",
         }
     ):
@@ -456,6 +457,7 @@ def _buildability_view(steps: List[Any]) -> Dict[str, Any] | None:
 def _vector_view(steps: List[Any]) -> Dict[str, Any] | None:
     for tool, builder in (
         ("get_zonal_vector_summary", _zonal_vector_summary_view),
+        ("spatial_operation", _spatial_operation_view),
         ("spatial_join", _spatial_relation_view),
         ("range_query", _vector_query_view),
     ):
@@ -546,6 +548,34 @@ def _spatial_relation_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict
         ],
         "rows": [row for row in rows if row.get("value") != "-"][:8],
         "note": "空间关系结果展示有界摘要；详细要素应通过结果引用导出。"[:320],
+    }
+
+
+def _spatial_operation_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    args = step.get("args") if isinstance(step.get("args"), dict) else {}
+    metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
+    summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
+    operation = _first_present(result.get("operation"), args.get("operation"))
+    operation_label = {"clip": "裁剪", "intersect": "相交"}.get(str(operation), operation)
+    rows = [
+        _view_row("输入", _first_present(result.get("input_ref"), args.get("input_ref"))),
+        _view_row("掩膜", _first_present(result.get("mask_ref"), args.get("mask_ref"))),
+        _view_row("结果引用", result.get("result_ref")),
+        _view_row("CRS", _first_present(result.get("crs"), summary.get("crs"))),
+    ]
+    return {
+        "kind": "spatial_operation",
+        "source_step_id": step.get("id"),
+        "source_tool": step.get("tool"),
+        "title": "空间算子结果",
+        "metrics": [
+            _view_metric("操作", operation_label),
+            _view_metric("返回要素", _first_present(result.get("count"), summary.get("returned_features"))),
+            _view_metric("相交要素", summary.get("intersecting_features")),
+            _view_metric("是否截断", _first_present(summary.get("truncated"), metrics.get("truncated"))),
+        ],
+        "rows": [row for row in rows if row.get("value") != "-"][:8],
+        "note": "结果由已注册的空间算子生成；详细几何通过地图或 artifact 查看。"[:320],
     }
 
 

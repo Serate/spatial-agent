@@ -1,8 +1,9 @@
 import json
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Mapping, Optional, Protocol
 
 from .dataset_catalog import DatasetCatalog
+from .data_kinds import build_data_profile
 from .data_quality import dataset_health_report
 from .errors import ToolError
 from .raster_backend import RasterMetadataBackend
@@ -46,6 +47,15 @@ class SpatialBackend(Protocol):
         right_dataset: str,
         relation: str,
         distance_m: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        ...
+
+    def spatial_operation(
+        self,
+        operation: str,
+        input_ref: str,
+        mask_ref: str,
+        max_features: int = 10000,
     ) -> Dict[str, Any]:
         ...
 
@@ -211,6 +221,21 @@ class InMemorySpatialBackend:
                 "estimated_pairs": count,
             },
         }
+
+    def spatial_operation(
+        self,
+        operation: str,
+        input_ref: str,
+        mask_ref: str,
+        max_features: int = 10000,
+    ) -> Dict[str, Any]:
+        del operation, input_ref, mask_ref, max_features
+        raise ToolError(
+            "in-memory backend has no vector geometry for spatial_operation",
+            category="data",
+            code="vector_geometry_unavailable",
+            retryable=True,
+        )
 
     def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
         if dataset not in ("dem", "land_use"):
@@ -566,6 +591,37 @@ class GeoPackageBackend:
             },
         }
 
+    def spatial_operation(
+        self,
+        operation: str,
+        input_ref: str,
+        mask_ref: str,
+        max_features: int = 10000,
+    ) -> Dict[str, Any]:
+        if operation not in {"clip", "intersect"}:
+            raise ToolError("unsupported spatial operation: " + str(operation))
+        if not self.supports(input_ref) and input_ref not in self._result_cache:
+            raise ToolError("unknown vector input_ref: " + str(input_ref))
+        if not self.supports(mask_ref) and mask_ref not in self._result_cache:
+            raise ToolError("unknown vector mask_ref: " + str(mask_ref))
+        left = self._vector_source(input_ref)
+        mask = self._vector_source(mask_ref)
+        output, summary = _perform_spatial_operation(
+            operation, left, mask, max_features=max_features
+        )
+        self._result_number += 1
+        result_ref = f"gpkg://operation/{operation}/{self._result_number}"
+        self._result_cache[result_ref] = output
+        return _spatial_operation_result(
+            result_ref=result_ref,
+            operation=operation,
+            input_ref=input_ref,
+            mask_ref=mask_ref,
+            output=output,
+            summary=summary,
+            backend="geopackage",
+        )
+
     def get_zonal_vector_summary(
         self,
         dataset: str,
@@ -714,6 +770,13 @@ class GeoPackageBackend:
                 raise ToolError("geopandas is required for GeoPackageBackend") from exc
         return self._cache[dataset]
 
+    def _vector_source(self, source_ref: str):
+        if source_ref in self._result_cache:
+            return self._result_cache[source_ref].copy()
+        if source_ref in self._entries:
+            return self._load(source_ref).copy()
+        raise ToolError("vector result_ref is not available: " + str(source_ref))
+
 
 class HybridSpatialBackend:
     """Routes real datasets to file-backed backends and falls back to memory."""
@@ -724,6 +787,8 @@ class HybridSpatialBackend:
         self._admin = GeoJSONAdminBackend(catalog)
         self._vectors = GeoPackageBackend(catalog)
         self._raster = RasterMetadataBackend(catalog)
+        self._operation_cache = {}
+        self._operation_number = 0
 
     def get_dataset_schema(self, dataset: str) -> Dict[str, Any]:
         if dataset == "admin_areas":
@@ -758,6 +823,33 @@ class HybridSpatialBackend:
         if self._vectors.supports(left_dataset) and self._vectors.supports(right_dataset):
             return self._vectors.spatial_join(left_dataset, right_dataset, relation, distance_m)
         return self._fallback.spatial_join(left_dataset, right_dataset, relation, distance_m)
+
+    def spatial_operation(
+        self,
+        operation: str,
+        input_ref: str,
+        mask_ref: str,
+        max_features: int = 10000,
+    ) -> Dict[str, Any]:
+        if operation not in {"clip", "intersect"}:
+            raise ToolError("unsupported spatial operation: " + str(operation))
+        left = self._materialize_vector_source(input_ref, max_features=max_features)
+        mask = self._materialize_vector_source(mask_ref, max_features=max_features)
+        output, summary = _perform_spatial_operation(
+            operation, left, mask, max_features=max_features
+        )
+        self._operation_number += 1
+        result_ref = f"spatial://operation/{operation}/{self._operation_number}"
+        self._operation_cache[result_ref] = output
+        return _spatial_operation_result(
+            result_ref=result_ref,
+            operation=operation,
+            input_ref=input_ref,
+            mask_ref=mask_ref,
+            output=output,
+            summary=summary,
+            backend="hybrid",
+        )
 
     def get_raster_metadata(self, dataset: str, max_files: int = 3) -> Dict[str, Any]:
         if dataset in ("dem", "land_use"):
@@ -853,7 +945,163 @@ class HybridSpatialBackend:
             return self._raster.export_result(result_ref, max_features=max_features)
         if result_ref.startswith("gpkg://"):
             return self._vectors.export_result(result_ref, max_features=max_features)
+        if result_ref in self._operation_cache:
+            selected = self._operation_cache[result_ref].head(max_features)
+            features = []
+            for _, row in selected.iterrows():
+                properties = {
+                    str(column): str(row[column])
+                    for column in selected.columns
+                    if column != "geometry" and row[column] is not None
+                }
+                features.append({
+                    "type": "Feature",
+                    "geometry": row.geometry.__geo_interface__ if row.geometry is not None else None,
+                    "properties": properties,
+                })
+            from .geometry_export import normalize_feature_collection
+
+            return normalize_feature_collection({
+                "type": "FeatureCollection",
+                "features": features,
+                "geometry_source": "spatial_operation",
+                "crs": {"type": "name", "properties": {"name": str(selected.crs)}}
+                if selected.crs
+                else None,
+            })
         return self._fallback.export_result(result_ref, max_features=max_features)
+
+    def _materialize_vector_source(self, source_ref: str, *, max_features: int):
+        import geopandas as gpd
+
+        if source_ref == "admin_areas":
+            return self._admin._load().copy()
+        if self._vectors.supports(source_ref):
+            return self._vectors._load(source_ref).copy()
+        if source_ref.startswith(("geojson://", "gpkg://", "raster://", "spatial://")):
+            collection = self.export_result(source_ref, max_features=max_features)
+            features = collection.get("features") if isinstance(collection, dict) else None
+            if not isinstance(features, list) or not features:
+                raise ToolError("vector result_ref contains no geometry: " + source_ref)
+            crs = _collection_crs(collection) or "EPSG:4326"
+            return gpd.GeoDataFrame.from_features(features, crs=crs)
+        raise ToolError(
+            "spatial_operation source must be a configured vector dataset or result_ref: "
+            + str(source_ref)
+        )
+
+
+def _perform_spatial_operation(
+    operation: str,
+    input_frame: Any,
+    mask_frame: Any,
+    *,
+    max_features: int,
+) -> tuple[Any, Dict[str, Any]]:
+    """Apply a bounded geometry operation behind the backend seam.
+
+    Both file-backed adapters use this implementation so CRS handling,
+    geometry validity filtering, and result budgets do not drift between
+    direct GeoPackage calls and the Hybrid backend's cross-source calls.
+    """
+    if operation not in {"clip", "intersect"}:
+        raise ToolError("unsupported spatial operation: " + str(operation))
+    if not isinstance(max_features, int) or isinstance(max_features, bool) or max_features < 1:
+        raise ToolError("max_features must be a positive integer")
+    if input_frame is None or mask_frame is None:
+        raise ToolError("spatial_operation requires input and mask geometry")
+    if getattr(input_frame, "crs", None) is None:
+        raise ToolError("spatial_operation input geometry has no CRS")
+    if getattr(mask_frame, "crs", None) is None:
+        raise ToolError("spatial_operation mask geometry has no CRS")
+
+    input_frame = input_frame.copy()
+    mask_frame = mask_frame.copy()
+    input_frame = _clean_vector_geometries(input_frame)
+    mask_frame = _clean_vector_geometries(mask_frame)
+    if input_frame.empty or mask_frame.empty:
+        raise ToolError("spatial_operation requires non-empty geometry")
+    if str(input_frame.crs) != str(mask_frame.crs):
+        mask_frame = mask_frame.to_crs(input_frame.crs)
+
+    union_all = getattr(mask_frame.geometry, "union_all", None)
+    mask_geometry = union_all() if callable(union_all) else mask_frame.geometry.unary_union
+    if mask_geometry is None or mask_geometry.is_empty:
+        raise ToolError("spatial_operation mask geometry is empty")
+    intersecting = input_frame[input_frame.geometry.intersects(mask_geometry)].copy()
+    intersecting_count = int(len(intersecting))
+    if intersecting.empty:
+        output = intersecting
+    elif operation == "clip":
+        output = intersecting
+        output["geometry"] = output.geometry.intersection(mask_geometry)
+    else:
+        import geopandas as gpd
+
+        # Overlay keeps attributes from both sources and is the useful
+        # distinction from clip for downstream multi-source analysis.
+        output = gpd.overlay(
+            intersecting,
+            mask_frame,
+            how="intersection",
+            keep_geom_type=False,
+        )
+    output = _clean_vector_geometries(output)
+    truncated = len(output) > max_features
+    output = output.head(max_features).copy()
+    return output, {
+        "input_features": int(len(input_frame)),
+        "mask_features": int(len(mask_frame)),
+        "intersecting_features": intersecting_count,
+        "returned_features": int(len(output)),
+        "max_features": int(max_features),
+        "truncated": bool(truncated),
+        "crs": str(output.crs or input_frame.crs),
+    }
+
+
+def _clean_vector_geometries(frame: Any):
+    """Drop null/empty geometries and repair invalid shapes when possible."""
+    frame = frame[frame.geometry.notna()].copy()
+    frame = frame[~frame.geometry.is_empty].copy()
+    if frame.empty:
+        return frame
+    try:
+        from shapely import make_valid
+    except ImportError:
+        make_valid = None
+    invalid = ~frame.geometry.is_valid
+    if invalid.any() and make_valid is not None:
+        frame.loc[invalid, "geometry"] = frame.loc[invalid, "geometry"].map(make_valid)
+    return frame[frame.geometry.notna() & ~frame.geometry.is_empty].copy()
+
+
+def _spatial_operation_result(
+    *,
+    result_ref: str,
+    operation: str,
+    input_ref: str,
+    mask_ref: str,
+    output: Any,
+    summary: Mapping[str, Any],
+    backend: str,
+) -> Dict[str, Any]:
+    return {
+        "result_ref": result_ref,
+        "operation": operation,
+        "input_ref": input_ref,
+        "mask_ref": mask_ref,
+        "count": int(len(output)),
+        "crs": str(output.crs) if getattr(output, "crs", None) else None,
+        "data_profile": build_data_profile(("vector",)),
+        "summary": dict(summary),
+        "metrics": {
+            "backend": backend,
+            "returned_features": int(len(output)),
+            "max_features": int(summary.get("max_features") or 0),
+            "truncated": bool(summary.get("truncated")),
+        },
+    }
 
 
 def _apply_condition(gdf, condition: Dict[str, Any]):
@@ -949,6 +1197,13 @@ class SpatialToolAdapter:
                 right_dataset=arguments["right_dataset"],
                 relation=arguments["relation"],
                 distance_m=arguments.get("distance_m"),
+            )
+        if name == "spatial_operation":
+            return self._backend.spatial_operation(
+                operation=arguments["operation"],
+                input_ref=arguments["input_ref"],
+                mask_ref=arguments["mask_ref"],
+                max_features=arguments.get("max_features", 10000),
             )
         if name == "get_raster_metadata":
             return self._backend.get_raster_metadata(
