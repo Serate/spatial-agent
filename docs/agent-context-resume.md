@@ -27,12 +27,13 @@
 - M245 已完成：将 `data_profile` 传播到 async result evidence 和 Console nested-schema，旧异步/前端载荷安全回退为 `unknown`；artifact 恢复继续使用同一嵌套 Result。重建 Docker 后 M245 + M243 + M46 Python 回归 20/20、Node nested-schema smoke 和 compileall 通过。
 - M247 已完成：新增领域中立的 `spatial_operation` 工具 seam，支持 `clip`/`intersect`；输入可为配置矢量数据集或前一步 `result_ref`，Hybrid 后端支持行政区 GeoJSON 与 GeoPackage 矢量跨来源处理，统一完成 CRS 对齐、无效/空几何过滤、要素预算、缓存与 GeoJSON 导出；结果声明 `vector` 数据形态并提供结构化 view。新增规则编排与 M247 精简回归，Docker compileall、M247/M3 定向测试、quick 和 stage 全部通过；M50 中两个旧用户回答文案断言仍需后续清理，不影响本阶段。
 - M248 已完成：沿用同一 `spatial_operation` seam 增加 `buffer` 与 `distance`；buffer 在米制 CRS 中生成并按 mask 限制范围，distance 为输入要素附加最近距离并支持阈值筛选，均保留原始 CRS、来源、预算、缓存、GeoJSON 导出和 `vector` 数据形态。新增 `vector_measurement` workflow/capability，删除 Rule Planner 对 KNN/最近问题的旧硬拒绝；Docker compileall、5 个 M248 定向用例、quick 和 stage 通过。
+- M249 已完成：对“裁剪洪山区道路”做开放式 Planner context 验收，确认选中的 capability、workflow、`spatial_operation` schema 和 `spatial_operation_result` 会一起进入 LLM Planner；脱敏 fake LLM 仍通过标准 `LLMPlanner → TaskPlan` 解析，不增加 GIS 专用 prompt 分支。Docker compileall、M249+M229 context 回归 3/3、quick 和 stage 通过。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播和 M247/M248 通用空间算子均已闭环；最终答案现在可由真实模型自然表达，空间结果在本地验收中可保留更完整的 GeoJSON。下一阶段为 M249：从项目整体补齐“能力发现 → 多数据形态选择 → 结果组合”的开放式编排验收，重点验证 LLM Planner 能否选择已有通用工具并在数据缺失时澄清，而不是继续增加 GIS 专用分支；随后再评估真实数据目录扩展。经济仅作为未来多领域地理问题的验证样例，不把 RAG 或行业流程知识纳入当前阶段。
+当前 Goal 的 Runtime 验收标准、M233 控制台会话/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子和 M249 开放式 Planner context 验收均已闭环；最终答案现在可由真实模型自然表达，空间结果在本地验收中可保留更完整的 GeoJSON。下一阶段为 M250：进行真实模型 + 真实本地 GIS 数据的开放式空间算子验收，确认模型选择已注册能力、后端执行真实几何、结果/证据/artifact/前端保持一致；数据卷不可用时只保留可恢复降级证据。随后从全局目标评估跨数据形态组合，而不是继续增加固定问句分支。经济仅作为未来多领域地理问题的验证样例，不把 RAG 或行业流程知识纳入当前阶段。
 
 ## 不变量
 

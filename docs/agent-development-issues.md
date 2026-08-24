@@ -34,6 +34,14 @@
 - **修复**：保持一个底层 `spatial_operation` 工具 seam，但拆成两个清晰的 Domain workflow：几何裁剪/相交与距离/缓冲各自声明操作枚举和必需约束；实际算法仍共享同一后端实现。
 - **预防**：工具数量可以少，但操作特定约束必须在 schema/workflow 中显式表达；只有真正共享输入、输出和失败语义的能力才共用工具，不能为减少模板数量牺牲可校验性。
 
+## 开放式 Planner 验收只看工具列表会漏掉能力选择上下文
+
+- **现象**：仅验证 `LLMPlanner` 的注册工具列表，无法证明模型看到了当前选中的 capability、workflow 和结果类型；新通用工具可能在列表中存在，却没有足够元数据指导模型组合。
+- **根因**：LLM Planner 的上下文由 Runtime 先投影，工具 schema、能力目录和 workflow selection 是不同 section；只测试模型返回一个合法 TaskPlan，不能证明这些 section 已进入 prompt。
+- **诊断**：用一个不依赖网络的 fake LLM 构造真实 Runtime context packet，检查 selected capability/workflow ID，再检查传给 LLM 的有界消息是否包含工具名和 result type；不要读取或保存模型原文、密钥或真实请求数据。
+- **修复**：新增 M249 context 验收，验证选中的 `vector_operation`、`spatial_operation` schema 和 `spatial_operation_result` 同时进入标准 LLM Planner；现有运行时已具备 selected-capability 过滤，不盲目扩大所有目录的 token 投影。
+- **预防**：每个新能力都要增加一条“选中能力 → Planner context → TaskPlan”契约测试；真实模型调用只作为显式 live 验收，默认 CI 使用脱敏 fake/replay，防止 token 消耗和外部网络成为日常门禁。
+
 ## 新增结果字段只进入同步契约，异步和前端兼容层没有同步接入
 
 - **现象**：同步 HTTP 或 artifact 中已经有新的结构化结果字段，但异步轮询 evidence 或浏览器兼容层恢复旧形状，导致不同入口看不到同一结果分类。
