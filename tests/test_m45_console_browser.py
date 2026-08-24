@@ -68,6 +68,19 @@ class M45ConsoleBrowserSmokeTests(unittest.TestCase):
         self.assertIn("localDraftSessionIds", self.source)
         self.assertIn("$('newSession').disabled=false", self.source)
 
+    def test_new_session_button_click_uses_default_arguments(self):
+        script = (ROOT / "scripts" / "console_new_session_click_smoke.js").read_text(
+            encoding="utf-8"
+        )
+        for marker in (
+            "$('newSession').click()",
+            "下拉选项或当前选择未变化",
+            "nativeFetch('/domains/'",
+        ):
+            self.assertIn(marker, script)
+        self.assertIn("$('newSession').addEventListener('click',()=>newSession())", self.source)
+        self.assertIn("sessionCatalogGeneration", self.source)
+
 
 if __name__ == "__main__":
     unittest.main()

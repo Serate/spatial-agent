@@ -31,6 +31,7 @@ const command = (method, params = {}) => new Promise((resolve, reject) => {
 await new Promise(resolve => { socket.onopen = resolve; });
 await command("Page.enable");
 await command("Runtime.enable");
+await command("Emulation.setDeviceMetricsOverride", {width: 1440, height: 900, deviceScaleFactor: 1, mobile: false});
 await command("Page.navigate", {url: consoleUrl});
 for (let attempt = 0; attempt < 80; attempt++) {
   const ready = await command("Runtime.evaluate", {

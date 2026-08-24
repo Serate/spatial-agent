@@ -1397,6 +1397,7 @@
     const sessionDomains = new Map();
     const localDraftSessionIds = new Set();
     const domainRoutingRequests = new Map();
+    let sessionCatalogGeneration = 0;
     const nativeFetch = window.fetch.bind(window);
     const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
     function selectedDomainModeId() { return $('domain').value||LEGACY_DOMAIN_VALUE; }
@@ -1507,19 +1508,21 @@
     function selectedConversationLabel() { return $('session').selectedOptions[0]?.textContent || '对话1'; }
     function addConversationOption(session,domainId=currentDomainId()) { if(!session?.session_id) return; sessionDomains.set(String(session.session_id),domainId); let option=[...$('session').options].find(item=>item.value===session.session_id); if(!option){ option=document.createElement('option'); option.value=session.session_id; $('session').appendChild(option); } option.dataset.domainId=domainId; option.textContent=session.display_name||'对话'+($('session').options.length); }
     async function loadSessions(domainId=currentDomainId()) {
+      const catalogGeneration=sessionCatalogGeneration;
       $('session').innerHTML='';
       try {
         const response=await nativeFetch(domainPath('/sessions?limit=50',domainId));
         const data=await response.json().catch(()=>({}));
         if(!response.ok) throw new Error(responseError(data,'会话目录不可用'));
-        if(domainId!==currentDomainId()) return;
+        if(domainId!==currentDomainId()||catalogGeneration!==sessionCatalogGeneration) return;
         (data.sessions||[]).forEach(session=>addConversationOption(session,domainId));
       } catch(error) {
-        if(domainId!==currentDomainId()) return;
+        if(domainId!==currentDomainId()||catalogGeneration!==sessionCatalogGeneration) return;
         appendMessage('system','当前领域的会话目录暂不可用，将使用本地临时会话。');
       }
-      if(domainId!==currentDomainId()) return;
+      if(domainId!==currentDomainId()||catalogGeneration!==sessionCatalogGeneration) return;
       if(!$('session').options.length) await newSession(domainId,false);
+      if(domainId!==currentDomainId()||catalogGeneration!==sessionCatalogGeneration) return;
       $('chatMeta').textContent='当前对话：'+selectedConversationLabel();
     }
     async function loadDomains() {
@@ -1550,6 +1553,7 @@
     async function reloadDomainContext() {
       const domainId=currentDomainId();
       const generation=++domainGeneration;
+      sessionCatalogGeneration++;
       conversationGeneration++;
       window.__consoleDomainReady=false;
       $('send').disabled=true;
@@ -1765,57 +1769,65 @@
       const button=$('clearAllSessions');
       if(button) button.disabled=true;
       conversationGeneration++;
+      sessionCatalogGeneration++;
       const failures=[];
       let deleted=0;
       const domains=clearAllDomainIds(options);
-      try {
-        if(options.includePersisted!==false) {
-          for(const domainId of domains) {
-            try {
-              const listResponse=await nativeFetch(domainPath('/sessions?limit=200',domainId));
-              const listData=await listResponse.json().catch(()=>({}));
-              if(!listResponse.ok) throw new Error(responseError(listData,'读取会话目录失败（HTTP '+listResponse.status+'）'));
-              for(const session of (listData.sessions||[])) {
-                const sessionId=String(session?.session_id||'');
-                if(!sessionId) continue;
-                const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(sessionId),domainId),{method:'DELETE'});
-                const data=await response.json().catch(()=>({}));
-                if(!response.ok) throw new Error(responseError(data,'删除会话失败（HTTP '+response.status+'）'));
-                deleted++;
-              }
-            } catch(error) { failures.push((selectedDomainContextLabel(domainId)||domainId)+'：'+error.message); }
-          }
+      const targets=[];
+      if(options.includePersisted!==false) {
+        for(const domainId of domains) {
+          try {
+            const listResponse=await nativeFetch(domainPath('/sessions?limit=200',domainId));
+            const listData=await listResponse.json().catch(()=>({}));
+            if(!listResponse.ok) throw new Error(responseError(listData,'读取会话目录失败（HTTP '+listResponse.status+'）'));
+            (listData.sessions||[]).forEach(session=>{ const sessionId=String(session?.session_id||''); if(sessionId) targets.push({domainId,sessionId}); });
+          } catch(error) { failures.push((selectedDomainContextLabel(domainId)||domainId)+'：'+error.message); }
         }
-        if(options.includeRouting!==false) {
-          for(const sessionId of [...localDraftSessionIds]) {
-            try {
-              const response=await nativeFetch('/domain-routing/sessions/'+encodeURIComponent(sessionId)+'/clear',{method:'POST'});
-              if(!response.ok) throw new Error('清理路由草稿失败（HTTP '+response.status+'）');
-            } catch(error) { failures.push('路由草稿 '+sessionId+'：'+error.message); }
-          }
+      }
+      const routingTargets=options.includeRouting===false?[]:[...localDraftSessionIds];
+      sessionDomains.clear();
+      runDomains.clear();
+      actionDomains.clear();
+      decisionDomains.clear();
+      domainRoutingRequests.clear();
+      localDraftSessionIds.clear();
+      autoDraftSessionId='';
+      autoDomainBinding=null;
+      persistAutoDomainBinding();
+      $('session').innerHTML='';
+      resetConversationView();
+      if(usesAutoRouting()) await newSession(AUTO_DOMAIN_VALUE,false);
+      else await newSession(currentDomainId(),false);
+      $('chatMeta').textContent='当前对话：'+selectedConversationLabel();
+      $('subtitle').textContent='正在清理旧对话，当前空白会话已可继续使用。';
+      welcome();
+      $('prompt').focus();
+      try {
+        for(const target of targets) {
+          try {
+            const response=await nativeFetch(domainPath('/sessions/'+encodeURIComponent(target.sessionId),target.domainId),{method:'DELETE'});
+            const data=await response.json().catch(()=>({}));
+            if(!response.ok) throw new Error(responseError(data,'删除会话失败（HTTP '+response.status+'）'));
+            deleted++;
+          } catch(error) { failures.push((selectedDomainContextLabel(target.domainId)||target.domainId)+' / '+target.sessionId+'：'+error.message); }
+        }
+        for(const sessionId of routingTargets) {
+          try {
+            const response=await nativeFetch('/domain-routing/sessions/'+encodeURIComponent(sessionId)+'/clear',{method:'POST'});
+            if(!response.ok) throw new Error('清理路由草稿失败（HTTP '+response.status+'）');
+          } catch(error) { failures.push('路由草稿 '+sessionId+'：'+error.message); }
         }
       } finally {
-        sessionDomains.clear();
-        runDomains.clear();
-        actionDomains.clear();
-        decisionDomains.clear();
-        domainRoutingRequests.clear();
-        localDraftSessionIds.clear();
-        autoDraftSessionId='';
-        autoDomainBinding=null;
-        persistAutoDomainBinding();
-        $('session').innerHTML='';
-        resetConversationView();
-        if(usesAutoRouting()) await newSession(AUTO_DOMAIN_VALUE,false);
-        else await newSession(currentDomainId(),false);
-        $('chatMeta').textContent='当前对话：'+selectedConversationLabel();
-        welcome();
-        $('prompt').focus();
         if(button) button.disabled=false;
       }
       const result={deleted,failures,remaining:$('session').options.length};
-      if(failures.length) $('error').innerHTML='<div class="error">已清理 '+deleted+' 个对话，但有 '+failures.length+' 项未完成：'+escapeHtml(failures.join('；'))+'</div>';
-      else appendMessage('system','已清空全部对话，已为你准备一个新的空白对话。');
+      if(failures.length) {
+        $('subtitle').textContent='部分旧对话清理失败，但当前空白会话仍可继续使用。';
+        $('error').innerHTML='<div class="error">已清理 '+deleted+' 个对话，但有 '+failures.length+' 项未完成：'+escapeHtml(failures.join('；'))+'</div>';
+      } else {
+        $('subtitle').textContent='旧对话已清理，可以继续提出新的问题。';
+        appendMessage('system','已清空全部对话，已为你准备一个新的空白对话。');
+      }
       return result;
     }
     function metrics(data) { const m=data.planner_metrics||{}; const items=[['模型',m.model||'-'],['接口协议',m.wire_api||'-'],['规划耗时',m.latency_ms ? m.latency_ms+' 毫秒':'-']]; const usage=m.usage||{}; if(usage.total_tokens!==undefined) items.push(['令牌用量',usage.total_tokens]); $('metrics').innerHTML=items.map(x=>'<div class="metric"><b>'+escapeHtml(x[1])+'</b><small>'+escapeHtml(x[0])+'</small></div>').join(''); }
@@ -2160,7 +2172,7 @@
       restoreSession(currentDomainId());
     });
     $('domain').addEventListener('change',()=>{ const nextMode=selectedDomainModeId(); autoDraftSessionId=''; domainRoutingRequests.clear(); if(nextMode===AUTO_DOMAIN_VALUE){ const available=new Set((domainCatalog.domains||[]).map(item=>String(item.id))); const sessionId=$('session').value,domainId=sessionDomains.get(sessionId); autoDomainBinding=preferredAutoDomainBinding(available)||(domainId?{domain_id:domainId,session_id:sessionId}:null); } else autoDomainBinding=null; persistAutoDomainBinding(); resetConversationView(); persistSelectedDomain(); reloadDomainContext(); });
-    $('newSession').addEventListener('click',newSession);
+    $('newSession').addEventListener('click',()=>newSession());
     $('deleteSession').addEventListener('click',deleteConversation);
     $('clearAllSessions').addEventListener('click',()=>clearAllSessions());
     $('refreshHistory').addEventListener('click',()=>{ if(!usesAutoRouting()||autoDomainBinding) loadHistory(currentDomainId()); });
