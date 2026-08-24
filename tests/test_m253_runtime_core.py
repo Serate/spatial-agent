@@ -1,12 +1,15 @@
 import unittest
 
 from agent.models import PlanStep, TaskPlan
+from agent.context_engineering import ContextPacket
+from agent.errors import ClarificationNeeded, ToolError
 from agent.runtime import _resolve_result_references
 from agent.runtime_core.projection import (
     compact_workflow_templates,
     plan_dag,
     plan_to_dict,
 )
+from agent.runtime_core.planning import invoke_planner, validate_plan
 
 
 class M253RuntimeCoreProjectionTests(unittest.TestCase):
@@ -47,6 +50,40 @@ class M253RuntimeCoreProjectionTests(unittest.TestCase):
             ),
             {"value": "ok"},
         )
+
+    def test_planner_seam_supports_legacy_and_context_aware_planners(self):
+        plan = TaskPlan("目标", [PlanStep("one", "inspect", {})])
+
+        class LegacyPlanner:
+            def plan(self, request):
+                self.request = request
+                return plan
+
+        class ContextPlanner:
+            def plan(self, request, *, workflow=None, context=None):
+                self.payload = (request, workflow, context)
+                return plan
+
+        packet = ContextPacket(
+            payload={"sections": {"request": {"original": "请求"}}},
+            rendered="{}",
+            evidence={},
+        )
+        self.assertIs(invoke_planner(LegacyPlanner(), "请求", None, packet), plan)
+        planner = ContextPlanner()
+        self.assertIs(invoke_planner(planner, "请求", {"template_id": "x"}, packet), plan)
+        self.assertEqual(planner.payload[1], {"template_id": "x"})
+        self.assertEqual(planner.payload[2], packet.payload)
+
+    def test_plan_validation_seam_preserves_dependency_errors(self):
+        with self.assertRaises(ToolError):
+            validate_plan(
+                TaskPlan("目标", [PlanStep("one", "missing", {})]),
+                {"inspect"},
+                4,
+            )
+        with self.assertRaises(ClarificationNeeded):
+            validate_plan(TaskPlan("目标", []), {"inspect"}, 4)
 
 
 if __name__ == "__main__":

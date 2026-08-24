@@ -78,6 +78,7 @@ from .request_model import RequestFacts
 from .runtime_context import build_runtime_context
 from .tools import ToolRegistry
 from .runtime_core import projection as _runtime_projection
+from .runtime_core import planning as _runtime_planning
 
 
 class InMemoryStateStore:
@@ -1437,57 +1438,7 @@ class AgentRuntime:
         owner of candidate semantics. An explicit workflow is already a
         user decision and therefore bypasses this gate.
         """
-        if isinstance(workflow, Mapping) and workflow.get("template_id"):
-            return
-        sections = (
-            context_packet.source_payload or context_packet.payload or {}
-        ).get("sections", {})
-        selection = normalize_workflow_selection_evidence(
-            sections.get("workflow_selection")
-            if isinstance(sections, Mapping)
-            else None
-        )
-        selection_state = selection.get("state")
-        if selection_state == "clarification" and selection.get("missing_fields"):
-            missing_fields = [
-                item
-                for item in (selection.get("missing_fields") or [])[:16]
-                if isinstance(item, Mapping)
-            ]
-            raise ClarificationNeeded(
-                "当前能力还缺少必要输入事实，请补充后继续。",
-                {
-                    "schema_version": "spatial-agent.clarification.v1",
-                    "state": "capability_facts_required",
-                    "missing_fields": missing_fields,
-                    "next_actions": ["补充必要输入事实", "选择其他能力"],
-                },
-            )
-        if selection_state != "ambiguous":
-            return
-        candidates = [
-            str(item)[:96]
-            for item in (selection.get("candidate_ids") or [])
-            if str(item).strip()
-        ][:16]
-        if not candidates:
-            raise ClarificationNeeded(
-                "当前能力选择存在歧义，请补充任务目标。",
-                {
-                    "schema_version": "spatial-agent.clarification.v1",
-                    "state": "ambiguous_capability",
-                    "next_actions": ["补充任务目标或分析对象"],
-                },
-            )
-        raise ClarificationNeeded(
-            "检测到多个候选能力，请选择后继续。",
-            {
-                "schema_version": "spatial-agent.clarification.v1",
-                "state": "ambiguous_capability",
-                "candidate_capabilities": candidates,
-                "next_actions": ["选择一个候选能力", "或补充更明确的任务条件"],
-            },
-        )
+        return _runtime_planning.require_workflow_selection(context_packet, workflow)
 
     def _planner_metrics(self) -> Optional[Dict]:
         metrics = getattr(self._planner, "metrics", None)
@@ -1628,41 +1579,19 @@ class AgentRuntime:
         workflow: Optional[Mapping[str, Any]],
         context_packet: ContextPacket,
     ) -> TaskPlan:
-        """Pass context to capable planners while preserving old Planner adapters."""
-        method = self._planner.plan
-        try:
-            parameters = inspect.signature(method).parameters
-        except (TypeError, ValueError):
-            parameters = {}
-        accepts_context = "context" in parameters or any(
-            item.kind == inspect.Parameter.VAR_KEYWORD for item in parameters.values()
+        return _runtime_planning.invoke_planner(
+            self._planner,
+            request,
+            workflow,
+            context_packet,
         )
-        kwargs = {}
-        if workflow is not None:
-            kwargs["workflow"] = workflow
-        if accepts_context:
-            kwargs["context"] = context_packet.payload
-        return method(request, **kwargs)
 
     def _validate_plan(self, plan: TaskPlan) -> None:
-        if len(plan.steps) == 0:
-            raise ClarificationNeeded("planner did not produce executable steps")
-        if len(plan.steps) > self._max_steps:
-            raise ToolError("Plan exceeds the maximum step limit.")
-        known = {step.id for step in plan.steps}
-        positions = {step.id: index for index, step in enumerate(plan.steps)}
-        for index, step in enumerate(plan.steps):
-            if step.tool not in self._registry.names:
-                raise ToolError("Plan selected an unregistered tool: " + step.tool)
-            missing = [dependency for dependency in step.depends_on if dependency not in known]
-            if missing:
-                raise ToolError("Plan has unknown dependencies: " + ", ".join(missing))
-            future = [dependency for dependency in step.depends_on if positions[dependency] >= index]
-            if future:
-                raise ToolError(
-                    "Plan dependency must refer to an earlier step: "
-                    + ", ".join(future)
-                )
+        return _runtime_planning.validate_plan(
+            plan,
+            self._registry.names,
+            self._max_steps,
+        )
 
     def _execute_step(
         self,

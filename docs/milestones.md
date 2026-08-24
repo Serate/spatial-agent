@@ -4655,3 +4655,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `AgentRuntime` 保留历史私有函数名作为薄兼容 wrapper；逻辑不再重复实现，旧 `agent.runtime` 与 `sqlite_store` 导入保持可用。
 - 新增 M253 projection contract；架构守卫要求 Runtime 接入 canonical projection seam。干净 Docker 重建后定向 **12/12**、architecture strict、compileall、quick、stage 全部通过。
 - 下一切片将提取 planning seam，优先收敛 context packet、workflow selection 和 plan validation 的调用关系。
+
+## M253-B：Runtime planning canonical seam（已完成）
+
+- 新增 `agent/runtime_core/planning.py`，统一承载旧 Planner 与 context-aware Planner 的调用、通用计划 DAG/工具注册校验，以及能力选择歧义到 Clarification 生命周期的投影。
+- `AgentRuntime` 保留 `_plan`、`_validate_plan`、`_require_workflow_selection` 兼容方法，但实现只委托 planning seam；Domain Pack 专属 workflow validator 和有限 repair 仍由 Runtime 编排，不下沉到公共 helper。
+- 新增旧 Planner、context-aware Planner、空计划和未注册工具契约；干净 Docker 重建后 M253/M252/M247 定向 **14/14**、architecture strict、compileall、quick、stage 全部通过。
+- 下一切片将提取 ToolRegistry dispatch、步骤状态、重试/取消/超时与 replan lineage 的 execution/lifecycle seam。

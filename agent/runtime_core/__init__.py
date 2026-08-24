@@ -18,6 +18,7 @@ from .projection import (
     unique,
     utc_now,
 )
+from .planning import invoke_planner, require_workflow_selection, validate_plan
 
 __all__ = [
     "append_execution_degradation_notice",
@@ -36,4 +37,7 @@ __all__ = [
     "safe_small_mapping",
     "unique",
     "utc_now",
+    "invoke_planner",
+    "require_workflow_selection",
+    "validate_plan",
 ]
