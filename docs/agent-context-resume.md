@@ -34,12 +34,13 @@
 - M252-A CI 回归已修复：GIS `spatial_relation` View 删除未定义且未使用的 `operation` 引用，新增最小 View contract；Docker service smoke、CI profile 和 compileall 通过。
 - M252-B1 已完成：新增 `domains/gis/adapters/spatial.py` canonical seam，GIS Domain 不再直接导入公共 `agent` 的 DatasetCatalog/spatial_backend；旧实现暂留兼容。
 - M252-B2 已完成：GIS 的 spatial/raster/alignment/quality/catalog/manifest/probe/geometry-export 真实实现已迁入 `domains/gis/adapters`，`agent/` 仅保留单向 facade；新增兼容模块登记和迁移回归。干净 Docker 重建后 M252 定向 9/9、architecture strict、quick、stage、compileall 全部通过。
+- M253-A 已完成：新增 `agent/runtime_core/projection.py`，Runtime 的计划 DAG、workflow context 压缩、模板匹配、结果引用解析和生命周期投影改为 canonical pure seam；`agent.runtime` 保留薄兼容 wrapper。干净 Docker 重建后 M253/M252/M247 定向 12/12、architecture strict、compileall、quick、stage 全部通过。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 基线冻结、M252-B1 canonical seam 和 M252-B2 GIS 实现物理迁移已完成；下一步拆分 Runtime、Application Service、HTTP、Contract 和 Vite 前端，真实指标数据接入顺延到架构收敛后；继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 基线冻结、M252-B1/B2 GIS 物理边界和 M253-A Runtime projection seam 已完成；下一步提取 Runtime planning seam，再处理 Application Service、HTTP、Contract 和 Vite 前端，真实指标数据接入顺延到架构收敛后；继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
 
 ## 不变量
 

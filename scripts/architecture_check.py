@@ -83,6 +83,7 @@ def build_report() -> dict[str, Any]:
         ROOT / "agent" / "runtime.py",
         ROOT / "agent" / "service.py",
         ROOT / "agent" / "runtime_factory.py",
+        ROOT / "agent" / "runtime_core" / "projection.py",
         ROOT / "run_demo.py",
         ROOT / "domains" / "gis",
         ROOT / "domains" / "text",
@@ -93,6 +94,15 @@ def build_report() -> dict[str, Any]:
 
     if runtime_path.exists() and _line_count(runtime_path) > 1000:
         warnings.append({"path": _relative(runtime_path), "code": "runtime_god_module"})
+    if runtime_path.exists():
+        source = runtime_path.read_text(encoding="utf-8")
+        if "from .runtime_core import projection" not in source:
+            errors.append(
+                {
+                    "file": _relative(runtime_path),
+                    "code": "runtime_projection_seam_missing",
+                }
+            )
     if service_path.exists() and _line_count(service_path) > 1000:
         warnings.append({"path": _relative(service_path), "code": "service_god_module"})
     if index_path.exists() and index_path.stat().st_size > 100_000:

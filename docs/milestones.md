@@ -4640,3 +4640,18 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 架构守卫登记兼容 facade，仍对其他公共模块的顶层 Domain import 失败；警告仅保留 Runtime、Service 和前端 monolith，作为后续拆分目标。
 - 修复迁移遗漏的 `geometry_export` 相对导入和过时边界断言。干净 Docker 重建后，M252 定向 **9/9**、architecture strict、quick、stage、compileall 全部通过。
 - 下一阶段进入 Runtime / Service 深模块拆分，先建立 canonical Application/Runtime 活动路径，再逐步收敛兼容入口。
+
+## M253：Runtime / Service 深模块拆分（阶段规划）
+
+1. **Runtime projection seam**：将计划 DAG、workflow context 压缩、结果引用解析、生命周期指标和有界降级提示放入 `agent/runtime_core/projection.py`；`agent.runtime` 仅保留兼容入口。
+2. **Runtime planning seam**：将请求理解后的 workflow/capability context、计划校验和有限 repair 编排收敛到 `agent/runtime_core/planning.py`，不改变 Planner 或 Domain Pack 接口。
+3. **Runtime execution/lifecycle seam**：把 ToolRegistry dispatch、步骤状态、重试/取消/超时和 replan lineage 组合到可注入的运行模块，保留统一 Result/Evidence。
+4. **Application Service seam**：在 `AgentService` 外建立 canonical run/session/action application module，逐步把异步、交互和持久化恢复移出 facade；旧 `agent.service.AgentService` 只做兼容委托。
+5. **验收**：每个切片都通过最小行为契约、跨入口 quick/stage、Docker compileall 和 architecture guard，再提交推送并全局重规划。
+
+## M253-A：Runtime projection canonical seam（已完成）
+
+- 新增 `agent/runtime_core/projection.py`，统一承载 plan dict/DAG、workflow 模板压缩、模板匹配、结果引用解析、运行时长/错误分类和降级回答提示等纯投影逻辑。
+- `AgentRuntime` 保留历史私有函数名作为薄兼容 wrapper；逻辑不再重复实现，旧 `agent.runtime` 与 `sqlite_store` 导入保持可用。
+- 新增 M253 projection contract；架构守卫要求 Runtime 接入 canonical projection seam。干净 Docker 重建后定向 **12/12**、architecture strict、compileall、quick、stage 全部通过。
+- 下一切片将提取 planning seam，优先收敛 context packet、workflow selection 和 plan validation 的调用关系。
