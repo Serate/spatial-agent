@@ -4769,3 +4769,9 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `agent/runtime_core/run_lifecycle.py` 的 `RuntimeRunLifecycle`，承载同步运行的生命周期状态转换、计划确认、步骤循环、取消/超时/澄清/拒绝/失败收口、answer 生成和终态保存；`AgentRuntime.run` 只保留兼容入口。
 - lifecycle 通过注入的 Runtime adapter 使用已有 planning/execution/control/evidence seam，不复制 ToolRegistry、Domain 策略或结果契约；`_build_plan_evidence` 与 failure evidence 仍由 Runtime 的 canonical projection/helper 提供。
 - Docker 重建后直接 Runtime、M253 core、M254 application、quick/stage/ci、architecture strict 和 compileall 通过；新增模块在架构守卫登记。下一切片继续拆 decision resume、retry/cancel/recovery 与 Runtime evidence helper。
+
+## M259-D：Runtime decision resume seam（已完成）
+
+- 新增 `agent/runtime_core/decision_resume.py` 的 `RuntimeDecisionResume`，统一已批准计划的 decision 状态/版本/指纹校验、精确持久计划恢复、已完成步骤跳过、执行 replan budget 和终态 evidence。
+- `AgentRuntime._resume_decision` 只保留兼容入口；decision resume 复用 Runtime 的 execution、control、answer、memory、observability 和 state ports，不重新生成计划，也不绕过 ToolRegistry。
+- Docker 重建后 M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；下一切片拆 `retry_failed`、cancel/recovery 与 preview/plan evidence，之后处理 Service 的剩余 catalog/control。

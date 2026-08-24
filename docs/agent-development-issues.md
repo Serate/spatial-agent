@@ -600,3 +600,11 @@
 - **诊断**：先用最小真实 Runtime 请求走到 `COMPLETED`，再运行 quick/stage/ci；失败时优先查看 `result.error` 和 `failure.phase`，对照迁移方法中所有不带 `runtime.` 的外部符号，不能只看 import 是否成功。
 - **修复**：lifecycle 只保留自己的异常/契约 import，并显式导入 evidence binding/revalidation；Runtime 模块级 projection/failure helper 通过运行时延迟模块引用调用，避免初始化阶段循环导入。
 - **预防**：方法抽取必须同时做“compileall + 一个成功执行 + 一个澄清/失败路径”三项验证；新 lifecycle seam 的测试应断言终态和 evidence，而不是只断言对象实例存在。
+
+## M259-D Decision resume 抽取时方法名与 owner 绑定漂移
+
+- **现象**：把 `_resume_decision` 迁入新模块后，Runtime 已能创建 seam，但 wrapper 调用的方法名与迁移后的实现不一致，或方法体中的 `self` 已替换为 `runtime` 却没有初始化 owner，导致只在 decision approve 路径运行时失败。
+- **根因**：decision resume 同时包含旧私有方法名、状态存储、控制清除和 execution loop；物理抽取时如果只复制方法体而未定义 canonical 方法名与 adapter 注入关系，兼容入口容易“看起来存在、实际不可调用”。
+- **诊断**：对新模块做 compileall 只能发现语法问题；还要静态检查 canonical `resume` 方法、Runtime wrapper、owner 初始化三者一致，并构造一个 waiting-for-decision 的最小恢复路径。
+- **修复**：canonical 模块使用 `RuntimeDecisionResume.resume`，Runtime 只委托 `_decision_resume.resume(...)`；owner 在 Runtime 初始化时注入，恢复逻辑复用原 Runtime 的 state/control/execution ports。
+- **预防**：每个拆分模块明确“canonical 方法名”和“兼容 facade 方法名”，不要让迁移工具自动决定；新增 seam 至少覆盖实例契约、普通成功路径和生命周期恢复路径。

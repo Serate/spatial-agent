@@ -49,12 +49,13 @@
 - M259-A 已完成：新增 `agent/runtime_state.py` 与 `agent/runtime_core/capabilities.py`，分别收敛内存状态/澄清 adapter 和能力目录/运行时证据 surface；`runtime.py`、`sqlite_store.py` 与 architecture guard 已切到 canonical seam。Docker M259、quick/stage/ci、architecture strict 和 compileall 通过。
 - M259-B 已完成：新增 `agent/runtime_core/planning_surface.py`，收敛 Runtime 的 context/request preparation、Planner 调用、计划校验、有限 repair 和 execution replan；Runtime 只回写 plan evidence/lineage。Docker M259、quick/stage/ci、architecture strict 和 compileall 通过；下一步拆 run lifecycle、decision resume、retry/cancel/recovery。
 - M259-C 已完成：新增 `agent/runtime_core/run_lifecycle.py`，承载同步 run 的状态转换、确认、步骤循环、取消/超时/澄清/失败收口和终态保存；`AgentRuntime.run` 仅委托 lifecycle。Docker 直接 Runtime、M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；下一步拆 decision resume、retry/cancel/recovery 与 evidence helper。
+- M259-D 已完成：新增 `agent/runtime_core/decision_resume.py`，承载 decision 版本/指纹 fencing、精确计划恢复、已完成步骤跳过、replan budget 和终态收口；`AgentRuntime._resume_decision` 仅委托 seam。Docker M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；下一步拆 retry/cancel/recovery 与 preview/evidence。
 - M242 的本地提交和 GitHub 推送状态以 `git log -1` 与远端分支为准；此前 GitHub push 曾因宿主网络超时，现已恢复并成功推送到 `origin/main`，不要重复实现已完成阶段代码。
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 基线冻结、M252-B1/B2 GIS 物理边界、M253-A/B/C/D Runtime seams、M254-A/B/C/D Run/Session/Action/Decision/Interaction seams、M255 Async Worker/Recovery seam、M256 HTTP read/write dispatcher seam、M257 Contract/Evidence helper seam、M258 Console source/dist/static seam、M259-A Runtime state/capability seam、M259-B Runtime planning/repair/replanning seam 和 M259-C Runtime run lifecycle seam 已完成；下一阶段继续拆分 Runtime decision/retry/cancel/recovery 与 Service 剩余职责，并按职责簇收敛 `console_app.js`，直到架构检查不再暴露可合理拆分的活动路径。真实指标数据接入顺延到公共边界收敛后。继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子和 M251 指标 Domain 第一纵向切片均已闭环。M252-A 基线冻结、M252-B1/B2 GIS 物理边界、M253-A/B/C/D Runtime seams、M254-A/B/C/D Run/Session/Action/Decision/Interaction seams、M255 Async Worker/Recovery seam、M256 HTTP read/write dispatcher seam、M257 Contract/Evidence helper seam、M258 Console source/dist/static seam、M259-A Runtime state/capability seam、M259-B Runtime planning/repair/replanning seam、M259-C Runtime run lifecycle seam 和 M259-D Runtime decision resume seam 已完成；下一阶段继续拆分 Runtime retry/cancel/recovery、preview/evidence 与 Service 剩余职责，并按职责簇收敛 `console_app.js`，直到架构检查不再暴露可合理拆分的活动路径。真实指标数据接入顺延到公共边界收敛后。继续保持少量深工具、公共 Runtime 不携带领域策略，不引入 RAG，也不为固定问句增加分支。
 
 ## 不变量
 
