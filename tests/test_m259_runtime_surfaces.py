@@ -8,6 +8,7 @@ from agent.runtime import InMemoryConversationStore, InMemoryStateStore
 from agent.runtime_core.capabilities import RuntimeCapabilitySurface
 from agent.runtime_core.decision_resume import RuntimeDecisionResume
 from agent.runtime_core.planning_surface import RuntimePlanningSurface
+from agent.runtime_core.recovery import RuntimeRecoverySurface
 from agent.runtime_core.run_lifecycle import RuntimeRunLifecycle
 from agent.runtime_state import (
     InMemoryConversationStore as CanonicalConversationStore,
@@ -27,6 +28,7 @@ class M259RuntimeSurfaceTests(unittest.TestCase):
         self.assertIsInstance(runtime._planning_surface, RuntimePlanningSurface)
         self.assertIsInstance(runtime._run_lifecycle, RuntimeRunLifecycle)
         self.assertIsInstance(runtime._decision_resume, RuntimeDecisionResume)
+        self.assertIsInstance(runtime._recovery, RuntimeRecoverySurface)
         self.assertEqual(runtime.capability_catalog()["domain_id"], "text")
         contract = runtime.workflow_contract()
         self.assertEqual(contract["domain_id"], "text")

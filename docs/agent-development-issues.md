@@ -608,3 +608,11 @@
 - **诊断**：对新模块做 compileall 只能发现语法问题；还要静态检查 canonical `resume` 方法、Runtime wrapper、owner 初始化三者一致，并构造一个 waiting-for-decision 的最小恢复路径。
 - **修复**：canonical 模块使用 `RuntimeDecisionResume.resume`，Runtime 只委托 `_decision_resume.resume(...)`；owner 在 Runtime 初始化时注入，恢复逻辑复用原 Runtime 的 state/control/execution ports。
 - **预防**：每个拆分模块明确“canonical 方法名”和“兼容 facade 方法名”，不要让迁移工具自动决定；新增 seam 至少覆盖实例契约、普通成功路径和生命周期恢复路径。
+
+## M259-E Recovery seam 抽取后控制状态不能重复创建
+
+- **现象**：cancel/retry 逻辑从 Runtime 移出后，如果新模块自行创建控制器或状态字典，会出现取消标记只在 facade 可见、retry 清不掉持久标记，或 waiting decision 的拒绝与普通 cancel 产生不同终态。
+- **根因**：恢复职责虽然包含状态转换，但状态所有权仍属于 Runtime 注入的 `RunControl`、`DecisionStore` 和 state adapter；把恢复模块误做成新的状态 owner 会破坏跨入口/重启一致性。
+- **诊断**：分别验证 active run cancel、waiting-for-decision reject、failed run retry 和 cancel 清除；检查新模块是否只访问 `runtime._control`/`runtime._state_store`/`runtime._decision_store`，没有新建同名状态。
+- **修复**：新增 `RuntimeRecoverySurface` 只承载转换与重试循环，所有控制、存储、ToolRegistry、answer 和 observability 通过 owner adapter 复用；Runtime public 方法只做单向委托。
+- **预防**：恢复 seam 的契约必须覆盖内存与 SQLite 两种 state adapter 的可见终态，不能只测单进程 happy path；任何新增 recovery state 先登记生命周期契约再实现。

@@ -76,6 +76,7 @@ from .runtime_core.capabilities import RuntimeCapabilitySurface
 from .runtime_core.control import RunControl
 from .runtime_core.decision_resume import RuntimeDecisionResume
 from .runtime_core.planning_surface import RuntimePlanningSurface
+from .runtime_core.recovery import RuntimeRecoverySurface
 from .runtime_core.run_lifecycle import RuntimeRunLifecycle
 from .runtime_state import (
     InMemoryConversationStore,
@@ -172,6 +173,7 @@ class AgentRuntime:
         )
         self._run_lifecycle = RuntimeRunLifecycle(self)
         self._decision_resume = RuntimeDecisionResume(self)
+        self._recovery = RuntimeRecoverySurface(self)
         self._run_span_ids: Dict[str, str] = {}
 
     @property
@@ -464,97 +466,10 @@ class AgentRuntime:
         return self._state_store.get(run_id)
 
     def cancel(self, run_id: str) -> AgentRunResult:
-        result = self._state_store.get(run_id)
-        if result is None:
-            raise ToolError("run not found: " + run_id)
-        if result.status == RunStatus.WAITING_FOR_DECISION:
-            evidence = result.decision_evidence or {}
-            decision_id = evidence.get("decision_id")
-            version = evidence.get("version")
-            if self._decision_store is None or not decision_id:
-                raise ToolError("waiting run has no cancellable decision")
-            try:
-                record = self._decision_store.resolve(
-                    decision_id,
-                    choice="reject",
-                    expected_version=version,
-                    domain_id=self.domain_id,
-                )
-            except DecisionLifecycleError as exc:
-                raise ToolError(str(exc)) from exc
-            result.status = RunStatus.CANCELLED
-            result.error = "用户取消了待确认计划。"
-            result.decision_evidence = record.evidence()
-            self._state_store.save(result)
-            self._emit_run_event(result)
-            return result
-        if result.status not in (RunStatus.PLANNING, RunStatus.EXECUTING):
-            raise ToolError("run is not active: " + run_id)
-        self._control.request_cancel(run_id)
-        return result
+        return self._recovery.cancel(run_id)
 
     def retry_failed(self, run_id: str) -> AgentRunResult:
-        """Retry a failed run from its first failed step without replanning."""
-        result = self._state_store.get(run_id)
-        if result is None:
-            raise ToolError("run not found: " + run_id)
-        if result.status != RunStatus.FAILED or result.plan is None:
-            raise ToolError("only a failed planned run can be retried: " + run_id)
-
-        failed_index = next(
-            (index for index, step in enumerate(result.steps) if step.status == "FAILED"),
-            None,
-        )
-        if failed_index is None:
-            raise ToolError("failed run has no failed step: " + run_id)
-
-        completed: Set[str] = set()
-        completed_results: Dict[str, Dict[str, Any]] = {}
-        for step in result.steps[:failed_index]:
-            if step.status != "COMPLETED" or step.result is None:
-                raise ToolError("completed prerequisite is unavailable: " + step.id)
-            completed.add(step.id)
-            completed_results[step.id] = step.result
-
-        for step in result.steps[failed_index:]:
-            step.status = "PENDING"
-            step.attempts = 0
-            step.result = None
-            step.error = None
-            step.started_at = None
-            step.finished_at = None
-            step.latency_ms = None
-
-        result.status = RunStatus.EXECUTING
-        result.error = None
-        result.answer = None
-        result.retry_count = int(getattr(result, "retry_count", 0) or 0) + 1
-        self._control.clear_cancel(run_id)
-        try:
-            for index in range(failed_index, len(result.steps)):
-                step_run = result.steps[index]
-                step = result.plan.steps[index]
-                try:
-                    self._check_control(run_id, None)
-                    self._execute_step(run_id, None, step_run, step, completed, completed_results)
-                except RunCancelled as exc:
-                    self._block_remaining_steps(result.steps, index, step.id, str(exc))
-                    raise
-                except Exception as exc:
-                    self._block_remaining_steps(result.steps, index + 1, step.id, str(exc))
-                    raise
-                completed.add(step.id)
-                if step_run.result is not None:
-                    completed_results[step.id] = step_run.result
-            result.status = RunStatus.COMPLETED
-            result.answer = self._compose_answer(result)
-        except Exception as exc:
-            result.status = RunStatus.FAILED
-            result.error = str(exc)
-            result.answer = self._answer_composer.compose_failure(result)
-        self._state_store.save(result)
-        return result
-
+        return self._recovery.retry_failed(run_id)
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict:
         return self._registry.export_result(result_ref, max_features=max_features)
 

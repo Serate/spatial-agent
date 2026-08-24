@@ -4775,3 +4775,9 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `agent/runtime_core/decision_resume.py` 的 `RuntimeDecisionResume`，统一已批准计划的 decision 状态/版本/指纹校验、精确持久计划恢复、已完成步骤跳过、执行 replan budget 和终态 evidence。
 - `AgentRuntime._resume_decision` 只保留兼容入口；decision resume 复用 Runtime 的 execution、control、answer、memory、observability 和 state ports，不重新生成计划，也不绕过 ToolRegistry。
 - Docker 重建后 M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；下一切片拆 `retry_failed`、cancel/recovery 与 preview/plan evidence，之后处理 Service 的剩余 catalog/control。
+
+## M259-E：Runtime cancel / retry recovery seam（已完成）
+
+- 新增 `agent/runtime_core/recovery.py` 的 `RuntimeRecoverySurface`，统一活动运行取消、待确认计划拒绝、失败计划从首个失败步骤重试、前置结果复用和终态保存。
+- `AgentRuntime.cancel` 与 `retry_failed` 保留兼容入口并只委托 recovery seam；取消集合、DecisionStore、ToolRegistry 执行、blocked step 和 answer failure 仍通过已有 Runtime ports，未新增恢复分支到 HTTP 或 Domain。
+- Docker 重建后 M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；Runtime 还剩 preview、export/evidence helper 和少量 public state wrapper，之后进入 Service 残余职责收敛。
