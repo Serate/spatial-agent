@@ -17,16 +17,15 @@ class M8AnswerComposerTests(unittest.TestCase):
     def test_default_answer_keeps_result_ref_and_count(self):
         result = build_runtime("rule").run(ROAD_SLOPE_QUERY)
         self.assertEqual(result.status.value, "COMPLETED")
-        self.assertIn("memory://join/roads-slope", result.answer)
         self.assertIn("\u5df2\u5b8c\u6210", result.answer)
-        self.assertIn("\u547d\u4e2d\u6570\u91cf", result.answer)
+        self.assertNotIn("memory://", result.answer)
 
     def test_admin_answer_is_user_facing(self):
         result = build_runtime("rule").run(ADMIN_QUERY)
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertIn("\u5df2\u627e\u5230", result.answer)
         self.assertIn("1", result.answer)
-        self.assertIn("memory://range/admin_areas", result.answer)
+        self.assertIn("\u7a7a\u95f4\u7ed3\u679c\u5df2\u51c6\u5907\u597d", result.answer)
 
     def test_raster_answer_uses_tool_result_when_output_type_is_imprecise(self):
         result = AgentRunResult(

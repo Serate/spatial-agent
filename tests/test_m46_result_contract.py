@@ -2,17 +2,44 @@ import unittest
 from pathlib import Path
 
 from agent.service import AgentService
+from agent.models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
+from domains.gis.composer import AnswerComposer
 from evaluation.runner import run_cases
 from run_demo import build_runtime
 
 
 class M46ResultContractTests(unittest.TestCase):
+    def test_gis_answer_is_a_user_summary_not_an_execution_log(self):
+        result = AgentRunResult(
+            run_id="natural-summary",
+            status=RunStatus.COMPLETED,
+            request="请进行综合空间分析",
+            plan=TaskPlan("综合空间分析", [PlanStep("summary", "answer", {})], {"type": "spatial_analysis_result"}),
+            steps=[
+                StepRun("health", "get_dataset_health_report", {}, status="COMPLETED", result={"status": "ready"}),
+                StepRun("elevation", "get_zonal_raster_statistics", {}, status="COMPLETED", result={"admin_name": "洪山区", "statistics": {"valid_pixel_count": 576040}}),
+                StepRun("slope", "get_zonal_slope_statistics", {}, status="COMPLETED", result={"admin_name": "洪山区", "statistics": {"valid_pixel_count": 576040}}),
+                StepRun("land", "get_zonal_land_use_distribution", {}, status="COMPLETED", result={"admin_name": "洪山区", "statistics": {"valid_pixel_count": 576040}}),
+                StepRun("roads", "get_zonal_vector_summary", {}, status="COMPLETED", result={"dataset": "roads", "summary": {"matched_features": 14102}}),
+                StepRun("water", "get_zonal_vector_summary", {}, status="COMPLETED", result={"dataset": "water", "summary": {"matched_features": 1375}}),
+            ],
+        )
+
+        answer = AnswerComposer().compose(result)
+
+        self.assertIn("主要发现", answer)
+        self.assertIn("约 57.6 万个有效像元", answer)
+        self.assertIn("道路约 14,102 条", answer)
+        self.assertNotIn("工具步骤", answer)
+        self.assertNotIn("数据健康状态：ready", answer)
+        self.assertNotIn("roads摘要", answer)
+
     def test_console_consumes_result_envelope_before_legacy_fields(self):
         html = (Path(__file__).parents[1] / "web" / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("const envelope = data.result || {}", html)
-        self.assertIn("const workspace=envelope.workspace||{}", html)
-        self.assertIn("const payload = data.result ||", html)
+        self.assertRegex(html, r"const envelope\s*=\s*data\.result\|\|\{\}")
+        self.assertIn("normalizeConsoleResult", html)
+        self.assertIn("resultViewPanels", html)
 
     def test_completed_run_returns_bounded_evidence_result_envelope(self):
         payload = AgentService().run("查询DEM栅格元数据", backend="memory")

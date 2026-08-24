@@ -76,7 +76,12 @@
       const target = contextValue.target;
       if (!target) return {visible: false};
       if (view.mode === "raster_bounds") {
-        renderRasterBounds(target, view, escapeHtml);
+        destroyMap();
+        renderRasterBounds(target, view, {
+          leaflet: leaflet(),
+          escapeHtml,
+          setMap: value => { map = value; },
+        });
         const summary = summaryTarget();
         if (summary) summary.textContent = "栅格范围 · " + (view.dataset || "当前数据");
         return {visible: true};
@@ -114,7 +119,68 @@
     return "/artifacts/geojson/" + encodeURIComponent(name);
   }
 
-  function renderRasterBounds(target, result, escapeHtml) {
+  function renderRasterBounds(target, result, helpers) {
+    const values = Array.isArray(result?.bounds) && result.bounds.length === 4
+      ? result.bounds.map(value => Number(value))
+      : [];
+    if (values.length !== 4 || values.some(value => !Number.isFinite(value))) {
+      target.innerHTML = '<div class="map-empty">当前结果没有可预览的空间范围。</div>';
+      return;
+    }
+    const mapBounds = toLeafletBounds(values, result.crs);
+    if (helpers.leaflet && mapBounds) {
+      try {
+        target.innerHTML = '<div data-raster-map class="raster-map-leaflet" role="img" aria-label="按真实坐标定位的栅格外接范围"></div>';
+        const element = target.querySelector?.("[data-raster-map]");
+        if (!element) throw new Error("地图容器不可用");
+        const L = helpers.leaflet;
+        const map = L.map(element, {zoomControl: true, attributionControl: true});
+        helpers.setMap(map);
+        const leafletBounds = [[mapBounds[1], mapBounds[0]], [mapBounds[3], mapBounds[2]]];
+        const rectangle = L.rectangle(leafletBounds, {
+          color: "#7c3aed",
+          weight: 2,
+          dashArray: "8 6",
+          fill: false,
+          fillOpacity: 0,
+        }).addTo(map);
+        const layers = {"栅格外接范围": rectangle};
+        addBaseLayers(map, layers, L);
+        map.fitBounds(leafletBounds, {padding: [24, 24]});
+        mapToolbar(map, layers, L, target);
+        appendHtml(target, '<div class="map-overlay-note"><strong>仅显示栅格外接范围</strong> · 已按真实坐标定位 · 不代表有效像元覆盖</div>');
+        setTimeout(() => map.invalidateSize?.(), 0);
+        return;
+      } catch (error) {
+        helpers.setMap?.(null);
+      }
+    }
+    renderRasterBoundsSvg(target, {bounds: values, dataset: result.dataset, crs: result.crs}, helpers.escapeHtml);
+  }
+
+  function toLeafletBounds(bounds, crs) {
+    const code = String(crs || "").toUpperCase().replace(/\s+/g, "");
+    if (["EPSG:4326", "EPSG:4258", "EPSG:4490", "CRS:84", "WGS84"].includes(code)) return normalizedBounds(bounds);
+    if (["EPSG:3857", "EPSG:900913", "EPSG:3785"].includes(code)) {
+      const lower = webMercatorToLonLat(bounds[0], bounds[1]);
+      const upper = webMercatorToLonLat(bounds[2], bounds[3]);
+      return normalizedBounds([lower[0], lower[1], upper[0], upper[1]]);
+    }
+    return null;
+  }
+
+  function normalizedBounds(bounds) {
+    return [Math.min(bounds[0], bounds[2]), Math.min(bounds[1], bounds[3]), Math.max(bounds[0], bounds[2]), Math.max(bounds[1], bounds[3])];
+  }
+
+  function webMercatorToLonLat(x, y) {
+    const longitude = x / 20037508.34 * 180;
+    const latitudeDegrees = y / 20037508.34 * 180;
+    const latitude = 180 / Math.PI * (2 * Math.atan(Math.exp(latitudeDegrees * Math.PI / 180)) - Math.PI / 2);
+    return [longitude, latitude];
+  }
+
+  function renderRasterBoundsSvg(target, result, escapeHtml) {
     const bounds = result?.bounds;
     if (!Array.isArray(bounds) || bounds.length !== 4) {
       target.innerHTML = '<div class="map-empty">当前结果没有可预览的空间范围。</div>';

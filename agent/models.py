@@ -84,6 +84,9 @@ class AgentRunResult:
     request_facts: Optional[Dict[str, Any]] = None
     plan: Optional[TaskPlan] = None
     planner_metrics: Optional[Dict[str, Any]] = None
+    # Safe evidence for the optional natural-language answer generation pass.
+    # The model input and raw response are never persisted here.
+    answer_generation_evidence: Optional[Dict[str, Any]] = None
     steps: List[StepRun] = field(default_factory=list)
     answer: Optional[str] = None
     error: Optional[str] = None
@@ -143,6 +146,8 @@ class AgentRunResult:
             data["spatial_context"] = dict(data["spatial_context"])
         if data.get("request_facts") is None:
             data.pop("request_facts", None)
+        if data.get("answer_generation_evidence") is None:
+            data.pop("answer_generation_evidence", None)
         if data.get("conversation_turn") is None:
             data.pop("conversation_turn", None)
         else:

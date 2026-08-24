@@ -168,11 +168,12 @@
     const renderer = escapeHtml(requestedRenderer || view.kind || "generic");
     if (view.kind === "unavailable") return renderUnavailable(viewId, spec, run, escapeHtml, view.reason, view.artifact_available);
     const chart = requestedRenderer === "chart" ? renderChart(view, escapeHtml) : "";
+    const distribution = renderDistribution(view.distribution, escapeHtml);
     const rows = (Array.isArray(view.rows) ? view.rows : []).slice(0, 40).map(row => {
       const item = record(row) ? row : {value: row};
       const label = item.label ?? item.dataset ?? item.name ?? item.id ?? "字段";
       const raw = item.value ?? item.status_label ?? item.status ?? item.count ?? item.detail;
-      const value = raw === undefined ? renderBoundedValue(item, escapeHtml) : escapeHtml(raw);
+      const value = raw === undefined ? renderBoundedValue(item, escapeHtml) : renderReadableValue(raw, escapeHtml);
       return '<div class="view-row"><small>' + escapeHtml(label) + '</small><b>' + value + '</b></div>';
     }).join("");
     const table = renderTable(view.table, escapeHtml);
@@ -184,11 +185,11 @@
       ? '<div class="distribution-note">renderer ' + renderer + ' 未注册，已使用通用有界展示。</div>'
       : "";
     const hasChart = Boolean(chart && chart.replace(/<[^>]+>/g, "").trim());
-    const empty = !metrics && !rows && !table && !error && !note && !fields && !hasChart
+    const empty = !metrics && !rows && !table && !error && !note && !fields && !distribution && !hasChart
       ? '<div class="distribution-note">当前 view 没有可读展示字段，已显示有界空态。</div>' : "";
     return '<section class="structured-view-block"><div class="stat-context"><strong>' + title + '</strong><span>' + renderer + '</span></div>'
       + fallbackNote + error + (metrics ? '<div class="metric-grid">' + metrics + '</div>' : "")
-      + (rows ? '<div class="view-rows">' + rows + '</div>' : "") + table + chart + fields + note + empty + '</section>';
+      + (rows ? '<div class="view-rows">' + rows + '</div>' : "") + table + chart + distribution + fields + note + empty + '</section>';
   }
 
   function renderUnavailable(viewId, spec, run, escapeHtml, reason, artifactAvailable) {
@@ -200,29 +201,69 @@
   }
 
   function renderBoundedValue(value, escapeHtml) {
-    if (Array.isArray(value)) return value.slice(0, 8).map(item => record(item)
-      ? Object.entries(item).slice(0, 5).map(([key, nested]) => escapeHtml(key) + ": " + escapeHtml(nested ?? "-")).join("，")
-      : escapeHtml(item ?? "-")).join("；");
-    if (record(value)) return Object.entries(value).slice(0, 8).map(([key, item]) => escapeHtml(key) + ": " + escapeHtml(record(item) ? JSON.stringify(item) : item ?? "-")).join("；");
-    return escapeHtml(value ?? "-");
+    return renderReadableValue(value, escapeHtml, 8);
+  }
+
+  function renderReadableValue(value, escapeHtml, limit = 8) {
+    if (Array.isArray(value)) return value.slice(0, limit).map(item => renderReadableValue(item, escapeHtml, 5)).join("；");
+    if (record(value)) return Object.entries(value).slice(0, limit).map(([key, item]) => escapeHtml(key) + ": " + renderReadableValue(item, escapeHtml, 5)).join("，");
+    return escapeHtml(formatScalarValue(value));
+  }
+
+  function formatScalarValue(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    if (typeof value === "boolean") return value ? "是" : "否";
+    if (typeof value === "number" && Number.isFinite(value)) return formatNumberValue(value);
+    const text = String(value);
+    const match = text.match(/^\s*(-?(?:\d+\.?\d*|\.\d+))(\s*(?:%|°|米|公里|个|条|类|像元))\s*$/);
+    if (match) return formatNumberValue(Number(match[1])) + match[2];
+    return text;
+  }
+
+  function formatNumberValue(value) {
+    if (!Number.isFinite(value)) return "-";
+    if (Math.abs(value) >= 100000000) {
+      return (value / 100000000).toLocaleString("zh-CN", {maximumFractionDigits: 2}) + "亿";
+    }
+    return value.toLocaleString("zh-CN", {maximumFractionDigits: 3});
   }
 
   function renderObjectFields(view, escapeHtml) {
-    const reserved = new Set(["schema_version", "view_schema_version", "kind", "title", "subtitle", "note", "error", "metrics", "rows", "table", "series", "encodings"]);
+    const reserved = new Set(["schema_version", "view_schema_version", "kind", "title", "subtitle", "note", "error", "metrics", "rows", "table", "series", "encodings", "distribution"]);
     const fields = Object.entries(view || {}).filter(([key, value]) => !reserved.has(key) && value !== null && value !== undefined).slice(0, 8);
     if (!fields.length) return "";
     return '<div class="view-rows">' + fields.map(([key, value]) => '<div class="view-row"><small>' + escapeHtml(key) + '</small><b>' + renderBoundedValue(value, escapeHtml) + '</b></div>').join("") + '</div>';
   }
 
   function renderMetrics(metrics, escapeHtml) {
-    return (Array.isArray(metrics) ? metrics : []).slice(0, 24).map(item => '<div class="metric"><b>' + escapeHtml(item?.value ?? "-") + '</b><small>' + escapeHtml(item?.label || "指标") + '</small></div>').join("");
+    return (Array.isArray(metrics) ? metrics : []).slice(0, 24).map(item => '<div class="metric"><b>' + renderReadableValue(item?.value, escapeHtml) + '</b><small>' + escapeHtml(item?.label || "指标") + '</small></div>').join("");
   }
 
   function renderTable(table, escapeHtml) {
     if (!record(table) || !Array.isArray(table.rows) || !table.rows.length) return "";
     const columns = Array.isArray(table.columns) ? table.columns.slice(0, 16) : [];
     return '<table class="view-table"><thead><tr>' + columns.map(col => '<th>' + escapeHtml(col) + '</th>').join("") + '</tr></thead><tbody>'
-      + table.rows.slice(0, 40).map(row => '<tr>' + (Array.isArray(row) ? row : [row]).slice(0, 16).map(cell => '<td>' + escapeHtml(cell ?? "-") + '</td>').join("") + '</tr>').join("") + '</tbody></table>';
+      + table.rows.slice(0, 40).map(row => '<tr>' + (Array.isArray(row) ? row : [row]).slice(0, 16).map(cell => '<td>' + renderReadableValue(cell, escapeHtml) + '</td>').join("") + '</tr>').join("") + '</tbody></table>';
+  }
+
+  function renderDistribution(distribution, escapeHtml) {
+    if (!record(distribution) || !Array.isArray(distribution.bins) || !distribution.bins.length) return "";
+    const sampleCount = Number(distribution.sample_count);
+    const bins = distribution.bins.slice(0, 12).map((bin, index) => {
+      const item = record(bin) ? bin : {value: bin};
+      const count = Number(item.count ?? item.frequency ?? item.value ?? 0);
+      const lower = item.lower ?? item.min ?? item.start;
+      const upper = item.upper ?? item.max ?? item.end;
+      const label = item.label ?? (lower !== undefined || upper !== undefined
+        ? formatScalarValue(lower) + "–" + formatScalarValue(upper)
+        : "区间 " + (index + 1));
+      const ratio = Number(item.share ?? item.ratio);
+      const share = Number.isFinite(ratio) ? ratio : (sampleCount > 0 && Number.isFinite(count) ? count / sampleCount : 0);
+      const width = Math.max(2, Math.min(100, share * 100));
+      const shareText = Number.isFinite(share) && share > 0 ? "（" + (share * 100).toLocaleString("zh-CN", {maximumFractionDigits: 1}) + "%）" : "";
+      return '<div class="distribution-row"><div class="distribution-row-head"><span>' + escapeHtml(label) + '</span><b>' + escapeHtml(formatScalarValue(count)) + ' 个' + escapeHtml(shareText) + '</b></div><div class="distribution-track"><i class="distribution-fill" style="width:' + width + '%"></i></div></div>';
+    }).join("");
+    return '<section class="distribution-block" aria-label="数值分布"><div class="distribution-summary"><strong>区间分布</strong><span>样本数量：' + escapeHtml(formatScalarValue(distribution.sample_count)) + '</span></div><div class="distribution-list">' + bins + '</div></section>';
   }
 
   function renderChart(view, escapeHtml) {
@@ -240,8 +281,7 @@
   }
 
   function formatChartValue(value, label) {
-    const number = Number(value);
-    const text = Number.isFinite(number) ? number.toLocaleString("zh-CN") : String(value ?? "-");
+    const text = formatScalarValue(value);
     return label ? text + " " + label : text;
   }
 

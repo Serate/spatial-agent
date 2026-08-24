@@ -58,134 +58,102 @@ class AnswerComposer:
         health = _first_result(result.steps, "get_dataset_health_report") or {}
         error = result.error or "未知执行错误"
         if "数据预检阻止工具" in error:
-            return f"执行已停止：{error}。健康检查结果已保留在执行轨迹中。"
+            return "这次分析已暂停，因为所需数据没有通过可用性检查。请先补齐或切换数据源，再重新执行。"
         if health.get("status") == "unavailable":
-            return f"执行未完成：数据预检显示所需数据不可用。{error}"
-        return f"执行未完成：{error}"
+            return "这次分析没有完成：所需空间数据当前不可用。请检查本地 GIS 数据和运行环境后重试。"
+        return f"这次分析没有完成：{_friendly_error(error)}"
 
     def _compose_dataset_health_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_dataset_health_report") or {}
         status = result.get("status", "unknown")
         labels = {"ready": "可用", "degraded": "部分可用", "unavailable": "不可用"}
         reports = result.get("datasets") or []
-        details = []
+        available = []
+        unavailable = []
         for item in reports:
             name = item.get("dataset", "未知数据集")
             label = labels.get(item.get("status"), item.get("status", "未知"))
-            files = item.get("file_count", 0)
-            errors = item.get("errors") or []
-            detail = f"{name}：{label}，文件 {files} 个"
-            if item.get("feature_count") is not None:
-                detail += f"，要素 {item['feature_count']} 个"
-            usable = item.get("usable_for") or []
-            if usable:
-                detail += "，可用于：" + "、".join(usable)
-            if errors:
-                detail += f"，问题：{str(errors[0])[:120]}"
-            details.append(detail)
-        suffix = result.get("warning") or ""
-        relationships = result.get("relationships") or {}
-        alignment = relationships.get("dem_land_use") or {}
-        if alignment:
-            details.append(
-                f"DEM/土地利用覆盖关系：{alignment.get('status', '未知')}，"
-                f"重叠文件对 {alignment.get('overlapping_pairs', 0)} 对"
-            )
-        analysis_note = _analysis_ready_note(result)
-        if analysis_note:
-            details.append(analysis_note)
-        return f"数据健康检查完成：整体状态为{labels.get(status, status)}。" + "；".join(details) + (f"。{suffix}" if suffix else "。")
+            if item.get("status") in {"ready", "degraded"}:
+                available.append(f"{name}（{label}）")
+            else:
+                unavailable.append(str(name))
+        parts = [f"数据检查完成，整体{labels.get(status, '状态未知')}。"]
+        if available:
+            parts.append("可用数据包括：" + "、".join(available) + "。")
+        if unavailable:
+            parts.append("暂不可用：" + "、".join(unavailable) + "。")
+        note = result.get("warning") or _user_health_note(result)
+        if note:
+            parts.append(str(note).rstrip("。") + "。")
+        return "".join(parts)
 
     def _compose_spatial_overview_result(self, steps: Iterable[StepRun]) -> str:
-        health = _first_result(steps, "get_dataset_health_report") or {}
-        raster = _first_result(steps, "get_zonal_raster_statistics") or {}
-        slope = _first_result(steps, "get_zonal_slope_statistics") or {}
-        land_use = _first_result(steps, "get_zonal_land_use_distribution") or {}
-        vectors = [
-            step.result for step in steps
-            if step.tool == "get_zonal_vector_summary" and step.result
-        ]
-        area = raster.get("admin_name") or slope.get("admin_name") or land_use.get("admin_name") or "指定区域"
-        parts = [f"{area}空间总览已完成。"]
-        if health:
-            parts.append(f"数据健康状态：{health.get('status', '未知')}。")
-            analysis_note = _analysis_ready_note(health)
-            if analysis_note:
-                parts.append(analysis_note + "。")
-        for label, item in (("高程", raster), ("坡度", slope), ("土地利用", land_use)):
-            statistics = item.get("statistics") or {}
-            if statistics.get("error"):
-                parts.append(f"{label}：{statistics['error']}。")
-            elif statistics:
-                parts.append(f"{label}返回 {statistics.get('valid_pixel_count', 0)} 个有效像元统计。")
-        for item in vectors:
-            dataset = item.get("dataset", "矢量")
-            label = "道路" if dataset == "roads" else "水体" if dataset == "water" else dataset
-            parts.append(f"{label}摘要包含 {item.get('count', 0)} 个要素。")
-        parts.append("以上是可用数据的事实汇总；缺失或降级数据不代表法定规划结论。")
-        return "".join(parts)
+        return self._compose_spatial_analysis_result(steps)
 
     def _compose_spatial_analysis_result(self, steps: Iterable[StepRun]) -> str:
-        """Summarize a composed run from the results that actually completed."""
+        """Create a short conclusion first; execution details remain in evidence."""
+        steps = list(steps)
         health = _first_result(steps, "get_dataset_health_report") or {}
-        area = "指定区域"
+        elevation = _first_result(steps, "get_zonal_raster_statistics")
+        slope = _first_result(steps, "get_zonal_slope_statistics")
+        land_use = _first_result(steps, "get_zonal_land_use_distribution")
+        area = next((step.result.get("admin_name") for step in steps if step.result and step.result.get("admin_name")), "指定区域")
+        findings = []
+        raster_stats = [item.get("statistics") or {} for item in (elevation, slope) if item]
+        valid_counts = [item.get("valid_pixel_count") for item in raster_stats if item.get("valid_pixel_count") is not None and not item.get("error")]
+        if elevation or slope:
+            if any(item.get("error") for item in raster_stats):
+                findings.append("高程或坡度统计未能完整返回，请查看空间结果中的具体提示。")
+            elif valid_counts:
+                findings.append(f"高程和坡度统计已完成，覆盖{_approx_pixels(max(valid_counts))}有效像元。")
+        if land_use:
+            statistics = land_use.get("statistics") or {}
+            if statistics.get("error"):
+                findings.append("土地利用统计未能完成，请查看空间结果中的具体提示。")
+            else:
+                category_count = statistics.get("category_count")
+                suffix = f"，识别出 {_fmt_count(category_count)} 个类别" if category_count is not None else ""
+                findings.append(f"土地利用数据已完成汇总{suffix}。")
         for step in steps:
-            if step.result and step.result.get("admin_name"):
-                area = step.result["admin_name"]
-                break
-        labels = {
-            "get_zonal_raster_statistics": "高程",
-            "get_zonal_slope_statistics": "坡度",
-            "get_zonal_land_use_distribution": "土地利用",
-            "get_zonal_buildability_analysis": "建设候选",
-            "get_zonal_constrained_buildability_analysis": "道路/水体约束建设候选",
-            "get_zonal_vector_summary": "道路或水体",
-        }
-        completed = [step for step in steps if step.status == "COMPLETED"]
+            if step.tool != "get_zonal_vector_summary" or not step.result:
+                continue
+            summary = step.result.get("summary") or {}
+            dataset = step.result.get("dataset")
+            label = "道路" if dataset == "roads" else "水体" if dataset == "water" else "相关矢量数据"
+            count = summary.get("matched_features", summary.get("feature_count", step.result.get("count", 0)))
+            findings.append(f"{label}约 {_fmt_count(count)} 条。")
+        constrained = _first_result(steps, "get_zonal_constrained_buildability_analysis")
+        buildability = constrained or _first_result(steps, "get_zonal_buildability_analysis")
+        if buildability:
+            statistics = buildability.get("statistics") or {}
+            if statistics.get("error"):
+                findings.append("建设候选筛选未能完成，请先检查 DEM、土地利用和道路数据是否对齐。")
+            else:
+                ratio = statistics.get("candidate_ratio")
+                ratio_text = f"约 {float(ratio) * 100:.1f}%" if ratio is not None else "一部分"
+                findings.append(f"按当前演示条件筛得{ratio_text}的候选区域。")
         failed = [step for step in steps if step.status == "FAILED"]
         blocked = [step for step in steps if step.status == "BLOCKED"]
-        parts = [f"{area}组合式空间分析已完成 {len(completed)} 个工具步骤。"]
-        if failed:
-            failures = "、".join(
-                f"{step.tool}：{step.error or '执行失败'}" for step in failed[:4]
-            )
-            parts.append(f"{len(failed)} 个步骤失败（{failures}）。")
-        if blocked:
-            parts.append(f"{len(blocked)} 个后续步骤因依赖失败而未执行。")
-        if health:
-            parts.append(f"数据健康状态：{health.get('status', '未知')}。")
-        for step in completed:
-            label = labels.get(step.tool)
-            if not label or not step.result:
-                continue
-            if step.tool == "get_zonal_vector_summary":
-                summary = step.result.get("summary") or {}
-                parts.append(f"{step.result.get('dataset', label)}摘要返回 {summary.get('matched_features', step.result.get('count', 0))} 个要素。")
-            elif step.tool in {"get_zonal_raster_statistics", "get_zonal_slope_statistics", "get_zonal_land_use_distribution"}:
-                stats = step.result.get("statistics") or {}
-                if stats.get("error"):
-                    parts.append(f"{label}：{stats['error']}。")
-                else:
-                    parts.append(f"{label}返回 {stats.get('valid_pixel_count', 0)} 个有效像元统计。")
-            elif step.tool == "get_zonal_constrained_buildability_analysis":
-                summary = step.result.get("constraint_summary") or {}
-                parts.append(f"{label}满足道路约束 {summary.get('eligible_features', 0)} 个样本，水体排除 {summary.get('water_excluded_features', 0)} 个。")
-            else:
-                stats = step.result.get("statistics") or {}
-                parts.append(f"{label}返回 {stats.get('candidate_pixel_count', 0)} 个候选像元。")
-        parts.append("以上为按请求组合的事实汇总；建设候选仅为演示筛选，不代表法定规划结论。")
-        return "".join(parts)
+        if failed or blocked:
+            findings.append(f"有 {_fmt_count(len(failed) + len(blocked))} 项分析未完成，已保留在执行详情中。")
+        if not findings:
+            findings.append("结果已生成，但当前没有可提炼的统计摘要。")
+        note = "建设候选区域仅用于演示筛选，不代表法定规划或许可结论。" if buildability else "以上结论仅反映当前数据中的统计事实。"
+        health_note = _user_health_note(health)
+        if health_note:
+            note = health_note + " " + note
+        return f"{area}综合空间分析已完成。\n\n主要发现：\n- " + "\n- ".join(findings) + f"\n\n需要注意：{note}"
 
     def _compose_slope_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_zonal_slope_statistics")
         statistics = (result or {}).get("statistics", {})
         area = (result or {}).get("admin_name", "指定区域")
         if statistics.get("error"):
-            return f"{area}内坡度分析失败：{statistics['error']}。"
+            return f"{area}的坡度分析没有完成：{_friendly_error(statistics['error'])}。"
         return (
-            f"{area}坡度分析：最小值 {statistics.get('minimum', '未知')} 度，"
-            f"最大值 {statistics.get('maximum', '未知')} 度，平均值 "
-            f"{statistics.get('mean', '未知')} 度，有效像元 {statistics.get('valid_pixel_count', 0)} 个。"
+            f"{area}的坡度分析已完成。坡度约在 {_fmt_number(statistics.get('minimum'))}–"
+            f"{_fmt_number(statistics.get('maximum'))} 度之间，平均约 {_fmt_number(statistics.get('mean'))} 度，"
+            f"覆盖{_approx_pixels(statistics.get('valid_pixel_count', 0))}有效像元。"
         )
 
     def _compose_land_use_result(self, steps: Iterable[StepRun]) -> str:
@@ -193,15 +161,15 @@ class AnswerComposer:
         statistics = (result or {}).get("statistics", {})
         area = (result or {}).get("admin_name", "指定区域")
         if statistics.get("error"):
-            return f"{area}内土地利用分析失败：{statistics['error']}。"
+            return f"{area}的土地利用分析没有完成：{_friendly_error(statistics['error'])}。"
         categories = statistics.get("categories", [])[:5]
         category_text = "、".join(
-            f"{item.get('value')}类 {float(item.get('share', 0)) * 100:.2f}%"
+            f"{item.get('value')}类 {_fmt_number(float(item.get('share', 0)) * 100, 1)}%"
             for item in categories
         ) or "暂无"
         return (
-            f"{area}土地利用分布：共 {statistics.get('category_count', 0)} 个栅格类别，"
-            f"有效像元 {statistics.get('valid_pixel_count', 0)} 个，主要类别为 {category_text}。"
+            f"{area}的土地利用分布分析已完成，共识别 {_fmt_count(statistics.get('category_count', 0))} 个类别，"
+            f"覆盖{_approx_pixels(statistics.get('valid_pixel_count', 0))}有效像元。主要类别：{category_text}。"
         )
 
     def _compose_buildability_result(self, steps: Iterable[StepRun]) -> str:
@@ -210,119 +178,46 @@ class AnswerComposer:
         statistics = (result or {}).get("statistics", {})
         area = (result or {}).get("admin_name", "指定区域")
         if statistics.get("error"):
-            return f"{area}建设候选筛选失败：{statistics['error']}。"
+            return f"{area}的建设候选筛选没有完成：{_friendly_error(statistics['error'])}。"
         ratio = statistics.get("candidate_ratio")
-        ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.2f}%"
-        reference = (result or {}).get("result_ref")
-        suffix = f"结果引用：{reference}。" if reference else ""
-        analysis_note = _analysis_ready_note(health)
+        ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.1f}%"
+        health_note = _user_health_note(health)
+        note = (health_note + " ") if health_note else ""
         return (
-            f"{area}建设候选演示筛选：候选像元 {statistics.get('candidate_pixel_count', 0)} 个，"
-            f"有效像元 {statistics.get('valid_pixel_count', 0)} 个，候选比例 {ratio_text}，"
-            f"坡度阈值 {statistics.get('slope_limit_degrees', '未知')} 度。"
-            f"{suffix}{analysis_note + '。' if analysis_note else ''}"
-            "以上结果仅用于演示，不代表法定建设适宜性或规划许可结论。"
+            f"{area}的建设候选演示筛选已完成：约 {ratio_text} 的有效区域满足当前条件，"
+            f"坡度阈值为 {_fmt_number(statistics.get('slope_limit_degrees'))} 度。"
+            f"{note}以上仅用于演示，不代表法定建设适宜性或规划许可结论。"
         )
 
     def _compose_terrain_land_use_result(self, steps: Iterable[StepRun]) -> str:
-        health = _first_result(steps, "get_dataset_health_report") or {}
-        elevation = _first_result(steps, "get_zonal_raster_statistics")
-        slope = _first_result(steps, "get_zonal_slope_statistics")
-        land_use = _first_result(steps, "get_zonal_land_use_distribution")
-        buildability = _first_result(steps, "get_zonal_buildability_analysis")
-        area = (elevation or slope or land_use or {}).get("admin_name", "指定区域")
-        parts = [f"{area}综合空间分析已完成。"]
-        if health.get("status") and health.get("status") != "ready":
-            alignment = (health.get("relationships") or {}).get("dem_land_use") or {}
-            parts.append(
-                f"数据预检为{ {'degraded': '部分可用', 'unavailable': '不可用'}.get(health.get('status'), health.get('status')) }，"
-                f"DEM/土地利用重叠文件对 {alignment.get('overlapping_pairs', 0)} 对。"
-            )
-        analysis_note = _analysis_ready_note(health)
-        if analysis_note:
-            parts.append(analysis_note + "。")
-        errors = [
-            item.get("statistics", {}).get("error", "")
-            for item in (elevation, slope, land_use, buildability)
-            if item
-        ]
-        if any("in-memory backend" in error for error in errors):
-            parts.insert(0, "当前使用内存演示后端，未读取真实 GIS 栅格像元；请切换到本地 GIS 后端。")
-        if elevation:
-            stats = elevation.get("statistics", {})
-            if stats.get("error"):
-                parts.append(f"高程：{stats['error']}。")
-            else:
-                parts.append(f"高程范围 {stats.get('minimum', '未知')}–{stats.get('maximum', '未知')} 米，平均 {stats.get('mean', '未知')} 米，有效像元 {stats.get('valid_pixel_count', 0)} 个。")
-        if slope:
-            stats = slope.get("statistics", {})
-            if stats.get("error"):
-                parts.append(f"坡度：{stats['error']}。")
-            else:
-                parts.append(f"由 DEM 动态计算的坡度范围 {stats.get('minimum', '未知')}–{stats.get('maximum', '未知')} 度，平均 {stats.get('mean', '未知')} 度。")
-        if land_use:
-            stats = land_use.get("statistics", {})
-            if stats.get("error"):
-                parts.append(f"土地利用：{stats['error']}。")
-            else:
-                categories = stats.get("categories", [])[:5]
-                category_text = "、".join(f"{item['value']}类 {round(float(item['share']) * 100, 2)}%" for item in categories)
-                parts.append(f"土地利用共识别 {stats.get('category_count', 0)} 个栅格类别，主要类别为 {category_text or '暂无'}。")
-        if buildability:
-            stats = buildability.get("statistics", {})
-            if stats.get("error"):
-                parts.append(f"建设候选筛选：{stats['error']}。")
-            else:
-                ratio = float(stats.get("candidate_ratio", 0)) * 100
-                parts.append(f"按演示规则筛选出约 {ratio:.2f}% 的候选像元（{stats.get('candidate_pixel_count', 0)} / {stats.get('valid_pixel_count', 0)}），坡度阈值为 {stats.get('slope_limit_degrees', 15)} 度。")
-        parts.append("当前结果提供地形与土地利用事实统计；“适合建设”还需要明确坡度阈值、禁建地类和权重后才能生成可审计的候选区域。")
-        if buildability:
-            parts[-1] = "以上建设候选仅是演示筛选，不代表法定建设适宜性或规划许可结论。"
-        return "".join(parts)
+        return self._compose_spatial_analysis_result(steps)
 
     def _compose_admin_area_result(self, steps: Iterable[StepRun]) -> str:
-        schema = _first_result(steps, "get_dataset_schema")
         range_result = _first_result(steps, "range_query")
         if range_result is None:
             return _zh("行政区查询已完成，但没有找到可展示的查询结果。")
 
-        count = int(range_result.get("count", 0))
+        count = int(range_result.get("count", 0) or 0)
         names = range_result.get("sample_names") or []
-        crs = range_result.get("crs") or (schema or {}).get("crs") or _zh("未知")
-        result_ref = range_result.get("result_ref", _zh("无"))
-        metrics = range_result.get("metrics", {})
-        source = metrics.get("source")
-
         if count == 0:
-            answer = _zh("未找到匹配的行政区边界。")
-        else:
-            name_text = _join_names(names) if names else _zh("未返回名称样例")
-            answer = _zh("已找到 {count} 个匹配行政区：{names}。").format(
-                count=count,
-                names=name_text,
-            )
-
-        details = [
-            _zh("坐标系：{crs}").format(crs=crs),
-            _zh("结果引用：{result_ref}").format(result_ref=result_ref),
-        ]
-        if source:
-            details.append(_zh("数据源：{source}").format(source=source))
-        return answer + _zh(" ") + _zh("；").join(details) + _zh("。")
+            return _zh("没有找到匹配的行政区边界，请检查区域名称后重试。")
+        name_text = _join_names(names) if names else _zh("目标区域")
+        return _zh("已找到 {count} 个行政区边界：{names}。空间结果已准备好，可在地图中查看。 ").format(
+            count=_fmt_count(count),
+            names=name_text,
+        ).strip()
 
     def _compose_vector_result(self, steps: Iterable[StepRun]) -> str:
         schema = _first_result(steps, "get_dataset_schema") or {}
         result = _first_result(steps, "range_query") or {}
         dataset = result.get("dataset") or schema.get("dataset") or "空间数据"
         count = result.get("count", 0)
-        metrics = result.get("metrics", {})
-        source = metrics.get("source", "未知")
         names = result.get("sample_names") or []
         label = "道路" if dataset == "roads" else "水体" if dataset == "water" else dataset
-        detail = f"已查询{label}数据 {count} 条"
+        detail = f"已查询{label}约 {_fmt_count(count)} 条"
         if names:
             detail += f"，名称样例：{'、'.join(names[:5])}"
-        return f"{detail}。坐标系：{result.get('crs', schema.get('crs', '未知'))}；数据源：{source}。这是基于 OpenStreetMap 演示数据的空间结果，不代表法定道路或水体边界。"
+        return f"{detail}。这是演示数据的统计结果，不代表法定道路或水体边界。"
 
     def _compose_zonal_vector_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_zonal_vector_summary") or {}
@@ -331,26 +226,23 @@ class AnswerComposer:
         dataset = result.get("dataset", "vector")
         label = "道路" if dataset == "roads" else "水体"
         if summary.get("error"):
-            return f"{area}{label}分析失败：{summary['error']}。"
+            return f"{area}的{label}分析没有完成：{_friendly_error(summary['error'])}。"
         categories = summary.get("category_counts") or {}
-        category_text = "、".join(f"{key} {value} 条" for key, value in list(categories.items())[:6]) or "暂无分类统计"
+        category_text = "、".join(f"{key} {_fmt_count(value)} 条" for key, value in list(categories.items())[:6]) or "暂无分类统计"
         return (
-            f"{area}{label}统计：相交要素 {summary.get('matched_features', result.get('count', 0))} 条，"
-            f"返回几何 {summary.get('returned_features', 0)} 条，已命名要素 {summary.get('named_features', 0)} 条。"
-            f"分类统计：{category_text}。坐标系：{result.get('crs', '未知')}。"
-            "数据来自 OpenStreetMap 演示图层，不代表法定道路、水体边界或规划许可结论。"
+            f"{area}的{label}分析已完成，共涉及约 {_fmt_count(summary.get('matched_features', result.get('count', 0)))} 条要素。"
+            f"分类统计：{category_text}。详细空间要素可在地图中查看；结果不代表法定边界。"
         )
 
     def _compose_spatial_relation_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "spatial_join") or {}
         metrics = result.get("metrics") or {}
         if result.get("error"):
-            return f"空间关系分析失败：{result['error']}。"
+            return f"空间关系分析没有完成：{_friendly_error(result['error'])}。"
         distance = result.get("distance_m", metrics.get("distance_m", "未知"))
         return (
-            f"已完成道路与水体的邻近分析：{result.get('count', 0)} 条道路-水体关系满足 {distance} 米范围。"
-            f"左侧数据 {result.get('left_dataset', 'roads')}，右侧数据 {result.get('right_dataset', 'water')}，"
-            "结果基于 OpenStreetMap 演示图层，不代表法定道路、水体边界或规划结论。"
+            f"道路与水体的邻近分析已完成：约 {_fmt_count(result.get('count', 0))} 条关系满足 {_fmt_number(distance)} 米范围。"
+            "结果基于演示图层，不代表法定道路、水体边界或规划结论。"
         )
 
     def _compose_constrained_buildability_result(self, steps: Iterable[StepRun]) -> str:
@@ -359,29 +251,16 @@ class AnswerComposer:
         area = result.get("admin_name", "指定区域")
         statistics = result.get("statistics") or {}
         if statistics.get("error"):
-            return f"{area}联合建设候选筛选失败：{statistics['error']}。"
+            return f"{area}的联合建设候选筛选没有完成：{_friendly_error(statistics['error'])}。"
         constraints = result.get("constraint_summary") or {}
         ratio = statistics.get("candidate_ratio")
-        ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.2f}%"
-        analysis_note = _analysis_ready_note(health)
-        health_note = ""
-        if health.get("status") and health.get("status") != "ready":
-            alignment = (health.get("relationships") or {}).get("dem_land_use") or {}
-            health_status = {"degraded": "部分可用", "unavailable": "不可用"}.get(
-                health.get("status"), health.get("status")
-            )
-            health_note = (
-                f"数据预检为{health_status}"
-                f"（DEM/土地利用重叠文件对 {alignment.get('overlapping_pairs', 0)} 对）；"
-            )
+        ratio_text = "未知" if ratio is None else f"{float(ratio) * 100:.1f}%"
+        health_note = _user_health_note(health)
         return (
-            f"{area}联合建设候选演示筛选完成：{health_note}原始候选像元比例 {ratio_text}，"
-            f"候选几何样本 {constraints.get('candidate_features', 0)} 个，"
-            f"满足道路距离约束 {constraints.get('eligible_features', 0)} 个，"
-            f"因水体排除 {constraints.get('water_excluded_features', 0)} 个。"
-            f"道路距离阈值 {constraints.get('road_distance_m', '未知')} 米。"
-            f"{analysis_note + '。' if analysis_note else ''}"
-            "矢量约束只作用于有限候选几何样本，不代表全像元精确适宜性或法定规划结论。"
+            f"{area}的联合建设候选演示筛选已完成：约 {ratio_text} 的候选样本满足道路距离条件，"
+            f"其中约 {_fmt_count(constraints.get('water_excluded_features', 0))} 个因水体被排除。"
+            f"道路距离阈值为 {_fmt_number(constraints.get('road_distance_m'))} 米。"
+            f"{health_note + ' ' if health_note else ''}结果仅用于演示，不代表全像元精确适宜性或法定规划结论。"
         )
 
     def _compose_raster_metadata_result(self, steps: Iterable[StepRun]) -> str:
@@ -400,29 +279,17 @@ class AnswerComposer:
         bounds = metadata.get("bounds")
 
         if metadata.get("error"):
-            return _zh("{dataset} 栅格元数据查询完成，但未匹配到本地文件：{error}。").format(
+            return _zh("{dataset} 的栅格信息没有读取成功：{error}。").format(
                 dataset=dataset,
-                error=metadata["error"],
+                error=_friendly_error(metadata["error"]),
             )
-
-        details = [
-            _zh("文件数：{count}").format(count=file_count),
-            _zh("已抽样：{count} 个文件").format(count=probed_files),
-            _zh("首个样本尺寸：{width}x{height}").format(
-                width=metadata.get("width", _zh("未知")),
-                height=metadata.get("height", _zh("未知")),
-            ),
-            _zh("波段数：{count}").format(count=metadata.get("band_count", _zh("未知"))),
-        ]
-        if dtype_values:
-            details.append(_zh("数据类型：{values}").format(values=", ".join(dtype_values)))
-        if crs_values:
-            details.append(_zh("坐标系：{values}").format(values=", ".join(crs_values)))
-        if pixel_size:
-            details.append(_zh("像元大小：{values}").format(values=", ".join(str(item) for item in pixel_size)))
-        if bounds:
-            details.append(_zh("范围：{values}").format(values=", ".join(str(round(float(item), 3)) for item in bounds)))
-        return _zh("{dataset} 栅格元数据：").format(dataset=dataset) + _zh("；").join(details) + _zh("。")
+        size = f"{metadata.get('width', '未知')}x{metadata.get('height', '未知')}"
+        details = [f"文件数：{_fmt_count(file_count)} 个", f"首个样本尺寸：{size}"]
+        if probed_files:
+            details.append(f"已抽查 {_fmt_count(probed_files)} 个文件")
+        if metadata.get("band_count") is not None:
+            details.append(f"包含 {_fmt_count(metadata.get('band_count'))} 个波段")
+        return f"{dataset} 栅格元数据已读取。" + "，".join(details) + "。详细坐标系和范围可在结构化结果中查看。"
 
     def _compose_raster_statistics_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_raster_statistics")
@@ -430,24 +297,15 @@ class AnswerComposer:
             return _zh("栅格统计分析已完成，但没有找到可展示的结果。")
         statistics = result.get("statistics", {})
         if statistics.get("error"):
-            return _zh("{dataset} 栅格统计分析未匹配到本地文件：{error}。").format(
+            return _zh("{dataset} 的栅格统计没有完成：{error}。").format(
                 dataset=result.get("dataset", _zh("未知数据集")),
-                error=statistics["error"],
+                error=_friendly_error(statistics["error"]),
             )
-        metrics = result.get("metrics", {})
-        details = [
-            _zh("文件总数：{count}").format(count=result.get("file_count", 0)),
-            _zh("已分析：{count} 个文件").format(count=metrics.get("analyzed_files", 0)),
-            _zh("最小值：{value}").format(value=statistics.get("minimum", _zh("未知"))),
-            _zh("最大值：{value}").format(value=statistics.get("maximum", _zh("未知"))),
-            _zh("平均值：{value}").format(value=statistics.get("mean", _zh("未知"))),
-            _zh("标准差：{value}").format(value=statistics.get("standard_deviation", _zh("未知"))),
-            _zh("有效像元：{count}").format(count=statistics.get("valid_pixel_count", 0)),
-        ]
-        nodata_ratio = statistics.get("nodata_ratio")
-        if nodata_ratio is not None:
-            details.append(_zh("NoData 比例：{ratio}%").format(ratio=round(float(nodata_ratio) * 100, 3)))
-        return _zh("{dataset} 栅格统计：").format(dataset=result.get("dataset", _zh("未知数据集"))) + _zh("；").join(details) + _zh("。")
+        return (
+            f"{result.get('dataset', '栅格')} 的统计分析已完成。"
+            f"数值范围约为 {_fmt_number(statistics.get('minimum'))}–{_fmt_number(statistics.get('maximum'))}，"
+            f"平均值约 {_fmt_number(statistics.get('mean'))}，覆盖{_approx_pixels(statistics.get('valid_pixel_count', 0))}有效像元。"
+        )
 
     def _compose_zonal_raster_statistics_result(self, steps: Iterable[StepRun]) -> str:
         result = _first_result(steps, "get_zonal_raster_statistics")
@@ -456,57 +314,81 @@ class AnswerComposer:
         health = _first_result(steps, "get_dataset_health_report") or {}
         statistics = result.get("statistics", {})
         admin_name = result.get("admin_name", _zh("指定区域"))
-        health_note = ""
-        if health.get("status") and health.get("status") != "ready":
-            status = {"degraded": "部分可用", "unavailable": "不可用"}.get(
-                health.get("status"), health.get("status")
-            )
-            health_note = _zh("数据预检为{status}；").format(status=status)
         if statistics.get("error"):
-            return health_note + _zh("{area} 内没有可统计的 {dataset} 栅格像元：{error}。").format(
+            return _zh("{area} 内没有可统计的 {dataset} 栅格像元：{error}。").format(
                 area=admin_name,
                 dataset=result.get("dataset", _zh("未知数据集")),
-                error=statistics["error"],
+                error=_friendly_error(statistics["error"]),
             )
-        details = [
-            _zh("最小值：{value}").format(value=statistics.get("minimum", _zh("未知"))),
-            _zh("最大值：{value}").format(value=statistics.get("maximum", _zh("未知"))),
-            _zh("平均值：{value}").format(value=statistics.get("mean", _zh("未知"))),
-            _zh("标准差：{value}").format(
-                value=statistics.get("standard_deviation", _zh("未知"))
-            ),
-            _zh("有效像元：{count}").format(
-                count=statistics.get("valid_pixel_count", 0)
-            ),
-        ]
+        health_note = _user_health_note(health)
+        note = health_note + " " if health_note else ""
         if statistics.get("nodata_ratio") is not None:
-            details.append(
-                _zh("NoData 比例：{ratio}%").format(
-                    ratio=round(float(statistics["nodata_ratio"]) * 100, 3)
-                )
-            )
-        return health_note + _zh("{area}的 {dataset} 区域统计：").format(
-            area=admin_name, dataset=result.get("dataset", _zh("未知数据集"))
-        ) + _zh("；").join(details) + _zh("。")
+            note += f"缺失值比例约 {_fmt_number(float(statistics['nodata_ratio']) * 100, 1)}%。"
+        return (
+            f"{admin_name}的 {result.get('dataset', '栅格')} 区域统计已完成。{note}"
+            f"数值范围约为 {_fmt_number(statistics.get('minimum'))}–{_fmt_number(statistics.get('maximum'))}，"
+            f"平均值约 {_fmt_number(statistics.get('mean'))}，覆盖{_approx_pixels(statistics.get('valid_pixel_count', 0))}有效像元。"
+        )
 
     def _compose_default(self, steps: Iterable[StepRun]) -> str:
         completed = [step for step in steps if step.status == "COMPLETED"]
-        refs = [
-            str(step.result["result_ref"])
-            for step in completed
-            if step.result and "result_ref" in step.result
-        ]
         counts = [
-            str(step.result["count"])
+            _fmt_count(step.result["count"])
             for step in completed
             if step.result and "count" in step.result
         ]
-        parts = [_zh("已完成 {count} 个工具步骤").format(count=len(completed))]
-        if refs:
-            parts.append(_zh("结果引用：{refs}").format(refs=", ".join(refs)))
+        parts = [_zh("这次空间处理已完成。")]
         if counts:
-            parts.append(_zh("命中数量：{counts}").format(counts=", ".join(counts)))
-        return _zh("；").join(parts) + _zh("。")
+            parts.append(_zh("共涉及约 {counts} 条记录。").format(counts=", ".join(counts)))
+        return "".join(parts)
+
+def _fmt_count(value: Any) -> str:
+    try:
+        return f"{int(round(float(value))):,}"
+    except (TypeError, ValueError):
+        return "未知"
+
+
+def _approx_pixels(value: Any) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "约未知"
+    if abs(number) >= 10000:
+        return f"约 {number / 10000:.1f} 万个"
+    return f"约 {_fmt_count(number)} 个"
+
+
+def _fmt_number(value: Any, digits: int = 2) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "未知"
+    if number.is_integer():
+        return f"{int(number):,}"
+    return f"{number:,.{digits}f}".rstrip("0").rstrip(".")
+
+
+def _user_health_note(health: Dict[str, Any]) -> str:
+    status = str(health.get("status") or "")
+    if status == "degraded":
+        return "部分数据可用，结论应谨慎解读。"
+    if status == "unavailable":
+        return "部分数据不可用，当前结果不能视为完整分析。"
+    return ""
+
+
+def _friendly_error(error: Any) -> str:
+    text = str(error or "未知错误")
+    replacements = {
+        "in-memory backend has no raster geometry": "当前后端没有可用的栅格空间信息",
+        "in-memory backend has no DEM pixels": "当前后端没有可用的 DEM 像元",
+        "rasterio is required for RasterMetadataBackend": "本地 GIS 环境缺少 rasterio 依赖",
+    }
+    for source, target in replacements.items():
+        if source in text:
+            return target
+    return text[:240]
 
 
 def _first_result(steps: Iterable[StepRun], tool: str) -> Optional[Dict[str, Any]]:
@@ -528,15 +410,9 @@ def _analysis_ready_note(health: Dict[str, Any]) -> str:
     evidence = health.get("analysis_ready") or {}
     if not evidence:
         return ""
-    labels = {"ready": "已就绪", "degraded": "部分可用", "unavailable": "不可用"}
-    status = labels.get(evidence.get("status"), evidence.get("status", "未知"))
-    target = evidence.get("target_grid") or {}
-    crs = target.get("crs", "未知 CRS")
-    resolution = target.get("resolution") or []
-    resolution_text = "×".join(str(value) for value in resolution) if resolution else "未知分辨率"
-    version = evidence.get("derived_version", "未知版本")
-    alignment = (evidence.get("grid_alignment") or {}).get("status", "未知")
-    return (
-        f"分析就绪派生层{status}（版本 {version}，目标 CRS {crs}，"
-        f"分辨率 {resolution_text} 米，对齐状态 {alignment}）"
-    )
+    status = str(evidence.get("status") or "")
+    if status == "ready":
+        return "联合分析所需的数据已完成对齐。"
+    if status == "degraded":
+        return "联合分析所需的数据只有部分可用。"
+    return "联合分析所需的数据尚未完全准备好。"

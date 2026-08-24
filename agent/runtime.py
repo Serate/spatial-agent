@@ -45,6 +45,7 @@ from .decision_lifecycle import DecisionLifecycleError, DecisionRequest, Decisio
 from .action_lifecycle import project_action_lifecycle
 from .evidence_contract import project_capability_catalog_evidence
 from .failure_contract import build_failure_evidence
+from .answer_generation import fallback_answer_generation_evidence
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .plan_repair import PlanRepairEngine, PlanRepairInput
@@ -178,6 +179,7 @@ class AgentRuntime:
         state_store: Optional[InMemoryStateStore] = None,
         conversation_store: Optional[InMemoryConversationStore] = None,
         answer_composer: Optional[Any] = None,
+        answer_generator: Optional[Any] = None,
         context_builder: Optional[ContextBuilder] = None,
         max_steps: int = 12,
         max_retries: int = 2,
@@ -202,6 +204,7 @@ class AgentRuntime:
         self._domain_pack = domain_pack or default_domain_pack()
         self._result_registry = resolve_result_registry(self._domain_pack)
         self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
+        self._answer_generator = answer_generator
         self._context_builder = context_builder or ContextBuilder()
         self._max_steps = max_steps
         self._max_retries = max_retries
@@ -645,7 +648,7 @@ class AgentRuntime:
                     replan_count += 1
                     index += 1
             result.status = RunStatus.COMPLETED
-            result.answer = self._answer_composer.compose(result)
+            result.answer = self._compose_answer(result)
             self._remember(result)
             self._conversation_store.clear_pending(session_id)
             self._conversation_store.save_completed(session_id, resolved_request)
@@ -847,7 +850,7 @@ class AgentRuntime:
                     replan_count += 1
                     index += 1
             result.status = RunStatus.COMPLETED
-            result.answer = self._answer_composer.compose(result)
+            result.answer = self._compose_answer(result)
             self._conversation_store.clear_pending(result.session_id or "default")
             self._conversation_store.save_completed(
                 result.session_id or "default", result.resolved_request or result.request
@@ -1131,7 +1134,7 @@ class AgentRuntime:
                 if step_run.result is not None:
                     completed_results[step.id] = step_run.result
             result.status = RunStatus.COMPLETED
-            result.answer = self._answer_composer.compose(result)
+            result.answer = self._compose_answer(result)
         except Exception as exc:
             result.status = RunStatus.FAILED
             result.error = str(exc)
@@ -1488,6 +1491,45 @@ class AgentRuntime:
     def _planner_metrics(self) -> Optional[Dict]:
         metrics = getattr(self._planner, "metrics", None)
         return metrics() if callable(metrics) else None
+
+    def _compose_answer(self, result: AgentRunResult) -> str:
+        """Generate a natural-language answer with a deterministic fallback.
+
+        The Domain Composer remains responsible for the trusted fallback.  A
+        model may rewrite only the bounded facts assembled by the answer
+        generator; it never replaces tool execution or evidence ownership.
+        """
+
+        fallback = self._answer_composer.compose(result)
+        generator = self._answer_generator
+        generate = getattr(generator, "generate", None) if generator is not None else None
+        if not callable(generate):
+            result.answer_generation_evidence = fallback_answer_generation_evidence(
+                "answer_generation_disabled"
+            )
+            return fallback
+        try:
+            generated = generate(result)
+            answer = getattr(generated, "answer", None)
+            evidence = getattr(generated, "evidence", None)
+            if not isinstance(answer, str) or not answer.strip():
+                raise ValueError("answer generator returned an empty answer")
+            result.answer_generation_evidence = (
+                dict(evidence) if isinstance(evidence, Mapping) else
+                fallback_answer_generation_evidence("answer_generation_evidence_missing")
+            )
+            return answer.strip()
+        except Exception:
+            failure_evidence = getattr(generator, "failure_evidence", None)
+            if callable(failure_evidence):
+                result.answer_generation_evidence = failure_evidence(
+                    "answer_generation_failed"
+                )
+            else:
+                result.answer_generation_evidence = fallback_answer_generation_evidence(
+                    "answer_generation_failed"
+                )
+            return fallback
 
     def _validate_or_repair_plan(
         self,

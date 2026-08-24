@@ -43,14 +43,70 @@ async function main() {
   assert.match(generic.innerHTML, /通用结果/);
   assert.match(visual.innerHTML, /<svg/);
 
-  const boundsTarget = {innerHTML: ""};
-  await GisPlugin.createMapAdapter().render({
+  const readable = {innerHTML: ""};
+  await registry.renderWorkspace({
+    panels: {
+      stats: {
+        kind: "raster_statistics",
+        title: "高程统计",
+        metrics: [
+          {label: "最小值", value: 123.4567890123},
+          {label: "最大值", value: 9876543210},
+        ],
+        distribution: {
+          sample_count: 10000,
+          bins: [
+            {lower: 0, upper: 10, count: 7200},
+            {lower: 10, upper: 20, count: 2800},
+          ],
+        },
+        rows: [{label: "分布", value: {sample_count: 10000, bins: [{count: 7200}]}}],
+      },
+    },
+    specs: [{id: "stats", renderer: "generic", title: "高程统计"}],
+    surfaces: {generic: readable},
+  });
+  assert.match(readable.innerHTML, /123\.457/);
+  assert.doesNotMatch(readable.innerHTML, /123\.4567890123/);
+  assert.match(readable.innerHTML, /样本数量/);
+  assert.match(readable.innerHTML, /区间分布/);
+  assert.doesNotMatch(readable.innerHTML, /\[object Object\]/);
+
+  const rasterElement = {addEventListener() {}};
+  const rasterFitButton = {addEventListener() {}};
+  const boundsMap = {
+    bounds: null,
+    fitBounds(value) { this.bounds = value; },
+    invalidateSize() {},
+    hasLayer() { return false; },
+    remove() {},
+  };
+  const fakeLeaflet = {
+    map() { return boundsMap; },
+    rectangle(value) { return {value, addTo() { return this; }}; },
+    tileLayer() { return {on() {}, addTo() { return this; }}; },
+    layerGroup() { return {addTo() { return this; }}; },
+    control: {
+      scale() { return {addTo() {}}; },
+      layers() { return {addTo() {}}; },
+    },
+  };
+  const boundsTarget = {
+    innerHTML: "",
+    querySelector(selector) {
+      if (selector === "[data-raster-map]") return rasterElement;
+      if (selector === "[data-map-fit]") return rasterFitButton;
+      return null;
+    },
+  };
+  await GisPlugin.createMapAdapter({leaflet: fakeLeaflet}).render({
     target: boundsTarget,
-    view: {mode: "raster_bounds", bounds: [0, 0, 10, 5], dataset: "dem", crs: "EPSG:4326"},
+    view: {mode: "raster_bounds", bounds: [114.3, 30.4, 114.4, 30.5], dataset: "dem", crs: "EPSG:4326"},
     isCurrent: () => true,
   });
-  assert.match(boundsTarget.innerHTML, /栅格外接范围/);
-  assert.doesNotMatch(boundsTarget.innerHTML, /fill-opacity="\.48"/);
+  assert.match(boundsTarget.innerHTML, /data-raster-map/);
+  assert.deepEqual(boundsMap.bounds, [[30.4, 114.3], [30.5, 114.4]]);
+  assert.match(boundsTarget.innerHTML, /仅显示栅格外接范围/);
 
   registry.register("broken", {surface: "visual", render() { throw new Error("fixture"); }});
   const degraded = await registry.renderWorkspace({

@@ -60,7 +60,10 @@ class M133CrossDomainRuntimeTests(unittest.TestCase):
             runtime = build_text_runtime("openai", "memory")
             result = runtime.run("请摘要这段文本")
 
-        self.assertEqual(len(client.calls), 1)
+        # OpenAI mode now has two explicit model seams: planning and
+        # user-facing answer generation.  The recorded client is shared by
+        # this compact fixture, so both calls are visible here.
+        self.assertEqual(len(client.calls), 2)
         self.assertEqual(result.status.value, "COMPLETED")
         self.assertEqual(result.plan.output["type"], "text_summary_result")
         prompt = client.calls[0][0][0]["content"]

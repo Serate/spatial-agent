@@ -128,6 +128,7 @@ class ArtifactStore:
             "spatial_context": payload.get("spatial_context"),
             "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
+            "answer_generation_evidence": payload.get("answer_generation_evidence"),
             "context_evidence": payload.get("context_evidence"),
             "plan_evidence": payload.get("plan_evidence"),
             "plan": _plan_summary(payload.get("plan")),

@@ -151,7 +151,8 @@ class M77SpatialRequestTests(unittest.TestCase):
         self.assertTrue(result.plan_evidence["template_context_available"])
         self.assertEqual(len(result.steps), 9)
         self.assertTrue(all(step.status == "COMPLETED" for step in result.steps))
-        self.assertIn("已完成 9 个工具步骤", result.answer)
+        self.assertIn("综合空间分析已完成", result.answer)
+        self.assertIn("主要发现", result.answer)
         self.assertIn("高程", result.answer)
         self.assertIn("建设候选", result.answer)
 
@@ -166,9 +167,9 @@ class M77SpatialRequestTests(unittest.TestCase):
         ]
         answer = AnswerComposer()._compose_spatial_analysis_result(steps)
 
-        self.assertIn("1 个步骤失败", answer)
-        self.assertIn("1 个后续步骤因依赖失败而未执行", answer)
-        self.assertIn("DEM unavailable", answer)
+        self.assertIn("2 项分析未完成", answer)
+        self.assertIn("部分数据可用", answer)
+        self.assertIn("执行详情", answer)
 
 
 if __name__ == "__main__":

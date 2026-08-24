@@ -8,7 +8,7 @@ factory for CLI compatibility.
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Any, Iterable, Optional
 
 from .domain_contract import (
     DomainPack,
@@ -18,6 +18,7 @@ from .domain_contract import (
     rule_planner as resolve_rule_planner,
 )
 from .domain_registry import resolve_domain_pack
+from .answer_generation import LLMAnswerGenerator
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_openai_config
 from .planner import RuleBasedPlanner
@@ -39,6 +40,7 @@ def build_runtime(
     require_dependency_evidence: Optional[bool] = None,
     domain_pack: Optional[DomainPack] = None,
     domain_id: Optional[str] = None,
+    answer_generator: Any = None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
     if domain_pack is not None and domain_id is not None:
@@ -50,13 +52,22 @@ def build_runtime(
         registry = ToolRegistry.from_provider(provider)
     else:
         registry = _legacy_gis_registry(backend_name, root)
+    resolved_answer_generator = answer_generator
     if planner_name == "openai":
+        model_config = load_openai_config()
         planner = LLMPlanner(
-            OpenAIPlannerClient(**load_openai_config()),
+            OpenAIPlannerClient(**model_config),
             registry.names,
             planner_guidance=planner_guidance(selected_domain_pack),
             request_hint=planner_request_hint(selected_domain_pack),
         )
+        # Keep planner and answer metrics independent.  The second call is
+        # intentionally a separate client instance so an answer timeout
+        # cannot overwrite the planner evidence persisted for the run.
+        if resolved_answer_generator is None:
+            resolved_answer_generator = LLMAnswerGenerator(
+                OpenAIPlannerClient(**model_config)
+            )
     else:
         planner = resolve_rule_planner(selected_domain_pack) or RuleBasedPlanner()
     if allowed_permissions is None:
@@ -80,6 +91,7 @@ def build_runtime(
         decision_store=decision_store,
         backend_name=backend_name,
         planner_name=planner_name,
+        answer_generator=resolved_answer_generator,
         domain_pack=selected_domain_pack,
         allowed_permissions=allowed_permissions,
         approved_tools=approved_tools,

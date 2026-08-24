@@ -17,6 +17,7 @@ from agent.action_effect import project_action_effect
 from agent.evidence_registry import build_evidence_registry
 from agent.evidence_recovery import project_evidence_recovery
 from agent.model_evidence import project_model_evidence
+from agent.answer_generation import project_answer_generation_evidence
 from agent.recovery_action import normalize_action_receipt
 from agent.planner_selection import normalize_planner_selection_evidence
 from agent.workflow_selection import normalize_workflow_selection_evidence
@@ -258,6 +259,9 @@ def build_result_contract(
         "model_evidence": project_model_evidence(
             payload.get("planner_metrics"),
             normalized_runtime_context,
+        ),
+        "answer_generation": project_answer_generation_evidence(
+            payload.get("answer_generation_evidence")
         ),
     }
     contract["deployment_evidence"] = build_deployment_evidence(
