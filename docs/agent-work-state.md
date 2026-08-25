@@ -16,8 +16,8 @@
 ## 当前阶段
 
 - 阶段：M283 开放式请求 Agent 闭环
-- 状态：M282 已完成并推送 `a7e933b`；M283-A～E 已完成，当前进入 M283-F 文档、版本交付与全局重规划。
-- 当前任务：M283-F 文档、版本交付与全局重规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；需要更详细状态时再读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 状态：M282 已完成并推送 `a7e933b`；M283-A～F 已完成并推送 `4d022f4`。
+- 当前任务：当前没有进行中的代码任务；下一阶段开始前先按七个全局维度编写 Spec/Plan。任务账本见 [`tasks/task-progress.md`](../tasks/task-progress.md)，详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m283-open-query-agent-capability-map.md`](m283-open-query-agent-capability-map.md)
   - [`docs/m283-open-query-agent-spec.md`](m283-open-query-agent-spec.md)
@@ -25,14 +25,7 @@
 
 ## 当前任务明确文件
 
-- `scripts/resume_context.ps1`
-- `agent/web_assets.py`
-- `web/src/console_result_projection.js`
-- `web/src/console_app.js`
-- `web/src/index.html`
-- `web/src/styles.css`
-- `scripts/console_result_projection_smoke.js`
-- `scripts/console_result_projection_browser_smoke.js`
+- 当前没有待修改源码文件；下一阶段 Spec/Plan 确定后再补充明确文件。
 
 ## 验证与安全约定
 

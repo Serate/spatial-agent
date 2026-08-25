@@ -12,15 +12,16 @@
 
 ## 当前进行中
 
-### M283-F：文档、版本交付与全局重规划 — 进行中
-
-- 目标：收口 M283 交付证据、同步中文项目记忆和恢复指针，提交并推送版本，再从项目全局规划下一阶段。
-- 需要修改：`scripts/resume_context.ps1`、`docs/m283-open-query-agent-plan.md`、`docs/milestones.md`、`docs/agent-context-resume.md`、`tasks/todo.md`、`tasks/task-progress.md`、`tasks/task-state.md`、`docs/agent-work-state.md`。
-- 验证：M283-E 已完成 Docker 7/7、compileall、architecture strict、readiness/resource 200、Node/Docker/browser projection smoke 和 1 条真实 LLM + local GIS 显式验收。
-- 阻塞：地图 smoke 的清空对话后空间上下文复位旧问题不影响本阶段 projection contract，但需保留为后续独立任务。
-- 下一步：完成阶段历史摘要、检查 diff、提交并推送 M283 版本。
+- 当前无进行中的代码子任务。
+- M283 已完成并推送；下一阶段开始前先按七个全局维度编写新的 Spec/Plan，不在本阶段继续追加局部修补。
 
 ## 最近完成
+
+### M283-F：文档、版本交付与全局重规划 — 已完成
+
+- 结果：完成阶段文档、中文问题日志、恢复快照与短账本收口；恢复脚本已验证显示当前快照和 M283-E/D，而不是旧历史记录。
+- 版本：`4d022f4` 已提交并推送到 `origin/main`。
+- 下一步：新的阶段先做全局规划；地图清空后的空间上下文复位作为候选问题，不在本阶段伪装成已修复。
 
 ### M283-E：真实与跨入口验收 — 已完成
 

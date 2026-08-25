@@ -80,12 +80,13 @@
 - Live receipt：`live-gis-spatial-overview` 为 `COMPLETED`，1 次请求、0 重试；只记录脱敏状态/耗时/token 摘要。
 - 阻塞：地图 smoke 的清空对话后空间上下文复位问题已记录为后续独立任务。
 
-### M283-F：文档、版本交付与全局重规划（进行中）
+### M283-F：文档、版本交付与全局重规划（已完成）
 
 - 目标：同步阶段历史、恢复指针和全局下一阶段规划，完成提交推送。
 - 待读/待修改：`scripts/resume_context.ps1`、`docs/m283-open-query-agent-plan.md`、`docs/milestones.md`、`docs/agent-context-resume.md`、`tasks/todo.md`、`tasks/task-progress.md`、`tasks/task-state.md`、`docs/agent-work-state.md`。
-- 验证：复用 M283-E 已完成的精简证据；提交前执行 diff check 和状态检查。
-- 阻塞：无。
+- 验证：复用 M283-E 已完成的精简证据；diff check、提交和推送均通过。
+- 版本：`4d022f4` 已推送到 `origin/main`。
+- 下一步：新的阶段先做七维度全局 Spec/Plan；当前没有进行中的代码任务。
 
 ## 更新协议
 

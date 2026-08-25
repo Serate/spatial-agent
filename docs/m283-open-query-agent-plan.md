@@ -7,7 +7,7 @@
 3. **C 开放式成功切片**：用已有 GIS/Economic 能力构造一个不依赖固定问句的 fake/replay 成功 DAG，验证 HTTP、async、artifact、restart 和 planner evidence 一致；真实数据只显式执行。
 4. **D 结果体验**：✅ 前端消费 context/plan/clarification/evidence 的通用 projection，显示阶段里程碑和可读回答；地图/指标继续按 View 类型动态渲染。
 5. **E 真实与跨入口验收**：✅ Docker 重建后执行精简回归、readiness、真实模型/GIS/browser 短验收；成功、澄清、拒绝、Provider 失败分别记录。
-6. **F 收口与重规划**：更新中文问题日志、milestones、恢复快照和任务账本，提交推送版本，再按七维度规划下一阶段。
+6. **F 收口与重规划**：✅ 更新中文问题日志、milestones、恢复快照和任务账本，提交推送版本，再按七维度规划下一阶段。
 
 ## 风险控制
 
@@ -39,3 +39,10 @@
 - Node projection smoke、Docker 内 projection smoke 和浏览器 projection smoke 通过；浏览器验证 6 个阶段、关键发现和隐藏工具名不出现在用户投影中。
 - 真实模型 + local GIS 显式短验收 `live-gis-spatial-overview`：1 次请求、0 重试、`COMPLETED`，真实执行成功；只保留脱敏摘要，未保存 prompt、模型原文或密钥。该请求约 8,028 tokens、42.5 秒，仅作为手工 live receipt，不进入默认 CI。
 - 既有地图 smoke 仍暴露清空对话后空间上下文未立即复位，已独立记录，不阻塞本阶段结果 projection 合同。
+
+## M283-F 交付记录
+
+- 已同步 `docs/agent-context-resume.md`、`docs/milestones.md`、`docs/agent-work-state.md`、`tasks/task-progress.md`、`tasks/task-state.md` 和 `tasks/todo.md`；恢复脚本已验证只输出当前快照与 M283-E/D 最近记录。
+- 已把静态资源 allowlist、浏览器缓存、地图清空复位和账本读取顺序问题写入中文问题日志，保留失败证据和后续边界。
+- 版本 `4d022f4` 已提交并推送到 `origin/main`。
+- 下一阶段先按产品、架构、数据、模型、部署、体验、测试七个维度全局规划；当前不启动新的局部代码任务。
