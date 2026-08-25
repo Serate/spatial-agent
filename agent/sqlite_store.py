@@ -1750,6 +1750,7 @@ def _result_from_dict(
         planner_metrics=payload.get("planner_metrics"),
         answer_generation_evidence=payload.get("answer_generation_evidence"),
         steps=steps,
+        result=payload.get("result"),
         answer=payload.get("answer"),
         error=payload.get("error"),
         error_category=payload.get("error_category"),

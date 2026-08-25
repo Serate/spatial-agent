@@ -4940,3 +4940,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 已知缺口：Composite 查询、artifact、async、SQLite/restart、前端动态展示和 LLM 自动生成跨域组件仍未接入；这些属于下一阶段，不在本阶段伪装为已完成。
 - 本阶段已完成 Docker 精简契约、compileall、architecture strict、CI/stage 和生产健康检查，并完成版本提交与推送。
 - 全局重规划：下一阶段设计可恢复 Composite run identity，先接现有 AsyncApplication/SQLite/artifact，再验证同步/异步/重启结果一致性；真实 LLM 跨域规划放在恢复契约稳定后显式验收。
+
+## M278：Composite 可恢复生命周期（已完成）
+
+- 新增 `agent/application/composite_runs.py`，复用 `AsyncApplication` 提供 Composite 同步持久化、异步幂等、artifact fallback、observability、evidence 和 SQLite orphan job 重启接管；canonical Composite Result 进入 `AgentRunResult` 与 SQLite/artifact 恢复边界。
+- `HTTPApplication` 新增 Composite async submit、detail、observability、evidence 四个语义命令；FastAPI 与 stdlib `/composite-runs` 路由共享同一 semantic Application，不复制生命周期或组件循环。
+- Docker M278 生命周期/HTTP 与 M277/M256/M275/M276 联合 **23/23**，compileall、architecture strict、CI/stage 和生产 `/health/ready` 通过；重建后的生产容器实际 async 请求完成，detail 为 `composite_result`，artifact/evidence 可读取。
+- 本阶段 Spec/Plan/能力图、测试和中文工作记录已收口，代码待提交推送。下一阶段全局重规划：LLM 只从能力目录生成经校验的 Composite DAG，并由通用前端动态消费 Composite View；继续保持默认测试离线精简。

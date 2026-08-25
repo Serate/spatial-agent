@@ -88,6 +88,10 @@ class AgentRunResult:
     # The model input and raw response are never persisted here.
     answer_generation_evidence: Optional[Dict[str, Any]] = None
     steps: List[StepRun] = field(default_factory=list)
+    # Canonical domain-neutral result envelope. Composite runs use this field
+    # so SQLite/artifact recovery can preserve the exact public Result
+    # Contract instead of rebuilding it from synthetic child steps.
+    result: Optional[Dict[str, Any]] = None
     answer: Optional[str] = None
     error: Optional[str] = None
     error_category: Optional[str] = None
@@ -148,6 +152,8 @@ class AgentRunResult:
             data.pop("request_facts", None)
         if data.get("answer_generation_evidence") is None:
             data.pop("answer_generation_evidence", None)
+        if data.get("result") is None:
+            data.pop("result", None)
         if data.get("conversation_turn") is None:
             data.pop("conversation_turn", None)
         else:

@@ -1,4 +1,7 @@
-- [x] 完成 M277 Composite HTTP 统一入口
-- [x] 补充 M277 HTTP/CI/stage 验收
-- [x] Docker 验证并更新项目记忆
-- [x] 提交、推送并规划下一阶段
+- [x] 完成 M278 Composite Envelope canonical result persistence
+- [x] 完成 M278 CompositeRunApplication 与 AsyncApplication 接入
+- [x] 补充 M278 HTTP async/detail/observability/evidence
+- [x] Docker 验证 Composite SQLite/artifact/restart recovery 定向测试
+- [x] Docker 阶段级集成、compileall、architecture strict、CI/stage 与生产 health
+- [x] 更新中文文档、提交、推送并全局重规划
+- [x] 每完成一个子任务，更新 `docs/agent-work-state.md` 的状态、文件、验证、阻塞和下一步

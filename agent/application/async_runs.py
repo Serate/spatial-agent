@@ -43,12 +43,24 @@ from agent.service_format import result_type as _result_type
 from agent.service_sessions import async_job_payload as _async_job_payload
 from agent.trace_formatter import format_trace
 from agent.evidence_registry import normalize_evidence_registry
+from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from result_contract import build_lineage_index, build_result_contract
 
 
 def _runtime_result_registry(runtime: Any) -> Any:
     resolver = getattr(runtime, "result_registry", None)
     return resolver() if callable(resolver) else None
+
+
+def _canonical_result(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """Preserve a previously normalized public Result envelope."""
+    candidate = payload.get("result")
+    if not isinstance(candidate, Mapping):
+        return None
+    try:
+        return normalize_result_contract(candidate)
+    except (NestedSchemaError, TypeError, ValueError):
+        return None
 
 
 class AsyncApplication:
@@ -495,10 +507,12 @@ class AsyncApplication:
             backend = context.get("backend", "memory") if isinstance(context, dict) else "memory"
             runtime = self._runtime_provider(planner, backend)
             result_payload["result_type"] = _result_type(result_payload)
-            result_contract = build_result_contract(
-                result_payload,
-                registry=_runtime_result_registry(runtime),
-            )
+            result_contract = _canonical_result(result_payload)
+            if result_contract is None:
+                result_contract = build_result_contract(
+                    result_payload,
+                    registry=_runtime_result_registry(runtime),
+                )
             artifact_ref = result_payload.get("artifact_ref")
             if not artifact_ref:
                 artifact = self._artifact_store.read_run(

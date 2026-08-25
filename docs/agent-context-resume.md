@@ -122,3 +122,10 @@
 - 恢复只加载本卡；源码先用 `rg -n -m 5` 定位，首轮最多读 2 个源码和 1 个测试文件。
 - 仅有具体缺口时运行 `scripts/resume_context.ps1 -Topic "关键词" -MaxMatches 4 -ContextLines 8` 或 `-Diagnostics`。
 - 本卡超过 2KB 时立即压缩。
+
+## M278：Composite 可恢复生命周期（已完成）
+
+- 新增 `agent/application/composite_runs.py`，复用既有 `AsyncApplication`，以独立 `composite` scope 提供同步持久化、异步幂等、artifact 查询、observability、evidence 和 SQLite 重启接管；`AgentRunResult`/SQLite 保留 canonical Composite Result。
+- `HTTPApplication` 增加 Composite async submit、detail、observability、evidence 语义命令；FastAPI 与 stdlib 入口只做 URL/状态码胶水。新增 M278 Spec/Plan/能力图与精简测试。
+- Docker M278 生命周期/HTTP 与 M277/M256/M275/M276 联合 **23/23**，compileall、architecture strict、CI/stage 通过；重建生产容器后 `/health/ready` 返回 200，真实 async/detail/observability/evidence 返回 `COMPLETED`、`composite_result`、artifact/evidence 可用。
+- 已验证失效 owner 的 SQLite orphan job 由新实例 claim 一次，`recovery_count=1`，组件只执行一次，canonical result 可恢复。下一阶段从全局目标规划 LLM 自动 Composite DAG 与前端动态 Composite View；必须复用本阶段生命周期边界。

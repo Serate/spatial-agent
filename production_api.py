@@ -27,6 +27,7 @@ from agent.domain_routing_entry import (
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
 from agent.application.composite import CompositeApplication
+from agent.application.composite_runs import CompositeRunApplication
 from agent.application.http_transport import (
     error_projection,
     load_artifact_json,
@@ -50,7 +51,9 @@ domain_routing = DomainRoutingApplication(
     host,
     state=routing_state_from_environment(),
 )
-composite_application = CompositeApplication(host=host)
+composite_application = CompositeRunApplication(
+    coordinator=CompositeApplication(host=host)
+)
 
 
 def _close_host() -> None:
@@ -59,6 +62,7 @@ def _close_host() -> None:
     ``DomainRuntimeHost.close`` is idempotent, so FastAPI lifespan shutdown
     and the direct-import atexit fallback can safely share this hook.
     """
+    composite_application.close()
     host.close()
 
 
@@ -311,6 +315,40 @@ def composite_run(payload: Dict[str, Any]):
         return _http_application().execute("composite_run", payload)
     except Exception as exc:
         _raise_for(exc)
+
+
+@app.post("/composite-runs/async")
+def composite_run_async(payload: Dict[str, Any]):
+    try:
+        return _http_application().execute("composite_run_async", payload)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/composite-runs/{run_id}/observability")
+def composite_observability(run_id: str):
+    try:
+        return _http_application().read(
+            "composite_observability", resource_id=run_id
+        )
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.get("/composite-runs/{run_id}/evidence")
+def composite_evidence(run_id: str):
+    try:
+        return _http_application().read("composite_evidence", resource_id=run_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.get("/composite-runs/{run_id}")
+def composite_detail(run_id: str):
+    try:
+        return _http_application().read("composite_run_detail", resource_id=run_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
 
 
 @app.post("/runs/auto")

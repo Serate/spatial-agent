@@ -80,7 +80,19 @@ class HTTPApplication:
             if self._composite is None:
                 raise RuntimeError("composite application is unavailable")
             session_id = str(body.get("session_id") or "default")[:120]
-            return self._composite.run(body, session_id=session_id)
+            composite_kwargs = {"session_id": session_id}
+            if "export_artifact" in body:
+                composite_kwargs["export_artifact"] = bool(body.get("export_artifact"))
+            return self._composite.run(body, **composite_kwargs)
+        if action == "composite_run_async":
+            if self._composite is None:
+                raise RuntimeError("composite application is unavailable")
+            return self._composite.submit_async(
+                body,
+                session_id=str(body.get("session_id") or "default")[:120],
+                idempotency_key=body.get("idempotency_key"),
+                export_artifact=bool(body.get("export_artifact", False)),
+            )
         if action == "preview":
             return service.preview(**preview_kwargs(body))
         if action == "retry":
@@ -213,6 +225,22 @@ class HTTPApplication:
                 max_files=max_files,
                 planner=body.get("planner", "rule"),
                 backend=body.get("backend", "local"),
+            )
+        if action == "composite_run_detail":
+            if self._composite is None:
+                raise RuntimeError("composite application is unavailable")
+            return self._composite.get_run(_required_resource(resource_id, "run_id"))
+        if action == "composite_observability":
+            if self._composite is None:
+                raise RuntimeError("composite application is unavailable")
+            return self._composite.get_observability(
+                _required_resource(resource_id, "run_id")
+            )
+        if action == "composite_evidence":
+            if self._composite is None:
+                raise RuntimeError("composite application is unavailable")
+            return self._composite.get_evidence(
+                _required_resource(resource_id, "run_id")
             )
         if action == "release_evidence":
             max_files = body.get("max_files", 10)

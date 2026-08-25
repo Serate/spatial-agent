@@ -53,6 +53,7 @@ class CompositeApplication:
         request: Mapping[str, Any],
         *,
         session_id: str = "default",
+        run_id: str | None = None,
     ) -> dict[str, Any]:
         """Run components in declaration order and return one bounded result."""
 
@@ -123,14 +124,18 @@ class CompositeApplication:
                     error_code=_safe_error_code(exc),
                 )
 
+        effective_run_id = run_id or (
+            "composite-" + normalized["fingerprint"].split(":", 1)[-1][:24]
+        )
         result = build_composite_result_contract(
             normalized,
             children,
-            run_id="composite-" + normalized["fingerprint"].split(":", 1)[-1][:24],
+            run_id=effective_run_id,
         )
         state = str(result.get("composite", {}).get("state") or "failed")
         return {
             "schema_version": self.schema_version,
+            "run_id": effective_run_id,
             "status": _coordinator_status(state),
             "state": state,
             "request_fingerprint": normalized["fingerprint"],

@@ -862,3 +862,20 @@
 - **根因**：历史总结与当前工作状态没有分离；恢复脚本虽然只调用一个入口，但入口指向的是不断追加的长文档，无法表达“当前只需要读哪些文件”。
 - **修复**：新增 `docs/agent-work-state.md` 作为短快照，记录当前 goal 摘要、阶段 Spec/Plan、最近进行中的任务、明确待修改文件、验证命令、阻塞和下一步；`scripts/resume_context.ps1` 默认只读取该文件。`-Topic` 默认只在快照和 `tasks/` 中做有界检索，只有显式 `-IncludeHistory` 才读取历史文档。
 - **预防**：每个子任务完成或暂停时立即更新快照；阶段完成后再同步历史恢复卡和 milestones。恢复代理不得默认打开完整问题日志、milestones、归档、全量测试或模型响应。
+
+## M278 Docker 镜像未重建导致新增测试不可见
+
+- **现象**：宿主工作树已经加入 M278 的 HTTP/重启测试，但首次 Docker 定向命令只发现旧的 4 个测试，新增测试没有执行。
+- **根因**：生产 compose 的测试容器使用已构建镜像；仅修改工作树不会自动把源码同步到旧镜像，测试结果因此不能代表当前工作树。
+- **诊断**：比较 Docker 输出中的测试数量与当前文件中的测试方法；发现数量异常时先检查镜像构建时间/compose 是否挂载源码，不要把“未发现测试”误判为测试通过。
+- **修复**：先执行 `docker compose -f docker-compose.prod.yml --env-file .env.production build spatial-agent`，再运行定向测试；阶段验收前用新镜像 `up -d --force-recreate` 并检查 `/health/ready` 和实际 HTTP 请求。
+- **预防**：任何新增或修改 Python 测试后，Docker 验收必须显式重建镜像；记录测试总数、compileall、architecture strict、CI/stage 和生产 health，避免只复用旧容器绿灯。
+
+## M278 Composite 跨入口恢复必须复用同一生命周期
+
+- **现象**：Composite 同步、异步、detail、observability、evidence 和重启接管分别位于多个入口；若 transport 自己循环组件或重建状态机，会出现结果、幂等和证据不一致。
+- **根因**：Composite Coordinator 的组件编排与 AsyncApplication 的 run lifecycle 属于不同边界；HTTP 入口只负责 URL/资源解析，不能成为第二个生命周期 owner。
+- **诊断**：只检查 `HTTPApplication` 的 semantic command 调用、FastAPI/stdlib 路由结果是否相同，以及 SQLite orphan job 的 `owner_pid/recovery_count/组件执行次数`；不要以单个同步成功响应代替恢复验收。
+- **修复**：新增 `CompositeRunApplication`，注入既有 `AsyncApplication`，使用独立 `composite` scope 保存 canonical Result；FastAPI/stdlib 都调用同一 HTTPApplication。新增 artifact-only、幂等和失效 owner 重启接管测试。
+- **验证**：Docker M278 生命周期/HTTP 与 M277/M256/M275/M276 联合 **23/23**；compileall、architecture strict、CI/stage、生产 `/health/ready` 通过；真实 Docker async/detail/observability/evidence 返回 `COMPLETED`、`composite_result`、artifact/evidence 可用。
+- **预防**：后续 LLM Composite Planner、前端动态 View 和跨领域 live 验收都必须消费 M278 的 request/result/evidence/lifecycle 边界，不在 transport、Domain Pack 或前端复制组件循环。
