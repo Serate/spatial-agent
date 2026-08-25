@@ -12,15 +12,27 @@
 
 ## 当前进行中
 
-### M283-D：动态结果体验与阶段里程碑 — 进行中
+### M283-F：文档、版本交付与全局重规划 — 进行中
 
-- 目标：让前端动态消费 context、plan、clarification、answer、view 和 evidence，突出用户结论与下一步，不暴露思维链。
-- 需要修改：`web/src` 对应 renderer/projection 文件、`tests` 前端 contract/smoke 文件、`docs/m283-open-query-agent-plan.md`。
-- 验证：先按需读取 `web/src` 相关文件；使用精简 Node/browser smoke，Docker 显式验证，不调用网络。
-- 阻塞：无。
-- 下一步：先按 UI skill 的局部规则审查当前 projection/render seam，再决定最小前端改动。
+- 目标：收口 M283 交付证据、同步中文项目记忆和恢复指针，提交并推送版本，再从项目全局规划下一阶段。
+- 需要修改：`scripts/resume_context.ps1`、`docs/m283-open-query-agent-plan.md`、`docs/milestones.md`、`docs/agent-context-resume.md`、`tasks/todo.md`、`tasks/task-progress.md`、`tasks/task-state.md`、`docs/agent-work-state.md`。
+- 验证：M283-E 已完成 Docker 7/7、compileall、architecture strict、readiness/resource 200、Node/Docker/browser projection smoke 和 1 条真实 LLM + local GIS 显式验收。
+- 阻塞：地图 smoke 的清空对话后空间上下文复位旧问题不影响本阶段 projection contract，但需保留为后续独立任务。
+- 下一步：完成阶段历史摘要、检查 diff、提交并推送 M283 版本。
 
 ## 最近完成
+
+### M283-E：真实与跨入口验收 — 已完成
+
+- 结果：完成精简 Docker/HTTP/readiness/browser 验收，并完成 1 条真实模型 + local GIS 成功 case；Provider 失败/澄清/拒绝仍由既有契约安全处理。
+- 验证：Docker M283 **7/7**、compileall、architecture strict、readiness/resource **200**、Node/Docker/browser projection smoke 通过；live case `COMPLETED`，1 次请求、0 重试。
+- 已知问题：既有地图 smoke 的清空复位问题已记录，未隐瞒为绿色结果。
+
+### M283-D：动态结果体验与阶段里程碑 — 已完成
+
+- 结果：新增 `ConsoleResultProjection`，将 context、plan、clarification、answer、view、evidence 汇总为结论优先的阶段投影；未知领域/工具仍走通用 renderer。
+- 文件：`agent/web_assets.py`、`web/src/console_result_projection.js`、`web/src/console_app.js`、`web/src/index.html`、`web/src/styles.css`、`scripts/console_result_projection_smoke.js`、`scripts/console_result_projection_browser_smoke.js`。
+- 验证：Node smoke、Docker 内 Node smoke、资源 200、生产 readiness 200、浏览器 projection smoke 通过；地图 smoke 因既有清空复位问题失败，已单独记录。
 
 ### M282-A：开放式请求能力图、Spec、Plan — 已完成
 

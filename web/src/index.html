@@ -43,7 +43,7 @@
       </section>
       <div id="resultWorkspace" class="grid" role="region" aria-label="分析结果工作区" aria-live="polite" aria-busy="false">
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
-        <section class="panel result-panel common-result answer-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
+        <section class="panel result-panel common-result answer-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="answerProjection" class="answer-projection" hidden></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
         <section class="panel result-panel map-result"><div class="map-panel-head"><h3>空间结果</h3><span id="mapSummary" class="map-summary">交互式地图</span></div><div id="map" class="map"></div><div id="mapSelection" class="map-selection muted">点击地图要素查看详情，或将选中区域作为下一次请求的上下文。</div><button id="useMapSelection" type="button" disabled>使用选中上下文继续</button></section>
         <section class="panel result-panel generic-result"><h3>结构化结果</h3><div id="genericResult" class="raw-json"></div></section>
         <details id="advancedResults" class="advanced-result" hidden>
@@ -67,6 +67,7 @@
   <script src="./console_evidence_registry.js"></script>
   <script src="./console_workflow_evidence.js"></script>
   <script src="./console_renderer_registry.js"></script>
+  <script src="./console_result_projection.js"></script>
   <script src="./console_action_host.js"></script>
   <script src="./console_interaction.js"></script>
   <script src="./console_gis_plugin.js"></script>

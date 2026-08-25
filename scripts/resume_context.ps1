@@ -63,7 +63,10 @@ function Get-TaskProgressExcerpt {
                 if ([string]$lines[$i] -like '### *') { $i }
             }
         )
-        for ($headerOffset = $headers.Count - 1; $headerOffset -ge 0; $headerOffset--) {
+        # The ledger keeps the newest completed task immediately below
+        # "## 最近完成".  Read from the top of this section so old archive
+        # entries cannot crowd the current task out of the recovery excerpt.
+        for ($headerOffset = 0; $headerOffset -lt $headers.Count; $headerOffset++) {
             $start = [int]$headers[$headerOffset]
             $end = if ($headerOffset -lt ($headers.Count - 1)) {
                 [int]$headers[$headerOffset + 1]
@@ -75,7 +78,7 @@ function Get-TaskProgressExcerpt {
             if ($selectedRecent.Count -gt 0 -and ($used + $cost) -gt $remaining) {
                 break
             }
-            $selectedRecent.Insert(0, $block)
+            $selectedRecent.Add($block)
             $used += $cost
         }
     }

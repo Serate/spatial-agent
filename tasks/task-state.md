@@ -4,11 +4,11 @@
 
 ## 当前阶段
 
-- 阶段：M282 开放式请求解析与受控 Composite Planner
+- 阶段：M283 开放式请求 Agent 闭环
 - 阶段规划：
-  - `docs/m282-open-query-resolution-capability-map.md`
-  - `docs/m282-open-query-resolution-spec.md`
-  - `docs/m282-open-query-resolution-plan.md`
+  - `docs/m283-open-query-agent-capability-map.md`
+  - `docs/m283-open-query-agent-spec.md`
+  - `docs/m283-open-query-agent-plan.md`
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
 
 ## 最近任务记录
@@ -67,11 +67,24 @@
 - 验证：Docker M283/M278/M282 **23/23**；HTTP semantic Replay submission、async artifact/restart evidence、M278 lifecycle/HTTP、M282 回归通过；compileall、architecture strict 通过。
 - 阻塞：无。
 
-### M283-D：动态结果体验与阶段里程碑（进行中）
+### M283-D：动态结果体验与阶段里程碑（已完成）
 
-- 目标：让前端动态消费 context、plan、clarification、answer、view 和 evidence，突出用户结论与下一步，不暴露思维链。
-- 待读/待修改：`web/src` 对应 renderer/projection 文件、前端 contract/smoke 文件、`docs/m283-open-query-agent-plan.md`。
-- 验证：先按需读取前端相关文件；使用精简 Node/browser smoke，Docker 显式验证，不调用网络。
+- 结果：前端新增无领域分支的 `ConsoleResultProjection`，结论区展示阶段状态、关键发现、限制和下一步；详细执行信息继续渐进展开。
+- 文件：`agent/web_assets.py`、`web/src/console_result_projection.js`、`web/src/console_app.js`、`web/src/index.html`、`web/src/styles.css`、`scripts/console_result_projection_smoke.js`、`scripts/console_result_projection_browser_smoke.js`。
+- 验证：Node、Docker Node、静态资源、readiness、浏览器 projection smoke 通过；地图 smoke 暴露独立旧复位问题。
+- 阻塞：无。
+
+### M283-E：真实与跨入口验收（已完成）
+
+- 结果：Docker 重建后 M283 **7/7**、compileall、architecture strict、生产 readiness/resource 200、Node/Docker/browser projection smoke 和 1 条真实 LLM + local GIS case 通过。
+- Live receipt：`live-gis-spatial-overview` 为 `COMPLETED`，1 次请求、0 重试；只记录脱敏状态/耗时/token 摘要。
+- 阻塞：地图 smoke 的清空对话后空间上下文复位问题已记录为后续独立任务。
+
+### M283-F：文档、版本交付与全局重规划（进行中）
+
+- 目标：同步阶段历史、恢复指针和全局下一阶段规划，完成提交推送。
+- 待读/待修改：`scripts/resume_context.ps1`、`docs/m283-open-query-agent-plan.md`、`docs/milestones.md`、`docs/agent-context-resume.md`、`tasks/todo.md`、`tasks/task-progress.md`、`tasks/task-state.md`、`docs/agent-work-state.md`。
+- 验证：复用 M283-E 已完成的精简证据；提交前执行 diff check 和状态检查。
 - 阻塞：无。
 
 ## 更新协议

@@ -27,6 +27,12 @@
 - Docker M282/M279/M281 定向 **24/24**、M278 生命周期/HTTP **7/7**、compileall、architecture strict、生产 readiness 200 通过；真实模型短探测到达 provider 但因非法字段返回结构化拒绝，未创建 run，未保存模型原文。
 - 版本交付后从产品、架构、数据、模型、部署、体验、测试七个维度全局规划下一阶段；本卡仅作历史摘要，恢复仍走 `scripts/resume_context.ps1`。
 
+## M283：开放式请求 Agent 闭环（已完成）
+
+- M283-A～C 完成开放式 Composite Planner gateway、Replay/Rule/LLM canonical plan、planner evidence 的同步/异步/artifact/SQLite/restart 恢复；M283-D 新增无领域分支的 `ConsoleResultProjection`，结论区动态展示阶段、关键发现、限制和下一步。
+- Docker M283 **7/7**、compileall、architecture strict、生产 readiness/资源 200、Node/Docker/browser projection smoke 通过；真实 LLM + local GIS 短验收 `live-gis-spatial-overview` 为 `COMPLETED`，1 次请求、0 重试。
+- 既有地图 smoke 暴露清空对话后空间上下文未立即复位，已单独写入中文问题日志；恢复仍只走 `docs/agent-work-state.md` 与 `tasks/task-progress.md`，本卡只作历史摘要。
+
 ## 当前状态
 
 - M228 已完成：pre-run routing child + receipt 在 SQLite 原子提交并可跨 worker/重启回放；Journey Harness 贯穿 Application、HTTP、artifact 和 restart；legacy 前端 selection 活动路径已删除。

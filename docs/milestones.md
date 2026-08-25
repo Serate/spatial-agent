@@ -4984,3 +4984,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker M282/M279/M281 定向 **24/24**，M278 Composite 生命周期/HTTP **7/7**；compileall、architecture strict、恢复脚本最小读取验证和生产 `/health/ready` HTTP 200 通过。
 - 显式真实模型短探测已到达 provider，但返回 `REJECTED/plan_response_field_invalid`；系统未创建 run，未输出或保存模型原文。该结果证明安全门禁生效，不宣称真实模型 Composite 计划已经稳定成功。
 - 全局重规划：下一阶段从产品体验、Planner 自主性、能力目录/数据就绪、结果/证据、跨入口恢复、部署和分层测试七个维度盘点；优先建立开放式请求的真实成功/澄清/拒绝矩阵，再决定是否需要扩展 provider normalizer 或能力排序，不为单一专题增加硬编码链路。
+
+## M283：开放式请求 Agent 闭环（已完成）
+
+- 新增 `ReplayCompositePlanner` 与统一 planner gateway；Rule/Replay/LLM 共享 v2 context、canonical plan、schema 校验和 capability allowlist。Planner evidence 通过同步、异步、artifact、SQLite/restart 恢复边界，不保存完整 context 或模型原文。
+- 新增 `ConsoleResultProjection`，前端按“阶段状态 → 结论 → 关键发现 → 使用边界/下一步”动态消费 context、plan、clarification、answer、view、evidence；不依赖领域、区域或工具专用分支，详细轨迹仍渐进展开。
+- Docker 重建后 M283 Planner/evidence **7/7**、compileall、architecture strict、生产 readiness/资源 **200**、Node/Docker/browser projection smoke 通过；真实 `live-gis-spatial-overview` 为 `COMPLETED`，1 次请求、0 重试，未保存敏感信息。
+- 发现并记录前端静态资源 allowlist/缓存验收要点；既有地图 smoke 暴露清空对话后地图选择上下文未立即复位，保持为后续独立修复项，不把它与 projection contract 混为一谈。
+- 全局重规划：下一阶段优先修复会话清空的空间上下文/异步恢复一致性，再从产品、Planner 自主性、能力目录与数据就绪、真实跨领域数据、结果证据、部署恢复和精简测试七个维度评估下一条纵向链路；继续保持领域中立，不新增固定专题流程。

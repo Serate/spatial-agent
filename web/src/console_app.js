@@ -116,6 +116,8 @@
       setAdvancedVisibility(false);
       lastRunData = null;
       $('geometryEvidence').textContent = '';
+      $('answerProjection').innerHTML = '';
+      $('answerProjection').hidden = true;
     }
     function updateResultPanels(data) {
       const contract=normalizeConsoleResult(data);
@@ -815,10 +817,19 @@
       $('decisionMode').textContent=decisionMode(data);
       $('answer').textContent=projectedAnswer.summary||envelope.summary||data.answer||'暂无最终答案。';
       $('answer').className='answer'+(projectedAnswer.summary||envelope.summary||data.answer?'':' muted');
+      const projectionRenderer=window.ConsoleResultProjection;
+      if(projectionRenderer&&typeof projectionRenderer.normalize==='function'&&typeof projectionRenderer.render==='function'){
+        const projectionModel=projectionRenderer.normalize(data);
+        $('answerProjection').innerHTML=projectionRenderer.render(projectionModel,{escapeHtml});
+        $('answerProjection').hidden=false;
+      } else {
+        $('answerProjection').innerHTML='';
+        $('answerProjection').hidden=true;
+      }
       const errorCategory=data.error_category||(data.result||{}).error_category;
       const safeError=String(data.status||'')==='REJECTED'?'请求已拒绝，详见决策证据。':String(data.status||'')==='NEEDS_CLARIFICATION'?'需要补充信息，详见决策证据。':String(errorCategory||'').toLowerCase()==='provider'?'模型服务不可用，原始服务错误未在前端展示。':data.error;
       $('error').innerHTML=safeError?('<div class="error">'+errorCategoryBadge(errorCategory)+escapeHtml(safeError)+'</div>'):'';
-      renderClarification(data);
+      if(!projectionRenderer) renderClarification(data);
       $('decisionEvidence').innerHTML=renderDecisionEvidence(data);
       $('goal').textContent=data.plan?.goal||'尚未生成任务计划。';
       metrics(data);
@@ -857,7 +868,7 @@
     async function executeDomainAction(actionId,payload) { const domainId=currentDomainId(); if(actionCatalogPromise) await actionCatalogPromise; if(domainId!==currentDomainId()) throw new Error('领域已切换，请在新领域重新选择动作。'); if(!actionSpec(actionId)) await loadActions(domainId); if(!actionSpec(actionId)) throw new Error('当前领域未注册动作：'+actionId); const body=withDomainPayload(payload||{},domainId); const response=await nativeFetch(domainPath('/actions/'+encodeURIComponent(actionId),domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(responseError(data,'动作执行失败')); const executionId=data.action_execution_id||data.result?.lineage?.action_execution?.ref; if(executionId) actionDomains.set(String(executionId),responseDomain(data,domainId)); return data; }
     async function openRunDetail(runId,domainId=domainForRun(runId)) { if(!runId) return; $('error').innerHTML=''; try { const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId),domainId)+'?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value)); if(!response.ok){ const body=await response.json().catch(()=>({})); throw new Error(responseError(body,'运行详情不可用（HTTP '+response.status+'）')); } const data=await response.json(); rememberRunDomain(data,domainId); const sessionId=data.session_id; if(sessionId&&domainId===currentDomainId()){ const option=[...$('session').options].find(item=>item.value===sessionId); if(!option) addConversationOption({session_id:sessionId,display_name:'对话'+($('session').options.length+1)},domainId); $('session').value=sessionId; $('chatMeta').textContent='当前对话：'+selectedConversationLabel(); } resetConversationView(); appendMessage('user',data.request||'未命名任务'); appendMessage('assistant',answerText(data)||'未知状态',data.run_id); renderRun(data); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; } }
     async function openActionDetail(executionId,domainId=domainForAction(executionId)) { if(!executionId) return; try { const response=await nativeFetch(domainPath('/action-executions/'+encodeURIComponent(executionId),domainId)); if(!response.ok){ const body=await response.json().catch(()=>({})); throw new Error(responseError(body,'Action 详情不可用（HTTP '+response.status+'）')); } const data=await response.json(); data._console_domain_id=domainId; actionDomains.set(String(executionId),domainId); resetConversationView(); appendMessage('assistant','已恢复 Action：'+(data.action_id||'未知动作')); renderActionExecution(data); } catch(error) { $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; } }
-    function renderActionExecution(data) { lastRunData=data; const envelope=data.result||{}; $('resultEmpty').style.display='none'; setResultPanel('.common-result',false); setResultPanel('.answer-result',true); const hasTrace=Boolean((data.trace_summary||[]).length); setResultPanel('.trace-result',hasTrace); $('title').textContent='Action：'+(data.action_id||envelope.action?.id||'未知'); $('subtitle').textContent=envelope.summary||'已从 artifact 恢复 Action 结果，未重新执行。'; $('decisionMode').textContent='Domain Action · 结构化执行'; $('answer').textContent=envelope.summary||data.error||'已恢复结构化 Action 结果。'; $('answer').className='answer'; $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; genericResult(data); $('trace').innerHTML=(data.trace_summary||[]).map(item=>'<li>'+escapeHtml(item)+'</li>').join('')||'<li class="muted">暂无 Action 轨迹。</li>'; $('links').innerHTML=renderActionEvidence(data); $('goal').textContent='Action 结果类型：'+escapeHtml(envelope.type||data.result_type||'unknown'); setResultPanel('.evidence-result',false); setResultPanel('.plan-preview-result',false); setResultPanel('.workflow-evidence-result',false); setAdvancedVisibility(hasTrace, hasTrace?'Action 执行轨迹':'暂无高级执行详情', false); }
+    function renderActionExecution(data) { lastRunData=data; const envelope=data.result||{}; $('resultEmpty').style.display='none'; setResultPanel('.common-result',false); setResultPanel('.answer-result',true); const hasTrace=Boolean((data.trace_summary||[]).length); setResultPanel('.trace-result',hasTrace); $('title').textContent='Action：'+(data.action_id||envelope.action?.id||'未知'); $('subtitle').textContent=envelope.summary||'已从 artifact 恢复 Action 结果，未重新执行。'; $('decisionMode').textContent='Domain Action · 结构化执行'; $('answer').textContent=envelope.summary||data.error||'已恢复结构化 Action 结果。'; $('answer').className='answer'; $('answerProjection').innerHTML=''; $('answerProjection').hidden=true; $('error').innerHTML=data.error?'<div class="error">'+escapeHtml(data.error)+'</div>':''; genericResult(data); $('trace').innerHTML=(data.trace_summary||[]).map(item=>'<li>'+escapeHtml(item)+'</li>').join('')||'<li class="muted">暂无 Action 轨迹。</li>'; $('links').innerHTML=renderActionEvidence(data); $('goal').textContent='Action 结果类型：'+escapeHtml(envelope.type||data.result_type||'unknown'); setResultPanel('.evidence-result',false); setResultPanel('.plan-preview-result',false); setResultPanel('.workflow-evidence-result',false); setAdvancedVisibility(hasTrace, hasTrace?'Action 执行轨迹':'暂无高级执行详情', false); }
     async function restoreSession(domainId=currentDomainId()) {
       const sessionId=$('session').value;
       const viewGeneration=conversationGeneration;
