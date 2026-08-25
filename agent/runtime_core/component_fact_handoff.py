@@ -17,6 +17,7 @@ from typing import Any
 
 from agent.request_model import RequestFacts
 from agent.runtime_core.clarification_continuation import (
+    issue_composite_continuation,
     issue_component_continuation,
 )
 
@@ -136,6 +137,61 @@ def build_component_fact_handoff(
     return result
 
 
+def build_composite_fact_handoff(
+    components: Any, *, context: Mapping[str, Any], max_components: int = _MAX_COMPONENTS
+) -> dict[str, Any]:
+    """Aggregate public fact handoffs without creating per-component tokens."""
+
+    if not isinstance(components, (list, tuple)) or not components:
+        raise ComponentFactHandoffError(
+            "composite components are invalid", code="component_fact_components_invalid"
+        )
+    projected: list[dict[str, Any]] = []
+    component_ids: list[str] = []
+    domain_ids: list[str] = []
+    for component in list(components)[: max(1, min(_MAX_COMPONENTS, int(max_components)))]:
+        item = build_component_fact_handoff(component, context=context)
+        component_id = _text(item.get("component_id"), 96)
+        if component_id in component_ids:
+            raise ComponentFactHandoffError(
+                "composite component identity is duplicated",
+                code="component_fact_component_duplicate",
+            )
+        component_ids.append(component_id)
+        domain_id = _text(item.get("domain_id"), 64)
+        if domain_id not in domain_ids:
+            domain_ids.append(domain_id)
+        # One composite continuation replaces child tokens and avoids token fan-out.
+        item.pop("continuation", None)
+        item.pop("continuation_token", None)
+        projected.append(item)
+    selection_fingerprint = _composite_selection_fingerprint(projected)
+    missing_fields = [
+        field
+        for item in projected
+        for field in (item.get("missing_fields") or [])
+        if isinstance(field, Mapping)
+    ]
+    result = {
+        "schema_version": "spatial-agent.composite-fact-handoff.v1",
+        "state": "required" if missing_fields else "ready",
+        "reason_code": "component_facts_missing" if missing_fields else "component_facts_ready",
+        "request_fingerprint": _text(context.get("request_fingerprint"), 128) or None,
+        "planner_selection_fingerprint": selection_fingerprint,
+        "component_ids": component_ids,
+        "domain_ids": domain_ids,
+        "components": projected,
+        "missing_fields": missing_fields[: _MAX_FIELDS * _MAX_COMPONENTS],
+        "next_actions": ["provide_facts"] if missing_fields else ["preview"],
+    }
+    if missing_fields:
+        continuation = issue_composite_continuation(result)
+        result["continuation"] = continuation
+        result["continuation_token"] = continuation["token"]
+    _assert_budget(result)
+    return result
+
+
 def normalize_component_fact_handoff(
     value: Any,
     *,
@@ -247,6 +303,59 @@ def project_component_fact_handoff(value: Any) -> dict[str, Any]:
             "missing_fields": [],
         }
     return normalized
+
+
+def project_composite_fact_handoff(value: Any) -> dict[str, Any]:
+    """Return a bounded multi-component handoff for transport/evidence."""
+
+    if not isinstance(value, Mapping):
+        return {
+            "schema_version": "spatial-agent.composite-fact-handoff.v1",
+            "state": "required",
+            "reason_code": "component_fact_handoff_invalid",
+            "components": [],
+            "missing_fields": [],
+        }
+    state = _text(value.get("state"), 24)
+    components = [
+        project_component_fact_handoff(item)
+        for item in (value.get("components") or [])[:_MAX_COMPONENTS]
+        if isinstance(item, Mapping)
+    ]
+    result = {
+        "schema_version": "spatial-agent.composite-fact-handoff.v1",
+        "state": state if state in _ALLOWED_STATES else "required",
+        "reason_code": _text(value.get("reason_code"), 96),
+        "request_fingerprint": _text(value.get("request_fingerprint"), 128) or None,
+        "planner_selection_fingerprint": _text(
+            value.get("planner_selection_fingerprint"), 128
+        ) or None,
+        "component_ids": _safe_strings(value.get("component_ids"), _MAX_COMPONENTS),
+        "domain_ids": _safe_strings(value.get("domain_ids"), _MAX_COMPONENTS),
+        "components": components,
+        "missing_fields": [
+            field
+            for item in components
+            for field in (item.get("missing_fields") or [])
+            if isinstance(field, Mapping)
+        ][: _MAX_FIELDS * _MAX_COMPONENTS],
+        "next_actions": _safe_strings(value.get("next_actions"), 4),
+    }
+    continuation = value.get("continuation")
+    if isinstance(continuation, Mapping):
+        token = _text(continuation.get("token"), 8192)
+        if token:
+            result["continuation"] = {
+                "schema_version": _text(continuation.get("schema_version"), 96),
+                "token": token,
+                "issued_at": continuation.get("issued_at"),
+                "expires_at": continuation.get("expires_at"),
+                "component_ids": _safe_strings(continuation.get("component_ids"), _MAX_COMPONENTS),
+                "domain_ids": _safe_strings(continuation.get("domain_ids"), _MAX_COMPONENTS),
+            }
+            result["continuation_token"] = token
+    _assert_budget(result)
+    return result
 
 
 def _find_capability(context: Mapping[str, Any], domain_id: str, capability_id: str) -> Mapping[str, Any] | None:
@@ -387,6 +496,28 @@ def _selection_fingerprint(*, request_fingerprint: str | None, component: Mappin
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:64]
 
 
+def _composite_selection_fingerprint(components: list[Mapping[str, Any]]) -> str:
+    payload = [
+        {
+            "component_id": _text(item.get("component_id"), 96),
+            "domain_id": _text(item.get("domain_id"), 64),
+            "capability_id": _text(item.get("capability_id"), 96),
+            "planner_selection_fingerprint": _text(
+                item.get("planner_selection_fingerprint"), 128
+            ),
+        }
+        for item in components
+        if isinstance(item, Mapping)
+    ]
+    encoded = json.dumps(
+        sorted(payload, key=lambda item: item["component_id"]),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:64]
+
+
 def _normalize_missing_fields(value: Any, component_id: str, domain_id: str, capability_id: str) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for raw in (value or [])[:_MAX_FIELDS]:
@@ -481,6 +612,8 @@ def _text(value: Any, limit: int) -> str:
 def _safe_details(value: Mapping[str, Any] | None) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
+    if str(value.get("schema_version") or "") == "spatial-agent.composite-fact-handoff.v1":
+        return {"composite_fact_handoff": project_composite_fact_handoff(value)}
     return {"component_fact_handoff": project_component_fact_handoff(value)} if value.get("schema_version") else {}
 
 
@@ -495,8 +628,10 @@ def _assert_budget(value: Mapping[str, Any]) -> None:
 __all__ = [
     "COMPONENT_FACT_HANDOFF_SCHEMA_VERSION",
     "ComponentFactHandoffError",
+    "build_composite_fact_handoff",
     "build_component_fact_handoff",
     "normalize_component_fact_handoff",
+    "project_composite_fact_handoff",
     "project_component_fact_handoff",
     "request_facts_from_handoff",
 ]

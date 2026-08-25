@@ -444,6 +444,25 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
                     for item in (continuation.get("field_ids") or [])[:16]
                     if str(item).strip()
                 ],
+                "component_ids": [
+                    str(item)[:96]
+                    for item in (continuation.get("component_ids") or [])[:8]
+                    if str(item).strip()
+                ],
+                "domain_ids": [
+                    str(item)[:64]
+                    for item in (continuation.get("domain_ids") or [])[:8]
+                    if str(item).strip()
+                ],
+                "components": [
+                    {
+                        "component_id": str(item.get("component_id") or "")[:96],
+                        "domain_id": str(item.get("domain_id") or "")[:64],
+                        "capability_id": str(item.get("capability_id") or "")[:96],
+                    }
+                    for item in (continuation.get("components") or [])[:8]
+                    if isinstance(item, Mapping)
+                ],
             }
         else:
             result.pop("continuation", None)

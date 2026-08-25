@@ -37,7 +37,7 @@ from agent.runtime_core.plan_completeness import (
 )
 from agent.runtime_core.clarification_continuation import (
     ClarificationContinuationError,
-    consume_component_continuation,
+    consume_fact_continuation,
 )
 
 
@@ -305,14 +305,13 @@ class CompositePlanningApplication:
         continuation: Mapping[str, Any] | None = None
         try:
             if continuation_token is not None:
-                continuation = consume_component_continuation(
+                continuation = consume_fact_continuation(
                     continuation_token,
                     fact_supplement,
                 )
-                token_domain = str(continuation.get("domain_id") or "").strip()
                 token_domain_list = [
                     str(value).strip()
-                    for value in (continuation.get("domain_ids") or [token_domain])
+                    for value in (continuation.get("domain_ids") or [continuation.get("domain_id")])
                     if str(value).strip()
                 ]
                 token_domains = set(token_domain_list)
@@ -330,7 +329,9 @@ class CompositePlanningApplication:
                 "domain_ids": domain_ids,
             }
             if continuation is not None:
-                context_kwargs["fact_overrides"] = {
+                context_kwargs["fact_overrides"] = continuation.get(
+                    "fact_overrides"
+                ) or {
                     str(continuation["domain_id"]): continuation["facts"]
                 }
             context = self._context_builder.build(text, **context_kwargs)
@@ -468,6 +469,7 @@ class CompositePlanningApplication:
                 "plan_components_required",
                 "capability_unavailable",
                 "taskplan_component_clarification",
+                "taskplan_composite_clarification",
                 "component_facts_missing",
             } else "REJECTED"
             failure_evidence = _planner_evidence(
@@ -497,11 +499,24 @@ class CompositePlanningApplication:
             }
             details = getattr(exc, "details", None)
             if isinstance(details, Mapping):
+                composite_handoff = details.get("composite_fact_handoff")
+                if isinstance(composite_handoff, Mapping):
+                    result["composite_fact_handoff"] = dict(composite_handoff)
+                    if isinstance(composite_handoff.get("continuation"), Mapping):
+                        result["continuation"] = _continuation_descriptor(composite_handoff)
+                    result["clarification"] = {
+                        "schema_version": "spatial-agent.composite-clarification.v1",
+                        "state": "composite_facts_required",
+                        "reason_code": exc.code,
+                        "component_ids": list(composite_handoff.get("component_ids") or [])[:8],
+                        "missing_fields": list(composite_handoff.get("missing_fields") or [])[:64],
+                        "next_actions": ["provide_facts"],
+                    }
                 handoff = details.get("component_fact_handoff")
-                if isinstance(handoff, Mapping):
+                if isinstance(handoff, Mapping) and "clarification" not in result:
                     result["component_fact_handoff"] = dict(handoff)
                     if isinstance(handoff.get("continuation"), Mapping):
-                        result["continuation"] = dict(handoff["continuation"])
+                        result["continuation"] = _continuation_descriptor(handoff)
                     result["clarification"] = {
                         "schema_version": "spatial-agent.component-clarification.v1",
                         "state": "component_facts_required",
@@ -512,6 +527,11 @@ class CompositePlanningApplication:
                         "missing_fields": list(handoff.get("missing_fields") or [])[:8],
                         "next_actions": ["provide_facts"],
                     }
+            if isinstance(result.get("continuation"), Mapping):
+                failure_evidence["continuation"] = _continuation_evidence(
+                    result["continuation"]
+                )
+                result["planner_evidence"] = failure_evidence
             return self._attach_context(result, context)
         except Exception as exc:
             return self._attach_context({
@@ -875,6 +895,64 @@ def _validate_continuation_selection(
 
     if continuation is None:
         return
+    if str(continuation.get("schema_version") or "") == "spatial-agent.composite-clarification-continuation.v1":
+        expected_components = {
+            str(item.get("component_id")): item
+            for item in (continuation.get("components") or [])
+            if isinstance(item, Mapping) and str(item.get("component_id") or "")
+        }
+        selected_components = {
+            str(item.get("component_id")): item
+            for item in components
+            if isinstance(item, Mapping) and str(item.get("component_id") or "")
+        }
+        if set(expected_components) != set(selected_components) or not expected_components:
+            raise CompositePlannerError(
+                "continuation component set does not match",
+                code="continuation_component_mismatch",
+            )
+        bridge_by_id = {
+            str(item.get("component_id")): item
+            for item in (task_plan_bridge.get("components") or [])
+            if isinstance(item, Mapping) and str(item.get("component_id") or "")
+        }
+        if set(bridge_by_id) != set(expected_components):
+            raise CompositePlannerError(
+                "continuation TaskPlan component set is unavailable",
+                code="continuation_component_mismatch",
+            )
+        for component_id, expected_component in expected_components.items():
+            actual_component = selected_components[component_id]
+            if (
+                str(actual_component.get("domain_id") or "")
+                != str(expected_component.get("domain_id") or "")
+                or str(actual_component.get("capability_id") or "")
+                != str(expected_component.get("capability_id") or "")
+            ):
+                raise CompositePlannerError(
+                    "continuation capability identity does not match",
+                    code="continuation_capability_mismatch",
+                )
+        bridge_handoff = task_plan_bridge.get("fact_handoff")
+        actual = (
+            str(bridge_handoff.get("planner_selection_fingerprint") or "")
+            if isinstance(bridge_handoff, Mapping)
+            else ""
+        )
+        expected = str(continuation.get("planner_selection_fingerprint") or "")
+        if not expected or actual != expected:
+            raise CompositePlannerError(
+                "continuation planner selection does not match",
+                code="continuation_selection_mismatch",
+            )
+        if str(context.get("request_fingerprint") or "") != str(
+            continuation.get("request_fingerprint") or ""
+        ):
+            raise CompositePlannerError(
+                "continuation request fingerprint does not match",
+                code="continuation_request_mismatch",
+            )
+        return
     component_id = str(continuation.get("component_id") or "")
     domain_id = str(continuation.get("domain_id") or "")
     capability_id = str(continuation.get("capability_id") or "")
@@ -929,8 +1007,24 @@ def _validate_continuation_selection(
         )
 
 
+def _continuation_descriptor(handoff: Mapping[str, Any]) -> dict[str, Any]:
+    continuation = dict(handoff.get("continuation") or {})
+    for key in (
+        "request_fingerprint",
+        "planner_selection_fingerprint",
+        "component_id",
+        "domain_id",
+        "capability_id",
+        "component_ids",
+        "domain_ids",
+    ):
+        if key in handoff:
+            continuation[key] = handoff[key]
+    return continuation
+
+
 def _continuation_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    result = {
         "schema_version": str(value.get("schema_version") or "")[:96],
         "request_fingerprint": str(value.get("request_fingerprint") or "")[:128],
         "planner_selection_fingerprint": str(
@@ -945,6 +1039,31 @@ def _continuation_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
             if str(item).strip()
         ],
     }
+    if result["schema_version"] == "spatial-agent.composite-clarification-continuation.v1":
+        result["component_ids"] = [
+            str(item)[:96]
+            for item in (value.get("component_ids") or [])[:8]
+            if str(item).strip()
+        ]
+        result["domain_ids"] = [
+            str(item)[:64]
+            for item in (value.get("domain_ids") or [])[:8]
+            if str(item).strip()
+        ]
+        result["components"] = [
+            {
+                "component_id": str(item.get("component_id") or "")[:96],
+                "domain_id": str(item.get("domain_id") or "")[:64],
+                "capability_id": str(item.get("capability_id") or "")[:96],
+            }
+            for item in (value.get("components") or [])[:8]
+            if isinstance(item, Mapping)
+        ]
+        result.pop("component_id", None)
+        result.pop("domain_id", None)
+        result.pop("capability_id", None)
+        result.pop("field_ids", None)
+    return result
 
 
 def _planner_evidence(

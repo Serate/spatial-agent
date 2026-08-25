@@ -81,6 +81,21 @@ assert.equal(componentClarification.clarification.state, "component_facts_requir
 assert.match(projection.render(componentClarification), /经济指标/);
 assert.doesNotMatch(projection.render(componentClarification), /must-not-render/);
 
+const compositeClarification = projection.normalize({
+  status: "NEEDS_CLARIFICATION",
+  composite_fact_handoff: {
+    state: "required",
+    components: [
+      {component_id: "economic-main", missing_fields: [{label: "经济指标", kind: "constraint"}]},
+      {component_id: "gis-main", missing_fields: [{label: "行政区名称", kind: "entity"}]},
+    ],
+    continuation: {token: "must-not-render-composite"},
+  },
+});
+assert.equal(compositeClarification.clarification.state, "component_facts_required");
+assert.match(projection.render(compositeClarification), /行政区名称/);
+assert.doesNotMatch(projection.render(compositeClarification), /must-not-render-composite/);
+
 const repaired = projection.normalize({
   status: "PLANNED",
   repair_lineage: {
@@ -95,4 +110,4 @@ const repaired = projection.normalize({
 assert.equal(repaired.repair_lineage.status, "repaired");
 assert.match(projection.render(repaired), /计划已校正/);
 
-console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "clarification_projection", "component_clarification_projection", "repair_projection"]}));
+console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "clarification_projection", "component_clarification_projection", "composite_clarification_projection", "repair_projection"]}));

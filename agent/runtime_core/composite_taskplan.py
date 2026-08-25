@@ -21,8 +21,10 @@ from agent.runtime_core.planning import validate_plan
 from agent.runtime_core.projection import plan_dag
 from agent.runtime_core.component_fact_handoff import (
     ComponentFactHandoffError,
+    build_composite_fact_handoff,
     build_component_fact_handoff,
     project_component_fact_handoff,
+    project_composite_fact_handoff,
 )
 
 
@@ -79,6 +81,28 @@ class CompositeTaskPlanBridge:
             raise CompositeTaskPlanBridgeError(
                 "planned components are invalid", code="taskplan_components_invalid"
             )
+        composite_handoff = None
+        if len(components) > 1:
+            try:
+                composite_handoff = build_composite_fact_handoff(
+                    components, context=context
+                )
+            except ComponentFactHandoffError as exc:
+                raise CompositeTaskPlanBridgeError(
+                    "composite component facts could not be handed to the Domain",
+                    code=exc.code,
+                    details=exc.details,
+                ) from exc
+            if composite_handoff.get("state") == "required":
+                raise CompositeTaskPlanBridgeError(
+                    "composite planning requires clarification",
+                    code="taskplan_composite_clarification",
+                    details={
+                        "composite_fact_handoff": project_composite_fact_handoff(
+                            composite_handoff
+                        )
+                    },
+                )
         projected: list[dict[str, Any]] = []
         materialized = 0
         deferred = 0
@@ -93,6 +117,20 @@ class CompositeTaskPlanBridge:
                 planner=planner,
                 backend=backend,
                 session_id=session_id,
+                fact_handoff=(
+                    next(
+                        (
+                            item
+                            for item in (composite_handoff or {}).get("components", [])
+                            if isinstance(item, Mapping)
+                            and str(item.get("component_id") or "")
+                            == str(component.get("component_id") or "")
+                        ),
+                        None,
+                    )
+                    if composite_handoff is not None
+                    else None
+                ),
             )
             projected.append(result)
             if result["state"] == "accepted":
@@ -101,7 +139,7 @@ class CompositeTaskPlanBridge:
                 deferred += 1
 
         state = "accepted" if deferred == 0 else "deferred"
-        return {
+        result = {
             "schema_version": TASK_PLAN_BRIDGE_SCHEMA_VERSION,
             "state": state,
             "reason_code": (
@@ -114,6 +152,9 @@ class CompositeTaskPlanBridge:
             "deferred_count": deferred,
             "components": projected,
         }
+        if composite_handoff is not None:
+            result["fact_handoff"] = project_composite_fact_handoff(composite_handoff)
+        return result
 
     def _bridge_component(
         self,
@@ -123,6 +164,7 @@ class CompositeTaskPlanBridge:
         planner: str,
         backend: str,
         session_id: str,
+        fact_handoff: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         component_id = _bounded_text(component.get("component_id"), 48)
         domain_id = _bounded_text(component.get("domain_id"), 32)
@@ -138,14 +180,15 @@ class CompositeTaskPlanBridge:
                 "component capability is not registered",
                 code="taskplan_capability_not_registered",
             )
-        try:
-            fact_handoff = build_component_fact_handoff(component, context=context)
-        except ComponentFactHandoffError as exc:
-            raise CompositeTaskPlanBridgeError(
-                "component facts could not be handed to the Domain",
-                code=exc.code,
-                details=exc.details,
-            ) from exc
+        if fact_handoff is None:
+            try:
+                fact_handoff = build_component_fact_handoff(component, context=context)
+            except ComponentFactHandoffError as exc:
+                raise CompositeTaskPlanBridgeError(
+                    "component facts could not be handed to the Domain",
+                    code=exc.code,
+                    details=exc.details,
+                ) from exc
         if fact_handoff.get("state") == "required":
             raise CompositeTaskPlanBridgeError(
                 "component planning requires clarification",
@@ -323,7 +366,7 @@ def project_task_plan_bridge(value: Any) -> dict[str, Any]:
                 "max_steps": _bounded_int(raw["policy"].get("max_steps"), 0, 128),
             }
         components.append(item)
-    return {
+    result = {
         "schema_version": TASK_PLAN_BRIDGE_SCHEMA_VERSION,
         "state": state,
         "reason_code": _bounded_text(value.get("reason_code"), 96)
@@ -333,6 +376,9 @@ def project_task_plan_bridge(value: Any) -> dict[str, Any]:
         "deferred_count": _bounded_int(value.get("deferred_count"), 0, _MAX_COMPONENTS),
         "components": components,
     }
+    if isinstance(value.get("fact_handoff"), Mapping):
+        result["fact_handoff"] = project_composite_fact_handoff(value["fact_handoff"])
+    return result
 
 
 def _explicit_task_plan(workflow: Mapping[str, Any] | None) -> Mapping[str, Any] | None:

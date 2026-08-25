@@ -6,12 +6,19 @@
 
 ## 当前阶段
 
-- 阶段：M293 多组件事实协调与可恢复 Composite 续跑
+- 阶段：M294 已验证计划到执行/答案/证据闭合
 - 阶段规划：
-  - `docs/m293-multi-component-clarification-capability-map.md`
-  - `docs/m293-multi-component-clarification-spec.md`
-  - `docs/m293-multi-component-clarification-plan.md`
+  - `docs/m294-planned-execution-result-closure-capability-map.md`
+  - `docs/m294-planned-execution-result-closure-spec.md`
+  - `docs/m294-planned-execution-result-closure-plan.md`
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
+
+### M294-A：已验证计划到执行/答案/证据闭合全局规划（进行中）
+
+- 目标：确保 validated TaskPlan/DAG 成为实际 Composite execution 的唯一受校验输入，并让结果/答案/evidence 引用同一 plan identity。
+- 文件：`docs/m294-planned-execution-result-closure-capability-map.md`、`docs/m294-planned-execution-result-closure-spec.md`、`docs/m294-planned-execution-result-closure-plan.md`、`agent/runtime_core/composite_taskplan.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/application/composite.py`、`tests/test_m294_execution_binding_closure.py`。
+- 验证：M293 阶段集中 Docker contract **26/26**、Node smoke、compileall、architecture strict、readiness 200 已通过；M294 尚未开始代码实现。
+- 阻塞：无。先完成 binding 契约，禁止执行器从请求重新猜测计划。
 
 ### M292-A～E：Planner 组件事实交接与可恢复澄清（已完成）
 

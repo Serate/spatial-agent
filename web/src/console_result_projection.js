@@ -49,12 +49,17 @@
     const repairLineage = normalizeRepairLineage(firstRecord(data.repair_lineage, result.repair_lineage, planning?.repair_lineage));
     const context = firstRecord(data.runtime_context, result.runtime_context, data.request_context, result.request_context);
     let clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
-    const handoff = firstRecord(data.component_fact_handoff, result.component_fact_handoff);
-    if (record(handoff) && list(handoff.missing_fields).length) {
+    const componentHandoff = firstRecord(data.component_fact_handoff, result.component_fact_handoff);
+    const compositeHandoff = firstRecord(data.composite_fact_handoff, result.composite_fact_handoff);
+    const handoff = componentHandoff || compositeHandoff;
+    const missingFields = list(handoff?.missing_fields).length
+      ? list(handoff.missing_fields)
+      : list(compositeHandoff?.components).flatMap(item => list(item?.missing_fields)).slice(0, MAX_ITEMS * 8);
+    if (record(handoff) && missingFields.length) {
       clarification = {
         ...clarification,
         state: clarification.state || "component_facts_required",
-        missing_fields: list(handoff.missing_fields).slice(0, MAX_ITEMS),
+        missing_fields: missingFields.slice(0, MAX_ITEMS * 8),
         next_actions: list(clarification.next_actions).length
           ? clarification.next_actions
           : ["补充后重新生成计划"],
@@ -82,6 +87,7 @@
       context,
       clarification,
       component_fact_handoff: handoff || {},
+      composite_fact_handoff: compositeHandoff || {},
       continuation: continuation || {},
       planning,
       repair_lineage: repairLineage,
@@ -124,7 +130,11 @@
     const hasExecution = model.steps.length > 0 || ["COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "TIMED_OUT"].includes(status);
     const hasAnswer = Boolean(model.answer.summary && model.answer.summary !== "暂未形成可读结论。");
     const hasEvidence = Boolean(Object.keys(model.evidence || {}).length || Object.keys(model.evidenceRegistry || {}).length || model.views.length || model.artifacts.length);
-    const clarificationNeeded = status === "NEEDS_CLARIFICATION" || String(model.clarification.state || "").toLowerCase() === "needs_clarification";
+    const clarificationState = String(model.clarification.state || "").toLowerCase();
+    const clarificationNeeded = status === "NEEDS_CLARIFICATION"
+      || clarificationState === "needs_clarification"
+      || clarificationState === "component_facts_required"
+      || clarificationState === "composite_facts_required";
     const failed = ["FAILED", "REJECTED", "BLOCKED", "CANCELLED", "TIMED_OUT"].includes(status);
     return [
       phase("理解请求", hasContext ? "complete" : "waiting"),
@@ -169,7 +179,8 @@
     const clarificationState = String(model.clarification.state || "").toLowerCase();
     const needsClarification = model.status === "NEEDS_CLARIFICATION"
       || clarificationState === "needs_clarification"
-      || clarificationState === "component_facts_required";
+      || clarificationState === "component_facts_required"
+      || clarificationState === "composite_facts_required";
     const clarification = needsClarification ? '<section class="projection-section projection-clarification"><h4>需要补充的信息</h4>'
       + (missing.length ? '<ul>' + missing.map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul>' : '<p>请补充问题中的关键范围或条件。</p>')
       + (clarificationActions.length ? '<small>下一步：' + escapeHtml(clarificationActions.join("；")) + '</small>' : "") + '</section>' : "";

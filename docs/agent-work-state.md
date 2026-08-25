@@ -19,29 +19,27 @@
 
 ## 当前阶段
 
-- 阶段：M293 多组件事实协调与可恢复 Composite 续跑
-- 状态：M292 已完成 Docker 阶段收口、文档同步和版本前检查；M293-A 全局能力图、Spec、Plan 已创建，当前开始多组件 handoff 聚合；中转真实 Composite 输出继续保持 fail closed。
-- 当前任务：M293-A 多组件事实协调全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M294 已验证计划到执行/答案/证据闭合
+- 状态：M293 已完成 Docker 阶段收口，文档同步完成，版本待提交推送；M294-A 全局能力图、Spec、Plan 已创建，当前开始 execution binding；中转真实 Composite 输出继续保持 fail closed。
+- 当前任务：M294-A 已验证计划到执行/答案/证据闭合全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m293-multi-component-clarification-capability-map.md`](m293-multi-component-clarification-capability-map.md)
-  - [`docs/m293-multi-component-clarification-spec.md`](m293-multi-component-clarification-spec.md)
-  - [`docs/m293-multi-component-clarification-plan.md`](m293-multi-component-clarification-plan.md)
+  - [`docs/m294-planned-execution-result-closure-capability-map.md`](m294-planned-execution-result-closure-capability-map.md)
+  - [`docs/m294-planned-execution-result-closure-spec.md`](m294-planned-execution-result-closure-spec.md)
+  - [`docs/m294-planned-execution-result-closure-plan.md`](m294-planned-execution-result-closure-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m293-multi-component-clarification-capability-map.md`
-- `docs/m293-multi-component-clarification-spec.md`
-- `docs/m293-multi-component-clarification-plan.md`
-- `agent/runtime_core/component_fact_handoff.py`
-- `agent/runtime_core/clarification_continuation.py`
-- `agent/composite_request_context.py`
-- `agent/application/composite_planning.py`
+- `docs/m294-planned-execution-result-closure-capability-map.md`
+- `docs/m294-planned-execution-result-closure-spec.md`
+- `docs/m294-planned-execution-result-closure-plan.md`
 - `agent/runtime_core/composite_taskplan.py`
-- `agent/application/http.py`
+- `agent/application/composite_planning.py`
 - `agent/application/composite_runs.py`
+- `agent/application/composite.py`
+- `agent/composite_contract.py`
 - `agent/composite_view.py`
-- `web/src/console_result_projection.js`
-- `tests/test_m293_multi_component_continuation.py`
+- `agent/answer_generation.py`
+- `tests/test_m294_execution_binding_closure.py`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
 - `tasks/plan.md`

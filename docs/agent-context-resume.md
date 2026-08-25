@@ -194,3 +194,10 @@
 - 补充事实后重新构建 context、重新规划、重新验证 TaskPlan/DAG 和 plan completeness；HTTP `composite_plan`、async/artifact/evidence、Composite View 和 Console 只投影脱敏 identity，前端不展示 token。
 - Docker M292 compact **3/3**、相邻 Planner/TaskPlan 回归 **19/19**、compileall、architecture strict、Node projection smoke、生产 readiness **200** 通过；未重复发起 live 请求。
 - 兼容修正：旧 M285/M283 replay fixture 补齐最小 canonical workflow，以符合 M291 严格 materialization gate。当前恢复入口切换到 M293-A，下一阶段规划多组件 handoff 聚合与全局 continuation；默认测试继续精简。
+
+## M293：多组件事实协调与可恢复 Composite 续跑（已完成）
+
+- 新增 `spatial-agent.composite-fact-handoff.v1` 和 `spatial-agent.composite-clarification-continuation.v1`；多个已选组件按 component identity 汇总 requirements/known facts/missing fields，一个 handoff 只签发一个 continuation。
+- 补充事实按 `component_id` 校验并按 Domain 合并，重新执行 context、Planner、TaskPlan/DAG 和 completeness gate；集合漂移、未知组件/字段、过期或篡改 token 均 fail closed，未完成澄清不创建 run。
+- HTTP prepare、planning evidence、TaskPlan bridge、Composite View、Console 投影保留有界组件 identity；前端只显示字段标签，不显示 token。单组件 M292 continuation 继续兼容。
+- Docker 合并回归 **26/26**、Node projection smoke、compileall、architecture strict、readiness 200 通过；未重复 live provider。当前恢复入口切换到 M294-A，下一阶段从全局七维度规划跨域执行、答案和证据闭环。

@@ -1071,3 +1071,19 @@
 - **修复**：为旧 fixture 增加最小已注册 tool、result type 和 canonical one-step workflow；生产代码继续拒绝 deferred/不可物化组件。
 - **验证**：Docker 重建镜像后 M292 compact **3/3** 与相邻回归 **19/19** 通过。
 - **预防**：新增 replay/fixture 必须显式提供 capability → workflow → TaskPlan 闭合链；阶段回归集中运行，不能只运行局部 M292 测试就宣称相邻契约未受影响。
+
+## M293 多组件澄清不能为每个组件分别签发 token
+
+- **现象**：一个开放式请求同时选择多个组件并分别缺少事实时，为每个组件单独签发 continuation 会产生多个互不关联的续接入口；补充一个组件后可能丢失其它组件的 selection 或让 Planner 静默换组件。
+- **根因**：M292 的 continuation identity 只绑定单个 component/domain/capability；多组件请求需要绑定完整组件集合和全局 Planner selection fingerprint。
+- **修复**：新增 `spatial-agent.composite-fact-handoff.v1` 和 `spatial-agent.composite-clarification-continuation.v1`；一个 handoff 只产生一个 token，事实按 `component_id` 分组，再按 Domain 合并进入 context。
+- **验证**：M293 compact 覆盖全部补充、部分补充、未知组件拒绝、HTTP prepare round-trip；重新规划后仍要求同一组件集合和 TaskPlan gate。
+- **预防**：多组件 token 只保存 identity、字段白名单和过期时间；组件集合漂移、未知字段和未声明组件必须 fail closed，不通过增加 repair 次数解决。
+
+## M293 多组件安全投影不能沿用单组件字段结构
+
+- **现象**：如果跨入口继续只投影 `component_id/domain_id/field_ids`，多组件 continuation 的 identity 会在 artifact、View 或前端被截断，用户无法知道哪一部分待补充。
+- **根因**：旧 safe projection 是为 M292 单组件设计，未声明 `component_ids`、`domain_ids` 和组件摘要数组。
+- **修复**：planning evidence、Composite View、TaskPlan bridge 和 Console projection 增加有界组件摘要；只保留 identity、字段标签和状态，严格过滤 token 与模型内部内容。
+- **验证**：Node projection 增加多组件澄清案例；Docker 合并回归 **26/26**、compileall、architecture strict、readiness 200 通过。
+- **预防**：新增版本化投影字段时必须同时检查同步 HTTP、异步/artifact/restart、View 和前端；前端不根据 Domain 或工具名增加分支。

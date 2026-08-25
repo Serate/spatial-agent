@@ -16,13 +16,14 @@
 
 ## 当前进行中
 
-### M293-A：多组件事实协调与可恢复 Composite 续跑全局规划 — 进行中
+### M294-A：已验证计划到执行/答案/证据闭合全局规划 — 进行中
 
-- 目标：从全局七维度规划多个已选组件的事实聚合、统一 continuation、重新规划和跨入口一致性，不增加 GIS/Economic 专题流程。
-- 已创建：`docs/m293-multi-component-clarification-capability-map.md`、`docs/m293-multi-component-clarification-spec.md`、`docs/m293-multi-component-clarification-plan.md`。
-- 验证：M292 阶段已完成集中 Docker contract **3/3**、相邻 Planner/TaskPlan 回归 **19/19**、compileall、architecture strict、Node projection smoke、readiness 200。
-- 阻塞：无。M293 先实现多组件 handoff 聚合，再接全局 continuation；阶段按完整能力包推进，测试集中收口。
-- 下一步：实现 M293-B 多组件 handoff 聚合与全局 continuation。
+- 目标：从全局七维度闭合“已验证 TaskPlan/DAG → 实际执行 → 结构化结果/答案/证据”，不让执行器重新猜测已规划步骤。
+- 已创建：`docs/m294-planned-execution-result-closure-capability-map.md`、`docs/m294-planned-execution-result-closure-spec.md`、`docs/m294-planned-execution-result-closure-plan.md`；M293 阶段文档已收口。
+- 验证：M293 Docker 合并回归 **26/26**、Node projection smoke、compileall、architecture strict、readiness 200；M293 版本待提交推送。
+- 需要修改：M294 execution binding、Composite coordinator、Result/Answer/Evidence 跨入口边界和一个 compact contract；恢复时只读取当前 Spec/Plan 与明确文件。
+- 阻塞：无。当前先做 binding 契约和执行输入闭合，不增加 continuation schema。
+- 下一步：完成 M293-E 提交推送后实现 M294-B execution binding。
 
 ### M288-B/C/D/E：provider structured-output 能力协商与阶段交付 — 已完成
 
@@ -34,6 +35,14 @@
 - 下一步：完成 M288-E 文档/问题记录/提交推送，然后从全局七维度规划 M289 真实 Composite 成功/澄清/拒绝矩阵。
 
 ## 最近完成
+
+### M293-A～E：多组件事实协调与可恢复 Composite 续跑 — 已完成
+
+- 结果：新增 composite fact handoff 与 grouped continuation；多个组件缺失事实只返回一个 token，补充后按 component_id/Domain 合并并重新走 context、Planner、TaskPlan/DAG gate；HTTP、safe evidence、View 和 Console 支持组件集合 identity。
+- 文件：`agent/runtime_core/clarification_continuation.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/runtime_core/composite_taskplan.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js`、`tests/test_m293_multi_component_continuation.py`。
+- 验证：Docker 合并回归 **26/26**、Node projection smoke、compileall、architecture strict、生产 readiness **200**；未重复 live provider。
+- 阻塞：无。组件集合漂移、未知组件/字段和未完成澄清均 fail closed；M292 单组件 continuation 保持兼容。
+- 下一阶段：M294 已验证计划到执行/答案/证据闭合。
 
 ### M292-A～E：Planner 组件事实交接与可恢复澄清 — 已完成
 

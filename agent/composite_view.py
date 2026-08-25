@@ -239,6 +239,26 @@ def _build_planning(value: Any) -> dict[str, Any]:
             "capability_id": _text(continuation.get("capability_id"), 96),
             "field_ids": _safe_strings(continuation.get("field_ids"), _MAX_COMPONENTS),
         }
+        if str(continuation.get("schema_version") or "") == "spatial-agent.composite-clarification-continuation.v1":
+            result["continuation"]["component_ids"] = _safe_strings(
+                continuation.get("component_ids"), _MAX_COMPONENTS
+            )
+            result["continuation"]["domain_ids"] = _safe_strings(
+                continuation.get("domain_ids"), _MAX_COMPONENTS
+            )
+            result["continuation"]["components"] = [
+                {
+                    "component_id": _text(item.get("component_id"), 96),
+                    "domain_id": _text(item.get("domain_id"), 64),
+                    "capability_id": _text(item.get("capability_id"), 96),
+                }
+                for item in (continuation.get("components") or [])[:_MAX_COMPONENTS]
+                if isinstance(item, Mapping)
+            ]
+            result["continuation"].pop("component_id", None)
+            result["continuation"].pop("domain_id", None)
+            result["continuation"].pop("capability_id", None)
+            result["continuation"].pop("field_ids", None)
     return {key: item for key, item in result.items() if item not in (None, "")}
 
 

@@ -111,7 +111,15 @@
 ## M293 多组件事实协调与可恢复 Composite 续跑（进行中）
 
 - [x] M293-A 全局能力图、Spec、Plan 与多组件 identity 设计
-- [ ] M293-B 多组件 handoff 聚合与全局 continuation
-- [ ] M293-C 重新规划与跨入口生命周期投影
-- [ ] M293-D 集中精简验收与兼容修正
+- [x] M293-B 多组件 handoff 聚合与全局 continuation
+- [x] M293-C 重新规划与跨入口生命周期投影
+- [x] M293-D 集中精简验收与兼容修正
 - [ ] M293-E 中文记录、版本交付与全局重规划
+
+## M294 已验证计划到执行/答案/证据闭合（进行中）
+
+- [x] M294-A 全局能力图、Spec、Plan 与 execution binding 设计
+- [ ] M294-B Composite coordinator 消费 validated binding
+- [ ] M294-C 答案、View 和 Evidence 闭合
+- [ ] M294-D 同步/异步/重启与真实数据验收
+- [ ] M294-E 中文记录、版本交付与全局重规划

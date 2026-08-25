@@ -20,6 +20,7 @@ from typing import Any
 
 
 CONTINUATION_SCHEMA_VERSION = "spatial-agent.component-clarification-continuation.v1"
+COMPOSITE_CONTINUATION_SCHEMA_VERSION = "spatial-agent.composite-clarification-continuation.v1"
 _MAX_TOKEN_BYTES = 8_192
 _MAX_FIELD_VALUES = 16
 _PRIVATE_KEYS = {"api_key", "password", "prompt", "raw_response", "secret", "token", "source_path"}
@@ -121,6 +122,191 @@ def consume_component_continuation(
     }
 
 
+def issue_composite_continuation(
+    handoff: Mapping[str, Any], *, ttl_seconds: int = 1800, now: int | None = None
+) -> dict[str, Any]:
+    """Issue one continuation bound to a complete selected component set."""
+
+    if not isinstance(handoff, Mapping):
+        raise ClarificationContinuationError(
+            "composite handoff is invalid", code="continuation_handoff_invalid"
+        )
+    raw_components = handoff.get("components")
+    if not isinstance(raw_components, list) or not raw_components:
+        raise ClarificationContinuationError(
+            "composite handoff has no components", code="continuation_handoff_invalid"
+        )
+    component_payload: list[dict[str, Any]] = []
+    component_ids: list[str] = []
+    domain_ids: list[str] = []
+    for raw in raw_components[:8]:
+        if not isinstance(raw, Mapping):
+            raise ClarificationContinuationError(
+                "composite component is invalid", code="continuation_handoff_invalid"
+            )
+        component_id = _text(raw.get("component_id"), 96)
+        domain_id = _text(raw.get("domain_id"), 64)
+        capability_id = _text(raw.get("capability_id"), 96)
+        if not component_id or not domain_id or not capability_id or component_id in component_ids:
+            raise ClarificationContinuationError(
+                "composite component identity is invalid",
+                code="continuation_identity_missing",
+            )
+        component_ids.append(component_id)
+        if domain_id not in domain_ids:
+            domain_ids.append(domain_id)
+        fields = [item for item in (raw.get("missing_fields") or []) if isinstance(item, Mapping)]
+        component_payload.append(
+            {
+                "component_id": component_id,
+                "domain_id": domain_id,
+                "capability_id": capability_id,
+                "field_ids": [
+                    _text(item.get("id"), 80)
+                    for item in fields
+                    if _text(item.get("id"), 80)
+                ][:16],
+                "field_kinds": {
+                    _text(item.get("id"), 80): _text(item.get("kind"), 32)
+                    for item in fields
+                    if _text(item.get("id"), 80)
+                },
+                "field_keys": {
+                    _text(item.get("id"), 80): (
+                        [_text(value, 80) for value in (item.get("keys") or []) if _text(value, 80)]
+                        or ([_text(item.get("key"), 80)] if _text(item.get("key"), 80) else [])
+                    )
+                    for item in fields
+                    if _text(item.get("id"), 80)
+                },
+            }
+        )
+    if not any(item.get("field_ids") for item in component_payload):
+        raise ClarificationContinuationError(
+            "composite handoff has no missing fields", code="continuation_not_required"
+        )
+    issued_at = int(time.time() if now is None else now)
+    ttl = max(60, min(86_400, int(ttl_seconds)))
+    payload = {
+        "schema_version": COMPOSITE_CONTINUATION_SCHEMA_VERSION,
+        "issued_at": issued_at,
+        "expires_at": issued_at + ttl,
+        "request_fingerprint": _text(handoff.get("request_fingerprint"), 128),
+        "planner_selection_fingerprint": _text(
+            handoff.get("planner_selection_fingerprint"), 128
+        ),
+        "component_ids": component_ids,
+        "domain_ids": domain_ids,
+        "components": component_payload,
+    }
+    if not payload["request_fingerprint"] or not payload["planner_selection_fingerprint"]:
+        raise ClarificationContinuationError(
+            "composite handoff identity is incomplete",
+            code="continuation_identity_missing",
+        )
+    token = _encode(payload)
+    return {
+        "schema_version": COMPOSITE_CONTINUATION_SCHEMA_VERSION,
+        "token": token,
+        "issued_at": issued_at,
+        "expires_at": issued_at + ttl,
+        "component_ids": component_ids,
+        "domain_ids": domain_ids,
+    }
+
+
+def consume_composite_continuation(
+    token: Any, facts: Any, *, now: int | None = None
+) -> dict[str, Any]:
+    """Validate grouped facts for a multi-component continuation."""
+
+    payload = _decode_token(
+        token, allowed_schemas={COMPOSITE_CONTINUATION_SCHEMA_VERSION}
+    )
+    current = int(time.time() if now is None else now)
+    if current > int(payload["expires_at"]):
+        raise ClarificationContinuationError(
+            "continuation has expired", code="continuation_expired"
+        )
+    raw_components = payload.get("components")
+    if not isinstance(raw_components, list) or not raw_components:
+        raise ClarificationContinuationError(
+            "composite continuation components are invalid",
+            code="continuation_identity_missing",
+        )
+    descriptors = {
+        str(item.get("component_id")): item
+        for item in raw_components
+        if isinstance(item, Mapping) and str(item.get("component_id") or "")
+    }
+    source = facts.get("components") if isinstance(facts, Mapping) else None
+    if source is None and len(descriptors) == 1 and isinstance(facts, Mapping):
+        source = {next(iter(descriptors)): facts}
+    if not isinstance(source, Mapping):
+        raise ClarificationContinuationError(
+            "supplement components must be an object",
+            code="continuation_facts_invalid",
+        )
+    facts_by_component: dict[str, dict[str, Any]] = {}
+    for raw_id, raw_facts in list(source.items())[:8]:
+        component_id = _text(raw_id, 96)
+        descriptor = descriptors.get(component_id)
+        if descriptor is None:
+            raise ClarificationContinuationError(
+                "supplement component is not declared by the handoff",
+                code="continuation_component_unknown",
+            )
+        facts_by_component[component_id] = _normalize_facts(raw_facts, descriptor)
+    if not facts_by_component:
+        raise ClarificationContinuationError(
+            "supplement facts are empty", code="continuation_facts_empty"
+        )
+    domain_ids = [
+        _text(item, 64)
+        for item in (payload.get("domain_ids") or [])[:8]
+        if _text(item, 64)
+    ]
+    return {
+        "schema_version": COMPOSITE_CONTINUATION_SCHEMA_VERSION,
+        "request_fingerprint": _text(payload.get("request_fingerprint"), 128),
+        "planner_selection_fingerprint": _text(
+            payload.get("planner_selection_fingerprint"), 128
+        ),
+        "component_ids": [
+            _text(item, 96)
+            for item in (payload.get("component_ids") or [])[:8]
+            if _text(item, 96)
+        ],
+        "domain_ids": domain_ids,
+        "components": [
+            {
+                "component_id": _text(item.get("component_id"), 96),
+                "domain_id": _text(item.get("domain_id"), 64),
+                "capability_id": _text(item.get("capability_id"), 96),
+            }
+            for item in raw_components
+            if isinstance(item, Mapping)
+        ][:8],
+        "facts_by_component": facts_by_component,
+        "fact_overrides": _merge_facts_by_domain(facts_by_component, descriptors),
+    }
+
+
+def consume_fact_continuation(token: Any, facts: Any) -> dict[str, Any]:
+    """Consume either the M292 single-component or M293 composite token."""
+
+    payload = _decode_token(
+        token,
+        allowed_schemas={
+            CONTINUATION_SCHEMA_VERSION,
+            COMPOSITE_CONTINUATION_SCHEMA_VERSION,
+        },
+    )
+    if payload.get("schema_version") == COMPOSITE_CONTINUATION_SCHEMA_VERSION:
+        return consume_composite_continuation(token, facts)
+    return consume_component_continuation(token, facts)
+
+
 def _normalize_facts(value: Any, payload: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ClarificationContinuationError("supplement facts must be an object", code="continuation_facts_invalid")
@@ -171,7 +357,7 @@ def _normalize_facts(value: Any, payload: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
-def _decode(token: Any) -> dict[str, Any]:
+def _decode_token(token: Any, *, allowed_schemas: set[str]) -> dict[str, Any]:
     text = str(token or "").strip()
     if not text or len(text.encode("utf-8")) > _MAX_TOKEN_BYTES:
         raise ClarificationContinuationError("continuation token is invalid", code="continuation_token_invalid")
@@ -189,12 +375,43 @@ def _decode(token: Any) -> dict[str, Any]:
         raise
     except Exception as exc:
         raise ClarificationContinuationError("continuation token is invalid", code="continuation_token_invalid") from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != CONTINUATION_SCHEMA_VERSION:
+    if not isinstance(payload, Mapping) or payload.get("schema_version") not in allowed_schemas:
         raise ClarificationContinuationError("continuation token schema is invalid", code="continuation_schema_invalid")
-    for key in ("request_fingerprint", "component_id", "domain_id", "expires_at", "field_ids", "field_kinds"):
+    schema = payload.get("schema_version")
+    required = (
+        ("request_fingerprint", "planner_selection_fingerprint", "component_ids", "components", "expires_at")
+        if schema == COMPOSITE_CONTINUATION_SCHEMA_VERSION
+        else ("request_fingerprint", "component_id", "domain_id", "expires_at", "field_ids", "field_kinds")
+    )
+    for key in required:
         if key not in payload:
             raise ClarificationContinuationError("continuation token identity is incomplete", code="continuation_identity_missing")
     return dict(payload)
+
+
+def _decode(token: Any) -> dict[str, Any]:
+    return _decode_token(token, allowed_schemas={CONTINUATION_SCHEMA_VERSION})
+
+
+def _merge_facts_by_domain(
+    facts_by_component: Mapping[str, Mapping[str, Any]],
+    descriptors: Mapping[str, Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for component_id, facts in facts_by_component.items():
+        descriptor = descriptors.get(component_id) or {}
+        domain_id = _text(descriptor.get("domain_id"), 64)
+        if not domain_id:
+            continue
+        target = result.setdefault(
+            domain_id, {"entities": {}, "datasets": [], "constraints": {}}
+        )
+        target["entities"].update(facts.get("entities") or {})
+        for value in facts.get("datasets") or []:
+            if value not in target["datasets"]:
+                target["datasets"].append(value)
+        target["constraints"].update(facts.get("constraints") or {})
+    return result
 
 
 def _encode(payload: Mapping[str, Any]) -> str:
@@ -255,8 +472,12 @@ def _text(value: Any, limit: int) -> str:
 
 
 __all__ = [
+    "COMPOSITE_CONTINUATION_SCHEMA_VERSION",
     "CONTINUATION_SCHEMA_VERSION",
     "ClarificationContinuationError",
+    "consume_composite_continuation",
     "consume_component_continuation",
+    "consume_fact_continuation",
+    "issue_composite_continuation",
     "issue_component_continuation",
 ]
