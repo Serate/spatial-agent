@@ -63,7 +63,15 @@
 ## M287 有界 Planner 修复与失败恢复（进行中）
 
 - [x] M287-A 七维度能力图、Spec、Plan
-- [ ] M287-B Repair Request/Lineage contract 与错误码白名单
-- [ ] M287-C provider/application 一次性修复回合
-- [ ] M287-D 跨入口恢复与前端阶段投影
-- [ ] M287-E 精简 Docker/live 验收、中文记录、提交推送与全局重规划
+- [x] M287-B Repair Request/Lineage contract 与错误码白名单
+- [x] M287-C provider/application 一次性修复回合
+- [x] M287-D 跨入口恢复与前端阶段投影
+- [x] M287-E 精简 Docker/live 验收、中文记录、提交推送与全局重规划
+
+## M288 Provider Wire-level Structured Output 能力协商（进行中）
+
+- [x] M288-A 七维度能力图、Spec、Plan
+- [ ] M288-B provider structured-output profile contract
+- [ ] M288-C client/Planner wire mode adapter
+- [ ] M288-D 跨入口 mode evidence 与体验投影
+- [ ] M288-E 精简 Docker/live 验收、中文记录、提交推送与全局重规划

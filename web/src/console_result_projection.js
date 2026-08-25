@@ -34,6 +34,7 @@
     const compositeAnswer = record(composite?.answer) ? composite.answer : {};
     const answer = normalizeAnswer(compositeAnswer, data, result, composite);
     const planning = firstRecord(data.plan_evidence, result.planning, result.plan_evidence, data.planning);
+    const repairLineage = normalizeRepairLineage(firstRecord(data.repair_lineage, result.repair_lineage, planning?.repair_lineage));
     const context = firstRecord(data.runtime_context, result.runtime_context, data.request_context, result.request_context);
     const clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
     const evidence = firstRecord(composite?.evidence, result.evidence, data.evidence) || {};
@@ -57,6 +58,7 @@
       context,
       clarification,
       planning,
+      repair_lineage: repairLineage,
       plan,
       evidence,
       evidence_registry: evidenceRegistry,
@@ -66,7 +68,7 @@
       steps,
       view_count: viewCount,
       component_count: Math.max(0, Math.min(MAX_ITEMS, componentCount)),
-      phases: buildPhases({status, answer, context, clarification, planning, plan, evidence, evidenceRegistry, views, artifacts, steps}),
+      phases: buildPhases({status, answer, context, clarification, planning, repairLineage, plan, evidence, evidenceRegistry, views, artifacts, steps}),
     };
   }
 
@@ -124,6 +126,8 @@
     if (model.component_count) chips.push("覆盖 " + model.component_count + " 个分析部分");
     if (Object.keys(model.context || {}).length) chips.push("分析上下文已建立");
     if (Object.keys(model.evidence || {}).length || Object.keys(model.evidence_registry || {}).length) chips.push("证据已保留");
+    if (model.repair_lineage.status === "repaired") chips.push("计划已校正");
+    else if (model.repair_lineage.status === "failed") chips.push("计划校正未完成");
     const chipHtml = chips.slice(0, MAX_ITEMS).map(item => '<span class="result-chip">' + escapeHtml(item) + '</span>').join("");
     const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const limitations = model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
@@ -141,6 +145,21 @@
 
   function firstRecord(...values) {
     return values.find(value => record(value)) || null;
+  }
+
+  function normalizeRepairLineage(raw) {
+    if (!record(raw)) return {status: "missing", attempted: false, count: 0, reason_code: ""};
+    const statuses = ["not_attempted", "repaired", "failed", "skipped"];
+    const status = statuses.includes(text(raw.status, 32)) ? text(raw.status, 32) : "unavailable";
+    const count = Number.isFinite(Number(raw.count)) ? Math.max(0, Math.min(1, Number(raw.count))) : 0;
+    return {
+      schema_version: text(raw.schema_version, 96),
+      status,
+      attempted: raw.attempted === true,
+      count,
+      reason_code: text(raw.reason_code, 96),
+      request_fingerprint: text(raw.request_fingerprint, 128),
+    };
   }
 
   function safeTextList(value, limit) {

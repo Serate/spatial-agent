@@ -18,6 +18,11 @@ from agent.composite_request_context import (
     CompositeRequestContextError,
 )
 from agent.composite_planner import CompositePlannerError
+from agent.planner_repair import (
+    build_planner_repair_request,
+    build_repair_lineage,
+    is_repairable_planner_error,
+)
 from agent.runtime_core.composite_taskplan import (
     CompositeTaskPlanBridge,
     CompositeTaskPlanBridgeError,
@@ -217,6 +222,7 @@ class CompositePlanningApplication:
         planner: Any,
         composite_runs: Any,
         repair_planner: Any = None,
+        repair_planner_factory: Any = None,
         max_repairs: int = 1,
         planner_factory: Any = None,
         context_builder: Any = None,
@@ -231,6 +237,7 @@ class CompositePlanningApplication:
         self._planner = planner
         self._planner_factory = planner_factory
         self._repair_planner = repair_planner
+        self._repair_planner_factory = repair_planner_factory
         self._composite_runs = composite_runs
         self._max_repairs = max(0, min(1, int(max_repairs)))
         self._taskplan_bridge = taskplan_bridge or CompositeTaskPlanBridge(host=host)
@@ -283,30 +290,94 @@ class CompositePlanningApplication:
         except CompositeRequestContextError as exc:
             return self._context_error(exc, planner_name)
         except CompositePlannerError as exc:
-            if self._repair_planner is not None and self._max_repairs:
+            repairable = is_repairable_planner_error(exc.code)
+            repair_lineage = build_repair_lineage(
+                reason_code=exc.code,
+                status="skipped" if not repairable else "not_attempted",
+                attempted=False,
+                count=0,
+                request_fingerprint=context.get("request_fingerprint"),
+            )
+            repair_planner = self._repair_planner
+            repair_factory_failed = False
+            if (
+                repair_planner is None
+                and repairable
+                and self._max_repairs
+                and callable(self._repair_planner_factory)
+            ):
                 try:
-                    repaired = self._repair_planner.plan(text, context=context)
+                    repair_planner = self._repair_planner_factory(
+                        planner_name, backend
+                    )
+                except Exception:
+                    repair_factory_failed = True
+            if repair_factory_failed:
+                repair_lineage = build_repair_lineage(
+                    reason_code=exc.code,
+                    status="failed",
+                    attempted=True,
+                    count=1,
+                    request_fingerprint=context.get("request_fingerprint"),
+                )
+            if repair_planner is not None and self._max_repairs and repairable:
+                try:
+                    repair_request = build_planner_repair_request(
+                        exc.code,
+                        request_fingerprint=context.get("request_fingerprint"),
+                        context_schema_version=context.get("schema_version"),
+                    )
+                    repair_context = dict(context)
+                    repair_context["planner_repair"] = repair_request
+                    repaired = repair_planner.plan(
+                        text, context=repair_context
+                    )
                     repaired_response = self._normalize_candidate(
                         repaired,
                         context=context,
                         planner_name=planner_name,
                         backend=backend,
                     )
-                    repaired_response["repair_lineage"] = {
-                        "attempted": True,
-                        "count": 1,
-                        "reason_code": exc.code,
-                        "status": "repaired",
-                    }
+                    repair_lineage = build_repair_lineage(
+                        reason_code=exc.code,
+                        status="repaired",
+                        attempted=True,
+                        count=1,
+                        request_fingerprint=context.get("request_fingerprint"),
+                    )
+                    repaired_response["repair_lineage"] = repair_lineage
+                    planner_evidence = dict(
+                        repaired_response.get("planner_evidence") or {}
+                    )
+                    planner_evidence["repair_lineage"] = repair_lineage
+                    repaired_response["planner_evidence"] = planner_evidence
                     return self._attach_context(repaired_response, context)
                 except Exception:
-                    pass
+                    repair_lineage = build_repair_lineage(
+                        reason_code=exc.code,
+                        status="failed",
+                        attempted=True,
+                        count=1,
+                        request_fingerprint=context.get("request_fingerprint"),
+                    )
             status = "NEEDS_CLARIFICATION" if exc.code in {
                 "planner_provider_failed",
                 "planner_context_too_large",
                 "plan_components_required",
                 "capability_unavailable",
             } else "REJECTED"
+            failure_evidence = _planner_evidence(
+                {},
+                planner_source=planner_name,
+                schema_status="failed",
+                component_count=0,
+                request_fingerprint=None,
+                requested_planner=planner_name,
+                selection_state="failed",
+                selection_reason=exc.code,
+                candidate_count=_context_candidate_count(context),
+            )
+            failure_evidence["repair_lineage"] = repair_lineage
             return self._attach_context({
                 "schema_version": self.schema_version,
                 "status": status,
@@ -316,23 +387,8 @@ class CompositePlanningApplication:
                 "components": [],
                 "request": None,
                 "validation": {"status": "failed", "reason_code": exc.code},
-                "planner_evidence": _planner_evidence(
-                    {},
-                    planner_source=planner_name,
-                    schema_status="failed",
-                    component_count=0,
-                    request_fingerprint=None,
-                    requested_planner=planner_name,
-                    selection_state="failed",
-                    selection_reason=exc.code,
-                    candidate_count=_context_candidate_count(context),
-                ),
-                "repair_lineage": {
-                    "attempted": bool(self._repair_planner and self._max_repairs),
-                    "count": 1 if self._repair_planner and self._max_repairs else 0,
-                    "reason_code": exc.code,
-                    "status": "failed",
-                },
+                "planner_evidence": failure_evidence,
+                "repair_lineage": repair_lineage,
             }, context)
         except Exception as exc:
             return self._attach_context({

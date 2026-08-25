@@ -6,11 +6,11 @@
 
 ## 当前阶段
 
-- 阶段：M287 有界 Planner 修复与失败恢复
+- 阶段：M288 Provider Wire-level Structured Output 能力协商
 - 阶段规划：
-  - `docs/m287-bounded-planner-repair-capability-map.md`
-  - `docs/m287-bounded-planner-repair-spec.md`
-  - `docs/m287-bounded-planner-repair-plan.md`
+  - `docs/m288-wire-structured-output-capability-map.md`
+  - `docs/m288-wire-structured-output-spec.md`
+  - `docs/m288-wire-structured-output-plan.md`
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
 
 ## 最近任务记录
@@ -167,6 +167,19 @@
 - 结果：完成七维度能力图、Spec、Plan；明确 repair 只处理 schema 结构错误，不改变事实、权限、能力或工具。
 - 文件：`docs/m287-bounded-planner-repair-capability-map.md`、`docs/m287-bounded-planner-repair-spec.md`、`docs/m287-bounded-planner-repair-plan.md`。
 - 验证：规划与 M286 的 provider schema 失败证据一致；未运行重复业务测试。
+- 阻塞：无。
+
+### M287-E：阶段收口、显式 live 与版本交付（已完成）
+
+- 结果：完成 Repair Request/Lineage、一次性 provider repair、跨入口 evidence sanitizer、前端通用摘要和中文记录。
+- 验证：M287/M286/M285/M283 联合 **23/23**、compileall、architecture strict、readiness 200、Node projection smoke 通过；真实 repair probe 仅调用一次修复，最终安全拒绝且无 run。
+- 下一阶段：M288 provider wire-level structured-output 能力协商，不扩大 repair 次数。
+
+### M288-A：Wire-level Structured Output 全局规划（已完成）
+
+- 结果：完成七维度能力图、Spec、Plan；明确 provider profile 只影响 wire 参数，canonical schema/allowlist/TaskPlan 仍是最终门控。
+- 文件：`docs/m288-wire-structured-output-capability-map.md`、`docs/m288-wire-structured-output-spec.md`、`docs/m288-wire-structured-output-plan.md`。
+- 验证：规划与 M287 live repair 失败证据一致；未运行重复业务测试。
 - 阻塞：无。
 
 ## 更新协议

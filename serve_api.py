@@ -70,12 +70,21 @@ def _composite_planner_factory(planner_name, _backend):
     return RuleCompositePlanner(_rule_composite_candidate)
 
 
+def _composite_repair_planner_factory(planner_name, _backend):
+    if str(planner_name).lower() == "openai":
+        config = load_openai_config()
+        config["max_retries"] = 0
+        return LLMCompositePlanner(OpenAIPlannerClient(**config))
+    return None
+
+
 composite_planning_application = CompositePlanningApplication(
     host=domain_host,
     projector=CompositeCapabilityProjector(domain_host),
     planner=RuleCompositePlanner(_rule_composite_candidate),
     composite_runs=composite_application,
     planner_factory=_composite_planner_factory,
+    repair_planner_factory=_composite_repair_planner_factory,
 )
 
 

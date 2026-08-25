@@ -25,6 +25,7 @@ from agent.models import AgentRunResult, RunStatus
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.runtime_context import build_runtime_context
 from agent.runtime_core.composite_taskplan import project_task_plan_bridge
+from agent.planner_repair import build_repair_lineage
 from agent.service_async import process_is_alive
 from agent.service_state import ServiceState
 
@@ -362,6 +363,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "context_schema_version",
         "compatibility",
         "task_plan_bridge",
+        "repair_lineage",
     }
     result = {key: value[key] for key in allowed if key in value}
     result["schema_version"] = str(
@@ -392,6 +394,21 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         result["task_plan_bridge"] = project_task_plan_bridge(
             result.get("task_plan_bridge")
         )
+    if "repair_lineage" in result:
+        lineage = result.get("repair_lineage")
+        if isinstance(lineage, Mapping):
+            try:
+                result["repair_lineage"] = build_repair_lineage(
+                    reason_code=lineage.get("reason_code"),
+                    status=lineage.get("status"),
+                    attempted=bool(lineage.get("attempted")),
+                    count=int(lineage.get("count") or 0),
+                    request_fingerprint=lineage.get("request_fingerprint"),
+                )
+            except (TypeError, ValueError):
+                result.pop("repair_lineage", None)
+        else:
+            result.pop("repair_lineage", None)
     return result
 
 

@@ -15,14 +15,14 @@
 
 ## 当前进行中
 
-### M287-B：Repair Request/Lineage contract 与错误码白名单 — 进行中
+### M288-B：provider structured-output profile contract — 进行中
 
-- 目标：定义领域中立、有界、最多一次的 Planner repair 请求和 lineage，只有 schema 结构错误可进入修复；未知能力、工具、数据和 policy 错误直接终止。
-- 需要修改：`agent/composite_planner.py`、`agent/application/composite_planning.py`、`tests/test_m287_bounded_planner_repair.py`。
-- 已完成：M286 阶段门禁；联合 **17/17**、compileall、architecture strict、readiness 200；live 一条前置澄清、一条 provider schema 拒绝，均无 run。
-- 验证：M287 contract 待实现后集中运行，不重复运行 M286 联合门禁。
-- 阻塞：无；未知模型字段继续 fail closed。
-- 下一步：先实现 repair request/lineage 的纯契约和错误码分类，再接 provider/application。
+- 目标：建立 provider-neutral 的 structured-output profile，明确 wire API、schema/object mode、来源和失败状态，不让 provider 特殊字段进入 Domain/Runtime。
+- 需要修改：`agent/llm_planner.py`、`agent/openai_config.py`、`tests/test_m288_wire_structured_output.py`。
+- 已完成：M287 阶段门禁；联合 **23/23**、compileall、architecture strict、readiness 200、Node projection smoke；live repair 只调用一次且安全失败。
+- 验证：M288 contract 待实现后集中运行，不重复 M287 联合门禁。
+- 阻塞：无；未知模型字段和 wire mode 失败继续 fail closed。
+- 下一步：先冻结 structured-output profile 的纯契约，再接 client 的 mode 选择和脱敏 evidence。
 
 ## 最近完成
 

@@ -42,4 +42,18 @@ assert.match(clarificationHtml, /时间范围/);
 assert.match(clarificationHtml, /请补充统计周期/);
 assert.ok(clarificationHtml.length < 12000);
 
-console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "clarification_projection"]}));
+const repaired = projection.normalize({
+  status: "PLANNED",
+  repair_lineage: {
+    schema_version: "spatial-agent.planner-repair-lineage.v1",
+    status: "repaired",
+    attempted: true,
+    count: 1,
+    reason_code: "plan_component_field_invalid",
+  },
+  result: {type: "composite_result"},
+});
+assert.equal(repaired.repair_lineage.status, "repaired");
+assert.match(projection.render(repaired), /计划已校正/);
+
+console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "clarification_projection", "repair_projection"]}));

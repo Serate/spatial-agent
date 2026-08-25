@@ -97,10 +97,17 @@ M55 完成时的验证结果：189 个离线测试通过、36 个 GIS 重点测�
 - 阶段联合 Docker contract **17/17**、compileall、architecture strict、readiness HTTP 200 通过；一条 live 请求在 context 层结构化澄清，另一条到达真实 `openai` Planner 后以 `plan_component_field_invalid` 安全拒绝，均为 0 组件且未创建 run。
 - 阶段结论：context identity、输出预算和 fail-closed 边界已加强；中转模型仍未稳定遵守组件字段 schema，下一阶段需研究有界修复回合/明确 adapter 映射，不放宽未知字段。
 
-## M287：有界 Planner 修复与失败恢复（进行中）
+## M287：有界 Planner 修复与失败恢复（已完成）
 
 - 全局重规划：针对 M286 发现的 `plan_component_field_invalid`，下一阶段不放宽组件字段 allowlist，而是建立最多一次、可观测、可恢复的 schema repair seam；修复后必须重新经过同一 canonical plan、capability allowlist、TaskPlan bridge 和 Runtime 门控。
-- M287-A 已完成能力图、Spec、Plan；M287-B～E 将集中覆盖 Repair Request/Lineage、provider/application adapter、HTTP/async/artifact/restart/前端一致性、Docker 和一次显式 live。
+- 新增 `agent/planner_repair.py`，统一版本化 Repair Request/Lineage 和可修复错误码；Application 支持惰性 repair factory，FastAPI/stdlib 均以同一方式接入，修复后复用原 normalize/TaskPlan gate，禁止未知 capability、工具、数据和 policy 进入 repair。
+- `planner_evidence`、async/artifact sanitizer、live receipt 和通用 Console projection 均保留有界 repair lineage；前端新增“计划已校正/计划校正未完成”通用摘要，不增加领域分支。
+- 阶段联合 Docker contract **23/23**、compileall、architecture strict、readiness HTTP 200、Node projection smoke 通过；真实中转 repair probe 首次 schema 错误触发且仅触发 1 次 repair，最终仍为 `REJECTED/plan_component_field_invalid`，未创建 run。
+- 阶段结论：失败恢复与可观测边界完成，但 provider 结构化输出能力仍不足；下一阶段从 provider wire-level structured-output 协商、脱敏 replay 与成功率评测整体规划，不扩大重试次数。
+
+## M288：Provider Wire-level Structured Output 能力协商（进行中）
+
+- 全局重规划：M287 的一次 repair 仍失败，说明缺口在 provider 对结构化输出 wire contract 的支持，而不是重试次数不足。M288-A 已完成能力图、Spec、Plan；M288-B～E 将集中处理 provider profile、strict/json-object mode 协商、跨入口 evidence 和一次真实 live。
 
 ## M56：证据驱动的执行策略
 

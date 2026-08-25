@@ -18,19 +18,22 @@
 
 ## 当前阶段
 
-- 阶段：M287 有界 Planner 修复与失败恢复
-- 状态：M286 已完成阶段验收并准备版本交付；M287-A 已完成，当前进入 M287-B；中转真实 Composite 输出继续保持 fail closed。
-- 当前任务：M287-B Repair Request/Lineage contract 与错误码白名单，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M288 Provider Wire-level Structured Output 能力协商
+- 状态：M287 已完成阶段验收并准备版本交付；M288-A 已完成，当前进入 M288-B；中转真实 Composite 输出继续保持 fail closed。
+- 当前任务：M288-B provider structured-output profile contract，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m287-bounded-planner-repair-capability-map.md`](m287-bounded-planner-repair-capability-map.md)
-  - [`docs/m287-bounded-planner-repair-spec.md`](m287-bounded-planner-repair-spec.md)
-  - [`docs/m287-bounded-planner-repair-plan.md`](m287-bounded-planner-repair-plan.md)
+  - [`docs/m288-wire-structured-output-capability-map.md`](m288-wire-structured-output-capability-map.md)
+  - [`docs/m288-wire-structured-output-spec.md`](m288-wire-structured-output-spec.md)
+  - [`docs/m288-wire-structured-output-plan.md`](m288-wire-structured-output-plan.md)
 
 ## 当前任务明确文件
 
 - `agent/composite_planner.py`
-- `agent/application/composite_planning.py`
-- `tests/test_m287_bounded_planner_repair.py`
+- `agent/llm_planner.py`
+- `agent/openai_config.py`
+- `agent/composite_planner.py`
+- `tests/test_m288_wire_structured_output.py`
+- `docs/m288-wire-structured-output-spec.md`
 - `docs/m287-bounded-planner-repair-spec.md`
 
 ## 验证与安全约定

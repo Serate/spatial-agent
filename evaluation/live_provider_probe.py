@@ -9,6 +9,7 @@ from typing import Any
 
 from evaluation.live_baseline import run_bounded_operation
 from evaluation.model_evaluation import sanitize_provider_metrics
+from agent.planner_repair import build_repair_lineage
 
 
 PROVIDER_PROBE_SCHEMA_VERSION = "spatial-agent.live-provider-probe.v1"
@@ -386,7 +387,7 @@ def _safe_planner_evidence(value: Any) -> dict[str, Any]:
             if len(actions) >= 16:
                 break
         safe_compatibility = {"status": status, "actions": actions}
-    return {
+    result = {
         "schema_version": _safe_probe_string(value.get("schema_version"), 96),
         "planner_source": _safe_probe_string(value.get("planner_source"), 32),
         "schema_status": _safe_probe_string(value.get("schema_status"), 32),
@@ -394,6 +395,19 @@ def _safe_planner_evidence(value: Any) -> dict[str, Any]:
         "request_fingerprint": _safe_probe_string(value.get("request_fingerprint"), 128),
         "compatibility": safe_compatibility,
     }
+    lineage = value.get("repair_lineage")
+    if isinstance(lineage, Mapping):
+        try:
+            result["repair_lineage"] = build_repair_lineage(
+                reason_code=lineage.get("reason_code"),
+                status=lineage.get("status"),
+                attempted=bool(lineage.get("attempted")),
+                count=int(lineage.get("count") or 0),
+                request_fingerprint=lineage.get("request_fingerprint"),
+            )
+        except (TypeError, ValueError):
+            pass
+    return result
 
 
 def _safe_probe_string(value: Any, limit: int) -> str:

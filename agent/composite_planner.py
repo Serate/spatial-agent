@@ -13,6 +13,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from agent.composite_contract import normalize_composite_request
+from agent.planner_repair import safe_repair_request
 
 
 COMPOSITE_PLANNING_RESPONSE_SCHEMA_VERSION = "spatial-agent.composite-planning-response.v1"
@@ -341,6 +342,15 @@ class LLMCompositePlanner:
         context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         bounded_context = _bounded_context(context)
+        repair_request = safe_repair_request(bounded_context.get("planner_repair"))
+        repair_instruction = ""
+        if repair_request is not None:
+            repair_instruction = (
+                " This is one bounded schema repair attempt. Correct only the "
+                "declared output shape for the supplied repair reason; do not "
+                "change facts, domains, capabilities, tools, datasets, or "
+                "permissions, and do not describe the repair."
+            )
         messages = [
             {
                 "role": "system",
@@ -361,6 +371,7 @@ class LLMCompositePlanner:
                     "For success, components must be non-empty; for "
                     "needs_clarification or rejected, components must be an empty "
                     "array. Never return components with a non-success outcome."
+                    + repair_instruction
                 ),
             },
             {

@@ -1009,3 +1009,11 @@
 - **处理**：继续拒绝未知组件字段，保留 `plan_component_field_invalid` 和 `planner_source=openai` 的安全 evidence；不把未知字段加入 schema，不绕过 TaskPlan/ToolRegistry 门控。下一阶段研究一次有界 schema 修复回合或明确的 provider adapter 映射，并先用 replay 固化。
 - **验证**：阶段联合 Docker contract **17/17**、compileall、architecture strict、readiness 200 通过；两条 live 输入分别验证前置澄清和 provider 到达后的 schema fail-closed。
 - **预防**：真实模型验收按 context → provider → response schema → capability allowlist → TaskPlan → execution 分层；任何兼容新增都必须有脱敏 replay、字段白名单和无越权负向断言，不能为了 live 通过接受任意组件字段。
+
+## M287 单次 Planner repair 仍返回非法结构，不能扩大重试预算
+
+- **现象**：真实中转 Composite live 首次返回 `plan_component_field_invalid` 后触发一次 repair；repair 仍未通过同一 schema 校验，最终保持 `REJECTED/plan_component_field_invalid`，receipt 为 `attempted=true`、`count=1`、`status=failed`，0 组件且未创建 run。
+- **根因**：repair 只能提醒模型修正结构，不能改变 provider 对严格 schema 的遵循能力；继续增加次数会放大 token、延迟和重复提交风险，也不能保证输出合法。
+- **修复**：M287 建立 `spatial-agent.planner-repair-request.v1` 与 `planner-repair-lineage.v1`；仅允许有限 schema 错误进入一次 repair，repair 后重新走 normalize、capability allowlist、TaskPlan bridge；live harness 和 async/artifact evidence 均只保存安全 lineage。
+- **验证**：M287/M286/M285/M283 联合 **23/23**、compileall、architecture strict、readiness 200、前端 projection smoke 通过；真实 repair probe 只发生一次修复调用，无 execution run。
+- **预防**：下一阶段优先做 provider wire-level structured-output 能力协商和脱敏 replay，不增加 repair 次数，不接受未知字段或未知能力，不把失败伪装为成功。
