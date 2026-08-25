@@ -4836,3 +4836,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 真实 GIS 抽查确认容器为 `local/ready`；建设能力只看到 `admin_areas`、`dem`、`land_use` 三个数据集的有界事实，未发现绝对路径泄漏。执行前 CRS、栅格对齐、缺失数据和权限校验仍由 Domain/ToolRegistry 负责。
 - Docker M265 与 M249/M251/M263 定向回归 **14/14**；stage、quick、compileall、architecture strict 和 `git diff --check` 均通过。没有改变 Result、artifact、SQLite/restart 或既有生命周期语义。
 - 全局重规划：下一阶段进入 M266，先把重复的 workflow/capability/catalog 声明抽为领域中立、声明式的接入工厂/校验器，再用第三个指标类专题或真实扩展数据验证“新增专题只需适配器 + 目录 + 少量声明”；不复制 Runtime，不为单一区域/问句加分支，不提前引入 RAG。
+
+## M266：声明式 Domain Catalog 接入工厂（已完成）
+
+- 新增 `agent/domain_catalog.py`：`DomainCatalogSpec` 描述 Domain 的 capability、dataset/tool 映射、workflow、known tools/results；`validate_domain_catalog_spec()` 校验 ID 唯一、跨引用、workflow 工具边界和 analysis-ready 引用；`build_domain_catalog()` 深拷贝声明并复用既有 `capability_catalog`，输出 `declaration_schema_version`。
+- Indicators 与 Economic 分别提供 `INDICATOR_CATALOG_SPEC`、`ECONOMIC_CATALOG_SPEC`，并通过同一 builder 暴露 capability catalog/workflow copy；Domain 仍保留各自 RequestFacts、数据 Provider、工具 schema、Planner、Result/View/Evidence。
+- GIS catalog 未强行迁移，避免把成熟复杂空间声明与新工厂同时改动；没有修改 Runtime、Planner 生命周期、ToolRegistry dispatch、HTTP、Artifact 或前端主流程。
+- Docker 按当前工作树重建并 healthy；M266/Indicators/Economic 定向 **15/15**、quick+stage、compileall、architecture strict、diff check 通过。
+- 全局重规划：下一阶段为 M267，使用第三个真实指标类专题或扩展数据做最小接入验收；如果接入成本已稳定，再评估 GIS catalog 迁移或跨领域 composite 规划，不提前引入 RAG。

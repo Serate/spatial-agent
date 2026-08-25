@@ -712,3 +712,11 @@
 - **诊断**：执行阶段命令前先用 `rg --files tests | rg 'm249|m265'` 核对文件，再将路径转换为模块名；阶段回归报告必须记录实际执行的命令和数量。
 - **修复**：将命令改为 `tests.test_m249_open_planner`，并在 M265 收口证据中记录 14/14、stage、quick、compileall 和 architecture strict 结果。
 - **预防**：Spec/Plan 中的测试命令只引用已存在的模块；测试重命名后同步更新文档，并在 Docker 中先运行定向命令，再运行 profile，避免只依赖静态检查。
+
+## M266 声明式 catalog 校验不能替代 ToolRegistry 执行校验
+
+- **现象**：把 Domain 的 capability/workflow 声明集中到公共 builder 后，容易误以为 catalog 中的工具白名单就是执行授权；如果只校验能力声明而跳过 ToolRegistry，模型可能选择未注册工具或传入不符合 schema 的参数。
+- **根因**：catalog 是 Planner-facing 的能力发现投影，ToolRegistry 才拥有最终注册、schema、参数、权限和 dispatch 约束；两者用途相近但生命周期不同。
+- **诊断**：分别检查 Domain catalog 的 known tools、Planner context 的 tool schemas，以及运行时 `ToolRegistry` 的 definition/dispatch；不能只断言 capability catalog 返回了工具名。
+- **修复**：M266 builder 只做声明间的 bounded cross-reference 校验，并保留已有 ToolRegistry；没有把工具执行、权限或参数校验移入公共 catalog 工厂。
+- **预防**：新增专题先写 DomainCatalogSpec，再通过 ToolRegistry 注册工具并运行 Planner→Runtime→dispatch contract；catalog 只说明可发现能力，执行前仍必须重新校验工具和数据事实。

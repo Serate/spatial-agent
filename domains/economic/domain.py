@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 from typing import Any, Mapping
 
-from agent.capability_catalog import capability_catalog
 from agent.domain_contract import domain_action_catalog, discovery_context
+from agent.domain_catalog import DomainCatalogSpec, build_domain_catalog, workflow_catalog as copy_workflow_catalog
 from agent.errors import ToolError
 from agent.request_model import RequestFacts
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
@@ -33,6 +33,17 @@ from .provider import DEFAULT_DATA_FILENAME, EconomicToolProvider
 from .request_understanding import ECONOMIC_REQUEST_UNDERSTANDING_GUIDANCE
 from .views import build_views
 from .workflow_templates import KNOWN_RESULT_TYPES, KNOWN_TOOL_NAMES, workflow_template_catalog
+
+
+ECONOMIC_CATALOG_SPEC = DomainCatalogSpec(
+    domain_id="economic",
+    capabilities=tuple(ECONOMIC_CAPABILITIES),
+    dataset_tool_capabilities=ECONOMIC_DATASET_TOOL_CAPABILITIES,
+    dataset_groups=ECONOMIC_DATASET_GROUPS,
+    workflow_templates=workflow_template_catalog(),
+    known_tool_names=tuple(KNOWN_TOOL_NAMES),
+    known_result_types=tuple(KNOWN_RESULT_TYPES),
+)
 
 
 class EconomicDomainPack:
@@ -109,7 +120,11 @@ class EconomicDomainPack:
         return RequestFacts(text=text, admin_name=None, tasks=(task,), datasets=(ECONOMIC_DATASET,), constraints=constraints, evidence=("answer", "provenance", "source_evidence"), entities={"indicator": indicator, "regions": regions, "period_type": period_type})
 
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
-        return capability_catalog(environment=environment, domain_id=self.domain_id, capability_definitions=ECONOMIC_CAPABILITIES, dataset_tool_capabilities=ECONOMIC_DATASET_TOOL_CAPABILITIES, dataset_groups=ECONOMIC_DATASET_GROUPS, analysis_ready_capability_ids=(), workflow_templates=self.workflow_template_catalog(), actions=domain_action_catalog(self))
+        return build_domain_catalog(
+            ECONOMIC_CATALOG_SPEC,
+            environment=environment,
+            actions=domain_action_catalog(self),
+        )
 
     def discover(self, request: str, request_facts: Any) -> Mapping[str, Any]:
         from agent.capability_discovery import discover_from_catalog
@@ -160,7 +175,7 @@ class EconomicDomainPack:
         return workflow_template_context_summary(catalog=self.workflow_template_catalog(), known_tools=KNOWN_TOOL_NAMES, known_result_types=KNOWN_RESULT_TYPES, include_arg_shape=include_arg_shape, compact=compact)
 
     def workflow_template_catalog(self) -> Mapping[str, Mapping[str, Any]]:
-        return workflow_template_catalog()
+        return copy_workflow_catalog(ECONOMIC_CATALOG_SPEC)
 
     def planner_request_hint(self, request: str, workflow: Mapping[str, Any] | None = None) -> str:
         return workflow_request_hint(request, workflow)
