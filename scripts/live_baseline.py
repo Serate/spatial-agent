@@ -52,6 +52,18 @@ def main() -> int:
     parser.add_argument("--backend", choices=("local", "memory"), default="local")
     parser.add_argument("--max-files", type=int, default=10)
     parser.add_argument("--attempts", type=int, default=3)
+    parser.add_argument(
+        "--deadline-seconds",
+        type=float,
+        default=180.0,
+        help="整个 live baseline 的有界时限；默认 180 秒",
+    )
+    parser.add_argument(
+        "--heartbeat-seconds",
+        type=float,
+        default=10.0,
+        help="运行中安全进度心跳间隔；默认 10 秒",
+    )
     parser.add_argument("--output")
     parser.add_argument("--case-ids", help="comma-separated case ids; default: all")
     parser.add_argument(
@@ -83,6 +95,9 @@ def main() -> int:
         attempts_per_case=args.attempts,
         cases=cases,
         service_factory=AgentService,
+        deadline_seconds=args.deadline_seconds,
+        heartbeat_seconds=args.heartbeat_seconds,
+        progress_callback=_write_progress,
     )
     output_report = _summary_report(report) if args.summary else report
     encoded = json.dumps(output_report, ensure_ascii=True, indent=2)
@@ -92,6 +107,12 @@ def main() -> int:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(encoded + "\n", encoding="utf-8")
     return 0 if report["passed"] else 1
+
+
+def _write_progress(event):
+    """Write only the bounded harness event to stderr, one JSON line at a time."""
+
+    print(json.dumps(dict(event), ensure_ascii=True), file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":

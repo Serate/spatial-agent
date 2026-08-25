@@ -784,3 +784,12 @@
 - **诊断**：只记录 provider、model、wire api、阶段、耗时、是否产生 TaskPlan/工具步骤和结构化错误码；不输出 API key、请求头、prompt 或模型原文。用 `SPATIAL_AGENT_LIVE_OPENAI=1`、`SPATIAL_AGENT_LIVE_GIS=1` 在 Docker 单独跑一条请求，超过有界时间后停止；再用 fake/Rule Planner 验证 Runtime 和 GIS。
 - **处理建议**：下一阶段为 live acceptance harness 增加连接/规划/执行阶段心跳、总 deadline 和 provider failure receipt；中转不可用时明确返回可恢复 provider 状态，不修改 ToolRegistry、GIS 算法或 Runtime 主链路来绕过网络问题。默认 CI 继续不调用真实模型。
 - **预防**：真实模型验收必须 async-first、单次提交、有界轮询和分阶段超时；每个外部 provider 先做最小 health/capability probe，再决定是否进入昂贵的复杂请求。中转路径与直连路径分别记录，不把一条路径的失败外推为模型或 GIS 全部不可用。
+
+## M270 live harness 超时边界与安全进度输出
+
+- **现象**：原 live baseline 只有最终报告；provider 在规划阶段挂起时，命令行没有任何阶段性信息，用户无法判断仍在工作、网络等待还是已经失效。
+- **根因**：验收脚本直接同步等待 Runtime/provider 调用，缺少独立的 harness deadline 和进度回调边界；业务 Runtime 的正常执行 deadline 不能可靠约束第三方网络线程。
+- **修复**：`evaluation/live_baseline.py` 为每个 case 增加有界 daemon worker、总 deadline、`started/heartbeat/completed/timeout` 事件和脱敏 timeout receipt；`scripts/live_baseline.py` 增加 `--deadline-seconds` 与 `--heartbeat-seconds`，只把白名单事件写入 stderr。超时不自动重复提交请求，也不伪装成成功降级结果。
+- **安全边界**：事件只允许 `event/case_id/phase/status/elapsed_ms`；receipt 不包含 prompt、请求头、API key、模型原文、完整异常或宿主路径。后台第三方线程无法被强制终止，因此只保证 harness 主线程有界返回，不宣称取消 provider 网络调用。
+- **验证**：Docker M270 定向 **3/3**（立即成功、阻塞超时、参数校验），M269/M268/M264 相邻回归 **14/14**，compileall、architecture strict、quick/stage 通过。真实中转 provider 仍需显式 probe，不能用 fake harness 结果替代真实模型验收。
+- **预防**：新增 live provider 时先用单 case、短 deadline 的 probe，确认 provider 可达且能返回结构化计划后再进入 GIS 多步验收；默认 CI/quick/stage 继续离线，不把网络抖动变成全局代码失败。

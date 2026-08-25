@@ -4861,7 +4861,7 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 显式一次性 Docker 挂载 `D:\dataset\agent` 验收真实 GeoJSON：schema 字段包含 `mag/place/time`、CRS 为 `EPSG:4979`；`mag >= 2.5` + bbox 返回 1 条记录，健康检查报告 10 个事件且 ready；未提交原始数据或宿主路径配置。
 - 全局重规划：下一阶段为 M269，先审计 GIS `range_query` 与 Economic/Indicators Provider 的重复聚合逻辑，设计跨领域 `filter → aggregate → timeseries/compare` contract；用真实经济数据和真实 GIS 事件数据验证复用，不为单个专题新增 Runtime 分支，不提前引入 RAG/MCP。
 
-## M269：通用记录分析核心与跨领域 View 接线（已完成实现，待阶段版本收口）
+## M269：通用记录分析核心与跨领域 View 接线（已完成）
 
 - 新增领域中立的 `agent/analysis/record_contract.py`、`record_analysis.py` 和 `record_views.py`，统一有界 `filter`、`aggregate`、`timeseries`、`compare` 语义；核心只接收 mapping records，不负责文件、网络、领域词汇或 Runtime 生命周期。
 - 输入、输出、分组、字段和聚合均有预算；结果统一为版本化 `record_analysis_result`，输出 `data_profile`、metrics、provenance、warnings，并过滤 geometry、路径和敏感字段。
@@ -4870,3 +4870,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Console 通过 Domain View 动态展示记录分析表格、指标卡和时间序列点；新增共享 View builder，前端不判断 `earthquake`、`economic` 等专题名称，也不显示模型内部思维链。
 - Docker 真实只读验收：地震 GeoJSON 10 条记录按 `magType` 聚合返回 2 组 `record_analysis_result`；Economic 真实数据 `gdp_total + 洪山区 + annual trend` 返回 4 条 `economic_timeseries_result`。M269/Economic/Indicators/GIS 定向 **14/14**，相邻边界回归 **23/23**，compileall、architecture strict 通过。
 - 本阶段未提交真实数据、密钥、模型原文或宿主绝对路径；默认生产容器挂载和离线 CI 语义未改变。下一步全局重规划：验证真实 LLM 多步开放请求的能力发现/计划摘要/证据入口，再决定是否把更多领域工具收敛为通用记录分析。
+
+## M270：真实模型验收 Harness 有界化（已完成）
+
+- 新增 `docs/m270-live-acceptance-harness-spec.md`、`docs/m270-live-acceptance-harness-plan.md` 和能力地图，明确 live provider 的超时、进度、安全摘要边界；不修改 Runtime、Planner、ToolRegistry、GIS 算法或生产默认网络行为。
+- `evaluation/live_baseline.py` 增加 `deadline_seconds`、`heartbeat_seconds` 和 `progress_callback`；单个 case 通过 daemon worker 运行，超过总 deadline 返回脱敏 `timeout` receipt，并进入 summary/error_classes/阶段事件，不隐式重试或重复提交。
+- `scripts/live_baseline.py` 增加 `--deadline-seconds`、`--heartbeat-seconds`；安全 heartbeat 以 JSON Lines 写入 stderr，stdout 仍只输出原有最终报告/摘要，便于 CI 或人工分别采集进度与结果。
+- Docker 验收：M270 定向 **3/3**；M269/M268/M264 相邻回归 **14/14**；compileall、architecture strict、quick/stage 全部通过。测试覆盖 fake runtime 立即完成、provider 阻塞超时和参数边界；未把真实 provider 结果伪装成通过。
+- 真实中转 `opencode.ai/zen/go/v1` + `deepseek-v4-flash` 的约 90 秒无输出仍记录为 provider/network timeout，后续只在显式 probe 中重试；默认 CI、quick、stage 保持离线精简。下一阶段按全局目标做真实 LLM 单请求 probe，再验收开放式多步能力发现、数据选择、计划摘要、结构化回答和 evidence 入口。

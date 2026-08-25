@@ -76,11 +76,11 @@
 - M268 已完成：保留 `GeoPackageBackend` 兼容 seam，扩展为按 `DatasetCatalog` 发现 ready vector 条目的文件型适配器；GeoPackage 按 dataset layer 读取，GeoJSON 等文件按路径读取，通用 `get_dataset_schema`/`range_query` 不再受固定 dataset enum 限制。新增 `earthquakes_wuhan` 的 GIS capability/workflow 声明和请求事实映射，Planner 通过声明式 workflow fallback 复用 `get_dataset_schema → range_query`，没有新增 Runtime、ToolRegistry 或前端主流程分支。Docker M268 contract **3/3**、M267/M266/M265 定向 **14/14**、旧 GIS/回答契约 **47/47**（7 个真实旧数据用例按环境跳过），compileall、architecture strict、quick、stage 通过。显式一次性 Docker 挂载 `D:\dataset\agent` 后，真实地震 GeoJSON schema 保留 `EPSG:4979`，`mag >= 2.5` + bbox 返回 1 条记录，健康检查为 10 个要素 ready；默认生产容器仍挂载项目 `data/`。
 
 - M269 已完成实现：新增领域中立的 `RecordAnalysisEngine` 与 `record_views`，支持有界 filter/aggregate/timeseries/compare；Economic/Indicators 复用公共筛选，GIS 文件型矢量通过 ToolRegistry 的 `record_analysis` 接入，统一 `record_analysis_result`、data_profile、metrics、provenance 和 generic View。Docker 定向 **14/14**、相邻边界回归 **23/23**、compileall、architecture strict 通过；一次性只读 `/data` 真实验收地震 10 条聚合为 2 组，Economic `gdp_total + 洪山区` 年度趋势返回 4 条。期间修复了 Adapter 调用图遗漏和周期字符串排序风险，均已写入问题日志。
-- M270 已开始但被外部 provider 阻塞：Docker 中转 live 单请求使用 `deepseek-v4-flash` 等待约 90 秒无有界输出，已终止；离线/规则/真实本地 GIS 仍通过。问题已记录为中转网络/超时与验收 harness 可观测性问题，下一步先补阶段心跳、总 deadline 和 provider failure receipt，不修改 GIS 算法绕过网络。
+- M270 已完成：为 opt-in live baseline 增加总 deadline、daemon worker 边界、阶段 heartbeat 和脱敏 timeout receipt；CLI 新增 `--deadline-seconds`/`--heartbeat-seconds`，heartbeat 只写 stderr，未输出 prompt、key、模型原文或路径。Docker M270 定向 **3/3**、M269/M268/M264 相邻回归 **14/14**、compileall、architecture strict、quick/stage 全部通过。真实中转仍保持未验收状态，超时现象被明确分类为 provider/network timeout，不修改 Runtime、Planner、ToolRegistry 或 GIS 算法。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询和 M269 通用记录分析实现均已完成。下一阶段从全局规划真实 LLM 的开放式多步请求：验证能力发现、数据选择、计划摘要、多步执行、结构化回答和 evidence 入口；Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析和 M270 live 验收 harness 均已完成。下一阶段从全局规划真实 LLM 的开放式多步请求：先用 harness 做单请求 provider probe，再验证能力发现、数据选择、计划摘要、多步执行、结构化回答和 evidence 入口；Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
 
 ## 不变量
 

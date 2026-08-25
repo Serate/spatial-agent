@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
+from threading import Event, Thread
+from time import monotonic
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 
 from agent.models import AgentRunResult
@@ -92,6 +94,9 @@ def run_live_baseline(
     snapshot_provider: Callable[[int], Mapping[str, Any]] = runtime_capability_snapshot,
     replay_evaluator: Callable[[str | Path], Mapping[str, Any]] = evaluate_model_replay_suite_file,
     replay_fixture: str | Path = DEFAULT_MODEL_REPLAY_FIXTURE,
+    deadline_seconds: float | None = 180.0,
+    heartbeat_seconds: float = 10.0,
+    progress_callback: Callable[[Mapping[str, Any]], None] | None = None,
 ) -> Dict[str, Any]:
     """Run the opt-in live baseline and return only safe structured evidence."""
 
@@ -99,6 +104,10 @@ def run_live_baseline(
         raise ValueError("max_files must be positive")
     if attempts_per_case < 1:
         raise ValueError("attempts_per_case must be positive")
+    if deadline_seconds is not None and deadline_seconds <= 0:
+        raise ValueError("deadline_seconds must be positive or None")
+    if heartbeat_seconds <= 0:
+        raise ValueError("heartbeat_seconds must be positive")
 
     snapshot = snapshot_provider(max_files)
     safe_snapshot = _safe_capability_snapshot(snapshot)
@@ -109,16 +118,51 @@ def run_live_baseline(
     runtime = runtime_factory("openai", backend)
     service = service_factory() if service_factory is not None else None
     results = []
+    baseline_started = monotonic()
+    deadline = (
+        baseline_started + float(deadline_seconds)
+        if deadline_seconds is not None
+        else None
+    )
     for case in cases:
-        results.append(
-            _run_case(
-                runtime,
-                service,
-                case,
-                safe_snapshot,
-                backend=backend,
-                attempts_per_case=attempts_per_case,
+        case_id = str(case.get("id") or "unnamed")
+        _emit_progress(
+            progress_callback,
+            {
+                "event": "started",
+                "case_id": case_id,
+                "phase": "case_runtime_call",
+                "elapsed_ms": _elapsed_ms(baseline_started),
+            },
+        )
+        try:
+            result = _run_with_deadline(
+                lambda: _run_case(
+                    runtime,
+                    service,
+                    case,
+                    safe_snapshot,
+                    backend=backend,
+                    attempts_per_case=attempts_per_case,
+                ),
+                deadline=deadline,
+                heartbeat_seconds=heartbeat_seconds,
+                progress_callback=progress_callback,
+                case_id=case_id,
+                started=baseline_started,
             )
+        except _LiveBaselineTimeout as exc:
+            result = _timeout_evidence(case, exc)
+        results.append(result)
+        _emit_progress(
+            progress_callback,
+            {
+                "event": "completed" if result.get("error_class") != "timeout" else "timeout",
+                "case_id": case_id,
+                "phase": str(result.get("phase") or "case_runtime_call"),
+                "status": str(result.get("status") or "FAILED"),
+                "elapsed_ms": _elapsed_ms(baseline_started),
+            },
         )
 
     passed = sum(1 for item in results if item["passed"])
@@ -153,6 +197,125 @@ def run_live_baseline(
             and bool(replay_registry_completeness.get("passed"))
         ),
     }
+
+
+class _LiveBaselineTimeout(TimeoutError):
+    """Internal bounded timeout carrying only safe receipt fields."""
+
+    def __init__(self, *, case_id: str, phase: str, elapsed_ms: int):
+        super().__init__("live baseline deadline exceeded")
+        self.case_id = str(case_id)[:96]
+        self.phase = str(phase)[:64]
+        self.elapsed_ms = int(max(0, elapsed_ms))
+
+
+def _run_with_deadline(
+    operation: Callable[[], Dict[str, Any]],
+    *,
+    deadline: float | None,
+    heartbeat_seconds: float,
+    progress_callback: Callable[[Mapping[str, Any]], None] | None,
+    case_id: str,
+    started: float,
+) -> Dict[str, Any]:
+    """Run one live case without waiting indefinitely on a provider thread."""
+
+    if deadline is None:
+        return operation()
+    if monotonic() >= deadline:
+        raise _LiveBaselineTimeout(
+            case_id=case_id,
+            phase="case_deadline_before_start",
+            elapsed_ms=_elapsed_ms(started),
+        )
+    outcome: Dict[str, Any] = {}
+    completed = Event()
+
+    def invoke() -> None:
+        try:
+            outcome["result"] = operation()
+        except BaseException as exc:  # re-raise on the caller thread
+            outcome["error"] = exc
+        finally:
+            completed.set()
+
+    Thread(
+        target=invoke,
+        name="spatial-agent-live-" + str(case_id),
+        daemon=True,
+    ).start()
+    while not completed.is_set():
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            raise _LiveBaselineTimeout(
+                case_id=case_id,
+                phase="case_runtime_call",
+                elapsed_ms=_elapsed_ms(started),
+            )
+        completed.wait(min(float(heartbeat_seconds), remaining))
+        if not completed.is_set():
+            _emit_progress(
+                progress_callback,
+                {
+                    "event": "heartbeat",
+                    "case_id": case_id,
+                    "phase": "case_runtime_call",
+                    "elapsed_ms": _elapsed_ms(started),
+                },
+            )
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome.get("result") or {}
+
+
+def _timeout_evidence(case: Mapping[str, Any], timeout: _LiveBaselineTimeout) -> Dict[str, Any]:
+    """Return a stable, credential-free case receipt for a harness timeout."""
+
+    return {
+        "case_id": str(case.get("id") or timeout.case_id)[:96],
+        "kind": str(case.get("kind") or "")[:64],
+        "status": "FAILED",
+        "expected_status": str(case.get("expected_status") or "COMPLETED")[:48],
+        "status_match": False,
+        "error_class": "timeout",
+        "phase": timeout.phase,
+        "deadline_exceeded": True,
+        "elapsed_ms": timeout.elapsed_ms,
+        "metrics": sanitize_provider_metrics({"attempts": 1, "retries": 0}),
+        "actual_tools": [],
+        "failed_steps": [],
+        "result_type": None,
+        "plan_quality": None,
+        "answer_chinese": False,
+        "passed": False,
+        "attempt_count": 1,
+        "transient_attempts": ["timeout"],
+    }
+
+
+def _elapsed_ms(started: float) -> int:
+    return int(max(0.0, monotonic() - started) * 1000)
+
+
+def _emit_progress(
+    callback: Callable[[Mapping[str, Any]], None] | None,
+    event: Mapping[str, Any],
+) -> None:
+    if not callable(callback):
+        return
+    safe = {
+        "event": str(event.get("event") or "unknown")[:32],
+        "case_id": str(event.get("case_id") or "")[:96],
+        "phase": str(event.get("phase") or "unknown")[:64],
+        "status": str(event.get("status") or "")[:32],
+        "elapsed_ms": int(event.get("elapsed_ms") or 0),
+    }
+    try:
+        callback(safe)
+    except Exception:
+        # Observability must never change the live result or create a second
+        # failure class when a terminal consumer is unavailable.
+        return
 
 
 def _run_case(
