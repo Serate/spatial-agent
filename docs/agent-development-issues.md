@@ -656,3 +656,11 @@
 - **诊断**：对同一个请求同时执行 preview 和 run，至少检查 `status=PLANNED`、`plan_identity`、`plan_evidence.evidence_binding` 和“不调用工具”；若只看 compileall 或 clarification 分支，不能发现成功计划路径的 NameError。
 - **修复**：preview seam 显式导入 `runtime_core.projection.plan_to_dict/plan_dag` 与 `evidence_revalidation.build_evidence_binding`，不再依赖 Runtime 私有全局符号；补充 M192/M193 preview identity/evidence gate 回归。
 - **预防**：迁移大方法时必须迁移“调用图闭包”，并对成功、澄清、拒绝三条路径分别执行最小 contract；新 Application 不能把编排拆分当成只移动入口方法，所有 artifact、evidence、plan identity 字段都必须在 canonical seam 验证。
+
+## M261-A 数据目录扩展与物理整理后的路径/可用性漂移
+
+- **现象**：新增数据下载后，根目录同时存在原始压缩包、断点分片、已解压瓦片、分析就绪栅格和可直接读取的矢量；如果只修改文件路径而不记录数据状态，Planner 可能选择尚未解压、未裁剪或许可未核验的数据，健康检查也可能对大型水文文件做昂贵探测。
+- **根因**：文件存在不等于数据可用于当前请求。数据目录原先只有 `kind/format/role/files`，无法表达覆盖范围、时间范围、CRS、分辨率、处理阶段和“为什么暂时不能选”。物理移动后，旧的 `extracted/...` 引用还会继续指向失效路径。
+- **诊断**：先检查 `raw/staged/analysis-ready` 分层和配置相对路径，再用 Docker 的 rasterio/fiona 核验 CRS、范围、尺寸、几何类型和要素数；分别统计 `ready/partial/pending`，不要只看文件是否存在。检查 `get_dataset_health_report(all)` 是否会读取待处理的大文件。
+- **修复**：`DatasetCatalog` 增加受控 discovery 元数据和默认 `status=ready` 的 `discover()` 查询；manifest/health 保留 discovery 证据；`pending/partial` 由健康检查返回延迟/不完整状态，不触发昂贵探测。原始压缩包归档到 `raw/archives`，解压数据进入 `staged`，分析就绪层保持独立；所有代码和配置只使用相对路径。
+- **预防**：整理数据时先做目标路径和磁盘空间检查，移动前确认源/目标都位于明确的数据根；不删除原始文件，不把断点分片交给 GIS；移动后立即做 JSON 解析、Docker 元数据核验、核心五类健康检查和 quick/stage。新增数据必须先进入目录状态，再决定是否扩展工具或 workflow，不能由文件名触发 Planner 分支。

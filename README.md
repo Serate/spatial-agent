@@ -82,7 +82,10 @@ python run_demo.py --backend local "分析洪山区DEM高程概况"
 python run_demo.py --backend local "分析洪山区土地利用分布"
 ```
 
-武汉数据配置示例位于 `config/datasets.wuhan.local.example.json`。原始数据默认位于宿主机 `D:\dataset\agent` 和 `D:\tmp\wuhan-gis`，不提交到仓库。
+武汉数据配置示例位于 `config/datasets.wuhan.local.example.json`。宿主机数据按
+`D:\dataset\agent\raw`、`D:\dataset\agent\downloads`、`D:\dataset\agent\staged` 和
+`D:\dataset\agent\analysis-ready` 分层，不提交到仓库；具体清单见
+[`docs/dataset-inventory.md`](docs/dataset-inventory.md)。`D:\tmp\wuhan-gis` 仅作为可选的临时派生输出目录。
 
 ### 真实模型
 

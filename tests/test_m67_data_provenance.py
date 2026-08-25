@@ -97,6 +97,26 @@ class M67DataProvenanceTests(unittest.TestCase):
         self.assertEqual(report["provenance"]["dem"], dem["provenance"])
         self.assertEqual(roads["provenance"], {})
 
+    def test_pending_entry_is_reported_without_expensive_probe(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "pending.zip"
+            path.write_bytes(b"archive")
+            catalog = DatasetCatalog(
+                temp_dir,
+                {
+                    "dem": DatasetEntry(
+                        "dem", "raster", "zip", "pending DEM", [str(path)],
+                        status="pending", availability_reason="等待解压和 CRS 核验",
+                    ),
+                },
+            )
+            report = dataset_health_report(catalog, dataset="dem", max_files=1)
+
+        dem = report["datasets"][0]
+        self.assertEqual(dem["status"], "pending")
+        self.assertTrue(dem["metrics"]["deferred"])
+        self.assertIn("等待解压", dem["checks"][0]["message"])
+
     def test_runtime_snapshot_propagates_only_controlled_provenance(self):
         health = {
             "status": "ready",

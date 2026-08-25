@@ -4793,3 +4793,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `agent/runtime_core/plan_evidence.py`，统一生成 bounded plan evidence、planner source、template matching、request facts projection、capability selection、plan identity/binding 和 plan quality；原 Runtime 模块级 `_build_plan_evidence` 保留为单向兼容 facade。
 - Runtime 继续保留 failure-plan evidence 的生命周期组合，但不再承载 plan evidence 的大段纯投影实现；`projection.py` 仍是底层通用纯函数 seam，未复制 evidence 规则到 transport 或 Domain。
 - Docker 重建后 Runtime/M259/M253/M254、quick/stage/ci、architecture strict 和 compileall 通过；Runtime warning 已消除，下一阶段转入 Service 的 catalog/control/compatibility residue，并继续检查 Console 主应用职责簇。
+
+## M261-A：数据目录发现与本地数据物理整理（已完成）
+
+- 扩展 `DatasetCatalog` 的受控 discovery 元数据：`stage`、`status`、`coverage`、`time_range`、`crs`、`resolution`、`tags`、`source_url` 和 `availability_reason`；新增 `discover()` 与 `discovery_summary()`，默认只返回 `status=ready` 的候选，保持旧配置缺省为 ready 的兼容语义。
+- manifest 与 GIS health evidence 记录 discovery 状态；`pending/partial` 数据由健康检查返回延迟/不完整说明，不读取待处理压缩包或大型水文层，避免数据登记直接放大运行时成本。
+- 整理宿主机 `D:\dataset\agent`：19 个原始 ZIP/RAR 归档到 `raw\archives`；9 个 ASTER DEM 瓦片与 4 个土地利用瓦片归入 `staged`；湖北/武汉矢量和 HydroRIVERS/HydroBASINS 已解压到 `staged`；`analysis-ready`、`downloads\wuhan-gis`、`wuhan-osm.gpkg` 和 Docker `/data` 入口保持不变。没有删除原始文件。
+- Docker GIS 核验：武汉分析就绪 DEM/土地利用均为 EPSG:32649、30 m、4562×5277；OSM roads/water 为 68,903/20,923 要素；新增湖北/武汉矢量和水文层均可读取。扩展本地目录共 27 项：ready 10、partial 1、pending 16。
+- 新增本地数据清单、路径配置和 discovery/延迟健康检查契约；Docker DatasetCatalog/M67/M69 **16/16**、quick、stage、compileall 和 architecture strict 通过。
+- 下一阶段：把数据候选的覆盖范围、时间范围、CRS/分辨率不匹配接入 Planner context、结构化澄清和降级证据，继续保持数据发现与领域工具实现解耦。

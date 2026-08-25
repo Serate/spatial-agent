@@ -14,7 +14,7 @@
     "dem": {
       "kind": "raster",
       "format": "img",
-      "glob": "extracted/ASTGTM_*/*.img",
+      "glob": "staged/dem-aster/ASTGTM_*/*.img",
       "role": "ASTER DEM tiles",
       "source": "ASTER GDEM",
       "version": "v3",
@@ -24,7 +24,7 @@
     "land_use": {
       "kind": "raster",
       "format": "tif",
-      "glob": "extracted/N*_2025LC030/**/*.tif",
+      "glob": "staged/land-use-2025/N*_2025LC030/**/*.tif",
       "role": "2025 land use tiles",
       "source": "本地土地利用演示栅格",
       "version": "2025",
@@ -34,7 +34,7 @@
     "land_use_vectors": {
       "kind": "vector",
       "format": "shp",
-      "glob": "extracted/N*_2025LC030/**/*.shp",
+      "glob": "staged/land-use-2025/N*_2025LC030/**/*.shp",
       "role": "land use tile footprints or vector sidecars",
       "source": "本地土地利用演示数据",
       "version": "2025",

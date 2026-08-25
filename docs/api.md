@@ -319,8 +319,14 @@ TaskPlan schema 和 ToolRegistry。可通过 `POST /workflows/{template_id}/vali
 `SPATIAL_AGENT_ASYNC_WORKERS` 配置为 1 到 16，默认值为 4，实际值可从
 `metrics.async_jobs.worker_count` 读取。
 
+数据目录配置除了 `kind`、`format`、`role` 和 provenance 外，还可以声明
+`stage`、`status`、`coverage`、`time_range`、`crs`、`resolution`、`tags` 和
+`availability_reason`。`DatasetCatalog.discover()` 默认只返回 `status=ready` 的数据，
+因此已下载但尚未解压/裁剪/许可核验的候选数据不会被 Planner 误选；需要展示全部候选时显式传入
+`status=None`。武汉本机数据整理见 [`docs/dataset-inventory.md`](dataset-inventory.md)。
+
 数据目录可在配置 JSON 中增加相对 `manifest` 路径。健康检查会对 manifest 做不读大文件内容的
-路径、大小和 provenance 校验；需要完整 SHA-256 校验时显式执行：
+路径、大小、provenance 和 discovery 状态校验；需要完整 SHA-256 校验时显式执行：
 
 ~~~powershell
 python scripts\dataset_manifest.py --config config\datasets.wuhan.local.example.json --output outputs\wuhan.manifest.json

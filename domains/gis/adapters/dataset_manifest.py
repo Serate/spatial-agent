@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
-from .dataset_catalog import DatasetCatalog, controlled_provenance
+from .dataset_catalog import DatasetCatalog, controlled_discovery, controlled_provenance
 
 
 MANIFEST_VERSION = 1
@@ -35,6 +35,7 @@ def build_dataset_manifest(
             "format": entry.format,
             "role": entry.role,
             "provenance": entry.provenance,
+            "discovery": entry.discovery,
             "files": [
                 _file_fingerprint(catalog.root, path, include_hash=include_hashes)
                 for path in sorted(paths)
@@ -84,6 +85,8 @@ def verify_dataset_manifest(
                 mismatches.append(f"{name}.{field} differs")
         if controlled_provenance(expected.get("provenance")) != entry.provenance:
             mismatches.append(f"{name}.provenance differs")
+        if controlled_discovery(expected.get("discovery")) != entry.discovery:
+            mismatches.append(f"{name}.discovery differs")
         expected_files = expected.get("files")
         if not isinstance(expected_files, list):
             mismatches.append(f"{name}.files must be an array")

@@ -534,6 +534,8 @@ def _health_for_entry(
             "usable_for": [],
             "metrics": {"checked_files": 0},
         }, entry)
+    if entry.status and entry.status != "ready":
+        return _attach_provenance(_deferred_health(entry), entry)
     if entry.kind == "raster":
         return _attach_provenance(_health_raster(entry, max_files), entry)
     if entry.kind == "vector":
@@ -553,7 +555,25 @@ def _attach_provenance(
 ) -> Dict[str, Any]:
     """Expose only catalog provenance, never resolved paths or raw config."""
     report["provenance"] = dict(entry.provenance) if entry is not None else {}
+    report["discovery"] = dict(entry.discovery) if entry is not None else {}
     return report
+
+
+def _deferred_health(entry: DatasetEntry) -> Dict[str, Any]:
+    """Keep pending/partial catalog entries out of expensive GIS probing."""
+    reason = entry.availability_reason or "数据尚未达到默认分析就绪状态"
+    return {
+        "dataset": entry.name,
+        "status": entry.status or "unknown",
+        "kind": entry.kind,
+        "format": entry.format,
+        "role": entry.role,
+        "file_count": len(entry.files),
+        "checks": [{"name": "discovery", "status": "deferred", "message": reason[:240]}],
+        "errors": [],
+        "usable_for": [],
+        "metrics": {"checked_files": 0, "deferred": True},
+    }
 
 
 def _health_raster(entry: DatasetEntry, max_files: int) -> Dict[str, Any]:
