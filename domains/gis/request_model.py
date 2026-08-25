@@ -90,6 +90,8 @@ def parse_spatial_request(request: str) -> RequestFacts:
         add("roads", "roads")
     if any(term in text for term in ("水体", "河流", "湖泊", "水系")):
         add("water", "water")
+    if any(term in text for term in ("地震", "震级", "地震事件", "earthquake")):
+        add("earthquake_events", "earthquakes_wuhan")
     if any(term in text for term in ("建设适宜性", "适宜建设", "适合建设", "可建设", "适合开发", "建设潜力", "建设候选", "建设用地", "建设筛选")):
         add("buildability")
 

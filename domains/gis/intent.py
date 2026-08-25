@@ -19,6 +19,7 @@ _HINTS = (
     ("zonal_terrain_land_use", ("坡度", "土地利用", "土地覆盖", "地类")),
     ("buildability_screening", ("建设适宜性", "适宜建设", "建设候选", "建设用地")),
     ("vector_summary", ("道路", "路网", "水体", "河流", "湖泊")),
+    ("earthquake_event_query", ("地震", "地震事件", "震级", "earthquake")),
     ("constrained_buildability_screening", ("距离道路", "避开水体", "道路附近")),
     ("vector_operation", ("裁剪", "空间相交", "几何相交", "叠加分析", "按范围截取")),
     ("vector_measurement", ("缓冲", "缓冲区", "距离测算", "最近距离", "距离分析")),

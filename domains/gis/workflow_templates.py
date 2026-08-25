@@ -290,6 +290,38 @@ WORKFLOW_TEMPLATE_CATALOG = {
         ],
         "output_template": {"type": "spatial_analysis_result", "summary": True},
     },
+    "earthquake_event_query": {
+        "id": "earthquake_event_query",
+        "version": "1.0.0",
+        "label": "地震事件查询",
+        "goal_template": "query registered earthquake event vector data",
+        "allowed_tools": ["get_dataset_schema", "range_query"],
+        "result_types": ["vector_result"],
+        "max_steps": 2,
+        "required_constraints": [],
+        "constraint_specs": [],
+        "evidence_options": ["summary", "geometry", "trace"],
+        "default_evidence": ["summary", "geometry", "trace"],
+        "step_blueprint": [
+            {
+                "id": "schema-earthquakes",
+                "tool": "get_dataset_schema",
+                "args": {"dataset": "earthquakes_wuhan"},
+                "depends_on": [],
+            },
+            {
+                "id": "query-earthquakes",
+                "tool": "range_query",
+                "args": {
+                    "dataset": "earthquakes_wuhan",
+                    "conditions": [],
+                    "limit": 10000,
+                },
+                "depends_on": ["schema-earthquakes"],
+            },
+        ],
+        "output_template": {"type": "vector_result", "summary": True},
+    },
     "vector_operation": {
         "id": "vector_operation",
         "version": "1.0.0",

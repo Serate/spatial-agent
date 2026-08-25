@@ -736,3 +736,27 @@
 - **诊断**：对每个 capability dataset 先与物理 DatasetCatalog/Provider 映射求差集，再检查是否有前序工具或 Domain preflight 产生该依赖；同时比较 dataset groups、health/readiness 和 Planner context，不能只看字符串是否存在。
 - **修复**：M267 增加领域中立的 `derived_datasets` 声明；公共 builder 允许 capability 引用派生依赖，并在 Planner context 显示 `derived_datasets`，但不生成 dataset evidence 或 ready 状态。
 - **预防**：新增专题的 catalog Spec 必须显式区分 physical/derived/optional 数据；派生数据仍需由 Runtime/ToolRegistry/Domain preflight 校验来源和对齐，公共 catalog 不得放宽执行门禁。
+
+## M268 文件型矢量扩展不能依赖固定 dataset allowlist
+
+- **现象**：真实 `earthquakes_wuhan` 已在 DatasetCatalog 中登记，但旧 `GeoPackageBackend` 只构造 `roads/water` 两个条目；即使 `range_query` 本身支持任意字段条件，新增 GeoJSON 仍会被后端当成未知数据集。
+- **根因**：工具能力、数据发现和文件格式读取被混在一个按 dataset 名称分支中；另外结果标签只读取 `name`，没有 `name` 的事件数据会在 `.tolist()` 处出错。
+- **诊断**：先比较 `DatasetCatalog.discover(kind="vector")`、后端 `supports()`、ToolRegistry 的 schema 和实际文件格式；再分别验证有 `name`、只有 `place`、只有 `id` 的矢量查询。不要只验证固定 roads/water 回归。
+- **修复**：M268 保留旧类名作为兼容 seam，但按 Catalog 发现所有 ready vector 条目；GeoPackage 使用 dataset layer，GeoJSON/其他文件按路径读取；结果标签按 `name → place → id` 有界回退，roads/water 的历史分类逻辑保持不变。
+- **预防**：新增同类型专题优先登记 DatasetEntry、格式和来源，再复用通用 schema/query；只有新增业务语义时才在 Domain Catalog 声明 capability，不在 Runtime 或 Adapter 中加入专题名称判断。
+
+## M268 Docker 默认挂载与真实数据挂载根不一致
+
+- **现象**：容器环境变量中的 `SPATIAL_AGENT_HOST_DATASET_ROOT` 显示为 `D:/dataset/agent`，但 `docker inspect` 实际显示 `/data` 绑定到项目 `D:\Project\job\ai-agent\data`，容器内看不到 `downloads/wuhan-gis`。
+- **根因**：Compose 的 volume 插值发生在 Compose 解析阶段，`env_file` 中的变量只注入容器，不参与同一 Compose 文件的宿主路径插值；因此 Compose 使用了默认 `./data`。
+- **诊断**：同时检查 `docker inspect <container> .Mounts`、容器内 `/data` 内容和宿主机数据文件；只打印配置路径/存在性，不输出 API key 或完整私密环境变量。
+- **修复**：默认生产容器继续使用项目 `data/`，真实验收使用一次性 `docker compose run --no-deps -v D:/dataset/agent:/data:ro -e SPATIAL_AGENT_DATASET_CONFIG=/app/config/datasets.container.earthquakes.example.json ...` 显式挂载；真实原始数据不进入镜像或 Git。
+- **预防**：每条真实 GIS 验收都记录 host path、container path、DatasetCatalog path 和实际结果四层证据；不要仅凭容器环境变量判断 volume 已切换，也不要为测试清空持久 outputs/SQLite。
+
+## M268 历史回答文案断言阻塞精简回归
+
+- **现象**：旧 M50/M51/M62 测试硬编码“OpenStreetMap”“数据预检”“道路摘要”等回答措辞；回答生成边界演进后，实际结构化事实仍正确但回归失败。
+- **根因**：测试把用户可见自然语言的某个版本当成稳定接口，未区分 Result/Trace/Evidence 契约与可变的回答表达。
+- **诊断**：失败时先比较结果类型、步骤工具、核心数值和状态，再判断是否只是文案漂移；不要为恢复旧短语给 Composer 增加兼容分支。
+- **修复**：将断言改为道路/水体、阈值、数据状态等稳定事实，保留必要的用户可读性检查；M268 Docker 历史 GIS/回答契约 47/47 通过。
+- **预防**：默认测试优先验证结构化 Result/View/Evidence、步骤和关键数值；仅在产品明确要求时锁定完整回答句式，模型回答测试使用 schema/语义关键事实而不是整句匹配。

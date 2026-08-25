@@ -4851,3 +4851,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - GIS 新增 `GIS_CATALOG_SPEC` 并通过同一 builder 暴露 catalog/workflow；`slope` 只作为 capability 的 `derived_datasets` 进入 Planner context，不进入数据健康/readiness，也不改变 preflight、ToolRegistry 或算法执行。
 - M267/M266/M249/M265/M251/M263 定向 **22/22**；Docker quick+stage、compileall、architecture strict 通过。GIS capability/workflow 数量和 ID 保持一致，容器 healthy。
 - 全局重规划：下一阶段为 M268，用第三个真实指标类专题或扩展数据做最小接入验收，验证适配器、数据目录、ToolRegistry schema、Result/View/Evidence 和 HTTP/artifact 复用；随后再决定跨领域 composite 规划，不提前引入 RAG。
+
+## M268：通用矢量查询与真实扩展数据验收（已完成）
+
+- 新增 `docs/m268-generic-vector-query-spec.md`、`docs/m268-generic-vector-query-plan.md` 和 `docs/m268-generic-vector-query-map.md`，明确“文件 Adapter + DatasetCatalog + ToolRegistry + Domain Catalog”是新增同类型专题的扩展 seam，不新增 Runtime 链路。
+- 保留 `GeoPackageBackend` 旧类名作为兼容 seam，内部改为从 `DatasetCatalog` 发现 ready vector 条目；GeoPackage 按 dataset layer 读取，GeoJSON 等文件按路径读取；`get_dataset_schema` 与 `range_query` 的 dataset 参数改为受限字符串，实际存在性/状态仍由 Catalog、Domain preflight 和 ToolRegistry 共同约束。
+- GIS Catalog 新增 `earthquakes_wuhan` 数据映射、`earthquake_event_query` capability/workflow 和请求事实映射；复用既有 `get_dataset_schema`、`range_query`、`vector_result`、Artifact/Evidence/前端通用 View。默认生产配置不引入真实地震数据。
+- Docker M268 contract **3/3**、M267/M266/M265 定向 **14/14**、历史 GIS/回答契约 **47/47**（7 个真实旧数据用例按环境跳过）；compileall、architecture strict、quick、stage 通过。
+- 显式一次性 Docker 挂载 `D:\dataset\agent` 验收真实 GeoJSON：schema 字段包含 `mag/place/time`、CRS 为 `EPSG:4979`；`mag >= 2.5` + bbox 返回 1 条记录，健康检查报告 10 个事件且 ready；未提交原始数据或宿主路径配置。
+- 全局重规划：下一阶段为 M269，先审计 GIS `range_query` 与 Economic/Indicators Provider 的重复聚合逻辑，设计跨领域 `filter → aggregate → timeseries/compare` contract；用真实经济数据和真实 GIS 事件数据验证复用，不为单个专题新增 Runtime 分支，不提前引入 RAG/MCP。

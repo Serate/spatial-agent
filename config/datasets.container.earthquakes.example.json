@@ -1,0 +1,78 @@
+{
+  "root": "/data",
+  "datasets": {
+    "admin_areas": {
+      "kind": "vector",
+      "format": "geojson",
+      "path": "湖北省_县.geojson",
+      "role": "county administrative boundaries",
+      "source": "本地行政区划演示数据",
+      "version": "local-example",
+      "attribution": "请替换为实际数据提供方",
+      "license": "待核验"
+    },
+    "dem": {
+      "kind": "raster",
+      "format": "tif",
+      "path": "analysis-ready/dem_aligned.tif",
+      "role": "ASTER DEM analysis-ready aligned derivative",
+      "source": "Spatial Agent reproducible aligned derivative",
+      "version": "v3-analysis-ready",
+      "attribution": "NASA/METI",
+      "license": "ASTER GDEM data policy"
+    },
+    "land_use": {
+      "kind": "raster",
+      "format": "tif",
+      "path": "analysis-ready/land_use_aligned.tif",
+      "role": "2025 land use analysis-ready aligned derivative",
+      "source": "Spatial Agent reproducible aligned derivative",
+      "version": "2025-analysis-ready",
+      "attribution": "请替换为实际数据提供方",
+      "license": "待核验"
+    },
+    "roads": {
+      "kind": "vector",
+      "format": "gpkg",
+      "path": "wuhan-osm.gpkg",
+      "role": "OSM Wuhan roads clipped to the 13-district boundary",
+      "source": "OpenStreetMap Overpass extract",
+      "version": "2026-08-08-overpass-extract",
+      "attribution": "© OpenStreetMap contributors",
+      "license": "ODbL 1.0"
+    },
+    "water": {
+      "kind": "vector",
+      "format": "gpkg",
+      "path": "wuhan-osm.gpkg",
+      "role": "OSM Wuhan water ways clipped to the 13-district boundary",
+      "source": "OpenStreetMap Overpass extract",
+      "version": "2026-08-08-overpass-extract",
+      "attribution": "© OpenStreetMap contributors",
+      "license": "ODbL 1.0"
+    },
+    "earthquakes_wuhan": {
+      "kind": "vector",
+      "format": "geojson",
+      "path": "downloads/wuhan-gis/earthquakes-wuhan-bbox-2000-2026.geojson",
+      "role": "武汉周边地震事件目录",
+      "stage": "staged",
+      "status": "ready",
+      "coverage": "武汉周边矩形范围，不等同于行政区边界",
+      "time_range": "2000-2026",
+      "crs": "EPSG:4979",
+      "tags": ["地震", "灾害", "时间序列"],
+      "source": "USGS Earthquake Catalog",
+      "version": "2000-2026 / magnitude >= 2.5",
+      "attribution": "USGS",
+      "license": "按 USGS 数据条款使用",
+      "source_url": "https://earthquake.usgs.gov/earthquakes/search/"
+    }
+  },
+  "analysis_ready": {
+    "report": "/data/analysis-ready/analysis-ready-report.json",
+    "required": true
+  },
+  "manifest": "/data/analysis-ready/analysis.manifest.json",
+  "manifest_required": true
+}

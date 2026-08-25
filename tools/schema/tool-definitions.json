@@ -15,7 +15,8 @@
         "properties": {
           "dataset": {
             "type": "string",
-            "enum": ["roads", "water", "slope", "admin_areas"]
+            "minLength": 1,
+            "maxLength": 96
           }
         },
         "additionalProperties": false
@@ -45,7 +46,8 @@
         "properties": {
           "dataset": {
             "type": "string",
-            "enum": ["roads", "water", "slope", "admin_areas"]
+            "minLength": 1,
+            "maxLength": 96
           },
           "bbox": {
             "type": "array",

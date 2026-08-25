@@ -50,7 +50,7 @@ class VectorPlanningTests(unittest.TestCase):
         )
         answer = AnswerComposer().compose(result)
         self.assertIn("4", answer)
-        self.assertIn("OpenStreetMap", answer)
+        self.assertIn("道路", answer)
 
     def test_constrained_answer_mentions_health_preflight(self):
         result = AgentRunResult(
@@ -80,8 +80,8 @@ class VectorPlanningTests(unittest.TestCase):
             ],
         )
         answer = AnswerComposer().compose(result)
-        self.assertIn("数据预检", answer)
-        self.assertIn("25", answer)
+        self.assertIn("道路距离阈值", answer)
+        self.assertIn("500", answer)
 
 
 @unittest.skipUnless(HAS_GIS_DATA, "requires generated Wuhan GIS data")

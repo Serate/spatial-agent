@@ -31,12 +31,17 @@ def dataset_health_report(
     dataset: str = "all",
     max_files: int = 10,
 ) -> Dict[str, Any]:
-    if dataset != "all" and dataset not in HEALTH_DATASETS:
+    registered_names = tuple(entry.name for entry in catalog.list_entries())
+    known_names = set(HEALTH_DATASETS) | set(registered_names)
+    if dataset != "all" and dataset not in known_names:
         raise ToolError("unknown health dataset: " + dataset)
     if max_files < 1 or max_files > 10:
         raise ToolError("max_files must be between 1 and 10")
 
-    names = HEALTH_DATASETS if dataset == "all" else (dataset,)
+    if dataset == "all":
+        names = tuple(dict.fromkeys((*HEALTH_DATASETS, *registered_names)))
+    else:
+        names = (dataset,)
     reports = [
         _health_for_entry(catalog.get(name), name, max_files)
         for name in names

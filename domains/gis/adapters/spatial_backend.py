@@ -487,16 +487,23 @@ class GeoJSONAdminBackend:
 
 
 class GeoPackageBackend:
-    """Reads clipped OSM vector layers from a local GeoPackage."""
+    """Read configured file-backed vector datasets.
+
+    The class name is retained as a compatibility seam for older callers.
+    Dataset format selection belongs to ``DatasetEntry``; the adapter does
+    not encode a fixed roads/water allowlist.
+    """
 
     def __init__(self, catalog: DatasetCatalog):
         self._entries = {
             name: entry
-            for name in ("roads", "water")
-            if (entry := catalog.get(name)) is not None and entry.files
+            for entry in catalog.discover(kind="vector", status="ready")
+            if entry.name != "admin_areas" and entry.files
+            for name in (entry.name,)
         }
         self._cache = {}
         self._result_cache = {}
+        self._result_backend = {}
         self._result_number = 0
 
     def supports(self, dataset: str) -> bool:
@@ -511,7 +518,7 @@ class GeoPackageBackend:
             "crs": str(gdf.crs) if gdf.crs else None,
             "fields": [str(column) for column in gdf.columns if column != "geometry"],
             "metrics": {
-                "backend": "geopackage",
+                "backend": self._backend_name(dataset),
                 "feature_count": int(len(gdf)),
                 "source": self._entries[dataset].files[0],
             },
@@ -534,7 +541,13 @@ class GeoPackageBackend:
         self._result_number += 1
         result_ref = f"gpkg://range/{dataset}/{self._result_number}"
         self._result_cache[result_ref] = returned
-        names = [str(value) for value in returned.get("name", []).tolist() if value]
+        self._result_backend[result_ref] = self._backend_name(dataset)
+        labels = returned.get("name")
+        if labels is None:
+            labels = returned.get("place")
+        if labels is None:
+            labels = returned.get("id")
+        names = [str(value) for value in (labels.tolist() if labels is not None else []) if value]
         return {
             "result_ref": result_ref,
             "count": int(len(returned)),
@@ -542,7 +555,7 @@ class GeoPackageBackend:
             "sample_names": names[:10],
             "first_name": names[0] if names else None,
             "metrics": {
-                "backend": "geopackage",
+                "backend": self._backend_name(dataset),
                 "scanned_features": int(len(gdf)),
                 "returned_features": int(len(returned)),
                 "used_bbox": bbox is not None,
@@ -558,7 +571,7 @@ class GeoPackageBackend:
         distance_m: Optional[float] = None,
     ) -> Dict[str, Any]:
         if not self.supports(left_dataset) or not self.supports(right_dataset):
-            raise ToolError("GeoPackage spatial join requires roads or water datasets")
+            raise ToolError("file-backed spatial join requires configured vector datasets")
         if relation == "near" and distance_m is None:
             raise ToolError("near relation requires distance_m")
         import geopandas as gpd
@@ -579,6 +592,7 @@ class GeoPackageBackend:
             joined = gpd.sjoin(left, right, how="inner", predicate=relation)
         result_ref = f"gpkg://join/{left_dataset}-{right_dataset}"
         self._result_cache[result_ref] = joined.head(10000).copy()
+        self._result_backend[result_ref] = self._operation_backend(left_dataset, right_dataset)
         return {
             "result_ref": result_ref,
             "count": int(len(joined)),
@@ -586,7 +600,7 @@ class GeoPackageBackend:
             "right_dataset": right_dataset,
             "distance_m": distance_m,
             "metrics": {
-                "backend": "geopackage",
+                "backend": self._operation_backend(left_dataset, right_dataset),
                 "relation": relation,
                 "distance_m": distance_m,
                 "left_features": int(len(left)),
@@ -616,6 +630,9 @@ class GeoPackageBackend:
         self._result_number += 1
         result_ref = f"gpkg://operation/{operation}/{self._result_number}"
         self._result_cache[result_ref] = output
+        if not hasattr(self, "_result_backend"):
+            self._result_backend = {}
+        self._result_backend[result_ref] = self._operation_backend(input_ref, mask_ref)
         return _spatial_operation_result(
             result_ref=result_ref,
             operation=operation,
@@ -623,7 +640,7 @@ class GeoPackageBackend:
             mask_ref=mask_ref,
             output=output,
             summary=summary,
-            backend="geopackage",
+            backend=self._operation_backend(input_ref, mask_ref),
             distance_m=distance_m,
         )
 
@@ -650,11 +667,8 @@ class GeoPackageBackend:
         self._result_number += 1
         result_ref = f"gpkg://zonal/{dataset}/{self._result_number}"
         self._result_cache[result_ref] = clipped
-        category_field = "road_level" if dataset == "roads" else "waterway"
-        if dataset == "water":
-            categories = clipped["waterway"].replace("", None).fillna(clipped["natural"]).fillna("unknown")
-        else:
-            categories = clipped[category_field].fillna("unknown")
+        self._result_backend[result_ref] = self._backend_name(dataset)
+        category_field, categories = _vector_category_series(clipped)
         category_counts = {
             str(key): int(value)
             for key, value in categories.value_counts().to_dict().items()
@@ -673,7 +687,7 @@ class GeoPackageBackend:
             },
             "crs": str(gdf.crs) if gdf.crs else None,
             "metrics": {
-                "backend": "geopackage",
+                "backend": self._backend_name(dataset),
                 "source": self._entries[dataset].files[0],
                 "max_features": max_features,
             },
@@ -758,7 +772,9 @@ class GeoPackageBackend:
         return normalize_feature_collection({
             "type": "FeatureCollection",
             "features": features,
-            "geometry_source": "geopackage",
+            "geometry_source": getattr(self, "_result_backend", {}).get(
+                result_ref, "file_vector"
+            ),
             "crs": {"type": "name", "properties": {"name": str(selected.crs)}}
             if selected.crs
             else None,
@@ -766,14 +782,41 @@ class GeoPackageBackend:
 
     def _load(self, dataset: str):
         if not self.supports(dataset):
-            raise ToolError("GeoPackage dataset is not configured: " + dataset)
+            raise ToolError("file-backed vector dataset is not configured: " + dataset)
         if dataset not in self._cache:
             try:
                 import geopandas as gpd
-                self._cache[dataset] = gpd.read_file(self._entries[dataset].files[0], layer=dataset)
+                entry = self._entries[dataset]
+                source = entry.files[0]
+                format_name = str(entry.format or "").lower()
+                is_geopackage = format_name in {"gpkg", "geopackage"} or source.lower().endswith(".gpkg")
+                if is_geopackage:
+                    self._cache[dataset] = gpd.read_file(source, layer=dataset)
+                else:
+                    self._cache[dataset] = gpd.read_file(source)
             except ImportError as exc:
                 raise ToolError("geopandas is required for GeoPackageBackend") from exc
+            except Exception as exc:
+                raise ToolError(
+                    "unable to read vector dataset {}: {}".format(dataset, str(exc)[:240])
+                ) from exc
         return self._cache[dataset]
+
+    def _backend_name(self, dataset: str) -> str:
+        entry = self._entries.get(dataset)
+        if entry is None:
+            return "file_vector"
+        format_name = str(entry.format or "").lower()
+        source = entry.files[0] if entry.files else ""
+        if format_name in {"gpkg", "geopackage"} or source.lower().endswith(".gpkg"):
+            return "geopackage"
+        if format_name in {"geojson", "json"} or source.lower().endswith((".geojson", ".json")):
+            return "geojson"
+        return "file_vector"
+
+    def _operation_backend(self, *datasets: str) -> str:
+        names = {self._backend_name(dataset) for dataset in datasets}
+        return next(iter(names)) if len(names) == 1 else "file_vector"
 
     def _vector_source(self, source_ref: str):
         if source_ref in self._result_cache:
@@ -1195,6 +1238,22 @@ def _apply_condition(gdf, condition: Dict[str, Any]):
     raise ToolError("unsupported operator: " + str(operator))
 
 
+def _vector_category_series(frame: Any):
+    """Choose a bounded descriptive field without assuming a dataset name."""
+
+    if "road_level" in frame.columns:
+        return "road_level", frame["road_level"].fillna("unknown")
+    if "waterway" in frame.columns:
+        values = frame["waterway"]
+        if "natural" in frame.columns:
+            values = values.replace("", None).fillna(frame["natural"])
+        return "waterway", values.fillna("unknown")
+    for field in ("category", "type", "place", "name"):
+        if field in frame.columns:
+            return field, frame[field].fillna("unknown")
+    return "none", frame.index.to_series().map(lambda _value: "all")
+
+
 def _apply_vector_condition(gdf, condition: Dict[str, Any]):
     field = condition.get("field")
     if field not in gdf.columns:
@@ -1208,7 +1267,10 @@ def _clip_bbox(gdf, bbox: List[float]):
     source = gdf
     if source.crs and str(source.crs).upper() not in {"EPSG:4326", "OGC:CRS84"}:
         source = source.to_crs("EPSG:4326")
-    return source.cx[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+    selected = source.cx[bbox[0]:bbox[2], bbox[1]:bbox[3]]
+    # Return rows from the original frame so a bbox query does not silently
+    # change the result CRS reported to downstream Result/Artifact consumers.
+    return gdf.loc[selected.index]
 
 
 def _collection_crs(collection: Dict[str, Any]) -> Optional[str]:

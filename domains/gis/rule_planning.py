@@ -79,6 +79,13 @@ class RuleBasedPlanComposer:
         """Compile a Domain-owned catalog selection through the same builders."""
         builder = self._builders.get(str(capability_id or "").strip())
         if builder is None:
+            # Catalog-backed capabilities can be added without a new planner
+            # branch when their declarative workflow already expresses the
+            # required DAG.  Runtime and ToolRegistry still validate and
+            # execute every rendered step.
+            template_id = str(capability_id or "").strip()
+            if template_id in self._workflow_catalog:
+                return self._template_plan(template_id, {}, evidence=facts.spatial.evidence)
             self._clarify_unmatched(facts)
             raise AssertionError("unreachable")
         return builder(facts)

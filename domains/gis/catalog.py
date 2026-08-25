@@ -32,11 +32,15 @@ GIS_DATASET_TOOL_CAPABILITIES = {
         "spatial_join",
         "spatial_operation",
     ],
+    "earthquakes_wuhan": [
+        "get_dataset_schema",
+        "range_query",
+    ],
 }
 
 GIS_DATASET_GROUPS = {
     "core": ("admin_areas", "dem", "land_use"),
-    "optional": ("roads", "water"),
+    "optional": ("roads", "water", "earthquakes_wuhan"),
 }
 
 
@@ -195,6 +199,10 @@ def _attach_request_hints(definitions):
         "vector_query": _request_hints(
             phrases=("道路查询", "水体查询", "矢量查询", "要素查询"),
             tasks=("roads", "water"),
+        ),
+        "earthquake_event_query": _request_hints(
+            phrases=("地震", "地震事件", "震级", "earthquake"),
+            datasets=("earthquakes_wuhan",),
         ),
         "vector_relation": _request_hints(
             phrases=("空间关系", "空间连接", "相交查询", "附近要素"),
@@ -381,6 +389,19 @@ GIS_CAPABILITIES = _attach_request_hints((
         "result_types": ["vector_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "optional",
+    },
+    {
+        "id": "earthquake_event_query",
+        "label": "地震事件矢量查询",
+        "datasets": ["earthquakes_wuhan"],
+        "tools": ["get_dataset_schema", "range_query"],
+        "result_types": ["vector_result"],
+        "environments": ["local", "production"],
+        "geometry": "optional",
+        "request_requirements": _request_requirements(
+            datasets=("earthquakes_wuhan",),
+            fields=(_DATASET_FIELD,),
+        ),
     },
     {
         "id": "vector_relation",

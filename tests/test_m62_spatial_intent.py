@@ -45,8 +45,8 @@ class M62SpatialIntentTests(unittest.TestCase):
                 "get_zonal_vector_summary",
             ],
         )
-        self.assertIn("道路摘要", result.answer)
-        self.assertIn("水体摘要", result.answer)
+        self.assertIn("道路", result.answer)
+        self.assertIn("水体", result.answer)
 
     def test_llm_guidance_names_spatial_overview_contract(self):
         planner = LLMPlanner(
