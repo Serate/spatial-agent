@@ -16,8 +16,8 @@
 ## 当前阶段
 
 - 阶段：M281 动态 Composite 结果体验与跨入口一致性
-- 状态：M280 已完成并推送 `599881c`；M281 全局规划待创建。
-- 当前任务：M281-B 公共 Composite View Projection，详见 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 状态：M280 已完成并推送 `599881c`；M281 已完成阶段验收，正在提交收口版本。
+- 当前任务：M281 已收口；推送后进行 M282 全局重规划，详见 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m281-dynamic-composite-capability-map.md`](m281-dynamic-composite-capability-map.md)
   - [`docs/m281-dynamic-composite-spec.md`](m281-dynamic-composite-spec.md)
@@ -25,9 +25,12 @@
 
 ## 当前任务明确文件
 
-- `agent/composite_contract.py`（待定位）
-- `agent/result_registry.py`（待定位）
-- `agent/application/http.py`（待定位）
+- `agent/composite_view.py`（新增）
+- `production_api.py`
+- `serve_api.py`
+- `web/src/console_app.js`
+- `web/src/console_renderer_registry.js`
+- `web/src/index.html`（构建源）
 - `tests/test_m281_dynamic_composite.py`（新增）
 
 ## 验证与安全约定

@@ -38,3 +38,10 @@ Composite Result + Evidence
 2. **答案边界**：定义简洁、可读、可降级的结构化答案，不暴露内部推理。
 3. **前端消费**：generic renderer 支持 vector、raster、metrics、timeseries、document_evidence、composite 及 partial/error。
 4. **跨入口验收**：CLI/HTTP/前端/artifact 比较核心 fingerprint、答案摘要、View 类型和 evidence 引用。
+
+## 当前落地状态
+
+- `spatial-agent.composite-view.v1` 已成为 Composite 的公共用户投影；答案、sections、views、evidence 和 artifacts 使用有界结构。
+- FastAPI 与 stdlib 均通过 `HTTPApplication.read("composite_view")` 获取投影；前端由 generic renderer 将 `views[]` 转成 panels。
+- Docker M281/M278/M279 **19/19**、compileall、architecture strict、renderer/browser smoke 已通过；默认 overview 旧问句的澄清结果按契约保留。
+- 下一步是阶段收口和全局重规划，不是增加某个专题的页面分支。

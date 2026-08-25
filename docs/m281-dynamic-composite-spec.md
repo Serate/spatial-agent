@@ -29,6 +29,14 @@
 - 至少一条真实 GIS + Economic Composite 使用同一 projection；真实模型失败时仍显示结构化失败/降级说明。
 - architecture strict、compileall、精简 contract、HTTP contract 和 browser smoke 通过。
 
+## 实施状态（2026-08-25）
+
+- A-D 已完成：公共 Projection、结构化答案、FastAPI/stdlib `/view`、前端 generic renderer 适配和跨入口契约均已接入。
+- 当前 Projection 版本为 `spatial-agent.composite-view.v1`；前端只按 View contract 消费 `views[]`，不判断 GIS、Economic、区域或工具名称。
+- Docker 定向回归为 **19/19**；compileall、architecture strict、JavaScript syntax、renderer smoke、地图 browser smoke 和 Composite Projection browser smoke 通过。
+- 默认 overview browser smoke 的旧测试问句进入结构化澄清，已按当前规划契约记录，不把澄清状态误报为成功；这不阻塞 Projection 跨入口验收。
+- E 仍需完成阶段文档、中文问题日志、milestones、快照、任务清单和版本推送。
+
 ## Deferred
 
 - RAG、外部搜索、实时数据抓取和自动新增工具。

@@ -11,10 +11,10 @@
 - [x] 建立 `tasks/task-state.md` 作为进行中/最近完成子任务账本
 - [ ] 每完成一个子任务，先更新 `tasks/task-state.md`，再更新 `docs/agent-work-state.md`
 
-## M281 动态 Composite 结果体验（规划中）
+## M281 动态 Composite 结果体验（收口中）
 
 - [x] M281-A 完成全局能力图、Spec、Plan
-- [ ] M281-B 结果/View/Evidence 面向前端的公共投影
-- [ ] M281-C 简洁答案与结构化结果一致性
-- [ ] M281-D CLI/HTTP/前端/artifact 跨入口验收
-- [ ] M281-E Docker/browser smoke、文档、提交推送与全局重规划
+- [x] M281-B 结果/View/Evidence 面向前端的公共投影
+- [x] M281-C 简洁答案与结构化结果一致性
+- [x] M281-D CLI/HTTP/前端/artifact 跨入口验收
+- [x] M281-E Docker/browser smoke、文档、提交推送与全局重规划

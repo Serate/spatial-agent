@@ -301,6 +301,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 action = "composite_observability"
             elif len(parts) == 3 and parts[1] and parts[2] == "evidence":
                 action = "composite_evidence"
+            elif len(parts) == 3 and parts[1] and parts[2] == "view":
+                action = "composite_view"
             elif len(parts) == 2 and parts[1]:
                 action = "composite_run_detail"
             else:

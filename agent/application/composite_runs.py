@@ -19,6 +19,7 @@ from agent.artifact_store import ArtifactStore
 from agent.application.async_runs import AsyncApplication
 from agent.application.composite import CompositeApplication
 from agent.composite_contract import normalize_composite_request
+from agent.composite_view import build_composite_view_projection
 from agent.contract_versions import COMPOSITE_COORDINATOR_SCHEMA_VERSION
 from agent.models import AgentRunResult, RunStatus
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
@@ -185,6 +186,18 @@ class CompositeRunApplication:
             "evidence_recovery": result.get("evidence_recovery") or {"available": False},
         }
 
+    def get_view(self, run_id: str) -> dict[str, Any]:
+        """Return the same bounded user projection used by every transport."""
+
+        detail = self.get_run(run_id)
+        projection = detail.get("view") if isinstance(detail, Mapping) else None
+        if not isinstance(projection, Mapping):
+            result = detail.get("result") if isinstance(detail, Mapping) else None
+            projection = build_composite_view_projection(result or {})
+        projection = dict(projection)
+        projection["run_id"] = detail.get("run_id") or projection.get("run_id")
+        return projection
+
     def recover(self) -> int:
         return self._async.recover()
 
@@ -304,6 +317,7 @@ def _response_from_result(
         "components": composite.get("components") or [],
         "result": dict(result),
     }
+    response["view"] = build_composite_view_projection(result)
     if artifact_ref:
         response["artifact_ref"] = artifact_ref
     if artifact_recovered:

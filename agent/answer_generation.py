@@ -17,6 +17,7 @@ from .errors import PlanningError
 
 
 ANSWER_GENERATION_SCHEMA_VERSION = "spatial-agent.answer-generation.v1"
+COMPOSITE_ANSWER_SCHEMA_VERSION = "spatial-agent.composite-answer.v1"
 ANSWER_GENERATION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "required": ["answer"],
@@ -29,9 +30,36 @@ ANSWER_GENERATION_SCHEMA: dict[str, Any] = {
         }
     },
 }
+COMPOSITE_ANSWER_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["answer"],
+    "additionalProperties": False,
+    "properties": {
+        "answer": {
+            "type": "object",
+            "required": ["headline", "summary", "key_findings", "limitations"],
+            "additionalProperties": False,
+            "properties": {
+                "headline": {"type": "string", "maxLength": 160},
+                "summary": {"type": "string", "maxLength": 800},
+                "key_findings": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {"type": "string", "maxLength": 320},
+                },
+                "limitations": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {"type": "string", "maxLength": 320},
+                },
+            },
+        }
+    },
+}
 
 _MAX_REQUEST_CHARS = 800
 _MAX_CONTEXT_CHARS = 12000
+_MAX_COMPONENTS = 8
 _MAX_STEP_COUNT = 16
 _MAX_MAPPING_ITEMS = 32
 _MAX_LIST_ITEMS = 12
@@ -64,6 +92,99 @@ class AnswerGenerationResult:
 
     answer: str
     evidence: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CompositeAnswerGenerationResult:
+    """Validated structured answer for a Composite Result."""
+
+    answer: dict[str, Any]
+    evidence: dict[str, Any]
+
+
+def build_composite_answer_context(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Project only Composite facts needed for a user-facing answer."""
+
+    from agent.composite_view import build_composite_view_projection
+
+    projection = build_composite_view_projection(result)
+    sections = [
+        {
+            "component_id": item.get("component_id"),
+            "state": item.get("state"),
+            "status": item.get("status"),
+            "result_type": item.get("result_type"),
+            "data_profile": item.get("data_profile"),
+            "answer": item.get("answer"),
+        }
+        for item in projection.get("sections", [])
+        if isinstance(item, Mapping) and item.get("kind") == "component"
+    ]
+    return {
+        "schema_version": COMPOSITE_ANSWER_SCHEMA_VERSION,
+        "state": projection.get("state"),
+        "status": projection.get("status"),
+        "request_fingerprint": projection.get("request_fingerprint"),
+        "components": sections[:_MAX_COMPONENTS],
+        "fallback_answer": projection.get("answer"),
+    }
+
+
+class LLMCompositeAnswerGenerator:
+    """Generate a bounded Composite answer without exposing internal refs."""
+
+    def __init__(self, client: Any):
+        self._client = client
+
+    def generate(self, result: Mapping[str, Any]) -> CompositeAnswerGenerationResult:
+        context = build_composite_answer_context(result)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是面向普通用户的分析结果解读助手。只能根据可信 Composite facts 回答，"
+                    "不得补造事实、数量、坐标或规划许可结论。返回严格 JSON，只有 answer 字段，"
+                    "answer 必须包含 headline、summary、key_findings、limitations；不要输出工具名、"
+                    "fingerprint、result_ref、artifact 引用、prompt 或模型内部过程。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
+            },
+        ]
+        payload = self._client.complete_json(messages, COMPOSITE_ANSWER_SCHEMA)
+        if not isinstance(payload, Mapping) or set(payload) != {"answer"}:
+            raise PlanningError("composite answer output contains unexpected fields")
+        answer = _normalize_composite_answer(payload.get("answer"))
+        encoded = json.dumps(answer, ensure_ascii=False)
+        if any(marker in encoded for marker in ("memory://", "artifact://", "result_ref", "prompt")):
+            raise PlanningError("composite answer contains an internal reference")
+        return CompositeAnswerGenerationResult(
+            answer=answer,
+            evidence=project_answer_generation_evidence(
+                self._client_metrics(), status="success", available=True
+            ),
+        )
+
+    def _client_metrics(self) -> Mapping[str, Any]:
+        metrics = getattr(self._client, "metrics", None)
+        value = metrics() if callable(metrics) else {}
+        return value if isinstance(value, Mapping) else {}
+
+
+def fallback_composite_answer(
+    result: Mapping[str, Any], reason_code: str = "generation_unavailable"
+) -> CompositeAnswerGenerationResult:
+    """Use the deterministic Composite projection when model generation fails."""
+
+    from agent.composite_view import build_composite_view_projection
+
+    projection = build_composite_view_projection(result)
+    return CompositeAnswerGenerationResult(
+        answer=dict(projection["answer"]),
+        evidence=fallback_answer_generation_evidence(reason_code),
+    )
 
 
 def build_answer_context(result: Any) -> dict[str, Any]:
@@ -299,12 +420,38 @@ def _safe_text(value: Any, limit: int) -> str:
     return text[:limit]
 
 
+def _normalize_composite_answer(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise PlanningError("composite answer must be an object")
+    allowed = {"headline", "summary", "key_findings", "limitations"}
+    if set(value) != allowed:
+        raise PlanningError("composite answer fields are invalid")
+    answer: dict[str, Any] = {
+        "headline": _safe_text(value.get("headline"), 160).strip(),
+        "summary": _safe_text(value.get("summary"), 800).strip(),
+    }
+    if not answer["headline"] or not answer["summary"]:
+        raise PlanningError("composite answer headline and summary are required")
+    for key in ("key_findings", "limitations"):
+        values = value.get(key)
+        if not isinstance(values, list):
+            raise PlanningError("composite answer lists are invalid")
+        answer[key] = [_safe_text(item, 320).strip() for item in values[:8] if _safe_text(item, 320).strip()]
+    return answer
+
+
 __all__ = [
     "ANSWER_GENERATION_SCHEMA_VERSION",
     "ANSWER_GENERATION_SCHEMA",
+    "COMPOSITE_ANSWER_SCHEMA_VERSION",
+    "COMPOSITE_ANSWER_SCHEMA",
     "AnswerGenerationResult",
+    "CompositeAnswerGenerationResult",
+    "LLMCompositeAnswerGenerator",
     "LLMAnswerGenerator",
+    "build_composite_answer_context",
     "build_answer_context",
+    "fallback_composite_answer",
     "fallback_answer_generation_evidence",
     "project_answer_generation_evidence",
 ]

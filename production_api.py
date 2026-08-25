@@ -384,6 +384,14 @@ def composite_evidence(run_id: str):
         _raise_for(exc, not_found=True)
 
 
+@app.get("/composite-runs/{run_id}/view")
+def composite_view(run_id: str):
+    try:
+        return _http_application().read("composite_view", resource_id=run_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
 @app.get("/composite-runs/{run_id}")
 def composite_detail(run_id: str):
     try:

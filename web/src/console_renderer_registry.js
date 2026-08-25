@@ -4,6 +4,7 @@
   else root.ConsoleRendererRegistry = factory();
 })(typeof globalThis !== "undefined" ? globalThis : this, function createModule() {
   const SCHEMA_VERSION = "spatial-agent.console-renderers.v1";
+  const COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1";
   const MAX_RENDERERS = 32;
 
   const defaultEscape = value => String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -137,8 +138,45 @@
       return output;
     }
 
-    const registry = Object.freeze({register, renderWorkspace, reset, context});
+    const registry = Object.freeze({register, renderWorkspace, reset, context, projectionToPanels});
     return registry;
+  }
+
+  function projectionToPanels(projection) {
+    if (!record(projection) || projection.schema_version !== COMPOSITE_VIEW_SCHEMA_VERSION) return null;
+    const panels = {};
+    const specs = [];
+    const declaredPanels = [];
+    (Array.isArray(projection.views) ? projection.views : []).slice(0, 24).forEach((view, index) => {
+      if (!record(view)) return;
+      const id = String(view.view_id || "view-" + (index + 1)).trim().slice(0, 64);
+      if (!id || panels[id]) return;
+      const payload = record(view.payload) ? Object.assign({}, view.payload) : {};
+      const kind = String(view.kind || payload.kind || "generic").slice(0, 64);
+      const renderer = String(view.renderer || payload.renderer || (kind === "comparison_chart" ? "chart" : kind)).slice(0, 64);
+      panels[id] = Object.assign(payload, {
+        view_id: id,
+        kind,
+        renderer,
+        title: String(view.title || payload.title || id).slice(0, 160),
+        state: String(view.state || payload.state || projection.state || "unknown").slice(0, 32),
+        component_id: view.component_id || payload.component_id || null,
+        domain_id: view.domain_id || payload.domain_id || null,
+      });
+      specs.push({id, renderer, title: panels[id].title});
+      declaredPanels.push(id);
+    });
+    if (!declaredPanels.length) {
+      panels.generic = {
+        kind: "unavailable",
+        title: "组合分析结果",
+        reason: "本次响应没有可展示的结构化 view。",
+        artifact_available: Array.isArray(projection.artifacts) && projection.artifacts.length > 0,
+      };
+      specs.push({id: "generic", renderer: "generic", title: "组合分析结果"});
+      declaredPanels.push("generic");
+    }
+    return {panels, specs, declaredPanels};
   }
 
   function normalizeSpecs(raw) {
@@ -290,5 +328,5 @@
     return parts[parts.length - 1] || "";
   }
 
-  return Object.freeze({SCHEMA_VERSION, create});
+  return Object.freeze({SCHEMA_VERSION, COMPOSITE_VIEW_SCHEMA_VERSION, create, projectionToPanels});
 });

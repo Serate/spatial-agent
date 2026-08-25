@@ -4966,3 +4966,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - M280-D 完成真实 Docker GIS + Economic sync/async/artifact/evidence/restart：两个组件均完成，orphan restart 只接管一次，`recovery_count=1`。
 - Docker M280/M279/M278 定向回归通过（Planner **15/15**；lifecycle/HTTP + acceptance **12/12**），compileall、architecture strict 通过；未写入真实数据、密钥、模型原文或宿主路径。
 - 全局重规划：M280 已证明 Runtime、Composite coordinator 和恢复边界可承载真实跨域执行；下一阶段聚焦动态 Composite View、简洁答案和跨入口结果一致性，继续保持 provider/live 显式验收。
+
+## M281：动态 Composite 结果体验与跨入口一致性（已完成）
+
+- 新增领域中立的 `spatial-agent.composite-view.v1` Projection，从 canonical Composite Result 统一提供 answer、sections、views、evidence、artifacts、状态和 request fingerprint；投影有界过滤敏感字段、模型原文和私有路径。
+- Composite answer 复用 canonical facts，支持 headline、summary、key findings、limitations；真实模型答案失败时使用安全 fallback，不能改变结果状态、fingerprint 或事实。
+- FastAPI 与 stdlib 均新增 `/composite-runs/{run_id}/view`，通过 `HTTPApplication.read("composite_view")` 复用同一 semantic seam；detail、artifact/recovery 仍重建同一 Projection。
+- Console renderer registry 新增 `projectionToPanels()`，前端按 Projection 的 `views[]` 动态适配 generic/map/chart 等 renderer；答案和对话消息优先消费结构化 answer，没有 GIS/Economic/区域/工具专用判断。
+- Docker M281/M278/M279 定向回归 **19/19**；compileall、architecture strict、JS syntax、renderer smoke、地图 browser smoke 和 Composite Projection browser smoke 通过。默认 overview 旧问句进入澄清，已按当前输入契约记录。
+- 已同步 Spec/Plan/能力图、中文问题日志、精简恢复账本和工作快照；未写入密钥、模型原文、私有路径或真实原始数据。下一阶段从全局七维度规划 M282，继续提升开放式多领域请求的 Agent 体验与可靠闭环。

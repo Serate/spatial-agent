@@ -265,6 +265,10 @@ class HTTPApplication:
             return self._composite.get_evidence(
                 _required_resource(resource_id, "run_id")
             )
+        if action == "composite_view":
+            if self._composite is None:
+                raise RuntimeError("composite application is unavailable")
+            return self._composite.get_view(_required_resource(resource_id, "run_id"))
         if action == "release_evidence":
             max_files = body.get("max_files", 10)
             if max_files < 1 or max_files > 10:

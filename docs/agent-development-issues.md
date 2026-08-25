@@ -905,3 +905,12 @@
 - **修复**：M280 新增独立有界 normalizer，允许文档化 `plan/status/objective/steps` 等映射、有限默认 outcome 和组件常见命名；未知字段/别名冲突 fail closed。Planning Application 输出脱敏 compatibility/evidence；真实失败保留结构化 receipt。
 - **验证**：Docker M280/M279 Planner 回归 **15/15**；M278 lifecycle/HTTP + M280 acceptance **12/12**；真实 GIS + Economic sync/async/evidence/restart 全部通过。未修改 Runtime、ToolRegistry、GIS 算法或 Composite schema 版本。
 - **预防**：把 provider readiness、Planner contract、canonical DAG、真实执行分成独立门禁；兼容面必须有明确别名和离线回放用例，不能为了让一次 live 请求通过而接受任意字段或绕过 capability allowlist。
+
+## M281 浏览器 overview smoke 的默认问句进入澄清
+
+- **现象**：生产 Docker/浏览器环境运行旧的 overview smoke 默认问句时，页面最终显示“等待澄清”，没有生成结果面板；地图 renderer smoke 和 Composite Projection smoke 正常通过。
+- **根因**：该问句没有提供当前规则规划器要求的完整范围/能力信息，系统按统一澄清契约结束，不应把澄清状态当作前端卡死或成功结果。第一次并行运行多个 browser smoke 时还会因共用一个 CDP 页面互相导航，造成假失败。
+- **诊断**：浏览器 smoke 必须串行执行；分别检查 `status`、交互/澄清证据和结果面板。若状态为澄清，先换成明确的验收请求或直接注入最小 Projection fixture 验证 renderer，不要修改前端去绕过澄清。
+- **修复**：本阶段新增 Composite Projection browser smoke，验证 `projectionToPanels()`、答案摘要、generic/visual 两个 surface 和地图要素；保留默认 overview smoke 的澄清结果作为输入契约提示。
+- **验证**：Docker M281/M278/M279 **19/19**；Composite Projection browser smoke、地图 browser smoke、JS syntax、compileall、architecture strict 通过。
+- **预防**：browser smoke 共享 CDP 页面时采用串行队列；测试问句与当前 Spec 的必填事实保持同步，并区分澄清、失败、加载和渲染错误四种状态。
