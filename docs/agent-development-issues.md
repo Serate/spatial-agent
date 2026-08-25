@@ -928,3 +928,10 @@
 - **诊断**：只记录 HTTP 状态、Planner status、有限 error code、context schema、context fingerprint 和组件数；不要读取或输出 prompt、响应原文、请求头、密钥或私有路径。分别验证 context、Planner contract 和 execution gate。
 - **修复**：保留 v2 context 在 provider 前的 schema/预算校验；Planner 输出继续经过 canonical normalize、能力目录 allowlist 和字段校验；非法输出在创建 Composite run 前安全拒绝。
 - **预防**：真实模型验收采用 provider → context → plan schema → canonical DAG → execution 分层；兼容中转格式只能通过有界 normalizer 增加，并用 fake/replay 回归，不能为一次 live 请求放宽未知字段。
+## M283 planner evidence 接入时 helper 插入函数体导致 Docker 语法回归
+
+- **现象**：新增 Composite planner evidence 持久化后，Docker 测试在导入 `agent/application/composite_runs.py` 时失败，报 `IndentationError`；此前的逻辑测试尚未开始执行。
+- **根因**：使用局部补丁插入 `_safe_planning_evidence()` 时落在 `_run_status()` 的 `except` 分支中间，破坏了原函数的缩进结构。
+- **诊断**：新增跨入口 helper 后必须先在 Docker 中执行 compile/import，再执行定向测试；“镜像构建成功”只代表文件已复制，不代表 Python 模块可导入。
+- **修复**：把 helper 移到完整 `_run_status()` 函数之后，恢复 `except ValueError` 的返回分支；重建 Docker 后 M283/M278/M282 定向 **22/22** 通过。
+- **预防**：对函数体附近做局部 diff 检查，优先运行 `compileall`；helper 插入不得截断控制流。测试失败时记录真正的语法/导入阻塞，不用删除测试绕过。

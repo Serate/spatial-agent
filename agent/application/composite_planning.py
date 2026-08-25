@@ -358,18 +358,39 @@ class CompositePlanningApplication:
             return prepared
         canonical = prepared.get("request")
         if asynchronous:
-            execution = self._composite_runs.submit_async(
-                canonical,
-                session_id=str(session_id or "default")[:120],
-                idempotency_key=idempotency_key,
-                export_artifact=bool(export_artifact),
+            submit_with_evidence = getattr(
+                self._composite_runs, "submit_async_with_planning", None
             )
+            if callable(submit_with_evidence):
+                execution = submit_with_evidence(
+                    canonical,
+                    session_id=str(session_id or "default")[:120],
+                    idempotency_key=idempotency_key,
+                    export_artifact=bool(export_artifact),
+                    planner_evidence=prepared.get("planner_evidence"),
+                )
+            else:
+                execution = self._composite_runs.submit_async(
+                    canonical,
+                    session_id=str(session_id or "default")[:120],
+                    idempotency_key=idempotency_key,
+                    export_artifact=bool(export_artifact),
+                )
         else:
-            execution = self._composite_runs.run(
-                canonical,
-                session_id=str(session_id or "default")[:120],
-                export_artifact=bool(export_artifact),
-            )
+            run_with_evidence = getattr(self._composite_runs, "run_with_planning", None)
+            if callable(run_with_evidence):
+                execution = run_with_evidence(
+                    canonical,
+                    session_id=str(session_id or "default")[:120],
+                    export_artifact=bool(export_artifact),
+                    planner_evidence=prepared.get("planner_evidence"),
+                )
+            else:
+                execution = self._composite_runs.run(
+                    canonical,
+                    session_id=str(session_id or "default")[:120],
+                    export_artifact=bool(export_artifact),
+                )
         result = dict(prepared)
         result["status"] = execution.get("status", "SUBMITTED")
         result["execution"] = execution

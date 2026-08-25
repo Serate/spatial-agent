@@ -46,10 +46,25 @@
 - 验证：Docker M282 定向 **9/9**，M278 生命周期/HTTP **7/7**；联合回归 16/16，compileall、architecture strict 通过。
 - 阻塞：无。
 
-### M282-E：阶段验收、文档与版本交付（进行中）
+### M282-E：阶段验收、文档与版本交付（已完成）
 
-- 目标：完成 Docker HTTP/readiness、阶段文档、中文问题记录、提交推送和全局重规划。
-- 待读/待修改：阶段文档、任务账本、恢复快照和中文问题日志。
+- 结果：完成 Docker HTTP/readiness、阶段文档、中文问题记录、提交推送和全局重规划；真实模型短探测安全拒绝非法 Planner 输出，未创建 run。
+- 验证：Docker M282/M279/M281 **24/24**、M278 **7/7**；compileall、architecture strict、恢复脚本最小读取、生产 `/health/ready` HTTP 200 通过。
+- 版本：`a7e933b` 已提交并推送到 `origin/main`。
+- 阻塞：无。
+
+### M283-B：Planner gateway 收口（已完成）
+
+- 结果：新增 `ReplayCompositePlanner`，与 Rule/LLM 复用同一 provider normalization、context schema 校验、canonical plan 和 capability allowlist；支持脱敏 alias replay，不保存模型原文。
+- 文件：`agent/composite_planner.py`、`tests/test_m283_open_query_agent.py`。
+- 验证：Docker M283/M282/M279 **23/23**；documented alias、未知字段、replay failure 和 v2 context parity 通过。
+- 阻塞：无。
+
+### M283-C：开放式成功切片与跨入口恢复（进行中）
+
+- 目标：用已有能力验证开放式计划进入 Composite lifecycle，并使 planner evidence 在同步、异步、artifact 和重启恢复中保持一致。
+- 待读/待修改：`agent/application/composite_runs.py`、`agent/application/composite_planning.py`、`tests/test_m283_open_query_agent.py`。
+- 验证：Docker open-query bridge、Composite lifecycle/HTTP、M282 回归；不调用网络，不保存模型原文。
 - 阻塞：无。
 
 ## 更新协议

@@ -26,4 +26,13 @@
 - [x] M282-C Capability matching、缺失事实与结构化澄清
 - [x] M282-D Planner gateway 与跨入口验收
 - [x] M282-E Docker/真实验收、文档与阶段收口
-- [ ] M282-E 提交推送与全局重规划
+- [x] M282-E 提交推送与全局重规划
+
+## M283 开放式请求 Agent 闭环（进行中）
+
+- [x] M283-A 全局七维度能力图、Spec、Plan
+- [x] M283-B Planner gateway 收口
+- [ ] M283-C 开放式成功切片与跨入口恢复
+- [ ] M283-D 动态结果体验与阶段里程碑
+- [ ] M283-E 真实模型/GIS/Docker/browser 显式验收
+- [ ] M283-F 文档、提交推送与全局重规划

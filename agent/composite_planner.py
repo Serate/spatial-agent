@@ -234,6 +234,24 @@ def composite_plan_schema() -> dict[str, Any]:
     }
 
 
+def _normalize_planner_payload(
+    payload: Any,
+    *,
+    request: str,
+    context: Mapping[str, Any] | None,
+    planner_source: str,
+) -> dict[str, Any]:
+    normalized, compatibility = normalize_provider_response(payload)
+    result = normalize_composite_plan(
+        normalized,
+        request=request,
+        context=context,
+        planner_source=planner_source,
+    )
+    result["compatibility"] = compatibility
+    return result
+
+
 class RuleCompositePlanner:
     """Adapter around deterministic candidate generation."""
 
@@ -258,15 +276,48 @@ class RuleCompositePlanner:
             raise CompositePlannerError(
                 "rule planner failed", code="rule_planner_failed"
             ) from exc
-        normalized, compatibility = normalize_provider_response(payload)
-        result = normalize_composite_plan(
-            normalized,
+        return _normalize_planner_payload(
+            payload,
             request=request,
             context=context,
             planner_source=self.source,
         )
-        result["compatibility"] = compatibility
-        return result
+
+
+class ReplayCompositePlanner:
+    """Deterministic planner for sanitized provider replays and contract tests."""
+
+    source = "replay"
+
+    def __init__(self, response: Any):
+        if not isinstance(response, Mapping) and not callable(response):
+            raise ValueError("response must be a mapping or callable")
+        self._response = response
+
+    def plan(
+        self,
+        request: str,
+        *,
+        context: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            payload = (
+                self._response(request, context or {})
+                if callable(self._response)
+                else self._response
+            )
+        except CompositePlannerError:
+            raise
+        except Exception as exc:
+            raise CompositePlannerError(
+                "replay planner failed", code="replay_planner_failed"
+            ) from exc
+        return _normalize_planner_payload(
+            payload,
+            request=request,
+            context=context,
+            planner_source=self.source,
+        )
 
 
 class LLMCompositePlanner:
@@ -310,15 +361,12 @@ class LLMCompositePlanner:
             raise CompositePlannerError(
                 "composite planner provider failed", code="planner_provider_failed"
             ) from exc
-        normalized, compatibility = normalize_provider_response(payload)
-        result = normalize_composite_plan(
-            normalized,
+        return _normalize_planner_payload(
+            payload,
             request=request,
             context=context,
             planner_source=self.source,
         )
-        result["compatibility"] = compatibility
-        return result
 
 
 def normalize_composite_plan(
@@ -497,6 +545,7 @@ __all__ = [
     "COMPOSITE_PLANNING_RESPONSE_SCHEMA_VERSION",
     "CompositePlannerError",
     "LLMCompositePlanner",
+    "ReplayCompositePlanner",
     "RuleCompositePlanner",
     "composite_plan_schema",
     "normalize_composite_plan",

@@ -116,6 +116,23 @@ class CompositeRunApplication:
             export_artifact=export_artifact,
         )
 
+    def run_with_planning(
+        self,
+        request: Mapping[str, Any],
+        *,
+        session_id: str = "default",
+        export_artifact: bool = False,
+        planner_evidence: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Run a canonical request while preserving bounded planner evidence."""
+        normalized = normalize_composite_request(request)
+        return self._execute_and_persist(
+            normalized,
+            session_id=session_id,
+            export_artifact=export_artifact,
+            planning_evidence=_safe_planning_evidence(planner_evidence),
+        )
+
     def submit_async(
         self,
         request: Mapping[str, Any],
@@ -131,6 +148,31 @@ class CompositeRunApplication:
             sort_keys=True,
             separators=(",", ":"),
         )
+        return self._async.submit(
+            request=encoded,
+            session_id=session_id,
+            planner=COMPOSITE_RUN_SCOPE,
+            backend=COMPOSITE_RUN_SCOPE,
+            export_artifact=export_artifact,
+            idempotency_key=idempotency_key,
+        )
+
+    def submit_async_with_planning(
+        self,
+        request: Mapping[str, Any],
+        *,
+        session_id: str = "default",
+        idempotency_key: str | None = None,
+        export_artifact: bool = False,
+        planner_evidence: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Submit without changing the request contract or losing evidence."""
+        normalized = normalize_composite_request(request)
+        evidence = _safe_planning_evidence(planner_evidence)
+        payload: Mapping[str, Any] = normalized
+        if evidence:
+            payload = {"request": normalized, "_planner_evidence": evidence}
+        encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return self._async.submit(
             request=encoded,
             session_id=session_id,
@@ -178,6 +220,7 @@ class CompositeRunApplication:
             "schema_version": "spatial-agent.evidence-reference.v1",
             "run_id": detail.get("run_id"),
             "domain_id": COMPOSITE_RUN_SCOPE,
+            "planner_evidence": result.get("planner_evidence") or {},
             "artifact": {
                 "available": bool(detail.get("artifact_ref")),
                 "ref": _safe_name(detail.get("artifact_ref")),
@@ -216,12 +259,17 @@ class CompositeRunApplication:
             request = json.loads(encoded)
         except (TypeError, ValueError) as exc:
             raise ValueError("composite async request is invalid") from exc
+        planning_evidence = None
+        if isinstance(request, Mapping) and isinstance(request.get("request"), Mapping):
+            planning_evidence = _safe_planning_evidence(request.get("_planner_evidence"))
+            request = request["request"]
         response = self._execute_and_persist(
             normalize_composite_request(request),
             session_id=str(kwargs.get("session_id") or "default"),
             run_id=run_id,
             export_artifact=bool(kwargs.get("export_artifact", False)),
             async_requested=True,
+            planning_evidence=planning_evidence,
         )
         self._async.finalize_job(response)
         if response.get("artifact_ref"):
@@ -236,6 +284,7 @@ class CompositeRunApplication:
         run_id: str | None = None,
         export_artifact: bool,
         async_requested: bool = False,
+        planning_evidence: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         response = self._coordinator.run(
             request,
@@ -246,6 +295,9 @@ class CompositeRunApplication:
         if not isinstance(canonical, Mapping):
             raise ValueError("composite coordinator returned no result contract")
         canonical = normalize_result_contract(canonical)
+        if planning_evidence:
+            canonical = dict(canonical)
+            canonical["planner_evidence"] = dict(planning_evidence)
         actual_run_id = _safe_required_run_id(response.get("run_id"))
         snapshot = AgentRunResult(
             run_id=actual_run_id,
@@ -294,6 +346,47 @@ def _run_status(value: Any) -> RunStatus:
         return RunStatus(normalized)
     except ValueError:
         return RunStatus.FAILED
+
+
+def _safe_planning_evidence(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    allowed = {
+        "schema_version",
+        "planner_source",
+        "schema_status",
+        "component_count",
+        "request_fingerprint",
+        "context_fingerprint",
+        "context_schema_version",
+        "compatibility",
+    }
+    result = {key: value[key] for key in allowed if key in value}
+    result["schema_version"] = str(
+        result.get("schema_version") or "spatial-agent.composite-planner-evidence.v1"
+    )[:96]
+    result["planner_source"] = str(result.get("planner_source") or "unknown")[:32]
+    result["schema_status"] = str(result.get("schema_status") or "unknown")[:32]
+    try:
+        result["component_count"] = max(0, min(8, int(result.get("component_count") or 0)))
+    except (TypeError, ValueError):
+        result["component_count"] = 0
+    for key in (
+        "request_fingerprint",
+        "context_fingerprint",
+        "context_schema_version",
+    ):
+        if key in result:
+            result[key] = str(result[key] or "")[:128] or None
+    compatibility = result.get("compatibility")
+    if isinstance(compatibility, Mapping):
+        result["compatibility"] = {
+            "status": str(compatibility.get("status") or "identity")[:32],
+            "actions": [str(item)[:96] for item in (compatibility.get("actions") or [])[:16]],
+        }
+    else:
+        result.pop("compatibility", None)
+    return result
 
 
 def _response_from_result(

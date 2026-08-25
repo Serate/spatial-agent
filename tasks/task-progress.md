@@ -12,13 +12,13 @@
 
 ## 当前进行中
 
-### M283：全局重规划（阶段交付后启动） — 进行中
+### M283-C：开放式成功切片与跨入口恢复 — 进行中
 
-- 目标：基于 M282 完成证据，从产品、架构、数据、模型、部署、体验、测试七个维度规划下一阶段，不陷入单个数据细节。
-- 需要修改：`docs/m283-*-capability-map.md`、`docs/m283-*-spec.md`、`docs/m283-*-plan.md`、`tasks/task-progress.md`、`docs/agent-work-state.md`。
-- 验证：先完成 M282 版本提交/推送；新阶段规划只读取当前快照、M282 结论和相关全局方向文档。
+- 目标：用已有能力验证开放式计划进入 Composite lifecycle，并使 planner evidence 在同步、异步、artifact 和重启恢复中保持一致。
+- 需要修改：`agent/application/composite_runs.py`、`agent/application/composite_planning.py`、`tests/test_m283_open_query_agent.py`。
+- 验证：Docker open-query bridge、Composite lifecycle/HTTP、M282 回归；不调用网络，不保存模型原文。
 - 阻塞：无。
-- 下一步：检查工作树、提交并推送 M282；随后建立 M283 能力图/Spec/Plan。
+- 下一步：补真实 Docker HTTP 的 replay/fake 成功入口，再进入前端结果体验。
 
 ## 最近完成
 
@@ -56,7 +56,19 @@
 
 - 结果：完成 Docker readiness/HTTP、阶段 Spec/Plan、milestones、中文问题日志、恢复快照和任务账本收口；真实模型短探测安全拒绝非法 Planner 输出，未创建 run。
 - 验证：Docker M282/M279/M281 **24/24**、M278 **7/7**；compileall、architecture strict、恢复脚本最小读取、生产 `/health/ready` HTTP 200 通过。
-- 版本：待本轮提交并推送。
+- 版本：`a7e933b` 已提交并推送到 `origin/main`。
+
+### M283-A：全局能力图、Spec、Plan — 已完成
+
+- 结果：从产品、架构、数据、模型、部署、体验、测试七个维度规划开放式成功链路、Provider 门禁、动态结果体验和显式真实验收；不增加专题硬编码。
+- 文件：`docs/m283-open-query-agent-capability-map.md`、`docs/m283-open-query-agent-spec.md`、`docs/m283-open-query-agent-plan.md`、`tasks/task-progress.md`、`docs/agent-work-state.md`。
+- 验证：已推送 M282 版本 `a7e933b`；M283 进入 B。
+
+### M283-B：Planner gateway 收口 — 已完成
+
+- 结果：新增 `ReplayCompositePlanner`，与 Rule/LLM 复用同一 provider normalization、context schema 校验、canonical plan 和 capability allowlist；支持脱敏 alias replay，不保存模型原文。
+- 文件：`agent/composite_planner.py`、`tests/test_m283_open_query_agent.py`。
+- 验证：Docker M283/M282/M279 **23/23**；documented alias、未知字段、replay failure 和 v2 context parity 通过。
 
 ## 记录模板
 

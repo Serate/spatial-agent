@@ -16,8 +16,8 @@
 ## 当前阶段
 
 - 阶段：M282 开放式请求解析与受控 Composite Planner
-- 状态：M281 已完成并推送 `a2b240c`；M282 已完成，待提交推送并进行全局重规划。
-- 当前任务：阶段版本交付与下一阶段全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；需要更详细状态时再读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 状态：M282 已完成并推送 `a7e933b`；M283-A 全局能力图、Spec、Plan 已完成。
+- 当前任务：M283-C 开放式成功切片与跨入口恢复，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；需要更详细状态时再读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m282-open-query-resolution-capability-map.md`](m282-open-query-resolution-capability-map.md)
   - [`docs/m282-open-query-resolution-spec.md`](m282-open-query-resolution-spec.md)
@@ -25,7 +25,9 @@
 
 ## 当前任务明确文件
 
-- `agent/composite_request_context.py`
+- `agent/application/composite_runs.py`
+- `agent/application/composite_planning.py`
+- `tests/test_m283_open_query_agent.py`（新增）
 - `agent/application/composite_planning.py`
 - `agent/composite_planner.py`
 - `tests/test_m282_open_query_resolution.py`（新增）
