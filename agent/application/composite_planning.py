@@ -18,10 +18,16 @@ from agent.composite_request_context import (
     CompositeRequestContextError,
 )
 from agent.composite_planner import CompositePlannerError
+from agent.runtime_core.composite_taskplan import (
+    CompositeTaskPlanBridge,
+    CompositeTaskPlanBridgeError,
+    project_task_plan_bridge,
+)
 
 
 COMPOSITE_PLANNER_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-planner-context.v1"
 COMPOSITE_PLANNER_EVIDENCE_SCHEMA_VERSION = "spatial-agent.composite-planner-evidence.v1"
+COMPOSITE_PLANNER_SELECTION_SCHEMA_VERSION = "spatial-agent.composite-planner-selection.v1"
 _SAFE_CAPABILITY_FIELDS = (
     "id",
     "label",
@@ -213,6 +219,7 @@ class CompositePlanningApplication:
         max_repairs: int = 1,
         planner_factory: Any = None,
         context_builder: Any = None,
+        taskplan_bridge: Any = None,
     ) -> None:
         if host is None or projector is None or planner is None or composite_runs is None:
             raise ValueError("host, projector, planner and composite_runs are required")
@@ -225,6 +232,9 @@ class CompositePlanningApplication:
         self._repair_planner = repair_planner
         self._composite_runs = composite_runs
         self._max_repairs = max(0, min(1, int(max_repairs)))
+        self._taskplan_bridge = taskplan_bridge or CompositeTaskPlanBridge(host=host)
+        if not callable(getattr(self._taskplan_bridge, "bridge", None)):
+            raise ValueError("taskplan_bridge must expose bridge()")
         self._context_builder = context_builder or CompositeRequestContextBuilder(
             host=host,
             catalog_projector=projector,
@@ -266,6 +276,7 @@ class CompositePlanningApplication:
                 candidate,
                 context=context,
                 planner_name=planner_name,
+                backend=backend,
             )
             return self._attach_context(candidate, context)
         except CompositeRequestContextError as exc:
@@ -278,6 +289,7 @@ class CompositePlanningApplication:
                         repaired,
                         context=context,
                         planner_name=planner_name,
+                        backend=backend,
                     )
                     repaired_response["repair_lineage"] = {
                         "attempted": True,
@@ -309,6 +321,10 @@ class CompositePlanningApplication:
                     schema_status="failed",
                     component_count=0,
                     request_fingerprint=None,
+                    requested_planner=planner_name,
+                    selection_state="failed",
+                    selection_reason=exc.code,
+                    candidate_count=_context_candidate_count(context),
                 ),
                 "repair_lineage": {
                     "attempted": bool(self._repair_planner and self._max_repairs),
@@ -333,6 +349,10 @@ class CompositePlanningApplication:
                     schema_status="failed",
                     component_count=0,
                     request_fingerprint=None,
+                    requested_planner=planner_name,
+                    selection_state="failed",
+                    selection_reason="planning_application_failed",
+                    candidate_count=_context_candidate_count(context),
                 ),
             }, context)
 
@@ -403,6 +423,7 @@ class CompositePlanningApplication:
         *,
         context: Mapping[str, Any],
         planner_name: str,
+        backend: str,
     ) -> dict[str, Any]:
         if not isinstance(candidate, Mapping):
             raise CompositePlannerError("planner output must be an object", code="plan_object_required")
@@ -424,6 +445,10 @@ class CompositePlanningApplication:
                     schema_status="not_run",
                     component_count=0,
                     request_fingerprint=None,
+                    requested_planner=planner_name,
+                    selection_state=_selection_state_for_status(status),
+                    selection_reason=_selection_reason_for_candidate(candidate, status),
+                    candidate_count=_context_candidate_count(context),
                 ),
             }
         raw_request = candidate.get("request")
@@ -439,6 +464,17 @@ class CompositePlanningApplication:
                 "planned components are missing", code="plan_components_required"
             )
         self._validate_domains_and_capabilities(projected, context)
+        try:
+            task_plan_bridge = self._taskplan_bridge.bridge(
+                projected,
+                context=context,
+                planner=planner_name,
+                backend=backend,
+            )
+        except CompositeTaskPlanBridgeError as exc:
+            raise CompositePlannerError(
+                "candidate TaskPlan failed the execution gate", code=exc.code
+            ) from exc
         planner_source = str(candidate.get("planner_source") or planner_name)[:32]
         compatibility = _safe_compatibility(candidate.get("compatibility"))
         result = {
@@ -452,6 +488,7 @@ class CompositePlanningApplication:
             "request_fingerprint": canonical.get("fingerprint"),
             "validation": {"status": "valid", "reason_code": "allowlist_and_schema_valid"},
             "compatibility": compatibility,
+            "task_plan_bridge": project_task_plan_bridge(task_plan_bridge),
         }
         result["planner_evidence"] = _planner_evidence(
             candidate,
@@ -459,6 +496,16 @@ class CompositePlanningApplication:
             schema_status="valid",
             component_count=len(result["components"]),
             request_fingerprint=canonical.get("fingerprint"),
+            requested_planner=planner_name,
+            selection_state="selected",
+            selection_reason="planner_selected_registered_capabilities",
+            selected_capability_ids=[
+                item.get("capability_id")
+                for item in result["components"]
+                if isinstance(item, Mapping)
+            ],
+            candidate_count=_context_candidate_count(context),
+            task_plan_bridge=task_plan_bridge,
         )
         return result
 
@@ -561,6 +608,9 @@ class CompositePlanningApplication:
                 schema_status="not_run",
                 component_count=0,
                 request_fingerprint=None,
+                requested_planner=planner_name,
+                selection_state="clarification",
+                selection_reason=reason_code,
             ),
         }
 
@@ -588,17 +638,93 @@ def _planner_evidence(
     schema_status: str,
     component_count: int,
     request_fingerprint: Any,
+    requested_planner: Any = None,
+    selection_state: str = "unavailable",
+    selection_reason: Any = None,
+    selected_capability_ids: Any = None,
+    candidate_count: int = 0,
+    task_plan_bridge: Any = None,
 ) -> dict[str, Any]:
     compatibility = _safe_compatibility(candidate.get("compatibility"))
     fingerprint = str(request_fingerprint or "").strip()[:128] or None
-    return {
+    result = {
         "schema_version": COMPOSITE_PLANNER_EVIDENCE_SCHEMA_VERSION,
         "planner_source": str(planner_source or "unknown")[:32],
         "schema_status": str(schema_status or "unknown")[:32],
         "component_count": max(0, min(8, int(component_count))),
         "request_fingerprint": fingerprint,
         "compatibility": compatibility,
+        "selection": _planner_selection_evidence(
+            requested_planner=requested_planner,
+            selected_source=planner_source,
+            state=selection_state,
+            reason_code=selection_reason,
+            selected_capability_ids=selected_capability_ids,
+            candidate_count=candidate_count,
+        ),
     }
+    if isinstance(task_plan_bridge, Mapping):
+        result["task_plan_bridge"] = project_task_plan_bridge(task_plan_bridge)
+    return result
+
+
+def _planner_selection_evidence(
+    *,
+    requested_planner: Any,
+    selected_source: Any,
+    state: Any,
+    reason_code: Any,
+    selected_capability_ids: Any,
+    candidate_count: Any,
+) -> dict[str, Any]:
+    """Build the bounded planner/source decision shared by every outcome."""
+
+    allowed_states = {"selected", "clarification", "rejected", "failed", "unavailable"}
+    normalized_state = str(state or "unavailable").strip().lower()
+    if normalized_state not in allowed_states:
+        normalized_state = "unavailable"
+    capability_ids: list[str] = []
+    values = selected_capability_ids if isinstance(selected_capability_ids, (list, tuple, set)) else []
+    for value in values:
+        text = str(value or "").strip()[:96]
+        if text and text not in capability_ids:
+            capability_ids.append(text)
+        if len(capability_ids) >= 8:
+            break
+    try:
+        bounded_count = max(0, min(64, int(candidate_count)))
+    except (TypeError, ValueError):
+        bounded_count = 0
+    return {
+        "schema_version": COMPOSITE_PLANNER_SELECTION_SCHEMA_VERSION,
+        "state": normalized_state,
+        "requested_planner": str(requested_planner or "unknown").strip()[:32] or "unknown",
+        "selected_source": str(selected_source or "unknown").strip()[:32] or "unknown",
+        "reason_code": str(reason_code or "planner_selection_unavailable").strip()[:96],
+        "selected_capability_ids": capability_ids,
+        "candidate_count": bounded_count,
+    }
+
+
+def _selection_state_for_status(status: str) -> str:
+    normalized = str(status or "").upper()
+    if normalized == "NEEDS_CLARIFICATION":
+        return "clarification"
+    if normalized == "REJECTED":
+        return "rejected"
+    return "unavailable"
+
+
+def _selection_reason_for_candidate(candidate: Mapping[str, Any], status: str) -> str:
+    validation = candidate.get("validation") if isinstance(candidate, Mapping) else None
+    if isinstance(validation, Mapping) and validation.get("reason_code"):
+        return str(validation["reason_code"])[:96]
+    return "planner_outcome_" + str(status or "unavailable").lower()[:64]
+
+
+def _context_candidate_count(context: Mapping[str, Any]) -> int:
+    values = context.get("capability_index") if isinstance(context, Mapping) else None
+    return len(values) if isinstance(values, list) else 0
 
 
 def _call_catalog(service: Any, *, planner: str, backend: str) -> Mapping[str, Any]:

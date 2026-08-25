@@ -341,11 +341,15 @@ class LLMCompositePlanner:
             {
                 "role": "system",
                 "content": (
-                    "Return only JSON matching the Composite planning schema. "
-                    "Choose only capability_id and domain_id values present in "
-                    "the trusted context. Do not invent tools, data, facts, "
-                    "paths, code, or measurements. Use needs_clarification "
-                    "when the request or context is insufficient."
+                    "Return exactly one JSON object matching the Composite planning schema. "
+                    "The top-level object must contain only outcome, goal, message, "
+                    "and components; never include analysis, reasoning, explanation, "
+                    "metadata, or any other field. Each component may contain only "
+                    "component_id, domain_id, capability_id, request, depends_on, "
+                    "required, and optional workflow. Choose only capability_id and "
+                    "domain_id values present in the trusted context. Do not invent "
+                    "tools, data, facts, paths, code, or measurements. Use "
+                    "needs_clarification when the request or context is insufficient."
                 ),
             },
             {

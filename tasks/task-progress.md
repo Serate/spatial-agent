@@ -9,18 +9,39 @@
 - `tasks/task-state.md` 保留为兼容性的详细当前状态；两者冲突时，以本账本的最新记录为恢复指针，并在完成子任务时同步修正详细状态。
 - 状态只使用：`进行中`、`已完成`、`已暂停`、`受阻`。
 - 不记录 API key、prompt、模型原文、私有路径、完整原始数据或敏感异常。
+- 阶段任务安排应覆盖更完整的依赖链，优先按能力切片集中完成契约、实现、集成和交付准备；避免把一个完整阶段拆成过多过小的任务。
+- 验证只保留有独立失败模式的精简测试，并在相关实现集中完成后统一运行；跨入口契约、阶段级架构门禁和 readiness 保留，重复测试不重复运行。
 
 ## 当前进行中
 
-### M284-E：文档、版本交付与全局重规划 — 进行中
+### M285-E：live/交付收口与下一阶段规划 — 进行中
 
-- 目标：收口 M284 验收证据，更新中文问题日志、milestones、工作快照和任务清单，提交并推送版本，然后按全局目标规划下一阶段。
-- 需要修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`tasks/task-progress.md`、`tasks/task-state.md`、`tasks/todo.md`、`docs/agent-work-state.md`。
-- 验证：M284 Node reset/plugin/projection smoke、Docker compileall、architecture strict、readiness、串行 browser map smoke、projection browser smoke、git diff check 均通过。
-- 阻塞：无。
-- 下一步：提交并推送 M284 版本；随后从产品、架构、数据、模型、部署、体验和测试七个维度全局重规划。
+- 目标：收口 M285-C/D 的实现和跨入口证据，记录真实中转 Composite Planner 的结构化失败，完成版本交付后规划模型适配阶段。
+- 需要修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`tasks/plan.md`、`tasks/todo.md`、`tasks/task-state.md`、`docs/agent-work-state.md`、`tasks/task-progress.md`。
+- 验证：M285/M283 联合 **13/13**、Docker compileall、architecture strict、readiness 通过；两次单请求 live probe 均安全拒绝且未创建 run，错误码分别为 `plan_response_field_invalid`、`plan_components_unexpected`。
+- 阻塞：真实中转模型尚未稳定遵守 Composite Planner schema；不修改安全校验绕过该问题。
+- 下一步：同步 milestones/任务状态，运行 diff check，提交并推送 M285-C/D 版本；将真实模型格式适配作为下一阶段全局目标。
 
 ## 最近完成
+
+### M285-B：Planner entry policy 与 source evidence — 已完成
+
+- 结果：统一记录 Rule/Replay/LLM 的 requested planner、selected source、选择状态、原因、候选能力数量和 selected capability ids；成功、澄清/拒绝、provider failure 均使用同一版本化 selection evidence。
+- 文件：`agent/application/composite_planning.py`、`tests/test_m285_open_query_planner.py`。
+- 验证：Docker 定向 M285 契约 **3/3** 通过；未改变 Runtime 生命周期或执行入口。
+
+### M285-C/D：TaskPlan bridge 与跨入口证据 — 已完成
+
+- 结果：新增领域中立 `CompositeTaskPlanBridge`；显式 replay TaskPlan 经过严格字段、DAG 依赖、工具 allowlist、结果类型和步数门控；旧候选安全 deferred。桥接投影接入 planner evidence，并沿 HTTP、async、artifact 和 restart 恢复。
+- 文件：`agent/runtime_core/composite_taskplan.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_planner.py`、`tests/test_m285_open_query_planner.py`、`tests/test_m283_open_query_agent.py`、M285 Spec/Plan。
+- 验证：Docker M285/M283 **13/13**、compileall、architecture strict、readiness 通过；两步 replay 与非法工具 fail closed，HTTP→async evidence 和 artifact/restart evidence 一致。
+- 备注：真实中转 probe 已单独记录为 M285 live provider schema 阻塞，不影响离线 TaskPlan bridge 安全门控。
+
+### M285-A：开放式 Planner 多工具编排全局规划 — 已完成
+
+- 结果：从产品、架构、数据、模型、部署、体验和测试七个维度确定 M285 只补“开放式请求 → 已注册能力 → canonical TaskPlan/DAG → 统一 Runtime”的纵向成功切片，不新增专题数据、RAG、依赖或 Runtime 分支。
+- 文件：`docs/m285-open-query-planner-capability-map.md`、`docs/m285-open-query-planner-spec.md`、`docs/m285-open-query-planner-plan.md`、`tasks/plan.md`、任务状态与工作快照。
+- 验证：Spec/Plan 已定义 Rule/Replay/LLM parity、至少两步 replay、跨入口证据一致和显式 live 验收；M284 版本 `3a0857e` 已推送。
 
 ### M284-A：会话清空与空间上下文一致性规划 — 已完成
 

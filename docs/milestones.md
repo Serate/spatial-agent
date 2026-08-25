@@ -6,7 +6,7 @@
 
 ## 当前执行规则
 
-- 当前最大并发度为 5；阶段任务按依赖关系拆分，边界清晰的子任务可并行执行，共享契约由主线统一集成。
+- 当前最大并发度为 1；阶段任务按完整能力切片集中编排，覆盖更长依赖链；测试只保留独立失败模式、跨入口契约和阶段级门禁。
 - 后文早期阶段保留当时的并行度作为历史事实；它们不代表当前有效规则。
 
 ## M220-B2：跨 Domain 组合证据与最小上下文恢复（当前切片）
@@ -79,6 +79,13 @@ M55 完成时的验证结果：189 个离线测试通过、36 个 GIS 重点测�
 - 新增 `scripts/console_reset_contract_smoke.js`，覆盖 reset 通知、surface 清空和 stale-render；地图浏览器 smoke 等待 bootstrap/domain readiness，并先建立空白会话边界，覆盖 Leaflet 选择、清空即时状态和延迟状态。
 - 验证：Docker 重建、compileall、architecture strict、生产 readiness HTTP 200、Node reset/plugin/projection smoke、串行 map browser smoke 和 projection browser smoke 通过；浏览器 fixture 生成 Leaflet 图层 1 个、SVG 路径 4 个，清空后无地图/selection/旧结果回写。
 - 工程决策：恢复上下文继续只读取快照、当前 Spec/Plan、`tasks/task-progress.md` 最近任务和明确待改文件；浏览器验收不得用固定长延时掩盖异步生命周期问题。
+
+## M285：开放式 Planner 多工具编排纵向切片（C/D 已完成，E 收口中）
+
+- 新增领域中立 `agent/runtime_core/composite_taskplan.py`，把 Composite 候选的显式 replay TaskPlan 经过严格字段、DAG 依赖、工具 allowlist、结果类型和步数门控；没有可物化计划的旧候选安全标记为 `deferred`。
+- `task_plan_bridge` 只保留安全结构投影（步骤 ID、工具、依赖、参数键、结果类型和 policy），沿 Planner evidence、HTTP→async 提交、artifact 和 restart 恢复保持一致；不保存参数值、模型原文或私有路径。
+- Docker M285/M283 精简联合回归 **13/13**，compileall、architecture strict、生产 readiness 通过；真实中转 Composite probe 两次均安全拒绝且未创建 run，错误码为 `plan_response_field_invalid`、`plan_components_unexpected`，已记录到中文问题日志。
+- M285-E 尚未完成：真实中转模型仍需单独的格式适配/稳定性阶段；不放宽 unknown fields 或非成功 outcome 的组件约束。
 
 ## M56：证据驱动的执行策略
 

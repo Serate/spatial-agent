@@ -214,6 +214,46 @@ class M283EvidencePersistenceTests(unittest.TestCase):
                 "component_count": 1,
                 "context_fingerprint": "context-fixture",
                 "context_schema_version": "spatial-agent.composite-request-context.v2",
+                "task_plan_bridge": {
+                    "schema_version": "spatial-agent.composite-taskplan-bridge.v1",
+                    "state": "accepted",
+                    "reason_code": "taskplans_materialized",
+                    "component_count": 1,
+                    "materialized_count": 1,
+                    "deferred_count": 0,
+                    "components": [
+                        {
+                            "component_id": "summary",
+                            "domain_id": "gis",
+                            "state": "accepted",
+                            "source": "explicit_workflow",
+                            "plan": {
+                                "goal": "空间摘要",
+                                "steps": [
+                                    {
+                                        "id": "inspect",
+                                        "tool": "registered_tool",
+                                        "depends_on": [],
+                                        "arg_keys": ["dataset"],
+                                    }
+                                ],
+                                "output": {"type": "summary_result"},
+                                "assumptions": [],
+                            },
+                            "dag": {
+                                "nodes": [],
+                                "edges": [],
+                                "node_count": 1,
+                                "edge_count": 0,
+                            },
+                            "policy": {
+                                "allowed_tools": ["registered_tool"],
+                                "result_types": ["summary_result"],
+                                "max_steps": 12,
+                            },
+                        }
+                    ],
+                },
             }
             app = CompositeRunApplication(
                 coordinator=_Coordinator(),
@@ -237,6 +277,10 @@ class M283EvidencePersistenceTests(unittest.TestCase):
                     time.sleep(0.01)
                 detail = app.get_run(queued["run_id"])
                 self.assertEqual(detail["result"]["planner_evidence"]["context_fingerprint"], "context-fixture")
+                self.assertEqual(
+                    detail["result"]["planner_evidence"]["task_plan_bridge"]["state"],
+                    "accepted",
+                )
                 self.assertEqual(app.get_evidence(queued["run_id"])["planner_evidence"]["planner_source"], "replay")
             finally:
                 app.close()
@@ -252,6 +296,10 @@ class M283EvidencePersistenceTests(unittest.TestCase):
                 self.assertEqual(
                     restored_detail["result"]["planner_evidence"]["context_schema_version"],
                     "spatial-agent.composite-request-context.v2",
+                )
+                self.assertEqual(
+                    restored_detail["result"]["planner_evidence"]["task_plan_bridge"]["component_count"],
+                    1,
                 )
             finally:
                 restored.close()

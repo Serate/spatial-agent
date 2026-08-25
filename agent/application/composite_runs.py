@@ -24,6 +24,7 @@ from agent.contract_versions import COMPOSITE_COORDINATOR_SCHEMA_VERSION
 from agent.models import AgentRunResult, RunStatus
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.runtime_context import build_runtime_context
+from agent.runtime_core.composite_taskplan import project_task_plan_bridge
 from agent.service_async import process_is_alive
 from agent.service_state import ServiceState
 
@@ -360,6 +361,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "context_fingerprint",
         "context_schema_version",
         "compatibility",
+        "task_plan_bridge",
     }
     result = {key: value[key] for key in allowed if key in value}
     result["schema_version"] = str(
@@ -386,6 +388,10 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         }
     else:
         result.pop("compatibility", None)
+    if "task_plan_bridge" in result:
+        result["task_plan_bridge"] = project_task_plan_bridge(
+            result.get("task_plan_bridge")
+        )
     return result
 
 

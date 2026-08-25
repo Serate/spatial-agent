@@ -37,9 +37,17 @@
 - [x] M283-E 真实模型/GIS/Docker/browser 显式验收
 - [x] M283-F 文档、提交推送与全局重规划
 
-## M284 会话清空与跨入口状态一致性（收口中）
+## M284 会话清空与跨入口状态一致性（已完成）
 
 - [x] M284-A capability map、Spec、Plan
 - [x] M284-B 领域中立 reset boundary 与 stale-render guard
 - [x] M284-C 精简 contract/browser 回归
-- [ ] M284-D 文档、提交推送与全局重规划
+- [x] M284-D 文档、提交推送与全局重规划
+
+## M285 开放式 Planner 多工具编排纵向切片（进行中）
+
+- [x] M285-A 全局 capability map、Spec、Plan
+- [x] M285-B Planner entry policy 与 source evidence
+- [x] M285-C TaskPlan bridge 与至少两步 replay
+- [x] M285-D Python/HTTP/async/artifact 精简跨入口验收
+- [ ] M285-E Docker/live/文档、提交推送与全局重规划

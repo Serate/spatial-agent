@@ -977,3 +977,11 @@
 - **修复**：Registry 的 `reset(context)` 先递增 generation，再通知所有 adapter；GIS adapter 清理自己的地图实例、surface、selection 和按钮；旧异步 render 返回 `superseded`。Console 的清空、切换会话和切换领域复用同一 reset seam。
 - **验证**：`console_reset_contract_smoke.js`、plugin renderer regression、map browser smoke 和 projection browser smoke 通过；未修改 Runtime、Planner、ToolRegistry、Result schema 或服务端 session 语义。
 - **预防**：新增前端 renderer 必须提供 adapter-owned `reset/context` 契约；清理不可依赖网络或固定延时，且每阶段至少保留一个 stale-render 负向断言。
+
+## M285 中转 Composite Planner 仍不能稳定生成合法组合计划
+
+- **现象**：Docker 显式真实 Composite planning probe 到达 provider，但两次单请求分别返回 `plan_response_field_invalid` 和 `plan_components_unexpected`；两次均为 0 个组件、未创建 run。第二次已进入本地 outcome/组件校验，但非成功 outcome 仍携带组件。
+- **根因**：中转 provider 的 JSON/模型输出没有稳定遵守 Composite Planner 的顶层字段、状态和组件契约；provider 可达不等于真实模型能生成合法多步计划。TaskPlan bridge、allowlist 和 Runtime 没有被错误归因。
+- **诊断**：只记录 status、error_code、组件数、是否创建 run 和耗时；不读取或输出响应原文、prompt、请求头、密钥或私有路径。用脱敏 replay 验证两步 DAG，再用单次 live probe 验证真实模型契约。
+- **当前处理**：收紧 Composite Planner 的系统指令，继续保留本地严格字段/状态校验；非法输出在创建 run 前拒绝。M285 的两步 replay、HTTP/async evidence、artifact/restart 恢复均已通过，真实中转失败作为下一阶段模型适配问题保留。
+- **预防**：不能为一次 live 请求放宽未知字段或接受非成功组件；后续模型适配只能增加有文档、有回放、有边界的格式兼容，并保持 Rule/Replay/LLM 共享 TaskPlan 门控。默认 CI 不访问 provider。
