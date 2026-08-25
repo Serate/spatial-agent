@@ -182,9 +182,17 @@ class CompositeRequestContextBuilder:
             "domain_contexts": domain_contexts,
             "capability_index": candidate_index,
             "clarification": clarification,
+            "catalog_consistency": _safe_value(
+                catalog.get("catalog_consistency") or {}, depth=0
+            ),
             "evidence": {
                 "schema_version": "spatial-agent.composite-request-context-evidence.v1",
-                "sources": ["domain_facts", "capability_catalog", "discovery"],
+                "sources": [
+                    "domain_facts",
+                    "capability_catalog",
+                    "catalog_consistency",
+                    "discovery",
+                ],
                 "domain_count": len(domain_contexts),
                 "candidate_count": len(candidate_index),
             },
@@ -326,22 +334,54 @@ def _candidate_projection(
                 "datasets": _safe_strings(item.get("datasets"), 8),
                 "tools": _safe_strings(item.get("tools"), 8),
                 "result_types": _safe_strings(item.get("result_types"), 8),
+                "workflow_ids": _safe_strings(item.get("workflow_ids"), 8),
+                "plan_mode": _text(item.get("plan_mode"), 24) or None,
             }
         )
     return result[:_MAX_CANDIDATES]
 
 
 def _unique_candidates(values: Sequence[Mapping[str, Any]], limit: int) -> list[dict[str, Any]]:
-    result: list[dict[str, Any]] = []
+    """Deduplicate while keeping a bounded candidate share for each Domain.
+
+    A simple first-N slice lets an early Domain exhaust the global context
+    budget and silently hides every later Domain from an open Composite
+    Planner.  Round-robin projection keeps single-Domain ordering unchanged
+    while ensuring multi-Domain planning retains at least one candidate from
+    each selected Domain (subject to the global limit).
+    """
+
+    groups: dict[str, list[dict[str, Any]]] = {}
     seen: set[tuple[str, str]] = set()
+    order: list[str] = []
     for value in values:
+        if not isinstance(value, Mapping):
+            continue
         identity = (str(value.get("domain_id")), str(value.get("capability_id")))
         if identity in seen:
             continue
         seen.add(identity)
-        result.append(dict(value))
-        if len(result) >= limit:
+        domain_id = identity[0]
+        if domain_id not in groups:
+            groups[domain_id] = []
+            order.append(domain_id)
+        groups[domain_id].append(dict(value))
+
+    result: list[dict[str, Any]] = []
+    depth = 0
+    while len(result) < limit:
+        added = False
+        for domain_id in order:
+            candidates = groups[domain_id]
+            if depth >= len(candidates):
+                continue
+            result.append(candidates[depth])
+            added = True
+            if len(result) >= limit:
+                break
+        if not added:
             break
+        depth += 1
     return result
 
 
@@ -433,7 +473,7 @@ def _safe_value(value: Any, *, depth: int) -> Any:
         return {
             str(key)[:96]: _safe_value(item, depth=depth + 1)
             for key, item in list(value.items())[:32]
-            if _is_private_key(key)
+            if not _is_private_key(key)
         }
     if isinstance(value, (list, tuple)):
         return [_safe_value(item, depth=depth + 1) for item in list(value)[:64]]

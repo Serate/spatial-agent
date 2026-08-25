@@ -29,6 +29,12 @@ from agent.runtime_core.composite_taskplan import (
     CompositeTaskPlanBridgeError,
     project_task_plan_bridge,
 )
+from agent.runtime_core.plan_completeness import (
+    annotate_catalog_capabilities,
+    assess_catalog_consistency,
+    validate_plan_completeness,
+    PlanCompletenessError,
+)
 
 
 COMPOSITE_PLANNER_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-planner-context.v1"
@@ -48,6 +54,8 @@ _SAFE_CAPABILITY_FIELDS = (
     "derived_datasets",
     "data_layer",
     "capability_status",
+    "workflow_ids",
+    "plan_mode",
 )
 _SAFE_READINESS_FIELDS = (
     "status",
@@ -185,6 +193,26 @@ class CompositeCapabilityProjector:
                     }
                 )
 
+        catalog_consistency = assess_catalog_consistency({"domains": domains})
+        domains = annotate_catalog_capabilities(domains, catalog_consistency)
+        binding_index = {
+            (str(item.get("domain_id")), str(item.get("capability_id"))): item
+            for item in (catalog_consistency.get("bindings") or [])
+            if isinstance(item, Mapping)
+        }
+        for item in capability_index:
+            binding = binding_index.get(
+                (str(item.get("domain_id")), str(item.get("capability_id")))
+            )
+            if not binding:
+                continue
+            item["workflow_ids"] = [
+                _bounded_text(value) for value in binding.get("workflow_ids", [])[:8]
+            ]
+            item["plan_mode"] = _bounded_text(binding.get("plan_mode"))
+            if item["plan_mode"] == "unbound":
+                item["availability_reason"] = "workflow_not_registered"
+
         result = {
             "schema_version": COMPOSITE_PLANNER_CONTEXT_SCHEMA_VERSION,
             "planner": _bounded_text(planner),
@@ -194,6 +222,7 @@ class CompositeCapabilityProjector:
             "domains": domains,
             "capability_index": capability_index[: self._max_capabilities],
             "workflow_index": workflow_index[: self._max_workflows],
+            "catalog_consistency": catalog_consistency,
             "data_readiness": {
                 "status": _aggregate_readiness(readiness.values()),
                 "domains": readiness,
@@ -368,6 +397,7 @@ class CompositePlanningApplication:
                 "planner_context_too_large",
                 "plan_components_required",
                 "capability_unavailable",
+                "taskplan_component_clarification",
             } else "REJECTED"
             failure_evidence = _planner_evidence(
                 {},
@@ -539,6 +569,16 @@ class CompositePlanningApplication:
             raise CompositePlannerError(
                 "candidate TaskPlan failed the execution gate", code=exc.code
             ) from exc
+        try:
+            plan_completeness = validate_plan_completeness(
+                projected,
+                context=context,
+                task_plan_bridge=task_plan_bridge,
+            )
+        except PlanCompletenessError as exc:
+            raise CompositePlannerError(
+                "candidate plan is not semantically complete", code=exc.code
+            ) from exc
         planner_source = str(candidate.get("planner_source") or planner_name)[:32]
         compatibility = _safe_compatibility(candidate.get("compatibility"))
         result = {
@@ -550,7 +590,11 @@ class CompositePlanningApplication:
             "components": [dict(item) for item in projected[:8] if isinstance(item, Mapping)],
             "request": canonical,
             "request_fingerprint": canonical.get("fingerprint"),
-            "validation": {"status": "valid", "reason_code": "allowlist_and_schema_valid"},
+            "validation": {
+                "status": "valid",
+                "reason_code": "allowlist_and_schema_valid",
+                "plan_completeness": plan_completeness,
+            },
             "compatibility": compatibility,
             "task_plan_bridge": project_task_plan_bridge(task_plan_bridge),
         }
@@ -572,6 +616,7 @@ class CompositePlanningApplication:
             task_plan_bridge=task_plan_bridge,
             provider_metrics=provider_metrics,
         )
+        result["planner_evidence"]["plan_completeness"] = plan_completeness
         return result
 
     def _selected_planner(self, planner_name: str, backend: str) -> Any:
@@ -611,6 +656,27 @@ class CompositePlanningApplication:
                 )
             if capability is not None and capability.get("available") is False:
                 raise CompositePlannerError("capability is unavailable", code="capability_unavailable")
+            if capability.get("plan_mode") == "unbound":
+                raise CompositePlannerError(
+                    "capability has no registered workflow",
+                    code="capability_not_materializable",
+                )
+            workflow = item.get("workflow")
+            template_id = (
+                str(workflow.get("template_id") or "").strip()
+                if isinstance(workflow, Mapping)
+                else ""
+            )
+            workflow_ids = {
+                str(value).strip()
+                for value in (capability.get("workflow_ids") or [])
+                if str(value).strip()
+            }
+            if template_id and workflow_ids and template_id not in workflow_ids:
+                raise CompositePlannerError(
+                    "component workflow is not bound to the capability",
+                    code="capability_workflow_mismatch",
+                )
 
     @staticmethod
     def _attach_context(

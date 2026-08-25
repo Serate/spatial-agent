@@ -5045,3 +5045,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker M289/M280/M283 **15/15**、compileall、architecture strict、生产 readiness/home 200、Node projection smoke 通过；规则模式返回结构化澄清且未创建 run。
 - 一次真实 Composite planning probe 使用中转模型在 45 秒 deadline 内超时，返回 0 组件、无 fingerprint、无 execution run；已记录为安全可恢复 provider latency 证据，不能宣称真实多域成功。
 - 全局重规划：下一阶段从 provider deadline/延迟、真实 Composite 可完成性、模型失败分类、跨域真实数据、Result/Answer 体验和部署恢复七个维度重新规划；不增加 repair 次数、不放宽 schema、不写专题分支。
+
+## M290：Provider Deadline 与真实 Composite 完成（已完成，live 安全失败）
+
+- 完成 provider/harness deadline receipt 与预算边界：provider timeout 不得超过 harness deadline，timeout、provider failure、schema failure 和 data failure 保持分层。
+- CompositeTaskPlanBridge 为每个 Domain component 使用稳定隔离的 preview session；优先复用 context 中匹配的 Domain workflow，避免跨 Domain SQLite session 绑定冲突。
+- TaskPlan、工具 allowlist、结果类型和 workflow 仍是统一门控；模型语义上返回 success 但组件为空时返回 `plan_components_required`，不创建 execution run。
+- Docker M290/M282/M279/M289/M286/M287 集中 **41/41**，compileall、architecture strict、生产 readiness 已完成阶段收口；真实 Composite 仅保留脱敏安全失败，不宣称 live 跨域成功。
+- 全局重规划：M291 聚焦 Planner 语义完整性以及 capability → workflow → TaskPlan 的可物化闭合，不增加领域专用流程、repair 次数或 provider 放宽规则。
+
+## M291：Planner 语义完整性与能力计划闭合（已完成，live 可恢复澄清）
+
+- 新增 `agent/runtime_core/plan_completeness.py` 和 `spatial-agent.plan-completeness.v1`；对 capability catalog 生成 workflow binding，区分 task-plan、answer-only 和 unbound。
+- Composite Planner 在执行前拒绝空组件、重复组件、未注册 workflow、workflow/capability 不匹配和 deferred TaskPlan；完整性 receipt 沿 HTTP、async、artifact/restart、Composite View 和 Console 传播。
+- Docker Python M291+M290/M282/M279/M289/M286/M287 **46/46**，新增组件事实澄清状态回归 **6/6**，Node projection smoke、compileall、architecture strict、readiness 200 通过。
+- 一次显式真实 Composite probe 为 provider structured output 成功、1 请求、0 重试；Domain preview 因事实不足返回 `taskplan_component_clarification`，现正确映射为 `NEEDS_CLARIFICATION`，未创建 execution run。
+- 全局重规划：M292 处理 Planner 组件事实交接、最小澄清和同一 request fingerprint 的可恢复 continuation，不增加专题流程或 repair 回合。

@@ -19,6 +19,13 @@ const completed = projection.normalize({
       planning: {
         schema_version: "spatial-agent.composite-planner-evidence.v1",
         planner_source: "llm",
+        plan_completeness: {
+          schema_version: "spatial-agent.plan-completeness.v1",
+          status: "valid",
+          reason_code: "plan_completeness_valid",
+          component_count: 1,
+          materialized_count: 1,
+        },
         structured_output: {
           schema_version: "spatial-agent.provider-structured-output.v1",
           wire_api: "chat_completions",
@@ -42,6 +49,7 @@ const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
 assert.match(completedHtml, /分析上下文已建立/);
 assert.match(completedHtml, /计划格式已确认/);
+assert.match(completedHtml, /计划已验证/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);
 assert.doesNotMatch(completedHtml, /private_tool/);
 

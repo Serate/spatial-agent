@@ -13,35 +13,30 @@
 - 历史恢复卡、问题日志、milestones、归档、全量测试和模型原文只在当前任务明确需要时读取。
 - 每个子任务开始、完成或暂停时，先更新任务账本；阶段收口时再同步阶段文档、快照和任务清单。
 - 阶段任务按完整能力切片编排得更充分：一个阶段尽量覆盖契约、实现、集成、文档和交付准备等连续依赖，避免拆成过多过小的阶段。
+- 每个阶段安排更多可连续交付的关联任务；任务数量增加不等于测试轮次增加，测试按独立失败模式合并到阶段收口执行。
 - 测试保持精简：集中实现相关改动后统一验证，只保留独立失败模式、关键跨入口契约和阶段级 readiness/架构门禁；不因每个小改动重复运行相同测试。
 - Goal 执行节奏：后续每阶段主动合并更多相互依赖的任务，按能力切片推进；开发中只做必要的快速检查，阶段收口再集中运行一次精简门禁，避免测试次数随任务数量线性增加。
 
 ## 当前阶段
 
-- 阶段：M290 Provider Deadline 与真实 Composite 完成
-- 状态：M289 已完成并完成版本前收口；M290-A 全局能力图、Spec、Plan 已创建，当前开始 deadline/timeout 能力包；中转真实 Composite 输出继续保持 fail closed。
-- 当前任务：M290-A 全局 deadline/timeout 状态建模，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M292 Planner 组件事实交接与可恢复澄清
+- 状态：M291 已完成集中门禁、显式 live、文档收口；M292-A 全局能力图、Spec、Plan 已创建，当前开始事实交接能力包；中转真实 Composite 输出继续保持 fail closed。
+- 当前任务：M292-A 组件事实交接与可恢复澄清全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m288-wire-structured-output-capability-map.md`](m288-wire-structured-output-capability-map.md)
-  - [`docs/m288-wire-structured-output-spec.md`](m288-wire-structured-output-spec.md)
-  - [`docs/m288-wire-structured-output-plan.md`](m288-wire-structured-output-plan.md)
-  - [`docs/m289-real-composite-success-capability-map.md`](m289-real-composite-success-capability-map.md)
-  - [`docs/m289-real-composite-success-spec.md`](m289-real-composite-success-spec.md)
-  - [`docs/m289-real-composite-success-plan.md`](m289-real-composite-success-plan.md)
-  - [`docs/m290-provider-deadline-completion-capability-map.md`](m290-provider-deadline-completion-capability-map.md)
-  - [`docs/m290-provider-deadline-completion-spec.md`](m290-provider-deadline-completion-spec.md)
-  - [`docs/m290-provider-deadline-completion-plan.md`](m290-provider-deadline-completion-plan.md)
+  - [`docs/m292-component-fact-handoff-capability-map.md`](m292-component-fact-handoff-capability-map.md)
+  - [`docs/m292-component-fact-handoff-spec.md`](m292-component-fact-handoff-spec.md)
+  - [`docs/m292-component-fact-handoff-plan.md`](m292-component-fact-handoff-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m290-provider-deadline-completion-capability-map.md`
-- `docs/m290-provider-deadline-completion-spec.md`
-- `docs/m290-provider-deadline-completion-plan.md`
-- `evaluation/composite_planning_matrix.py`
-- `scripts/m289_real_composite_acceptance.py`
-- `tests/test_m289_real_composite_success.py`
-- `agent/application/composite_runs.py`
-- `agent/composite_view.py`
+- `docs/m292-component-fact-handoff-capability-map.md`
+- `docs/m292-component-fact-handoff-spec.md`
+- `docs/m292-component-fact-handoff-plan.md`
+- `agent/composite_request_context.py`
+- `agent/runtime_core/plan_completeness.py`
+- `agent/application/composite_planning.py`
+- `agent/runtime_core/composite_taskplan.py`
+- `tests/test_m292_component_fact_handoff.py`
 - `docs/milestones.md`
 - `docs/agent-development-issues.md`
 - `tasks/task-progress.md`

@@ -231,7 +231,6 @@ def composite_plan_schema() -> dict[str, Any]:
                             "items": {"type": "string", "maxLength": 48},
                         },
                         "required": {"type": "boolean"},
-                        "workflow": {"type": "object"},
                     },
                 },
             },
@@ -367,7 +366,8 @@ class LLMCompositePlanner:
                     "and components; never include analysis, reasoning, explanation, "
                     "metadata, or any other field. Each component may contain only "
                     "component_id, domain_id, capability_id, request, depends_on, "
-                    "required, and optional workflow. Choose only capability_id and "
+                    "and required. Workflow selection is resolved by the selected "
+                    "Domain; do not return a workflow object. Choose only capability_id and "
                     "domain_id values present in the trusted context. Do not invent "
                     "tools, data, facts, paths, code, or measurements. Use "
                     "needs_clarification when the request or context is insufficient. "

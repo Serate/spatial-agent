@@ -10,6 +10,8 @@ planner arguments are never copied into evidence.
 from __future__ import annotations
 
 import json
+import hashlib
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -118,12 +120,24 @@ class CompositeTaskPlanBridge:
                 "component workflow is invalid", code="taskplan_workflow_invalid"
             )
 
+        capability = _capability(context, domain_id, component.get("capability_id"))
+        if capability is None:
+            raise CompositeTaskPlanBridgeError(
+                "component capability is not registered",
+                code="taskplan_capability_not_registered",
+            )
+        preview_workflow = workflow or _context_workflow(
+            context,
+            domain_id=domain_id,
+            capability_id=component.get("capability_id"),
+        )
+
         plan_payload = _explicit_task_plan(workflow)
         source = "explicit_workflow"
         if plan_payload is None:
-            plan_payload = self._preview_plan(
+            plan_payload, preview_workflow = self._preview_plan(
                 component,
-                workflow=workflow,
+                workflow=preview_workflow,
                 planner=planner,
                 backend=backend,
                 session_id=session_id,
@@ -137,17 +151,11 @@ class CompositeTaskPlanBridge:
                 "reason_code": "taskplan_materialization_deferred",
             }
 
-        capability = _capability(context, domain_id, component.get("capability_id"))
-        if capability is None:
-            raise CompositeTaskPlanBridgeError(
-                "component capability is not registered",
-                code="taskplan_capability_not_registered",
-            )
         allowed_tools, result_types = _policy(
             context,
             domain_id=domain_id,
             capability=capability,
-            workflow=workflow,
+            workflow=preview_workflow,
         )
         task_plan = _parse_and_validate(
             plan_payload,
@@ -177,26 +185,38 @@ class CompositeTaskPlanBridge:
         planner: str,
         backend: str,
         session_id: str,
-    ) -> Mapping[str, Any] | None:
+    ) -> tuple[Mapping[str, Any] | None, Mapping[str, Any] | None]:
         service_resolver = getattr(self._host, "service", None)
         selector = getattr(self._host, "select", None)
         if not callable(service_resolver) or not callable(selector):
-            return None
+            return None, workflow
         try:
             selection = selector(component.get("domain_id"), source="automatic")
             service = service_resolver(selection)
         except Exception:
-            return None
+            return None, workflow
         preview = getattr(service, "preview", None)
         if not callable(preview):
-            return None
+            return None, workflow
+        effective_workflow = _resolve_preview_workflow(
+            service,
+            component=component,
+            fallback=workflow,
+        )
         kwargs: dict[str, Any] = {
-            "session_id": _bounded_text(session_id, 120) or "default",
-            "planner": _bounded_text(component.get("planner") or planner, 32),
+            "session_id": _preview_session_id(session_id, component),
+            # The Composite LLM has already selected the registered Domain
+            # capability.  Materializing that component must not silently
+            # issue a second provider request through Service.preview(); use
+            # the Domain's deterministic compiler for the component plan and
+            # keep the canonical TaskPlan/ToolRegistry gates unchanged.
+            "planner": "rule" if str(planner).lower() == "openai" else _bounded_text(planner, 32),
             "backend": _bounded_text(component.get("backend") or backend, 32),
         }
-        if isinstance(workflow, Mapping) and workflow.get("template_id"):
-            kwargs["workflow"] = dict(workflow)
+        if isinstance(effective_workflow, Mapping) and effective_workflow.get(
+            "template_id"
+        ):
+            kwargs["workflow"] = dict(effective_workflow)
         try:
             response = preview(
                 _bounded_text(component.get("request"), 2000),
@@ -224,7 +244,10 @@ class CompositeTaskPlanBridge:
                 code="taskplan_component_preview_failed",
             )
         plan = response.get("plan")
-        return plan if isinstance(plan, Mapping) else None
+        return (
+            plan if isinstance(plan, Mapping) else None,
+            effective_workflow,
+        )
 
 
 def project_task_plan_bridge(value: Any) -> dict[str, Any]:
@@ -347,6 +370,11 @@ def _policy(
 ) -> tuple[list[str], list[str]]:
     capability_tools = _bounded_strings(capability.get("tools"))
     capability_results = _bounded_strings(capability.get("result_types"))
+    if capability.get("plan_mode") == "unbound":
+        raise CompositeTaskPlanBridgeError(
+            "capability has no registered workflow",
+            code="capability_not_materializable",
+        )
     workflow_value = workflow if isinstance(workflow, Mapping) else {}
     registered = _registered_workflow(
         context, domain_id=domain_id, template_id=workflow_value.get("template_id")
@@ -390,6 +418,79 @@ def _capability(
         if isinstance(item, Mapping) and str(item.get("domain_id")) == domain_id and str(item.get("capability_id") or item.get("id")) == target:
             return item
     return None
+
+
+def _context_workflow(
+    context: Mapping[str, Any], *, domain_id: str, capability_id: Any
+) -> Mapping[str, Any] | None:
+    """Reuse the Domain-selected workflow when a component omits one.
+
+    The Composite planner selects a capability, while the Domain context has
+    already selected the compatible workflow and extracted its constraints.
+    Passing that bounded selection to the preview compiler prevents the rule
+    compiler from guessing a different result shape from the component's
+    natural-language request.
+    """
+
+    target = _bounded_text(capability_id, 96)
+    for domain_context in context.get("domain_contexts") or []:
+        if not isinstance(domain_context, Mapping) or str(
+            domain_context.get("domain_id")
+        ) != domain_id:
+            continue
+        workflow = domain_context.get("workflow")
+        if not isinstance(workflow, Mapping):
+            return None
+        selected = _bounded_text(workflow.get("selected_capability_id"), 96)
+        candidates = _bounded_strings(workflow.get("candidate_ids"), limit=8)
+        if selected and selected != target:
+            return None
+        if candidates and target not in candidates:
+            return None
+        template_id = _bounded_text(workflow.get("workflow_template_id"), 96)
+        if not template_id:
+            return None
+        result: dict[str, Any] = {"template_id": template_id}
+        constraints = workflow.get("constraints")
+        if isinstance(constraints, Mapping):
+            result["constraints"] = dict(constraints)
+        return result
+    return None
+
+
+def _resolve_preview_workflow(
+    service: Any,
+    *,
+    component: Mapping[str, Any],
+    fallback: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    """Resolve a selected capability through the Domain Contract seam."""
+
+    if isinstance(fallback, Mapping) and (
+        fallback.get("template_id")
+        or _explicit_task_plan(fallback) is not None
+    ):
+        return fallback
+    resolver = getattr(service, "resolve_capability_selection", None)
+    facts_resolver = getattr(service, "extract_request_facts", None)
+    if callable(resolver):
+        facts = None
+        if callable(facts_resolver):
+            try:
+                facts = facts_resolver(_bounded_text(component.get("request"), 2000))
+            except Exception:
+                facts = None
+        try:
+            resolved = resolver(
+                _bounded_text(component.get("capability_id"), 96),
+                request_facts=facts,
+                selection=None,
+            )
+        except Exception:
+            resolved = None
+        if isinstance(resolved, Mapping) and resolved.get("template_id"):
+            return resolved
+    return fallback
 
 
 def _registered_workflow(
@@ -478,6 +579,42 @@ def _unavailable_bridge(reason_code: str) -> dict[str, Any]:
 
 def _bounded_text(value: Any, limit: int) -> str:
     return str(value or "").strip()[:limit]
+
+
+def _preview_session_id(parent_session: Any, component: Mapping[str, Any]) -> str:
+    """Create a stable, domain-isolated session for planning-only previews.
+
+    Preview calls may touch the conversation store to validate request state.
+    A Composite parent session is not safe to reuse across Domain services,
+    because persistent stores bind each session to exactly one Domain.  Keep
+    the parent identity only as a digest so private session values are not
+    copied into the preview session or its evidence.
+    """
+
+    domain_id = _session_segment(component.get("domain_id"), fallback="domain")
+    capability_id = _session_segment(
+        component.get("capability_id"), fallback="component"
+    )
+    component_id = _session_segment(
+        component.get("component_id"), fallback="component"
+    )
+    identity = "|".join(
+        (
+            _bounded_text(parent_session, 160) or "default",
+            domain_id,
+            capability_id,
+            component_id,
+        )
+    )
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return f"composite-preview-{domain_id}-{capability_id}-{component_id}-{digest}"[:120]
+
+
+def _session_segment(value: Any, *, fallback: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", _bounded_text(value, 32)).strip(
+        "-"
+    )
+    return normalized[:32] or fallback
 
 
 def _bounded_strings(value: Any, *, limit: int = 24) -> list[str]:

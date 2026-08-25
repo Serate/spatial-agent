@@ -70,10 +70,11 @@ def main() -> int:
     config["max_output_tokens"] = max(64, min(4096, int(args.max_output_tokens)))
     if args.composite:
         # The production composition root creates the OpenAI client lazily.
-        # Pass the explicit probe budget through the process environment before
-        # importing/using that root; otherwise this CLI flag would only affect
-        # the connectivity probe path.
-        os.environ["OPENAI_MAX_OUTPUT_TOKENS"] = str(config["max_output_tokens"])
+        # Pass the complete explicit probe budget through the process
+        # environment before importing/using that root; otherwise the CLI
+        # flags would only affect the direct connectivity-probe path while the
+        # Composite planner kept the production defaults (60s and retries).
+        _configure_composite_probe_environment(config)
         from production_api import composite_planning_application
 
         report = run_composite_planning_probe(
@@ -85,6 +86,8 @@ def main() -> int:
                 value.strip() for value in args.domains.split(",") if value.strip()
             ),
             timeout_seconds=args.timeout_seconds,
+            provider_timeout_seconds=config["timeout_seconds"],
+            max_retries=config["max_retries"],
         )
     else:
         report = run_provider_probe(
@@ -95,6 +98,14 @@ def main() -> int:
         )
     print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0 if report.get("passed") else 1
+
+
+def _configure_composite_probe_environment(config):
+    """Forward the explicit live budget to the lazy production composition root."""
+
+    os.environ["OPENAI_TIMEOUT_SECONDS"] = str(config["timeout_seconds"])
+    os.environ["OPENAI_MAX_RETRIES"] = str(config["max_retries"])
+    os.environ["OPENAI_MAX_OUTPUT_TOKENS"] = str(config["max_output_tokens"])
 
 
 if __name__ == "__main__":

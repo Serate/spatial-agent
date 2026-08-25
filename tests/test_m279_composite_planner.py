@@ -31,6 +31,24 @@ class _Service:
             "known_result_types": ["result-a"],
         }
 
+    def preview(self, request, **kwargs):
+        del request, kwargs
+        return {
+            "status": "PLANNED",
+            "plan": {
+                "goal": "安全测试计划",
+                "steps": [
+                    {
+                        "id": "step-1",
+                        "tool": "tool-a",
+                        "args": {},
+                        "depends_on": [],
+                    }
+                ],
+                "output": {"type": "result-a"},
+            },
+        }
+
 
 class _Host:
     def __init__(self, services):

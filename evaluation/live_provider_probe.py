@@ -14,7 +14,8 @@ from agent.provider_structured_output import project_structured_output_evidence
 
 
 PROVIDER_PROBE_SCHEMA_VERSION = "spatial-agent.live-provider-probe.v1"
-COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION = "spatial-agent.composite-planning-probe.v2"
+COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION = "spatial-agent.composite-planning-probe.v3"
+PROBE_DEADLINE_SCHEMA_VERSION = "spatial-agent.live-probe-deadline.v1"
 PROVIDER_PROBE_SCHEMA = {
     "type": "object",
     "properties": {"status": {"type": "string", "enum": ["ready"]}},
@@ -243,6 +244,8 @@ def run_composite_planning_probe(
     backend: str = "local",
     domain_ids: tuple[str, ...] = ("gis", "economic"),
     timeout_seconds: float = 45.0,
+    provider_timeout_seconds: float | None = None,
+    max_retries: int = 0,
 ) -> dict[str, Any]:
     """Run one bounded planning-only probe without creating an execution run."""
 
@@ -252,6 +255,23 @@ def run_composite_planning_probe(
         raise ValueError("request must not be empty")
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
+    provider_timeout = (
+        float(timeout_seconds)
+        if provider_timeout_seconds is None
+        else float(provider_timeout_seconds)
+    )
+    if provider_timeout <= 0:
+        raise ValueError("provider_timeout_seconds must be positive")
+    if provider_timeout > float(timeout_seconds):
+        raise ValueError("provider timeout must not exceed harness timeout")
+    if int(max_retries) < 0:
+        raise ValueError("max_retries must be non-negative")
+    deadline = _deadline_receipt(
+        harness_timeout_seconds=float(timeout_seconds),
+        provider_timeout_seconds=provider_timeout,
+        max_retries=int(max_retries),
+        deadline_exceeded=False,
+    )
     started = monotonic()
     try:
         receipt = run_bounded_operation(
@@ -276,6 +296,7 @@ def run_composite_planning_probe(
             component_count=0,
             request_fingerprint=None,
             planner_evidence=None,
+            deadline= dict(deadline, deadline_exceeded=True),
         )
     except Exception:
         return _composite_planning_receipt(
@@ -285,8 +306,9 @@ def run_composite_planning_probe(
             component_count=0,
             request_fingerprint=None,
             planner_evidence=None,
+            deadline=deadline,
         )
-    return _bounded_composite_planning_receipt(receipt, started)
+    return _bounded_composite_planning_receipt(receipt, started, deadline=deadline)
 
 
 def _composite_planning_once(
@@ -347,6 +369,7 @@ def _composite_planning_receipt(
     request_fingerprint: Any,
     planner_evidence: Any,
     execution_run_created: bool = False,
+    deadline: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     fingerprint = _safe_probe_string(request_fingerprint, 128)
     evidence = _safe_planner_evidence(planner_evidence)
@@ -359,13 +382,23 @@ def _composite_planning_receipt(
         "request_fingerprint": fingerprint or None,
         "execution_run_created": bool(execution_run_created),
         "planner_evidence": evidence,
+        "deadline": _safe_deadline_receipt(deadline),
+        "error_plane": _error_plane(
+            status=status,
+            error_code=error_code,
+            deadline=_safe_deadline_receipt(deadline),
+            planner_evidence=evidence,
+        ),
         "passed": status == "PLANNED" and bool(fingerprint) and component_count > 0,
         "elapsed_ms": int(max(0.0, monotonic() - started) * 1000),
     }
 
 
 def _bounded_composite_planning_receipt(
-    receipt: Mapping[str, Any], started: float
+    receipt: Mapping[str, Any],
+    started: float,
+    *,
+    deadline: Mapping[str, Any],
 ) -> dict[str, Any]:
     return _composite_planning_receipt(
         started,
@@ -375,7 +408,67 @@ def _bounded_composite_planning_receipt(
         request_fingerprint=receipt.get("request_fingerprint"),
         planner_evidence=receipt.get("planner_evidence"),
         execution_run_created=bool(receipt.get("execution_run_created")),
+        deadline=dict(deadline, deadline_exceeded=bool(receipt.get("deadline_exceeded"))),
     )
+
+
+def _deadline_receipt(
+    *,
+    harness_timeout_seconds: float,
+    provider_timeout_seconds: float,
+    max_retries: int,
+    deadline_exceeded: bool,
+) -> dict[str, Any]:
+    return {
+        "schema_version": PROBE_DEADLINE_SCHEMA_VERSION,
+        "source": "explicit_probe",
+        "harness_timeout_seconds": round(float(harness_timeout_seconds), 3),
+        "provider_timeout_seconds": round(float(provider_timeout_seconds), 3),
+        "max_retries": max(0, min(999, int(max_retries))),
+        "deadline_exceeded": bool(deadline_exceeded),
+    }
+
+
+def _safe_deadline_receipt(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    value = value if isinstance(value, Mapping) else {}
+    result = {
+        "schema_version": PROBE_DEADLINE_SCHEMA_VERSION,
+        "source": "unknown",
+        "harness_timeout_seconds": None,
+        "provider_timeout_seconds": None,
+        "max_retries": 0,
+        "deadline_exceeded": bool(value.get("deadline_exceeded")),
+    }
+    for key in ("harness_timeout_seconds", "provider_timeout_seconds"):
+        try:
+            number = float(value.get(key))
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            result[key] = round(number, 3)
+    result["source"] = _safe_probe_string(value.get("source"), 32) or "unknown"
+    try:
+        result["max_retries"] = max(0, min(999, int(value.get("max_retries") or 0)))
+    except (TypeError, ValueError):
+        result["max_retries"] = 0
+    return result
+
+
+def _error_plane(
+    *,
+    status: str,
+    error_code: Any,
+    deadline: Mapping[str, Any],
+    planner_evidence: Mapping[str, Any],
+) -> str:
+    if bool(deadline.get("deadline_exceeded")):
+        return "harness"
+    structured = planner_evidence.get("structured_output")
+    if isinstance(structured, Mapping) and structured.get("error_type") == "timeout":
+        return "provider"
+    if str(error_code or "").strip() or str(status or "").upper() == "FAILED":
+        return "planning"
+    return "none"
 
 
 def _safe_planner_evidence(value: Any) -> dict[str, Any]:
@@ -433,6 +526,7 @@ __all__ = [
     "PROVIDER_PROBE_SCHEMA",
     "PROVIDER_PROBE_SCHEMA_VERSION",
     "COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION",
+    "PROBE_DEADLINE_SCHEMA_VERSION",
     "run_composite_planning_probe",
     "run_provider_probe",
 ]

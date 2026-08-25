@@ -208,6 +208,24 @@ def _build_planning(value: Any) -> dict[str, Any]:
     )
     if structured_output is not None:
         result["structured_output"] = structured_output
+    completeness = value.get("plan_completeness")
+    if isinstance(completeness, Mapping):
+        result["plan_completeness"] = {
+            "schema_version": _text(
+                completeness.get("schema_version")
+                or "spatial-agent.plan-completeness.v1",
+                96,
+            ),
+            "status": _text(completeness.get("status"), 24),
+            "reason_code": _text(completeness.get("reason_code"), 96),
+            "component_count": max(
+                0, min(_MAX_COMPONENTS, int(completeness.get("component_count") or 0))
+            ),
+            "materialized_count": max(
+                0,
+                min(_MAX_COMPONENTS, int(completeness.get("materialized_count") or 0)),
+            ),
+        }
     return {key: item for key, item in result.items() if item not in (None, "")}
 
 

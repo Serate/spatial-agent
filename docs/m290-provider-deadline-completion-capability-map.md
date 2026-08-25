@@ -21,3 +21,7 @@ M289 已补齐跨状态 planning receipt、prepared plan 的跨入口执行 seam
 - 不增加领域工具、数据下载、RAG、外部搜索或 MCP 依赖。
 - 不自动无限等待、重复请求或增加 repair 回合。
 - 不把 provider latency 伪装成 schema 成功或执行成功。
+
+## 阶段结果
+
+M290 已将 deadline、provider timeout、harness timeout、组件 session 隔离和 Domain workflow 解析纳入同一安全边界。真实中转模型最新一次结构化输出语义上报告 success 但组件为空，系统按 `plan_components_required` 拒绝且未创建 execution run；这成为 M291 的全局输入，而不是放宽门控的理由。

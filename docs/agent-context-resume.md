@@ -174,3 +174,16 @@
 - 新增 bounded planning outcome matrix 和 prepared canonical plan 的 sync/async acceptance seam；planning probe v2 显式记录 `execution_run_created`，未知/非预期 run 创建判失败。
 - Docker M289/M280/M283 **15/15**，compileall、architecture strict、readiness/home 200、Node projection smoke 通过；真实 Composite planning probe 在 45 秒 deadline 超时，0 组件、无 run，已按 provider latency 分类，不保存模型原文或密钥。
 - 当前恢复入口切换到 M290-A；已从全局角度创建 provider deadline/延迟与真实 Composite 完成的能力图、Spec、Plan，不能把 provider probe 当作跨域成功。
+
+## M290：Provider Deadline 与真实 Composite 完成（已完成，live 安全失败）
+
+- 完成 provider/harness deadline receipt、provider budget 不超过 harness budget、Composite component preview 的 Domain session 隔离，以及匹配 Domain workflow 的复用。
+- 空组件 success 在统一 Planner/TaskPlan 门控前安全拒绝，不创建 execution run；Docker M290/M282/M279/M289/M286/M287 集中 **41/41** 通过。
+- 真实模型结构化输出可达但语义上报 success 且组件为空，已按 `plan_components_required` 脱敏记录；下一阶段为 M291 plan completeness。
+
+## M291：Planner 语义完整性与能力计划闭合（已完成，live 可恢复澄清）
+
+- 新增 `spatial-agent.plan-completeness.v1`；catalog consistency 标注 task-plan、answer-only、unbound；Planner/TaskPlan bridge 在 execution run 前拒绝空组件、未绑定 workflow 和 deferred plan。
+- `plan_completeness` 沿 async/artifact/restart evidence、Composite View 和 Console projection 传播；组件事实不足统一映射为 `NEEDS_CLARIFICATION`。
+- Docker Python **46/46**、新增状态映射回归 **6/6**、Node smoke、compileall、architecture strict、readiness 200 通过；一次显式 live provider structured output 成功但 Domain preview 澄清，0 run。
+- 当前恢复入口切换到 M292-A，下一阶段规划组件事实交接与同一 fingerprint 的可恢复澄清。

@@ -86,8 +86,24 @@
 
 ## M290 Provider Deadline 与真实 Composite 完成（进行中）
 
-- [ ] M290-A 全局 deadline/timeout 状态建模
-- [ ] M290-B Provider 与 harness deadline 对齐
-- [ ] M290-C 超时恢复与跨入口一致性
-- [ ] M290-D 真实 Composite 纵向验收与用户体验
-- [ ] M290-E 集中门禁、文档、版本与全局重规划
+- [x] M290-A 全局 deadline/timeout 状态建模
+- [x] M290-B Provider 与 harness deadline 对齐
+- [x] M290-C 超时恢复与跨入口一致性
+- [x] M290-D 真实 Composite 纵向验收与用户体验
+- [x] M290-E 集中门禁、文档、版本与全局重规划
+
+## M291 Planner 语义完整性与能力计划完整性（进行中）
+
+- [x] M291-A 全局能力图、Spec、Plan 与语义状态契约
+- [x] M291-B Planner outcome 与 plan completeness gate
+- [x] M291-C capability → workflow → TaskPlan 一致性校验
+- [x] M291-D 跨入口语义恢复、artifact 和前端用户投影
+- [x] M291-E 集中门禁、显式 live、文档、版本与全局重规划
+
+## M292 Planner 组件事实交接与可恢复澄清（进行中）
+
+- [x] M292-A 全局能力图、Spec、Plan 与事实来源模型
+- [ ] M292-B 组件级 requirements 与 preview 交接
+- [ ] M292-C 澄清 continuation 生命周期
+- [ ] M292-D 前端与跨入口用户体验
+- [ ] M292-E 集中门禁、显式 live、文档、版本与全局重规划

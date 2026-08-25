@@ -1033,3 +1033,18 @@
 - **处理**：保持 planning deadline、schema、能力 allowlist 和 TaskPlan gate 不变；M289 增加跨状态 matrix 与 `execution_run_created` 脱敏 receipt，方便区分成功、澄清、拒绝和超时。
 - **验证**：M289 matrix + M280 contract **7/7**；规则模式可结构化澄清且不创建 run；live 只记录 timeout、组件数、wire/metric 摘要，不保存 prompt、模型原文、密钥或路径。
 - **预防**：后续若调整 live deadline，必须只在显式 acceptance harness 中调整并保留单次请求边界；不能通过无限等待、自动重复请求或放宽输出 schema 把 timeout 伪装成成功。
+
+## M290 真实模型语义上报 success 但组件为空
+
+- **现象**：真实 provider 的 structured output 请求成功返回，但 Composite 结果语义为 `success` 时没有任何组件；如果直接信任状态，后续无法生成 Domain workflow 或 TaskPlan。
+- **根因**：wire/schema 合法只说明字段形状可解析，不代表模型给出了可执行的完整计划；Composite 的 success 还必须满足组件数量、能力身份和可物化 workflow 条件。
+- **处理**：保留统一的 `plan_components_required` 语义门控；空组件在 TaskPlan 和 execution run 创建前拒绝，记录有界 planner/provider/deadline evidence，不保存模型原文或 prompt。组件 preview 使用按 Domain 隔离的稳定 session，并优先复用已发现的 Domain workflow。
+- **验证**：M290/M282/M279/M289/M286/M287 Docker 集中 **41/41**；provider timeout、harness timeout、预算越界和 Domain session 隔离均有回归，真实模型结果保持单次、脱敏、无 execution run。
+- **下一步**：M291 建立版本化 plan completeness contract，检查 capability → workflow → ToolRegistry/result types → TaskPlan 的完整闭合，并将语义澄清/拒绝投影到所有入口。
+
+## M291 真实模型组件在 Domain preview 阶段缺少事实时被错误显示为拒绝
+
+- **现象**：M291 显式 live probe 中 provider structured output 成功，模型返回了可识别组件，但组件 materialization 的 Domain preview 返回 `taskplan_component_clarification`；原应用状态被投影为 `REJECTED`，容易让用户误以为能力或权限被拒绝。
+- **根因**：Planner 失败状态映射只覆盖 provider failure、空组件和 capability unavailable，没有把 TaskPlan materialization 的“需要补充事实”错误码归入澄清状态。
+- **修复**：将 `taskplan_component_clarification` 纳入 `NEEDS_CLARIFICATION` 映射；继续保留统一 TaskPlan/ToolRegistry gate，不创建 execution run，不重试 live 请求。
+- **验证**：真实 probe 单次、0 重试、provider structured output `success`、0 execution run；完整 Python contract 已通过，修复后只需执行离线状态映射回归，不重复真实调用。

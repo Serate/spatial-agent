@@ -32,6 +32,20 @@ class _ContextBuilder:
         return dict(CONTEXT)
 
 
+class _AcceptedTaskPlanBridge:
+    def bridge(self, components, **kwargs):
+        del kwargs
+        projected = [
+            {"component_id": item["component_id"], "state": "accepted"}
+            for item in components
+        ]
+        return {
+            "state": "accepted",
+            "materialized_count": len(projected),
+            "components": projected,
+        }
+
+
 def _planned_payload():
     return {
         "outcome": "success",
@@ -99,6 +113,7 @@ def _application(
         repair_planner_factory=repair_planner_factory,
         composite_runs=composite_runs or object(),
         context_builder=_ContextBuilder(),
+        taskplan_bridge=_AcceptedTaskPlanBridge(),
     )
 
 

@@ -12,16 +12,17 @@
 - 阶段任务安排应覆盖更完整的依赖链，优先按能力切片集中完成契约、实现、集成和交付准备；避免把一个完整阶段拆成过多过小的任务。
 - 验证只保留有独立失败模式的精简测试，并在相关实现集中完成后统一运行；跨入口契约、阶段级架构门禁和 readiness 保留，重复测试不重复运行。
 - 本次 Goal 约束：每个阶段安排更完整的任务包，尽量一次覆盖契约、实现、集成、文档和交付；开发期间减少重复测试，阶段收口统一执行精简且有代表性的门禁。
+- 新增约束：阶段任务应适度增多并覆盖同一能力链的连续依赖；测试按独立风险合并执行，不随任务数量线性增加测试轮次。
 
 ## 当前进行中
 
-### M290-A：Provider Deadline 与真实 Composite 完成全局规划 — 进行中
+### M292-A：Planner 组件事实交接与可恢复澄清全局规划 — 进行中
 
-- 目标：从全局七维度规划 provider/client/harness/async 的 deadline 对齐和真实 Composite 完成能力，不陷入 GIS/Economic 数据细节。
-- 已创建：`docs/m290-provider-deadline-completion-capability-map.md`、`docs/m290-provider-deadline-completion-spec.md`、`docs/m290-provider-deadline-completion-plan.md`。
-- 验证：规划文档已完成；暂不重复运行 M289 业务测试。
-- 阻塞：无。M289 live timeout 是当前输入证据，下一阶段需在显式有界预算内处理。
-- 下一步：实现统一 deadline/timeout receipt 和 provider/harness budget 对齐。
+- 目标：从全局七维度规划 Planner 选择后的组件事实交接、最小澄清和同一请求的可恢复续跑，不陷入 GIS/Economic 数据细节。
+- 已创建：`docs/m292-component-fact-handoff-capability-map.md`、`docs/m292-component-fact-handoff-spec.md`、`docs/m292-component-fact-handoff-plan.md`。
+- 验证：M291 已完成 Python 合并门禁 **46/46**、新增状态回归 **6/6**、Node projection smoke、compileall、architecture strict、readiness 200；M292 规划文档已完成。
+- 阻塞：无。M291 live 的 `taskplan_component_clarification` 已转为可恢复澄清，未创建 run。
+- 下一步：实现 M292-B 组件 requirements 与 Domain preview 的公共事实交接。
 
 ### M288-B/C/D/E：provider structured-output 能力协商与阶段交付 — 已完成
 
@@ -33,6 +34,26 @@
 - 下一步：完成 M288-E 文档/问题记录/提交推送，然后从全局七维度规划 M289 真实 Composite 成功/澄清/拒绝矩阵。
 
 ## 最近完成
+
+### M290-A～E：Provider Deadline 与真实 Composite 完成 — 已完成
+
+- 结果：完成 provider/harness deadline receipt、provider budget 上限、Composite Domain session 隔离、Domain workflow 复用和空组件 success 的安全拒绝；不创建孤儿 execution run。
+- 文件：`agent/runtime_core/composite_taskplan.py`、`agent/composite_planner.py`、`agent/composite_request_context.py`、`agent/runtime.py`、`agent/service.py`、`domains/gis/domain.py`、`domains/economic/catalog.py`、`evaluation/live_provider_probe.py`、`scripts/live_provider_probe.py`、`tests/test_m290_provider_deadline_completion.py`。
+- 验证：Docker M290/M282/M279/M289/M286/M287 集中 **41/41**，未重复发起 live；真实模型仍保持脱敏安全失败。
+- 下一阶段：M291 处理 Planner 语义完整性和 capability → workflow → TaskPlan 闭合。
+
+### M291-A～C：Planner 语义完整性与能力目录闭合 — 已完成
+
+- 结果：新增 `spatial-agent.plan-completeness.v1`；目录为每个 capability 生成 task-plan/answer-only/unbound 绑定；Composite Planner 在 execution run 前拒绝空组件、重复组件、未绑定 workflow 和 deferred TaskPlan。
+- 验证：新增 M291 5 项 compact contract，与 M290/M282/M279/M289/M286/M287 合并 **46/46**；compileall、architecture strict、readiness 200 通过。
+- 下一步：M292 组件事实交接与可恢复澄清。
+
+### M291-D/E：跨入口语义投影与阶段交付 — 已完成
+
+- 结果：`plan_completeness` 沿 planning evidence、artifact/async safe projection、Composite View 和 Console projection 传播；新增“计划已验证/计划需要补充”用户摘要；组件事实不足统一显示为澄清。
+- 文件：`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js`、中文文档与恢复账本。
+- 验证：Python 46/46、状态映射回归 6/6、Node smoke、compileall、architecture strict、readiness 200；一次真实 Composite live 结构化输出成功但 Domain preview 需要事实，未创建 run。
+- 下一阶段：M292 组件事实交接与可恢复澄清。
 
 ### M289-B/C/D/E：真实 Composite Planner 纵向收口与阶段交付 — 已完成
 

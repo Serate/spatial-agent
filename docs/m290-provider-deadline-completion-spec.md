@@ -18,3 +18,9 @@
 - Docker lifecycle contract 证明 timeout 前后 run 创建状态、SQLite/artifact 和 recovery evidence 一致。
 - 一次显式 live Composite probe 使用更合理但有界的预算；成功时继续真实 GIS/Economic 执行，失败时生成完整安全 receipt。
 - 默认 CI 仍离线精简，阶段收口只执行一组集中门禁和一次 live。
+
+## 实现状态
+
+- provider/harness timeout receipt 已分层，provider budget 不得超过 harness budget。
+- Composite component preview 使用稳定且按 Domain 隔离的 session；已有 Domain workflow 优先复用，不把 provider 返回的 workflow 当作可信执行定义。
+- TaskPlan bridge 继续执行 capability、workflow、DAG、ToolRegistry 和 result type 门控；空组件 success 映射为结构化拒绝，不创建 execution run。

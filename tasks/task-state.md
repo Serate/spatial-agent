@@ -6,14 +6,32 @@
 
 ## 当前阶段
 
-- 阶段：M290 Provider Deadline 与真实 Composite 完成
+- 阶段：M292 Planner 组件事实交接与可恢复澄清
 - 阶段规划：
-  - `docs/m288-wire-structured-output-capability-map.md`
-  - `docs/m288-wire-structured-output-spec.md`
-  - `docs/m288-wire-structured-output-plan.md`
+  - `docs/m292-component-fact-handoff-capability-map.md`
+  - `docs/m292-component-fact-handoff-spec.md`
+  - `docs/m292-component-fact-handoff-plan.md`
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
 
 ## 最近任务记录
+
+### M291-A～E：Planner 语义完整性与能力计划闭合（已完成）
+
+- 结果：新增 plan completeness/catalog consistency；Planner、TaskPlan bridge、跨入口 evidence 和 Console projection 已接通；组件事实不足统一为可恢复澄清。
+- 验证：Docker Python **46/46**、新增状态映射回归 **6/6**、Node smoke、compileall、architecture strict、readiness 200；一次显式 live 安全澄清且无 execution run。
+- 下一步：M292-B 组件级 requirements 与 preview 事实交接。
+
+### M291-A～C：Planner 语义完整性与能力目录闭合（已完成）
+
+- 结果：新增 `agent/runtime_core/plan_completeness.py`；目录投影输出 `catalog_consistency` 与 capability binding；Planner/TaskPlan bridge 拒绝语义不完整或不可物化的 success，并保留 `plan_completeness` evidence。
+- 验证：Docker M291 + M290/M282/M279/M289/M286/M287 **46/46**，compileall、architecture strict、readiness 200 通过。
+- 下一步：M291-D 跨入口语义恢复、artifact 和前端用户投影。
+
+### M290-A～E：Provider Deadline 与真实 Composite 完成（已完成）
+
+- 结果：统一 provider/harness deadline receipt 和预算边界；Composite component preview 按 Domain 隔离 session，复用匹配的 Domain workflow；空组件 success 在 TaskPlan 前被拒绝。
+- 验证：Docker M290/M282/M279/M289/M286/M287 **41/41**，compileall、architecture strict、readiness 已作为阶段收口门禁保留；live 结果为安全失败且未创建 run。
+- 下一步：M291-B Planner outcome 与 plan completeness gate。
 
 ### M289-B/C/D/E：真实 Composite Planner 纵向收口与阶段交付（已完成）
 

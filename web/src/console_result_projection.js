@@ -33,10 +33,19 @@
     )) || null;
     const compositeAnswer = record(composite?.answer) ? composite.answer : {};
     const answer = normalizeAnswer(compositeAnswer, data, result, composite);
-    const planning = mergePlanningEvidence(
+    let planning = mergePlanningEvidence(
       firstRecord(data.plan_evidence, result.planning, result.plan_evidence, data.planning),
       composite?.planning,
     );
+    const planCompleteness = normalizePlanCompleteness(
+      firstRecord(
+        data.plan_completeness,
+        result.plan_completeness,
+        planning?.plan_completeness,
+        composite?.planning?.plan_completeness,
+      ),
+    );
+    if (planCompleteness) planning = {...(planning || {}), plan_completeness: planCompleteness};
     const repairLineage = normalizeRepairLineage(firstRecord(data.repair_lineage, result.repair_lineage, planning?.repair_lineage));
     const context = firstRecord(data.runtime_context, result.runtime_context, data.request_context, result.request_context);
     const clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
@@ -124,11 +133,13 @@
     const chips = [];
     if (model.result_kind && model.result_kind !== "结构化结果") chips.push(model.result_kind + "结果");
     if (model.steps.length) chips.push("已处理 " + model.steps.length + " 个步骤");
-    else if (model.status === "COMPLETED") chips.push("直接形成结论");
+    else if (model.status === "COMPLETED" && !Object.keys(model.planning || {}).length) chips.push("直接形成结论");
     if (model.view_count) chips.push("包含 " + model.view_count + " 个结果视图");
     if (model.component_count) chips.push("覆盖 " + model.component_count + " 个分析部分");
-    if (Object.keys(model.context || {}).length) chips.push("分析上下文已建立");
+    if (model.planning?.plan_completeness?.status === "valid") chips.push("计划已验证");
+    else if (model.planning?.plan_completeness?.status === "degraded") chips.push("计划需要补充");
     if (model.planning?.structured_output?.schema_enforced === true) chips.push("计划格式已确认");
+    if (Object.keys(model.context || {}).length) chips.push("分析上下文已建立");
     if (Object.keys(model.evidence || {}).length || Object.keys(model.evidence_registry || {}).length) chips.push("证据已保留");
     if (model.repair_lineage.status === "repaired") chips.push("计划已校正");
     else if (model.repair_lineage.status === "failed") chips.push("计划校正未完成");
@@ -156,7 +167,24 @@
     if (record(compositePlanning) && !record(result.structured_output) && record(compositePlanning.structured_output)) {
       result.structured_output = {...compositePlanning.structured_output};
     }
+    if (record(compositePlanning) && !record(result.plan_completeness) && record(compositePlanning.plan_completeness)) {
+      result.plan_completeness = {...compositePlanning.plan_completeness};
+    }
     return Object.keys(result).length ? result : null;
+  }
+
+  function normalizePlanCompleteness(raw) {
+    if (!record(raw)) return null;
+    const statuses = ["valid", "degraded", "failed", "unknown"];
+    const status = statuses.includes(text(raw.status, 24)) ? text(raw.status, 24) : "unknown";
+    const boundedCount = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(MAX_ITEMS, Number(value))) : 0;
+    return {
+      schema_version: text(raw.schema_version || "spatial-agent.plan-completeness.v1", 96),
+      status,
+      reason_code: text(raw.reason_code, 96),
+      component_count: boundedCount(raw.component_count),
+      materialized_count: boundedCount(raw.materialized_count),
+    };
   }
 
   function normalizeRepairLineage(raw) {

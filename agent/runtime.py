@@ -238,6 +238,35 @@ class AgentRuntime:
         """Return bounded catalog and validator allowlists for HTTP seams."""
         return self._capability_surface.workflow_contract()
 
+    def extract_request_facts(self, request: str) -> Any:
+        """Expose the selected Domain's bounded RequestFacts seam."""
+        return extract_request_facts(self._domain_pack, str(request or ""))
+
+    def discover(self, request: str, request_facts: Any) -> Any:
+        """Expose Domain-owned capability discovery to open Composite planning."""
+        method = getattr(self._domain_pack, "discover", None)
+        if not callable(method):
+            return {
+                "domain_id": self.domain_id,
+                "reason_code": "discover_not_declared",
+            }
+        return method(str(request or ""), request_facts)
+
+    def select_workflow(
+        self,
+        discovery: Any,
+        request_facts: Any,
+        *,
+        workflow: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any]:
+        """Expose Domain-owned workflow selection without Runtime policy."""
+        return resolve_workflow_selection(
+            self._domain_pack,
+            discovery,
+            request_facts,
+            workflow=workflow,
+        )
+
     def runtime_capabilities(self, *, max_files: int = 10) -> Dict[str, Any]:
         """Return generic provider evidence plus optional domain evidence."""
         return self._capability_surface.runtime_capabilities(max_files=max_files)

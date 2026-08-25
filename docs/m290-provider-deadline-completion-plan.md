@@ -31,3 +31,10 @@
 
 - 不增加 repair 次数、不放宽 schema、不新增 provider 特殊字段到 Domain/Runtime。
 - 不为某个区域或固定 Composite 问句增加超时/工具分支。
+
+## 阶段收口结论
+
+- M290 已完成 provider/harness deadline receipt、provider budget 约束、Composite component preview 的领域 session 隔离和 Domain workflow 复用。
+- provider timeout、harness timeout、空组件 success 和非法 TaskPlan 均在 execution run 创建前安全终止；真实模型结果只保留脱敏状态和原因。
+- Docker 精简阶段门禁：M290、M282、M279、M289、M286、M287 合并 **41/41** 通过；真实 Composite 仍保持显式安全失败，不宣称跨域 live 成功。
+- 下一阶段转入 M291，处理“结构合法但语义不完整”以及 capability→workflow→TaskPlan 的完整性契约。

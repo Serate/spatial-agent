@@ -652,6 +652,41 @@ class AgentService:
         """Return the selected Domain's workflow catalog and validator inputs."""
         return self._catalog_application.workflow_contract(planner, backend)
 
+    def extract_request_facts(
+        self,
+        request: str,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Any:
+        """Expose the selected Domain's RequestFacts seam to Composite planning."""
+        return self._runtime(planner, backend).extract_request_facts(request)
+
+    def discover(
+        self,
+        request: str,
+        request_facts: Any,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Any:
+        """Expose Domain-owned capability discovery through the Service boundary."""
+        return self._runtime(planner, backend).discover(request, request_facts)
+
+    def select_workflow(
+        self,
+        discovery: Any,
+        request_facts: Any,
+        *,
+        workflow: Dict[str, Any] = None,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Mapping[str, Any]:
+        """Expose Domain-owned workflow selection through the Service boundary."""
+        return self._runtime(planner, backend).select_workflow(
+            discovery,
+            request_facts,
+            workflow=workflow,
+        )
+
     def domains(self) -> Dict[str, Any]:
         """Return the bounded deployment Domain Registry catalog."""
         return self._catalog_application.domains()

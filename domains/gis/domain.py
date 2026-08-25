@@ -438,7 +438,7 @@ class GisDomainPack:
         selection: Mapping[str, Any] | None = None,
     ) -> Mapping[str, Any] | None:
         """Map only template-backed GIS capabilities to workflows."""
-        del request_facts, selection
+        del selection
         aliases = {
             "constrained_buildability_screening": "constrained_buildability",
         }
@@ -447,7 +447,21 @@ class GisDomainPack:
         )
         if template_id not in self.workflow_template_catalog():
             return None
-        return {"template_id": template_id, "constraints": {}, "evidence": []}
+        source = (
+            request_facts.as_dict()
+            if callable(getattr(request_facts, "as_dict", None))
+            else request_facts
+            if isinstance(request_facts, Mapping)
+            else {}
+        )
+        constraints = dict(source.get("constraints") or {})
+        admin_name = source.get("admin_name")
+        if not admin_name:
+            entities = source.get("entities")
+            admin_name = entities.get("admin_name") if isinstance(entities, Mapping) else None
+        if admin_name:
+            constraints.setdefault("admin_name", str(admin_name)[:120])
+        return {"template_id": template_id, "constraints": constraints, "evidence": []}
 
     def workflow_template_context(
         self,

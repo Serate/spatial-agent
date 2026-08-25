@@ -366,6 +366,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "task_plan_bridge",
         "repair_lineage",
         "structured_output",
+        "plan_completeness",
     }
     result = {key: value[key] for key in allowed if key in value}
     result["schema_version"] = str(
@@ -404,6 +405,26 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
             result.pop("structured_output", None)
         else:
             result["structured_output"] = projected_structured_output
+    if "plan_completeness" in result:
+        completeness = result.get("plan_completeness")
+        if isinstance(completeness, Mapping):
+            result["plan_completeness"] = {
+                "schema_version": str(
+                    completeness.get("schema_version")
+                    or "spatial-agent.plan-completeness.v1"
+                )[:96],
+                "status": str(completeness.get("status") or "unknown")[:24],
+                "reason_code": str(completeness.get("reason_code") or "")[:96]
+                or None,
+                "component_count": max(
+                    0, min(8, int(completeness.get("component_count") or 0))
+                ),
+                "materialized_count": max(
+                    0, min(8, int(completeness.get("materialized_count") or 0))
+                ),
+            }
+        else:
+            result.pop("plan_completeness", None)
     if "repair_lineage" in result:
         lineage = result.get("repair_lineage")
         if isinstance(lineage, Mapping):
