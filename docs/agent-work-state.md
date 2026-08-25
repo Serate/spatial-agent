@@ -17,12 +17,12 @@
 
 ## 当前阶段
 
-- 阶段：M278 Composite 可恢复生命周期。
-- 状态：进行中；M278-C HTTP 与 M278-D 重启接管已完成，进入阶段级 Docker 门禁。
+- 阶段：M279 自然语言 Composite Planner。
+- 状态：M279-A/B/C/D/E 已完成，文档已收口，准备提交推送；M278 已提交并推送。
 - 阶段规划：
-  - [`docs/m278-composite-lifecycle-capability-map.md`](m278-composite-lifecycle-capability-map.md)
-  - [`docs/m278-composite-lifecycle-spec.md`](m278-composite-lifecycle-spec.md)
-  - [`docs/m278-composite-lifecycle-plan.md`](m278-composite-lifecycle-plan.md)
+  - [`docs/m279-composite-planner-capability-map.md`](m279-composite-planner-capability-map.md)
+  - [`docs/m279-composite-planner-spec.md`](m279-composite-planner-spec.md)
+  - [`docs/m279-composite-planner-plan.md`](m279-composite-planner-plan.md)
   - [`tasks/plan.md`](../tasks/plan.md)
   - [`tasks/todo.md`](../tasks/todo.md)
 
@@ -80,35 +80,88 @@
 - 验证：Docker `test_restart_claims_orphan_once_and_preserves_composite_result` 通过。
 - 当前阻塞：无。
 
+### M279-A Catalog projection（待开始）
+
+- 目标：把已登记 Domain 的 capability/workflow/result/data readiness 投影为 Planner 可消费的领域中立上下文。
+- 待读/待修改文件：
+  - `agent/domain_runtime_host.py`
+  - `agent/application/catalog.py`
+  - `agent/domain_catalog.py`
+  - `agent/application/composite_planning.py`（新增）
+  - `tests/test_m279_composite_planner.py`（新增）
+- 验证：先用 fake Domain/catalog 验证 allowlist、字段预算和敏感字段过滤；暂不调用真实模型。
+- 当前阻塞：无。
+
+### M279-A Catalog projection（已完成）
+
+- 改动：新增 `agent/application/composite_planning.py` 的 `CompositeCapabilityProjector`；从 `DomainRuntimeHost`/Service 公开 seam 投影跨 Domain capability、workflow、result、dataset readiness 和 bounded index。
+- 安全边界：只保留 allowlisted 字段、工具名、结果类型、请求事实声明和 workflow 步骤身份；过滤 source path、私密 payload 和 workflow args；限制 Domain/能力/workflow/context 大小。
+- 验证：Docker `tests.test_m279_composite_planner` **3/3** 通过，覆盖跨 Domain 合并、readiness、字段过滤、未知 Domain 拒绝和预算。
+- 结果：Planner 可消费的上下文仍与执行/Domain 内部实现分离；不创建执行 run、不调用模型。
+- 下一步：M279-B 定义 Rule/LLM 共同的 bounded Composite plan contract。
+
+### M279-B Rule/LLM Composite Planner contract（已完成）
+
+- 改动：新增 `agent/composite_planner.py`，定义 `composite_plan_schema()`、Rule/LLM planner adapter 和 canonical candidate normalization；成功输出转换为现有 `spatial-agent.composite-request.v1`，保留 capability metadata 只作为规划投影。
+- 安全边界：统一校验 outcome、组件字段、依赖和能力 allowlist；provider/规则异常只返回有界错误码，不保存或回传模型原文。
+- 验证：Docker `tests.test_m279_composite_planner` **6/6** 通过，覆盖 Rule/LLM fingerprint 一致、澄清、非法字段、provider failure、上下文能力校验。
+- 结果：Planner 只产生候选计划，不执行组件；合法计划可直接进入下一步 Application。
+- 下一步：M279-C 实现 resolve → plan → validate/repair → clarify/submit。
+
+### M279-C Planning Application（已完成）
+
+- 改动：`CompositePlanningApplication` 实现 resolve catalog、plan、canonical request 校验、有限 repair lineage、clarification/rejection 和 M278 async/sync submit。
+- 验证：Docker M279 定向测试覆盖 planning-only、不创建 run 的澄清、合法 canonical submit；与 M278 lifecycle 联合通过。
+- 结果：Planner 与 Composite lifecycle 仍是两个可替换 seam，非法候选不会进入 coordinator。
+- 下一步：M279-D 接入 HTTPApplication 与 FastAPI/stdlib `/composite-plans`。
+
+### M279-D Shared HTTP planning command（已完成）
+
+- 改动：`HTTPApplication` 增加 `composite_plan` 语义命令；FastAPI 与 stdlib 增加 `/composite-plans` URL 胶水；composition root 按 `planner=openai` 懒加载真实 OpenAI-compatible Planner，规则模式明确澄清不猜测组合。
+- 验证：Docker M279 **10/10**，覆盖 semantic command、FastAPI/stdlib 路由一致性、M278 回归；compileall、architecture strict 通过。生产实际规则请求返回 `NEEDS_CLARIFICATION` 且不创建 run。
+- 当前阻塞：无。
+- 下一步：阶段级 CI/stage、真实容器 health 和显式一次真实模型 Composite planning 验收；默认 CI 不联网。
+
+### M279-E 阶段验收与交付（已完成）
+
+- 验证：Docker M279 + M278/M277/M256/M275/M276 **33/33**；CI/stage、compileall、architecture strict 通过；重建生产容器 `/health/ready` 为 `ready`。
+- 实测：规则 `/composite-plans` 返回 `NEEDS_CLARIFICATION` 且无 `run_id`；真实中转模型规划请求 HTTP 200，但模型输出 `plan_outcome_invalid`，系统安全返回 `REJECTED`，未创建 execution run。
+- 结果：provider 可达与 Planner contract 失败已分层；未把模型异常伪装成成功，也未触发 GIS/Economic 执行。
+- 当前阻塞：无。真实模型的输出契约兼容性留作后续 provider/Planner 优化，不阻塞离线阶段交付。
+
 ## 已完成记录
 
 - 上下文恢复机制已完成：新增本快照、更新 `resume_context.ps1` 默认读取路径和历史开关，并同步恢复文档与中文问题日志；本地脚本输出验证通过，默认不加载历史文件。
 - M277 已完成并推送：`e0104b8 feat: expose composite runs over http`。
 - M277 Docker 定向 16/16、compileall、architecture strict、CI/stage、生产 `/health/ready` 通过。
-- M278 能力图、Spec、Plan 已创建；尚未提交，属于当前工作树变更。
-- M278-C/D 已完成：Docker 定向生命周期 + HTTP **7/7**，覆盖 FastAPI/stdlib 路由与 SQLite 重启接管。
+- M278 能力图、Spec、Plan 已创建并推送；提交为 `b49630a`。
+- M278-C/D 已完成：Docker 定向生命周期 + HTTP **7/7**，覆盖 FastAPI/stdlib 路由与 SQLite 重启接管；阶段级联合 **23/23**、compileall、architecture strict、CI/stage、生产 health 和真实 Docker async/evidence 验收通过。
+- M279 Spec/Plan/能力图已创建；下一步实现 Catalog projection，不读取无关历史或全量 Domain 源码。
+- M279-A/B/C/D/E 已完成：Docker 定向 **10/10**、阶段级联合 **33/33**；新增 projector、Rule/LLM contract、Planning Application 与 `/composite-plans` 跨入口 semantic route；真实中转规划失败按 contract 结构化拒绝。
 - 已安装 GitHub `sivaprasadreddy/sdd-skills` 的 `sdd-feature` 技能到 Codex 技能目录；该安装不修改项目仓库。
 
 ## 当前工作树变更
 
+- `docs/agent-project-direction.md`
+- `docs/agent-work-state.md`
+- `docs/m279-composite-planner-capability-map.md`
+- `docs/m279-composite-planner-spec.md`
+- `docs/m279-composite-planner-plan.md`
+- `agent/application/composite_planning.py`
+- `tests/test_m279_composite_planner.py`
+- `agent/composite_planner.py`
+- `agent/application/composite_planning.py`
+- `agent/application/http.py`
+- `production_api.py`
+- `serve_api.py`
+- `tests/test_m279_composite_planner.py`
+- `docs/agent-project-direction.md`
+- `docs/agent-development-issues.md`
+- `docs/agent-context-resume.md`
+- `docs/milestones.md`
 - `tasks/plan.md`
 - `tasks/todo.md`
-- `docs/m278-composite-lifecycle-capability-map.md`
-- `docs/m278-composite-lifecycle-spec.md`
-- `docs/m278-composite-lifecycle-plan.md`
-- `tests/test_m278_composite_lifecycle.py`
-- `tests/test_m278_composite_http.py`
-- `agent/models.py`
-- `agent/sqlite_store.py`
-- `agent/application/async_runs.py`
-- `agent/application/composite.py`
-- `agent/application/composite_runs.py`
-- `docs/agent-work-state.md`
-- `scripts/resume_context.ps1`
-- `docs/task-resume.md`
-- `docs/agent-context-resume.md`
-- `docs/agent-development-issues.md`
-- 本快照机制已提交；M278 规划、实现和测试仍未完成。
+- M278 源码、测试和历史文档已提交；当前只保留 M279 规划与快照改动。
 
 ## 最近任务记录
 
@@ -124,7 +177,14 @@
 - 改动：补齐 FastAPI/stdlib Composite async/detail/observability/evidence 路由验收；增加失效 owner 的 SQLite orphan job 重启接管测试。
 - 验证：Docker `python -m unittest tests.test_m278_composite_lifecycle tests.test_m278_composite_http -v` **7/7** 通过。
 - 结果：跨入口语义一致；孤儿任务只被新实例 claim 一次，canonical Composite Result 可查询。
-- 下一步：运行 M278 阶段级 Docker 集成、compileall、architecture strict、CI/stage 和生产 health。
+- 下一步：M278 已完成并推送；开始 M279-A Catalog projection。
+
+### M278 阶段收口（已完成，已提交推送）
+
+- 改动：Composite canonical envelope、可恢复 run application、HTTP async/detail/observability/evidence 语义命令、FastAPI/stdlib 路由、artifact/SQLite/restart 测试和中文记录。
+- 验证：M278 + M277/M256/M275/M276 **23/23**；compileall、architecture strict、CI/stage、生产 `/health/ready` 200；真实 Docker async run 的 detail 为 `composite_result`，artifact/evidence 可用。
+- 结果：提交 `b49630a feat: add recoverable composite lifecycle` 已推送 `origin/main`。
+- 下一步：M279-A 建立 Planner-facing cross-Domain catalog projection。
 
 ## 本阶段验证约定
 
@@ -136,6 +196,6 @@
 ## 恢复后的最小动作
 
 1. 读取本文件。
-2. 只读取上面列出的 M278 Spec/Plan 和当前任务待修改文件。
-3. 运行 M278 阶段级 Docker 集成门禁；若通过则更新里程碑/问题日志并提交推送。
+2. 只读取上面列出的 M279 Spec/Plan 和 M279-E 待修改文件。
+3. M279 已完成；下一次恢复先根据项目全局规划 M280，不读取 M279 之外的历史源码。
 4. 完成一个子任务后立即更新本文件，再更新 `tasks/todo.md`。

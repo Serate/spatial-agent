@@ -1,7 +1,6 @@
-- [x] 完成 M278 Composite Envelope canonical result persistence
-- [x] 完成 M278 CompositeRunApplication 与 AsyncApplication 接入
-- [x] 补充 M278 HTTP async/detail/observability/evidence
-- [x] Docker 验证 Composite SQLite/artifact/restart recovery 定向测试
-- [x] Docker 阶段级集成、compileall、architecture strict、CI/stage 与生产 health
-- [x] 更新中文文档、提交、推送并全局重规划
+- [x] M279-A 完成 Planner-facing cross-Domain catalog projection
+- [x] M279-B 建立 Rule/LLM Composite Planner bounded contract
+- [x] M279-C 实现 resolve → plan → validate/repair → clarify/submit Application
+- [x] M279-D 接入 HTTP/CLI semantic command，保持 FastAPI/stdlib 一致
+- [x] M279-E Docker 定向/阶段级验收与中文记录、提交推送
 - [x] 每完成一个子任务，更新 `docs/agent-work-state.md` 的状态、文件、验证、阻塞和下一步

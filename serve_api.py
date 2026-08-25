@@ -25,6 +25,13 @@ from agent.service import AgentService
 from agent.application.http import HTTPApplication
 from agent.application.composite import CompositeApplication
 from agent.application.composite_runs import CompositeRunApplication
+from agent.application.composite_planning import (
+    CompositeCapabilityProjector,
+    CompositePlanningApplication,
+)
+from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
+from agent.llm_planner import OpenAIPlannerClient
+from agent.openai_config import load_openai_config
 from agent.web_assets import WEB_ASSETS, console_asset, console_index, console_root
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
@@ -48,6 +55,30 @@ composite_application = CompositeRunApplication(
 )
 
 
+def _rule_composite_candidate(request, _context):
+    return {
+        "outcome": "needs_clarification",
+        "goal": "",
+        "message": "规则规划器不会猜测跨领域组合；请切换真实模型或明确提供组合能力。",
+        "components": [],
+    }
+
+
+def _composite_planner_factory(planner_name, _backend):
+    if str(planner_name).lower() == "openai":
+        return LLMCompositePlanner(OpenAIPlannerClient(**load_openai_config()))
+    return RuleCompositePlanner(_rule_composite_candidate)
+
+
+composite_planning_application = CompositePlanningApplication(
+    host=domain_host,
+    projector=CompositeCapabilityProjector(domain_host),
+    planner=RuleCompositePlanner(_rule_composite_candidate),
+    composite_runs=composite_application,
+    planner_factory=_composite_planner_factory,
+)
+
+
 def runtime_capability_snapshot(max_files: int = 10) -> dict:
     """Compatibility function retained for isolated runtime snapshot tests."""
     return _legacy_runtime_capability_snapshot(max_files=max_files)
@@ -66,6 +97,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             self.service,
             routing=self.routing,
             composite=composite_application,
+            composite_planning=composite_planning_application,
             action_handler=AgentService.estimate_area_handler,
             on_session_clear=lambda session_id: self.routing.forget_session(
                 session_id, keep_binding=True
@@ -440,6 +472,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_composite_async_run = (
             selection is None and parsed.path == "/composite-runs/async"
         )
+        is_composite_plan = selection is None and parsed.path == "/composite-plans"
         is_decision_resolve = (
             parsed.path.startswith("/decisions/")
             and parsed.path.endswith("/resolve")
@@ -484,7 +517,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_composite_run and not is_composite_async_run and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and not is_domain_select and not is_auto_run and routing_override_id is None and routing_clear_session_id is None and workflow_action is None:
+        if parsed.path != "/runs" and not is_composite_run and not is_composite_async_run and not is_composite_plan and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and not is_domain_select and not is_auto_run and routing_override_id is None and routing_clear_session_id is None and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
@@ -519,6 +552,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 result = self._http_application().execute(
                     "composite_run_async", payload
                 )
+            elif is_composite_plan:
+                result = self._http_application().execute("composite_plan", payload)
             elif is_composite_run:
                 result = self._http_application().execute("composite_run", payload)
             elif is_decision_resolve:

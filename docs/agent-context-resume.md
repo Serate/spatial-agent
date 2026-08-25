@@ -129,3 +129,10 @@
 - `HTTPApplication` 增加 Composite async submit、detail、observability、evidence 语义命令；FastAPI 与 stdlib 入口只做 URL/状态码胶水。新增 M278 Spec/Plan/能力图与精简测试。
 - Docker M278 生命周期/HTTP 与 M277/M256/M275/M276 联合 **23/23**，compileall、architecture strict、CI/stage 通过；重建生产容器后 `/health/ready` 返回 200，真实 async/detail/observability/evidence 返回 `COMPLETED`、`composite_result`、artifact/evidence 可用。
 - 已验证失效 owner 的 SQLite orphan job 由新实例 claim 一次，`recovery_count=1`，组件只执行一次，canonical result 可恢复。下一阶段从全局目标规划 LLM 自动 Composite DAG 与前端动态 Composite View；必须复用本阶段生命周期边界。
+
+## M279：自然语言 Composite Planner（已完成）
+
+- 新增 `agent/application/composite_planning.py` 的 `CompositeCapabilityProjector` 与 `CompositePlanningApplication`，以及 `agent/composite_planner.py` 的 Rule/LLM bounded contract；规划经过能力 allowlist、Composite request normalize 和 fingerprint 校验后才进入 M278。
+- `HTTPApplication` 增加 `composite_plan`；FastAPI/stdlib 增加 `/composite-plans`。规则模式默认澄清，不猜测跨域组件；真实模型模式只在显式 `planner=openai` 时加载。
+- Docker M279 + M278/M277/M256/M275/M276 **33/33**，CI/stage、compileall、architecture strict、生产 health 通过；真实中转规划返回 HTTP 200 但 `REJECTED/plan_outcome_invalid`，未创建 run，已记录到中文问题日志。
+- 下一阶段全局重规划：优化真实 Planner/provider schema 兼容，验证合法跨域 DAG 的真实 GIS/Economic 执行、async/restart/evidence 和前端动态 View；保持默认测试离线精简。

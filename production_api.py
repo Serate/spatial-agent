@@ -28,6 +28,13 @@ from agent.service import AgentService
 from agent.application.http import HTTPApplication
 from agent.application.composite import CompositeApplication
 from agent.application.composite_runs import CompositeRunApplication
+from agent.application.composite_planning import (
+    CompositeCapabilityProjector,
+    CompositePlanningApplication,
+)
+from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
+from agent.llm_planner import OpenAIPlannerClient
+from agent.openai_config import load_openai_config
 from agent.application.http_transport import (
     error_projection,
     load_artifact_json,
@@ -53,6 +60,31 @@ domain_routing = DomainRoutingApplication(
 )
 composite_application = CompositeRunApplication(
     coordinator=CompositeApplication(host=host)
+)
+
+
+def _rule_composite_candidate(request, _context):
+    """Offline fallback: ask for explicit planner/model selection."""
+    return {
+        "outcome": "needs_clarification",
+        "goal": "",
+        "message": "规则规划器不会猜测跨领域组合；请切换真实模型或明确提供组合能力。",
+        "components": [],
+    }
+
+
+def _composite_planner_factory(planner_name, _backend):
+    if str(planner_name).lower() == "openai":
+        return LLMCompositePlanner(OpenAIPlannerClient(**load_openai_config()))
+    return RuleCompositePlanner(_rule_composite_candidate)
+
+
+composite_planning_application = CompositePlanningApplication(
+    host=host,
+    projector=CompositeCapabilityProjector(host),
+    planner=RuleCompositePlanner(_rule_composite_candidate),
+    composite_runs=composite_application,
+    planner_factory=_composite_planner_factory,
 )
 
 
@@ -127,6 +159,7 @@ def _http_application(target_service: AgentService = None) -> HTTPApplication:
         target_service or service,
         routing=domain_routing,
         composite=composite_application,
+        composite_planning=composite_planning_application,
         action_handler=AgentService.estimate_area_handler,
         on_session_clear=lambda session_id: domain_routing.forget_session(
             session_id, keep_binding=True
@@ -313,6 +346,14 @@ def run(payload: Dict[str, Any]):
 def composite_run(payload: Dict[str, Any]):
     try:
         return _http_application().execute("composite_run", payload)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/composite-plans")
+def composite_plan(payload: Dict[str, Any]):
+    try:
+        return _http_application().execute("composite_plan", payload)
     except Exception as exc:
         _raise_for(exc)
 

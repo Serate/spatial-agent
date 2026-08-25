@@ -879,3 +879,12 @@
 - **修复**：新增 `CompositeRunApplication`，注入既有 `AsyncApplication`，使用独立 `composite` scope 保存 canonical Result；FastAPI/stdlib 都调用同一 HTTPApplication。新增 artifact-only、幂等和失效 owner 重启接管测试。
 - **验证**：Docker M278 生命周期/HTTP 与 M277/M256/M275/M276 联合 **23/23**；compileall、architecture strict、CI/stage、生产 `/health/ready` 通过；真实 Docker async/detail/observability/evidence 返回 `COMPLETED`、`composite_result`、artifact/evidence 可用。
 - **预防**：后续 LLM Composite Planner、前端动态 View 和跨领域 live 验收都必须消费 M278 的 request/result/evidence/lifecycle 边界，不在 transport、Domain Pack 或前端复制组件循环。
+
+## M279 中转模型可达但 Composite Planner 输出契约不兼容
+
+- **现象**：真实中转 `/composite-plans` 请求返回 HTTP 200，但 Planner 结果为结构化 `REJECTED/plan_outcome_invalid`，没有组件和 `run_id`；规则模式则按设计返回 `NEEDS_CLARIFICATION`。
+- **根因**：provider 可达、JSON 请求成功，不等于模型遵守 Composite Planner 的 `outcome`/组件 schema。不能把 provider READY 或 HTTP 200 当作合法 DAG 生成成功。
+- **诊断**：只检查 `status`、`planner_source`、`error_code`、组件数量和是否创建 run；不读取或输出 prompt、响应原文、密钥、请求头或私有路径。用 Rule/fake/LLM 三条 seam 分层对照。
+- **修复**：M279 在本地对模型输出执行 schema/allowlist/Composite request normalize；非法 outcome 在执行前拒绝，保留有限错误码；HTTP 仍返回安全结构化结果，不创建 Composite execution run。
+- **验证**：真实中转 planning probe HTTP 200、`REJECTED/plan_outcome_invalid`、无 run；Docker M279/M278/M277/M256/M275/M276 **33/33**，CI/stage、compileall、architecture strict 和生产 health 通过。
+- **预防**：真实验收继续按 provider probe → Planner contract → canonical DAG → execution 分层；后续只在 Planner/provider adapter 层优化 schema 兼容，不在 Runtime、ToolRegistry、GIS 算法或 transport 中绕过校验。

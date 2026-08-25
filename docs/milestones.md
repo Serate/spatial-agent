@@ -4947,3 +4947,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `HTTPApplication` 新增 Composite async submit、detail、observability、evidence 四个语义命令；FastAPI 与 stdlib `/composite-runs` 路由共享同一 semantic Application，不复制生命周期或组件循环。
 - Docker M278 生命周期/HTTP 与 M277/M256/M275/M276 联合 **23/23**，compileall、architecture strict、CI/stage 和生产 `/health/ready` 通过；重建后的生产容器实际 async 请求完成，detail 为 `composite_result`，artifact/evidence 可读取。
 - 本阶段 Spec/Plan/能力图、测试和中文工作记录已收口，代码待提交推送。下一阶段全局重规划：LLM 只从能力目录生成经校验的 Composite DAG，并由通用前端动态消费 Composite View；继续保持默认测试离线精简。
+
+## M279：自然语言 Composite Planner（已完成）
+
+- 新增 `CompositeCapabilityProjector`：从 Domain Host/Service 公开 catalog 投影跨 Domain capability、workflow、result 和 data readiness，过滤私有字段并限制上下文预算。
+- 新增 `agent/composite_planner.py`：Rule/LLM 共享 `composite_plan_schema`，通过本地字段、能力 allowlist、Composite request normalize 和 fingerprint 校验；provider 异常、非法 outcome、缺少信息均结构化澄清/拒绝。
+- 新增 `CompositePlanningApplication`：显式编排 resolve → plan → validate/repair → clarify → submit；合法计划接入 M278，澄清/拒绝不创建 execution run。
+- `HTTPApplication` 增加 `composite_plan` 语义命令；FastAPI/stdlib 暴露 `/composite-plans`，默认规则模式不猜测跨域组合，`planner=openai` 懒加载真实 OpenAI-compatible Planner。
+- Docker M279 + M278/M277/M256/M275/M276 **33/33**，CI/stage、compileall、architecture strict、生产 health 通过；真实中转 planning probe HTTP 200 但输出 `plan_outcome_invalid`，按设计安全拒绝且无 run_id。
+- 本阶段代码与中文记录待提交推送；下一阶段从全局目标规划 Planner schema 兼容优化、真实跨域执行验收和前端动态 Composite View，不复制领域专用流程。

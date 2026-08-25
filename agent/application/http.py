@@ -40,6 +40,7 @@ class HTTPApplication:
         *,
         routing: Any = None,
         composite: Any = None,
+        composite_planning: Any = None,
         action_handler: Optional[Callable[[Dict[str, Any]], Any]] = None,
         on_session_clear: Optional[Callable[[str], None]] = None,
         on_session_delete: Optional[Callable[[str], None]] = None,
@@ -47,6 +48,7 @@ class HTTPApplication:
         self._service = service
         self._routing = routing
         self._composite = composite
+        self._composite_planning = composite_planning
         self._action_handler = action_handler
         self._on_session_clear = on_session_clear
         self._on_session_delete = on_session_delete
@@ -92,6 +94,27 @@ class HTTPApplication:
                 session_id=str(body.get("session_id") or "default")[:120],
                 idempotency_key=body.get("idempotency_key"),
                 export_artifact=bool(body.get("export_artifact", False)),
+            )
+        if action == "composite_plan":
+            if self._composite_planning is None:
+                raise RuntimeError("composite planning application is unavailable")
+            execute = bool(body.get("execute", False))
+            if execute:
+                return self._composite_planning.submit(
+                    str(body.get("request") or ""),
+                    session_id=str(body.get("session_id") or "default")[:120],
+                    idempotency_key=body.get("idempotency_key"),
+                    planner_name=str(body.get("planner") or "rule")[:32],
+                    backend=str(body.get("backend") or "memory")[:32],
+                    domain_ids=body.get("domain_ids"),
+                    asynchronous=bool(body.get("async", True)),
+                    export_artifact=bool(body.get("export_artifact", False)),
+                )
+            return self._composite_planning.prepare(
+                str(body.get("request") or ""),
+                planner_name=str(body.get("planner") or "rule")[:32],
+                backend=str(body.get("backend") or "memory")[:32],
+                domain_ids=body.get("domain_ids"),
             )
         if action == "preview":
             return service.preview(**preview_kwargs(body))
