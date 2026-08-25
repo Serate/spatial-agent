@@ -4975,3 +4975,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Console renderer registry 新增 `projectionToPanels()`，前端按 Projection 的 `views[]` 动态适配 generic/map/chart 等 renderer；答案和对话消息优先消费结构化 answer，没有 GIS/Economic/区域/工具专用判断。
 - Docker M281/M278/M279 定向回归 **19/19**；compileall、architecture strict、JS syntax、renderer smoke、地图 browser smoke 和 Composite Projection browser smoke 通过。默认 overview 旧问句进入澄清，已按当前输入契约记录。
 - 已同步 Spec/Plan/能力图、中文问题日志、精简恢复账本和工作快照；未写入密钥、模型原文、私有路径或真实原始数据。下一阶段从全局七维度规划 M282，继续提升开放式多领域请求的 Agent 体验与可靠闭环。
+
+## M282：开放式请求解析与受控 Composite Planner（已完成）
+
+- 新增 `agent/composite_request_context.py`，以 `spatial-agent.composite-request-context.v2` 聚合多个 Domain 的 RequestFacts、能力发现、目录、workflow、数据就绪和有界澄清；生成稳定 request fingerprint，过滤敏感字段并执行 JSON 字节预算。
+- `CompositePlanningApplication` 复用同一 context builder；Rule/LLM Planner 消费同一上下文并经过 canonical plan、Domain/Capability allowlist、context schema 和有限 repair 门禁。缺失事实、发现失败、候选全不可用、未知能力和 provider 非法输出均在执行前返回结构化状态。
+- 新增 `tasks/task-progress.md` 作为短任务进度账本；恢复脚本默认只读取工作快照和账本尾部，详细任务状态、历史恢复卡、问题日志、milestones、全量测试和模型原文按需读取；该规则已纳入总体 Goal 文档。
+- Docker M282/M279/M281 定向 **24/24**，M278 Composite 生命周期/HTTP **7/7**；compileall、architecture strict、恢复脚本最小读取验证和生产 `/health/ready` HTTP 200 通过。
+- 显式真实模型短探测已到达 provider，但返回 `REJECTED/plan_response_field_invalid`；系统未创建 run，未输出或保存模型原文。该结果证明安全门禁生效，不宣称真实模型 Composite 计划已经稳定成功。
+- 全局重规划：下一阶段从产品体验、Planner 自主性、能力目录/数据就绪、结果/证据、跨入口恢复、部署和分层测试七个维度盘点；优先建立开放式请求的真实成功/澄清/拒绝矩阵，再决定是否需要扩展 provider normalizer 或能力排序，不为单一专题增加硬编码链路。

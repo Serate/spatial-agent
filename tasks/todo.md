@@ -8,8 +8,8 @@
 - [x] M280-C 离线 replay 与真实 planning probe
 - [x] M280-D 真实 GIS + Economic sync/async/restart 验收
 - [x] M280-E 文档、提交推送与全局重规划
-- [x] 建立 `tasks/task-state.md` 作为进行中/最近完成子任务账本
-- [ ] 每完成一个子任务，先更新 `tasks/task-state.md`，再更新 `docs/agent-work-state.md`
+- [x] 建立 `tasks/task-progress.md` 作为恢复用的进行中/最近完成子任务账本
+- [ ] 每完成一个子任务，先更新 `tasks/task-progress.md`，再同步 `tasks/task-state.md` 和 `docs/agent-work-state.md`
 
 ## M281 动态 Composite 结果体验（收口中）
 
@@ -18,3 +18,12 @@
 - [x] M281-C 简洁答案与结构化结果一致性
 - [x] M281-D CLI/HTTP/前端/artifact 跨入口验收
 - [x] M281-E Docker/browser smoke、文档、提交推送与全局重规划
+
+## M282 开放式请求解析与受控 Composite Planner（进行中）
+
+- [x] M282-A 完成能力图、Spec、Plan
+- [x] M282-B Context contract 与 RequestFacts 聚合
+- [x] M282-C Capability matching、缺失事实与结构化澄清
+- [x] M282-D Planner gateway 与跨入口验收
+- [x] M282-E Docker/真实验收、文档与阶段收口
+- [ ] M282-E 提交推送与全局重规划

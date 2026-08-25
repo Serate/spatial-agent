@@ -10,7 +10,7 @@
 
 - 只读取当前工作快照、对应阶段规划、最近进行中的任务和明确列出的待修改文件。
 - 完整历史、问题日志、milestones、归档、全量测试和模型响应必须按需读取，不能作为默认恢复输入。
-- 每个子任务的状态、文件、验证、阻塞和下一步以 `tasks/task-state.md` 为准；`docs/agent-work-state.md` 只保留当前快照和恢复入口；阶段完成后再归档到本文件。
+- 每个子任务的状态、文件、验证、阻塞和下一步先记录到 `tasks/task-progress.md`；`tasks/task-state.md` 保留详细兼容状态；`docs/agent-work-state.md` 只保留当前快照和恢复入口；阶段完成后再归档到本文件。
 
 ## Agent 能力与日常体验补充约束
 
@@ -19,6 +19,13 @@
 - 数据探索必须保持受控：模型只能在已登记、已授权、通过健康检查的数据目录中选择数据；数据目录之外的搜索、下载、字段推断和数据修复应通过显式 Domain 能力扩展，不由模型自由执行。
 - LLM 可以组合已注册且经过 schema/权限校验的通用工具；规则 Planner 的固定模板不应被误认为 Runtime 的能力边界。新增专题优先扩展目录、适配器和通用算子，不复制 Runtime 生命周期链路。
 - 产品验收同时检查 Agent Runtime 证据和 query-engine 体验：用户应能看到简洁、可读的过程进度与结论，详细 trace、repair、evidence 保持可展开；不得输出模型内部思维链。
+
+## M282：开放式请求解析与受控 Composite Planner（已完成）
+
+- 新增 `spatial-agent.composite-request-context.v2`，有界聚合多 Domain RequestFacts、能力发现、目录、workflow、数据就绪和结构化澄清；未知能力、发现失败、候选不可用和敏感字段均 fail closed。
+- Rule/LLM Planner、HTTP semantic command 和 Composite 生命周期共享 context、canonical plan、allowlist、clarification 和 evidence fingerprint；新增 `tasks/task-progress.md` 作为恢复用的短任务账本，恢复脚本默认只读取快照和账本尾部。
+- Docker M282/M279/M281 定向 **24/24**、M278 生命周期/HTTP **7/7**、compileall、architecture strict、生产 readiness 200 通过；真实模型短探测到达 provider 但因非法字段返回结构化拒绝，未创建 run，未保存模型原文。
+- 版本交付后从产品、架构、数据、模型、部署、体验、测试七个维度全局规划下一阶段；本卡仅作历史摘要，恢复仍走 `scripts/resume_context.ps1`。
 
 ## 当前状态
 

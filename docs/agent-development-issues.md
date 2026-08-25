@@ -914,3 +914,17 @@
 - **修复**：本阶段新增 Composite Projection browser smoke，验证 `projectionToPanels()`、答案摘要、generic/visual 两个 surface 和地图要素；保留默认 overview smoke 的澄清结果作为输入契约提示。
 - **验证**：Docker M281/M278/M279 **19/19**；Composite Projection browser smoke、地图 browser smoke、JS syntax、compileall、architecture strict 通过。
 - **预防**：browser smoke 共享 CDP 页面时采用串行队列；测试问句与当前 Spec 的必填事实保持同步，并区分澄清、失败、加载和渲染错误四种状态。
+## 上下文恢复仍需要独立的任务进度账本
+
+- **现象**：已有工作快照和 `tasks/task-state.md` 后，恢复入口仍容易把当前状态、最近完成任务和历史阶段记录混在一起；随着阶段增加，恢复时读取内容变长，当前要改文件和下一步不够突出。
+- **根因**：`tasks/task-state.md` 同时承担详细状态与恢复摘要，`tasks/todo.md` 又只保存阶段清单，没有一个只面向“进行中/最近完成子任务”的短账本。
+- **诊断**：恢复时只检查 `docs/agent-work-state.md`、任务进度账本最近记录、当前 Spec/Plan 和账本列出的源码/测试文件；不要默认打开完整恢复卡、问题日志、milestones、详细状态、全量测试或模型响应。
+- **修复**：新增中文 `tasks/task-progress.md`，规定每个子任务开始、完成或暂停时记录目标、文件、验证、阻塞和下一步；`scripts/resume_context.ps1` 默认只输出快照和该账本尾部，详细 `tasks/task-state.md` 改为兼容性按需读取。总体 Goal、`agent-work-state.md`、`task-resume.md` 和恢复卡均同步该规则。
+- **预防**：恢复代理先读快照和最近进度，再按指针读取对应规划与待修改文件；阶段收口时才把稳定结论归档到历史文档。账本不得写入密钥、prompt、模型原文、私有路径或完整原始数据。
+## M282 真实模型已到达但 v2 Composite Planner 输出仍需 fail closed
+
+- **现象**：Docker 生产容器的真实模型短探测返回 HTTP 200，已生成 `spatial-agent.composite-request-context.v2`；但 Planner 结果为 `REJECTED/plan_response_field_invalid`，0 个组件且没有 `run_id`。
+- **根因**：provider 可达和上下文生成成功，不等于模型遵守当前 Composite Planner 的顶层字段与 allowlist。真实模型可能输出未声明字段或包装结构，不能把 HTTP 200 当作合法计划。
+- **诊断**：只记录 HTTP 状态、Planner status、有限 error code、context schema、context fingerprint 和组件数；不要读取或输出 prompt、响应原文、请求头、密钥或私有路径。分别验证 context、Planner contract 和 execution gate。
+- **修复**：保留 v2 context 在 provider 前的 schema/预算校验；Planner 输出继续经过 canonical normalize、能力目录 allowlist 和字段校验；非法输出在创建 Composite run 前安全拒绝。
+- **预防**：真实模型验收采用 provider → context → plan schema → canonical DAG → execution 分层；兼容中转格式只能通过有界 normalizer 增加，并用 fake/replay 回归，不能为一次 live 请求放宽未知字段。

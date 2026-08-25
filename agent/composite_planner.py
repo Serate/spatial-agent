@@ -60,6 +60,10 @@ _COMPONENT_FIELDS = {
     "required",
     "workflow",
 }
+_CONTEXT_SCHEMAS = {
+    "spatial-agent.composite-planner-context.v1",
+    "spatial-agent.composite-request-context.v2",
+}
 
 
 class CompositePlannerError(ValueError):
@@ -459,6 +463,12 @@ def _validate_context_capabilities(
 def _bounded_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
+    schema_version = str(value.get("schema_version") or "").strip()
+    if schema_version and schema_version not in _CONTEXT_SCHEMAS:
+        raise CompositePlannerError(
+            "planner context schema is unsupported",
+            code="planner_context_schema_invalid",
+        )
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True)
     if len(encoded.encode("utf-8")) > 64_000:
         raise CompositePlannerError(

@@ -13,6 +13,10 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agent.composite_contract import normalize_composite_request
+from agent.composite_request_context import (
+    CompositeRequestContextBuilder,
+    CompositeRequestContextError,
+)
 from agent.composite_planner import CompositePlannerError
 
 
@@ -208,6 +212,7 @@ class CompositePlanningApplication:
         repair_planner: Any = None,
         max_repairs: int = 1,
         planner_factory: Any = None,
+        context_builder: Any = None,
     ) -> None:
         if host is None or projector is None or planner is None or composite_runs is None:
             raise ValueError("host, projector, planner and composite_runs are required")
@@ -220,6 +225,12 @@ class CompositePlanningApplication:
         self._repair_planner = repair_planner
         self._composite_runs = composite_runs
         self._max_repairs = max(0, min(1, int(max_repairs)))
+        self._context_builder = context_builder or CompositeRequestContextBuilder(
+            host=host,
+            catalog_projector=projector,
+        )
+        if not callable(getattr(self._context_builder, "build", None)):
+            raise ValueError("context_builder must expose build()")
 
     def prepare(
         self,
@@ -237,11 +248,17 @@ class CompositePlanningApplication:
             )
         context: Mapping[str, Any] = {}
         try:
-            context = self._projector.project(
+            context = self._context_builder.build(
+                text,
                 planner=planner_name,
                 backend=backend,
                 domain_ids=domain_ids,
             )
+            context_clarification = context.get("clarification")
+            if isinstance(context_clarification, Mapping) and str(
+                context_clarification.get("state") or ""
+            ) in {"required", "ambiguous", "unavailable"}:
+                return self._context_clarification(context, planner_name)
             candidate = self._selected_planner(planner_name, backend).plan(
                 text, context=context
             )
@@ -250,7 +267,9 @@ class CompositePlanningApplication:
                 context=context,
                 planner_name=planner_name,
             )
-            return candidate
+            return self._attach_context(candidate, context)
+        except CompositeRequestContextError as exc:
+            return self._context_error(exc, planner_name)
         except CompositePlannerError as exc:
             if self._repair_planner is not None and self._max_repairs:
                 try:
@@ -266,7 +285,7 @@ class CompositePlanningApplication:
                         "reason_code": exc.code,
                         "status": "repaired",
                     }
-                    return repaired_response
+                    return self._attach_context(repaired_response, context)
                 except Exception:
                     pass
             status = "NEEDS_CLARIFICATION" if exc.code in {
@@ -275,7 +294,7 @@ class CompositePlanningApplication:
                 "plan_components_required",
                 "capability_unavailable",
             } else "REJECTED"
-            return {
+            return self._attach_context({
                 "schema_version": self.schema_version,
                 "status": status,
                 "planner_source": planner_name[:32],
@@ -297,9 +316,9 @@ class CompositePlanningApplication:
                     "reason_code": exc.code,
                     "status": "failed",
                 },
-            }
+            }, context)
         except Exception as exc:
-            return {
+            return self._attach_context({
                 "schema_version": self.schema_version,
                 "status": "REJECTED",
                 "planner_source": planner_name[:32],
@@ -315,7 +334,7 @@ class CompositePlanningApplication:
                     component_count=0,
                     request_fingerprint=None,
                 ),
-            }
+            }, context)
 
     def submit(
         self,
@@ -452,8 +471,56 @@ class CompositePlanningApplication:
             if not selection:
                 raise CompositePlannerError("domain is not allowlisted", code="domain_not_allowlisted")
             capability = index.get((domain_id, capability_id))
+            if capability is None:
+                raise CompositePlannerError(
+                    "capability is not registered",
+                    code="capability_not_registered",
+                )
             if capability is not None and capability.get("available") is False:
                 raise CompositePlannerError("capability is unavailable", code="capability_unavailable")
+
+    @staticmethod
+    def _attach_context(
+        result: Mapping[str, Any], context: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        projected = dict(result)
+        projected["request_context"] = dict(context)
+        evidence = dict(projected.get("planner_evidence") or {})
+        evidence["context_fingerprint"] = str(
+            context.get("request_fingerprint") or ""
+        )[:128] or None
+        evidence["context_schema_version"] = str(
+            context.get("schema_version") or ""
+        )[:96] or None
+        projected["planner_evidence"] = evidence
+        return projected
+
+    @classmethod
+    def _context_clarification(
+        cls, context: Mapping[str, Any], planner_name: str
+    ) -> dict[str, Any]:
+        clarification = context.get("clarification")
+        clarification = clarification if isinstance(clarification, Mapping) else {}
+        result = cls._attach_context(
+            cls._clarification(
+                str(clarification.get("message") or "请补充任务信息。")[:640],
+                str(clarification.get("reason_code") or "request_context_clarification")[:96],
+                planner_name,
+            ),
+            context,
+        )
+        result["clarification"] = dict(clarification)
+        return result
+
+    @classmethod
+    def _context_error(
+        cls, error: CompositeRequestContextError, planner_name: str
+    ) -> dict[str, Any]:
+        return cls._clarification(
+            "无法形成安全的请求上下文，请补充信息或稍后重试。",
+            error.code,
+            planner_name,
+        )
 
     @staticmethod
     def _clarification(message: str, reason_code: str, planner_name: str) -> dict[str, Any]:

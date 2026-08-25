@@ -1,6 +1,6 @@
 # Agent 当前工作快照
 
-> 新对话或上下文压缩后的唯一默认入口。恢复脚本只读取本快照和 [`tasks/task-state.md`](../tasks/task-state.md)；不要自动读取完整历史恢复卡、问题日志、milestones、归档、全量测试、模型响应或无关源码。
+> 新对话或上下文压缩后的唯一默认入口。恢复脚本只读取本快照和 [`tasks/task-progress.md`](../tasks/task-progress.md) 的最近记录；不要自动读取完整历史恢复卡、问题日志、milestones、归档、全量测试、模型响应或无关源码。
 
 ## Goal 摘要
 
@@ -9,29 +9,26 @@
 ## Goal 附加约束：低成本上下文恢复
 
 - 恢复只读取：本快照、当前阶段对应的 Spec/Plan、任务账本中最近的进行中任务，以及该任务明确列出的待修改文件。
-- `tasks/task-state.md` 是进行中/最近完成子任务的记录源；`tasks/todo.md` 只保留阶段清单，不替代任务记录。
+- `tasks/task-progress.md` 是恢复用的进行中/最近完成子任务记录源；`tasks/task-state.md` 保留详细当前状态以兼容旧流程；`tasks/todo.md` 只保留阶段清单，不替代任务记录。
 - 历史恢复卡、问题日志、milestones、归档、全量测试和模型原文只在当前任务明确需要时读取。
 - 每个子任务开始、完成或暂停时，先更新任务账本；阶段收口时再同步阶段文档、快照和任务清单。
 
 ## 当前阶段
 
-- 阶段：M281 动态 Composite 结果体验与跨入口一致性
-- 状态：M280 已完成并推送 `599881c`；M281 已完成阶段验收，正在提交收口版本。
-- 当前任务：M281 已收口；推送后进行 M282 全局重规划，详见 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M282 开放式请求解析与受控 Composite Planner
+- 状态：M281 已完成并推送 `a2b240c`；M282 已完成，待提交推送并进行全局重规划。
+- 当前任务：阶段版本交付与下一阶段全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；需要更详细状态时再读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m281-dynamic-composite-capability-map.md`](m281-dynamic-composite-capability-map.md)
-  - [`docs/m281-dynamic-composite-spec.md`](m281-dynamic-composite-spec.md)
-  - [`docs/m281-dynamic-composite-plan.md`](m281-dynamic-composite-plan.md)
+  - [`docs/m282-open-query-resolution-capability-map.md`](m282-open-query-resolution-capability-map.md)
+  - [`docs/m282-open-query-resolution-spec.md`](m282-open-query-resolution-spec.md)
+  - [`docs/m282-open-query-resolution-plan.md`](m282-open-query-resolution-plan.md)
 
 ## 当前任务明确文件
 
-- `agent/composite_view.py`（新增）
-- `production_api.py`
-- `serve_api.py`
-- `web/src/console_app.js`
-- `web/src/console_renderer_registry.js`
-- `web/src/index.html`（构建源）
-- `tests/test_m281_dynamic_composite.py`（新增）
+- `agent/composite_request_context.py`
+- `agent/application/composite_planning.py`
+- `agent/composite_planner.py`
+- `tests/test_m282_open_query_resolution.py`（新增）
 
 ## 验证与安全约定
 
@@ -42,7 +39,7 @@
 
 ## 恢复后的最小动作
 
-1. 读取本文件和 `tasks/task-state.md`。
+1. 读取本文件和 `tasks/task-progress.md` 的最近记录。
 2. 按当前任务记录读取对应阶段 Spec/Plan。
 3. 只读取当前任务明确列出的源码/测试文件。
-4. 完成或暂停子任务后先更新 `tasks/task-state.md`，再更新本快照。
+4. 完成或暂停子任务后先更新 `tasks/task-progress.md`，再同步 `tasks/task-state.md` 和本快照。
