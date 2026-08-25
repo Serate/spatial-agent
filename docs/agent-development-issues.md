@@ -720,3 +720,11 @@
 - **诊断**：分别检查 Domain catalog 的 known tools、Planner context 的 tool schemas，以及运行时 `ToolRegistry` 的 definition/dispatch；不能只断言 capability catalog 返回了工具名。
 - **修复**：M266 builder 只做声明间的 bounded cross-reference 校验，并保留已有 ToolRegistry；没有把工具执行、权限或参数校验移入公共 catalog 工厂。
 - **预防**：新增专题先写 DomainCatalogSpec，再通过 ToolRegistry 注册工具并运行 Planner→Runtime→dispatch contract；catalog 只说明可发现能力，执行前仍必须重新校验工具和数据事实。
+
+## M266 新增公共契约未登记到架构守卫清单
+
+- **现象**：`agent/domain_catalog.py` 已成为真实公共声明/校验模块，但 `architecture_check.py` 的 `PUBLIC_MODULES` 未同步登记；架构报告仍可能通过，却无法反映该模块的分类。
+- **根因**：实现文件、架构守卫和阶段文档是三个独立清单，新增 canonical seam 时只更新了代码和测试。
+- **诊断**：每次新增 `agent/` 下的公共 seam，都要比较模块导出职责、架构清单和报告中的 `public_modules`，不能只看 errors/warnings 是否为空。
+- **修复**：将 `agent/domain_catalog.py` 加入 `PUBLIC_MODULES`，并重新运行 architecture strict。
+- **预防**：Spec/Plan 的收口任务同时包含“新增公共模块登记”和报告抽查；公共模块不得落入 `COMPAT_SHIMS` 或 `COMPAT_FACADES`。

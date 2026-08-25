@@ -44,6 +44,7 @@ COMPAT_FACADES = {
 # exemption.  Keep this set explicit so the guard reports a classification
 # error if a future edit puts one back into a compat list.
 PUBLIC_MODULES = {
+    "agent/domain_catalog.py",
     "agent/domain_contract.py",
     "agent/domain_registry.py",
     "agent/request_model.py",
