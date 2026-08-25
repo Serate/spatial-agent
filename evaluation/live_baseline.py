@@ -209,6 +209,27 @@ class _LiveBaselineTimeout(TimeoutError):
         self.elapsed_ms = int(max(0, elapsed_ms))
 
 
+def run_bounded_operation(
+    operation: Callable[[], Dict[str, Any]],
+    *,
+    deadline: float | None,
+    heartbeat_seconds: float,
+    progress_callback: Callable[[Mapping[str, Any]], None] | None,
+    case_id: str,
+    started: float,
+) -> Dict[str, Any]:
+    """Shared bounded-operation seam for explicit live acceptance modules."""
+
+    return _run_with_deadline(
+        operation,
+        deadline=deadline,
+        heartbeat_seconds=heartbeat_seconds,
+        progress_callback=progress_callback,
+        case_id=case_id,
+        started=started,
+    )
+
+
 def _run_with_deadline(
     operation: Callable[[], Dict[str, Any]],
     *,

@@ -77,10 +77,11 @@
 
 - M269 已完成实现：新增领域中立的 `RecordAnalysisEngine` 与 `record_views`，支持有界 filter/aggregate/timeseries/compare；Economic/Indicators 复用公共筛选，GIS 文件型矢量通过 ToolRegistry 的 `record_analysis` 接入，统一 `record_analysis_result`、data_profile、metrics、provenance 和 generic View。Docker 定向 **14/14**、相邻边界回归 **23/23**、compileall、architecture strict 通过；一次性只读 `/data` 真实验收地震 10 条聚合为 2 组，Economic `gdp_total + 洪山区` 年度趋势返回 4 条。期间修复了 Adapter 调用图遗漏和周期字符串排序风险，均已写入问题日志。
 - M270 已完成：为 opt-in live baseline 增加总 deadline、daemon worker 边界、阶段 heartbeat 和脱敏 timeout receipt；CLI 新增 `--deadline-seconds`/`--heartbeat-seconds`，heartbeat 只写 stderr，未输出 prompt、key、模型原文或路径。Docker M270 定向 **3/3**、M269/M268/M264 相邻回归 **14/14**、compileall、architecture strict、quick/stage 全部通过。真实中转仍保持未验收状态，超时现象被明确分类为 provider/network timeout，不修改 Runtime、Planner、ToolRegistry 或 GIS 算法。
+- M271 已完成：新增独立 `evaluation.live_provider_probe` 与 `scripts/live_provider_probe.py`，复用现有 OpenAI-compatible client，以单请求、0 重试、15 秒显式 deadline 验证结构化 JSON provider 接入；receipt 只保留安全身份、状态、错误分类、耗时和 token 摘要。Docker M271/M270 定向 **7/7**、M269/M268/M264 相邻 **14/14**、compileall、architecture strict、quick/stage 通过。当前中转真实 probe 已 READY（Chat Completions，1 次请求、0 次重试，约 1.3 秒）；这不等同于开放式多步 Planner/GIS 验收，下一阶段继续单独验证 TaskPlan、能力选择和工具 DAG。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析和 M270 live 验收 harness 均已完成。下一阶段从全局规划真实 LLM 的开放式多步请求：先用 harness 做单请求 provider probe，再验证能力发现、数据选择、计划摘要、多步执行、结构化回答和 evidence 入口；Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析、M270 live 验收 harness 和 M271 provider probe 均已完成。下一阶段从全局规划真实 LLM 的开放式多步请求：使用已通过的 provider probe，再验证能力发现、数据选择、合法 TaskPlan、工具 DAG、多步执行、结构化回答和 evidence 入口；Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
 
 ## 不变量
 

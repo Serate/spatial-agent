@@ -4878,3 +4878,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `scripts/live_baseline.py` 增加 `--deadline-seconds`、`--heartbeat-seconds`；安全 heartbeat 以 JSON Lines 写入 stderr，stdout 仍只输出原有最终报告/摘要，便于 CI 或人工分别采集进度与结果。
 - Docker 验收：M270 定向 **3/3**；M269/M268/M264 相邻回归 **14/14**；compileall、architecture strict、quick/stage 全部通过。测试覆盖 fake runtime 立即完成、provider 阻塞超时和参数边界；未把真实 provider 结果伪装成通过。
 - 真实中转 `opencode.ai/zen/go/v1` + `deepseek-v4-flash` 的约 90 秒无输出仍记录为 provider/network timeout，后续只在显式 probe 中重试；默认 CI、quick、stage 保持离线精简。下一阶段按全局目标做真实 LLM 单请求 probe，再验收开放式多步能力发现、数据选择、计划摘要、结构化回答和 evidence 入口。
+
+## M271：真实模型 Provider Probe（已完成）
+
+- 新增 `docs/m271-live-provider-probe-spec.md` 和 `docs/m271-live-provider-probe-plan.md`；将 provider 可达性、结构化 JSON 响应、Planner 计划能力和 GIS 执行能力明确拆为不同验收 seam。
+- 新增 `evaluation/live_provider_probe.py`：复用 `OpenAIPlannerClient`，用最小 JSON schema 做单次 probe，固定 `max_retries=0`，复用 M270 daemon deadline，输出版本化、脱敏 receipt；只保留 provider/model/wire API、状态、错误 taxonomy、耗时和 token 摘要。
+- 新增 `scripts/live_provider_probe.py`：只有 `--allow-network` 与 `SPATIAL_AGENT_LIVE_OPENAI=1` 同时存在才可运行；CLI 失败退出码与 receipt 状态一致，不输出 prompt、请求头、密钥、模型原文或 URL。
+- Docker M271/M270 定向 **7/7**、M269/M268/M264 相邻回归 **14/14**、compileall、architecture strict、quick/stage 全部通过。fake provider 覆盖 READY、响应 shape 错误、provider error、阻塞 timeout 和参数边界。
+- 一次显式真实 probe 已通过：当前配置的中转 OpenAI-compatible Chat Completions 返回 READY，1 次请求、0 次重试、约 1.3 秒；这只证明 provider 接入，不替代下一阶段的真实 LLM TaskPlan/能力选择/工具 DAG 验收。下一阶段为开放式多步 Planner 验收。

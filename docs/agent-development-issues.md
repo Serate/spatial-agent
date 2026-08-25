@@ -793,3 +793,11 @@
 - **安全边界**：事件只允许 `event/case_id/phase/status/elapsed_ms`；receipt 不包含 prompt、请求头、API key、模型原文、完整异常或宿主路径。后台第三方线程无法被强制终止，因此只保证 harness 主线程有界返回，不宣称取消 provider 网络调用。
 - **验证**：Docker M270 定向 **3/3**（立即成功、阻塞超时、参数校验），M269/M268/M264 相邻回归 **14/14**，compileall、architecture strict、quick/stage 通过。真实中转 provider 仍需显式 probe，不能用 fake harness 结果替代真实模型验收。
 - **预防**：新增 live provider 时先用单 case、短 deadline 的 probe，确认 provider 可达且能返回结构化计划后再进入 GIS 多步验收；默认 CI/quick/stage 继续离线，不把网络抖动变成全局代码失败。
+
+## M271 Provider 可达不等于 Agent 多步能力可用
+
+- **现象**：中转 provider 的最小结构化 JSON 请求可以在 15 秒内成功返回，但这只能说明网络、认证、wire API 和 JSON 解码链路可用；不能据此断言 LLM Planner 能根据能力目录生成合法 TaskPlan，更不能断言 GIS 工具 DAG 能执行。
+- **根因**：provider 接入、Planner 计划理解、ToolRegistry schema 校验和 Domain 数据执行属于不同 seam；把一次模型健康请求与完整业务请求混为一个验收，会导致失败归因和阶段结论失真。
+- **修复**：新增 `evaluation/live_provider_probe.py` 与显式 `scripts/live_provider_probe.py`。Probe 使用已有 `OpenAIPlannerClient`，单次请求、`max_retries=0`、有界 timeout，返回固定 `live-provider-probe` receipt；不进入 Runtime，不触发 GIS，不自动切换中转/直连。
+- **验证**：Docker M271/M270 定向 **7/7**，M269/M268/M264 相邻回归 **14/14**，compileall、architecture strict、quick/stage 通过；真实中转 probe 返回 READY、Chat Completions、1 次请求、0 次重试。receipt 未保存 prompt、key、模型原文或路径。
+- **预防**：真实验收必须按“provider probe → Planner/能力选择 → TaskPlan/工具 DAG → 实际数据执行 → 结果/evidence/前端”分层；只有下一层成功后才能进入更昂贵的复杂请求。每层失败使用独立错误分类，不把 provider READY 当作 Agent 完成度。
