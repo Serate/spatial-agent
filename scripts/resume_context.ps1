@@ -1,20 +1,21 @@
 [CmdletBinding()]
 param(
     [ValidateRange(800, 4000)]
-    [int]$MaxCurrentChars = 1800,
+    [int]$MaxCurrentChars = 3600,
     [string]$Topic = '',
     [ValidateRange(1, 12)]
     [int]$MaxMatches = 4,
     [ValidateRange(0, 20)]
     [int]$ContextLines = 8,
+    [switch]$IncludeHistory,
     [switch]$Diagnostics
 )
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$snapshotPath = Join-Path $repoRoot 'docs/agent-context-resume.md'
+$snapshotPath = Join-Path $repoRoot 'docs/agent-work-state.md'
 
 if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) {
-    throw "Missing context snapshot: $snapshotPath"
+    throw "Missing work state snapshot: $snapshotPath"
 }
 
 $current = Get-Content -LiteralPath $snapshotPath -Raw
@@ -38,13 +39,21 @@ if ([string]::IsNullOrWhiteSpace($Topic)) {
 }
 
 if (-not [string]::IsNullOrWhiteSpace($Topic)) {
-    $historyPaths = @(
-        (Join-Path $repoRoot 'docs/agent-development-issues.md'),
-        (Join-Path $repoRoot 'docs/archive/context-history/agent-context-resume-history.md'),
-        (Join-Path $repoRoot 'docs/archive/context-history/task-resume-history.md'),
-        (Join-Path $repoRoot 'docs/archive/context-history/agent-development-issues-history.md'),
-        (Join-Path $repoRoot 'docs/milestones.md')
+    $targetPaths = @(
+        $snapshotPath,
+        (Join-Path $repoRoot 'tasks/plan.md'),
+        (Join-Path $repoRoot 'tasks/todo.md')
     ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+
+    if ($IncludeHistory) {
+        $targetPaths += @(
+            (Join-Path $repoRoot 'docs/agent-development-issues.md'),
+            (Join-Path $repoRoot 'docs/archive/context-history/agent-context-resume-history.md'),
+            (Join-Path $repoRoot 'docs/archive/context-history/task-resume-history.md'),
+            (Join-Path $repoRoot 'docs/archive/context-history/agent-development-issues-history.md'),
+            (Join-Path $repoRoot 'docs/milestones.md')
+        ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+    }
 
     Write-Output '=== Targeted history ==='
     Write-Output ("topic={0}; max_matches={1}; context_lines={2}" -f $Topic, $MaxMatches, $ContextLines)
@@ -55,7 +64,7 @@ if (-not [string]::IsNullOrWhiteSpace($Topic)) {
         '--max-count', [string]$MaxMatches,
         '--context', [string]$ContextLines,
         '--', $Topic
-    ) + $historyPaths
+    ) + $targetPaths
 
     $matches = & rg @rgArgs 2>$null
     if ($LASTEXITCODE -eq 0) {

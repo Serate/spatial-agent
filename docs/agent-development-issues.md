@@ -855,3 +855,10 @@
 - **修复**：生产入口改用其已初始化的 `host` 创建 `CompositeApplication`；随后 Docker 重建、生产容器恢复并返回 HTTP 200。
 - **验证**：M277 应用/Composite/stdlib HTTP 定向 **16/16**，compileall、architecture strict、CI/stage 通过；真实 Docker `/composite-runs` 的 GIS + Economic 请求返回 `COMPLETED`，失败组件请求返回结构化 `FAILED`。
 - **预防**：两个 transport 共享 semantic Application，但 Composition Root 注入时必须以各自实际变量为准；以后每次 transport 改动都至少执行 Docker import/health 验收，并记录启动失败而非只保留最终绿灯。
+
+## 上下文恢复默认加载过多历史文件
+
+- **现象**：新对话或上下文压缩后，如果同时读取完整恢复卡、任务档案、问题日志、milestones、归档和全量测试，当前阶段、最近任务和待修改文件会被历史内容淹没，恢复成本随阶段数增长。
+- **根因**：历史总结与当前工作状态没有分离；恢复脚本虽然只调用一个入口，但入口指向的是不断追加的长文档，无法表达“当前只需要读哪些文件”。
+- **修复**：新增 `docs/agent-work-state.md` 作为短快照，记录当前 goal 摘要、阶段 Spec/Plan、最近进行中的任务、明确待修改文件、验证命令、阻塞和下一步；`scripts/resume_context.ps1` 默认只读取该文件。`-Topic` 默认只在快照和 `tasks/` 中做有界检索，只有显式 `-IncludeHistory` 才读取历史文档。
+- **预防**：每个子任务完成或暂停时立即更新快照；阶段完成后再同步历史恢复卡和 milestones。恢复代理不得默认打开完整问题日志、milestones、归档、全量测试或模型响应。

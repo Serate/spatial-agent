@@ -6,4 +6,6 @@
 pwsh -NoProfile -File scripts/resume_context.ps1
 ```
 
-当前状态只维护在 [`agent-context-resume.md`](agent-context-resume.md)。本文件仅在恢复卡明确指向任务历史时按需读取；详细历史位于 `docs/archive/context-history/task-resume-history.md`，不得全文加载。
+当前状态只维护在 [`agent-work-state.md`](agent-work-state.md)。恢复脚本默认只加载该快照；当前阶段的 Spec/Plan、最近进行中的任务和待修改文件由快照逐项指向，再按需读取。完整恢复卡、问题日志、milestones、归档和全量测试不得默认加载。
+
+每个子任务必须在 `agent-work-state.md` 中记录状态、改动文件、Docker 验证、阻塞与下一步；阶段完成后再将稳定结论同步到 `agent-context-resume.md`、`milestones.md` 和阶段问题日志。

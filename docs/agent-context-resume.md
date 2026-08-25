@@ -1,10 +1,16 @@
-# Agent 唯一恢复卡
+# Agent 历史恢复卡
 
-新对话或上下文压缩后只执行 `pwsh -NoProfile -File scripts/resume_context.ps1`。不要默认读取其他恢复文档、问题日志、milestones、归档、完整测试或模型响应。
+本文件保存阶段性历史结论，不是新对话或上下文压缩后的启动文件。恢复时只执行 `pwsh -NoProfile -File scripts/resume_context.ps1`，脚本默认读取 [`agent-work-state.md`](agent-work-state.md)，不加载本文件。
 
 ## 目标
 
 建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
+
+## 上下文恢复约束
+
+- 只读取当前工作快照、对应阶段规划、最近进行中的任务和明确列出的待修改文件。
+- 完整历史、问题日志、milestones、归档、全量测试和模型响应必须按需读取，不能作为默认恢复输入。
+- 每个子任务的状态、文件、验证、阻塞和下一步以 `docs/agent-work-state.md` 为准；阶段完成后再归档到本文件。
 
 ## Agent 能力与日常体验补充约束
 
