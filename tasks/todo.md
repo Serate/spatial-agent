@@ -8,4 +8,5 @@
 - [ ] M280-C 离线 replay 与真实 planning probe
 - [ ] M280-D 真实 GIS + Economic sync/async/restart 验收
 - [ ] M280-E 文档、提交推送与全局重规划
-- [x] 每完成一个子任务，更新 `docs/agent-work-state.md` 的状态、文件、验证、阻塞和下一步
+- [x] 建立 `tasks/task-state.md` 作为进行中/最近完成子任务账本
+- [ ] 每完成一个子任务，先更新 `tasks/task-state.md`，再更新 `docs/agent-work-state.md`

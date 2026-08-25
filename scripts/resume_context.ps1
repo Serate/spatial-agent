@@ -2,6 +2,8 @@
 param(
     [ValidateRange(800, 4000)]
     [int]$MaxCurrentChars = 3600,
+    [ValidateRange(600, 3000)]
+    [int]$MaxTaskStateChars = 2200,
     [string]$Topic = '',
     [ValidateRange(1, 12)]
     [int]$MaxMatches = 4,
@@ -13,9 +15,13 @@ param(
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $snapshotPath = Join-Path $repoRoot 'docs/agent-work-state.md'
+$taskStatePath = Join-Path $repoRoot 'tasks/task-state.md'
 
 if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) {
     throw "Missing work state snapshot: $snapshotPath"
+}
+if (-not (Test-Path -LiteralPath $taskStatePath -PathType Leaf)) {
+    throw "Missing task state ledger: $taskStatePath"
 }
 
 $current = Get-Content -LiteralPath $snapshotPath -Raw
@@ -25,6 +31,13 @@ if ($current.Length -gt $MaxCurrentChars) {
 
 Write-Output '=== Agent current context ==='
 Write-Output $current
+
+$taskState = Get-Content -LiteralPath $taskStatePath -Raw
+if ($taskState.Length -gt $MaxTaskStateChars) {
+    $taskState = $taskState.Substring(0, $MaxTaskStateChars) + "`n[task state truncated]"
+}
+Write-Output '=== Current task state ==='
+Write-Output $taskState
 
 if ($Diagnostics) {
     Write-Output '=== Git status ==='
@@ -41,6 +54,7 @@ if ([string]::IsNullOrWhiteSpace($Topic)) {
 if (-not [string]::IsNullOrWhiteSpace($Topic)) {
     $targetPaths = @(
         $snapshotPath,
+        $taskStatePath,
         (Join-Path $repoRoot 'tasks/plan.md'),
         (Join-Path $repoRoot 'tasks/todo.md')
     ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
