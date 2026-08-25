@@ -837,3 +837,12 @@
 - **修复**：M275 新增领域中立 `agent/composite_contract.py`，以 `spatial-agent.composite-request.v1`、`composite-result.v1`、`composite-evidence.v1` 规范化有界组件 DAG，聚合 `vector/raster/metrics/timeseries/document_evidence`，对缺失/失败/阻塞组件保留结构化状态，使用组件前缀隔离子 View；`nested_schema` 和 Evidence Registry 复用同一边界。当前只完成契约接缝，未把 coordinator 或 HTTP/async 生命周期伪装成已完成。
 - **验证**：Docker M275 契约 **4/4**，compileall、architecture strict、quick/stage 通过；测试覆盖正常混合、依赖环、必需组件失败和缺失组件阻塞。未保存模型原文、密钥、真实原始数据或宿主路径。
 - **预防**：后续跨 Domain coordinator 必须先通过 Host allowlist 再执行每个组件，并将同步、异步、artifact、SQLite/restart 和前端统一到同一 Composite Result/Evidence；不得在 live harness 或某个 Domain 内偷偷拼接两个 Runtime，也不得把 Composite schema 当作跨域端到端验收证据。
+
+## M276 Coordinator 第一条执行切片不能代替完整跨域生命周期
+
+- **现象**：Composite request/result 契约已经可以描述多个组件，但如果直接在 HTTP 或 live harness 中临时循环调用多个 Service，会绕过统一 session、async、artifact、SQLite/restart 和前端结果边界。
+- **根因**：跨 Domain 执行需要一个明确的 application seam；`DomainRuntimeHost` 只负责 allowlist 和 Service ownership，不能由 transport 自己拼接执行流程。
+- **诊断**：检查未知 Domain 是否在任何 Service 调用前拒绝；检查依赖失败是否阻止下游而不影响独立组件；检查子 Service 异常是否保留为组件 receipt；最后检查聚合结果是否仍能通过 M275 nested schema。
+- **修复**：M276 新增 `agent/application/composite.py` 的 `CompositeApplication`。它只调用 Host `select/service` 和子 Service `run`，按声明顺序串行执行；依赖 gate 产生 `blocked`，组件异常产生有界 `failed` receipt，最后复用 M275 `build_composite_result_contract`。未知/禁用 Domain 作为请求级 `CompositeCoordinatorError` 拒绝。
+- **验证**：Docker M275+M276 定向 **9/9**，compileall、architecture strict、quick/stage 通过；真实 Host allowlist、正常顺序、依赖阻断、独立组件继续执行和敏感异常不回传均有契约覆盖。
+- **预防**：后续 HTTP/async/artifact/SQLite/restart 只能调用同一 Coordinator seam；不要在 Domain Pack、live harness 或 transport 层复制组件循环。M276 不宣称已经具备 LLM 自动生成跨域计划或完整跨入口恢复。

@@ -20,6 +20,7 @@ INTERACTION_COMMAND_SCHEMA_VERSION = "spatial-agent.interaction-command.v1"
 COMPOSITE_REQUEST_SCHEMA_VERSION = "spatial-agent.composite-request.v1"
 COMPOSITE_RESULT_SCHEMA_VERSION = "spatial-agent.composite-result.v1"
 COMPOSITE_EVIDENCE_SCHEMA_VERSION = "spatial-agent.composite-evidence.v1"
+COMPOSITE_COORDINATOR_SCHEMA_VERSION = "spatial-agent.composite-coordinator.v1"
 
 __all__ = [
     "TASK_PLAN_SCHEMA_VERSION",
@@ -42,4 +43,5 @@ __all__ = [
     "COMPOSITE_REQUEST_SCHEMA_VERSION",
     "COMPOSITE_RESULT_SCHEMA_VERSION",
     "COMPOSITE_EVIDENCE_SCHEMA_VERSION",
+    "COMPOSITE_COORDINATOR_SCHEMA_VERSION",
 ]

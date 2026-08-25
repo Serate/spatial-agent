@@ -4920,3 +4920,13 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker M275 定向 **4/4**，compileall、architecture strict、quick/stage 通过；没有新增 GIS/Economic 专用 Runtime、Planner、ToolRegistry 或前端分支。
 - 已知缺口：`DomainRuntimeHost` 仍是单 Domain selection；Composite coordinator、跨域计划校验/执行、统一异步/SQLite/restart/artifact/HTTP/前端和真实 LLM+GIS+Economic 验收留待后续阶段。
 - 全局重规划：下一阶段实现 Composite coordinator 的 transport-neutral application seam，先接 Host allowlist 与每组件生命周期，再逐步接 HTTP/async/artifact/restart；真实跨域 live 验收在离线契约稳定后显式执行。
+
+## M276：Composite Coordinator 第一条执行切片（已完成）
+
+- 新增 `docs/m276-composite-coordinator-capability-map.md`、`docs/m276-composite-coordinator-spec.md` 和 `docs/m276-composite-coordinator-plan.md`，明确 Coordinator 只编排组件，不复制 Runtime、Planner 或 ToolRegistry 生命周期。
+- 新增 `agent/application/composite.py` 与 `COMPOSITE_COORDINATOR_SCHEMA_VERSION`；组件通过 `DomainRuntimeHost.select/service` allowlist，按声明顺序串行调用对应 Service，使用稳定有界 component session。
+- 依赖未完成时下游生成 `blocked` receipt；Service 异常只生成有界 `failed` child，独立组件继续执行；未知/禁用 Domain 在 Service 调用前作为请求级错误拒绝。
+- 最终结果统一复用 M275 Composite Result/Evidence，返回 coordinator status、组件 receipt 和标准 Result Envelope；没有导入 GIS/Economic，也没有新增 HTTP/前端专用分支。
+- Docker M275+M276 定向 **9/9**，compileall、architecture strict、quick/stage 通过。
+- 已知缺口：跨域 LLM Planner/能力选择、统一 async/HTTP/SQLite/artifact/restart、前端动态 Composite View 和真实 LLM+GIS+Economic 端到端仍待后续阶段。
+- 全局重规划：下一阶段将 Coordinator 接入统一 HTTP/async submission 与可恢复 Composite run identity；先保持离线契约，随后显式进行真实数据/模型验收。
