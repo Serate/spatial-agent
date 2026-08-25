@@ -5071,6 +5071,21 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 兼容修正：M285/M283 旧 replay fixture 补齐最小 canonical workflow，恢复 M291 严格 materialization gate 下的既有契约；未放宽生产校验。
 - 全局重规划：M293 处理多个已选组件的 handoff 聚合、按组件补充事实的统一 continuation、组件集合 identity 和跨入口重新规划；保持默认测试精简，不新增专题分支。
 
+## M294：已验证计划到执行/答案/证据闭合（已完成）
+
+- 新增 `spatial-agent.execution-binding.v1`，将 validated TaskPlan/DAG 固定为 Composite coordinator 的唯一执行输入；执行前拒绝 request、组件、计划、DAG、工具和结果类型漂移。
+- 同步、异步、artifact、SQLite/restart、Result/View/Evidence 复用同一 binding identity；生产 Composite 缺少 binding 时 fail closed；答案组合支持结构化生成与安全 fallback。
+- Docker M294 + M293/M291/M285/M281 **25/25**、compileall、architecture strict、真实 GIS Service binding 和 readiness 200 通过；版本 `7aad949` 已推送。
+- 全局重规划：从已验证执行闭环推进开放式分析与数据发现，不替换 Runtime、ToolRegistry、生命周期或 execution binding。
+
+## M295：全局开放式分析与数据发现闭环（已完成，待版本推送）
+
+- 新增领域中立 `spatial-agent.analysis-discovery.v1` 与 `AnalysisDiscoveryGateway`，统一投影 request/discovery fingerprint、候选能力、数据需求、readiness、缺失事实、reason code、恢复动作和安全预算；发现不构成执行授权。
+- Composite Context、Planner 门禁、planning evidence、async/artifact/restart、Composite View、HTTP 和 Console 前端共享 receipt 摘要；候选只有在 `execution_ready` 时才可继续进入 TaskPlan/execution binding。
+- Docker M295 compact **5/5**；M295 + M281/M285/M291/M293/M294 合并回归 **30/30**；compileall、architecture strict、Node projection smoke、生产 readiness 200 和 HTTP `needs_facts/request_facts_missing` 验收通过。
+- 真实 Docker `gis + economic` discovery 产生 2 个领域、3 个候选、6 项数据需求；真实模型单次 structured-output probe 安全返回澄清，未创建 run。未写入模型原文、密钥、私有路径或原始私有数据。
+- 全局重规划：M296 聚焦通用能力目录的可执行闭合、数据 readiness 证据和真实跨域成功链路，不为单一区域、指标或问句增加专用流程。
+
 ## M293：多组件事实协调与可恢复 Composite 续跑（已完成）
 
 - 新增 `spatial-agent.composite-fact-handoff.v1`；多个已选组件的公共 requirements、known facts、workflow constraints 和 missing fields 按组件汇总，单个 composite handoff 只生成一个 continuation，避免 token fan-out。

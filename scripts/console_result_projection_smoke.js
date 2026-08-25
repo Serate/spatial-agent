@@ -4,7 +4,19 @@ const projection = require("../web/src/console_result_projection.js");
 
 const completed = projection.normalize({
   status: "COMPLETED",
-  runtime_context: {schema_version: "spatial-agent.composite-request-context.v2", domain_id: "gis", fingerprint: "secret-context-is-not-rendered"},
+  runtime_context: {
+    schema_version: "spatial-agent.composite-request-context.v2",
+    domain_id: "gis",
+    fingerprint: "secret-context-is-not-rendered",
+    discovery: {
+      schema_version: "spatial-agent.analysis-discovery.v1",
+      state: "ready",
+      reason_code: "discovery_ready",
+      candidate_count: 2,
+      data_requirement_count: 3,
+      next_actions: ["由 Planner 组合已注册能力并生成计划"],
+    },
+  },
   plan: {steps: [{id: "one", tool: "private_tool"}]},
   plan_evidence: {source: "replay", step_count: 1},
   result: {
@@ -45,11 +57,15 @@ assert.equal(completed.view_count, 1);
 assert.equal(completed.phases.filter(item => item.state === "complete").length, 5);
 assert.equal(completed.phases[1].state, "not_needed");
 assert.equal(completed.planning.structured_output.structured_mode, "json_schema");
+assert.equal(completed.discovery.state, "ready");
+assert.equal(completed.discovery.candidate_count, 2);
 const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
 assert.match(completedHtml, /分析上下文已建立/);
 assert.match(completedHtml, /计划格式已确认/);
 assert.match(completedHtml, /计划已验证/);
+assert.match(completedHtml, /能力与数据准备/);
+assert.match(completedHtml, /能力与数据已发现/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);
 assert.doesNotMatch(completedHtml, /private_tool/);
 

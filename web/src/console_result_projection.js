@@ -48,6 +48,7 @@
     if (planCompleteness) planning = {...(planning || {}), plan_completeness: planCompleteness};
     const repairLineage = normalizeRepairLineage(firstRecord(data.repair_lineage, result.repair_lineage, planning?.repair_lineage));
     const context = firstRecord(data.runtime_context, result.runtime_context, data.request_context, result.request_context);
+    const discovery = normalizeDiscovery(firstRecord(planning?.discovery, context?.discovery));
     let clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
     const componentHandoff = firstRecord(data.component_fact_handoff, result.component_fact_handoff);
     const compositeHandoff = firstRecord(data.composite_fact_handoff, result.composite_fact_handoff);
@@ -85,6 +86,7 @@
       result_kind: kindLabels[result?.data_profile?.primary] || kindLabels["unknown"],
       answer,
       context,
+      discovery,
       clarification,
       component_fact_handoff: handoff || {},
       composite_fact_handoff: compositeHandoff || {},
@@ -168,6 +170,7 @@
     if (model.repair_lineage.status === "repaired") chips.push("计划已校正");
     else if (model.repair_lineage.status === "failed") chips.push("计划校正未完成");
     const chipHtml = chips.slice(0, MAX_ITEMS).map(item => '<span class="result-chip">' + escapeHtml(item) + '</span>').join("");
+    const discoveryHtml = renderDiscovery(model.discovery, escapeHtml);
     const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const limitations = model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const nextSteps = model.answer.next_steps.length ? '<section class="projection-section projection-next"><h4>建议下一步</h4><ul>' + model.answer.next_steps.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
@@ -186,7 +189,7 @@
       + (clarificationActions.length ? '<small>下一步：' + escapeHtml(clarificationActions.join("；")) + '</small>' : "") + '</section>' : "";
     return '<div class="result-projection" data-projection-schema="' + escapeHtml(SCHEMA_VERSION) + '"><ol class="result-phases" aria-label="分析阶段">' + phases + '</ol>'
       + (chipHtml ? '<div class="result-chips" aria-label="结果摘要">' + chipHtml + '</div>' : "")
-      + clarification + findings + limitations + nextSteps + '</div>';
+      + discoveryHtml + clarification + findings + limitations + nextSteps + '</div>';
   }
 
   function firstRecord(...values) {
@@ -216,6 +219,46 @@
       component_count: boundedCount(raw.component_count),
       materialized_count: boundedCount(raw.materialized_count),
     };
+  }
+
+  function normalizeDiscovery(raw) {
+    if (!record(raw)) return {visible: false, state: "", state_label: "", candidate_count: 0, data_requirement_count: 0, next_actions: []};
+    const labels = {
+      ready: "能力与数据已发现",
+      needs_facts: "需要补充信息",
+      data_unavailable: "数据暂不可用",
+      capability_unavailable: "暂时没有可执行能力",
+    };
+    const state = text(raw.state, 32).toLowerCase();
+    const count = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(MAX_ITEMS * 4, Number(value))) : 0;
+    return {
+      visible: Boolean(raw.schema_version || state),
+      schema_version: text(raw.schema_version, 96),
+      state,
+      state_label: labels[state] || "能力与数据准备状态",
+      reason_code: text(raw.reason_code, 96),
+      candidate_count: count(raw.candidate_count),
+      data_requirement_count: count(raw.data_requirement_count),
+      next_actions: safeTextList(raw.next_actions, 2),
+    };
+  }
+
+  function renderDiscovery(discovery, escapeHtml) {
+    if (!discovery?.visible) return "";
+    const state = discovery.state || "unknown";
+    const detail = state === "ready"
+      ? "已找到 " + discovery.candidate_count + " 个候选能力，涉及 " + discovery.data_requirement_count + " 项数据需求。"
+      : state === "needs_facts"
+        ? "已找到相关能力，但还缺少开始规划所需的信息。"
+        : state === "data_unavailable"
+          ? "能力存在，但数据覆盖或后端就绪状态暂时不满足要求。"
+          : state === "capability_unavailable"
+            ? "当前目录中没有可执行的匹配能力。"
+            : "系统正在确认可用能力和数据状态。";
+    const actions = discovery.next_actions.length
+      ? '<small>下一步：' + escapeHtml(discovery.next_actions.join("；")) + '</small>'
+      : "";
+    return '<section class="projection-section projection-discovery" data-discovery-state="' + escapeHtml(state) + '"><h4>能力与数据准备</h4><p><strong>' + escapeHtml(discovery.state_label) + '</strong> · ' + escapeHtml(detail) + '</p>' + actions + '</section>';
   }
 
   function normalizeRepairLineage(raw) {

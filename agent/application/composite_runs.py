@@ -463,6 +463,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "structured_output",
         "plan_completeness",
         "continuation",
+        "discovery",
     }
     result = {key: value[key] for key in allowed if key in value}
     result["schema_version"] = str(
@@ -525,6 +526,12 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
             }
         else:
             result.pop("plan_completeness", None)
+    if "discovery" in result:
+        discovery = result.get("discovery")
+        if isinstance(discovery, Mapping):
+            result["discovery"] = _safe_discovery_evidence(discovery)
+        else:
+            result.pop("discovery", None)
     if "continuation" in result:
         continuation = result.get("continuation")
         if isinstance(continuation, Mapping):
@@ -581,6 +588,31 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         else:
             result.pop("repair_lineage", None)
     return result
+
+
+def _safe_discovery_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep receipt identity/state while dropping candidate payload details."""
+
+    candidates = [
+        item for item in (value.get("candidate_states") or {}).items()
+        if isinstance(item, tuple) and len(item) == 2
+    ]
+    states = {
+        str(key)[:32]: max(0, min(16, int(count)))
+        for key, count in candidates
+    }
+    return {
+        "schema_version": str(value.get("schema_version") or "")[:96],
+        "request_fingerprint": str(value.get("request_fingerprint") or "")[:128] or None,
+        "discovery_fingerprint": str(value.get("discovery_fingerprint") or "")[:128] or None,
+        "state": str(value.get("state") or "unknown")[:32],
+        "reason_code": str(value.get("reason_code") or "unknown")[:96],
+        "domain_count": max(0, min(8, int(value.get("domain_count") or 0))),
+        "candidate_count": max(0, min(16, int(value.get("candidate_count") or 0))),
+        "data_requirement_count": max(0, min(64, int(value.get("data_requirement_count") or 0))),
+        "candidate_states": states,
+        "next_actions": [str(item)[:160] for item in (value.get("next_actions") or [])[:4]],
+    }
 
 
 def _response_from_result(

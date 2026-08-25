@@ -6,7 +6,7 @@
 
 ## Public contracts
 
-1. 新增版本化 discovery receipt（建议 `spatial-agent.analysis-discovery.v1`），包含 request fingerprint、候选能力、数据需求、readiness、来源和缺失事实的有界摘要。
+1. 新增版本化 discovery receipt `spatial-agent.analysis-discovery.v1`，包含 request fingerprint、discovery fingerprint、候选能力、数据需求、readiness、来源和缺失事实的有界摘要。Receipt 的顶层状态固定为 `ready`、`needs_facts`、`data_unavailable` 或 `capability_unavailable`；每个候选带有 `state` 与 `execution_ready`，但不构成执行授权。
 2. discovery receipt 不携带 prompt、模型原文、凭据、完整路径或原始私有数据；可从其 projection 恢复同一澄清 identity。
 3. Planner 只能选择 catalog 中 `available` 且有合法 workflow 的能力；缺失事实或数据时进入统一 clarification/fail-closed 状态。
 4. 通过 discovery 的候选仍必须经过 TaskPlan schema、DAG、completeness 和 execution-binding 校验；discovery 不是执行授权。
@@ -21,6 +21,23 @@
 4. CLI、HTTP、异步、前端、artifact 和 restart 对同一请求保留一致 discovery/request/plan/binding fingerprint。
 5. 前端不新增 GIS/Economic 专用分支，能够显示 discovery 状态、关键结果和限制。
 6. Docker 中通过一组精简 contract、compileall、architecture、readiness，并执行一次显式真实模型或真实 GIS 验收；默认 CI 不依赖私有数据或 live provider。
+
+## Receipt 最小字段
+
+```text
+schema_version
+request_fingerprint / discovery_fingerprint
+planner / backend
+state / reason_code
+domain_ids / domains[]
+candidates[]: domain_id, capability_id, state, execution_ready,
+             datasets, tools, result_types, workflow_ids
+data_requirements[]: dataset, status, reason_code, readiness
+missing_facts[] / clarification / next_actions
+evidence / limits
+```
+
+`domains[]` 只保留事实 schema、发现选择、workflow 选择和 readiness 摘要；`candidates[]` 与 `data_requirements[]` 使用固定数量和字符串长度上限。任何 prompt、模型原文、凭据、完整路径、原始数据和私有 token 都必须在 receipt 边界被过滤。
 
 ## Boundaries
 

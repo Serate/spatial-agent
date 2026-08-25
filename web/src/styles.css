@@ -922,6 +922,8 @@
     .projection-limitations { border-top-color: rgba(217,119,6,.2); }
     .projection-limitations h4 { color: #9a6a1e; }
     .projection-clarification { padding: 11px 13px; border: 1px solid rgba(8,127,140,.18); border-left: 3px solid var(--teal); border-radius: 0 9px 9px 0; background: rgba(240,253,250,.62); }
+    .projection-discovery { padding: 10px 12px; border: 1px solid rgba(8,127,140,.14); border-left: 3px solid rgba(8,127,140,.62); border-radius: 0 9px 9px 0; background: rgba(248,252,252,.72); }
+    .projection-discovery strong { color: var(--teal-deep); }
     .map-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
     .map-panel-head h3 { margin-bottom: 12px; }
     .map-summary { color: var(--muted-2); font-size: 11px; }

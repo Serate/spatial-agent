@@ -1087,3 +1087,27 @@
 - **修复**：planning evidence、Composite View、TaskPlan bridge 和 Console projection 增加有界组件摘要；只保留 identity、字段标签和状态，严格过滤 token 与模型内部内容。
 - **验证**：Node projection 增加多组件澄清案例；Docker 合并回归 **26/26**、compileall、architecture strict、readiness 200 通过。
 - **预防**：新增版本化投影字段时必须同时检查同步 HTTP、异步/artifact/restart、View 和前端；前端不根据 Domain 或工具名增加分支。
+
+## M295 Docker 生产镜像不挂载源码，修改后测试不可见
+
+- **现象**：宿主机新增 M295 测试后，直接用既有 `docker compose run` 执行时提示找不到测试模块；容器仍使用旧的生产镜像，容器内没有实时源码挂载。
+- **根因**：`docker-compose.prod.yml` 的生产服务采用镜像内 `/app`，不是开发目录挂载；重建宿主机文件不会自动更新已创建容器或旧镜像。
+- **处理**：代码或测试变更后，先执行 Docker image build，再按需 `up -d --force-recreate` 更新服务；阶段测试统一在新镜像中执行。
+- **验证**：重建后 M295 compact **5/5**、合并回归 **30/30**、compileall、architecture strict、Node projection smoke、生产 readiness 200 和 HTTP receipt 验收通过。
+- **预防**：恢复工作时先确认镜像是否包含当前提交；生产 Docker 默认不挂载源码，避免把旧容器的绿色结果当作当前代码证据。
+
+## M295 脱敏 discovery 摘要在 View 中丢失计数
+
+- **现象**：Planner evidence 已保存 discovery receipt 的候选/数据需求计数，但经过安全投影后 Composite View 只从候选明细数组计数，用户看到候选数为 0。
+- **根因**：View 投影只考虑完整 receipt，不兼容 async/artifact 边界传递的摘要形状；这属于投影契约不完整，不是数据为空。
+- **修复**：`Composite View` 优先读取已验证的摘要计数字段，同时保留候选数组路径；新增 M295 contract 覆盖 planning evidence → View 的 discovery identity 和计数一致性。
+- **验证**：M295 compact **5/5**、前端 projection smoke 和合并回归 **30/30** 通过；未扩大 receipt 或暴露模型/私有字段。
+- **预防**：新增结构化证据字段时同时设计完整对象、脱敏摘要、View、Artifact 和前端的投影矩阵；不要在消费端假设上游始终保留明细。
+
+## M295 真实模型 structured output 可达但跨域计划仍需澄清
+
+- **现象**：Docker 真实模型 probe 单次请求、0 重试，structured output 通道成功，但跨 `gis + economic` Composite 规划返回 `NEEDS_CLARIFICATION`，0 组件、未创建 execution run。
+- **根因分类**：provider wire/schema 可用不等于请求事实完整或模型一定能生成合法多组件计划；当前 evidence 只能证明通道与安全门禁，不证明 live 业务规划成功。
+- **处理**：保留 `spatial-agent.analysis-discovery.v1`、`needs_facts/request_facts_missing` 和 Planner fail-closed；不保存模型原文、不放宽组件字段、不增加 repair 次数、不创建 run。
+- **验证**：真实模型单次显式探测耗时约 18.6 秒，structured output `json_schema` 成功，安全返回澄清；规则/HTTP 真实 Docker 入口同时保留 discovery/request fingerprint 和中文缺失字段。
+- **预防**：将 live 成功、澄清、不可用分开验收；只有在 catalog、RequestFacts、workflow、TaskPlan 和 execution binding 全部闭合后，才允许真实跨域执行进入下一阶段。

@@ -19,9 +19,9 @@
 
 ## 当前阶段
 
-- 阶段：M294 已验证计划到执行/答案/证据闭合（已完成）
-- 状态：M294 已完成 Docker 阶段收口，execution binding、同步/异步/恢复、答案/View/Evidence 闭合已验证；版本待提交推送。生产 Composite 缺少 binding 保持 fail closed。
-- 当前任务：M295-A 全局基线与 discovery receipt 契约冻结，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M296 通用能力可执行闭合与真实跨域成功链路（规划完成，A 进行中）
+- 状态：M295 已完成并准备提交推送；M296 已完成七维度能力图、Spec、Plan，当前先冻结 execution-readiness 契约和缺口账本。
+- 当前任务：M296-A 全局基线与 execution-readiness 契约冻结，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m295-global-open-analysis-discovery-capability-map.md`](m295-global-open-analysis-discovery-capability-map.md)
   - [`docs/m295-global-open-analysis-discovery-spec.md`](m295-global-open-analysis-discovery-spec.md)
@@ -38,7 +38,23 @@
 - `agent/application/composite_planning.py`
 - `agent/application/composite_runs.py`
 - `agent/composite_view.py`
+- `agent/runtime_core/analysis_discovery.py`
+- `evaluation/live_provider_probe.py`
+- `agent/application/composite_planning.py`
+- `agent/application/composite_runs.py`
+- `agent/composite_view.py`
+- `web/src/console_result_projection.js`
+- `web/src/styles.css`
+- `scripts/console_result_projection_smoke.js`
 - `tests/test_m295_open_analysis_discovery.py`
+- `docs/m296-executable-capability-closure-capability-map.md`
+- `docs/m296-executable-capability-closure-spec.md`
+- `docs/m296-executable-capability-closure-plan.md`
+- `agent/runtime_core/plan_completeness.py`
+- `agent/runtime_core/execution_binding.py`
+- `agent/runtime_core/composite_taskplan.py`
+- `agent/tools.py`
+- `tasks/task-progress.md`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
 - `tasks/plan.md`

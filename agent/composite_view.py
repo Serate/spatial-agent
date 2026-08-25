@@ -240,7 +240,10 @@ def _build_planning(value: Any) -> dict[str, Any]:
                 0,
                 min(_MAX_COMPONENTS, int(completeness.get("materialized_count") or 0)),
             ),
-            }
+        }
+    discovery = value.get("discovery")
+    if isinstance(discovery, Mapping):
+        result["discovery"] = _project_discovery(discovery)
     continuation = value.get("continuation")
     if isinstance(continuation, Mapping):
         result["continuation"] = {
@@ -307,6 +310,30 @@ def _artifact(value: Mapping[str, Any]) -> dict[str, Any]:
         "status": _text(value.get("status"), 32),
         "domain_id": _text(value.get("domain_id"), 64),
         "ref": _text(value.get("ref"), 160),
+    }
+
+
+def _project_discovery(value: Mapping[str, Any]) -> dict[str, Any]:
+    candidates = [
+        item for item in (value.get("candidates") or []) if isinstance(item, Mapping)
+    ]
+    try:
+        candidate_count = int(value.get("candidate_count"))
+    except (TypeError, ValueError):
+        candidate_count = len(candidates)
+    try:
+        data_requirement_count = int(value.get("data_requirement_count"))
+    except (TypeError, ValueError):
+        data_requirement_count = len(value.get("data_requirements") or [])
+    return {
+        "schema_version": _text(value.get("schema_version"), 96),
+        "request_fingerprint": _text(value.get("request_fingerprint"), 128),
+        "discovery_fingerprint": _text(value.get("discovery_fingerprint"), 128),
+        "state": _text(value.get("state"), 32),
+        "reason_code": _text(value.get("reason_code"), 96),
+        "candidate_count": max(0, min(_MAX_VIEWS, candidate_count)),
+        "data_requirement_count": max(0, min(64, data_requirement_count)),
+        "next_actions": _safe_strings(value.get("next_actions"), 4),
     }
 
 

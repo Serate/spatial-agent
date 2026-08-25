@@ -240,3 +240,52 @@
 - 验证：开发期间只做语法/静态检查；M292-B～D 合并后集中运行精简 continuation contract、compileall、architecture 和 readiness 门禁。
 - 阻塞：无。
 - 下一步：实现 handoff contract 与 preview 入口透传；缺失事实时返回组件级、字段级澄清，不创建 execution run。
+
+### M295-A：全局基线与 discovery receipt 契约冻结 — 已完成
+- 目标：在 M294 execution binding 之上，为开放式请求建立领域中立、版本化、可恢复的能力/数据发现投影。
+- 需要修改/实际修改：已完成 M295 capability map、Spec、Plan 的七维度盘点；冻结 `spatial-agent.analysis-discovery.v1`、`needs_facts`、`data_unavailable`、`capability_unavailable`、`discovery_invalid` reason code 与安全/预算边界。
+- 验证：完成现有 RequestFacts、Capability Catalog、Domain discovery/readiness、continuation 和 execution binding 的边界核对；实现期间只做必要静态检查，阶段收口统一执行精简门禁。
+- 阻塞：无。
+- 下一步：实现 M295-B Discovery Gateway，并把 receipt 接入 Composite Request Context。
+
+### M295-B：领域中立 Discovery Gateway — 进行中
+- 目标：把 Domain Pack 已提供的 facts、候选能力、workflow 和 readiness 聚合为唯一 bounded discovery receipt；不选择工具、不创建计划、不绕过 execution binding。
+- 需要修改/实际修改：`agent/runtime_core/analysis_discovery.py`、`agent/composite_request_context.py`、`tests/test_m295_open_analysis_discovery.py`。
+- 验证：开发期间仅执行语法/静态检查；完成 M295-B～D 后集中执行 compact contract、相邻回归、Docker compileall、architecture strict 和 readiness。
+- 阻塞：无。
+- 下一步：先实现 receipt 校验、fingerprint、候选/数据需求/readiness 聚合和敏感字段过滤，再接入 context 的 clarification 与 planner 投影。
+
+### M295-B～D：Discovery Gateway、Planner 门禁与结果投影 — 已完成
+- 目标：将 Domain facts、候选能力、workflow 和 readiness 聚合为唯一 `spatial-agent.analysis-discovery.v1`，并贯通 Planner、生命周期、View、Evidence、Artifact 和前端。
+- 需要修改/实际修改：新增 `agent/runtime_core/analysis_discovery.py`；`CompositeRequestContextBuilder` 接入 receipt 和统一 request/discovery fingerprint；Planner 校验不可执行候选；planning evidence、Composite View、async/artifact safe projection 和 Console 动态显示 discovery 状态；补充 workflow 声明字段回退与中文标签。
+- 验证：M295 compact **5/5**；M295 + M281 + M285 + M291 + M293 + M294 合并回归 **30/30**；Node projection smoke、Docker compileall、architecture strict 通过。
+- 阻塞：无。
+- 下一步：完成 M295-E/F 的真实 Docker/HTTP/live 证据整理、中文问题记录、提交推送和全局重规划。
+
+### M295-E：跨领域真实数据与显式验收 — 已完成
+- 目标：验证真实生产 Docker/HTTP 和真实模型在开放式跨领域请求上的 discovery、澄清和安全降级，不保存模型原文或敏感配置。
+- 需要修改/实际修改：`evaluation/live_provider_probe.py` 增加 discovery 摘要的安全报告投影；生产容器重建并使用 `gis + economic` 请求验收。
+- 验证：Docker 生产 HTTP 返回 `spatial-agent.analysis-discovery.v1`、稳定 request/discovery fingerprint、`NEEDS_CLARIFICATION`、`needs_facts/request_facts_missing`，缺少经济指标时给出“经济指标”中文标签；未创建 execution run。真实模型单次 structured-output 请求安全返回 `NEEDS_CLARIFICATION`，0 组件、0 重试、未创建 run；readiness HTTP 200。
+- 阻塞：真实中转模型尚未形成稳定合法的多组件执行计划；本阶段按设计保留安全澄清，不放宽 schema 或权限。
+- 下一步：将真实模型“可达但需澄清/不稳定”作为 M296 纵向成功链路的输入约束。
+
+### M295-F：中文记录、版本交付与全局重规划 — 进行中
+- 目标：同步问题日志、阶段里程碑、恢复快照和任务清单，提交并推送 M295 版本，再按项目全局规划 M296。
+- 需要修改/实际修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`docs/agent-work-state.md`、`tasks/task-state.md`、`tasks/task-progress.md`、`tasks/plan.md`、`tasks/todo.md`。
+- 验证：阶段代码和测试已完成；文档修改后执行 `git diff --check`，提交后核对 commit/push 和工作树状态。
+- 阻塞：无。
+- 下一步：写入 M295 问题记录和 M296 全局能力图/Spec/Plan，提交推送阶段版本。
+
+### M295-F：中文记录、版本交付与全局重规划 — 已完成
+- 目标：完成 M295 文档、问题记录、milestones、恢复快照和 M296 全局计划；阶段版本待提交推送。
+- 需要修改/实际修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`docs/agent-work-state.md`、`tasks/task-state.md`、`tasks/task-progress.md`、`tasks/plan.md`、`tasks/todo.md`；新增 M296 capability map、Spec、Plan。
+- 验证：最终 Docker compileall、architecture strict、readiness 200 和 HTTP discovery/clarification 已通过；M295 compact 5/5、合并回归 30/30、Node smoke 已有阶段证据。
+- 阻塞：无。
+- 下一步：提交并推送 M295 版本，然后开始 M296-A。
+
+### M296-A：全局基线与 execution-readiness 契约冻结 — 进行中
+- 目标：在不新增第二套生命周期的前提下，冻结 capability → workflow → ToolRegistry → TaskPlan/result type 的执行就绪边界。
+- 需要修改/实际修改：`docs/m296-executable-capability-closure-capability-map.md`、`docs/m296-executable-capability-closure-spec.md`、`docs/m296-executable-capability-closure-plan.md`、`agent/runtime_core/plan_completeness.py`、`agent/runtime_core/execution_binding.py`、`agent/runtime_core/composite_taskplan.py`、`agent/tools.py`。
+- 验证：开发期间只做静态/契约边界检查；M296-B～E 合并后集中执行精简门禁。
+- 阻塞：无。
+- 下一步：先核对现有 readiness、workflow binding、ToolRegistry schema 和 execution binding 的公共字段，确定唯一可复用 seam。

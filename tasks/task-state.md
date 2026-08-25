@@ -6,20 +6,29 @@
 
 ## 当前阶段
 
-- 阶段：M294 已验证计划到执行/答案/证据闭合
+- 阶段：M296 通用能力可执行闭合与真实跨域成功链路
 - 阶段规划：
-  - `docs/m294-planned-execution-result-closure-capability-map.md`
-  - `docs/m294-planned-execution-result-closure-spec.md`
-  - `docs/m294-planned-execution-result-closure-plan.md`
-- 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
+  - `docs/m296-executable-capability-closure-capability-map.md`
+  - `docs/m296-executable-capability-closure-spec.md`
+  - `docs/m296-executable-capability-closure-plan.md`
+- 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
 
-### M295-A：全局开放式分析与数据发现闭环（进行中）
+### M296-A：全局基线与 execution-readiness 契约冻结（进行中）
+
+- 目标：复用 M295 discovery、TaskPlan completeness、ToolRegistry、workflow catalog 和 M294 execution binding，冻结唯一 execution-readiness seam。
+- 规划：`docs/m296-executable-capability-closure-capability-map.md`、`docs/m296-executable-capability-closure-spec.md`、`docs/m296-executable-capability-closure-plan.md`。
+- 文件：当前先读取上述三个规划文件、`agent/runtime_core/plan_completeness.py`、`agent/runtime_core/execution_binding.py`、`agent/runtime_core/composite_taskplan.py`、`agent/tools.py`；后续按账本增量加入 Domain catalog 和测试文件。
+- 验证：M295 已集中通过 Docker M295 compact **5/5**、合并回归 **30/30**、compileall、architecture strict、Node projection、readiness 200 和 HTTP receipt；M296 实现期间只做必要静态检查，B～E 完成后统一测试。
+- 阻塞：无。不得绕过 execution binding，不得把 unknown readiness 当 ready。
+
+### M295-A～F：全局开放式分析与数据发现闭环（已完成，待版本交付）
 
 - 目标：在 M294 execution binding 之上，建立领域中立 discovery receipt，让开放式请求先完成能力/数据需求发现，再进入澄清或 validated TaskPlan。
 - 规划：`docs/m295-global-open-analysis-discovery-capability-map.md`、`docs/m295-global-open-analysis-discovery-spec.md`、`docs/m295-global-open-analysis-discovery-plan.md`。
-- 文件：当前先读取上述三个规划文件和 `agent/composite_request_context.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/runtime_core/clarification_continuation.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`tests/test_m295_open_analysis_discovery.py`。
-- 验证：M294 阶段已集中通过 Docker M294/M293/M291/M285/M281 **25/25**、真实 GIS binding、compileall、architecture strict、readiness 200；M295 实现期间只做必要局部检查，B～D 完成后统一测试。
+- 文件：`agent/runtime_core/analysis_discovery.py`、`agent/composite_request_context.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`evaluation/live_provider_probe.py`、`web/src/console_result_projection.js`、`web/src/styles.css`、`scripts/console_result_projection_smoke.js`、`tests/test_m295_open_analysis_discovery.py`。
+- 验证：Docker M295 compact **5/5**；M295 + M281 + M285 + M291 + M293 + M294 合并回归 **30/30**；Docker compileall、architecture strict、Node projection smoke、生产 readiness **HTTP 200**、真实 Docker HTTP `NEEDS_CLARIFICATION`/discovery receipt 和真实模型单次安全澄清均通过或按结构化失败收口。
 - 阻塞：无。不得新增区域、指标或固定问句分支；不得绕过 execution binding。
+- 交付：待提交并推送 M295 版本；推送后基于七维度全局盘点进入 M296。
 
 ### M294-A～E：已验证计划到执行/答案/证据闭合（已完成）
 

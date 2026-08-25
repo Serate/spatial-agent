@@ -824,6 +824,30 @@ class CompositePlanningApplication:
                     "capability has no registered workflow",
                     code="capability_not_materializable",
                 )
+            discovery = context.get("discovery")
+            if isinstance(discovery, Mapping):
+                discovery_item = next(
+                    (
+                        value
+                        for value in (discovery.get("candidates") or [])
+                        if isinstance(value, Mapping)
+                        and str(value.get("domain_id")) == domain_id
+                        and str(value.get("capability_id")) == capability_id
+                    ),
+                    None,
+                )
+                if isinstance(discovery_item, Mapping) and not bool(
+                    discovery_item.get("execution_ready")
+                ):
+                    state = str(discovery_item.get("state") or "unavailable")
+                    code = (
+                        "data_unavailable"
+                        if state == "data_unavailable"
+                        else "capability_unavailable"
+                    )
+                    raise CompositePlannerError(
+                        "discovery candidate is not execution-ready", code=code
+                    )
             workflow = item.get("workflow")
             template_id = (
                 str(workflow.get("template_id") or "").strip()
@@ -858,6 +882,9 @@ class CompositePlanningApplication:
         evidence["context_schema_version"] = str(
             context.get("schema_version") or ""
         )[:96] or None
+        discovery = context.get("discovery")
+        if isinstance(discovery, Mapping):
+            evidence["discovery"] = _project_discovery_evidence(discovery)
         projected["planner_evidence"] = evidence
         return projected
 
@@ -927,6 +954,42 @@ def _safe_compatibility(value: Any) -> dict[str, Any]:
         if len(actions) >= 16:
             break
     return {"status": status, "actions": actions}
+
+
+def _project_discovery_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose only receipt identity and bounded readiness counts to results."""
+
+    candidates = [
+        item for item in (value.get("candidates") or []) if isinstance(item, Mapping)
+    ]
+    states: dict[str, int] = {}
+    for item in candidates:
+        state = str(item.get("state") or "unknown")[:32]
+        states[state] = states.get(state, 0) + 1
+    requirements = [
+        item
+        for item in (value.get("data_requirements") or [])
+        if isinstance(item, Mapping)
+    ]
+    receipt_evidence = value.get("evidence")
+    domain_count = len(value.get("domains") or [])
+    if isinstance(receipt_evidence, Mapping):
+        try:
+            domain_count = int(receipt_evidence.get("domain_count") or domain_count)
+        except (TypeError, ValueError):
+            pass
+    return {
+        "schema_version": str(value.get("schema_version") or "")[:96],
+        "request_fingerprint": str(value.get("request_fingerprint") or "")[:128],
+        "discovery_fingerprint": str(value.get("discovery_fingerprint") or "")[:128],
+        "state": str(value.get("state") or "unknown")[:32],
+        "reason_code": str(value.get("reason_code") or "unknown")[:96],
+        "domain_count": max(0, min(8, domain_count)),
+        "candidate_count": max(0, min(16, len(candidates))),
+        "data_requirement_count": max(0, min(64, len(requirements))),
+        "candidate_states": states,
+        "next_actions": [str(item)[:160] for item in (value.get("next_actions") or [])[:4]],
+    }
 
 
 def _validate_continuation_selection(

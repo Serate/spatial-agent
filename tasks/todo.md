@@ -124,11 +124,20 @@
 - [x] M294-D 同步/异步/重启与真实数据验收
 - [x] M294-E 中文记录、版本交付与全局重规划
 
-## M295 全局开放式分析与数据发现闭环（规划完成，准备实施）
+## M295 全局开放式分析与数据发现闭环（已完成，待版本交付）
 
-- [ ] M295-A 全局基线与 discovery receipt 契约冻结
-- [ ] M295-B 领域中立 Discovery Gateway
-- [ ] M295-C Planner 与生命周期集成
-- [ ] M295-D Result/View/Evidence 与前端渐进展示
-- [ ] M295-E 跨领域真实数据与显式 Docker/HTTP/Node 验收
-- [ ] M295-F 中文记录、版本交付与全局重规划
+- [x] M295-A 全局基线与 discovery receipt 契约冻结
+- [x] M295-B 领域中立 Discovery Gateway
+- [x] M295-C Planner 与生命周期集成
+- [x] M295-D Result/View/Evidence 与前端渐进展示
+- [x] M295-E 跨领域真实数据与显式 Docker/HTTP/Node 验收
+- [x] M295-F 中文记录、版本交付与全局重规划（文档待提交推送）
+
+## M296 通用能力可执行闭合与真实跨域成功链路（规划完成，A 进行中）
+
+- [ ] M296-A 全局基线与 execution-readiness 契约冻结
+- [ ] M296-B Catalog → Workflow → ToolRegistry 闭合
+- [ ] M296-C Planner / TaskPlan / binding 纵向接入
+- [ ] M296-D 真实 Docker 跨域成功与可恢复降级
+- [ ] M296-E 前端连续阶段与观测交付
+- [ ] M296-F 阶段收口与全局重规划

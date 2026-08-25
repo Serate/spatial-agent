@@ -499,6 +499,31 @@ def _safe_planner_evidence(value: Any) -> dict[str, Any]:
     structured_output = project_structured_output_evidence(value.get("structured_output"))
     if structured_output is not None:
         result["structured_output"] = structured_output
+    discovery = value.get("discovery")
+    if isinstance(discovery, Mapping):
+        candidate_states = discovery.get("candidate_states")
+        result["discovery"] = {
+            "schema_version": _safe_probe_string(discovery.get("schema_version"), 96),
+            "request_fingerprint": _safe_probe_string(
+                discovery.get("request_fingerprint"), 128
+            ),
+            "discovery_fingerprint": _safe_probe_string(
+                discovery.get("discovery_fingerprint"), 128
+            ),
+            "state": _safe_probe_string(discovery.get("state"), 32),
+            "reason_code": _safe_probe_string(discovery.get("reason_code"), 96),
+            "domain_count": max(0, min(8, int(discovery.get("domain_count") or 0))),
+            "candidate_count": max(0, min(16, int(discovery.get("candidate_count") or 0))),
+            "data_requirement_count": max(
+                0, min(64, int(discovery.get("data_requirement_count") or 0))
+            ),
+            "candidate_states": {
+                _safe_probe_string(key, 32): max(0, min(16, int(count)))
+                for key, count in (candidate_states or {}).items()
+            }
+            if isinstance(candidate_states, Mapping)
+            else {},
+        }
     lineage = value.get("repair_lineage")
     if isinstance(lineage, Mapping):
         try:

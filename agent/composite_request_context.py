@@ -8,7 +8,6 @@ domain-specific fields in the shared Runtime.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -20,6 +19,11 @@ from agent.domain_contract import (
     select_workflow,
 )
 from agent.request_model import RequestFacts
+from agent.runtime_core.analysis_discovery import (
+    AnalysisDiscoveryError,
+    AnalysisDiscoveryGateway,
+    discovery_request_fingerprint,
+)
 
 
 COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-request-context.v2"
@@ -61,6 +65,7 @@ class CompositeRequestContextBuilder:
         max_domains: int = _MAX_DOMAINS,
         max_candidates: int = _MAX_CANDIDATES,
         max_bytes: int = _MAX_BYTES,
+        discovery_gateway: Any = None,
     ) -> None:
         if host is None or not callable(getattr(host, "catalog", None)):
             raise ValueError("host must expose catalog()")
@@ -73,6 +78,13 @@ class CompositeRequestContextBuilder:
         self._max_domains = _positive_limit(max_domains, "max_domains")
         self._max_candidates = _positive_limit(max_candidates, "max_candidates")
         self._max_bytes = _positive_limit(max_bytes, "max_bytes")
+        self._discovery_gateway = discovery_gateway or AnalysisDiscoveryGateway(
+            max_domains=self._max_domains,
+            max_candidates=self._max_candidates,
+            max_bytes=max_bytes,
+        )
+        if not callable(getattr(self._discovery_gateway, "discover", None)):
+            raise ValueError("discovery_gateway must expose discover()")
 
     def build(
         self,
@@ -175,20 +187,41 @@ class CompositeRequestContextBuilder:
                 )
 
         candidate_index = _unique_candidates(candidate_index, self._max_candidates)
-        clarification = _clarification_projection(
+        request_fingerprint = _fingerprint(text, selected_ids, planner, backend)
+        try:
+            discovery_receipt = self._discovery_gateway.discover(
+                text,
+                planner=planner,
+                backend=backend,
+                domain_ids=selected_ids,
+                domain_contexts=domain_contexts,
+                candidate_index=candidate_index,
+                missing_by_domain=missing_by_domain,
+                catalog_consistency=catalog.get("catalog_consistency") or {},
+                request_fingerprint=request_fingerprint,
+            )
+        except AnalysisDiscoveryError as exc:
+            raise CompositeRequestContextError(
+                "analysis discovery receipt is invalid",
+                code=(
+                    "context_budget_exceeded"
+                    if exc.code == "discovery_budget_exceeded"
+                    else exc.code
+                ),
+            ) from exc
+        clarification = discovery_receipt.get("clarification") or _clarification_projection(
             domain_contexts, missing_by_domain, candidate_index
         )
         context = {
             "schema_version": COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION,
             "planner": _text(planner, 32),
             "backend": _text(backend, 32),
-            "request_fingerprint": _fingerprint(
-                text, selected_ids, planner, backend
-            ),
+            "request_fingerprint": request_fingerprint,
             "request_summary": text[:320],
             "domain_ids": selected_ids,
             "domain_contexts": domain_contexts,
             "capability_index": candidate_index,
+            "discovery": discovery_receipt,
             "clarification": clarification,
             "catalog_consistency": _safe_value(
                 catalog.get("catalog_consistency") or {}, depth=0
@@ -203,6 +236,9 @@ class CompositeRequestContextBuilder:
                 ],
                 "domain_count": len(domain_contexts),
                 "candidate_count": len(candidate_index),
+                "discovery_fingerprint": discovery_receipt.get(
+                    "discovery_fingerprint"
+                ),
             },
             "limits": {
                 "max_domains": self._max_domains,
@@ -371,7 +407,11 @@ def _candidate_projection(
                 "label": _text(item.get("label"), 160),
                 "description": _text(item.get("description"), 320),
                 "available": bool(item.get("available")),
+                "availability_mode": _text(item.get("availability_mode"), 24),
                 "availability_reason": _text(item.get("availability_reason"), 160),
+                "dataset_gate": _text(item.get("dataset_gate"), 24),
+                "capability_status": _text(item.get("capability_status"), 32),
+                "missing_datasets": _safe_strings(item.get("missing_datasets"), 8),
                 "datasets": _safe_strings(item.get("datasets"), 8),
                 "tools": _safe_strings(item.get("tools"), 8),
                 "result_types": _safe_strings(item.get("result_types"), 8),
@@ -575,13 +615,7 @@ def _safe_strings(value: Any, limit: int) -> list[str]:
 
 
 def _fingerprint(text: str, domains: Sequence[str], planner: str, backend: str) -> str:
-    encoded = json.dumps(
-        {"request": text, "domains": list(domains), "planner": planner, "backend": backend},
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:32]
+    return discovery_request_fingerprint(text, domains, planner, backend)
 
 
 def _assert_budget(value: Mapping[str, Any], limit: int) -> None:
