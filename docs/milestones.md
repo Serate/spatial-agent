@@ -4911,3 +4911,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker M274/M273/M270/M271/M263/M269 **24/24**，compileall、architecture strict、quick/stage 通过。
 - 真实全新 session `auto → Economic` 验收完成：最终 `COMPLETED`，两步 Economic 工具链成功，结果类型 `economic_timeseries_result`。selector 期间出现 transient/非法 identity 并安全 fallback，因此该结果证明自动路由与降级执行链路，不宣称纯模型 selector 已稳定通过。
 - 全局重规划：下一阶段优先做跨 `vector/raster/metrics/timeseries` 的领域中立 Composite 计划/结果验收，同时覆盖澄清、有限 repair、HTTP/async/artifact/evidence/前端一致性；先写 Spec/Plan，禁止在单个 Domain 中堆叠专题分支。
+
+## M275：领域中立 Composite 结果与证据接缝（契约阶段完成）
+
+- 新增 `docs/m275-composite-capability-map.md`、`docs/m275-composite-spec.md`、`docs/m275-composite-plan.md` 和 `tasks/plan.md`/`tasks/todo.md`，明确 Composite request、result、evidence、entry 的边界；本阶段不把跨域 coordinator 假装成已完成。
+- 新增 `agent/composite_contract.py`：通过 `spatial-agent.composite-request.v1` 规范化最多 8 个已声明组件，校验唯一身份、依赖存在性和 DAG 无环；通过 `composite-result.v1` 聚合组件状态、结果类型、profile、回答摘要、降级/失败和安全 artifact/evidence 摘要。
+- `data_profile` 以 `composite` 为主类型，并按稳定顺序并集收集 `vector/raster/metrics/timeseries/document_evidence`；子 View 通过 `component_id__view_id` 隔离；公共 `nested_schema` 强制 composite_result 必须携带合法 Composite section，Evidence Registry 接受 `composite-evidence.v1`。
+- Docker M275 定向 **4/4**，compileall、architecture strict、quick/stage 通过；没有新增 GIS/Economic 专用 Runtime、Planner、ToolRegistry 或前端分支。
+- 已知缺口：`DomainRuntimeHost` 仍是单 Domain selection；Composite coordinator、跨域计划校验/执行、统一异步/SQLite/restart/artifact/HTTP/前端和真实 LLM+GIS+Economic 验收留待后续阶段。
+- 全局重规划：下一阶段实现 Composite coordinator 的 transport-neutral application seam，先接 Host allowlist 与每组件生命周期，再逐步接 HTTP/async/artifact/restart；真实跨域 live 验收在离线契约稳定后显式执行。

@@ -1,0 +1,4 @@
+- [ ] 实现 Composite request/result/evidence 接缝
+- [ ] 补充 M275 精简契约测试
+- [ ] Docker 验证并更新项目记忆
+- [ ] 提交、推送并规划下一阶段

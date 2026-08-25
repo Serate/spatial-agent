@@ -83,9 +83,15 @@
 - M273 已完成：将 `evaluation/live_baseline.py` 扩展为 Domain-aware harness，live case 可通过受限 `domain_id` 选择已注册 Domain Pack；按 `backend + domain_id` 缓存 Runtime，旧的两参数 factory 保持兼容，Economic case 不再误触发 GIS live gate。新增 `live-economic-gdp-trend`，复用 Economic 的指标查询、来源证据和 `economic_timeseries_result` 契约。Docker M273 定向 **2/2**，M270/M271/M263/M79/M269/M268/M264 相关回归 **53/53**，compileall、architecture strict、quick/stage 通过；真实 Economic LLM + Docker 数据单 case 通过（1 次请求、0 重试、约 20.3 秒、4876 tokens）。未保存 prompt、模型原文、密钥、原始数据或路径。
 - M274 已完成：`OpenAIDomainSelectorAdapter` 改为向中转发送兼容性更高的 JSON object 请求，应用侧仍执行完整 Domain/capability allowlist 校验；Economic catalog 声明规范指标 ID 与别名，离线 fallback 不再把明确经济指标静默路由到通用 Indicators，语义不足时保持 ambiguity。Docker M274/M273/M270/M271/M263/M269 定向 **24/24**，compileall、architecture strict、quick/stage 通过。真实全新 session 的 `auto → Economic` 验收最终 `COMPLETED`，执行 `economic_indicator_query → economic_source_evidence` 两步并返回 `economic_timeseries_result`；本轮 selector 出现 provider transient/非法 identity 后均按设计 fallback，不能记作纯模型 selector 成功。未保存模型原文、密钥或路径。
 
+## M275 进行中：Composite 契约第一阶段
+
+- 新增领域中立 `agent/composite_contract.py`，建立版本化 Composite request/result/evidence schema；支持有界组件 DAG、Domain/组件身份、跨 `vector/raster/metrics/timeseries/document_evidence` profile 并集、部分失败/阻塞状态、子 View 前缀隔离和安全 artifact/evidence 摘要。
+- 公共 `nested_schema` 与 Evidence Registry 已接入 Composite 校验；新增 M275 Spec/Plan/能力图和 4 项精简契约测试。Docker M275 定向 **4/4**、compileall、architecture strict、quick/stage 通过。
+- 当前尚未接入跨 Domain coordinator、HTTP/async/artifact 持久化，不能宣称跨域真实端到端完成。
+
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析、M270 live 验收 harness、M271 provider probe、M272 第一条真实开放式多步验收和 M273 Domain-aware live baseline 均已完成。下一阶段从项目全局扩展真实 LLM 验收矩阵：优先验证跨 vector/raster/metrics 的复合请求、开放式澄清/拒绝、有限 repair，以及 HTTP/async/artifact/evidence/前端一致性；再根据失败面决定是否新增领域中立的 Composite seam。Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析、M270 live 验收 harness、M271 provider probe、M272 第一条真实开放式多步验收、M273 Domain-aware live baseline 和 M274 Domain Selector 兼容性均已完成。M275 已完成 Composite 契约第一刀，但跨 Domain coordinator、统一生命周期、HTTP/async/artifact/evidence/前端一致性和真实 LLM/GIS/Economic 端到端仍未完成；下一阶段从项目全局继续实现 coordinator/transport，必须复用本阶段 schema，不在单个 Domain 添加固定链路。Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
 
 ## 不变量
 

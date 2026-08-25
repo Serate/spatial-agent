@@ -84,6 +84,25 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
         if result.get("interaction") is not None
         else project_interaction(result)
     )
+    if result.get("type") == "composite_result":
+        # Import lazily: the Composite seam uses the public result builder,
+        # which itself depends on this nested-schema module.
+        from agent.composite_contract import (
+            CompositeContractError,
+            normalize_composite_section,
+        )
+
+        try:
+            result["composite"] = normalize_composite_section(
+                result.get("composite")
+            )
+        except CompositeContractError as exc:
+            reason_code = exc.code
+            raise NestedSchemaError(
+                "composite result section is invalid",
+                path="result.composite",
+                reason_code=str(reason_code)[:96],
+            ) from exc
     _normalize_artifact_references(result)
     return result
 

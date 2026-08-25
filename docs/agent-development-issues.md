@@ -828,3 +828,12 @@
 - **补充修复**：Economic Domain 在自身 catalog 中声明规范指标 ID 和别名。对于 `gdp_total/GDP + 明确经济语义`，catalog fallback 选择 Economic；语义不足时返回 ambiguity，不强行选择通用 Indicators。
 - **验证**：Docker M274/M273/M270/M271/M263/M269 **24/24**，compileall、architecture strict、quick/stage 通过。真实 selector 单独调用在 90 秒内 provider 返回成功但模型 identity 不合法，安全 fallback；完整全新 session auto case 遇 transient provider 后仍由 catalog 选择 Economic，`economic_indicator_query` 与 `economic_source_evidence` 两步完成，结果为 `economic_timeseries_result`。
 - **预防**：provider schema 兼容性必须通过最小 probe 和 live metrics 分层验证；身份安全不能依赖第三方 schema 强制，而要在本地做 allowlist 校验。Selector fallback 的成功只能证明降级链路，不等同于模型 selector 成功；默认 CI、quick、stage 保持离线。
+
+## M275 Composite 契约不能等同于跨 Domain 执行能力
+
+- **现象**：项目已有 `composite` data profile 和 Domain 内部组合 workflow，但它们不能证明一次用户请求已经跨 GIS/Economic 两个独立 Domain 执行；若只把多个结果拼成列表，可能丢失组件失败、Domain 身份、View 冲突和证据血缘。
+- **根因**：`DomainRuntimeHost` 当前按一次请求选择一个 Domain，公共 Result Envelope 虽支持 composite 类型，却没有跨 Domain coordinator 的组件 DAG、结果聚合和统一 evidence 投影边界。
+- **诊断**：先区分“单 Domain 内部 workflow composition”“结果 data profile=composite”和“真正跨 Domain coordinator”三种状态；验收必须检查组件 Domain/状态/依赖、profile 并集、子 View 引用、artifact/evidence 和部分失败，而不是只看最终 `COMPLETED`。
+- **修复**：M275 新增领域中立 `agent/composite_contract.py`，以 `spatial-agent.composite-request.v1`、`composite-result.v1`、`composite-evidence.v1` 规范化有界组件 DAG，聚合 `vector/raster/metrics/timeseries/document_evidence`，对缺失/失败/阻塞组件保留结构化状态，使用组件前缀隔离子 View；`nested_schema` 和 Evidence Registry 复用同一边界。当前只完成契约接缝，未把 coordinator 或 HTTP/async 生命周期伪装成已完成。
+- **验证**：Docker M275 契约 **4/4**，compileall、architecture strict、quick/stage 通过；测试覆盖正常混合、依赖环、必需组件失败和缺失组件阻塞。未保存模型原文、密钥、真实原始数据或宿主路径。
+- **预防**：后续跨 Domain coordinator 必须先通过 Host allowlist 再执行每个组件，并将同步、异步、artifact、SQLite/restart 和前端统一到同一 Composite Result/Evidence；不得在 live harness 或某个 Domain 内偷偷拼接两个 Runtime，也不得把 Composite schema 当作跨域端到端验收证据。

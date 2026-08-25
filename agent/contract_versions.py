@@ -17,6 +17,9 @@ DOMAIN_ROUTING_EVIDENCE_SCHEMA_VERSION = "spatial-agent.domain-routing-evidence.
 INTERACTION_SCHEMA_VERSION = "spatial-agent.interaction.v1"
 INTERACTION_ACTION_SCHEMA_VERSION = "spatial-agent.interaction-action.v1"
 INTERACTION_COMMAND_SCHEMA_VERSION = "spatial-agent.interaction-command.v1"
+COMPOSITE_REQUEST_SCHEMA_VERSION = "spatial-agent.composite-request.v1"
+COMPOSITE_RESULT_SCHEMA_VERSION = "spatial-agent.composite-result.v1"
+COMPOSITE_EVIDENCE_SCHEMA_VERSION = "spatial-agent.composite-evidence.v1"
 
 __all__ = [
     "TASK_PLAN_SCHEMA_VERSION",
@@ -36,4 +39,7 @@ __all__ = [
     "INTERACTION_SCHEMA_VERSION",
     "INTERACTION_ACTION_SCHEMA_VERSION",
     "INTERACTION_COMMAND_SCHEMA_VERSION",
+    "COMPOSITE_REQUEST_SCHEMA_VERSION",
+    "COMPOSITE_RESULT_SCHEMA_VERSION",
+    "COMPOSITE_EVIDENCE_SCHEMA_VERSION",
 ]

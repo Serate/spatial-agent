@@ -265,6 +265,11 @@ def build_result_contract(
             payload.get("answer_generation_evidence")
         ),
     }
+    if isinstance(payload.get("_composite"), Mapping):
+        # Composite is a public, domain-neutral result extension.  The
+        # coordinator owns its content; the common envelope only carries it
+        # through the same nested-schema and evidence boundaries.
+        contract["composite"] = dict(payload["_composite"])
     contract["deployment_evidence"] = build_deployment_evidence(
         payload,
         model_evidence=contract["model_evidence"],
