@@ -4930,3 +4930,13 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker M275+M276 定向 **9/9**，compileall、architecture strict、quick/stage 通过。
 - 已知缺口：跨域 LLM Planner/能力选择、统一 async/HTTP/SQLite/artifact/restart、前端动态 Composite View 和真实 LLM+GIS+Economic 端到端仍待后续阶段。
 - 全局重规划：下一阶段将 Coordinator 接入统一 HTTP/async submission 与可恢复 Composite run identity；先保持离线契约，随后显式进行真实数据/模型验收。
+
+## M277：Composite HTTP 统一入口（已完成）
+
+- 新增 `docs/m277-composite-http-capability-map.md`、`docs/m277-composite-http-spec.md` 和 `docs/m277-composite-http-plan.md`，定义 `/composite-runs` 只作为共享 semantic Application 的同步入口。
+- `HTTPApplication` 新增 `composite_run` 命令；FastAPI `production_api.py` 与 stdlib `serve_api.py` 均注入同一个 `CompositeApplication` 并路由 `/composite-runs`，不复制组件编排逻辑。
+- Docker 真实请求验证 GIS `raster_metadata_result` + Economic `economic_timeseries_result` 聚合为 `composite_result`，状态 `COMPLETED`，profile 为 `composite/raster/metrics/timeseries`，View 为组件前缀；经济指标缺失请求返回结构化 `FAILED`。
+- Docker M277 应用/Composite/stdlib HTTP 定向 **16/16**，compileall、architecture strict、CI/stage 和生产 `/health/ready` 通过。期间发现并修复 FastAPI Composition Root 的 `domain_host`/`host` 变量名漂移。
+- 已知缺口：Composite 查询、artifact、async、SQLite/restart、前端动态展示和 LLM 自动生成跨域组件仍未接入；这些属于下一阶段，不在本阶段伪装为已完成。
+- 本阶段已完成 Docker 精简契约、compileall、architecture strict、CI/stage 和生产健康检查，并完成版本提交与推送。
+- 全局重规划：下一阶段设计可恢复 Composite run identity，先接现有 AsyncApplication/SQLite/artifact，再验证同步/异步/重启结果一致性；真实 LLM 跨域规划放在恢复契约稳定后显式验收。

@@ -23,6 +23,7 @@ from agent.domain_routing_entry import (
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
+from agent.application.composite import CompositeApplication
 from agent.web_assets import WEB_ASSETS, console_asset, console_index, console_root
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
@@ -41,6 +42,7 @@ domain_routing = DomainRoutingApplication(
     domain_host,
     state=routing_state_from_environment(),
 )
+composite_application = CompositeApplication(host=domain_host)
 
 
 def runtime_capability_snapshot(max_files: int = 10) -> dict:
@@ -60,6 +62,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         return HTTPApplication(
             self.service,
             routing=self.routing,
+            composite=composite_application,
             action_handler=AgentService.estimate_area_handler,
             on_session_clear=lambda session_id: self.routing.forget_session(
                 session_id, keep_binding=True
@@ -410,6 +413,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
         is_preview = parsed.path == "/runs/preview"
         is_async_run = parsed.path == "/runs/async"
+        is_composite_run = selection is None and parsed.path == "/composite-runs"
         is_decision_resolve = (
             parsed.path.startswith("/decisions/")
             and parsed.path.endswith("/resolve")
@@ -454,7 +458,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and not is_domain_select and not is_auto_run and routing_override_id is None and routing_clear_session_id is None and workflow_action is None:
+        if parsed.path != "/runs" and not is_composite_run and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and not is_domain_select and not is_auto_run and routing_override_id is None and routing_clear_session_id is None and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
@@ -485,6 +489,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 result = self._http_application().execute("preview", payload)
             elif is_async_run:
                 result = self._http_application().execute("run_async", payload)
+            elif is_composite_run:
+                result = self._http_application().execute("composite_run", payload)
             elif is_decision_resolve:
                 parts = parsed.path.strip("/").split("/")
                 if len(parts) != 3 or not parts[1] or parts[2] != "resolve":

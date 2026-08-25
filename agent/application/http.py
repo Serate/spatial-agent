@@ -39,12 +39,14 @@ class HTTPApplication:
         service: Any,
         *,
         routing: Any = None,
+        composite: Any = None,
         action_handler: Optional[Callable[[Dict[str, Any]], Any]] = None,
         on_session_clear: Optional[Callable[[str], None]] = None,
         on_session_delete: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._service = service
         self._routing = routing
+        self._composite = composite
         self._action_handler = action_handler
         self._on_session_clear = on_session_clear
         self._on_session_delete = on_session_delete
@@ -74,6 +76,11 @@ class HTTPApplication:
             return service.run(**run_kwargs(body))
         if action == "run_async":
             return service.run_async(**async_run_kwargs(body))
+        if action == "composite_run":
+            if self._composite is None:
+                raise RuntimeError("composite application is unavailable")
+            session_id = str(body.get("session_id") or "default")[:120]
+            return self._composite.run(body, session_id=session_id)
         if action == "preview":
             return service.preview(**preview_kwargs(body))
         if action == "retry":

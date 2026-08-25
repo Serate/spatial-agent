@@ -26,6 +26,7 @@ from agent.domain_routing_entry import (
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
+from agent.application.composite import CompositeApplication
 from agent.application.http_transport import (
     error_projection,
     load_artifact_json,
@@ -49,6 +50,7 @@ domain_routing = DomainRoutingApplication(
     host,
     state=routing_state_from_environment(),
 )
+composite_application = CompositeApplication(host=host)
 
 
 def _close_host() -> None:
@@ -120,6 +122,7 @@ def _http_application(target_service: AgentService = None) -> HTTPApplication:
     return HTTPApplication(
         target_service or service,
         routing=domain_routing,
+        composite=composite_application,
         action_handler=AgentService.estimate_area_handler,
         on_session_clear=lambda session_id: domain_routing.forget_session(
             session_id, keep_binding=True
@@ -298,6 +301,14 @@ def console_styles():
 def run(payload: Dict[str, Any]):
     try:
         return _http_application().execute("run", payload)
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.post("/composite-runs")
+def composite_run(payload: Dict[str, Any]):
+    try:
+        return _http_application().execute("composite_run", payload)
     except Exception as exc:
         _raise_for(exc)
 

@@ -89,15 +89,21 @@
 - 公共 `nested_schema` 与 Evidence Registry 已接入 Composite 校验；新增 M275 Spec/Plan/能力图和 5 项精简契约测试。Docker M275 定向 **5/5**、compileall、architecture strict、quick/stage 通过，并已推送 `8cb672e`。
 - Composite coordinator、HTTP/async/artifact 持久化仍为后续阶段，不能宣称跨域真实端到端完成。
 
-## M276：Composite Coordinator 第一条执行切片（进行中）
+## M276：Composite Coordinator 第一条执行切片（已完成）
 
 - 已新增 M276 Spec/Plan/能力图、`agent/application/composite.py` 和 4 项 coordinator 契约测试；显式组件通过 `DomainRuntimeHost.select/service` allowlist，按依赖串行执行。
 - 依赖失败或澄清会阻断下游，独立组件继续执行；子 Service 异常只形成有界失败 receipt；最终统一调用 M275 Composite Result/Evidence 聚合器。
-- Docker M275+M276 定向 **9/9**、compileall、architecture strict、quick/stage 通过；尚未接入 HTTP/async/SQLite/artifact 或 LLM 自动生成跨域组件。
+- Docker M275+M276 定向 **9/9**、compileall、architecture strict、quick/stage 通过，并已推送 `e5d103c`；尚未接入 HTTP/async/SQLite/artifact 或 LLM 自动生成跨域组件。
+
+## M277：Composite HTTP 统一入口（已完成）
+
+- `HTTPApplication` 新增 `composite_run` 语义命令；FastAPI 与 stdlib server 均暴露 `/composite-runs`，共享 M276 Coordinator，不在 transport 中复制组件循环。
+- Docker 真实 HTTP GIS + Economic 请求已返回 `COMPLETED` 的 `composite_result`，profile 为 `composite + raster + metrics + timeseries`，View 使用 `space__*`/`economy__*` 前缀；故意失败请求保留 `FAILED` 和组件级错误。
+- 曾发现生产入口注入变量名错误导致 FastAPI import 失败，已修复；最终 Docker 门禁和文档已收口，本阶段代码已提交并推送。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析、M270 live 验收 harness、M271 provider probe、M272 第一条真实开放式多步验收、M273 Domain-aware live baseline、M274 Domain Selector 兼容性和 M275 Composite 契约均已完成。M276 已完成 coordinator 的 transport-neutral 执行第一刀，但统一生命周期 transport、HTTP/async/SQLite/artifact/restart、LLM 自动跨域计划、前端和真实 LLM/GIS/Economic 端到端仍未完成；下一阶段继续接入这些公共边界，必须复用 M275/M276 schema，不在单个 Domain 添加固定链路。Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析、M270 live 验收 harness、M271 provider probe、M272 第一条真实开放式多步验收、M273 Domain-aware live baseline、M274 Domain Selector 兼容性、M275 Composite 契约、M276 Coordinator 和 M277 HTTP 同步入口均已完成。统一 async/SQLite/artifact/restart、LLM 自动跨域计划、前端动态 Composite View 和真实跨入口恢复仍未完成。下一阶段继续接入这些公共边界，必须复用 M275/M276/M277 schema，不在单个 Domain 添加固定链路。Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
 
 ## 不变量
 

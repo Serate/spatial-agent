@@ -49,6 +49,15 @@ class _Routing:
         return {"status": "QUEUED"}
 
 
+class _Composite:
+    def __init__(self):
+        self.calls = []
+
+    def run(self, payload, *, session_id):
+        self.calls.append((payload, session_id))
+        return {"status": "COMPLETED", "session_id": session_id}
+
+
 class M256HTTPApplicationTests(unittest.TestCase):
     def test_run_and_async_share_one_payload_projection(self):
         service = _Service()
@@ -123,6 +132,16 @@ class M256HTTPApplicationTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "run_id"):
             application.read("run")
+
+    def test_composite_run_is_a_shared_application_command(self):
+        composite = _Composite()
+        application = HTTPApplication(_Service(), composite=composite)
+        result = application.execute(
+            "composite_run",
+            {"session_id": "composite-session", "components": []},
+        )
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertEqual(composite.calls[0][1], "composite-session")
 
 
 if __name__ == "__main__":

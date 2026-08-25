@@ -1,4 +1,4 @@
-- [ ] 实现 M276 Composite coordinator
-- [ ] 补充 M276 精简契约测试
-- [ ] Docker 验证并更新项目记忆
-- [ ] 提交、推送并规划下一阶段
+- [x] 完成 M277 Composite HTTP 统一入口
+- [x] 补充 M277 HTTP/CI/stage 验收
+- [x] Docker 验证并更新项目记忆
+- [x] 提交、推送并规划下一阶段

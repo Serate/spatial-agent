@@ -846,3 +846,12 @@
 - **修复**：M276 新增 `agent/application/composite.py` 的 `CompositeApplication`。它只调用 Host `select/service` 和子 Service `run`，按声明顺序串行执行；依赖 gate 产生 `blocked`，组件异常产生有界 `failed` receipt，最后复用 M275 `build_composite_result_contract`。未知/禁用 Domain 作为请求级 `CompositeCoordinatorError` 拒绝。
 - **验证**：Docker M275+M276 定向 **9/9**，compileall、architecture strict、quick/stage 通过；真实 Host allowlist、正常顺序、依赖阻断、独立组件继续执行和敏感异常不回传均有契约覆盖。
 - **预防**：后续 HTTP/async/artifact/SQLite/restart 只能调用同一 Coordinator seam；不要在 Domain Pack、live harness 或 transport 层复制组件循环。M276 不宣称已经具备 LLM 自动生成跨域计划或完整跨入口恢复。
+
+## M277 FastAPI Composition Root 变量名漂移导致容器启动失败
+
+- **现象**：新增 Composite HTTP 注入后，Docker stdlib 测试通过，但生产 FastAPI 容器启动失败，`/health/ready` 连接被提前关闭；日志只显示模块导入阶段的 `NameError`。
+- **根因**：两个入口的 Host 变量命名不同：`serve_api.py` 使用 `domain_host`，`production_api.py` 使用 `host`。复制注入代码时误将 stdlib 变量名带入 FastAPI Composition Root。
+- **诊断**：新增入口级依赖后必须重建 Docker 并检查容器日志、`/health/ready` 和实际 import；不能只运行应用层单测。
+- **修复**：生产入口改用其已初始化的 `host` 创建 `CompositeApplication`；随后 Docker 重建、生产容器恢复并返回 HTTP 200。
+- **验证**：M277 应用/Composite/stdlib HTTP 定向 **16/16**，compileall、architecture strict、CI/stage 通过；真实 Docker `/composite-runs` 的 GIS + Economic 请求返回 `COMPLETED`，失败组件请求返回结构化 `FAILED`。
+- **预防**：两个 transport 共享 semantic Application，但 Composition Root 注入时必须以各自实际变量为准；以后每次 transport 改动都至少执行 Docker import/health 验收，并记录启动失败而非只保留最终绿灯。
