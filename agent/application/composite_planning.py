@@ -157,6 +157,7 @@ class CompositeCapabilityProjector:
                     {
                         "domain_id": domain_id,
                         "capability_id": item["id"],
+                        "selection_key": f"{domain_id}::{item['id']}"[:140],
                         "label": item.get("label"),
                         "description": item.get("description"),
                         "available": item.get("available"),
@@ -660,6 +661,7 @@ def _planner_evidence(
             state=selection_state,
             reason_code=selection_reason,
             selected_capability_ids=selected_capability_ids,
+            selected_capability_keys=_capability_keys(candidate.get("components")),
             candidate_count=candidate_count,
         ),
     }
@@ -675,6 +677,7 @@ def _planner_selection_evidence(
     state: Any,
     reason_code: Any,
     selected_capability_ids: Any,
+    selected_capability_keys: Any,
     candidate_count: Any,
 ) -> dict[str, Any]:
     """Build the bounded planner/source decision shared by every outcome."""
@@ -691,6 +694,18 @@ def _planner_selection_evidence(
             capability_ids.append(text)
         if len(capability_ids) >= 8:
             break
+    capability_keys: list[str] = []
+    key_values = (
+        selected_capability_keys
+        if isinstance(selected_capability_keys, (list, tuple, set))
+        else []
+    )
+    for value in key_values:
+        text = str(value or "").strip()[:140]
+        if text and text not in capability_keys:
+            capability_keys.append(text)
+        if len(capability_keys) >= 8:
+            break
     try:
         bounded_count = max(0, min(64, int(candidate_count)))
     except (TypeError, ValueError):
@@ -702,8 +717,28 @@ def _planner_selection_evidence(
         "selected_source": str(selected_source or "unknown").strip()[:32] or "unknown",
         "reason_code": str(reason_code or "planner_selection_unavailable").strip()[:96],
         "selected_capability_ids": capability_ids,
+        "selected_capability_keys": capability_keys,
         "candidate_count": bounded_count,
     }
+
+
+def _capability_keys(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        domain_id = str(item.get("domain_id") or "").strip()
+        capability_id = str(item.get("capability_id") or "").strip()
+        if not domain_id or not capability_id:
+            continue
+        key = f"{domain_id}::{capability_id}"[:140]
+        if key not in result:
+            result.append(key)
+        if len(result) >= 8:
+            break
+    return result
 
 
 def _selection_state_for_status(status: str) -> str:

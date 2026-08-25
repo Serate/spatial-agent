@@ -985,3 +985,27 @@
 - **诊断**：只记录 status、error_code、组件数、是否创建 run 和耗时；不读取或输出响应原文、prompt、请求头、密钥或私有路径。用脱敏 replay 验证两步 DAG，再用单次 live probe 验证真实模型契约。
 - **当前处理**：收紧 Composite Planner 的系统指令，继续保留本地严格字段/状态校验；非法输出在创建 run 前拒绝。M285 的两步 replay、HTTP/async evidence、artifact/restart 恢复均已通过，真实中转失败作为下一阶段模型适配问题保留。
 - **预防**：不能为一次 live 请求放宽未知字段或接受非成功组件；后续模型适配只能增加有文档、有回放、有边界的格式兼容，并保持 Rule/Replay/LLM 共享 TaskPlan 门控。默认 CI 不访问 provider。
+
+## M285 真实模型的四类失败必须分层记录
+
+- **现象**：在同一套有界 Docker live probe 中，真实中转先后出现 `plan_response_field_invalid`、`plan_components_unexpected`、`taskplan_policy_unavailable` 和 `capability_not_registered` 四类结构化拒绝；每次均为单请求、0 个工具步骤、未创建 execution run。
+- **根因区分**：前两类是 provider 输出字段/状态契约不稳定；第三类暴露了本地 capability projection 漏掉 `tools` 字段，使合法计划无法建立 TaskPlan 工具 allowlist；第四类是模型选择了能力目录之外的 capability，说明本地 allowlist 正确阻断了越权计划。
+- **修复**：Composite Planner 明确要求成功必须有非空组件，澄清/拒绝必须为空组件；`_candidate_projection()` 补齐受限 `tools` 投影；live probe 增加 `--max-output-tokens`（64～4096，默认 128），复杂请求可显式提高输出上限。未知能力、字段和非成功组件约束继续 fail closed。
+- **验证**：离线 replay、TaskPlan bridge、HTTP/async/artifact/restart evidence 和 M283/M285 精简回归继续通过；live 只记录状态、错误码、步骤数、是否创建 run 和 token/耗时摘要，不保存 prompt、模型原文、密钥或私有路径。
+- **预防**：provider readiness、context projection、Planner schema、TaskPlan allowlist 和 execution 必须作为独立验收层；真实模型适配只能在 provider adapter/提示契约层做有界兼容，并用脱敏 replay 固化，不得为一次 live 成功放宽 Runtime 或工具权限。
+
+## Live probe 的输出预算没有传到懒加载的 Composite Planner
+
+- **现象**：`scripts/live_provider_probe.py` 已增加 `--max-output-tokens`，但 Composite planning application 在生产 Composition Root 中按 `planner=openai` 懒加载客户端；只修改局部 `config` 不会影响真正的 Composite 请求，复杂计划仍可能使用环境默认预算。
+- **根因**：provider connectivity probe 直接接收 CLI 构造的 client，Composite probe 则在导入 `production_api` 后由 `_composite_planner_factory` 重新读取环境配置，两个路径的配置注入边界不同。
+- **修复**：Composite 分支在导入/调用生产组合器前，把经过 64～4096 限制的输出预算写入当前进程的 `OPENAI_MAX_OUTPUT_TOKENS`；没有修改默认生产环境或 Runtime 生命周期。
+- **验证**：Docker 重建后 M286-B 紧凑 contract **3/3** 通过；live 仍保持单请求、0 重试和脱敏 receipt。
+- **预防**：显式验收 CLI 参数必须沿实际 Composition Root 生效；新增 provider 参数时同时检查 direct probe、懒加载 planner 和 HTTP/production 入口，不能只测试局部 client factory。
+
+## M286 中转模型到达 provider 后仍携带未声明组件字段
+
+- **现象**：带明确区域和目标的 Composite live probe 已到达 `openai` Planner，但本地结果为 `REJECTED/plan_component_field_invalid`；0 个组件、未创建 run。此前一条缺少区域事实的请求在 context 层返回 `NEEDS_CLARIFICATION`，同样未创建 run。
+- **根因**：provider 可达、上下文身份提示和输出预算生效，并不代表模型会严格遵守组件字段 allowlist；当前脱敏 receipt 不能包含模型原文或未知字段名，因此不能据此猜测兼容字段。
+- **处理**：继续拒绝未知组件字段，保留 `plan_component_field_invalid` 和 `planner_source=openai` 的安全 evidence；不把未知字段加入 schema，不绕过 TaskPlan/ToolRegistry 门控。下一阶段研究一次有界 schema 修复回合或明确的 provider adapter 映射，并先用 replay 固化。
+- **验证**：阶段联合 Docker contract **17/17**、compileall、architecture strict、readiness 200 通过；两条 live 输入分别验证前置澄清和 provider 到达后的 schema fail-closed。
+- **预防**：真实模型验收按 context → provider → response schema → capability allowlist → TaskPlan → execution 分层；任何兼容新增都必须有脱敏 replay、字段白名单和无越权负向断言，不能为了 live 通过接受任意组件字段。

@@ -11,18 +11,27 @@
 - 不记录 API key、prompt、模型原文、私有路径、完整原始数据或敏感异常。
 - 阶段任务安排应覆盖更完整的依赖链，优先按能力切片集中完成契约、实现、集成和交付准备；避免把一个完整阶段拆成过多过小的任务。
 - 验证只保留有独立失败模式的精简测试，并在相关实现集中完成后统一运行；跨入口契约、阶段级架构门禁和 readiness 保留，重复测试不重复运行。
+- 本次 Goal 约束：每个阶段安排更完整的任务包，尽量一次覆盖契约、实现、集成、文档和交付；开发期间减少重复测试，阶段收口统一执行精简且有代表性的门禁。
 
 ## 当前进行中
 
-### M285-E：live/交付收口与下一阶段规划 — 进行中
+### M287-B：Repair Request/Lineage contract 与错误码白名单 — 进行中
 
-- 目标：收口 M285-C/D 的实现和跨入口证据，记录真实中转 Composite Planner 的结构化失败，完成版本交付后规划模型适配阶段。
-- 需要修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`tasks/plan.md`、`tasks/todo.md`、`tasks/task-state.md`、`docs/agent-work-state.md`、`tasks/task-progress.md`。
-- 验证：M285/M283 联合 **13/13**、Docker compileall、architecture strict、readiness 通过；两次单请求 live probe 均安全拒绝且未创建 run，错误码分别为 `plan_response_field_invalid`、`plan_components_unexpected`。
-- 阻塞：真实中转模型尚未稳定遵守 Composite Planner schema；不修改安全校验绕过该问题。
-- 下一步：同步 milestones/任务状态，运行 diff check，提交并推送 M285-C/D 版本；将真实模型格式适配作为下一阶段全局目标。
+- 目标：定义领域中立、有界、最多一次的 Planner repair 请求和 lineage，只有 schema 结构错误可进入修复；未知能力、工具、数据和 policy 错误直接终止。
+- 需要修改：`agent/composite_planner.py`、`agent/application/composite_planning.py`、`tests/test_m287_bounded_planner_repair.py`。
+- 已完成：M286 阶段门禁；联合 **17/17**、compileall、architecture strict、readiness 200；live 一条前置澄清、一条 provider schema 拒绝，均无 run。
+- 验证：M287 contract 待实现后集中运行，不重复运行 M286 联合门禁。
+- 阻塞：无；未知模型字段继续 fail closed。
+- 下一步：先实现 repair request/lineage 的纯契约和错误码分类，再接 provider/application。
 
 ## 最近完成
+
+### Goal 执行节奏约束同步 — 已完成
+
+- 结果：将“每阶段编排更完整的能力切片、减少微阶段；开发中只做必要检查、阶段收口统一精简验证”提升为项目 Goal 的正式执行约束。
+- 文件：`docs/agent-project-direction.md`、`docs/agent-work-state.md`、`tasks/task-progress.md`。
+- 验证：仅完成文档变更核对；本次没有运行重复业务测试。
+- 后续：M285-E 仍按现有阶段计划推进，下一阶段以完整能力包规划，不按单个测试例拆分。
 
 ### M285-B：Planner entry policy 与 source evidence — 已完成
 

@@ -119,6 +119,10 @@ def normalize_provider_response(payload: Any) -> tuple[dict[str, Any], dict[str,
         raise CompositePlannerError(
             "planner components must be an array", code="plan_components_invalid"
         )
+    if raw_components_present and len(raw_components) > 8:
+        raise CompositePlannerError(
+            "planner components exceed the maximum", code="plan_components_limit"
+        )
 
     raw_outcome = normalized.get("outcome")
     if raw_outcome is None or not str(raw_outcome).strip():
@@ -349,7 +353,14 @@ class LLMCompositePlanner:
                     "required, and optional workflow. Choose only capability_id and "
                     "domain_id values present in the trusted context. Do not invent "
                     "tools, data, facts, paths, code, or measurements. Use "
-                    "needs_clarification when the request or context is insufficient."
+                    "needs_clarification when the request or context is insufficient. "
+                    "Copy each domain_id and capability_id exactly from one "
+                    "capability_index entry; selection_key is only a reference hint "
+                    "and must not be returned as a component field. Do not infer an "
+                    "ID from a label or tool name. "
+                    "For success, components must be non-empty; for "
+                    "needs_clarification or rejected, components must be an empty "
+                    "array. Never return components with a non-success outcome."
                 ),
             },
             {
@@ -396,6 +407,10 @@ def normalize_composite_plan(
     if not isinstance(raw_components, list):
         raise CompositePlannerError(
             "planner components must be an array", code="plan_components_invalid"
+        )
+    if len(raw_components) > 8:
+        raise CompositePlannerError(
+            "planner components exceed the maximum", code="plan_components_limit"
         )
     if outcome != "success":
         if raw_components:

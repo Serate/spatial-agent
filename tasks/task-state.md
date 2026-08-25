@@ -2,13 +2,15 @@
 
 > 上下文恢复时只读取本账本的当前阶段和最近记录。历史阶段结论在对应 Spec/Plan、milestones 和中文问题日志中；不要把本文件重新扩展成完整历史。
 
+> Goal 执行节奏补充：阶段按更完整的能力切片编排，尽量合并契约、实现、集成、文档和交付准备；开发中减少重复测试，阶段收口集中执行精简且有代表性的门禁。
+
 ## 当前阶段
 
-- 阶段：M285 开放式 Planner 多工具编排纵向切片
+- 阶段：M287 有界 Planner 修复与失败恢复
 - 阶段规划：
-  - `docs/m285-open-query-planner-capability-map.md`
-  - `docs/m285-open-query-planner-spec.md`
-  - `docs/m285-open-query-planner-plan.md`
+  - `docs/m287-bounded-planner-repair-capability-map.md`
+  - `docs/m287-bounded-planner-repair-spec.md`
+  - `docs/m287-bounded-planner-repair-plan.md`
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
 
 ## 最近任务记录
@@ -133,12 +135,39 @@
 - 验证：Docker M285/M283 **13/13**、compileall、architecture strict、readiness 通过；两步依赖 replay、非法工具拒绝、HTTP→async 和 artifact/restart evidence 通过。
 - 阻塞：无。
 
-### M285-E：live/交付收口与全局重规划（进行中）
+### M285-E：live/交付收口与全局重规划（已完成）
 
 - 目标：记录真实模型 Composite 输出问题，完成文档与版本交付，并规划下一阶段模型适配。
 - 待读/待修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`tasks/plan.md`、`tasks/todo.md`、`tasks/task-progress.md`、`docs/agent-work-state.md`。
-- 验证：两次单请求 live probe 均安全拒绝，未创建 run；错误码为 `plan_response_field_invalid`、`plan_components_unexpected`。
+- 验证：四次单请求 live probe 均安全拒绝，未创建 run；错误码为 `plan_response_field_invalid`、`plan_components_unexpected`、`taskplan_policy_unavailable`、`capability_not_registered`。已修复 `tools` capability projection 丢失和 Planner 非成功组件提示。
 - 阻塞：中转模型输出未稳定遵守 Composite Planner schema；保持 fail closed。
+
+### M286-A：中转模型 Planner 适配全局规划（已完成）
+
+- 结果：完成七维度能力图、Spec、Plan；阶段覆盖 context identity、provider 有界兼容、失败分类、跨入口 projection、精简回放和单次 live 验收。
+- 文件：`docs/m286-provider-planner-adaptation-capability-map.md`、`docs/m286-provider-planner-adaptation-spec.md`、`docs/m286-provider-planner-adaptation-plan.md`、`tasks/plan.md`、`tasks/todo.md`。
+- 验证：规划边界与 M285 四类 live 失败证据一致；未运行重复业务测试。
+- 阻塞：无。
+
+### M286-B/C/D：context、provider 边界与选择 evidence（已完成）
+
+- 结果：能力候选投影增加精确 `domain_id`、`capability_id`、`selection_key`、工具和结果类型摘要；LLM 提示要求复制注册身份；Composite live 输出预算正确传入懒加载生产 Planner；超预算组件计划拒绝而不截断；planner selection evidence 保存有界选择键。
+- 文件：`agent/composite_request_context.py`、`agent/application/composite_planning.py`、`agent/composite_planner.py`、`scripts/live_provider_probe.py`、`tests/test_m286_provider_planner_adaptation.py`。
+- 验证：Docker M286 紧凑 contract **4/4**；未改变 Runtime、ToolRegistry 或执行权限边界。
+- 阻塞：无；真实中转非法输出继续由 M286-E 的显式 live 记录。
+
+### M286-E：阶段收口、显式 live 与版本交付（已完成）
+
+- 结果：完成 M286 文档、问题记录、联合 Docker 门禁和显式 live；context identity、输出预算、evidence 选择键和超预算拒绝已交付。
+- 验证：M286/M285/M283 联合 **17/17**、compileall、architecture strict、readiness 200；一条 live 在 context 层澄清，一条到达 provider 后 `plan_component_field_invalid`，均无 run。
+- 下一阶段：M287 有界 Planner repair request/lineage，最多一次修复且复用同一 TaskPlan 门控。
+
+### M287-A：有界 Planner 修复全局规划（已完成）
+
+- 结果：完成七维度能力图、Spec、Plan；明确 repair 只处理 schema 结构错误，不改变事实、权限、能力或工具。
+- 文件：`docs/m287-bounded-planner-repair-capability-map.md`、`docs/m287-bounded-planner-repair-spec.md`、`docs/m287-bounded-planner-repair-plan.md`。
+- 验证：规划与 M286 的 provider schema 失败证据一致；未运行重复业务测试。
+- 阻塞：无。
 
 ## 更新协议
 

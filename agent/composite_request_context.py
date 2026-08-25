@@ -134,7 +134,9 @@ class CompositeRequestContextBuilder:
             workflow_state, workflow = _workflow_selection(
                 service, discovery, facts, domain_id
             )
-            safe_candidates = _candidate_projection(definitions, candidate_ids)
+            safe_candidates = _candidate_projection(
+                definitions, candidate_ids, domain_id=domain_id
+            )
             domain_context = {
                 "domain_id": domain_id,
                 "facts": safe_facts,
@@ -299,7 +301,10 @@ def _requirement_candidate_ids(
 
 
 def _candidate_projection(
-    definitions: Sequence[Mapping[str, Any]], candidate_ids: Sequence[str]
+    definitions: Sequence[Mapping[str, Any]],
+    candidate_ids: Sequence[str],
+    *,
+    domain_id: str,
 ) -> list[dict[str, Any]]:
     by_id = {str(item.get("id")): item for item in definitions}
     result = []
@@ -307,14 +312,19 @@ def _candidate_projection(
         item = by_id.get(str(capability_id))
         if not item:
             continue
+        safe_domain_id = _text(domain_id, 32)
+        safe_capability_id = str(item.get("id"))[:96]
         result.append(
             {
-                "capability_id": str(item.get("id"))[:96],
+                "domain_id": safe_domain_id,
+                "capability_id": safe_capability_id,
+                "selection_key": f"{safe_domain_id}::{safe_capability_id}"[:140],
                 "label": _text(item.get("label"), 160),
                 "description": _text(item.get("description"), 320),
                 "available": bool(item.get("available")),
                 "availability_reason": _text(item.get("availability_reason"), 160),
                 "datasets": _safe_strings(item.get("datasets"), 8),
+                "tools": _safe_strings(item.get("tools"), 8),
                 "result_types": _safe_strings(item.get("result_types"), 8),
             }
         )

@@ -28,6 +28,12 @@ def main() -> int:
         help="单次 provider 请求和 probe worker 的时限；默认 45 秒",
     )
     parser.add_argument(
+        "--max-output-tokens",
+        type=int,
+        default=128,
+        help="模型输出上限；复杂 Composite 规划可显式提高，默认 128",
+    )
+    parser.add_argument(
         "--allow-network",
         action="store_true",
         help="明确允许调用真实模型；仍需设置 live 环境变量",
@@ -61,8 +67,13 @@ def main() -> int:
     config = load_openai_config()
     config["timeout_seconds"] = args.timeout_seconds
     config["max_retries"] = 0
-    config["max_output_tokens"] = 128
+    config["max_output_tokens"] = max(64, min(4096, int(args.max_output_tokens)))
     if args.composite:
+        # The production composition root creates the OpenAI client lazily.
+        # Pass the explicit probe budget through the process environment before
+        # importing/using that root; otherwise this CLI flag would only affect
+        # the connectivity probe path.
+        os.environ["OPENAI_MAX_OUTPUT_TOKENS"] = str(config["max_output_tokens"])
         from production_api import composite_planning_application
 
         report = run_composite_planning_probe(

@@ -14,24 +14,24 @@
 - 每个子任务开始、完成或暂停时，先更新任务账本；阶段收口时再同步阶段文档、快照和任务清单。
 - 阶段任务按完整能力切片编排得更充分：一个阶段尽量覆盖契约、实现、集成、文档和交付准备等连续依赖，避免拆成过多过小的阶段。
 - 测试保持精简：集中实现相关改动后统一验证，只保留独立失败模式、关键跨入口契约和阶段级 readiness/架构门禁；不因每个小改动重复运行相同测试。
+- Goal 执行节奏：后续每阶段主动合并更多相互依赖的任务，按能力切片推进；开发中只做必要的快速检查，阶段收口再集中运行一次精简门禁，避免测试次数随任务数量线性增加。
 
 ## 当前阶段
 
-- 阶段：M285 开放式 Planner 多工具编排纵向切片
-- 状态：M284 已完成并推送 `3a0857e`；M285-A～D 已完成，进入 live/交付收口；中转真实 Composite 输出仍需下一阶段适配。
-- 当前任务：M285-E live/文档/版本交付与全局重规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M287 有界 Planner 修复与失败恢复
+- 状态：M286 已完成阶段验收并准备版本交付；M287-A 已完成，当前进入 M287-B；中转真实 Composite 输出继续保持 fail closed。
+- 当前任务：M287-B Repair Request/Lineage contract 与错误码白名单，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m285-open-query-planner-capability-map.md`](m285-open-query-planner-capability-map.md)
-  - [`docs/m285-open-query-planner-spec.md`](m285-open-query-planner-spec.md)
-  - [`docs/m285-open-query-planner-plan.md`](m285-open-query-planner-plan.md)
+  - [`docs/m287-bounded-planner-repair-capability-map.md`](m287-bounded-planner-repair-capability-map.md)
+  - [`docs/m287-bounded-planner-repair-spec.md`](m287-bounded-planner-repair-spec.md)
+  - [`docs/m287-bounded-planner-repair-plan.md`](m287-bounded-planner-repair-plan.md)
 
 ## 当前任务明确文件
 
 - `agent/composite_planner.py`
 - `agent/application/composite_planning.py`
-- `agent/runtime_core/composite_taskplan.py`
-- `docs/agent-development-issues.md`
-- `tests/test_m285_open_query_planner.py`
+- `tests/test_m287_bounded_planner_repair.py`
+- `docs/m287-bounded-planner-repair-spec.md`
 
 ## 验证与安全约定
 

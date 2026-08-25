@@ -51,3 +51,19 @@
 - [x] M285-C TaskPlan bridge 与至少两步 replay
 - [x] M285-D Python/HTTP/async/artifact 精简跨入口验收
 - [ ] M285-E Docker/live/文档、提交推送与全局重规划
+
+## M286 中转模型 Planner 适配与能力身份稳定性（进行中）
+
+- [x] M286-A 七维度能力图、Spec、Plan
+- [x] M286-B context 精确能力身份、工具/结果提示和预算
+- [x] M286-C provider 有界格式兼容与严格拒绝
+- [x] M286-D 失败分类、跨入口 projection 与有限 repair lineage
+- [x] M286-E 精简 Docker/live 验收、中文记录、提交推送与全局重规划
+
+## M287 有界 Planner 修复与失败恢复（进行中）
+
+- [x] M287-A 七维度能力图、Spec、Plan
+- [ ] M287-B Repair Request/Lineage contract 与错误码白名单
+- [ ] M287-C provider/application 一次性修复回合
+- [ ] M287-D 跨入口恢复与前端阶段投影
+- [ ] M287-E 精简 Docker/live 验收、中文记录、提交推送与全局重规划
