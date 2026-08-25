@@ -36,3 +36,10 @@
 - [x] M283-D 动态结果体验与阶段里程碑
 - [x] M283-E 真实模型/GIS/Docker/browser 显式验收
 - [x] M283-F 文档、提交推送与全局重规划
+
+## M284 会话清空与跨入口状态一致性（收口中）
+
+- [x] M284-A capability map、Spec、Plan
+- [x] M284-B 领域中立 reset boundary 与 stale-render guard
+- [x] M284-C 精简 contract/browser 回归
+- [ ] M284-D 文档、提交推送与全局重规划

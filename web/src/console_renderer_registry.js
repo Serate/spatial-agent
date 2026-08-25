@@ -64,7 +64,7 @@
         usedAdapters.add(adapters.get(rendererId) || genericAdapter);
       });
       usedAdapters.forEach(adapter => {
-        if (typeof adapter.reset === "function") adapter.reset({surfaces, run: request.run || {}});
+        if (typeof adapter.reset === "function") adapter.reset({reason: "render", generation: currentGeneration, surfaces, run: request.run || {}});
       });
 
       const htmlBySurface = {generic: []};
@@ -123,8 +123,14 @@
 
     function reset(context = {}) {
       generation += 1;
+      const resetContext = {
+        reason: boundedReason(context.reason, "reset"),
+        generation: Number.isFinite(Number(context.generation)) ? Number(context.generation) : generation,
+        surfaces: record(context.surfaces) ? context.surfaces : {},
+        run: record(context.run) ? context.run : {},
+      };
       new Set(adapters.values()).forEach(adapter => {
-        if (typeof adapter.reset === "function") adapter.reset(context);
+        if (typeof adapter.reset === "function") adapter.reset(resetContext);
       });
     }
 
@@ -198,6 +204,11 @@
     if (typeof value === "string") return {html: value, visible: Boolean(value)};
     if (!record(value)) return {html: "", visible: value !== false};
     return {html: typeof value.html === "string" ? value.html : "", visible: value.visible !== false};
+  }
+
+  function boundedReason(value, fallback) {
+    const reason = typeof value === "string" ? value.trim().slice(0, 48) : "";
+    return reason || fallback;
   }
 
   function renderGenericView(context, escapeHtml) {

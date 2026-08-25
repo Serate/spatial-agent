@@ -4,11 +4,11 @@
 
 ## 当前阶段
 
-- 阶段：M283 开放式请求 Agent 闭环
+- 阶段：M284 会话清空与跨入口状态一致性
 - 阶段规划：
-  - `docs/m283-open-query-agent-capability-map.md`
-  - `docs/m283-open-query-agent-spec.md`
-  - `docs/m283-open-query-agent-plan.md`
+  - `docs/m284-session-reset-consistency-capability-map.md`
+  - `docs/m284-session-reset-consistency-spec.md`
+  - `docs/m284-session-reset-consistency-plan.md`
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
 
 ## 最近任务记录
@@ -87,6 +87,37 @@
 - 验证：复用 M283-E 已完成的精简证据；diff check、提交和推送均通过。
 - 版本：`4d022f4` 已推送到 `origin/main`。
 - 下一步：新的阶段先做七维度全局 Spec/Plan；当前没有进行中的代码任务。
+
+### M284-A：会话清空与空间上下文一致性规划（已完成）
+
+- 目标：建立 reset boundary、stale-render guard 和跨入口 browser regression 的公共契约。
+- 待读/待修改：`docs/m284-session-reset-consistency-capability-map.md`、`docs/m284-session-reset-consistency-spec.md`、`docs/m284-session-reset-consistency-plan.md`、`tasks/todo.md`、`tasks/task-state.md`、`docs/agent-work-state.md`。
+- 文件：`docs/m284-session-reset-consistency-capability-map.md`、`docs/m284-session-reset-consistency-spec.md`、`docs/m284-session-reset-consistency-plan.md`。
+- 验证：规划边界与 M283 已知地图 smoke 失败证据一致；未修改运行时代码。
+- 阻塞：无。
+
+### M284-B/C：reset boundary 与 stale-render guard（已完成）
+
+- 目标：公共 Registry/adapter reset 和 clear/session/domain generation 保持一致。
+- 改动：Registry 增加有界 reset context 与 generation 失效；GIS adapter 清理地图实例、surface、selection 和按钮；Console 清空、切换会话/领域统一触发 reset，旧异步 render 返回 `superseded`。
+- 文件：`web/src/console_renderer_registry.js`、`web/src/console_gis_plugin.js`、`web/src/console_app.js`、`scripts/console_reset_contract_smoke.js`。
+- 验证：Node reset contract、plugin renderer regression、前端语法检查、Docker compileall 和 architecture strict 通过。
+- 阻塞：无。
+
+### M284-D：精简 reset 与地图浏览器回归（已完成）
+
+- 目标：用最小浏览器契约覆盖地图选择、清空即时状态和延迟状态。
+- 改动：地图 smoke 等待 bootstrap/domain readiness，并先建立空白会话边界，避免初始化历史恢复异步回写覆盖 fixture。
+- 文件：`scripts/console_map_smoke.js`。
+- 验证：串行 browser map smoke、M283 projection browser smoke 通过；Leaflet 图层/选择和清空后的即时、延迟空态均通过。
+- 阻塞：无。
+
+### M284-E：文档、版本交付与全局重规划（进行中）
+
+- 目标：收口中文日志、里程碑、恢复快照与任务清单，提交并推送版本，再做全局重规划。
+- 待读/待修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`tasks/task-progress.md`、`tasks/task-state.md`、`tasks/todo.md`、`docs/agent-work-state.md`。
+- 验证：M284 精简契约、Docker、readiness、browser 和 diff check 已通过；文档同步已完成，待 commit/push。
+- 阻塞：无。
 
 ## 更新协议
 

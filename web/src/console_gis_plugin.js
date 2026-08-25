@@ -27,9 +27,12 @@
       map = null;
     }
 
-    function reset() {
+    function reset(context = {}) {
       destroyMap();
       selected = {};
+      const visual = context?.surfaces?.visual;
+      if (visual && typeof visual.replaceChildren === "function") visual.replaceChildren();
+      else if (visual && typeof visual.innerHTML === "string") visual.innerHTML = "";
       const label = selectionTarget();
       const summary = summaryTarget();
       const button = useSelectionButton();

@@ -72,6 +72,14 @@
 
 M55 完成时的验证结果：189 个离线测试通过、36 个 GIS 重点测试通过，`scripts/smoke_check.py` 和浏览器健康烟测通过。真实 DEM/土地利用跨多个 UTM 分区时保留 `degraded` 状态，不伪装为完全可用。
 
+## M284：会话清空与跨入口状态一致性（已完成）
+
+- 建立领域中立的 workspace reset 边界：RendererRegistry 负责有界 reset context 和 generation 失效，renderer adapter 负责清理自身 surface 与内部状态；GIS adapter 清理地图实例、空间 selection、选择按钮和视觉 surface。
+- Console 清空对话、切换会话和切换领域复用同一 reset seam；旧的异步 render 在 reset 后返回 `superseded`，不会覆盖当前 workspace。未修改 Runtime、Planner、ToolRegistry、Result schema 或服务端 session 语义。
+- 新增 `scripts/console_reset_contract_smoke.js`，覆盖 reset 通知、surface 清空和 stale-render；地图浏览器 smoke 等待 bootstrap/domain readiness，并先建立空白会话边界，覆盖 Leaflet 选择、清空即时状态和延迟状态。
+- 验证：Docker 重建、compileall、architecture strict、生产 readiness HTTP 200、Node reset/plugin/projection smoke、串行 map browser smoke 和 projection browser smoke 通过；浏览器 fixture 生成 Leaflet 图层 1 个、SVG 路径 4 个，清空后无地图/selection/旧结果回写。
+- 工程决策：恢复上下文继续只读取快照、当前 Spec/Plan、`tasks/task-progress.md` 最近任务和明确待改文件；浏览器验收不得用固定长延时掩盖异步生命周期问题。
+
 ## M56：证据驱动的执行策略
 
 - 健康报告为每个数据集增加 `usable_for`，整体报告增加 `capabilities`，并根据 DEM/土地利用覆盖关系声明建设候选能力。

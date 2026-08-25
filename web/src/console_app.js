@@ -94,8 +94,8 @@
     dockWorkspaceControls();
     function setResultPanel(selector, visible) { document.querySelectorAll(selector).forEach(panel => panel.classList.toggle('is-visible', visible)); }
     function setAdvancedVisibility(visible, summary, expand) { const details=$('advancedResults'); if(!details) return; details.hidden=!visible; if(summary) $('advancedSummary').textContent=summary; if(typeof expand==='boolean') details.open=expand; }
-    function resetResultWorkspace() {
-      rendererRegistry?.reset({surfaces:{generic:$('genericResult'),visual:$('map')}});
+    function resetResultWorkspace(reason='reset') {
+      rendererRegistry?.reset({reason,generation:conversationGeneration,surfaces:{generic:$('genericResult'),visual:$('map')}});
       $('resultEmpty').style.display = 'flex';
       setResultPanel('.result-panel', false);
       $('planPreview').innerHTML = '点击“预览计划”查看工具 DAG；预览不会执行工具。';
@@ -364,7 +364,7 @@
     function appendMessage(role, text, runId) { const labels={user:'你',assistant:'智能体',system:'系统'}; const wrap=document.createElement('div'); wrap.className='msg '+role; wrap.innerHTML='<div class="role">'+labels[role]+'</div><div class="bubble">'+escapeHtml(text)+'</div>'; if(runId){ wrap.classList.add('msg-linked'); wrap.dataset.runId=runId; wrap.title='打开该次运行的完整详情（不重新执行模型）'; wrap.addEventListener('click',()=>openRunDetail(runId)); } $('messages').appendChild(wrap); $('messages').scrollTop=$('messages').scrollHeight; }
     function selectedDomainLabel() { return $('domain').selectedOptions[0]?.textContent||'默认领域'; }
     function welcome() { appendMessage('assistant','当前领域：'+selectedDomainLabel()+'。你可以直接提出开放式问题；能力、工具与展示方式由该 Domain Pack 动态提供。'); }
-    function resetConversationView() { $('messages').innerHTML=''; $('answer').textContent=''; $('answer').className='answer muted'; $('error').innerHTML=''; $('goal').textContent=''; $('decisionMode').textContent='等待决策'; $('steps').innerHTML=''; $('provenance').innerHTML=''; $('trace').innerHTML=''; $('links').innerHTML=''; resetResultWorkspace(); }
+    function resetConversationView(reason='reset') { $('messages').innerHTML=''; $('answer').textContent=''; $('answer').className='answer muted'; $('error').innerHTML=''; $('goal').textContent=''; $('decisionMode').textContent='等待决策'; $('steps').innerHTML=''; $('provenance').innerHTML=''; $('trace').innerHTML=''; $('links').innerHTML=''; resetResultWorkspace(reason); }
     function selectedConversationLabel() { return $('session').selectedOptions[0]?.textContent || '对话1'; }
     function addConversationOption(session,domainId=currentDomainId()) { if(!session?.session_id) return; sessionDomains.set(String(session.session_id),domainId); let option=[...$('session').options].find(item=>item.value===session.session_id); if(!option){ option=document.createElement('option'); option.value=session.session_id; $('session').appendChild(option); } option.dataset.domainId=domainId; option.textContent=session.display_name||'对话'+($('session').options.length); }
     async function loadSessions(domainId=currentDomainId()) {
@@ -561,14 +561,14 @@
       const sessionId=$('session').value;
       if(usesAutoRouting()&&!autoDomainBinding){
         const draftSessionId=autoDraftSessionId||sessionId;
-        resetConversationView(); welcome(); $('prompt').focus();
+        resetConversationView('clear-session'); welcome(); $('prompt').focus();
         domainRoutingRequests.clear(); autoDraftSessionId='';
         if(draftSessionId) localDraftSessionIds.delete(draftSessionId);
         if(draftSessionId) nativeFetch('/domain-routing/sessions/'+encodeURIComponent(draftSessionId)+'/clear',{method:'POST'}).catch(()=>{});
         return;
       }
       const domainId=sessionDomains.get(sessionId)||currentDomainId();
-      resetConversationView();
+      resetConversationView('clear-session');
       welcome();
       $('prompt').focus();
       try {

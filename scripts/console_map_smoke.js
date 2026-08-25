@@ -33,13 +33,19 @@ await command("Runtime.enable");
 await command("Page.navigate", {url: consoleUrl});
 for (let attempt = 0; attempt < 60; attempt++) {
   const ready = await command("Runtime.evaluate", {
-    expression: "typeof $ === 'function' && typeof sendChat === 'function'",
+    expression: "typeof $ === 'function' && typeof sendChat === 'function' && Boolean(window.__consoleBootstrapReady && window.__consoleDomainReady)",
     returnByValue: true,
   });
   if (ready.result?.result?.value) break;
   await sleep(250);
   if (attempt === 59) throw new Error("Console 页面脚本未就绪");
 }
+const prepare = await command("Runtime.evaluate", {
+  expression: "(()=>{ clearChat(); return true; })()",
+  returnByValue: true,
+});
+if (!prepare.result?.result?.value) throw new Error("地图 smoke 无法建立空白会话边界");
+await sleep(1000);
 const sendResult = await command("Runtime.evaluate", {
   expression: "(async()=>{ const feature={type:'Feature',properties:{name:'洪山区',geometry_source:'browser-fixture',geometry_crs:'EPSG:4326'},geometry:{type:'Polygon',coordinates:[[[114.30,30.48],[114.34,30.48],[114.34,30.52],[114.30,30.52],[114.30,30.48]]]}}; await rendererRegistry.renderWorkspace({panels:{map:{kind:'map',mode:'geojson',geojson:{type:'FeatureCollection',features:[feature]}}},specs:[{id:'map',renderer:'map'}],surfaces:{generic:$('genericResult'),visual:$('map')},onSurface:(surface,visible)=>{if(surface==='visual') setResultPanel('.map-result',visible);}}); })()",
   awaitPromise: true,

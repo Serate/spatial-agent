@@ -959,3 +959,21 @@
 - **诊断**：验证恢复输出时同时检查当前进行中任务和最近完成任务 ID；不能只确认脚本执行成功就认为恢复上下文正确。
 - **修复**：`scripts/resume_context.ps1` 改为从“最近完成”区块顶部读取，保持有界字符预算；恢复输出现在包含 M283-E/D，并继续不读取历史档案、全量测试或无关源码。
 - **预防**：任务账本明确采用“最新完成记录置顶”协议；每次阶段收口都运行一次无参数恢复 smoke，检查当前任务、待修改文件和最近完成任务是否一致。
+
+## M284 地图 smoke 的初始化历史恢复覆盖测试 fixture
+
+- **现象**：浏览器地图 smoke 在手工注入一个 GeoJSON fixture 后，页面显示历史运行的“当前 renderer 没有收到可绘制几何”，因此在点击矢量要素前失败。Node renderer contract 和生产资源均正常。
+- **根因**：Console bootstrap 设置 domain ready 后，还会异步执行历史任务恢复；smoke 只等待 `sendChat` 存在，没有等待 bootstrap/domain readiness，也没有先建立空白会话边界。历史恢复完成后会回写 workspace，覆盖手工 fixture。
+- **诊断**：只检查页面的 bootstrap/domain ready、结果标题、map surface 和 renderer context；不要把历史回写覆盖误判为 GeoJSON、Leaflet 或 reset 逻辑错误。浏览器 smoke 必须使用单一 CDP 页面并串行导航。
+- **修复**：地图 smoke 等待 `window.__consoleBootstrapReady && window.__consoleDomainReady`，随后触发一次 `clearChat()` 建立空白会话边界，只等待可观察的同步 reset，再注入 fixture；不改变服务端历史语义，也不增加 GIS 专用生产分支。
+- **验证**：Node reset contract、Docker plugin/projection smoke、compileall、architecture strict、readiness 通过；浏览器 map smoke 通过，Leaflet 图层 1 个、SVG 路径 4 个，选择和清空后即时/延迟空态均通过。
+- **预防**：浏览器验收必须显式等待应用初始化信号，并在会话/历史可异步恢复的页面上先固定测试状态；不要用固定长延时替代 generation/reset 边界。
+
+## M284 清空后的地图与旧异步 render 需要公共 reset boundary
+
+- **现象**：清空对话后，地图实例、空间 selection 或旧的异步 render 可能继续存在或回写，前端工作区与会话状态短暂不一致。
+- **根因**：Renderer adapter 自己拥有地图/selection 状态，而 Console 会话、领域和结果 projection 由另一层控制；没有统一的 adapter reset 通知和 generation 失效边界时，各 surface 的清理时序不一致。
+- **诊断**：分别断言 `rendererRegistry.context()`、visual surface、Leaflet/SVG 节点、选择按钮和旧 render 返回状态；不能只断言消息列表被清空。
+- **修复**：Registry 的 `reset(context)` 先递增 generation，再通知所有 adapter；GIS adapter 清理自己的地图实例、surface、selection 和按钮；旧异步 render 返回 `superseded`。Console 的清空、切换会话和切换领域复用同一 reset seam。
+- **验证**：`console_reset_contract_smoke.js`、plugin renderer regression、map browser smoke 和 projection browser smoke 通过；未修改 Runtime、Planner、ToolRegistry、Result schema 或服务端 session 语义。
+- **预防**：新增前端 renderer 必须提供 adapter-owned `reset/context` 契约；清理不可依赖网络或固定延时，且每阶段至少保留一个 stale-render 负向断言。

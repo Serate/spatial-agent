@@ -33,6 +33,12 @@
 - Docker M283 **7/7**、compileall、architecture strict、生产 readiness/资源 200、Node/Docker/browser projection smoke 通过；真实 LLM + local GIS 短验收 `live-gis-spatial-overview` 为 `COMPLETED`，1 次请求、0 重试。
 - 既有地图 smoke 暴露清空对话后空间上下文未立即复位，已单独写入中文问题日志；恢复仍只走 `docs/agent-work-state.md` 与 `tasks/task-progress.md`，本卡只作历史摘要。
 
+## M284：会话清空与跨入口状态一致性（已完成）
+
+- RendererRegistry 增加有界 reset context 和 generation 失效；GIS adapter 清理地图实例、视觉 surface、selection 和按钮；Console 清空、切换会话/领域复用同一 reset seam，旧异步 render 返回 `superseded`。
+- 地图 smoke 等待 bootstrap/domain readiness，并先建立空白会话边界，避免初始化历史恢复覆盖 fixture；覆盖 Leaflet 选择、清空即时状态和延迟状态。新增 Node reset contract，未修改 Runtime、Planner、ToolRegistry、Result schema 或服务端 session 语义。
+- Docker compileall、architecture strict、生产 readiness、Node/plugin/projection smoke、串行 map browser smoke 和 projection browser smoke 通过；本阶段结论和恢复规则已同步到 `tasks/task-progress.md` 与 `docs/agent-work-state.md`。
+
 ## 当前状态
 
 - M228 已完成：pre-run routing child + receipt 在 SQLite 原子提交并可跨 worker/重启回放；Journey Harness 贯穿 Application、HTTP、artifact 和 restart；legacy 前端 selection 活动路径已删除。

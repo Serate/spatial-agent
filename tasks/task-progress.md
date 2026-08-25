@@ -12,10 +12,35 @@
 
 ## 当前进行中
 
-- 当前无进行中的代码子任务。
-- M283 已完成并推送；下一阶段开始前先按七个全局维度编写新的 Spec/Plan，不在本阶段继续追加局部修补。
+### M284-E：文档、版本交付与全局重规划 — 进行中
+
+- 目标：收口 M284 验收证据，更新中文问题日志、milestones、工作快照和任务清单，提交并推送版本，然后按全局目标规划下一阶段。
+- 需要修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`tasks/task-progress.md`、`tasks/task-state.md`、`tasks/todo.md`、`docs/agent-work-state.md`。
+- 验证：M284 Node reset/plugin/projection smoke、Docker compileall、architecture strict、readiness、串行 browser map smoke、projection browser smoke、git diff check 均通过。
+- 阻塞：无。
+- 下一步：提交并推送 M284 版本；随后从产品、架构、数据、模型、部署、体验和测试七个维度全局重规划。
 
 ## 最近完成
+
+### M284-A：会话清空与空间上下文一致性规划 — 已完成
+
+- 结果：完成七维度 capability map、Spec、Plan；确定不修改 Runtime、Planner、ToolRegistry、Result schema 或服务端会话语义。
+- 文件：`docs/m284-session-reset-consistency-capability-map.md`、`docs/m284-session-reset-consistency-spec.md`、`docs/m284-session-reset-consistency-plan.md`、任务状态与工作快照。
+- 验证：规划边界与 M283 已知地图 smoke 失败证据一致；实现按 reset-boundary → stale-render-guard → reset-acceptance 串行执行。
+
+### M284-B/C：reset boundary 与 stale-render guard — 已完成
+
+- 结果：RendererRegistry 提供有界 reset context 和 generation 失效；GIS adapter 清理地图实例、视觉 surface、selection 和按钮；Console 的清空、切换会话/领域复用 reset boundary，并阻止旧异步 render 回写。
+- 文件：`web/src/console_renderer_registry.js`、`web/src/console_gis_plugin.js`、`web/src/console_app.js`、`scripts/console_reset_contract_smoke.js`。
+- 验证：Node reset contract、plugin renderer regression、四个前端脚本语法检查通过；Docker compileall 和 architecture strict 已通过。
+- 阻塞：无。
+
+### M284-D：精简 reset 与地图浏览器回归 — 已完成
+
+- 结果：地图 smoke 等待 Console bootstrap/domain readiness，并先建立空白会话边界，避免初始化历史异步恢复覆盖测试 fixture；覆盖选择、清空即时状态和延迟状态。
+- 文件：`scripts/console_map_smoke.js`。
+- 验证：Docker Node reset/plugin/projection smoke 通过；浏览器 map smoke 通过（Leaflet 图层 1、SVG 路径 4、selection 清空通过）。
+- 阻塞：无。
 
 ### M283-F：文档、版本交付与全局重规划 — 已完成
 
