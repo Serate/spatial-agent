@@ -4820,3 +4820,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 发现并修正部署接线：`.env.production` 的数据根是宿主机 `D:\dataset\agent`，而非项目 `data/`；已将规范化数据复制到该根目录的 `economic/` 子目录，容器保持 healthy。首次公共跨 Domain 回归受持久 SQLite 旧会话污染，使用隔离临时 DB 后 **17/17** 通过。
 - 阶段补充验收：真实 HTTP 比较完成后导出 artifact；容器重建后 SQLite run detail 和 artifact 均可恢复；显式真实模型 Planner 完成经济趋势请求并只选择已注册工具。旧测试对领域列表的硬编码和固定 SQLite 会话污染已修复并记录。
 - 下一切片：做全局七维度复盘，抽象经济链路中可被人口/教育/就业等专题复用的指标/表格 Provider 能力，并用第三个专题验证新增成本；不为“最近经济发展”固定选择指标。
+
+## M264：指标分析公共核心与双 Domain 迁移（已完成）
+
+- 新增 `agent.analysis.indicator_core.IndicatorAnalysisEngine` 与 `IndicatorAnalysisConfig`，将规范化数值观测的目录聚合、期间排序/筛选、latest/trend/compare、统计汇总和来源去重收敛为领域中立深模块；核心不读取文件、不访问网络、不导入 Domain Pack。
+- `domains/indicators/provider.py` 与 `domains/economic/provider.py` 均委托同一核心；经济 Provider 保留真实来源校验/路径/状态码，指标 Provider 保留 demo fixture 与 ToolError 兼容；公共 Runtime、Planner、ToolRegistry、HTTP 和前端主流程未新增领域分支。
+- 修复指标 Domain 对“区域甲和区域乙”连接词及“区域乙的趋势”分析尾词的实体解析；修复 M264 测试对中文区域 Unicode 排序的错误假设。
+- Docker M264/M251/M263 联合回归 **14/14**，compileall、architecture strict、quick/stage 全部通过；真实 Economic HTTP 比较完成后，容器重启仍可读取 run detail 和 artifact，结果类型与 `composite` profile 保持一致。
+- 下一切片：从产品、架构、数据、模型、部署、体验、测试七个维度全局复盘，用第三个指标类专题或真实扩展数据验证“适配器 + 目录”接入成本；不复制 Runtime，不提前引入 RAG。

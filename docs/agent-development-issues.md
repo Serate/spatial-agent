@@ -696,3 +696,11 @@
 - **诊断**：比较 `domain_registry().ids()`、直接 catalog 和 HTTP catalog；若三者一致但测试的旧列表失败，应更新测试契约，不删除合法 Domain。
 - **修复**：测试从当前显式 `DomainRegistry` 读取期望 ID，并继续断言顺序、schema 和不包含模块路径；没有放宽未知 Domain 的拒绝校验。
 - **预防**：扩展性测试只锁定注册表的公共不变量；只有产品明确规定“允许列表固定”时才写死具体集合。新增 Domain 必须回归直接 catalog、HTTP catalog、URL 路由和 SQLite/artifact 领域过滤。
+
+## M264 指标区域实体解析把连接词或分析尾词吞进区域名
+
+- **现象**：请求“demo_activity_index 区域甲和区域乙的趋势”被解析成 `区域甲` 与 `区域乙的趋势`，或先前解析成 `区域甲` 与 `和区`，Provider 因找不到第二个区域而失败。
+- **根因**：区域正则只按字符结尾匹配 `市/区/县`，没有先处理中文连接词，也没有识别实体后面的“趋势/比较/分析”等任务表达；Domain facts 与 Rule Planner 还各自维护一份解析器。
+- **诊断**：在运行前检查 `request_facts.entities.regions` 和计划中的 `regions`，不要只看 Provider 的“无数据”错误；对连接词、实体尾部任务词和连续行政区名称分别做最小复现。
+- **修复**：先移除明确的连接词与句尾任务词，再使用非贪婪区域匹配；同步修正 Domain facts 与 Rule Planner，保留真实区域名称，不把解析逻辑放进公共 Runtime 或 Provider。
+- **预防**：领域新增自然语言表达时，必须同时验证 facts、Rule Planner、LLM Planner context 和 ToolRegistry 参数；后续可将已被两个 Domain 证明的实体解析抽为公共请求理解模块，但不能在指标核心中加入领域词表。

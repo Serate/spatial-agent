@@ -79,5 +79,7 @@ def _indicator_id(text: str) -> str:
 def _regions(text: str) -> list[str]:
     import re
 
-    matches = re.findall(r"区域[^和与、,，\s]+|[\u4e00-\u9fffA-Za-z0-9]+(?:市|区|县)", str(text))
+    normalized = re.sub(r"(?:的(?:变化趋势|趋势分析|趋势|变化|增长|比较|对比|差异|最新|当前|概况|情况|分析|如何)|变化趋势|趋势分析|趋势|变化|增长|比较|对比|差异|最新|当前|概况|情况|分析|如何)\s*$", "", str(text))
+    normalized = re.sub(r"(?:以及|和|与|、|及)(?=(?:区域|[\u4e00-\u9fffA-Za-z0-9]))", " ", normalized)
+    matches = re.findall(r"区域[^和与、,，\s]+|[\u4e00-\u9fffA-Za-z0-9]+?(?:市|区|县)", normalized)
     return list(dict.fromkeys(item[:96] for item in matches))[:16]

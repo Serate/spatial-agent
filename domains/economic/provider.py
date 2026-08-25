@@ -6,10 +6,9 @@ import json
 import os
 from copy import deepcopy
 from pathlib import Path
-from statistics import mean
 from typing import Any, Dict, Mapping
 
-from agent.data_kinds import build_data_profile
+from agent.analysis.indicator_core import IndicatorAnalysisConfig, IndicatorAnalysisEngine
 from agent.errors import ToolError
 
 from .catalog import ECONOMIC_TOOL_DEFINITIONS
@@ -49,6 +48,30 @@ class EconomicToolProvider:
             if key in {"source", "version", "attribution", "license", "retrieved_at"}
             and value is not None
         }
+        self._engine = IndicatorAnalysisEngine(
+            self._records,
+            dataset_id=self._dataset_id(),
+            provenance=self._provenance,
+            config=IndicatorAnalysisConfig(
+                result_prefix="economic",
+                status_codes={
+                    "data_unavailable": "economic_data_unavailable",
+                    "indicator_unavailable": "economic_indicator_unavailable",
+                    "region_unavailable": "economic_region_unavailable",
+                    "time_range_unavailable": "economic_time_range_unavailable",
+                    "data_not_found": "economic_data_not_found",
+                    "source_evidence_unavailable": "economic_source_evidence_unavailable",
+                },
+                retryable_codes=("economic_data_unavailable", "economic_source_unverified"),
+                max_rows=512,
+                max_sources=32,
+                include_source_evidence=True,
+                include_source_record_count=True,
+                include_geography_levels=True,
+                include_period_type=True,
+                mean_digits=6,
+            ),
+        )
 
     def definitions(self) -> Mapping[str, Mapping[str, Any]]:
         return deepcopy(ECONOMIC_TOOL_DEFINITIONS)
@@ -75,196 +98,13 @@ class EconomicToolProvider:
         raise ToolError("unknown economic tool", code="unknown_economic_tool", retryable=False)
 
     def _list_indicators(self) -> Dict[str, Any]:
-        indicators: dict[str, dict[str, Any]] = {}
-        for item in self._records:
-            indicator_id = str(item["indicator"])
-            entry = indicators.setdefault(
-                indicator_id,
-                {
-                    "id": indicator_id,
-                    "label": str(item.get("label") or indicator_id),
-                    "units": set(),
-                    "geography_levels": set(),
-                    "period_types": set(),
-                    "periods": set(),
-                },
-            )
-            if item.get("unit"):
-                entry["units"].add(str(item["unit"]))
-            if item.get("geography_level"):
-                entry["geography_levels"].add(str(item["geography_level"]))
-            if item.get("period_type"):
-                entry["period_types"].add(str(item["period_type"]))
-            if item.get("period"):
-                entry["periods"].add(str(item["period"]))
-        values = []
-        for item in indicators.values():
-            values.append(
-                {
-                    "id": item["id"],
-                    "label": item["label"],
-                    "units": sorted(item["units"]),
-                    "geography_levels": sorted(item["geography_levels"]),
-                    "period_types": sorted(item["period_types"]),
-                    "periods": sorted(item["periods"], key=_period_key),
-                }
-            )
-        if not values:
-            return self._status_result("unavailable", self._availability_code()) | {
-                "indicators": [],
-                "regions": [],
-                "periods": [],
-            }
-        return {
-            "status": "ready",
-            "indicators": values[:64],
-            "regions": sorted({str(item["region"]) for item in self._records})[:128],
-            "periods": sorted({str(item["period"]) for item in self._records}, key=_period_key)[:128],
-            "period_types": sorted({str(item["period_type"]) for item in self._records})[:16],
-            "provenance": dict(self._provenance),
-            "data_profile": build_data_profile(("metrics",)),
-        }
+        return self._engine.list_indicators()
 
     def _query(self, arguments: Mapping[str, Any]) -> Dict[str, Any]:
-        operation = str(arguments.get("operation") or "latest")
-        indicator = str(arguments.get("indicator") or "").strip()
-        regions = [str(item).strip() for item in (arguments.get("regions") or []) if str(item).strip()]
-        period_type = str(arguments.get("period_type") or "").strip()
-        start = str(arguments.get("period_start") or "").strip()
-        end = str(arguments.get("period_end") or "").strip()
-        if not self._records:
-            return self._status_result("unavailable", self._availability_code(), arguments)
-        known_indicators = {str(item["indicator"]) for item in self._records}
-        if indicator not in known_indicators:
-            return self._status_result("unavailable", "economic_indicator_unavailable", arguments)
-        known_regions = {str(item["region"]) for item in self._records}
-        missing_regions = [region for region in regions if region not in known_regions]
-        if missing_regions:
-            result = self._status_result("unavailable", "economic_region_unavailable", arguments)
-            result["missing_regions"] = missing_regions[:16]
-            return result
-        records = [
-            dict(item)
-            for item in self._records
-            if str(item.get("indicator")) == indicator
-            and str(item.get("region")) in regions
-            and (not period_type or str(item.get("period_type")) == period_type)
-            and (not start or _period_key(item.get("period")) >= _period_key(start))
-            and (not end or _period_key(item.get("period")) <= _period_key(end))
-        ]
-        if not records:
-            code = "economic_time_range_unavailable" if period_type or start or end else "economic_data_not_found"
-            return self._status_result("unavailable", code, arguments)
-        records.sort(key=lambda item: (str(item["region"]), _period_key(item["period"])))
-        if operation == "latest":
-            rows = self._latest_by_region(records)
-            profile = build_data_profile(("metrics",))
-            result_type = "economic_metrics_result"
-        elif operation == "compare":
-            rows = self._latest_by_region(records)
-            profile = build_data_profile(("composite", "metrics"))
-            result_type = "economic_comparison_result"
-        else:
-            rows = records
-            profile = build_data_profile(("timeseries", "metrics"))
-            result_type = "economic_timeseries_result"
-        numeric = [float(item["value"]) for item in rows]
-        by_region: dict[str, list[dict[str, Any]]] = {}
-        for item in records:
-            by_region.setdefault(str(item["region"]), []).append(item)
-        metrics: dict[str, Any] = {
-            "record_count": len(rows),
-            "source_record_count": len(records),
-            "region_count": len({str(item["region"]) for item in rows}),
-            "geography_levels": sorted({str(item.get("geography_level") or "unknown") for item in rows}),
-            "minimum": min(numeric) if numeric else None,
-            "maximum": max(numeric) if numeric else None,
-            "mean": round(mean(numeric), 6) if numeric else None,
-            "period_type": period_type or str(records[0].get("period_type") or "unknown"),
-        }
-        if operation == "trend":
-            metrics["changes"] = {
-                region: round(float(values[-1]["value"]) - float(values[0]["value"]), 6)
-                for region, values in by_region.items()
-                if len(values) >= 2
-            }
-        return {
-            "status": "ready",
-            "result_type": result_type,
-            "operation": operation,
-            "dataset": self._dataset_id(),
-            "indicator": indicator,
-            "rows": rows[:512],
-            "metrics": metrics,
-            "data_profile": profile,
-            "provenance": dict(self._provenance),
-            "source_evidence": self._source_entries(rows),
-        }
+        return self._engine.query(arguments)
 
     def _source_evidence(self, arguments: Mapping[str, Any]) -> Dict[str, Any]:
-        indicator = str(arguments.get("indicator") or "").strip()
-        regions = [str(item).strip() for item in (arguments.get("regions") or []) if str(item).strip()]
-        period_type = str(arguments.get("period_type") or "").strip()
-        start = str(arguments.get("period_start") or "").strip()
-        end = str(arguments.get("period_end") or "").strip()
-        if not self._records:
-            return self._status_result("unavailable", self._availability_code(), arguments)
-        rows = [
-            item
-            for item in self._records
-            if str(item.get("indicator")) == indicator
-            and str(item.get("region")) in regions
-            and (not period_type or str(item.get("period_type")) == period_type)
-            and (not start or _period_key(item.get("period")) >= _period_key(start))
-            and (not end or _period_key(item.get("period")) <= _period_key(end))
-        ]
-        if not rows:
-            return self._status_result("unavailable", "economic_source_evidence_unavailable", arguments)
-        return {
-            "status": "ready",
-            "dataset": self._dataset_id(),
-            "indicator": indicator,
-            "sources": self._source_entries(rows),
-            "data_profile": build_data_profile(("document_evidence",)),
-            "provenance": dict(self._provenance),
-        }
-
-    def _status_result(
-        self,
-        status: str,
-        code: str,
-        arguments: Mapping[str, Any] | None = None,
-    ) -> Dict[str, Any]:
-        args = dict(arguments or {})
-        return {
-            "status": status,
-            "code": code,
-            "retryable": code in {"economic_data_unavailable", "economic_source_unverified"},
-            "dataset": self._dataset_id(),
-            "requested": {
-                "indicator": str(args.get("indicator") or ""),
-                "regions": list(args.get("regions") or [])[:16],
-                "period_type": str(args.get("period_type") or ""),
-            },
-            "rows": [],
-            "metrics": {},
-            "data_profile": build_data_profile(("metrics",)),
-            "provenance": dict(self._provenance),
-        }
-
-    def _source_entries(self, rows: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
-        unique: dict[tuple[str, str, str], dict[str, Any]] = {}
-        for row in rows:
-            source = row.get("source")
-            if not isinstance(source, Mapping):
-                continue
-            key = (str(source.get("url") or ""), str(source.get("version") or ""), str(source.get("locator") or ""))
-            unique[key] = {
-                str(name): str(source[name])[:512]
-                for name in ("name", "url", "published_at", "retrieved_at", "version", "license", "locator", "geography_level")
-                if source.get(name) is not None
-            }
-        return list(unique.values())[:32]
+        return self._engine.source_evidence(arguments)
 
     def _normalize_records(self, raw_records: Any) -> list[dict[str, Any]]:
         if not isinstance(raw_records, list):
@@ -328,26 +168,3 @@ class EconomicToolProvider:
         if self._validation_issues:
             return "economic_field_mismatch"
         return "economic_data_unavailable"
-
-    @staticmethod
-    def _latest_by_region(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        latest: dict[str, dict[str, Any]] = {}
-        for item in records:
-            key = str(item["region"])
-            if key not in latest or _period_key(item["period"]) > _period_key(latest[key]["period"]):
-                latest[key] = item
-        return [latest[key] for key in sorted(latest)]
-
-
-def _period_key(value: Any) -> tuple[int, int, int, str]:
-    text = str(value or "")
-    digits = "".join(char if char.isdigit() else " " for char in text).split()
-    year = int(digits[0]) if digits else -1
-    suffix = text.upper()
-    if "H" in suffix:
-        part = 1 if suffix.endswith("H1") else 2
-        return year, 2, part, text
-    if "Q" in suffix:
-        part = int(digits[1]) if len(digits) > 1 else 0
-        return year, 1, part, text
-    return year, 0, 0, text

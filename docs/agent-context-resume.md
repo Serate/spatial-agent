@@ -61,10 +61,11 @@
 - 最新生产镜像 healthy；聚焦回归 23/23、quick/stage/smoke、compileall 和 M230 显式浏览器验收通过；M231 的 Browser 控制进程初始化异常已单独记录。
 - M262 已完成：`RuntimeRunLifecycle.run()` 已拆为 resolve、clarify、plan、validate/repair、execute、answer、evidence/finalize 显式阶段；FastAPI/标准库入口共享 HTTP transport；架构守卫拆分为 `COMPAT_SHIMS`、`COMPAT_FACADES` 和 `PUBLIC_MODULES`。Docker compileall、architecture strict、quick/stage 和 40 项定向回归通过，提交为 `f8300eb`。
 - M263 已完成：按 Economic Domain Spec/Plan 核验洪山区政府统计公报/统计分析一手来源，形成 31 条带 URL、发布日期、期间类型和正文/表格定位的本地外部观测；新增 `economic` Domain Pack、Provider、目录、趋势/比较/来源证据工具和精简契约测试。Docker M263 **7/7**、跨 Domain/HTTP/架构回归 **16/16**、quick/stage、compileall 和 architecture strict 通过；真实 Docker HTTP 比较、artifact、SQLite/容器重建恢复和显式真实模型 Planner 验收通过；数据已复制到 Docker 使用的 `D:\dataset\agent\economic`，未进入 Git。
+- M264 已完成：新增领域中立的 `agent.analysis.indicator_core.IndicatorAnalysisEngine`，统一目录、期间筛选、latest/trend/compare、统计汇总和来源去重；`indicators` 与 `economic` Provider 仅保留数据读取/校验和兼容状态映射。Docker M264/M251/M263 联合回归 **14/14**，compileall、architecture strict、quick/stage 通过；真实 Economic HTTP 比较迁移后通过，容器重启后 run/artifact 均可恢复。期间还修复指标 Domain 对连接词和“区域乙的趋势”尾词的实体解析问题。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛和 M263 Economic Domain 真实纵向切片均已完成。下一步进入 M264：从 `indicators` 与 `economic` 的重复实现中抽取领域中立的指标/表格分析模块，迁移两个 Domain 后用第三个专题验证新增成本；继续保持少量深工具，不为单一问句增加分支，不引入 RAG。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片和 M264 指标核心抽取均已完成。下一步进入 M265 全局验证：用第三个指标类专题或真实扩展数据证明新增专题只需适配器/目录；同时评估是否把重复的 workflow/catalog 声明进一步工厂化，不提前引入 RAG。
 
 ## 不变量
 
