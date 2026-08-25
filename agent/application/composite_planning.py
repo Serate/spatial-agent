@@ -17,6 +17,7 @@ from agent.composite_planner import CompositePlannerError
 
 
 COMPOSITE_PLANNER_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-planner-context.v1"
+COMPOSITE_PLANNER_EVIDENCE_SCHEMA_VERSION = "spatial-agent.composite-planner-evidence.v1"
 _SAFE_CAPABILITY_FIELDS = (
     "id",
     "label",
@@ -283,6 +284,13 @@ class CompositePlanningApplication:
                 "components": [],
                 "request": None,
                 "validation": {"status": "failed", "reason_code": exc.code},
+                "planner_evidence": _planner_evidence(
+                    {},
+                    planner_source=planner_name,
+                    schema_status="failed",
+                    component_count=0,
+                    request_fingerprint=None,
+                ),
                 "repair_lineage": {
                     "attempted": bool(self._repair_planner and self._max_repairs),
                     "count": 1 if self._repair_planner and self._max_repairs else 0,
@@ -300,6 +308,13 @@ class CompositePlanningApplication:
                 "components": [],
                 "request": None,
                 "validation": {"status": "failed", "reason_code": "planning_application_failed"},
+                "planner_evidence": _planner_evidence(
+                    {},
+                    planner_source=planner_name,
+                    schema_status="failed",
+                    component_count=0,
+                    request_fingerprint=None,
+                ),
             }
 
     def submit(
@@ -353,14 +368,23 @@ class CompositePlanningApplication:
             raise CompositePlannerError("planner output must be an object", code="plan_object_required")
         status = str(candidate.get("status") or "").upper()
         if status != "PLANNED":
+            planner_source = str(candidate.get("planner_source") or planner_name)[:32]
             return {
                 "schema_version": self.schema_version,
                 "status": status or "NEEDS_CLARIFICATION",
-                "planner_source": str(candidate.get("planner_source") or planner_name)[:32],
+                "planner_source": planner_source,
                 "message": str(candidate.get("message") or "需要补充任务信息。")[:640],
                 "components": [],
                 "request": None,
                 "validation": dict(candidate.get("validation") or {"status": "not_run"}),
+                "compatibility": _safe_compatibility(candidate.get("compatibility")),
+                "planner_evidence": _planner_evidence(
+                    candidate,
+                    planner_source=planner_source,
+                    schema_status="not_run",
+                    component_count=0,
+                    request_fingerprint=None,
+                ),
             }
         raw_request = candidate.get("request")
         try:
@@ -375,17 +399,28 @@ class CompositePlanningApplication:
                 "planned components are missing", code="plan_components_required"
             )
         self._validate_domains_and_capabilities(projected, context)
-        return {
+        planner_source = str(candidate.get("planner_source") or planner_name)[:32]
+        compatibility = _safe_compatibility(candidate.get("compatibility"))
+        result = {
             "schema_version": self.schema_version,
             "status": "PLANNED",
-            "planner_source": str(candidate.get("planner_source") or planner_name)[:32],
+            "planner_source": planner_source,
             "goal": str(candidate.get("goal") or "组合分析")[:320],
             "message": str(candidate.get("message") or "")[:640],
             "components": [dict(item) for item in projected[:8] if isinstance(item, Mapping)],
             "request": canonical,
             "request_fingerprint": canonical.get("fingerprint"),
             "validation": {"status": "valid", "reason_code": "allowlist_and_schema_valid"},
+            "compatibility": compatibility,
         }
+        result["planner_evidence"] = _planner_evidence(
+            candidate,
+            planner_source=planner_source,
+            schema_status="valid",
+            component_count=len(result["components"]),
+            request_fingerprint=canonical.get("fingerprint"),
+        )
+        return result
 
     def _selected_planner(self, planner_name: str, backend: str) -> Any:
         if callable(self._planner_factory):
@@ -431,7 +466,51 @@ class CompositePlanningApplication:
             "components": [],
             "request": None,
             "validation": {"status": "not_run", "reason_code": reason_code},
+            "compatibility": _safe_compatibility(None),
+            "planner_evidence": _planner_evidence(
+                {},
+                planner_source=planner_name,
+                schema_status="not_run",
+                component_count=0,
+                request_fingerprint=None,
+            ),
         }
+
+
+def _safe_compatibility(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {"status": "identity", "actions": []}
+    status = str(value.get("status") or "identity").strip().lower()
+    if status not in {"identity", "normalized"}:
+        status = "identity"
+    actions = []
+    for action in value.get("actions") or []:
+        text = str(action or "").strip()[:96]
+        if text and text not in actions:
+            actions.append(text)
+        if len(actions) >= 16:
+            break
+    return {"status": status, "actions": actions}
+
+
+def _planner_evidence(
+    candidate: Mapping[str, Any],
+    *,
+    planner_source: str,
+    schema_status: str,
+    component_count: int,
+    request_fingerprint: Any,
+) -> dict[str, Any]:
+    compatibility = _safe_compatibility(candidate.get("compatibility"))
+    fingerprint = str(request_fingerprint or "").strip()[:128] or None
+    return {
+        "schema_version": COMPOSITE_PLANNER_EVIDENCE_SCHEMA_VERSION,
+        "planner_source": str(planner_source or "unknown")[:32],
+        "schema_status": str(schema_status or "unknown")[:32],
+        "component_count": max(0, min(8, int(component_count))),
+        "request_fingerprint": fingerprint,
+        "compatibility": compatibility,
+    }
 
 
 def _call_catalog(service: Any, *, planner: str, backend: str) -> Mapping[str, Any]:

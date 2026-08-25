@@ -17,7 +17,7 @@
 
 - 阶段：M280 真实跨域 Composite 纵向验收
 - 状态：M279 已提交推送；M280 Spec/Plan/能力图已创建。
-- 当前任务：M280-A Planner response compatibility，详见 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 当前任务：M280-E 阶段收口与全局重规划，详见 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m280-real-composite-acceptance-capability-map.md`](m280-real-composite-acceptance-capability-map.md)
   - [`docs/m280-real-composite-acceptance-spec.md`](m280-real-composite-acceptance-spec.md)
@@ -25,9 +25,13 @@
 
 ## 当前任务明确文件
 
-- `agent/composite_planner.py`
 - `agent/application/composite_planning.py`
-- `tests/test_m280_real_composite_acceptance.py`（新增）
+- `docs/agent-development-issues.md`
+- `docs/m280-real-composite-acceptance-plan.md`
+- `docs/m280-real-composite-acceptance-spec.md`
+- `docs/milestones.md`
+- `docs/agent-work-state.md`
+- `tasks/todo.md`
 
 ## 验证与安全约定
 

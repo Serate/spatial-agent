@@ -12,6 +12,7 @@ from evaluation.model_evaluation import sanitize_provider_metrics
 
 
 PROVIDER_PROBE_SCHEMA_VERSION = "spatial-agent.live-provider-probe.v1"
+COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION = "spatial-agent.composite-planning-probe.v1"
 PROVIDER_PROBE_SCHEMA = {
     "type": "object",
     "properties": {"status": {"type": "string", "enum": ["ready"]}},
@@ -229,9 +230,184 @@ def _safe_identity(value: Any) -> str:
     return normalized[:96] or "unknown"
 
 
+def run_composite_planning_probe(
+    *,
+    application: Any,
+    request: str,
+    planner_name: str = "openai",
+    backend: str = "local",
+    domain_ids: tuple[str, ...] = ("gis", "economic"),
+    timeout_seconds: float = 45.0,
+) -> dict[str, Any]:
+    """Run one bounded planning-only probe without creating an execution run."""
+
+    if application is None or not callable(getattr(application, "prepare", None)):
+        raise ValueError("application must expose prepare()")
+    if not str(request or "").strip():
+        raise ValueError("request must not be empty")
+    if timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive")
+    started = monotonic()
+    try:
+        receipt = run_bounded_operation(
+            lambda: _composite_planning_once(
+                application,
+                request=str(request)[:2000],
+                planner_name=str(planner_name)[:32],
+                backend=str(backend)[:32],
+                domain_ids=tuple(str(value)[:32] for value in domain_ids)[:8],
+            ),
+            deadline=started + float(timeout_seconds),
+            heartbeat_seconds=float(timeout_seconds),
+            progress_callback=None,
+            case_id="composite-planning-probe",
+            started=started,
+        )
+    except TimeoutError:
+        return _composite_planning_receipt(
+            started,
+            status="FAILED",
+            error_code="timeout",
+            component_count=0,
+            request_fingerprint=None,
+            planner_evidence=None,
+        )
+    except Exception:
+        return _composite_planning_receipt(
+            started,
+            status="FAILED",
+            error_code="planning_probe_failed",
+            component_count=0,
+            request_fingerprint=None,
+            planner_evidence=None,
+        )
+    return _bounded_composite_planning_receipt(receipt, started)
+
+
+def _composite_planning_once(
+    application: Any,
+    *,
+    request: str,
+    planner_name: str,
+    backend: str,
+    domain_ids: tuple[str, ...],
+) -> dict[str, Any]:
+    try:
+        result = application.prepare(
+            request,
+            planner_name=planner_name,
+            backend=backend,
+            domain_ids=list(domain_ids),
+        )
+    except Exception:
+        return _composite_planning_receipt(
+            monotonic(),
+            status="FAILED",
+            error_code="planning_probe_failed",
+            component_count=0,
+            request_fingerprint=None,
+            planner_evidence=None,
+        )
+    if not isinstance(result, Mapping):
+        return _composite_planning_receipt(
+            monotonic(),
+            status="FAILED",
+            error_code="planning_response_invalid",
+            component_count=0,
+            request_fingerprint=None,
+            planner_evidence=None,
+        )
+    status = str(result.get("status") or "REJECTED").upper()
+    if status not in {"PLANNED", "NEEDS_CLARIFICATION", "REJECTED"}:
+        status = "FAILED"
+    components = result.get("components")
+    component_count = len(components) if isinstance(components, list) else 0
+    return _composite_planning_receipt(
+        monotonic(),
+        status=status,
+        error_code=result.get("error_code"),
+        component_count=component_count,
+        request_fingerprint=result.get("request_fingerprint"),
+        planner_evidence=result.get("planner_evidence"),
+    )
+
+
+def _composite_planning_receipt(
+    started: float,
+    *,
+    status: str,
+    error_code: Any,
+    component_count: int,
+    request_fingerprint: Any,
+    planner_evidence: Any,
+) -> dict[str, Any]:
+    fingerprint = _safe_probe_string(request_fingerprint, 128)
+    evidence = _safe_planner_evidence(planner_evidence)
+    return {
+        "schema_version": COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION,
+        "execution_mode": "live_composite_planning_probe",
+        "status": status,
+        "error_code": _safe_probe_string(error_code, 96) or None,
+        "component_count": max(0, min(8, int(component_count))),
+        "request_fingerprint": fingerprint or None,
+        "planner_evidence": evidence,
+        "passed": status == "PLANNED" and bool(fingerprint) and component_count > 0,
+        "elapsed_ms": int(max(0.0, monotonic() - started) * 1000),
+    }
+
+
+def _bounded_composite_planning_receipt(
+    receipt: Mapping[str, Any], started: float
+) -> dict[str, Any]:
+    return _composite_planning_receipt(
+        started,
+        status=str(receipt.get("status") or "FAILED"),
+        error_code=receipt.get("error_code"),
+        component_count=receipt.get("component_count") or 0,
+        request_fingerprint=receipt.get("request_fingerprint"),
+        planner_evidence=receipt.get("planner_evidence"),
+    )
+
+
+def _safe_planner_evidence(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    compatibility = value.get("compatibility")
+    safe_compatibility = {"status": "identity", "actions": []}
+    if isinstance(compatibility, Mapping):
+        status = str(compatibility.get("status") or "identity")
+        if status not in {"identity", "normalized"}:
+            status = "identity"
+        actions = []
+        for action in compatibility.get("actions") or []:
+            text = _safe_probe_string(action, 96)
+            if text and text not in actions:
+                actions.append(text)
+            if len(actions) >= 16:
+                break
+        safe_compatibility = {"status": status, "actions": actions}
+    return {
+        "schema_version": _safe_probe_string(value.get("schema_version"), 96),
+        "planner_source": _safe_probe_string(value.get("planner_source"), 32),
+        "schema_status": _safe_probe_string(value.get("schema_status"), 32),
+        "component_count": max(0, min(8, int(value.get("component_count") or 0))),
+        "request_fingerprint": _safe_probe_string(value.get("request_fingerprint"), 128),
+        "compatibility": safe_compatibility,
+    }
+
+
+def _safe_probe_string(value: Any, limit: int) -> str:
+    if value is None:
+        return ""
+    normalized = _SAFE_ID.sub("_", str(value)).strip("_")
+    return normalized[:limit]
+
+
 __all__ = [
     "PROVIDER_PROBE_MESSAGES",
     "PROVIDER_PROBE_SCHEMA",
     "PROVIDER_PROBE_SCHEMA_VERSION",
+    "COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION",
+    "run_composite_planning_probe",
     "run_provider_probe",
 ]

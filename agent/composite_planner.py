@@ -17,6 +17,40 @@ from agent.composite_contract import normalize_composite_request
 
 COMPOSITE_PLANNING_RESPONSE_SCHEMA_VERSION = "spatial-agent.composite-planning-response.v1"
 _OUTCOMES = {"success", "needs_clarification", "rejected"}
+_TOP_LEVEL_FIELDS = {"outcome", "goal", "message", "components"}
+_TOP_LEVEL_ALIASES = {
+    "status": "outcome",
+    "objective": "goal",
+    "reason": "message",
+    "plan": "components",
+    "steps": "components",
+}
+_COMPONENT_ALIASES = {
+    "id": "component_id",
+    "componentId": "component_id",
+    "domain": "domain_id",
+    "domainId": "domain_id",
+    "capability": "capability_id",
+    "capabilityId": "capability_id",
+    "task": "request",
+    "query": "request",
+    "description": "request",
+    "dependencies": "depends_on",
+    "dependsOn": "depends_on",
+    "is_required": "required",
+    "isRequired": "required",
+}
+_OUTCOME_ALIASES = {
+    "planned": "success",
+    "ok": "success",
+    "completed": "success",
+    "clarification": "needs_clarification",
+    "clarify": "needs_clarification",
+    "need_clarification": "needs_clarification",
+    "needs-clarification": "needs_clarification",
+    "reject": "rejected",
+    "invalid": "rejected",
+}
 _COMPONENT_FIELDS = {
     "component_id",
     "domain_id",
@@ -34,6 +68,120 @@ class CompositePlannerError(ValueError):
     def __init__(self, message: str, *, code: str = "composite_planner_invalid"):
         self.code = str(code)[:96]
         super().__init__(str(message)[:320])
+
+
+def normalize_provider_response(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Normalize only documented provider drift before the canonical contract.
+
+    The compatibility surface is intentionally small: one ``plan`` wrapper,
+    a few top-level aliases, common camelCase component names, and safe
+    defaults for outcome/components/required fields.  Unknown fields and
+    conflicting aliases fail closed.  The returned summary contains field
+    names and actions only; it never contains provider content.
+    """
+    if not isinstance(payload, Mapping):
+        raise CompositePlannerError(
+            "planner output must be an object", code="plan_object_required"
+        )
+
+    actions: list[str] = []
+    source = dict(payload)
+    if set(source) == {"plan"} and isinstance(source.get("plan"), Mapping):
+        source = dict(source["plan"])
+        actions.append("unwrap:plan")
+
+    unknown = sorted(str(key) for key in set(source) - set(_TOP_LEVEL_FIELDS) - set(_TOP_LEVEL_ALIASES))
+    if unknown:
+        raise CompositePlannerError(
+            "planner response contains unsupported fields",
+            code="plan_response_field_invalid",
+        )
+
+    normalized: dict[str, Any] = {}
+    for key, value in source.items():
+        target = _TOP_LEVEL_ALIASES.get(key, key)
+        if target in normalized:
+            raise CompositePlannerError(
+                "planner response contains conflicting aliases",
+                code="plan_response_alias_conflict",
+            )
+        normalized[target] = value
+        if target != key:
+            actions.append(f"alias:{key}->{target}")
+
+    raw_components_present = "components" in normalized
+    raw_components = normalized.get("components")
+    if raw_components_present and not isinstance(raw_components, list):
+        raise CompositePlannerError(
+            "planner components must be an array", code="plan_components_invalid"
+        )
+
+    raw_outcome = normalized.get("outcome")
+    if raw_outcome is None or not str(raw_outcome).strip():
+        if not raw_components_present:
+            raise CompositePlannerError(
+                "planner components must be an array", code="plan_components_invalid"
+            )
+        normalized["outcome"] = "success" if raw_components else "needs_clarification"
+        actions.append("default:outcome_from_components")
+    else:
+        outcome = str(raw_outcome).strip().lower().replace(" ", "_")
+        outcome = _OUTCOME_ALIASES.get(outcome, outcome)
+        normalized["outcome"] = outcome
+        if outcome != str(raw_outcome).strip().lower():
+            actions.append("alias:outcome_value")
+
+    if normalized["outcome"] != "success" and not raw_components_present:
+        normalized["components"] = []
+        actions.append("default:components_for_non_success")
+    if normalized["outcome"] == "success" and not str(normalized.get("goal") or "").strip():
+        normalized["goal"] = "组合分析"
+        actions.append("default:goal")
+
+    components = normalized.get("components")
+    if not isinstance(components, list):
+        raise CompositePlannerError(
+            "planner components must be an array", code="plan_components_invalid"
+        )
+    normalized_components = []
+    for raw in components[:8]:
+        if not isinstance(raw, Mapping):
+            raise CompositePlannerError(
+                "component must be an object", code="plan_component_object_required"
+            )
+        unknown_component = sorted(
+            str(key)
+            for key in set(raw) - set(_COMPONENT_FIELDS) - set(_COMPONENT_ALIASES)
+        )
+        if unknown_component:
+            raise CompositePlannerError(
+                "component contains unsupported fields",
+                code="plan_component_field_invalid",
+            )
+        component: dict[str, Any] = {}
+        for key, value in raw.items():
+            target = _COMPONENT_ALIASES.get(key, key)
+            if target in component:
+                raise CompositePlannerError(
+                    "component contains conflicting aliases",
+                    code="plan_component_alias_conflict",
+                )
+            component[target] = value
+            if target != key:
+                actions.append(f"component_alias:{key}->{target}")
+        if "depends_on" not in component:
+            component["depends_on"] = []
+            actions.append("default:component_depends_on")
+        if "required" not in component:
+            component["required"] = True
+            actions.append("default:component_required")
+        normalized_components.append(component)
+    normalized["components"] = normalized_components
+
+    return normalized, {
+        "status": "normalized" if actions else "identity",
+        "actions": actions[:16],
+    }
 
 
 def composite_plan_schema() -> dict[str, Any]:
@@ -106,12 +254,15 @@ class RuleCompositePlanner:
             raise CompositePlannerError(
                 "rule planner failed", code="rule_planner_failed"
             ) from exc
-        return normalize_composite_plan(
-            payload,
+        normalized, compatibility = normalize_provider_response(payload)
+        result = normalize_composite_plan(
+            normalized,
             request=request,
             context=context,
             planner_source=self.source,
         )
+        result["compatibility"] = compatibility
+        return result
 
 
 class LLMCompositePlanner:
@@ -155,12 +306,15 @@ class LLMCompositePlanner:
             raise CompositePlannerError(
                 "composite planner provider failed", code="planner_provider_failed"
             ) from exc
-        return normalize_composite_plan(
-            payload,
+        normalized, compatibility = normalize_provider_response(payload)
+        result = normalize_composite_plan(
+            normalized,
             request=request,
             context=context,
             planner_source=self.source,
         )
+        result["compatibility"] = compatibility
+        return result
 
 
 def normalize_composite_plan(
@@ -336,4 +490,5 @@ __all__ = [
     "RuleCompositePlanner",
     "composite_plan_schema",
     "normalize_composite_plan",
+    "normalize_provider_response",
 ]

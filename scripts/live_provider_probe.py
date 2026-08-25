@@ -1,4 +1,4 @@
-"""Run one explicit, bounded provider connectivity and JSON-shape probe."""
+"""Run one explicit, bounded provider or Composite planning probe."""
 
 from __future__ import annotations
 
@@ -13,7 +13,10 @@ sys.path.insert(0, str(ROOT))
 
 from agent.llm_planner import OpenAIPlannerClient
 from agent.openai_config import load_openai_config
-from evaluation.live_provider_probe import run_provider_probe
+from evaluation.live_provider_probe import (
+    run_composite_planning_probe,
+    run_provider_probe,
+)
 
 
 def main() -> int:
@@ -29,6 +32,26 @@ def main() -> int:
         action="store_true",
         help="明确允许调用真实模型；仍需设置 live 环境变量",
     )
+    parser.add_argument(
+        "--composite",
+        action="store_true",
+        help="调用真实 Composite Planner；默认只做 provider connectivity probe",
+    )
+    parser.add_argument(
+        "--request",
+        default="请规划一次空间 GIS 与区域指标的组合分析，只选择目录中可用的能力。",
+        help="Composite planning probe 的自然语言请求",
+    )
+    parser.add_argument(
+        "--backend",
+        default="local",
+        help="Composite planning 使用的后端标签；默认 local",
+    )
+    parser.add_argument(
+        "--domains",
+        default="gis,economic",
+        help="逗号分隔的 Domain ID；默认 gis,economic",
+    )
     args = parser.parse_args()
     if not args.allow_network:
         parser.error("provider probe requires --allow-network")
@@ -39,12 +62,26 @@ def main() -> int:
     config["timeout_seconds"] = args.timeout_seconds
     config["max_retries"] = 0
     config["max_output_tokens"] = 128
-    report = run_provider_probe(
-        client_factory=lambda timeout: OpenAIPlannerClient(
-            **{**config, "timeout_seconds": timeout}
-        ),
-        timeout_seconds=args.timeout_seconds,
-    )
+    if args.composite:
+        from production_api import composite_planning_application
+
+        report = run_composite_planning_probe(
+            application=composite_planning_application,
+            request=args.request,
+            planner_name="openai",
+            backend=args.backend,
+            domain_ids=tuple(
+                value.strip() for value in args.domains.split(",") if value.strip()
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
+    else:
+        report = run_provider_probe(
+            client_factory=lambda timeout: OpenAIPlannerClient(
+                **{**config, "timeout_seconds": timeout}
+            ),
+            timeout_seconds=args.timeout_seconds,
+        )
     print(json.dumps(report, ensure_ascii=True, indent=2))
     return 0 if report.get("passed") else 1
 

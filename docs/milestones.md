@@ -4957,8 +4957,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker M279 + M278/M277/M256/M275/M276 **33/33**，CI/stage、compileall、architecture strict、生产 health 通过；真实中转 planning probe HTTP 200 但输出 `plan_outcome_invalid`，按设计安全拒绝且无 run_id。
 - 本阶段代码与中文记录待提交推送；下一阶段从全局目标规划 Planner schema 兼容优化、真实跨域执行验收和前端动态 Composite View，不复制领域专用流程。
 
-## M280：真实跨域 Composite 纵向验收（规划中）
+## M280：真实跨域 Composite 纵向验收（已完成）
 
 - 目标：将 M279 的可规划能力推进到真实中转模型 → 合法 GIS + Economic DAG → sync/async/restart/evidence 的一条纵向闭环。
 - 已创建 M280 能力图、Spec、Plan；第一步是对有限旧式/省略字段做显式 response compatibility，最终仍必须通过 canonical Composite contract，不允许猜测工具或事实。
 - 真实模型失败继续按 provider、Planner contract、执行和数据层分开记录；默认 CI 保持离线，真实数据只在 Docker 显式验收。
+- M280-A/B/C 完成有界 response compatibility、planner evidence、离线 replay 和显式 live planning probe；真实中转输出不稳定时安全拒绝，不创建 run。
+- M280-D 完成真实 Docker GIS + Economic sync/async/artifact/evidence/restart：两个组件均完成，orphan restart 只接管一次，`recovery_count=1`。
+- Docker M280/M279/M278 定向回归通过（Planner **15/15**；lifecycle/HTTP + acceptance **12/12**），compileall、architecture strict 通过；未写入真实数据、密钥、模型原文或宿主路径。
+- 全局重规划：M280 已证明 Runtime、Composite coordinator 和恢复边界可承载真实跨域执行；下一阶段聚焦动态 Composite View、简洁答案和跨入口结果一致性，继续保持 provider/live 显式验收。

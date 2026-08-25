@@ -29,3 +29,9 @@
 ## Public boundary
 
 `CompositePlanningResponse` 增加 bounded `compatibility` 与 `planner_evidence` 摘要；现有 `spatial-agent.composite-request.v1`、`composite_result` 和 M278 lifecycle 不改版本。
+
+## M280 验收结论
+
+- 真实中转已验证“可达”与“能生成合法 Composite DAG”是两个独立状态：planning probe 的 provider response 不稳定时，系统返回脱敏拒绝 receipt，不创建 execution run。
+- 真实 GIS + Economic canonical request 已在 Docker 完成同步、异步 artifact/evidence 和 SQLite orphan restart；两个组件结果与 fingerprint 保持一致。
+- 兼容归一化只处理有限、文档化的字段漂移；未知字段、非 JSON 和 capability mismatch 仍 fail closed。

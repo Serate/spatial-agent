@@ -896,3 +896,12 @@
 - **诊断**：先确认本地 commit/hash 和工作树，再原样重试 `git push`；不要打印 remote token、凭据、环境变量或修改仓库认证配置。
 - **修复**：第二次 `git push` 成功，`2580b84` 已到 `origin/main`。
 - **预防**：阶段交付同时记录本地 commit 与远端 push；首次凭据/网络错误只安全重试，连续失败时保留本地提交并等待外部认证恢复。
+
+## M280 中转 Composite Planner 输出不稳定，不能盲目放宽 schema
+
+- **现象**：显式 Docker planning probe 已到达中转，但一次返回 `REJECTED/plan_response_field_invalid`，另一次返回非 JSON provider response；两次均为 0 个组件、无 `run_id`，真实 GIS/Economic 执行未被错误触发。
+- **根因**：provider 可达、基础 JSON probe 成功，不代表模型在复杂 Composite 请求中稳定遵守 `outcome/goal/components` 和组件字段契约；中转可能出现旧式 wrapper、字段漂移或非 JSON 输出。
+- **诊断**：只保留 `status`、`error_code`、组件数、fingerprint、schema 状态和耗时；不得读取/打印/提交 prompt、模型原文、请求头、密钥、响应体或私有路径。用 fake/replay 与真实 planning probe 分层对照。
+- **修复**：M280 新增独立有界 normalizer，允许文档化 `plan/status/objective/steps` 等映射、有限默认 outcome 和组件常见命名；未知字段/别名冲突 fail closed。Planning Application 输出脱敏 compatibility/evidence；真实失败保留结构化 receipt。
+- **验证**：Docker M280/M279 Planner 回归 **15/15**；M278 lifecycle/HTTP + M280 acceptance **12/12**；真实 GIS + Economic sync/async/evidence/restart 全部通过。未修改 Runtime、ToolRegistry、GIS 算法或 Composite schema 版本。
+- **预防**：把 provider readiness、Planner contract、canonical DAG、真实执行分成独立门禁；兼容面必须有明确别名和离线回放用例，不能为了让一次 live 请求通过而接受任意字段或绕过 capability allowlist。
