@@ -99,6 +99,12 @@ def _load_indicators():
     return INDICATORS_DOMAIN_PACK
 
 
+def _load_economic():
+    from domains.economic import ECONOMIC_DOMAIN_PACK
+
+    return ECONOMIC_DOMAIN_PACK
+
+
 _REGISTRY = DomainRegistry(
     {
         "gis": DomainEntry(
@@ -118,6 +124,12 @@ _REGISTRY = DomainRegistry(
             label="区域指标",
             description="可追溯的指标目录、趋势与区域比较能力。",
             factory=_load_indicators,
+        ),
+        "economic": DomainEntry(
+            domain_id="economic",
+            label="区域经济分析",
+            description="基于真实来源的经济指标查询、趋势、比较和来源证据能力。",
+            factory=_load_economic,
         ),
     }
 )

@@ -20,3 +20,22 @@
 - 动作回执记录动作的可观察结果和幂等边界；它不拥有 Planner、ToolRegistry 或 Domain Pack 的执行策略。
 - 决策、澄清和恢复都通过统一生命周期推进运行，不能各自发明不可比较的状态集合。
 - 证据恢复可以阻断或允许动作，但未知版本不得被解释成当前证据。
+
+## 经济分析术语
+
+- **指标（Indicator）**：具有稳定 ID、名称、单位和定义的可观测统计量；指标名称不能替代来源定义。
+- **指标观测（Indicator Observation）**：某指标在一个明确区域、区域层级和时间期间上的数值记录。
+- **区域（Region）**：带稳定 ID、名称和 `geography_level` 的统计空间对象，例如武汉市或洪山区；不能只依靠显示名称判断层级。
+- **时间期间（Period）**：指标观测对应的年、季度、月或其他明确期间；“最近”只是查询意图，不能在缺少可用期间时凭空推断。
+- **数据来源证据（Source Evidence）**：绑定到数据集/指标/观测的来源名称、URL、发布日期或版本、检索时间、字段/表格定位、许可边界和区域层级说明。
+- **数据可用性状态（Data Availability Status）**：至少区分 `ready`、`unavailable`、`field_mismatch`、`region_unavailable`、`time_range_unavailable` 和 `source_unverified`；状态是结果契约的一部分。
+
+## 阶段执行协议
+
+重大跨模块或跨领域阶段必须遵循：
+
+```text
+全局重规划 → Spec → Plan → 实现 → Docker/集成测试 → 文档与证据 → commit/push → 全局重规划
+```
+
+小型修复可以使用简化的 Spec/Plan，但仍需明确影响范围、验收条件和验证命令。Spec 规定目标、边界和成功标准，Plan 规定依赖、文件、顺序、风险和检查点；二者都不是 Runtime 的第二套编排逻辑。

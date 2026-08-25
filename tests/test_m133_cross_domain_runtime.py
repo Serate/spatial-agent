@@ -80,6 +80,7 @@ class M133CrossDomainRuntimeTests(unittest.TestCase):
                 payload = service.run(
                     "请摘要这段文本",
                     backend="memory",
+                    session_id="m133-text-service",
                     export_artifact=True,
                 )
             finally:
@@ -110,7 +111,11 @@ class M133CrossDomainRuntimeTests(unittest.TestCase):
                 "POST",
                 "/runs",
                 body=json.dumps(
-                    {"request": "请摘要这段文本", "backend": "memory"},
+                    {
+                        "request": "请摘要这段文本",
+                        "backend": "memory",
+                        "session_id": "m133-text-http",
+                    },
                     ensure_ascii=False,
                 ).encode("utf-8"),
                 headers={"Content-Type": "application/json"},

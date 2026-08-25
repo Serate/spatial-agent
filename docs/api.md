@@ -49,9 +49,11 @@ Returns the bounded, enabled Domain catalog and the version of the transport-neu
   "schema_version": "spatial-agent.domain-runtime-host.v1",
   "selection_schema_version": "spatial-agent.domain-selection.v1",
   "legacy_domain_id": "gis",
-  "domain_ids": ["gis", "text"],
+  "domain_ids": ["economic", "gis", "indicators", "text"],
   "domains": [
+    {"id": "economic", "label": "区域经济分析"},
     {"id": "gis", "label": "空间 GIS"},
+    {"id": "indicators", "label": "区域指标"},
     {"id": "text", "label": "文本分析"}
   ]
 }

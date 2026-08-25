@@ -672,3 +672,27 @@
 - **诊断**：代码变更后先比较容器内 `scripts/architecture_check.py` 的输出或文件 hash；若与宿主机不同，执行 `docker compose -f docker-compose.prod.yml up -d --build --force-recreate`。对失败运行读取 `status/error/clarification/plan_evidence`，区分“结构化降级”与异常堆栈。
 - **修复**：本阶段通过 compose 重建确保镜像包含 canonical source；生命周期、decision、HTTP 和架构 contract 在重建后通过。M44 fixture 作为独立数据/规则兼容项记录，不在架构重构中加入针对单一问句的 dataset 硬编码。
 - **预防**：Docker 是项目 Python/GIS 验收环境，不能用本机 Python 替代；每阶段至少执行重建、health、compileall、architecture strict、精简定向回归和 quick/stage。架构清单必须区分简单 shim、兼容 facade 和真实公共模块，真实模块不得用兼容豁免隐藏。
+
+## M263 真实专题数据接入时数据挂载根目录与项目目录不一致
+
+- **现象**：Economic Provider 在容器内能正常注册、计划和执行，但真实查询返回 0 条观测；同一份本地数据在宿主机 `data/economic/` 中存在，容器 `/data/economic/` 却不存在。
+- **根因**：Docker Compose 的源码通过镜像 `COPY` 注入，数据通过 volume 注入；`.env.production` 的 `SPATIAL_AGENT_HOST_DATASET_ROOT` 指向宿主机 `D:\dataset\agent`，并不等于项目工作区的 `data/`。被 `.dockerignore` 忽略的 `data/` 也不会进入镜像。
+- **诊断**：先读取配置时只显示是否配置，不输出密钥；检查 `docker exec <container> ls -l /data/<domain-data>`，再核对 `.env.production` 的数据根是否存在目标文件。不要只在宿主机运行 Provider。
+- **修复**：把不含密钥的规范化数据复制到生产数据根的明确子目录（本例为 `D:\dataset\agent\economic/`），Provider 同时支持 `SPATIAL_AGENT_ECONOMIC_DATA` 显式路径和 `SPATIAL_AGENT_DATASET_ROOT/economic/` 默认发现；重启容器后执行真实 Runtime/HTTP 查询。
+- **预防**：每个真实 Domain 都要同时验证“宿主机路径、容器路径、Provider 路径、HTTP 结果”四层；数据目录继续保持 Git ignored，配置文件只登记相对路径和状态，不把外部数据误 COPY 进镜像。
+
+## M263 真实数据验收被持久 SQLite 旧会话污染
+
+- **现象**：跨 Domain 定向测试出现 `session belongs to another domain: default`，同一批测试在隔离 SQLite 后全部通过。
+- **根因**：Docker 生产容器挂载了持久 `outputs/spatial-agent.db`；手工 HTTP 验收留下了与测试复用的会话 ID/绑定，测试环境没有自动创建隔离数据库。
+- **诊断**：比较失败前后的 `SPATIAL_AGENT_STATE_DB`，检查 session domain binding；先用唯一临时 DB 重跑，不要删除生产 outputs 目录来“修复”测试。
+- **修复**：定向/回归测试使用 `SPATIAL_AGENT_STATE_DB=/tmp/<stage>-<run>.db` 等隔离路径；生产容器保留真实 DB，不能为了测试清空用户数据。
+- **预防**：测试 profile 必须显式隔离 SQLite、session 和 artifact root；真实 HTTP 验收使用带阶段前缀的 session/idempotency key，并在报告中区分“代码失败”和“环境状态污染”。
+
+## M263 新增 Domain 后旧测试硬编码领域目录
+
+- **现象**：新增 `economic` 和已有 `indicators` Domain 后，跨 Domain 回归中旧测试仍断言目录只有 `gis/text`，导致目录契约和 HTTP `/domains` 契约失败；这不是 Domain 注册或路由逻辑失败。
+- **根因**：测试把当时的领域集合当成稳定公共契约，而不是验证“返回完整的已注册集合且不泄露模块实现”。随着 Domain Pack 可扩展，固定列表会在每次新增领域时失真。
+- **诊断**：比较 `domain_registry().ids()`、直接 catalog 和 HTTP catalog；若三者一致但测试的旧列表失败，应更新测试契约，不删除合法 Domain。
+- **修复**：测试从当前显式 `DomainRegistry` 读取期望 ID，并继续断言顺序、schema 和不包含模块路径；没有放宽未知 Domain 的拒绝校验。
+- **预防**：扩展性测试只锁定注册表的公共不变量；只有产品明确规定“允许列表固定”时才写死具体集合。新增 Domain 必须回归直接 catalog、HTTP catalog、URL 路由和 SQLite/artifact 领域过滤。

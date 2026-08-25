@@ -4809,3 +4809,14 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `agent/application/http_transport.py`，FastAPI 与标准库入口共享 request target/query、JSON 编解码、错误投影、artifact 路径和 artifact JSON 读取；`HTTPApplication` 继续作为业务语义唯一入口。
 - 将架构守卫的旧 `COMPAT_MODULES` 拆为 `COMPAT_SHIMS`、`COMPAT_FACADES` 和 `PUBLIC_MODULES`，真实公共模块不再获得兼容豁免；新增 M262 紧凑 seam contract。
 - Docker 已重建并 healthy；M262、Decision、HTTP、profile contract 共 **40 项定向回归通过**，全量 `compileall agent scripts tests`、quick/stage、architecture strict 通过。一个历史 M44 单测在当前容器数据事实下返回结构化 `dataset` 澄清，已单独记录，未用本阶段代码绕过。
+
+## M263：真实 Economic Domain 第一条可复用纵向链路（已完成）
+
+- 按 `Spec → Plan → 实现 → Docker 集成验收` 闭环新增 `docs/m263-economic-domain-spec.md`、`docs/m263-economic-domain-plan.md` 和中文来源调研文档；同步将经济领域术语与阶段执行协议写入 `CONTEXT.md`。
+- 核验洪山区政府统计信息页面：2022—2024 年统计公报、2025 年 GDP 数据解读、2026 年上半年 GDP 和 1—6 月主要经济指标；规范化 31 条本地外部观测，每条保留来源 URL、发布日期、检索时间、期间类型和正文/表格定位，不提交 Git。
+- 新增 `domains/economic` Domain Pack：经济指标目录、latest/trend/compare 查询、来源证据、真实数据字段/区域/期间校验、`ready/unavailable/field_mismatch/region_unavailable/time_range_unavailable` 状态；所有工具通过 ToolRegistry，结果复用 metrics/timeseries/composite/document_evidence 和 generic View。
+- `agent/domain_registry.py` 注册 `economic`，公共 Runtime、HTTP、生命周期和前端主流程未增加经济专用分支；LLM Planner context 只暴露已注册经济工具和工作流。
+- Docker 验收：M263 定向 **7/7**，跨 Domain/HTTP/架构回归 **16/16**，compileall、architecture strict、quick/stage 通过；真实 Docker Runtime/HTTP 指定 `gdp_total + 洪山区 + 年度趋势` 返回 4 条 2022—2025 观测、4 条官方来源证据，区域比较返回 2 个区域，开放问题缺少指标时返回结构化澄清。
+- 发现并修正部署接线：`.env.production` 的数据根是宿主机 `D:\dataset\agent`，而非项目 `data/`；已将规范化数据复制到该根目录的 `economic/` 子目录，容器保持 healthy。首次公共跨 Domain 回归受持久 SQLite 旧会话污染，使用隔离临时 DB 后 **17/17** 通过。
+- 阶段补充验收：真实 HTTP 比较完成后导出 artifact；容器重建后 SQLite run detail 和 artifact 均可恢复；显式真实模型 Planner 完成经济趋势请求并只选择已注册工具。旧测试对领域列表的硬编码和固定 SQLite 会话污染已修复并记录。
+- 下一切片：做全局七维度复盘，抽象经济链路中可被人口/教育/就业等专题复用的指标/表格 Provider 能力，并用第三个专题验证新增成本；不为“最近经济发展”固定选择指标。

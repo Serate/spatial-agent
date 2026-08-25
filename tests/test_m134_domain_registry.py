@@ -24,12 +24,13 @@ from serve_api import AgentApiHandler
 class M134DomainRegistryTests(unittest.TestCase):
     def test_catalog_is_bounded_and_lists_only_registered_domains(self):
         catalog = domain_registry().catalog()
+        expected_ids = list(domain_registry().ids())
 
         self.assertEqual(catalog["schema_version"], DOMAIN_REGISTRY_SCHEMA_VERSION)
-        self.assertEqual(catalog["domain_ids"], ["gis", "text"])
+        self.assertEqual(catalog["domain_ids"], expected_ids)
         self.assertEqual(
             [item["id"] for item in catalog["domains"]],
-            ["gis", "text"],
+            expected_ids,
         )
         self.assertNotIn("module", str(catalog))
 
@@ -154,7 +155,7 @@ class M134DomainRegistryTests(unittest.TestCase):
             Handler.service.close()
 
         self.assertEqual(response.status, 200)
-        self.assertEqual(payload["domain_ids"], ["gis", "text"])
+        self.assertEqual(payload["domain_ids"], list(domain_registry().ids()))
         self.assertNotIn("module", str(payload))
 
 

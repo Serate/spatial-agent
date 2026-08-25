@@ -1,0 +1,13 @@
+{
+  "schema_version": "spatial-agent.economic-data.v1",
+  "dataset": "wuhan_hongshan_economic_indicators",
+  "status": "unavailable",
+  "provenance": {
+    "source": "请配置经核验的一手统计来源",
+    "version": "replace-me",
+    "attribution": "replace-me",
+    "license": "replace-me",
+    "retrieved_at": "YYYY-MM-DD"
+  },
+  "records": []
+}
