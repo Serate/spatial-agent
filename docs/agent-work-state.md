@@ -15,23 +15,20 @@
 
 ## 当前阶段
 
-- 阶段：M280 真实跨域 Composite 纵向验收
-- 状态：M279 已提交推送；M280 Spec/Plan/能力图已创建。
-- 当前任务：M280-E 阶段收口与全局重规划，详见 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M281 动态 Composite 结果体验与跨入口一致性
+- 状态：M280 已完成并推送 `599881c`；M281 全局规划待创建。
+- 当前任务：M281-B 公共 Composite View Projection，详见 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m280-real-composite-acceptance-capability-map.md`](m280-real-composite-acceptance-capability-map.md)
-  - [`docs/m280-real-composite-acceptance-spec.md`](m280-real-composite-acceptance-spec.md)
-  - [`docs/m280-real-composite-acceptance-plan.md`](m280-real-composite-acceptance-plan.md)
+  - [`docs/m281-dynamic-composite-capability-map.md`](m281-dynamic-composite-capability-map.md)
+  - [`docs/m281-dynamic-composite-spec.md`](m281-dynamic-composite-spec.md)
+  - [`docs/m281-dynamic-composite-plan.md`](m281-dynamic-composite-plan.md)
 
 ## 当前任务明确文件
 
-- `agent/application/composite_planning.py`
-- `docs/agent-development-issues.md`
-- `docs/m280-real-composite-acceptance-plan.md`
-- `docs/m280-real-composite-acceptance-spec.md`
-- `docs/milestones.md`
-- `docs/agent-work-state.md`
-- `tasks/todo.md`
+- `agent/composite_contract.py`（待定位）
+- `agent/result_registry.py`（待定位）
+- `agent/application/http.py`（待定位）
+- `tests/test_m281_dynamic_composite.py`（新增）
 
 ## 验证与安全约定
 

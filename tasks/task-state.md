@@ -22,7 +22,7 @@
 - 阻塞：无。
 - 下一步：继续 M280-A；恢复时只读取 M280 规划和其明确文件。
 
-### M280-A：Planner response compatibility（进行中）
+### M280-A：Planner response compatibility（已完成）
 
 - 目标：对真实中转模型的有限别名/省略字段做有界归一化，最终仍经过现有 canonical plan contract；未知字段必须拒绝。
 - 改动：新增独立 `normalize_provider_response`；支持 `plan/status/objective/steps` 等文档化字段映射、组件别名和有限默认值；未知字段/别名冲突 fail closed；新增离线 replay 契约测试。
@@ -70,7 +70,7 @@
 - 阻塞：无。
 - 下一步：进入 M280-E 文档、提交推送和全局重规划。
 
-### M280-E：阶段收口与全局重规划（进行中）
+### M280-E：阶段收口与全局重规划（已完成）
 
 - 目标：记录 M280 的真实验收证据和 provider 失败边界，更新中文项目记忆/里程碑/快照，提交推送后从项目全局规划下一阶段。
 - 改动：补充 M280 Plan/Spec 实际结论、中文问题日志、milestones；保留 provider 失败 receipt 与真实 GIS/Economic 恢复证据的分层结论。
@@ -81,9 +81,25 @@
   - `docs/milestones.md`
   - `docs/agent-work-state.md`
   - `tasks/todo.md`
-- 验证：待文档格式检查、git diff check、提交推送。
+- 验证：`git diff --check` 通过；阶段提交 `599881c` 已推送到 `origin/main`。
 - 阻塞：无。
-- 下一步：只读取上述文档尾部/相关段落，追加 M280 结论，不加载完整历史。
+- 下一步：M280 完成；进入 M281 全局规划。
+
+### M281-A：全局能力图、Spec、Plan（已完成）
+
+- 目标：让用户从自然语言请求得到简洁答案，并由同一结构化 Composite Result/View/Evidence 驱动 CLI、HTTP、前端和 artifact；前端按数据形态动态展示，不增加 GIS/Economic 专用页面分支。
+- 改动：创建 M281 能力图、Spec、Plan，明确公共 projection、简洁答案、generic renderer 和跨入口验收边界；更新 `tasks/plan.md`。
+- 验证：规划覆盖产品、架构、模型、数据、部署、体验、测试七维度；`git diff --check` 待检查。
+- 阻塞：无。
+- 下一步：进入 M281-B，先盘点现有 Result/View/Evidence public seam，只读取任务明确文件。
+
+### M281-B：公共 Composite View Projection（进行中）
+
+- 目标：从 canonical Composite Result 生成版本化、受限、领域中立的 View Projection，供 CLI/HTTP/前端/artifact 共用。
+- 待读/待修改：待根据 M281 Spec 进一步列出最小 Result/View/HTTP 文件集合。
+- 验证：Docker fake contract；不引入领域名称分支，不输出模型原文或私有路径。
+- 阻塞：无。
+- 下一步：用 `rg` 定位现有 composite result、view registry、answer 和前端 projection seam，再补充明确文件清单。
 
 ## 更新协议
 
