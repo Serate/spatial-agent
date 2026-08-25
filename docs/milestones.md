@@ -5029,3 +5029,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker 重建后 M283 Planner/evidence **7/7**、compileall、architecture strict、生产 readiness/资源 **200**、Node/Docker/browser projection smoke 通过；真实 `live-gis-spatial-overview` 为 `COMPLETED`，1 次请求、0 重试，未保存敏感信息。
 - 发现并记录前端静态资源 allowlist/缓存验收要点；既有地图 smoke 暴露清空对话后地图选择上下文未立即复位，保持为后续独立修复项，不把它与 projection contract 混为一谈。
 - 全局重规划：下一阶段优先修复会话清空的空间上下文/异步恢复一致性，再从产品、Planner 自主性、能力目录与数据就绪、真实跨领域数据、结果证据、部署恢复和精简测试七个维度评估下一条纵向链路；继续保持领域中立，不新增固定专题流程。
+
+## M288：Provider Wire-level Structured Output 能力协商（已完成）
+
+- 新增 `spatial-agent.provider-structured-output.v1` profile，明确 `responses/chat_completions`、`json_schema/json_object/unavailable`、来源、schema 是否由 wire 强制和安全 reason code；profile projection 不接受任意字段或密钥。
+- OpenAI-compatible client 默认发送 strict `json_schema`；显式 `json_object` 只提供中转兼容性，不改变应用层 canonical schema、能力 allowlist、TaskPlan bridge 或 Runtime gate；不可用模式在 transport 前安全失败。
+- Composite Planner 保持已有两参数 `complete_json` 公共接口；structured-output evidence 沿 planning、同步/异步、artifact/restart、live receipt 和 Composite View 进入前端 projection，旧 plan evidence 与新 provider evidence 可合并展示。
+- Docker M288/M279/M286/M287 集中契约 **25/25**，compileall、architecture strict、生产 readiness/home 200、Node projection smoke 通过；一次真实 provider probe 为 `READY`，Chat Completions + strict schema，1 请求 0 重试。
+- 已知边界：真实 provider connectivity 成功不等于真实 Composite 多组件计划稳定成功；非法模型输出仍必须在 execution run 创建前拒绝。下一阶段围绕全局目标规划真实 Composite 成功/澄清/拒绝矩阵。

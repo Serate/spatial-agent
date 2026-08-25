@@ -161,3 +161,10 @@
 - 已创建 `docs/m280-real-composite-acceptance-capability-map.md`、Spec、Plan。下一步只读取这些文档及 M280-A 明确列出的 Planner/测试文件。
 - 顺序：有限 response compatibility → planner evidence → 离线 replay/live planning probe → 真实 GIS + Economic sync/async/restart/evidence → 全局重规划。
 - 不改变 M279/M278 公共 schema 版本，不把前端动态多面板和 RAG 混入本阶段；默认测试继续离线精简。
+
+## M288：Provider Wire-level Structured Output 能力协商（已完成）
+
+- 新增 provider-neutral `spatial-agent.provider-structured-output.v1` profile；strict `json_schema` 为默认，显式 `json_object` 仅影响 wire 请求，`unavailable` fail closed；应用层 schema、allowlist、TaskPlan 和 Runtime 门控不变。
+- 接入 `OpenAIPlannerClient`、Composite planning evidence、async/artifact/restart safe projection、live provider receipt 和前端 Console projection；保持已有 `complete_json(messages, schema)` 两参数 client seam，避免破坏 replay/fake client。
+- Docker M288/M279/M286/M287 **25/25**，compileall、architecture strict、生产 readiness/home 200、Node projection smoke 通过；一次 live provider probe 为 `READY`、Chat Completions、strict schema、1 request/0 retry。无模型原文、prompt、密钥或私有路径。
+- 当前恢复入口已切换到 M289-A；已从全局七维度创建真实 Composite 成功/澄清/拒绝与跨域执行验收的能力图、Spec、Plan。

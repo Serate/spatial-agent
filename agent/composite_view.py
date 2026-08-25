@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agent.composite_contract import normalize_composite_section
+from agent.provider_structured_output import project_structured_output_evidence
 
 
 COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1"
@@ -48,6 +49,7 @@ def build_composite_view_projection(
     sections = _build_sections(components)
     views = _build_views(result.get("views"), state)
     evidence = _build_evidence(composite.get("evidence"), state)
+    planning = _build_planning(result.get("planner_evidence"))
     artifacts = _collect_artifacts(composite, components)
     projection = {
         "schema_version": COMPOSITE_VIEW_SCHEMA_VERSION,
@@ -59,6 +61,7 @@ def build_composite_view_projection(
         "sections": sections,
         "views": views,
         "evidence": evidence,
+        "planning": planning,
         "artifacts": artifacts,
     }
     _fit_budget(projection)
@@ -188,6 +191,24 @@ def _build_evidence(value: Any, state: str) -> dict[str, Any]:
         "pending_component_ids": _safe_strings(source.get("pending_component_ids"), _MAX_COMPONENTS),
         "component_evidence": _bounded_value(source.get("component_evidence") or [], depth=0),
     }
+
+
+def _build_planning(value: Any) -> dict[str, Any]:
+    """Expose only bounded planner/provider facts to every result consumer."""
+
+    if not isinstance(value, Mapping):
+        return {}
+    result = {
+        "schema_version": _text(value.get("schema_version"), 96),
+        "planner_source": _text(value.get("planner_source"), 32),
+        "schema_status": _text(value.get("schema_status"), 32),
+    }
+    structured_output = project_structured_output_evidence(
+        value.get("structured_output")
+    )
+    if structured_output is not None:
+        result["structured_output"] = structured_output
+    return {key: item for key, item in result.items() if item not in (None, "")}
 
 
 def _collect_artifacts(

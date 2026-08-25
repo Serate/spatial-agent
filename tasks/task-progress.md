@@ -15,16 +15,31 @@
 
 ## 当前进行中
 
-### M288-B：provider structured-output profile contract — 进行中
+### M289-A：真实 Composite Planner 纵向成功链路全局规划 — 进行中
 
-- 目标：建立 provider-neutral 的 structured-output profile，明确 wire API、schema/object mode、来源和失败状态，不让 provider 特殊字段进入 Domain/Runtime。
-- 需要修改：`agent/llm_planner.py`、`agent/openai_config.py`、`tests/test_m288_wire_structured_output.py`。
-- 已完成：M287 阶段门禁；联合 **23/23**、compileall、architecture strict、readiness 200、Node projection smoke；live repair 只调用一次且安全失败。
-- 验证：M288 contract 待实现后集中运行，不重复 M287 联合门禁。
-- 阻塞：无；未知模型字段和 wire mode 失败继续 fail closed。
-- 下一步：先冻结 structured-output profile 的纯契约，再接 client 的 mode 选择和脱敏 evidence。
+- 目标：从全局七维度规划真实 LLM Composite Planner → 合法多域 DAG → GIS/Economic 执行 → sync/async/artifact/restart → Answer/View/Evidence 的完整验收链路。
+- 已创建：`docs/m289-real-composite-success-capability-map.md`、`docs/m289-real-composite-success-spec.md`、`docs/m289-real-composite-success-plan.md`。
+- 需要修改：M289-B～D 明确后再列具体源码；当前只维护阶段规划和验收边界。
+- 验证：规划文档已完成；暂不运行重复业务测试。
+- 阻塞：无。M288 provider probe 成功不等于真实 Composite 多组件计划成功，仍需显式 live case。
+- 下一步：按 M289 完整能力包实现 Planner-to-TaskPlan 与跨入口 acceptance，不引入专题硬编码。
+
+### M288-B/C/D/E：provider structured-output 能力协商与阶段交付 — 已完成
+
+- 目标：建立 provider-neutral structured-output profile，接入 OpenAI-compatible Responses/Chat Completions wire mode，并让 Composite planning、持久化、live receipt 和前端 projection 保留同一份脱敏能力证据。
+- 实际修改：`agent/provider_structured_output.py`、`agent/openai_config.py`、`agent/llm_planner.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`evaluation/live_provider_probe.py`、`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js`、`tests/test_m288_wire_structured_output.py`。
+- 结果：默认 strict `json_schema`；显式 `json_object` 仅改变 wire 请求，不放宽本地 schema/allowlist/TaskPlan 门控；`unavailable` 在 transport 前 fail closed；provider 来源、reason、status、error、attempts/retries 均有界且不含密钥。
+- 验证：Docker M288 + M279 + M286 + M287 **25/25**；Docker compileall、architecture strict、生产 readiness 200、首页 200、Node projection smoke 通过；一次显式 live provider probe 为 `READY`、Chat Completions、`json_schema`、schema enforced、1 次请求 0 重试。
+- 阻塞：无。真实 Composite 多组件输出仍按 M285/M287 证据保持严格门控，不能将 provider connectivity probe 误记为跨域执行成功。
+- 下一步：完成 M288-E 文档/问题记录/提交推送，然后从全局七维度规划 M289 真实 Composite 成功/澄清/拒绝矩阵。
 
 ## 最近完成
+
+### M288-B/C/D：provider structured-output 能力协商与跨入口 evidence — 已完成
+
+- 结果：profile、wire adapter、Composite planning evidence、async/artifact/restart 过滤、live receipt 和前端 projection 已接通；保持公共 client 两参数兼容接口，不把 provider 特殊字段扩散到 Domain/Runtime。
+- 验证：阶段集中门禁 **25/25**，compileall、architecture strict、readiness/home 200、Node projection smoke 通过；live probe 仅记录脱敏模式和指标。
+- 当前：进入 M288-E 阶段收口，尚未提交本阶段版本。
 
 ### Goal 执行节奏约束同步 — 已完成
 

@@ -14,6 +14,10 @@ from .errors import ClarificationNeeded, PlanningError, RequestRejected
 from .models import TaskPlan
 from .plan_schema import parse_task_plan, task_plan_schema
 from .planner_guidance import render_planner_guidance_for_context
+from .provider_structured_output import (
+    build_structured_output_profile,
+    project_structured_output_profile,
+)
 
 
 class LLMClient(Protocol):
@@ -130,6 +134,7 @@ class OpenAIPlannerClient:
         reasoning_effort: Optional[str] = None,
         auth_location: Optional[str] = None,
         api_key_query_param: Optional[str] = None,
+        structured_output_mode: Optional[str] = None,
     ):
         self._api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self._api_key:
@@ -138,6 +143,12 @@ class OpenAIPlannerClient:
         self._wire_api = wire_api or os.environ.get("OPENAI_WIRE_API", "responses")
         if self._wire_api not in ("responses", "chat_completions"):
             raise PlanningError("OPENAI_WIRE_API must be responses or chat_completions")
+        self._structured_output_profile = build_structured_output_profile(
+            wire_api=self._wire_api,
+            structured_mode=structured_output_mode
+            or os.environ.get("OPENAI_STRUCTURED_OUTPUT_MODE", "json_schema"),
+            source="config",
+        )
         self._url = _planner_url(
             api_url=api_url or os.environ.get("OPENAI_API_URL"),
             base_url=base_url or os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com",
@@ -177,6 +188,7 @@ class OpenAIPlannerClient:
         self._last_metrics = {
             "provider": "openai-compatible",
             "wire_api": self._wire_api,
+            **project_structured_output_profile(self._structured_output_profile),
             "model": self._model,
             "execution_mode": "live_model",
             "timeout_seconds": self._timeout_seconds,
@@ -194,9 +206,12 @@ class OpenAIPlannerClient:
         schema_name: Optional[str] = None,
     ) -> Mapping[str, Any]:
         structured_schema_name = _structured_schema_name(schema_name)
+        structured_mode = self._structured_output_profile["structured_mode"]
+        if structured_mode == "unavailable":
+            raise PlanningError("structured output mode is unavailable")
         if self._wire_api == "chat_completions":
             response_format: Dict[str, Any] = {"type": "json_object"}
-            if schema_name is not None:
+            if structured_mode == "json_schema":
                 response_format = {
                     "type": "json_schema",
                     "json_schema": {
@@ -213,18 +228,19 @@ class OpenAIPlannerClient:
             if self._max_output_tokens is not None:
                 body["max_tokens"] = self._max_output_tokens
         else:
+            response_format = {
+                "type": "json_schema",
+                "name": structured_schema_name,
+                "schema": schema,
+                "strict": True,
+            }
+            if structured_mode == "json_object":
+                response_format = {"type": "json_object"}
             body = {
                 "model": self._model,
                 "input": messages,
                 "reasoning": {"effort": self._reasoning_effort},
-                "text": {
-                    "format": {
-                        "type": "json_schema",
-                        "name": structured_schema_name,
-                        "schema": schema,
-                        "strict": True,
-                    }
-                },
+                "text": {"format": response_format},
             }
             if self._max_output_tokens is not None:
                 body["max_output_tokens"] = self._max_output_tokens

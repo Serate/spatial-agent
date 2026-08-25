@@ -19,6 +19,8 @@ def load_openai_config(path: Optional[str] = None) -> Dict[str, Any]:
         "api_key": os.environ.get("OPENAI_API_KEY") or config.get("OPENAI_API_KEY"),
         "model": os.environ.get("OPENAI_MODEL") or config.get("model"),
         "wire_api": os.environ.get("OPENAI_WIRE_API") or config.get("wire_api", "responses"),
+        "structured_output_mode": os.environ.get("OPENAI_STRUCTURED_OUTPUT_MODE")
+        or config.get("structured_output_mode", "json_schema"),
         "max_output_tokens": _int_setting(
             os.environ.get("OPENAI_MAX_OUTPUT_TOKENS", config.get("max_output_tokens"))
         ),

@@ -71,7 +71,15 @@
 ## M288 Provider Wire-level Structured Output 能力协商（进行中）
 
 - [x] M288-A 七维度能力图、Spec、Plan
-- [ ] M288-B provider structured-output profile contract
-- [ ] M288-C client/Planner wire mode adapter
-- [ ] M288-D 跨入口 mode evidence 与体验投影
-- [ ] M288-E 精简 Docker/live 验收、中文记录、提交推送与全局重规划
+- [x] M288-B provider structured-output profile contract
+- [x] M288-C client/Planner wire mode adapter
+- [x] M288-D 跨入口 mode evidence 与体验投影
+- [x] M288-E 精简 Docker/live 验收、中文记录、提交推送与全局重规划
+
+## M289 真实 Composite Planner 纵向成功链路（进行中）
+
+- [ ] M289-A 全局规划与 success/clarification/rejection 验收矩阵
+- [ ] M289-B Planner-to-TaskPlan 纵向收口
+- [ ] M289-C 真实 GIS/Economic 执行与恢复对照
+- [ ] M289-D 答案与前端验收
+- [ ] M289-E 集中门禁、live、中文记录、提交推送与全局重规划

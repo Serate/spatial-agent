@@ -10,6 +10,7 @@ from typing import Any
 from evaluation.live_baseline import run_bounded_operation
 from evaluation.model_evaluation import sanitize_provider_metrics
 from agent.planner_repair import build_repair_lineage
+from agent.provider_structured_output import project_structured_output_evidence
 
 
 PROVIDER_PROBE_SCHEMA_VERSION = "spatial-agent.live-provider-probe.v1"
@@ -172,6 +173,9 @@ def _receipt(
         round((monotonic() - started) * 1000, 3),
     )
     safe_metrics = sanitize_provider_metrics(metrics)
+    structured_output = project_structured_output_evidence(metrics)
+    if structured_output is not None:
+        safe_metrics["structured_output"] = structured_output
     identity = {
         key: _safe_identity(metrics.get(key))
         for key in ("provider", "model", "wire_api")
@@ -395,6 +399,9 @@ def _safe_planner_evidence(value: Any) -> dict[str, Any]:
         "request_fingerprint": _safe_probe_string(value.get("request_fingerprint"), 128),
         "compatibility": safe_compatibility,
     }
+    structured_output = project_structured_output_evidence(value.get("structured_output"))
+    if structured_output is not None:
+        result["structured_output"] = structured_output
     lineage = value.get("repair_lineage")
     if isinstance(lineage, Mapping):
         try:

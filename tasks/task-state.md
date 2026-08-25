@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-- 阶段：M288 Provider Wire-level Structured Output 能力协商
+- 阶段：M289 真实 Composite Planner 纵向成功链路
 - 阶段规划：
   - `docs/m288-wire-structured-output-capability-map.md`
   - `docs/m288-wire-structured-output-spec.md`
@@ -14,6 +14,18 @@
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
 
 ## 最近任务记录
+
+### M288-B/C/D/E：provider structured-output 能力协商与阶段交付（已完成）
+
+- 结果：profile、wire adapter、Composite planning evidence、async/artifact/restart、live receipt 和前端 projection 已接通；阶段文档、中文问题记录、milestone、恢复账本和 M289 全局规划已同步。
+- 验证：Docker M288/M279/M286/M287 **25/25**；compileall、architecture strict、生产 readiness/home 200、Node projection smoke、一次 live provider probe 通过。
+- 下一步：M289-A 全局规划已创建，开始真实 Composite 成功/澄清/拒绝矩阵阶段。
+
+### M288-B/C/D：provider structured-output 能力协商与跨入口 evidence（已完成）
+
+- 结果：新增 provider-neutral profile 与 strict/object/unavailable mode；接入 OpenAI-compatible client、Composite planning evidence、async/artifact/restart safe projection、live receipt 和前端 projection。
+- 验证：Docker M288/M279/M286/M287 **25/25**；compileall、architecture strict、生产 readiness/home 200、Node projection smoke 通过；显式 live provider probe `READY`，Chat Completions + `json_schema`，1 次请求 0 重试。
+- 下一步：M288-E 文档、中文问题记录、版本交付和全局重规划。
 
 ### M281-E：动态 Composite 结果体验与跨入口一致性（已完成）
 

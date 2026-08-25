@@ -33,7 +33,10 @@
     )) || null;
     const compositeAnswer = record(composite?.answer) ? composite.answer : {};
     const answer = normalizeAnswer(compositeAnswer, data, result, composite);
-    const planning = firstRecord(data.plan_evidence, result.planning, result.plan_evidence, data.planning);
+    const planning = mergePlanningEvidence(
+      firstRecord(data.plan_evidence, result.planning, result.plan_evidence, data.planning),
+      composite?.planning,
+    );
     const repairLineage = normalizeRepairLineage(firstRecord(data.repair_lineage, result.repair_lineage, planning?.repair_lineage));
     const context = firstRecord(data.runtime_context, result.runtime_context, data.request_context, result.request_context);
     const clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
@@ -145,6 +148,14 @@
 
   function firstRecord(...values) {
     return values.find(value => record(value)) || null;
+  }
+
+  function mergePlanningEvidence(primary, compositePlanning) {
+    const result = record(primary) ? {...primary} : {};
+    if (record(compositePlanning) && !record(result.structured_output) && record(compositePlanning.structured_output)) {
+      result.structured_output = {...compositePlanning.structured_output};
+    }
+    return Object.keys(result).length ? result : null;
   }
 
   function normalizeRepairLineage(raw) {

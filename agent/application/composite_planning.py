@@ -23,6 +23,7 @@ from agent.planner_repair import (
     build_repair_lineage,
     is_repairable_planner_error,
 )
+from agent.provider_structured_output import project_structured_output_evidence
 from agent.runtime_core.composite_taskplan import (
     CompositeTaskPlanBridge,
     CompositeTaskPlanBridgeError,
@@ -265,6 +266,7 @@ class CompositePlanningApplication:
                 "请提供要分析的问题。", "request_required", planner_name
             )
         context: Mapping[str, Any] = {}
+        selected_planner: Any = None
         try:
             context = self._context_builder.build(
                 text,
@@ -277,14 +279,14 @@ class CompositePlanningApplication:
                 context_clarification.get("state") or ""
             ) in {"required", "ambiguous", "unavailable"}:
                 return self._context_clarification(context, planner_name)
-            candidate = self._selected_planner(planner_name, backend).plan(
-                text, context=context
-            )
+            selected_planner = self._selected_planner(planner_name, backend)
+            candidate = selected_planner.plan(text, context=context)
             candidate = self._normalize_candidate(
                 candidate,
                 context=context,
                 planner_name=planner_name,
                 backend=backend,
+                provider_metrics=_safe_planner_metrics(selected_planner),
             )
             return self._attach_context(candidate, context)
         except CompositeRequestContextError as exc:
@@ -337,6 +339,7 @@ class CompositePlanningApplication:
                         context=context,
                         planner_name=planner_name,
                         backend=backend,
+                        provider_metrics=_safe_planner_metrics(repair_planner),
                     )
                     repair_lineage = build_repair_lineage(
                         reason_code=exc.code,
@@ -376,6 +379,7 @@ class CompositePlanningApplication:
                 selection_state="failed",
                 selection_reason=exc.code,
                 candidate_count=_context_candidate_count(context),
+                provider_metrics=_safe_planner_metrics(repair_planner or selected_planner),
             )
             failure_evidence["repair_lineage"] = repair_lineage
             return self._attach_context({
@@ -410,6 +414,7 @@ class CompositePlanningApplication:
                     selection_state="failed",
                     selection_reason="planning_application_failed",
                     candidate_count=_context_candidate_count(context),
+                    provider_metrics=_safe_planner_metrics(selected_planner),
                 ),
             }, context)
 
@@ -481,6 +486,7 @@ class CompositePlanningApplication:
         context: Mapping[str, Any],
         planner_name: str,
         backend: str,
+        provider_metrics: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not isinstance(candidate, Mapping):
             raise CompositePlannerError("planner output must be an object", code="plan_object_required")
@@ -506,6 +512,7 @@ class CompositePlanningApplication:
                     selection_state=_selection_state_for_status(status),
                     selection_reason=_selection_reason_for_candidate(candidate, status),
                     candidate_count=_context_candidate_count(context),
+                    provider_metrics=provider_metrics,
                 ),
             }
         raw_request = candidate.get("request")
@@ -563,6 +570,7 @@ class CompositePlanningApplication:
             ],
             candidate_count=_context_candidate_count(context),
             task_plan_bridge=task_plan_bridge,
+            provider_metrics=provider_metrics,
         )
         return result
 
@@ -701,6 +709,7 @@ def _planner_evidence(
     selected_capability_ids: Any = None,
     candidate_count: int = 0,
     task_plan_bridge: Any = None,
+    provider_metrics: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     compatibility = _safe_compatibility(candidate.get("compatibility"))
     fingerprint = str(request_fingerprint or "").strip()[:128] or None
@@ -723,7 +732,21 @@ def _planner_evidence(
     }
     if isinstance(task_plan_bridge, Mapping):
         result["task_plan_bridge"] = project_task_plan_bridge(task_plan_bridge)
+    structured_output = project_structured_output_evidence(provider_metrics)
+    if structured_output is not None:
+        result["structured_output"] = structured_output
     return result
+
+
+def _safe_planner_metrics(planner: Any) -> Mapping[str, Any] | None:
+    metrics = getattr(planner, "metrics", None)
+    if not callable(metrics):
+        return None
+    try:
+        value = metrics()
+    except Exception:
+        return None
+    return value if isinstance(value, Mapping) else None
 
 
 def _planner_selection_evidence(

@@ -1017,3 +1017,11 @@
 - **修复**：M287 建立 `spatial-agent.planner-repair-request.v1` 与 `planner-repair-lineage.v1`；仅允许有限 schema 错误进入一次 repair，repair 后重新走 normalize、capability allowlist、TaskPlan bridge；live harness 和 async/artifact evidence 均只保存安全 lineage。
 - **验证**：M287/M286/M285/M283 联合 **23/23**、compileall、architecture strict、readiness 200、前端 projection smoke 通过；真实 repair probe 只发生一次修复调用，无 execution run。
 - **预防**：下一阶段优先做 provider wire-level structured-output 能力协商和脱敏 replay，不增加 repair 次数，不接受未知字段或未知能力，不把失败伪装为成功。
+
+## M288 Provider wire mode 与旧 client seam 的兼容边界
+
+- **现象**：为 Composite Planner 指定 `schema_name` 关键字后，旧的离线 replay/fake client 因只实现两参数 `complete_json(messages, schema)` 而失败；同时中转 provider 对 strict schema 与 JSON object 的支持并不一致。
+- **根因**：wire mode 属于 provider client 能力，不应通过扩大公共 Planner client 方法签名向所有 Domain/测试适配器传播；provider 可达也不代表应用层 schema 已被执行。
+- **修复**：新增版本化 `provider-structured-output.v1` profile；默认使用 strict `json_schema`，显式配置才使用 `json_object`，`unavailable` 在网络请求前 fail closed。Composite Planner 保持原有两参数 client seam，所有返回仍经过本地 response/schema、能力 allowlist 和 TaskPlan 门控。
+- **验证**：M288/M279/M286/M287 集中 Docker contract **25/25**；live provider probe `READY`，Chat Completions、`json_schema`、schema enforced、1 请求 0 重试；未保存模型原文、prompt、密钥或私有路径。
+- **预防**：新增 provider wire 兼容时优先在 client profile/adaptor 内收口；不得仅为命中真实模型而改动公共协议、放宽 unknown fields 或增加 repair 次数。前端只消费脱敏 structured-output evidence，不显示 provider 原始响应。

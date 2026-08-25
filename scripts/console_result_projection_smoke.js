@@ -16,6 +16,19 @@ const completed = projection.normalize({
       sections: [{kind: "component", answer: "组件结果"}],
       views: [{view_id: "summary", kind: "metrics", state: "ready", payload: {metrics: []}}],
       evidence: {available: true, component_count: 1},
+      planning: {
+        schema_version: "spatial-agent.composite-planner-evidence.v1",
+        planner_source: "llm",
+        structured_output: {
+          schema_version: "spatial-agent.provider-structured-output.v1",
+          wire_api: "chat_completions",
+          structured_mode: "json_schema",
+          schema_enforced: true,
+          source: "config",
+          reason_code: "configured",
+          status: "success",
+        },
+      },
       artifacts: [{available: true, kind: "run", ref: "run.json"}],
     },
   },
@@ -24,6 +37,7 @@ assert.equal(completed.answer.summary, "已形成一份可读的综合结论。"
 assert.equal(completed.view_count, 1);
 assert.equal(completed.phases.filter(item => item.state === "complete").length, 5);
 assert.equal(completed.phases[1].state, "not_needed");
+assert.equal(completed.planning.structured_output.structured_mode, "json_schema");
 const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
 assert.match(completedHtml, /分析上下文已建立/);

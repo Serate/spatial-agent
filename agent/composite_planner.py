@@ -335,6 +335,13 @@ class LLMCompositePlanner:
             raise ValueError("client must expose complete_json()")
         self._client = client
 
+    def metrics(self) -> Mapping[str, Any]:
+        provider_metrics = getattr(self._client, "metrics", None)
+        if not callable(provider_metrics):
+            return {}
+        value = provider_metrics()
+        return value if isinstance(value, Mapping) else {}
+
     def plan(
         self,
         request: str,
@@ -382,6 +389,10 @@ class LLMCompositePlanner:
             },
         ]
         try:
+            # Keep the long-standing two-argument client seam.  Structured
+            # wire mode is negotiated by the provider client itself; adding a
+            # keyword here would break replay/fake clients that intentionally
+            # implement only the public minimal protocol.
             payload = self._client.complete_json(messages, composite_plan_schema())
         except Exception as exc:
             raise CompositePlannerError(
