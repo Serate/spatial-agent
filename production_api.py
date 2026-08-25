@@ -1,11 +1,11 @@
 """Production FastAPI entry point.
 
-Route handling delegates payload normalization, workflow actions, and
-exception mapping to agent.api_contract so this server cannot drift from the
-dev server in serve_api.py.
+Route handling delegates payload normalization and workflow actions to
+``agent.api_contract`` / ``HTTPApplication``; transport encoding, error
+projection and artifact access are shared with ``serve_api.py`` through
+``agent.application.http_transport``.
 """
 
-import json
 import atexit
 import os
 from contextlib import asynccontextmanager
@@ -15,12 +15,7 @@ from typing import Any, Dict, Optional
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse, JSONResponse
 
-from agent.api_contract import (
-    error_response,
-    error_status,
-)
 from agent.environment_status import environment_status
-from agent.artifact_access import resolve_artifact_path
 from agent.domain_http import assert_domain_payload
 from agent.domain_registry import resolve_domain_id
 from agent.domain_runtime_host import DomainRuntimeHost
@@ -31,6 +26,11 @@ from agent.domain_routing_entry import (
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
+from agent.application.http_transport import (
+    error_projection,
+    load_artifact_json,
+    safe_artifact_path,
+)
 from agent.web_assets import console_asset as resolve_console_asset
 from agent.web_assets import console_index as resolve_console_index
 from agent.web_assets import console_root
@@ -96,10 +96,12 @@ def http_exception_handler(request, exc: HTTPException):
 
 
 def _raise_for(exc: Exception, *, not_found: bool = False, service_unavailable: bool = False):
-    status = error_status(exc, not_found=not_found, service_unavailable=service_unavailable)
-    raise HTTPException(status_code=status, detail=error_response(
-        exc, not_found=not_found, service_unavailable=service_unavailable
-    )) from exc
+    status, payload = error_projection(
+        exc,
+        not_found=not_found,
+        service_unavailable=service_unavailable,
+    )
+    raise HTTPException(status_code=status, detail=payload) from exc
 
 
 def _domain_service(
@@ -579,11 +581,11 @@ def _safe_artifact(
     domain_id: str = "gis",
     metadata_root: Optional[Path] = None,
 ) -> Path:
-    kind = "geojson" if suffix == ".geojson" else ("action" if prefix else "run")
-    candidate = resolve_artifact_path(
+    candidate = safe_artifact_path(
         root,
         name,
-        kind=kind,
+        suffix,
+        prefix,
         domain_id=domain_id,
         metadata_root=metadata_root,
     )
@@ -616,7 +618,7 @@ def run_artifact_manifest(name: str):
         metadata_root=ARTIFACT_ROOT,
     )
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = load_artifact_json(path)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="artifact not found") from exc
     return _http_application().read(
@@ -635,7 +637,7 @@ def run_artifact_evidence(name: str):
         metadata_root=ARTIFACT_ROOT,
     )
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = load_artifact_json(path)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="artifact not found") from exc
     return _http_application().read(
@@ -1095,8 +1097,8 @@ def _domain_artifact_path(
 
 def _artifact_json(path: Path) -> Dict[str, Any]:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+        return load_artifact_json(path)
+    except ValueError as exc:
         raise HTTPException(status_code=404, detail="artifact not found") from exc
 
 

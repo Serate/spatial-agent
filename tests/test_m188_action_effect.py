@@ -89,8 +89,7 @@ class M188ActionEffectTests(unittest.TestCase):
 
     def test_lineage_and_console_keep_effect_as_structured_evidence(self):
         from pathlib import Path
-
-from tests.console_source import read_console_source
+        from tests.console_source import read_console_source
 
         source = read_console_source(Path(__file__).parents[1])
         self.assertIn("effect.impact", source)

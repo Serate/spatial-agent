@@ -118,8 +118,7 @@ class M76ReleaseReportTests(unittest.TestCase):
 
     def test_release_report_is_exposed_by_both_http_entrypoints_and_console(self):
         from pathlib import Path
-
-from tests.console_source import read_console_source
+        from tests.console_source import read_console_source
 
         root = Path(__file__).parents[1]
         serve = (root / "serve_api.py").read_text(encoding="utf-8")

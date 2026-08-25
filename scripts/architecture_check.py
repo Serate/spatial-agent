@@ -17,26 +17,41 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-COMPAT_MODULES = {
+# Simple historical re-exports.  These modules are deliberately allowed to
+# keep their one-way Domain import while old callers migrate.
+COMPAT_SHIMS = {
     "agent/answer_composer.py",
-    "agent/capability_routing.py",
     "agent/data_quality.py",
     "agent/dataset_catalog.py",
     "agent/dataset_manifest.py",
     "agent/dataset_probe.py",
-    "agent/domain_contract.py",
-    "agent/domain_registry.py",
     "agent/geometry_export.py",
-    "agent/planner.py",
     "agent/raster_alignment.py",
     "agent/raster_backend.py",
-    "agent/request_model.py",
-    "agent/result_registry.py",
+    "agent/spatial_backend.py",
+}
+
+# Legacy facades with a small amount of compatibility adaptation.  They are
+# not public domain-neutral engines, but are also not simple re-exports.
+COMPAT_FACADES = {
+    "agent/capability_routing.py",
+    "agent/planner.py",
     "agent/rule_planning.py",
     "agent/spatial_intent.py",
-    "agent/spatial_backend.py",
+}
+
+# Real public contracts/engines must never be hidden by a compatibility
+# exemption.  Keep this set explicit so the guard reports a classification
+# error if a future edit puts one back into a compat list.
+PUBLIC_MODULES = {
+    "agent/domain_contract.py",
+    "agent/domain_registry.py",
+    "agent/request_model.py",
+    "agent/result_registry.py",
     "agent/workflow_templates.py",
 }
+
+COMPAT_MODULES = COMPAT_SHIMS | COMPAT_FACADES
 
 
 def _relative(path: Path) -> str:
@@ -78,6 +93,28 @@ def build_report() -> dict[str, Any]:
     runtime_path = ROOT / "agent" / "runtime.py"
     service_path = ROOT / "agent" / "service.py"
     index_path = ROOT / "web" / "src" / "index.html"
+
+    overlap = sorted(PUBLIC_MODULES & COMPAT_MODULES)
+    if overlap:
+        errors.append(
+            {
+                "code": "public_module_marked_compat",
+                "modules": overlap,
+            }
+        )
+    for compat_kind, modules in (
+        ("shim", COMPAT_SHIMS),
+        ("facade", COMPAT_FACADES),
+    ):
+        for module in sorted(modules):
+            if not (ROOT / module).exists():
+                errors.append(
+                    {
+                        "code": "compat_module_missing",
+                        "kind": compat_kind,
+                        "file": module,
+                    }
+                )
 
     for required in (
         ROOT / "agent" / "runtime.py",
@@ -322,6 +359,9 @@ def build_report() -> dict[str, Any]:
             "runtime_lines": _line_count(runtime_path) if runtime_path.exists() else 0,
             "service_lines": _line_count(service_path) if service_path.exists() else 0,
             "frontend_index_bytes": index_path.stat().st_size if index_path.exists() else 0,
+            "compat_shims": sorted(COMPAT_SHIMS),
+            "compat_facades": sorted(COMPAT_FACADES),
+            "public_modules": sorted(PUBLIC_MODULES),
             "compat_modules": sorted(COMPAT_MODULES),
         },
     }

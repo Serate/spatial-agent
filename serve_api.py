@@ -1,16 +1,18 @@
 import argparse
 import atexit
-import json
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
 
-from agent.api_contract import (
-    error_response,
-    error_status,
-)
 from agent.environment_status import environment_status
-from agent.artifact_access import resolve_artifact_path
+from agent.application.http_transport import (
+    decode_json_body,
+    encode_json_body,
+    error_projection,
+    load_artifact_json,
+    parse_request_target as urlparse,
+    query_params as parse_qs,
+    safe_artifact_path,
+)
 from agent.domain_http import assert_domain_payload, parse_domain_path
 from agent.domain_registry import resolve_domain_id
 from agent.domain_runtime_host import DomainRuntimeHost
@@ -69,7 +71,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         try:
             parsed, selection = self._domain_request(urlparse(self.path))
         except Exception as exc:
-            self._write_json(error_status(exc), error_response(exc))
+            self._write_error(exc)
             return
         if selection is not None and parsed.path in (
             "/health",
@@ -132,7 +134,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     "action_execution", resource_id=execution_id
                 )
             except ValueError as exc:
-                self._write_json(404, error_response(exc, not_found=True))
+                self._write_error(exc, not_found=True)
             else:
                 self._write_json(200, result)
             return
@@ -147,7 +149,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     ),
                 )
             except ValueError as exc:
-                self._write_json(400, error_response(exc))
+                self._write_error(exc)
             return
         if parsed.path == "/workflows":
             query = parse_qs(parsed.query)
@@ -178,7 +180,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     )
                 self._write_json(200, snapshot)
             except ValueError as exc:
-                self._write_json(400, error_response(exc))
+                self._write_error(exc)
             return
         if parsed.path == "/release-evidence":
             query = parse_qs(parsed.query)
@@ -199,7 +201,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     )
                 self._write_json(200, evidence)
             except ValueError as exc:
-                self._write_json(400, error_response(exc))
+                self._write_error(exc)
             return
         if parsed.path.startswith("/runs/"):
             parts = parsed.path.strip("/").split("/")
@@ -209,7 +211,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                         "run_evidence", resource_id=parts[1]
                     )
                 except ValueError as exc:
-                    self._write_json(404, error_response(exc, not_found=True))
+                    self._write_error(exc, not_found=True)
                 else:
                     self._write_json(200, result)
                 return
@@ -225,7 +227,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                         resource_id=parts[1],
                     )
                 except ValueError as exc:
-                    self._write_json(404, error_response(exc, not_found=True))
+                    self._write_error(exc, not_found=True)
                 else:
                     self._write_json(200, result)
                 return
@@ -235,7 +237,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                         "async_observability", resource_id=parts[1]
                     )
                 except ValueError as exc:
-                    self._write_json(404, error_response(exc, not_found=True))
+                    self._write_error(exc, not_found=True)
                 else:
                     self._write_json(200, result)
                 return
@@ -251,7 +253,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                         resource_id=parts[1],
                     )
                 except ValueError as exc:
-                    self._write_json(404, error_response(exc, not_found=True))
+                    self._write_error(exc, not_found=True)
                 else:
                     self._write_json(200, result)
                 return
@@ -263,7 +265,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                         "decision", resource_id=parts[1]
                     )
                 except ValueError as exc:
-                    self._write_json(404, error_response(exc, not_found=True))
+                    self._write_error(exc, not_found=True)
                 else:
                     self._write_json(200, result)
                 return
@@ -315,7 +317,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     },
                 )
             except ValueError as exc:
-                self._write_json(400, error_response(exc))
+                self._write_error(exc)
             else:
                 self._write_json(200, result)
             return
@@ -356,7 +358,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 return
             path, _content_type = artifact
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload = load_artifact_json(path)
             except (OSError, ValueError):
                 self._write_json(404, {"error": "artifact not found"})
                 return
@@ -376,7 +378,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 return
             path, _content_type = artifact
             try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload = load_artifact_json(path)
             except (OSError, ValueError):
                 self._write_json(404, {"error": "artifact not found"})
                 return
@@ -402,7 +404,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         try:
             parsed, selection = self._domain_request(urlparse(self.path))
         except Exception as exc:
-            self._write_json(error_status(exc), error_response(exc))
+            self._write_error(exc)
             return
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
@@ -539,14 +541,16 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             else:
                 result = self._http_application().execute("run", payload)
         except DomainRoutingApplicationError as exc:
-            status = 404 if exc.code == "domain_routing_decision_not_found" else error_status(exc)
-            self._write_json(status, error_response(exc, not_found=status == 404))
+            self._write_error(
+                exc,
+                not_found=exc.code == "domain_routing_decision_not_found",
+            )
             return
         except (ValueError, WorkflowTemplateError) as exc:
-            self._write_json(error_status(exc), error_response(exc))
+            self._write_error(exc)
             return
         except Exception as exc:
-            self._write_json(error_status(exc), error_response(exc))
+            self._write_error(exc)
             return
         self._write_json(200, result)
 
@@ -554,7 +558,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         try:
             parsed, _selection = self._domain_request(urlparse(self.path))
         except Exception as exc:
-            self._write_json(error_status(exc), error_response(exc))
+            self._write_error(exc)
             return
         if not parsed.path.startswith("/sessions/"):
             self._write_json(404, {"error": "not found"})
@@ -565,10 +569,10 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 "session_delete", {}, run_id=session_id
             )
         except ValueError as exc:
-            self._write_json(400, error_response(exc))
+            self._write_error(exc)
             return
         except Exception as exc:
-            self._write_json(500, error_response(exc))
+            self._write_error(exc)
             return
         self._write_json(200, result)
 
@@ -580,7 +584,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length)
         if not raw:
             return {}
-        return json.loads(raw.decode("utf-8"))
+        return decode_json_body(raw)
 
     def _domain_request(self, parsed):
         """Bind this handler request to the service selected by its URL."""
@@ -598,12 +602,26 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         return parsed._replace(path=scope.path), selection
 
     def _write_json(self, status_code, payload):
-        body = json.dumps(payload, ensure_ascii=True, indent=2).encode("utf-8")
+        body = encode_json_body(payload)
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _write_error(
+        self,
+        exc: Exception,
+        *,
+        not_found: bool = False,
+        service_unavailable: bool = False,
+    ) -> None:
+        status, payload = error_projection(
+            exc,
+            not_found=not_found,
+            service_unavailable=service_unavailable,
+        )
+        self._write_json(status, payload)
 
     def _artifact_file(self, path):
         parts = path.strip("/").split("/")
@@ -624,10 +642,13 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 root = Path(store_root)
         domain_id = getattr(self, "_request_domain_id", "gis")
         metadata_root = self.artifact_root if parts[1] == "geojson" else None
-        candidate = resolve_artifact_path(
+        suffix = ".geojson" if kind == "geojson" else ".json"
+        prefix = "action-" if kind == "action" else ""
+        candidate = safe_artifact_path(
             root,
             parts[2],
-            kind=kind,
+            suffix,
+            prefix,
             domain_id=domain_id,
             metadata_root=metadata_root,
         )

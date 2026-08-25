@@ -664,3 +664,11 @@
 - **诊断**：先检查 `raw/staged/analysis-ready` 分层和配置相对路径，再用 Docker 的 rasterio/fiona 核验 CRS、范围、尺寸、几何类型和要素数；分别统计 `ready/partial/pending`，不要只看文件是否存在。检查 `get_dataset_health_report(all)` 是否会读取待处理的大文件。
 - **修复**：`DatasetCatalog` 增加受控 discovery 元数据和默认 `status=ready` 的 `discover()` 查询；manifest/health 保留 discovery 证据；`pending/partial` 由健康检查返回延迟/不完整状态，不触发昂贵探测。原始压缩包归档到 `raw/archives`，解压数据进入 `staged`，分析就绪层保持独立；所有代码和配置只使用相对路径。
 - **预防**：整理数据时先做目标路径和磁盘空间检查，移动前确认源/目标都位于明确的数据根；不删除原始文件，不把断点分片交给 GIS；移动后立即做 JSON 解析、Docker 元数据核验、核心五类健康检查和 quick/stage。新增数据必须先进入目录状态，再决定是否扩展工具或 workflow，不能由文件名触发 Planner 分支。
+
+## M262 架构重构验收时容器镜像与历史 fixture 漂移
+
+- **现象**：宿主机代码已修改，但 `docker exec` 中的架构报告仍显示旧的 `COMPAT_MODULES`；重建后才出现新的 shim/facade/public module 清单。另有一个旧的 M44 规则 fixture 在当前容器配置下返回缺少 `dataset` 的结构化澄清。
+- **根因**：生产 compose 只挂载 `data` 和 `outputs`，源码通过 Dockerfile `COPY` 进入镜像；容器不会自动看到工作区代码。历史测试依赖的能力事实也可能随数据目录/环境配置演进，不能把 fixture 失败直接归因于新 seam。
+- **诊断**：代码变更后先比较容器内 `scripts/architecture_check.py` 的输出或文件 hash；若与宿主机不同，执行 `docker compose -f docker-compose.prod.yml up -d --build --force-recreate`。对失败运行读取 `status/error/clarification/plan_evidence`，区分“结构化降级”与异常堆栈。
+- **修复**：本阶段通过 compose 重建确保镜像包含 canonical source；生命周期、decision、HTTP 和架构 contract 在重建后通过。M44 fixture 作为独立数据/规则兼容项记录，不在架构重构中加入针对单一问句的 dataset 硬编码。
+- **预防**：Docker 是项目 Python/GIS 验收环境，不能用本机 Python 替代；每阶段至少执行重建、health、compileall、architecture strict、精简定向回归和 quick/stage。架构清单必须区分简单 shim、兼容 facade 和真实公共模块，真实模块不得用兼容豁免隐藏。

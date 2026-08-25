@@ -4802,3 +4802,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker GIS 核验：武汉分析就绪 DEM/土地利用均为 EPSG:32649、30 m、4562×5277；OSM roads/water 为 68,903/20,923 要素；新增湖北/武汉矢量和水文层均可读取。扩展本地目录共 27 项：ready 10、partial 1、pending 16。
 - 新增本地数据清单、路径配置和 discovery/延迟健康检查契约；Docker DatasetCatalog/M67/M69 **16/16**、quick、stage、compileall 和 architecture strict 通过。
 - 下一阶段：把数据候选的覆盖范围、时间范围、CRS/分辨率不匹配接入 Planner context、结构化澄清和降级证据，继续保持数据发现与领域工具实现解耦。
+
+## M262：Runtime 生命周期、HTTP transport 与架构守卫收敛（实施中）
+
+- 新增 M262 spec/plan；将 `RuntimeRunLifecycle.run()` 拆为 resolve、clarify、plan、validate/repair、execute、answer、evidence/finalize 七个显式内部阶段，共享私有 `LifecycleContext`，保持 `AgentRuntime.run()`、decision resume、SQLite/artifact 和 Result 状态契约。
+- 新增 `agent/application/http_transport.py`，FastAPI 与标准库入口共享 request target/query、JSON 编解码、错误投影、artifact 路径和 artifact JSON 读取；`HTTPApplication` 继续作为业务语义唯一入口。
+- 将架构守卫的旧 `COMPAT_MODULES` 拆为 `COMPAT_SHIMS`、`COMPAT_FACADES` 和 `PUBLIC_MODULES`，真实公共模块不再获得兼容豁免；新增 M262 紧凑 seam contract。
+- Docker 已重建并 healthy；M262、Decision、HTTP、profile contract 共 **40 项定向回归通过**，全量 `compileall agent scripts tests`、quick/stage、architecture strict 通过。一个历史 M44 单测在当前容器数据事实下返回结构化 `dataset` 澄清，已单独记录，未用本阶段代码绕过。

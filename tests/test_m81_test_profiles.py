@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -10,6 +11,11 @@ ROOT = Path(__file__).parents[1]
 
 class M81TestProfileTests(unittest.TestCase):
     def _run_profile_dry_run(self, profile, *extra_args, check=True):
+        environment = os.environ.copy()
+        # The contract tests exercise explicit CLI configuration.  Production
+        # Docker images intentionally provide a default env value, so do not
+        # let that deployment setting change the dry-run branch under test.
+        environment.pop("SPATIAL_AGENT_DATASET_CONFIG", None)
         return subprocess.run(
             [
                 sys.executable,
@@ -23,6 +29,7 @@ class M81TestProfileTests(unittest.TestCase):
             check=check,
             capture_output=True,
             text=True,
+            env=environment,
         )
 
     def _profile_payload(self, profile, *extra_args):

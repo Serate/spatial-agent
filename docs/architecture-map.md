@@ -34,7 +34,7 @@ CLI / serve_api.py / production_api.py / Console
 
 - `agent/service.py` 仍包含目录、取消/重试和少量跨用例入口，并保留两个 Domain capability/facts 适配端口；Run、Session、Action、Decision、Interaction、Async 的主要应用用例已进入 `agent/application/`，Service 只保留兼容入口、线程池/资源生命周期和适配端口。
 - `agent/runtime.py` 的内存状态和能力目录职责已迁入 `agent/runtime_state.py` 与 `agent/runtime_core/capabilities.py`；计划构建/修复/执行重规划已迁入 `agent/runtime_core/planning_surface.py`，同步 run lifecycle 已迁入 `agent/runtime_core/run_lifecycle.py`，decision resume 已迁入 `agent/runtime_core/decision_resume.py`，cancel/retry recovery 已迁入 `agent/runtime_core/recovery.py`，preview 已迁入 `agent/runtime_core/preview.py`，plan evidence 已迁入 `agent/runtime_core/plan_evidence.py`，Runtime 只剩小型兼容 facade 和生命周期组合。
-- FastAPI 与标准库 HTTP 入口已经通过 `agent/application/http.py` 共享读写语义；transport 只负责 URL/JSON、HTTP 状态码和 artifact 路径安全。
+- FastAPI 与标准库 HTTP 入口已经通过 `agent/application/http.py` 共享读写语义，并通过 `agent/application/http_transport.py` 共享 request target/query、JSON 编解码、错误投影和 artifact 安全访问；两个入口只保留框架适配。
 - `agent/` 保留历史 GIS facade、legacy 字段和兼容回退；evidence recovery 已并入 `agent/evidence_projection.py`，旧模块只做单向兼容导出。
 - Console 源码位于 `web/src`，由 `scripts/build_console.py` 生成 `web/dist`；`web/index.html` 和根目录 `console_*.js` 只保留兼容 facade，HTTP 资源通过 `agent/web_assets.py` 选择 dist/source。
 
@@ -48,6 +48,9 @@ Transport adapters
       agent/application/http.py
              │
              ▼
+   agent/application/http_transport.py
+             │
+             ▼
       agent/application/AgentService
              │
       ┌──────┴──────────────┐
@@ -56,7 +59,8 @@ Transport adapters
       │
       ▼
  agent/runtime_core/
-  planning → execution → lifecycle → projection
+  resolve → clarify → plan → validate/repair
+             → execute → answer → evidence/finalize
       │
       ▼
   DomainPack / ToolRegistry / ResultRegistry
@@ -83,4 +87,4 @@ Transport adapters
 4. Application Service、持久化和 HTTP Application 收敛；Run、Session、Action、Decision、Interaction、Async 与 HTTP read/write 已建立 canonical seam。
 5. Contract/Evidence 基础 helper 收敛；evidence projection/recovery 已共享一个 canonical seam，版本常量避免重复声明。
 6. Console 源码与 `web/dist` 构建产物分离，HTTP 静态资源共享 `agent/web_assets.py` seam；后续继续按职责簇拆分 `console_app.js`。
-7. Runtime/Service 剩余职责与前端主应用职责完成物理收敛，删除已确认无引用的兼容入口和临时文件，完成全局验收。
+7. Runtime 生命周期已阶段化，HTTP transport 已共享，架构守卫已区分 shim/facade/真实公共模块；后续继续处理 Runtime/Service 剩余职责与前端主应用职责，删除已确认无引用的兼容入口和临时文件，完成全局验收。
