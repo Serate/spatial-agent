@@ -4894,3 +4894,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 真实 LLM + local GIS 同一请求在 provider timeout 45 秒、harness deadline 90 秒、0 次重试下通过：1 次请求、0 次重试、约 36 秒，说明真实模型能够生成合法多步计划并驱动真实 GIS 数据执行。未保存 prompt、模型原文、密钥或路径。
 - 20 秒 provider timeout 对照在约 23 秒返回失败且 0 工具步骤；修正 live baseline 将 provider 自身 timeout 与 harness deadline timeout 分开投影。Docker M270/M271 定向 **8/8**，M269/M268/M264 相邻 **14/14**，compileall、architecture strict、quick/stage 通过。
 - 全局重规划：下一阶段不立即新增大量专题工具；先扩展真实 LLM 验收矩阵，覆盖跨 vector/raster/metrics 的复合请求、开放式澄清/拒绝、有限 repair，以及 HTTP/async/artifact/evidence/前端一致性，再根据失败面决定是否调整 Planner context 或通用算子。
+
+## M273：Domain-aware Live Acceptance（已完成）
+
+- 新增 `docs/m273-domain-aware-live-acceptance-spec.md` 与 `docs/m273-domain-aware-live-acceptance-plan.md`，明确 live harness 只负责统一验收，不把 Economic/GIS 策略复制进 Runtime、Planner 或前端。
+- `evaluation/live_baseline.py` 支持可选 `domain_id`、按 `backend + domain_id` 缓存 Runtime、旧两参数 runtime factory 兼容和有界 Domain evidence；`scripts/live_baseline.py` 仅对 GIS/legacy case 要求 `SPATIAL_AGENT_LIVE_GIS=1`。
+- 新增 `live-economic-gdp-trend` case，真实 Economic Domain 通过同一 harness 验证指标查询、来源证据、`economic_timeseries_result`、结果回答和 evidence；默认 CI/quick/stage 不联网。
+- Docker M273 **2/2**，相关回归 **53/53**，compileall、architecture strict、quick/stage 通过；真实 Economic LLM + Docker 数据验收通过：1 次请求、0 重试、约 20.3 秒、4876 tokens。
+- 全局重规划：下一阶段优先建立跨 vector/raster/metrics 的真实 LLM 复合验收，以及澄清/拒绝/有限 repair 和 HTTP/async/artifact/evidence/前端一致性矩阵；若确有需要，再以 Spec → Plan 设计领域中立 Composite seam，不为单一专题添加硬编码链路。

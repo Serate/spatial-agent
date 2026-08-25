@@ -80,9 +80,11 @@
 - M271 已完成：新增独立 `evaluation.live_provider_probe` 与 `scripts/live_provider_probe.py`，复用现有 OpenAI-compatible client，以单请求、0 重试、15 秒显式 deadline 验证结构化 JSON provider 接入；receipt 只保留安全身份、状态、错误分类、耗时和 token 摘要。Docker M271/M270 定向 **7/7**、M269/M268/M264 相邻 **14/14**、compileall、architecture strict、quick/stage 通过。当前中转真实 probe 已 READY（Chat Completions，1 次请求、0 次重试，约 1.3 秒）；这不等同于开放式多步 Planner/GIS 验收，下一阶段继续单独验证 TaskPlan、能力选择和工具 DAG。
 - M272 已完成第一条真实开放式纵向验收：provider probe READY；真实 LLM + memory 的空间总览通过；Rule Planner + local GIS 8 步通过；真实 LLM + local GIS 同一请求在 45 秒 provider timeout、90 秒 harness deadline 下通过（1 次请求、0 重试、约 36 秒）。期间发现并修复 provider 自身 timeout 被错误标成 harness timeout 事件的问题；现在只有 `deadline_exceeded=true` 的 receipt 才产生 harness `timeout` 事件。20 秒 provider timeout 的失败对照为 0 工具步骤，随后宽 timeout 成功，记录为中转 latency 波动，不修改业务链路。
 
+- M273 已完成：将 `evaluation/live_baseline.py` 扩展为 Domain-aware harness，live case 可通过受限 `domain_id` 选择已注册 Domain Pack；按 `backend + domain_id` 缓存 Runtime，旧的两参数 factory 保持兼容，Economic case 不再误触发 GIS live gate。新增 `live-economic-gdp-trend`，复用 Economic 的指标查询、来源证据和 `economic_timeseries_result` 契约。Docker M273 定向 **2/2**，M270/M271/M263/M79/M269/M268/M264 相关回归 **53/53**，compileall、architecture strict、quick/stage 通过；真实 Economic LLM + Docker 数据单 case 通过（1 次请求、0 重试、约 20.3 秒、4876 tokens）。未保存 prompt、模型原文、密钥、原始数据或路径。
+
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析、M270 live 验收 harness、M271 provider probe 和 M272 第一条真实开放式多步验收均已完成。下一阶段从全局规划扩展真实 LLM 验收矩阵：优先验证跨数据类型的复合请求、开放式澄清/拒绝、有限 repair、结构化回答和 evidence/artifact/HTTP 一致性；Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询、M269 通用记录分析、M270 live 验收 harness、M271 provider probe、M272 第一条真实开放式多步验收和 M273 Domain-aware live baseline 均已完成。下一阶段从项目全局扩展真实 LLM 验收矩阵：优先验证跨 vector/raster/metrics 的复合请求、开放式澄清/拒绝、有限 repair，以及 HTTP/async/artifact/evidence/前端一致性；再根据失败面决定是否新增领域中立的 Composite seam。Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
 
 ## 不变量
 

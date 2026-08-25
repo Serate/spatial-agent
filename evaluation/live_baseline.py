@@ -80,6 +80,15 @@ DEFAULT_LIVE_CASES = (
         "expected_status": "COMPLETED",
         "kind": "constrained_matrix",
     },
+    {
+        "id": "live-economic-gdp-trend",
+        "request": "查询洪山区 gdp_total 2022至2025年度趋势",
+        "expected_status": "COMPLETED",
+        "kind": "economic_timeseries",
+        "domain_id": "economic",
+        "expected_tools": ["economic_indicator_query", "economic_source_evidence"],
+        "expected_result_type": "economic_timeseries_result",
+    },
 )
 
 
@@ -89,7 +98,7 @@ def run_live_baseline(
     max_files: int = 10,
     attempts_per_case: int = 3,
     cases: Iterable[Mapping[str, Any]] = DEFAULT_LIVE_CASES,
-    runtime_factory: Callable[[str, str], Any] = build_runtime,
+    runtime_factory: Callable[..., Any] = build_runtime,
     service_factory: Callable[[], Any] | None = None,
     snapshot_provider: Callable[[int], Mapping[str, Any]] = runtime_capability_snapshot,
     replay_evaluator: Callable[[str | Path], Mapping[str, Any]] = evaluate_model_replay_suite_file,
@@ -115,7 +124,7 @@ def run_live_baseline(
     replay_registry_completeness = replay.get("evidence_registry_completeness")
     if not isinstance(replay_registry_completeness, Mapping):
         replay_registry_completeness = project_evidence_registry_completeness(None)
-    runtime = runtime_factory("openai", backend)
+    runtimes: dict[str, Any] = {}
     service = service_factory() if service_factory is not None else None
     results = []
     baseline_started = monotonic()
@@ -126,6 +135,15 @@ def run_live_baseline(
     )
     for case in cases:
         case_id = str(case.get("id") or "unnamed")
+        domain_id = _case_domain_id(case)
+        runtime_key = domain_id or "default"
+        if runtime_key not in runtimes:
+            runtimes[runtime_key] = _build_live_runtime(
+                runtime_factory,
+                backend=backend,
+                domain_id=domain_id,
+            )
+        runtime = runtimes[runtime_key]
         _emit_progress(
             progress_callback,
             {
@@ -296,7 +314,7 @@ def _run_with_deadline(
 def _timeout_evidence(case: Mapping[str, Any], timeout: _LiveBaselineTimeout) -> Dict[str, Any]:
     """Return a stable, credential-free case receipt for a harness timeout."""
 
-    return {
+    receipt = {
         "case_id": str(case.get("id") or timeout.case_id)[:96],
         "kind": str(case.get("kind") or "")[:64],
         "status": "FAILED",
@@ -316,6 +334,26 @@ def _timeout_evidence(case: Mapping[str, Any], timeout: _LiveBaselineTimeout) ->
         "attempt_count": 1,
         "transient_attempts": ["timeout"],
     }
+    domain_id = _case_domain_id(case)
+    if domain_id:
+        receipt["domain_id"] = domain_id
+    return receipt
+
+
+def _build_live_runtime(
+    runtime_factory: Callable[..., Any],
+    *,
+    backend: str,
+    domain_id: str,
+) -> Any:
+    if domain_id:
+        return runtime_factory("openai", backend, domain_id=domain_id)
+    return runtime_factory("openai", backend)
+
+
+def _case_domain_id(case: Mapping[str, Any]) -> str:
+    value = str(case.get("domain_id") or "").strip()
+    return value[:80]
 
 
 def _elapsed_ms(started: float) -> int:
@@ -957,7 +995,7 @@ def _result_evidence(
     passed = passed and bool(registry_completeness.get("passed"))
     if kind == "clarification":
         passed = passed and not actual_tools
-    return {
+    evidence = {
         "case_id": str(case.get("id") or "unnamed"),
         "request": str(case.get("request") or ""),
         "attempt": attempt,
@@ -987,6 +1025,10 @@ def _result_evidence(
         "answer_chinese": bool(result.answer and any("\u3400" <= char <= "\u9fff" for char in result.answer)),
         "passed": passed,
     }
+    domain_id = _case_domain_id(case)
+    if domain_id:
+        evidence["domain_id"] = domain_id
+    return evidence
 
 
 def _safe_capability_snapshot(snapshot: Mapping[str, Any]) -> Dict[str, Any]:

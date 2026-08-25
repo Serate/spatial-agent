@@ -16,6 +16,13 @@ from evaluation.live_baseline import (
 )
 
 
+def _case_requires_gis(case):
+    """Legacy/domain-neutral cases use the GIS backend; named non-GIS packs do not."""
+
+    domain_id = str(case.get("domain_id") or "").strip().lower()
+    return not domain_id or domain_id == "gis"
+
+
 def _summary_report(report):
     """Return a terminal-sized view without dropping the persisted report."""
     summary = report.get("summary") if isinstance(report, dict) else {}
@@ -27,6 +34,7 @@ def _summary_report(report):
             continue
         compact_cases.append({
             "id": case.get("case_id"),
+            "domain_id": case.get("domain_id"),
             "status": case.get("status"),
             "error_class": case.get("error_class"),
             "passed": bool(case.get("passed")),
@@ -81,13 +89,16 @@ def main() -> int:
         parser.error("live baseline requires --allow-network")
     if os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") != "1":
         parser.error("set SPATIAL_AGENT_LIVE_OPENAI=1")
-    if args.backend == "local" and os.environ.get("SPATIAL_AGENT_LIVE_GIS") != "1":
-        parser.error("set SPATIAL_AGENT_LIVE_GIS=1 for the local GIS backend")
-
     cases = DEFAULT_LIVE_CASES
     if args.case_ids:
         wanted = {name.strip() for name in args.case_ids.split(",") if name.strip()}
         cases = [case for case in cases if case.get("id") in wanted]
+    if (
+        args.backend == "local"
+        and any(_case_requires_gis(case) for case in cases)
+        and os.environ.get("SPATIAL_AGENT_LIVE_GIS") != "1"
+    ):
+        parser.error("set SPATIAL_AGENT_LIVE_GIS=1 for selected GIS live cases")
 
     report = run_live_baseline(
         backend=args.backend,

@@ -809,3 +809,12 @@
 - **修复**：不修改业务链路；修正 live baseline 事件投影：运行时自身返回 `error_class=timeout` 时仍输出 `completed + status=FAILED`，只有 harness 产生 `deadline_exceeded=true` 的 timeout receipt 才输出 `event=timeout`。新增最小契约测试覆盖两种 timeout。
 - **验证**：Docker M270/M271 harness **8/8**；真实 LLM + memory、Rule Planner + local GIS、真实 LLM + local GIS 均完成；中转请求使用 1 次调用、0 次重试。结论是中转 latency 有波动但当前配置可完成，不是 GIS/Runtime 缺陷。
 - **预防**：真实模型验收同时记录 provider timeout、harness deadline、工具步骤数和 backend；先用短 probe/对照定位，再调大 provider deadline。不要通过增加 Runtime 重试或修改 GIS 算法掩盖 provider 波动。
+
+## M273 live harness 不能把 Domain 选择写成 GIS 专用分支
+
+- **现象**：live baseline 原本按一套默认 `build_runtime(planner, backend)` 运行，新增 Economic 真实模型 case 时，复用同一 harness 的能力不足；如果直接在脚本中判断 Economic，就会把验收逻辑重新绑定到某个领域。
+- **根因**：live case 的 Domain 身份没有成为 composition root 的显式输入；同时 local backend 的 GIS gate 被误当成所有 local Domain 都必须满足的前置条件。harness 的 case contract、Runtime factory 和环境门控三者没有对齐。
+- **诊断**：检查 case 的 `domain_id`、runtime factory 实际调用参数、按 Domain 缓存键和 `_case_requires_gis()`；再用 fake factory 验证旧两参数调用与新 `domain_id` 转发，不要只跑真实模型。
+- **修复**：M273 为 case 增加受限 `domain_id`，只在 composition root 选择已注册 Domain；按 `backend + domain_id` 缓存 Runtime，旧 factory 保持兼容；Economic case 不要求 `SPATIAL_AGENT_LIVE_GIS=1`，GIS/legacy case 仍要求显式 GIS gate。Domain ID 只作为有界 evidence，不把 Domain 判断下沉到 Runtime、Planner 或前端。
+- **验证**：Docker M273 **2/2**；相关 M270/M271/M263/M79/M269/M268/M264 回归 **53/53**；compileall、architecture strict、quick/stage 通过；真实 Economic LLM + Docker 数据 `live-economic-gdp-trend` 通过，1 次请求、0 重试、约 20.3 秒、4876 tokens。
+- **预防**：以后新增 Domain 的 live 验收先扩展 case contract 和 composition root，再复用统一 Result/Evidence 评估；真实跨领域单次混合请求另行设计 Composite Domain/Workflow Spec，不在 harness 中偷偷拼接两个 Runtime。默认 CI、quick、stage 继续离线。
