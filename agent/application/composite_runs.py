@@ -367,6 +367,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "repair_lineage",
         "structured_output",
         "plan_completeness",
+        "continuation",
     }
     result = {key: value[key] for key in allowed if key in value}
     result["schema_version"] = str(
@@ -425,6 +426,27 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
             }
         else:
             result.pop("plan_completeness", None)
+    if "continuation" in result:
+        continuation = result.get("continuation")
+        if isinstance(continuation, Mapping):
+            result["continuation"] = {
+                "schema_version": str(continuation.get("schema_version") or "")[:96],
+                "request_fingerprint": str(continuation.get("request_fingerprint") or "")[:128] or None,
+                "planner_selection_fingerprint": str(
+                    continuation.get("planner_selection_fingerprint") or ""
+                )[:128]
+                or None,
+                "component_id": str(continuation.get("component_id") or "")[:96],
+                "domain_id": str(continuation.get("domain_id") or "")[:64],
+                "capability_id": str(continuation.get("capability_id") or "")[:96],
+                "field_ids": [
+                    str(item)[:80]
+                    for item in (continuation.get("field_ids") or [])[:16]
+                    if str(item).strip()
+                ],
+            }
+        else:
+            result.pop("continuation", None)
     if "repair_lineage" in result:
         lineage = result.get("repair_lineage")
         if isinstance(lineage, Mapping):

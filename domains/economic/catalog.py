@@ -16,6 +16,34 @@ ECONOMIC_DATASET_TOOL_CAPABILITIES = {
 }
 ECONOMIC_DATASET_GROUPS = {"core": (ECONOMIC_DATASET,)}
 
+
+_INDICATOR_FIELD = {
+    "id": "indicator",
+    "label": "经济指标",
+    "kind": "constraint",
+    "keys": ["indicator"],
+}
+_REGIONS_FIELD = {
+    "id": "regions",
+    "label": "分析区域",
+    "kind": "entity",
+    "key": "regions",
+}
+
+
+def _analysis_requirements() -> dict[str, Any]:
+    """Declare public facts needed by metric analysis capabilities.
+
+    The generic Runtime only projects this metadata.  Indicator semantics and
+    parsing remain owned by the Economic Domain Pack.
+    """
+
+    return {
+        "entities": ["regions"],
+        "constraints": ["indicator"],
+        "clarification_fields": [dict(_INDICATOR_FIELD), dict(_REGIONS_FIELD)],
+    }
+
 INDICATOR_ALIASES = {
     "gdp_total": ("地区生产总值", "gdp", "GDP", "经济总量"),
     "gdp_growth_yoy": ("GDP增速", "生产总值增速", "经济增速"),
@@ -51,6 +79,7 @@ ECONOMIC_CAPABILITIES = (
         "result_types": ["economic_metrics_result", "economic_evidence_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
+        "request_requirements": _analysis_requirements(),
         "request_hints": {"phrases": ["经济指标是多少", "最新经济指标", "经济水平", *_ECONOMIC_INDICATOR_HINT_PHRASES], "tasks": ["latest"], "datasets": [ECONOMIC_DATASET]},
     },
     {
@@ -61,6 +90,7 @@ ECONOMIC_CAPABILITIES = (
         "result_types": ["economic_timeseries_result", "economic_evidence_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
+        "request_requirements": _analysis_requirements(),
         "request_hints": {"phrases": ["经济趋势", "经济变化", "经济增长", "历年经济", *_ECONOMIC_INDICATOR_HINT_PHRASES], "tasks": ["trend"], "datasets": [ECONOMIC_DATASET]},
     },
     {
@@ -71,6 +101,7 @@ ECONOMIC_CAPABILITIES = (
         "result_types": ["economic_comparison_result", "economic_evidence_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
+        "request_requirements": _analysis_requirements(),
         "request_hints": {"phrases": ["经济比较", "经济对比", "区域经济差异", *_ECONOMIC_INDICATOR_HINT_PHRASES], "tasks": ["compare"], "datasets": [ECONOMIC_DATASET]},
     },
     {
@@ -81,6 +112,7 @@ ECONOMIC_CAPABILITIES = (
         "result_types": ["economic_evidence_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
+        "request_requirements": _analysis_requirements(),
         "request_hints": {"phrases": ["经济数据来源", "统计口径", "数据出处"], "tasks": ["evidence"], "datasets": [ECONOMIC_DATASET]},
     },
 )

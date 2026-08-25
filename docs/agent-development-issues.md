@@ -1048,3 +1048,26 @@
 - **根因**：Planner 失败状态映射只覆盖 provider failure、空组件和 capability unavailable，没有把 TaskPlan materialization 的“需要补充事实”错误码归入澄清状态。
 - **修复**：将 `taskplan_component_clarification` 纳入 `NEEDS_CLARIFICATION` 映射；继续保留统一 TaskPlan/ToolRegistry gate，不创建 execution run，不重试 live 请求。
 - **验证**：真实 probe 单次、0 重试、provider structured output `success`、0 execution run；完整 Python contract 已通过，修复后只需执行离线状态映射回归，不重复真实调用。
+
+## M292 组件事实不足需要从 Planner 传递到 Domain preview
+
+- **现象**：Planner 已选择合法 capability，但 Domain preview 仍缺少指标、区域或其它公共事实；如果继续从组件文本重新猜测，容易绕过统一 RequestFacts、产生不一致的澄清，或把事实缺失误报为拒绝。
+- **根因**：能力 requirements、RequestFacts、workflow constraints 和 preview 参数此前没有一个有界公共交接对象；单个 Domain 只能看到自己的局部解析结果，Planner 也无法安全保留组件身份。
+- **修复**：新增 `spatial-agent.component-fact-handoff.v1`，仅投影版本、组件/领域/能力身份、公共 requirements、known facts、workflow constraints、missing fields 和 next actions；ready handoff 才进入 Domain preview，仍必须生成 canonical TaskPlan 并通过原有门禁。
+- **验证**：M292 compact contract 覆盖缺失事实、补充后 Domain preview 和字段状态；未将 Domain 私有模型或原始请求扩散到公共 Runtime。
+- **预防**：新增能力优先声明公共 requirements；不要在 Runtime 中增加区域/问句判断，也不要让 preview 直接信任 Planner 携带的私有 handoff。
+
+## M292 单组件 continuation 不能被当作多组件澄清
+
+- **现象**：一个 Composite 请求同时选择多个组件时，单组件 continuation 只能绑定一个 component identity；如果直接复用，补充一个组件可能丢失其它组件的选择或让重新规划静默换组件。
+- **根因**：M292 的目标是稳定单组件事实交接和可恢复续跑，token payload 只绑定一个组件；多组件补充事实、组件集合稳定性和部分完成状态还没有公共契约。
+- **处理**：M292 保持单组件 token 的字段白名单、签名、过期和 fail-closed 语义，不伪装成多组件支持；M293 单独设计组件集合 handoff 与按 `component_id` 分组的 continuation。
+- **预防**：多组件 continuation 必须同时绑定原 request fingerprint、Planner selection fingerprint、组件集合和字段白名单；集合漂移、未知组件或未知字段不得自动修复。
+
+## M292 严格 TaskPlan gate 暴露旧 replay fixture 缺少 workflow
+
+- **现象**：集中运行 M292 与相邻 Planner 回归时，旧 M285/M283 replay fixture 中只有 component identity，没有可物化的 workflow/task plan，结果从 `PLANNED/QUEUED` 变为 `REJECTED/plan_completeness_failed`。
+- **诊断**：这是测试 fixture 与 M291 新契约不一致，不是放宽生产门禁的理由；先查看 `error_code` 和 `task_plan_bridge`，再区分 fixture 缺失与实际 Planner 回归。
+- **修复**：为旧 fixture 增加最小已注册 tool、result type 和 canonical one-step workflow；生产代码继续拒绝 deferred/不可物化组件。
+- **验证**：Docker 重建镜像后 M292 compact **3/3** 与相邻回归 **19/19** 通过。
+- **预防**：新增 replay/fixture 必须显式提供 capability → workflow → TaskPlan 闭合链；阶段回归集中运行，不能只运行局部 M292 测试就宣称相邻契约未受影响。

@@ -16,13 +16,13 @@
 
 ## 当前进行中
 
-### M292-A：Planner 组件事实交接与可恢复澄清全局规划 — 进行中
+### M293-A：多组件事实协调与可恢复 Composite 续跑全局规划 — 进行中
 
-- 目标：从全局七维度规划 Planner 选择后的组件事实交接、最小澄清和同一请求的可恢复续跑，不陷入 GIS/Economic 数据细节。
-- 已创建：`docs/m292-component-fact-handoff-capability-map.md`、`docs/m292-component-fact-handoff-spec.md`、`docs/m292-component-fact-handoff-plan.md`。
-- 验证：M291 已完成 Python 合并门禁 **46/46**、新增状态回归 **6/6**、Node projection smoke、compileall、architecture strict、readiness 200；M292 规划文档已完成。
-- 阻塞：无。M291 live 的 `taskplan_component_clarification` 已转为可恢复澄清，未创建 run。
-- 下一步：实现 M292-B 组件 requirements 与 Domain preview 的公共事实交接。
+- 目标：从全局七维度规划多个已选组件的事实聚合、统一 continuation、重新规划和跨入口一致性，不增加 GIS/Economic 专题流程。
+- 已创建：`docs/m293-multi-component-clarification-capability-map.md`、`docs/m293-multi-component-clarification-spec.md`、`docs/m293-multi-component-clarification-plan.md`。
+- 验证：M292 阶段已完成集中 Docker contract **3/3**、相邻 Planner/TaskPlan 回归 **19/19**、compileall、architecture strict、Node projection smoke、readiness 200。
+- 阻塞：无。M293 先实现多组件 handoff 聚合，再接全局 continuation；阶段按完整能力包推进，测试集中收口。
+- 下一步：实现 M293-B 多组件 handoff 聚合与全局 continuation。
 
 ### M288-B/C/D/E：provider structured-output 能力协商与阶段交付 — 已完成
 
@@ -34,6 +34,16 @@
 - 下一步：完成 M288-E 文档/问题记录/提交推送，然后从全局七维度规划 M289 真实 Composite 成功/澄清/拒绝矩阵。
 
 ## 最近完成
+
+### M292-A～E：Planner 组件事实交接与可恢复澄清 — 已完成
+
+- 结果：新增 `component-fact-handoff.v1` 与有界 continuation；Planner 选择的组件可声明 requirements、已知事实、workflow 约束和字段级澄清；补充事实后重新构建 context、重新规划并通过 TaskPlan/completeness gate。
+- 跨入口：HTTP `composite_plan`、同步/异步提交、planning evidence、artifact/async safe projection、Composite View 和 Console 均保留脱敏 continuation identity；前端展示组件缺失字段，不展示 token。
+- 兼容：为旧 M285/M283 replay fixture 补齐最小 canonical workflow，恢复 M291 严格 TaskPlan gate 下的既有回归语义。
+- 文件：`agent/runtime_core/component_fact_handoff.py`、`agent/runtime_core/clarification_continuation.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/preview.py`、`agent/composite_request_context.py`、`agent/application/composite_planning.py`、`agent/application/http.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`tests/test_m292_component_fact_handoff.py`。
+- 验证：Docker compact **3/3**、相邻回归 **19/19**、compileall、architecture strict、Node projection smoke、生产 `/health/ready` **200**；未执行重复 live 请求。
+- 阻塞：无。单组件 continuation 已完成，多组件统一 handoff 是 M293 范围。
+- 下一阶段：M293 多组件事实协调与可恢复 Composite 续跑。
 
 ### M290-A～E：Provider Deadline 与真实 Composite 完成 — 已完成
 
@@ -205,3 +215,10 @@
 - 阻塞：
 - 下一步：
 ```
+
+### M292-B：组件级 requirements 与 preview 事实交接 — 进行中
+- 目标：建立 `spatial-agent.component-fact-handoff.v1`，把已选组件的公共 requirements、已知事实、工作流约束和缺失字段安全交给 Domain preview。
+- 待读/待修改：`agent/runtime_core/component_fact_handoff.py`、`agent/composite_request_context.py`、`agent/application/composite_planning.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/preview.py`、`agent/application/submission.py`、`agent/service.py`、`agent/runtime.py`、`domains/gis/domain.py`、`domains/economic/domain.py`。
+- 验证：开发期间只做语法/静态检查；M292-B～D 合并后集中运行精简 continuation contract、compileall、architecture 和 readiness 门禁。
+- 阻塞：无。
+- 下一步：实现 handoff contract 与 preview 入口透传；缺失事实时返回组件级、字段级澄清，不创建 execution run。

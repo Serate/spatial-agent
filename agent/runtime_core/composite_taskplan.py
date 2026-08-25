@@ -19,6 +19,11 @@ from agent.models import TaskPlan
 from agent.plan_schema import PlanningError, parse_task_plan
 from agent.runtime_core.planning import validate_plan
 from agent.runtime_core.projection import plan_dag
+from agent.runtime_core.component_fact_handoff import (
+    ComponentFactHandoffError,
+    build_component_fact_handoff,
+    project_component_fact_handoff,
+)
 
 
 TASK_PLAN_BRIDGE_SCHEMA_VERSION = "spatial-agent.composite-taskplan-bridge.v1"
@@ -32,8 +37,15 @@ _STEP_FIELDS = {"id", "tool", "args", "depends_on"}
 class CompositeTaskPlanBridgeError(ValueError):
     """A Composite candidate cannot safely become an executable TaskPlan."""
 
-    def __init__(self, message: str, *, code: str):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        details: Mapping[str, Any] | None = None,
+    ):
         self.code = str(code)[:96]
+        self.details = dict(details) if isinstance(details, Mapping) else {}
         super().__init__(message)
 
 
@@ -126,6 +138,20 @@ class CompositeTaskPlanBridge:
                 "component capability is not registered",
                 code="taskplan_capability_not_registered",
             )
+        try:
+            fact_handoff = build_component_fact_handoff(component, context=context)
+        except ComponentFactHandoffError as exc:
+            raise CompositeTaskPlanBridgeError(
+                "component facts could not be handed to the Domain",
+                code=exc.code,
+                details=exc.details,
+            ) from exc
+        if fact_handoff.get("state") == "required":
+            raise CompositeTaskPlanBridgeError(
+                "component planning requires clarification",
+                code="taskplan_component_clarification",
+                details={"component_fact_handoff": fact_handoff},
+            )
         preview_workflow = workflow or _context_workflow(
             context,
             domain_id=domain_id,
@@ -138,6 +164,7 @@ class CompositeTaskPlanBridge:
             plan_payload, preview_workflow = self._preview_plan(
                 component,
                 workflow=preview_workflow,
+                fact_handoff=fact_handoff,
                 planner=planner,
                 backend=backend,
                 session_id=session_id,
@@ -168,6 +195,7 @@ class CompositeTaskPlanBridge:
             "domain_id": domain_id,
             "state": "accepted",
             "source": source,
+            "fact_handoff": project_component_fact_handoff(fact_handoff),
             "plan": _project_plan(task_plan),
             "dag": plan_dag(task_plan),
             "policy": {
@@ -182,6 +210,7 @@ class CompositeTaskPlanBridge:
         component: Mapping[str, Any],
         *,
         workflow: Mapping[str, Any] | None,
+        fact_handoff: Mapping[str, Any],
         planner: str,
         backend: str,
         session_id: str,
@@ -217,6 +246,9 @@ class CompositeTaskPlanBridge:
             "template_id"
         ):
             kwargs["workflow"] = dict(effective_workflow)
+        kwargs["component_fact_handoff"] = project_component_fact_handoff(
+            fact_handoff
+        )
         try:
             response = preview(
                 _bounded_text(component.get("request"), 2000),
@@ -237,6 +269,12 @@ class CompositeTaskPlanBridge:
             raise CompositeTaskPlanBridgeError(
                 "component planning requires clarification",
                 code="taskplan_component_clarification",
+                details={
+                    "component_fact_handoff": response.get(
+                        "component_fact_handoff"
+                    ),
+                    "clarification": response.get("clarification"),
+                },
             )
         if status != "PLANNED":
             raise CompositeTaskPlanBridgeError(
@@ -270,6 +308,10 @@ def project_task_plan_bridge(value: Any) -> dict[str, Any]:
         }
         if raw.get("source"):
             item["source"] = _bounded_text(raw.get("source"), 32)
+        if isinstance(raw.get("fact_handoff"), Mapping):
+            item["fact_handoff"] = project_component_fact_handoff(
+                raw["fact_handoff"]
+            )
         if isinstance(raw.get("plan"), Mapping):
             item["plan"] = _project_plan_projection(raw["plan"])
         if isinstance(raw.get("dag"), Mapping):

@@ -100,10 +100,18 @@
 - [x] M291-D 跨入口语义恢复、artifact 和前端用户投影
 - [x] M291-E 集中门禁、显式 live、文档、版本与全局重规划
 
-## M292 Planner 组件事实交接与可恢复澄清（进行中）
+## M292 Planner 组件事实交接与可恢复澄清（已完成）
 
 - [x] M292-A 全局能力图、Spec、Plan 与事实来源模型
-- [ ] M292-B 组件级 requirements 与 preview 交接
-- [ ] M292-C 澄清 continuation 生命周期
-- [ ] M292-D 前端与跨入口用户体验
-- [ ] M292-E 集中门禁、显式 live、文档、版本与全局重规划
+- [x] M292-B 组件级 requirements 与 preview 交接
+- [x] M292-C 澄清 continuation 生命周期
+- [x] M292-D 前端与跨入口用户体验
+- [x] M292-E 集中门禁、显式 live、文档、版本与全局重规划
+
+## M293 多组件事实协调与可恢复 Composite 续跑（进行中）
+
+- [x] M293-A 全局能力图、Spec、Plan 与多组件 identity 设计
+- [ ] M293-B 多组件 handoff 聚合与全局 continuation
+- [ ] M293-C 重新规划与跨入口生命周期投影
+- [ ] M293-D 集中精简验收与兼容修正
+- [ ] M293-E 中文记录、版本交付与全局重规划

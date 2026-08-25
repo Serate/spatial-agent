@@ -19,33 +19,33 @@
 
 ## 当前阶段
 
-- 阶段：M292 Planner 组件事实交接与可恢复澄清
-- 状态：M291 已完成集中门禁、显式 live、文档收口；M292-A 全局能力图、Spec、Plan 已创建，当前开始事实交接能力包；中转真实 Composite 输出继续保持 fail closed。
-- 当前任务：M292-A 组件事实交接与可恢复澄清全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M293 多组件事实协调与可恢复 Composite 续跑
+- 状态：M292 已完成 Docker 阶段收口、文档同步和版本前检查；M293-A 全局能力图、Spec、Plan 已创建，当前开始多组件 handoff 聚合；中转真实 Composite 输出继续保持 fail closed。
+- 当前任务：M293-A 多组件事实协调全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m292-component-fact-handoff-capability-map.md`](m292-component-fact-handoff-capability-map.md)
-  - [`docs/m292-component-fact-handoff-spec.md`](m292-component-fact-handoff-spec.md)
-  - [`docs/m292-component-fact-handoff-plan.md`](m292-component-fact-handoff-plan.md)
+  - [`docs/m293-multi-component-clarification-capability-map.md`](m293-multi-component-clarification-capability-map.md)
+  - [`docs/m293-multi-component-clarification-spec.md`](m293-multi-component-clarification-spec.md)
+  - [`docs/m293-multi-component-clarification-plan.md`](m293-multi-component-clarification-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m292-component-fact-handoff-capability-map.md`
-- `docs/m292-component-fact-handoff-spec.md`
-- `docs/m292-component-fact-handoff-plan.md`
+- `docs/m293-multi-component-clarification-capability-map.md`
+- `docs/m293-multi-component-clarification-spec.md`
+- `docs/m293-multi-component-clarification-plan.md`
+- `agent/runtime_core/component_fact_handoff.py`
+- `agent/runtime_core/clarification_continuation.py`
 - `agent/composite_request_context.py`
-- `agent/runtime_core/plan_completeness.py`
 - `agent/application/composite_planning.py`
 - `agent/runtime_core/composite_taskplan.py`
-- `tests/test_m292_component_fact_handoff.py`
-- `docs/milestones.md`
-- `docs/agent-development-issues.md`
+- `agent/application/http.py`
+- `agent/application/composite_runs.py`
+- `agent/composite_view.py`
+- `web/src/console_result_projection.js`
+- `tests/test_m293_multi_component_continuation.py`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
 - `tasks/plan.md`
 - `tasks/todo.md`
-- `docs/agent-development-issues.md`
-- `docs/milestones.md`
-- `docs/agent-context-resume.md`
 
 ## 验证与安全约定
 

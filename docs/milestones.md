@@ -5061,3 +5061,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker Python M291+M290/M282/M279/M289/M286/M287 **46/46**，新增组件事实澄清状态回归 **6/6**，Node projection smoke、compileall、architecture strict、readiness 200 通过。
 - 一次显式真实 Composite probe 为 provider structured output 成功、1 请求、0 重试；Domain preview 因事实不足返回 `taskplan_component_clarification`，现正确映射为 `NEEDS_CLARIFICATION`，未创建 execution run。
 - 全局重规划：M292 处理 Planner 组件事实交接、最小澄清和同一 request fingerprint 的可恢复 continuation，不增加专题流程或 repair 回合。
+
+## M292：Planner 组件事实交接与可恢复澄清（已完成）
+
+- 新增版本化 `spatial-agent.component-fact-handoff.v1`；Planner 选择的组件从公共 catalog requirements、RequestFacts 和 workflow constraints 生成有界 known facts、missing fields、effective constraints 和下一步动作，Domain preview 只消费公共 handoff。
+- 新增签名、过期和字段白名单约束的单组件 continuation；补充事实后重新构建 context、重新 Planner、重新执行 completeness/TaskPlan/DAG gate，篡改 token、未知字段、请求/领域/组件不匹配均 fail closed，未完成澄清不创建 run。
+- HTTP `composite_plan`、同步/异步提交、planning evidence、artifact/async safe projection、Composite View 和 Console 均保留脱敏 continuation identity；前端显示组件缺失字段和补充提示，不显示 token、prompt 或模型原文。
+- Docker M292 compact contract **3/3**、相邻 M291/M285/M283 Planner/TaskPlan 回归 **19/19**、compileall、architecture strict、Node projection smoke、生产 `/health/ready` **200** 通过；未重复发起 live 请求。
+- 兼容修正：M285/M283 旧 replay fixture 补齐最小 canonical workflow，恢复 M291 严格 materialization gate 下的既有契约；未放宽生产校验。
+- 全局重规划：M293 处理多个已选组件的 handoff 聚合、按组件补充事实的统一 continuation、组件集合 identity 和跨入口重新规划；保持默认测试精简，不新增专题分支。

@@ -187,3 +187,10 @@
 - `plan_completeness` 沿 async/artifact/restart evidence、Composite View 和 Console projection 传播；组件事实不足统一映射为 `NEEDS_CLARIFICATION`。
 - Docker Python **46/46**、新增状态映射回归 **6/6**、Node smoke、compileall、architecture strict、readiness 200 通过；一次显式 live provider structured output 成功但 Domain preview 澄清，0 run。
 - 当前恢复入口切换到 M292-A，下一阶段规划组件事实交接与同一 fingerprint 的可恢复澄清。
+
+## M292：Planner 组件事实交接与可恢复澄清（已完成）
+
+- 新增 `agent/runtime_core/component_fact_handoff.py` 与 `agent/runtime_core/clarification_continuation.py`；已选组件从 catalog requirements、RequestFacts 和 workflow 约束生成有界 handoff，缺失事实返回字段级澄清和签名 continuation。
+- 补充事实后重新构建 context、重新规划、重新验证 TaskPlan/DAG 和 plan completeness；HTTP `composite_plan`、async/artifact/evidence、Composite View 和 Console 只投影脱敏 identity，前端不展示 token。
+- Docker M292 compact **3/3**、相邻 Planner/TaskPlan 回归 **19/19**、compileall、architecture strict、Node projection smoke、生产 readiness **200** 通过；未重复发起 live 请求。
+- 兼容修正：旧 M285/M283 replay fixture 补齐最小 canonical workflow，以符合 M291 严格 materialization gate。当前恢复入口切换到 M293-A，下一阶段规划多组件 handoff 聚合与全局 continuation；默认测试继续精简。

@@ -196,6 +196,7 @@ class SubmissionApplication:
         spatial_context: Dict[str, Any] = None,
         workflow: Dict[str, Any] = None,
         _resolved_request: str = None,
+        component_fact_handoff: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         self._validate_request(request, session_id, None, _resolved_request)
         workflow_context = self._workflow_normalizer(workflow, planner, backend)
@@ -210,6 +211,8 @@ class SubmissionApplication:
                 "timeout_seconds": timeout_seconds,
                 "workflow": workflow_context,
             }
+            if component_fact_handoff is not None:
+                preview_kwargs["component_fact_handoff"] = component_fact_handoff
             if _resolved_request is not None:
                 preview_kwargs["resolved_request_override"] = _resolved_request
             payload = runtime.preview(

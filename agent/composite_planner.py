@@ -70,8 +70,15 @@ _CONTEXT_SCHEMAS = {
 class CompositePlannerError(ValueError):
     """Bounded planner failure safe for public application projections."""
 
-    def __init__(self, message: str, *, code: str = "composite_planner_invalid"):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "composite_planner_invalid",
+        details: Mapping[str, Any] | None = None,
+    ):
         self.code = str(code)[:96]
+        self.details = dict(details) if isinstance(details, Mapping) else {}
         super().__init__(str(message)[:320])
 
 

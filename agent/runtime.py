@@ -342,6 +342,7 @@ class AgentRuntime:
         timeout_seconds: Optional[float] = None,
         workflow: Optional[Mapping[str, Any]] = None,
         resolved_request_override: Optional[str] = None,
+        component_fact_handoff: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         return self._preview.preview(
             request=request,
@@ -349,6 +350,7 @@ class AgentRuntime:
             timeout_seconds=timeout_seconds,
             workflow=workflow,
             resolved_request_override=resolved_request_override,
+            component_fact_handoff=component_fact_handoff,
         )
     def clear_session(self, session_id: str) -> None:
         """Clear runtime-only clarification state for a conversation."""

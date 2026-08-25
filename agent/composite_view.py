@@ -225,6 +225,19 @@ def _build_planning(value: Any) -> dict[str, Any]:
                 0,
                 min(_MAX_COMPONENTS, int(completeness.get("materialized_count") or 0)),
             ),
+            }
+    continuation = value.get("continuation")
+    if isinstance(continuation, Mapping):
+        result["continuation"] = {
+            "schema_version": _text(continuation.get("schema_version"), 96),
+            "request_fingerprint": _text(continuation.get("request_fingerprint"), 128),
+            "planner_selection_fingerprint": _text(
+                continuation.get("planner_selection_fingerprint"), 128
+            ),
+            "component_id": _text(continuation.get("component_id"), 96),
+            "domain_id": _text(continuation.get("domain_id"), 64),
+            "capability_id": _text(continuation.get("capability_id"), 96),
+            "field_ids": _safe_strings(continuation.get("field_ids"), _MAX_COMPONENTS),
         }
     return {key: item for key, item in result.items() if item not in (None, "")}
 

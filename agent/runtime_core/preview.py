@@ -15,6 +15,12 @@ from ..domain_contract import clarification_details as resolve_clarification_det
 from ..evidence_revalidation import build_evidence_binding
 from ..errors import ClarificationNeeded, RequestRejected, ToolError
 from ..models import RunStatus, TaskPlan
+from .component_fact_handoff import (
+    ComponentFactHandoffError,
+    normalize_component_fact_handoff,
+    project_component_fact_handoff,
+    request_facts_from_handoff,
+)
 from .projection import plan_dag as _plan_dag, plan_to_dict as _plan_to_dict
 
 
@@ -31,6 +37,7 @@ class RuntimePreviewSurface:
         timeout_seconds: Optional[float] = None,
         workflow: Optional[Mapping[str, Any]] = None,
         resolved_request_override: Optional[str] = None,
+        component_fact_handoff: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Plan a request and return a bounded DAG preview without dispatching tools."""
         runtime = self._runtime
@@ -56,7 +63,30 @@ class RuntimePreviewSurface:
                 pending=pending,
                 turn_advice=turn_advice,
             )
-        request_facts = extract_request_facts(runtime._domain_pack, resolved_request)
+        handoff = None
+        handoff_requires_clarification = False
+        if component_fact_handoff is not None:
+            try:
+                handoff = normalize_component_fact_handoff(
+                    component_fact_handoff,
+                    expected_domain_id=str(runtime.domain_id),
+                )
+            except ComponentFactHandoffError as exc:
+                raise ToolError(str(exc)) from exc
+            request_facts = request_facts_from_handoff(
+                handoff,
+                text=resolved_request,
+                require_ready=False,
+            )
+            handoff_requires_clarification = handoff.get("state") != "ready"
+            if not handoff_requires_clarification and isinstance(workflow, Mapping):
+                effective_workflow = dict(workflow)
+                constraints = dict(effective_workflow.get("constraints") or {})
+                constraints.update(handoff.get("effective_constraints") or {})
+                effective_workflow["constraints"] = constraints
+                workflow = effective_workflow
+        else:
+            request_facts = extract_request_facts(runtime._domain_pack, resolved_request)
         context_packet = runtime._build_context_packet(
             request, resolved_request, session_id, workflow, request_facts=request_facts
         )
@@ -93,8 +123,26 @@ class RuntimePreviewSurface:
                 "artifact_export": False,
             },
         }
+        if handoff is not None:
+            payload["component_fact_handoff"] = project_component_fact_handoff(
+                handoff
+            )
         candidate_plan: Optional[TaskPlan] = None
         try:
+            if handoff_requires_clarification:
+                raise ClarificationNeeded(
+                    "组件还缺少必要输入，请补充后继续。",
+                    {
+                        "schema_version": "spatial-agent.component-clarification.v1",
+                        "state": "component_facts_required",
+                        "reason_code": handoff.get("reason_code"),
+                        "component_id": handoff.get("component_id"),
+                        "domain_id": handoff.get("domain_id"),
+                        "capability_id": handoff.get("capability_id"),
+                        "missing_fields": list(handoff.get("missing_fields") or [])[:8],
+                        "next_actions": ["provide_facts"],
+                    },
+                )
             runtime._require_workflow_selection(context_packet, workflow)
             plan = runtime._plan(resolved_request, workflow, context_packet)
             candidate_plan = plan

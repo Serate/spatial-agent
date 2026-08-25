@@ -19,6 +19,7 @@ from agent.domain_contract import (
     extract_request_facts,
     select_workflow,
 )
+from agent.request_model import RequestFacts
 
 
 COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-request-context.v2"
@@ -80,6 +81,7 @@ class CompositeRequestContextBuilder:
         planner: str = "rule",
         backend: str = "memory",
         domain_ids: Sequence[str] | None = None,
+        fact_overrides: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         text = str(request or "").strip()[:2000]
         if not text:
@@ -111,6 +113,12 @@ class CompositeRequestContextBuilder:
             service = self._host.service(self._host.select(domain_id, source="automatic"))
             try:
                 facts = extract_request_facts(service, text)
+                facts = _merge_fact_override(
+                    facts,
+                    fact_overrides.get(domain_id)
+                    if isinstance(fact_overrides, Mapping)
+                    else None,
+                )
                 safe_facts = _facts_projection(facts)
             except Exception as exc:
                 raise CompositeRequestContextError(
@@ -269,6 +277,39 @@ def _facts_projection(facts: Any) -> dict[str, Any]:
     }
 
 
+def _merge_fact_override(facts: Any, override: Any) -> Any:
+    """Merge already validated continuation facts before Domain discovery."""
+
+    if not isinstance(override, Mapping):
+        return facts
+    base = _facts_projection(facts)
+    entities = dict(base.get("entities") or {})
+    entities.update(
+        _safe_value(override.get("entities") or {}, depth=0)
+        if isinstance(override.get("entities"), Mapping)
+        else {}
+    )
+    datasets = list(base.get("datasets") or [])
+    for value in _safe_strings(override.get("datasets"), 16):
+        if value not in datasets:
+            datasets.append(value)
+    constraints = dict(base.get("constraints") or {})
+    if isinstance(override.get("constraints"), Mapping):
+        constraints.update(_safe_value(override["constraints"], depth=0))
+    evidence = list(base.get("evidence") or [])
+    if "user_supplement" not in evidence:
+        evidence.append("user_supplement")
+    return RequestFacts(
+        text=str(base.get("text") or "")[:2000],
+        admin_name=str(entities.get("admin_name") or "").strip() or None,
+        tasks=tuple(base.get("tasks") or ()),
+        datasets=tuple(datasets[:24]),
+        constraints=constraints,
+        evidence=tuple(evidence[:16]),
+        entities=entities,
+    )
+
+
 def _catalog_capabilities(domain: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return [
         item
@@ -336,6 +377,9 @@ def _candidate_projection(
                 "result_types": _safe_strings(item.get("result_types"), 8),
                 "workflow_ids": _safe_strings(item.get("workflow_ids"), 8),
                 "plan_mode": _text(item.get("plan_mode"), 24) or None,
+                "request_requirements": _safe_requirements(
+                    item.get("request_requirements")
+                ),
             }
         )
     return result[:_MAX_CANDIDATES]
@@ -464,6 +508,46 @@ def _safe_workflow(value: Mapping[str, Any]) -> dict[str, Any]:
     result["candidate_ids"] = _safe_strings(result.get("candidate_ids"), 8)
     result["missing_fields"] = _safe_strings(result.get("missing_fields"), _MAX_FIELDS)
     return result
+
+
+def _safe_requirements(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, Mapping) else {}
+    fields: list[dict[str, Any]] = []
+    for raw in (source.get("clarification_fields") or [])[:_MAX_FIELDS]:
+        if not isinstance(raw, Mapping):
+            continue
+        field_id = _text(raw.get("id"), 80)
+        kind = _text(raw.get("kind"), 32)
+        label = _text(raw.get("label"), 120)
+        if not field_id or not label or kind not in {"entity", "dataset", "constraint"}:
+            continue
+        field = {
+            "id": field_id,
+            "label": label,
+            "kind": kind,
+            "required": bool(raw.get("required", True)),
+            "source": "catalog",
+            "mode": _text(raw.get("mode"), 8)
+            if str(raw.get("mode") or "") in {"any", "all"}
+            else "any",
+        }
+        key = raw.get("key") or raw.get("fact")
+        if key:
+            field["key"] = _text(key, 80)
+        keys = _safe_strings(raw.get("keys"), _MAX_FIELDS)
+        values = _safe_strings(raw.get("values"), _MAX_FIELDS)
+        if keys:
+            field["keys"] = keys
+        if values:
+            field["values"] = values
+        fields.append(field)
+    return {
+        "schema_version": _text(source.get("schema_version"), 96),
+        "entities": _safe_strings(source.get("entities"), 16),
+        "datasets": _safe_strings(source.get("datasets"), 16),
+        "constraints": _safe_strings(source.get("constraints"), 16),
+        "clarification_fields": fields,
+    }
 
 
 def _safe_value(value: Any, *, depth: int) -> Any:

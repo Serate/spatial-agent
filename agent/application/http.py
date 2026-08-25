@@ -100,21 +100,33 @@ class HTTPApplication:
                 raise RuntimeError("composite planning application is unavailable")
             execute = bool(body.get("execute", False))
             if execute:
+                composite_plan_kwargs = {
+                    "session_id": str(body.get("session_id") or "default")[:120],
+                    "idempotency_key": body.get("idempotency_key"),
+                    "planner_name": str(body.get("planner") or "rule")[:32],
+                    "backend": str(body.get("backend") or "memory")[:32],
+                    "domain_ids": body.get("domain_ids"),
+                    "asynchronous": bool(body.get("async", True)),
+                    "export_artifact": bool(body.get("export_artifact", False)),
+                }
+                if body.get("continuation_token") is not None:
+                    composite_plan_kwargs["continuation_token"] = body.get("continuation_token")
+                    composite_plan_kwargs["fact_supplement"] = body.get("facts") or body.get("fact_supplement")
                 return self._composite_planning.submit(
                     str(body.get("request") or ""),
-                    session_id=str(body.get("session_id") or "default")[:120],
-                    idempotency_key=body.get("idempotency_key"),
-                    planner_name=str(body.get("planner") or "rule")[:32],
-                    backend=str(body.get("backend") or "memory")[:32],
-                    domain_ids=body.get("domain_ids"),
-                    asynchronous=bool(body.get("async", True)),
-                    export_artifact=bool(body.get("export_artifact", False)),
+                    **composite_plan_kwargs,
                 )
+            composite_prepare_kwargs = {
+                "planner_name": str(body.get("planner") or "rule")[:32],
+                "backend": str(body.get("backend") or "memory")[:32],
+                "domain_ids": body.get("domain_ids"),
+            }
+            if body.get("continuation_token") is not None:
+                composite_prepare_kwargs["continuation_token"] = body.get("continuation_token")
+                composite_prepare_kwargs["fact_supplement"] = body.get("facts") or body.get("fact_supplement")
             return self._composite_planning.prepare(
                 str(body.get("request") or ""),
-                planner_name=str(body.get("planner") or "rule")[:32],
-                backend=str(body.get("backend") or "memory")[:32],
-                domain_ids=body.get("domain_ids"),
+                **composite_prepare_kwargs,
             )
         if action == "preview":
             return service.preview(**preview_kwargs(body))

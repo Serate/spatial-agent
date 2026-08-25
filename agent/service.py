@@ -317,6 +317,7 @@ class AgentService:
         spatial_context: Dict[str, Any] = None,
         workflow: Dict[str, Any] = None,
         _resolved_request: str = None,
+        component_fact_handoff: Dict[str, Any] = None,
     ) -> Dict:
         return self._submission_application.preview(
             request=request,
@@ -327,6 +328,7 @@ class AgentService:
             spatial_context=spatial_context,
             workflow=workflow,
             _resolved_request=_resolved_request,
+            component_fact_handoff=component_fact_handoff,
         )
 
     def get_decision(self, decision_id: str) -> Dict[str, Any]:

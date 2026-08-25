@@ -65,6 +65,22 @@ assert.match(clarificationHtml, /时间范围/);
 assert.match(clarificationHtml, /请补充统计周期/);
 assert.ok(clarificationHtml.length < 12000);
 
+const componentClarification = projection.normalize({
+  status: "NEEDS_CLARIFICATION",
+  component_fact_handoff: {
+    state: "required",
+    missing_fields: [
+      {component_id: "economic-main", label: "经济指标", kind: "constraint"},
+      {component_id: "economic-main", label: "分析区域", kind: "entity"},
+    ],
+    continuation: {token: "must-not-render"},
+  },
+  result: {type: "composite_result"},
+});
+assert.equal(componentClarification.clarification.state, "component_facts_required");
+assert.match(projection.render(componentClarification), /经济指标/);
+assert.doesNotMatch(projection.render(componentClarification), /must-not-render/);
+
 const repaired = projection.normalize({
   status: "PLANNED",
   repair_lineage: {
@@ -79,4 +95,4 @@ const repaired = projection.normalize({
 assert.equal(repaired.repair_lineage.status, "repaired");
 assert.match(projection.render(repaired), /计划已校正/);
 
-console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "clarification_projection", "repair_projection"]}));
+console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "clarification_projection", "component_clarification_projection", "repair_projection"]}));

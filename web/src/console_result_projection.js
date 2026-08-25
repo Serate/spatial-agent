@@ -48,7 +48,19 @@
     if (planCompleteness) planning = {...(planning || {}), plan_completeness: planCompleteness};
     const repairLineage = normalizeRepairLineage(firstRecord(data.repair_lineage, result.repair_lineage, planning?.repair_lineage));
     const context = firstRecord(data.runtime_context, result.runtime_context, data.request_context, result.request_context);
-    const clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
+    let clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
+    const handoff = firstRecord(data.component_fact_handoff, result.component_fact_handoff);
+    if (record(handoff) && list(handoff.missing_fields).length) {
+      clarification = {
+        ...clarification,
+        state: clarification.state || "component_facts_required",
+        missing_fields: list(handoff.missing_fields).slice(0, MAX_ITEMS),
+        next_actions: list(clarification.next_actions).length
+          ? clarification.next_actions
+          : ["补充后重新生成计划"],
+      };
+    }
+    const continuation = firstRecord(data.continuation, result.continuation, handoff?.continuation);
     const evidence = firstRecord(composite?.evidence, result.evidence, data.evidence) || {};
     const evidenceRegistry = firstRecord(result.evidence_registry, data.evidence_registry) || {};
     const plan = firstRecord(data.plan, result.plan) || {};
@@ -69,6 +81,8 @@
       answer,
       context,
       clarification,
+      component_fact_handoff: handoff || {},
+      continuation: continuation || {},
       planning,
       repair_lineage: repairLineage,
       plan,
@@ -147,9 +161,15 @@
     const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const limitations = model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const nextSteps = model.answer.next_steps.length ? '<section class="projection-section projection-next"><h4>建议下一步</h4><ul>' + model.answer.next_steps.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
-    const missing = safeTextList(model.clarification.missing, MAX_ITEMS);
+    const missing = safeTextList(
+      model.clarification.missing || model.clarification.missing_fields,
+      MAX_ITEMS,
+    );
     const clarificationActions = safeTextList(model.clarification.next_actions, MAX_ITEMS);
-    const needsClarification = model.status === "NEEDS_CLARIFICATION" || String(model.clarification.state || "").toLowerCase() === "needs_clarification";
+    const clarificationState = String(model.clarification.state || "").toLowerCase();
+    const needsClarification = model.status === "NEEDS_CLARIFICATION"
+      || clarificationState === "needs_clarification"
+      || clarificationState === "component_facts_required";
     const clarification = needsClarification ? '<section class="projection-section projection-clarification"><h4>需要补充的信息</h4>'
       + (missing.length ? '<ul>' + missing.map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul>' : '<p>请补充问题中的关键范围或条件。</p>')
       + (clarificationActions.length ? '<small>下一步：' + escapeHtml(clarificationActions.join("；")) + '</small>' : "") + '</section>' : "";

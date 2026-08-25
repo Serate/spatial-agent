@@ -15,6 +15,8 @@ CONTEXT = {
             "domain_id": "gis",
             "capability_id": "gis.summary",
             "available": True,
+            "tools": ["summarize_data"],
+            "result_types": ["summary_result"],
         }
     ],
     "clarification": {"state": "not_required"},
@@ -34,6 +36,23 @@ def planned_payload():
                 "request": "分析当前区域",
                 "depends_on": [],
                 "required": True,
+                "workflow": {
+                    "allowed_tools": ["summarize_data"],
+                    "result_types": ["summary_result"],
+                    "task_plan": {
+                        "goal": "形成空间摘要",
+                        "steps": [
+                            {
+                                "id": "summarize",
+                                "tool": "summarize_data",
+                                "args": {"query": "当前区域"},
+                                "depends_on": [],
+                            }
+                        ],
+                        "output": {"type": "summary_result"},
+                        "assumptions": [],
+                    },
+                },
             }
         ],
     }

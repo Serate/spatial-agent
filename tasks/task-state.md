@@ -6,12 +6,18 @@
 
 ## 当前阶段
 
-- 阶段：M292 Planner 组件事实交接与可恢复澄清
+- 阶段：M293 多组件事实协调与可恢复 Composite 续跑
 - 阶段规划：
-  - `docs/m292-component-fact-handoff-capability-map.md`
-  - `docs/m292-component-fact-handoff-spec.md`
-  - `docs/m292-component-fact-handoff-plan.md`
+  - `docs/m293-multi-component-clarification-capability-map.md`
+  - `docs/m293-multi-component-clarification-spec.md`
+  - `docs/m293-multi-component-clarification-plan.md`
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
+
+### M292-A～E：Planner 组件事实交接与可恢复澄清（已完成）
+
+- 结果：完成组件 requirements/handoff、单组件 continuation、补充事实后的 context → re-plan → TaskPlan gate，以及 HTTP/async/artifact/view/Console 的脱敏投影。
+- 验证：Docker M292 compact **3/3**、相邻 Planner/TaskPlan **19/19**、compileall、architecture strict、Node projection smoke、readiness 200。
+- 下一步：M293-A 多组件 handoff 聚合与全局 continuation。
 
 ## 最近任务记录
 

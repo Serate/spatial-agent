@@ -18,7 +18,13 @@ CONTEXT = {
     "schema_version": "spatial-agent.composite-request-context.v2",
     "request_fingerprint": "context-fixture",
     "capability_index": [
-        {"domain_id": "gis", "capability_id": "gis.summary", "available": True}
+        {
+            "domain_id": "gis",
+            "capability_id": "gis.summary",
+            "available": True,
+            "tools": ["summarize_data"],
+            "result_types": ["summary_result"],
+        }
     ],
 }
 
@@ -36,6 +42,23 @@ def _canonical_payload():
                 "request": "分析洪山区",
                 "depends_on": [],
                 "required": True,
+                "workflow": {
+                    "allowed_tools": ["summarize_data"],
+                    "result_types": ["summary_result"],
+                    "task_plan": {
+                        "goal": "空间摘要",
+                        "steps": [
+                            {
+                                "id": "summarize",
+                                "tool": "summarize_data",
+                                "args": {"query": "洪山区"},
+                                "depends_on": [],
+                            }
+                        ],
+                        "output": {"type": "summary_result"},
+                        "assumptions": [],
+                    },
+                },
             }
         ],
     }
