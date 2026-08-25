@@ -38,4 +38,3 @@ Composite Result + Evidence
 2. **答案边界**：定义简洁、可读、可降级的结构化答案，不暴露内部推理。
 3. **前端消费**：generic renderer 支持 vector、raster、metrics、timeseries、document_evidence、composite 及 partial/error。
 4. **跨入口验收**：CLI/HTTP/前端/artifact 比较核心 fingerprint、答案摘要、View 类型和 evidence 引用。
-
