@@ -4902,3 +4902,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `live-economic-gdp-trend` case，真实 Economic Domain 通过同一 harness 验证指标查询、来源证据、`economic_timeseries_result`、结果回答和 evidence；默认 CI/quick/stage 不联网。
 - Docker M273 **2/2**，相关回归 **53/53**，compileall、architecture strict、quick/stage 通过；真实 Economic LLM + Docker 数据验收通过：1 次请求、0 重试、约 20.3 秒、4876 tokens。
 - 全局重规划：下一阶段优先建立跨 vector/raster/metrics 的真实 LLM 复合验收，以及澄清/拒绝/有限 repair 和 HTTP/async/artifact/evidence/前端一致性矩阵；若确有需要，再以 Spec → Plan 设计领域中立 Composite seam，不为单一专题添加硬编码链路。
+
+## M274：Domain Selector Provider 兼容性与自动路由（已完成）
+
+- 新增 `docs/m274-domain-selector-compatibility-spec.md` 与 `docs/m274-domain-selector-compatibility-plan.md`；目标是修复中转 schema 兼容性，不增加工具、不修改 Runtime 生命周期。
+- `OpenAIDomainSelectorAdapter` 改用通用 JSON object wire format，应用侧 `ModelDomainSelector` 继续执行 Domain/capability allowlist、状态、候选数量和 request fingerprint 校验；provider 错误/非法输出仍安全 fallback。
+- Economic catalog 增加规范指标 ID 与别名提示；明确经济语义时 offline catalog 不再误选通用 Indicators，语义不足则保留结构化 ambiguity。
+- Docker M274/M273/M270/M271/M263/M269 **24/24**，compileall、architecture strict、quick/stage 通过。
+- 真实全新 session `auto → Economic` 验收完成：最终 `COMPLETED`，两步 Economic 工具链成功，结果类型 `economic_timeseries_result`。selector 期间出现 transient/非法 identity 并安全 fallback，因此该结果证明自动路由与降级执行链路，不宣称纯模型 selector 已稳定通过。
+- 全局重规划：下一阶段优先做跨 `vector/raster/metrics/timeseries` 的领域中立 Composite 计划/结果验收，同时覆盖澄清、有限 repair、HTTP/async/artifact/evidence/前端一致性；先写 Spec/Plan，禁止在单个 Domain 中堆叠专题分支。

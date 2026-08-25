@@ -24,6 +24,14 @@ INDICATOR_ALIASES = {
     "urban_disposable_income": ("城镇居民人均可支配收入", "居民收入", "可支配收入"),
 }
 
+_ECONOMIC_INDICATOR_HINT_PHRASES = tuple(
+    dict.fromkeys(
+        phrase
+        for indicator, aliases in INDICATOR_ALIASES.items()
+        for phrase in (indicator, *aliases)
+    )
+)
+
 ECONOMIC_CAPABILITIES = (
     {
         "id": "economic_indicator_discovery",
@@ -43,7 +51,7 @@ ECONOMIC_CAPABILITIES = (
         "result_types": ["economic_metrics_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
-        "request_hints": {"phrases": ["经济指标是多少", "最新经济指标", "经济水平"], "tasks": ["latest"], "datasets": [ECONOMIC_DATASET]},
+        "request_hints": {"phrases": ["经济指标是多少", "最新经济指标", "经济水平", *_ECONOMIC_INDICATOR_HINT_PHRASES], "tasks": ["latest"], "datasets": [ECONOMIC_DATASET]},
     },
     {
         "id": "economic_indicator_trend",
@@ -53,7 +61,7 @@ ECONOMIC_CAPABILITIES = (
         "result_types": ["economic_timeseries_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
-        "request_hints": {"phrases": ["经济趋势", "经济变化", "经济增长", "历年经济"], "tasks": ["trend"], "datasets": [ECONOMIC_DATASET]},
+        "request_hints": {"phrases": ["经济趋势", "经济变化", "经济增长", "历年经济", *_ECONOMIC_INDICATOR_HINT_PHRASES], "tasks": ["trend"], "datasets": [ECONOMIC_DATASET]},
     },
     {
         "id": "economic_indicator_compare",
@@ -63,7 +71,7 @@ ECONOMIC_CAPABILITIES = (
         "result_types": ["economic_comparison_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
-        "request_hints": {"phrases": ["经济比较", "经济对比", "区域经济差异"], "tasks": ["compare"], "datasets": [ECONOMIC_DATASET]},
+        "request_hints": {"phrases": ["经济比较", "经济对比", "区域经济差异", *_ECONOMIC_INDICATOR_HINT_PHRASES], "tasks": ["compare"], "datasets": [ECONOMIC_DATASET]},
     },
     {
         "id": "economic_source_evidence",

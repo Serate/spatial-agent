@@ -144,10 +144,15 @@ class OpenAIDomainSelectorAdapter:
         with self._lock:
             self._calls += 1
         try:
+            # Some OpenAI-compatible gateways accept the planner's generic
+            # JSON-object mode but reject a nested strict json_schema with
+            # HTTP 400.  Keep the identity schema in the application call so
+            # ModelDomainSelector can validate it locally, while asking the
+            # provider for the broadly supported JSON-object wire format.
             result = self._client.complete_json(
                 messages,
                 domain_selection_identity_schema(),
-                schema_name="domain_selection_identity",
+                schema_name=None,
             )
         except Exception as exc:
             error_code = _safe_error_code(exc)

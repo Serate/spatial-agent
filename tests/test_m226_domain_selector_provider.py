@@ -75,7 +75,7 @@ class M226DomainSelectorProviderTests(unittest.TestCase):
         self.assertIsInstance(provider.selector, FallbackDomainSelector)
         self.assertEqual(decision.selection.domain_id, "text")
         call = client.calls[0]
-        self.assertEqual(call["schema_name"], "domain_selection_identity")
+        self.assertIsNone(call["schema_name"])
         self.assertFalse(call["schema"]["additionalProperties"])
         user_payload = json.loads(call["messages"][1]["content"])
         self.assertEqual(set(user_payload), {"discovery", "request"})

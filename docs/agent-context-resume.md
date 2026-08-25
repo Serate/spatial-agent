@@ -81,6 +81,7 @@
 - M272 已完成第一条真实开放式纵向验收：provider probe READY；真实 LLM + memory 的空间总览通过；Rule Planner + local GIS 8 步通过；真实 LLM + local GIS 同一请求在 45 秒 provider timeout、90 秒 harness deadline 下通过（1 次请求、0 重试、约 36 秒）。期间发现并修复 provider 自身 timeout 被错误标成 harness timeout 事件的问题；现在只有 `deadline_exceeded=true` 的 receipt 才产生 harness `timeout` 事件。20 秒 provider timeout 的失败对照为 0 工具步骤，随后宽 timeout 成功，记录为中转 latency 波动，不修改业务链路。
 
 - M273 已完成：将 `evaluation/live_baseline.py` 扩展为 Domain-aware harness，live case 可通过受限 `domain_id` 选择已注册 Domain Pack；按 `backend + domain_id` 缓存 Runtime，旧的两参数 factory 保持兼容，Economic case 不再误触发 GIS live gate。新增 `live-economic-gdp-trend`，复用 Economic 的指标查询、来源证据和 `economic_timeseries_result` 契约。Docker M273 定向 **2/2**，M270/M271/M263/M79/M269/M268/M264 相关回归 **53/53**，compileall、architecture strict、quick/stage 通过；真实 Economic LLM + Docker 数据单 case 通过（1 次请求、0 重试、约 20.3 秒、4876 tokens）。未保存 prompt、模型原文、密钥、原始数据或路径。
+- M274 已完成：`OpenAIDomainSelectorAdapter` 改为向中转发送兼容性更高的 JSON object 请求，应用侧仍执行完整 Domain/capability allowlist 校验；Economic catalog 声明规范指标 ID 与别名，离线 fallback 不再把明确经济指标静默路由到通用 Indicators，语义不足时保持 ambiguity。Docker M274/M273/M270/M271/M263/M269 定向 **24/24**，compileall、architecture strict、quick/stage 通过。真实全新 session 的 `auto → Economic` 验收最终 `COMPLETED`，执行 `economic_indicator_query → economic_source_evidence` 两步并返回 `economic_timeseries_result`；本轮 selector 出现 provider transient/非法 identity 后均按设计 fallback，不能记作纯模型 selector 成功。未保存模型原文、密钥或路径。
 
 ## 下一步
 

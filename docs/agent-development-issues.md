@@ -818,3 +818,13 @@
 - **修复**：M273 为 case 增加受限 `domain_id`，只在 composition root 选择已注册 Domain；按 `backend + domain_id` 缓存 Runtime，旧 factory 保持兼容；Economic case 不要求 `SPATIAL_AGENT_LIVE_GIS=1`，GIS/legacy case 仍要求显式 GIS gate。Domain ID 只作为有界 evidence，不把 Domain 判断下沉到 Runtime、Planner 或前端。
 - **验证**：Docker M273 **2/2**；相关 M270/M271/M263/M79/M269/M268/M264 回归 **53/53**；compileall、architecture strict、quick/stage 通过；真实 Economic LLM + Docker 数据 `live-economic-gdp-trend` 通过，1 次请求、0 重试、约 20.3 秒、4876 tokens。
 - **预防**：以后新增 Domain 的 live 验收先扩展 case contract 和 composition root，再复用统一 Result/Evidence 评估；真实跨领域单次混合请求另行设计 Composite Domain/Workflow Spec，不在 harness 中偷偷拼接两个 Runtime。默认 CI、quick、stage 继续离线。
+
+## M274 中转不接受 Domain Selector 的复杂严格 schema
+
+- **现象**：Planner 使用同一 OpenAI-compatible 中转和 `json_object` 可以工作，但 Domain Selector 传递嵌套候选/nullable 字段的 strict `json_schema` 时收到 HTTP 400；直接把它归为 Runtime 或 Domain 数据错误会误导排查。
+- **根因**：中转对 Chat Completions 的 JSON Schema 子集支持不一致；Selector 本身已经有本地身份校验，却把 provider 端 schema 支持误当成必需前置。
+- **诊断**：只看脱敏 provider metrics：`response_status=400`、`error_type=http_error`、无工具步骤；对比同一 client 的 Planner `json_object` 请求。禁止读取/打印响应体、API key、prompt 或完整模型原文。
+- **修复**：M274 让 `OpenAIDomainSelectorAdapter` 传入 identity schema 供应用侧契约使用，但调用 `complete_json(..., schema_name=None)`，让兼容客户端使用 JSON object wire format；`ModelDomainSelector` 继续校验状态、候选数量、注册 Domain/capability 和请求指纹，未知输出仍 fallback。
+- **补充修复**：Economic Domain 在自身 catalog 中声明规范指标 ID 和别名。对于 `gdp_total/GDP + 明确经济语义`，catalog fallback 选择 Economic；语义不足时返回 ambiguity，不强行选择通用 Indicators。
+- **验证**：Docker M274/M273/M270/M271/M263/M269 **24/24**，compileall、architecture strict、quick/stage 通过。真实 selector 单独调用在 90 秒内 provider 返回成功但模型 identity 不合法，安全 fallback；完整全新 session auto case 遇 transient provider 后仍由 catalog 选择 Economic，`economic_indicator_query` 与 `economic_source_evidence` 两步完成，结果为 `economic_timeseries_result`。
+- **预防**：provider schema 兼容性必须通过最小 probe 和 live metrics 分层验证；身份安全不能依赖第三方 schema 强制，而要在本地做 allowlist 校验。Selector fallback 的成功只能证明降级链路，不等同于模型 selector 成功；默认 CI、quick、stage 保持离线。
