@@ -78,8 +78,16 @@
 
 ## M289 真实 Composite Planner 纵向成功链路（进行中）
 
-- [ ] M289-A 全局规划与 success/clarification/rejection 验收矩阵
-- [ ] M289-B Planner-to-TaskPlan 纵向收口
-- [ ] M289-C 真实 GIS/Economic 执行与恢复对照
-- [ ] M289-D 答案与前端验收
-- [ ] M289-E 集中门禁、live、中文记录、提交推送与全局重规划
+- [x] M289-A 全局规划与 success/clarification/rejection 验收矩阵
+- [x] M289-B Planner-to-TaskPlan 纵向收口
+- [x] M289-C 真实 GIS/Economic 执行与恢复对照
+- [x] M289-D 答案与前端验收
+- [x] M289-E 集中门禁、live、中文记录、提交推送与全局重规划
+
+## M290 Provider Deadline 与真实 Composite 完成（进行中）
+
+- [ ] M290-A 全局 deadline/timeout 状态建模
+- [ ] M290-B Provider 与 harness deadline 对齐
+- [ ] M290-C 超时恢复与跨入口一致性
+- [ ] M290-D 真实 Composite 纵向验收与用户体验
+- [ ] M290-E 集中门禁、文档、版本与全局重规划

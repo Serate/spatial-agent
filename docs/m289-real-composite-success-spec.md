@@ -34,7 +34,7 @@ case 的具体自然语言可在 harness 中配置，不能在 Runtime 中增加
 ## 验收标准
 
 1. 离线 replay 覆盖合法两域 DAG、缺失事实澄清、未知能力拒绝三类路径。
-2. Docker 中至少有一条真实 LLM + local GIS/Economic planning/execute case，或在真实模型不稳定时留下明确安全失败 receipt；不能把 provider probe 当作 Composite 成功。
+2. Docker 中至少有一条真实 LLM + local GIS/Economic planning/execute case，或在真实模型不稳定时留下明确安全失败 receipt；不能把 provider probe 当作 Composite 成功。当前基线 live 已记录为 45 秒 timeout，待本阶段继续处理。
 3. 同一 case 的 sync、async、artifact 和 restart evidence 通过统一 projection 对照。
 4. 前端能显示用户可读的答案摘要、组件结果类型、限制和 planning/provider evidence 摘要。
 5. 默认 CI 仍离线、精简且不依赖私有数据；live 仅显式运行一次。

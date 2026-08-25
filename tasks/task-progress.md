@@ -15,14 +15,13 @@
 
 ## 当前进行中
 
-### M289-A：真实 Composite Planner 纵向成功链路全局规划 — 进行中
+### M290-A：Provider Deadline 与真实 Composite 完成全局规划 — 进行中
 
-- 目标：从全局七维度规划真实 LLM Composite Planner → 合法多域 DAG → GIS/Economic 执行 → sync/async/artifact/restart → Answer/View/Evidence 的完整验收链路。
-- 已创建：`docs/m289-real-composite-success-capability-map.md`、`docs/m289-real-composite-success-spec.md`、`docs/m289-real-composite-success-plan.md`。
-- 需要修改：M289-B～D 明确后再列具体源码；当前只维护阶段规划和验收边界。
-- 验证：规划文档已完成；暂不运行重复业务测试。
-- 阻塞：无。M288 provider probe 成功不等于真实 Composite 多组件计划成功，仍需显式 live case。
-- 下一步：按 M289 完整能力包实现 Planner-to-TaskPlan 与跨入口 acceptance，不引入专题硬编码。
+- 目标：从全局七维度规划 provider/client/harness/async 的 deadline 对齐和真实 Composite 完成能力，不陷入 GIS/Economic 数据细节。
+- 已创建：`docs/m290-provider-deadline-completion-capability-map.md`、`docs/m290-provider-deadline-completion-spec.md`、`docs/m290-provider-deadline-completion-plan.md`。
+- 验证：规划文档已完成；暂不重复运行 M289 业务测试。
+- 阻塞：无。M289 live timeout 是当前输入证据，下一阶段需在显式有界预算内处理。
+- 下一步：实现统一 deadline/timeout receipt 和 provider/harness budget 对齐。
 
 ### M288-B/C/D/E：provider structured-output 能力协商与阶段交付 — 已完成
 
@@ -34,6 +33,22 @@
 - 下一步：完成 M288-E 文档/问题记录/提交推送，然后从全局七维度规划 M289 真实 Composite 成功/澄清/拒绝矩阵。
 
 ## 最近完成
+
+### M289-B/C/D/E：真实 Composite Planner 纵向收口与阶段交付 — 已完成
+
+- 结果：planning matrix、prepared plan sync/async seam、前端 structured-output 摘要和 safe live timeout receipt 已交付；M290 全局能力图/Spec/Plan 已创建。
+- 验证：Docker M289/M280/M283 **15/15**、compileall、architecture strict、readiness 200、Node projection smoke 通过；版本待提交推送。
+
+### M289-B/C/D：真实 Composite Planner 纵向收口 — 已完成
+
+- 结果：planning outcome matrix、prepared plan sync/async 对照、artifact/restart 复用既有生命周期证据，前端合并并显示 structured-output 计划状态；真实 Composite timeout 保持 fail closed。
+- 验证：Docker M289/M280/M283 **15/15**、compileall、architecture strict、readiness 200、Node projection smoke 通过；未保存模型原文或敏感配置。
+
+### M289-B：Planner-to-TaskPlan 纵向 harness 与跨状态 evidence — 已完成
+
+- 结果：新增领域中立 planning outcome matrix（最多 8 个 case），统一记录 success/clarification/rejection/failure、component count 和 `execution_run_created`；新增 prepared-plan acceptance seam，sync/async 复用同一 canonical request 和 planner evidence。
+- 文件：`evaluation/composite_planning_matrix.py`、`scripts/m289_real_composite_acceptance.py`、`tests/test_m289_real_composite_success.py`、`evaluation/live_provider_probe.py`、`tests/test_m280_real_composite_acceptance.py`。
+- 验证：Docker M289 + M280 **8/8**、compileall 通过；未知/非预期 run 创建会被 matrix 判失败；真实 Composite probe 45 秒 timeout 安全返回。
 
 ### M288-B/C/D：provider structured-output 能力协商与跨入口 evidence — 已完成
 

@@ -168,3 +168,9 @@
 - 接入 `OpenAIPlannerClient`、Composite planning evidence、async/artifact/restart safe projection、live provider receipt 和前端 Console projection；保持已有 `complete_json(messages, schema)` 两参数 client seam，避免破坏 replay/fake client。
 - Docker M288/M279/M286/M287 **25/25**，compileall、architecture strict、生产 readiness/home 200、Node projection smoke 通过；一次 live provider probe 为 `READY`、Chat Completions、strict schema、1 request/0 retry。无模型原文、prompt、密钥或私有路径。
 - 当前恢复入口已切换到 M289-A；已从全局七维度创建真实 Composite 成功/澄清/拒绝与跨域执行验收的能力图、Spec、Plan。
+
+## M289：真实 Composite Planner 纵向成功链路（已完成，live 安全失败）
+
+- 新增 bounded planning outcome matrix 和 prepared canonical plan 的 sync/async acceptance seam；planning probe v2 显式记录 `execution_run_created`，未知/非预期 run 创建判失败。
+- Docker M289/M280/M283 **15/15**，compileall、architecture strict、readiness/home 200、Node projection smoke 通过；真实 Composite planning probe 在 45 秒 deadline 超时，0 组件、无 run，已按 provider latency 分类，不保存模型原文或密钥。
+- 当前恢复入口切换到 M290-A；已从全局角度创建 provider deadline/延迟与真实 Composite 完成的能力图、Spec、Plan，不能把 provider probe 当作跨域成功。

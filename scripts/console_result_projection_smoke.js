@@ -41,6 +41,7 @@ assert.equal(completed.planning.structured_output.structured_mode, "json_schema"
 const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
 assert.match(completedHtml, /分析上下文已建立/);
+assert.match(completedHtml, /计划格式已确认/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);
 assert.doesNotMatch(completedHtml, /private_tool/);
 

@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-- 阶段：M289 真实 Composite Planner 纵向成功链路
+- 阶段：M290 Provider Deadline 与真实 Composite 完成
 - 阶段规划：
   - `docs/m288-wire-structured-output-capability-map.md`
   - `docs/m288-wire-structured-output-spec.md`
@@ -14,6 +14,24 @@
 - 执行方式：串行；默认测试离线精简；真实模型、GIS、Docker 和浏览器只做显式验收
 
 ## 最近任务记录
+
+### M289-B/C/D/E：真实 Composite Planner 纵向收口与阶段交付（已完成）
+
+- 结果：planning matrix、prepared plan 跨入口执行 seam、前端 structured-output 摘要和 timeout safe receipt 已完成；M290 全局规划已创建。
+- 验证：Docker M289/M280/M283 **15/15**、compileall、architecture strict、readiness 200、Node projection smoke 通过；真实 Composite probe 45 秒安全超时，未创建 run。
+- 下一步：M290-A deadline/timeout 状态建模。
+
+### M289-B/C/D：真实 Composite Planner 纵向收口（已完成）
+
+- 结果：planning matrix、prepared canonical plan sync/async 对照、执行 run 创建门控、前端 structured-output 摘要已完成；真实 Composite timeout 保持安全失败。
+- 验证：Docker M289/M280/M283 **15/15**、compileall、architecture strict、readiness 200、Node projection smoke 通过。
+- 下一步：M289-E 文档、版本交付和 M290 全局规划。
+
+### M289-B：Planner-to-TaskPlan 纵向 harness 与跨状态 evidence（已完成）
+
+- 结果：新增 bounded planning outcome matrix、prepared canonical plan 的 sync/async acceptance seam，并将 planning probe 标记为 v2、显式记录 execution run 是否创建。
+- 验证：Docker M289 + M280 **8/8**、compileall 通过；真实 Composite probe 45 秒 timeout，安全返回且未创建 run。
+- 下一步：M289-C 对照真实/回放 canonical plan 的 sync、async、artifact、restart 与 Result/View/Evidence。
 
 ### M288-B/C/D/E：provider structured-output 能力协商与阶段交付（已完成）
 

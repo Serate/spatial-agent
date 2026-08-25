@@ -14,7 +14,7 @@ from agent.provider_structured_output import project_structured_output_evidence
 
 
 PROVIDER_PROBE_SCHEMA_VERSION = "spatial-agent.live-provider-probe.v1"
-COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION = "spatial-agent.composite-planning-probe.v1"
+COMPOSITE_PLANNING_PROBE_SCHEMA_VERSION = "spatial-agent.composite-planning-probe.v2"
 PROVIDER_PROBE_SCHEMA = {
     "type": "object",
     "properties": {"status": {"type": "string", "enum": ["ready"]}},
@@ -334,6 +334,7 @@ def _composite_planning_once(
         component_count=component_count,
         request_fingerprint=result.get("request_fingerprint"),
         planner_evidence=result.get("planner_evidence"),
+        execution_run_created=bool(_safe_probe_string(result.get("run_id"), 160)),
     )
 
 
@@ -345,6 +346,7 @@ def _composite_planning_receipt(
     component_count: int,
     request_fingerprint: Any,
     planner_evidence: Any,
+    execution_run_created: bool = False,
 ) -> dict[str, Any]:
     fingerprint = _safe_probe_string(request_fingerprint, 128)
     evidence = _safe_planner_evidence(planner_evidence)
@@ -355,6 +357,7 @@ def _composite_planning_receipt(
         "error_code": _safe_probe_string(error_code, 96) or None,
         "component_count": max(0, min(8, int(component_count))),
         "request_fingerprint": fingerprint or None,
+        "execution_run_created": bool(execution_run_created),
         "planner_evidence": evidence,
         "passed": status == "PLANNED" and bool(fingerprint) and component_count > 0,
         "elapsed_ms": int(max(0.0, monotonic() - started) * 1000),
@@ -371,6 +374,7 @@ def _bounded_composite_planning_receipt(
         component_count=receipt.get("component_count") or 0,
         request_fingerprint=receipt.get("request_fingerprint"),
         planner_evidence=receipt.get("planner_evidence"),
+        execution_run_created=bool(receipt.get("execution_run_created")),
     )
 
 

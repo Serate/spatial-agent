@@ -1025,3 +1025,11 @@
 - **修复**：新增版本化 `provider-structured-output.v1` profile；默认使用 strict `json_schema`，显式配置才使用 `json_object`，`unavailable` 在网络请求前 fail closed。Composite Planner 保持原有两参数 client seam，所有返回仍经过本地 response/schema、能力 allowlist 和 TaskPlan 门控。
 - **验证**：M288/M279/M286/M287 集中 Docker contract **25/25**；live provider probe `READY`，Chat Completions、`json_schema`、schema enforced、1 请求 0 重试；未保存模型原文、prompt、密钥或私有路径。
 - **预防**：新增 provider wire 兼容时优先在 client profile/adaptor 内收口；不得仅为命中真实模型而改动公共协议、放宽 unknown fields 或增加 repair 次数。前端只消费脱敏 structured-output evidence，不显示 provider 原始响应。
+
+## M289 真实 Composite Planner 规划请求在 45 秒内超时
+
+- **现象**：Docker 中一次明确的 GIS + Economic Composite planning probe 使用真实中转模型和 1024 输出预算，最终返回 `FAILED/timeout`、0 组件、无 request fingerprint、未创建 execution run。
+- **根因分类**：provider connectivity probe 已在同一配置下 `READY`，因此本次不是简单网络不可达；当前只能将其归类为真实 Composite 规划延迟/响应未完成，不能推断模型原文或业务数据原因。
+- **处理**：保持 planning deadline、schema、能力 allowlist 和 TaskPlan gate 不变；M289 增加跨状态 matrix 与 `execution_run_created` 脱敏 receipt，方便区分成功、澄清、拒绝和超时。
+- **验证**：M289 matrix + M280 contract **7/7**；规则模式可结构化澄清且不创建 run；live 只记录 timeout、组件数、wire/metric 摘要，不保存 prompt、模型原文、密钥或路径。
+- **预防**：后续若调整 live deadline，必须只在显式 acceptance harness 中调整并保留单次请求边界；不能通过无限等待、自动重复请求或放宽输出 schema 把 timeout 伪装成成功。

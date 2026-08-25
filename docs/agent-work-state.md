@@ -18,9 +18,9 @@
 
 ## 当前阶段
 
-- 阶段：M289 真实 Composite Planner 纵向成功链路
-- 状态：M288 已完成并完成版本前收口；M289-A 全局能力图、Spec、Plan 已创建，当前开始完整能力包实施规划；中转真实 Composite 输出继续保持 fail closed。
-- 当前任务：M289-A 全局规划与验收矩阵，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M290 Provider Deadline 与真实 Composite 完成
+- 状态：M289 已完成并完成版本前收口；M290-A 全局能力图、Spec、Plan 已创建，当前开始 deadline/timeout 能力包；中转真实 Composite 输出继续保持 fail closed。
+- 当前任务：M290-A 全局 deadline/timeout 状态建模，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m288-wire-structured-output-capability-map.md`](m288-wire-structured-output-capability-map.md)
   - [`docs/m288-wire-structured-output-spec.md`](m288-wire-structured-output-spec.md)
@@ -28,12 +28,22 @@
   - [`docs/m289-real-composite-success-capability-map.md`](m289-real-composite-success-capability-map.md)
   - [`docs/m289-real-composite-success-spec.md`](m289-real-composite-success-spec.md)
   - [`docs/m289-real-composite-success-plan.md`](m289-real-composite-success-plan.md)
+  - [`docs/m290-provider-deadline-completion-capability-map.md`](m290-provider-deadline-completion-capability-map.md)
+  - [`docs/m290-provider-deadline-completion-spec.md`](m290-provider-deadline-completion-spec.md)
+  - [`docs/m290-provider-deadline-completion-plan.md`](m290-provider-deadline-completion-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m289-real-composite-success-capability-map.md`
-- `docs/m289-real-composite-success-spec.md`
-- `docs/m289-real-composite-success-plan.md`
+- `docs/m290-provider-deadline-completion-capability-map.md`
+- `docs/m290-provider-deadline-completion-spec.md`
+- `docs/m290-provider-deadline-completion-plan.md`
+- `evaluation/composite_planning_matrix.py`
+- `scripts/m289_real_composite_acceptance.py`
+- `tests/test_m289_real_composite_success.py`
+- `agent/application/composite_runs.py`
+- `agent/composite_view.py`
+- `docs/milestones.md`
+- `docs/agent-development-issues.md`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
 - `tasks/plan.md`

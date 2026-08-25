@@ -128,6 +128,7 @@
     if (model.view_count) chips.push("包含 " + model.view_count + " 个结果视图");
     if (model.component_count) chips.push("覆盖 " + model.component_count + " 个分析部分");
     if (Object.keys(model.context || {}).length) chips.push("分析上下文已建立");
+    if (model.planning?.structured_output?.schema_enforced === true) chips.push("计划格式已确认");
     if (Object.keys(model.evidence || {}).length || Object.keys(model.evidence_registry || {}).length) chips.push("证据已保留");
     if (model.repair_lineage.status === "repaired") chips.push("计划已校正");
     else if (model.repair_lineage.status === "failed") chips.push("计划校正未完成");

@@ -37,6 +37,18 @@ class _Runs:
     pass
 
 
+class _ContextBuilder:
+    def build(self, request, *, planner="rule", backend="memory", domain_ids=None):
+        return {
+            "schema_version": "spatial-agent.composite-request-context.v2",
+            "request_fingerprint": "m280-context",
+            "capability_index": [
+                {"domain_id": "gis", "capability_id": "gis_summary", "available": True}
+            ],
+            "clarification": {"state": "not_required"},
+        }
+
+
 class _ApplicationPlanner:
     def plan(self, request, *, context=None):
         canonical = normalize_composite_request(
@@ -158,6 +170,7 @@ class M280ResponseCompatibilityTests(unittest.TestCase):
             projector=_Projection(),
             planner=_ApplicationPlanner(),
             composite_runs=_Runs(),
+            context_builder=_ContextBuilder(),
         )
 
         result = application.prepare("分析空间", domain_ids=["gis"])

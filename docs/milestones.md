@@ -5037,3 +5037,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Composite Planner 保持已有两参数 `complete_json` 公共接口；structured-output evidence 沿 planning、同步/异步、artifact/restart、live receipt 和 Composite View 进入前端 projection，旧 plan evidence 与新 provider evidence 可合并展示。
 - Docker M288/M279/M286/M287 集中契约 **25/25**，compileall、architecture strict、生产 readiness/home 200、Node projection smoke 通过；一次真实 provider probe 为 `READY`，Chat Completions + strict schema，1 请求 0 重试。
 - 已知边界：真实 provider connectivity 成功不等于真实 Composite 多组件计划稳定成功；非法模型输出仍必须在 execution run 创建前拒绝。下一阶段围绕全局目标规划真实 Composite 成功/澄清/拒绝矩阵。
+
+## M289：真实 Composite Planner 纵向成功链路（已完成，live 安全失败）
+
+- 新增领域中立 `composite-planning-matrix.v1`，覆盖 success、clarification、rejection、failure、component count 和 `execution_run_created`；新增 prepared canonical plan acceptance seam，sync/async 复用同一 request/evidence，不重复规划。
+- 新增 `scripts/m289_real_composite_acceptance.py`，为真实 Planner 预留 Docker acceptance 入口，并对照同步/异步结果类型、组件状态和 artifact；前端在 Composite View 中合并 planner/provider evidence，仅展示“计划格式已确认”。
+- Docker M289/M280/M283 **15/15**、compileall、architecture strict、生产 readiness/home 200、Node projection smoke 通过；规则模式返回结构化澄清且未创建 run。
+- 一次真实 Composite planning probe 使用中转模型在 45 秒 deadline 内超时，返回 0 组件、无 fingerprint、无 execution run；已记录为安全可恢复 provider latency 证据，不能宣称真实多域成功。
+- 全局重规划：下一阶段从 provider deadline/延迟、真实 Composite 可完成性、模型失败分类、跨域真实数据、Result/Answer 体验和部署恢复七个维度重新规划；不增加 repair 次数、不放宽 schema、不写专题分支。
