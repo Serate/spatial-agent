@@ -17,12 +17,12 @@
 
 ## 当前阶段
 
-- 阶段：M279 自然语言 Composite Planner。
-- 状态：M279-A/B/C/D/E 已完成，文档已收口，准备提交推送；M278 已提交并推送。
+- 阶段：M280 真实跨域 Composite 纵向验收。
+- 状态：M279 已提交推送；M280 Spec/Plan/能力图已创建，准备实现 M280-A Response compatibility。
 - 阶段规划：
-  - [`docs/m279-composite-planner-capability-map.md`](m279-composite-planner-capability-map.md)
-  - [`docs/m279-composite-planner-spec.md`](m279-composite-planner-spec.md)
-  - [`docs/m279-composite-planner-plan.md`](m279-composite-planner-plan.md)
+  - [`docs/m280-real-composite-acceptance-capability-map.md`](m280-real-composite-acceptance-capability-map.md)
+  - [`docs/m280-real-composite-acceptance-spec.md`](m280-real-composite-acceptance-spec.md)
+  - [`docs/m280-real-composite-acceptance-plan.md`](m280-real-composite-acceptance-plan.md)
   - [`tasks/plan.md`](../tasks/plan.md)
   - [`tasks/todo.md`](../tasks/todo.md)
 
@@ -129,6 +129,16 @@
 - 结果：provider 可达与 Planner contract 失败已分层；未把模型异常伪装成成功，也未触发 GIS/Economic 执行。
 - 当前阻塞：无。真实模型的输出契约兼容性留作后续 provider/Planner 优化，不阻塞离线阶段交付。
 
+### M280-A Response compatibility（待开始）
+
+- 目标：对真实中转模型的有限旧式/省略字段输出做显式归一化，最终仍进入 M279 canonical plan contract。
+- 待读/待修改文件：
+  - `agent/composite_planner.py`
+  - `agent/application/composite_planning.py`
+  - `tests/test_m280_real_composite_acceptance.py`（新增）
+- 验证：先用 replay/fake 覆盖合法别名、缺少 outcome、未知字段、provider error；不调用网络。
+- 当前阻塞：无。
+
 ## 已完成记录
 
 - 上下文恢复机制已完成：新增本快照、更新 `resume_context.ps1` 默认读取路径和历史开关，并同步恢复文档与中文问题日志；本地脚本输出验证通过，默认不加载历史文件。
@@ -138,6 +148,8 @@
 - M278-C/D 已完成：Docker 定向生命周期 + HTTP **7/7**，覆盖 FastAPI/stdlib 路由与 SQLite 重启接管；阶段级联合 **23/23**、compileall、architecture strict、CI/stage、生产 health 和真实 Docker async/evidence 验收通过。
 - M279 Spec/Plan/能力图已创建；下一步实现 Catalog projection，不读取无关历史或全量 Domain 源码。
 - M279-A/B/C/D/E 已完成：Docker 定向 **10/10**、阶段级联合 **33/33**；新增 projector、Rule/LLM contract、Planning Application 与 `/composite-plans` 跨入口 semantic route；真实中转规划失败按 contract 结构化拒绝。
+- M279 已提交并推送：`c351fe3 feat: add natural language composite planner`。
+- M280 Spec/Plan/能力图已创建；下一步只读取 M280 规划和 M280-A 文件，先实现 response compatibility。
 - 已安装 GitHub `sivaprasadreddy/sdd-skills` 的 `sdd-feature` 技能到 Codex 技能目录；该安装不修改项目仓库。
 
 ## 当前工作树变更
@@ -159,6 +171,9 @@
 - `docs/agent-development-issues.md`
 - `docs/agent-context-resume.md`
 - `docs/milestones.md`
+- `docs/m280-real-composite-acceptance-capability-map.md`
+- `docs/m280-real-composite-acceptance-spec.md`
+- `docs/m280-real-composite-acceptance-plan.md`
 - `tasks/plan.md`
 - `tasks/todo.md`
 - M278 源码、测试和历史文档已提交；当前只保留 M279 规划与快照改动。
@@ -197,5 +212,5 @@
 
 1. 读取本文件。
 2. 只读取上面列出的 M279 Spec/Plan 和 M279-E 待修改文件。
-3. M279 已完成；下一次恢复先根据项目全局规划 M280，不读取 M279 之外的历史源码。
+3. 只读取上面列出的 M280 Spec/Plan 和 M280-A 待修改文件，开始 response compatibility 的红→绿测试循环。
 4. 完成一个子任务后立即更新本文件，再更新 `tasks/todo.md`。

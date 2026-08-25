@@ -3,4 +3,9 @@
 - [x] M279-C 实现 resolve → plan → validate/repair → clarify/submit Application
 - [x] M279-D 接入 HTTP/CLI semantic command，保持 FastAPI/stdlib 一致
 - [x] M279-E Docker 定向/阶段级验收与中文记录、提交推送
+- [ ] M280-A 有界 Planner response compatibility normalizer
+- [ ] M280-B Planner evidence 与 compatibility 摘要
+- [ ] M280-C 离线 replay 与真实 planning probe
+- [ ] M280-D 真实 GIS + Economic sync/async/restart 验收
+- [ ] M280-E 文档、提交推送与全局重规划
 - [x] 每完成一个子任务，更新 `docs/agent-work-state.md` 的状态、文件、验证、阻塞和下一步

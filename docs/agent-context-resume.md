@@ -136,3 +136,9 @@
 - `HTTPApplication` 增加 `composite_plan`；FastAPI/stdlib 增加 `/composite-plans`。规则模式默认澄清，不猜测跨域组件；真实模型模式只在显式 `planner=openai` 时加载。
 - Docker M279 + M278/M277/M256/M275/M276 **33/33**，CI/stage、compileall、architecture strict、生产 health 通过；真实中转规划返回 HTTP 200 但 `REJECTED/plan_outcome_invalid`，未创建 run，已记录到中文问题日志。
 - 下一阶段全局重规划：优化真实 Planner/provider schema 兼容，验证合法跨域 DAG 的真实 GIS/Economic 执行、async/restart/evidence 和前端动态 View；保持默认测试离线精简。
+
+## M280：真实跨域 Composite 纵向验收（规划中）
+
+- 已创建 `docs/m280-real-composite-acceptance-capability-map.md`、Spec、Plan。下一步只读取这些文档及 M280-A 明确列出的 Planner/测试文件。
+- 顺序：有限 response compatibility → planner evidence → 离线 replay/live planning probe → 真实 GIS + Economic sync/async/restart/evidence → 全局重规划。
+- 不改变 M279/M278 公共 schema 版本，不把前端动态多面板和 RAG 混入本阶段；默认测试继续离线精简。

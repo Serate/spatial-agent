@@ -1,11 +1,11 @@
-# M279 当前实施计划
+# M280 当前实施计划
 
-本阶段依据 [`docs/m279-composite-planner-capability-map.md`](../docs/m279-composite-planner-capability-map.md)、[`docs/m279-composite-planner-spec.md`](../docs/m279-composite-planner-spec.md) 和 [`docs/m279-composite-planner-plan.md`](../docs/m279-composite-planner-plan.md) 执行。
+本阶段依据 [`docs/m280-real-composite-acceptance-capability-map.md`](../docs/m280-real-composite-acceptance-capability-map.md)、[`docs/m280-real-composite-acceptance-spec.md`](../docs/m280-real-composite-acceptance-spec.md) 和 [`docs/m280-real-composite-acceptance-plan.md`](../docs/m280-real-composite-acceptance-plan.md) 执行。
 
-当前恢复快照：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前阶段规划和快照列出的文件。本阶段 M278 已完成并推送，M279 准备开始实现。
+当前恢复快照：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前阶段规划和快照列出的文件。M279 已完成并推送，M280 准备开始实现。
 
-1. Catalog projection：生成领域中立、有界的 Planner context。
-2. Rule/LLM Composite Planner：输出同一 canonical request 并通过校验。
-3. CompositePlanningApplication：resolve、plan、validate/repair、clarify、submit。
-4. HTTP/CLI semantic command 与跨入口一致性。
+1. Response compatibility：有限字段兼容与 fail-closed。
+2. Planner evidence：compatibility/status/fingerprint 摘要。
+3. 离线 replay 与显式 live planning probe。
+4. 真实 GIS + Economic sync/async/restart/evidence 验收。
 5. Docker 验收、中文记录、提交推送和全局重规划。

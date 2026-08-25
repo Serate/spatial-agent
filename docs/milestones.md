@@ -4956,3 +4956,9 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - `HTTPApplication` 增加 `composite_plan` 语义命令；FastAPI/stdlib 暴露 `/composite-plans`，默认规则模式不猜测跨域组合，`planner=openai` 懒加载真实 OpenAI-compatible Planner。
 - Docker M279 + M278/M277/M256/M275/M276 **33/33**，CI/stage、compileall、architecture strict、生产 health 通过；真实中转 planning probe HTTP 200 但输出 `plan_outcome_invalid`，按设计安全拒绝且无 run_id。
 - 本阶段代码与中文记录待提交推送；下一阶段从全局目标规划 Planner schema 兼容优化、真实跨域执行验收和前端动态 Composite View，不复制领域专用流程。
+
+## M280：真实跨域 Composite 纵向验收（规划中）
+
+- 目标：将 M279 的可规划能力推进到真实中转模型 → 合法 GIS + Economic DAG → sync/async/restart/evidence 的一条纵向闭环。
+- 已创建 M280 能力图、Spec、Plan；第一步是对有限旧式/省略字段做显式 response compatibility，最终仍必须通过 canonical Composite contract，不允许猜测工具或事实。
+- 真实模型失败继续按 provider、Planner contract、执行和数据层分开记录；默认 CI 保持离线，真实数据只在 Docker 显式验收。
