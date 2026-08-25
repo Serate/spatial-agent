@@ -6,6 +6,7 @@ from pathlib import Path
 from agent.application.composite_runs import CompositeRunApplication
 from agent.composite_contract import build_composite_result_contract
 from agent.application.composite_planning import CompositePlanningApplication
+from agent.application.http import HTTPApplication
 from agent.composite_planner import (
     CompositePlannerError,
     ReplayCompositePlanner,
@@ -133,6 +134,32 @@ class M283PlanningBridgeTests(unittest.TestCase):
         self.assertEqual(result["status"], "QUEUED")
         self.assertEqual(runs.evidence["context_fingerprint"], "context-fixture")
         self.assertNotIn("request_context", runs.evidence)
+
+    def test_http_semantic_command_can_submit_a_replay_plan(self):
+        runs = _PlanningRuns()
+        app = CompositePlanningApplication(
+            host=_Host(),
+            projector=object(),
+            planner=ReplayCompositePlanner(_canonical_payload()),
+            composite_runs=runs,
+            context_builder=_Context(),
+        )
+
+        result = HTTPApplication(object(), composite_planning=app).execute(
+            "composite_plan",
+            {
+                "request": "分析洪山区",
+                "planner": "replay",
+                "backend": "memory",
+                "domain_ids": ["gis"],
+                "execute": True,
+                "async": True,
+            },
+        )
+
+        self.assertEqual(result["status"], "QUEUED")
+        self.assertEqual(result["request_context"]["schema_version"], "spatial-agent.composite-request-context.v2")
+        self.assertEqual(runs.evidence["planner_source"], "replay")
 
 
 class _Coordinator:

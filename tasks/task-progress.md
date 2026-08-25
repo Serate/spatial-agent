@@ -12,13 +12,13 @@
 
 ## 当前进行中
 
-### M283-C：开放式成功切片与跨入口恢复 — 进行中
+### M283-D：动态结果体验与阶段里程碑 — 进行中
 
-- 目标：用已有能力验证开放式计划进入 Composite lifecycle，并使 planner evidence 在同步、异步、artifact 和重启恢复中保持一致。
-- 需要修改：`agent/application/composite_runs.py`、`agent/application/composite_planning.py`、`tests/test_m283_open_query_agent.py`。
-- 验证：Docker open-query bridge、Composite lifecycle/HTTP、M282 回归；不调用网络，不保存模型原文。
+- 目标：让前端动态消费 context、plan、clarification、answer、view 和 evidence，突出用户结论与下一步，不暴露思维链。
+- 需要修改：`web/src` 对应 renderer/projection 文件、`tests` 前端 contract/smoke 文件、`docs/m283-open-query-agent-plan.md`。
+- 验证：先按需读取 `web/src` 相关文件；使用精简 Node/browser smoke，Docker 显式验证，不调用网络。
 - 阻塞：无。
-- 下一步：补真实 Docker HTTP 的 replay/fake 成功入口，再进入前端结果体验。
+- 下一步：先按 UI skill 的局部规则审查当前 projection/render seam，再决定最小前端改动。
 
 ## 最近完成
 
@@ -69,6 +69,12 @@
 - 结果：新增 `ReplayCompositePlanner`，与 Rule/LLM 复用同一 provider normalization、context schema 校验、canonical plan 和 capability allowlist；支持脱敏 alias replay，不保存模型原文。
 - 文件：`agent/composite_planner.py`、`tests/test_m283_open_query_agent.py`。
 - 验证：Docker M283/M282/M279 **23/23**；documented alias、未知字段、replay failure 和 v2 context parity 通过。
+
+### M283-C：开放式成功切片与跨入口恢复 — 已完成
+
+- 结果：`CompositePlanningApplication` 通过可选 planning-evidence seam 进入同步/异步 Composite lifecycle；有界 planner evidence 可恢复到 result、evidence、artifact 和 SQLite/restart，不把完整 v2 context 写入执行请求。
+- 文件：`agent/application/composite_runs.py`、`agent/application/composite_planning.py`、`tests/test_m283_open_query_agent.py`。
+- 验证：Docker M283/M278/M282 **23/23**；HTTP semantic Replay submission、async artifact/restart evidence、M278 lifecycle/HTTP、M282 回归通过；compileall、architecture strict 通过。
 
 ## 记录模板
 

@@ -17,7 +17,7 @@
 
 - 阶段：M283 开放式请求 Agent 闭环
 - 状态：M282 已完成并推送 `a7e933b`；M283-A 全局能力图、Spec、Plan 已完成。
-- 当前任务：M283-C 开放式成功切片与跨入口恢复，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；需要更详细状态时再读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 当前任务：M283-D 动态结果体验与阶段里程碑，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；需要更详细状态时再读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m283-open-query-agent-capability-map.md`](m283-open-query-agent-capability-map.md)
   - [`docs/m283-open-query-agent-spec.md`](m283-open-query-agent-spec.md)
@@ -25,9 +25,8 @@
 
 ## 当前任务明确文件
 
-- `agent/application/composite_runs.py`
-- `agent/application/composite_planning.py`
-- `tests/test_m283_open_query_agent.py`
+- `web/src` 对应 renderer/projection 文件（按需定位）
+- 前端 contract/smoke 文件（按需定位）
 
 ## 验证与安全约定
 
