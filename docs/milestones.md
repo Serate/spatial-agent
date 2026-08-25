@@ -4886,3 +4886,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 新增 `scripts/live_provider_probe.py`：只有 `--allow-network` 与 `SPATIAL_AGENT_LIVE_OPENAI=1` 同时存在才可运行；CLI 失败退出码与 receipt 状态一致，不输出 prompt、请求头、密钥、模型原文或 URL。
 - Docker M271/M270 定向 **7/7**、M269/M268/M264 相邻回归 **14/14**、compileall、architecture strict、quick/stage 全部通过。fake provider 覆盖 READY、响应 shape 错误、provider error、阻塞 timeout 和参数边界。
 - 一次显式真实 probe 已通过：当前配置的中转 OpenAI-compatible Chat Completions 返回 READY，1 次请求、0 次重试、约 1.3 秒；这只证明 provider 接入，不替代下一阶段的真实 LLM TaskPlan/能力选择/工具 DAG 验收。下一阶段为开放式多步 Planner 验收。
+
+## M272：开放式 LLM 多步真实验收（已完成）
+
+- 新增 `docs/m272-open-llm-acceptance-spec.md` 与 `docs/m272-open-llm-acceptance-plan.md`，将 provider、Planner、ToolRegistry/GIS 执行、Result/Evidence 分层验收；不为测试问句新增 Runtime 或 Domain 专用分支。
+- 真实中转 provider probe READY 后，真实 LLM + memory 的“分析洪山区空间概况”通过；Rule Planner + local GIS 同一请求 8 个工具步骤通过；脱敏 Planner 投影显示 local/memory prompt 约 14 KB、schema 651 B，未发现本地数据上下文膨胀。
+- 真实 LLM + local GIS 同一请求在 provider timeout 45 秒、harness deadline 90 秒、0 次重试下通过：1 次请求、0 次重试、约 36 秒，说明真实模型能够生成合法多步计划并驱动真实 GIS 数据执行。未保存 prompt、模型原文、密钥或路径。
+- 20 秒 provider timeout 对照在约 23 秒返回失败且 0 工具步骤；修正 live baseline 将 provider 自身 timeout 与 harness deadline timeout 分开投影。Docker M270/M271 定向 **8/8**，M269/M268/M264 相邻 **14/14**，compileall、architecture strict、quick/stage 通过。
+- 全局重规划：下一阶段不立即新增大量专题工具；先扩展真实 LLM 验收矩阵，覆盖跨 vector/raster/metrics 的复合请求、开放式澄清/拒绝、有限 repair，以及 HTTP/async/artifact/evidence/前端一致性，再根据失败面决定是否调整 Planner context 或通用算子。

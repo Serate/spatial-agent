@@ -157,7 +157,11 @@ def run_live_baseline(
         _emit_progress(
             progress_callback,
             {
-                "event": "completed" if result.get("error_class") != "timeout" else "timeout",
+                # A provider may report its own timeout before the harness
+                # deadline.  Only the bounded receipt itself is a harness
+                # timeout; keep provider failures as completed case calls
+                # with status=FAILED so the two failure planes stay distinct.
+                "event": "timeout" if result.get("deadline_exceeded") else "completed",
                 "case_id": case_id,
                 "phase": str(result.get("phase") or "case_runtime_call"),
                 "status": str(result.get("status") or "FAILED"),

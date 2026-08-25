@@ -98,6 +98,40 @@ class M270LiveHarnessTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_live_baseline(heartbeat_seconds=0, snapshot_provider=lambda max_files: {})
 
+    def test_provider_timeout_is_not_reported_as_harness_deadline(self):
+        events = []
+        result = AgentRunResult(
+            run_id="run",
+            status=RunStatus.FAILED,
+            request="provider failure",
+            planner_metrics={
+                "status": "error",
+                "error_type": "timeout",
+                "attempts": 1,
+                "retries": 0,
+            },
+        )
+
+        report = run_live_baseline(
+            runtime_factory=lambda planner, backend: type(
+                "Runtime", (), {"run": lambda self, request, session_id: result}
+            )(),
+            replay_evaluator=lambda fixture: _replay(),
+            snapshot_provider=lambda max_files: {},
+            cases=[
+                {
+                    "id": "provider-timeout",
+                    "request": "provider timeout",
+                    "expected_status": "COMPLETED",
+                }
+            ],
+            deadline_seconds=1,
+            progress_callback=events.append,
+        )
+
+        self.assertEqual(report["cases"][0]["error_class"], "timeout")
+        self.assertEqual(events[-1]["event"], "completed")
+
 
 if __name__ == "__main__":
     unittest.main()

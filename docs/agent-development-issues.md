@@ -801,3 +801,11 @@
 - **修复**：新增 `evaluation/live_provider_probe.py` 与显式 `scripts/live_provider_probe.py`。Probe 使用已有 `OpenAIPlannerClient`，单次请求、`max_retries=0`、有界 timeout，返回固定 `live-provider-probe` receipt；不进入 Runtime，不触发 GIS，不自动切换中转/直连。
 - **验证**：Docker M271/M270 定向 **7/7**，M269/M268/M264 相邻回归 **14/14**，compileall、architecture strict、quick/stage 通过；真实中转 probe 返回 READY、Chat Completions、1 次请求、0 次重试。receipt 未保存 prompt、key、模型原文或路径。
 - **预防**：真实验收必须按“provider probe → Planner/能力选择 → TaskPlan/工具 DAG → 实际数据执行 → 结果/evidence/前端”分层；只有下一层成功后才能进入更昂贵的复杂请求。每层失败使用独立错误分类，不把 provider READY 当作 Agent 完成度。
+
+## M272 真实 LLM local timeout 与 GIS 失败的归因
+
+- **现象**：同一开放式“分析洪山区空间概况”请求，provider probe READY；真实 LLM + memory 完成，Rule Planner + local GIS 8 步完成；真实 LLM + local 在 provider timeout=20 秒时失败且 0 工具步骤，放宽到 provider 45 秒、harness 90 秒后完成，约 36 秒。
+- **诊断**：Planner 脱敏投影的 local/memory prompt 大小几乎相同（约 14 KB，schema 651 B）；失败发生在 Planner provider call，未进入 GIS 工具。因此不能把短 timeout 失败归类为 Rasterio/GDAL、数据对齐或 Runtime 执行错误。
+- **修复**：不修改业务链路；修正 live baseline 事件投影：运行时自身返回 `error_class=timeout` 时仍输出 `completed + status=FAILED`，只有 harness 产生 `deadline_exceeded=true` 的 timeout receipt 才输出 `event=timeout`。新增最小契约测试覆盖两种 timeout。
+- **验证**：Docker M270/M271 harness **8/8**；真实 LLM + memory、Rule Planner + local GIS、真实 LLM + local GIS 均完成；中转请求使用 1 次调用、0 次重试。结论是中转 latency 有波动但当前配置可完成，不是 GIS/Runtime 缺陷。
+- **预防**：真实模型验收同时记录 provider timeout、harness deadline、工具步骤数和 backend；先用短 probe/对照定位，再调大 provider deadline。不要通过增加 Runtime 重试或修改 GIS 算法掩盖 provider 波动。
