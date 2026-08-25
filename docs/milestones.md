@@ -4828,3 +4828,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 修复指标 Domain 对“区域甲和区域乙”连接词及“区域乙的趋势”分析尾词的实体解析；修复 M264 测试对中文区域 Unicode 排序的错误假设。
 - Docker M264/M251/M263 联合回归 **14/14**，compileall、architecture strict、quick/stage 全部通过；真实 Economic HTTP 比较完成后，容器重启仍可读取 run detail 和 artifact，结果类型与 `composite` profile 保持一致。
 - 下一切片：从产品、架构、数据、模型、部署、体验、测试七个维度全局复盘，用第三个指标类专题或真实扩展数据验证“适配器 + 目录”接入成本；不复制 Runtime，不提前引入 RAG。
+
+## M265：数据就绪事实进入 Planner Context（已完成）
+
+- 按 `Spec → Plan → 实现 → Docker 集成验收` 完成 `docs/m265-data-readiness-context-spec.md`、`docs/m265-data-readiness-context-plan.md` 和能力图；本阶段不新增领域、不增加工具数量，也不把数据目录变成执行授权。
+- `agent/runtime_capabilities.py` 将 `DatasetCatalog.discovery` 投影为有界 `data_evidence`；`agent/capability_catalog.py` 仅按选中 capability 声明的 datasets 投影 `dataset_evidence`；`agent/planner_context.py` 传播 bounded readiness context。字段包含 status/coverage/time_range/CRS/resolution/stage/availability_reason 与 analysis-ready 对齐摘要，路径、原始异常、完整健康报告和未选中数据不进入模型上下文。
+- 真实 GIS 抽查确认容器为 `local/ready`；建设能力只看到 `admin_areas`、`dem`、`land_use` 三个数据集的有界事实，未发现绝对路径泄漏。执行前 CRS、栅格对齐、缺失数据和权限校验仍由 Domain/ToolRegistry 负责。
+- Docker M265 与 M249/M251/M263 定向回归 **14/14**；stage、quick、compileall、architecture strict 和 `git diff --check` 均通过。没有改变 Result、artifact、SQLite/restart 或既有生命周期语义。
+- 全局重规划：下一阶段进入 M266，先把重复的 workflow/capability/catalog 声明抽为领域中立、声明式的接入工厂/校验器，再用第三个指标类专题或真实扩展数据验证“新增专题只需适配器 + 目录 + 少量声明”；不复制 Runtime，不为单一区域/问句加分支，不提前引入 RAG。

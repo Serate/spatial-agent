@@ -396,7 +396,12 @@ def capability_context_summary(
         )[:max_capabilities]
     else:
         ordered = capabilities[:max_capabilities]
-    capability_items = [_capability_context_item(item) for item in ordered]
+    raw_data_evidence = source.get("data_evidence")
+    data_evidence = raw_data_evidence if isinstance(raw_data_evidence, Mapping) else {}
+    capability_items = [
+        _capability_context_item(item, data_evidence=data_evidence)
+        for item in ordered
+    ]
     tool_names = []
     seen_tools = set()
     for item in capability_items:
@@ -574,7 +579,11 @@ def runtime_capability_catalog(
     return snapshot
 
 
-def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
+def _capability_context_item(
+    item: Mapping[str, Any],
+    *,
+    data_evidence: Mapping[str, Any] | None = None,
+) -> Dict[str, Any]:
     result = {
         "id": str(item.get("id", "")),
         "label": str(item.get("label", ""))[:80],
@@ -602,7 +611,82 @@ def _capability_context_item(item: Mapping[str, Any]) -> Dict[str, Any]:
     # an absent provider observation into a false ``unavailable`` status.
     if isinstance(item.get("evidence"), Mapping):
         result["evidence"] = normalize_capability_evidence(item.get("evidence"))
+    dataset_names = [str(value) for value in item.get("datasets", []) if str(value)]
+    evidence_by_dataset = data_evidence or {}
+    result["dataset_evidence"] = {
+        name: _safe_dataset_context_evidence(evidence_by_dataset.get(name))
+        for name in dataset_names[:16]
+        if isinstance(evidence_by_dataset.get(name), Mapping)
+    }
     return result
+
+
+def _safe_dataset_context_evidence(value: Any) -> Dict[str, Any]:
+    """Project catalog facts safe for a bounded planner context."""
+
+    source = value if isinstance(value, Mapping) else {}
+    result: Dict[str, Any] = {}
+    for key in (
+        "status",
+        "quality",
+        "stage",
+        "time_range",
+        "resolution",
+        "source_url",
+        "availability_reason",
+    ):
+        if source.get(key) is not None:
+            result[key] = str(source[key])[:256]
+    for key in ("coverage", "crs"):
+        raw = source.get(key)
+        if isinstance(raw, (list, tuple)):
+            result[key] = [str(item)[:96] for item in list(raw)[:8]]
+        elif raw is not None:
+            result[key] = str(raw)[:256]
+    for key in ("file_count", "checked_files"):
+        if source.get(key) is not None:
+            try:
+                result[key] = max(0, min(int(source[key]), 1000000))
+            except (TypeError, ValueError):
+                result[key] = 0
+    discovery = source.get("discovery")
+    if isinstance(discovery, Mapping):
+        result["discovery"] = {
+            str(key)[:48]: _safe_discovery_value(item)
+            for key, item in list(discovery.items())[:16]
+            if str(key) in {
+                "stage",
+                "status",
+                "coverage",
+                "time_range",
+                "crs",
+                "resolution",
+                "tags",
+                "source_url",
+                "availability_reason",
+            }
+        }
+    analysis_ready = source.get("analysis_ready")
+    if isinstance(analysis_ready, Mapping):
+        alignment = analysis_ready.get("grid_alignment")
+        result["analysis_ready"] = {
+            "status": str(analysis_ready.get("status") or "unknown")[:32],
+            "derived_version": str(analysis_ready.get("derived_version") or "unknown")[:96],
+            "grid_alignment": (
+                str(alignment.get("status") or "unknown")[:32]
+                if isinstance(alignment, Mapping)
+                else str(alignment or "unknown")[:32]
+            ),
+        }
+    return result
+
+
+def _safe_discovery_value(value: Any) -> Any:
+    if isinstance(value, (list, tuple, set)):
+        return [str(item)[:96] for item in list(value)[:8]]
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return str(value)[:256]
 
 
 def _safe_tool_provider_summary(value: Mapping[str, Any] | str) -> Dict[str, Any]:

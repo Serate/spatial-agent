@@ -128,6 +128,39 @@ def _project_capability(value: Mapping[str, Any]) -> dict[str, Any]:
                 alignment, ("status", "reason_code")
             )
         projected["evidence"] = compact_evidence
+    dataset_evidence = value.get("dataset_evidence")
+    if isinstance(dataset_evidence, Mapping):
+        projected["dataset_evidence"] = {
+            str(name)[:96]: _project_dataset_evidence(item)
+            for name, item in list(dataset_evidence.items())[:16]
+            if isinstance(item, Mapping)
+        }
+    return projected
+
+
+def _project_dataset_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
+    projected = _copy_fields(
+        value,
+        (
+            "status",
+            "quality",
+            "stage",
+            "coverage",
+            "time_range",
+            "crs",
+            "resolution",
+            "availability_reason",
+            "file_count",
+            "checked_files",
+            "analysis_ready",
+        ),
+    )
+    discovery = value.get("discovery")
+    if isinstance(discovery, Mapping):
+        projected["discovery"] = {
+            str(key)[:48]: item
+            for key, item in list(discovery.items())[:16]
+        }
     return projected
 
 

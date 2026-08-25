@@ -704,3 +704,11 @@
 - **诊断**：在运行前检查 `request_facts.entities.regions` 和计划中的 `regions`，不要只看 Provider 的“无数据”错误；对连接词、实体尾部任务词和连续行政区名称分别做最小复现。
 - **修复**：先移除明确的连接词与句尾任务词，再使用非贪婪区域匹配；同步修正 Domain facts 与 Rule Planner，保留真实区域名称，不把解析逻辑放进公共 Runtime 或 Provider。
 - **预防**：领域新增自然语言表达时，必须同时验证 facts、Rule Planner、LLM Planner context 和 ToolRegistry 参数；后续可将已被两个 Domain 证明的实体解析抽为公共请求理解模块，但不能在指标核心中加入领域词表。
+
+## M265 阶段文档中的测试模块名与实际文件漂移
+
+- **现象**：M265 Spec 初稿把 M249 回归写成 `tests.test_m249_open_planner_context`，但仓库实际文件为 `tests/test_m249_open_planner.py`；照抄命令会在 Docker 中得到 `ModuleNotFoundError`，容易把文档错误误判为代码回归。
+- **根因**：阶段文档按能力描述命名测试，而 Python unittest 入口按实际文件/模块命名；重构或测试精简后，文档没有与 `tests/` 当前目录核对。
+- **诊断**：执行阶段命令前先用 `rg --files tests | rg 'm249|m265'` 核对文件，再将路径转换为模块名；阶段回归报告必须记录实际执行的命令和数量。
+- **修复**：将命令改为 `tests.test_m249_open_planner`，并在 M265 收口证据中记录 14/14、stage、quick、compileall 和 architecture strict 结果。
+- **预防**：Spec/Plan 中的测试命令只引用已存在的模块；测试重命名后同步更新文档，并在 Docker 中先运行定向命令，再运行 profile，避免只依赖静态检查。

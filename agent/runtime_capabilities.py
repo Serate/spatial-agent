@@ -97,6 +97,16 @@ def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
         for item in health.get("datasets", [])
         if isinstance(item, Mapping) and item.get("dataset")
     }
+    for item in health.get("datasets", []):
+        if not isinstance(item, Mapping) or not item.get("dataset"):
+            continue
+        dataset_name = str(item["dataset"])
+        entry = catalog.get(dataset_name)
+        discovery = getattr(entry, "discovery", {}) if entry is not None else {}
+        if isinstance(discovery, Mapping) and discovery:
+            evidence = snapshot.get("data_evidence", {}).get(dataset_name)
+            if isinstance(evidence, Mapping):
+                evidence["discovery"] = dict(discovery)
     snapshot["data_provenance"] = data_provenance
     snapshot["relationships"] = health.get("relationships", {})
     for capability in snapshot.get("capabilities", []):
