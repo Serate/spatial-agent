@@ -113,6 +113,7 @@ def _project_capability(value: Mapping[str, Any]) -> dict[str, Any]:
             "availability_mode",
             "availability_reason",
             "missing_datasets",
+            "derived_datasets",
             "request_requirements",
         ),
     )

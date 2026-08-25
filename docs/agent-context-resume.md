@@ -64,10 +64,11 @@
 - M264 已完成：新增领域中立的 `agent.analysis.indicator_core.IndicatorAnalysisEngine`，统一目录、期间筛选、latest/trend/compare、统计汇总和来源去重；`indicators` 与 `economic` Provider 仅保留数据读取/校验和兼容状态映射。Docker M264/M251/M263 联合回归 **14/14**，compileall、architecture strict、quick/stage 通过；真实 Economic HTTP 比较迁移后通过，容器重启后 run/artifact 均可恢复。期间还修复指标 Domain 对连接词和“区域乙的趋势”尾词的实体解析问题。
 - M265 已完成：将 `DatasetCatalog` 的有界 discovery/data readiness 事实接入 Planner-facing capability context；按选中 capability 的 datasets 投影 coverage、time_range、CRS、resolution、stage、availability_reason 和 analysis-ready 对齐摘要，过滤路径、原始异常、完整健康报告和未选中数据。新增 M265 spec/plan/capability map 与 3 项精简 contract；Docker M265 与 M249/M251/M263 定向回归 **14/14**、stage、quick、compileall、architecture strict 通过。真实 GIS snapshot 为 `local/ready`，选中建设能力的 context 只包含所需三个数据集且不含路径。
 - M266 已完成：新增领域中立的 `agent/domain_catalog.py`，以 `DomainCatalogSpec`、`validate_domain_catalog_spec()` 和 `build_domain_catalog()` 统一校验 capability/dataset/tool/result/workflow 声明；Indicators 与 Economic 迁移到同一工厂，GIS 复杂 catalog 暂保留。新增跨 Domain contract，验证非法引用在 Planner 前被拒绝、catalog/workflow 深拷贝隔离。Docker M266/Indicators/Economic 定向回归 **15/15**、quick+stage、compileall 和 architecture strict 通过；Runtime、HTTP、ToolRegistry、Result、Artifact 和前端主流程未修改。
+- M267 已完成：扩展 `DomainCatalogSpec.derived_datasets`，区分物理数据集与由前序数据/工具产生的派生依赖；GIS `legacy_road_slope` 的 `slope` 通过公共 builder 声明为派生数据，不进入 dataset groups/readiness。GIS 迁移到 `GIS_CATALOG_SPEC`，能力和 workflow IDs 保持不变；Planner context 可见派生依赖但不会伪造数据证据。Docker M267 及相邻回归 **22/22**、quick+stage、compileall、architecture strict 通过。
 
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文和 M266 声明式 catalog 工厂均已完成。下一阶段从全局七维度推进 M267：用第三个真实指标类专题或扩展数据做一次最小接入验收，证明新增专题只需 Domain 适配器、数据目录和声明，不复制 Runtime；随后再决定是否迁移 GIS catalog 或继续补跨领域 composite 能力，不提前引入 RAG。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂和 M267 派生数据声明/GIS 迁移均已完成。下一阶段从全局七维度推进 M268：以第三个真实指标类专题或扩展数据做最小接入验收，重点验证 Domain 适配器、数据目录、ToolRegistry schema、Result/View/Evidence 和 HTTP/artifact 仍能沿用；如果新增专题成本已稳定，再处理跨领域 composite 规划，不提前引入 RAG。
 
 ## 不变量
 

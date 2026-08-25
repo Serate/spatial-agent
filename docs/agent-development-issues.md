@@ -728,3 +728,11 @@
 - **诊断**：每次新增 `agent/` 下的公共 seam，都要比较模块导出职责、架构清单和报告中的 `public_modules`，不能只看 errors/warnings 是否为空。
 - **修复**：将 `agent/domain_catalog.py` 加入 `PUBLIC_MODULES`，并重新运行 architecture strict。
 - **预防**：Spec/Plan 的收口任务同时包含“新增公共模块登记”和报告抽查；公共模块不得落入 `COMPAT_SHIMS` 或 `COMPAT_FACADES`。
+
+## M267 公共 catalog 把派生数据集误判为未知物理数据
+
+- **现象**：GIS `legacy_road_slope` 能力声明了 `slope`，但物理 `dataset_tool_capabilities` 只有 `admin_areas/dem/land_use/roads/water`；直接用 M266 校验器迁移时被拒绝为 unknown dataset。
+- **根因**：能力依赖集合同时包含物理数据集和由前序栅格/空间步骤产生的虚拟数据集，原声明没有表达两者差异；不能为了通过校验把派生数据伪造为 DatasetCatalog ready 条目。
+- **诊断**：对每个 capability dataset 先与物理 DatasetCatalog/Provider 映射求差集，再检查是否有前序工具或 Domain preflight 产生该依赖；同时比较 dataset groups、health/readiness 和 Planner context，不能只看字符串是否存在。
+- **修复**：M267 增加领域中立的 `derived_datasets` 声明；公共 builder 允许 capability 引用派生依赖，并在 Planner context 显示 `derived_datasets`，但不生成 dataset evidence 或 ready 状态。
+- **预防**：新增专题的 catalog Spec 必须显式区分 physical/derived/optional 数据；派生数据仍需由 Runtime/ToolRegistry/Domain preflight 校验来源和对齐，公共 catalog 不得放宽执行门禁。

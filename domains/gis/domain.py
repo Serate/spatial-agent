@@ -6,7 +6,7 @@ import os
 import json
 from typing import Any, Mapping
 
-from agent.capability_catalog import capability_catalog
+from agent.domain_catalog import DomainCatalogSpec, build_domain_catalog, workflow_catalog as copy_workflow_catalog
 from agent.workflow_templates import (
     WorkflowTemplateError,
     normalize_workflow_composition,
@@ -25,6 +25,18 @@ from .workflow_templates import (
     KNOWN_RESULT_TYPES,
     KNOWN_TOOL_NAMES,
     workflow_template_catalog,
+)
+
+
+GIS_CATALOG_SPEC = DomainCatalogSpec(
+    domain_id="gis",
+    capabilities=tuple(GIS_CAPABILITIES),
+    dataset_tool_capabilities=GIS_DATASET_TOOL_CAPABILITIES,
+    dataset_groups=GIS_DATASET_GROUPS,
+    workflow_templates=workflow_template_catalog(),
+    known_tool_names=tuple(KNOWN_TOOL_NAMES),
+    known_result_types=tuple(KNOWN_RESULT_TYPES),
+    derived_datasets=("slope",),
 )
 
 
@@ -180,13 +192,9 @@ class GisDomainPack:
         return parse_spatial_request(request)
 
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
-        catalog = capability_catalog(
+        catalog = build_domain_catalog(
+            GIS_CATALOG_SPEC,
             environment=environment,
-            domain_id=self.domain_id,
-            capability_definitions=GIS_CAPABILITIES,
-            dataset_tool_capabilities=GIS_DATASET_TOOL_CAPABILITIES,
-            dataset_groups=GIS_DATASET_GROUPS,
-            workflow_templates=self.workflow_template_catalog(),
             actions=domain_action_catalog(self),
         )
         result = dict(catalog)
@@ -195,7 +203,7 @@ class GisDomainPack:
 
     def workflow_template_catalog(self) -> Mapping[str, Mapping[str, Any]]:
         """Return the GIS-owned declarative workflow catalog."""
-        return workflow_template_catalog()
+        return copy_workflow_catalog(GIS_CATALOG_SPEC)
 
     def discover(self, request: str, request_facts: Any) -> Any:
         from .routing import GisCapabilityRouter

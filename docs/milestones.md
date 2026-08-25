@@ -4844,3 +4844,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - GIS catalog 未强行迁移，避免把成熟复杂空间声明与新工厂同时改动；没有修改 Runtime、Planner 生命周期、ToolRegistry dispatch、HTTP、Artifact 或前端主流程。
 - Docker 按当前工作树重建并 healthy；M266/Indicators/Economic 定向 **15/15**、quick+stage、compileall、architecture strict、diff check 通过。
 - 全局重规划：下一阶段为 M267，使用第三个真实指标类专题或扩展数据做最小接入验收；如果接入成本已稳定，再评估 GIS catalog 迁移或跨领域 composite 规划，不提前引入 RAG。
+
+## M267：派生数据集声明与 GIS Catalog 迁移（已完成）
+
+- 对 GIS catalog 做只读试迁移时发现 `legacy_road_slope` 的 `slope` 是虚拟/派生依赖，不是物理 DatasetCatalog 条目；扩展 `DomainCatalogSpec` 的 `derived_datasets`，公共校验允许 capability 引用派生依赖，但 dataset groups 仍只接受物理数据集。
+- GIS 新增 `GIS_CATALOG_SPEC` 并通过同一 builder 暴露 catalog/workflow；`slope` 只作为 capability 的 `derived_datasets` 进入 Planner context，不进入数据健康/readiness，也不改变 preflight、ToolRegistry 或算法执行。
+- M267/M266/M249/M265/M251/M263 定向 **22/22**；Docker quick+stage、compileall、architecture strict 通过。GIS capability/workflow 数量和 ID 保持一致，容器 healthy。
+- 全局重规划：下一阶段为 M268，用第三个真实指标类专题或扩展数据做最小接入验收，验证适配器、数据目录、ToolRegistry schema、Result/View/Evidence 和 HTTP/artifact 复用；随后再决定跨领域 composite 规划，不提前引入 RAG。

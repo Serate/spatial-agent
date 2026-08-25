@@ -31,6 +31,7 @@ class DomainCatalogSpec:
     known_tool_names: tuple[str, ...]
     known_result_types: tuple[str, ...]
     analysis_ready_capability_ids: tuple[str, ...] = field(default_factory=tuple)
+    derived_datasets: tuple[str, ...] = field(default_factory=tuple)
 
 
 def build_domain_catalog(
@@ -53,6 +54,14 @@ def build_domain_catalog(
         actions=deepcopy(actions) if isinstance(actions, Mapping) else None,
     )
     catalog["declaration_schema_version"] = DOMAIN_CATALOG_SCHEMA_VERSION
+    catalog["derived_datasets"] = list(spec.derived_datasets)
+    for item in catalog.get("capabilities", []):
+        if isinstance(item, Mapping):
+            item["derived_datasets"] = [
+                name
+                for name in item.get("datasets", [])
+                if name in spec.derived_datasets
+            ]
     return catalog
 
 
@@ -80,6 +89,12 @@ def validate_domain_catalog_spec(spec: DomainCatalogSpec) -> None:
     }
     if not datasets:
         raise ValueError("dataset_tool_capabilities must not be empty")
+    derived_datasets = _unique_strings(spec.derived_datasets, "derived_datasets")
+    overlap = sorted(set(derived_datasets) & set(datasets))
+    if overlap:
+        raise ValueError(
+            "derived_datasets overlaps physical datasets: " + ", ".join(overlap)
+        )
     for name, tools in datasets.items():
         unknown = sorted(set(tools) - set(known_tools))
         if unknown:
@@ -107,7 +122,9 @@ def validate_domain_catalog_spec(spec: DomainCatalogSpec) -> None:
         declared_datasets = _unique_strings(
             item.get("datasets") or (), f"capability {capability_id}.datasets"
         )
-        unknown_datasets = sorted(set(declared_datasets) - set(datasets))
+        unknown_datasets = sorted(
+            set(declared_datasets) - set(datasets) - set(derived_datasets)
+        )
         if unknown_datasets:
             raise ValueError(
                 f"capability {capability_id} references unknown datasets: "

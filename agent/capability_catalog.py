@@ -601,6 +601,7 @@ def _capability_context_item(
         "capability_status": str(item.get("capability_status", "unknown")),
         "available": bool(item.get("available", False)),
         "missing_datasets": [str(value) for value in item.get("missing_datasets", [])],
+        "derived_datasets": [str(value) for value in item.get("derived_datasets", [])],
         "geometry": str(item.get("geometry", "unknown"))[:80],
         "request_requirements": _normalize_request_requirements(
             item.get("request_requirements")
