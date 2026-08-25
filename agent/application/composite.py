@@ -20,6 +20,14 @@ from agent.composite_contract import (
 )
 from agent.contract_versions import COMPOSITE_COORDINATOR_SCHEMA_VERSION
 from agent.domain_registry import DomainSelectionError
+from agent.runtime_core.execution_binding import (
+    ExecutionBindingError,
+    component_binding,
+    project_execution_binding,
+    task_plan_from_binding,
+    validate_component_result,
+    validate_execution_binding,
+)
 
 
 _MAX_RECEIPTS = 8
@@ -41,12 +49,16 @@ class CompositeApplication:
 
     schema_version = COMPOSITE_COORDINATOR_SCHEMA_VERSION
 
-    def __init__(self, *, host: Any) -> None:
+    def __init__(self, *, host: Any, require_execution_binding: bool = False) -> None:
         if host is None or not callable(getattr(host, "select", None)) or not callable(
             getattr(host, "service", None)
         ):
             raise ValueError("host must expose select() and service()")
         self._host = host
+        # Legacy direct coordinator callers remain supported during the
+        # migration. Production HTTP composition enables this gate explicitly;
+        # all planner-produced submissions carry a binding.
+        self._require_execution_binding = bool(require_execution_binding)
 
     def run(
         self,
@@ -54,10 +66,23 @@ class CompositeApplication:
         *,
         session_id: str = "default",
         run_id: str | None = None,
+        execution_binding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Run components in declaration order and return one bounded result."""
 
         normalized = normalize_composite_request(request)
+        binding = None
+        if execution_binding is not None or self._require_execution_binding:
+            try:
+                binding = validate_execution_binding(
+                    execution_binding,
+                    request=normalized,
+                )
+            except ExecutionBindingError as exc:
+                raise CompositeCoordinatorError(
+                    "composite execution binding was rejected",
+                    code=exc.code,
+                ) from exc
         parent_session = _bounded_session(session_id)
         receipts: dict[str, dict[str, Any]] = {}
         children: dict[str, dict[str, Any]] = {}
@@ -91,15 +116,41 @@ class CompositeApplication:
 
             try:
                 service = self._host.service(selection)
+                bound_component = (
+                    component_binding(binding, component_id)
+                    if binding is not None
+                    else None
+                )
                 child = self._run_service(
                     service,
                     component,
+                    binding_component=bound_component,
                     session_id=_component_session(
                         parent_session,
                         normalized["fingerprint"],
                         component_id,
                     ),
                 )
+                if bound_component is not None:
+                    try:
+                        validate_component_result(bound_component, child)
+                    except ExecutionBindingError as exc:
+                        raise CompositeCoordinatorError(
+                            "component result did not satisfy execution binding",
+                            code=exc.code,
+                        ) from exc
+                    child = dict(child)
+                    child["_execution_evidence"] = {
+                        "schema_version": "spatial-agent.execution-binding-evidence.v1",
+                        "binding_fingerprint": binding["binding_fingerprint"],
+                        "plan_fingerprint": bound_component["plan_fingerprint"],
+                        "component_id": component_id,
+                        "step_ids": [
+                            str(item.get("id") or "")[:48]
+                            for item in (bound_component.get("plan", {}).get("steps") or [])
+                            if isinstance(item, Mapping)
+                        ],
+                    }
                 state = _child_state(child.get("status"))
                 if state == "completed":
                     children[component_id] = child
@@ -131,9 +182,10 @@ class CompositeApplication:
             normalized,
             children,
             run_id=effective_run_id,
+            execution_binding=project_execution_binding(binding) if binding is not None else None,
         )
         state = str(result.get("composite", {}).get("state") or "failed")
-        return {
+        response = {
             "schema_version": self.schema_version,
             "run_id": effective_run_id,
             "status": _coordinator_status(state),
@@ -142,6 +194,9 @@ class CompositeApplication:
             "components": list(receipts.values())[:_MAX_RECEIPTS],
             "result": result,
         }
+        if binding is not None:
+            response["execution_binding"] = project_execution_binding(binding)
+        return response
 
     def _select(self, domain_id: str) -> Any:
         """Resolve a Domain only through Host selection and allowlist checks."""
@@ -164,6 +219,7 @@ class CompositeApplication:
         service: Any,
         component: Mapping[str, Any],
         *,
+        binding_component: Mapping[str, Any] | None = None,
         session_id: str,
     ) -> dict[str, Any]:
         runner = getattr(service, "run", None)
@@ -178,7 +234,16 @@ class CompositeApplication:
             "planner": component["planner"],
             "backend": component["backend"],
         }
-        if isinstance(component.get("workflow"), Mapping):
+        if binding_component is not None:
+            if not _accepts_keyword(runner, "validated_plan"):
+                raise CompositeCoordinatorError(
+                    "Domain service cannot consume a validated execution plan",
+                    code="domain_service_binding_unsupported",
+                )
+            kwargs["validated_plan"] = task_plan_from_binding(binding_component)
+            if isinstance(binding_component.get("workflow"), Mapping):
+                kwargs["workflow"] = dict(binding_component["workflow"])
+        elif isinstance(component.get("workflow"), Mapping):
             kwargs["workflow"] = dict(component["workflow"])
         value = runner(**kwargs)
         if not isinstance(value, Mapping):
@@ -238,6 +303,15 @@ class CompositeApplication:
             receipt["error_code"] = str(error_code)[:96]
         if dependency_ids:
             receipt["blocked_by"] = [str(item)[:48] for item in dependency_ids[:_MAX_RECEIPTS]]
+        execution = child.get("_execution_evidence")
+        if isinstance(execution, Mapping):
+            receipt["execution"] = {
+                "schema_version": str(execution.get("schema_version") or "")[:96],
+                "binding_fingerprint": str(execution.get("binding_fingerprint") or "")[:128],
+                "plan_fingerprint": str(execution.get("plan_fingerprint") or "")[:128],
+                "component_id": str(execution.get("component_id") or "")[:48],
+                "step_ids": [str(item)[:48] for item in (execution.get("step_ids") or [])[:_MAX_RECEIPTS]],
+            }
         return receipt
 
 
@@ -287,6 +361,19 @@ def _component_session(parent: str, fingerprint: str, component_id: str) -> str:
         (parent + "|" + fingerprint + "|" + component_id).encode("utf-8")
     ).hexdigest()[:24]
     return "composite-" + digest + "-" + component_id[:40]
+
+
+def _accepts_keyword(method: Any, name: str) -> bool:
+    try:
+        import inspect
+
+        parameters = inspect.signature(method).parameters
+        return name in parameters or any(
+            item.kind == inspect.Parameter.VAR_KEYWORD
+            for item in parameters.values()
+        )
+    except (TypeError, ValueError):
+        return False
 
 
 __all__ = [

@@ -45,7 +45,12 @@ def build_composite_view_projection(
     request = composite.get("request")
     request = request if isinstance(request, Mapping) else {}
     fingerprint = _text(request.get("fingerprint"), 128)
-    answer = _answer_override(answer) or _build_answer(result, state, components)
+    execution_binding = request.get("execution_binding")
+    answer = (
+        _answer_override(answer)
+        or _answer_override(result.get("answer_structured"))
+        or _build_answer(result, state, components)
+    )
     sections = _build_sections(components)
     views = _build_views(result.get("views"), state)
     evidence = _build_evidence(composite.get("evidence"), state)
@@ -57,6 +62,7 @@ def build_composite_view_projection(
         "status": _status(result.get("status"), state),
         "state": state,
         "request_fingerprint": fingerprint or None,
+        "execution_binding": _project_execution_binding(execution_binding),
         "answer": answer,
         "sections": sections,
         "views": views,
@@ -150,6 +156,7 @@ def _build_sections(components: Sequence[Mapping[str, Any]]) -> list[dict[str, A
                 "data_profile": _safe_object(item.get("data_profile")),
                 "answer": _text(item.get("answer"), 640),
                 "view_refs": _safe_strings(item.get("view_refs"), 16),
+                "execution": _project_execution(item.get("execution")),
             }
         )
     return sections
@@ -180,7 +187,7 @@ def _build_views(value: Any, state: str) -> list[dict[str, Any]]:
 
 def _build_evidence(value: Any, state: str) -> dict[str, Any]:
     source = value if isinstance(value, Mapping) else {}
-    return {
+    result = {
         "schema_version": _text(source.get("schema_version"), 96),
         "available": bool(source),
         "state": _text(source.get("state") or state, 32),
@@ -191,6 +198,10 @@ def _build_evidence(value: Any, state: str) -> dict[str, Any]:
         "pending_component_ids": _safe_strings(source.get("pending_component_ids"), _MAX_COMPONENTS),
         "component_evidence": _bounded_value(source.get("component_evidence") or [], depth=0),
     }
+    execution = source.get("execution_binding")
+    if isinstance(execution, Mapping):
+        result["execution_binding"] = _project_execution_binding(execution)
+    return result
 
 
 def _build_planning(value: Any) -> dict[str, Any]:
@@ -203,6 +214,10 @@ def _build_planning(value: Any) -> dict[str, Any]:
         "planner_source": _text(value.get("planner_source"), 32),
         "schema_status": _text(value.get("schema_status"), 32),
     }
+    if isinstance(value.get("execution_binding"), Mapping):
+        result["execution_binding"] = _project_execution_binding(
+            value["execution_binding"]
+        )
     structured_output = project_structured_output_evidence(
         value.get("structured_output")
     )
@@ -335,6 +350,30 @@ def _safe_strings(value: Any, limit: int) -> list[str]:
     if not isinstance(value, Sequence):
         return []
     return [_text(item, 96) for item in list(value)[:limit] if _text(item, 96)]
+
+
+def _project_execution_binding(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping):
+        return None
+    result = {
+        "schema_version": _text(value.get("schema_version"), 96),
+        "binding_fingerprint": _text(value.get("binding_fingerprint"), 128),
+        "request_fingerprint": _text(value.get("request_fingerprint"), 128),
+        "component_ids": _safe_strings(value.get("component_ids"), _MAX_COMPONENTS),
+    }
+    return {key: item for key, item in result.items() if item not in (None, "", [])}
+
+
+def _project_execution(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping):
+        return None
+    result = {
+        "schema_version": _text(value.get("schema_version"), 96),
+        "binding_fingerprint": _text(value.get("binding_fingerprint"), 128),
+        "plan_fingerprint": _text(value.get("plan_fingerprint"), 128),
+        "step_ids": _safe_strings(value.get("step_ids"), _MAX_COMPONENTS * 2),
+    }
+    return {key: item for key, item in result.items() if item not in (None, "", [])}
 
 
 def _status(value: Any, state: str) -> str:

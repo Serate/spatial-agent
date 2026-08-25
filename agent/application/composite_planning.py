@@ -8,6 +8,7 @@ runtime capability snapshot so it can be passed to a Rule or LLM planner.
 
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -28,6 +29,11 @@ from agent.runtime_core.composite_taskplan import (
     CompositeTaskPlanBridge,
     CompositeTaskPlanBridgeError,
     project_task_plan_bridge,
+)
+from agent.runtime_core.execution_binding import (
+    ExecutionBindingError,
+    build_execution_binding,
+    project_execution_binding,
 )
 from agent.runtime_core.plan_completeness import (
     annotate_catalog_capabilities,
@@ -69,6 +75,14 @@ _SAFE_READINESS_FIELDS = (
     "resolution",
     "availability_reason",
 )
+
+
+class _PreparedComposite(dict):
+    """Public mapping plus a non-serialized binding for the submit seam."""
+
+    def __init__(self, value: Mapping[str, Any], *, execution_binding: Mapping[str, Any] | None = None):
+        super().__init__(value)
+        self.execution_binding = dict(execution_binding) if isinstance(execution_binding, Mapping) else None
 
 
 class CompositeCapabilityProjector:
@@ -582,21 +596,26 @@ class CompositePlanningApplication:
         if prepared.get("status") != "PLANNED":
             return prepared
         canonical = prepared.get("request")
+        execution_binding = getattr(prepared, "execution_binding", None)
         if asynchronous:
             submit_with_evidence = getattr(
                 self._composite_runs, "submit_async_with_planning", None
             )
             if callable(submit_with_evidence):
-                execution = submit_with_evidence(
+                execution = _call_optional_binding(
+                    submit_with_evidence,
                     canonical,
+                    execution_binding=execution_binding,
                     session_id=str(session_id or "default")[:120],
                     idempotency_key=idempotency_key,
                     export_artifact=bool(export_artifact),
                     planner_evidence=prepared.get("planner_evidence"),
                 )
             else:
-                execution = self._composite_runs.submit_async(
+                execution = _call_optional_binding(
+                    self._composite_runs.submit_async,
                     canonical,
+                    execution_binding=execution_binding,
                     session_id=str(session_id or "default")[:120],
                     idempotency_key=idempotency_key,
                     export_artifact=bool(export_artifact),
@@ -604,15 +623,19 @@ class CompositePlanningApplication:
         else:
             run_with_evidence = getattr(self._composite_runs, "run_with_planning", None)
             if callable(run_with_evidence):
-                execution = run_with_evidence(
+                execution = _call_optional_binding(
+                    run_with_evidence,
                     canonical,
+                    execution_binding=execution_binding,
                     session_id=str(session_id or "default")[:120],
                     export_artifact=bool(export_artifact),
                     planner_evidence=prepared.get("planner_evidence"),
                 )
             else:
-                execution = self._composite_runs.run(
+                execution = _call_optional_binding(
+                    self._composite_runs.run,
                     canonical,
+                    execution_binding=execution_binding,
                     session_id=str(session_id or "default")[:120],
                     export_artifact=bool(export_artifact),
                 )
@@ -701,9 +724,23 @@ class CompositePlanningApplication:
             raise CompositePlannerError(
                 "candidate plan is not semantically complete", code=exc.code
             ) from exc
+        try:
+            execution_binding = build_execution_binding(
+                canonical,
+                projected,
+                task_plan_bridge=task_plan_bridge,
+                planner_name=planner_name,
+                backend=backend,
+            )
+        except ExecutionBindingError as exc:
+            raise CompositePlannerError(
+                "candidate execution binding is invalid",
+                code=exc.code,
+                details=exc.details,
+            ) from exc
         planner_source = str(candidate.get("planner_source") or planner_name)[:32]
         compatibility = _safe_compatibility(candidate.get("compatibility"))
-        result = {
+        result = _PreparedComposite({
             "schema_version": self.schema_version,
             "status": "PLANNED",
             "planner_source": planner_source,
@@ -719,7 +756,8 @@ class CompositePlanningApplication:
             },
             "compatibility": compatibility,
             "task_plan_bridge": project_task_plan_bridge(task_plan_bridge),
-        }
+            "execution_binding": project_execution_binding(execution_binding),
+        }, execution_binding=execution_binding)
         result["planner_evidence"] = _planner_evidence(
             candidate,
             planner_source=planner_source,
@@ -739,6 +777,9 @@ class CompositePlanningApplication:
             provider_metrics=provider_metrics,
         )
         result["planner_evidence"]["plan_completeness"] = plan_completeness
+        result["planner_evidence"]["execution_binding"] = project_execution_binding(
+            execution_binding
+        )
         return result
 
     def _selected_planner(self, planner_name: str, backend: str) -> Any:
@@ -804,7 +845,11 @@ class CompositePlanningApplication:
     def _attach_context(
         result: Mapping[str, Any], context: Mapping[str, Any]
     ) -> dict[str, Any]:
-        projected = dict(result)
+        binding = getattr(result, "execution_binding", None)
+        projected = _PreparedComposite(
+            dict(result),
+            execution_binding=binding,
+        ) if binding is not None else dict(result)
         projected["request_context"] = dict(context)
         evidence = dict(projected.get("planner_evidence") or {})
         evidence["context_fingerprint"] = str(
@@ -1377,6 +1422,23 @@ def _positive_limit(value: Any, name: str) -> int:
     if normalized < 1:
         raise ValueError(name + " must be positive")
     return normalized
+
+
+def _call_optional_binding(method: Any, value: Any, *, execution_binding: Any, **kwargs: Any) -> Any:
+    """Call old injected run ports without weakening the production seam."""
+
+    if execution_binding is not None:
+        try:
+            parameters = inspect.signature(method).parameters
+            accepts = "execution_binding" in parameters or any(
+                item.kind == inspect.Parameter.VAR_KEYWORD
+                for item in parameters.values()
+            )
+        except (TypeError, ValueError):
+            accepts = True
+        if accepts:
+            kwargs["execution_binding"] = execution_binding
+    return method(value, **kwargs)
 
 
 __all__ = [

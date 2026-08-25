@@ -16,14 +16,23 @@
 
 ## 当前进行中
 
-### M294-A：已验证计划到执行/答案/证据闭合全局规划 — 进行中
+### M295-A：全局基线与 discovery receipt 契约冻结 — 进行中
 
-- 目标：从全局七维度闭合“已验证 TaskPlan/DAG → 实际执行 → 结构化结果/答案/证据”，不让执行器重新猜测已规划步骤。
-- 已创建：`docs/m294-planned-execution-result-closure-capability-map.md`、`docs/m294-planned-execution-result-closure-spec.md`、`docs/m294-planned-execution-result-closure-plan.md`；M293 阶段文档已收口。
-- 验证：M293 Docker 合并回归 **26/26**、Node projection smoke、compileall、architecture strict、readiness 200；M293 版本待提交推送。
-- 需要修改：M294 execution binding、Composite coordinator、Result/Answer/Evidence 跨入口边界和一个 compact contract；恢复时只读取当前 Spec/Plan 与明确文件。
-- 阻塞：无。当前先做 binding 契约和执行输入闭合，不增加 continuation schema。
-- 下一步：完成 M293-E 提交推送后实现 M294-B execution binding。
+- 目标：从产品、架构、数据、模型、部署、体验、测试七个维度盘点 M294 后的全局缺口，冻结领域中立 `analysis-discovery.v1` 以及唯一复用 seam。
+- 已完成：创建 M295 capability map、Spec、Plan；M294 已收口但尚未提交本阶段版本。
+- 需要读取/修改：`docs/m295-global-open-analysis-discovery-capability-map.md`、`docs/m295-global-open-analysis-discovery-spec.md`、`docs/m295-global-open-analysis-discovery-plan.md`、`agent/composite_request_context.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/runtime_core/clarification_continuation.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`tests/test_m295_open_analysis_discovery.py`。
+- 验证节奏：M295-B～D 完成后集中运行一个 compact contract 与 M294 相邻回归；阶段收口再运行 Docker compileall、architecture strict、readiness 和必要 HTTP/Node/live 验收。
+- 阻塞：无。M295 不新增固定区域/指标流程，不绕过 M294 execution binding。
+- 下一步：完成 M294 文档/版本交付后，冻结 discovery receipt 字段、fingerprint、reason code 和安全投影。
+
+### M294-A～E：已验证计划到执行/答案/证据闭合 — 已完成
+
+- 目标：建立领域中立 `spatial-agent.execution-binding.v1`，让 validated TaskPlan/DAG 成为 Composite coordinator 的唯一受校验执行输入，并让同步、异步、artifact、SQLite/restart、View、Evidence 和答案引用同一 binding identity。
+- 实际修改：`agent/runtime_core/execution_binding.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime.py`、`agent/service.py`、`agent/application/submission.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/application/composite.py`、`agent/composite_contract.py`、`agent/composite_view.py`、`agent/contract_versions.py`、`production_api.py`、`serve_api.py`、`tests/test_m294_execution_binding_closure.py`。
+- 结果：完整 TaskPlan 仅在内部 binding 中传递，公开/Artifact/View 只保留安全结构投影；执行前校验 request/组件/计划/DAG/工具/结果类型和 binding fingerprint；Domain Runtime 直接消费 validated plan，不再重新猜测步骤；可选结构化 Composite 答案生成失败时回退到可读答案。
+- 验证：Docker M294 compact、M293/M291/M285/M281 合并回归 **25/25**；Docker 真实 GIS Service `get_raster_metadata` binding 验收通过；compileall、architecture strict、生产 `/health/ready` **200** 通过。
+- 阻塞：无。生产 Composite coordinator 缺少 binding 时 fail closed；旧注入式 coordinator 仅保留显式兼容入口。
+- 下一步：基于项目全局七维度规划 M295，优先闭合通用数据发现/能力匹配和开放式跨领域分析入口，不增加单区域专用分支。
 
 ### M288-B/C/D/E：provider structured-output 能力协商与阶段交付 — 已完成
 

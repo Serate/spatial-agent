@@ -16,6 +16,10 @@ from collections.abc import Mapping
 from typing import Any, Callable, Optional
 
 from agent.artifact_store import ArtifactStore
+from agent.answer_generation import (
+    fallback_composite_answer,
+    project_answer_generation_evidence,
+)
 from agent.application.async_runs import AsyncApplication
 from agent.application.composite import CompositeApplication
 from agent.composite_contract import normalize_composite_request
@@ -25,6 +29,11 @@ from agent.models import AgentRunResult, RunStatus
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.runtime_context import build_runtime_context
 from agent.runtime_core.composite_taskplan import project_task_plan_bridge
+from agent.runtime_core.execution_binding import (
+    ExecutionBindingError,
+    project_execution_binding,
+    validate_execution_binding,
+)
 from agent.provider_structured_output import project_structured_output_evidence
 from agent.planner_repair import build_repair_lineage
 from agent.service_async import process_is_alive
@@ -64,10 +73,12 @@ class CompositeRunApplication:
         state_db_path: str | None = None,
         artifact_root: str = "outputs/runs",
         worker_count: int = 1,
+        answer_generator: Any = None,
     ) -> None:
         if coordinator is None or not callable(getattr(coordinator, "run", None)):
             raise ValueError("coordinator must expose run()")
         self._coordinator = coordinator
+        self._answer_generator = answer_generator
         self._state = state or ServiceState(
             state_db_path=state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB"),
             runtime_factory=lambda _planner, _backend, **_kwargs: _CompositeRuntime(),
@@ -111,12 +122,14 @@ class CompositeRunApplication:
         *,
         session_id: str = "default",
         export_artifact: bool = False,
+        execution_binding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized = normalize_composite_request(request)
         return self._execute_and_persist(
             normalized,
             session_id=session_id,
             export_artifact=export_artifact,
+            execution_binding=execution_binding,
         )
 
     def run_with_planning(
@@ -126,6 +139,7 @@ class CompositeRunApplication:
         session_id: str = "default",
         export_artifact: bool = False,
         planner_evidence: Mapping[str, Any] | None = None,
+        execution_binding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Run a canonical request while preserving bounded planner evidence."""
         normalized = normalize_composite_request(request)
@@ -134,6 +148,7 @@ class CompositeRunApplication:
             session_id=session_id,
             export_artifact=export_artifact,
             planning_evidence=_safe_planning_evidence(planner_evidence),
+            execution_binding=execution_binding,
         )
 
     def submit_async(
@@ -143,10 +158,20 @@ class CompositeRunApplication:
         session_id: str = "default",
         idempotency_key: str | None = None,
         export_artifact: bool = False,
+        execution_binding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         normalized = normalize_composite_request(request)
+        payload: Mapping[str, Any] = normalized
+        if execution_binding is not None:
+            payload = {
+                "request": normalized,
+                "_execution_binding": _validated_binding(
+                    execution_binding,
+                    request=normalized,
+                ),
+            }
         encoded = json.dumps(
-            normalized,
+            payload,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -168,13 +193,22 @@ class CompositeRunApplication:
         idempotency_key: str | None = None,
         export_artifact: bool = False,
         planner_evidence: Mapping[str, Any] | None = None,
+        execution_binding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Submit without changing the request contract or losing evidence."""
         normalized = normalize_composite_request(request)
         evidence = _safe_planning_evidence(planner_evidence)
         payload: Mapping[str, Any] = normalized
-        if evidence:
-            payload = {"request": normalized, "_planner_evidence": evidence}
+        if evidence or execution_binding is not None:
+            payload = {
+                "request": normalized,
+                "_planner_evidence": evidence,
+            }
+            if execution_binding is not None:
+                payload["_execution_binding"] = _validated_binding(
+                    execution_binding,
+                    request=normalized,
+                )
         encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return self._async.submit(
             request=encoded,
@@ -219,6 +253,13 @@ class CompositeRunApplication:
     def get_evidence(self, run_id: str) -> dict[str, Any]:
         detail = self.get_run(run_id)
         result = detail.get("result") if isinstance(detail, dict) else {}
+        composite = result.get("composite") if isinstance(result, Mapping) else {}
+        binding_evidence = (
+            composite.get("request", {}).get("execution_binding")
+            if isinstance(composite, Mapping)
+            and isinstance(composite.get("request"), Mapping)
+            else None
+        )
         return {
             "schema_version": "spatial-agent.evidence-reference.v1",
             "run_id": detail.get("run_id"),
@@ -230,6 +271,8 @@ class CompositeRunApplication:
             },
             "evidence_registry": result.get("evidence_registry") or {"available": False},
             "evidence_recovery": result.get("evidence_recovery") or {"available": False},
+            "execution_binding": binding_evidence,
+            "answer_generation": result.get("answer_generation_evidence") or {"available": False},
         }
 
     def get_view(self, run_id: str) -> dict[str, Any]:
@@ -263,8 +306,14 @@ class CompositeRunApplication:
         except (TypeError, ValueError) as exc:
             raise ValueError("composite async request is invalid") from exc
         planning_evidence = None
+        execution_binding = None
         if isinstance(request, Mapping) and isinstance(request.get("request"), Mapping):
             planning_evidence = _safe_planning_evidence(request.get("_planner_evidence"))
+            if request.get("_execution_binding") is not None:
+                execution_binding = _validated_binding(
+                    request.get("_execution_binding"),
+                    request=request["request"],
+                )
             request = request["request"]
         response = self._execute_and_persist(
             normalize_composite_request(request),
@@ -273,6 +322,7 @@ class CompositeRunApplication:
             export_artifact=bool(kwargs.get("export_artifact", False)),
             async_requested=True,
             planning_evidence=planning_evidence,
+            execution_binding=execution_binding,
         )
         self._async.finalize_job(response)
         if response.get("artifact_ref"):
@@ -288,19 +338,32 @@ class CompositeRunApplication:
         export_artifact: bool,
         async_requested: bool = False,
         planning_evidence: Mapping[str, Any] | None = None,
+        execution_binding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
-        response = self._coordinator.run(
-            request,
-            session_id=session_id,
-            run_id=run_id,
-        )
+        if execution_binding is not None:
+            binding = _validated_binding(execution_binding, request=request)
+            response = self._coordinator.run(
+                request,
+                session_id=session_id,
+                run_id=run_id,
+                execution_binding=binding,
+            )
+        else:
+            response = self._coordinator.run(
+                request,
+                session_id=session_id,
+                run_id=run_id,
+            )
         canonical = response.get("result")
         if not isinstance(canonical, Mapping):
             raise ValueError("composite coordinator returned no result contract")
         canonical = normalize_result_contract(canonical)
+        canonical = self._compose_composite_answer(canonical)
         if planning_evidence:
             canonical = dict(canonical)
             canonical["planner_evidence"] = dict(planning_evidence)
+        if execution_binding is not None:
+            response["execution_binding"] = project_execution_binding(execution_binding)
         actual_run_id = _safe_required_run_id(response.get("run_id"))
         snapshot = AgentRunResult(
             run_id=actual_run_id,
@@ -310,7 +373,7 @@ class CompositeRunApplication:
             domain_id=COMPOSITE_RUN_SCOPE,
             runtime_context=_runtime_context(COMPOSITE_RUN_SCOPE, COMPOSITE_RUN_SCOPE),
             result=canonical,
-            answer=str(canonical.get("summary") or "")[:1200] or None,
+            answer=str(canonical.get("answer") or canonical.get("summary") or "")[:1200] or None,
         )
         self._memory_results[actual_run_id] = snapshot
         self._state.save_run(snapshot)
@@ -326,6 +389,30 @@ class CompositeRunApplication:
             self._state.save_run(snapshot)
             response["artifact_ref"] = artifact_ref
         return response
+
+    def _compose_composite_answer(self, result: Mapping[str, Any]) -> dict[str, Any]:
+        """Attach an optional structured answer without changing facts."""
+
+        generator = self._answer_generator
+        if generator is None or not callable(getattr(generator, "generate", None)):
+            return dict(result)
+        try:
+            generated = generator.generate(result)
+            answer = getattr(generated, "answer", None)
+            evidence = getattr(generated, "evidence", None)
+            if not isinstance(answer, Mapping) or not isinstance(evidence, Mapping):
+                raise ValueError("composite answer generator returned an invalid result")
+        except Exception:
+            generated = fallback_composite_answer(result, "answer_generation_failed")
+            answer = generated.answer
+            evidence = generated.evidence
+        enriched = dict(result)
+        enriched["answer_structured"] = dict(answer)
+        enriched["answer_generation_evidence"] = project_answer_generation_evidence(
+            evidence
+        )
+        enriched["answer"] = str(answer.get("summary") or enriched.get("answer") or "")[:1200]
+        return enriched
 
     def _rewrite_async_artifact(self, run_id: str) -> None:
         snapshot = self._state.get_run(run_id, domain_id=COMPOSITE_RUN_SCOPE)
@@ -351,6 +438,13 @@ def _run_status(value: Any) -> RunStatus:
         return RunStatus.FAILED
 
 
+def _validated_binding(value: Any, *, request: Mapping[str, Any]) -> dict[str, Any]:
+    try:
+        return validate_execution_binding(value, request=request)
+    except ExecutionBindingError as exc:
+        raise ValueError("composite execution binding rejected: " + exc.code) from exc
+
+
 def _safe_planning_evidence(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
@@ -364,6 +458,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "context_schema_version",
         "compatibility",
         "task_plan_bridge",
+        "execution_binding",
         "repair_lineage",
         "structured_output",
         "plan_completeness",
@@ -397,6 +492,10 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
     if "task_plan_bridge" in result:
         result["task_plan_bridge"] = project_task_plan_bridge(
             result.get("task_plan_bridge")
+        )
+    if "execution_binding" in result:
+        result["execution_binding"] = project_execution_binding(
+            result.get("execution_binding")
         )
     if "structured_output" in result:
         projected_structured_output = project_structured_output_evidence(
@@ -505,6 +604,9 @@ def _response_from_result(
         "components": composite.get("components") or [],
         "result": dict(result),
     }
+    binding = composite.get("request", {}).get("execution_binding")
+    if isinstance(binding, Mapping):
+        response["execution_binding"] = dict(binding)
     response["view"] = build_composite_view_projection(result)
     if artifact_ref:
         response["artifact_ref"] = artifact_ref

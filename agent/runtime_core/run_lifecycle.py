@@ -42,6 +42,7 @@ class _LifecycleContext:
     timeout_seconds: Optional[float]
     run_id: Optional[str]
     workflow: Optional[Mapping[str, Any]]
+    validated_plan: Optional[TaskPlan]
     expected_plan_fingerprint: Optional[str]
     expected_evidence_fingerprint: Optional[str]
     require_confirmation: bool
@@ -80,6 +81,7 @@ class RuntimeRunLifecycle:
         timeout_seconds: Optional[float] = None,
         run_id: Optional[str] = None,
         workflow: Optional[Mapping[str, Any]] = None,
+        validated_plan: Optional[TaskPlan] = None,
         expected_plan_fingerprint: Optional[str] = None,
         expected_evidence_fingerprint: Optional[str] = None,
         require_confirmation: bool = False,
@@ -98,6 +100,7 @@ class RuntimeRunLifecycle:
             timeout_seconds=timeout_seconds,
             run_id=run_id,
             workflow=workflow,
+            validated_plan=validated_plan,
             expected_plan_fingerprint=expected_plan_fingerprint,
             expected_evidence_fingerprint=expected_evidence_fingerprint,
             require_confirmation=require_confirmation,
@@ -252,12 +255,20 @@ class RuntimeRunLifecycle:
         runtime = self._runtime
         result = self._result(context)
         runtime._check_control(result.run_id, context.deadline)
-        runtime._require_workflow_selection(context.context_packet, context.workflow)
-        context.candidate_plan = runtime._plan(
-            context.resolved_request,
-            context.workflow,
-            context.context_packet,
-        )
+        if context.validated_plan is not None:
+            if not isinstance(context.validated_plan, TaskPlan):
+                raise ToolError("validated execution plan is invalid")
+            # This is the execution-binding seam: planner selection has
+            # already crossed the Composite gates, so no Domain Planner is
+            # invoked again for this component.
+            context.candidate_plan = context.validated_plan
+        else:
+            runtime._require_workflow_selection(context.context_packet, context.workflow)
+            context.candidate_plan = runtime._plan(
+                context.resolved_request,
+                context.workflow,
+                context.context_packet,
+            )
         result.plan = context.candidate_plan
         runtime._check_control(result.run_id, context.deadline)
 

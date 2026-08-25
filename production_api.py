@@ -33,6 +33,7 @@ from agent.application.composite_planning import (
     CompositePlanningApplication,
 )
 from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
+from agent.answer_generation import LLMCompositeAnswerGenerator
 from agent.llm_planner import OpenAIPlannerClient
 from agent.openai_config import load_openai_config
 from agent.application.http_transport import (
@@ -43,6 +44,17 @@ from agent.application.http_transport import (
 from agent.web_assets import console_asset as resolve_console_asset
 from agent.web_assets import console_index as resolve_console_index
 from agent.web_assets import console_root
+
+
+def _composite_answer_generator():
+    """Enable the second, structured answer pass only for explicit live runs."""
+
+    if os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") != "1":
+        return None
+    try:
+        return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**load_openai_config()))
+    except Exception:
+        return None
 
 class UTF8JSONResponse(JSONResponse):
     """Keep JSON responses unambiguous for clients without charset sniffing."""
@@ -59,7 +71,8 @@ domain_routing = DomainRoutingApplication(
     state=routing_state_from_environment(),
 )
 composite_application = CompositeRunApplication(
-    coordinator=CompositeApplication(host=host)
+    coordinator=CompositeApplication(host=host, require_execution_binding=True),
+    answer_generator=_composite_answer_generator(),
 )
 
 

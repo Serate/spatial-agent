@@ -116,10 +116,19 @@
 - [x] M293-D 集中精简验收与兼容修正
 - [ ] M293-E 中文记录、版本交付与全局重规划
 
-## M294 已验证计划到执行/答案/证据闭合（进行中）
+## M294 已验证计划到执行/答案/证据闭合（已完成）
 
 - [x] M294-A 全局能力图、Spec、Plan 与 execution binding 设计
-- [ ] M294-B Composite coordinator 消费 validated binding
-- [ ] M294-C 答案、View 和 Evidence 闭合
-- [ ] M294-D 同步/异步/重启与真实数据验收
-- [ ] M294-E 中文记录、版本交付与全局重规划
+- [x] M294-B Composite coordinator 消费 validated binding
+- [x] M294-C 答案、View 和 Evidence 闭合
+- [x] M294-D 同步/异步/重启与真实数据验收
+- [x] M294-E 中文记录、版本交付与全局重规划
+
+## M295 全局开放式分析与数据发现闭环（规划完成，准备实施）
+
+- [ ] M295-A 全局基线与 discovery receipt 契约冻结
+- [ ] M295-B 领域中立 Discovery Gateway
+- [ ] M295-C Planner 与生命周期集成
+- [ ] M295-D Result/View/Evidence 与前端渐进展示
+- [ ] M295-E 跨领域真实数据与显式 Docker/HTTP/Node 验收
+- [ ] M295-F 中文记录、版本交付与全局重规划

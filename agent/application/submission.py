@@ -68,6 +68,7 @@ class SubmissionApplication:
         timeout_seconds: float = None,
         spatial_context: Dict[str, Any] = None,
         workflow: Dict[str, Any] = None,
+        validated_plan: Any = None,
         run_id: str = None,
         preview_fingerprint: str = None,
         preview_evidence_fingerprint: str = None,
@@ -132,28 +133,31 @@ class SubmissionApplication:
         cost.acquire_concurrency()
         try:
             cost.check_budget(session_id)
+            runtime_kwargs = {
+                "session_id": session_id,
+                "timeout_seconds": timeout_seconds,
+                "run_id": run_id,
+                "expected_plan_fingerprint": preview_fingerprint,
+                "expected_evidence_fingerprint": preview_evidence_fingerprint,
+                "require_confirmation": bool(require_confirmation),
+                "decision_id": decision_id,
+                "decision_version": decision_version,
+                "decision_ttl_seconds": decision_ttl_seconds,
+                "decision_input": {
+                    "export_artifact": bool(export_artifact),
+                    "export_geojson": bool(export_geojson),
+                    "geojson_max_features": int(geojson_max_features),
+                },
+            }
+            if validated_plan is not None:
+                runtime_kwargs["validated_plan"] = validated_plan
             payload = self._execute_run(
                 request,
                 session_id,
                 planner,
                 backend,
                 normalized_context,
-                runtime_kwargs={
-                    "session_id": session_id,
-                    "timeout_seconds": timeout_seconds,
-                    "run_id": run_id,
-                    "expected_plan_fingerprint": preview_fingerprint,
-                    "expected_evidence_fingerprint": preview_evidence_fingerprint,
-                    "require_confirmation": bool(require_confirmation),
-                    "decision_id": decision_id,
-                    "decision_version": decision_version,
-                    "decision_ttl_seconds": decision_ttl_seconds,
-                    "decision_input": {
-                        "export_artifact": bool(export_artifact),
-                        "export_geojson": bool(export_geojson),
-                        "geojson_max_features": int(geojson_max_features),
-                    },
-                },
+                runtime_kwargs=runtime_kwargs,
                 workflow_context=workflow_context,
                 export_artifact=export_artifact,
                 export_geojson=export_geojson,

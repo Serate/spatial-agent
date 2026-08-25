@@ -166,6 +166,7 @@ def build_composite_result_contract(
     *,
     run_id: str | None = None,
     answer: str | None = None,
+    execution_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Aggregate child run envelopes into one standard public Result."""
 
@@ -195,6 +196,19 @@ def build_composite_result_contract(
         "components": components,
         "evidence": evidence,
     }
+    if isinstance(execution_binding, Mapping):
+        composite_section["request"]["execution_binding"] = {
+            "schema_version": str(execution_binding.get("schema_version") or "")[:96],
+            "binding_fingerprint": str(execution_binding.get("binding_fingerprint") or "")[:128],
+            "component_ids": [
+                str(item)[:48]
+                for item in (execution_binding.get("component_ids") or [])[:MAX_COMPONENTS]
+            ],
+        }
+        evidence["execution_binding"] = {
+            "schema_version": str(execution_binding.get("schema_version") or "")[:96],
+            "binding_fingerprint": str(execution_binding.get("binding_fingerprint") or "")[:128],
+        }
     composite_id = _optional_text(run_id, 160, fallback="")
     if not composite_id:
         composite_id = "composite-" + composite_request["fingerprint"].split(":", 1)[-1][:24]
@@ -284,6 +298,13 @@ def normalize_composite_section(value: Any, *, allow_legacy: bool = True) -> dic
             "answer": _optional_text(raw.get("answer"), 1200, fallback=""),
             "view_refs": [str(item)[:96] for item in (raw.get("view_refs") or [])[:16] if isinstance(item, str)],
         }
+        if isinstance(raw.get("execution"), Mapping):
+            item["execution"] = {
+                "schema_version": str(raw["execution"].get("schema_version") or "")[:96],
+                "binding_fingerprint": str(raw["execution"].get("binding_fingerprint") or "")[:128],
+                "plan_fingerprint": str(raw["execution"].get("plan_fingerprint") or "")[:128],
+                "step_ids": [str(value)[:48] for value in (raw["execution"].get("step_ids") or [])[:16]],
+            }
         for key in ("failure", "degradation", "artifact", "evidence"):
             if isinstance(raw.get(key), Mapping):
                 item[key] = _bounded_value(raw[key], depth=0)
@@ -364,6 +385,14 @@ def _project_component(spec: Mapping[str, Any], child: Any) -> dict[str, Any]:
         component["artifact"] = artifact
     evidence_registry = nested.get("evidence_registry") or payload.get("evidence_registry")
     component["evidence"] = _evidence_summary(evidence_registry, nested)
+    execution = payload.get("_execution_evidence") or nested.get("execution")
+    if isinstance(execution, Mapping):
+        component["execution"] = {
+            "schema_version": str(execution.get("schema_version") or "")[:96],
+            "binding_fingerprint": str(execution.get("binding_fingerprint") or "")[:128],
+            "plan_fingerprint": str(execution.get("plan_fingerprint") or "")[:128],
+            "step_ids": [str(value)[:48] for value in (execution.get("step_ids") or [])[:16]],
+        }
     return component
 
 

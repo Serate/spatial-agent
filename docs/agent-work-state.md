@@ -19,27 +19,26 @@
 
 ## 当前阶段
 
-- 阶段：M294 已验证计划到执行/答案/证据闭合
-- 状态：M293 已完成 Docker 阶段收口，文档同步完成，版本待提交推送；M294-A 全局能力图、Spec、Plan 已创建，当前开始 execution binding；中转真实 Composite 输出继续保持 fail closed。
-- 当前任务：M294-A 已验证计划到执行/答案/证据闭合全局规划，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M294 已验证计划到执行/答案/证据闭合（已完成）
+- 状态：M294 已完成 Docker 阶段收口，execution binding、同步/异步/恢复、答案/View/Evidence 闭合已验证；版本待提交推送。生产 Composite 缺少 binding 保持 fail closed。
+- 当前任务：M295-A 全局基线与 discovery receipt 契约冻结，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m294-planned-execution-result-closure-capability-map.md`](m294-planned-execution-result-closure-capability-map.md)
-  - [`docs/m294-planned-execution-result-closure-spec.md`](m294-planned-execution-result-closure-spec.md)
-  - [`docs/m294-planned-execution-result-closure-plan.md`](m294-planned-execution-result-closure-plan.md)
+  - [`docs/m295-global-open-analysis-discovery-capability-map.md`](m295-global-open-analysis-discovery-capability-map.md)
+  - [`docs/m295-global-open-analysis-discovery-spec.md`](m295-global-open-analysis-discovery-spec.md)
+  - [`docs/m295-global-open-analysis-discovery-plan.md`](m295-global-open-analysis-discovery-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m294-planned-execution-result-closure-capability-map.md`
-- `docs/m294-planned-execution-result-closure-spec.md`
-- `docs/m294-planned-execution-result-closure-plan.md`
-- `agent/runtime_core/composite_taskplan.py`
+- `docs/m295-global-open-analysis-discovery-capability-map.md`
+- `docs/m295-global-open-analysis-discovery-spec.md`
+- `docs/m295-global-open-analysis-discovery-plan.md`
+- `agent/composite_request_context.py`
+- `agent/runtime_core/component_fact_handoff.py`
+- `agent/runtime_core/clarification_continuation.py`
 - `agent/application/composite_planning.py`
 - `agent/application/composite_runs.py`
-- `agent/application/composite.py`
-- `agent/composite_contract.py`
 - `agent/composite_view.py`
-- `agent/answer_generation.py`
-- `tests/test_m294_execution_binding_closure.py`
+- `tests/test_m295_open_analysis_discovery.py`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
 - `tasks/plan.md`

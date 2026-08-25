@@ -246,6 +246,13 @@ class CompositeTaskPlanBridge:
                 "result_types": result_types[:24],
                 "max_steps": self._max_steps,
             },
+            # Internal-only handoff consumed by execution_binding.  The
+            # public projection deliberately keeps only arg_keys and never
+            # serializes this TaskPlan object into planner evidence.
+            "_validated_task_plan": task_plan,
+            "_execution_workflow": (
+                dict(preview_workflow) if isinstance(preview_workflow, Mapping) else {}
+            ),
         }
 
     def _preview_plan(

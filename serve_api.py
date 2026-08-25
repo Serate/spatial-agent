@@ -1,5 +1,6 @@
 import argparse
 import atexit
+import os
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -30,6 +31,7 @@ from agent.application.composite_planning import (
     CompositePlanningApplication,
 )
 from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
+from agent.answer_generation import LLMCompositeAnswerGenerator
 from agent.llm_planner import OpenAIPlannerClient
 from agent.openai_config import load_openai_config
 from agent.web_assets import WEB_ASSETS, console_asset, console_index, console_root
@@ -43,6 +45,15 @@ from agent.workflow_templates import (
 _legacy_runtime_capability_snapshot = runtime_capability_snapshot
 
 
+def _composite_answer_generator():
+    if os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") != "1":
+        return None
+    try:
+        return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**load_openai_config()))
+    except Exception:
+        return None
+
+
 domain_host = DomainRuntimeHost()
 domain_host.start()
 legacy_service = domain_host.service(resolve_domain_id())
@@ -51,7 +62,11 @@ domain_routing = DomainRoutingApplication(
     state=routing_state_from_environment(),
 )
 composite_application = CompositeRunApplication(
-    coordinator=CompositeApplication(host=domain_host)
+    coordinator=CompositeApplication(
+        host=domain_host,
+        require_execution_binding=True,
+    ),
+    answer_generator=_composite_answer_generator(),
 )
 
 
