@@ -776,3 +776,11 @@
 - **诊断**：先在 Docker 中执行真实 Adapter contract，而不是只执行 compileall/核心单测；检查 `record_analysis_result.status/result_type/metrics`。指标问题要用 `Q2/Q10` 或 `H1/H2` 这类最小周期 fixture 对比 Domain period key 和通用字段过滤。
 - **修复**：GeoJSON 管理区使用无参数 `_load()` 并提供明确 provenance；GeoPackage 实现属性投影后调用共享核心；Hybrid 对真实管理区和文件矢量分别路由。Indicator 核心继续委托通用字段筛选，但 start/end 期间范围在 Domain 内用 `_period_key` 过滤。
 - **预防**：新增通用工具时必须覆盖 Protocol、每个真实 Adapter、Hybrid 路由、ToolRegistry schema、Result/View 和一次真实数据验收；领域时间/空间语义只能留在 Domain Adapter，不能为了复用塞入公共记录核心。文档中的测试模块名与 Docker 实际命令要同步核对。
+
+## M270 中转模型 live 验收无输出并长时间挂起
+
+- **现象**：Docker 使用已配置的中转地址 `opencode.ai/zen/go/v1`、`deepseek-v4-flash`，显式开启 live GIS 只跑一条真实模型概况请求；约 90 秒没有任何有界摘要或错误，进程只能人工终止。此前宿主直连还出现过 WinError 10013，因此不能把这次现象归类为 GIS 工具执行失败。
+- **根因判断**：请求可能卡在中转网络连接、代理转发或 provider 超时边界；当前 live baseline 在最终报告前没有逐阶段心跳输出，导致“正在规划”与“请求已挂起”对用户不可区分。现有默认离线/规则路径不受影响。
+- **诊断**：只记录 provider、model、wire api、阶段、耗时、是否产生 TaskPlan/工具步骤和结构化错误码；不输出 API key、请求头、prompt 或模型原文。用 `SPATIAL_AGENT_LIVE_OPENAI=1`、`SPATIAL_AGENT_LIVE_GIS=1` 在 Docker 单独跑一条请求，超过有界时间后停止；再用 fake/Rule Planner 验证 Runtime 和 GIS。
+- **处理建议**：下一阶段为 live acceptance harness 增加连接/规划/执行阶段心跳、总 deadline 和 provider failure receipt；中转不可用时明确返回可恢复 provider 状态，不修改 ToolRegistry、GIS 算法或 Runtime 主链路来绕过网络问题。默认 CI 继续不调用真实模型。
+- **预防**：真实模型验收必须 async-first、单次提交、有界轮询和分阶段超时；每个外部 provider 先做最小 health/capability probe，再决定是否进入昂贵的复杂请求。中转路径与直连路径分别记录，不把一条路径的失败外推为模型或 GIS 全部不可用。

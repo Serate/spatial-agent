@@ -76,6 +76,7 @@
 - M268 已完成：保留 `GeoPackageBackend` 兼容 seam，扩展为按 `DatasetCatalog` 发现 ready vector 条目的文件型适配器；GeoPackage 按 dataset layer 读取，GeoJSON 等文件按路径读取，通用 `get_dataset_schema`/`range_query` 不再受固定 dataset enum 限制。新增 `earthquakes_wuhan` 的 GIS capability/workflow 声明和请求事实映射，Planner 通过声明式 workflow fallback 复用 `get_dataset_schema → range_query`，没有新增 Runtime、ToolRegistry 或前端主流程分支。Docker M268 contract **3/3**、M267/M266/M265 定向 **14/14**、旧 GIS/回答契约 **47/47**（7 个真实旧数据用例按环境跳过），compileall、architecture strict、quick、stage 通过。显式一次性 Docker 挂载 `D:\dataset\agent` 后，真实地震 GeoJSON schema 保留 `EPSG:4979`，`mag >= 2.5` + bbox 返回 1 条记录，健康检查为 10 个要素 ready；默认生产容器仍挂载项目 `data/`。
 
 - M269 已完成实现：新增领域中立的 `RecordAnalysisEngine` 与 `record_views`，支持有界 filter/aggregate/timeseries/compare；Economic/Indicators 复用公共筛选，GIS 文件型矢量通过 ToolRegistry 的 `record_analysis` 接入，统一 `record_analysis_result`、data_profile、metrics、provenance 和 generic View。Docker 定向 **14/14**、相邻边界回归 **23/23**、compileall、architecture strict 通过；一次性只读 `/data` 真实验收地震 10 条聚合为 2 组，Economic `gdp_total + 洪山区` 年度趋势返回 4 条。期间修复了 Adapter 调用图遗漏和周期字符串排序风险，均已写入问题日志。
+- M270 已开始但被外部 provider 阻塞：Docker 中转 live 单请求使用 `deepseek-v4-flash` 等待约 90 秒无有界输出，已终止；离线/规则/真实本地 GIS 仍通过。问题已记录为中转网络/超时与验收 harness 可观测性问题，下一步先补阶段心跳、总 deadline 和 provider failure receipt，不修改 GIS 算法绕过网络。
 
 ## 下一步
 
