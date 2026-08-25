@@ -38,13 +38,61 @@ if ($current.Length -gt $MaxCurrentChars) {
 Write-Output '=== Agent current context ==='
 Write-Output $current
 
-$taskProgress = Get-Content -LiteralPath $taskProgressPath -Raw
-if ($taskProgress.Length -gt $MaxTaskProgressChars) {
-    $taskProgress = (Get-Content -LiteralPath $taskProgressPath | Select-Object -Last 40) -join "`n"
-    if ($taskProgress.Length -gt $MaxTaskProgressChars) {
-        $taskProgress = $taskProgress.Substring([Math]::Max(0, $taskProgress.Length - $MaxTaskProgressChars))
+function Get-TaskProgressExcerpt {
+    param(
+        [string]$Path,
+        [int]$MaxChars
+    )
+
+    $lines = @(Get-Content -LiteralPath $Path)
+    $currentIndex = [Array]::IndexOf($lines, '## 当前进行中')
+    $recentIndex = [Array]::IndexOf($lines, '## 最近完成')
+    $currentLines = @()
+    if ($currentIndex -ge 0) {
+        $currentEnd = if ($recentIndex -gt $currentIndex) { $recentIndex } else { $lines.Count }
+        $currentLines = @($lines[$currentIndex..($currentEnd - 1)])
     }
+
+    $currentText = ($currentLines -join "`n").Trim()
+    $remaining = [Math]::Max(0, $MaxChars - $currentText.Length - 2)
+    $selectedRecent = New-Object System.Collections.Generic.List[string]
+    $used = 0
+    if ($recentIndex -ge 0) {
+        $headers = @(
+            for ($i = $recentIndex + 1; $i -lt $lines.Count; $i++) {
+                if ([string]$lines[$i] -like '### *') { $i }
+            }
+        )
+        for ($headerOffset = $headers.Count - 1; $headerOffset -ge 0; $headerOffset--) {
+            $start = [int]$headers[$headerOffset]
+            $end = if ($headerOffset -lt ($headers.Count - 1)) {
+                [int]$headers[$headerOffset + 1]
+            } else {
+                $lines.Count
+            }
+            $block = (($lines[$start..($end - 1)]) -join "`n").Trim()
+            $cost = $block.Length + 2
+            if ($selectedRecent.Count -gt 0 -and ($used + $cost) -gt $remaining) {
+                break
+            }
+            $selectedRecent.Insert(0, $block)
+            $used += $cost
+        }
+    }
+
+    $parts = @()
+    if ($currentText) { $parts += $currentText }
+    if ($selectedRecent.Count -gt 0) {
+        $parts += ((@('## 最近完成') + @($selectedRecent)) -join "`n`n").Trim()
+    }
+    $result = ($parts -join "`n`n").Trim()
+    if ($result.Length -gt $MaxChars) {
+        $result = $result.Substring(0, $MaxChars) + "`n[task progress excerpt truncated at line boundary]"
+    }
+    return $result
 }
+
+$taskProgress = Get-TaskProgressExcerpt -Path $taskProgressPath -MaxChars $MaxTaskProgressChars
 Write-Output '=== Current task state ==='
 Write-Output $taskProgress
 
