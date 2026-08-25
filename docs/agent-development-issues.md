@@ -760,3 +760,19 @@
 - **诊断**：失败时先比较结果类型、步骤工具、核心数值和状态，再判断是否只是文案漂移；不要为恢复旧短语给 Composer 增加兼容分支。
 - **修复**：将断言改为道路/水体、阈值、数据状态等稳定事实，保留必要的用户可读性检查；M268 Docker 历史 GIS/回答契约 47/47 通过。
 - **预防**：默认测试优先验证结构化 Result/View/Evidence、步骤和关键数值；仅在产品明确要求时锁定完整回答句式，模型回答测试使用 schema/语义关键事实而不是整句匹配。
+
+## M269 Agent-grade 架构与 query-engine 体验脱节
+
+- **现象**：Runtime 已具备能力发现、Planner、DAG、生命周期、恢复和 Evidence，但用户日常看到的仍主要是“提问 → 查询 → 返回”；复杂请求经常由 Rule Planner 命中固定模板，前端的计划和执行轨迹又默认折叠，Agent 的自主规划过程没有传导到体验。
+- **根因**：默认入口仍有 `planner=rule`、`backend=memory` 的兼容默认值；数据发现只覆盖已登记且 ready 的目录；Rule Planner 使用领域内固定 builder；LLM Planner 虽可组合已注册工具，但不是所有入口的默认路径；前端把过程证据全部放进高级详情。
+- **诊断**：分别记录入口实际的 planner/backend、`planner_source`、能力发现状态、计划步骤数、工具 DAG、数据目录投影和前端可见阶段；不能只看最终 `COMPLETED`，也不能用前端没有展示 trace 推断 Runtime 没有执行轨迹。
+- **修复方向**：保持 Runtime/ToolRegistry 生命周期不变，优先统一可配置的真实 LLM + 本地数据体验；让 Rule Planner 明确成为离线/确定性/降级路径；在对话区增加不暴露思维链的结构化阶段里程碑、计划摘要、数据选择和下一步动作；继续扩展通用工具组合与受控数据探索。
+- **预防**：每个跨领域阶段同时验收 Agent Runtime 契约和用户体验契约；真实 LLM 验收需证明能力发现、计划生成、多步执行和证据入口可见，前端不得按工具名或领域写专用分支，也不得展示模型内部思维链。
+
+## M269 通用记录分析 Adapter 的调用图遗漏与周期语义漂移
+
+- **现象**：核心 `RecordAnalysisEngine` 和 Protocol 已存在，纯核心单测通过，但真实文件矢量通过 ToolRegistry 调用 `record_analysis` 时先出现管理区加载参数错误，随后暴露 `GeoPackageBackend` 缺少实现；指标 Provider 对季度/半年期间使用字符串比较也可能筛选错误。
+- **根因**：迁移通用能力时只接了接口、核心和部分后端，没有按 `ToolRegistry → SpatialToolAdapter → Hybrid/GeoJSON/GeoPackage → shared engine` 验证完整调用图；同时把领域特有的期间排序误当成通用字符串比较，丢失了 Indicator Domain 的 `_period_key` 语义。
+- **诊断**：先在 Docker 中执行真实 Adapter contract，而不是只执行 compileall/核心单测；检查 `record_analysis_result.status/result_type/metrics`。指标问题要用 `Q2/Q10` 或 `H1/H2` 这类最小周期 fixture 对比 Domain period key 和通用字段过滤。
+- **修复**：GeoJSON 管理区使用无参数 `_load()` 并提供明确 provenance；GeoPackage 实现属性投影后调用共享核心；Hybrid 对真实管理区和文件矢量分别路由。Indicator 核心继续委托通用字段筛选，但 start/end 期间范围在 Domain 内用 `_period_key` 过滤。
+- **预防**：新增通用工具时必须覆盖 Protocol、每个真实 Adapter、Hybrid 路由、ToolRegistry schema、Result/View 和一次真实数据验收；领域时间/空间语义只能留在 Domain Adapter，不能为了复用塞入公共记录核心。文档中的测试模块名与 Docker 实际命令要同步核对。

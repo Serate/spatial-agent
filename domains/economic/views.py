@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from agent.analysis.record_views import build_record_analysis_view
+
 
 def build_views(
     result_type: str,
@@ -16,6 +18,8 @@ def build_views(
     del geometry_evidence, geojson_ref, workspace
     results = [step.get("result") for step in steps if isinstance(step, dict) and isinstance(step.get("result"), dict)]
     result = next((item for item in results if item.get("result_type") or item.get("indicators") or item.get("sources")), {})
+    if result_type == "record_analysis_result":
+        return {"schema_version": "spatial-agent.views.v1", "panels": {"generic": build_record_analysis_view(result)}}
     if result_type == "economic_catalog_result":
         indicators = result.get("indicators") or []
         rows = [[item.get("id"), item.get("label"), ", ".join(item.get("units") or []), ", ".join(item.get("period_types") or [])] for item in indicators[:32]]

@@ -16,6 +16,8 @@ from typing import Any, Mapping, Sequence
 
 from agent.data_kinds import build_data_profile
 
+from .record_analysis import RecordAnalysisEngine
+
 
 @dataclass(frozen=True)
 class IndicatorAnalysisConfig:
@@ -52,6 +54,11 @@ class IndicatorAnalysisEngine:
             if value is not None
         }
         self._config = config or IndicatorAnalysisConfig()
+        self._record_engine = RecordAnalysisEngine(
+            dataset_id=self._dataset_id,
+            provenance=self._provenance,
+            max_output=self._config.max_rows,
+        )
 
     def list_indicators(self) -> dict[str, Any]:
         """Return a bounded catalog derived only from normalized records."""
@@ -240,15 +247,26 @@ class IndicatorAnalysisEngine:
         start: str,
         end: str,
     ) -> list[dict[str, Any]]:
-        return [
-            dict(item)
-            for item in self._records
-            if str(item.get("indicator")) == indicator
-            and str(item.get("region")) in regions
-            and (not period_type or str(item.get("period_type")) == period_type)
-            and (not start or _period_key(item.get("period")) >= _period_key(start))
-            and (not end or _period_key(item.get("period")) <= _period_key(end))
+        filters: list[dict[str, Any]] = [
+            {"field": "indicator", "operator": "eq", "value": indicator},
+            {"field": "region", "operator": "in", "value": list(regions)},
         ]
+        if period_type:
+            filters.append({"field": "period_type", "operator": "eq", "value": period_type})
+        result = self._record_engine.analyze(
+            self._records,
+            operation="filter",
+            filters=filters,
+            limit=self._config.max_rows,
+        )
+        rows = [dict(item) for item in result.get("rows", []) if isinstance(item, Mapping)]
+        start_key = _period_key(start) if start else None
+        end_key = _period_key(end) if end else None
+        if start_key is not None:
+            rows = [item for item in rows if _period_key(item.get("period")) >= start_key]
+        if end_key is not None:
+            rows = [item for item in rows if _period_key(item.get("period")) <= end_key]
+        return rows
 
     def _status_result(
         self,

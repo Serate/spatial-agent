@@ -6,6 +6,14 @@
 
 建设可测试、可观测、可替换、可恢复的通用 Agent Runtime，GIS 只是业务载体。
 
+## Agent 能力与日常体验补充约束
+
+- 默认用户路径应优先体现 LLM Planner、能力发现和多步计划；规则 Planner 主要用于离线测试、确定性验收、模型不可用时的显式降级，不应成为日常成功路径的无感替代。
+- “Agent 感”不等于暴露模型内部思维过程。前端应展示结构化的阶段里程碑，例如“发现能力 → 检查数据 → 生成计划 → 执行步骤 → 汇总证据”，并让用户能查看计划摘要、数据选择和下一步动作。
+- 数据探索必须保持受控：模型只能在已登记、已授权、通过健康检查的数据目录中选择数据；数据目录之外的搜索、下载、字段推断和数据修复应通过显式 Domain 能力扩展，不由模型自由执行。
+- LLM 可以组合已注册且经过 schema/权限校验的通用工具；规则 Planner 的固定模板不应被误认为 Runtime 的能力边界。新增专题优先扩展目录、适配器和通用算子，不复制 Runtime 生命周期链路。
+- 产品验收同时检查 Agent Runtime 证据和 query-engine 体验：用户应能看到简洁、可读的过程进度与结论，详细 trace、repair、evidence 保持可展开；不得输出模型内部思维链。
+
 ## 当前状态
 
 - M228 已完成：pre-run routing child + receipt 在 SQLite 原子提交并可跨 worker/重启回放；Journey Harness 贯穿 Application、HTTP、artifact 和 restart；legacy 前端 selection 活动路径已删除。
@@ -67,9 +75,11 @@
 - M267 已完成：扩展 `DomainCatalogSpec.derived_datasets`，区分物理数据集与由前序数据/工具产生的派生依赖；GIS `legacy_road_slope` 的 `slope` 通过公共 builder 声明为派生数据，不进入 dataset groups/readiness。GIS 迁移到 `GIS_CATALOG_SPEC`，能力和 workflow IDs 保持不变；Planner context 可见派生依赖但不会伪造数据证据。Docker M267 及相邻回归 **22/22**、quick+stage、compileall、architecture strict 通过。
 - M268 已完成：保留 `GeoPackageBackend` 兼容 seam，扩展为按 `DatasetCatalog` 发现 ready vector 条目的文件型适配器；GeoPackage 按 dataset layer 读取，GeoJSON 等文件按路径读取，通用 `get_dataset_schema`/`range_query` 不再受固定 dataset enum 限制。新增 `earthquakes_wuhan` 的 GIS capability/workflow 声明和请求事实映射，Planner 通过声明式 workflow fallback 复用 `get_dataset_schema → range_query`，没有新增 Runtime、ToolRegistry 或前端主流程分支。Docker M268 contract **3/3**、M267/M266/M265 定向 **14/14**、旧 GIS/回答契约 **47/47**（7 个真实旧数据用例按环境跳过），compileall、architecture strict、quick、stage 通过。显式一次性 Docker 挂载 `D:\dataset\agent` 后，真实地震 GeoJSON schema 保留 `EPSG:4979`，`mag >= 2.5` + bbox 返回 1 条记录，健康检查为 10 个要素 ready；默认生产容器仍挂载项目 `data/`。
 
+- M269 已完成实现：新增领域中立的 `RecordAnalysisEngine` 与 `record_views`，支持有界 filter/aggregate/timeseries/compare；Economic/Indicators 复用公共筛选，GIS 文件型矢量通过 ToolRegistry 的 `record_analysis` 接入，统一 `record_analysis_result`、data_profile、metrics、provenance 和 generic View。Docker 定向 **14/14**、相邻边界回归 **23/23**、compileall、architecture strict 通过；一次性只读 `/data` 真实验收地震 10 条聚合为 2 组，Economic `gdp_total + 洪山区` 年度趋势返回 4 条。期间修复了 Adapter 调用图遗漏和周期字符串排序风险，均已写入问题日志。
+
 ## 下一步
 
-当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移和 M268 通用矢量查询扩展均已完成。下一阶段从全局七维度推进 M269：审计 GIS `range_query`、Economic/Indicators Provider 的重复聚合逻辑，设计跨领域 `filter → aggregate → timeseries/compare` contract；用真实经济数据和真实 GIS 事件数据各做一条复用验收，不为单个专题新增 Runtime 链路，不提前引入 RAG/MCP。
+当前 Goal 的 Runtime 验收标准、M233 控制台/布局阶段、M240 回答生成边界、M242 GeoJSON 导出预算、M243/M245 输出数据形态跨入口传播、M247/M248 通用空间算子、M249 开放式 Planner context、M250 真实本地 GIS 空间算子、M251 指标 Domain 第一纵向切片、M262 Runtime/HTTP/架构收敛、M263 Economic Domain 真实纵向切片、M264 指标核心抽取、M265 数据就绪上下文、M266 声明式 catalog 工厂、M267 派生数据声明/GIS 迁移、M268 通用矢量查询和 M269 通用记录分析实现均已完成。下一阶段从全局规划真实 LLM 的开放式多步请求：验证能力发现、数据选择、计划摘要、多步执行、结构化回答和 evidence 入口；Rule Planner 保持离线/确定性/降级定位，不暴露思维链，不为单一专题增加 Runtime 分支。
 
 ## 不变量
 

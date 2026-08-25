@@ -90,6 +90,33 @@ class M268GenericVectorQueryTests(unittest.TestCase):
             self.assertEqual(exported["geometry_source"], "geojson")
             self.assertEqual(len(exported["features"]), 1)
 
+    def test_record_analysis_uses_registry_schema_and_shared_engine(self):
+        with tempfile.TemporaryDirectory() as directory:
+            backend = GeoPackageBackend(self._catalog(Path(directory)))
+            registry = ToolRegistry.from_json(
+                str(ROOT / "tools" / "schema" / "tool-definitions.json"),
+                SpatialToolAdapter(backend),
+            )
+            result = registry.invoke(
+                "record_analysis",
+                {
+                    "dataset": "earthquakes_wuhan",
+                    "operation": "aggregate",
+                    "group_by": ["place"],
+                    "aggregations": [
+                        {"field": "mag", "function": "mean", "alias": "mean_mag"},
+                        {"function": "count", "alias": "event_count"},
+                    ],
+                    "limit": 10,
+                },
+            )
+            self.assertEqual(result["status"], "ready")
+            self.assertEqual(result["result_type"], "record_analysis_result")
+            self.assertEqual(result["metrics"]["backend"], "geojson")
+            by_place = {row["place"]: row for row in result["rows"]}
+            self.assertEqual(by_place["西侧"]["mean_mag"], 2.4)
+            self.assertEqual(by_place["东侧"]["event_count"], 1)
+
     def test_catalog_discovery_and_rule_planner_reuse_existing_workflow_tools(self):
         discovery = GisDomainPack().discover(
             "查询武汉周边地震事件",
@@ -129,11 +156,17 @@ class M268GenericVectorQueryTests(unittest.TestCase):
             for item in GIS_CATALOG_SPEC.capabilities
             if item["id"] == "earthquake_event_query"
         )
-        self.assertEqual(capability["tools"], ["get_dataset_schema", "range_query"])
-        self.assertEqual(capability["result_types"], ["vector_result"])
+        self.assertEqual(
+            capability["tools"],
+            ["get_dataset_schema", "range_query", "record_analysis"],
+        )
+        self.assertEqual(
+            capability["result_types"],
+            ["vector_result", "record_analysis_result"],
+        )
         self.assertEqual(
             GIS_CATALOG_SPEC.workflow_templates["earthquake_event_query"]["allowed_tools"],
-            ["get_dataset_schema", "range_query"],
+            ["get_dataset_schema", "range_query", "record_analysis"],
         )
 
 

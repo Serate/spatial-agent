@@ -90,6 +90,84 @@
       }
     },
     {
+      "name": "record_analysis",
+      "description": "Analyze bounded records from an allowed vector dataset using filter, aggregate, timeseries, or compare semantics.",
+      "side_effect": "none",
+      "requires_approval": false,
+      "timeout_seconds": 30,
+      "permissions": ["spatial_data:read"],
+      "data_dependencies": ["$dataset"],
+      "input_schema": {
+        "type": "object",
+        "required": ["dataset", "operation"],
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96
+          },
+          "operation": {
+            "type": "string",
+            "enum": ["filter", "aggregate", "timeseries", "compare"]
+          },
+          "filters": {
+            "type": "array",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "required": ["field", "operator", "value"],
+              "properties": {
+                "field": {"type": "string", "minLength": 1, "maxLength": 96},
+                "operator": {
+                  "type": "string",
+                  "enum": ["eq", "neq", "gt", "gte", "lt", "lte", "in"]
+                },
+                "value": {}
+              },
+              "additionalProperties": false
+            }
+          },
+          "group_by": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "minLength": 1, "maxLength": 96}
+          },
+          "aggregations": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "required": ["function", "alias"],
+              "properties": {
+                "function": {"type": "string", "enum": ["count", "sum", "mean", "min", "max"]},
+                "field": {"type": ["string", "null"], "maxLength": 96},
+                "alias": {"type": "string", "minLength": 1, "maxLength": 96}
+              },
+              "additionalProperties": false
+            }
+          },
+          "time_field": {"type": ["string", "null"], "maxLength": 96},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 10000}
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "required": ["schema_version", "status", "result_type", "dataset", "rows", "metrics", "data_profile"],
+        "properties": {
+          "schema_version": {"type": "string"},
+          "status": {"type": "string", "enum": ["ready", "degraded", "unavailable"]},
+          "result_type": {"type": "string", "const": "record_analysis_result"},
+          "dataset": {"type": "string"},
+          "rows": {"type": "array"},
+          "metrics": {"type": "object"},
+          "data_profile": {"type": "object"},
+          "provenance": {"type": "object"},
+          "warnings": {"type": "array"}
+        }
+      }
+    },
+    {
       "name": "spatial_join",
       "description": "Join two allowed datasets using a supported spatial relation.",
       "side_effect": "none",

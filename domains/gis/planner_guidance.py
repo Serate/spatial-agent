@@ -18,6 +18,7 @@ GIS_PLANNER_GUIDANCE: dict[str, Any] = {
         "get_dataset_health_report": "报告数据可用性、CRS、覆盖和分析能力；数据 degraded 或 unavailable 时必须如实返回。",
         "get_dataset_schema": "读取数据集字段与几何元数据，为后续查询提供 schema 证据。",
         "range_query": "按属性条件查询已注册矢量数据集；没有属性过滤时使用 conditions=[]，不要捏造数据集字段或分类。",
+        "record_analysis": "对已登记矢量数据集的非几何属性记录执行有界 filter/aggregate/timeseries/compare；先用 schema 证据确认字段，使用 filters、group_by、aggregations、time_field 和 limit，不传文件路径或原始几何。",
         "spatial_join": "执行已声明的空间关系或距离约束，并保留来源数据集。",
         "spatial_operation": "对配置的数据集或前一步矢量结果执行有限的 clip/intersect/buffer/distance 空间操作；buffer 与 distance 使用 distance_m，输入可以是数据集 ID 或 result_ref，输出包含 CRS、来源和要素预算。",
         "get_zonal_vector_summary": "汇总行政区域内道路或水体等矢量；可选限制参数是 max_features，不是 max_files。",
@@ -31,6 +32,7 @@ GIS_PLANNER_GUIDANCE: dict[str, Any] = {
         "constrained_buildability_result": "含道路/水体约束的演示建设筛选，必须明确几何边界和证据限制。",
         "spatial_overview_result": "行政区域空间总览，包含健康、边界、栅格和矢量证据。",
         "spatial_analysis_result": "按模板组合的综合空间分析结果。",
+        "record_analysis_result": "已登记矢量记录的结构化筛选、聚合、时间序列或区域比较结果。",
     },
     "planning_rules": [
         "Allowed datasets are only those listed in the capability catalog and dataset health evidence; examples include roads, water, admin_areas, dem, land_use, and earthquakes_wuhan when that dataset is ready.",
@@ -49,6 +51,7 @@ GIS_PLANNER_GUIDANCE: dict[str, Any] = {
         "For vector clipping, intersection, buffering, or nearest-distance measurement, use spatial_operation with the registered operation enum; buffer and distance require distance_m. input_ref and mask_ref must be configured vector dataset IDs or completed vector result_ref values. Do not pass raw GeoJSON, filesystem paths, or invented datasets.",
         "For spatial_operation, preserve the source CRS and max_features budget in the result; if the backend has no vector geometry, report the recoverable data-unavailable state instead of fabricating geometry.",
         "For any registered vector inventory request, first use get_dataset_schema and then range_query; use conditions=[] when no attribute filter is requested. Never invent a dataset or field that schema evidence does not contain.",
+        "For non-geometric attribute analysis of a registered vector dataset, first use get_dataset_schema, then record_analysis. Use only fields present in schema evidence; choose filter, aggregate, timeseries, or compare from the request, and keep the operation result type as record_analysis_result.",
         "For data quality, availability, CRS, coverage, or dataset health requests, use get_dataset_health_report with all or the explicitly named dataset and max_files at most 10.",
         "For any regional raster, slope, land-use, or buildability analysis, put the health step before the dependent tool and preserve its dependency. An unavailable required dataset must be reported as unavailable.",
         "For buildability screening, the first step MUST be get_dataset_health_report(dataset=all, max_files=10), and the buildability tool MUST depend on it.",

@@ -85,6 +85,22 @@ class M264IndicatorCoreTests(unittest.TestCase):
         self.assertEqual(result["code"], "indicator_data_unavailable")
         self.assertEqual(result["data_profile"]["primary"], "metrics")
 
+    def test_period_bounds_use_indicator_period_semantics(self):
+        records = [
+            {"indicator": "sales", "region": "区域甲", "period": "2024Q2", "value": 2},
+            {"indicator": "sales", "region": "区域甲", "period": "2024Q10", "value": 10},
+        ]
+        engine = IndicatorAnalysisEngine(records, dataset_id="periods")
+        result = engine.query(
+            {
+                "operation": "trend",
+                "indicator": "sales",
+                "regions": ["区域甲"],
+                "period_start": "2024Q10",
+            }
+        )
+        self.assertEqual([row["period"] for row in result["rows"]], ["2024Q10"])
+
     def test_both_domain_adapters_use_the_same_core_engine(self):
         self.assertIsInstance(IndicatorToolProvider()._engine, IndicatorAnalysisEngine)
         self.assertIsInstance(EconomicToolProvider(data_path="__missing_m264_data__.json")._engine, IndicatorAnalysisEngine)

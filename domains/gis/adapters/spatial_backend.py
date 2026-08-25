@@ -8,6 +8,7 @@ from agent.data_kinds import build_data_profile
 from .data_quality import dataset_health_report
 from agent.errors import ToolError
 from .raster_backend import RasterMetadataBackend
+from agent.analysis.record_analysis import RecordAnalysisEngine
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,18 @@ class SpatialBackend(Protocol):
         conditions: List[Dict[str, Any]],
         limit: int,
         bbox: Optional[List[float]] = None,
+    ) -> Dict[str, Any]:
+        ...
+
+    def record_analysis(
+        self,
+        dataset: str,
+        operation: str,
+        filters: List[Dict[str, Any]],
+        group_by: List[str],
+        aggregations: List[Dict[str, Any]],
+        time_field: Optional[str] = None,
+        limit: int = 256,
     ) -> Dict[str, Any]:
         ...
 
@@ -198,6 +211,26 @@ class InMemorySpatialBackend:
                 "used_bbox": bbox is not None,
             },
         }
+
+    def record_analysis(
+        self,
+        dataset: str,
+        operation: str,
+        filters: List[Dict[str, Any]],
+        group_by: List[str],
+        aggregations: List[Dict[str, Any]],
+        time_field: Optional[str] = None,
+        limit: int = 256,
+    ) -> Dict[str, Any]:
+        return RecordAnalysisEngine(dataset_id=dataset).analyze(
+            [],
+            operation=operation,
+            filters=filters,
+            group_by=group_by,
+            aggregations=aggregations,
+            time_field=time_field,
+            limit=limit,
+        )
 
     def spatial_join(
         self,
@@ -448,6 +481,43 @@ class GeoJSONAdminBackend:
             },
         }
 
+    def record_analysis(
+        self,
+        dataset: str,
+        operation: str,
+        filters: List[Dict[str, Any]],
+        group_by: List[str],
+        aggregations: List[Dict[str, Any]],
+        time_field: Optional[str] = None,
+        limit: int = 256,
+    ) -> Dict[str, Any]:
+        self._require_admin(dataset)
+        gdf = self._load()
+        columns = [column for column in gdf.columns if column != "geometry"]
+        records = gdf[columns].to_dict(orient="records")
+        result = RecordAnalysisEngine(
+            dataset_id=dataset,
+            provenance={"backend": "geojson", "source": self._path},
+        ).analyze(
+            records,
+            operation=operation,
+            filters=filters,
+            group_by=group_by,
+            aggregations=aggregations,
+            time_field=time_field,
+            limit=limit,
+        )
+        metrics = result.get("metrics")
+        if isinstance(metrics, dict):
+            metrics.update(
+                {
+                    "backend": "geojson",
+                    "scanned_features": int(len(gdf)),
+                    "source": self._path,
+                }
+            )
+        return result
+
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict[str, Any]:
         if result_ref not in self._result_cache:
             raise ToolError("result_ref is not available for export: " + result_ref)
@@ -562,6 +632,45 @@ class GeoPackageBackend:
                 "source": self._entries[dataset].files[0],
             },
         }
+
+    def record_analysis(
+        self,
+        dataset: str,
+        operation: str,
+        filters: List[Dict[str, Any]],
+        group_by: List[str],
+        aggregations: List[Dict[str, Any]],
+        time_field: Optional[str] = None,
+        limit: int = 256,
+    ) -> Dict[str, Any]:
+        gdf = self._load(dataset)
+        columns = [column for column in gdf.columns if column != "geometry"]
+        records = gdf[columns].to_dict(orient="records")
+        result = RecordAnalysisEngine(
+            dataset_id=dataset,
+            provenance={
+                "backend": self._backend_name(dataset),
+                "source": self._entries[dataset].files[0],
+            },
+        ).analyze(
+            records,
+            operation=operation,
+            filters=filters,
+            group_by=group_by,
+            aggregations=aggregations,
+            time_field=time_field,
+            limit=limit,
+        )
+        metrics = result.get("metrics")
+        if isinstance(metrics, dict):
+            metrics.update(
+                {
+                    "backend": self._backend_name(dataset),
+                    "scanned_features": int(len(gdf)),
+                    "source": self._entries[dataset].files[0],
+                }
+            )
+        return result
 
     def spatial_join(
         self,
@@ -860,6 +969,46 @@ class HybridSpatialBackend:
         if self._vectors.supports(dataset):
             return self._vectors.range_query(dataset, conditions, limit, bbox)
         return self._fallback.range_query(dataset, conditions, limit, bbox)
+
+    def record_analysis(
+        self,
+        dataset: str,
+        operation: str,
+        filters: List[Dict[str, Any]],
+        group_by: List[str],
+        aggregations: List[Dict[str, Any]],
+        time_field: Optional[str] = None,
+        limit: int = 256,
+    ) -> Dict[str, Any]:
+        if dataset == "admin_areas":
+            return self._admin.record_analysis(
+                dataset,
+                operation,
+                filters,
+                group_by,
+                aggregations,
+                time_field,
+                limit,
+            )
+        if self._vectors.supports(dataset):
+            return self._vectors.record_analysis(
+                dataset,
+                operation,
+                filters,
+                group_by,
+                aggregations,
+                time_field,
+                limit,
+            )
+        return self._fallback.record_analysis(
+            dataset,
+            operation,
+            filters,
+            group_by,
+            aggregations,
+            time_field,
+            limit,
+        )
 
     def spatial_join(
         self,
@@ -1320,6 +1469,16 @@ class SpatialToolAdapter:
                 conditions=arguments["conditions"],
                 limit=arguments["limit"],
                 bbox=arguments.get("bbox"),
+            )
+        if name == "record_analysis":
+            return self._backend.record_analysis(
+                dataset=arguments["dataset"],
+                operation=arguments["operation"],
+                filters=arguments.get("filters", []),
+                group_by=arguments.get("group_by", []),
+                aggregations=arguments.get("aggregations", []),
+                time_field=arguments.get("time_field"),
+                limit=arguments.get("limit", 256),
             )
         if name == "spatial_join":
             return self._backend.spatial_join(

@@ -31,6 +31,7 @@ _TITLES = {
     "zonal_vector_summary_result": "区域矢量摘要",
     "zonal_vector_result": "区域矢量摘要",
     "vector_result": "矢量结果",
+    "record_analysis_result": "记录分析结果",
     "spatial_relation_result": "空间关系",
     "spatial_operation_result": "空间算子结果",
     "spatial_result": "空间结果",
@@ -52,6 +53,7 @@ _PANELS = {
     "zonal_vector_summary_result": ("vector",),
     "zonal_vector_result": ("vector",),
     "vector_result": ("vector",),
+    "record_analysis_result": ("vector",),
     "spatial_relation_result": ("vector",),
     "spatial_operation_result": ("vector",),
     "spatial_result": ("vector",),
@@ -76,6 +78,7 @@ _DATA_KINDS = {
     "spatial_relation_result": ("vector", "metrics"),
     "spatial_operation_result": ("vector", "metrics"),
     "spatial_result": ("vector",),
+    "record_analysis_result": ("vector",),
 }
 
 _GEOMETRY_TYPES = {
@@ -111,7 +114,7 @@ _VIEW_RENDERERS = {
     "generic": "generic",
 }
 
-_MAP_RENDER_TYPES = set(_TITLES) - {"direct_answer", "dataset_health_result"}
+_MAP_RENDER_TYPES = set(_TITLES) - {"direct_answer", "dataset_health_result", "record_analysis_result"}
 
 
 def _view_specs_for(result_type: str) -> tuple[ViewSpec, ...]:

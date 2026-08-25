@@ -87,6 +87,7 @@ class EconomicDomainPack:
                 "economic_timeseries_result": ResultTypeSpec(title="经济趋势", panels=("generic",), view_specs=(ViewSpec("generic", "chart", "经济趋势"),), data_kinds=("timeseries", "metrics")),
                 "economic_comparison_result": ResultTypeSpec(title="区域经济比较", panels=("generic",), view_specs=(ViewSpec("generic", "chart", "区域比较"),), data_kinds=("composite", "metrics")),
                 "economic_evidence_result": ResultTypeSpec(title="经济来源证据", panels=("generic",), view_specs=(ViewSpec("generic", "table", "来源证据"),), data_kinds=("document_evidence",)),
+                "record_analysis_result": ResultTypeSpec(title="记录分析结果", panels=("generic",), view_specs=(ViewSpec("generic", "table", "结构化记录分析"),), data_kinds=("metrics", "timeseries", "composite")),
             },
             fallback_title="经济分析结果",
             view_builder=build_views,

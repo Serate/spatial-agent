@@ -4860,3 +4860,13 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker M268 contract **3/3**、M267/M266/M265 定向 **14/14**、历史 GIS/回答契约 **47/47**（7 个真实旧数据用例按环境跳过）；compileall、architecture strict、quick、stage 通过。
 - 显式一次性 Docker 挂载 `D:\dataset\agent` 验收真实 GeoJSON：schema 字段包含 `mag/place/time`、CRS 为 `EPSG:4979`；`mag >= 2.5` + bbox 返回 1 条记录，健康检查报告 10 个事件且 ready；未提交原始数据或宿主路径配置。
 - 全局重规划：下一阶段为 M269，先审计 GIS `range_query` 与 Economic/Indicators Provider 的重复聚合逻辑，设计跨领域 `filter → aggregate → timeseries/compare` contract；用真实经济数据和真实 GIS 事件数据验证复用，不为单个专题新增 Runtime 分支，不提前引入 RAG/MCP。
+
+## M269：通用记录分析核心与跨领域 View 接线（已完成实现，待阶段版本收口）
+
+- 新增领域中立的 `agent/analysis/record_contract.py`、`record_analysis.py` 和 `record_views.py`，统一有界 `filter`、`aggregate`、`timeseries`、`compare` 语义；核心只接收 mapping records，不负责文件、网络、领域词汇或 Runtime 生命周期。
+- 输入、输出、分组、字段和聚合均有预算；结果统一为版本化 `record_analysis_result`，输出 `data_profile`、metrics、provenance、warnings，并过滤 geometry、路径和敏感字段。
+- `IndicatorAnalysisEngine` 复用通用记录筛选，同时保留指标 Domain 的季度/半年期间键语义，避免把周期字符串直接按字典序比较；Economic/Indicators 旧工具结果类型和来源证据保持兼容。
+- GIS `GeoJSONAdminBackend`、`GeoPackageBackend`、`HybridSpatialBackend` 与 `SpatialToolAdapter` 接入 `record_analysis`；ToolRegistry schema、GIS catalog/workflow/result registry、Economic/Indicators registry 均登记结果类型。文件型矢量不增加专题 Runtime 分支。
+- Console 通过 Domain View 动态展示记录分析表格、指标卡和时间序列点；新增共享 View builder，前端不判断 `earthquake`、`economic` 等专题名称，也不显示模型内部思维链。
+- Docker 真实只读验收：地震 GeoJSON 10 条记录按 `magType` 聚合返回 2 组 `record_analysis_result`；Economic 真实数据 `gdp_total + 洪山区 + annual trend` 返回 4 条 `economic_timeseries_result`。M269/Economic/Indicators/GIS 定向 **14/14**，相邻边界回归 **23/23**，compileall、architecture strict 通过。
+- 本阶段未提交真实数据、密钥、模型原文或宿主绝对路径；默认生产容器挂载和离线 CI 语义未改变。下一步全局重规划：验证真实 LLM 多步开放请求的能力发现/计划摘要/证据入口，再决定是否把更多领域工具收敛为通用记录分析。

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from agent.analysis.record_views import build_record_analysis_view
+
 
 def build_views(
     result_type: str,
@@ -56,6 +58,7 @@ def build_views(
             "spatial_relation_result",
             "spatial_operation_result",
             "spatial_result",
+            "record_analysis_result",
         }
     ):
         panels["vector"] = vector_view
@@ -456,6 +459,7 @@ def _buildability_view(steps: List[Any]) -> Dict[str, Any] | None:
 
 def _vector_view(steps: List[Any]) -> Dict[str, Any] | None:
     for tool, builder in (
+        ("record_analysis", _record_analysis_view),
         ("get_zonal_vector_summary", _zonal_vector_summary_view),
         ("spatial_operation", _spatial_operation_view),
         ("spatial_join", _spatial_relation_view),
@@ -465,6 +469,13 @@ def _vector_view(steps: List[Any]) -> Dict[str, Any] | None:
         if result:
             return builder(step or {}, result)
     return None
+
+
+def _record_analysis_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    panel = build_record_analysis_view(result)
+    panel["source_step_id"] = step.get("id")
+    panel["source_tool"] = step.get("tool")
+    return panel
 
 
 def _vector_query_view(step: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:

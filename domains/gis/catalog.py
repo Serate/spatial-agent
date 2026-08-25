@@ -5,7 +5,7 @@ through ``DomainPack`` and does not need to know these dataset names.
 """
 
 GIS_DATASET_TOOL_CAPABILITIES = {
-    "admin_areas": ["get_dataset_schema", "range_query", "spatial_operation"],
+    "admin_areas": ["get_dataset_schema", "range_query", "record_analysis", "spatial_operation"],
     "dem": [
         "get_raster_metadata",
         "get_raster_statistics",
@@ -21,6 +21,7 @@ GIS_DATASET_TOOL_CAPABILITIES = {
     "roads": [
         "get_dataset_schema",
         "range_query",
+        "record_analysis",
         "get_zonal_vector_summary",
         "spatial_join",
         "spatial_operation",
@@ -28,6 +29,7 @@ GIS_DATASET_TOOL_CAPABILITIES = {
     "water": [
         "get_dataset_schema",
         "range_query",
+        "record_analysis",
         "get_zonal_vector_summary",
         "spatial_join",
         "spatial_operation",
@@ -35,6 +37,7 @@ GIS_DATASET_TOOL_CAPABILITIES = {
     "earthquakes_wuhan": [
         "get_dataset_schema",
         "range_query",
+        "record_analysis",
     ],
 }
 
@@ -385,8 +388,8 @@ GIS_CAPABILITIES = _attach_request_hints((
         "id": "vector_query",
         "label": "矢量要素查询",
         "datasets": ["roads", "water"],
-        "tools": ["get_dataset_schema", "range_query"],
-        "result_types": ["vector_result"],
+        "tools": ["get_dataset_schema", "range_query", "record_analysis"],
+        "result_types": ["vector_result", "record_analysis_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "optional",
     },
@@ -394,8 +397,8 @@ GIS_CAPABILITIES = _attach_request_hints((
         "id": "earthquake_event_query",
         "label": "地震事件矢量查询",
         "datasets": ["earthquakes_wuhan"],
-        "tools": ["get_dataset_schema", "range_query"],
-        "result_types": ["vector_result"],
+        "tools": ["get_dataset_schema", "range_query", "record_analysis"],
+        "result_types": ["vector_result", "record_analysis_result"],
         "environments": ["local", "production"],
         "geometry": "optional",
         "request_requirements": _request_requirements(

@@ -79,6 +79,7 @@ class IndicatorsDomainPack:
             "indicator_metrics_result": ResultTypeSpec(title="指标统计", panels=("generic",), view_specs=(ViewSpec("generic", "metrics", "指标统计"),), data_kinds=("metrics",)),
             "indicator_timeseries_result": ResultTypeSpec(title="指标趋势", panels=("generic",), view_specs=(ViewSpec("generic", "chart", "指标趋势"),), data_kinds=("timeseries", "metrics")),
             "indicator_comparison_result": ResultTypeSpec(title="区域指标比较", panels=("generic",), view_specs=(ViewSpec("generic", "chart", "区域比较"),), data_kinds=("composite", "metrics")),
+            "record_analysis_result": ResultTypeSpec(title="记录分析结果", panels=("generic",), view_specs=(ViewSpec("generic", "table", "结构化记录分析"),), data_kinds=("metrics", "timeseries", "composite")),
         }, fallback_title="指标结果", view_builder=build_views)
 
     def runtime_evidence(self, *, max_files: int = 10) -> Mapping[str, Any]:
