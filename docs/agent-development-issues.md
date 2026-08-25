@@ -888,3 +888,11 @@
 - **修复**：M279 在本地对模型输出执行 schema/allowlist/Composite request normalize；非法 outcome 在执行前拒绝，保留有限错误码；HTTP 仍返回安全结构化结果，不创建 Composite execution run。
 - **验证**：真实中转 planning probe HTTP 200、`REJECTED/plan_outcome_invalid`、无 run；Docker M279/M278/M277/M256/M275/M276 **33/33**，CI/stage、compileall、architecture strict 和生产 health 通过。
 - **预防**：真实验收继续按 provider probe → Planner contract → canonical DAG → execution 分层；后续只在 Planner/provider adapter 层优化 schema 兼容，不在 Runtime、ToolRegistry、GIS 算法或 transport 中绕过校验。
+
+## M280 Git push 短暂凭据失败后重试恢复
+
+- **现象**：M280 规划本地提交成功，但首次 `git push` 返回 `SEC_E_NO_CREDENTIALS`；代码和提交本身没有错误。
+- **根因**：宿主 Git Credential Manager/Schannel 短暂没有可用凭据，属于远端认证接缝，不应修改项目代码或提交密钥来绕过。
+- **诊断**：先确认本地 commit/hash 和工作树，再原样重试 `git push`；不要打印 remote token、凭据、环境变量或修改仓库认证配置。
+- **修复**：第二次 `git push` 成功，`2580b84` 已到 `origin/main`。
+- **预防**：阶段交付同时记录本地 commit 与远端 push；首次凭据/网络错误只安全重试，连续失败时保留本地提交并等待外部认证恢复。
