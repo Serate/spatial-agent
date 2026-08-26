@@ -542,10 +542,11 @@
 - 阻塞：无。
 - 下一步：增加阶段校验、最小字段投影及选中组件闭合逻辑。
 
-### M302-A/B：阶段化 Planner 上下文投影 — 已完成
+### M302-A/B：阶段化 Planner 上下文投影 — 已完成（已提交推送）
 - 目标：为 discovery、selection、execution、repair 建立公共、版本化的最小 provider Envelope；完整 Runtime Context 继续用于校验、恢复和证据。
 - 实际修改：`agent/runtime_core/planner_envelope.py` 增加 `projection_stage`、阶段校验、阶段字段过滤、选中能力收窄、readiness/result profile 保留、事实缺口投影和已有 Envelope 安全规范化；`CompositeRequestContextBuilder` 显式保存 discovery 投影；`LLMCompositePlanner` 初次规划使用 selection、结构修复使用 repair；planning evidence 区分 Context 与 provider 阶段；新增 `tests/test_m302_stage_aware_planner_context.py`。
 - 语义：discovery 不携带完整 workflow binding；selection 提供候选的最小执行闭合；execution 只保留选中组件；repair 在已有选中项时收窄，否则保留有界候选以允许修复尚未验证的结构化响应。
 - 验证：Docker M302 与 M299/M300/M301/M286/M287 精简回归 **34/34**；compileall、architecture strict、Service smoke 和生产 readiness HTTP **200** 通过。示例投影大小 discovery **2.95 KiB**、selection **4.32 KiB**、execution **3.46 KiB**。
 - 阻塞：无；未执行真实 provider 请求，未读取或保存密钥、模型原文、私有路径或原始数据。
+- 交付：提交 `6993fb1` 已推送到 `main`；工作区干净。
 - 下一步：进入 M302-C，核对 selected-component fact handoff、TaskPlan/binding 与 execution projection 的 identity 闭合，再统一阶段收口。
