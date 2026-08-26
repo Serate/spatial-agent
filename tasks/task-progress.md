@@ -463,3 +463,34 @@
 - 验证：M299/M297/M298 **18/18**；M282/M286/M287 **19/19**（M287 旧测试替身同时补齐当前 TaskPlan/policy 契约）；Docker compileall、architecture strict、Node projection smoke、readiness HTTP 200 通过。
 - 阻塞：无。
 - 下一步：进入 M299-C，统一选择、澄清、不可用原因和下一步动作的可读 evidence。
+
+### M299-C：选择与澄清 evidence — 已完成
+- 目标：统一成功、澄清、不可用和失败结果的能力选择摘要，保留候选 identity、data profile、readiness、workflow 闭合和下一步动作。
+- 实际修改：新增 `agent/runtime_core/selection_evidence.py`，由 Composite planning attach seam 写入 `planner_evidence.selection_evidence`；前端 projection 归一化并展示用户可读的能力选择提示。
+- 验证：M299/M297/M298/M287 **26/26**；selection identity 与私有字段过滤通过，Node projection smoke 通过。
+- 阻塞：无。
+- 下一步：完成 M299-D，让阶段状态与澄清动作消费同一结构化 evidence，并验证旧载荷降级。
+
+### M299-D：阶段状态与澄清动作投影 — 进行中
+- 目标：让 Console 阶段条和澄清区区分 discovering、planning、executing、summarizing、不可用与等待补充，并将 next_actions 绑定到结构化澄清。
+- 已完成：`console_result_projection.js` 已消费 `selection-evidence.v1`，展示能力选择和下一步提示，不展示内部 ID 或模型原文；阶段条支持等待确认状态；选择证据已接入 CompositeRunApplication 安全持久化和 Composite View。
+- 当前文件：`agent/runtime_core/selection_evidence.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`web/src/console_app.js`、`scripts/console_result_projection_smoke.js`、`tests/test_m299_default_agent_success_path.py`。
+- 验证：开发期间不重复运行全量测试；阶段收口统一运行 Node smoke 与 Docker contract。
+- 阻塞：无。
+- 额外修复：真实 Economic 链路发现自然问法的区域事实提取会污染查询参数，已在 `domains/economic/planner.py` 增加通用噪声清理并补充真实数据形状测试。
+- 额外修复：同步 Composite 返回体直接附带与异步/恢复一致的 `spatial-agent.composite-view.v1`；显式 live 已记录为中转 provider timeout，未创建 execution run。
+- 下一步：集中重建 Docker，运行 M299/M263 contract、真实 Replay/Rule 数据验收、旧载荷安全降级检查并收口阶段文档。
+
+### M299-D：默认 Agent 黑盒核验 — 进行中
+- 目标：确认用户可见产品入口是否真正启用默认 Agent，而不是仅保留底层能力。
+- 核验：运行中的 `ai-agent-spatial-agent-1` healthy；`/health/ready` 返回 200；容器内产品默认选择为 `openai + local`。历史上 M298 之前产品默认长期为 `rule + memory`，因此“能力存在但默认未启动/未显形”的判断成立；当前产品入口已启用，不能把中转 provider timeout 误判为 Agent 未启动。
+- 阶段回归：Docker 重建后 M299/M263 共 18 项中 17 项通过；唯一失败为 `test_selection_evidence_survives_sync_async_and_restart_views` 的 artifact 引用断言，尚未判定为生产代码缺陷。
+- 当前诊断：最小失败点是测试场景拿不到 `artifact_ref`；待核对 `export_artifact` 输入和同步/异步/artifact 投影链路。
+- 下一步：确认 artifact 引用是否因测试未开启导出而缺失；若生产链路确有丢失，再补公共投影并重跑单一回归。
+
+### M299-D/E/F：阶段收口与全局重规划 — 已完成
+- 结果：确认产品入口已默认启用 `openai + local`，前端默认展示 Agent 阶段；补充同步/异步/澄清/恢复的选择证据与即时 View。
+- 额外修复：Composite 异步路径改为先写 artifact、再公开最终 `COMPLETED` 快照，避免完成状态与导出证据短暂不一致；新增阻塞 artifact store 回归。
+- 验证：Docker M299/M263 **19/19**；Node projection smoke、compileall、architecture strict、生产 `/health/ready` **200**；真实 Economic local 数据与 Replay/Rule 恢复对照通过；显式中转 live 为 timeout，未创建 run，按 provider failure 记录。
+- 交付文档：已更新 `docs/agent-development-issues.md`、`docs/milestones.md`、`docs/agent-work-state.md`、`tasks/task-state.md`、`tasks/plan.md`、`tasks/todo.md`；M300 capability map、Spec、Plan 已创建。
+- 下一步：提交并推送 M299 版本；进入 M300-A，先审查全局能力图和成功率状态矩阵。

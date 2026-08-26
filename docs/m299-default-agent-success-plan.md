@@ -34,3 +34,9 @@
 
 - 从产品、架构、数据、模型、部署、体验和测试七个维度评估默认 Agent 成功率与剩余缺口。
 - 下一阶段优先解决全局瓶颈，不因单一 live 问句增加专用流程。
+
+## 阶段收口记录
+
+- A～D 已完成：Planner envelope、selection evidence、阶段投影、同步/异步/恢复和 artifact 证据已贯通。
+- E 已完成：Docker 真实 Economic local 数据与 Replay/Rule 对照通过；显式中转 live 为 provider timeout，按安全失败记录，未创建执行 run。
+- F 已完成：精简门禁通过，中文问题日志、任务账本、milestone 和恢复快照已更新；下一阶段为 M300，规划文件见 `docs/m300-open-agent-success-*`。

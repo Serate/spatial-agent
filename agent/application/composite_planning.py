@@ -45,6 +45,7 @@ from agent.runtime_core.plan_completeness import (
     PlanCompletenessError,
 )
 from agent.runtime_core.planner_envelope import PLANNER_ENVELOPE_MAX_BYTES
+from agent.runtime_core.selection_evidence import project_selection_evidence
 from agent.runtime_core.clarification_continuation import (
     ClarificationContinuationError,
     consume_fact_continuation,
@@ -705,7 +706,7 @@ class CompositePlanningApplication:
         status = str(candidate.get("status") or "").upper()
         if status != "PLANNED":
             planner_source = str(candidate.get("planner_source") or planner_name)[:32]
-            return {
+            result = {
                 "schema_version": self.schema_version,
                 "status": status or "NEEDS_CLARIFICATION",
                 "planner_source": planner_source,
@@ -727,6 +728,33 @@ class CompositePlanningApplication:
                     provider_metrics=provider_metrics,
                 ),
             }
+            if result["status"] == "NEEDS_CLARIFICATION":
+                raw_clarification = candidate.get("clarification")
+                raw_clarification = (
+                    raw_clarification
+                    if isinstance(raw_clarification, Mapping)
+                    else {}
+                )
+                result["clarification"] = {
+                    "schema_version": "spatial-agent.selection-clarification.v1",
+                    "state": "needs_clarification",
+                    "reason_code": str(
+                        raw_clarification.get("reason_code")
+                        or _selection_reason_for_candidate(candidate, status)
+                    )[:96],
+                    "message": str(
+                        raw_clarification.get("message")
+                        or candidate.get("message")
+                        or "请补充任务信息。"
+                    )[:640],
+                    "missing_fields": [
+                        str(item)[:160]
+                        for item in (raw_clarification.get("missing_fields") or [])[:8]
+                        if str(item).strip()
+                    ],
+                    "next_actions": ["补充信息后重新提交"],
+                }
+            return result
         raw_request = inherit_composite_runtime_selection(
             candidate.get("request"),
             planner=planner_name,
@@ -965,6 +993,19 @@ class CompositePlanningApplication:
                     else False
                 ),
             }
+        evidence["selection_evidence"] = project_selection_evidence(
+            context,
+            existing_selection=(
+                evidence.get("selection")
+                if isinstance(evidence.get("selection"), Mapping)
+                else None
+            ),
+            existing_clarification=(
+                projected.get("clarification")
+                if isinstance(projected.get("clarification"), Mapping)
+                else None
+            ),
+        )
         projected["planner_evidence"] = evidence
         return projected
 

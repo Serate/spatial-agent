@@ -101,8 +101,20 @@ def _indicator_id(text: str) -> str:
 
 def _regions(text: str) -> list[str]:
     matches = re.findall(r"[\u4e00-\u9fffA-Za-z0-9]{1,32}?(?:市|区|县)", str(text))
-    cleaned = [item.lstrip("和与及、,，") for item in matches]
-    return list(dict.fromkeys(item[:96] for item in cleaned if item))[:16]
+    cleaned = []
+    for item in matches:
+        value = re.sub(
+            r"^(?:请|帮我|查询|分析|了解|查看|统计|评估|研究|判断|说明|对|的)+",
+            "",
+            item,
+        )
+        value = value.lstrip("和与及、,，")
+        # “地区生产总值” is an indicator label, not a region named“地区”。
+        if value in {"地区", "区域"}:
+            continue
+        if value:
+            cleaned.append(value[:96])
+    return list(dict.fromkeys(cleaned))[:16]
 
 
 def _period_type(text: str) -> str:

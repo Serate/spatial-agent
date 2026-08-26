@@ -98,6 +98,25 @@ class M263EconomicDomainTests(unittest.TestCase):
             self.assertEqual(result.steps[1].result["data_profile"]["primary"], "document_evidence")
             self.assertIn("趋势", result.answer)
 
+    def test_natural_query_prefix_and_indicator_label_do_not_pollute_region(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "economic.json"
+            path.write_text(json.dumps(_payload(), ensure_ascii=False), encoding="utf-8")
+            old = os.environ.get("SPATIAL_AGENT_ECONOMIC_DATA")
+            os.environ["SPATIAL_AGENT_ECONOMIC_DATA"] = str(path)
+            try:
+                result = build_runtime("rule", "memory", domain_id="economic").run(
+                    "查询洪山区地区生产总值"
+                )
+            finally:
+                if old is None:
+                    os.environ.pop("SPATIAL_AGENT_ECONOMIC_DATA", None)
+                else:
+                    os.environ["SPATIAL_AGENT_ECONOMIC_DATA"] = old
+            self.assertEqual(result.status.value, "COMPLETED")
+            self.assertEqual(result.request_facts["entities"]["regions"], ["洪山区"])
+            self.assertEqual(result.steps[0].result["status"], "ready")
+
     def test_region_connector_does_not_become_part_of_region_name(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "economic.json"

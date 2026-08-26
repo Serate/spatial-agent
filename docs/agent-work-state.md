@@ -19,13 +19,13 @@
 
 ## 当前阶段
 
-- 阶段：M299 默认 Agent 成功路径收口（C 进行中）
-- 状态：M297 通用组合与跨类型结果已完成；M298 已完成产品默认 `openai + local`、Composite 继承和前端阶段可见性，版本交付正在按阶段拆分。
-- 当前任务：M299-C，选择与澄清 evidence；A/B 已完成。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M300 开放问题 Agent 成功率与答案体验（A 规划中）
+- 状态：M299 已完成并通过阶段门禁；产品默认已实测为 `openai + local`，M299 版本待提交推送。
+- 当前任务：M300-A，全局能力图、Spec、Plan 与成功率/状态矩阵审查。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m299-default-agent-success-capability-map.md`](m299-default-agent-success-capability-map.md)
-  - [`docs/m299-default-agent-success-spec.md`](m299-default-agent-success-spec.md)
-  - [`docs/m299-default-agent-success-plan.md`](m299-default-agent-success-plan.md)
+  - [`docs/m300-open-agent-success-capability-map.md`](m300-open-agent-success-capability-map.md)
+  - [`docs/m300-open-agent-success-spec.md`](m300-open-agent-success-spec.md)
+  - [`docs/m300-open-agent-success-plan.md`](m300-open-agent-success-plan.md)
 
 ## 当前任务明确文件
 
@@ -35,11 +35,20 @@
 - `docs/m299-default-agent-success-plan.md`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
+- `docs/m300-open-agent-success-capability-map.md`
+- `docs/m300-open-agent-success-spec.md`
+- `docs/m300-open-agent-success-plan.md`
 - `agent/composite_planner.py`
 - `agent/composite_request_context.py`
 - `agent/application/composite_planning.py`
 - `agent/runtime_core/planner_envelope.py`
+- `agent/runtime_core/selection_evidence.py`
+- `agent/application/composite_runs.py`
+- `agent/composite_view.py`
+- `domains/economic/planner.py`
+- `web/src/console_result_projection.js`
 - `tests/test_m299_default_agent_success_path.py`
+- `tests/test_m263_economic_domain.py`
 
 ## 验证与安全约定
 

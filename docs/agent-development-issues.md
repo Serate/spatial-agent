@@ -1158,3 +1158,46 @@
 - **修复**：新增领域中立 `spatial-agent.planner-envelope.v1`，将 provider 输入分成请求事实、能力索引、选择摘要和候选执行契约四层；保留结果类型 profile、workflow、readiness 和候选 identity，过滤私有字段与无关 workflow。统一使用 96 KiB 有界预算并超限 fail-closed。
 - **验证**：Docker M299/M297/M298 **18/18**，受影响 M282/M286/M287 **19/19**；provider payload 不含测试私有路径，选择候选外的 workflow 不进入执行层。
 - **预防**：后续扩展 Planner context 先判断字段属于“模型选择”还是“Runtime 证据”，只通过 envelope 增加有界投影；完整 Context 不得直接作为模型输入，也不得为了成功静默截断关键 identity、data profile 或 readiness。
+
+## M299 选择证据存在于后端但前端难以直接理解
+
+- **现象**：Planner evidence 原先只有状态、数量和能力 ID；前端如果直接展示这些字段，会出现程序化信息过多，用户看不出系统选择了什么、为什么等待或下一步要补什么。
+- **根因**：选择结果、候选能力的 data profile/readiness、澄清信息和 next actions 没有一个共同的用户安全投影；后端与前端只能各自猜测字段含义。
+- **修复**：新增领域中立 `spatial-agent.selection-evidence.v1`，由 planning attach seam 统一生成；前端仅展示能力标签、可用状态、澄清文案和下一步动作，内部 capability ID、workflow ID 和模型原文不进入用户主视图。
+- **预防**：前端新增结果类型或阶段时先消费结构化 evidence，不能按工具名或专题分支拼文案；success、clarification、data unavailable 和 provider failure 必须保持可区分。
+
+## M299 选择证据在运行恢复链路中被安全白名单丢弃
+
+- **现象**：planning attach 已生成 `selection-evidence.v1`，但 CompositeRunApplication 的持久化白名单未包含该字段；同步执行、异步 worker 或 artifact/重启读取后，Composite View 无法展示能力选择摘要。
+- **根因**：新增 evidence 只接入了规划响应和前端入口，没有同步检查 safe persistence projection 与 Composite View projection。
+- **修复**：将选择证据加入安全白名单，增加版本化 normalize seam，并由 Composite View 的 planning projection 统一输出；不传递模型原文或私有字段。
+- **预防**：每个新 evidence 字段必须沿“规划响应 → 同步/异步持久化 → artifact/重启 → View → 前端”矩阵验收，不能只验证首次 HTTP 响应。
+
+## Economic 自然语言区域提取误把指标词识别为区域
+
+- **现象**：`查询洪山区地区生产总值` 被提取为 `查询洪山区` 和 `地区` 两个区域，真实数据查询返回 `economic_region_unavailable`。
+- **根因**：区域正则会捕获查询动词前缀以及指标名称“地区生产总值”中的“地区”，事实提取层没有去除通用指令前缀和指标词噪声。
+- **修复**：在 Economic Domain 的区域事实提取中清理通用中文指令前缀、连接词，并过滤独立的“地区/区域”；不增加洪山区专用分支。
+- **预防**：真实数据验收至少包含自然问法和显式 ID 问法；应先检查 `request_facts.entities.regions`，再判断数据源是否缺失。
+
+## M299 真实模型中转请求超时不能等同于未启动 Agent
+
+- **现象**：显式 live Composite 探测已进入真实 provider 配置，但在 45 秒 harness deadline 内返回 `timeout`，未创建 execution run。
+- **根因分类**：当前有效配置是中转地址 `opencode.ai/zen/go/v1` 与 `deepseek-v4-flash`；provider 超时属于外部模型/网络可达性问题，不能据此把 Runtime 的默认 Agent 开关判定为未启动。
+- **处理**：保留 `openai + local` 产品默认和 fail-closed 超时结果；只记录状态、deadline 和是否创建 run，不保存模型原文或密钥。后续 live 验收需单独区分 provider timeout、结构化澄清和成功计划。
+- **预防**：前端应在规划阶段显示“正在连接模型/等待规划结果”，超过 deadline 后给出可恢复提示；离线 Rule/Replay 验收不能伪装成真实模型成功。
+
+## M299 同步 Composite 响应缺少即时 View
+
+- **现象**：同步执行返回了 canonical Result，但没有直接返回 Composite View；异步轮询或再次读取时才生成 View，导致首次前端渲染与恢复路径不一致。
+- **根因**：View 只在 `get_run` response seam 生成，`_execute_and_persist` 的同步返回路径未复用同一投影函数。
+- **修复**：同步、异步 worker 返回体均直接附带 `spatial-agent.composite-view.v1`；选择 evidence 和结果视图因此无需二次请求即可展示。
+- **预防**：跨入口验收必须分别检查“首次返回”和“恢复读取”两个时点，不能只比较最终 SQLite/artifact 结果。
+
+## M299 异步完成状态早于 artifact 发布
+
+- **现象**：异步请求显式要求导出 artifact 时，轮询偶尔先看到 `COMPLETED`，但响应中还没有 `artifact_ref`；此时用户会误以为证据或导出失败。
+- **根因**：Composite 执行先保存完成状态，随后才写 artifact 并回写引用；SQLite/内存轮询存在一个可观察的中间窗口。
+- **修复**：调整发布顺序，先完成 artifact 写入并获得引用，再把最终 `COMPLETED` 快照写入状态存储；增加阻塞 artifact store 的时序回归，确保不会暴露不完整终态。
+- **验证**：Docker 最小时序回归通过；M299/M263 合并回归 **19/19**，compileall、architecture strict、Node projection smoke 和 readiness 通过。
+- **预防**：任何“终态 + 外部证据”组合都必须定义原子可见性顺序；异步轮询测试应覆盖证据发布中的中间窗口，不能只验证最终读取。

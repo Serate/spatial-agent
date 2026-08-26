@@ -10,6 +10,7 @@ from agent.composite_contract import normalize_composite_section
 from agent.provider_structured_output import project_structured_output_evidence
 from agent.data_kinds import SUPPORTED_DATA_KINDS
 from agent.runtime_core.composition import project_component_inputs
+from agent.runtime_core.selection_evidence import normalize_selection_evidence
 
 
 COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1"
@@ -275,6 +276,9 @@ def _build_planning(value: Any) -> dict[str, Any]:
     discovery = value.get("discovery")
     if isinstance(discovery, Mapping):
         result["discovery"] = _project_discovery(discovery)
+    selection_evidence = normalize_selection_evidence(value.get("selection_evidence"))
+    if selection_evidence:
+        result["selection_evidence"] = selection_evidence
     continuation = value.get("continuation")
     if isinstance(continuation, Mapping):
         result["continuation"] = {

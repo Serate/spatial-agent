@@ -41,6 +41,7 @@ from agent.runtime_core.execution_binding import (
     validate_execution_binding,
 )
 from agent.provider_structured_output import project_structured_output_evidence
+from agent.runtime_core.selection_evidence import normalize_selection_evidence
 from agent.planner_repair import build_repair_lineage
 from agent.service_async import process_is_alive
 from agent.service_state import ServiceState
@@ -411,19 +412,26 @@ class CompositeRunApplication:
             result=canonical,
             answer=str(canonical.get("answer") or canonical.get("summary") or "")[:1200] or None,
         )
-        self._memory_results[actual_run_id] = snapshot
-        self._state.save_run(snapshot)
         response = dict(response)
         response["run_id"] = actual_run_id
         response["result"] = canonical
+        # The synchronous response must expose the same View contract as the
+        # later HTTP/artifact recovery path.  Without this projection the
+        # Console sees a result envelope immediately but cannot render the
+        # Composite answer/selection view until it performs a second read.
+        response["view"] = build_composite_view_projection(canonical)
         if export_artifact:
             payload = snapshot.to_dict()
             if async_requested:
                 payload["_async_requested"] = True
             artifact_ref = self._artifact_store.write_run(payload)
             snapshot.artifact_ref = artifact_ref
-            self._state.save_run(snapshot)
             response["artifact_ref"] = artifact_ref
+        # Publish the final snapshot only after optional artifact publication.
+        # Pollers must never observe COMPLETED without the artifact reference
+        # that the same request explicitly asked us to export.
+        self._memory_results[actual_run_id] = snapshot
+        self._state.save_run(snapshot)
         return response
 
     def _compose_composite_answer(self, result: Mapping[str, Any]) -> dict[str, Any]:
@@ -500,6 +508,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "plan_completeness",
         "continuation",
         "discovery",
+        "selection_evidence",
     }
     result = {key: value[key] for key in allowed if key in value}
     result["schema_version"] = str(
@@ -568,6 +577,12 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
             result["discovery"] = _safe_discovery_evidence(discovery)
         else:
             result.pop("discovery", None)
+    if "selection_evidence" in result:
+        selection_evidence = normalize_selection_evidence(result.get("selection_evidence"))
+        if selection_evidence:
+            result["selection_evidence"] = selection_evidence
+        else:
+            result.pop("selection_evidence", None)
     if "continuation" in result:
         continuation = result.get("continuation")
         if isinstance(continuation, Mapping):

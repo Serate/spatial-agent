@@ -358,12 +358,17 @@
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
     function agentStageStates(value) {
-      const status=String(value||'IDLE').toUpperCase();
+      const data=value&&typeof value==='object'?value:{};
+      const status=String(data.status||value||'IDLE').toUpperCase();
+      const clarification=data.clarification||data.result?.clarification||{};
+      const selection=(data.plan_evidence||data.result?.planning||data.result?.plan_evidence||{}).selection_evidence||{};
+      const clarificationState=String(clarification.state||selection.clarification?.state||'').toLowerCase();
       if(status==='COMPLETED'||status==='PARTIAL') return ['complete','complete','complete','complete','complete'];
       if(status==='EXECUTING') return ['complete','complete','complete','active','waiting'];
       if(status==='QUEUED') return ['complete','complete','active','waiting','waiting'];
-      if(status==='PLANNED'||status==='WAITING_FOR_DECISION') return ['complete','complete','complete','waiting','waiting'];
-      if(status==='NEEDS_CLARIFICATION') return ['complete','complete','active','waiting','waiting'];
+      if(status==='WAITING_FOR_DECISION') return ['complete','active','waiting','waiting','waiting'];
+      if(status==='PLANNED') return ['complete','complete','complete','waiting','waiting'];
+      if(status==='NEEDS_CLARIFICATION') return ['complete',(['required','ambiguous','unavailable','needs_facts'].includes(clarificationState)?'active':'complete'),'active','waiting','waiting'];
       if(['FAILED','REJECTED','BLOCKED','CANCELLED','TIMED_OUT'].includes(status)) return ['complete','complete','failed','unavailable','unavailable'];
       if(status==='PLANNING') return ['active','waiting','waiting','waiting','waiting'];
       return ['waiting','waiting','waiting','waiting','waiting'];
@@ -372,23 +377,24 @@
       const target=$('agentStageBar');
       if(!target) return;
       const status=typeof data==='string'?data:(data?.status||'IDLE');
-      const states=agentStageStates(status);
+      const states=agentStageStates(data);
       const stateLabels={complete:'已完成',active:'进行中',waiting:'待处理',failed:'未完成',unavailable:'未执行'};
       target.dataset.status=String(status).toUpperCase();
       target.innerHTML=AGENT_STAGE_DEFINITIONS.map(([label,short],index)=>'<span class="agent-stage is-'+states[index]+'"><i aria-hidden="true"></i><b>'+short+'</b><small>'+stateLabels[states[index]]+'</small><em class="sr-only">'+label+'</em></span>').join('');
       target.setAttribute('aria-label','Agent 处理阶段：'+statusName(status));
     }
     function setStatus(value) {
-      const label=statusName(value);
-      const normalized=String(value||'').toUpperCase();
+      const statusValue=typeof value==='object'?(value?.status||'IDLE'):value;
+      const label=statusName(statusValue);
+      const normalized=String(statusValue||'').toUpperCase();
       const busy=['QUEUED','PLANNING','EXECUTING'].includes(normalized);
       const el=$('status');
       el.textContent=label;
-      el.className='badge '+String(value).toLowerCase();
+      el.className='badge '+String(statusValue).toLowerCase();
       el.setAttribute('aria-label','运行状态：'+label);
       $('chatPanel')?.setAttribute('aria-busy',busy?'true':'false');
       $('resultWorkspace')?.setAttribute('aria-busy',busy?'true':'false');
-      renderAgentStageBar(normalized||'IDLE');
+      renderAgentStageBar(typeof value==='object'?value:(normalized||'IDLE'));
     }
     renderAgentStageBar('IDLE');
     function appendMessage(role, text, runId) { const labels={user:'你',assistant:'智能体',system:'系统'}; const wrap=document.createElement('div'); wrap.className='msg '+role; wrap.innerHTML='<div class="role">'+labels[role]+'</div><div class="bubble">'+escapeHtml(text)+'</div>'; if(runId){ wrap.classList.add('msg-linked'); wrap.dataset.runId=runId; wrap.title='打开该次运行的完整详情（不重新执行模型）'; wrap.addEventListener('click',()=>openRunDetail(runId)); } $('messages').appendChild(wrap); $('messages').scrollTop=$('messages').scrollHeight; }
@@ -838,7 +844,7 @@
       updateResultPanels(data);
       renderPlanPreview(data);
       genericResult(data);
-      setStatus(data.status);
+      setStatus(data);
       const envelope=data.result||{};
       const projection=compositeViewProjection(data);
       const projectedAnswer=projection?.answer||{};

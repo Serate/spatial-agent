@@ -290,8 +290,32 @@
 - 修复：M287 测试替身补齐当前 execution binding 要求的已校验 TaskPlan 和 policy，未放宽生产门禁。
 - 阻塞：无。下一步进入 M299-C，补统一选择/澄清 evidence。
 
+### M299-C：选择与澄清 evidence — 已完成
+
+- 结果：新增 `spatial-agent.selection-evidence.v1`，把候选能力身份、data profile、readiness、workflow IDs、选择状态、澄清信息和 next actions 统一投影；前端按标签展示，不暴露内部 ID。
+- 文件：`agent/runtime_core/selection_evidence.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`、M299 tests。
+- 验证：Docker 精简契约 **26/26**，Node projection smoke、compileall、architecture strict、readiness 200 通过。
+- 阻塞：无。下一步完成 M299-D 的阶段状态与旧载荷降级。
+
+### M299-D：阶段状态与跨入口 evidence 投影 — 进行中
+
+- 结果：阶段条消费完整响应对象，等待确认、澄清和默认 Agent 阶段可见；`selection-evidence.v1` 已贯通 planning attach、同步/异步安全持久化和 Composite View，前端只展示用户标签与下一步动作。
+- 额外修复：Economic Domain 的自然问法区域提取清理通用查询前缀和“地区生产总值”中的指标噪声，不增加区域专用分支。
+- 文件：`agent/runtime_core/selection_evidence.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`domains/economic/planner.py`、`web/src/console_{app,result_projection}.js`、M299/M263 tests。
+- 验证：待 Docker 重建后集中运行 M299、M263、Node projection、compileall、architecture strict、readiness 与真实经济数据 smoke。
+- 追加：显式 live provider 探测在 45 秒 deadline 内 timeout，按 provider failure 记录；真实 Replay/Rule local 数据链路已可执行，且同步响应 View 已与异步/恢复统一。
+- 阻塞：无。
+
 ## 更新协议
 
 1. 开始、完成或暂停子任务时更新状态、目标、文件、验证、阻塞和下一步。
 2. 阶段收口时把完整结论归档到 Spec/Plan 或 milestones；本文件只保留当前阶段和最近记录。
 3. 恢复上下文只读取本文件、当前阶段规划，以及当前任务明确列出的源码/测试文件。
+
+### M299-D/E/F：阶段收口与全局重规划 — 已完成
+
+- 结果：产品入口实测默认 `openai + local`；Agent 阶段、selection evidence、同步/异步 View 和 artifact/restart 恢复已闭合。
+- 修复：Composite 异步导出先发布 artifact，再写入最终完成快照，避免轮询看到无 artifact 引用的 `COMPLETED` 中间状态。
+- 验证：Docker M299/M263 **19/19**；Node projection smoke、compileall、architecture strict 和 readiness 200 通过；真实 Economic local 与 Replay/Rule 对照通过；中转 live timeout 按 provider failure 记录且未创建 run。
+- 文档：M299 问题、milestone、进度账本和恢复快照已同步；M300 capability map、Spec、Plan 已创建。
+- 当前阶段：M299 已完成，待提交推送；下一阶段为 M300-A 全局成功率/状态矩阵审查。

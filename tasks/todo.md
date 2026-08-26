@@ -159,11 +159,20 @@
 - [x] M298-D 前端 Agent 阶段默认可见
 - [x] M298-E Docker/live/文档、版本与全局重规划
 
-## M299 默认 Agent 成功路径收口（进行中）
+## M299 默认 Agent 成功路径收口（已完成）
 
 - [x] M299-A 全局基线、success/clarification/unavailable 矩阵与上下文预算
 - [x] M299-B 分层 Planner context 与统一投影预算
-- [ ] M299-C 选择/澄清 evidence 与可恢复摘要
-- [ ] M299-D 阶段体验与跨入口恢复投影
-- [ ] M299-E Docker 真实数据、Replay/Rule 对照与显式 live
-- [ ] M299-F 集中门禁、文档、版本与全局重规划
+- [x] M299-C 选择/澄清 evidence 与可恢复摘要
+- [x] M299-D 阶段体验与跨入口恢复投影
+- [x] M299-E Docker 真实数据、Replay/Rule 对照与显式 live
+- [x] M299-F 集中门禁、文档、版本与全局重规划
+
+## M300 默认 Agent 开放问题成功率与答案体验（已规划）
+
+- [ ] M300-A 全局能力图、Spec、Plan 与成功率/状态矩阵冻结
+- [ ] M300-B 请求事实与能力选择的通用缺口盘点
+- [ ] M300-C LLM Planner 受控组合与 provider 失败恢复
+- [ ] M300-D 结构化结果到简洁用户答案的通用组合
+- [ ] M300-E Docker 真实数据、显式 live 与最小评测
+- [ ] M300-F 文档、版本交付与全局重规划

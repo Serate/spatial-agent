@@ -5120,3 +5120,17 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Console 默认显示“发现能力 → 理解请求 → 生成计划 → 执行任务 → 汇总结果”阶段条；阶段状态由结构化运行状态投影驱动，不展示 prompt、模型原文或思维链。
 - Docker M298 及相邻回归 **55/55**，compileall、architecture strict、Node projection smoke、生产 readiness HTTP **200** 通过。显式 live 在上下文预算修正后确实到达 provider，structured output 成功但模型返回澄清，系统未创建 execution run。
 - 全局重规划：M299 从全局目标收口默认 Agent 的最小上下文、能力选择、可执行成功率、澄清体验和跨入口恢复；不回退到规则默认，也不为单一专题增加硬编码。
+
+## M299：默认 Agent 成功路径收口（已完成）
+
+- 新增领域中立 `spatial-agent.planner-envelope.v1` 与 `selection-evidence.v1`；真实模型只接收有界的请求事实、能力索引、选择摘要和执行契约，Runtime 仍保留完整恢复上下文。
+- 选择证据贯通 Planner、同步/异步持久化、Composite View、artifact/restart 和前端；阶段条区分发现、理解、规划、执行、汇总、澄清和不可用状态，不暴露模型原文或思维链。
+- 修复 Economic 自然问法的通用区域事实噪声；同步 Composite 返回体补充即时 View；修复异步 artifact 先于 `COMPLETED` 状态发布的可观察竞态。
+- Docker M299/M263 精简回归 **19/19**，前端 projection smoke、compileall、architecture strict 和生产 readiness **200** 通过；真实 Economic local 数据链路和 Replay/Rule 恢复对照通过。
+- 显式真实模型中转验收仍为 provider timeout，未创建 run；该结果按 provider failure 记录，不等同于 Agent 未启动。容器实测产品默认选择为 `openai + local`。
+- 全局重规划：M300 聚焦开放问题的通用事实理解、受控能力组合、provider 可靠性和简洁答案体验，不为单一数据集增加专用流程。
+
+## M300：开放问题 Agent 成功率与答案体验（已规划）
+
+- 已创建 `docs/m300-open-agent-success-capability-map.md`、`docs/m300-open-agent-success-spec.md` 和 `docs/m300-open-agent-success-plan.md`。
+- 目标是让默认 Agent 对未预定义的地理问题更稳定地完成“理解 → 能力发现 → 计划 → 执行 → 总结”，并保持失败、澄清、恢复和证据语义统一。

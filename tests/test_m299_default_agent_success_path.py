@@ -1,14 +1,30 @@
 """Compact M299 contract tests for the default Agent provider boundary."""
 
 import json
+import threading
+import tempfile
+import time
 import unittest
 
+from agent.artifact_store import ArtifactStore
+from agent.application.composite_planning import CompositePlanningApplication
+from agent.application.composite_runs import (
+    CompositeRunApplication,
+    _safe_planning_evidence,
+)
+from agent.composite_contract import build_composite_result_contract
 from agent.composite_planner import LLMCompositePlanner
+from agent.composite_view import build_composite_view_projection
 from agent.runtime_core.planner_envelope import (
     PLANNER_ENVELOPE_LAYERS,
     PLANNER_ENVELOPE_SCHEMA_VERSION,
     PlannerEnvelopeError,
     build_planner_envelope,
+)
+from agent.runtime_core.selection_evidence import (
+    SELECTION_EVIDENCE_SCHEMA_VERSION,
+    normalize_selection_evidence,
+    project_selection_evidence,
 )
 
 
@@ -121,6 +137,61 @@ class _Client:
         }
 
 
+class _Coordinator:
+    def run(self, request, *, session_id, run_id=None):
+        del session_id
+        result = build_composite_result_contract(
+            request,
+            {
+                "economic-query": {
+                    "status": "COMPLETED",
+                    "domain_id": "economic",
+                    "result": {
+                        "type": "economic_metrics_result",
+                        "data_profile": {"primary": "metrics", "kinds": ["metrics"]},
+                    },
+                }
+            },
+            run_id=run_id,
+        )
+        return {
+            "run_id": run_id or "m299-composite-run",
+            "status": "COMPLETED",
+            "result": result,
+        }
+
+
+def _execution_request():
+    return {
+        "schema_version": "spatial-agent.composite-request.v1",
+        "request": "查询洪山区地区生产总值",
+        "components": [
+            {
+                "component_id": "economic-query",
+                "domain_id": "economic",
+                "request": "查询洪山区地区生产总值",
+                "depends_on": [],
+                "required": True,
+            }
+        ],
+    }
+
+
+class _BlockingArtifactStore(ArtifactStore):
+    """Hold publication to expose a premature COMPLETED snapshot."""
+
+    def __init__(self, root):
+        super().__init__(root, legacy_domain_id="composite")
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def write_run(self, payload):
+        self.entered.set()
+        if not self.release.wait(timeout=3):
+            raise AssertionError("artifact publication did not release")
+        return super().write_run(payload)
+
+
 class M299DefaultAgentSuccessPathTests(unittest.TestCase):
     def test_envelope_has_four_layers_and_redacts_private_context(self):
         envelope = build_planner_envelope(_context())
@@ -157,6 +228,201 @@ class M299DefaultAgentSuccessPathTests(unittest.TestCase):
         with self.assertRaises(PlannerEnvelopeError) as raised:
             build_planner_envelope(_context(), max_bytes=128)
         self.assertEqual(raised.exception.code, "planner_envelope_too_large")
+
+    def test_selection_evidence_keeps_identity_readiness_and_next_action(self):
+        evidence = project_selection_evidence(
+            _context(),
+            existing_selection={
+                "state": "selected",
+                "selected_source": "llm",
+                "selected_capability_ids": ["trend"],
+                "selected_capability_keys": ["economic::trend"],
+            },
+        )
+
+        self.assertEqual(evidence["schema_version"], SELECTION_EVIDENCE_SCHEMA_VERSION)
+        self.assertEqual(evidence["selected_capability_keys"], ["economic::trend"])
+        self.assertEqual(evidence["candidates"][0]["execution_ready"], True)
+        self.assertEqual(evidence["next_actions"], ["plan"])
+
+    def test_planning_attach_injects_selection_evidence_into_public_result(self):
+        result = CompositePlanningApplication._attach_context(
+            {
+                "planner_evidence": {
+                    "selection": {
+                        "state": "selected",
+                        "selected_source": "llm",
+                        "selected_capability_ids": ["trend"],
+                        "selected_capability_keys": ["economic::trend"],
+                    }
+                }
+            },
+            _context(),
+        )
+
+        self.assertEqual(
+            result["planner_evidence"]["selection_evidence"]["schema_version"],
+            SELECTION_EVIDENCE_SCHEMA_VERSION,
+        )
+
+    def test_selection_evidence_survives_safe_persistence_projection(self):
+        projected = project_selection_evidence(
+            _context(),
+            existing_selection={
+                "state": "selected",
+                "selected_capability_keys": ["economic::trend"],
+            },
+        )
+        restored = normalize_selection_evidence(projected)
+        self.assertEqual(restored["selected_capability_keys"], ["economic::trend"])
+        self.assertEqual(restored["candidates"][0]["label"], "趋势分析")
+
+    def test_selection_evidence_survives_composite_view_projection(self):
+        evidence = project_selection_evidence(
+            _context(),
+            existing_selection={
+                "state": "selected",
+                "selected_capability_keys": ["economic::trend"],
+            },
+        )
+        safe = _safe_planning_evidence({"selection_evidence": evidence})
+        view = build_composite_view_projection(
+            {
+                "status": "COMPLETED",
+                "planner_evidence": safe,
+                "composite": {
+                    "state": "completed",
+                    "request": {"fingerprint": "m299-view"},
+                    "components": [],
+                    "evidence": {},
+                },
+            }
+        )
+
+        self.assertEqual(
+            view["planning"]["selection_evidence"]["selected_capability_keys"],
+            ["economic::trend"],
+        )
+
+    def test_selection_evidence_survives_sync_async_and_restart_views(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = directory + "/runs.sqlite"
+            artifacts = directory + "/artifacts"
+            evidence = project_selection_evidence(
+                _context(),
+                existing_selection={
+                    "state": "selected",
+                    "selected_capability_keys": ["economic::trend"],
+                },
+            )
+            application = CompositeRunApplication(
+                coordinator=_Coordinator(),
+                state_db_path=db,
+                artifact_root=artifacts,
+                worker_count=1,
+            )
+            try:
+                request = _execution_request()
+                sync = application.run_with_planning(
+                    request,
+                    session_id="m299-sync-view",
+                    export_artifact=True,
+                    planner_evidence={"selection_evidence": evidence},
+                )
+                self.assertEqual(
+                    sync["view"]["planning"]["selection_evidence"]["state"],
+                    "selected",
+                )
+                queued = application.submit_async_with_planning(
+                    request,
+                    session_id="m299-async-view",
+                    idempotency_key="m299-async-view",
+                    export_artifact=True,
+                    planner_evidence={"selection_evidence": evidence},
+                )
+                deadline = time.time() + 3
+                detail = {}
+                while time.time() < deadline:
+                    detail = application.get_run(queued["run_id"])
+                    if detail.get("status") == "COMPLETED":
+                        break
+                    time.sleep(0.01)
+                self.assertEqual(
+                    detail["view"]["planning"]["selection_evidence"]["state"],
+                    "selected",
+                )
+                artifact_ref = detail.get("artifact_ref")
+                self.assertTrue(artifact_ref)
+            finally:
+                application.close()
+
+            restored = CompositeRunApplication(
+                coordinator=_Coordinator(),
+                state_db_path=db,
+                artifact_root=artifacts,
+                worker_count=1,
+            )
+            try:
+                recovered = restored.get_run(queued["run_id"])
+                self.assertEqual(
+                    recovered["view"]["planning"]["selection_evidence"]["state"],
+                    "selected",
+                )
+            finally:
+                restored.close()
+
+    def test_async_completion_is_not_visible_before_artifact_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = _BlockingArtifactStore(directory + "/artifacts")
+            application = CompositeRunApplication(
+                coordinator=_Coordinator(),
+                state_db_path=directory + "/runs.sqlite",
+                artifact_store=store,
+                worker_count=1,
+            )
+            try:
+                queued = application.submit_async(
+                    _execution_request(),
+                    session_id="m299-artifact-order",
+                    idempotency_key="m299-artifact-order",
+                    export_artifact=True,
+                )
+                self.assertTrue(store.entered.wait(timeout=2))
+                during_publication = application.get_run(queued["run_id"])
+                self.assertFalse(
+                    during_publication.get("status") == "COMPLETED"
+                    and not during_publication.get("artifact_ref")
+                )
+                store.release.set()
+                deadline = time.time() + 3
+                detail = {}
+                while time.time() < deadline:
+                    detail = application.get_run(queued["run_id"])
+                    if detail.get("status") == "COMPLETED":
+                        break
+                    time.sleep(0.01)
+                self.assertEqual(detail.get("status"), "COMPLETED")
+                self.assertTrue(detail.get("artifact_ref"))
+            finally:
+                store.release.set()
+                application.close()
+
+    def test_llm_clarification_is_bound_to_public_next_action(self):
+        application = CompositePlanningApplication.__new__(CompositePlanningApplication)
+        result = application._normalize_candidate(
+            {
+                "status": "NEEDS_CLARIFICATION",
+                "planner_source": "llm",
+                "message": "请指定要比较的指标。",
+                "components": [],
+            },
+            context=_context(),
+            planner_name="openai",
+            backend="local",
+        )
+
+        self.assertEqual(result["clarification"]["state"], "needs_clarification")
+        self.assertEqual(result["clarification"]["next_actions"], ["补充信息后重新提交"])
 
 
 if __name__ == "__main__":

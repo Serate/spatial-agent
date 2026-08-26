@@ -18,7 +18,16 @@ const completed = projection.normalize({
     },
   },
   plan: {steps: [{id: "one", tool: "private_tool"}]},
-  plan_evidence: {source: "replay", step_count: 1},
+  plan_evidence: {
+    source: "replay",
+    step_count: 1,
+    selection_evidence: {
+      schema_version: "spatial-agent.selection-evidence.v1",
+      state: "selected",
+      selected_capability_keys: ["gis::summary"],
+      candidates: [{selection_key: "gis::summary", label: "空间摘要", available: true, execution_ready: true}],
+    },
+  },
   result: {
     type: "composite_result",
     data_profile: {primary: "composite", kinds: ["composite", "metrics"]},
@@ -63,6 +72,7 @@ assert.equal(completed.phases[1].state, "not_needed");
 assert.equal(completed.planning.structured_output.structured_mode, "json_schema");
 assert.equal(completed.discovery.state, "ready");
 assert.equal(completed.discovery.candidate_count, 2);
+assert.equal(completed.selection_evidence.state, "selected");
 assert.equal(completed.execution_binding.binding_fingerprint, "sha256:binding-is-not-rendered");
 const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
@@ -72,6 +82,7 @@ assert.match(completedHtml, /计划已验证/);
 assert.match(completedHtml, /执行链路已核验/);
 assert.match(completedHtml, /能力与数据准备/);
 assert.match(completedHtml, /能力与数据已发现/);
+assert.match(completedHtml, /已选择：空间摘要/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);
 assert.doesNotMatch(completedHtml, /private_tool/);
 
@@ -100,6 +111,7 @@ assert.match(projection.render(mixed), /矢量、栅格、指标、时间序列�
 const clarification = projection.normalize({
   status: "NEEDS_CLARIFICATION",
   clarification: {state: "needs_clarification", missing: ["时间范围", "指标"], next_actions: ["请补充统计周期"]},
+  plan_evidence: {selection_evidence: {schema_version: "spatial-agent.selection-evidence.v1", state: "clarification", clarification: {state: "needs_clarification", message: "请补充统计周期"}, next_actions: ["请补充统计周期"]}},
   result: {type: "unknown"},
 });
 assert.equal(clarification.phases[1].state, "active");

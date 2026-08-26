@@ -50,6 +50,13 @@
     const repairLineage = normalizeRepairLineage(firstRecord(data.repair_lineage, result.repair_lineage, planning?.repair_lineage));
     const context = firstRecord(data.runtime_context, result.runtime_context, data.request_context, result.request_context);
     const discovery = normalizeDiscovery(firstRecord(planning?.discovery, context?.discovery));
+    const selectionEvidence = normalizeSelectionEvidence(
+      firstRecord(
+        planning?.selection_evidence,
+        data.selection_evidence,
+        result.selection_evidence,
+      ),
+    );
     let clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
     const componentHandoff = firstRecord(data.component_fact_handoff, result.component_fact_handoff);
     const compositeHandoff = firstRecord(data.composite_fact_handoff, result.composite_fact_handoff);
@@ -100,6 +107,7 @@
       answer,
       context,
       discovery,
+      selection_evidence: selectionEvidence,
       clarification,
       component_fact_handoff: handoff || {},
       composite_fact_handoff: compositeHandoff || {},
@@ -116,7 +124,7 @@
       steps,
       view_count: viewCount,
       component_count: Math.max(0, Math.min(MAX_ITEMS, componentCount)),
-      phases: buildPhases({status, answer, context, clarification, planning, repairLineage, plan, evidence, evidenceRegistry, views, artifacts, steps}),
+      phases: buildPhases({status, answer, context, clarification, planning, selectionEvidence, repairLineage, plan, evidence, evidenceRegistry, views, artifacts, steps}),
     };
   }
 
@@ -187,6 +195,7 @@
     else if (model.repair_lineage.status === "failed") chips.push("计划校正未完成");
     const chipHtml = chips.slice(0, MAX_CHIPS).map(item => '<span class="result-chip">' + escapeHtml(item) + '</span>').join("");
     const discoveryHtml = renderDiscovery(model.discovery, escapeHtml);
+    const selectionHtml = renderSelectionEvidence(model.selection_evidence, escapeHtml);
     const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const resultKinds = model.result_kinds.length > 1
       ? '<section class="projection-section projection-result-kinds"><h4>结果组成</h4><p>' + escapeHtml(model.result_kinds.map(item => item.label).join("、")) + '</p></section>'
@@ -208,7 +217,7 @@
       + (clarificationActions.length ? '<small>下一步：' + escapeHtml(clarificationActions.join("；")) + '</small>' : "") + '</section>' : "";
     return '<div class="result-projection" data-projection-schema="' + escapeHtml(SCHEMA_VERSION) + '"><ol class="result-phases" aria-label="分析阶段">' + phases + '</ol>'
       + (chipHtml ? '<div class="result-chips" aria-label="结果摘要">' + chipHtml + '</div>' : "")
-      + discoveryHtml + clarification + resultKinds + findings + limitations + nextSteps + '</div>';
+      + discoveryHtml + selectionHtml + clarification + resultKinds + findings + limitations + nextSteps + '</div>';
   }
 
   function firstRecord(...values) {
@@ -225,6 +234,9 @@
     }
     if (record(compositePlanning) && !record(result.execution_binding) && record(compositePlanning.execution_binding)) {
       result.execution_binding = {...compositePlanning.execution_binding};
+    }
+    if (record(compositePlanning) && !record(result.selection_evidence) && record(compositePlanning.selection_evidence)) {
+      result.selection_evidence = {...compositePlanning.selection_evidence};
     }
     return Object.keys(result).length ? result : null;
   }
@@ -262,6 +274,58 @@
       candidate_count: count(raw.candidate_count),
       data_requirement_count: count(raw.data_requirement_count),
       next_actions: safeTextList(raw.next_actions, 2),
+    };
+  }
+
+  function normalizeSelectionEvidence(raw) {
+    if (!record(raw)) {
+      return {
+        visible: false,
+        state: "",
+        state_label: "",
+        reason_code: "",
+        candidate_count: 0,
+        selected_capability_keys: [],
+        candidates: [],
+        clarification: {},
+        next_actions: [],
+      };
+    }
+    const labels = {
+      selected: "已选择分析能力",
+      clarification: "等待确认分析能力",
+      failed: "能力选择未完成",
+      unavailable: "暂时无法选择分析能力",
+      rejected: "分析能力选择已拒绝",
+    };
+    const candidates = list(raw.candidates).slice(0, MAX_ITEMS).filter(record).map(item => ({
+      selection_key: text(item.selection_key, 140),
+      label: text(item.label, 160),
+      available: item.available !== false,
+      execution_ready: item.execution_ready !== false,
+      execution_readiness: text(item.execution_readiness, 32),
+      data_profiles: list(item.data_profiles).slice(0, MAX_ITEMS).filter(record).map(profile => ({
+        primary: text(profile.primary, 32),
+        kinds: normalizeKinds(profile.kinds),
+      })),
+    }));
+    const clarification = record(raw.clarification) ? {
+      state: text(raw.clarification.state, 32),
+      message: text(raw.clarification.message, 480),
+      missing_by_domain: list(raw.clarification.missing_by_domain).slice(0, MAX_ITEMS),
+      next_actions: safeTextList(raw.clarification.next_actions, MAX_ITEMS),
+    } : {};
+    return {
+      visible: Boolean(raw.schema_version || raw.state),
+      schema_version: text(raw.schema_version, 96),
+      state: text(raw.state, 32).toLowerCase(),
+      state_label: labels[text(raw.state, 32).toLowerCase()] || "能力选择状态",
+      reason_code: text(raw.reason_code, 96),
+      candidate_count: Number.isFinite(Number(raw.candidate_count)) ? Math.max(0, Math.min(MAX_ITEMS * 2, Number(raw.candidate_count))) : candidates.length,
+      selected_capability_keys: safeTextList(raw.selected_capability_keys, MAX_ITEMS),
+      candidates,
+      clarification,
+      next_actions: safeTextList(raw.next_actions, MAX_ITEMS),
     };
   }
 
@@ -307,6 +371,25 @@
       ? '<small>下一步：' + escapeHtml(discovery.next_actions.join("；")) + '</small>'
       : "";
     return '<section class="projection-section projection-discovery" data-discovery-state="' + escapeHtml(state) + '"><h4>能力与数据准备</h4><p><strong>' + escapeHtml(discovery.state_label) + '</strong> · ' + escapeHtml(detail) + '</p>' + actions + '</section>';
+  }
+
+  function renderSelectionEvidence(selection, escapeHtml) {
+    if (!selection?.visible) return "";
+    const byKey = Object.fromEntries(selection.candidates.map(item => [item.selection_key, item]));
+    const selectedLabels = selection.selected_capability_keys
+      .map(key => byKey[key]?.label)
+      .filter(Boolean)
+      .slice(0, MAX_ITEMS);
+    const selected = selectedLabels.length
+      ? "已选择：" + selectedLabels.join("、")
+      : selection.state_label;
+    const clarification = selection.clarification?.message && selection.state !== "selected"
+      ? '<p>' + escapeHtml(selection.clarification.message) + '</p>'
+      : "";
+    const actions = selection.next_actions.length
+      ? '<small>下一步：' + escapeHtml(selection.next_actions.join("；")) + '</small>'
+      : "";
+    return '<section class="projection-section projection-selection" data-selection-state="' + escapeHtml(selection.state) + '"><h4>分析能力</h4><p><strong>' + escapeHtml(selected) + '</strong></p>' + clarification + actions + '</section>';
   }
 
   function normalizeRepairLineage(raw) {
