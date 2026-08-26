@@ -2,7 +2,7 @@
 
 ## Objective
 
-让通用 Agent Runtime 的核心编排从一个难以定位和测试的长方法，变成可观察、可替换的显式阶段流水线；同时消除 FastAPI 与 stdlib HTTP 入口的重复传输胶水，并修正兼容模块守卫的分类失真。
+确认通用 Agent Runtime 的核心编排、HTTP 语义 seam 和兼容模块守卫已经达到目标，并只补齐文档与契约证据，不为已经存在的深模块增加新的浅包装。
 
 用户仍然只需要提交自然语言请求。系统对外行为必须保持兼容：请求理解、澄清、规划、校验/有限修复、工具执行、答案、证据、artifact、异步和重启恢复使用现有契约；内部阶段证据可以说明当前阶段和失败原因，但不输出模型原文、prompt、密钥或内部思维链。
 
@@ -37,15 +37,15 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:8088/health/ready' -UseBasicParsing
 
 - `agent/runtime_core/run_lifecycle.py`：阶段编排与生命周期转换。
 - `agent/application/`、`agent/runtime_core/`：公共应用和 Runtime seam。
-- `application/http.py`：共享 HTTP 语义与传输边界。
+- `agent/application/http.py`：共享 HTTP 语义与传输边界。
 - `production_api.py`、`serve_api.py`：部署入口适配，不复制业务分派。
 - `scripts/architecture_check.py`：模块边界和兼容清单守卫。
-- `tests/test_m307_runtime_boundaries.py`：本阶段最小契约。
+- `tests/test_m262_architecture_convergence.py`、`tests/test_m256_http_application.py`：本阶段复用的最小契约。
 - `docs/`、`tasks/`：Spec、Plan、阶段记录和恢复快照。
 
 ## Code Style
 
-阶段函数使用稳定输入/输出和有界 receipt，不把隐藏状态散落到入口：
+阶段函数使用稳定输入/输出和有界 receipt，现有实现已经满足这一 seam：
 
 ```python
 def run(request: str, **options: Any) -> AgentRunResult:
@@ -61,6 +61,7 @@ def run(request: str, **options: Any) -> AgentRunResult:
 - 阶段名使用小写稳定标识；状态转换继续由现有生命周期契约统一产生。
 - 阶段函数不直接访问 HTTP request、环境密钥或领域专用实现。
 - 共享传输函数返回结构化 envelope；入口只负责框架 request/response 转换。
+- FastAPI/stdlib 的路由声明差异属于框架适配，不在公共 Runtime 中复制业务语义。
 - 兼容模块分类必须由实际 import/守卫结果证明，不以文件名猜测。
 
 ## Testing Strategy
@@ -81,7 +82,7 @@ def run(request: str, **options: Any) -> AgentRunResult:
 
 1. `run_lifecycle.py` 的公开 `run()` 不再承载完整阶段实现；阶段顺序可通过最小契约验证，现有同步/异步/恢复结果契约不漂移。
 2. 阶段失败、澄清、有限 repair 和成功均保留统一、可读、有界的生命周期/evidence，且不会重复执行已完成工具。
-3. FastAPI 与 stdlib 入口的代表性 HTTP 语义共享同一分派/编码边界，入口文件只保留框架适配代码。
+3. FastAPI 与 stdlib 入口的代表性 HTTP 语义共享 `HTTPApplication`/`http_transport` 分派与编码边界；入口文件只保留框架适配代码。
 4. 架构检查不再以 `COMPAT_MODULES` 豁免真实公共引擎模块；保留的 shim 有明确清单和兼容测试。
 5. Docker 中本阶段精简契约、相邻回归、compileall、architecture strict、Node projection、service smoke 和 readiness 全部通过。
 6. 阶段文档、中文问题日志、任务账本、恢复快照和版本记录完整，未保存敏感信息。

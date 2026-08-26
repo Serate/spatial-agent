@@ -219,11 +219,20 @@
 - [x] M306-E Docker 阶段门禁、真实数据与一次显式 live
 - [x] M306-F 文档、提交推送与全局重规划
 
-## M307 Agent Runtime 生命周期与传输边界收敛（进行中）
+## M307 Agent Runtime 生命周期与传输边界收敛（已完成）
 
-- [ ] M307-A 生命周期阶段、传输兼容矩阵和守卫分类契约
-- [ ] M307-B 显式生命周期阶段流水线
-- [ ] M307-C FastAPI 与 stdlib 共享传输边界
-- [ ] M307-D compat shim、facade 和公共模块守卫收口
-- [ ] M307-E Docker 阶段门禁与必要跨入口验收
-- [ ] M307-F 文档、提交推送与全局重规划
+- [x] M307-A 生命周期阶段、传输兼容矩阵和守卫分类契约
+- [x] M307-B 显式生命周期阶段流水线（既有实现审计通过）
+- [x] M307-C FastAPI 与 stdlib 共享传输边界（既有 seam 审计通过）
+- [x] M307-D compat shim、facade 和公共模块守卫收口（严格报告通过）
+- [x] M307-E Docker 阶段门禁与必要跨入口验收
+- [x] M307-F 文档、提交推送与全局重规划
+
+## M308 开放式 3+ 组件纵向链路与用户答案质量（进行中）
+
+- [ ] M308-A 全局基线与 3+ 组件混合结果契约
+- [ ] M308-B 开放组合 canonical DAG/TaskPlan/ToolRegistry 执行闭合
+- [ ] M308-C 结构化事实到简洁中文答案与动态 View
+- [ ] M308-D sync/async/HTTP/artifact/restart/Console 证据一致性
+- [ ] M308-E Docker 阶段门禁与必要的一次显式 live
+- [ ] M308-F 文档、提交推送与全局重规划

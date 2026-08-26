@@ -6,18 +6,18 @@
 
 ## 当前阶段
 
-- 阶段：M307 Agent Runtime 生命周期与传输边界收敛（已规划，A 进行中）
+- 阶段：M308 开放式 3+ 组件纵向链路与用户答案质量（已规划，A 进行中）
 - 阶段规划：
-  - `docs/m307-runtime-boundaries-capability-map.md`
-  - `docs/m307-runtime-boundaries-spec.md`
-  - `docs/m307-runtime-boundaries-plan.md`
+  - `docs/m308-open-composition-vertical-slice-capability-map.md`
+  - `docs/m308-open-composition-vertical-slice-spec.md`
+  - `docs/m308-open-composition-vertical-slice-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
 
-### M307-A：基线与阶段契约（进行中）
+### M308-A：全局基线与 3+ 组件契约（进行中）
 
-- 目标：冻结 Runtime 生命周期阶段、双 HTTP 入口兼容矩阵和 compat 守卫分类，作为 M307-B～D 的共同边界。
-- 当前文件：`docs/m307-runtime-boundaries-capability-map.md`、`docs/m307-runtime-boundaries-spec.md`、`docs/m307-runtime-boundaries-plan.md`、`agent/runtime_core/run_lifecycle.py`、`production_api.py`、`serve_api.py`、`application/http.py`、`scripts/architecture_check.py`。
-- 验证：开发期间只做必要静态/契约检查；B～D 合并后在 Docker 集中运行精简门禁；本阶段不重复 M306 live。
+- 目标：以 M306 的真实 2 组件闭环为基线，冻结 3+ 组件混合 profile、答案事实不变和跨入口 evidence 契约。
+- 当前文件：`docs/m308-open-composition-vertical-slice-capability-map.md`、`docs/m308-open-composition-vertical-slice-spec.md`、`docs/m308-open-composition-vertical-slice-plan.md`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/application/composite.py`、`agent/application/composite_runs.py`、`agent/answer_generation.py`、`agent/composite_view.py`。
+- 验证：开发期间只做必要静态/契约检查；A～D 合并后在 Docker 集中收口；本阶段真实模型最多一次且不重复 M306 live。
 - 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
 
 ### M306-F：文档、版本与全局重规划（已完成）

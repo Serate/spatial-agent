@@ -1,21 +1,21 @@
-# 当前实施计划：M307 Agent Runtime 生命周期与传输边界收敛
+# 当前实施计划：M308 开放式 3+ 组件纵向链路与用户答案质量
 
-恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M307 Spec/Plan 和当前任务列出的文件。
+恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M308 Spec/Plan 和当前任务列出的文件。
 
 M304 已完成：provider health、deadline、structured-output、失败分类和跨入口可恢复投影已收口；唯一 live 结果为有界 provider timeout，未创建 run。
 
-M307 按全局七个维度收敛 Runtime 的阶段、传输和兼容边界，不扩充专题工具菜单，不绕过既有执行门禁：
+M308 按全局七个维度验证已有通用能力能否支撑开放式 3+ 组件分析，不扩充专题工具菜单，不绕过既有执行门禁：
 
-1. [ ] M307-A 冻结生命周期阶段、传输兼容矩阵和守卫分类契约。
-2. [ ] M307-B 将 run lifecycle 拆成显式阶段并保持结果/evidence 不变。
-3. [ ] M307-C 抽取 FastAPI 与 stdlib 共享传输边界。
-4. [ ] M307-D 校准 compat shim、facade 和公共模块守卫。
-5. [ ] M307-E 在 Docker 集中运行精简阶段门禁与必要跨入口验收。
-6. [ ] M307-F 更新文档、提交推送版本并依据项目全局重规划。
+1. [ ] M308-A 冻结 3+ 组件混合结果、答案事实不变和跨入口证据契约。
+2. [ ] M308-B 让开放组合通过 canonical DAG、TaskPlan、ToolRegistry 和 execution binding 执行。
+3. [ ] M308-C 收口结构化事实到简洁中文答案与动态 View。
+4. [ ] M308-D 对照 sync/async/HTTP/artifact/restart/Console 证据一致性。
+5. [ ] M308-E 在 Docker 集中运行精简阶段门禁与必要的一次 live。
+6. [ ] M308-F 更新文档、提交推送版本并依据项目全局重规划。
 
 ---
 
-当前任务：M307-A 基线与阶段契约；规划文件为 `docs/m307-runtime-boundaries-capability-map.md`、`docs/m307-runtime-boundaries-spec.md`、`docs/m307-runtime-boundaries-plan.md`。恢复时只读取当前快照、任务账本最近记录、M307 文档和当前任务明确文件。
+当前任务：M308-A 全局基线与 3+ 组件契约；规划文件为 `docs/m308-open-composition-vertical-slice-capability-map.md`、`docs/m308-open-composition-vertical-slice-spec.md`、`docs/m308-open-composition-vertical-slice-plan.md`。恢复时只读取当前快照、任务账本最近记录、M308 文档和当前任务明确文件。
 
 默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行精简回归、compileall、architecture strict、Node projection、Service smoke、readiness 和必要的显式 live，不为每个小改动重复测试。
 

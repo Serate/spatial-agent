@@ -227,9 +227,15 @@
 - 组件图、typed input、候选级事实缺口和 TaskPlan bridge 二次校验已闭合；多类型 Result/Evidence/View 复用公共组合链路，没有增加领域专用 Runtime 分支。
 - Docker 阶段门禁：M306/M303/M281 精简回归 **20/20**，compileall、architecture strict、Node projection、Service smoke、生产 HTTP、artifact/restart 和 readiness **200** 通过。
 - 唯一一次显式真实模型 + 本地 GIS/Docker 验收返回合法 2 组件计划，sync/async 均 `COMPLETED`，`composite_result`、`vector + metrics`、artifact 和 request/binding identity 一致；0 重试，未保存敏感信息。
-- 下一阶段从全局架构缺口重规划为 M307：拆分 `run_lifecycle.py` 显式阶段、收敛 FastAPI/stdlib 传输边界、校准 `COMPAT_MODULES` 守卫；恢复入口只读取 M307 快照、任务账本最近记录、M307 Spec/Plan 和明确源码文件。
+- 下一阶段从全局架构审计重规划为 M307；恢复入口只读取 M307 快照、任务账本最近记录、M307 Spec/Plan 和明确源码文件。
 
-## M307：Agent Runtime 生命周期与传输边界收敛（规划中）
+## M307：Agent Runtime 生命周期与传输边界收敛（已完成）
 
-- 能力图、Spec、Plan 已创建；顺序为基线契约 → 生命周期阶段流水线 → 共享传输边界 → compat 治理 → Docker 收口。
-- 当前恢复入口为 `docs/agent-work-state.md` 和 `tasks/task-progress.md`，当前任务是 M307-A；不要默认读取完整历史、全量源码、全量测试、模型原文或敏感配置。
+- 基线审计确认 `run_lifecycle.py` 已按阶段拆分，FastAPI/stdlib 已共同使用 `HTTPApplication`/`http_transport`，`PUBLIC_MODULES` 与 compat 集合无交集；不新增重复模块。
+- Docker M262/M256 **8/8**、M306/M303/M281 **20/20**、compileall、architecture strict、Node projection、Service smoke、生产 acceptance、restart 和 readiness **200** 通过；不重复 M306 live。
+- 下一阶段为 M308 开放式 3+ 组件纵向链路与用户答案质量。
+
+## M308：开放式 3+ 组件纵向链路与用户答案质量（规划中）
+
+- 能力图、Spec、Plan 已创建；顺序为 3+ 组件契约 → 开放组合执行 → 结构化事实到答案 → 跨入口证据 → Docker 收口。
+- 当前恢复入口为 `docs/agent-work-state.md` 和 `tasks/task-progress.md`，当前任务是 M308-A；不默认读取完整历史、全量源码、全量测试、模型原文或敏感配置。

@@ -18,12 +18,32 @@
 
 ## 当前进行中
 
-### M307-A：基线与阶段契约 — 进行中
+### M308-A：全局基线与 3+ 组件契约 — 进行中
 
-- 目标：以 M306 的多组件真实闭环为基线，冻结 Runtime 阶段、HTTP 传输兼容矩阵和 compat 守卫分类，随后拆解核心生命周期。
+- 目标：以 M306 的真实 2 组件闭环为基线，冻结已有能力支撑 3+ 组件混合 profile、答案事实不变和跨入口 evidence 的最小契约。
+- 规格与计划：`docs/m308-open-composition-vertical-slice-capability-map.md`、`docs/m308-open-composition-vertical-slice-spec.md`、`docs/m308-open-composition-vertical-slice-plan.md`。
+- 需要读取/修改：`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/application/composite.py`、`agent/application/composite_runs.py`、`agent/answer_generation.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`tests/test_m308_open_composition_vertical_slice.py`（按任务增量加入）。
+- 验证节奏：开发期间只做必要静态/契约检查；A～D 合并后在 Docker 集中运行精简阶段门禁；本阶段真实模型最多一次且不重复 M306 live。
+- 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+
+### M307-F：文档、版本与全局重规划 — 已完成
+
+- 结果：M307 基线审计确认 `run_lifecycle.py` 已有七个显式阶段；FastAPI/stdlib 已共同使用 `HTTPApplication` 与 `http_transport`；真实公共模块不在 compat 豁免中，因此未新增重复抽象。
+- 验证：Docker M262/M256 **8/8**、M306/M303/M281 **20/20**、compileall、architecture strict、Node projection、Service smoke、生产 acceptance、restart 和 readiness **200** 均通过。
+- 交付：中文 Spec/Plan、能力图、问题日志、milestone、恢复快照和任务账本已更新；本阶段不重复 M306 live。
+- 阻塞：无。
+
+### M307-E：Docker 阶段验收 — 已完成
+
+- 结果：阶段门禁复用已有公共契约，确认生命周期、传输、架构守卫和跨入口结果没有漂移；不新增 Python/GIS 代码。
+- 阻塞：无。
+
+### M307-A～D：Runtime 边界基线审计 — 已完成
+
+- 目标：以 M306 的多组件真实闭环为基线，冻结 Runtime 阶段、HTTP 传输兼容矩阵和 compat 守卫分类；若现有 seam 已满足要求则不重复实现。
 - 规格与计划：`docs/m307-runtime-boundaries-capability-map.md`、`docs/m307-runtime-boundaries-spec.md`、`docs/m307-runtime-boundaries-plan.md`。
 - 需要读取/修改：`agent/runtime_core/run_lifecycle.py`、`production_api.py`、`serve_api.py`、`application/http.py`、`scripts/architecture_check.py`、`tests/test_m307_runtime_boundaries.py`（按任务增量加入）。
-- 验证节奏：开发期间只做必要静态/契约检查；B～D 合并后在 Docker 集中运行精简阶段门禁；本阶段不重复 M306 live。
+- 验证：M262/M256 **8/8** 证明已有生命周期、HTTPApplication/http_transport 和 compat 守卫边界；阶段收口不重复 M306 live。
 - 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
 
 ### M306-F：文档、版本与全局重规划 — 已完成

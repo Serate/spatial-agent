@@ -5198,7 +5198,13 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 唯一一次显式真实模型 + 本地 GIS/Docker 验收形成合法 2 组件计划，sync/async 均 `COMPLETED`，结果为 `composite_result`，data kinds 为 `vector + metrics`，artifact 可用，request/binding identity 一致，0 重试。
 - 已更新中文问题日志、Spec/Plan、恢复卡、快照和任务账本；下一阶段从全局架构缺口规划 M307，处理生命周期阶段化、传输边界和兼容守卫分类。
 
-## M307：Agent Runtime 生命周期与传输边界收敛（规划中）
+## M307：Agent Runtime 生命周期与传输边界收敛（已完成）
 
-- 能力图、中文 Spec/Plan 已建立，顺序为：显式生命周期阶段流水线 → FastAPI/stdlib 共享传输边界 → compat shim/facade/公共模块守卫收口 → Docker 交付。
-- 本阶段不新增专题工具、不修改既有公共 schema，不重复 M306 的真实模型验收；重点让 agent-grade 的生命周期与可维护性传导到实际运行路径。
+- 基线审计确认 `run_lifecycle.py` 已按阶段拆分，FastAPI/stdlib 已共同使用 `HTTPApplication` 与 `http_transport`，`PUBLIC_MODULES` 与 compat 集合无交集；不新增重复模块。
+- Docker M262/M256 **8/8**、M306/M303/M281 **20/20**、compileall、architecture strict、Node projection、Service smoke、生产 acceptance、restart 和 readiness **200** 全部通过；未重复 M306 live。
+- 文档记录了“历史问题描述滞后于当前代码基线”的预防流程；下一阶段为 M308 开放式 3+ 组件纵向链路与用户答案质量。
+
+## M308：开放式 3+ 组件纵向链路与用户答案质量（规划中）
+
+- 从全局目标验证已有 catalog、Planner、TaskPlan/DAG、ToolRegistry、Result/View/Answer/Evidence 能否支撑 3+ 组件混合分析，不新增专题工具或 RAG。
+- 重点覆盖开放请求、混合 data profile、部分失败、答案事实不变和 sync/async/artifact/restart/Console 一致性；默认测试精简，真实模型最多一次且不重复 M306 live。
