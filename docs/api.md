@@ -107,8 +107,8 @@ Fields:
 |---|---:|---|---|
 | request | yes | none | Natural-language task for the Agent. |
 | session_id | no | default | Conversation scope for clarification state. |
-| planner | no | rule | rule for deterministic demos, openai for LLM planning. |
-| backend | no | memory | memory for deterministic tests, local for configured local spatial data. |
+| planner | no | openai | Product APIs default to the real model; use rule explicitly for deterministic offline runs. |
+| backend | no | local | Product APIs default to configured local data; use memory explicitly for deterministic tests. |
 | workflow | no | none | Optional selection from `/workflows`; validated before planning and persisted in the run snapshot. |
 | export_artifact | no | false | When true, writes a small run summary artifact and returns artifact_ref. |
 | export_geojson | no | false | When true, writes a bounded GeoJSON summary and returns geojson_ref. |
@@ -163,7 +163,7 @@ Successful response shape:
 python scripts/evaluate_planner.py --planner rule --backend memory --output outputs/evaluation.json
 ~~~
 
-报告包含状态/工具匹配率、依赖链有效率、平均步骤耗时、Planner 延迟和 Token 总量。默认只输出报告；加 `--strict` 才会在有失败用例时返回非零。只有显式指定 `--planner openai` 时才会调用真实模型。
+报告包含状态/工具匹配率、依赖链有效率、平均步骤耗时、Planner 延迟和 Token 总量。默认只输出报告；加 `--strict` 才会在有失败用例时返回非零。评测脚本应显式指定 `--planner rule --backend memory`；只有显式指定 `--planner openai` 时才会调用真实模型。
 
 ## GET Artifact Files
 

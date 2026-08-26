@@ -1119,3 +1119,34 @@
 - **修复**：将 context 的候选工具上限与 bridge 使用的有界容量统一为 24；新增完整 9 工具透传回归，保持有界、去重和安全过滤。
 - **验证**：Docker M296 定向 **9/9**；GIS 9 个工具完整透传，跨 GIS/Economic 的 Replay 计划、binding、同步/异步执行和恢复均通过；未扩大为无限上下文。
 - **预防**：凡是新增目录能力或工具，必须同时核对 catalog、context、planner、TaskPlan bridge 的容量常量，并用“最大声明数量”做一次回归；不能只提高单一消费端上限。
+
+## M297 Planner catalog 增加结果类型后超过旧上下文预算
+
+- **现象**：向 Planner-facing catalog 增加按 Result Registry 投影的 `output_profiles` 后，GIS + Economic 目录投影从约 64 KiB 增长到约 77 KiB，旧的 64 KiB 上限导致跨域规划在目录阶段直接失败。
+- **根因**：新增的是已有公共契约的必要类型信息，不能通过截断 profiles 恢复，否则模型会失去判断 vector/metrics/timeseries 的依据。
+- **处理**：将 Composite capability projection 的有界上下文上限与 Request Context 对齐到 96 KiB；仍限制 Domain、capability、workflow、tool 和 profile 数量，不接受无限增长。
+- **预防**：扩展 Planner-facing 结构化投影时，先测量代表性多领域目录的编码大小，再同步调整有限预算并保留超限 fail closed；不要静默丢弃类型或来源字段。
+
+## M297 Planner 上下文预算与目录投影不一致
+
+- **现象**：M297 将 Composite capability projection 和 Request Context 的有界预算提高到 96 KiB 后，真实模型验收仍在本地 Planner 门禁返回 `planner_context_too_large`，请求尚未发给 provider。
+- **根因**：能力目录投影预算已扩展，但 `LLMCompositePlanner` 仍保留 64 KiB 的独立硬编码上限，公共边界出现两个互相矛盾的容量契约。
+- **修复**：将 LLM Planner 的 context 校验与公共 Composite Context 对齐到 96 KiB；仍保留字节预算和 fail-closed，不接受无限上下文。修复后 live 请求到达 provider，structured output 返回安全澄清。
+- **验证**：Docker M297/M298 相关回归 **55/55**，compileall、architecture strict、Node projection smoke 和 readiness HTTP 200 通过；真实请求未保存模型原文。
+- **预防**：新增或调整目录投影预算时，必须同时检查 Context Builder、Planner、provider payload 和恢复边界；用代表性多领域目录做一次端到端预算检查。
+
+## M298 产品默认模式污染低层离线 HTTP 测试
+
+- **现象**：为让产品默认使用真实模型与本地数据，`HTTPApplication` 曾在所有调用上注入 `openai + local`，导致直接 Application 单测从确定性的 `rule + memory` 变成依赖网络和本地 GIS 的路径，出现澄清和 fingerprint 不一致。
+- **根因**：产品默认配置的注入边界放在了共享语义应用内部，而不是 FastAPI/stdlib 产品入口；低层应用、测试替身和产品入口没有区分调用语义。
+- **修复**：`HTTPApplication` 增加显式 `use_product_defaults` 开关，生产 FastAPI/stdlib 入口显式启用；低层调用保留 `rule + memory` 回退，显式传入值始终优先。Composite 组件只继承同一顶层选择。
+- **验证**：Docker M298 及相邻契约 **55/55**；compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200 通过。
+- **预防**：产品默认只能在产品边界注入；共享 Application、Domain Service 和单测不得读取产品默认环境变量。任何默认值变更都必须同时覆盖“产品缺省”和“低层离线显式/隐式”两条路径。
+
+## M298 可选 discovery 未声明被误判为数据不可用
+
+- **现象**：旧 Domain 测试替身未声明可选 `discover()` 时，已注册且执行契约有效的能力被 Composite Planner 返回为 `NEEDS_CLARIFICATION/data_unavailable`。
+- **根因**：Context Builder 已允许使用有界能力目录作为 discovery 来源，但 Discovery Gateway 状态聚合仍把 `not_declared` 与显式 `unavailable` 合并处理。
+- **修复**：未声明 discovery 视为目录回退，不阻断可用候选；只有 discovery adapter 显式失败才进入数据不可用状态。未知执行契约仍不会穿过执行就绪门禁。
+- **验证**：M279/M282/M296/M297/M298 合并回归通过；未放宽工具、workflow、TaskPlan 或 execution binding 校验。
+- **预防**：状态机必须区分未声明、未知、显式失败和数据缺失；新增状态时同步检查 discovery receipt、clarification、Planner 和恢复投影。

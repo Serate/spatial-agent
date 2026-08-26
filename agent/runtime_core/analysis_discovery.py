@@ -443,7 +443,11 @@ def _state(
         str((item.get("discovery") or {}).get("state") or "")
         for item in contexts
     }
-    if any(value in {"unavailable", "not_declared"} for value in discovery_states):
+    # ``not_declared`` means the optional Domain discovery adapter is absent,
+    # not that the registered capability or its data is unavailable.  The
+    # bounded catalog remains a valid discovery source in that case.  An
+    # explicit adapter failure is still fail-closed below.
+    if "unavailable" in discovery_states:
         return "data_unavailable", "data_unavailable"
     if any(item.get("execution_ready") for item in candidates):
         return "ready", "discovery_ready"
@@ -480,7 +484,7 @@ def _clarification(
     if state == "data_unavailable":
         domain_unavailable = any(
             str((item.get("discovery") or {}).get("state") or "")
-            in {"unavailable", "not_declared"}
+            in {"unavailable"}
             for item in contexts
         )
         return {

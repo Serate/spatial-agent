@@ -9,10 +9,12 @@ from agent.domain_routing_entry import (
     routing_state_from_environment,
 )
 from agent.runtime_factory import build_runtime  # compatibility re-export
+from agent.runtime_defaults import product_defaults
 from agent.service import AgentService
 
 
 def parse_args():
+    defaults = product_defaults()
     parser = argparse.ArgumentParser(description="Run the spatial Agent Runtime demo.")
     parser.add_argument(
         "request",
@@ -22,13 +24,13 @@ def parse_args():
     parser.add_argument(
         "--planner",
         choices=("rule", "openai"),
-        default="rule",
-        help="Planner Adapter to use. openai requires OPENAI_API_KEY.",
+        default=defaults["planner"],
+        help="Planner Adapter to use. Defaults to the real model; rule is the offline path.",
     )
     parser.add_argument(
         "--backend",
         choices=("memory", "local"),
-        default="memory",
+        default=defaults["backend"],
         help="Spatial backend to use. local reads configured datasets where supported.",
     )
     parser.add_argument(

@@ -31,6 +31,18 @@ class _Service:
             "known_result_types": ["result-a"],
         }
 
+    def execution_contract(self, planner="rule", backend="memory"):
+        del planner, backend
+        return {
+            "schema_version": "spatial-agent.execution-contract.v1",
+            "status": "valid",
+            "tool_names": ["tool-a"],
+            "tool_definitions": {
+                "tool-a": {"input_schema": {"type": "object"}}
+            },
+            "result_type_ids": ["result-a"],
+        }
+
     def preview(self, request, **kwargs):
         del request, kwargs
         return {

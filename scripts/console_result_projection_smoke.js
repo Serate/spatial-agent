@@ -75,6 +75,28 @@ assert.match(completedHtml, /能力与数据已发现/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);
 assert.doesNotMatch(completedHtml, /private_tool/);
 
+const mixed = projection.normalize({
+  status: "COMPLETED",
+  result: {
+    type: "composite_result",
+    data_profile: {primary: "composite", kinds: ["composite"]},
+    view: {
+      schema_version: "spatial-agent.composite-view.v1",
+      data_kinds: ["vector", "raster", "metrics", "timeseries", "document_evidence"],
+      answer: {headline: "综合结果", summary: "空间、指标和来源结果已汇总。"},
+      sections: [
+        {kind: "component", component_id: "map", data_profile: {primary: "vector", kinds: ["vector"]}},
+        {kind: "component", component_id: "trend", data_profile: {primary: "timeseries", kinds: ["timeseries", "metrics"]}},
+        {kind: "component", component_id: "source", data_profile: {primary: "document_evidence", kinds: ["document_evidence"]}},
+      ],
+    },
+  },
+});
+assert.deepEqual(mixed.result_kinds.map(item => item.id), ["vector", "raster", "metrics", "timeseries", "document_evidence"]);
+assert.equal(mixed.sections[1].data_kinds[0], "timeseries");
+assert.match(projection.render(mixed), /结果组成/);
+assert.match(projection.render(mixed), /矢量、栅格、指标、时间序列、文档证据/);
+
 const clarification = projection.normalize({
   status: "NEEDS_CLARIFICATION",
   clarification: {state: "needs_clarification", missing: ["时间范围", "指标"], next_actions: ["请补充统计周期"]},
@@ -132,4 +154,4 @@ const repaired = projection.normalize({
 assert.equal(repaired.repair_lineage.status, "repaired");
 assert.match(projection.render(repaired), /计划已校正/);
 
-console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "clarification_projection", "component_clarification_projection", "composite_clarification_projection", "repair_projection"]}));
+console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "mixed_result_kinds", "clarification_projection", "component_clarification_projection", "composite_clarification_projection", "repair_projection"]}));

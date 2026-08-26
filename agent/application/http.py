@@ -27,8 +27,10 @@ from agent.api_contract import (
     workflow_action_result,
 )
 from agent.artifact_manifest import build_artifact_manifest
+from agent.composite_contract import inherit_composite_runtime_selection
 from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
 from agent.evidence_registry import normalize_evidence_registry
+from agent.runtime_defaults import with_product_defaults
 
 
 class HTTPApplication:
@@ -38,6 +40,7 @@ class HTTPApplication:
         self,
         service: Any,
         *,
+        use_product_defaults: bool = False,
         routing: Any = None,
         composite: Any = None,
         composite_planning: Any = None,
@@ -46,6 +49,7 @@ class HTTPApplication:
         on_session_delete: Optional[Callable[[str], None]] = None,
     ) -> None:
         self._service = service
+        self._use_product_defaults = bool(use_product_defaults)
         self._routing = routing
         self._composite = composite
         self._composite_planning = composite_planning
@@ -70,7 +74,7 @@ class HTTPApplication:
         """
         if not isinstance(action, str) or not action.strip():
             raise ValueError("action must be a non-empty string")
-        body = payload if isinstance(payload, dict) else {}
+        body = self._request_body(payload)
         action = action.strip()
         service = self._service
 
@@ -82,15 +86,25 @@ class HTTPApplication:
             if self._composite is None:
                 raise RuntimeError("composite application is unavailable")
             session_id = str(body.get("session_id") or "default")[:120]
+            composite_body = inherit_composite_runtime_selection(
+                body,
+                planner=body.get("planner"),
+                backend=body.get("backend"),
+            )
             composite_kwargs = {"session_id": session_id}
             if "export_artifact" in body:
                 composite_kwargs["export_artifact"] = bool(body.get("export_artifact"))
-            return self._composite.run(body, **composite_kwargs)
+            return self._composite.run(composite_body, **composite_kwargs)
         if action == "composite_run_async":
             if self._composite is None:
                 raise RuntimeError("composite application is unavailable")
-            return self._composite.submit_async(
+            composite_body = inherit_composite_runtime_selection(
                 body,
+                planner=body.get("planner"),
+                backend=body.get("backend"),
+            )
+            return self._composite.submit_async(
+                composite_body,
                 session_id=str(body.get("session_id") or "default")[:120],
                 idempotency_key=body.get("idempotency_key"),
                 export_artifact=bool(body.get("export_artifact", False)),
@@ -225,7 +239,7 @@ class HTTPApplication:
         """
         if not isinstance(action, str) or not action.strip():
             raise ValueError("action must be a non-empty string")
-        body = payload if isinstance(payload, dict) else {}
+        body = self._request_body(payload)
         action = action.strip()
         service = self._service
 
@@ -375,6 +389,19 @@ class HTTPApplication:
         if self._routing is None:
             raise RuntimeError("domain routing application is unavailable")
         return self._routing
+
+    def _request_body(self, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Project a request with product defaults only at a product boundary.
+
+        Direct application callers (including offline contract tests) retain
+        the historical deterministic ``rule + memory`` fallbacks.  HTTP
+        production adapters opt in so omitted selections become the product's
+        configured Agent mode.
+        """
+
+        if self._use_product_defaults:
+            return with_product_defaults(payload)
+        return dict(payload) if isinstance(payload, dict) else {}
 
 
 def _required_resource(value: Optional[str], name: str) -> str:

@@ -119,6 +119,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     def _http_application(self) -> HTTPApplication:
         return HTTPApplication(
             self.service,
+            use_product_defaults=True,
             routing=self.routing,
             composite=composite_application,
             composite_planning=composite_planning_application,
@@ -151,8 +152,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/capabilities":
             query = parse_qs(parsed.query)
-            planner = query.get("planner", ["rule"])[0]
-            backend = query.get("backend", ["memory"])[0]
+            planner = query.get("planner", [None])[0]
+            backend = query.get("backend", [None])[0]
             if self.service is None:
                 self._write_json(503, {"error": "service unavailable"})
             else:
@@ -174,8 +175,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/actions":
             query = parse_qs(parsed.query)
-            planner = query.get("planner", ["rule"])[0]
-            backend = query.get("backend", ["memory"])[0]
+            planner = query.get("planner", [None])[0]
+            backend = query.get("backend", [None])[0]
             if self.service is None:
                 self._write_json(503, {"error": "service unavailable"})
             else:
@@ -215,8 +216,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/workflows":
             query = parse_qs(parsed.query)
-            planner = query.get("planner", ["rule"])[0]
-            backend = query.get("backend", ["memory"])[0]
+            planner = query.get("planner", [None])[0]
+            backend = query.get("backend", [None])[0]
             self._write_json(
                 200,
                 self._http_application().read(
@@ -257,8 +258,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                         "release_evidence",
                         {
                             "max_files": max_files,
-                            "planner": query.get("planner", ["rule"])[0],
-                            "backend": query.get("backend", ["local"])[0],
+                            "planner": query.get("planner", [None])[0],
+                            "backend": query.get("backend", [None])[0],
                         },
                     )
                 self._write_json(200, evidence)
@@ -283,8 +284,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     result = self._http_application().read(
                         "run_interaction",
                         {
-                            "planner": query.get("planner", ["rule"])[0],
-                            "backend": query.get("backend", ["memory"])[0],
+                            "planner": query.get("planner", [None])[0],
+                            "backend": query.get("backend", [None])[0],
                         },
                         resource_id=parts[1],
                     )
@@ -309,8 +310,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                     result = self._http_application().read(
                         "run",
                         {
-                            "planner": query.get("planner", ["rule"])[0],
-                            "backend": query.get("backend", ["memory"])[0],
+                            "planner": query.get("planner", [None])[0],
+                            "backend": query.get("backend", [None])[0],
                         },
                         resource_id=parts[1],
                     )

@@ -93,12 +93,19 @@ python run_demo.py --backend local "分析洪山区土地利用分布"
 
 ```powershell
 Copy-Item config\openai.example.json config\openai.local.json
-python run_demo.py --planner openai "查询DEM栅格元数据"
+python run_demo.py "查询DEM栅格元数据"
 ```
 
-也可以通过环境变量设置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_WIRE_API` 和 `OPENAI_REASONING_EFFORT`。`config/openai.local.json`、`.env.production` 和 API key 已被 Git 忽略，禁止提交。
+产品入口默认使用“真实大模型 + 本地后端”；也可以通过
+`SPATIAL_AGENT_DEFAULT_PLANNER=rule` 或
+`SPATIAL_AGENT_DEFAULT_BACKEND=memory` 为本地演示覆盖缺省选择。显式的
+`--planner`/`--backend` 优先级更高。模型配置仍通过
+`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_WIRE_API` 和
+`OPENAI_REASONING_EFFORT` 提供。`config/openai.local.json`、`.env.production`
+和 API key 已被 Git 忽略，禁止提交。
 
-默认规则规划器和 CI 不访问真实模型；真实模型 smoke 只有显式设置 `SPATIAL_AGENT_LIVE_OPENAI=1` 才运行。
+默认测试与 CI 仍显式使用规则规划器和内存后端，不访问真实模型；真实模型
+验收仍必须显式设置 `SPATIAL_AGENT_LIVE_OPENAI=1`，以避免测试产生外部调用。
 
 ## 生产部署
 

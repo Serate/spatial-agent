@@ -13,7 +13,10 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from agent.composite_contract import normalize_composite_request
+from agent.composite_contract import (
+    inherit_composite_runtime_selection,
+    normalize_composite_request,
+)
 from agent.composite_request_context import (
     CompositeRequestContextBuilder,
     CompositeRequestContextError,
@@ -723,7 +726,11 @@ class CompositePlanningApplication:
                     provider_metrics=provider_metrics,
                 ),
             }
-        raw_request = candidate.get("request")
+        raw_request = inherit_composite_runtime_selection(
+            candidate.get("request"),
+            planner=planner_name,
+            backend=backend,
+        )
         try:
             canonical = normalize_composite_request(raw_request)
         except Exception as exc:

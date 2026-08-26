@@ -80,10 +80,13 @@
     );
     const plan = firstRecord(data.plan, result.plan) || {};
     const views = list(composite?.views).length ? list(composite.views) : Object.entries(result.views?.panels || {}).map(([id, value]) => ({view_id: id, ...value}));
-    const sections = list(composite?.sections);
+    const sections = normalizeSections(composite?.sections);
     const steps = list(data.steps).length ? list(data.steps) : list(result.steps);
     const artifacts = list(composite?.artifacts).length ? list(composite.artifacts) : list(result.artifacts || data.artifacts);
     const resultType = text(result.type || data.result_type || data.plan?.output?.type || "unknown", 96) || "unknown";
+    const resultKinds = normalizeKinds(
+      composite?.data_kinds || result?.data_profile?.kinds || [],
+    );
     const status = text(data.status || result.status || composite?.status || "", 40).toUpperCase();
     const viewCount = views.filter(item => record(item) && item.state !== "unavailable").length;
     const componentCount = Number(composite?.evidence?.component_count || sections.filter(item => item?.kind === "component").length || 0);
@@ -93,6 +96,7 @@
       status_label: statusLabels[status] || status || "等待结果",
       result_type: resultType,
       result_kind: kindLabels[result?.data_profile?.primary] || kindLabels["unknown"],
+      result_kinds: resultKinds.map(kind => ({id: kind, label: kindLabels[kind] || "结构化结果"})),
       answer,
       context,
       discovery,
@@ -168,6 +172,7 @@
     const phases = model.phases.map(item => '<li class="result-phase is-' + escapeHtml(item.state) + '" data-phase-state="' + escapeHtml(item.state) + '"><span class="result-phase-dot" aria-hidden="true"></span><span><b>' + escapeHtml(item.label) + '</b><small>' + escapeHtml(item.state_label) + '</small></span></li>').join("");
     const chips = [];
     if (model.result_kind && model.result_kind !== "结构化结果") chips.push(model.result_kind + "结果");
+    if (model.result_kinds.length > 1) chips.push("包含：" + model.result_kinds.map(item => item.label).join("、"));
     if (model.steps.length) chips.push("已处理 " + model.steps.length + " 个步骤");
     else if (model.status === "COMPLETED" && !Object.keys(model.planning || {}).length) chips.push("直接形成结论");
     if (model.view_count) chips.push("包含 " + model.view_count + " 个结果视图");
@@ -183,6 +188,9 @@
     const chipHtml = chips.slice(0, MAX_CHIPS).map(item => '<span class="result-chip">' + escapeHtml(item) + '</span>').join("");
     const discoveryHtml = renderDiscovery(model.discovery, escapeHtml);
     const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
+    const resultKinds = model.result_kinds.length > 1
+      ? '<section class="projection-section projection-result-kinds"><h4>结果组成</h4><p>' + escapeHtml(model.result_kinds.map(item => item.label).join("、")) + '</p></section>'
+      : "";
     const limitations = model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const nextSteps = model.answer.next_steps.length ? '<section class="projection-section projection-next"><h4>建议下一步</h4><ul>' + model.answer.next_steps.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const missing = safeTextList(
@@ -200,7 +208,7 @@
       + (clarificationActions.length ? '<small>下一步：' + escapeHtml(clarificationActions.join("；")) + '</small>' : "") + '</section>' : "";
     return '<div class="result-projection" data-projection-schema="' + escapeHtml(SCHEMA_VERSION) + '"><ol class="result-phases" aria-label="分析阶段">' + phases + '</ol>'
       + (chipHtml ? '<div class="result-chips" aria-label="结果摘要">' + chipHtml + '</div>' : "")
-      + discoveryHtml + clarification + findings + limitations + nextSteps + '</div>';
+      + discoveryHtml + clarification + resultKinds + findings + limitations + nextSteps + '</div>';
   }
 
   function firstRecord(...values) {
@@ -255,6 +263,32 @@
       data_requirement_count: count(raw.data_requirement_count),
       next_actions: safeTextList(raw.next_actions, 2),
     };
+  }
+
+  function normalizeKinds(raw) {
+    const values = typeof raw === "string" ? [raw] : list(raw);
+    const supported = ["vector", "raster", "metrics", "timeseries", "document_evidence", "composite", "text", "unknown"];
+    const seen = new Set();
+    return values.map(item => text(item, 48)).filter(item => supported.includes(item) && !seen.has(item) && seen.add(item)).slice(0, 8);
+  }
+
+  function normalizeSections(raw) {
+    return list(raw).slice(0, MAX_ITEMS * 2).filter(record).map(item => ({
+      section_id: text(item.section_id, 96),
+      kind: text(item.kind, 48),
+      title: text(item.title, 160),
+      component_id: text(item.component_id, 96),
+      domain_id: text(item.domain_id, 64),
+      state: text(item.state, 32),
+      status: text(item.status, 32),
+      result_type: text(item.result_type, 96),
+      data_profile: record(item.data_profile) ? item.data_profile : {},
+      data_kinds: normalizeKinds(item.data_kinds || item.data_profile?.kinds),
+      depends_on: safeTextList(item.depends_on, MAX_ITEMS),
+      inputs: list(item.inputs).slice(0, MAX_ITEMS),
+      answer: text(item.answer, 640),
+      view_refs: safeTextList(item.view_refs, MAX_ITEMS),
+    }));
   }
 
   function renderDiscovery(discovery, escapeHtml) {

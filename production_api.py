@@ -179,6 +179,7 @@ def _http_application(target_service: AgentService = None) -> HTTPApplication:
     """Build the shared semantic dispatcher for the selected Service."""
     return HTTPApplication(
         target_service or service,
+        use_product_defaults=True,
         routing=domain_routing,
         composite=composite_application,
         composite_planning=composite_planning_application,
@@ -228,8 +229,8 @@ def health() -> Dict[str, Any]:
 
 @app.get("/capabilities")
 def capabilities(
-    planner: str = "rule",
-    backend: str = "memory",
+    planner: Optional[str] = None,
+    backend: Optional[str] = None,
 ) -> Dict[str, Any]:
     return _http_application().read(
         "capabilities", {"planner": planner, "backend": backend}
@@ -283,7 +284,7 @@ def clear_unbound_domain_routing_session(session_id: str) -> Dict[str, Any]:
 
 
 @app.get("/actions")
-def actions(planner: str = "rule", backend: str = "memory") -> Dict[str, Any]:
+def actions(planner: Optional[str] = None, backend: Optional[str] = None) -> Dict[str, Any]:
     return _http_application().read(
         "actions", {"planner": planner, "backend": backend}
     )
@@ -563,7 +564,7 @@ def register_tool(payload: Dict[str, Any]):
 
 
 @app.get("/workflows")
-def workflows(planner: str = "rule", backend: str = "memory"):
+def workflows(planner: Optional[str] = None, backend: Optional[str] = None):
     return _http_application().read(
         "workflow", {"planner": planner, "backend": backend}
     )
@@ -590,7 +591,7 @@ def revise_workflow(template_id: str, payload: Dict[str, Any]):
 
 
 @app.get("/runs/{run_id}")
-def get_run(run_id: str, planner: str = "rule", backend: str = "memory"):
+def get_run(run_id: str, planner: Optional[str] = None, backend: Optional[str] = None):
     try:
         return _http_application().read(
             "run",
@@ -610,7 +611,7 @@ def run_evidence(run_id: str):
 
 
 @app.get("/runs/{run_id}/interaction")
-def run_interaction(run_id: str, planner: str = "rule", backend: str = "memory"):
+def run_interaction(run_id: str, planner: Optional[str] = None, backend: Optional[str] = None):
     try:
         return _http_application().read(
             "run_interaction",
@@ -805,8 +806,8 @@ def geojson_artifact(name: str):
 @app.get("/domains/{domain_id}/capabilities")
 def domain_capabilities(
     domain_id: str,
-    planner: str = "rule",
-    backend: str = "memory",
+    planner: Optional[str] = None,
+    backend: Optional[str] = None,
 ) -> Dict[str, Any]:
     try:
         selected_service = _domain_service(domain_id)
@@ -842,8 +843,8 @@ def domain_release_evidence(domain_id: str, max_files: int = 10) -> Dict[str, An
 @app.get("/domains/{domain_id}/actions")
 def domain_actions(
     domain_id: str,
-    planner: str = "rule",
-    backend: str = "memory",
+    planner: Optional[str] = None,
+    backend: Optional[str] = None,
 ) -> Dict[str, Any]:
     try:
         selected_service = _domain_service(domain_id)
@@ -879,8 +880,8 @@ def domain_action_executions(domain_id: str, limit: int = 20) -> Dict[str, Any]:
 @app.get("/domains/{domain_id}/workflows")
 def domain_workflows(
     domain_id: str,
-    planner: str = "rule",
-    backend: str = "memory",
+    planner: Optional[str] = None,
+    backend: Optional[str] = None,
 ) -> Dict[str, Any]:
     try:
         selected_service = _domain_service(domain_id)
@@ -963,8 +964,8 @@ def domain_list_runs(domain_id: str, limit: int = 20):
 def domain_get_run(
     domain_id: str,
     run_id: str,
-    planner: str = "rule",
-    backend: str = "memory",
+    planner: Optional[str] = None,
+    backend: Optional[str] = None,
 ):
     try:
         selected_service = _domain_service(domain_id)
@@ -992,8 +993,8 @@ def domain_run_evidence(domain_id: str, run_id: str):
 def domain_run_interaction(
     domain_id: str,
     run_id: str,
-    planner: str = "rule",
-    backend: str = "memory",
+    planner: Optional[str] = None,
+    backend: Optional[str] = None,
 ):
     try:
         selected_service = _domain_service(domain_id)

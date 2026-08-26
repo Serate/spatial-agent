@@ -5104,3 +5104,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 阶段门禁：Docker M296 定向 **9/9**，M295+M294 相邻回归 **9/9**，compileall、architecture strict、Node projection smoke 和生产 readiness HTTP **200** 通过；Docker 镜像已重建并重新创建。
 - 阶段版本：`6f8f2a2` 已提交，待推送。
 - 全局重规划：M297 聚焦通用分析组合与跨类型结果闭合，优先复用少量既有工具，让开放问题由目录、Planner 和类型安全引用组合，不新增专题硬编码或 RAG。
+
+## M297：通用分析组合与跨类型结果闭合（已完成）
+
+- 新增领域中立的组件输入引用与组合校验，支持已登记组件之间按 `component_id` 引用上游 vector、raster、metrics、timeseries、document_evidence 或 composite 结果；引用必须有声明依赖、匹配的 data profile，并经过统一的 Composite contract、TaskPlan 和 execution binding 门禁。
+- Planner-facing catalog 增加受限 Result profile；Composite View 与 Console projection 统一展示整体/组件 `data_kinds`、来源和未知类型降级，不增加 GIS/Economic 页面分支。
+- 验收 harness 复用 prepared execution binding，保留同步/异步、artifact/restart 的 identity 比较；Docker 相关精简契约 **55/55**，compileall、architecture strict、Node projection smoke 和生产 readiness HTTP **200** 通过。
+- 显式 live 请求在修正 Planner 上下文预算后到达 provider，structured output 通道成功但返回安全澄清；真实 GIS readiness 未就绪，未创建运行，未保存模型原文或私有数据。
+- 全局重规划：默认产品入口必须真正启用 Agent 模式并让能力发现、规划、执行阶段对用户可见；下一阶段接入 `openai + local` 产品默认，同时保留离线测试隔离。
+
+## M298：默认 Agent 模式与阶段可见性（已完成）
+
+- 新增领域中立产品默认配置：缺省 Planner 为 `openai`、后端为 `local`；环境覆盖值受 allowlist 约束，显式请求选择优先，非法配置安全回退。
+- FastAPI 和 stdlib HTTP 产品入口显式启用默认注入，低层 `HTTPApplication`、Service 和离线测试不被产品默认污染；Composite 所有组件继承同一顶层 planner/backend 选择。
+- Console 默认显示“发现能力 → 理解请求 → 生成计划 → 执行任务 → 汇总结果”阶段条；阶段状态由结构化运行状态投影驱动，不展示 prompt、模型原文或思维链。
+- Docker M298 及相邻回归 **55/55**，compileall、architecture strict、Node projection smoke、生产 readiness HTTP **200** 通过。显式 live 在上下文预算修正后确实到达 provider，structured output 成功但模型返回澄清，系统未创建 execution run。
+- 全局重规划：M299 从全局目标收口默认 Agent 的最小上下文、能力选择、可执行成功率、澄清体验和跨入口恢复；不回退到规则默认，也不为单一专题增加硬编码。

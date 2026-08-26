@@ -21,8 +21,34 @@ class _Projection:
     def project(self, **kwargs):
         return {
             "capability_index": [
-                {"domain_id": "gis", "capability_id": "gis_summary", "available": True}
+                {
+                    "domain_id": "gis",
+                    "capability_id": "gis_summary",
+                    "available": True,
+                    "tools": ["tool-a"],
+                    "result_types": ["result-a"],
+                }
             ]
+        }
+
+
+class _Service:
+    def preview(self, request, **kwargs):
+        del request, kwargs
+        return {
+            "status": "PLANNED",
+            "plan": {
+                "goal": "空间摘要",
+                "steps": [
+                    {
+                        "id": "step-1",
+                        "tool": "tool-a",
+                        "args": {},
+                        "depends_on": [],
+                    }
+                ],
+                "output": {"type": "result-a"},
+            },
         }
 
 
@@ -31,6 +57,11 @@ class _Host:
         if domain_id != "gis":
             raise ValueError("unknown domain")
         return domain_id
+
+    def service(self, selection):
+        if selection != "gis":
+            raise ValueError("unknown domain")
+        return _Service()
 
 
 class _Runs:
@@ -43,7 +74,13 @@ class _ContextBuilder:
             "schema_version": "spatial-agent.composite-request-context.v2",
             "request_fingerprint": "m280-context",
             "capability_index": [
-                {"domain_id": "gis", "capability_id": "gis_summary", "available": True}
+                {
+                    "domain_id": "gis",
+                    "capability_id": "gis_summary",
+                    "available": True,
+                    "tools": ["tool-a"],
+                    "result_types": ["result-a"],
+                }
             ],
             "clarification": {"state": "not_required"},
         }

@@ -175,6 +175,43 @@ def normalize_composite_request(
     return canonical
 
 
+def inherit_composite_runtime_selection(
+    value: Any,
+    *,
+    planner: Any,
+    backend: Any,
+) -> Any:
+    """Apply one product runtime selection to every composite component.
+
+    Planner output is not allowed to introduce a different runtime selection.
+    The copy is intentionally shallow outside ``components`` and does not
+    mutate the caller's request. Structural validation remains owned by
+    :func:`normalize_composite_request`.
+    """
+
+    if not isinstance(value, Mapping):
+        return value
+    components = value.get("components")
+    if not isinstance(components, list):
+        return dict(value)
+    selected_planner = str(planner or "rule").strip()[:32]
+    selected_backend = str(backend or "memory").strip()[:32]
+    copied = dict(value)
+    copied["components"] = [
+        (
+            {
+                **dict(component),
+                "planner": selected_planner,
+                "backend": selected_backend,
+            }
+            if isinstance(component, Mapping)
+            else component
+        )
+        for component in components
+    ]
+    return copied
+
+
 def build_composite_result_contract(
     request: Mapping[str, Any],
     children: Mapping[str, Any] | Sequence[Mapping[str, Any]],

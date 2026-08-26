@@ -1,4 +1,11 @@
     const $ = id => document.getElementById(id);
+    const AGENT_STAGE_DEFINITIONS = Object.freeze([
+      ['发现能力', '发现'],
+      ['理解请求', '理解'],
+      ['生成计划', '规划'],
+      ['执行任务', '执行'],
+      ['汇总结果', '汇总'],
+    ]);
     const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const rendererRegistry = window.ConsoleRendererRegistry?.create({escapeHtml});
     if (rendererRegistry && window.ConsoleGisPlugin) {
@@ -350,6 +357,27 @@
     function errorCategoryBadge(category) { if(!category) return ''; const key=String(category).toLowerCase(); const failure=(typeof lastRunData!=='undefined'&&lastRunData)?(lastRunData.failure||(lastRunData.result||{}).failure):null; return '<span class="error-category '+key+'" title="结构化错误分类：'+escapeHtml(key)+'">'+escapeHtml(errorCategoryLabels[key]||category)+'</span>'+failureEvidenceBadge(failure); }
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
+    function agentStageStates(value) {
+      const status=String(value||'IDLE').toUpperCase();
+      if(status==='COMPLETED'||status==='PARTIAL') return ['complete','complete','complete','complete','complete'];
+      if(status==='EXECUTING') return ['complete','complete','complete','active','waiting'];
+      if(status==='QUEUED') return ['complete','complete','active','waiting','waiting'];
+      if(status==='PLANNED'||status==='WAITING_FOR_DECISION') return ['complete','complete','complete','waiting','waiting'];
+      if(status==='NEEDS_CLARIFICATION') return ['complete','complete','active','waiting','waiting'];
+      if(['FAILED','REJECTED','BLOCKED','CANCELLED','TIMED_OUT'].includes(status)) return ['complete','complete','failed','unavailable','unavailable'];
+      if(status==='PLANNING') return ['active','waiting','waiting','waiting','waiting'];
+      return ['waiting','waiting','waiting','waiting','waiting'];
+    }
+    function renderAgentStageBar(data) {
+      const target=$('agentStageBar');
+      if(!target) return;
+      const status=typeof data==='string'?data:(data?.status||'IDLE');
+      const states=agentStageStates(status);
+      const stateLabels={complete:'已完成',active:'进行中',waiting:'待处理',failed:'未完成',unavailable:'未执行'};
+      target.dataset.status=String(status).toUpperCase();
+      target.innerHTML=AGENT_STAGE_DEFINITIONS.map(([label,short],index)=>'<span class="agent-stage is-'+states[index]+'"><i aria-hidden="true"></i><b>'+short+'</b><small>'+stateLabels[states[index]]+'</small><em class="sr-only">'+label+'</em></span>').join('');
+      target.setAttribute('aria-label','Agent 处理阶段：'+statusName(status));
+    }
     function setStatus(value) {
       const label=statusName(value);
       const normalized=String(value||'').toUpperCase();
@@ -360,11 +388,13 @@
       el.setAttribute('aria-label','运行状态：'+label);
       $('chatPanel')?.setAttribute('aria-busy',busy?'true':'false');
       $('resultWorkspace')?.setAttribute('aria-busy',busy?'true':'false');
+      renderAgentStageBar(normalized||'IDLE');
     }
+    renderAgentStageBar('IDLE');
     function appendMessage(role, text, runId) { const labels={user:'你',assistant:'智能体',system:'系统'}; const wrap=document.createElement('div'); wrap.className='msg '+role; wrap.innerHTML='<div class="role">'+labels[role]+'</div><div class="bubble">'+escapeHtml(text)+'</div>'; if(runId){ wrap.classList.add('msg-linked'); wrap.dataset.runId=runId; wrap.title='打开该次运行的完整详情（不重新执行模型）'; wrap.addEventListener('click',()=>openRunDetail(runId)); } $('messages').appendChild(wrap); $('messages').scrollTop=$('messages').scrollHeight; }
     function selectedDomainLabel() { return $('domain').selectedOptions[0]?.textContent||'默认领域'; }
     function welcome() { appendMessage('assistant','当前领域：'+selectedDomainLabel()+'。你可以直接提出开放式问题；能力、工具与展示方式由该 Domain Pack 动态提供。'); }
-    function resetConversationView(reason='reset') { $('messages').innerHTML=''; $('answer').textContent=''; $('answer').className='answer muted'; $('error').innerHTML=''; $('goal').textContent=''; $('decisionMode').textContent='等待决策'; $('steps').innerHTML=''; $('provenance').innerHTML=''; $('trace').innerHTML=''; $('links').innerHTML=''; resetResultWorkspace(reason); }
+    function resetConversationView(reason='reset') { $('messages').innerHTML=''; $('answer').textContent=''; $('answer').className='answer muted'; $('error').innerHTML=''; $('goal').textContent=''; $('decisionMode').textContent='等待决策'; $('steps').innerHTML=''; $('provenance').innerHTML=''; $('trace').innerHTML=''; $('links').innerHTML=''; renderAgentStageBar('IDLE'); resetResultWorkspace(reason); }
     function selectedConversationLabel() { return $('session').selectedOptions[0]?.textContent || '对话1'; }
     function addConversationOption(session,domainId=currentDomainId()) { if(!session?.session_id) return; sessionDomains.set(String(session.session_id),domainId); let option=[...$('session').options].find(item=>item.value===session.session_id); if(!option){ option=document.createElement('option'); option.value=session.session_id; $('session').appendChild(option); } option.dataset.domainId=domainId; option.textContent=session.display_name||'对话'+($('session').options.length); }
     async function loadSessions(domainId=currentDomainId()) {
