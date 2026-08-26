@@ -30,6 +30,7 @@ from agent.planner_repair import (
     is_repairable_planner_error,
 )
 from agent.provider_structured_output import project_structured_output_evidence
+from agent.provider_runtime import project_provider_runtime_evidence
 from agent.runtime_core.composite_taskplan import (
     CompositeTaskPlanBridge,
     CompositeTaskPlanBridgeError,
@@ -456,6 +457,7 @@ class CompositePlanningApplication:
         except CompositeRequestContextError as exc:
             return self._context_error(exc, planner_name)
         except CompositePlannerError as exc:
+            details = getattr(exc, "details", None)
             repairable = is_repairable_planner_error(exc.code)
             repair_lineage = build_repair_lineage(
                 reason_code=exc.code,
@@ -529,6 +531,20 @@ class CompositePlanningApplication:
                         request_fingerprint=context.get("request_fingerprint"),
                     )
             provider_failed = exc.code == "planner_provider_failed"
+            provider_failure = (
+                details.get("provider_failure")
+                if isinstance(details, Mapping)
+                and isinstance(details.get("provider_failure"), Mapping)
+                else {}
+            )
+            provider_failure_code = str(
+                provider_failure.get("code") or exc.code
+            )[:96]
+            provider_failure_retryable = (
+                provider_failure.get("retryable")
+                if isinstance(provider_failure.get("retryable"), bool)
+                else True
+            )
             status = "FAILED" if provider_failed else "NEEDS_CLARIFICATION" if exc.code in {
                 "planner_provider_failed",
                 "planner_context_too_large",
@@ -543,7 +559,13 @@ class CompositePlanningApplication:
                 if provider_failed
                 else "无法安全生成可执行的组合计划，请补充信息或调整问题。"
             )
-            next_actions = ["稍后重试"] if provider_failed else ["补充信息后重新提交"]
+            next_actions = (
+                ["稍后重试"]
+                if provider_failed and provider_failure_retryable
+                else ["检查模型配置"]
+                if provider_failed
+                else ["补充信息后重新提交"]
+            )
             failure_evidence = _planner_evidence(
                 {},
                 planner_source=planner_name,
@@ -574,11 +596,10 @@ class CompositePlanningApplication:
                 result["failure"] = build_failure_evidence(
                     status="FAILED",
                     category="provider",
-                    code=exc.code,
+                    code=provider_failure_code,
                     phase="planning",
-                    retryable=True,
+                    retryable=provider_failure_retryable,
                 )
-            details = getattr(exc, "details", None)
             if isinstance(details, Mapping):
                 composite_handoff = details.get("composite_fact_handoff")
                 if isinstance(composite_handoff, Mapping):
@@ -1375,6 +1396,9 @@ def _planner_evidence(
     structured_output = project_structured_output_evidence(provider_metrics)
     if structured_output is not None:
         result["structured_output"] = structured_output
+    provider_runtime = project_provider_runtime_evidence(provider_metrics)
+    if provider_runtime is not None:
+        result["provider_runtime"] = provider_runtime
     return result
 
 

@@ -8,6 +8,7 @@ from typing import Any
 
 from agent.composite_contract import normalize_composite_section
 from agent.provider_structured_output import project_structured_output_evidence
+from agent.provider_runtime import project_provider_runtime_evidence
 from agent.data_kinds import SUPPORTED_DATA_KINDS
 from agent.runtime_core.composition import project_component_inputs
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
@@ -270,6 +271,11 @@ def _build_planning(value: Any) -> dict[str, Any]:
     )
     if structured_output is not None:
         result["structured_output"] = structured_output
+    provider_runtime = project_provider_runtime_evidence(
+        value.get("provider_runtime")
+    )
+    if provider_runtime is not None:
+        result["provider_runtime"] = provider_runtime
     completeness = value.get("plan_completeness")
     if isinstance(completeness, Mapping):
         result["plan_completeness"] = {

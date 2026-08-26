@@ -64,6 +64,11 @@ const completed = projection.normalize({
           reason_code: "configured",
           status: "success",
         },
+        provider_runtime: {
+          schema_version: "spatial-agent.provider-runtime.v1",
+          health: {status: "configured", network: "not_checked", reason_code: "network_not_checked"},
+          deadline: {state: "completed", deadline_exceeded: false, retryable: false},
+        },
       },
       artifacts: [{available: true, kind: "run", ref: "run.json"}],
     },
@@ -74,6 +79,7 @@ assert.equal(completed.view_count, 1);
 assert.equal(completed.phases.filter(item => item.state === "complete").length, 5);
 assert.equal(completed.phases[1].state, "not_needed");
 assert.equal(completed.planning.structured_output.structured_mode, "json_schema");
+assert.equal(completed.planning.provider_runtime.deadline.state, "completed");
 assert.equal(completed.discovery.state, "ready");
 assert.equal(completed.discovery.candidate_count, 2);
 assert.equal(completed.selection_evidence.state, "selected");
@@ -171,4 +177,22 @@ const repaired = projection.normalize({
 assert.equal(repaired.repair_lineage.status, "repaired");
 assert.match(projection.render(repaired), /计划已校正/);
 
-console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "mixed_result_kinds", "clarification_projection", "component_clarification_projection", "composite_clarification_projection", "repair_projection"]}));
+const providerFailure = projection.normalize({
+  status: "FAILED",
+  failure: {
+    schema_version: "spatial-agent.failure.v1",
+    status: "FAILED",
+    category: "provider",
+    phase: "planning",
+    code: "provider_timeout",
+    retryable: true,
+  },
+  next_actions: ["稍后重试"],
+});
+assert.equal(providerFailure.status_label, "模型暂时不可用");
+assert.equal(providerFailure.failure.retryable, true);
+assert.equal(providerFailure.phases[2].state, "unavailable");
+assert.match(projection.render(providerFailure), /模型暂时不可用/);
+assert.match(projection.render(providerFailure), /还没有开始执行分析任务/);
+
+console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "mixed_result_kinds", "clarification_projection", "component_clarification_projection", "composite_clarification_projection", "repair_projection", "provider_failure_projection"]}));

@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 from agent.openai_config import load_openai_config
 from agent.capability_catalog import capability_catalog
+from agent.provider_runtime import build_provider_health
 
 
 def environment_status() -> Dict:
@@ -15,16 +16,24 @@ def environment_status() -> Dict:
     has_geopandas = importlib.util.find_spec("geopandas") is not None
     has_rasterio = importlib.util.find_spec("rasterio") is not None
     dataset_root = Path(os.environ.get("SPATIAL_AGENT_DATASET_ROOT", "D:/dataset/agent"))
-    openai_key = os.environ.get("OPENAI_API_KEY")
     config_file = Path(os.environ.get("OPENAI_CONFIG_FILE", "config/openai.local.json"))
-    live_llm_configured = bool(openai_key) or config_file.exists()
-    live_llm_network = _openai_network_available() if live_llm_configured else False
+    try:
+        openai_config = load_openai_config()
+    except (OSError, ValueError, TypeError):
+        openai_config = {}
+    live_llm_configured = bool(os.environ.get("OPENAI_API_KEY")) or config_file.exists()
+    live_llm_network = _openai_network_available(openai_config) if live_llm_configured else False
+    provider_health = build_provider_health(
+        openai_config,
+        network_available=live_llm_network,
+        network_checked=live_llm_configured,
+    )
     gdal_data_available = _runtime_data_available("GDAL_DATA", "gdalvrt.xsd")
     proj_data_available = _runtime_data_available("PROJ_LIB", "proj.db")
     capabilities = {
         "memory_backend": True,
         "local_gis_backend": has_geopandas and has_rasterio and dataset_root.exists(),
-        "live_llm": live_llm_configured and live_llm_network,
+        "live_llm": provider_health["status"] == "ready",
         "live_llm_configured": live_llm_configured,
         "live_llm_network": live_llm_network,
     }
@@ -38,6 +47,7 @@ def environment_status() -> Dict:
             "geopandas": has_geopandas,
             "rasterio": has_rasterio,
         },
+        "provider_health": provider_health,
         "data": {
             "dataset_root_exists": dataset_root.exists(),
             "gdal_data_available": gdal_data_available,
@@ -46,10 +56,12 @@ def environment_status() -> Dict:
     }
 
 
-def _openai_network_available(timeout_seconds: float = 1.5) -> bool:
+def _openai_network_available(
+    config: Dict | None = None, timeout_seconds: float = 1.5
+) -> bool:
     """Check outbound socket availability to the configured LLM host without using tokens."""
     try:
-        config = load_openai_config()
+        config = config if isinstance(config, dict) else load_openai_config()
         url = config.get("api_url") or config.get("base_url") or "https://api.openai.com"
         parsed = urlsplit(url)
         host = parsed.hostname

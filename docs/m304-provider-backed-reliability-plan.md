@@ -39,3 +39,10 @@
 ## 依赖与停止条件
 
 顺序为 `A → B → C → D → E → F`，当前串行执行。开发期间只做必要静态检查，阶段末集中测试一次。若 provider、Docker 或外部网络连续阻塞，保留结构化 receipt 并停止 live 重试，转而完成可离线验证和文档交付。
+
+## 阶段收口记录
+
+- A～D 已完成：provider health、deadline、structured-output 能力、失败类别、有限恢复和跨入口投影已经通过公共 Runtime seam 闭合。
+- E 已完成：重建 Docker 后精简回归、compileall、architecture strict、Node projection、Service smoke、生产 HTTP 和 readiness 均通过。
+- 唯一一次显式 live 在 60 秒内超时，`max_retries=0`，未创建 execution run；按 harness/provider failure 收口，不把失败伪装成事实澄清或成功计划。
+- F 的文档和版本交付由阶段收口完成；下一阶段 M305 应从全局七维度继续提升 provider-backed 合法计划的稳定成功率，不重复本阶段 live。

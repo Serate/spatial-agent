@@ -79,6 +79,7 @@ def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
         snapshot["config_path"] = str(config_path)
         snapshot["data_provenance"] = {}
         snapshot["updated_at"] = _utc_timestamp()
+        snapshot["provider_health"] = status.get("provider_health", {})
         return snapshot
     try:
         catalog = DatasetCatalog.from_json(str(config_path))
@@ -90,6 +91,7 @@ def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
         snapshot["config_path"] = str(config_path)
         snapshot["data_provenance"] = {}
         snapshot["updated_at"] = _utc_timestamp()
+        snapshot["provider_health"] = status.get("provider_health", {})
         return snapshot
     snapshot = runtime_capability_catalog(health, environment=environment, **provider)
     data_provenance = {
@@ -121,6 +123,7 @@ def runtime_capability_snapshot(max_files: int = 10) -> Dict[str, Any]:
         "geopandas": status["dependencies"]["geopandas"],
         "rasterio": status["dependencies"]["rasterio"],
     }
+    snapshot["provider_health"] = status.get("provider_health", {})
     return snapshot
 
 

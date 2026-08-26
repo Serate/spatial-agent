@@ -5173,3 +5173,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 阶段门禁：M303 与相邻 Composite 回归 **12/12**，compileall、architecture strict、Node projection smoke、Service smoke、生产 readiness **200** 全部通过。
 - 唯一一次显式真实模型验收使用 60 秒、0 重试预算，结果为中转/provider harness timeout，未创建执行 run；该结果按失败平面记录，没有被计为真实模型成功。
 - 已同步中文问题日志、阶段计划、任务账本和恢复快照；下一阶段从全局七维度规划 M304，重点处理 provider-backed 规划的可观测可靠性、可恢复交互和实际成功率，不增加专题硬编码。
+
+## M304：Provider-backed 规划可靠性与可恢复交互（已完成）
+
+- 新增 `agent/provider_runtime.py`，统一 provider health、structured-output、deadline 和脱敏运行 evidence；配置、网络、超时、非法响应和重试状态不再由各入口分别解释。
+- LLM Composite Planner 保留有界 provider 错误码和 retryable；Composite planning、运行时能力快照、Composite View 和 Console projection 共享 provider failure 语义。provider 规划失败不会创建 execution run，前端将计划阶段标记为不可用并给出“稍后重试/检查模型配置”。
+- 阶段门禁：重建 Docker 后 M304/M300/M303 精简回归 **24/24**，compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200** 全部通过。
+- 唯一一次显式 live 使用 60 秒、0 重试，结果为 `FAILED/timeout`、`error_plane=harness`、`execution_run_created=false`；按中转/provider 延迟失败记录，未保存密钥、prompt 或模型原文。
+- 全局重规划：下一阶段 M305 聚焦 provider-backed 合法 Composite 计划的成功率、延迟预算、脱敏 replay 和可恢复动作，不扩大专题工具菜单。

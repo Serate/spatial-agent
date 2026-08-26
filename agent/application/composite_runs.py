@@ -41,6 +41,7 @@ from agent.runtime_core.execution_binding import (
     validate_execution_binding,
 )
 from agent.provider_structured_output import project_structured_output_evidence
+from agent.provider_runtime import project_provider_runtime_evidence
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
 from agent.planner_repair import build_repair_lineage
 from agent.service_async import process_is_alive
@@ -526,6 +527,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "execution_binding",
         "repair_lineage",
         "structured_output",
+        "provider_runtime",
         "plan_completeness",
         "continuation",
         "discovery",
@@ -572,6 +574,14 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
             result.pop("structured_output", None)
         else:
             result["structured_output"] = projected_structured_output
+    if "provider_runtime" in result:
+        projected_provider_runtime = project_provider_runtime_evidence(
+            result.get("provider_runtime")
+        )
+        if projected_provider_runtime is None:
+            result.pop("provider_runtime", None)
+        else:
+            result["provider_runtime"] = projected_provider_runtime
     if "plan_completeness" in result:
         completeness = result.get("plan_completeness")
         if isinstance(completeness, Mapping):

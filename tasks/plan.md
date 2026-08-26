@@ -1,17 +1,17 @@
-# 当前实施计划：M304 Provider-backed 规划可靠性与可恢复交互
+# 当前实施计划：M305 Provider-backed 成功率与可恢复交互优化
 
-恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M304 Spec/Plan 和当前任务列出的文件。
+恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M305 Spec/Plan 和当前任务列出的文件。
 
-M303 已完成：canonical Composite DAG 适配、共享 TaskPlan/binding 执行闭合、真实 Docker GIS/Economic 跨入口恢复和阶段门禁均已交付；唯一 live 结果为有界 provider timeout，未创建 run。
+M304 已完成：provider health、deadline、structured-output、失败分类和跨入口可恢复投影已收口；唯一 live 结果为有界 provider timeout，未创建 run。
 
-M304 按全局目标提升 provider-backed Agent 的可用性与可恢复交互，不把 provider timeout 误判为用户澄清或执行失败：
+M305 按全局七个维度提升 provider-backed Agent 形成合法计划的成功率和可恢复交互，不扩充专题工具菜单，不绕过既有执行门禁：
 
-1. [ ] M304-A 从全局七维度冻结 provider 状态矩阵和验收边界。
-2. [ ] M304-B 统一 provider deadline、配置健康、结构化响应能力和脱敏 receipt。
-3. [ ] M304-C 提升真实模型形成合法 Composite 计划的可观测成功路径，保留 canonical DAG/TaskPlan/binding 唯一门禁。
-4. [ ] M304-D 统一 sync/async/HTTP/Console 的规划中、澄清、失败和可重试交互投影。
-5. [ ] M304-E 在 Docker 中集中运行精简门禁并进行一次显式 live。
-6. [ ] M304-F 更新中文记忆、提交推送版本并再次从全局目标重规划。
+1. [ ] M305-A 冻结全局成功率、延迟预算、失败分类和用户动作矩阵。
+2. [ ] M305-B 统一 provider attempt receipt、请求预算和阶段 Envelope 投影。
+3. [ ] M305-C 用脱敏 replay 验证合法计划、有限 repair 与 canonical 执行闭合。
+4. [ ] M305-D 收口 sync/async/HTTP/Console/artifact/restart 的可恢复交互一致性。
+5. [ ] M305-E 在 Docker 集中运行精简门禁，并进行一次显式 live 验收。
+6. [ ] M305-F 更新中文记忆、提交推送版本并依据全局目标重规划。
 
 默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行精简回归、compileall、architecture strict、Node projection、Service smoke、readiness 和一次显式 live，不为每个小改动重复测试。
 

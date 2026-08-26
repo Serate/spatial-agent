@@ -18,6 +18,7 @@ from .provider_structured_output import (
     build_structured_output_profile,
     project_structured_output_profile,
 )
+from .provider_runtime import build_provider_health
 
 
 class LLMClient(Protocol):
@@ -185,6 +186,18 @@ class OpenAIPlannerClient:
         self._api_key_query_param = api_key_query_param or os.environ.get(
             "OPENAI_API_KEY_QUERY_PARAM", "key"
         )
+        self._provider_health = build_provider_health(
+            {
+                "provider": "openai-compatible",
+                "model": self._model,
+                "api_key": self._api_key,
+                "api_url": self._url,
+                "wire_api": self._wire_api,
+                "structured_output_mode": self._structured_output_profile[
+                    "structured_mode"
+                ],
+            }
+        )
         self._last_metrics = {
             "provider": "openai-compatible",
             "wire_api": self._wire_api,
@@ -196,6 +209,7 @@ class OpenAIPlannerClient:
             "max_retries": self._max_retries,
             "retry_backoff_seconds": self._retry_backoff_seconds,
             "retry_backoff_max_seconds": self._retry_backoff_max_seconds,
+            "provider_health": self._provider_health,
         }
 
     def complete_json(

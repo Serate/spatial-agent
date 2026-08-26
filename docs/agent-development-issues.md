@@ -1276,3 +1276,11 @@
 - **根因分类**：请求已经进入真实中转/模型调用边界，但 provider 响应未在有界时间内返回；这是 provider/网络延迟平面问题，不是 GIS 数据执行失败，也不是 Agent 生命周期失效。
 - **处理**：保留 `FAILED`、`error_plane=harness`、deadline 和 `execution_run_created=false` 的脱敏 receipt；不增加无界重试、不放宽 schema、不把超时伪装成澄清或成功。
 - **预防**：live 验收只在阶段门禁通过后显式执行一次；应单独显示“等待模型规划”的可恢复状态，并将 provider timeout 与事实澄清、计划拒绝、执行失败分开统计。
+
+## M304 provider receipt 与前端阶段状态不一致
+
+- **现象**：provider 规划失败已经带有 `failure.v1`，但前端阶段投影只看到 planner evidence，可能把“生成计划”显示为已完成；LLM 适配器包装异常时也可能丢失稳定错误码和可重试性。
+- **根因**：失败 evidence 与阶段模型是两个投影入口；Composite Planner 只保留统一错误码，没有从底层异常安全提取有界 metadata。
+- **修复**：新增领域中立 `provider-runtime.v1`，统一 health/deadline/structured-output receipt；仅透传有界 `code/retryable`，不透传异常文本。Console projection 将 provider/planning failure 的计划阶段标为不可用，并显示“模型暂时不可用/稍后重试”。
+- **验证**：重建 Docker 后 M304/M300/M303 **24/24**，Node projection、compileall、architecture strict、Service smoke、生产 acceptance 和 readiness **200** 通过；唯一 live 为 60 秒、0 重试 timeout，未创建 run。
+- **预防**：状态、failure、provider receipt 和 next action 必须从同一结构化 evidence 派生；新增 provider 字段必须经过安全白名单和幂等投影，不能把模型原文、prompt、URL 或密钥带入 Result/View/Artifact。

@@ -447,8 +447,20 @@ class LLMCompositePlanner:
             # implement only the public minimal protocol.
             payload = self._client.complete_json(messages, composite_plan_schema())
         except Exception as exc:
+            provider_failure = {}
+            for key in ("category", "code"):
+                value = getattr(exc, key, None)
+                if value is not None and str(value).strip():
+                    provider_failure[key] = str(value).strip()[:96]
+            retryable = getattr(exc, "retryable", None)
+            if isinstance(retryable, bool):
+                provider_failure["retryable"] = retryable
             raise CompositePlannerError(
-                "composite planner provider failed", code="planner_provider_failed"
+                "composite planner provider failed",
+                code="planner_provider_failed",
+                details={"provider_failure": provider_failure}
+                if provider_failure
+                else None,
             ) from exc
         return _normalize_planner_payload(
             payload,

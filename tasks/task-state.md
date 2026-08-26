@@ -6,19 +6,19 @@
 
 ## 当前阶段
 
-- 阶段：M304 Provider-backed 规划可靠性与可恢复交互（已规划，A 待开始）
+- 阶段：M305 Provider-backed 成功率与可恢复交互优化（已规划，A 进行中）
 - 阶段规划：
-  - `docs/m304-provider-backed-reliability-capability-map.md`
-  - `docs/m304-provider-backed-reliability-spec.md`
-  - `docs/m304-provider-backed-reliability-plan.md`
+  - `docs/m305-provider-success-capability-map.md`
+  - `docs/m305-provider-success-spec.md`
+  - `docs/m305-provider-success-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
 
-### M304-A：全局状态矩阵与入口基线（待开始）
+### M305-A：全局成功率与延迟预算矩阵（进行中）
 
-- 目标：从产品、架构、数据、模型、部署、体验、测试七个维度冻结 provider-backed success、timeout、clarification、rejection 和 execution failure 的公共状态矩阵。
-- 文件：当前只读取 M304 capability map/spec/plan、`agent/openai_config.py`、`agent/provider_structured_output.py`、`evaluation/live_provider_probe.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`web/src/console_result_projection.js` 及必要精简契约。
-- 验证：开发期间只做静态/契约检查；M304-B～E 合并后在 Docker 集中运行精简门禁和一次显式 live。
-- 阻塞：无；不得把 provider timeout 伪装成事实澄清或成功执行，不得重复调用 live。
+- 目标：从产品、架构、数据、模型、部署、体验、测试七个维度冻结 provider-backed 合法计划成功、澄清、超时、拒绝和执行失败的状态、预算与用户动作。
+- 当前文件：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`、`agent/provider_runtime.py`、`agent/runtime_core/planner_envelope.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`。
+- 验证：开发期间只做必要静态/契约检查；M305-E 在 Docker 集中运行，真实模型最多显式调用一次。
+- 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry 或 execution binding，不得重复调用已完成的 live。
 
 ### M297-A：目录与类型边界冻结（待开始）
 
@@ -401,3 +401,15 @@
 - 验证：M303 与相邻 Composite 回归 **12/12**；compileall、architecture strict、Node projection、Service smoke、生产 HTTP 和 readiness **200** 通过。
 - 显式 live：1 次、60 秒、0 重试，`FAILED/timeout`、`error_plane=harness`、未创建 run；不保存模型原文、密钥或私有数据。
 - 交付：中文问题日志、milestone、M303 Plan、任务账本、恢复快照已同步；M304 capability map、Spec、Plan 已创建。
+
+### M304-A～F：Provider-backed 规划可靠性与可恢复交互 — 已完成
+- 结果：新增 provider health/deadline/runtime evidence 公共 seam；LLM 适配器保留有界 provider 错误码和 retryable；Composite View、HTTP/异步结果与 Console 对 provider failure 使用统一结构化投影。
+- 验证：重建 Docker 后 M304/M300/M303 精简回归 **24/24**；compileall、architecture strict、Node projection、Service smoke、生产 acceptance 和 readiness **200** 通过。
+- 显式 live：1 次、60 秒、0 重试，`FAILED/timeout`、`error_plane=harness`、`execution_run_created=false`；未保存密钥、prompt、模型原文或私有数据。
+- 下一阶段：M305 Provider-backed 成功率与可恢复交互优化；规划文件为 `docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`。
+
+### M305-A：全局成功率与延迟预算矩阵 — 规划中
+- 目标：从全局七维度提升 provider-backed 合法 Composite 计划的成功率、延迟可观测性和可恢复用户动作，不扩充专题工具菜单。
+- 当前文件：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`、`agent/provider_runtime.py`、`agent/runtime_core/planner_envelope.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`。
+- 验证：开发期间只做必要静态/契约检查；M305-E 在 Docker 集中运行，真实模型最多显式调用一次。
+- 阻塞：无。

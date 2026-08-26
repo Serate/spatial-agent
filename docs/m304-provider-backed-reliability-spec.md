@@ -38,3 +38,7 @@
 ## 阶段门禁
 
 Docker 精简契约、相邻 Planner/Composite 回归、compileall、architecture strict、Node projection、Service smoke、生产 readiness 和一次显式 live 必须可独立报告；live 结果可为成功、澄清或 provider failure，但必须有脱敏 receipt。
+
+## 阶段收口
+
+M304-A～F 已完成。Docker 精简回归、compileall、architecture strict、Node projection、Service smoke、生产 HTTP 和 readiness 全部通过；唯一一次显式 live 使用 60 秒、0 重试，结果为 `FAILED/timeout`、`error_plane=harness`、未创建 execution run。该结果按 provider 延迟失败记录，不代表 GIS 执行失败，也不伪装成成功计划。

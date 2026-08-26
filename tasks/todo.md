@@ -192,11 +192,20 @@
 - [x] M303-E 集中运行精简门禁、一次显式 live，并记录 provider 失败或成功证据
 - [x] M303-F 更新中文项目记忆、提交推送并按全局目标重规划
 
-## M304 Provider-backed 规划可靠性与可恢复交互（已规划）
+## M304 Provider-backed 规划可靠性与可恢复交互（已完成）
 
-- [ ] M304-A 从产品、架构、数据、模型、部署、体验、测试七维度冻结 provider success/timeout/clarification/rejection/execution 矩阵
-- [ ] M304-B 统一 provider deadline、配置健康、结构化响应能力和脱敏 receipt，不改变 Runtime 执行门禁
-- [ ] M304-C 提升真实模型形成合法 Composite 计划的可观测成功路径，保持 canonical DAG 与有限 repair 边界
-- [ ] M304-D 让同步、异步、HTTP、Console 对规划中/澄清/失败/重试动作提供一致的用户交互投影
-- [ ] M304-E 在 Docker 中运行精简阶段门禁并进行一次显式 live，比较 provider receipt 与离线 Replay 结果
-- [ ] M304-F 更新中文文档、提交推送，并依据七维度全局盘点继续规划下一阶段
+- [x] M304-A 从产品、架构、数据、模型、部署、体验、测试七维度冻结 provider success/timeout/clarification/rejection/execution 矩阵
+- [x] M304-B 统一 provider deadline、配置健康、结构化响应能力和脱敏 receipt，不改变 Runtime 执行门禁
+- [x] M304-C 提升真实模型形成合法 Composite 计划的可观测成功路径，保持 canonical DAG 与有限 repair 边界
+- [x] M304-D 让同步、异步、HTTP、Console 对规划中/澄清/失败/重试动作提供一致的用户交互投影
+- [x] M304-E 在 Docker 中运行精简阶段门禁并进行一次显式 live，比较 provider receipt 与离线 Replay 结果
+- [x] M304-F 更新中文文档、提交推送，并依据七维度全局盘点继续规划下一阶段
+
+## M305 Provider-backed 成功率与可恢复交互优化（进行中）
+
+- [ ] M305-A 冻结全局成功率、延迟预算、失败分类和用户动作矩阵
+- [ ] M305-B 统一 provider attempt receipt、请求预算和阶段 Envelope 投影
+- [ ] M305-C 用脱敏 replay 验证合法计划、有限 repair 与 canonical 执行闭合
+- [ ] M305-D 收口 sync/async/HTTP/Console/artifact/restart 的可恢复交互一致性
+- [ ] M305-E 在 Docker 集中运行精简门禁，并进行一次显式 live 验收
+- [ ] M305-F 更新中文记忆、提交推送版本并依据全局目标重规划

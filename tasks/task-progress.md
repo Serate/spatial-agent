@@ -18,14 +18,13 @@
 
 ## 当前进行中
 
-### M302-A：分阶段 Planner 上下文与开放问题成功链路 — 规划中
+### M305-A：全局成功率与延迟预算矩阵 — 进行中
 
-- 目标：从项目全局让 Planner 按 discovery、selection、execution、repair 阶段接收最小必要上下文，并提升开放问题从能力选择到真实执行的成功闭合。
-- 规格与计划：`docs/m302-stage-aware-planner-context-capability-map.md`、`docs/m302-stage-aware-planner-context-spec.md`、`docs/m302-stage-aware-planner-context-plan.md`。
-- 需要读取/修改：`agent/runtime_core/planner_envelope.py`、`agent/composite_request_context.py`、`agent/application/composite_planning.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/runtime_core/clarification_continuation.py`、对应精简契约测试。
-- 验证节奏：先完成阶段字段矩阵与实现，再集中运行 M302、相邻 lifecycle/binding、compileall、architecture strict、Node projection、readiness 和一次显式 live；不重复运行无关历史回归。
-- 阻塞：无。内部 Context/目录/discovery 默认 256 KiB，provider Envelope 默认 96 KiB；继续保持 Docker、最小上下文读取、精简测试和 fail-closed。
-- 下一步：冻结 stage-aware provider projection 的必需字段，移除只用于 Runtime 诊断的模型输入重复内容。
+- 目标：从项目全局七个维度冻结 provider-backed 合法计划成功、澄清、超时、拒绝和执行失败的状态、预算、证据与用户动作，作为 M305-B～E 的共同边界。
+- 规格与计划：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`。
+- 需要读取/修改：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`、`agent/provider_runtime.py`、`agent/runtime_core/planner_envelope.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`。
+- 验证节奏：开发期间只做必要静态/契约检查；M305-E 在 Docker 中集中运行阶段门禁，真实模型最多显式调用一次，不重复 M304 live。
+- 阻塞：无；不得把 provider timeout 伪装成澄清或成功执行，不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
 
 ### M301：Planner-first 开放问题解析 — 已完成
 
@@ -628,3 +627,27 @@
 ### M303-F：文档、版本与全局重规划 — 已完成
 - 已更新：`docs/agent-development-issues.md`、`docs/milestones.md`、`docs/m303-open-composite-execution-plan.md`、`tasks/todo.md`、`tasks/task-state.md`、`tasks/plan.md`、`docs/agent-work-state.md`。
 - 下一阶段：M304「Provider-backed 规划可靠性与可恢复交互」，从产品、架构、数据、模型、部署、体验、测试七维度处理真实模型 timeout/结构化成功/澄清/失败的一致生命周期与用户体验；不新增专题硬编码。
+
+### M304-A：全局状态矩阵与入口基线 — 已完成
+- 已冻结状态边界：`PLANNED` 进入既有 TaskPlan/binding；事实不足为 `NEEDS_CLARIFICATION`；未知能力/非法 DAG 为 `REJECTED`；provider timeout/不可达为 `FAILED` 且保留可重试动作；执行阶段失败继续由 Result/Failure contract 收口。
+- 审查结论：已有 provider metrics、structured-output profile 和 failure.v1，但配置健康、deadline 和 Composite evidence 尚未由同一领域中立 seam 投影；前端对 provider `FAILED` 仍可能显示为通用执行失败。
+- 当前动作：实现 `ProviderHealth`/`ProviderDeadlineReceipt` 的安全投影，接入 OpenAI client metrics、Composite planner evidence 和 Console projection；只保留身份、状态、计数、期限与错误分类，不保存密钥或模型原文。
+- 明确文件：`agent/provider_runtime.py`（新增）、`agent/llm_planner.py`、`agent/application/composite_planning.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、新增 M304 精简契约。
+- 验证：开发期间只做静态检查和新增契约；M304-E 再在 Docker 集中运行，真实模型只显式调用一次。
+- 阻塞：无。
+
+### M304-B：Provider health/deadline 公共 seam — 已完成
+- 实际修改：新增 `agent/provider_runtime.py`，统一 provider health、deadline receipt 和运行 evidence；接入 OpenAI-compatible metrics、Composite planner/View、运行时能力快照和 Console projection。LLM 适配器保留有界 provider `code/retryable`，不透传异常原文。
+- 实际修复：provider 失败在前端显示“模型暂时不可用”，生成计划阶段显示“不可用”，并保留“稍后重试”；旧载荷和二次投影保持安全、幂等。
+- 验证：重建后的 Docker 中 M304/M300/M303 精简回归 **24/24**；无重复 live 调用。
+- 阻塞：无。
+
+### M304-C/D：Provider 失败与跨入口可恢复投影 — 已完成
+- 结果：provider timeout、网络失败、非法模型响应和配置不可用均可归一化为安全 receipt；规划失败不会创建 execution run。同步规划响应、Composite View、HTTP 结果和 Console 共享失败类别、阶段、错误码与可重试动作。
+- 边界：合法 Composite DAG、TaskPlan、ToolRegistry 和 execution binding 继续沿用 M303 唯一门禁；本轮未因 live timeout 增加重试、放宽 schema 或伪造成功。
+- 验证：新增 provider failure metadata、Composite View 和前端阶段状态契约；Docker production HTTP/同步/异步/artifact/失败契约/幂等/readiness 全部通过。
+
+### M304-E/F：Docker 收口、一次显式 live 与交付 — 已完成
+- 阶段门禁：compileall、architecture strict、Node projection smoke、Service smoke、生产 acceptance 和 `/health/ready` **200** 全部通过；生产 acceptance 为 `ok`。
+- 显式 live：仅 1 次，60 秒、0 重试；中转/provider 未在期限内返回，结果为 `FAILED/timeout`、`error_plane=harness`、`execution_run_created=false`。未保存密钥、prompt、模型原文或私有数据。
+- 结论：本阶段完成 provider 状态可观测和失败可恢复边界；真实模型成功计划仍需后续 provider 稳定性/延迟条件满足后再显式验收，不重复消耗 token。
