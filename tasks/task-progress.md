@@ -14,17 +14,26 @@
 - 本次 Goal 约束：每个阶段安排更完整的任务包，尽量一次覆盖契约、实现、集成、文档和交付；开发期间减少重复测试，阶段收口统一执行精简且有代表性的门禁。
 - 新增约束：阶段任务应适度增多并覆盖同一能力链的连续依赖；测试按独立风险合并执行，不随任务数量线性增加测试轮次。
 - Goal 级上下文约束：恢复或继续任务时，只读取当前任务明确必需的文件；仅判断状态时只读取工作快照和任务账本尾部，不批量读取历史文档、全量源码、全量测试或模型响应。发现新的直接依赖后，才将其加入必要文件清单。
+- Goal 正式最小读取约束：上下文恢复不得默认加载历史文档、全量源码、全量测试、模型原文或无关数据；只有当前任务明确证明某文件是直接依赖时，才把它加入必要文件清单并读取。
 
 ## 当前进行中
 
-### M300 阶段收口 — 进行中
+### M302-A：分阶段 Planner 上下文与开放问题成功链路 — 规划中
 
-- 目标：从开放问题事实理解、能力发现、受控计划、provider 可靠性和答案体验形成完整 Agent 成功切片，不增加专题硬编码。
-- 已完成：M300-A～C 的 Domain Request Understanding 投影、能力就绪门禁、默认结构化答案启用和 provider 失败状态修正。
-- 需要读取/修改：`docs/m300-open-agent-success-spec.md`、`docs/m300-open-agent-success-plan.md`、`agent/application/composite_planning.py`、`tests/test_m300_open_agent_success.py`、`tasks/task-progress.md`、`docs/agent-development-issues.md`。
-- 验证节奏：阶段收口集中运行 M300 与相邻生命周期契约、compileall、architecture strict、Node projection 和 readiness；真实 provider 只做显式单次验收。
-- 阻塞：无。provider 不稳定时保持 fail closed，不保存模型原文或敏感配置。
-- 下一步：完成文档/版本交付后，从全局七维度重规划下一阶段。
+- 目标：从项目全局让 Planner 按 discovery、selection、execution、repair 阶段接收最小必要上下文，并提升开放问题从能力选择到真实执行的成功闭合。
+- 规格与计划：`docs/m302-stage-aware-planner-context-capability-map.md`、`docs/m302-stage-aware-planner-context-spec.md`、`docs/m302-stage-aware-planner-context-plan.md`。
+- 需要读取/修改：`agent/runtime_core/planner_envelope.py`、`agent/composite_request_context.py`、`agent/application/composite_planning.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/runtime_core/clarification_continuation.py`、对应精简契约测试。
+- 验证节奏：先完成阶段字段矩阵与实现，再集中运行 M302、相邻 lifecycle/binding、compileall、architecture strict、Node projection、readiness 和一次显式 live；不重复运行无关历史回归。
+- 阻塞：无。内部 Context/目录/discovery 默认 256 KiB，provider Envelope 默认 96 KiB；继续保持 Docker、最小上下文读取、精简测试和 fail-closed。
+- 下一步：冻结 stage-aware provider projection 的必需字段，移除只用于 Runtime 诊断的模型输入重复内容。
+
+### M301：Planner-first 开放问题解析 — 已完成
+
+- 结果：新增 `request-fact-readiness.v1`，区分 `complete/partial/missing/unavailable`；无关 Domain 缺事实降为 advisory，选中组件仍由 continuation、TaskPlan、ToolRegistry、workflow 和 execution binding 严格阻断。
+- 结果：内部 Composite Context、能力目录投影和 discovery receipt 默认上限调整为 256 KiB；provider Planner Envelope 保持独立 96 KiB；一致性证据仅保留摘要，避免重复 binding 明细造成真实目录超限。
+- 文件：`agent/runtime_core/request_fact_readiness.py`、`agent/runtime_core/analysis_discovery.py`、`agent/composite_request_context.py`、`agent/runtime_core/planner_envelope.py`、`agent/application/composite_planning.py`、M300/M301 contract 与阶段文档。
+- 验证：Docker M301/M300/M295/M294/M278 **25/25**；真实双领域 Context 约 95.4 KiB、provider Envelope 约 25.8 KiB；compileall、architecture strict、生产 readiness HTTP **200** 通过。显式 live 已越过 Context gate，但中转 provider 在 45 秒内 timeout，未创建 execution run，按 provider failure 记录。
+- 下一步：进入 M302，按七维度实现阶段感知模型上下文和开放问题真实成功闭合；不通过继续放大模型输入解决 provider 波动。
 
 ### M294-A～E：已验证计划到执行/答案/证据闭合 — 已完成
 

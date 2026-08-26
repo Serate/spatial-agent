@@ -1215,3 +1215,19 @@
 - **修复**：provider 失败现在返回 `FAILED`、`failure.v1`（`phase=planning`、`category=provider`、`retryable=true`）和“稍后重试”动作；事实澄清、能力不可用和 provider 故障仍通过不同错误码/证据区分。
 - **验证**：新增 M300 精简契约；未放宽 Planner schema、能力 allowlist、TaskPlan 或 execution binding，也未保存模型原文和密钥。
 - **预防**：状态、错误码、failure evidence 和 next action 必须成组设计；不能仅因前端需要一个“可处理状态”而把外部依赖故障伪装成用户事实缺失。
+
+## M301 内部上下文与模型上下文共用预算导致真实目录误报超限
+
+- **现象**：真实 GIS + Economic 多领域规划在 Context Builder 阶段返回 `context_budget_exceeded`；测量显示完整内部 Context 约 104 KiB，而实际 provider Planner Envelope 仅约 25.8 KiB。
+- **根因**：内部 Context 同时保留执行、恢复、证据和 provider 投影，仍沿用 96 KiB 的模型预算；其中 `catalog_consistency` 的完整 binding/violation 明细又与候选和执行契约重复。
+- **修复**：将内部 Composite Context、能力目录投影和 discovery receipt 的默认上限提升为 256 KiB；provider Planner Envelope 继续独立保持 96 KiB。内部一致性只保留计数和状态摘要，候选/TaskPlan/binding 继续承担逐项执行门禁。
+- **验证**：真实双领域内部 Context 约 95.4 KiB、内部上限 256 KiB、provider Envelope 约 25.8 KiB；Docker M301/M300/M295/M294/M278 精简回归 **25/25**，compileall、architecture strict 和 readiness 通过。
+- **预防**：不要简单放大模型输入；下一阶段按 `discovery / selection / execution` 规划阶段建立 provider context profile，诊断字段只进入 Runtime evidence，不默认发送给模型。
+
+## M301 无关 Domain 缺失事实覆盖 Planner-first 语义
+
+- **现象**：GIS 事实完整、Economic 事实缺失时，顶层 clarification 仍返回 `required`，阻断了 Planner；同时旧 discovery receipt 的澄清结果会覆盖 Context Builder 的 readiness 投影。
+- **根因**：缺失事实被按所有启用 Domain 聚合，且旧兼容投影没有识别 `fact_readiness`；候选投影缺少 `execution_ready` 时也被错误视为不可选择。
+- **修复**：新增领域中立 `request-fact-readiness.v1`，区分 `complete/partial/missing/unavailable`；仅当存在完整且可供 Planner 观察的候选时，将无关 Domain 缺失降为 `advisory`。合并澄清时只允许 `required → advisory` 的安全升级，保留数据/能力不可用等更具体状态；未显式声明 `execution_ready` 的旧候选仅用于观察，最终执行仍必须通过 TaskPlan/binding 门禁。
+- **验证**：M301 无关事实回归与 M295 旧澄清/不可用回归通过；未降低 selected-component、ToolRegistry、workflow 或 execution binding 的执行约束。
+- **预防**：事实 readiness 只能影响 Planner 观察和澄清层级，不能直接成为执行授权；每个兼容合并点必须保留更具体的不可用原因码。

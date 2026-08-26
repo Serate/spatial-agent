@@ -5138,3 +5138,16 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 默认 LLM Planner 成功路径启用结构化中文答案生成；Rule/Replay/直接执行保持离线，provider 失败返回可重试的 `FAILED` planning 状态和 `failure.v1` 证据。
 - Docker M300/M278/M294 精简回归 **15/15**，compileall、architecture strict、Node projection smoke、生产 readiness **200** 通过；显式 live 失败按 provider/事实澄清分类，未创建执行 run。
 - 全局重规划：继续提升跨领域开放请求的真实成功链路与多轮澄清恢复，保持最小上下文读取、精简验证和公共 Runtime 领域中立。
+
+## M301：Planner-first 开放问题解析（已完成）
+
+- 新增领域中立 `spatial-agent.request-fact-readiness.v1`，将多 Domain 事实分为 `complete/partial/missing/unavailable`；无关 Domain 缺失事实只产生 advisory，选中组件仍经过严格事实交接和执行门禁。
+- 内部 Composite Context、能力目录投影和 discovery receipt 默认上限为 256 KiB；provider Planner Envelope 保持独立 96 KiB。重复的 catalog consistency binding 明细压缩为有界摘要，避免真实双领域目录误报 Context 超限。
+- Docker M301/M300/M295/M294/M278 精简回归 **25/25**，compileall、architecture strict、生产 readiness HTTP **200** 通过；真实双领域 Context 约 95.4 KiB、provider Envelope 约 25.8 KiB。
+- 显式中转 live 已越过 Context gate 但在 45 秒内 timeout，未创建 execution run；按 provider failure 记录，不放宽模型 schema 或执行门禁。
+- 全局重规划：M302 聚焦阶段感知的最小 Planner 上下文、选择到执行的开放问题成功链路，以及结构化答案/evidence 的统一交付。
+
+## M302：分阶段 Planner 上下文与开放问题成功链路（已规划）
+
+- 规划文档：`docs/m302-stage-aware-planner-context-capability-map.md`、`docs/m302-stage-aware-planner-context-spec.md`、`docs/m302-stage-aware-planner-context-plan.md`。
+- 目标：内部 Runtime 保留恢复/校验/证据上下文，模型只接收当前 discovery、selection、execution 或 repair 阶段必要的最小投影；不新增专题硬编码或 RAG。

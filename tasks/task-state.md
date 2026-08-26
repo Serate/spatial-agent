@@ -312,6 +312,13 @@
 2. 阶段收口时把完整结论归档到 Spec/Plan 或 milestones；本文件只保留当前阶段和最近记录。
 3. 恢复上下文只读取本文件、当前阶段规划，以及当前任务明确列出的源码/测试文件。
 
+### M301：Planner-first 开放问题解析 — 已完成
+
+- 结果：无关 Domain 的缺失事实不再在 Planner 前阻断；新增领域中立 readiness 投影，保留 selected-component fact handoff、TaskPlan、ToolRegistry、workflow 和 execution binding 的严格门禁。
+- 结果：内部 Context/目录/discovery 与 provider Planner Envelope 分层预算；内部默认 256 KiB，模型 Envelope 默认 96 KiB；重复一致性明细压缩为摘要。
+- 验证：Docker M301/M300/M295/M294/M278 **25/25**，compileall、architecture strict、readiness HTTP 200 通过；显式 live 为 provider timeout，未创建 execution run。
+- 当前阶段：M302 分阶段 Planner 上下文与开放问题成功链路，规划与恢复入口见 `docs/agent-work-state.md` 和 `tasks/task-progress.md`。
+
 ### M299-D/E/F：阶段收口与全局重规划 — 已完成
 
 - 结果：产品入口实测默认 `openai + local`；Agent 阶段、selection evidence、同步/异步 View 和 artifact/restart 恢复已闭合。

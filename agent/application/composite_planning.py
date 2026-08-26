@@ -18,6 +18,7 @@ from agent.composite_contract import (
     normalize_composite_request,
 )
 from agent.composite_request_context import (
+    COMPOSITE_REQUEST_CONTEXT_MAX_BYTES,
     CompositeRequestContextBuilder,
     CompositeRequestContextError,
 )
@@ -45,7 +46,6 @@ from agent.runtime_core.plan_completeness import (
     validate_plan_completeness,
     PlanCompletenessError,
 )
-from agent.runtime_core.planner_envelope import PLANNER_ENVELOPE_MAX_BYTES
 from agent.runtime_core.selection_evidence import project_selection_evidence
 from agent.runtime_core.clarification_continuation import (
     ClarificationContinuationError,
@@ -102,10 +102,9 @@ class CompositeCapabilityProjector:
         max_domains: int = 8,
         max_capabilities: int = 32,
         max_workflows: int = 32,
-        # The planner needs bounded output profiles in addition to the
-        # capability/workflow catalog.  Keep the same 96 KiB envelope used by
-        # CompositeRequestContext instead of silently dropping type metadata.
-        max_context_bytes: int = PLANNER_ENVELOPE_MAX_BYTES,
+        # This projector builds the internal catalog context.  The provider
+        # envelope has a separate, smaller budget and is built later.
+        max_context_bytes: int = COMPOSITE_REQUEST_CONTEXT_MAX_BYTES,
     ) -> None:
         if host is None or not callable(getattr(host, "catalog", None)):
             raise ValueError("host must expose catalog()")

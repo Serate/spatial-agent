@@ -30,9 +30,11 @@ from agent.runtime_core.planner_envelope import (
     PlannerEnvelopeError,
     build_planner_envelope,
 )
+from agent.runtime_core.request_fact_readiness import build_request_fact_readiness
 
 
 COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-request-context.v2"
+COMPOSITE_REQUEST_CONTEXT_MAX_BYTES = 256_000
 _MAX_DOMAINS = 8
 _MAX_CANDIDATES = 16
 _MAX_FIELDS = 8
@@ -42,10 +44,11 @@ _MAX_FIELDS = 8
 # TaskPlan bridge instead of using the smaller display-list limit.
 _MAX_TOOLS = 24
 _MAX_RESULT_TYPES = 24
-# A multi-Domain planner needs the bounded candidate catalog, discovery
-# receipt, and per-domain fact handoff in one context.  Keep the projection
-# finite while leaving enough room for the supported GIS + Economic pair.
+# The provider-facing Planner Envelope has its own 96 KiB budget.  The
+# internal Context also retains execution/recovery projections that are not
+# sent to the model, so it needs a separate, larger ceiling.
 _MAX_BYTES = PLANNER_ENVELOPE_MAX_BYTES
+_MAX_CONTEXT_BYTES = COMPOSITE_REQUEST_CONTEXT_MAX_BYTES
 _PRIVATE_KEYS = {
     "api_key",
     "credential",
@@ -80,6 +83,7 @@ class CompositeRequestContextBuilder:
         max_domains: int = _MAX_DOMAINS,
         max_candidates: int = _MAX_CANDIDATES,
         max_bytes: int = _MAX_BYTES,
+        max_context_bytes: int = _MAX_CONTEXT_BYTES,
         discovery_gateway: Any = None,
     ) -> None:
         if host is None or not callable(getattr(host, "catalog", None)):
@@ -93,10 +97,13 @@ class CompositeRequestContextBuilder:
         self._max_domains = _positive_limit(max_domains, "max_domains")
         self._max_candidates = _positive_limit(max_candidates, "max_candidates")
         self._max_bytes = _positive_limit(max_bytes, "max_bytes")
+        self._max_context_bytes = _positive_limit(
+            max_context_bytes, "max_context_bytes"
+        )
         self._discovery_gateway = discovery_gateway or AnalysisDiscoveryGateway(
             max_domains=self._max_domains,
             max_candidates=self._max_candidates,
-            max_bytes=max_bytes,
+            max_bytes=self._max_context_bytes,
         )
         if not callable(getattr(self._discovery_gateway, "discover", None)):
             raise ValueError("discovery_gateway must expose discover()")
@@ -172,6 +179,11 @@ class CompositeRequestContextBuilder:
             safe_candidates = _candidate_projection(
                 definitions, candidate_ids, domain_id=domain_id
             )
+            fact_readiness = build_request_fact_readiness(
+                requirements,
+                safe_facts,
+                discovery_state=discovery_state,
+            )
             domain_context = {
                 "domain_id": domain_id,
                 "facts": safe_facts,
@@ -187,6 +199,7 @@ class CompositeRequestContextBuilder:
                     **_safe_discovery(discovery, domain_id),
                 },
                 "capability_candidates": safe_candidates,
+                "fact_readiness": fact_readiness,
                 "workflow": {
                     "state": workflow_state,
                     **_safe_workflow(workflow),
@@ -231,8 +244,13 @@ class CompositeRequestContextBuilder:
                     else exc.code
                 ),
             ) from exc
-        clarification = discovery_receipt.get("clarification") or _clarification_projection(
-            domain_contexts, missing_by_domain, candidate_index
+        # The gateway is the canonical discovery receipt, but the builder owns
+        # the richer per-Domain fact-readiness projection.  Merge only the
+        # Planner-first advisory upgrade; preserve more specific gateway
+        # states such as data/capability unavailability.
+        clarification = _merge_clarification(
+            discovery_receipt.get("clarification"),
+            _clarification_projection(domain_contexts, missing_by_domain, candidate_index),
         )
         context = {
             "schema_version": COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION,
@@ -248,8 +266,8 @@ class CompositeRequestContextBuilder:
             ),
             "discovery": discovery_receipt,
             "clarification": clarification,
-            "catalog_consistency": _safe_value(
-                catalog.get("catalog_consistency") or {}, depth=0
+            "catalog_consistency": _catalog_consistency_projection(
+                catalog.get("catalog_consistency")
             ),
             "evidence": {
                 "schema_version": "spatial-agent.composite-request-context-evidence.v1",
@@ -269,7 +287,8 @@ class CompositeRequestContextBuilder:
             "limits": {
                 "max_domains": self._max_domains,
                 "max_candidates": self._max_candidates,
-                "max_bytes": self._max_bytes,
+                "max_bytes": self._max_context_bytes,
+                "planner_max_bytes": self._max_bytes,
             },
         }
         try:
@@ -285,7 +304,7 @@ class CompositeRequestContextBuilder:
                     else exc.code
                 ),
             ) from exc
-        _assert_budget(context, self._max_bytes)
+        _assert_budget(context, self._max_context_bytes)
         return context
 
 
@@ -597,10 +616,30 @@ def _clarification_projection(
     candidates: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     if missing:
+        available_domains = {
+            str(item.get("domain_id"))
+            for item in candidates
+            if isinstance(item, Mapping) and item.get("available") is not False
+        }
+        complete_domains = {
+            str(item.get("domain_id"))
+            for item in domains
+            if isinstance(item, Mapping)
+            and isinstance(item.get("fact_readiness"), Mapping)
+            and str(item["fact_readiness"].get("state") or "") == "complete"
+        }
         fields = [
             {"domain_id": item["domain_id"], "fields": item["fields"]}
             for item in missing[:_MAX_DOMAINS]
         ]
+        if available_domains & complete_domains:
+            return {
+                "state": "advisory",
+                "reason_code": "domain_facts_pending",
+                "missing_by_domain": fields,
+                "message": "部分能力仍需补充条件，先由 Agent 判断是否与当前问题相关。",
+                "next_actions": ["继续生成计划"],
+            }
         return {
             "state": "required",
             "reason_code": "request_facts_missing",
@@ -636,6 +675,50 @@ def _clarification_projection(
         "missing_by_domain": [],
         "message": "已形成可供 Planner 选择的能力上下文。",
     }
+
+
+def _merge_clarification(
+    gateway: Any,
+    projected: Any,
+) -> dict[str, Any]:
+    """Merge the Builder readiness seam without hiding gateway failures."""
+
+    receipt = gateway if isinstance(gateway, Mapping) else {}
+    local = projected if isinstance(projected, Mapping) else {}
+    if not receipt:
+        return dict(local)
+    if (
+        str(receipt.get("state") or "") == "required"
+        and str(local.get("state") or "") == "advisory"
+    ):
+        return dict(local)
+    return dict(receipt)
+
+
+def _catalog_consistency_projection(value: Any) -> dict[str, Any]:
+    """Keep context consistency evidence small and execution-neutral.
+
+    The full binding list is already represented by the bounded candidate and
+    execution-contract projections.  Repeating it in the internal Context
+    caused real multi-Domain catalogs to exceed the shared 96 KiB budget.
+    """
+
+    source = value if isinstance(value, Mapping) else {}
+    result: dict[str, Any] = {}
+    for key in (
+        "schema_version",
+        "status",
+        "capability_count",
+        "bound_count",
+        "unbound_count",
+        "answer_only_count",
+    ):
+        if key in source:
+            result[key] = _safe_value(source.get(key), depth=0)
+    violations = source.get("violations")
+    if isinstance(violations, Sequence) and not isinstance(violations, str):
+        result["violation_count"] = min(len(violations), 64)
+    return result
 
 
 def _safe_discovery(value: Mapping[str, Any], domain_id: str) -> dict[str, Any]:
@@ -769,6 +852,7 @@ def _is_private_key(value: Any) -> bool:
 
 __all__ = [
     "COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION",
+    "COMPOSITE_REQUEST_CONTEXT_MAX_BYTES",
     "CompositeRequestContextBuilder",
     "CompositeRequestContextError",
 ]

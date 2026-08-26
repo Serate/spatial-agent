@@ -18,6 +18,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agent.runtime_core.planner_envelope import PLANNER_ENVELOPE_MAX_BYTES
+from agent.runtime_core.request_fact_readiness import project_request_fact_readiness
 
 
 ANALYSIS_DISCOVERY_SCHEMA_VERSION = "spatial-agent.analysis-discovery.v1"
@@ -236,6 +237,17 @@ def _domain_projections(
             clarification_fields = _workflow_missing_fields(
                 source, workflow.get("missing_fields")
             )
+        fact_readiness = source.get("fact_readiness")
+        if not isinstance(fact_readiness, Mapping):
+            # Keep older Domain projections compatible while making the
+            # Planner-first distinction explicit in the receipt.  A Domain
+            # that did not publish the new readiness seam can still expose
+            # its declared missing fields, but it must not be treated as
+            # complete when those fields are present.
+            fact_readiness = {
+                "state": "missing" if clarification_fields else "complete",
+                "missing_fields": clarification_fields or [],
+            }
         result.append(
             {
                 "domain_id": domain_id,
@@ -248,6 +260,7 @@ def _domain_projections(
                 "discovery": _discovery_summary(discovery, domain_id),
                 "workflow": _workflow_summary(workflow),
                 "data_readiness": _readiness(readiness),
+                "fact_readiness": project_request_fact_readiness(fact_readiness),
                 "candidate_ids": _strings(
                     (discovery or {}).get("candidate_ids")
                     if isinstance(discovery, Mapping)
@@ -437,7 +450,7 @@ def _state(
     candidates: Sequence[Mapping[str, Any]],
     missing: Sequence[Mapping[str, Any]],
 ) -> tuple[str, str]:
-    if missing:
+    if missing and not _complete_candidate_domains(contexts, candidates):
         return "needs_facts", "needs_facts"
     if not candidates:
         return "capability_unavailable", "capability_unavailable"
@@ -462,6 +475,36 @@ def _state(
     return "capability_unavailable", "capability_unavailable"
 
 
+def _complete_candidate_domains(
+    contexts: Sequence[Mapping[str, Any]],
+    candidates: Sequence[Mapping[str, Any]],
+) -> set[str]:
+    """Return domains with a complete, safely selectable candidate.
+
+    Request-fact readiness is deliberately not an execution grant.  The
+    candidate still needs the existing availability projection, while an
+    explicit ``execution_ready=false`` remains excluded.  An omitted
+    execution flag is accepted for compatibility with older catalog
+    projections; execution is still gated later by TaskPlan/binding checks.
+    """
+
+    available_domains = {
+        str(item.get("domain_id"))
+        for item in candidates
+        if isinstance(item, Mapping)
+        and item.get("available") is True
+        and item.get("execution_ready") is not False
+    }
+    return {
+        str(item.get("domain_id"))
+        for item in contexts
+        if isinstance(item, Mapping)
+        and str((item.get("fact_readiness") or {}).get("state") or "")
+        == "complete"
+        and str(item.get("domain_id")) in available_domains
+    }
+
+
 def _clarification(
     state: str,
     reason_code: str,
@@ -470,6 +513,23 @@ def _clarification(
     contexts: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     if missing:
+        complete_domains = {
+            str(item.get("domain_id"))
+            for item in contexts
+            if isinstance(item, Mapping)
+            and str(
+                (item.get("fact_readiness") or {}).get("state") or ""
+            )
+            == "complete"
+        }
+        if _complete_candidate_domains(contexts, candidates) & complete_domains:
+            return {
+                "state": "advisory",
+                "reason_code": "domain_facts_pending",
+                "missing_by_domain": list(missing),
+                "message": "部分能力仍需补充条件，先由 Agent 判断是否与当前问题相关。",
+                "next_actions": ["继续生成计划"],
+            }
         return {
             "state": "required",
             "reason_code": "request_facts_missing",

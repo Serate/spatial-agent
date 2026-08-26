@@ -21,22 +21,24 @@
 
 ## 当前阶段
 
-- 阶段：M300 开放问题 Agent 成功率与答案体验（已完成）
-- 状态：Docker 阶段门禁已通过；M300 改动待提交推送。产品默认保持 `openai + local`。
-- 当前任务：提交 M300 并进行全局重规划。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M302 分阶段 Planner 上下文与开放问题成功链路（规划中）
+- 状态：M301 已完成并待本轮版本交付；内部 Composite Context/目录/discovery 默认 256 KiB，provider Planner Envelope 独立 96 KiB。产品默认保持 `openai + local`。
+- 当前任务：按项目全局实现 stage-aware provider projection，优先解决模型输入中的诊断重复和选择到执行的成功闭合。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m300-open-agent-success-capability-map.md`](m300-open-agent-success-capability-map.md)
-  - [`docs/m300-open-agent-success-spec.md`](m300-open-agent-success-spec.md)
-  - [`docs/m300-open-agent-success-plan.md`](m300-open-agent-success-plan.md)
+  - [`docs/m302-stage-aware-planner-context-capability-map.md`](m302-stage-aware-planner-context-capability-map.md)
+  - [`docs/m302-stage-aware-planner-context-spec.md`](m302-stage-aware-planner-context-spec.md)
+  - [`docs/m302-stage-aware-planner-context-plan.md`](m302-stage-aware-planner-context-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m300-open-agent-success-spec.md`
-- `docs/m300-open-agent-success-plan.md`
+- `docs/m302-stage-aware-planner-context-spec.md`
+- `docs/m302-stage-aware-planner-context-plan.md`
+- `agent/runtime_core/planner_envelope.py`
+- `agent/composite_request_context.py`
 - `agent/application/composite_planning.py`
-- `tests/test_m300_open_agent_success.py`
-- `tasks/task-progress.md`
-- `docs/agent-development-issues.md`
+- `agent/runtime_core/component_fact_handoff.py`
+- `agent/runtime_core/clarification_continuation.py`
+- `tests/test_m301_planner_first_open_query.py`
 
 ## 验证与安全约定
 

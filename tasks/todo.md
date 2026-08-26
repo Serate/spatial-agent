@@ -168,11 +168,17 @@
 - [x] M299-E Docker 真实数据、Replay/Rule 对照与显式 live
 - [x] M299-F 集中门禁、文档、版本与全局重规划
 
-## M300 默认 Agent 开放问题成功率与答案体验（已规划）
+## M301 Planner-first 开放问题解析（已完成）
 
-- [ ] M300-A 全局能力图、Spec、Plan 与成功率/状态矩阵冻结
-- [ ] M300-B 请求事实与能力选择的通用缺口盘点
-- [ ] M300-C LLM Planner 受控组合与 provider 失败恢复
-- [ ] M300-D 结构化结果到简洁用户答案的通用组合
-- [ ] M300-E Docker 真实数据、显式 live 与最小评测
-- [ ] M300-F 文档、版本交付与全局重规划
+- [x] M301-A readiness 契约与 Planner-first 事实投影
+- [x] M301-B Context/目录/discovery 与 provider Envelope 分层预算
+- [x] M301-C 选中组件门禁、兼容澄清合并与精简验收
+- [x] M301-D 文档、版本交付与全局重规划
+
+## M302 分阶段 Planner 上下文与开放问题成功链路（规划中）
+
+- [ ] M302-A 全局字段矩阵与阶段契约
+- [ ] M302-B discovery/selection/execution/repair 最小 Envelope
+- [ ] M302-C 选择、事实交接、TaskPlan 与 binding 纵向闭合
+- [ ] M302-D 结构化结果、答案和前端 evidence 投影
+- [ ] M302-E Docker 真实跨域验收、文档、版本与全局重规划

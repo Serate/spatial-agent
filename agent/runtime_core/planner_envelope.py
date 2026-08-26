@@ -14,6 +14,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agent.request_understanding import normalize_request_understanding_guidance
+from agent.runtime_core.request_fact_readiness import project_request_fact_readiness
 
 
 PLANNER_ENVELOPE_SCHEMA_VERSION = "spatial-agent.planner-envelope.v1"
@@ -144,6 +145,9 @@ def _request_facts(context: Mapping[str, Any]) -> dict[str, Any]:
                     domain_id=raw.get("domain_id"),
                 ),
                 "data_readiness": _readiness(raw.get("data_readiness")),
+                "fact_readiness": project_request_fact_readiness(
+                    raw.get("fact_readiness")
+                ),
                 "clarification": _small_clarification(raw.get("clarification")),
             }
         )

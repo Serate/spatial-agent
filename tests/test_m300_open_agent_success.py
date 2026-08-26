@@ -86,9 +86,14 @@ def _facts(*, region=True):
     }
 
 
-def _fixture(*, region=True, available=True):
+def _fixture(*, region=True, available=True, domain_regions=None):
+    domain_regions = domain_regions or {}
     services = {
-        domain: _Service(domain, _facts(region=region), available=available)
+        domain: _Service(
+            domain,
+            _facts(region=domain_regions.get(domain, region)),
+            available=available,
+        )
         for domain in ("gis", "economic")
     }
     capabilities = {
