@@ -5147,7 +5147,10 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 显式中转 live 已越过 Context gate 但在 45 秒内 timeout，未创建 execution run；按 provider failure 记录，不放宽模型 schema 或执行门禁。
 - 全局重规划：M302 聚焦阶段感知的最小 Planner 上下文、选择到执行的开放问题成功链路，以及结构化答案/evidence 的统一交付。
 
-## M302：分阶段 Planner 上下文与开放问题成功链路（已规划）
+## M302：分阶段 Planner 上下文与开放问题成功链路（进行中）
 
 - 规划文档：`docs/m302-stage-aware-planner-context-capability-map.md`、`docs/m302-stage-aware-planner-context-spec.md`、`docs/m302-stage-aware-planner-context-plan.md`。
 - 目标：内部 Runtime 保留恢复/校验/证据上下文，模型只接收当前 discovery、selection、execution 或 repair 阶段必要的最小投影；不新增专题硬编码或 RAG。
+- 已完成 A/B：公共 Planner Envelope 增加阶段字段和校验；Context Builder 保存 discovery，LLM 初次规划使用 selection，结构修复使用 repair；execution/已有选中项 repair 只保留选中闭合信息，并记录 provider/context 阶段证据。
+- Docker 阶段回归：M302 与 M299/M300/M301/M286/M287 **34/34**，compileall、architecture strict、Service smoke、生产 readiness HTTP 200 通过；未执行真实 provider 请求。
+- 下一步：M302-C 验证 selected-component fact handoff、TaskPlan/binding 与 execution projection 的 identity 闭合，再收口结构化结果和全局验收。

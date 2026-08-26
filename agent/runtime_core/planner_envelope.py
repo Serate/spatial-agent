@@ -19,6 +19,16 @@ from agent.runtime_core.request_fact_readiness import project_request_fact_readi
 
 PLANNER_ENVELOPE_SCHEMA_VERSION = "spatial-agent.planner-envelope.v1"
 PLANNER_ENVELOPE_MAX_BYTES = 96_000
+PLANNER_PROJECTION_STAGES = (
+    "discovery",
+    "selection",
+    "execution",
+    "repair",
+)
+# Keep the public helper backward compatible for callers that construct an
+# envelope directly.  Runtime request construction explicitly uses
+# ``discovery`` and the LLM adapter explicitly re-projects to ``selection``.
+PLANNER_ENVELOPE_DEFAULT_STAGE = "selection"
 PLANNER_ENVELOPE_LAYERS = (
     "request_facts",
     "capability_index",
@@ -44,6 +54,29 @@ _PRIVATE_KEYS = {
     "source_path",
     "token",
 }
+_PROJECTED_TOP_LEVEL_FIELDS = {
+    "schema_version",
+    "projection_stage",
+    "source_context_schema_version",
+    "planner",
+    "backend",
+    "request_fingerprint",
+    "request_summary",
+    "layers",
+    "redaction",
+    "request_facts",
+    "capability_index",
+    "selection",
+    "execution_contract",
+    "discovery",
+    "clarification",
+    "data_readiness",
+    "selected_components",
+    "fact_handoff",
+    "planner_repair",
+    "repair_boundary",
+    "limits",
+}
 
 
 class PlannerEnvelopeError(ValueError):
@@ -60,17 +93,55 @@ def build_planner_envelope(
     max_bytes: int = PLANNER_ENVELOPE_MAX_BYTES,
     max_candidates: int = _MAX_CANDIDATES,
     max_workflows: int = _MAX_WORKFLOWS,
+    projection_stage: str = PLANNER_ENVELOPE_DEFAULT_STAGE,
+    selected_components: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Project a bounded context into the four provider-facing layers."""
+    """Project only the context required by one Planner decision stage.
+
+    The Runtime keeps the complete request context for validation, recovery,
+    and evidence.  This function is the provider boundary: every projection
+    is rebuilt from the trusted context, and execution/repair projections are
+    restricted to explicitly selected component identities.
+    """
 
     if not isinstance(context, Mapping):
         context = {}
+    stage = normalize_projection_stage(projection_stage)
     byte_limit = _positive_limit(max_bytes, "max_bytes")
     candidate_limit = _positive_limit(max_candidates, "max_candidates")
     workflow_limit = _positive_limit(max_workflows, "max_workflows")
-    candidates = _candidate_index(context.get("capability_index"), candidate_limit)
+    selected_keys = _selected_capability_keys(context, selected_components)
+    # A repair may be requested because the provider response was malformed
+    # before any component could be validated.  In that case there is no
+    # trusted selection to filter to; retain the bounded selection catalog so
+    # the one repair attempt can reconstruct a legal choice.  Once selection
+    # exists, repair is as narrow as execution.
+    selected_filter = (
+        selected_keys
+        if stage == "execution" or (stage == "repair" and selected_keys)
+        else None
+    )
+    candidates = _candidate_index(
+        context.get("capability_index"),
+        candidate_limit,
+        selected_keys=selected_filter,
+        compact=stage == "discovery",
+    )
+    selected_domains = {
+        key.split("::", 1)[0]
+        for key in selected_keys
+        if "::" in key
+    }
+    request_facts = _request_facts(
+        context,
+        domain_ids=selected_domains
+        if stage in {"execution", "repair"} and selected_domains
+        else None,
+        compact=stage == "discovery",
+    )
     envelope: dict[str, Any] = {
         "schema_version": PLANNER_ENVELOPE_SCHEMA_VERSION,
+        "projection_stage": stage,
         "source_context_schema_version": _text(context.get("schema_version"), 96)
         or None,
         "planner": _text(context.get("planner"), 32) or None,
@@ -82,23 +153,69 @@ def build_planner_envelope(
             "applied": True,
             "private_fields_removed": True,
         },
-        "request_facts": _request_facts(context),
+        "request_facts": request_facts,
         "capability_index": candidates,
-        "selection": _selection_projection(context, candidates),
-        "execution_contract": _execution_projection(
-            context, candidates, workflow_limit
+        "selection": _selection_projection(
+            context, candidates, selected_keys=selected_keys
         ),
-        "discovery": _discovery_projection(context.get("discovery")),
-        "clarification": _clarification_projection(context.get("clarification")),
         "limits": {
             "max_bytes": byte_limit,
             "max_candidates": candidate_limit,
             "max_workflows": workflow_limit,
         },
     }
-    repair = context.get("planner_repair")
-    if isinstance(repair, Mapping):
-        envelope["planner_repair"] = _repair_projection(repair)
+    if stage == "discovery":
+        # Discovery answers “what may be relevant?”  Workflow bindings and
+        # diagnostic consistency details stay inside Runtime until selection.
+        envelope["discovery"] = _discovery_projection(context.get("discovery"))
+        envelope["clarification"] = _clarification_projection(
+            context.get("clarification")
+        )
+        envelope["data_readiness"] = _readiness_projection(
+            context.get("data_readiness")
+        )
+    elif stage == "selection":
+        # Selection needs the minimum closure required to choose registered
+        # capabilities, but does not need the full internal catalog.
+        envelope["execution_contract"] = _execution_projection(
+            context, candidates, workflow_limit, include_profiles=False
+        )
+        envelope["discovery"] = _discovery_projection(context.get("discovery"))
+        envelope["clarification"] = _clarification_projection(
+            context.get("clarification")
+        )
+    else:
+        # Execution and repair are continuation stages.  They never expose an
+        # unbounded catalog: only selected component identities, their
+        # registered workflow/result closure, and declared fact gaps survive.
+        envelope["execution_contract"] = _execution_projection(
+            context,
+            candidates,
+            workflow_limit,
+            selected_keys=selected_filter,
+        )
+        envelope["selected_components"] = _selected_components_projection(
+            context, selected_components, selected_keys
+        )
+        envelope["fact_handoff"] = _fact_handoff_projection(context, selected_keys)
+        envelope["clarification"] = _clarification_projection(
+            context.get("clarification"), selected_domains=selected_domains or None
+        )
+        if stage == "repair":
+            repair = context.get("planner_repair")
+            if isinstance(repair, Mapping):
+                envelope["planner_repair"] = _repair_projection(repair)
+                envelope["repair_boundary"] = {
+                    "preserve": [
+                        "request_fingerprint",
+                        "selected_components",
+                        "facts",
+                        "execution_contract",
+                        "result_profiles",
+                    ],
+                    "allowed_outcome": "success|needs_clarification|rejected",
+                    "max_attempts": 1,
+                }
     _assert_budget(envelope, byte_limit)
     return envelope
 
@@ -108,38 +225,89 @@ def normalize_planner_envelope(
 ) -> dict[str, Any]:
     """Validate an already projected envelope without accepting new fields."""
 
+    if not isinstance(value, Mapping):
+        raise PlannerEnvelopeError(
+            "planner envelope must be an object",
+            code="planner_envelope_object_required",
+        )
     if str(value.get("schema_version") or "") != PLANNER_ENVELOPE_SCHEMA_VERSION:
         raise PlannerEnvelopeError(
             "planner envelope schema is unsupported",
             code="planner_envelope_schema_invalid",
         )
-    envelope = build_planner_envelope(value, max_bytes=max_bytes)
+    unknown = sorted(
+        str(key) for key in set(value) - _PROJECTED_TOP_LEVEL_FIELDS
+    )
+    if unknown:
+        raise PlannerEnvelopeError(
+            "planner envelope contains unsupported fields",
+            code="planner_envelope_field_invalid",
+        )
+    stage = normalize_projection_stage(
+        value.get("projection_stage", PLANNER_ENVELOPE_DEFAULT_STAGE)
+    )
+    envelope = {
+        str(key): _safe_envelope_value(item)
+        for key, item in value.items()
+        if str(key) in _PROJECTED_TOP_LEVEL_FIELDS
+        and str(key).strip().lower().replace("-", "_") not in _PRIVATE_KEYS
+    }
+    envelope["schema_version"] = PLANNER_ENVELOPE_SCHEMA_VERSION
+    envelope["projection_stage"] = stage
     envelope["source_context_schema_version"] = _text(
         value.get("source_context_schema_version"), 96
     ) or None
+    if "capability_index" not in envelope or not isinstance(
+        envelope.get("capability_index"), list
+    ):
+        raise PlannerEnvelopeError(
+            "planner envelope capability_index is invalid",
+            code="planner_envelope_field_invalid",
+        )
     _assert_budget(envelope, _positive_limit(max_bytes, "max_bytes"))
     return envelope
 
 
-def _request_facts(context: Mapping[str, Any]) -> dict[str, Any]:
+def normalize_projection_stage(value: Any) -> str:
+    """Validate the finite provider projection vocabulary."""
+
+    stage = str(value or "").strip().lower()
+    if stage not in PLANNER_PROJECTION_STAGES:
+        raise PlannerEnvelopeError(
+            "planner projection stage is unsupported",
+            code="planner_envelope_stage_invalid",
+        )
+    return stage
+
+
+def _request_facts(
+    context: Mapping[str, Any],
+    *,
+    domain_ids: set[str] | None = None,
+    compact: bool = False,
+) -> dict[str, Any]:
     domains: list[dict[str, Any]] = []
     for raw in _sequence(context.get("domain_contexts"))[:_MAX_DOMAINS]:
         if not isinstance(raw, Mapping):
             continue
+        domain_id = _text(raw.get("domain_id"), 64)
+        if domain_ids is not None and domain_id not in domain_ids:
+            continue
         facts = raw.get("facts") if isinstance(raw.get("facts"), Mapping) else {}
+        projected_facts = {
+            "schema_version": _text(facts.get("schema_version"), 96) or None,
+            "admin_name": _text(facts.get("admin_name"), 120) or None,
+            "entities": _safe_value(facts.get("entities") or {}, depth=0),
+            "tasks": _strings(facts.get("tasks"), 8),
+            "datasets": _strings(facts.get("datasets"), 16),
+            "constraints": _safe_value(facts.get("constraints") or {}, depth=0),
+        }
+        if not compact:
+            projected_facts["evidence"] = _strings(facts.get("evidence"), 8)
         domains.append(
             {
-                "domain_id": _text(raw.get("domain_id"), 64),
-                "facts": {
-                    "schema_version": _text(facts.get("schema_version"), 96) or None,
-                    "admin_name": _text(facts.get("admin_name"), 120) or None,
-                    "entities": _safe_value(facts.get("entities") or {}, depth=0),
-                    "tasks": _strings(facts.get("tasks"), 8),
-                    "datasets": _strings(facts.get("datasets"), 16),
-                    "constraints": _safe_value(
-                        facts.get("constraints") or {}, depth=0
-                    ),
-                },
+                "domain_id": domain_id,
+                "facts": projected_facts,
                 "understanding": _understanding_projection(
                     raw.get("request_understanding"),
                     domain_id=raw.get("domain_id"),
@@ -153,14 +321,15 @@ def _request_facts(context: Mapping[str, Any]) -> dict[str, Any]:
         )
     if not domains:
         facts = context.get("facts")
-        domains.append(
-            {
-                "domain_id": None,
-                "facts": _safe_value(facts or {}, depth=0),
-                "data_readiness": {},
-                "clarification": {},
-            }
-        )
+        if domain_ids is None:
+            domains.append(
+                {
+                    "domain_id": None,
+                    "facts": _safe_value(facts or {}, depth=0),
+                    "data_readiness": {},
+                    "clarification": {},
+                }
+            )
     return {"domains": domains}
 
 
@@ -173,7 +342,13 @@ def _understanding_projection(value: Any, *, domain_id: Any = None) -> dict[str,
     )
 
 
-def _candidate_index(value: Any, limit: int) -> list[dict[str, Any]]:
+def _candidate_index(
+    value: Any,
+    limit: int,
+    *,
+    selected_keys: set[str] | None = None,
+    compact: bool = False,
+) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for raw in _sequence(value):
@@ -186,12 +361,19 @@ def _candidate_index(value: Any, limit: int) -> list[dict[str, Any]]:
         identity = (domain_id, capability_id)
         if identity in seen:
             continue
+        selection_key = _text(raw.get("selection_key"), 140) or (
+            f"{domain_id}::{capability_id}"[:140]
+        )
+        canonical_key = f"{domain_id}::{capability_id}"[:140]
+        if selected_keys is not None and not (
+            selection_key in selected_keys or canonical_key in selected_keys
+        ):
+            continue
         seen.add(identity)
         item: dict[str, Any] = {
             "domain_id": domain_id,
             "capability_id": capability_id,
-            "selection_key": _text(raw.get("selection_key"), 140)
-            or f"{domain_id}::{capability_id}"[:140],
+            "selection_key": selection_key,
             "label": _text(raw.get("label"), 160),
             "description": _text(raw.get("description"), 320),
             "available": bool(raw.get("available")),
@@ -200,8 +382,11 @@ def _candidate_index(value: Any, limit: int) -> list[dict[str, Any]]:
             "missing_datasets": _strings(raw.get("missing_datasets"), 8),
             "result_types": _strings(raw.get("result_types"), 16),
             "output_profiles": _profiles(raw.get("output_profiles")),
-            "request_requirements": _requirements(raw.get("request_requirements")),
         }
+        if not compact:
+            item["request_requirements"] = _requirements(
+                raw.get("request_requirements")
+            )
         result.append(item)
         if len(result) >= limit:
             break
@@ -209,11 +394,16 @@ def _candidate_index(value: Any, limit: int) -> list[dict[str, Any]]:
 
 
 def _selection_projection(
-    context: Mapping[str, Any], candidates: Sequence[Mapping[str, Any]]
+    context: Mapping[str, Any],
+    candidates: Sequence[Mapping[str, Any]],
+    *,
+    selected_keys: Sequence[str] = (),
 ) -> dict[str, Any]:
     discovery = context.get("discovery")
     discovery = discovery if isinstance(discovery, Mapping) else {}
-    selected: list[str] = []
+    selected: list[str] = [
+        _text(value, 140) for value in sorted(selected_keys) if _text(value, 140)
+    ]
     for raw in _sequence(context.get("domain_contexts")):
         if not isinstance(raw, Mapping):
             continue
@@ -254,6 +444,9 @@ def _execution_projection(
     context: Mapping[str, Any],
     candidates: Sequence[Mapping[str, Any]],
     workflow_limit: int,
+    *,
+    selected_keys: set[str] | None = None,
+    include_profiles: bool = True,
 ) -> dict[str, Any]:
     bindings: list[dict[str, Any]] = []
     workflow_ids: set[tuple[str, str]] = set()
@@ -273,13 +466,22 @@ def _execution_projection(
             continue
         if (identity["domain_id"], identity["capability_id"]) not in candidate_identities:
             continue
+        raw_key = _text(raw.get("selection_key"), 140) or (
+            f"{identity['domain_id']}::{identity['capability_id']}"[:140]
+        )
+        canonical_key = (
+            f"{identity['domain_id']}::{identity['capability_id']}"[:140]
+        )
+        if selected_keys is not None and not (
+            raw_key in selected_keys or canonical_key in selected_keys
+        ):
+            continue
         allowed = {
             **identity,
             "workflow_ids": _strings(raw.get("workflow_ids"), 8),
             "plan_mode": _text(raw.get("plan_mode"), 32) or None,
             "tools": _strings(raw.get("tools"), 24),
             "result_types": _strings(raw.get("result_types"), 16),
-            "output_profiles": _profiles(raw.get("output_profiles")),
             "execution_readiness": _text(raw.get("execution_readiness"), 32)
             or None,
             "execution_ready": (
@@ -292,6 +494,8 @@ def _execution_projection(
             "missing_tools": _strings(raw.get("missing_tools"), 8),
             "missing_result_types": _strings(raw.get("missing_result_types"), 8),
         }
+        if include_profiles:
+            allowed["output_profiles"] = _profiles(raw.get("output_profiles"))
         bindings.append(allowed)
         for workflow_id in allowed["workflow_ids"]:
             workflow_ids.add((identity["domain_id"], workflow_id))
@@ -317,8 +521,183 @@ def _execution_projection(
     return {
         "capabilities": bindings[: len(candidates)],
         "workflows": workflows,
-        "data_readiness": _safe_value(context.get("data_readiness") or {}, depth=0),
+        "data_readiness": _readiness_projection(
+            context.get("data_readiness"),
+            domain_contexts=context.get("domain_contexts"),
+            selected_domains=(
+                {
+                    str(item.get("domain_id"))
+                    for item in candidates
+                    if isinstance(item, Mapping)
+                }
+                if selected_keys is not None
+                else None
+            ),
+        ),
     }
+
+
+def _selected_capability_keys(
+    context: Mapping[str, Any],
+    selected_components: Sequence[Mapping[str, Any]] | None,
+) -> set[str]:
+    """Resolve selected identities from trusted internal continuation data."""
+
+    sources: list[Any] = []
+    if isinstance(selected_components, Sequence) and not isinstance(
+        selected_components, (str, bytes)
+    ):
+        sources.append(selected_components)
+    for key in ("selected_components", "components"):
+        value = context.get(key)
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            sources.append(value)
+    for key in ("task_plan_bridge", "execution_binding"):
+        value = context.get(key)
+        if isinstance(value, Mapping):
+            components = value.get("components")
+            if isinstance(components, Sequence) and not isinstance(
+                components, (str, bytes)
+            ):
+                sources.append(components)
+
+    result: set[str] = set()
+    for source in sources:
+        for raw in source:
+            if not isinstance(raw, Mapping):
+                continue
+            domain_id = _text(raw.get("domain_id"), 64)
+            capability_id = _text(raw.get("capability_id"), 96)
+            if domain_id and capability_id:
+                result.add(f"{domain_id}::{capability_id}"[:140])
+    for raw in _sequence(context.get("selected_capability_keys")):
+        key = _text(raw, 140)
+        if "::" in key:
+            result.add(key)
+    return result
+
+
+def _selected_components_projection(
+    context: Mapping[str, Any],
+    selected_components: Sequence[Mapping[str, Any]] | None,
+    selected_keys: set[str],
+) -> list[dict[str, Any]]:
+    sources: list[Any] = []
+    if isinstance(selected_components, Sequence) and not isinstance(
+        selected_components, (str, bytes)
+    ):
+        sources.append(selected_components)
+    for key in ("selected_components", "components"):
+        value = context.get(key)
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+            sources.append(value)
+    for key in ("task_plan_bridge", "execution_binding"):
+        value = context.get(key)
+        if isinstance(value, Mapping):
+            components = value.get("components")
+            if isinstance(components, Sequence) and not isinstance(
+                components, (str, bytes)
+            ):
+                sources.append(components)
+
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for source in sources:
+        for raw in source:
+            if not isinstance(raw, Mapping):
+                continue
+            domain_id = _text(raw.get("domain_id"), 64)
+            capability_id = _text(raw.get("capability_id"), 96)
+            key = f"{domain_id}::{capability_id}"[:140]
+            if not domain_id or not capability_id or key not in selected_keys:
+                continue
+            component_id = _text(raw.get("component_id"), 96)
+            if not component_id or component_id in seen:
+                continue
+            seen.add(component_id)
+            result.append(
+                {
+                    "component_id": component_id,
+                    "domain_id": domain_id,
+                    "capability_id": capability_id,
+                    "depends_on": _strings(raw.get("depends_on"), 8),
+                    "required": bool(raw.get("required", True)),
+                }
+            )
+            if len(result) >= 8:
+                return result
+    return result
+
+
+def _fact_handoff_projection(
+    context: Mapping[str, Any], selected_keys: set[str]
+) -> dict[str, Any]:
+    """Expose only declared fact gaps at continuation stages."""
+
+    values: list[Any] = []
+    for key in ("fact_handoff", "component_fact_handoff", "composite_fact_handoff"):
+        value = context.get(key)
+        if isinstance(value, Mapping):
+            values.append(value)
+    task_plan = context.get("task_plan_bridge")
+    if isinstance(task_plan, Mapping) and isinstance(
+        task_plan.get("fact_handoff"), Mapping
+    ):
+        values.append(task_plan["fact_handoff"])
+
+    projected: list[dict[str, Any]] = []
+    for value in values:
+        components = value.get("components") if isinstance(value, Mapping) else None
+        components = components if isinstance(components, Sequence) else [value]
+        for raw in components:
+            if not isinstance(raw, Mapping):
+                continue
+            domain_id = _text(raw.get("domain_id"), 64)
+            capability_id = _text(raw.get("capability_id"), 96)
+            key = f"{domain_id}::{capability_id}"[:140]
+            if selected_keys and key not in selected_keys:
+                continue
+            projected.append(
+                {
+                    "component_id": _text(raw.get("component_id"), 96) or None,
+                    "domain_id": domain_id or None,
+                    "capability_id": capability_id or None,
+                    "state": _text(raw.get("state"), 24) or "unknown",
+                    "reason_code": _text(raw.get("reason_code"), 96) or None,
+                    "missing_fields": _missing_field_projection(
+                        raw.get("missing_fields")
+                    ),
+                    "next_actions": _strings(raw.get("next_actions"), 4),
+                }
+            )
+            if len(projected) >= 8:
+                break
+        if len(projected) >= 8:
+            break
+    return {
+        "schema_version": "spatial-agent.planner-fact-handoff.v1",
+        "components": projected,
+        "missing_field_count": sum(
+            len(item.get("missing_fields") or []) for item in projected
+        ),
+    }
+
+
+def _missing_field_projection(value: Any) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for raw in _sequence(value)[:_MAX_FIELDS]:
+        if isinstance(raw, Mapping):
+            item = {
+                "id": _text(raw.get("id"), 80),
+                "label": _text(raw.get("label"), 120),
+                "kind": _text(raw.get("kind"), 32),
+                "required": bool(raw.get("required", True)),
+            }
+        else:
+            item = {"id": _text(raw, 80), "label": _text(raw, 120), "kind": "fact", "required": True}
+        if item["id"]:
+            result.append(item)
+    return result
 
 
 def _discovery_projection(value: Any) -> dict[str, Any]:
@@ -339,15 +718,23 @@ def _discovery_projection(value: Any) -> dict[str, Any]:
     }
 
 
-def _clarification_projection(value: Any) -> dict[str, Any]:
+def _clarification_projection(
+    value: Any, *, selected_domains: set[str] | None = None
+) -> dict[str, Any]:
     source = value if isinstance(value, Mapping) else {}
+    missing = source.get("missing_by_domain") or []
+    if selected_domains is not None:
+        missing = [
+            item
+            for item in _sequence(missing)
+            if isinstance(item, Mapping)
+            and _text(item.get("domain_id"), 64) in selected_domains
+        ]
     return {
         "state": _text(source.get("state"), 32) or "not_required",
         "reason_code": _text(source.get("reason_code"), 96) or "unknown",
         "message": _text(source.get("message"), 640),
-        "missing_by_domain": _safe_value(
-            source.get("missing_by_domain") or [], depth=0
-        ),
+        "missing_by_domain": _safe_value(missing, depth=0),
         "next_actions": _strings(source.get("next_actions"), 4),
     }
 
@@ -366,6 +753,38 @@ def _readiness(value: Any) -> dict[str, Any]:
         "status": _text(source.get("status"), 32) or "unknown",
         "reason_code": _text(source.get("reason_code"), 96) or None,
     }
+
+
+def _readiness_projection(
+    value: Any,
+    *,
+    domain_contexts: Any = None,
+    selected_domains: set[str] | None = None,
+) -> dict[str, Any]:
+    """Keep readiness useful while dropping verbose catalog diagnostics."""
+
+    source = value if isinstance(value, Mapping) else {}
+    domains_source = source.get("domains")
+    if not isinstance(domains_source, Mapping):
+        domains_source = {}
+        for raw in _sequence(domain_contexts):
+            if not isinstance(raw, Mapping):
+                continue
+            domain_id = _text(raw.get("domain_id"), 64)
+            if domain_id:
+                domains_source[domain_id] = raw.get("data_readiness")
+    domains: dict[str, dict[str, Any]] = {}
+    for key, raw in list(domains_source.items())[:_MAX_DOMAINS]:
+        domain_id = _text(key, 64)
+        if not domain_id or (
+            selected_domains is not None and domain_id not in selected_domains
+        ):
+            continue
+        domains[domain_id] = _readiness(raw)
+    result = _readiness(source)
+    if domains:
+        result["domains"] = domains
+    return result
 
 
 def _repair_projection(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -436,6 +855,24 @@ def _safe_value(value: Any, *, depth: int) -> Any:
     return str(value)[:160]
 
 
+def _safe_envelope_value(value: Any, *, depth: int = 0) -> Any:
+    """Sanitize an existing projected envelope without re-projecting it."""
+
+    if depth >= 6:
+        return "[truncated]"
+    if isinstance(value, Mapping):
+        return {
+            str(key)[:96]: _safe_envelope_value(item, depth=depth + 1)
+            for key, item in list(value.items())[:64]
+            if str(key).strip().lower().replace("-", "_") not in _PRIVATE_KEYS
+        }
+    if isinstance(value, (list, tuple)):
+        return [_safe_envelope_value(item, depth=depth + 1) for item in list(value)[:32]]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return str(value)[:1000] if isinstance(value, str) else value
+    return str(value)[:240]
+
+
 def _sequence(value: Any) -> list[Any]:
     if isinstance(value, str) or not isinstance(value, Sequence):
         return []
@@ -475,10 +912,13 @@ def _assert_budget(value: Mapping[str, Any], limit: int) -> None:
 
 
 __all__ = [
+    "PLANNER_ENVELOPE_DEFAULT_STAGE",
     "PLANNER_ENVELOPE_LAYERS",
     "PLANNER_ENVELOPE_MAX_BYTES",
     "PLANNER_ENVELOPE_SCHEMA_VERSION",
+    "PLANNER_PROJECTION_STAGES",
     "PlannerEnvelopeError",
     "build_planner_envelope",
+    "normalize_projection_stage",
     "normalize_planner_envelope",
 ]

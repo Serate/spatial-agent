@@ -21,9 +21,9 @@
 
 ## 当前阶段
 
-- 阶段：M302 分阶段 Planner 上下文与开放问题成功链路（规划中）
-- 状态：M301 已完成并待本轮版本交付；内部 Composite Context/目录/discovery 默认 256 KiB，provider Planner Envelope 独立 96 KiB。产品默认保持 `openai + local`。
-- 当前任务：按项目全局实现 stage-aware provider projection，优先解决模型输入中的诊断重复和选择到执行的成功闭合。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M302 分阶段 Planner 上下文与开放问题成功链路（开发中）
+- 状态：M301 已完成并推送；M302-A/B 已完成。内部 Composite Context/目录/discovery 默认 256 KiB，provider Planner Envelope 独立 96 KiB；Envelope 已支持 discovery、selection、execution、repair 阶段投影。产品默认保持 `openai + local`。
+- 当前任务：M302-C 核对 selected-component fact handoff、TaskPlan/binding 与 execution projection 的 identity 闭合。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m302-stage-aware-planner-context-capability-map.md`](m302-stage-aware-planner-context-capability-map.md)
   - [`docs/m302-stage-aware-planner-context-spec.md`](m302-stage-aware-planner-context-spec.md)
@@ -39,6 +39,7 @@
 - `agent/runtime_core/component_fact_handoff.py`
 - `agent/runtime_core/clarification_continuation.py`
 - `tests/test_m301_planner_first_open_query.py`
+- `tests/test_m302_stage_aware_planner_context.py`
 
 ## 验证与安全约定
 

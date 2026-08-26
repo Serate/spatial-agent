@@ -988,6 +988,12 @@ class CompositePlanningApplication:
             selection = envelope.get("selection")
             evidence["planner_envelope"] = {
                 "schema_version": str(envelope.get("schema_version") or "")[:96],
+                "context_projection_stage": str(
+                    envelope.get("projection_stage") or "unknown"
+                )[:24],
+                "provider_projection_stage": _provider_projection_stage(
+                    evidence, envelope
+                ),
                 "layers": [
                     str(item)[:64]
                     for item in (envelope.get("layers") or [])[:8]
@@ -1351,6 +1357,21 @@ def _planner_evidence(
     if structured_output is not None:
         result["structured_output"] = structured_output
     return result
+
+
+def _provider_projection_stage(
+    evidence: Mapping[str, Any], envelope: Mapping[str, Any]
+) -> str:
+    """Describe the stage actually used by the planner adapter."""
+
+    lineage = evidence.get("repair_lineage")
+    if isinstance(lineage, Mapping) and bool(lineage.get("attempted")):
+        return "repair"
+    if str(evidence.get("planner_source") or "") == "llm":
+        return "selection"
+    # Rule and Replay are local adapters and do not cross the provider
+    # boundary; their shared context was produced from the discovery stage.
+    return str(envelope.get("projection_stage") or "discovery")[:24]
 
 
 def _safe_planner_metrics(planner: Any) -> Mapping[str, Any] | None:

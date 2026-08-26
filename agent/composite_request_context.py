@@ -293,7 +293,9 @@ class CompositeRequestContextBuilder:
         }
         try:
             context["planner_envelope"] = build_planner_envelope(
-                context, max_bytes=self._max_bytes
+                context,
+                max_bytes=self._max_bytes,
+                projection_stage="discovery",
             )
         except PlannerEnvelopeError as exc:
             raise CompositeRequestContextError(

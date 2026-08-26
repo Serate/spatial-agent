@@ -326,3 +326,11 @@
 - 验证：Docker M299/M263 **19/19**；Node projection smoke、compileall、architecture strict 和 readiness 200 通过；真实 Economic local 与 Replay/Rule 对照通过；中转 live timeout 按 provider failure 记录且未创建 run。
 - 文档：M299 问题、milestone、进度账本和恢复快照已同步；M300 capability map、Spec、Plan 已创建。
 - 当前阶段：M299 已完成，版本 `f3bfbeb` 已提交推送；下一阶段为 M300-A 全局成功率/状态矩阵审查。
+
+### M302-A/B：阶段化 Planner 上下文投影 — 已完成
+
+- 结果：公共 `spatial-agent.planner-envelope.v1` 现在声明有限的 `projection_stage`：`discovery`、`selection`、`execution`、`repair`。Runtime Context Builder 保存 discovery 摘要；LLM provider 初次规划和一次结构修复分别重投影为 selection/repair；execution/repair 已选能力存在时仅保留对应组件、workflow、readiness、result profile 和事实缺口。
+- 结果：已有 Envelope 通过安全白名单直接规范化，避免重新投影时丢失 workflow/result closure；planning evidence 区分 Context projection stage 与 provider projection stage。
+- 文件：`agent/runtime_core/planner_envelope.py`、`agent/composite_request_context.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`tests/test_m302_stage_aware_planner_context.py`、`tasks/task-progress.md`。
+- 验证：Docker M302 与相邻 M299/M300/M301/M286/M287 **34/34**，compileall、architecture strict、Service smoke 和 readiness HTTP 200 通过；未执行真实 provider 请求。
+- 阻塞：无。下一步进入 M302-C，验证 selected-component handoff 与 TaskPlan/binding identity 的阶段化投影。

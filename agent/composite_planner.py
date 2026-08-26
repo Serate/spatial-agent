@@ -633,7 +633,15 @@ def _bounded_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
             code="planner_context_schema_invalid",
         )
     try:
-        return build_planner_envelope(value, max_bytes=_MAX_CONTEXT_BYTES)
+        # Request construction keeps the discovery projection as an internal
+        # receipt.  The provider gets the projection for the decision it is
+        # about to make; a repair request is deliberately narrower again.
+        stage = "repair" if safe_repair_request(value.get("planner_repair")) else "selection"
+        return build_planner_envelope(
+            value,
+            max_bytes=_MAX_CONTEXT_BYTES,
+            projection_stage=stage,
+        )
     except PlannerEnvelopeError as exc:
         raise CompositePlannerError(
             "planner context exceeds max_bytes"

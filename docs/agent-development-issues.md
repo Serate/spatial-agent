@@ -1231,3 +1231,11 @@
 - **修复**：新增领域中立 `request-fact-readiness.v1`，区分 `complete/partial/missing/unavailable`；仅当存在完整且可供 Planner 观察的候选时，将无关 Domain 缺失降为 `advisory`。合并澄清时只允许 `required → advisory` 的安全升级，保留数据/能力不可用等更具体状态；未显式声明 `execution_ready` 的旧候选仅用于观察，最终执行仍必须通过 TaskPlan/binding 门禁。
 - **验证**：M301 无关事实回归与 M295 旧澄清/不可用回归通过；未降低 selected-component、ToolRegistry、workflow 或 execution binding 的执行约束。
 - **预防**：事实 readiness 只能影响 Planner 观察和澄清层级，不能直接成为执行授权；每个兼容合并点必须保留更具体的不可用原因码。
+
+## M302 Planner Envelope 仍混入跨阶段和重复上下文
+
+- **现象**：M301 虽已将完整 Runtime Context 与 provider 预算分开，但模型输入仍同时包含 discovery、选择、完整 workflow binding 和重复的 result profile；96 KiB 上限没有区分“当前决策需要什么”。
+- **根因**：Envelope 只有字段分层，没有生命周期阶段语义；Context Builder、LLM 初次规划和 repair 都使用同一投影，导致 Runtime 诊断信息与模型选择信息混在一起。
+- **修复**：为公共 `spatial-agent.planner-envelope.v1` 增加 `projection_stage`，支持 `discovery`、`selection`、`execution`、`repair`。Context Builder 保存 discovery 摘要；LLM 规划重投影 selection，结构修复重投影 repair；execution/已有选中项的 repair 只保留选中能力、workflow、readiness、result profile 和事实缺口；不改变 Runtime 内部 Context、TaskPlan、ToolRegistry 或 execution binding 门禁。
+- **验证**：Docker M302 及相邻 Planner/repair 回归 **34/34**，compileall、architecture strict、Service smoke 和 readiness HTTP 200 通过；示例投影大小为 discovery 2.95 KiB、selection 4.32 KiB、execution 3.46 KiB；未保存模型原文、密钥、私有路径或原始数据。
+- **预防**：新增模型上下文前先标注所属阶段和用途；Runtime 证据字段不能因为“可用”就默认进入 provider payload。阶段投影必须保留 request identity、readiness、workflow 和 result profile，并对超预算 fail closed；尚未形成可信组件时，repair 只能使用有限候选并保持一次尝试。

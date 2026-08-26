@@ -36,3 +36,9 @@
 - 阶段投影不能成为第二套生命周期；所有执行仍由现有 binding 门禁授权。
 - 为节省 token 不能删除候选 identity、事实缺口、readiness、workflow 或 result profile 等决策必需字段。
 - 真实模型不稳定时记录 provider failure，不放宽 schema、不增加无界重试。
+
+## 当前进度
+
+- A/B 已完成：Envelope 声明并校验四类阶段；Context Builder 保存 discovery 投影；LLM 初次规划/一次结构修复分别使用 selection/repair；execution 与已有 selected component 只保留选中闭合信息。
+- 已验证：阶段切换不改变 request fingerprint；readiness、workflow、result profile 和私有字段过滤保持；已有 Envelope 可安全规范化；repair 在尚未形成可信选中项时保留有界候选以支持一次结构修复。
+- 下一步：C 验证 selected-component fact handoff、TaskPlan/DAG、execution binding 与阶段投影的身份一致性；随后集中完成 D/E。
