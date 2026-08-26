@@ -6,12 +6,16 @@ M304 已完成：provider health、deadline、structured-output、失败分类�
 
 M305 按全局七个维度提升 provider-backed Agent 形成合法计划的成功率和可恢复交互，不扩充专题工具菜单，不绕过既有执行门禁：
 
-1. [ ] M305-A 冻结全局成功率、延迟预算、失败分类和用户动作矩阵。
-2. [ ] M305-B 统一 provider attempt receipt、请求预算和阶段 Envelope 投影。
-3. [ ] M305-C 用脱敏 replay 验证合法计划、有限 repair 与 canonical 执行闭合。
-4. [ ] M305-D 收口 sync/async/HTTP/Console/artifact/restart 的可恢复交互一致性。
-5. [ ] M305-E 在 Docker 集中运行精简门禁，并进行一次显式 live 验收。
-6. [ ] M305-F 更新中文记忆、提交推送版本并依据全局目标重规划。
+1. [x] M305-A 冻结全局成功率、延迟预算、失败分类和用户动作矩阵。
+2. [x] M305-B 统一 provider attempt receipt、请求预算和阶段 Envelope 投影。
+3. [x] M305-C 用脱敏 replay 验证合法计划、有限 repair 与 canonical 执行闭合。
+4. [x] M305-D 收口 sync/async/HTTP/Console/artifact/restart 的可恢复交互一致性。
+5. [x] M305-E 在 Docker 集中运行精简门禁，并进行一次显式 live 验收。
+6. [x] M305-F 更新中文记忆、提交推送版本并依据全局目标重规划。
+
+---
+
+下一阶段：M306 通用开放请求与多组件组合；规划文件为 `docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`。恢复时只读取当前快照、任务账本最近记录、M306 文档和当前任务明确文件。
 
 默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行精简回归、compileall、architecture strict、Node projection、Service smoke、readiness 和一次显式 live，不为每个小改动重复测试。
 

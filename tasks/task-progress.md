@@ -18,13 +18,51 @@
 
 ## 当前进行中
 
-### M305-A：全局成功率与延迟预算矩阵 — 进行中
+### M306-A：全局能力缺口、组件图和 typed input 契约冻结 — 进行中
 
-- 目标：从项目全局七个维度冻结 provider-backed 合法计划成功、澄清、超时、拒绝和执行失败的状态、预算、证据与用户动作，作为 M305-B～E 的共同边界。
+- 目标：从项目全局冻结开放请求的能力缺口、组件图、typed input、结果类型和多组件验收边界，不修改 Runtime 生命周期。
+- 规格与计划：`docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`。
+- 需要读取/修改：`docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`、`agent/composite_contract.py`、`agent/runtime_core/composition.py`、`agent/runtime_core/planner_envelope.py`、`agent/application/composite_planning.py`、`agent/runtime_core/plan_receipt.py`。
+- 验证节奏：开发期间只做必要静态/契约检查；M306-E 在 Docker 中集中运行阶段门禁，真实模型最多显式调用一次。
+- 阻塞：无；不得把 provider timeout 伪装成澄清或成功执行，不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+
+### M305-F：文档、版本与全局重规划 — 已完成
+
+- 结果：补齐 M305 中文问题记录、milestone、历史恢复卡、Spec/Plan、任务账本和快照；创建 M306 capability map、Spec 和 Plan。
+- 交付：阶段版本待本次提交推送；下一阶段为 M306 通用开放请求与多组件组合。
+- 阻塞：无。
 - 规格与计划：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`。
 - 需要读取/修改：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`、`agent/provider_runtime.py`、`agent/runtime_core/planner_envelope.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`。
 - 验证节奏：开发期间只做必要静态/契约检查；M305-E 在 Docker 中集中运行阶段门禁，真实模型最多显式调用一次，不重复 M304 live。
 - 阻塞：无；不得把 provider timeout 伪装成澄清或成功执行，不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+
+### M305-E：Docker 阶段门禁与一次显式 live — 已完成
+
+- 结果：当前 Docker 镜像重建并强制重启；精简回归 **30/30**，compileall、architecture strict、Service smoke、Node projection smoke、生产 HTTP acceptance 和 `/health/ready` **200** 全部通过。
+- 唯一显式 live：固定 60 秒、0 重试；真实 provider 返回合法单组件 Composite 计划，规划为 `PLANNED`，随后 sync/async 均 `COMPLETED`，artifact 可用，结果类型、组件状态、request fingerprint、binding fingerprint 和 data kinds 全部一致。
+- 边界：这是一次组件级真实模型成功验收，不代表多组件或所有开放问题均成功；未保存 key、prompt、模型原文或私有路径。
+- 阻塞：无；下一步收口文档、提交推送并全局重规划。
+
+### M305-D：跨入口可恢复交互一致性 — 已完成
+
+- 结果：`_safe_planning_evidence` 保留并重新投影 planner attempt、canonical plan；同步、异步、artifact/restart 读取同一安全证据，统一动作 ID 不由传输层自行猜测。
+- 文件：`agent/application/composite_runs.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、M303/M283 跨入口契约。
+- 验证：Docker M303/M283 跨入口回归 **16/16**、生产 HTTP acceptance `ok`、readiness HTTP **200**；未调用真实模型。
+- 阻塞：无；下一步执行阶段级 Docker 门禁。
+
+### M305-B/C：Provider receipt 与 canonical replay 闭合 — 已完成
+
+- 结果：provider attempt receipt 记录阶段、预算、Envelope 实际字节数、attempt/retry、期限、repair lineage 和统一动作 ID；新增 `spatial-agent.canonical-plan-receipt.v1`，accepted TaskPlan bridge 与 validated binding 才能标记 `executable`。
+- 文件：`agent/provider_runtime.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`agent/runtime_core/plan_receipt.py`、`web/src/console_result_projection.js`、M305 精简契约与 Node smoke。
+- 验证：Docker 重建后的 M304/M305 契约 **14/14**、compileall 和 Node projection smoke 通过；未调用真实模型。
+- 阻塞：无；下一步验证跨入口异步/artifact/restart 与动作证据一致性。
+
+### M305-A：全局成功率与延迟预算矩阵 — 已完成
+
+- 结果：冻结成功计划、事实澄清、计划拒绝、provider 失败和执行失败的状态平面、run 创建边界、预算基线与用户动作；补充 `spatial-agent.planner-attempt.v1` 公共 receipt 契约。
+- 文件：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`、`agent/provider_runtime.py`、`agent/application/composite_planning.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`tests/test_m305_provider_attempt_receipt.py`、`scripts/console_result_projection_smoke.js`。
+- 验证：开发期完成静态契约收口；M305-E 在 Docker 集中运行精简门禁，真实模型最多显式调用一次。
+- 阻塞：无；不重复 M304 live。
 
 ### M301：Planner-first 开放问题解析 — 已完成
 

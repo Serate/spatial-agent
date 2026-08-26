@@ -5181,3 +5181,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 阶段门禁：重建 Docker 后 M304/M300/M303 精简回归 **24/24**，compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200** 全部通过。
 - 唯一一次显式 live 使用 60 秒、0 重试，结果为 `FAILED/timeout`、`error_plane=harness`、`execution_run_created=false`；按中转/provider 延迟失败记录，未保存密钥、prompt 或模型原文。
 - 全局重规划：下一阶段 M305 聚焦 provider-backed 合法 Composite 计划的成功率、延迟预算、脱敏 replay 和可恢复动作，不扩大专题工具菜单。
+
+## M305：Provider-backed 成功率与可恢复交互优化（已完成）
+
+- 冻结 provider-backed 成功、澄清、拒绝、provider failure 和执行失败的状态平面、run 创建边界、预算基线与用户动作；新增 `spatial-agent.planner-attempt.v1` 和 `spatial-agent.canonical-plan-receipt.v1` 公共契约。
+- planner attempt receipt 统一记录阶段、Envelope 实际字节数、输出/期限预算、attempt/retry、repair lineage 和动作 ID；canonical plan receipt 只有 accepted TaskPlan bridge 与 validated execution binding 同时成立才标记 `executable`。
+- Docker 阶段门禁：精简回归 **30/30**、compileall、architecture strict、Service smoke、Node projection、生产 HTTP acceptance 和 readiness **200** 全部通过；同步、异步、artifact/restart 与证据一致性通过。
+- 唯一显式真实模型验收使用 60 秒、0 重试，返回合法单组件计划并完成 sync/async/artifact 对照；request/binding fingerprint、结果类型、组件状态和 data kinds 一致。该证据不外推为全部多组件问题成功。
+- 全局重规划：下一阶段聚焦通用开放请求的能力覆盖与多组件组合成功率，以能力目录、数据就绪和结果契约为边界，不增加单区域或固定问句分支。

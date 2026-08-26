@@ -383,13 +383,17 @@ class LLMCompositePlanner:
         if client is None or not callable(getattr(client, "complete_json", None)):
             raise ValueError("client must expose complete_json()")
         self._client = client
+        self._last_envelope_metrics: dict[str, Any] = {}
 
     def metrics(self) -> Mapping[str, Any]:
         provider_metrics = getattr(self._client, "metrics", None)
-        if not callable(provider_metrics):
-            return {}
-        value = provider_metrics()
-        return value if isinstance(value, Mapping) else {}
+        if callable(provider_metrics):
+            value = provider_metrics()
+        else:
+            value = {}
+        result = dict(value) if isinstance(value, Mapping) else {}
+        result.update(self._last_envelope_metrics)
+        return result
 
     def plan(
         self,
@@ -399,6 +403,15 @@ class LLMCompositePlanner:
     ) -> dict[str, Any]:
         bounded_context = _bounded_context(context)
         repair_request = safe_repair_request(bounded_context.get("planner_repair"))
+        projection_stage = "repair" if repair_request is not None else "selection"
+        encoded_context = json.dumps(
+            bounded_context, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+        self._last_envelope_metrics = {
+            "projection_stage": projection_stage,
+            "envelope_bytes": len(encoded_context.encode("utf-8")),
+            "envelope_max_bytes": _MAX_CONTEXT_BYTES,
+        }
         repair_instruction = ""
         if repair_request is not None:
             repair_instruction = (

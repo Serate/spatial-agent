@@ -209,3 +209,15 @@
 - execution projection 只在 TaskPlan/DAG、plan completeness 和 execution binding 全部门禁通过后生成；execution binding 新生成值保存 capability identity，新的 plan fingerprint 覆盖 capability，projection 校验组件集合、顺序、领域、能力、依赖和 required。
 - `execution_identity` 已纳入 Planner Envelope 安全规范化，planner evidence 只保留有界 receipt，不复制完整 TaskPlan、工具参数或内部 binding；旧 binding 的可选字段保持兼容读取。
 - Docker M302-C + M294/M293/M292 **19/19**、compileall、architecture strict、Service smoke、生产 readiness HTTP **200** 通过；镜像已重建并强制重建服务，未执行真实 provider 请求。后续恢复入口为 M302-D。
+
+## M304：Provider-backed 规划可靠性与可恢复交互（已完成）
+
+- 新增 `agent/provider_runtime.py`，统一 provider health、structured-output、deadline 和脱敏运行 evidence；provider 失败不会创建 execution run，Console 的计划阶段会显示不可用和可恢复动作。
+- Docker M304/M300/M303 精简回归 **24/24**，compileall、architecture strict、Service smoke、生产 acceptance 和 readiness **200** 通过；唯一 live 为 60 秒、0 重试的 provider timeout，未创建 run。
+
+## M305：Provider-backed 成功率与可恢复交互优化（已完成）
+
+- 新增 `spatial-agent.planner-attempt.v1` 和 `spatial-agent.canonical-plan-receipt.v1`；统一记录阶段/预算/attempt/retry/repair/动作，只有 accepted TaskPlan bridge 与 validated execution binding 同时成立才标记 `executable`。
+- Docker 阶段精简回归 **30/30**，compileall、architecture strict、Service smoke、Node projection、生产 acceptance 和 readiness **200** 通过；同步、异步、artifact/restart 与 evidence 对照通过。
+- 唯一显式真实模型验收固定 60 秒、0 重试，形成合法单组件 Composite 计划并完成 sync/async/artifact 对照；未保存密钥、prompt、模型原文或私有路径。
+- 下一阶段从全局能力覆盖、数据就绪、Planner 多组件组合、结果契约、恢复和用户体验重新规划，不以单一 provider 成功代表整体 Agent 完成。

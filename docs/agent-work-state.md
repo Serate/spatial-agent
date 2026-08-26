@@ -21,30 +21,31 @@
 
 ## 当前阶段
 
-- 阶段：M305 Provider-backed 成功率与可恢复交互优化（已规划，A 进行中）
+- 阶段：M306 通用开放请求与多组件组合（已规划，A 进行中）
 - 状态：M302-D/E、M303-A～F、M304-A～F 已完成并交付；Docker GIS/Economic 跨入口链路通过。M304 唯一一次真实模型验收为 60 秒/0 重试 provider harness timeout，未创建 execution run。产品默认保持 `openai + local`。
-- 当前任务：M305-A 从全局七维度冻结 provider-backed 合法计划成功率、延迟预算、有限 repair 和用户动作矩阵；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 当前任务：M306-A 从全局冻结能力缺口、组件图和 typed input 契约；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m305-provider-success-capability-map.md`](m305-provider-success-capability-map.md)
-  - [`docs/m305-provider-success-spec.md`](m305-provider-success-spec.md)
-  - [`docs/m305-provider-success-plan.md`](m305-provider-success-plan.md)
+  - [`docs/m306-open-composition-capability-map.md`](m306-open-composition-capability-map.md)
+  - [`docs/m306-open-composition-spec.md`](m306-open-composition-spec.md)
+  - [`docs/m306-open-composition-plan.md`](m306-open-composition-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m305-provider-success-capability-map.md`
-- `docs/m305-provider-success-spec.md`
-- `docs/m305-provider-success-plan.md`
-- `agent/provider_runtime.py`
+- `docs/m306-open-composition-capability-map.md`
+- `docs/m306-open-composition-spec.md`
+- `docs/m306-open-composition-plan.md`
+- `agent/composite_contract.py`
+- `agent/runtime_core/composition.py`
 - `agent/runtime_core/planner_envelope.py`
 - `agent/composite_planner.py`
 - `agent/application/composite_planning.py`
-- `web/src/console_result_projection.js`
+- `agent/runtime_core/plan_receipt.py`
 
-## M305-A：全局成功率与延迟预算矩阵 — 进行中
+## M306-A：全局能力缺口、组件图和 typed input 契约 — 进行中
 
-- 目标：从产品、架构、数据、模型、部署、体验、测试七个维度冻结 provider-backed 合法计划成功、澄清、超时、拒绝和执行失败的状态与动作。
-- 边界：只读取 M305 三份规划文件、M304 收口记录和当前任务明确源码/精简契约；不读取历史归档、模型原文、密钥或私有原始数据。
-- 验证：M305-B～E 合并后在 Docker 集中运行精简门禁；真实模型最多显式调用一次。
+- 目标：从项目全局冻结开放请求的能力缺口、组件图、typed input、结果类型和多组件验收边界，不修改 Runtime 生命周期。
+- 边界：只读取 M306 三份规划文件、M305 收口记录和当前任务明确源码/精简契约；不读取历史归档、模型原文、密钥或私有原始数据。
+- 验证：M306-B～E 合并后在 Docker 集中运行精简门禁；真实模型最多显式调用一次。
 - 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry 或 execution binding。
 
 ## 验证与安全约定

@@ -201,11 +201,20 @@
 - [x] M304-E 在 Docker 中运行精简阶段门禁并进行一次显式 live，比较 provider receipt 与离线 Replay 结果
 - [x] M304-F 更新中文文档、提交推送，并依据七维度全局盘点继续规划下一阶段
 
-## M305 Provider-backed 成功率与可恢复交互优化（进行中）
+## M305 Provider-backed 成功率与可恢复交互优化（已完成）
 
-- [ ] M305-A 冻结全局成功率、延迟预算、失败分类和用户动作矩阵
-- [ ] M305-B 统一 provider attempt receipt、请求预算和阶段 Envelope 投影
-- [ ] M305-C 用脱敏 replay 验证合法计划、有限 repair 与 canonical 执行闭合
-- [ ] M305-D 收口 sync/async/HTTP/Console/artifact/restart 的可恢复交互一致性
-- [ ] M305-E 在 Docker 集中运行精简门禁，并进行一次显式 live 验收
-- [ ] M305-F 更新中文记忆、提交推送版本并依据全局目标重规划
+- [x] M305-A 冻结全局成功率、延迟预算、失败分类和用户动作矩阵
+- [x] M305-B 统一 provider attempt receipt、请求预算和阶段 Envelope 投影
+- [x] M305-C 用脱敏 replay 验证合法计划、有限 repair 与 canonical 执行闭合
+- [x] M305-D 收口 sync/async/HTTP/Console/artifact/restart 的可恢复交互一致性
+- [x] M305-E 在 Docker 集中运行精简门禁，并进行一次显式 live 验收
+- [x] M305-F 更新中文记忆、提交推送版本并依据全局目标重规划
+
+## M306 通用开放请求与多组件组合（进行中）
+
+- [ ] M306-A 全局能力缺口、组件图和 typed input 契约冻结
+- [ ] M306-B 请求事实到能力候选的最小投影与组件澄清
+- [ ] M306-C 开放组件图到 canonical TaskPlan/DAG 执行闭合
+- [ ] M306-D 多类型 Result/Evidence 组合与用户投影
+- [ ] M306-E Docker 阶段门禁、真实数据与一次显式 live
+- [ ] M306-F 文档、提交推送与全局重规划

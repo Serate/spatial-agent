@@ -316,10 +316,77 @@
     if (record(compositePlanning) && !record(result.provider_runtime) && record(compositePlanning.provider_runtime)) {
       result.provider_runtime = {...compositePlanning.provider_runtime};
     }
+    if (record(compositePlanning) && !record(result.planner_attempt) && record(compositePlanning.planner_attempt)) {
+      result.planner_attempt = {...compositePlanning.planner_attempt};
+    }
+    if (record(compositePlanning) && !record(result.canonical_plan) && record(compositePlanning.canonical_plan)) {
+      result.canonical_plan = {...compositePlanning.canonical_plan};
+    }
     if (record(result.provider_runtime)) {
       result.provider_runtime = normalizeProviderRuntime(result.provider_runtime);
     }
+    if (record(result.planner_attempt)) {
+      result.planner_attempt = normalizePlannerAttempt(result.planner_attempt);
+    }
+    if (record(result.canonical_plan)) {
+      result.canonical_plan = normalizeCanonicalPlan(result.canonical_plan);
+    }
     return Object.keys(result).length ? result : null;
+  }
+
+  function normalizeCanonicalPlan(raw) {
+    if (!record(raw)) return {};
+    const states = ["executable", "deferred", "unavailable"];
+    const state = states.includes(text(raw.state, 24)) ? text(raw.state, 24) : "unavailable";
+    const bounded = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(MAX_ITEMS, Number(value))) : 0;
+    return {
+      schema_version: text(raw.schema_version || "spatial-agent.canonical-plan-receipt.v1", 96),
+      state,
+      reason_code: text(raw.reason_code, 96),
+      executable: state === "executable" && raw.executable === true,
+      component_count: bounded(raw.component_count),
+      materialized_count: bounded(raw.materialized_count),
+      component_ids: safeTextList(raw.component_ids, MAX_ITEMS),
+      request_fingerprint: text(raw.request_fingerprint, 128),
+      binding_fingerprint: text(raw.binding_fingerprint, 128),
+    };
+  }
+
+  function normalizePlannerAttempt(raw) {
+    if (!record(raw)) return {};
+    const stages = ["discovery", "selection", "execution", "repair"];
+    const states = ["not_started", "in_progress", "completed", "failed", "timed_out"];
+    const outcomes = ["success", "needs_clarification", "rejected", "provider_failure", "execution_failure", "unknown"];
+    const bounded = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(128, Number(value))) : 0;
+    return {
+      schema_version: text(raw.schema_version || "spatial-agent.planner-attempt.v1", 96),
+      stage: stages.includes(text(raw.stage, 24)) ? text(raw.stage, 24) : "selection",
+      state: states.includes(text(raw.state, 24)) ? text(raw.state, 24) : "not_started",
+      outcome: outcomes.includes(text(raw.outcome, 32)) ? text(raw.outcome, 32) : "unknown",
+      attempts: bounded(raw.attempts),
+      retries: bounded(raw.retries),
+      retryable: raw.retryable === true,
+      next_actions: safeTextList(raw.next_actions, 4),
+      reason_code: text(raw.reason_code, 96),
+      elapsed_ms: Number.isFinite(Number(raw.elapsed_ms)) ? Math.max(0, Math.min(3600000, Number(raw.elapsed_ms))) : null,
+      budget: record(raw.budget) ? {
+        envelope_max_bytes: boundedBudget(raw.budget.envelope_max_bytes, 1000000),
+        envelope_bytes: boundedBudget(raw.budget.envelope_bytes, 1000000),
+        output_max_tokens: boundedBudget(raw.budget.output_max_tokens, 2000000),
+        provider_timeout_seconds: boundedBudget(raw.budget.provider_timeout_seconds, 86400),
+        harness_timeout_seconds: boundedBudget(raw.budget.harness_timeout_seconds, 86400),
+      } : {},
+      repair: record(raw.repair) ? {
+        attempted: raw.repair.attempted === true,
+        count: bounded(raw.repair.count),
+        max_attempts: bounded(raw.repair.max_attempts),
+        state: text(raw.repair.state, 32),
+      } : {},
+    };
+  }
+
+  function boundedBudget(value, maximum) {
+    return Number.isFinite(Number(value)) ? Math.max(0, Math.min(maximum, Number(value))) : null;
   }
 
   function normalizePlanCompleteness(raw) {

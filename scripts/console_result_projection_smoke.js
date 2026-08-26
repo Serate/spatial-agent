@@ -69,6 +69,28 @@ const completed = projection.normalize({
           health: {status: "configured", network: "not_checked", reason_code: "network_not_checked"},
           deadline: {state: "completed", deadline_exceeded: false, retryable: false},
         },
+        planner_attempt: {
+          schema_version: "spatial-agent.planner-attempt.v1",
+          stage: "selection",
+          state: "completed",
+          outcome: "success",
+          attempts: 1,
+          retries: 0,
+          retryable: false,
+          next_actions: ["submit"],
+          budget: {envelope_bytes: 18240, envelope_max_bytes: 96000},
+        },
+        canonical_plan: {
+          schema_version: "spatial-agent.canonical-plan-receipt.v1",
+          state: "executable",
+          reason_code: "canonical_plan_validated",
+          executable: true,
+          component_count: 1,
+          materialized_count: 1,
+          component_ids: ["space"],
+          request_fingerprint: "sha256:request",
+          binding_fingerprint: "sha256:binding",
+        },
       },
       artifacts: [{available: true, kind: "run", ref: "run.json"}],
     },
@@ -80,6 +102,10 @@ assert.equal(completed.phases.filter(item => item.state === "complete").length, 
 assert.equal(completed.phases[1].state, "not_needed");
 assert.equal(completed.planning.structured_output.structured_mode, "json_schema");
 assert.equal(completed.planning.provider_runtime.deadline.state, "completed");
+assert.equal(completed.planning.planner_attempt.outcome, "success");
+assert.equal(completed.planning.planner_attempt.budget.envelope_bytes, 18240);
+assert.deepEqual(completed.planning.planner_attempt.next_actions, ["submit"]);
+assert.equal(completed.planning.canonical_plan.executable, true);
 assert.equal(completed.discovery.state, "ready");
 assert.equal(completed.discovery.candidate_count, 2);
 assert.equal(completed.selection_evidence.state, "selected");

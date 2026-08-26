@@ -1284,3 +1284,11 @@
 - **修复**：新增领域中立 `provider-runtime.v1`，统一 health/deadline/structured-output receipt；仅透传有界 `code/retryable`，不透传异常文本。Console projection 将 provider/planning failure 的计划阶段标为不可用，并显示“模型暂时不可用/稍后重试”。
 - **验证**：重建 Docker 后 M304/M300/M303 **24/24**，Node projection、compileall、architecture strict、Service smoke、生产 acceptance 和 readiness **200** 通过；唯一 live 为 60 秒、0 重试 timeout，未创建 run。
 - **预防**：状态、failure、provider receipt 和 next action 必须从同一结构化 evidence 派生；新增 provider 字段必须经过安全白名单和幂等投影，不能把模型原文、prompt、URL 或密钥带入 Result/View/Artifact。
+
+## M305 provider attempt 与可执行计划缺少统一边界
+
+- **现象**：provider 规划已经能够返回结构化结果，但仅凭 planner 状态或 binding 指纹无法同时说明请求预算是否超限、是否发生 repair，以及计划是否真正通过 TaskPlan/DAG、ToolRegistry、workflow 和 execution binding。
+- **根因**：provider deadline、阶段 Envelope、repair lineage 和执行 binding 原先分散在不同 evidence 字段；replay/fake client 没有 provider `metrics()` 时，阶段 Envelope 的预算统计也会丢失。
+- **修复**：新增领域中立 `spatial-agent.planner-attempt.v1`，记录阶段、状态、结果类别、attempt/retry、Envelope 字节数、输出/期限预算、repair 和统一动作 ID；新增 `spatial-agent.canonical-plan-receipt.v1`，只有 accepted TaskPlan bridge 与 validated execution binding 同时成立才标记 `executable`。异步安全证据、Composite View、artifact 和 Console 复用同一白名单投影。
+- **验证**：Docker 重建后 M304/M305 精简契约 **14/14**、M303/M283 跨入口回归 **16/16**，阶段合并回归 **30/30**；compileall、architecture strict、Service smoke、生产 acceptance 和 readiness **200** 通过。一次显式真实模型使用 60 秒、0 重试形成合法单组件计划并完成 sync/async 对照。
+- **预防**：planner 的“已生成”与“可执行”必须分开表达；所有预算、动作和 repair 字段必须通过公共 receipt，不能在 HTTP、前端或 Domain 中自行猜测，也不能用 replay 成功替代真实 provider 成功率。

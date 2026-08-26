@@ -8,9 +8,13 @@ from typing import Any
 
 from agent.composite_contract import normalize_composite_section
 from agent.provider_structured_output import project_structured_output_evidence
-from agent.provider_runtime import project_provider_runtime_evidence
+from agent.provider_runtime import (
+    project_planner_attempt_receipt,
+    project_provider_runtime_evidence,
+)
 from agent.data_kinds import SUPPORTED_DATA_KINDS
 from agent.runtime_core.composition import project_component_inputs
+from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
 
 
@@ -276,6 +280,12 @@ def _build_planning(value: Any) -> dict[str, Any]:
     )
     if provider_runtime is not None:
         result["provider_runtime"] = provider_runtime
+    planner_attempt = project_planner_attempt_receipt(value.get("planner_attempt"))
+    if planner_attempt is not None:
+        result["planner_attempt"] = planner_attempt
+    canonical_plan = project_canonical_plan_receipt(value.get("canonical_plan"))
+    if canonical_plan["state"] != "unavailable" or value.get("canonical_plan"):
+        result["canonical_plan"] = canonical_plan
     completeness = value.get("plan_completeness")
     if isinstance(completeness, Mapping):
         result["plan_completeness"] = {

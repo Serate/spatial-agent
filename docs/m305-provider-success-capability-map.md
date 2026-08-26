@@ -20,6 +20,20 @@ M304 已把 provider 配置健康、structured-output 能力、deadline、失败
 
 `provider-runtime → request-budget → canonical-plan-replay → recovery-projection → docker/live-acceptance`
 
+## M305-A 冻结矩阵
+
+| 结果 | 所属阶段 | 公共状态 | 是否创建 execution run | 用户动作 |
+| --- | --- | --- | --- | --- |
+| 合法计划 | selection/repair | `PLANNED` | 仅在 TaskPlan、ToolRegistry、workflow 和 binding 全部通过后创建 | 开始或确认执行 |
+| 信息不足 | discovery/selection/execution | `NEEDS_CLARIFICATION` | 否 | 补充缺失事实后重新提交 |
+| 能力或计划不合法 | selection/repair | `REJECTED` | 否 | 调整问题或查看拒绝原因 |
+| provider 超时/网络/配置失败 | selection/repair | `FAILED` | 否 | 稍后重试或检查模型配置 |
+| 已创建 run 后工具失败 | execution | `FAILED`/`PARTIAL` | 是 | 查看已完成结果并恢复或重试 |
+
+预算证据由 `spatial-agent.planner-attempt.v1` 记录：阶段、状态、结果类别、attempt/retry 计数、耗时、Envelope 大小、输出上限和期限。它只记录安全标量，不记录 prompt、模型原文、URL、密钥或完整异常。
+
+阶段预算基线为 provider Envelope 最大 96,000 字节；具体输出 token、provider timeout 和 harness timeout 由运行配置进入 receipt。预算超限必须在 provider 请求前失败，并映射为可解释的规划失败，不得自动扩大预算或重复发送。
+
 ## 明确不做
 
 - 不新增 RAG、专题知识库或固定问句分支。

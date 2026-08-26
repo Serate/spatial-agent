@@ -30,7 +30,11 @@ from agent.planner_repair import (
     is_repairable_planner_error,
 )
 from agent.provider_structured_output import project_structured_output_evidence
-from agent.provider_runtime import project_provider_runtime_evidence
+from agent.provider_runtime import (
+    build_planner_attempt_receipt,
+    project_planner_attempt_receipt,
+    project_provider_runtime_evidence,
+)
 from agent.runtime_core.composite_taskplan import (
     CompositeTaskPlanBridge,
     CompositeTaskPlanBridgeError,
@@ -47,6 +51,7 @@ from agent.runtime_core.plan_completeness import (
     validate_plan_completeness,
     PlanCompletenessError,
 )
+from agent.runtime_core.plan_receipt import build_canonical_plan_receipt
 from agent.runtime_core.selection_evidence import project_selection_evidence
 from agent.runtime_core.clarification_continuation import (
     ClarificationContinuationError,
@@ -887,6 +892,9 @@ class CompositePlanningApplication:
             "compatibility": compatibility,
             "task_plan_bridge": project_task_plan_bridge(task_plan_bridge),
             "execution_binding": project_execution_binding(execution_binding),
+            "canonical_plan": build_canonical_plan_receipt(
+                task_plan_bridge, execution_binding
+            ),
         }, execution_binding=execution_binding)
         result["planner_evidence"] = _planner_evidence(
             candidate,
@@ -910,6 +918,7 @@ class CompositePlanningApplication:
         result["planner_evidence"]["execution_binding"] = project_execution_binding(
             execution_binding
         )
+        result["planner_evidence"]["canonical_plan"] = result["canonical_plan"]
         result["planner_evidence"]["execution_projection"] = (
             project_planner_envelope_evidence(execution_envelope)
         )
@@ -1055,6 +1064,23 @@ class CompositePlanningApplication:
                     else False
                 ),
             }
+            attempt = evidence.get("planner_attempt")
+            if isinstance(attempt, Mapping):
+                attempt_value = dict(attempt)
+                budget = dict(attempt_value.get("budget") or {})
+                encoded = json.dumps(
+                    envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                )
+                budget.setdefault("envelope_bytes", len(encoded.encode("utf-8")))
+                if isinstance(limits, Mapping):
+                    budget.setdefault("envelope_max_bytes", limits.get("max_bytes"))
+                attempt_value["budget"] = budget
+                lineage = projected.get("repair_lineage")
+                if isinstance(lineage, Mapping):
+                    attempt_value["repair"] = lineage
+                projected_attempt = project_planner_attempt_receipt(attempt_value)
+                if projected_attempt is not None:
+                    evidence["planner_attempt"] = projected_attempt
         evidence["selection_evidence"] = project_selection_evidence(
             context,
             existing_selection=(
@@ -1399,7 +1425,50 @@ def _planner_evidence(
     provider_runtime = project_provider_runtime_evidence(provider_metrics)
     if provider_runtime is not None:
         result["provider_runtime"] = provider_runtime
+    provider_stage = (
+        provider_metrics.get("projection_stage")
+        if isinstance(provider_metrics, Mapping)
+        else None
+    )
+    planner_attempt = build_planner_attempt_receipt(
+        provider_metrics,
+        stage=provider_stage
+        or ("selection" if str(planner_source or "") == "llm" else "discovery"),
+        outcome=_planner_attempt_outcome(
+            schema_status=schema_status,
+            selection_state=selection_state,
+            provider_metrics=provider_metrics,
+        ),
+        reason_code=selection_reason,
+    )
+    if planner_attempt is not None:
+        result["planner_attempt"] = planner_attempt
     return result
+
+
+def _planner_attempt_outcome(
+    *,
+    schema_status: Any,
+    selection_state: Any,
+    provider_metrics: Mapping[str, Any] | None,
+) -> str | None:
+    """Keep provider completion separate from the planner's semantic outcome."""
+
+    if str(schema_status or "") == "valid":
+        return "success"
+    state = str(selection_state or "").strip().lower()
+    if state == "clarification":
+        return "needs_clarification"
+    if state in {"rejected", "failed"}:
+        metrics = provider_metrics if isinstance(provider_metrics, Mapping) else {}
+        if metrics.get("error_type") or str(metrics.get("status") or "").lower() in {
+            "error",
+            "failed",
+            "timed_out",
+        }:
+            return "provider_failure"
+        return "rejected"
+    return None
 
 
 def _provider_projection_stage(

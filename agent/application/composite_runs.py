@@ -41,8 +41,12 @@ from agent.runtime_core.execution_binding import (
     validate_execution_binding,
 )
 from agent.provider_structured_output import project_structured_output_evidence
-from agent.provider_runtime import project_provider_runtime_evidence
+from agent.provider_runtime import (
+    project_planner_attempt_receipt,
+    project_provider_runtime_evidence,
+)
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
+from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.planner_repair import build_repair_lineage
 from agent.service_async import process_is_alive
 from agent.service_state import ServiceState
@@ -528,6 +532,8 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "repair_lineage",
         "structured_output",
         "provider_runtime",
+        "planner_attempt",
+        "canonical_plan",
         "plan_completeness",
         "continuation",
         "discovery",
@@ -582,6 +588,18 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
             result.pop("provider_runtime", None)
         else:
             result["provider_runtime"] = projected_provider_runtime
+    if "planner_attempt" in result:
+        planner_attempt = project_planner_attempt_receipt(result.get("planner_attempt"))
+        if planner_attempt is None:
+            result.pop("planner_attempt", None)
+        else:
+            result["planner_attempt"] = planner_attempt
+    if "canonical_plan" in result:
+        canonical_plan = result.get("canonical_plan")
+        if isinstance(canonical_plan, Mapping):
+            result["canonical_plan"] = project_canonical_plan_receipt(canonical_plan)
+        else:
+            result.pop("canonical_plan", None)
     if "plan_completeness" in result:
         completeness = result.get("plan_completeness")
         if isinstance(completeness, Mapping):
