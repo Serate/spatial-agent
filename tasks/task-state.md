@@ -318,4 +318,4 @@
 - 修复：Composite 异步导出先发布 artifact，再写入最终完成快照，避免轮询看到无 artifact 引用的 `COMPLETED` 中间状态。
 - 验证：Docker M299/M263 **19/19**；Node projection smoke、compileall、architecture strict 和 readiness 200 通过；真实 Economic local 与 Replay/Rule 对照通过；中转 live timeout 按 provider failure 记录且未创建 run。
 - 文档：M299 问题、milestone、进度账本和恢复快照已同步；M300 capability map、Spec、Plan 已创建。
-- 当前阶段：M299 已完成，待提交推送；下一阶段为 M300-A 全局成功率/状态矩阵审查。
+- 当前阶段：M299 已完成，版本 `f3bfbeb` 已提交推送；下一阶段为 M300-A 全局成功率/状态矩阵审查。

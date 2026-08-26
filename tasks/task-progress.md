@@ -493,4 +493,10 @@
 - 额外修复：Composite 异步路径改为先写 artifact、再公开最终 `COMPLETED` 快照，避免完成状态与导出证据短暂不一致；新增阻塞 artifact store 回归。
 - 验证：Docker M299/M263 **19/19**；Node projection smoke、compileall、architecture strict、生产 `/health/ready` **200**；真实 Economic local 数据与 Replay/Rule 恢复对照通过；显式中转 live 为 timeout，未创建 run，按 provider failure 记录。
 - 交付文档：已更新 `docs/agent-development-issues.md`、`docs/milestones.md`、`docs/agent-work-state.md`、`tasks/task-state.md`、`tasks/plan.md`、`tasks/todo.md`；M300 capability map、Spec、Plan 已创建。
-- 下一步：提交并推送 M299 版本；进入 M300-A，先审查全局能力图和成功率状态矩阵。
+- 交付：版本 `f3bfbeb` 已提交并推送。
+- 下一步：进入 M300-A，先审查全局能力图和成功率状态矩阵。
+
+### M300-A：全局能力图、Spec、Plan 与状态矩阵 — 规划中
+- 目标：从产品、架构、数据、模型、部署、体验和测试七个维度，提升开放问题的默认 Agent 成功路径，不新增专题硬编码。
+- 已完成：创建 `docs/m300-open-agent-success-capability-map.md`、`docs/m300-open-agent-success-spec.md` 和 `docs/m300-open-agent-success-plan.md`；冻结五个能力模块及依赖顺序。
+- 当前状态：等待按 Spec/Plan 进入实现；默认测试策略保持 Docker、精简、阶段收口集中验证。

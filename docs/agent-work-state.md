@@ -20,7 +20,7 @@
 ## 当前阶段
 
 - 阶段：M300 开放问题 Agent 成功率与答案体验（A 规划中）
-- 状态：M299 已完成并通过阶段门禁；产品默认已实测为 `openai + local`，M299 版本待提交推送。
+- 状态：M299 已完成并通过阶段门禁；产品默认已实测为 `openai + local`，版本 `f3bfbeb` 已提交并推送。
 - 当前任务：M300-A，全局能力图、Spec、Plan 与成功率/状态矩阵审查。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m300-open-agent-success-capability-map.md`](m300-open-agent-success-capability-map.md)
