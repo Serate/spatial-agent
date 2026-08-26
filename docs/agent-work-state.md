@@ -20,7 +20,7 @@
 ## 当前阶段
 
 - 阶段：M297 通用分析组合与跨类型结果闭合（已完成全局规划，A 待开始）
-- 状态：M296 已完成代码、Docker/HTTP/前端门禁和文档收口，当前版本待提交推送；M297 已完成七维度能力图、Spec、Plan，下一步冻结目录与类型边界。
+- 状态：M296 已完成代码、Docker/HTTP/前端门禁和文档收口，版本 `6f8f2a2` 已提交、待推送；M297 已完成七维度能力图、Spec、Plan，下一步冻结目录与类型边界。
 - 当前任务：M297-A 目录与类型边界冻结，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m297-general-analysis-composition-capability-map.md`](m297-general-analysis-composition-capability-map.md)

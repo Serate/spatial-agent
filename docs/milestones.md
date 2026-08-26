@@ -5102,4 +5102,5 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 使用真实 Docker GIS 与 Economic 数据完成跨域同步、异步、artifact、SQLite/restart 和 HTTP/View 验收；两个组件均完成，binding/evidence identity 保持一致，真实模型显式验收成功且未增加重试。
 - Console projection 增加用户可读的“执行链路已核验”状态，不展示 binding fingerprint、工具名、prompt 或模型原文；结果仍由通用结构化 projection 驱动。
 - 阶段门禁：Docker M296 定向 **9/9**，M295+M294 相邻回归 **9/9**，compileall、architecture strict、Node projection smoke 和生产 readiness HTTP **200** 通过；Docker 镜像已重建并重新创建。
+- 阶段版本：`6f8f2a2` 已提交，待推送。
 - 全局重规划：M297 聚焦通用分析组合与跨类型结果闭合，优先复用少量既有工具，让开放问题由目录、Planner 和类型安全引用组合，不新增专题硬编码或 RAG。

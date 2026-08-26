@@ -25,7 +25,7 @@
 
 - 结果：execution readiness、跨 GIS/Economic TaskPlan/binding、真实 Docker 同步/异步/恢复链路和通用 Console 执行链路投影已闭合。
 - 验证：M296 **9/9**、M295+M294 **9/9**、Docker compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200；镜像已重建并重新创建。
-- 交付：阶段 Spec/Plan、中文问题日志、milestone、恢复快照和任务清单已同步；本阶段待当前版本提交推送后进入 M297。
+- 交付：阶段 Spec/Plan、中文问题日志、milestone、恢复快照和任务清单已同步；版本 `6f8f2a2` 已提交，待推送后进入 M297。
 
 ### M295-A～F：全局开放式分析与数据发现闭环（已完成，待版本交付）
 

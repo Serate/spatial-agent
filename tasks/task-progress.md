@@ -358,7 +358,7 @@
 - 需要修改/实际修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`docs/agent-work-state.md`、`tasks/task-state.md`、`tasks/task-progress.md`、`tasks/plan.md`、`tasks/todo.md`；新增 M297 capability map、Spec、Plan。
 - 验证：Docker M296 **9/9**；M295+M294 **9/9**；Docker compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200；生产镜像已重建并重新创建。
 - 阻塞：无。
-- 下一步：提交并推送 M296 版本后开始 M297-A；继续复用现有 Runtime、Planner、ToolRegistry 和生命周期。
+- 下一步：推送版本 `6f8f2a2` 后开始 M297-A；继续复用现有 Runtime、Planner、ToolRegistry 和生命周期。
 
 ### M297-A：目录与类型边界冻结 — 待开始
 - 目标：盘点现有 capability/workflow/ToolRegistry/Result Registry，冻结开放式组合所需的公共 requirements、输入/输出 data profile、result_ref 和 `composition_invalid` 边界。
