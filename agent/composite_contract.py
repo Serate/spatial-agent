@@ -132,9 +132,9 @@ def normalize_composite_request(
             "request": component_request,
             "planner": planner,
             "backend": backend,
-            "required": bool(raw.get("required", True)),
-        "depends_on": depends_on,
-    }
+            "required": _required_flag(raw, "required"),
+            "depends_on": depends_on,
+        }
         if raw.get("inputs") is not None:
             try:
                 item["inputs"] = normalize_component_inputs(raw.get("inputs"))
@@ -813,6 +813,18 @@ def _required_text(value: Any, limit: int, field: str) -> str:
 
 def _optional_text(value: Any, limit: int, *, fallback: str) -> str:
     return str(value or fallback).strip()[:limit]
+
+
+def _required_flag(value: Mapping[str, Any], key: str) -> bool:
+    if key not in value:
+        return True
+    raw = value.get(key)
+    if not isinstance(raw, bool):
+        raise CompositeContractError(
+            f"{key} must be boolean",
+            code="composite_boolean_invalid",
+        )
+    return raw
 
 
 def _assert_json_size(value: Any, limit: int, label: str) -> None:

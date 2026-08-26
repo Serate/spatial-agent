@@ -17,6 +17,7 @@ from agent.composite_contract import (
     normalize_composite_request,
 )
 from agent.planner_repair import safe_repair_request
+from agent.data_kinds import SUPPORTED_DATA_KINDS
 from agent.runtime_core.composition import (
     CompositionError,
     normalize_component_inputs,
@@ -243,10 +244,10 @@ def composite_plan_schema() -> dict[str, Any]:
                     ],
                     "additionalProperties": False,
                     "properties": {
-                        "component_id": {"type": "string", "maxLength": 48},
-                        "domain_id": {"type": "string", "maxLength": 32},
-                        "capability_id": {"type": "string", "maxLength": 96},
-                        "request": {"type": "string", "maxLength": 2000},
+                        "component_id": {"type": "string", "minLength": 1, "maxLength": 48},
+                        "domain_id": {"type": "string", "minLength": 1, "maxLength": 32},
+                        "capability_id": {"type": "string", "minLength": 1, "maxLength": 96},
+                        "request": {"type": "string", "minLength": 1, "maxLength": 2000},
                         "depends_on": {
                             "type": "array",
                             "maxItems": 8,
@@ -261,21 +262,28 @@ def composite_plan_schema() -> dict[str, Any]:
                                 "required": ["name", "source", "accepted_kinds", "required"],
                                 "additionalProperties": False,
                                 "properties": {
-                                    "name": {"type": "string", "maxLength": 160},
+                                    "name": {"type": "string", "minLength": 1, "maxLength": 160},
                                     "source": {
                                         "type": "object",
                                         "required": ["component_id", "path"],
                                         "additionalProperties": False,
                                         "properties": {
-                                            "component_id": {"type": "string", "maxLength": 48},
-                                            "path": {"type": "string", "maxLength": 160},
+                                            "component_id": {"type": "string", "minLength": 1, "maxLength": 48},
+                                            "path": {
+                                                "type": "string",
+                                                "pattern": "^result(?:\\.[A-Za-z][A-Za-z0-9_-]{0,63}){0,7}$",
+                                                "maxLength": 160,
+                                            },
                                         },
                                     },
                                     "accepted_kinds": {
                                         "type": "array",
                                         "minItems": 1,
                                         "maxItems": 8,
-                                        "items": {"type": "string"},
+                                        "items": {
+                                            "type": "string",
+                                            "enum": list(SUPPORTED_DATA_KINDS),
+                                        },
                                     },
                                     "required": {"type": "boolean"},
                                 },

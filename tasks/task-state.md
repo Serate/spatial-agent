@@ -6,19 +6,52 @@
 
 ## 当前阶段
 
-- 阶段：M306 通用开放请求与多组件组合（已规划，A 进行中）
+- 阶段：M307 Agent Runtime 生命周期与传输边界收敛（已规划，A 进行中）
 - 阶段规划：
-  - `docs/m306-open-composition-capability-map.md`
-  - `docs/m306-open-composition-spec.md`
-  - `docs/m306-open-composition-plan.md`
+  - `docs/m307-runtime-boundaries-capability-map.md`
+  - `docs/m307-runtime-boundaries-spec.md`
+  - `docs/m307-runtime-boundaries-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
 
-### M306-A：全局能力缺口、组件图和 typed input 契约冻结（进行中）
+### M307-A：基线与阶段契约（进行中）
 
-- 目标：从项目全局冻结开放请求的能力缺口、组件图、typed input、结果类型和多组件验收边界，不修改 Runtime 生命周期。
-- 当前文件：`docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`、`agent/composite_contract.py`、`agent/runtime_core/composition.py`、`agent/runtime_core/planner_envelope.py`、`agent/application/composite_planning.py`、`agent/runtime_core/plan_receipt.py`。
-- 验证：开发期间只做必要静态/契约检查；M306-E 在 Docker 集中运行精简门禁，真实模型最多显式调用一次。
+- 目标：冻结 Runtime 生命周期阶段、双 HTTP 入口兼容矩阵和 compat 守卫分类，作为 M307-B～D 的共同边界。
+- 当前文件：`docs/m307-runtime-boundaries-capability-map.md`、`docs/m307-runtime-boundaries-spec.md`、`docs/m307-runtime-boundaries-plan.md`、`agent/runtime_core/run_lifecycle.py`、`production_api.py`、`serve_api.py`、`application/http.py`、`scripts/architecture_check.py`。
+- 验证：开发期间只做必要静态/契约检查；B～D 合并后在 Docker 集中运行精简门禁；本阶段不重复 M306 live。
+- 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+
+### M306-F：文档、版本与全局重规划（已完成）
+
+- 结果：M306 阶段门禁、真实 GIS/Economic 多组件同步/异步、artifact/restart 和唯一一次真实模型验收均通过；下一阶段已从全局架构缺口重规划为 M307。
+- 验证：M306/M303/M281 **20/20**、compileall、architecture strict、Node projection、Service smoke、生产 acceptance、readiness **200** 和真实 restart 通过。
+
+### M306-E：Docker 阶段验收（已完成）
+
+- 目标：在 Docker 中集中验证多组件规划、执行、Result/Evidence/View、artifact、restart 和服务 readiness 的一致性，不重复真实模型请求。
+- 当前文件：`docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`、`tests/test_m306_composition_contract.py`、`tests/test_m303_open_composite_execution.py`、`tests/test_m281_dynamic_composite.py`、`scripts/m289_real_composite_acceptance.py`、`scripts/m280_real_composite_acceptance.py`、`scripts/architecture_check.py`。
+- 验证：Docker M306/M303/M281 **20/20**、compileall、architecture strict、Node projection smoke、Service smoke、生产 acceptance 和 readiness **200** 通过；唯一一次真实模型 + 本地 GIS 验收形成 2 组件合法计划并完成 sync/async/artifact 对照。
 - 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry 或 execution binding。
+
+### M306-D：多类型 Result/Evidence 组合与用户投影（已完成）
+
+- 结果：多组件结果按 Data Profile 聚合，View 由 Registry 驱动，答案生成器消费组合事实并在模型不可用时安全 fallback；前端只消费结构化 projection。
+- 文件：复用 `agent/composite_contract.py`、`agent/composite_view.py`、`agent/answer_generation.py`、`web/src/console_result_projection.js` 及既有 M281/M302 契约，未增加领域专用分支。
+- 验证：既有 M281/M302 组合与答案契约覆盖多类型、部分完成、动态 View 和答案 fallback；不重复运行相同回归。
+- 阻塞：无。下一步进入 M306-E。
+
+### M306-B：请求事实到能力候选与组件澄清（已完成）
+
+- 结果：候选携带候选级缺失事实，discovery 区分 `facts_missing`，澄清可定位到 `domain_id/capability_id/field`；Planner Envelope 透传安全的缺口摘要，未改变执行授权。
+- 文件：`agent/composite_request_context.py`、`agent/runtime_core/analysis_discovery.py`、`agent/runtime_core/planner_envelope.py`、`tests/test_m306_composition_contract.py`。
+- 验证：Docker 新镜像 M306-A/B 精简契约 **6/6** 通过；未重复阶段级全量门禁。
+- 阻塞：无。下一步进入 M306-C。
+
+### M306-A：全局能力缺口、组件图和 typed input 契约冻结（已完成）
+
+- 结果：冻结开放组件图、依赖先行、公共结果路径和 data-kind typed input 边界；非布尔 `required`、缺失/后置依赖、内部结果路径均 fail closed。
+- 文件：`agent/runtime_core/composition.py`、`agent/composite_contract.py`、`agent/composite_planner.py`、`tests/test_m306_composition_contract.py`。
+- 验证：补充 6 条精简契约；开发期仅完成静态边界检查，阶段门禁统一在 M306-E 执行。
+- 阻塞：无。下一步进入 M306-B。
 
 ### M297-A：目录与类型边界冻结（待开始）
 

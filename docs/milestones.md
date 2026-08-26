@@ -5189,3 +5189,16 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker 阶段门禁：精简回归 **30/30**、compileall、architecture strict、Service smoke、Node projection、生产 HTTP acceptance 和 readiness **200** 全部通过；同步、异步、artifact/restart 与证据一致性通过。
 - 唯一显式真实模型验收使用 60 秒、0 重试，返回合法单组件计划并完成 sync/async/artifact 对照；request/binding fingerprint、结果类型、组件状态和 data kinds 一致。该证据不外推为全部多组件问题成功。
 - 全局重规划：下一阶段聚焦通用开放请求的能力覆盖与多组件组合成功率，以能力目录、数据就绪和结果契约为边界，不增加单区域或固定问句分支。
+
+## M306：通用开放请求与多组件组合（已完成）
+
+- 冻结开放组件图、typed input、依赖顺序和候选级事实缺口；Planner、TaskPlan bridge、ToolRegistry、workflow 和 execution binding 共享同一执行闭合边界。
+- 复用公共 Composite Result/Data Profile/View/Answer/Evidence 链路，前端继续消费结构化投影，不增加 GIS 或 Economic 专用页面分支。
+- Docker 阶段门禁：M306 与 M303/M281 精简回归 **20/20**，compileall、architecture strict、Node projection smoke、Service smoke、生产 HTTP acceptance 和 readiness **200** 通过；真实 SQLite orphan restart 通过。
+- 唯一一次显式真实模型 + 本地 GIS/Docker 验收形成合法 2 组件计划，sync/async 均 `COMPLETED`，结果为 `composite_result`，data kinds 为 `vector + metrics`，artifact 可用，request/binding identity 一致，0 重试。
+- 已更新中文问题日志、Spec/Plan、恢复卡、快照和任务账本；下一阶段从全局架构缺口规划 M307，处理生命周期阶段化、传输边界和兼容守卫分类。
+
+## M307：Agent Runtime 生命周期与传输边界收敛（规划中）
+
+- 能力图、中文 Spec/Plan 已建立，顺序为：显式生命周期阶段流水线 → FastAPI/stdlib 共享传输边界 → compat shim/facade/公共模块守卫收口 → Docker 交付。
+- 本阶段不新增专题工具、不修改既有公共 schema，不重复 M306 的真实模型验收；重点让 agent-grade 的生命周期与可维护性传导到实际运行路径。

@@ -1,23 +1,23 @@
-# 当前实施计划：M305 Provider-backed 成功率与可恢复交互优化
+# 当前实施计划：M307 Agent Runtime 生命周期与传输边界收敛
 
-恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M305 Spec/Plan 和当前任务列出的文件。
+恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M307 Spec/Plan 和当前任务列出的文件。
 
 M304 已完成：provider health、deadline、structured-output、失败分类和跨入口可恢复投影已收口；唯一 live 结果为有界 provider timeout，未创建 run。
 
-M305 按全局七个维度提升 provider-backed Agent 形成合法计划的成功率和可恢复交互，不扩充专题工具菜单，不绕过既有执行门禁：
+M307 按全局七个维度收敛 Runtime 的阶段、传输和兼容边界，不扩充专题工具菜单，不绕过既有执行门禁：
 
-1. [x] M305-A 冻结全局成功率、延迟预算、失败分类和用户动作矩阵。
-2. [x] M305-B 统一 provider attempt receipt、请求预算和阶段 Envelope 投影。
-3. [x] M305-C 用脱敏 replay 验证合法计划、有限 repair 与 canonical 执行闭合。
-4. [x] M305-D 收口 sync/async/HTTP/Console/artifact/restart 的可恢复交互一致性。
-5. [x] M305-E 在 Docker 集中运行精简门禁，并进行一次显式 live 验收。
-6. [x] M305-F 更新中文记忆、提交推送版本并依据全局目标重规划。
+1. [ ] M307-A 冻结生命周期阶段、传输兼容矩阵和守卫分类契约。
+2. [ ] M307-B 将 run lifecycle 拆成显式阶段并保持结果/evidence 不变。
+3. [ ] M307-C 抽取 FastAPI 与 stdlib 共享传输边界。
+4. [ ] M307-D 校准 compat shim、facade 和公共模块守卫。
+5. [ ] M307-E 在 Docker 集中运行精简阶段门禁与必要跨入口验收。
+6. [ ] M307-F 更新文档、提交推送版本并依据项目全局重规划。
 
 ---
 
-下一阶段：M306 通用开放请求与多组件组合；规划文件为 `docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`。恢复时只读取当前快照、任务账本最近记录、M306 文档和当前任务明确文件。
+当前任务：M307-A 基线与阶段契约；规划文件为 `docs/m307-runtime-boundaries-capability-map.md`、`docs/m307-runtime-boundaries-spec.md`、`docs/m307-runtime-boundaries-plan.md`。恢复时只读取当前快照、任务账本最近记录、M307 文档和当前任务明确文件。
 
-默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行精简回归、compileall、architecture strict、Node projection、Service smoke、readiness 和一次显式 live，不为每个小改动重复测试。
+默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行精简回归、compileall、architecture strict、Node projection、Service smoke、readiness 和必要的显式 live，不为每个小改动重复测试。
 
 ---
 

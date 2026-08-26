@@ -221,3 +221,15 @@
 - Docker 阶段精简回归 **30/30**，compileall、architecture strict、Service smoke、Node projection、生产 acceptance 和 readiness **200** 通过；同步、异步、artifact/restart 与 evidence 对照通过。
 - 唯一显式真实模型验收固定 60 秒、0 重试，形成合法单组件 Composite 计划并完成 sync/async/artifact 对照；未保存密钥、prompt、模型原文或私有路径。
 - 下一阶段从全局能力覆盖、数据就绪、Planner 多组件组合、结果契约、恢复和用户体验重新规划，不以单一 provider 成功代表整体 Agent 完成。
+
+## M306：通用开放请求与多组件组合（已完成）
+
+- 组件图、typed input、候选级事实缺口和 TaskPlan bridge 二次校验已闭合；多类型 Result/Evidence/View 复用公共组合链路，没有增加领域专用 Runtime 分支。
+- Docker 阶段门禁：M306/M303/M281 精简回归 **20/20**，compileall、architecture strict、Node projection、Service smoke、生产 HTTP、artifact/restart 和 readiness **200** 通过。
+- 唯一一次显式真实模型 + 本地 GIS/Docker 验收返回合法 2 组件计划，sync/async 均 `COMPLETED`，`composite_result`、`vector + metrics`、artifact 和 request/binding identity 一致；0 重试，未保存敏感信息。
+- 下一阶段从全局架构缺口重规划为 M307：拆分 `run_lifecycle.py` 显式阶段、收敛 FastAPI/stdlib 传输边界、校准 `COMPAT_MODULES` 守卫；恢复入口只读取 M307 快照、任务账本最近记录、M307 Spec/Plan 和明确源码文件。
+
+## M307：Agent Runtime 生命周期与传输边界收敛（规划中）
+
+- 能力图、Spec、Plan 已创建；顺序为基线契约 → 生命周期阶段流水线 → 共享传输边界 → compat 治理 → Docker 收口。
+- 当前恢复入口为 `docs/agent-work-state.md` 和 `tasks/task-progress.md`，当前任务是 M307-A；不要默认读取完整历史、全量源码、全量测试、模型原文或敏感配置。

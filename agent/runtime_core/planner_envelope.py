@@ -557,6 +557,8 @@ def _candidate_index(
             "missing_datasets": _strings(raw.get("missing_datasets"), 8),
             "result_types": _strings(raw.get("result_types"), 16),
             "output_profiles": _profiles(raw.get("output_profiles")),
+            "missing_fact_ids": _strings(raw.get("missing_fact_ids"), 8),
+            "missing_facts": _fact_fields(raw.get("missing_facts")),
         }
         if not compact:
             item["request_requirements"] = _requirements(
@@ -992,6 +994,24 @@ def _requirements(value: Any) -> dict[str, Any]:
             }
         )
     return {"clarification_fields": fields}
+
+
+def _fact_fields(value: Any) -> list[dict[str, str]]:
+    result: list[dict[str, str]] = []
+    for raw in _sequence(value)[:8]:
+        if not isinstance(raw, Mapping):
+            continue
+        field_id = _text(raw.get("id"), 80)
+        if not field_id:
+            continue
+        result.append(
+            {
+                "id": field_id,
+                "label": _text(raw.get("label") or field_id, 120),
+                "kind": _text(raw.get("kind"), 32) or "fact",
+            }
+        )
+    return result
 
 
 def _profiles(value: Any) -> list[dict[str, Any]]:

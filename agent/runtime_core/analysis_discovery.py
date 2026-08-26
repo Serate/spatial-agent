@@ -327,6 +327,8 @@ def _candidate_projections(
                 "missing_result_types": _strings(
                     raw.get("missing_result_types"), 8
                 ),
+                "missing_fact_ids": _strings(raw.get("missing_fact_ids"), _MAX_FIELDS),
+                "missing_facts": _fields(raw.get("missing_facts"), _MAX_FIELDS),
                 "required_fact_ids": _requirement_ids(
                     raw.get("request_requirements")
                 ),
@@ -364,6 +366,9 @@ def _with_candidate_state(
         execution_ready = False
     elif str(candidate.get("plan_mode") or "") == "unbound":
         state = "workflow_unbound"
+        execution_ready = False
+    elif candidate.get("missing_fact_ids"):
+        state = "facts_missing"
         execution_ready = False
     else:
         unavailable = any(
@@ -472,6 +477,8 @@ def _state(
         return "capability_unavailable", "schema_invalid"
     if any(item.get("state") == "workflow_unbound" for item in candidates):
         return "capability_unavailable", "workflow_unbound"
+    if any(item.get("state") == "facts_missing" for item in candidates):
+        return "needs_facts", "candidate_facts_missing"
     return "capability_unavailable", "capability_unavailable"
 
 
@@ -542,6 +549,22 @@ def _clarification(
             "reason_code": "no_capability_match",
             "missing_by_domain": [],
             "message": "当前能力目录没有找到明确匹配，请说明希望分析的对象或结果类型。",
+        }
+    if state == "needs_facts" and reason_code == "candidate_facts_missing":
+        return {
+            "state": "required",
+            "reason_code": reason_code,
+            "missing_by_domain": [],
+            "missing_by_candidate": [
+                {
+                    "domain_id": item.get("domain_id"),
+                    "capability_id": item.get("capability_id"),
+                    "missing_fields": item.get("missing_facts") or [],
+                }
+                for item in candidates
+                if item.get("missing_fact_ids")
+            ][:_MAX_CANDIDATES],
+            "message": "匹配到的候选能力还缺少必要条件，请补充后继续规划。",
         }
     if state == "data_unavailable":
         domain_unavailable = any(
@@ -728,6 +751,7 @@ def _receipt_fingerprint(value: Mapping[str, Any]) -> str:
                 "capability_id": item.get("capability_id"),
                 "state": item.get("state"),
                 "execution_ready": item.get("execution_ready"),
+                "missing_fact_ids": item.get("missing_fact_ids"),
             }
             for item in value.get("candidates") or []
             if isinstance(item, Mapping)

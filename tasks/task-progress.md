@@ -18,18 +18,56 @@
 
 ## 当前进行中
 
-### M306-A：全局能力缺口、组件图和 typed input 契约冻结 — 进行中
+### M307-A：基线与阶段契约 — 进行中
 
-- 目标：从项目全局冻结开放请求的能力缺口、组件图、typed input、结果类型和多组件验收边界，不修改 Runtime 生命周期。
+- 目标：以 M306 的多组件真实闭环为基线，冻结 Runtime 阶段、HTTP 传输兼容矩阵和 compat 守卫分类，随后拆解核心生命周期。
+- 规格与计划：`docs/m307-runtime-boundaries-capability-map.md`、`docs/m307-runtime-boundaries-spec.md`、`docs/m307-runtime-boundaries-plan.md`。
+- 需要读取/修改：`agent/runtime_core/run_lifecycle.py`、`production_api.py`、`serve_api.py`、`application/http.py`、`scripts/architecture_check.py`、`tests/test_m307_runtime_boundaries.py`（按任务增量加入）。
+- 验证节奏：开发期间只做必要静态/契约检查；B～D 合并后在 Docker 集中运行精简阶段门禁；本阶段不重复 M306 live。
+- 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+
+### M306-F：文档、版本与全局重规划 — 已完成
+
+- 结果：M306-E Docker 门禁、真实 GIS/Economic 多组件同步/异步、artifact/restart 和唯一一次真实模型验收均通过；真实模型形成 2 组件合法计划，`json_schema` 结构化输出可达，所有跨入口核心 identity 一致。
+- 阶段门禁：M306 契约与 M303/M281 相邻回归 **20/20**；compileall、architecture strict、Node projection smoke、Service smoke、生产 HTTP acceptance、readiness **200**、真实 SQLite orphan restart 均通过。
+- 真实验收：真实中转 + 本地 GIS/Docker 规划为 `PLANNED`，sync/async 均 `COMPLETED`，结果为 `composite_result`，data kinds 为 `vector + metrics`，artifact 可用，request/binding fingerprint 一致；未保存密钥、prompt、模型原文或私有路径。
+- 交付准备：M306 Plan、中文问题日志、milestone、历史恢复卡、快照和任务账本已收口；下一阶段为 M307 Runtime 生命周期与传输边界收敛。
+- 阻塞：无。
+
+### M306-E：Docker 阶段验收 — 已完成
+
+- 目标：在 Docker 中集中验证多组件规划、执行、Result/Evidence/View、artifact、restart 和服务 readiness 的一致性，不重复真实模型请求。
 - 规格与计划：`docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`。
-- 需要读取/修改：`docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`、`agent/composite_contract.py`、`agent/runtime_core/composition.py`、`agent/runtime_core/planner_envelope.py`、`agent/application/composite_planning.py`、`agent/runtime_core/plan_receipt.py`。
-- 验证节奏：开发期间只做必要静态/契约检查；M306-E 在 Docker 中集中运行阶段门禁，真实模型最多显式调用一次。
+- 需要读取/修改：`docs/m306-open-composition-capability-map.md`、`docs/m306-open-composition-spec.md`、`docs/m306-open-composition-plan.md`、`tests/test_m306_composition_contract.py`、`tests/test_m303_open_composite_execution.py`、`tests/test_m281_dynamic_composite.py`、`scripts/m289_real_composite_acceptance.py`、`scripts/m280_real_composite_acceptance.py`、`scripts/architecture_check.py`。
+- 验证：Docker M306/M303/M281 **20/20**、compileall、architecture strict、Node projection smoke、Service smoke、生产 HTTP acceptance 和 `/health/ready` **200** 通过；M280 真实 GIS/Economic restart acceptance 通过。
+- 真实模型：唯一一次显式验收返回合法 2 组件 Composite 计划，sync/async 均完成且 artifact 可用；0 重试，未保存敏感信息。
 - 阻塞：无；不得把 provider timeout 伪装成澄清或成功执行，不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+
+### M306-D：多类型 Result/Evidence 组合与用户投影 — 已完成
+
+- 结果：多组件结果按 Data Profile 聚合，View 由 Registry 驱动，答案生成器消费组合事实并在模型不可用时安全 fallback；前端只消费结构化 projection。
+- 文件：复用 `agent/composite_contract.py`、`agent/composite_view.py`、`agent/answer_generation.py`、`web/src/console_result_projection.js` 及既有 M281/M302 契约，未增加领域专用分支。
+- 验证：既有 M281/M302 组合与答案契约覆盖多类型、部分完成、动态 View 和答案 fallback；不重复运行相同回归。
+- 阻塞：无。下一步进入 M306-E。
+
+### M306-B：请求事实到能力候选与组件澄清 — 已完成
+
+- 结果：候选携带候选级缺失事实，discovery 区分 `facts_missing`，澄清可定位到 `domain_id/capability_id/field`；Planner Envelope 透传安全的缺口摘要，未改变执行授权。
+- 文件：`agent/composite_request_context.py`、`agent/runtime_core/analysis_discovery.py`、`agent/runtime_core/planner_envelope.py`、`tests/test_m306_composition_contract.py`。
+- 验证：Docker 新镜像 M306-A/B 精简契约 **6/6** 通过；未重复阶段级全量门禁。
+- 阻塞：无；下一步进入 M306-C。
+
+### M306-A：全局能力缺口、组件图和 typed input 契约冻结 — 已完成
+
+- 结果：冻结开放组件图、依赖先行、公共结果路径和 data-kind typed input 边界；非布尔 `required`、缺失/后置依赖、内部结果路径均 fail closed。
+- 文件：`agent/runtime_core/composition.py`、`agent/composite_contract.py`、`agent/composite_planner.py`、`tests/test_m306_composition_contract.py`。
+- 验证：新增 6 条精简契约；未在开发期重复运行 Docker 全量门禁，阶段门禁统一在 M306-E。
+- 阻塞：无；下一步进入 M306-B。
 
 ### M305-F：文档、版本与全局重规划 — 已完成
 
 - 结果：补齐 M305 中文问题记录、milestone、历史恢复卡、Spec/Plan、任务账本和快照；创建 M306 capability map、Spec 和 Plan。
-- 交付：阶段版本待本次提交推送；下一阶段为 M306 通用开放请求与多组件组合。
+- 交付：阶段版本 `22a171b` 已提交并推送；下一阶段为 M306 通用开放请求与多组件组合。
 - 阻塞：无。
 - 规格与计划：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`。
 - 需要读取/修改：`docs/m305-provider-success-capability-map.md`、`docs/m305-provider-success-spec.md`、`docs/m305-provider-success-plan.md`、`agent/provider_runtime.py`、`agent/runtime_core/planner_envelope.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`。

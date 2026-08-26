@@ -10,6 +10,7 @@ Domain Runtime.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import re
 from typing import Any
 
 from agent.data_kinds import SUPPORTED_DATA_KINDS
@@ -20,6 +21,8 @@ _MAX_INPUTS = 8
 _MAX_TEXT = 160
 _ALLOWED_INPUT_FIELDS = {"name", "source", "accepted_kinds", "required"}
 _ALLOWED_SOURCE_FIELDS = {"component_id", "path"}
+_COMPONENT_ID_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,47}$")
+_RESULT_PATH_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 
 
 class CompositionError(ValueError):
@@ -59,16 +62,11 @@ def normalize_component_inputs(value: Any) -> list[dict[str, Any]]:
                 "component input source is invalid",
                 code="composition_input_source_invalid",
             )
-        component_id = _text(source.get("component_id"), 48)
+        component_id = _component_id(source.get("component_id"))
         path = _text(source.get("path"), _MAX_TEXT)
-        if not component_id or not path or path.split(".")[0] != "result":
+        if not component_id or not path or not _is_public_result_path(path):
             raise CompositionError(
                 "component input source must point to a public result path",
-                code="composition_input_source_invalid",
-            )
-        if any(not part.strip() for part in path.split(".")):
-            raise CompositionError(
-                "component input source path is invalid",
                 code="composition_input_source_invalid",
             )
         kinds = _kinds(raw.get("accepted_kinds"))
@@ -83,7 +81,7 @@ def normalize_component_inputs(value: Any) -> list[dict[str, Any]]:
                 "name": name,
                 "source": {"component_id": component_id, "path": path},
                 "accepted_kinds": kinds,
-                "required": bool(raw.get("required", True)),
+                "required": _required_flag(raw, "required"),
             }
         )
     return result
@@ -99,7 +97,7 @@ def validate_component_composition(
     if not isinstance(components, (list, tuple)):
         raise CompositionError("components must be a sequence")
     positions = {
-        str(item.get("component_id")): index
+        str(item.get("component_id")).strip().lower(): index
         for index, item in enumerate(components)
         if isinstance(item, Mapping) and item.get("component_id")
     }
@@ -112,9 +110,33 @@ def validate_component_composition(
         if not isinstance(component, Mapping):
             raise CompositionError("component must be an object", code="composition_component_invalid")
         component_id = _text(component.get("component_id"), 48)
+        normalized_component_id = component_id.lower()
+        if not _COMPONENT_ID_PATTERN.fullmatch(normalized_component_id):
+            raise CompositionError(
+                "component id is invalid", code="composition_component_identity_invalid"
+            )
         dependencies = component.get("depends_on") or []
         if not isinstance(dependencies, list):
             raise CompositionError("component dependencies are invalid", code="composition_dependencies_invalid")
+        normalized_dependencies: list[str] = []
+        for dependency in dependencies:
+            dependency_id = _component_id(dependency)
+            if dependency_id == normalized_component_id or dependency_id in normalized_dependencies:
+                raise CompositionError(
+                    "component dependencies must be unique and non-self-referential",
+                    code="composition_dependencies_invalid",
+                )
+            if dependency_id not in positions:
+                raise CompositionError(
+                    "component dependency does not exist",
+                    code="composition_dependency_missing",
+                )
+            if positions[dependency_id] >= index:
+                raise CompositionError(
+                    "component dependency must run earlier",
+                    code="composition_dependency_order_invalid",
+                )
+            normalized_dependencies.append(dependency_id)
         for item in normalize_component_inputs(component.get("inputs")):
             source_id = item["source"]["component_id"]
             if source_id not in positions:
@@ -155,7 +177,12 @@ def _producer_kinds(
     context: Mapping[str, Any] | None,
 ) -> set[str]:
     source = next(
-        (item for item in components if isinstance(item, Mapping) and str(item.get("component_id")) == component_id),
+        (
+            item
+            for item in components
+            if isinstance(item, Mapping)
+            and str(item.get("component_id") or "").strip().lower() == component_id.lower()
+        ),
         None,
     )
     if not isinstance(source, Mapping) or not isinstance(context, Mapping):
@@ -189,8 +216,36 @@ def _kinds(value: Any) -> list[str]:
     return result
 
 
+def _component_id(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    candidate = value.strip().lower()
+    return candidate if _COMPONENT_ID_PATTERN.fullmatch(candidate) else ""
+
+
+def _is_public_result_path(value: str) -> bool:
+    parts = value.split(".")
+    return (
+        1 <= len(parts) <= 8
+        and parts[0] == "result"
+        and all(_RESULT_PATH_PATTERN.fullmatch(part) for part in parts)
+    )
+
+
+def _required_flag(value: Mapping[str, Any], key: str) -> bool:
+    if key not in value:
+        return True
+    raw = value.get(key)
+    if not isinstance(raw, bool):
+        raise CompositionError(
+            "component input required must be boolean",
+            code="composition_input_required_invalid",
+        )
+    return raw
+
+
 def _text(value: Any, limit: int) -> str:
-    return str(value or "").strip()[:limit]
+    return value.strip()[:limit] if isinstance(value, str) else ""
 
 
 __all__ = [

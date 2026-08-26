@@ -179,6 +179,12 @@ class CompositeRequestContextBuilder:
             safe_candidates = _candidate_projection(
                 definitions, candidate_ids, domain_id=domain_id
             )
+            _attach_candidate_fact_gaps(
+                safe_candidates,
+                safe_facts,
+                definitions,
+                max_fields=_MAX_FIELDS,
+            )
             fact_readiness = build_request_fact_readiness(
                 requirements,
                 safe_facts,
@@ -516,6 +522,49 @@ def _candidate_projection(
                 if item.get(key):
                     result[-1][key] = _safe_strings(item.get(key), 8)
     return result[:_MAX_CANDIDATES]
+
+
+def _attach_candidate_fact_gaps(
+    candidates: list[dict[str, Any]],
+    facts: Mapping[str, Any],
+    definitions: Sequence[Mapping[str, Any]],
+    *,
+    max_fields: int,
+) -> None:
+    """Attach candidate-local fact gaps without turning them into a union.
+
+    An ambiguous request must not ask the user for every field declared by
+    every capability. Keeping the gap on its candidate lets the Planner
+    choose a capability first, while a selected candidate can still produce
+    a precise continuation later.
+    """
+
+    for candidate in candidates:
+        capability_id = str(candidate.get("capability_id") or "").strip()
+        if not capability_id:
+            continue
+        requirements = project_clarification_requirements(
+            [capability_id],
+            facts,
+            capability_definitions=definitions,
+            max_fields=max_fields,
+        )
+        fields = [
+            {
+                "id": str(item.get("id") or "")[:80],
+                "label": str(item.get("label") or "")[:120],
+                "kind": str(item.get("kind") or "")[:32],
+            }
+            for item in (requirements.get("missing_fields") or [])
+            if isinstance(item, Mapping)
+            and str(item.get("id") or "").strip()
+        ]
+        if not fields:
+            candidate["missing_fact_ids"] = []
+            candidate["missing_facts"] = []
+            continue
+        candidate["missing_fact_ids"] = [item["id"] for item in fields[:max_fields]]
+        candidate["missing_facts"] = fields[:max_fields]
 
 
 def _safe_profiles(value: Any) -> list[dict[str, Any]]:

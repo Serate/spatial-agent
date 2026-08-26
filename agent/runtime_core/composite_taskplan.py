@@ -26,7 +26,11 @@ from agent.runtime_core.component_fact_handoff import (
     project_component_fact_handoff,
     project_composite_fact_handoff,
 )
-from agent.runtime_core.composition import project_component_inputs
+from agent.runtime_core.composition import (
+    CompositionError,
+    project_component_inputs,
+    validate_component_composition,
+)
 
 
 TASK_PLAN_BRIDGE_SCHEMA_VERSION = "spatial-agent.composite-taskplan-bridge.v1"
@@ -78,10 +82,22 @@ class CompositeTaskPlanBridge:
     ) -> dict[str, Any]:
         """Return bounded TaskPlan/DAG projections for all components."""
 
-        if not isinstance(components, (list, tuple)):
+        if not isinstance(components, (list, tuple)) or not components:
             raise CompositeTaskPlanBridgeError(
                 "planned components are invalid", code="taskplan_components_invalid"
             )
+        if len(components) > _MAX_COMPONENTS:
+            raise CompositeTaskPlanBridgeError(
+                "planned components exceed the maximum",
+                code="taskplan_components_limit",
+            )
+        try:
+            validate_component_composition(components, context=context)
+        except CompositionError as exc:
+            raise CompositeTaskPlanBridgeError(
+                "planned component graph is invalid",
+                code=exc.code,
+            ) from exc
         composite_handoff = None
         if len(components) > 1:
             try:

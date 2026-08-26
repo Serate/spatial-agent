@@ -1,6 +1,6 @@
 # Agent 当前工作快照
 
-> 新对话或上下文压缩后的唯一默认入口。恢复脚本只读取本快照和 [`tasks/task-progress.md`](../tasks/task-progress.md) 的最近记录；不要自动读取完整历史恢复卡、问题日志、milestones、归档、全量测试、模型响应或无关源码。
+> 新对话或上下文压缩后的唯一默认入口。恢复脚本只读取本快照和 [`tasks/task-progress.md`](../tasks/task-progress.md) 最近记录；不要自动读取完整历史、全量源码、全量测试、模型响应或敏感配置。
 
 ## Goal 摘要
 
@@ -8,45 +8,39 @@
 
 ## Goal 附加约束：低成本上下文恢复
 
-- 恢复只读取：本快照、当前阶段对应的 Spec/Plan、任务账本中最近的进行中任务，以及该任务明确列出的待修改文件。
-- Goal 级最小读取规则：只读取当前任务必需的文件；仅做状态判断时只读本快照和任务账本尾部，不默认读取历史文档、问题日志、milestones、归档、全量源码、全量测试或模型响应。
-- 每次恢复或开始子任务前，先确定最小文件集合；读取过程中不得以项目熟悉为理由扩大范围，除非当前文件明确证明需要追查另一个文件。
-- `tasks/task-progress.md` 是恢复用的进行中/最近完成子任务记录源；`tasks/task-state.md` 保留详细当前状态以兼容旧流程；`tasks/todo.md` 只保留阶段清单，不替代任务记录。
-- 历史恢复卡、问题日志、milestones、归档、全量测试和模型原文只在当前任务明确需要时读取。
-- 每个子任务开始、完成或暂停时，先更新任务账本；阶段收口时再同步阶段文档、快照和任务清单。
-- 阶段任务按完整能力切片编排得更充分：一个阶段尽量覆盖契约、实现、集成、文档和交付准备等连续依赖，避免拆成过多过小的阶段。
-- 每个阶段安排更多可连续交付的关联任务；任务数量增加不等于测试轮次增加，测试按独立失败模式合并到阶段收口执行。
-- 测试保持精简：集中实现相关改动后统一验证，只保留独立失败模式、关键跨入口契约和阶段级 readiness/架构门禁；不因每个小改动重复运行相同测试。
-- Goal 执行节奏：后续每阶段主动合并更多相互依赖的任务，按能力切片推进；开发中只做必要的快速检查，阶段收口再集中运行一次精简门禁，避免测试次数随任务数量线性增加。
+- 恢复只读取本快照、当前阶段 Spec/Plan、任务账本中最近的进行中任务，以及该任务明确列出的待修改文件。
+- 只读取当前任务必需的文件；历史文档、milestones、归档、全量源码、全量测试、模型原文和敏感配置按需读取。
+- 每个子任务开始、完成或暂停时更新 `tasks/task-progress.md`；阶段收口再同步任务状态、快照和历史恢复卡。
+- 阶段任务按完整能力切片编排，测试按独立失败模式合并到阶段收口，不因每个小改动重复执行相同测试。
 
 ## 当前阶段
 
-- 阶段：M306 通用开放请求与多组件组合（已规划，A 进行中）
-- 状态：M302-D/E、M303-A～F、M304-A～F 已完成并交付；Docker GIS/Economic 跨入口链路通过。M304 唯一一次真实模型验收为 60 秒/0 重试 provider harness timeout，未创建 execution run。产品默认保持 `openai + local`。
-- 当前任务：M306-A 从全局冻结能力缺口、组件图和 typed input 契约；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M307 Agent Runtime 生命周期与传输边界收敛（已规划，A 进行中）
+- 状态：M306 已完成并交付；真实中转 + 本地 GIS/Economic 的 2 组件多入口链路、artifact/restart 和结构化结果一致性通过。产品默认保持 `openai + local`。
+- 当前任务：M307-A 冻结生命周期、传输兼容矩阵和 compat 守卫分类；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m306-open-composition-capability-map.md`](m306-open-composition-capability-map.md)
-  - [`docs/m306-open-composition-spec.md`](m306-open-composition-spec.md)
-  - [`docs/m306-open-composition-plan.md`](m306-open-composition-plan.md)
+  - [`docs/m307-runtime-boundaries-capability-map.md`](m307-runtime-boundaries-capability-map.md)
+  - [`docs/m307-runtime-boundaries-spec.md`](m307-runtime-boundaries-spec.md)
+  - [`docs/m307-runtime-boundaries-plan.md`](m307-runtime-boundaries-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m306-open-composition-capability-map.md`
-- `docs/m306-open-composition-spec.md`
-- `docs/m306-open-composition-plan.md`
-- `agent/composite_contract.py`
-- `agent/runtime_core/composition.py`
-- `agent/runtime_core/planner_envelope.py`
-- `agent/composite_planner.py`
-- `agent/application/composite_planning.py`
-- `agent/runtime_core/plan_receipt.py`
+- `docs/m307-runtime-boundaries-capability-map.md`
+- `docs/m307-runtime-boundaries-spec.md`
+- `docs/m307-runtime-boundaries-plan.md`
+- `agent/runtime_core/run_lifecycle.py`
+- `production_api.py`
+- `serve_api.py`
+- `application/http.py`
+- `scripts/architecture_check.py`
+- `tests/test_m307_runtime_boundaries.py`
 
-## M306-A：全局能力缺口、组件图和 typed input 契约 — 进行中
+## M307-A：基线与阶段契约 — 进行中
 
-- 目标：从项目全局冻结开放请求的能力缺口、组件图、typed input、结果类型和多组件验收边界，不修改 Runtime 生命周期。
-- 边界：只读取 M306 三份规划文件、M305 收口记录和当前任务明确源码/精简契约；不读取历史归档、模型原文、密钥或私有原始数据。
-- 验证：M306-B～E 合并后在 Docker 集中运行精简门禁；真实模型最多显式调用一次。
-- 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry 或 execution binding。
+- 目标：以 M306 真实多组件闭环为基线，冻结 Runtime 显式阶段、FastAPI/stdlib 传输兼容矩阵和 compat 守卫分类。
+- 边界：先拆生命周期与公共传输边界，不新增领域工具，不修改既有公共 schema，不绕过 canonical DAG、TaskPlan、ToolRegistry 或 execution binding。
+- 验证：开发期间只做必要静态/契约检查；B～D 合并后在 Docker 集中运行阶段门禁；本阶段不重复 M306 live。
+- 阻塞：无。
 
 ## 验证与安全约定
 
@@ -57,7 +51,7 @@
 
 ## 恢复后的最小动作
 
-1. 读取本文件和 `tasks/task-progress.md` 的最近记录。
+1. 读取本文件和 `tasks/task-progress.md` 最近记录。
 2. 按当前任务记录读取对应阶段 Spec/Plan。
 3. 只读取当前任务明确列出的源码/测试文件。
 4. 完成或暂停子任务后先更新 `tasks/task-progress.md`，再同步 `tasks/task-state.md` 和本快照。

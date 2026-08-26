@@ -1292,3 +1292,11 @@
 - **修复**：新增领域中立 `spatial-agent.planner-attempt.v1`，记录阶段、状态、结果类别、attempt/retry、Envelope 字节数、输出/期限预算、repair 和统一动作 ID；新增 `spatial-agent.canonical-plan-receipt.v1`，只有 accepted TaskPlan bridge 与 validated execution binding 同时成立才标记 `executable`。异步安全证据、Composite View、artifact 和 Console 复用同一白名单投影。
 - **验证**：Docker 重建后 M304/M305 精简契约 **14/14**、M303/M283 跨入口回归 **16/16**，阶段合并回归 **30/30**；compileall、architecture strict、Service smoke、生产 acceptance 和 readiness **200** 通过。一次显式真实模型使用 60 秒、0 重试形成合法单组件计划并完成 sync/async 对照。
 - **预防**：planner 的“已生成”与“可执行”必须分开表达；所有预算、动作和 repair 字段必须通过公共 receipt，不能在 HTTP、前端或 Domain 中自行猜测，也不能用 replay 成功替代真实 provider 成功率。
+
+## M306 组件图校验与 TaskPlan 物化边界可能漂移
+
+- **现象**：组件图在 Planner 规范化阶段已经校验，但如果后续调用方直接把原始组件列表交给 TaskPlan bridge，仍可能绕过前一层的依赖顺序、输入引用或布尔字段检查。
+- **根因**：规范化和 TaskPlan 物化是两个可独立调用的公共 seam，前者的成功不能自动证明后者收到的对象没有被替换或变形。
+- **修复**：`CompositeTaskPlanBridge` 在物化前重新调用公共组件图校验；组件身份、依赖存在性与先后顺序、typed input、required 类型和 data-kind 约束均 fail closed，不创建第二套执行授权。
+- **验证**：Docker M306 组合契约、M303 canonical TaskPlan/binding 回归通过；非法后置依赖在 bridge 边界被拒绝。
+- **预防**：任何从结构化计划到可执行对象的 bridge 都必须在自身边界重新验证关键 identity；不能仅依赖上游 fingerprint 或“已规范化”标记。
