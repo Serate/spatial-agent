@@ -13,17 +13,18 @@
 - 验证只保留有独立失败模式的精简测试，并在相关实现集中完成后统一运行；跨入口契约、阶段级架构门禁和 readiness 保留，重复测试不重复运行。
 - 本次 Goal 约束：每个阶段安排更完整的任务包，尽量一次覆盖契约、实现、集成、文档和交付；开发期间减少重复测试，阶段收口统一执行精简且有代表性的门禁。
 - 新增约束：阶段任务应适度增多并覆盖同一能力链的连续依赖；测试按独立风险合并执行，不随任务数量线性增加测试轮次。
+- Goal 级上下文约束：恢复或继续任务时，只读取当前任务明确必需的文件；仅判断状态时只读取工作快照和任务账本尾部，不批量读取历史文档、全量源码、全量测试或模型响应。发现新的直接依赖后，才将其加入必要文件清单。
 
 ## 当前进行中
 
-### M295-A：全局基线与 discovery receipt 契约冻结 — 进行中
+### M300 阶段收口 — 进行中
 
-- 目标：从产品、架构、数据、模型、部署、体验、测试七个维度盘点 M294 后的全局缺口，冻结领域中立 `analysis-discovery.v1` 以及唯一复用 seam。
-- 已完成：创建 M295 capability map、Spec、Plan；M294 已收口但尚未提交本阶段版本。
-- 需要读取/修改：`docs/m295-global-open-analysis-discovery-capability-map.md`、`docs/m295-global-open-analysis-discovery-spec.md`、`docs/m295-global-open-analysis-discovery-plan.md`、`agent/composite_request_context.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/runtime_core/clarification_continuation.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`tests/test_m295_open_analysis_discovery.py`。
-- 验证节奏：M295-B～D 完成后集中运行一个 compact contract 与 M294 相邻回归；阶段收口再运行 Docker compileall、architecture strict、readiness 和必要 HTTP/Node/live 验收。
-- 阻塞：无。M295 不新增固定区域/指标流程，不绕过 M294 execution binding。
-- 下一步：完成 M294 文档/版本交付后，冻结 discovery receipt 字段、fingerprint、reason code 和安全投影。
+- 目标：从开放问题事实理解、能力发现、受控计划、provider 可靠性和答案体验形成完整 Agent 成功切片，不增加专题硬编码。
+- 已完成：M300-A～C 的 Domain Request Understanding 投影、能力就绪门禁、默认结构化答案启用和 provider 失败状态修正。
+- 需要读取/修改：`docs/m300-open-agent-success-spec.md`、`docs/m300-open-agent-success-plan.md`、`agent/application/composite_planning.py`、`tests/test_m300_open_agent_success.py`、`tasks/task-progress.md`、`docs/agent-development-issues.md`。
+- 验证节奏：阶段收口集中运行 M300 与相邻生命周期契约、compileall、architecture strict、Node projection 和 readiness；真实 provider 只做显式单次验收。
+- 阻塞：无。provider 不稳定时保持 fail closed，不保存模型原文或敏感配置。
+- 下一步：完成文档/版本交付后，从全局七维度重规划下一阶段。
 
 ### M294-A～E：已验证计划到执行/答案/证据闭合 — 已完成
 
@@ -499,4 +500,27 @@
 ### M300-A：全局能力图、Spec、Plan 与状态矩阵 — 规划中
 - 目标：从产品、架构、数据、模型、部署、体验和测试七个维度，提升开放问题的默认 Agent 成功路径，不新增专题硬编码。
 - 已完成：创建 `docs/m300-open-agent-success-capability-map.md`、`docs/m300-open-agent-success-spec.md` 和 `docs/m300-open-agent-success-plan.md`；冻结五个能力模块及依赖顺序。
-- 当前状态：等待按 Spec/Plan 进入实现；默认测试策略保持 Docker、精简、阶段收口集中验证。
+- 当前状态：开始实现开放问题的通用事实与能力选择边界；默认测试策略保持 Docker、精简、阶段收口集中验证。
+- 本任务必要文件：`agent/request_model.py`、`agent/composite_request_context.py`、`agent/application/composite_planning.py`、`agent/composite_planner.py`、`domains/gis/request_model.py`、`domains/economic/planner.py`、`tests/test_m300_open_agent_success.py`。
+
+### M300-A：Domain Request Understanding 投影 — 已完成
+- 结果：Composite 请求上下文现在通过 Domain Pack 的 `request_understanding_guidance` seam 携带有界的事实字段、任务/约束/证据提示；Planner envelope 将其投影给 Rule/Replay/LLM，未实现该 seam 的 Domain 显式标记为不可用，不由 Runtime 添加词法分支。
+- 文件：`agent/composite_request_context.py`、`agent/runtime_core/planner_envelope.py`、`tests/test_m300_open_agent_success.py`。
+- 验证：Docker M300-A 精简契约 **4/4**；`git diff --check` 通过。未运行重复的全量回归。
+- 阻塞：无。
+- 下一步：进入 M300-B，核对开放问题的候选能力组合、执行就绪状态和 TaskPlan 闭合。
+
+### M300-B/D：能力就绪门禁与默认答案体验 — 已完成
+- 结果：Composite Planner 在规范化阶段拒绝显式未注册、无工作流或 `execution_ready=false` 的能力；Composite 运行层仅对带 LLM Planner evidence 的成功结果启用结构化答案生成，Rule/Replay/直接执行/未配置模型保持离线回退，并支持 `SPATIAL_AGENT_DISABLE_LLM_ANSWER=1`。
+- 文件：`agent/composite_planner.py`、`agent/application/composite_runs.py`、`production_api.py`、`serve_api.py`、`docs/m300-open-agent-success-spec.md`、`docs/m300-open-agent-success-plan.md`、`docs/agent-development-issues.md`、`tests/test_m300_open_agent_success.py`。
+- 验证：Docker M300 + M279 + M282 + M281 精简回归 **30/30**；其中新增 M300 契约 **6/6**。未运行 live provider。
+- 阻塞：无。
+- 下一步：完成 M300-C 的 provider 失败/有限修复状态闭合，再做 Docker 静态门禁、readiness 和显式真实数据验收。
+
+### M300-C：provider 失败状态与可重试动作 — 已完成
+- 结果：`planner_provider_failed` 不再伪装成事实澄清；规划响应返回 `FAILED`、有界 `failure.v1`（planning/provider/retryable）和“稍后重试”，未创建 execution run 的语义保持不变。
+- 文件：`agent/application/composite_planning.py`、`tests/test_m300_open_agent_success.py`、`docs/m300-open-agent-success-spec.md`、`docs/m300-open-agent-success-plan.md`、`docs/agent-development-issues.md`。
+- 验证：待阶段收口统一运行 M300 精简契约和相邻回归；开发期间只做必要 diff 检查。
+- 阻塞：无。真实中转失败仍按 provider failure 记录，不通过增加重试或放宽校验制造成功。
+- 验证：Docker M300/M278/M294 **15/15**；compileall、architecture strict、Node projection smoke、生产 readiness **200** 通过；真实模型两次显式验收分别为事实澄清和 provider failure，均未创建 execution run。
+- 下一步：提交并推送 M300 阶段版本，再从项目全局重规划下一阶段。

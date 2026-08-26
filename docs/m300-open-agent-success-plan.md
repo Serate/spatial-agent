@@ -17,10 +17,12 @@
 - 复用 planner envelope 和现有 provider structured-output seam，区分超时、结构不合规和语义不可执行。
 - 保留有限 repair/retry，不改变能力、权限和数据选择。
 - 同步、异步、重启和 artifact 只复用统一生命周期，不建立第二套模型流程。
+- provider 不可用时返回可重试的 planning failure 与有界 failure evidence；只有事实缺失才进入澄清状态。
 
 ## D：答案与前端体验
 
 - 以结构化 Result/View/Evidence 为唯一输入，统一输出结论、关键发现、限制和下一步。
+- 默认 LLM Planner 成功路径启用结构化答案生成；Rule/Replay/直接执行和未配置模型保持离线回退，并保留显式关闭开关。
 - 让阶段条、澄清动作和结果卡反映真实状态；详细证据默认折叠。
 - 用未知结果类型和缺失数据做通用降级，不增加专题页面分支。
 

@@ -605,6 +605,22 @@ def _validate_context_capabilities(
                 "planner selected an unavailable capability",
                 code="capability_unavailable",
             )
+        if item.get("plan_mode") == "unbound":
+            raise CompositePlannerError(
+                "planner selected a capability without a registered workflow",
+                code="capability_not_materializable",
+            )
+        if "execution_ready" in item and not bool(item.get("execution_ready")):
+            reason = str(
+                item.get("execution_reason_code")
+                or item.get("execution_readiness")
+                or item.get("state")
+                or "capability_unavailable"
+            ).strip()[:96]
+            raise CompositePlannerError(
+                "planner selected a capability that is not execution-ready",
+                code=reason or "capability_unavailable",
+            )
 
 
 def _bounded_context(value: Mapping[str, Any] | None) -> dict[str, Any]:

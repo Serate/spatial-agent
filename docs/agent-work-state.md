@@ -21,9 +21,9 @@
 
 ## 当前阶段
 
-- 阶段：M300 开放问题 Agent 成功率与答案体验（A 规划中）
-- 状态：M299 已完成并通过阶段门禁；产品默认已实测为 `openai + local`，版本 `f3bfbeb` 已提交并推送。
-- 当前任务：M300-A，全局能力图、Spec、Plan 与成功率/状态矩阵审查。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M300 开放问题 Agent 成功率与答案体验（已完成）
+- 状态：Docker 阶段门禁已通过；M300 改动待提交推送。产品默认保持 `openai + local`。
+- 当前任务：提交 M300 并进行全局重规划。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m300-open-agent-success-capability-map.md`](m300-open-agent-success-capability-map.md)
   - [`docs/m300-open-agent-success-spec.md`](m300-open-agent-success-spec.md)
@@ -31,26 +31,12 @@
 
 ## 当前任务明确文件
 
-- `tasks/plan.md`
-- `docs/m299-default-agent-success-capability-map.md`
-- `docs/m299-default-agent-success-spec.md`
-- `docs/m299-default-agent-success-plan.md`
-- `tasks/task-progress.md`
-- `tasks/task-state.md`
-- `docs/m300-open-agent-success-capability-map.md`
 - `docs/m300-open-agent-success-spec.md`
 - `docs/m300-open-agent-success-plan.md`
-- `agent/composite_planner.py`
-- `agent/composite_request_context.py`
 - `agent/application/composite_planning.py`
-- `agent/runtime_core/planner_envelope.py`
-- `agent/runtime_core/selection_evidence.py`
-- `agent/application/composite_runs.py`
-- `agent/composite_view.py`
-- `domains/economic/planner.py`
-- `web/src/console_result_projection.js`
-- `tests/test_m299_default_agent_success_path.py`
-- `tests/test_m263_economic_domain.py`
+- `tests/test_m300_open_agent_success.py`
+- `tasks/task-progress.md`
+- `docs/agent-development-issues.md`
 
 ## 验证与安全约定
 

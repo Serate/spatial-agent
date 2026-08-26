@@ -13,6 +13,8 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from agent.request_understanding import normalize_request_understanding_guidance
+
 
 PLANNER_ENVELOPE_SCHEMA_VERSION = "spatial-agent.planner-envelope.v1"
 PLANNER_ENVELOPE_MAX_BYTES = 96_000
@@ -137,6 +139,10 @@ def _request_facts(context: Mapping[str, Any]) -> dict[str, Any]:
                         facts.get("constraints") or {}, depth=0
                     ),
                 },
+                "understanding": _understanding_projection(
+                    raw.get("request_understanding"),
+                    domain_id=raw.get("domain_id"),
+                ),
                 "data_readiness": _readiness(raw.get("data_readiness")),
                 "clarification": _small_clarification(raw.get("clarification")),
             }
@@ -152,6 +158,15 @@ def _request_facts(context: Mapping[str, Any]) -> dict[str, Any]:
             }
         )
     return {"domains": domains}
+
+
+def _understanding_projection(value: Any, *, domain_id: Any = None) -> dict[str, Any]:
+    """Keep Domain-owned request hints bounded in the provider envelope."""
+
+    return normalize_request_understanding_guidance(
+        value,
+        domain_id=str(domain_id or "unknown")[:80],
+    )
 
 
 def _candidate_index(value: Any, limit: int) -> list[dict[str, Any]]:

@@ -5130,7 +5130,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 显式真实模型中转验收仍为 provider timeout，未创建 run；该结果按 provider failure 记录，不等同于 Agent 未启动。容器实测产品默认选择为 `openai + local`。
 - 全局重规划：M300 聚焦开放问题的通用事实理解、受控能力组合、provider 可靠性和简洁答案体验，不为单一数据集增加专用流程。
 
-## M300：开放问题 Agent 成功率与答案体验（已规划）
+## M300：开放问题 Agent 成功率与答案体验（已完成）
 
 - 已创建 `docs/m300-open-agent-success-capability-map.md`、`docs/m300-open-agent-success-spec.md` 和 `docs/m300-open-agent-success-plan.md`。
 - 目标是让默认 Agent 对未预定义的地理问题更稳定地完成“理解 → 能力发现 → 计划 → 执行 → 总结”，并保持失败、澄清、恢复和证据语义统一。
+- Domain Pack 的 Request Understanding guidance、Planner envelope 和 execution-ready 门禁已闭合；真实模型只能选择已登记且可执行的能力。
+- 默认 LLM Planner 成功路径启用结构化中文答案生成；Rule/Replay/直接执行保持离线，provider 失败返回可重试的 `FAILED` planning 状态和 `failure.v1` 证据。
+- Docker M300/M278/M294 精简回归 **15/15**，compileall、architecture strict、Node projection smoke、生产 readiness **200** 通过；显式 live 失败按 provider/事实澄清分类，未创建执行 run。
+- 全局重规划：继续提升跨领域开放请求的真实成功链路与多轮澄清恢复，保持最小上下文读取、精简验证和公共 Runtime 领域中立。

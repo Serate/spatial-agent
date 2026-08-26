@@ -47,12 +47,20 @@ from agent.web_assets import console_root
 
 
 def _composite_answer_generator():
-    """Enable the second, structured answer pass only for explicit live runs."""
+    """Build the default structured answer pass when a model is configured.
 
-    if os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") != "1":
+    The run application still gates invocation on LLM planner evidence, so
+    Rule/Replay and direct execution paths remain offline.  An explicit
+    disable switch is retained for constrained deployments and CI.
+    """
+
+    if os.environ.get("SPATIAL_AGENT_DISABLE_LLM_ANSWER") == "1":
         return None
     try:
-        return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**load_openai_config()))
+        config = load_openai_config()
+        if not config.get("api_key"):
+            return None
+        return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**config))
     except Exception:
         return None
 

@@ -1201,3 +1201,17 @@
 - **修复**：调整发布顺序，先完成 artifact 写入并获得引用，再把最终 `COMPLETED` 快照写入状态存储；增加阻塞 artifact store 的时序回归，确保不会暴露不完整终态。
 - **验证**：Docker 最小时序回归通过；M299/M263 合并回归 **19/19**，compileall、architecture strict、Node projection smoke 和 readiness 通过。
 - **预防**：任何“终态 + 外部证据”组合都必须定义原子可见性顺序；异步轮询测试应覆盖证据发布中的中间窗口，不能只验证最终读取。
+
+## M300 Composite 默认答案仍停留在模板摘要
+
+- **现象**：产品入口已默认选择 `openai + local`，但 Composite 答案生成器只有在显式 live 环境变量开启时才注入；正常 LLM 规划成功后，用户仍看到组件数量等程序化模板摘要。
+- **根因**：答案生成的启用条件与 Planner 选择脱节，默认 Agent 的模型规划结果没有传递到答案生成策略；为保护离线测试保留的 live gate 被误用成了产品默认 gate。
+- **修复**：产品入口在存在模型配置时注入结构化 Composite 答案生成器；运行层只对带有 LLM Planner evidence 的结果调用它，Rule、Replay、直接执行和未配置模型继续离线回退；增加 `SPATIAL_AGENT_DISABLE_LLM_ANSWER=1` 作为部署关闭开关。
+- **预防**：默认产品路径与测试路径分开验收；答案生成必须以结构化 Planner evidence 判定调用资格，不能根据用户文本或工具名猜测，也不能让答案模型修改事实和执行结果。
+## M300 provider 失败被误投影为事实澄清
+
+- **现象**：真实模型请求因中转/provider 失败时，规划响应状态为 `NEEDS_CLARIFICATION`，用户会看到“补充信息或调整问题”，但请求事实并未缺失。
+- **根因**：Composite planning 的历史状态映射把 `planner_provider_failed` 与事实不足共用澄清状态，未向前端提供可重试的失败证据。
+- **修复**：provider 失败现在返回 `FAILED`、`failure.v1`（`phase=planning`、`category=provider`、`retryable=true`）和“稍后重试”动作；事实澄清、能力不可用和 provider 故障仍通过不同错误码/证据区分。
+- **验证**：新增 M300 精简契约；未放宽 Planner schema、能力 allowlist、TaskPlan 或 execution binding，也未保存模型原文和密钥。
+- **预防**：状态、错误码、failure evidence 和 next action 必须成组设计；不能仅因前端需要一个“可处理状态”而把外部依赖故障伪装成用户事实缺失。

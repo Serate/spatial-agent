@@ -46,10 +46,13 @@ _legacy_runtime_capability_snapshot = runtime_capability_snapshot
 
 
 def _composite_answer_generator():
-    if os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") != "1":
+    if os.environ.get("SPATIAL_AGENT_DISABLE_LLM_ANSWER") == "1":
         return None
     try:
-        return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**load_openai_config()))
+        config = load_openai_config()
+        if not config.get("api_key"):
+            return None
+        return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**config))
     except Exception:
         return None
 

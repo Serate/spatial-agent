@@ -72,7 +72,10 @@ def run_prepared_acceptance(
     async_submission = run_application.submit_async_with_planning(
         canonical,
         session_id="m289-async",
-        idempotency_key="m289-async-1",
+        # Do not reuse a previous acceptance run when this harness is rerun.
+        # The key is stable for the same canonical request but distinct for a
+        # newly planned request, preserving the lifecycle's idempotency test.
+        idempotency_key=_acceptance_idempotency_key(canonical),
         export_artifact=True,
         planner_evidence=evidence if isinstance(evidence, Mapping) else None,
         execution_binding=execution_binding,
@@ -94,6 +97,16 @@ def run_prepared_acceptance(
             and comparison["same_data_kinds"]
         ),
     }
+
+
+def _acceptance_idempotency_key(request: Mapping[str, Any]) -> str:
+    """Build a bounded, request-specific key without exposing request text."""
+
+    fingerprint = str(request.get("fingerprint") or "").strip()
+    digest = fingerprint.split(":", 1)[-1]
+    return "m289-async-" + "".join(
+        char for char in digest[:32] if char.isalnum()
+    )
 
 
 def _wait_for_terminal(run_application: Any, run_id: str, timeout_seconds: float) -> Mapping[str, Any]:
@@ -130,9 +143,14 @@ def _execution_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
     composite_request = composite.get("request") if isinstance(composite.get("request"), Mapping) else {}
     view = value.get("view") if isinstance(value.get("view"), Mapping) else {}
     components = value.get("components") or result.get("components")
+    failure = value.get("failure") if isinstance(value.get("failure"), Mapping) else {}
     return {
         "status": _text(value.get("status"), 32) or "FAILED",
         "error_code": _text(value.get("error_code"), 96) or None,
+        "error_category": _text(
+            value.get("error_category") or failure.get("category"), 64
+        ) or None,
+        "failure_code": _text(failure.get("code"), 96) or None,
         "run_created": bool(_text(value.get("run_id"), 160)),
         "request_fingerprint": _text(value.get("request_fingerprint") or composite_request.get("fingerprint"), 128) or None,
         "binding_fingerprint": _text(

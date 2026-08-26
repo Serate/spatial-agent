@@ -22,6 +22,7 @@ from agent.composite_request_context import (
     CompositeRequestContextError,
 )
 from agent.composite_planner import CompositePlannerError
+from agent.failure_contract import build_failure_evidence
 from agent.planner_repair import (
     build_planner_repair_request,
     build_repair_lineage,
@@ -523,7 +524,8 @@ class CompositePlanningApplication:
                         count=1,
                         request_fingerprint=context.get("request_fingerprint"),
                     )
-            status = "NEEDS_CLARIFICATION" if exc.code in {
+            provider_failed = exc.code == "planner_provider_failed"
+            status = "FAILED" if provider_failed else "NEEDS_CLARIFICATION" if exc.code in {
                 "planner_provider_failed",
                 "planner_context_too_large",
                 "plan_components_required",
@@ -532,6 +534,12 @@ class CompositePlanningApplication:
                 "taskplan_composite_clarification",
                 "component_facts_missing",
             } else "REJECTED"
+            message = (
+                "模型服务暂时不可用，尚未创建执行任务，请稍后重试。"
+                if provider_failed
+                else "无法安全生成可执行的组合计划，请补充信息或调整问题。"
+            )
+            next_actions = ["稍后重试"] if provider_failed else ["补充信息后重新提交"]
             failure_evidence = _planner_evidence(
                 {},
                 planner_source=planner_name,
@@ -549,14 +557,23 @@ class CompositePlanningApplication:
                 "schema_version": self.schema_version,
                 "status": status,
                 "planner_source": planner_name[:32],
-                "message": "无法安全生成可执行的组合计划，请补充信息或调整问题。",
+                "message": message,
                 "error_code": exc.code,
                 "components": [],
                 "request": None,
                 "validation": {"status": "failed", "reason_code": exc.code},
                 "planner_evidence": failure_evidence,
                 "repair_lineage": repair_lineage,
+                "next_actions": next_actions,
             }
+            if provider_failed:
+                result["failure"] = build_failure_evidence(
+                    status="FAILED",
+                    category="provider",
+                    code=exc.code,
+                    phase="planning",
+                    retryable=True,
+                )
             details = getattr(exc, "details", None)
             if isinstance(details, Mapping):
                 composite_handoff = details.get("composite_fact_handoff")

@@ -61,9 +61,16 @@ def project_next_action(value: Mapping[str, Any]) -> dict[str, str]:
 1. 一个未预先定义模板的开放式请求能进入 RequestFacts、能力选择和受控多步 TaskPlan，或返回结构化澄清。
 2. 真实模型选择只能引用已登记且 execution-ready 的能力，计划不合规时不创建执行 run。
 3. provider timeout、数据不可用、澄清和业务执行失败在状态、证据和用户文案中可区分。
-4. 同一请求的同步、异步、artifact/restart 和前端核心结果/证据保持一致。
-5. 结果回答优先给结论、关键指标、限制和下一步，详细 trace/evidence 可展开但不暴露思维链。
-6. 新增一个可登记能力不需要修改 Runtime 主循环或前端领域分支。
+4. provider 失败返回可重试的 `FAILED` planning 状态与 `failure.v1` 证据，不误导用户补充已经具备的事实。
+5. 同一请求的同步、异步、artifact/restart 和前端核心结果/证据保持一致。
+6. 结果回答优先给结论、关键指标、限制和下一步，详细 trace/evidence 可展开但不暴露思维链。
+7. 新增一个可登记能力不需要修改 Runtime 主循环或前端领域分支。
+
+## Answer generation activation
+
+- 当 Composite 结果确实由 LLM Planner 规划且运行环境配置了模型时，默认启用一次结构化答案生成，让模型把已验证结果翻译成面向普通用户的中文。
+- Rule、Replay、直接 Composite 执行和未配置模型的路径继续使用确定性回退，不访问网络；部署可通过 `SPATIAL_AGENT_DISABLE_LLM_ANSWER=1` 关闭答案生成。
+- 答案生成只能消费 Result/View 的有界事实，失败时回退到结构化摘要并记录状态，不改变事实、计划或执行结果。
 
 ## Open Questions
 

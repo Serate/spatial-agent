@@ -16,6 +16,7 @@ from agent.capability_catalog import project_clarification_requirements
 from agent.domain_contract import (
     discovery_context,
     extract_request_facts,
+    request_understanding_guidance,
     select_workflow,
 )
 from agent.request_model import RequestFacts
@@ -174,6 +175,13 @@ class CompositeRequestContextBuilder:
             domain_context = {
                 "domain_id": domain_id,
                 "facts": safe_facts,
+                # Request understanding remains Domain-owned.  The shared
+                # context only carries its bounded, normalized vocabulary so
+                # an open-question Planner can understand what a Domain can
+                # extract without adding Domain branches to Runtime.
+                "request_understanding": _request_understanding(
+                    service, domain_id
+                ),
                 "discovery": {
                     "state": discovery_state,
                     **_safe_discovery(discovery, domain_id),
@@ -247,6 +255,7 @@ class CompositeRequestContextBuilder:
                 "schema_version": "spatial-agent.composite-request-context-evidence.v1",
                 "sources": [
                     "domain_facts",
+                    "request_understanding",
                     "capability_catalog",
                     "catalog_consistency",
                     "discovery",
@@ -341,6 +350,25 @@ def _facts_projection(facts: Any) -> dict[str, Any]:
         "constraints": _safe_value(source.get("constraints") or {}, depth=0),
         "evidence": _safe_strings(source.get("evidence"), 8),
     }
+
+
+def _request_understanding(service: Any, domain_id: str) -> dict[str, Any]:
+    """Project optional Domain understanding guidance without leaking policy.
+
+    A custom Domain Pack may not implement this seam.  That is a valid
+    compatibility state: the Planner receives an explicit unavailable
+    guidance object instead of a Runtime-side lexical fallback.
+    """
+
+    try:
+        value = request_understanding_guidance(service)
+    except Exception:
+        value = {}
+    if not isinstance(value, Mapping):
+        value = {}
+    result = dict(value)
+    result.setdefault("domain_id", str(domain_id)[:80])
+    return result
 
 
 def _merge_fact_override(facts: Any, override: Any) -> Any:

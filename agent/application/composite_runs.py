@@ -395,7 +395,10 @@ class CompositeRunApplication:
         if not isinstance(canonical, Mapping):
             raise ValueError("composite coordinator returned no result contract")
         canonical = normalize_result_contract(canonical)
-        canonical = self._compose_composite_answer(canonical)
+        canonical = self._compose_composite_answer(
+            canonical,
+            planning_evidence=planning_evidence,
+        )
         if planning_evidence:
             canonical = dict(canonical)
             canonical["planner_evidence"] = dict(planning_evidence)
@@ -434,10 +437,28 @@ class CompositeRunApplication:
         self._state.save_run(snapshot)
         return response
 
-    def _compose_composite_answer(self, result: Mapping[str, Any]) -> dict[str, Any]:
-        """Attach an optional structured answer without changing facts."""
+    def _compose_composite_answer(
+        self,
+        result: Mapping[str, Any],
+        *,
+        planning_evidence: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Attach an LLM answer only to an LLM-planned Composite result.
+
+        Direct Composite execution and deterministic Rule/Replay paths must
+        remain offline.  The planner evidence is the existing public seam for
+        distinguishing an actual LLM plan from a caller merely requesting a
+        Composite run, so this method does not infer mode from request text.
+        """
 
         generator = self._answer_generator
+        planner_source = str(
+            planning_evidence.get("planner_source")
+            if isinstance(planning_evidence, Mapping)
+            else ""
+        ).strip().lower()
+        if planner_source not in {"llm", "openai"}:
+            return dict(result)
         if generator is None or not callable(getattr(generator, "generate", None)):
             return dict(result)
         try:
