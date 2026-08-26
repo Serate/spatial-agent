@@ -13,6 +13,7 @@ from typing import Any
 
 
 PLAN_COMPLETENESS_SCHEMA_VERSION = "spatial-agent.plan-completeness.v1"
+EXECUTION_READINESS_SCHEMA_VERSION = "spatial-agent.execution-readiness.v1"
 _MAX_ITEMS = 64
 _MAX_COMPONENTS = 8
 
@@ -91,6 +92,12 @@ def assess_catalog_consistency(catalog: Mapping[str, Any]) -> dict[str, Any]:
                         "reason_code": reason_code,
                     }
                 )
+            execution = _capability_execution_readiness(
+                domain,
+                compatible,
+                workflow_ids=workflow_ids,
+                mode=mode,
+            )
             bindings.append(
                 {
                     "domain_id": domain_id,
@@ -98,6 +105,7 @@ def assess_catalog_consistency(catalog: Mapping[str, Any]) -> dict[str, Any]:
                     "workflow_ids": workflow_ids[:8],
                     "plan_mode": mode,
                     "reason_code": reason_code,
+                    **execution,
                 }
             )
 
@@ -144,6 +152,17 @@ def annotate_catalog_capabilities(
                 item["plan_mode"] = _text(binding.get("plan_mode"), 24)
                 if binding.get("plan_mode") == "unbound":
                     item["availability_reason"] = "workflow_not_registered"
+                if "execution_readiness" in binding:
+                    item["execution_readiness"] = _text(
+                        binding.get("execution_readiness"), 32
+                    )
+                    item["execution_ready"] = bool(binding.get("execution_ready"))
+                    item["execution_reason_code"] = _text(
+                        binding.get("execution_reason_code"), 96
+                    )
+                    for key in ("missing_tools", "missing_result_types"):
+                        if binding.get(key):
+                            item[key] = _strings(binding.get(key))
             capabilities.append(item)
         domain_copy["capabilities"] = capabilities
         result.append(domain_copy)
@@ -201,6 +220,13 @@ def validate_plan_completeness(
                 "component capability has no registered workflow",
                 code="capability_not_materializable",
             )
+        if "execution_ready" in capability and not bool(
+            capability.get("execution_ready")
+        ):
+            raise PlanCompletenessError(
+                "component capability is not execution-ready",
+                code=_execution_reason_code(capability),
+            )
         workflow = component.get("workflow")
         template_id = _text(workflow.get("template_id"), 96) if isinstance(workflow, Mapping) else ""
         workflow_ids = _strings(capability.get("workflow_ids"))
@@ -252,6 +278,109 @@ def _workflow_matches(
     return _policy_subset(workflow, tools=tools, results=results)
 
 
+def _capability_execution_readiness(
+    domain: Mapping[str, Any],
+    workflows: Sequence[Mapping[str, Any]],
+    *,
+    workflow_ids: Sequence[str],
+    mode: str,
+) -> dict[str, Any]:
+    """Check the catalog against the actual Tool/Result contract.
+
+    A missing contract is intentionally represented as ``unknown`` and does
+    not receive ``execution_ready``.  This preserves compatibility with old
+    custom Domain test doubles while ensuring the production Runtime never
+    treats an unknown contract as ready.  Once a contract is declared, every
+    workflow tool and result type must be present in the already validated
+    registries.
+    """
+
+    if mode == "answer_only":
+        return {
+            "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+            "execution_readiness": "not_applicable",
+            "execution_ready": True,
+            "execution_reason_code": "answer_only_capability",
+        }
+    if not workflow_ids:
+        return {
+            "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+            "execution_readiness": "workflow_unbound",
+            "execution_ready": False,
+            "execution_reason_code": "workflow_unbound",
+        }
+
+    contract = domain.get("execution_contract")
+    if not isinstance(contract, Mapping):
+        return {
+            "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+            "execution_readiness": "unknown",
+            "execution_reason_code": "execution_contract_unknown",
+        }
+    if str(contract.get("status") or "") != "valid":
+        return {
+            "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+            "execution_readiness": "schema_invalid",
+            "execution_ready": False,
+            "execution_reason_code": "execution_contract_invalid",
+        }
+
+    tool_definitions = contract.get("tool_definitions")
+    tool_names = set(_strings(contract.get("tool_names")))
+    if isinstance(tool_definitions, Mapping):
+        tool_names.update(_text(key, 96) for key in tool_definitions if _text(key, 96))
+    result_types = set(_strings(contract.get("result_type_ids")))
+    missing_tools: list[str] = []
+    missing_results: list[str] = []
+    invalid_steps: list[str] = []
+    for workflow in workflows:
+        allowed_tools = _strings(workflow.get("allowed_tools"))
+        declared_results = _strings(workflow.get("result_types"))
+        missing_tools.extend(item for item in allowed_tools if item not in tool_names)
+        missing_results.extend(item for item in declared_results if item not in result_types)
+        for step in (workflow.get("step_blueprint") or workflow.get("steps") or ()):
+            if not isinstance(step, Mapping):
+                invalid_steps.append("step")
+                continue
+            tool = _text(step.get("tool"), 96)
+            if not tool or tool not in allowed_tools:
+                invalid_steps.append(tool or "step_tool_missing")
+    missing_tools = _unique(missing_tools)
+    missing_results = _unique(missing_results)
+    invalid_steps = _unique(invalid_steps)
+    if missing_tools or missing_results or invalid_steps:
+        return {
+            "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+            "execution_readiness": "schema_invalid",
+            "execution_ready": False,
+            "execution_reason_code": "schema_invalid",
+            "missing_tools": missing_tools[:8],
+            "missing_result_types": missing_results[:8],
+            "invalid_steps": invalid_steps[:8],
+        }
+    return {
+        "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+        "execution_readiness": "ready",
+        "execution_ready": True,
+        "execution_reason_code": "execution_contract_valid",
+    }
+
+
+def _execution_reason_code(value: Mapping[str, Any]) -> str:
+    return _text(
+        value.get("execution_reason_code") or value.get("execution_readiness"),
+        96,
+    ) or "execution_readiness_unknown"
+
+
+def _unique(values: Sequence[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        if value and value not in result:
+            result.append(value)
+    return result
+
+
 def _policy_subset(
     workflow: Mapping[str, Any], *, tools: Sequence[str], results: Sequence[str]
 ) -> bool:
@@ -280,6 +409,7 @@ def _text(value: Any, limit: int) -> str:
 
 
 __all__ = [
+    "EXECUTION_READINESS_SCHEMA_VERSION",
     "PLAN_COMPLETENESS_SCHEMA_VERSION",
     "PlanCompletenessError",
     "annotate_catalog_capabilities",

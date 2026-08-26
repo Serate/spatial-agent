@@ -656,6 +656,19 @@ class AgentService:
         """Return the selected Domain's workflow catalog and validator inputs."""
         return self._catalog_application.workflow_contract(planner, backend)
 
+    def execution_contract(
+        self,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Dict[str, Any]:
+        """Return the structural ToolRegistry/Result Registry contract."""
+        runtime = self._runtime(planner, backend)
+        resolver = getattr(runtime, "execution_contract", None)
+        if not callable(resolver):
+            return {}
+        value = resolver()
+        return dict(value) if isinstance(value, Mapping) else {}
+
     def extract_request_facts(
         self,
         request: str,
@@ -689,6 +702,23 @@ class AgentService:
             discovery,
             request_facts,
             workflow=workflow,
+        )
+
+    def resolve_capability_selection(
+        self,
+        capability_id: str,
+        *,
+        request_facts: Any = None,
+        selection: Mapping[str, Any] | None = None,
+        planner: str = "rule",
+        backend: str = "memory",
+    ) -> Mapping[str, Any] | None:
+        """Resolve a selected capability through the public Service seam."""
+
+        return self._runtime(planner, backend).resolve_capability_selection(
+            capability_id,
+            request_facts=request_facts,
+            selection=selection,
         )
 
     def domains(self) -> Dict[str, Any]:

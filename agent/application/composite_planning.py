@@ -149,6 +149,12 @@ class CompositeCapabilityProjector:
             service = self._host.service(selection)
             catalog = _call_catalog(service, planner=planner, backend=backend)
             workflow = _call_workflow(service, planner=planner, backend=backend)
+            execution_contract = _call_execution_contract(
+                service, planner=planner, backend=backend
+            )
+            runtime_capabilities = _call_runtime_capabilities(
+                service, planner=planner, backend=backend
+            )
             actual_domain_id = str(catalog.get("domain_id") or domain_id)
             if actual_domain_id != domain_id:
                 raise ValueError("domain catalog identity mismatch: " + domain_id)
@@ -166,6 +172,16 @@ class CompositeCapabilityProjector:
                 if isinstance(item, Mapping)
             ]
             readiness_value = _project_readiness(catalog.get("data_readiness"))
+            runtime_readiness = _project_readiness(
+                runtime_capabilities.get("data_readiness")
+                if isinstance(runtime_capabilities, Mapping)
+                else None
+            )
+            if runtime_readiness.get("status") not in {"unknown", "not_evaluated"}:
+                # Static catalogs describe capability declarations.  When a
+                # Domain exposes runtime evidence, its current data status is
+                # the authoritative planning input.
+                readiness_value = runtime_readiness
             readiness[domain_id] = str(readiness_value.get("status") or "unknown")
             domains.append(
                 {
@@ -178,6 +194,9 @@ class CompositeCapabilityProjector:
                     "data_readiness": readiness_value,
                     "capabilities": capabilities,
                     "workflows": workflows,
+                    "execution_contract": _project_execution_contract(
+                        execution_contract
+                    ),
                     "known_tools": _bounded_strings(workflow.get("known_tools")),
                     "known_result_types": _bounded_strings(
                         workflow.get("known_result_types")
@@ -230,6 +249,17 @@ class CompositeCapabilityProjector:
             item["plan_mode"] = _bounded_text(binding.get("plan_mode"))
             if item["plan_mode"] == "unbound":
                 item["availability_reason"] = "workflow_not_registered"
+            if "execution_readiness" in binding:
+                item["execution_readiness"] = _bounded_text(
+                    binding.get("execution_readiness")
+                )
+                item["execution_ready"] = bool(binding.get("execution_ready"))
+                item["execution_reason_code"] = _bounded_text(
+                    binding.get("execution_reason_code")
+                )
+                for key in ("missing_tools", "missing_result_types"):
+                    if binding.get(key):
+                        item[key] = _bounded_strings(binding.get(key))
 
         result = {
             "schema_version": COMPOSITE_PLANNER_CONTEXT_SCHEMA_VERSION,
@@ -843,7 +873,11 @@ class CompositePlanningApplication:
                     code = (
                         "data_unavailable"
                         if state == "data_unavailable"
-                        else "capability_unavailable"
+                        else str(
+                            discovery_item.get("execution_reason_code")
+                            or discovery_item.get("execution_readiness")
+                            or "capability_unavailable"
+                        )[:96]
                     )
                     raise CompositePlannerError(
                         "discovery candidate is not execution-ready", code=code
@@ -1337,6 +1371,39 @@ def _call_workflow(service: Any, *, planner: str, backend: str) -> Mapping[str, 
     return value if isinstance(value, Mapping) else {}
 
 
+def _call_execution_contract(
+    service: Any, *, planner: str, backend: str
+) -> Mapping[str, Any]:
+    """Read the optional structural Runtime contract without executing tools."""
+
+    resolver = getattr(service, "execution_contract", None)
+    if not callable(resolver):
+        return {}
+    value = resolver(planner=planner, backend=backend)
+    return value if isinstance(value, Mapping) else {}
+
+
+def _call_runtime_capabilities(
+    service: Any, *, planner: str, backend: str
+) -> Mapping[str, Any]:
+    """Read bounded current data readiness when a Domain exposes it."""
+
+    resolver = getattr(service, "runtime_capabilities", None)
+    if not callable(resolver):
+        return {}
+    try:
+        value = resolver(max_files=2, planner=planner, backend=backend)
+    except TypeError:
+        # Keep compatibility with older services that only accept max_files.
+        try:
+            value = resolver(max_files=2)
+        except Exception:
+            return {}
+    except Exception:
+        return {}
+    return value if isinstance(value, Mapping) else {}
+
+
 def _project_capability(value: Mapping[str, Any]) -> dict[str, Any]:
     projected: dict[str, Any] = {}
     for field in _SAFE_CAPABILITY_FIELDS:
@@ -1377,6 +1444,33 @@ def _project_workflow(key: Any, value: Mapping[str, Any]) -> dict[str, Any]:
             if isinstance(step, Mapping)
         ],
     }
+
+
+def _project_execution_contract(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep only the bounded closure facts needed by catalog readiness."""
+
+    if not isinstance(value, Mapping) or not value:
+        return {}
+    tool_definitions = value.get("tool_definitions")
+    tool_names = _bounded_strings(value.get("tool_names"), limit=64)
+    if isinstance(tool_definitions, Mapping):
+        tool_names = _bounded_strings(
+            list(tool_names) + list(tool_definitions.keys()), limit=64
+        )
+    result = {
+        "schema_version": _bounded_text(value.get("schema_version"), 96),
+        "status": _bounded_text(value.get("status"), 24) or "unknown",
+        "domain_id": _bounded_text(value.get("domain_id"), 64),
+        "tool_names": tool_names,
+        "result_type_ids": _bounded_strings(value.get("result_type_ids"), limit=64),
+    }
+    if isinstance(value.get("tool_definitions"), Mapping):
+        result["tool_schema_count"] = min(64, len(value["tool_definitions"]))
+    if value.get("result_registry_schema_version"):
+        result["result_registry_schema_version"] = _bounded_text(
+            value.get("result_registry_schema_version"), 96
+        )
+    return result
 
 
 def _project_requirements(value: Any) -> dict[str, Any]:

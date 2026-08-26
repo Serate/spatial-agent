@@ -297,6 +297,21 @@ def _candidate_projections(
                 "result_types": _strings(raw.get("result_types"), 8),
                 "workflow_ids": _strings(raw.get("workflow_ids"), 8),
                 "plan_mode": _text(raw.get("plan_mode"), 24) or None,
+                "execution_readiness": _text(
+                    raw.get("execution_readiness"), 32
+                ) or None,
+                "execution_ready": (
+                    bool(raw.get("execution_ready"))
+                    if "execution_ready" in raw
+                    else None
+                ),
+                "execution_reason_code": _text(
+                    raw.get("execution_reason_code"), 96
+                ) or None,
+                "missing_tools": _strings(raw.get("missing_tools"), 8),
+                "missing_result_types": _strings(
+                    raw.get("missing_result_types"), 8
+                ),
                 "required_fact_ids": _requirement_ids(
                     raw.get("request_requirements")
                 ),
@@ -326,16 +341,37 @@ def _with_candidate_state(
             or _data_reason(candidate.get("availability_reason"))
         ) else "capability_unavailable"
         execution_ready = False
+    elif str(candidate.get("execution_readiness") or "") in {
+        "workflow_unbound",
+        "schema_invalid",
+    }:
+        state = str(candidate.get("execution_readiness"))
+        execution_ready = False
     elif str(candidate.get("plan_mode") or "") == "unbound":
-        state = "capability_unavailable"
+        state = "workflow_unbound"
         execution_ready = False
     else:
         unavailable = any(
             str(item.get("status")) in {"missing", "unavailable"}
             for item in related
         )
-        state = "data_unavailable" if unavailable else "available"
-        execution_ready = not unavailable
+        unknown = any(str(item.get("status")) == "unknown" for item in related)
+        if unavailable:
+            state = "data_unavailable"
+            execution_ready = False
+            result["execution_readiness"] = "data_unavailable"
+            result["execution_reason_code"] = "data_readiness_unavailable"
+        elif unknown:
+            # Unknown is not proof of usable data.  Keep the candidate visible
+            # for recovery/diagnostics, but never let it cross the execution
+            # gate as if its data had been checked.
+            state = "data_unavailable"
+            execution_ready = False
+            result["execution_readiness"] = "data_unavailable"
+            result["execution_reason_code"] = "data_readiness_unknown"
+        else:
+            state = "available"
+            execution_ready = not unavailable
     result["state"] = state
     result["execution_ready"] = execution_ready
     result["data_requirement_ids"] = [
@@ -413,6 +449,10 @@ def _state(
         return "ready", "discovery_ready"
     if any(item.get("state") == "data_unavailable" for item in candidates):
         return "data_unavailable", "data_unavailable"
+    if any(item.get("state") == "schema_invalid" for item in candidates):
+        return "capability_unavailable", "schema_invalid"
+    if any(item.get("state") == "workflow_unbound" for item in candidates):
+        return "capability_unavailable", "workflow_unbound"
     return "capability_unavailable", "capability_unavailable"
 
 
@@ -452,9 +492,13 @@ def _clarification(
     if state == "capability_unavailable":
         return {
             "state": "unavailable",
-            "reason_code": "capability_unavailable",
+            "reason_code": reason_code or "capability_unavailable",
             "missing_by_domain": [],
-            "message": "匹配到的能力当前没有可执行工作流，请选择其他能力或补充条件。",
+            "message": (
+                "匹配到能力，但工作流或工具契约尚未闭合，请稍后重试。"
+                if reason_code in {"workflow_unbound", "schema_invalid"}
+                else "匹配到的能力当前没有可执行工作流，请选择其他能力或补充条件。"
+            ),
         }
     return {
         "state": "not_required",

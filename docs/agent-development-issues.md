@@ -1111,3 +1111,11 @@
 - **处理**：保留 `spatial-agent.analysis-discovery.v1`、`needs_facts/request_facts_missing` 和 Planner fail-closed；不保存模型原文、不放宽组件字段、不增加 repair 次数、不创建 run。
 - **验证**：真实模型单次显式探测耗时约 18.6 秒，structured output `json_schema` 成功，安全返回澄清；规则/HTTP 真实 Docker 入口同时保留 discovery/request fingerprint 和中文缺失字段。
 - **预防**：将 live 成功、澄清、不可用分开验收；只有在 catalog、RequestFacts、workflow、TaskPlan 和 execution binding 全部闭合后，才允许真实跨域执行进入下一阶段。
+
+## M296 Composite context 过度截断候选工具
+
+- **现象**：GIS 的 `spatial_analysis` 已声明 9 个工具，但 Composite Request Context 只透传前 8 个；真实 TaskPlan bridge 因缺少最后一个工具而返回 `taskplan_tool_not_allowlisted`，容易被误判为 workflow 或模型规划失败。
+- **根因**：候选工具投影和 TaskPlan bridge 使用了不同的有界容量，context 的旧容量没有随着能力目录扩展同步调整。
+- **修复**：将 context 的候选工具上限与 bridge 使用的有界容量统一为 24；新增完整 9 工具透传回归，保持有界、去重和安全过滤。
+- **验证**：Docker M296 定向 **9/9**；GIS 9 个工具完整透传，跨 GIS/Economic 的 Replay 计划、binding、同步/异步执行和恢复均通过；未扩大为无限上下文。
+- **预防**：凡是新增目录能力或工具，必须同时核对 catalog、context、planner、TaskPlan bridge 的容量常量，并用“最大声明数量”做一次回归；不能只提高单一消费端上限。

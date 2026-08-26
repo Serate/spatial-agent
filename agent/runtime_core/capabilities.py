@@ -13,6 +13,7 @@ from ..domain_contract import (
     DomainPack,
     domain_action_catalog,
     release_evidence as resolve_release_evidence,
+    result_registry as resolve_result_registry,
     runtime_evidence as resolve_runtime_evidence,
     workflow_catalog as resolve_workflow_catalog,
 )
@@ -46,6 +47,7 @@ class RuntimeCapabilitySurface:
         self._registry = registry
         self._domain_id = domain_id
         self._runtime_context = runtime_context
+        self._result_registry = resolve_result_registry(domain_pack)
 
     def capability_catalog(self) -> Mapping[str, Any]:
         catalog = self._domain_pack.capability_catalog(environment=self._backend_name)
@@ -73,6 +75,62 @@ class RuntimeCapabilitySurface:
             "catalog": catalog,
             "known_tools": list(self._registry.names),
             "known_result_types": result_types,
+        }
+
+    def resolve_capability_selection(
+        self,
+        capability_id: str,
+        *,
+        request_facts: Any = None,
+        selection: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
+        """Resolve a selected capability through the Domain Pack seam.
+
+        Composite planning needs the same Domain-owned capability-to-workflow
+        mapping that interactive capability selection uses.  Keeping this
+        small resolver on the capability surface avoids exposing the private
+        Domain Pack or making the bridge infer template IDs from labels.
+        """
+
+        resolver = getattr(self._domain_pack, "resolve_capability_selection", None)
+        if not callable(resolver):
+            return None
+        value = resolver(
+            str(capability_id or "")[:96],
+            request_facts=request_facts,
+            selection=selection,
+        )
+        return dict(value) if isinstance(value, Mapping) else None
+
+    def execution_contract(self) -> Dict[str, Any]:
+        """Return the structural contract used by Composite readiness.
+
+        This is deliberately a metadata-only seam.  Tool definitions have
+        already crossed ``ToolRegistry`` validation during Runtime creation;
+        exposing their bounded summaries lets the Composite catalog verify
+        that a Domain workflow points at real, schema-validated tools.  The
+        result registry is treated in the same way.  No tool is invoked and
+        provider health is not used as an execution authorization decision;
+        data readiness remains a separate concern.
+        """
+
+        definitions = self._registry.definition_summary(max_tools=64)
+        result_context = self._result_registry.as_context()
+        result_types = [
+            str(item.get("type"))[:96]
+            for item in (result_context.get("result_types") or [])
+            if isinstance(item, Mapping) and str(item.get("type") or "").strip()
+        ]
+        return {
+            "schema_version": "spatial-agent.execution-contract.v1",
+            "status": "valid",
+            "domain_id": self._domain_id(),
+            "backend": self._backend_name,
+            "tool_provider": self._registry.provider_info(),
+            "tool_names": list(definitions.keys())[:64],
+            "tool_definitions": definitions,
+            "result_type_ids": result_types[:64],
+            "result_registry_schema_version": "spatial-agent.result-contract-registry.v1",
         }
 
     def runtime_capabilities(self, *, max_files: int = 10) -> Dict[str, Any]:

@@ -277,10 +277,20 @@ class CompositeTaskPlanBridge:
         preview = getattr(service, "preview", None)
         if not callable(preview):
             return None, workflow
+        preview_planner = (
+            "rule"
+            if str(planner).lower() == "openai"
+            else _bounded_text(planner, 32)
+        )
+        preview_backend = _bounded_text(
+            component.get("backend") or backend, 32
+        )
         effective_workflow = _resolve_preview_workflow(
             service,
             component=component,
             fallback=workflow,
+            planner=preview_planner,
+            backend=preview_backend,
         )
         kwargs: dict[str, Any] = {
             "session_id": _preview_session_id(session_id, component),
@@ -289,8 +299,8 @@ class CompositeTaskPlanBridge:
             # issue a second provider request through Service.preview(); use
             # the Domain's deterministic compiler for the component plan and
             # keep the canonical TaskPlan/ToolRegistry gates unchanged.
-            "planner": "rule" if str(planner).lower() == "openai" else _bounded_text(planner, 32),
-            "backend": _bounded_text(component.get("backend") or backend, 32),
+            "planner": preview_planner,
+            "backend": preview_backend,
         }
         if isinstance(effective_workflow, Mapping) and effective_workflow.get(
             "template_id"
@@ -470,6 +480,18 @@ def _policy(
             "capability has no registered workflow",
             code="capability_not_materializable",
         )
+    if "execution_ready" in capability and not bool(
+        capability.get("execution_ready")
+    ):
+        code = str(
+            capability.get("execution_reason_code")
+            or capability.get("execution_readiness")
+            or "execution_readiness_unknown"
+        )[:96]
+        raise CompositeTaskPlanBridgeError(
+            "capability is not execution-ready",
+            code=code,
+        )
     workflow_value = workflow if isinstance(workflow, Mapping) else {}
     registered = _registered_workflow(
         context, domain_id=domain_id, template_id=workflow_value.get("template_id")
@@ -558,6 +580,8 @@ def _resolve_preview_workflow(
     *,
     component: Mapping[str, Any],
     fallback: Mapping[str, Any] | None,
+    planner: str = "rule",
+    backend: str = "memory",
 ) -> Mapping[str, Any] | None:
     """Resolve a selected capability through the Domain Contract seam."""
 
@@ -572,7 +596,19 @@ def _resolve_preview_workflow(
         facts = None
         if callable(facts_resolver):
             try:
-                facts = facts_resolver(_bounded_text(component.get("request"), 2000))
+                facts = facts_resolver(
+                    _bounded_text(component.get("request"), 2000),
+                    planner=planner,
+                    backend=backend,
+                )
+            except TypeError:
+                # Preserve the minimal legacy Domain Service seam.
+                try:
+                    facts = facts_resolver(
+                        _bounded_text(component.get("request"), 2000)
+                    )
+                except Exception:
+                    facts = None
             except Exception:
                 facts = None
         try:
@@ -580,7 +616,20 @@ def _resolve_preview_workflow(
                 _bounded_text(component.get("capability_id"), 96),
                 request_facts=facts,
                 selection=None,
+                planner=planner,
+                backend=backend,
             )
+        except TypeError:
+            # Older test doubles and Domain Services may expose the resolver
+            # without planner/backend routing arguments.
+            try:
+                resolved = resolver(
+                    _bounded_text(component.get("capability_id"), 96),
+                    request_facts=facts,
+                    selection=None,
+                )
+            except Exception:
+                resolved = None
         except Exception:
             resolved = None
         if isinstance(resolved, Mapping) and resolved.get("template_id"):

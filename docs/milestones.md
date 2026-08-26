@@ -5094,3 +5094,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 单组件 M292 continuation 保持兼容；M291 严格 materialization gate 未被放宽。未完成多组件澄清不创建 execution run。
 - Docker 阶段集中回归 **26/26**，Node projection smoke、compileall、architecture strict、生产 `/health/ready` **200** 通过；真实 provider 未重复调用，默认测试保持精简。
 - 全局重规划：M294 从产品、架构、数据、模型、部署、体验、测试七个维度评估“Planner 选择组件后真正执行并回答”的跨域纵向闭环，重点是统一执行结果/答案/证据和可恢复错误，不继续扩大 continuation schema。
+
+## M296：通用能力可执行闭合与真实跨域成功链路（已完成）
+
+- 完成 execution readiness：能力目录、workflow、ToolRegistry、TaskPlan/DAG、Result Registry 和 execution binding 形成唯一可执行闭合边界；未注册 workflow、schema 不完整和 unknown readiness 均不会进入执行。
+- 修复 Composite context 候选工具列表被截断的问题，GIS `spatial_analysis` 的 9 个工具完整透传；Rule、Replay、LLM 共享同一跨域计划和 binding 语义。
+- 使用真实 Docker GIS 与 Economic 数据完成跨域同步、异步、artifact、SQLite/restart 和 HTTP/View 验收；两个组件均完成，binding/evidence identity 保持一致，真实模型显式验收成功且未增加重试。
+- Console projection 增加用户可读的“执行链路已核验”状态，不展示 binding fingerprint、工具名、prompt 或模型原文；结果仍由通用结构化 projection 驱动。
+- 阶段门禁：Docker M296 定向 **9/9**，M295+M294 相邻回归 **9/9**，compileall、architecture strict、Node projection smoke 和生产 readiness HTTP **200** 通过；Docker 镜像已重建并重新创建。
+- 全局重规划：M297 聚焦通用分析组合与跨类型结果闭合，优先复用少量既有工具，让开放问题由目录、Planner 和类型安全引用组合，不新增专题硬编码或 RAG。

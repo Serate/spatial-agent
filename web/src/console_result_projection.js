@@ -6,6 +6,7 @@
   const SCHEMA_VERSION = "spatial-agent.console-result-projection.v1";
   const COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1";
   const MAX_ITEMS = 6;
+  const MAX_CHIPS = 8;
   const MAX_TEXT = 480;
   const record = value => Boolean(value) && typeof value === "object" && !Array.isArray(value);
   const list = value => Array.isArray(value) ? value : [];
@@ -69,6 +70,14 @@
     const continuation = firstRecord(data.continuation, result.continuation, handoff?.continuation);
     const evidence = firstRecord(composite?.evidence, result.evidence, data.evidence) || {};
     const evidenceRegistry = firstRecord(result.evidence_registry, data.evidence_registry) || {};
+    const executionBinding = firstRecord(
+      data.execution_binding,
+      result.execution_binding,
+      planning?.execution_binding,
+      composite?.planning?.execution_binding,
+      composite?.execution_binding,
+      evidence?.execution_binding,
+    );
     const plan = firstRecord(data.plan, result.plan) || {};
     const views = list(composite?.views).length ? list(composite.views) : Object.entries(result.views?.panels || {}).map(([id, value]) => ({view_id: id, ...value}));
     const sections = list(composite?.sections);
@@ -96,6 +105,7 @@
       plan,
       evidence,
       evidence_registry: evidenceRegistry,
+      execution_binding: executionBinding || {},
       views,
       sections,
       artifacts,
@@ -164,12 +174,13 @@
     if (model.component_count) chips.push("覆盖 " + model.component_count + " 个分析部分");
     if (model.planning?.plan_completeness?.status === "valid") chips.push("计划已验证");
     else if (model.planning?.plan_completeness?.status === "degraded") chips.push("计划需要补充");
+    if (model.execution_binding?.binding_fingerprint) chips.push("执行链路已核验");
     if (model.planning?.structured_output?.schema_enforced === true) chips.push("计划格式已确认");
     if (Object.keys(model.context || {}).length) chips.push("分析上下文已建立");
     if (Object.keys(model.evidence || {}).length || Object.keys(model.evidence_registry || {}).length) chips.push("证据已保留");
     if (model.repair_lineage.status === "repaired") chips.push("计划已校正");
     else if (model.repair_lineage.status === "failed") chips.push("计划校正未完成");
-    const chipHtml = chips.slice(0, MAX_ITEMS).map(item => '<span class="result-chip">' + escapeHtml(item) + '</span>').join("");
+    const chipHtml = chips.slice(0, MAX_CHIPS).map(item => '<span class="result-chip">' + escapeHtml(item) + '</span>').join("");
     const discoveryHtml = renderDiscovery(model.discovery, escapeHtml);
     const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const limitations = model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
@@ -203,6 +214,9 @@
     }
     if (record(compositePlanning) && !record(result.plan_completeness) && record(compositePlanning.plan_completeness)) {
       result.plan_completeness = {...compositePlanning.plan_completeness};
+    }
+    if (record(compositePlanning) && !record(result.execution_binding) && record(compositePlanning.execution_binding)) {
+      result.execution_binding = {...compositePlanning.execution_binding};
     }
     return Object.keys(result).length ? result : null;
   }

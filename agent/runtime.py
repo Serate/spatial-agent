@@ -238,6 +238,10 @@ class AgentRuntime:
         """Return bounded catalog and validator allowlists for HTTP seams."""
         return self._capability_surface.workflow_contract()
 
+    def execution_contract(self) -> Dict[str, Any]:
+        """Return metadata for domain-neutral Composite readiness checks."""
+        return self._capability_surface.execution_contract()
+
     def extract_request_facts(self, request: str) -> Any:
         """Expose the selected Domain's bounded RequestFacts seam."""
         return extract_request_facts(self._domain_pack, str(request or ""))
@@ -265,6 +269,21 @@ class AgentRuntime:
             discovery,
             request_facts,
             workflow=workflow,
+        )
+
+    def resolve_capability_selection(
+        self,
+        capability_id: str,
+        *,
+        request_facts: Any = None,
+        selection: Mapping[str, Any] | None = None,
+    ) -> Mapping[str, Any] | None:
+        """Resolve a selected capability into Domain-owned workflow data."""
+
+        return self._capability_surface.resolve_capability_selection(
+            capability_id,
+            request_facts=request_facts,
+            selection=selection,
         )
 
     def runtime_capabilities(self, *, max_files: int = 10) -> Dict[str, Any]:

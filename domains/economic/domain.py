@@ -149,13 +149,22 @@ class EconomicDomainPack:
 
     def resolve_capability_selection(self, capability_id: str, *, request_facts: Any = None, selection: Mapping[str, Any] | None = None) -> Mapping[str, Any] | None:
         del selection
-        if capability_id not in self.workflow_template_catalog():
+        workflow_aliases = {
+            "economic_indicator_latest": "economic_latest",
+            "economic_indicator_trend": "economic_trend",
+            "economic_indicator_compare": "economic_compare",
+            "economic_indicator_discovery": "economic_discovery",
+        }
+        template_id = workflow_aliases.get(
+            str(capability_id or "").strip(), str(capability_id or "").strip()
+        )
+        if template_id not in self.workflow_template_catalog():
             return None
         facts = request_facts if isinstance(request_facts, Mapping) else (request_facts.as_dict() if request_facts else {})
         constraints = dict(facts.get("constraints") or {})
         constraints.setdefault("dataset", ECONOMIC_DATASET)
         constraints.setdefault("period_type", "annual")
-        return {"template_id": capability_id, "constraints": constraints, "evidence": ["summary", "provenance", "trace"]}
+        return {"template_id": template_id, "constraints": constraints, "evidence": ["summary", "provenance", "trace"]}
 
     def normalize_workflow(self, workflow: Mapping[str, Any]) -> Mapping[str, Any]:
         if not isinstance(workflow, Mapping) or not workflow.get("template_id"):

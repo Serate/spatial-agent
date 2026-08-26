@@ -30,7 +30,16 @@ COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-request-cont
 _MAX_DOMAINS = 8
 _MAX_CANDIDATES = 16
 _MAX_FIELDS = 8
-_MAX_BYTES = 64_000
+# Tool and result allowlists are execution-boundary data.  Truncating them
+# below the public bridge limit can turn a valid workflow into a false
+# ``not allowlisted`` failure, so keep the same bounded capacity as the
+# TaskPlan bridge instead of using the smaller display-list limit.
+_MAX_TOOLS = 24
+_MAX_RESULT_TYPES = 24
+# A multi-Domain planner needs the bounded candidate catalog, discovery
+# receipt, and per-domain fact handoff in one context.  Keep the projection
+# finite while leaving enough room for the supported GIS + Economic pair.
+_MAX_BYTES = 96_000
 _PRIVATE_KEYS = {
     "api_key",
     "credential",
@@ -221,6 +230,9 @@ class CompositeRequestContextBuilder:
             "domain_ids": selected_ids,
             "domain_contexts": domain_contexts,
             "capability_index": candidate_index,
+            "workflow_index": _workflow_index_projection(
+                catalog.get("workflow_index"), selected_ids
+            ),
             "discovery": discovery_receipt,
             "clarification": clarification,
             "catalog_consistency": _safe_value(
@@ -413,16 +425,57 @@ def _candidate_projection(
                 "capability_status": _text(item.get("capability_status"), 32),
                 "missing_datasets": _safe_strings(item.get("missing_datasets"), 8),
                 "datasets": _safe_strings(item.get("datasets"), 8),
-                "tools": _safe_strings(item.get("tools"), 8),
-                "result_types": _safe_strings(item.get("result_types"), 8),
-                "workflow_ids": _safe_strings(item.get("workflow_ids"), 8),
+                "tools": _safe_strings(item.get("tools"), _MAX_TOOLS),
+                "result_types": _safe_strings(
+                    item.get("result_types"), _MAX_RESULT_TYPES
+                ),
+                "workflow_ids": _safe_strings(item.get("workflow_ids"), 16),
                 "plan_mode": _text(item.get("plan_mode"), 24) or None,
                 "request_requirements": _safe_requirements(
                     item.get("request_requirements")
                 ),
             }
         )
+        if "execution_readiness" in item:
+            result[-1]["execution_readiness"] = _text(
+                item.get("execution_readiness"), 32
+            )
+            result[-1]["execution_ready"] = bool(item.get("execution_ready"))
+            result[-1]["execution_reason_code"] = _text(
+                item.get("execution_reason_code"), 96
+            )
+            for key in ("missing_tools", "missing_result_types"):
+                if item.get(key):
+                    result[-1][key] = _safe_strings(item.get(key), 8)
     return result[:_MAX_CANDIDATES]
+
+
+def _workflow_index_projection(
+    value: Any, selected_domain_ids: Sequence[str]
+) -> list[dict[str, Any]]:
+    """Carry the bounded registered workflow index into planner context."""
+
+    allowed_domains = {str(item) for item in selected_domain_ids}
+    result: list[dict[str, Any]] = []
+    for raw in value if isinstance(value, Sequence) and not isinstance(value, str) else ():
+        if not isinstance(raw, Mapping):
+            continue
+        domain_id = _text(raw.get("domain_id"), 64)
+        workflow_id = _text(raw.get("workflow_id") or raw.get("id"), 96)
+        if not domain_id or domain_id not in allowed_domains or not workflow_id:
+            continue
+        result.append(
+            {
+                "domain_id": domain_id,
+                "workflow_id": workflow_id,
+                "label": _text(raw.get("label"), 160),
+                "allowed_tools": _safe_strings(raw.get("allowed_tools"), 24),
+                "result_types": _safe_strings(raw.get("result_types"), 16),
+            }
+        )
+        if len(result) >= _MAX_CANDIDATES * 2:
+            break
+    return result
 
 
 def _unique_candidates(values: Sequence[Mapping[str, Any]], limit: int) -> list[dict[str, Any]]:

@@ -288,4 +288,81 @@
 - 需要修改/实际修改：`docs/m296-executable-capability-closure-capability-map.md`、`docs/m296-executable-capability-closure-spec.md`、`docs/m296-executable-capability-closure-plan.md`、`agent/runtime_core/plan_completeness.py`、`agent/runtime_core/execution_binding.py`、`agent/runtime_core/composite_taskplan.py`、`agent/tools.py`。
 - 验证：开发期间只做静态/契约边界检查；M296-B～E 合并后集中执行精简门禁。
 - 阻塞：无。
-- 下一步：先核对现有 readiness、workflow binding、ToolRegistry schema 和 execution binding 的公共字段，确定唯一可复用 seam。
+- 下一步：在公共 Runtime 能力面生成受限 execution contract；由 plan completeness 统一校验 workflow 工具、工具 schema 和 Result Registry，并将 readiness 投影回 discovery/candidate，之后再进入 B～E 的连续纵向闭合。
+
+### M296-A1：公共 execution contract 与 catalog readiness — 已完成
+- 目标：让 discovery 的 `execution_ready` 由真实 ToolRegistry 与 Domain Result Registry 的结构化契约支持，区分 `workflow_unbound`、`schema_invalid` 和 `ready`；不执行工具、不新增生命周期。
+- 需要修改/实际修改：`agent/runtime_core/plan_completeness.py`、`agent/runtime_core/capabilities.py`、`agent/runtime.py`、`agent/service.py`、`agent/application/composite_planning.py`、`agent/composite_request_context.py`、`agent/runtime_core/analysis_discovery.py`、`agent/runtime_core/composite_taskplan.py`、`tests/test_m296_execution_readiness.py`。
+- 验证：Docker 重建成功；M296 readiness + M295 discovery **9/9**；真实 Docker Host catalog 验收显示 Economic 5 个、GIS 10 个能力结构 ready，未闭合能力明确为 `workflow_unbound`。
+- 阻塞：无。
+- 下一步：验证 `spatial_analysis` 与 Economic trend/compare 作为事实完整候选能物化 canonical TaskPlan，并进入统一 execution binding。
+
+### M296-B：选定能力的 Workflow → TaskPlan → binding 物化 — 进行中
+- 目标：用已有 `spatial_analysis` 与 Economic 工作流验证选定能力的连续闭合；不把未绑定能力伪装成可执行，不新增第二套生命周期。
+- 需要修改/实际修改：`agent/runtime_core/plan_completeness.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/execution_binding.py`、`agent/application/composite_planning.py`、`tests/test_m296_execution_readiness.py`（按验证结果补充）。
+- 验证：开发期间仅做真实 Host 的 planning/TaskPlan 静态闭合检查；阶段收口集中执行跨入口与 Docker 门禁。
+- 阻塞：无。
+- 下一步：构造不依赖固定问句的 Replay 组合候选，确认 GIS + Economic 的 TaskPlan、DAG、binding identity 一致。
+
+### M296-B1：真实 Service 的能力到 Workflow 解析 — 进行中
+- 目标：修复 Composite bridge 调用真实 `AgentService` 时无法把已选 capability 解析为 Domain workflow，避免把 ready handoff 误报为组件事实澄清。
+- 需要修改/实际修改：`agent/service.py`、`agent/runtime.py`、`agent/runtime_core/capabilities.py`、`agent/runtime_core/composite_taskplan.py`、`domains/economic/domain.py`、`tests/test_m296_execution_readiness.py`。
+- 验证：已在 Docker 真实 Host 重现 `taskplan_component_clarification`，handoff 为 `ready` 但 preview workflow 为空；先补充回归测试再修复。
+- 阻塞：无。
+- 下一步：补齐公共解析 seam 和 Economic capability/workflow 映射，再重跑跨域 Replay planning。
+
+### M296-B2：Workflow index 透传与注册校验 — 进行中
+- 目标：让 Composite request context 保留受限 workflow index，使 bridge 能验证 Domain resolver 返回的 template，而不是把已注册 workflow 误判为未注册。
+- 需要修改/实际修改：`agent/composite_request_context.py`、`tests/test_m296_execution_readiness.py`。
+- 验证：Docker Replay planning 已越过组件事实澄清，但当前重现 `taskplan_workflow_not_registered`；原因是 context 缺少 `workflow_index`。
+- 阻塞：无。
+- 下一步：透传安全 workflow index 后重新验证两组件的 TaskPlan、DAG 和 binding。
+
+### M296-B3：候选工具 allowlist 完整透传 — 进行中
+- 目标：修复 Composite context 对候选工具列表的过度截断，确保 capability、workflow 和 TaskPlan bridge 使用同一份有界 allowlist。
+- 需要修改/实际修改：`agent/composite_request_context.py`、`tests/test_m296_execution_readiness.py`。
+- 验证：已在 Docker 真实 Host 复现 GIS `spatial_analysis` 的第 9 个工具被 context 截掉；待修复后集中验证 9 工具回归及跨域 Replay planning。
+- 阻塞：无。
+- 下一步：运行精简 Docker 回归，确认 `taskplan_tool_not_allowlisted` 消失并继续验证 TaskPlan/DAG/binding。
+
+### M296-B3：候选工具 allowlist 完整透传 — 已完成
+- 目标：修复 Composite context 对候选工具列表的过度截断，确保 capability、workflow 和 TaskPlan bridge 使用同一份有界 allowlist。
+- 需要修改/实际修改：`agent/composite_request_context.py`、`tests/test_m296_execution_readiness.py`。
+- 验证：Docker 重建后 M296 定向 **9/9**；真实 Host 中 GIS `spatial_analysis` 的 9 个工具完整透传，`taskplan_tool_not_allowlisted` 消失。
+- 阻塞：无。
+- 下一步：进入阶段级跨域规划、执行、异步/恢复和前端投影收口。
+
+### M296-B～D：跨域 Planner → TaskPlan → binding → Docker 执行闭合 — 已完成
+- 目标：验证 GIS 与 Economic 通过同一公共闭合链路生成计划并执行，不新增领域专用 Runtime 流程。
+- 需要修改/实际修改：复用 M296-B1/B2/B3 代码；未增加领域专用执行分支。
+- 验证：Docker Replay 规划 `PLANNED`，GIS 9 步 + Economic 2 步均 `accepted`；真实 GIS/Economic 同步执行 `COMPLETED` 并生成 artifact；异步执行 `QUEUED → COMPLETED`，View、Evidence、SQLite/restart 的 binding fingerprint 一致；真实 LLM 单次规划和实际执行均 `COMPLETED`，2 个组件、0 重试、binding `validated`、artifact 可用。
+- 阻塞：无。
+- 下一步：完成通用 Console 的执行链路状态展示、阶段文档与集中门禁。
+
+### M296-E：通用 Console 执行链路投影 — 进行中
+- 目标：在不增加 GIS/Economic 页面分支的前提下，让前端从结构化 planning/evidence 识别已验证执行链路，并用用户可读状态展示。
+- 需要修改/实际修改：`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js`。
+- 验证：待阶段收口运行 Node、Docker 资源和必要浏览器 smoke；不展示 binding fingerprint、工具名或模型原文。
+- 阻塞：无。
+- 下一步：完成前端 smoke 后更新阶段文档、快照和版本记录。
+
+### M296-E：通用 Console 执行链路投影 — 已完成
+- 目标：在不增加 GIS/Economic 页面分支的前提下，让前端从结构化 planning/evidence 识别已验证执行链路，并用用户可读状态展示。
+- 需要修改/实际修改：`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js`；前端仅增加执行链路用户标签和有界 chip 容量。
+- 验证：Node projection smoke 通过；Docker 镜像重建后生产资源可用，readiness HTTP 200；不展示 binding fingerprint、工具名、prompt 或模型原文。
+- 阻塞：无。
+- 下一步：完成 M296-F 阶段文档、提交推送和 M297 全局规划。
+
+### M296-F：阶段收口、版本交付与全局重规划 — 已完成
+- 目标：完成 M296 的集中门禁、中文问题记录、milestone、恢复快照和任务清单，并按七维度规划下一阶段。
+- 需要修改/实际修改：`docs/agent-development-issues.md`、`docs/milestones.md`、`docs/agent-work-state.md`、`tasks/task-state.md`、`tasks/task-progress.md`、`tasks/plan.md`、`tasks/todo.md`；新增 M297 capability map、Spec、Plan。
+- 验证：Docker M296 **9/9**；M295+M294 **9/9**；Docker compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200；生产镜像已重建并重新创建。
+- 阻塞：无。
+- 下一步：提交并推送 M296 版本后开始 M297-A；继续复用现有 Runtime、Planner、ToolRegistry 和生命周期。
+
+### M297-A：目录与类型边界冻结 — 待开始
+- 目标：盘点现有 capability/workflow/ToolRegistry/Result Registry，冻结开放式组合所需的公共 requirements、输入/输出 data profile、result_ref 和 `composition_invalid` 边界。
+- 规划：`docs/m297-general-analysis-composition-capability-map.md`、`docs/m297-general-analysis-composition-spec.md`、`docs/m297-general-analysis-composition-plan.md`。
+- 验证：开发期间只做静态/契约边界检查；M297-B～E 合并后集中运行精简门禁。
+- 阻塞：无。
+- 下一步：读取 M297 三份规划和明确列出的 Runtime contract 文件，先形成现有能力矩阵，再决定是否需要新增通用 seam。

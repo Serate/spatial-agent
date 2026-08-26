@@ -19,42 +19,27 @@
 
 ## 当前阶段
 
-- 阶段：M296 通用能力可执行闭合与真实跨域成功链路（规划完成，A 进行中）
-- 状态：M295 已完成并准备提交推送；M296 已完成七维度能力图、Spec、Plan，当前先冻结 execution-readiness 契约和缺口账本。
-- 当前任务：M296-A 全局基线与 execution-readiness 契约冻结，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M297 通用分析组合与跨类型结果闭合（已完成全局规划，A 待开始）
+- 状态：M296 已完成代码、Docker/HTTP/前端门禁和文档收口，当前版本待提交推送；M297 已完成七维度能力图、Spec、Plan，下一步冻结目录与类型边界。
+- 当前任务：M297-A 目录与类型边界冻结，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m295-global-open-analysis-discovery-capability-map.md`](m295-global-open-analysis-discovery-capability-map.md)
-  - [`docs/m295-global-open-analysis-discovery-spec.md`](m295-global-open-analysis-discovery-spec.md)
-  - [`docs/m295-global-open-analysis-discovery-plan.md`](m295-global-open-analysis-discovery-plan.md)
+  - [`docs/m297-general-analysis-composition-capability-map.md`](m297-general-analysis-composition-capability-map.md)
+  - [`docs/m297-general-analysis-composition-spec.md`](m297-general-analysis-composition-spec.md)
+  - [`docs/m297-general-analysis-composition-plan.md`](m297-general-analysis-composition-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m295-global-open-analysis-discovery-capability-map.md`
-- `docs/m295-global-open-analysis-discovery-spec.md`
-- `docs/m295-global-open-analysis-discovery-plan.md`
-- `agent/composite_request_context.py`
-- `agent/runtime_core/component_fact_handoff.py`
-- `agent/runtime_core/clarification_continuation.py`
-- `agent/application/composite_planning.py`
-- `agent/application/composite_runs.py`
-- `agent/composite_view.py`
-- `agent/runtime_core/analysis_discovery.py`
-- `evaluation/live_provider_probe.py`
-- `agent/application/composite_planning.py`
-- `agent/application/composite_runs.py`
-- `agent/composite_view.py`
-- `web/src/console_result_projection.js`
-- `web/src/styles.css`
-- `scripts/console_result_projection_smoke.js`
-- `tests/test_m295_open_analysis_discovery.py`
-- `docs/m296-executable-capability-closure-capability-map.md`
-- `docs/m296-executable-capability-closure-spec.md`
-- `docs/m296-executable-capability-closure-plan.md`
+- `docs/m297-general-analysis-composition-capability-map.md`
+- `docs/m297-general-analysis-composition-spec.md`
+- `docs/m297-general-analysis-composition-plan.md`
 - `agent/runtime_core/plan_completeness.py`
 - `agent/runtime_core/execution_binding.py`
 - `agent/runtime_core/composite_taskplan.py`
+- `agent/runtime_core/analysis_discovery.py`
 - `agent/tools.py`
-- `tasks/task-progress.md`
+- `domains/gis/domain.py`
+- `domains/economic/domain.py`
+- `tests/test_m297_general_analysis_composition.py`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
 - `tasks/plan.md`

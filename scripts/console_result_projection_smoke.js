@@ -38,6 +38,10 @@ const completed = projection.normalize({
           component_count: 1,
           materialized_count: 1,
         },
+        execution_binding: {
+          schema_version: "spatial-agent.execution-binding.v1",
+          binding_fingerprint: "sha256:binding-is-not-rendered",
+        },
         structured_output: {
           schema_version: "spatial-agent.provider-structured-output.v1",
           wire_api: "chat_completions",
@@ -59,11 +63,13 @@ assert.equal(completed.phases[1].state, "not_needed");
 assert.equal(completed.planning.structured_output.structured_mode, "json_schema");
 assert.equal(completed.discovery.state, "ready");
 assert.equal(completed.discovery.candidate_count, 2);
+assert.equal(completed.execution_binding.binding_fingerprint, "sha256:binding-is-not-rendered");
 const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
 assert.match(completedHtml, /分析上下文已建立/);
 assert.match(completedHtml, /计划格式已确认/);
 assert.match(completedHtml, /计划已验证/);
+assert.match(completedHtml, /执行链路已核验/);
 assert.match(completedHtml, /能力与数据准备/);
 assert.match(completedHtml, /能力与数据已发现/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);

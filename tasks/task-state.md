@@ -6,20 +6,26 @@
 
 ## 当前阶段
 
-- 阶段：M296 通用能力可执行闭合与真实跨域成功链路
+- 阶段：M297 通用分析组合与跨类型结果闭合（已规划，A 待开始）
 - 阶段规划：
-  - `docs/m296-executable-capability-closure-capability-map.md`
-  - `docs/m296-executable-capability-closure-spec.md`
-  - `docs/m296-executable-capability-closure-plan.md`
+  - `docs/m297-general-analysis-composition-capability-map.md`
+  - `docs/m297-general-analysis-composition-spec.md`
+  - `docs/m297-general-analysis-composition-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
 
-### M296-A：全局基线与 execution-readiness 契约冻结（进行中）
+### M297-A：目录与类型边界冻结（待开始）
 
-- 目标：复用 M295 discovery、TaskPlan completeness、ToolRegistry、workflow catalog 和 M294 execution binding，冻结唯一 execution-readiness seam。
-- 规划：`docs/m296-executable-capability-closure-capability-map.md`、`docs/m296-executable-capability-closure-spec.md`、`docs/m296-executable-capability-closure-plan.md`。
-- 文件：当前先读取上述三个规划文件、`agent/runtime_core/plan_completeness.py`、`agent/runtime_core/execution_binding.py`、`agent/runtime_core/composite_taskplan.py`、`agent/tools.py`；后续按账本增量加入 Domain catalog 和测试文件。
-- 验证：M295 已集中通过 Docker M295 compact **5/5**、合并回归 **30/30**、compileall、architecture strict、Node projection、readiness 200 和 HTTP receipt；M296 实现期间只做必要静态检查，B～E 完成后统一测试。
-- 阻塞：无。不得绕过 execution binding，不得把 unknown readiness 当 ready。
+- 目标：盘点现有 capability/workflow/ToolRegistry/Result Registry，冻结开放式组合所需的公共 requirements、输入/输出 data profile、result_ref 和 `composition_invalid` 边界。
+- 规划：`docs/m297-general-analysis-composition-capability-map.md`、`docs/m297-general-analysis-composition-spec.md`、`docs/m297-general-analysis-composition-plan.md`。
+- 文件：当前先读取上述三个规划文件、`agent/runtime_core/plan_completeness.py`、`agent/runtime_core/execution_binding.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/analysis_discovery.py`、`agent/tools.py`；后续按账本增量加入 Domain catalog 和测试文件。
+- 验证：开发期间只做静态/契约边界检查；M297-B～E 合并后集中运行精简门禁。
+- 阻塞：无。不得绕过 execution binding，不得把未登记能力或 unknown readiness 当作可执行。
+
+### M296-A～F：通用能力可执行闭合与真实跨域成功链路（已完成）
+
+- 结果：execution readiness、跨 GIS/Economic TaskPlan/binding、真实 Docker 同步/异步/恢复链路和通用 Console 执行链路投影已闭合。
+- 验证：M296 **9/9**、M295+M294 **9/9**、Docker compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200；镜像已重建并重新创建。
+- 交付：阶段 Spec/Plan、中文问题日志、milestone、恢复快照和任务清单已同步；本阶段待当前版本提交推送后进入 M297。
 
 ### M295-A～F：全局开放式分析与数据发现闭环（已完成，待版本交付）
 
