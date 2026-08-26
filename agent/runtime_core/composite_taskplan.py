@@ -190,6 +190,7 @@ class CompositeTaskPlanBridge:
             raise CompositeTaskPlanBridgeError(
                 "component workflow is invalid", code="taskplan_workflow_invalid"
             )
+        explicit_workflow = workflow if isinstance(workflow, Mapping) else None
 
         capability = _capability(context, domain_id, component.get("capability_id"))
         if capability is None:
@@ -212,10 +213,14 @@ class CompositeTaskPlanBridge:
                 code="taskplan_component_clarification",
                 details={"component_fact_handoff": fact_handoff},
             )
-        preview_workflow = workflow or _context_workflow(
-            context,
-            domain_id=domain_id,
-            capability_id=component.get("capability_id"),
+        preview_workflow = (
+            explicit_workflow
+            if explicit_workflow is not None
+            else _context_workflow(
+                context,
+                domain_id=domain_id,
+                capability_id=component.get("capability_id"),
+            )
         )
 
         plan_payload = _explicit_task_plan(workflow)
@@ -228,6 +233,7 @@ class CompositeTaskPlanBridge:
                 planner=planner,
                 backend=backend,
                 session_id=session_id,
+                prefer_domain_workflow=explicit_workflow is None,
             )
             source = "domain_preview"
         if plan_payload is None:
@@ -282,6 +288,7 @@ class CompositeTaskPlanBridge:
         planner: str,
         backend: str,
         session_id: str,
+        prefer_domain_workflow: bool = False,
     ) -> tuple[Mapping[str, Any] | None, Mapping[str, Any] | None]:
         service_resolver = getattr(self._host, "service", None)
         selector = getattr(self._host, "select", None)
@@ -309,6 +316,7 @@ class CompositeTaskPlanBridge:
             fallback=workflow,
             planner=preview_planner,
             backend=preview_backend,
+            prefer_domain_workflow=prefer_domain_workflow,
         )
         kwargs: dict[str, Any] = {
             "session_id": _preview_session_id(session_id, component),
@@ -602,10 +610,11 @@ def _resolve_preview_workflow(
     fallback: Mapping[str, Any] | None,
     planner: str = "rule",
     backend: str = "memory",
+    prefer_domain_workflow: bool = False,
 ) -> Mapping[str, Any] | None:
     """Resolve a selected capability through the Domain Contract seam."""
 
-    if isinstance(fallback, Mapping) and (
+    if not prefer_domain_workflow and isinstance(fallback, Mapping) and (
         fallback.get("template_id")
         or _explicit_task_plan(fallback) is not None
     ):

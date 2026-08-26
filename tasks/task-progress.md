@@ -18,13 +18,26 @@
 
 ## 当前进行中
 
-### M308-A：全局基线与 3+ 组件契约 — 进行中
+### M309-A：模型计划结果矩阵与全局基线 — 进行中
 
-- 目标：以 M306 的真实 2 组件闭环为基线，冻结已有能力支撑 3+ 组件混合 profile、答案事实不变和跨入口 evidence 的最小契约。
-- 规格与计划：`docs/m308-open-composition-vertical-slice-capability-map.md`、`docs/m308-open-composition-vertical-slice-spec.md`、`docs/m308-open-composition-vertical-slice-plan.md`。
-- 需要读取/修改：`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/application/composite.py`、`agent/application/composite_runs.py`、`agent/answer_generation.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`tests/test_m308_open_composition_vertical_slice.py`（按任务增量加入）。
-- 验证节奏：开发期间只做必要静态/契约检查；A～D 合并后在 Docker 集中运行精简阶段门禁；本阶段真实模型最多一次且不重复 M306 live。
-- 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+- 目标：以 M308 的 3+ 组件闭环为基线，冻结真实模型/Replay 的成功、澄清、非法计划、有限修复、provider failure 和执行失败矩阵，以及 execution run 创建边界。
+- 已完成：创建 `docs/m309-real-model-agent-experience-capability-map.md`、`docs/m309-real-model-agent-experience-spec.md`、`docs/m309-real-model-agent-experience-plan.md`；同步 M308 计划、工作快照和任务状态，避免恢复入口指向已完成阶段。
+- 当前需要修改的文件：`tests/test_m309_real_model_agent_experience.py`、`agent/composite_planner.py`、`agent/runtime_core/planner_envelope.py`、`agent/application/composite_planning.py`（仅在契约检查发现缺口时增量修改）。
+- 验证：先做静态/契约级检查；M309-A～D 合并后统一在 Docker 收口，不重复 M308 已通过的阶段回归。
+- 阻塞：无。
+- 下一步：读取上述 M309 规范和直接依赖，检查现有 planner receipt/plan receipt 的状态矩阵并补最小契约。
+
+## 最近完成
+
+### M308-F：文档、版本与全局重规划 — 已完成
+
+- M308-B：真实 Docker 3+ 组件通过 canonical request、TaskPlan/DAG、ToolRegistry、workflow、execution binding 和 Composite 执行；修复上下文 workflow 与 capability-specific workflow 的约束漂移。
+- M308-C：Composite Answer 保持旧四字段兼容，增加可选 `next_steps`；fallback 输出简短摘要、限制和通用下一步，Console 复用既有结构化投影。
+- M308-D：新增 `scripts/m308_cross_entry_acceptance.py`，真实对照 sync、async、HTTP View、artifact、SQLite 重启的结果/答案/View/Evidence identity。
+- M308-E：Docker 组合回归 **28/28**；M308 真实组合和跨入口验收通过；compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200/ready** 通过；未重复调用真实模型。
+- 本阶段文件：`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/preview.py`、`agent/composite_contract.py`、`agent/composite_view.py`、`agent/answer_generation.py`、`domains/economic/domain.py`、`domains/indicators/domain.py`、`tests/test_m308_open_composition_vertical_slice.py`、`scripts/m308_real_composition_acceptance.py`、`scripts/m308_cross_entry_acceptance.py` 及对应中文文档。
+- 下一阶段：M309「真实模型开放组合与默认 Agent 体验」，按全局七维度规划，不增加单一区域或固定问句分支。
+- 阻塞：无。
 
 ### M307-F：文档、版本与全局重规划 — 已完成
 

@@ -363,7 +363,7 @@ def normalize_composite_section(value: Any, *, allow_legacy: bool = True) -> dic
                 "plan_fingerprint": str(raw["execution"].get("plan_fingerprint") or "")[:128],
                 "step_ids": [str(value)[:48] for value in (raw["execution"].get("step_ids") or [])[:16]],
             }
-        for key in ("failure", "degradation", "artifact", "evidence"):
+        for key in ("failure", "degradation", "artifact", "evidence", "input_evidence"):
             if isinstance(raw.get(key), Mapping):
                 item[key] = _bounded_value(raw[key], depth=0)
         normalized_components.append(item)
@@ -410,7 +410,12 @@ def _project_component(spec: Mapping[str, Any], child: Any) -> dict[str, Any]:
         "state": state,
         "result_type": result_type,
         "data_profile": profile,
-        "answer": str(payload.get("answer") or nested.get("summary") or "")[:1200],
+        "answer": str(
+            payload.get("answer")
+            or nested.get("summary")
+            or nested.get("answer")
+            or ""
+        )[:1200],
         "view_refs": [],
     }
     inputs = project_component_inputs(spec.get("inputs"))
@@ -459,6 +464,19 @@ def _project_component(spec: Mapping[str, Any], child: Any) -> dict[str, Any]:
             "plan_fingerprint": str(execution.get("plan_fingerprint") or "")[:128],
             "step_ids": [str(value)[:48] for value in (execution.get("step_ids") or [])[:16]],
         }
+    input_evidence = payload.get("_component_input_evidence") or nested.get(
+        "input_evidence"
+    )
+    if isinstance(input_evidence, Mapping):
+        component["input_evidence"] = {
+            "schema_version": str(input_evidence.get("schema_version") or "")[:96],
+            "state": str(input_evidence.get("state") or "unknown")[:32],
+            "input_names": [
+                str(value)[:160]
+                for value in (input_evidence.get("input_names") or [])[:8]
+                if isinstance(value, str)
+            ],
+        }
     return component
 
 
@@ -484,6 +502,7 @@ def _build_composite_evidence(components: Sequence[Mapping[str, Any]], state: st
                 "state": item["state"],
                 "available": bool((item.get("evidence") or {}).get("available")),
                 "entry_count": (item.get("evidence") or {}).get("entry_count", 0),
+                "input_state": (item.get("input_evidence") or {}).get("state"),
             }
             for item in components
         ],
@@ -683,14 +702,14 @@ def _public_status(state: str) -> str:
 def _default_answer(state: str, components: Sequence[Mapping[str, Any]]) -> str:
     total = len(components)
     if state == "completed":
-        return f"已完成 {total} 个分析组件，并汇总为一份组合结果。"
+        return f"已完成 {total} 个分析部分，结果已整理如下。"
     if state == "partial":
-        return f"已完成部分分析，共收到 {total} 个组件结果；未完成部分已在执行证据中标明。"
+        return f"已完成部分分析，共收到 {total} 个分析部分的结果；未完成部分已在使用边界中说明。"
     if state == "pending":
-        return "组合分析正在处理中，完成后将返回结构化结果。"
+        return "分析正在处理中，完成后将返回结果。"
     if state == "blocked":
-        return "组合分析暂未完成，部分组件需要补充信息或等待可用数据。"
-    return "组合分析未完成，组件失败原因已保留在结果证据中。"
+        return "分析暂未完成，需要补充信息或等待数据可用。"
+    return "分析未完成，详细原因已保留在结果信息中。"
 
 
 def _safe_profile(value: Any) -> dict[str, Any]:

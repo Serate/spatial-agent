@@ -6,19 +6,19 @@
 
 ## 当前阶段
 
-- 阶段：M308 开放式 3+ 组件纵向链路与用户答案质量（已规划，A 进行中）
+- 阶段：M309 真实模型开放组合与默认 Agent 体验（已规划，A 进行中）
 - 阶段规划：
-  - `docs/m308-open-composition-vertical-slice-capability-map.md`
-  - `docs/m308-open-composition-vertical-slice-spec.md`
-  - `docs/m308-open-composition-vertical-slice-plan.md`
+  - `docs/m309-real-model-agent-experience-capability-map.md`
+  - `docs/m309-real-model-agent-experience-spec.md`
+  - `docs/m309-real-model-agent-experience-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
 
-### M308-A：全局基线与 3+ 组件契约（进行中）
+### M308-F：开放式 3+ 组件纵向链路与用户答案质量（已完成）
 
-- 目标：以 M306 的真实 2 组件闭环为基线，冻结 3+ 组件混合 profile、答案事实不变和跨入口 evidence 契约。
-- 当前文件：`docs/m308-open-composition-vertical-slice-capability-map.md`、`docs/m308-open-composition-vertical-slice-spec.md`、`docs/m308-open-composition-vertical-slice-plan.md`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/application/composite.py`、`agent/application/composite_runs.py`、`agent/answer_generation.py`、`agent/composite_view.py`。
-- 验证：开发期间只做必要静态/契约检查；A～D 合并后在 Docker 集中收口；本阶段真实模型最多一次且不重复 M306 live。
-- 阻塞：无；不得绕过 canonical DAG、TaskPlan、ToolRegistry、workflow 或 execution binding。
+- 结果：真实 GIS/Economic/Indicators 三组件完成规划和执行；答案契约增加可选 `next_steps`；上下文 workflow 约束漂移与 handoff 无条件合并问题已修复；sync、async、HTTP、artifact、SQLite 重启的公共 View/Evidence identity 一致。
+- 验证：Docker M308/相邻 Composite **28/28**，真实组合与跨入口验收通过；compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200/ready**。
+- 交付：新增 M308 真实验收脚本，中文问题日志、阶段计划、任务账本和恢复快照已更新；未保存密钥、prompt、模型原文或完整原始数据。
+- 下一阶段：M309 真实模型开放组合与默认 Agent 体验。
 
 ### M306-F：文档、版本与全局重规划（已完成）
 

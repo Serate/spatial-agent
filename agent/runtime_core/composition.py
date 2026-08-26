@@ -13,7 +13,7 @@ from collections.abc import Mapping, Sequence
 import re
 from typing import Any
 
-from agent.data_kinds import SUPPORTED_DATA_KINDS
+from agent.data_kinds import SUPPORTED_DATA_KINDS, normalize_data_profile
 
 
 COMPOSITION_SCHEMA_VERSION = "spatial-agent.composition.v1"
@@ -171,6 +171,84 @@ def project_component_inputs(value: Any) -> list[dict[str, Any]]:
         return []
 
 
+def resolve_component_input_handoff(
+    component: Mapping[str, Any],
+    completed_results: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Resolve typed public inputs from completed component results.
+
+    The Composite coordinator uses this as an execution seam, not as a
+    second planner.  Only paths already accepted by
+    :func:`normalize_component_inputs` are traversed; values are bounded and
+    private/geometry-heavy fields are omitted before a Domain service sees
+    them.
+    """
+
+    if not isinstance(component, Mapping):
+        raise CompositionError(
+            "component is required for input resolution",
+            code="composition_component_invalid",
+        )
+    inputs = normalize_component_inputs(component.get("inputs"))
+    if not inputs:
+        return {
+            "schema_version": COMPOSITION_SCHEMA_VERSION,
+            "state": "not_required",
+            "items": [],
+        }
+    if not isinstance(completed_results, Mapping):
+        raise CompositionError(
+            "completed component results are required",
+            code="composition_input_results_missing",
+        )
+
+    items: list[dict[str, Any]] = []
+    for item in inputs:
+        source = item["source"]
+        source_id = source["component_id"]
+        child = completed_results.get(source_id)
+        if not isinstance(child, Mapping):
+            raise CompositionError(
+                "component input source is not complete",
+                code="composition_input_source_incomplete",
+            )
+        nested = child.get("result") if isinstance(child.get("result"), Mapping) else child
+        status = str(child.get("status") or nested.get("status") or "").upper()
+        if status != "COMPLETED":
+            raise CompositionError(
+                "component input source is not complete",
+                code="composition_input_source_incomplete",
+            )
+        profile = _runtime_input_profile(nested)
+        accepted = set(item["accepted_kinds"])
+        if not accepted.intersection(profile["kinds"]):
+            raise CompositionError(
+                "component input source data profile is incompatible",
+                code="composition_input_runtime_type_mismatch",
+            )
+        value = _resolve_public_input_path(child, source["path"])
+        if value is _MISSING:
+            raise CompositionError(
+                "component input result path is unavailable",
+                code="composition_input_result_missing",
+            )
+        items.append(
+            {
+                "name": item["name"],
+                "source": dict(source),
+                "accepted_kinds": list(item["accepted_kinds"]),
+                "data_profile": profile,
+                "value": _project_input_value(value),
+                "required": bool(item["required"]),
+            }
+        )
+    return {
+        "schema_version": COMPOSITION_SCHEMA_VERSION,
+        "state": "ready",
+        "items": items[:_MAX_INPUTS],
+    }
+
+
 def _producer_kinds(
     components: Sequence[Mapping[str, Any]],
     component_id: str,
@@ -248,10 +326,67 @@ def _text(value: Any, limit: int) -> str:
     return value.strip()[:limit] if isinstance(value, str) else ""
 
 
+_MISSING = object()
+_PRIVATE_INPUT_KEYS = {
+    "api_key",
+    "authorization",
+    "credentials",
+    "password",
+    "prompt",
+    "messages",
+    "geometry",
+    "coordinates",
+    "features",
+    "geojson",
+    "file_path",
+    "source_path",
+    "token",
+}
+
+
+def _runtime_input_profile(value: Any) -> dict[str, Any]:
+    source = value if isinstance(value, Mapping) else {}
+    try:
+        return normalize_data_profile(source.get("data_profile"), allow_legacy=True)
+    except Exception:
+        return {"schema_version": "spatial-agent.data-profile.v1", "primary": "unknown", "kinds": ["unknown"]}
+
+
+def _resolve_public_input_path(child: Mapping[str, Any], path: str) -> Any:
+    parts = str(path).split(".")
+    if not parts or parts[0] != "result":
+        return _MISSING
+    current: Any = child.get("result") if isinstance(child.get("result"), Mapping) else child
+    for part in parts[1:]:
+        if not isinstance(current, Mapping) or part not in current:
+            return _MISSING
+        current = current[part]
+    return current
+
+
+def _project_input_value(value: Any, *, depth: int = 0) -> Any:
+    if depth >= 4:
+        return "[truncated]"
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:640]
+    if isinstance(value, Mapping):
+        return {
+            str(key)[:96]: _project_input_value(item, depth=depth + 1)
+            for key, item in list(value.items())[:32]
+            if str(key).lower() not in _PRIVATE_INPUT_KEYS
+        }
+    if isinstance(value, (list, tuple)):
+        return [_project_input_value(item, depth=depth + 1) for item in list(value)[:32]]
+    return str(value)[:240]
+
+
 __all__ = [
     "COMPOSITION_SCHEMA_VERSION",
     "CompositionError",
     "normalize_component_inputs",
     "project_component_inputs",
+    "resolve_component_input_handoff",
     "validate_component_composition",
 ]

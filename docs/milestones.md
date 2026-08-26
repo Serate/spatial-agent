@@ -5208,3 +5208,24 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 
 - 从全局目标验证已有 catalog、Planner、TaskPlan/DAG、ToolRegistry、Result/View/Answer/Evidence 能否支撑 3+ 组件混合分析，不新增专题工具或 RAG。
 - 重点覆盖开放请求、混合 data profile、部分失败、答案事实不变和 sync/async/artifact/restart/Console 一致性；默认测试精简，真实模型最多一次且不重复 M306 live。
+
+## M308-A：全局基线与 3+ 组件契约（已完成）
+
+- 确认公共 Composite、TaskPlan/DAG、ToolRegistry/workflow 和 execution binding 无需新增领域专用分支即可支撑 3+ 组件。
+- 新增 4 项精简契约，覆盖三组件计划闭合、`vector/raster/metrics/timeseries` 混合结果、可选组件失败保留和答案上下文内部身份边界。
+- 修复嵌套 Result answer 未进入 Composite 事实投影的问题；Docker 定向契约 **4/4** 通过，未重复真实模型验收。
+- 下一步进入 M308-B，验证 3+ 组件进入同一执行生命周期并覆盖局部失败与依赖传播。
+
+## M308：开放式 3+ 组件纵向链路与用户答案质量（已完成）
+
+- 真实 Docker GIS/Economic/Indicators 三组件通过 canonical request、TaskPlan/DAG、ToolRegistry、workflow 和 execution binding 完成执行，混合结果包含 `composite + vector + raster + metrics`。
+- Composite Answer 保持旧契约兼容并增加可选 `next_steps`；答案、View、Evidence 和前端投影消费同一结构化事实，局部失败保留已完成组件并给出限制。
+- Docker M308/相邻 Composite 精简回归 **28/28**；真实组合与 sync/async/HTTP View/artifact/SQLite restart identity 对照通过；compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200/ready** 通过。
+- 修复并记录了上下文 workflow 与 capability-specific workflow 约束漂移、handoff 约束无条件合并以及跨层 artifact 比较器混用状态层级的问题。
+- 下一阶段：M309 真实模型开放组合与默认 Agent 体验，重点提高真实 provider-backed 多步计划的可观测成功率和用户可感知度。
+
+## M309：真实模型开放组合与默认 Agent 体验（已规划）
+
+- 已创建 `docs/m309-real-model-agent-experience-capability-map.md`、`docs/m309-real-model-agent-experience-spec.md` 和 `docs/m309-real-model-agent-experience-plan.md`。
+- 目标：在 M308 的 3+ 组件闭环之上，收口真实模型输出到受控 canonical plan 的成功/澄清/修复/失败边界，并让默认 Agent 阶段、答案、限制、下一步和证据统一呈现。
+- 约束：不新增固定区域、固定问句、专题硬编码、RAG 或自由联网数据；模型只能选择已登记并通过 readiness/schema 门禁的能力；Docker 为统一验收环境，真实模型最多显式调用一次。

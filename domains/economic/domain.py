@@ -160,6 +160,12 @@ class EconomicDomainPack:
         )
         if template_id not in self.workflow_template_catalog():
             return None
+        if template_id == "economic_discovery":
+            return {
+                "template_id": template_id,
+                "constraints": {},
+                "evidence": ["summary", "provenance", "trace"],
+            }
         facts = request_facts if isinstance(request_facts, Mapping) else (request_facts.as_dict() if request_facts else {})
         constraints = dict(facts.get("constraints") or {})
         constraints.setdefault("dataset", ECONOMIC_DATASET)

@@ -15,33 +15,37 @@
 
 ## 当前阶段
 
-- 阶段：M308 开放式 3+ 组件纵向链路与用户答案质量（已规划，A 进行中）
-- 状态：M306 已完成并交付；M307 审计确认生命周期、HTTP seam 和 compat 守卫均已满足目标。产品默认保持 `openai + local`。
-- 当前任务：M308-A 冻结 3+ 组件混合结果、答案事实不变和跨入口证据契约；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M309 真实模型开放组合与默认 Agent 体验（已规划，A 进行中）
+- 状态：M308 已完成阶段验收，准备在本次工作区统一提交并推送；产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
+- 当前任务：M309-A 冻结真实模型/Replay 计划结果矩阵、run 创建边界和公共 identity；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m308-open-composition-vertical-slice-capability-map.md`](m308-open-composition-vertical-slice-capability-map.md)
-  - [`docs/m308-open-composition-vertical-slice-spec.md`](m308-open-composition-vertical-slice-spec.md)
-  - [`docs/m308-open-composition-vertical-slice-plan.md`](m308-open-composition-vertical-slice-plan.md)
+  - [`docs/m309-real-model-agent-experience-capability-map.md`](m309-real-model-agent-experience-capability-map.md)
+  - [`docs/m309-real-model-agent-experience-spec.md`](m309-real-model-agent-experience-spec.md)
+  - [`docs/m309-real-model-agent-experience-plan.md`](m309-real-model-agent-experience-plan.md)
 
 ## 当前任务明确文件
 
 - `docs/m308-open-composition-vertical-slice-capability-map.md`
 - `docs/m308-open-composition-vertical-slice-spec.md`
 - `docs/m308-open-composition-vertical-slice-plan.md`
-- `agent/composite_planner.py`
-- `agent/application/composite_planning.py`
 - `agent/application/composite.py`
-- `agent/application/composite_runs.py`
-- `agent/answer_generation.py`
-- `agent/composite_view.py`
-- `web/src/console_result_projection.js`
+- `agent/application/composite_planning.py`
+- `agent/runtime_core/composite_taskplan.py`
+- `agent/runtime_core/execution_binding.py`
 - `tests/test_m308_open_composition_vertical_slice.py`
 
-## M308-A：全局基线与 3+ 组件契约 — 进行中
+## M308-F：开放组合纵向链路与用户答案质量 — 已完成
 
-- 目标：以 M306 的真实 2 组件闭环为基线，冻结可复用的 3+ 组件混合结果、答案事实不变和跨入口证据契约。
-- 边界：只扩展已有 catalog/Planner/TaskPlan/Result seam，不新增专题工具、RAG 或领域专用前端分支。
-- 验证：开发期间只做必要静态/契约检查；A～D 合并后在 Docker 集中收口；本阶段真实模型最多一次且不重复 M306 live。
+- 结果：真实 GIS/Economic/Indicators 三组件完成规划和执行；答案契约增加可选 `next_steps`；上下文 workflow 约束漂移与 handoff 无条件合并问题已修复。
+- 验证：Docker M308/相邻 Composite **28/28**，真实组合与跨入口验收通过；compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200/ready**。
+- 交付准备：阶段文档已补齐，下一阶段 M309 文档已创建；本次工作区待统一提交并推送。
+
+## M309-A：模型计划结果矩阵与全局基线 — 进行中
+
+- 目标：以 M308 的 3+ 组件闭环为基线，冻结 provider-backed 成功、澄清、非法计划、有限修复、provider failure 和执行失败的公共状态与 run 创建边界。
+- 边界：只使用现有 Planner Envelope、Capability Catalog、TaskPlan/DAG、ToolRegistry、workflow、execution binding 和 Result/Evidence seam，不新增专题工具或领域专用前端分支。
+- 当前文件：`docs/m309-real-model-agent-experience-capability-map.md`、`docs/m309-real-model-agent-experience-spec.md`、`docs/m309-real-model-agent-experience-plan.md`；后续按任务增量加入契约测试和实现文件。
+- 验证：开发期间仅做必要静态/契约检查；M309-A～D 合并后在 Docker 集中收口，真实模型最多显式调用一次。
 - 阻塞：无。
 
 ## 验证与安全约定

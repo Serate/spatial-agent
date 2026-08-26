@@ -52,6 +52,11 @@ COMPOSITE_ANSWER_SCHEMA: dict[str, Any] = {
                     "maxItems": 8,
                     "items": {"type": "string", "maxLength": 320},
                 },
+                "next_steps": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {"type": "string", "maxLength": 320},
+                },
             },
         }
     },
@@ -124,7 +129,6 @@ def build_composite_answer_context(result: Mapping[str, Any]) -> dict[str, Any]:
         "schema_version": COMPOSITE_ANSWER_SCHEMA_VERSION,
         "state": projection.get("state"),
         "status": projection.get("status"),
-        "request_fingerprint": projection.get("request_fingerprint"),
         "components": sections[:_MAX_COMPONENTS],
         "fallback_answer": projection.get("answer"),
     }
@@ -144,7 +148,7 @@ class LLMCompositeAnswerGenerator:
                 "content": (
                     "你是面向普通用户的分析结果解读助手。只能根据可信 Composite facts 回答，"
                     "不得补造事实、数量、坐标或规划许可结论。返回严格 JSON，只有 answer 字段，"
-                    "answer 必须包含 headline、summary、key_findings、limitations；不要输出工具名、"
+                    "answer 必须包含 headline、summary、key_findings、limitations；可选 next_steps；不要输出工具名、"
                     "fingerprint、result_ref、artifact 引用、prompt 或模型内部过程。"
                 ),
             },
@@ -423,8 +427,9 @@ def _safe_text(value: Any, limit: int) -> str:
 def _normalize_composite_answer(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise PlanningError("composite answer must be an object")
-    allowed = {"headline", "summary", "key_findings", "limitations"}
-    if set(value) != allowed:
+    allowed = {"headline", "summary", "key_findings", "limitations", "next_steps"}
+    required = {"headline", "summary", "key_findings", "limitations"}
+    if not required.issubset(set(value)) or not set(value).issubset(allowed):
         raise PlanningError("composite answer fields are invalid")
     answer: dict[str, Any] = {
         "headline": _safe_text(value.get("headline"), 160).strip(),
@@ -432,8 +437,10 @@ def _normalize_composite_answer(value: Any) -> dict[str, Any]:
     }
     if not answer["headline"] or not answer["summary"]:
         raise PlanningError("composite answer headline and summary are required")
-    for key in ("key_findings", "limitations"):
+    for key in ("key_findings", "limitations", "next_steps"):
         values = value.get(key)
+        if values is None and key == "next_steps":
+            values = []
         if not isinstance(values, list):
             raise PlanningError("composite answer lists are invalid")
         answer[key] = [_safe_text(item, 320).strip() for item in values[:8] if _safe_text(item, 320).strip()]

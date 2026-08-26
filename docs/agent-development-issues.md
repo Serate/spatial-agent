@@ -1300,3 +1300,34 @@
 - **修复**：`CompositeTaskPlanBridge` 在物化前重新调用公共组件图校验；组件身份、依赖存在性与先后顺序、typed input、required 类型和 data-kind 约束均 fail closed，不创建第二套执行授权。
 - **验证**：Docker M306 组合契约、M303 canonical TaskPlan/binding 回归通过；非法后置依赖在 bridge 边界被拒绝。
 - **预防**：任何从结构化计划到可执行对象的 bridge 都必须在自身边界重新验证关键 identity；不能仅依赖上游 fingerprint 或“已规范化”标记。
+
+## M308-A Composite 嵌套答案未进入公共事实投影
+
+- **现象**：子结果把用户答案放在嵌套 `result.answer` 时，Composite 组件投影只读取外层答案或 `summary`，导致前端的关键发现为空，答案上下文也拿不到该事实。
+- **根因**：子运行 envelope 与嵌套 Result 都是既有合法形态，但 `_project_component` 没有覆盖嵌套 Result 的 `answer` 字段。
+- **修复**：公共 Composite contract 按“外层 answer → 嵌套 summary → 嵌套 answer”顺序投影，答案和前端继续消费同一结构化事实；未增加领域专用分支。
+- **验证**：Docker M308-A 定向契约 **4/4** 通过；覆盖 3+ 组件、混合数据形态、可选组件失败和答案上下文边界。
+- **预防**：新增结果类型或 envelope 形态时，必须同时覆盖外层与嵌套 Result 的事实投影；不要只验证状态和 data profile。
+
+## M308-A Docker 镜像未包含最新工作区测试
+
+- **现象**：直接运行 Docker 定向测试时，容器报告找不到新测试模块。
+- **根因**：工作区新增文件尚未进入本地镜像；容器运行的是旧构建内容。
+- **处理**：先重建 `spatial-agent` 镜像，再执行同一条定向契约；代码与测试均在重建镜像中验证。
+- **预防**：阶段新增测试或生产代码后，Docker 验收必须显式重建镜像；不要采纳旧容器对新文件的失败结果。
+
+## M308 组件 workflow 约束与 handoff 合并发生语义漂移
+
+- **现象**：Composite 未声明 workflow 时错误复用上下文约束，目录能力出现 `unknown constraints`；修复后 handoff 又把所有上下文约束无条件合并到 capability-specific workflow，导致 discovery workflow 被错误拒绝。
+- **根因**：上下文级 workflow 约束、能力级 workflow 约束和组件 handoff 的适用范围没有在合并边界明确区分；把“可观察的上下文信息”误当成了“当前能力的执行授权约束”。
+- **修复**：只有组件显式声明并通过匹配的 workflow 约束才进入该组件的执行校验；未声明时不继承不适用的上下文约束，handoff 仅保留与目标能力一致的有界事实，不改变 canonical TaskPlan、ToolRegistry 或 execution binding 门禁。
+- **验证**：Docker M308 真实 GIS/Economic/Indicators 三组件组合与相邻 Composite 回归通过；discovery、组件执行和跨入口 View/Evidence identity 均保持一致。
+- **预防**：新增上下文或 handoff 字段时，必须注明其生命周期阶段和适用对象；合并器要区分“事实/提示”和“执行约束”，并覆盖未声明、能力专属、跨组件依赖三种契约，不得无条件拼接约束列表。
+
+## M308 跨入口 artifact 比较器混用不同层级状态
+
+- **现象**：阶段验收初版把嵌套组件状态、Composite 运行状态和 artifact 公共 View 混在同一个比较层级，可能将合法的层级差异误报为跨入口不一致。
+- **根因**：artifact/restart 验收没有先固定公共比较对象；内部运行快照与用户可见 View/Evidence 的职责边界被测试代码隐式混合。
+- **修复**：跨入口验收统一比较公共 View、Evidence 和结果事实 identity；组件内部状态只作为独立的执行完整性断言，不参与 artifact View 的直接等值比较。
+- **验证**：`scripts/m308_cross_entry_acceptance.py` 在 Docker 中确认 sync/async/HTTP/artifact/SQLite restart 的公共 View/Evidence identity 一致。
+- **预防**：每个跨入口测试先声明比较层级（内部生命周期、Result、View、Evidence 或 Artifact），禁止用不同层级对象直接比较；新增投影时必须同时覆盖首次返回与恢复读取。

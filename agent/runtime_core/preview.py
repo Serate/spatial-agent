@@ -80,11 +80,10 @@ class RuntimePreviewSurface:
             )
             handoff_requires_clarification = handoff.get("state") != "ready"
             if not handoff_requires_clarification and isinstance(workflow, Mapping):
-                effective_workflow = dict(workflow)
-                constraints = dict(effective_workflow.get("constraints") or {})
-                constraints.update(handoff.get("effective_constraints") or {})
-                effective_workflow["constraints"] = constraints
-                workflow = effective_workflow
+                workflow = _merge_component_handoff_constraints(
+                    workflow,
+                    handoff.get("effective_constraints"),
+                )
         else:
             request_facts = extract_request_facts(runtime._domain_pack, resolved_request)
         context_packet = runtime._build_context_packet(
@@ -235,3 +234,33 @@ class RuntimePreviewSurface:
         if payload.get("workflow") is None:
             payload.pop("workflow", None)
         return payload
+
+
+def _merge_component_handoff_constraints(
+    workflow: Mapping[str, Any], handoff_constraints: Any
+) -> dict[str, Any]:
+    """Merge only keys declared by the already normalized workflow.
+
+    A composite handoff contains facts for the whole component request.  A
+    capability such as catalog discovery may intentionally accept no
+    constraints, while a query capability accepts a subset of those facts.
+    The normalized workflow is the generic authority for that boundary;
+    forwarding every handoff key would make discovery workflows fail closed
+    with unrelated query constraints.
+    """
+
+    result = dict(workflow)
+    declared = workflow.get("constraints")
+    if not isinstance(declared, Mapping):
+        return result
+    incoming = handoff_constraints if isinstance(handoff_constraints, Mapping) else {}
+    merged = dict(declared)
+    merged.update(
+        {
+            str(key): value
+            for key, value in incoming.items()
+            if key in declared
+        }
+    )
+    result["constraints"] = merged
+    return result

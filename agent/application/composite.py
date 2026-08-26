@@ -28,6 +28,10 @@ from agent.runtime_core.execution_binding import (
     validate_component_result,
     validate_execution_binding,
 )
+from agent.runtime_core.composition import (
+    CompositionError,
+    resolve_component_input_handoff,
+)
 
 
 _MAX_RECEIPTS = 8
@@ -115,6 +119,22 @@ class CompositeApplication:
                 raise
 
             try:
+                component_inputs = resolve_component_input_handoff(
+                    component,
+                    children,
+                )
+            except CompositionError as exc:
+                child = self._input_blocked_child(component, exc)
+                children[component_id] = child
+                receipts[component_id] = self._receipt(
+                    component,
+                    child,
+                    state="blocked",
+                    error_code=exc.code,
+                )
+                continue
+
+            try:
                 service = self._host.service(selection)
                 bound_component = (
                     component_binding(binding, component_id)
@@ -125,6 +145,7 @@ class CompositeApplication:
                     service,
                     component,
                     binding_component=bound_component,
+                    component_inputs=component_inputs,
                     session_id=_component_session(
                         parent_session,
                         normalized["fingerprint"],
@@ -220,6 +241,7 @@ class CompositeApplication:
         component: Mapping[str, Any],
         *,
         binding_component: Mapping[str, Any] | None = None,
+        component_inputs: Mapping[str, Any] | None = None,
         session_id: str,
     ) -> dict[str, Any]:
         runner = getattr(service, "run", None)
@@ -245,6 +267,30 @@ class CompositeApplication:
                 kwargs["workflow"] = dict(binding_component["workflow"])
         elif isinstance(component.get("workflow"), Mapping):
             kwargs["workflow"] = dict(component["workflow"])
+        input_evidence = {
+            "schema_version": "spatial-agent.component-input-evidence.v1",
+            "state": "not_required",
+            "input_names": [],
+        }
+        if isinstance(component_inputs, Mapping) and component_inputs.get("state") == "ready":
+            items = [
+                item
+                for item in (component_inputs.get("items") or [])
+                if isinstance(item, Mapping)
+            ]
+            input_evidence["input_names"] = [
+                str(item.get("name") or "")[:160]
+                for item in items[:8]
+                if str(item.get("name") or "").strip()
+            ]
+            if _accepts_keyword(runner, "component_inputs"):
+                kwargs["component_inputs"] = dict(component_inputs)
+                input_evidence["state"] = "delivered"
+            else:
+                # Old Domain services remain callable, but the public receipt
+                # must make a missing consumer port visible instead of
+                # claiming that a typed input was consumed.
+                input_evidence["state"] = "not_consumed"
         value = runner(**kwargs)
         if not isinstance(value, Mapping):
             raise CompositeCoordinatorError(
@@ -253,7 +299,19 @@ class CompositeApplication:
             )
         child = dict(value)
         child.setdefault("domain_id", component["domain_id"])
+        child["_component_input_evidence"] = input_evidence
         return child
+
+    @staticmethod
+    def _input_blocked_child(
+        component: Mapping[str, Any], exc: CompositionError
+    ) -> dict[str, Any]:
+        return {
+            "domain_id": component["domain_id"],
+            "status": "NEEDS_CLARIFICATION",
+            "error_code": str(exc.code)[:96],
+            "error": "组件输入尚未满足，无法安全执行该组件。",
+        }
 
     @staticmethod
     def _blocked_child(
@@ -311,6 +369,17 @@ class CompositeApplication:
                 "plan_fingerprint": str(execution.get("plan_fingerprint") or "")[:128],
                 "component_id": str(execution.get("component_id") or "")[:48],
                 "step_ids": [str(item)[:48] for item in (execution.get("step_ids") or [])[:_MAX_RECEIPTS]],
+            }
+        input_evidence = child.get("_component_input_evidence")
+        if isinstance(input_evidence, Mapping):
+            receipt["input_evidence"] = {
+                "schema_version": str(input_evidence.get("schema_version") or "")[:96],
+                "state": str(input_evidence.get("state") or "unknown")[:32],
+                "input_names": [
+                    str(item)[:160]
+                    for item in (input_evidence.get("input_names") or [])[:8]
+                    if isinstance(item, str)
+                ],
             }
         return receipt
 

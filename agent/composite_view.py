@@ -97,10 +97,19 @@ def _build_answer(
         "failed": "组合分析未能完成",
     }.get(state, "组合分析已收到")
     summary = _text(result.get("answer"), 640)
-    if not summary:
+    if (
+        not summary
+        or (
+            summary.startswith("已完成 ")
+            and "个分析组件，并汇总为一份组合结果" in summary
+        )
+    ):
+        completed_count = sum(
+            1 for item in components if item.get("state") == "completed"
+        )
         summary = {
-            "completed": f"已完成 {len(components)} 个分析组件。",
-            "partial": f"已返回 {len(components)} 个组件的部分结果。",
+            "completed": f"已完成 {completed_count} 个分析部分，结果已整理如下。",
+            "partial": f"已返回 {completed_count} 个分析部分的结果，其余部分尚未完成。",
             "blocked": "当前没有可执行的完整结果。",
             "failed": "当前没有可用的完整结果。",
         }.get(state, "请查看分析状态和证据。")
@@ -123,11 +132,13 @@ def _build_answer(
             message = _text(degradation.get("message"), 240)
             if message and message not in limitations:
                 limitations.append(message)
+    next_steps = _next_steps(state, limitations)
     return {
         "headline": headline,
         "summary": summary,
         "key_findings": findings[:_MAX_COMPONENTS],
         "limitations": limitations[:_MAX_COMPONENTS],
+        "next_steps": next_steps,
     }
 
 
@@ -143,7 +154,22 @@ def _answer_override(value: Mapping[str, Any] | None) -> dict[str, Any] | None:
         "summary": summary,
         "key_findings": _safe_strings(value.get("key_findings"), _MAX_COMPONENTS),
         "limitations": _safe_strings(value.get("limitations"), _MAX_COMPONENTS),
+        "next_steps": _safe_strings(value.get("next_steps"), _MAX_COMPONENTS),
     }
+
+
+def _next_steps(state: str, limitations: Sequence[str]) -> list[str]:
+    """Return state-level guidance without interpreting a Domain result."""
+
+    if state == "partial":
+        return ["查看未完成部分的原因，补充必要信息后重新分析。"]
+    if state == "blocked":
+        return ["补充必要信息后重新提交分析。"]
+    if state == "failed":
+        return ["检查数据或服务状态后重试。"]
+    if limitations:
+        return ["结合使用边界查看结果，并在需要时补充条件后继续分析。"]
+    return []
 
 
 def _build_sections(components: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -173,6 +199,7 @@ def _build_sections(components: Sequence[Mapping[str, Any]]) -> list[dict[str, A
                 "answer": _text(item.get("answer"), 640),
                 "view_refs": _safe_strings(item.get("view_refs"), 16),
                 "execution": _project_execution(item.get("execution")),
+                "input_evidence": _project_input_evidence(item.get("input_evidence")),
             }
         )
     return sections
@@ -471,6 +498,17 @@ def _project_execution(value: Any) -> dict[str, Any] | None:
         "binding_fingerprint": _text(value.get("binding_fingerprint"), 128),
         "plan_fingerprint": _text(value.get("plan_fingerprint"), 128),
         "step_ids": _safe_strings(value.get("step_ids"), _MAX_COMPONENTS * 2),
+    }
+    return {key: item for key, item in result.items() if item not in (None, "", [])}
+
+
+def _project_input_evidence(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping):
+        return None
+    result = {
+        "schema_version": _text(value.get("schema_version"), 96),
+        "state": _text(value.get("state"), 32),
+        "input_names": _safe_strings(value.get("input_names"), 8),
     }
     return {key: item for key, item in result.items() if item not in (None, "", [])}
 
