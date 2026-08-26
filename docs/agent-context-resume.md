@@ -203,3 +203,9 @@
 - 补充事实按 `component_id` 校验并按 Domain 合并，重新执行 context、Planner、TaskPlan/DAG 和 completeness gate；集合漂移、未知组件/字段、过期或篡改 token 均 fail closed，未完成澄清不创建 run。
 - HTTP prepare、planning evidence、TaskPlan bridge、Composite View、Console 投影保留有界组件 identity；前端只显示字段标签，不显示 token。单组件 M292 continuation 继续兼容。
 - Docker 合并回归 **26/26**、Node projection smoke、compileall、architecture strict、readiness 200 通过；未重复 live provider。当前恢复入口切换到 M294-A，下一阶段从全局七维度规划跨域执行、答案和证据闭环。
+
+## M302-C：选中组件到 execution projection 的 identity 闭合（已完成）
+
+- execution projection 只在 TaskPlan/DAG、plan completeness 和 execution binding 全部门禁通过后生成；execution binding 新生成值保存 capability identity，新的 plan fingerprint 覆盖 capability，projection 校验组件集合、顺序、领域、能力、依赖和 required。
+- `execution_identity` 已纳入 Planner Envelope 安全规范化，planner evidence 只保留有界 receipt，不复制完整 TaskPlan、工具参数或内部 binding；旧 binding 的可选字段保持兼容读取。
+- Docker M302-C + M294/M293/M292 **19/19**、compileall、architecture strict、Service smoke、生产 readiness HTTP **200** 通过；镜像已重建并强制重建服务，未执行真实 provider 请求。后续恢复入口为 M302-D。

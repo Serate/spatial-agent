@@ -115,18 +115,21 @@ def build_execution_binding(
         workflow = bridge.get("_execution_workflow")
         workflow = _bounded_json_value(workflow) if isinstance(workflow, Mapping) else {}
         plan_payload = plan_to_dict(plan)
+        capability_id = str(source.get("capability_id") or "")[:96]
         plan_fingerprint = _fingerprint(
             {
                 "component_id": component_id,
                 "domain_id": spec["domain_id"],
                 "workflow": workflow,
                 "plan": plan_payload,
+                **({"capability_id": capability_id} if capability_id else {}),
             }
         )
         bound_components.append(
             {
                 "component_id": component_id,
                 "domain_id": str(spec["domain_id"])[:32],
+                "capability_id": capability_id or None,
                 "request": str(spec["request"])[:2000],
                 "planner": str(spec.get("planner") or planner_name)[:32],
                 "backend": str(spec.get("backend") or backend)[:32],
@@ -450,12 +453,16 @@ def _validate_component(raw: Mapping[str, Any]) -> dict[str, Any]:
             "max_steps": max_steps,
         },
     }
+    capability_id = str(raw.get("capability_id") or "")[:96]
+    if capability_id:
+        canonical["capability_id"] = capability_id
     expected_plan_fingerprint = _fingerprint(
         {
             "component_id": canonical["component_id"],
             "domain_id": canonical["domain_id"],
             "workflow": workflow,
             "plan": canonical["plan"],
+            **({"capability_id": capability_id} if capability_id else {}),
         }
     )
     if str(raw.get("plan_fingerprint")) != expected_plan_fingerprint:
@@ -473,6 +480,7 @@ def _project_component(value: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "component_id": str(value.get("component_id") or "")[:48],
         "domain_id": str(value.get("domain_id") or "")[:32],
+        "capability_id": str(value.get("capability_id") or "")[:96] or None,
         "required": bool(value.get("required", True)),
         "depends_on": [str(item)[:48] for item in (value.get("depends_on") or [])[:_MAX_COMPONENTS]],
         "inputs": project_component_inputs(value.get("inputs")),

@@ -14,6 +14,7 @@
 6. 任何阶段超出 provider 预算必须 fail closed，并返回结构化 provider failure；不得静默截断身份、readiness 或安全约束。
 7. selected-component fact handoff、TaskPlan、ToolRegistry、workflow 和 execution binding 继续使用现有严格门禁。
 8. 答案生成只能引用结构化 Result/Evidence，模型不得创建事实、空间几何或统计值。
+9. execution projection 必须由已通过 TaskPlan/DAG 和 execution binding 门禁的组件生成；component_id、domain_id、capability_id、依赖关系、request/binding fingerprint 和 plan fingerprint 的身份漂移必须 fail closed，不能仅记录为 evidence。
 
 ## 验收标准
 
@@ -23,3 +24,4 @@
 4. Rule、Replay 和 LLM 入口共享同一阶段投影和结果契约；离线模式不访问网络。
 5. 同步、异步、artifact、SQLite/restart、HTTP 和 Console 保持相同的选择、结果与 evidence identity。
 6. Docker 中完成一次真实模型 + 真实 GIS/Economic 的显式验收；provider timeout、结构化澄清和成功执行分类记录。
+7. execution projection 可被安全规范化，且其精简 evidence 不包含完整 TaskPlan、工具参数或内部 binding 内容。

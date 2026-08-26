@@ -8,9 +8,16 @@ from agent.composite_request_context import CompositeRequestContextBuilder
 from agent.runtime_core.planner_envelope import (
     PLANNER_ENVELOPE_SCHEMA_VERSION,
     PlannerEnvelopeError,
+    build_execution_planner_envelope,
     build_planner_envelope,
     normalize_planner_envelope,
+    project_planner_envelope_evidence,
 )
+from tests.test_m287_bounded_planner_repair import (
+    _application as _repair_application,
+    _planned_payload,
+)
+from tests.test_m294_execution_binding_closure import _binding
 from tests.test_m299_default_agent_success_path import _context
 from tests.test_m300_open_agent_success import _fixture
 
@@ -151,6 +158,125 @@ class M302StageAwarePlannerContextTests(unittest.TestCase):
         with self.assertRaises(PlannerEnvelopeError) as raised:
             build_planner_envelope(source, projection_stage="other")
         self.assertEqual(raised.exception.code, "planner_envelope_stage_invalid")
+
+    def test_execution_projection_is_attached_only_after_binding_gate(self):
+        result = _repair_application(_planned_payload()).prepare(
+            "开放式空间摘要", planner_name="replay", domain_ids=["gis"]
+        )
+        projection = result["planner_evidence"]["execution_projection"]
+
+        self.assertEqual(projection["stage"], "execution")
+        self.assertEqual(projection["selected_component_ids"], ["summary"])
+        self.assertEqual(
+            projection["execution_identity"]["component_ids"], ["summary"]
+        )
+        self.assertTrue(projection["execution_identity"]["binding_fingerprint"])
+
+    def test_execution_projection_rejects_component_set_drift(self):
+        context = {
+            "schema_version": "spatial-agent.composite-request-context.v2",
+            "request_fingerprint": "m302-context",
+            "capability_index": [
+                {
+                    "domain_id": "gis",
+                    "capability_id": "space_summary",
+                    "available": True,
+                    "execution_ready": True,
+                    "workflow_ids": ["space_summary"],
+                    "tools": ["read_summary"],
+                    "result_types": ["summary_result"],
+                }
+            ],
+            "clarification": {"state": "not_required"},
+        }
+        with self.assertRaises(PlannerEnvelopeError) as raised:
+            build_execution_planner_envelope(
+                context,
+                components=[
+                    {
+                        "component_id": "other",
+                        "domain_id": "gis",
+                        "capability_id": "space_summary",
+                        "depends_on": [],
+                    }
+                ],
+                execution_binding=_binding(),
+            )
+        self.assertEqual(raised.exception.code, "planner_execution_binding_mismatch")
+
+    def test_execution_projection_rejects_component_identity_drift(self):
+        context = {
+            "schema_version": "spatial-agent.composite-request-context.v2",
+            "request_fingerprint": "m302-context",
+            "capability_index": [
+                {
+                    "domain_id": "gis",
+                    "capability_id": "space_summary",
+                    "available": True,
+                    "execution_ready": True,
+                    "workflow_ids": ["space_summary"],
+                    "tools": ["read_summary"],
+                    "result_types": ["summary_result"],
+                }
+            ],
+            "clarification": {"state": "not_required"},
+        }
+        with self.assertRaises(PlannerEnvelopeError) as raised:
+            build_execution_planner_envelope(
+                context,
+                components=[
+                    {
+                        "component_id": "space",
+                        "domain_id": "gis",
+                        "capability_id": "space_summary",
+                        "depends_on": ["unbound"],
+                        "required": True,
+                    }
+                ],
+                execution_binding=_binding(),
+            )
+        self.assertEqual(raised.exception.code, "planner_execution_binding_mismatch")
+
+    def test_execution_evidence_is_small_and_does_not_copy_binding_plan(self):
+        context = {
+            "schema_version": "spatial-agent.composite-request-context.v2",
+            "request_fingerprint": "m302-context",
+            "capability_index": [
+                {
+                    "domain_id": "gis",
+                    "capability_id": "space_summary",
+                    "available": True,
+                    "execution_ready": True,
+                    "tools": ["read_summary"],
+                    "result_types": ["summary_result"],
+                }
+            ],
+            "clarification": {"state": "not_required"},
+        }
+        envelope = build_execution_planner_envelope(
+            context,
+            components=[
+                {
+                    "component_id": "space",
+                    "domain_id": "gis",
+                    "capability_id": "space_summary",
+                    "depends_on": [],
+                }
+            ],
+            execution_binding=_binding(),
+        )
+        evidence = project_planner_envelope_evidence(envelope)
+        encoded = json.dumps(evidence, ensure_ascii=False)
+
+        self.assertNotIn("read_summary", encoded)
+        self.assertNotIn('"plan"', encoded)
+        self.assertEqual(evidence["stage"], "execution")
+
+        normalized = normalize_planner_envelope(envelope)
+        self.assertEqual(
+            normalized["execution_identity"]["binding_fingerprint"],
+            envelope["execution_identity"]["binding_fingerprint"],
+        )
 
 
 if __name__ == "__main__":

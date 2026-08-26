@@ -550,3 +550,18 @@
 - 阻塞：无；未执行真实 provider 请求，未读取或保存密钥、模型原文、私有路径或原始数据。
 - 交付：提交 `6993fb1` 已推送到 `main`；工作区干净。
 - 下一步：进入 M302-C，核对 selected-component fact handoff、TaskPlan/binding 与 execution projection 的 identity 闭合，再统一阶段收口。
+
+### M302-C：选中组件到执行投影的 identity 闭合 — 已完成
+- 目标：让 execution 阶段投影由已经通过 TaskPlan/DAG 和 execution binding 门禁的选中组件驱动，保留 request/binding/component identity、readiness、workflow、result profile 和必要事实缺口；不创建第二套执行授权。
+- 实际修改：`build_execution_planner_envelope()` 只在 validated binding 之后生成 execution projection；execution binding 纳入 capability identity，新的 plan fingerprint 覆盖 capability，同时兼容旧 binding 的可选字段；projection 校验组件集合、顺序、领域、能力、依赖和 required identity；`execution_identity` 纳入 Envelope 白名单；新增精简 evidence receipt。
+- 文件：`agent/runtime_core/planner_envelope.py`、`agent/runtime_core/execution_binding.py`、`agent/application/composite_planning.py`、`tests/test_m302_stage_aware_planner_context.py`。
+- 验证：Docker 新镜像 M302-C + M294 + M293 + M292 **19/19**；compileall、architecture strict、Service smoke 和生产 `/health/ready` **200** 全部通过。首次旧容器回归未采纳，已重建并强制重建服务后复验。
+- 阻塞：无；未执行真实 provider 请求，未读取或保存密钥、模型原文、私有路径或真实原始数据。
+- 下一步：进入 M302-D，按全局结果链路审查结构化 Result、answer/evidence 和前端 View 的单一事实来源与用户可读摘要。
+
+### M302-D：结构化结果到答案/evidence/View 的事实闭合 — 规划中
+- 目标：让结构化 Result 成为答案、Evidence 和 Console View 的唯一事实来源；减少程序化摘要与内部字段泄漏，未知结果类型保持通用降级。
+- 规划：审查答案生成输入投影、同步/异步/恢复 evidence 和 `web/src/console_result_projection.js` 的重复字段；补充一条跨类型组合契约和一条未知/失败结果投影契约，不增加 GIS 专用前端分支。
+- 当前明确文件：`agent/answer_generation.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`tests/test_m300_open_agent_success.py` 及必要的 M302 contract。
+- 验证：开发期间只做静态/契约检查；D/E 合并后集中运行精简 Python、Node projection、compileall、architecture strict、Service smoke、readiness 和一次显式 live。
+- 阻塞：无。

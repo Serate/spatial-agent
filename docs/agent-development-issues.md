@@ -1239,3 +1239,17 @@
 - **修复**：为公共 `spatial-agent.planner-envelope.v1` 增加 `projection_stage`，支持 `discovery`、`selection`、`execution`、`repair`。Context Builder 保存 discovery 摘要；LLM 规划重投影 selection，结构修复重投影 repair；execution/已有选中项的 repair 只保留选中能力、workflow、readiness、result profile 和事实缺口；不改变 Runtime 内部 Context、TaskPlan、ToolRegistry 或 execution binding 门禁。
 - **验证**：Docker M302 及相邻 Planner/repair 回归 **34/34**，compileall、architecture strict、Service smoke 和 readiness HTTP 200 通过；示例投影大小为 discovery 2.95 KiB、selection 4.32 KiB、execution 3.46 KiB；未保存模型原文、密钥、私有路径或原始数据。
 - **预防**：新增模型上下文前先标注所属阶段和用途；Runtime 证据字段不能因为“可用”就默认进入 provider payload。阶段投影必须保留 request identity、readiness、workflow 和 result profile，并对超预算 fail closed；尚未形成可信组件时，repair 只能使用有限候选并保持一次尝试。
+
+## M302 旧 Docker 容器导致新增回归出现假绿灯
+
+- **现象**：宿主机已经修改了 M302 测试和 execution binding，但直接在运行中的 Docker 容器执行回归时，新增测试没有出现在输出中；旧测试全部通过，无法证明当前工作树已被验证。
+- **根因**：生产 compose 镜像通过 `COPY . /app` 固化源码；容器不会自动同步宿主机的新增文件。仅重启旧容器也不会更新镜像内容。
+- **修复**：阶段收口前使用生产 compose 从当前工作树重新 build，再 `up -d --force-recreate`；确认容器 healthy 后才运行定向回归、compileall、architecture strict、Service smoke 和 readiness。
+- **预防**：任何 Python 源码或测试改动后，不采纳未确认源码版本的旧容器结果；至少核对镜像重建日志和新增测试数量，避免旧容器制造假绿灯。Docker 是项目 Python/GIS 的统一验收环境。
+
+## M302 execution projection 只记录组件身份导致 binding 描述漂移
+
+- **现象**：execution projection 已经位于 binding 之后生成，但如果只比较 component_id/domain_id，调用方仍可能用相同组件 ID 搭配不同 capability 或依赖关系，造成“实际绑定执行内容”和“阶段证据描述”不一致。
+- **根因**：execution binding 的旧组件身份没有保存 capability_id；plan fingerprint 也没有覆盖该能力身份，projection 只能验证有限的外部字段。
+- **修复**：新生成的 execution binding 保存 capability_id，并把它纳入新的 plan fingerprint；execution projection 在生成时严格比较组件集合、顺序、领域、能力、依赖和 required，Envelope 白名单同时接纳 `execution_identity`，证据只保留有界 receipt。
+- **预防**：凡是由已验证对象生成的阶段投影，都必须比较完整的可执行身份；不能把一致性检查降级为“只记录 fingerprint”。兼容旧 binding 时缺失字段保持可读，但新 binding 必须 fail closed 地闭合身份。

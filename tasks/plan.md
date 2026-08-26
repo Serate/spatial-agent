@@ -1,4 +1,21 @@
-# 当前实施计划：M299 默认 Agent 成功路径收口
+# 当前实施计划：M302 分阶段 Planner 上下文与开放问题成功链路
+
+恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M302 Spec/Plan 和当前任务列出的文件。
+
+M302-C 已完成：validated execution binding 驱动 execution projection，绑定身份覆盖组件集合、顺序、领域、能力、依赖、required 和新 plan fingerprint；精简 execution evidence 可安全规范化。
+
+下一阶段按全局结果链路推进：
+
+1. [ ] M302-D 审查结构化 Result → answer/evidence → View/Console 的单一事实来源，压缩程序化摘要与重复展示。
+2. [ ] M302-D 补一条跨类型组合和一条未知/失败结果的精简契约，确保前端动态降级，不增加领域专用分支。
+3. [ ] M302-E 在 Docker 中集中执行 Python/Node/HTTP/Service/readiness 门禁，并进行一次显式 live 分类验收。
+4. [ ] M302-E 更新中文问题日志、Spec/Plan、milestones、任务账本和恢复快照，提交推送后从产品、架构、数据、模型、部署、体验、测试七维度重规划。
+
+默认测试策略：开发期间只做必要静态/契约检查；D/E 合并后集中运行精简回归、compileall、architecture strict、Node projection、Service smoke、readiness 和一次显式 live，不为每个小改动重复测试。
+
+---
+
+# 历史实施计划：M299 默认 Agent 成功路径收口
 
 恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M299 Spec/Plan 和当前任务列出的文件；历史问题、milestones、全量测试和模型原文按需读取。
 

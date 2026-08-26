@@ -51,6 +51,11 @@ from agent.runtime_core.clarification_continuation import (
     ClarificationContinuationError,
     consume_fact_continuation,
 )
+from agent.runtime_core.planner_envelope import (
+    PlannerEnvelopeError,
+    build_execution_planner_envelope,
+    project_planner_envelope_evidence,
+)
 
 
 COMPOSITE_PLANNER_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-planner-context.v1"
@@ -831,6 +836,17 @@ class CompositePlanningApplication:
                 code=exc.code,
                 details=exc.details,
             ) from exc
+        try:
+            execution_envelope = build_execution_planner_envelope(
+                context,
+                components=projected,
+                execution_binding=execution_binding,
+            )
+        except PlannerEnvelopeError as exc:
+            raise CompositePlannerError(
+                "candidate execution projection is invalid",
+                code=exc.code,
+            ) from exc
         planner_source = str(candidate.get("planner_source") or planner_name)[:32]
         compatibility = _safe_compatibility(candidate.get("compatibility"))
         result = _PreparedComposite({
@@ -872,6 +888,9 @@ class CompositePlanningApplication:
         result["planner_evidence"]["plan_completeness"] = plan_completeness
         result["planner_evidence"]["execution_binding"] = project_execution_binding(
             execution_binding
+        )
+        result["planner_evidence"]["execution_projection"] = (
+            project_planner_envelope_evidence(execution_envelope)
         )
         return result
 

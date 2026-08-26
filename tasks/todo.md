@@ -179,6 +179,6 @@
 
 - [x] M302-A 全局字段矩阵与阶段契约
 - [x] M302-B discovery/selection/execution/repair 最小 Envelope
-- [ ] M302-C 选择、事实交接、TaskPlan 与 binding 纵向闭合
+- [x] M302-C 选择、事实交接、TaskPlan 与 binding 纵向闭合
 - [ ] M302-D 结构化结果、答案和前端 evidence 投影
 - [ ] M302-E Docker 真实跨域验收、文档、版本与全局重规划

@@ -17,6 +17,11 @@ M301 已解决“无关 Domain 缺失事实过早阻断 Planner”和“内部 C
 | live cross-domain acceptance | Docker + 真实模型 + 真实 GIS/Economic 数据完成成功、澄清、provider failure 三类验收 | 脱敏 live receipt |
 | delivery and global review | 更新中文记忆、版本、部署说明并从七维度重规划 | 阶段提交、推送和下一阶段计划 |
 
+## 当前推进位置
+
+- M302-A/B 已完成阶段投影的公共边界；M302-C 已完成 validated binding 驱动的 execution projection identity 闭合。
+- 下一片为 M302-D：从项目全局检查结构化结果、答案生成、evidence 和前端 View 是否消费同一事实来源；优先压缩程序化摘要和重复展示，不把答案模型变成第二个执行器。
+
 ## 七维度约束
 
 - 产品：用户只看到与当前问题相关的 Agent 阶段、简洁结果和必要澄清。

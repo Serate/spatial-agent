@@ -40,5 +40,7 @@
 ## 当前进度
 
 - A/B 已完成：Envelope 声明并校验四类阶段；Context Builder 保存 discovery 投影；LLM 初次规划/一次结构修复分别使用 selection/repair；execution 与已有 selected component 只保留选中闭合信息。
+- C 已完成：execution projection 在 TaskPlan/DAG、plan completeness 和 execution binding 全部门禁通过后生成；execution binding 纳入 capability identity，plan fingerprint 覆盖 capability（兼容旧 binding 的可选字段）；projection 校验组件集合、顺序、领域、能力、依赖和 required identity；`execution_identity` 纳入 Envelope 安全规范化，evidence 只保留有界 receipt。
 - 已验证：阶段切换不改变 request fingerprint；readiness、workflow、result profile 和私有字段过滤保持；已有 Envelope 可安全规范化；repair 在尚未形成可信选中项时保留有界候选以支持一次结构修复。
-- 下一步：C 验证 selected-component fact handoff、TaskPlan/DAG、execution binding 与阶段投影的身份一致性；随后集中完成 D/E。
+- C 验证：Docker M302-C 与 M294/M293/M292 **19/19**；compileall、architecture strict、Service smoke 和生产 readiness HTTP **200** 通过；新镜像已重建并强制接管，避免旧容器假绿灯。
+- 下一步：D 从全局结果链路审查结构化 Result → answer/evidence → View/Console 的事实引用与用户表达；E 再执行一次 Docker/live/跨入口集中验收并完成阶段交付，不为单一 GIS 问句增加分支。

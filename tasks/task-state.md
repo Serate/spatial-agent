@@ -334,3 +334,12 @@
 - 文件：`agent/runtime_core/planner_envelope.py`、`agent/composite_request_context.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`tests/test_m302_stage_aware_planner_context.py`、`tasks/task-progress.md`。
 - 验证：Docker M302 与相邻 M299/M300/M301/M286/M287 **34/34**，compileall、architecture strict、Service smoke 和 readiness HTTP 200 通过；未执行真实 provider 请求。
 - 阻塞：无。下一步进入 M302-C，验证 selected-component handoff 与 TaskPlan/binding identity 的阶段化投影。
+
+### M302-C：选中组件到执行投影的 identity 闭合 — 已完成
+
+- 结果：execution-stage projection 只在 TaskPlan/DAG、plan completeness 和 execution binding 全部通过后生成；execution binding 纳入 capability identity，plan fingerprint 对新 binding 覆盖 capability，projection 校验组件集合、顺序、领域、能力、依赖和 required identity。
+- 结果：`execution_identity` 纳入 Planner Envelope 安全规范化；planner evidence 只保留阶段、请求/绑定指纹、组件 ID、候选数和 byte size，不复制完整 plan、工具参数或私有 binding。
+- 文件：`agent/runtime_core/planner_envelope.py`、`agent/runtime_core/execution_binding.py`、`agent/application/composite_planning.py`、`tests/test_m302_stage_aware_planner_context.py`。
+- 验证：Docker 新镜像 M302-C + M294 + M293 + M292 **19/19**；compileall、architecture strict、Service smoke、生产 `/health/ready` **200** 全部通过。
+- 阻塞：无。未执行真实 provider 请求，未读取或保存密钥、模型原文、私有路径或真实原始数据。
+- 当前阶段：进入 M302-D，优先从全局结果链路检查 Result → answer/evidence → View/Console 的事实一致性和用户可读性。

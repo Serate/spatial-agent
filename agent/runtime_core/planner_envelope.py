@@ -19,6 +19,9 @@ from agent.runtime_core.request_fact_readiness import project_request_fact_readi
 
 PLANNER_ENVELOPE_SCHEMA_VERSION = "spatial-agent.planner-envelope.v1"
 PLANNER_ENVELOPE_MAX_BYTES = 96_000
+PLANNER_EXECUTION_IDENTITY_SCHEMA_VERSION = (
+    "spatial-agent.planner-execution-identity.v1"
+)
 PLANNER_PROJECTION_STAGES = (
     "discovery",
     "selection",
@@ -73,6 +76,7 @@ _PROJECTED_TOP_LEVEL_FIELDS = {
     "data_readiness",
     "selected_components",
     "fact_handoff",
+    "execution_identity",
     "planner_repair",
     "repair_boundary",
     "limits",
@@ -278,6 +282,177 @@ def normalize_projection_stage(value: Any) -> str:
             code="planner_envelope_stage_invalid",
         )
     return stage
+
+
+def build_execution_planner_envelope(
+    context: Mapping[str, Any] | None,
+    *,
+    components: Sequence[Mapping[str, Any]],
+    execution_binding: Mapping[str, Any],
+    max_bytes: int = PLANNER_ENVELOPE_MAX_BYTES,
+) -> dict[str, Any]:
+    """Build an execution projection from one validated binding.
+
+    This is deliberately a narrow seam.  It does not authorize execution and
+    it does not replace :mod:`execution_binding`; it proves that the
+    stage-aware projection describes exactly the component set that already
+    crossed the TaskPlan/DAG and binding gates.
+    """
+
+    if not isinstance(execution_binding, Mapping):
+        raise PlannerEnvelopeError(
+            "execution projection requires a binding",
+            code="planner_execution_binding_invalid",
+        )
+    try:
+        from agent.runtime_core.execution_binding import validate_execution_binding
+
+        binding = validate_execution_binding(execution_binding)
+    except Exception as exc:
+        raise PlannerEnvelopeError(
+            "execution projection binding is not validated",
+            code="planner_execution_binding_invalid",
+        ) from exc
+    if not isinstance(components, (list, tuple)) or not components:
+        raise PlannerEnvelopeError(
+            "execution projection components are required",
+            code="planner_execution_components_invalid",
+        )
+
+    selected: list[dict[str, Any]] = []
+    for raw in components[:8]:
+        if not isinstance(raw, Mapping):
+            raise PlannerEnvelopeError(
+                "execution projection component is invalid",
+                code="planner_execution_components_invalid",
+            )
+        component = {
+            "component_id": _text(raw.get("component_id"), 48),
+            "domain_id": _text(raw.get("domain_id"), 64),
+            "capability_id": _text(raw.get("capability_id"), 96),
+            "depends_on": _strings(raw.get("depends_on"), 8),
+            "required": bool(raw.get("required", True)),
+        }
+        if not component["component_id"] or not component["domain_id"] or not component["capability_id"]:
+            raise PlannerEnvelopeError(
+                "execution projection component identity is incomplete",
+                code="planner_execution_components_invalid",
+            )
+        selected.append(component)
+
+    binding_ids = [
+        _text(value, 48) for value in (binding.get("component_ids") or [])
+    ]
+    selected_ids = [item["component_id"] for item in selected]
+    if selected_ids != binding_ids:
+        raise PlannerEnvelopeError(
+            "execution projection component set does not match binding",
+            code="planner_execution_binding_mismatch",
+        )
+    binding_components = {
+        _text(item.get("component_id"), 48): item
+        for item in (binding.get("components") or [])
+        if isinstance(item, Mapping)
+    }
+    for item in selected:
+        bound = binding_components.get(item["component_id"])
+        if not isinstance(bound, Mapping):
+            raise PlannerEnvelopeError(
+                "execution projection component identity does not match binding",
+                code="planner_execution_binding_mismatch",
+            )
+        if (
+            _text(bound.get("domain_id"), 64) != item["domain_id"]
+            or _text(bound.get("capability_id"), 96) != item["capability_id"]
+            or _strings(bound.get("depends_on"), 8) != item["depends_on"]
+            or bool(bound.get("required", True)) != item["required"]
+        ):
+            raise PlannerEnvelopeError(
+                "execution projection component identity does not match binding",
+                code="planner_execution_binding_mismatch",
+            )
+
+    projected_context = dict(context) if isinstance(context, Mapping) else {}
+    projected_context["selected_components"] = selected
+    envelope = build_planner_envelope(
+        projected_context,
+        max_bytes=max_bytes,
+        projection_stage="execution",
+        selected_components=selected,
+    )
+    envelope["execution_identity"] = {
+        "schema_version": PLANNER_EXECUTION_IDENTITY_SCHEMA_VERSION,
+        "context_request_fingerprint": envelope.get("request_fingerprint"),
+        "binding_request_fingerprint": _text(
+            binding.get("request_fingerprint"), 128
+        )
+        or None,
+        "binding_fingerprint": _text(binding.get("binding_fingerprint"), 128)
+        or None,
+        "component_ids": selected_ids,
+        "components": [
+            {
+                "component_id": item["component_id"],
+                "domain_id": item["domain_id"],
+                "capability_id": item["capability_id"],
+                "plan_fingerprint": _text(
+                    binding_components[item["component_id"]].get(
+                        "plan_fingerprint"
+                    ),
+                    128,
+                )
+                or None,
+            }
+            for item in selected
+        ],
+    }
+    _assert_budget(envelope, _positive_limit(max_bytes, "max_bytes"))
+    return envelope
+
+
+def project_planner_envelope_evidence(value: Any) -> dict[str, Any]:
+    """Return a small, transport-safe receipt for a stage projection."""
+
+    if not isinstance(value, Mapping):
+        return {
+            "schema_version": PLANNER_ENVELOPE_SCHEMA_VERSION,
+            "stage": "unavailable",
+            "request_fingerprint": None,
+        }
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    identity = value.get("execution_identity")
+    result = {
+        "schema_version": _text(value.get("schema_version"), 96)
+        or PLANNER_ENVELOPE_SCHEMA_VERSION,
+        "stage": _text(value.get("projection_stage"), 24) or "unknown",
+        "request_fingerprint": _text(value.get("request_fingerprint"), 128)
+        or None,
+        "byte_size": len(encoded.encode("utf-8")),
+        "candidate_count": len(_sequence(value.get("capability_index"))),
+        "selected_component_ids": [
+            _text(item.get("component_id"), 48)
+            for item in _sequence(value.get("selected_components"))
+            if isinstance(item, Mapping) and _text(item.get("component_id"), 48)
+        ][:8],
+    }
+    if isinstance(identity, Mapping):
+        result["execution_identity"] = {
+            "schema_version": _text(identity.get("schema_version"), 96),
+            "binding_request_fingerprint": _text(
+                identity.get("binding_request_fingerprint"), 128
+            )
+            or None,
+            "binding_fingerprint": _text(
+                identity.get("binding_fingerprint"), 128
+            )
+            or None,
+            "component_ids": [
+                _text(item, 48)
+                for item in _sequence(identity.get("component_ids"))
+                if _text(item, 48)
+            ][:8],
+        }
+    return result
 
 
 def _request_facts(
@@ -912,6 +1087,7 @@ def _assert_budget(value: Mapping[str, Any], limit: int) -> None:
 
 
 __all__ = [
+    "PLANNER_EXECUTION_IDENTITY_SCHEMA_VERSION",
     "PLANNER_ENVELOPE_DEFAULT_STAGE",
     "PLANNER_ENVELOPE_LAYERS",
     "PLANNER_ENVELOPE_MAX_BYTES",
@@ -919,6 +1095,8 @@ __all__ = [
     "PLANNER_PROJECTION_STAGES",
     "PlannerEnvelopeError",
     "build_planner_envelope",
+    "build_execution_planner_envelope",
     "normalize_projection_stage",
     "normalize_planner_envelope",
+    "project_planner_envelope_evidence",
 ]
