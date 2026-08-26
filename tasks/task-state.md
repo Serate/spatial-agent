@@ -267,6 +267,21 @@
 - 验证：规划与 M287 live repair 失败证据一致；未运行重复业务测试。
 - 阻塞：无。
 
+### M297：通用分析组合与跨类型结果闭合 — 已完成
+
+- 结果：Result profile、组件输入引用、跨类型 data kinds、Composite View 和 execution binding 已通过公共 Runtime seam 闭合；GIS 与 Economic 仍由各自 Domain Pack 提供能力，未增加专题 Runtime 分支。
+- 文件：`agent/runtime_core/composition.py`、`agent/composite_contract.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`agent/composite_request_context.py`、`agent/composite_view.py`、`agent/runtime_core/{composite_taskplan,execution_binding,plan_completeness,analysis_discovery}.py`、`scripts/m289_real_composite_acceptance.py`、M297 tests。
+- 验证：Docker 相关精简契约 **55/55**；compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200 通过。显式 live 到达 provider 并返回结构化澄清，当前 GIS readiness 未就绪，因此未宣称 live 跨域执行成功。
+- 阻塞：无。安全澄清和数据未就绪均按既有生命周期返回，不放宽 schema、权限或执行 binding。
+
+### M298：默认 Agent 模式与阶段可见性 — 已完成
+
+- 结果：产品边界缺省使用 `openai + local`；`HTTPApplication` 仅在 FastAPI/stdlib 产品入口显式注入，低层应用保留 `rule + memory` 离线 fallback；Composite 组件继承顶层选择；前端默认呈现五个 Agent 阶段。
+- 文件：`agent/runtime_defaults.py`、`agent/application/http.py`、`production_api.py`、`serve_api.py`、`run_demo.py`、`agent/composite_contract.py`、`web/src/{index.html,console_app.js,styles.css}`、M298 tests、配置/README/API 文档。
+- 验证：默认配置、环境 allowlist、离线隔离、Composite 继承和前端契约通过；Docker M298 及相邻回归 **55/55**，compileall、architecture strict、Node projection smoke、readiness HTTP 200 通过。一次显式 live 在 context 预算修正后到达 provider，structured output 成功但模型返回澄清，未创建 run。
+- 问题记录：已将 context 预算不一致、产品默认污染低层测试和 discovery 状态误判写入 `docs/agent-development-issues.md`。
+- 下一步：M299-A 以全局视角设计默认 Agent 的最小上下文与成功/澄清/不可用验收矩阵。
+
 ## 更新协议
 
 1. 开始、完成或暂停子任务时更新状态、目标、文件、验证、阻塞和下一步。

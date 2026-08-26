@@ -360,9 +360,92 @@
 - 阻塞：无。
 - 下一步：推送版本 `6f8f2a2` 后开始 M297-A；继续复用现有 Runtime、Planner、ToolRegistry 和生命周期。
 
-### M297-A：目录与类型边界冻结 — 待开始
+### M297-A：目录与类型边界冻结 — 进行中
 - 目标：盘点现有 capability/workflow/ToolRegistry/Result Registry，冻结开放式组合所需的公共 requirements、输入/输出 data profile、result_ref 和 `composition_invalid` 边界。
 - 规划：`docs/m297-general-analysis-composition-capability-map.md`、`docs/m297-general-analysis-composition-spec.md`、`docs/m297-general-analysis-composition-plan.md`。
 - 验证：开发期间只做静态/契约边界检查；M297-B～E 合并后集中运行精简门禁。
 - 阻塞：无。
-- 下一步：读取 M297 三份规划和明确列出的 Runtime contract 文件，先形成现有能力矩阵，再决定是否需要新增通用 seam。
+- 下一步：将组件引用与 TaskPlan/binding 的最终语义继续收口，验证同步/异步/恢复投影不丢失来源 identity，再进入跨类型结果 View 与开放组合验收。
+
+### M297-A～B：目录类型投影与组合引用校验 — 进行中
+- 目标：让 Planner 看到 Result Registry 的输出 data profile，并为 Composite 组件建立有界、显式、可恢复的组件结果引用。
+- 需要修改/实际修改：`agent/runtime_core/capabilities.py`、`agent/application/composite_planning.py`、`agent/composite_request_context.py`、`agent/composite_planner.py`、`agent/composite_contract.py`、`agent/runtime_core/composition.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/execution_binding.py`、`tests/test_m297_general_analysis_composition.py`。
+- 验证：Docker 已重建；M297 新契约与 M296/M294 binding 回归 **18/18**、compileall、architecture strict 通过；实际 GIS + Economic Planner catalog 约 77 KiB，在 96 KiB 有界预算内，19 个 GIS 和 6 个 Economic Result profile 可投影。
+- 阻塞：无。
+- 下一步：将组件引用与 TaskPlan/binding 的最终语义继续收口，验证同步/异步/恢复投影不丢失来源 identity，再进入跨类型结果 View 与开放组合验收。
+
+### M297-B1：结果投影保留组合依赖 — 已完成
+- 目标：修复 Composite 结果投影遗漏 `depends_on` 导致合法的组件输入引用在结果契约归一化时被误判为非法。
+- 需要修改/实际修改：`agent/composite_contract.py`；以 M297 组合契约测试覆盖结果投影与来源血缘。
+- 验证：修复前 Docker 回归复现该问题；修复后 M297 + M296 + M294 **18/18**，compileall 和 architecture strict 通过。
+- 阻塞：无。
+- 下一步：进入 M297-C，验证已有注册能力的开放式组合规划与执行闭环。
+
+### M297-C：少量工具的开放式组合闭环 — 进行中
+- 目标：确认 Rule、Replay 和 LLM Planner 经过同一组合规范化、能力 allowlist、TaskPlan bridge 与 execution binding，能够表达两个以上已登记能力的开放请求。
+- 需要修改/实际修改：优先复用现有 `agent/composite_planner.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/execution_binding.py`；仅在验证发现公共缺口时修改，不增加领域专用分支。
+- 验证：Docker 代表性 Planner、TaskPlan/DAG 和 HTTP/恢复契约 **6/6**；Rule/Replay/LLM 共用规范化与执行绑定，默认测试保持离线。
+- 阻塞：无。
+- 下一步：进入 M297-D，核对跨类型 Result/View 的动态展示和未知类型降级。
+
+### M297-C：少量工具的开放式组合闭环 — 已完成
+- 目标：确认 Rule、Replay 和 LLM Planner 经过同一组合规范化、能力 allowlist、TaskPlan bridge 与 execution binding，能够表达两个以上已登记能力的开放请求。
+- 实际修改：复用 M279～M296 的公共 Planner、TaskPlan 和 binding seam；同步修复 M280 测试替身以实现当前执行就绪接口，未增加领域专用分支。
+- 验证：Docker 代表性用例 **6/6**；两步 DAG、HTTP 异步提交、planner evidence 和 SQLite/artifact/restart 证据通过。
+- 阻塞：无。
+- 下一步：完成 M297-D 的跨类型 Result/View 与用户答案投影。
+
+### M297-D：跨类型 Result/View 与用户答案 — 进行中
+- 目标：让 vector、raster、metrics、timeseries、document_evidence 和 composite 的类型、摘要、来源、限制与视图声明通过同一安全 projection 到 Console；未知类型必须可读降级。
+- 需要修改/实际修改：按源码审计结果决定 `agent/composite_view.py`、`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js` 及对应契约测试。
+- 验证：开发期间只做必要静态检查；完成 D 后集中运行 Node projection 与 Docker contract。
+- 阻塞：无。
+- 下一步：先核对现有 Composite View 是否丢失 data profile/view kind/evidence，再补最小公共投影。
+
+### M297-D：跨类型 Result/View 与用户答案 — 已完成
+- 目标：让 vector、raster、metrics、timeseries、document_evidence 和 composite 的类型、摘要、来源、限制与视图声明通过同一安全 projection 到 Console；未知类型可读降级。
+- 实际修改：`agent/composite_view.py` 增加整体/组件 `data_kinds`；`web/src/console_result_projection.js` 增加跨类型归一化与“结果组成”展示；Node smoke 增加混合类型场景。
+- 验证：Node syntax/smoke 通过；Docker M297 contract **6/6**、compileall、architecture strict、生产 readiness HTTP **200** 通过。
+- 阻塞：无。
+- 下一步：进入 M297-E，执行真实数据、跨入口恢复和显式模型验收。
+
+### M297-E：真实数据、恢复与显式模型验收 — 进行中
+- 目标：在 Docker 中核对 GIS + Economic 跨类型组合的同步/异步/artifact/SQLite/restart/HTTP identity 与 evidence 一致性，并保留必要降级证据。
+- 需要修改/实际修改：优先复用现有 `evaluation/` harness 与 M296 生产入口；只有真实验收暴露公共缺口时才修改 Runtime/Domain。
+- 验证：先运行一次现有 harness 帮助/离线路径，再执行阶段集中真实验收；不保存模型原文、prompt、密钥或原始私有数据。
+- 阻塞：无。
+- 下一步：修正验收 harness 对 prepared execution binding 的透传，再运行最小代表性场景。
+
+### M297-E1：验收 harness binding 透传 — 已完成
+- 目标：让真实 Composite 验收复用 Planner 已验证的 execution binding，并比较同步/异步的 request、binding、结果类型和 data kinds identity。
+- 实际修改：`scripts/m289_real_composite_acceptance.py`；prepared 对象的非序列化 binding 现在会传入 sync/async 两条执行入口。
+- 验证：脚本具备安全 live 入口；真实 provider structured output 可达但返回结构化澄清，未创建 execution run；未知数据 readiness 不会被伪装成成功。
+- 阻塞：无；真实 GIS 当前 readiness 未就绪，故不宣称本轮 live 跨域执行成功。
+
+### M297-F：阶段收口、版本交付与全局重规划 — 已完成
+- 目标：完成通用组合、跨类型结果、真实/恢复验收和阶段文档收口。
+- 实际修改：`agent/runtime_core/composition.py`、Composite request/result/View、Planner context、execution binding、acceptance harness、M297 contract 和 Node projection；未增加领域专用 Runtime 分支。
+- 验证：Docker 相关精简契约 **55/55**；compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200 通过。真实模型请求已到达 provider，但安全返回澄清；未保存模型原文、密钥或私有数据。
+- 下一步：交付 M297 版本后进入 M298 默认 Agent 模式与阶段可见性。
+
+### M298-A～D：默认 Agent 配置、产品入口与阶段可见性 — 已完成
+- 目标：把已有 Runtime 能力接到产品默认入口；缺省使用 `openai + local`，Composite 组件继承顶层选择，前端默认显示简洁 Agent 阶段。
+- 实际修改：新增 `agent/runtime_defaults.py`；CLI、FastAPI 和 stdlib 产品入口显式启用产品默认；共享 `HTTPApplication` 保留离线 fallback；Composite 组件统一继承顶层选择；前端新增“发现能力 → 理解请求 → 生成计划 → 执行任务 → 汇总结果”阶段条。
+- 规格与计划：`docs/m298-default-agent-mode-spec.md`、`docs/m298-default-agent-mode-plan.md`。
+- 验证：默认配置/环境 allowlist、低层离线隔离、Composite 继承和前端静态契约均已覆盖；阶段条不展示 prompt、模型原文或思维链。
+- 阻塞：无。
+
+### M298-E：集中门禁、显式 live、文档与交付 — 已完成
+- 目标：确认“产品默认真实 Agent”已经启动，同时保持测试和降级语义可控。
+- 验证：Docker M298 及相邻回归 **55/55**；compileall、architecture strict、Node projection smoke、生产 readiness HTTP 200 通过；一次显式 live 请求在修正 context 预算后到达 provider，structured output 通道成功但模型返回澄清，未创建 run。
+- 结论：产品默认模式已启动并可观测；真实模型的“可达”已验证，真实跨域成功仍受当前模型输出和 GIS readiness 约束，系统按设计安全澄清。
+- 下一阶段：M299 聚焦默认 Agent 的最小上下文与可执行成功率，从全局能力、数据 readiness、用户体验、恢复和部署一致性重新规划，不回退到规则默认。
+
+### M299-A：全局基线、验收矩阵与上下文预算 — 进行中
+- 目标：从项目整体冻结默认 Agent 的 success、clarification、data unavailable、provider failure 四类状态，以及 Context Builder、LLM Planner、provider payload 和恢复边界的统一预算。
+- 规格与计划：`docs/m299-default-agent-success-capability-map.md`、`docs/m299-default-agent-success-spec.md`、`docs/m299-default-agent-success-plan.md`。
+- 当前结论：M298 live 已证明 provider structured-output 通道可达；默认 Agent 后续应优先压缩无关上下文、保留动态能力发现和执行身份，不能退回规则默认。
+- 当前明确文件：`agent/composite_request_context.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`、`tests/test_m299_default_agent_success_path.py`。
+- 验证策略：M299-A 只做契约审计和 Spec/Plan；M299-E/F 合并执行一轮 Docker 精简门禁与显式验收。
+- 阻塞：无。
+- 下一步：测量当前多领域 context 的字段贡献，设计分层 Planner envelope，不修改领域专用代码。

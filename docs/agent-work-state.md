@@ -19,31 +19,27 @@
 
 ## 当前阶段
 
-- 阶段：M297 通用分析组合与跨类型结果闭合（已完成全局规划，A 待开始）
-- 状态：M296 已完成代码、Docker/HTTP/前端门禁和文档收口，版本 `6f8f2a2` 已提交、待推送；M297 已完成七维度能力图、Spec、Plan，下一步冻结目录与类型边界。
-- 当前任务：M297-A 目录与类型边界冻结，详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M299 默认 Agent 成功路径收口（A 进行中）
+- 状态：M297 通用组合与跨类型结果已完成；M298 已完成产品默认 `openai + local`、Composite 继承和前端阶段可见性，版本交付正在按阶段拆分。
+- 当前任务：M299-A，全局基线与预算冻结；详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m297-general-analysis-composition-capability-map.md`](m297-general-analysis-composition-capability-map.md)
-  - [`docs/m297-general-analysis-composition-spec.md`](m297-general-analysis-composition-spec.md)
-  - [`docs/m297-general-analysis-composition-plan.md`](m297-general-analysis-composition-plan.md)
+  - [`docs/m299-default-agent-success-capability-map.md`](m299-default-agent-success-capability-map.md)
+  - [`docs/m299-default-agent-success-spec.md`](m299-default-agent-success-spec.md)
+  - [`docs/m299-default-agent-success-plan.md`](m299-default-agent-success-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m297-general-analysis-composition-capability-map.md`
-- `docs/m297-general-analysis-composition-spec.md`
-- `docs/m297-general-analysis-composition-plan.md`
-- `agent/runtime_core/plan_completeness.py`
-- `agent/runtime_core/execution_binding.py`
-- `agent/runtime_core/composite_taskplan.py`
-- `agent/runtime_core/analysis_discovery.py`
-- `agent/tools.py`
-- `domains/gis/domain.py`
-- `domains/economic/domain.py`
-- `tests/test_m297_general_analysis_composition.py`
+- `tasks/plan.md`
+- `docs/m299-default-agent-success-capability-map.md`
+- `docs/m299-default-agent-success-spec.md`
+- `docs/m299-default-agent-success-plan.md`
 - `tasks/task-progress.md`
 - `tasks/task-state.md`
-- `tasks/plan.md`
-- `tasks/todo.md`
+- `agent/composite_planner.py`
+- `agent/composite_request_context.py`
+- `agent/application/composite_planning.py`
+- `web/src/console_result_projection.js`
+- `tests/test_m299_default_agent_success_path.py`
 
 ## 验证与安全约定
 
