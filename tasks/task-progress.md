@@ -565,3 +565,17 @@
 - 当前明确文件：`agent/answer_generation.py`、`agent/application/composite_runs.py`、`agent/composite_view.py`、`web/src/console_result_projection.js`、`tests/test_m300_open_agent_success.py` 及必要的 M302 contract。
 - 验证：开发期间只做静态/契约检查；D/E 合并后集中运行精简 Python、Node projection、compileall、architecture strict、Service smoke、readiness 和一次显式 live。
 - 阻塞：无。
+
+### M302-D/E：结果投影事实闭合与阶段交付 — 已完成
+- 结果：Composite View 透传安全的答案生成 evidence；损坏计数安全归一化；前端只消费结构化 evidence。公共结果契约将 Registry 声明的全部 ViewSpec ID 同步登记到 workspace，未知/不可用 View 由统一 fallback 表达。
+- 缺陷修复：生产验收发现 `views.panels.map` 与 `workspace.panels` 漂移；新增最小回归，修复前稳定失败，修复后通过。修复位于公共 `result_contract.py`，没有新增 GIS 专用分支。
+- 验证：重建 Docker 镜像后，M302/答案生成/Composite 精简回归 **26/26**；生产 HTTP/异步/artifact/restart 验收通过；compileall、architecture strict、Service smoke、Node projection smoke 和 `/health/ready` HTTP **200** 通过。
+- 显式 live：真实中转结构化输出通道可达，1 次请求、0 重试、约 47 秒后返回 `NEEDS_CLARIFICATION`，未创建 execution run；按 provider/语义澄清分类，没有伪装成跨域成功。
+- 交付：已补齐中文问题日志、M302 Plan、milestone 和恢复账本；下一步从产品、架构、数据、模型、部署、体验、测试七个维度全局规划 M303，优先提升开放式 LLM Composite 形成合法多步 DAG 并进入真实执行的成功率。
+
+### M303-A：全局能力图、Spec、Plan 与状态矩阵 — 已完成
+- 目标：从全局七维度提升开放式 LLM Composite 的真实成功率，让模型选择已就绪能力并进入合法多步执行，不复制 Runtime 或领域专用流程。
+- 已完成：创建 `docs/m303-open-composite-execution-capability-map.md`、`docs/m303-open-composite-execution-spec.md` 和 `docs/m303-open-composite-execution-plan.md`；冻结 planner decision、canonical plan、执行闭合、跨入口和 live 交付模块及依赖顺序。
+- 关键边界：模型输出必须经过现有 catalog、workflow、TaskPlan、ToolRegistry、execution binding 和 Result/Evidence 门禁；未知能力、空计划、事实不足和 provider 故障分别结构化处理。
+- 验证策略：开发阶段只做必要静态检查，阶段收口统一运行 Docker 精简契约、跨入口 acceptance、compileall、architecture strict、Node projection、Service smoke、readiness 和一次显式 live。
+- 当前任务：M303-B 审查并实现结构化模型选择到 canonical Composite 请求/DAG 的安全适配；明确文件见 `docs/agent-work-state.md`。

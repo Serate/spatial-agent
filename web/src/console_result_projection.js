@@ -76,6 +76,12 @@
     }
     const continuation = firstRecord(data.continuation, result.continuation, handoff?.continuation);
     const evidence = firstRecord(composite?.evidence, result.evidence, data.evidence) || {};
+    const answerGeneration = firstRecord(
+      composite?.evidence?.answer_generation,
+      data.answer_generation_evidence,
+      result.answer_generation_evidence,
+      evidence.answer_generation,
+    );
     const evidenceRegistry = firstRecord(result.evidence_registry, data.evidence_registry) || {};
     const executionBinding = firstRecord(
       data.execution_binding,
@@ -116,6 +122,7 @@
       repair_lineage: repairLineage,
       plan,
       evidence,
+      answer_generation: answerGeneration || {},
       evidence_registry: evidenceRegistry,
       execution_binding: executionBinding || {},
       views,

@@ -5,6 +5,8 @@ import unittest
 
 from agent.composite_planner import LLMCompositePlanner
 from agent.composite_request_context import CompositeRequestContextBuilder
+from agent.composite_view import build_composite_view_projection
+from result_contract import build_result_contract
 from agent.runtime_core.planner_envelope import (
     PLANNER_ENVELOPE_SCHEMA_VERSION,
     PlannerEnvelopeError,
@@ -276,6 +278,76 @@ class M302StageAwarePlannerContextTests(unittest.TestCase):
         self.assertEqual(
             normalized["execution_identity"]["binding_fingerprint"],
             envelope["execution_identity"]["binding_fingerprint"],
+        )
+
+    def test_composite_view_carries_safe_answer_evidence_and_tolerates_bad_counts(self):
+        result = {
+            "composite": {
+                "schema_version": "spatial-agent.composite-result.v1",
+                "request": {"fingerprint": "composite-request"},
+                "state": "completed",
+                "components": [
+                    {
+                        "component_id": "summary",
+                        "domain_id": "gis",
+                        "state": "completed",
+                        "status": "COMPLETED",
+                        "result_type": "summary_result",
+                        "data_profile": {"primary": "metrics", "kinds": ["metrics"]},
+                        "answer": "已形成摘要。",
+                    }
+                ],
+                "evidence": {
+                    "schema_version": "spatial-agent.composite-evidence.v1",
+                    "state": "completed",
+                    "component_count": "not-a-number",
+                    "component_evidence": [],
+                },
+            },
+            "planner_evidence": {
+                "plan_completeness": {
+                    "component_count": "invalid",
+                    "materialized_count": None,
+                }
+            },
+            "answer_generation_evidence": {
+                "status": "success",
+                "available": True,
+                "execution_mode": "live_model",
+            },
+        }
+
+        projection = build_composite_view_projection(result)
+
+        self.assertEqual(projection["evidence"]["component_count"], 1)
+        self.assertEqual(
+            projection["evidence"]["answer_generation"]["status"], "success"
+        )
+        self.assertEqual(projection["planning"]["plan_completeness"]["component_count"], 0)
+
+    def test_result_workspace_declares_fallback_view_specs(self):
+        payload = {
+            "status": "COMPLETED",
+            "result_type": "admin_area_result",
+            "plan": {"output": {"type": "admin_area_result"}},
+            "steps": [
+                {
+                    "id": "admin",
+                    "tool": "range_query",
+                    "status": "COMPLETED",
+                    "result": {"dataset": "admin_areas", "count": 1},
+                }
+            ],
+        }
+
+        contract = build_result_contract(payload)
+
+        self.assertIn("map", contract["views"]["panels"])
+        self.assertIn("map", contract["workspace"]["panels"])
+        self.assertTrue(
+            set(contract["views"]["panels"]).issubset(
+                set(contract["workspace"]["panels"])
+            )
         )
 
 

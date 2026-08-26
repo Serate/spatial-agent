@@ -5156,3 +5156,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - M302-C 已完成：execution projection 只在 TaskPlan/DAG、plan completeness 和 execution binding 全部门禁通过后生成；execution binding 纳入 capability identity，新的 plan fingerprint 覆盖 capability；projection 校验组件集合、顺序、领域、能力、依赖和 required identity，精简 execution evidence 可安全规范化。
 - Docker M302-C + M294/M293/M292 **19/19**，compileall、architecture strict、Service smoke、生产 readiness HTTP **200** 全部通过；因旧容器未包含最新测试，已重建镜像并强制重建服务后复验。
 - 下一步：M302-D 从全局结果链路检查结构化 Result → answer/evidence → View/Console 的事实闭合与用户可读性，再执行 M302-E 的 Docker/live 集中验收和版本交付。
+
+## M302：分阶段 Planner 上下文与开放问题成功链路（已完成）
+
+- M302-D 完成结构化 Result → answer/evidence → View/Console 的事实闭合：Composite View 透传安全答案生成 evidence，损坏计数安全归一化，前端只消费结构化 evidence。
+- 修复公共结果契约的 workspace/View 面板声明漂移：Registry 声明的全部 ViewSpec ID 现在同步登记到 workspace，未知/不可用 View 由公共 fallback 表达，没有增加 GIS 专用分支；修复前最小回归失败，修复后通过。
+- M302-E 在重建后的 Docker 镜像中完成 M302/答案/Composite 精简回归 **26/26**、compileall、architecture strict、Service smoke、Node projection smoke；生产 HTTP/异步/artifact/restart 验收通过，`/health/ready` 返回 **200**。
+- 真实中转 Planner 显式验收：结构化输出通道可达，1 次请求、0 重试、约 47 秒后返回 `NEEDS_CLARIFICATION`，未创建 execution run；按 provider/语义澄清分类，没有伪装成跨域成功。
+- 本阶段更新了中文问题日志、M302 Spec/Plan、恢复快照和任务账本；下一阶段从全局七维度规划 M303，优先提升开放式 LLM Composite 形成合法多步 DAG 并进入真实 GIS/Economic 执行的成功率。

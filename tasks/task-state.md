@@ -343,3 +343,17 @@
 - 验证：Docker 新镜像 M302-C + M294 + M293 + M292 **19/19**；compileall、architecture strict、Service smoke、生产 `/health/ready` **200** 全部通过。
 - 阻塞：无。未执行真实 provider 请求，未读取或保存密钥、模型原文、私有路径或真实原始数据。
 - 当前阶段：进入 M302-D，优先从全局结果链路检查 Result → answer/evidence → View/Console 的事实一致性和用户可读性。
+
+### M302-D/E：结果投影事实闭合与阶段交付 — 已完成
+- 目标：让 Result、answer/evidence、View 和 workspace 共享同一结构化事实来源，并完成 Docker、HTTP、异步、artifact、恢复和显式 live 收口。
+- 实际修改：`agent/composite_view.py`、`result_contract.py`、`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js`、`tests/test_m302_stage_aware_planner_context.py`；同步中文问题日志、M302 Plan、milestone 和恢复账本。
+- 修复：Registry 的 ViewSpec 现在同时登记到 workspace，避免 fallback View 面板与 workspace 声明漂移；计数字段和 answer-generation evidence 继续走公共安全投影。
+- 验证：Docker M302/答案/Composite **26/26**；生产 HTTP/异步/artifact/restart **ok**；compileall、architecture strict、Service smoke、Node projection smoke、readiness **200**。
+- 显式 live：中转结构化输出可达，1 请求、0 重试、约 47 秒后安全返回 `NEEDS_CLARIFICATION`，未创建 run；未保存密钥、prompt、模型原文或私有数据。
+- 阻塞：无。下一步：全局重规划 M303，验证 LLM Planner 对已就绪 GIS/Economic 能力的合法多组件 DAG 选择与真实执行。
+
+### M303-A：全局能力图、Spec、Plan 与状态矩阵 — 已完成
+- 目标：从全局七维度提升开放式 LLM Composite 的真实成功率，让模型选择已就绪能力并进入合法多步执行，不复制 Runtime 或领域专用流程。
+- 已完成：创建 `docs/m303-open-composite-execution-capability-map.md`、`docs/m303-open-composite-execution-spec.md` 和 `docs/m303-open-composite-execution-plan.md`；冻结 planner decision、canonical plan、执行闭合、跨入口和 live 交付模块及依赖顺序。
+- 当前任务：M303-B 审查并实现结构化模型选择到 canonical Composite 请求/DAG 的安全适配；只读取 M303 规划文件、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/runtime_core/planner_envelope.py` 和新增精简测试文件。
+- 阻塞：无。

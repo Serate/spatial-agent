@@ -43,4 +43,8 @@
 - C 已完成：execution projection 在 TaskPlan/DAG、plan completeness 和 execution binding 全部门禁通过后生成；execution binding 纳入 capability identity，plan fingerprint 覆盖 capability（兼容旧 binding 的可选字段）；projection 校验组件集合、顺序、领域、能力、依赖和 required identity；`execution_identity` 纳入 Envelope 安全规范化，evidence 只保留有界 receipt。
 - 已验证：阶段切换不改变 request fingerprint；readiness、workflow、result profile 和私有字段过滤保持；已有 Envelope 可安全规范化；repair 在尚未形成可信选中项时保留有界候选以支持一次结构修复。
 - C 验证：Docker M302-C 与 M294/M293/M292 **19/19**；compileall、architecture strict、Service smoke 和生产 readiness HTTP **200** 通过；新镜像已重建并强制接管，避免旧容器假绿灯。
-- 下一步：D 从全局结果链路审查结构化 Result → answer/evidence → View/Console 的事实引用与用户表达；E 再执行一次 Docker/live/跨入口集中验收并完成阶段交付，不为单一 GIS 问句增加分支。
+- D 已完成：Composite View 透传安全的答案生成 evidence，损坏计数字段统一安全归一化；结果契约确保 Registry 声明的 ViewSpec 同时登记到 workspace，未知/不可用视图由公共 fallback 表达，前端只消费结构化 evidence。
+- D 验证：新增结果投影与 workspace/View 闭合契约；修复前最小用例稳定失败，修复后通过，未增加 GIS 专用分支。
+- E 已完成：在重建后的 Docker 镜像中集中执行 M302/答案/Composite 精简回归 **26/26**、compileall、architecture strict、Service smoke、Node projection smoke；生产 HTTP/异步/artifact/restart 验收通过，`/health/ready` 返回 **200**。
+- E 显式 live：真实中转结构化输出通道可达，单次请求、0 重试、约 47 秒后返回 `NEEDS_CLARIFICATION`，未创建 execution run；按 provider/语义澄清分类记录，不伪装成跨域成功。
+- 阶段结论：M302-D/E 已完成，Result → answer/evidence → View/Console 的公共事实链路和跨入口契约已收口；下一步按七维度全局重规划开放式 LLM Composite 成功执行能力。

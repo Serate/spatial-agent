@@ -175,10 +175,19 @@
 - [x] M301-C 选中组件门禁、兼容澄清合并与精简验收
 - [x] M301-D 文档、版本交付与全局重规划
 
-## M302 分阶段 Planner 上下文与开放问题成功链路（进行中）
+## M302 分阶段 Planner 上下文与开放问题成功链路（已完成）
 
 - [x] M302-A 全局字段矩阵与阶段契约
 - [x] M302-B discovery/selection/execution/repair 最小 Envelope
 - [x] M302-C 选择、事实交接、TaskPlan 与 binding 纵向闭合
-- [ ] M302-D 结构化结果、答案和前端 evidence 投影
-- [ ] M302-E Docker 真实跨域验收、文档、版本与全局重规划
+- [x] M302-D 结构化结果、答案和前端 evidence 投影
+- [x] M302-E Docker 真实跨域验收、文档、版本与全局重规划
+
+## M303 开放式 LLM Composite 执行成功链路（规划中）
+
+- [ ] M303-A 从全局七维度冻结 LLM Composite 成功/澄清/拒绝/不可用矩阵
+- [ ] M303-B 收敛模型输入与输出的通用能力选择和合法 DAG 契约
+- [ ] M303-C 验证 Replay/Rule/LLM 共享 TaskPlan、binding、Result 和 Evidence 边界
+- [ ] M303-D 用真实 Docker GIS/Economic 数据执行一次跨域 sync/async/artifact 验收
+- [ ] M303-E 集中运行精简门禁、一次显式 live，并记录 provider 失败或成功证据
+- [ ] M303-F 更新中文项目记忆、提交推送并按全局目标重规划

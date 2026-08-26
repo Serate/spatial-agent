@@ -566,11 +566,21 @@ def _workspace_contract(
 ) -> Dict[str, Any]:
     registered = registry.is_registered(result_type)
     panels = list(registry.panels_for(result_type))
+    view_specs = registry.view_specs_for(result_type)
     map_evidence = _workspace_map(steps, geometry_evidence, geojson_ref)
     if map_evidence["available"] and "map" not in panels:
         panels.append("map")
     if not registered and steps:
         panels.append("generic")
+    # A ViewSpec is a public renderer declaration, including when its data is
+    # unavailable.  Register every declared target in the workspace so the
+    # shared fallback projection cannot create a View panel that the workspace
+    # does not acknowledge.  This stays Domain-neutral; the registry remains
+    # the sole source of result-specific panel identity.
+    for spec in view_specs:
+        view_id = str(spec.get("id") or "")[:64]
+        if view_id and view_id not in panels:
+            panels.append(view_id)
     return {
         "schema_version": "spatial-agent.workspace.v1",
         "result_type": result_type,
@@ -578,7 +588,7 @@ def _workspace_contract(
         "primary_panel": panels[0] if panels else "answer",
         "common_panels": list(COMMON_WORKSPACE_PANELS),
         "panels": panels[:12],
-        "view_specs": registry.view_specs_for(result_type),
+        "view_specs": view_specs,
         "map": map_evidence,
     }
 

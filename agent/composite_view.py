@@ -56,7 +56,11 @@ def build_composite_view_projection(
     )
     sections = _build_sections(components)
     views = _build_views(result.get("views"), state)
-    evidence = _build_evidence(composite.get("evidence"), state)
+    evidence = _build_evidence(
+        composite.get("evidence"),
+        state,
+        answer_generation=result.get("answer_generation_evidence"),
+    )
     planning = _build_planning(result.get("planner_evidence"))
     artifacts = _collect_artifacts(composite, components)
     projection = {
@@ -217,13 +221,18 @@ def _build_views(value: Any, state: str) -> list[dict[str, Any]]:
     return views
 
 
-def _build_evidence(value: Any, state: str) -> dict[str, Any]:
+def _build_evidence(
+    value: Any,
+    state: str,
+    *,
+    answer_generation: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     source = value if isinstance(value, Mapping) else {}
     result = {
         "schema_version": _text(source.get("schema_version"), 96),
         "available": bool(source),
         "state": _text(source.get("state") or state, 32),
-        "component_count": max(0, min(_MAX_COMPONENTS, int(source.get("component_count") or 0))),
+        "component_count": _bounded_int(source.get("component_count"), _MAX_COMPONENTS),
         "completed_component_ids": _safe_strings(source.get("completed_component_ids"), _MAX_COMPONENTS),
         "failed_component_ids": _safe_strings(source.get("failed_component_ids"), _MAX_COMPONENTS),
         "blocked_component_ids": _safe_strings(source.get("blocked_component_ids"), _MAX_COMPONENTS),
@@ -233,6 +242,12 @@ def _build_evidence(value: Any, state: str) -> dict[str, Any]:
     execution = source.get("execution_binding")
     if isinstance(execution, Mapping):
         result["execution_binding"] = _project_execution_binding(execution)
+    if isinstance(answer_generation, Mapping):
+        from agent.answer_generation import project_answer_generation_evidence
+
+        result["answer_generation"] = project_answer_generation_evidence(
+            answer_generation
+        )
     return result
 
 
@@ -265,12 +280,11 @@ def _build_planning(value: Any) -> dict[str, Any]:
             ),
             "status": _text(completeness.get("status"), 24),
             "reason_code": _text(completeness.get("reason_code"), 96),
-            "component_count": max(
-                0, min(_MAX_COMPONENTS, int(completeness.get("component_count") or 0))
+            "component_count": _bounded_int(
+                completeness.get("component_count"), _MAX_COMPONENTS
             ),
-            "materialized_count": max(
-                0,
-                min(_MAX_COMPONENTS, int(completeness.get("materialized_count") or 0)),
+            "materialized_count": _bounded_int(
+                completeness.get("materialized_count"), _MAX_COMPONENTS
             ),
         }
     discovery = value.get("discovery")
@@ -380,6 +394,13 @@ def _fit_budget(projection: dict[str, Any]) -> None:
         if isinstance(view, dict):
             view["payload"] = {"truncated": True, "reason": "view_payload_budget"}
     projection["evidence"]["views_truncated"] = True
+
+
+def _bounded_int(value: Any, maximum: int) -> int:
+    try:
+        return max(0, min(maximum, int(value)))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _bounded_value(value: Any, *, depth: int) -> Any:

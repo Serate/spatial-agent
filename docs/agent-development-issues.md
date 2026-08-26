@@ -1253,3 +1253,11 @@
 - **根因**：execution binding 的旧组件身份没有保存 capability_id；plan fingerprint 也没有覆盖该能力身份，projection 只能验证有限的外部字段。
 - **修复**：新生成的 execution binding 保存 capability_id，并把它纳入新的 plan fingerprint；execution projection 在生成时严格比较组件集合、顺序、领域、能力、依赖和 required，Envelope 白名单同时接纳 `execution_identity`，证据只保留有界 receipt。
 - **预防**：凡是由已验证对象生成的阶段投影，都必须比较完整的可执行身份；不能把一致性检查降级为“只记录 fingerprint”。兼容旧 binding 时缺失字段保持可读，但新 binding 必须 fail closed 地闭合身份。
+
+## M302 结果投影的 workspace/View 面板声明漂移
+
+- **现象**：生产 HTTP 验收中，结果 View 含有 `map` 面板，但 workspace 面板清单为空，跨入口契约失败。
+- **根因**：GIS Registry 为结果声明了 `ViewSpec(map)`，但公共 workspace 只登记显式业务 panels；结果 fallback 又按 ViewSpec 补出了不可用面板，形成两个来源不一致。
+- **修复**：公共 `result_contract` 将 Registry 声明的所有 ViewSpec ID 登记到 workspace；Domain Registry 仍是面板身份唯一来源，未增加 GIS 特判。
+- **验证**：修复前最小契约稳定失败，修复后通过；M302/答案/Composite **26/26**、生产 HTTP/异步/artifact/restart、compileall、architecture strict、Service smoke 和 Node projection smoke 均通过。
+- **预防**：每个公共 View fallback 都必须同时校验 workspace 声明；新增结果类型优先提供 ViewSpec，不在 transport 或前端补面板名称。

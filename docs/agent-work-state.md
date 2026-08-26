@@ -21,9 +21,9 @@
 
 ## 当前阶段
 
-- 阶段：M302 分阶段 Planner 上下文与开放问题成功链路（开发中）
-- 状态：M301 已完成并推送；M302-A/B/C 已完成。内部 Composite Context/目录/discovery 默认 256 KiB，provider Planner Envelope 独立 96 KiB；Envelope 已支持 discovery、selection、execution、repair 阶段投影，execution projection 已由 validated binding 驱动并闭合组件能力身份。产品默认保持 `openai + local`。
-- 当前任务：M302-D 从全局结果链路审查结构化 Result → answer/evidence → View/Console 的事实一致性、用户可读性和未知结果降级。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M303 开放式 LLM Composite 执行成功链路（开发中）
+- 状态：M302-A/B/C/D/E 已完成并交付；M303-A 已完成全局能力图、Spec、Plan。当前重点是让真实 LLM Planner 在不改变 Runtime/ToolRegistry/生命周期的前提下，稳定选择已就绪 GIS/Economic 能力并形成合法多步 DAG。产品默认保持 `openai + local`。
+- 当前任务：M303-B 将结构化模型选择安全适配为 canonical Composite 请求与合法组件 DAG；详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m302-stage-aware-planner-context-capability-map.md`](m302-stage-aware-planner-context-capability-map.md)
   - [`docs/m302-stage-aware-planner-context-spec.md`](m302-stage-aware-planner-context-spec.md)
@@ -31,14 +31,13 @@
 
 ## 当前任务明确文件
 
-- `docs/m302-stage-aware-planner-context-spec.md`
-- `docs/m302-stage-aware-planner-context-plan.md`
-- `agent/answer_generation.py`
-- `agent/application/composite_runs.py`
-- `agent/composite_view.py`
-- `web/src/console_result_projection.js`
-- `tests/test_m300_open_agent_success.py`
-- `tests/test_m302_stage_aware_planner_context.py`
+- `docs/m303-open-composite-execution-capability-map.md`
+- `docs/m303-open-composite-execution-spec.md`
+- `docs/m303-open-composite-execution-plan.md`
+- `agent/composite_planner.py`
+- `agent/application/composite_planning.py`
+- `agent/runtime_core/planner_envelope.py`
+- `tests/test_m303_open_composite_execution.py`
 
 ## 验证与安全约定
 

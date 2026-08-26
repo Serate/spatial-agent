@@ -36,7 +36,11 @@ const completed = projection.normalize({
       answer: {headline: "分析完成", summary: "已形成一份可读的综合结论。", key_findings: ["发现一", "发现二"], limitations: ["仅供演示"]},
       sections: [{kind: "component", answer: "组件结果"}],
       views: [{view_id: "summary", kind: "metrics", state: "ready", payload: {metrics: []}}],
-      evidence: {available: true, component_count: 1},
+      evidence: {
+        available: true,
+        component_count: 1,
+        answer_generation: {schema_version: "spatial-agent.answer-generation.v1", available: true, status: "success", mode: "live_model"},
+      },
       planning: {
         schema_version: "spatial-agent.composite-planner-evidence.v1",
         planner_source: "llm",
@@ -74,6 +78,7 @@ assert.equal(completed.discovery.state, "ready");
 assert.equal(completed.discovery.candidate_count, 2);
 assert.equal(completed.selection_evidence.state, "selected");
 assert.equal(completed.execution_binding.binding_fingerprint, "sha256:binding-is-not-rendered");
+assert.equal(completed.answer_generation.status, "success");
 const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
 assert.match(completedHtml, /分析上下文已建立/);
