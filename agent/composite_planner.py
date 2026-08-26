@@ -12,7 +12,10 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from agent.composite_contract import normalize_composite_request
+from agent.composite_contract import (
+    CompositeContractError,
+    normalize_composite_request,
+)
 from agent.planner_repair import safe_repair_request
 from agent.runtime_core.composition import (
     CompositionError,
@@ -504,9 +507,9 @@ def normalize_composite_plan(
             "success plan requires components", code="plan_components_required"
         )
 
-    canonical_components = []
-    projected_components = []
-    for index, raw in enumerate(raw_components[:8]):
+    planner_components = []
+    capability_ids: list[str] = []
+    for raw in raw_components[:8]:
         if not isinstance(raw, Mapping):
             raise CompositePlannerError(
                 "component must be an object", code="plan_component_object_required"
@@ -517,12 +520,19 @@ def normalize_composite_plan(
                 "component contains unsupported fields",
                 code="plan_component_field_invalid",
             )
+        if planner_source == "llm" and "workflow" in raw:
+            raise CompositePlannerError(
+                "LLM planner cannot provide a workflow",
+                code="plan_component_workflow_forbidden",
+            )
         component_id = _required_component_text(raw, "component_id")
         domain_id = _required_component_text(raw, "domain_id")
         capability_id = _required_component_text(raw, "capability_id")
         component_request = _required_component_text(raw, "request", 2000)
         dependencies = raw.get("depends_on", [])
-        if not isinstance(dependencies, list):
+        if not isinstance(dependencies, list) or not all(
+            isinstance(value, str) for value in dependencies
+        ):
             raise CompositePlannerError(
                 "component depends_on must be an array",
                 code="plan_dependencies_invalid",
@@ -531,8 +541,8 @@ def normalize_composite_plan(
             "component_id": component_id,
             "domain_id": domain_id,
             "request": component_request,
-            "depends_on": [str(value)[:48] for value in dependencies],
-            "required": bool(raw.get("required", True)),
+            "depends_on": [value[:48] for value in dependencies],
+            "required": _required_bool(raw, "required"),
         }
         if raw.get("workflow") is not None:
             if not isinstance(raw["workflow"], Mapping):
@@ -543,15 +553,48 @@ def normalize_composite_plan(
             item["workflow"] = dict(raw["workflow"])
         if raw.get("inputs") is not None:
             try:
-                item["inputs"] = normalize_component_inputs(raw.get("inputs"))
+                item["inputs"] = _normalize_planner_inputs(raw.get("inputs"))
             except CompositionError as exc:
                 raise CompositePlannerError(str(exc), code=exc.code) from exc
-        canonical_components.append(item)
+        planner_components.append(item)
+        capability_ids.append(capability_id)
+
+    try:
+        canonical_request = normalize_composite_request(
+            {
+                "schema_version": "spatial-agent.composite-request.v1",
+                "request": str(request or goal)[:2000],
+                "components": planner_components,
+            }
+        )
+    except CompositeContractError as exc:
+        raise CompositePlannerError(
+            "planner components do not form a canonical request",
+            code=exc.code,
+        ) from exc
+    # The public request contract owns identifier canonicalization (including
+    # lower-casing component/domain IDs and normalizing dependencies). Rebuild
+    # the planner projection from that trusted result so the capability
+    # projection and the later execution binding cannot drift apart.
+    projected_components = []
+    for index, canonical in enumerate(canonical_request["components"]):
+        source = planner_components[index]
         projected_components.append(
             {
-                **item,
-                "capability_id": capability_id,
+                **canonical,
+                "capability_id": capability_ids[index],
                 "index": index,
+                # ``normalize_composite_request`` intentionally bounds deeply
+                # nested public workflow payloads.  Keep the original
+                # planner-side workflow only for deterministic Rule/Replay
+                # adapters; the execution bridge still owns its full schema,
+                # tool allowlist, and TaskPlan validation.  LLM output is not
+                # allowed to provide a workflow at all.
+                **(
+                    {"workflow": source["workflow"]}
+                    if planner_source != "llm" and "workflow" in source
+                    else {}
+                ),
             }
         )
 
@@ -560,13 +603,6 @@ def normalize_composite_plan(
         validate_component_composition(projected_components, context=context)
     except CompositionError as exc:
         raise CompositePlannerError(str(exc), code=exc.code) from exc
-    canonical_request = normalize_composite_request(
-        {
-            "schema_version": "spatial-agent.composite-request.v1",
-            "request": str(request or goal)[:2000],
-            "components": canonical_components,
-        }
-    )
     return {
         "schema_version": COMPOSITE_PLANNING_RESPONSE_SCHEMA_VERSION,
         "status": "PLANNED",
@@ -656,12 +692,44 @@ def _bounded_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
 
 
 def _required_component_text(value: Mapping[str, Any], key: str, limit: int = 96) -> str:
-    text = str(value.get(key) or "").strip()
+    raw = value.get(key)
+    if not isinstance(raw, str):
+        raise CompositePlannerError(
+            "component " + key + " must be a string",
+            code="plan_component_field_invalid",
+        )
+    text = raw.strip()
     if not text:
         raise CompositePlannerError(
             "component " + key + " is required", code="plan_component_field_missing"
         )
-    return text[:limit]
+    if len(text) > limit:
+        raise CompositePlannerError(
+            "component " + key + " exceeds its limit",
+            code="plan_component_field_invalid",
+        )
+    return text
+
+
+def _required_bool(value: Mapping[str, Any], key: str) -> bool:
+    raw = value.get(key, True)
+    if not isinstance(raw, bool):
+        raise CompositePlannerError(
+            "component " + key + " must be boolean",
+            code="plan_component_field_invalid",
+        )
+    return raw
+
+
+def _normalize_planner_inputs(value: Any) -> list[dict[str, Any]]:
+    """Normalize input references while aligning IDs with the request contract."""
+
+    normalized = normalize_component_inputs(value)
+    for item in normalized:
+        source = item.get("source")
+        if isinstance(source, Mapping):
+            source["component_id"] = str(source.get("component_id") or "").strip().lower()
+    return normalized
 
 
 def _text(value: Any, key: str, limit: int, *, required: bool) -> str:

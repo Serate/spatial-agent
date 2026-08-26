@@ -51,3 +51,11 @@
 ## 当前实施顺序
 
 先完成 A/B 的代码审查与最小契约，再完成 C/D 的真实数据纵向验收，最后集中执行 E/F。全程串行，默认测试只在阶段收口集中运行。
+
+## 实际阶段收口
+
+- A/B/C 已完成：模型结构化输出经过 canonical Composite request、TaskPlan/DAG、ToolRegistry 和 execution binding 的唯一门禁；Rule、Replay、LLM 不再拥有分叉执行授权。
+- D 已完成：Docker 真实 GIS/Economic 数据的 sync/async、artifact、SQLite/restart 和 evidence 对照通过；活动 Composite `PLANNING` 快照误投影为 `FAILED` 的问题已修复。
+- E 已完成：M303 与相邻回归 **12/12**，compileall、architecture strict、Node projection、Service smoke、生产 HTTP 和 readiness **200** 通过。
+- 显式 live 只执行 1 次，60 秒、0 重试，返回脱敏 `FAILED/timeout` receipt，未创建 execution run；该结果不计为真实模型成功。
+- F 已完成：中文问题日志、里程碑、任务账本、恢复快照已同步，并已创建 M304 的全局 capability map、Spec 和 Plan。

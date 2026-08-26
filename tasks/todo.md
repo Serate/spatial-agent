@@ -183,11 +183,20 @@
 - [x] M302-D 结构化结果、答案和前端 evidence 投影
 - [x] M302-E Docker 真实跨域验收、文档、版本与全局重规划
 
-## M303 开放式 LLM Composite 执行成功链路（规划中）
+## M303 开放式 LLM Composite 执行成功链路（已完成）
 
-- [ ] M303-A 从全局七维度冻结 LLM Composite 成功/澄清/拒绝/不可用矩阵
-- [ ] M303-B 收敛模型输入与输出的通用能力选择和合法 DAG 契约
-- [ ] M303-C 验证 Replay/Rule/LLM 共享 TaskPlan、binding、Result 和 Evidence 边界
-- [ ] M303-D 用真实 Docker GIS/Economic 数据执行一次跨域 sync/async/artifact 验收
-- [ ] M303-E 集中运行精简门禁、一次显式 live，并记录 provider 失败或成功证据
-- [ ] M303-F 更新中文项目记忆、提交推送并按全局目标重规划
+- [x] M303-A 从全局七维度冻结 LLM Composite 成功/澄清/拒绝/不可用矩阵
+- [x] M303-B 收敛模型输入与输出的通用能力选择和合法 DAG 契约
+- [x] M303-C 验证 Replay/Rule/LLM 共享 TaskPlan、binding、Result 和 Evidence 边界
+- [x] M303-D 用真实 Docker GIS/Economic 数据执行一次跨域 sync/async/artifact 验收
+- [x] M303-E 集中运行精简门禁、一次显式 live，并记录 provider 失败或成功证据
+- [x] M303-F 更新中文项目记忆、提交推送并按全局目标重规划
+
+## M304 Provider-backed 规划可靠性与可恢复交互（已规划）
+
+- [ ] M304-A 从产品、架构、数据、模型、部署、体验、测试七维度冻结 provider success/timeout/clarification/rejection/execution 矩阵
+- [ ] M304-B 统一 provider deadline、配置健康、结构化响应能力和脱敏 receipt，不改变 Runtime 执行门禁
+- [ ] M304-C 提升真实模型形成合法 Composite 计划的可观测成功路径，保持 canonical DAG 与有限 repair 边界
+- [ ] M304-D 让同步、异步、HTTP、Console 对规划中/澄清/失败/重试动作提供一致的用户交互投影
+- [ ] M304-E 在 Docker 中运行精简阶段门禁并进行一次显式 live，比较 provider receipt 与离线 Replay 结果
+- [ ] M304-F 更新中文文档、提交推送，并依据七维度全局盘点继续规划下一阶段

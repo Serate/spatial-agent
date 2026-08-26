@@ -5164,3 +5164,12 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - M302-E 在重建后的 Docker 镜像中完成 M302/答案/Composite 精简回归 **26/26**、compileall、architecture strict、Service smoke、Node projection smoke；生产 HTTP/异步/artifact/restart 验收通过，`/health/ready` 返回 **200**。
 - 真实中转 Planner 显式验收：结构化输出通道可达，1 次请求、0 重试、约 47 秒后返回 `NEEDS_CLARIFICATION`，未创建 execution run；按 provider/语义澄清分类，没有伪装成跨域成功。
 - 本阶段更新了中文问题日志、M302 Spec/Plan、恢复快照和任务账本；下一阶段从全局七维度规划 M303，优先提升开放式 LLM Composite 形成合法多步 DAG 并进入真实 GIS/Economic 执行的成功率。
+
+## M303：开放式 LLM Composite 执行成功链路（已完成）
+
+- 完成模型结构化输出到 canonical Composite request/DAG 的安全适配：Rule、Replay、LLM 共享组件身份、依赖、输入引用、TaskPlan/DAG、ToolRegistry、workflow 和 execution binding 门禁；未知能力、空计划、非法字段与依赖环在创建 run 前终止。
+- 修复真实异步验收的状态投影缺陷：初始 `PLANNING` 快照不再被误投影成 `FAILED`，轮询以 observability 终态为准；活动状态、最终结果和 artifact 证据保持清晰边界。
+- 使用 Docker 真实 GIS/Economic 数据完成 Composite sync/async、artifact、SQLite/restart 和证据对照；重启接管 `recovery_count=1`，两个组件均为 `COMPLETED`。生产 HTTP 全链路同时验证了 sync/async、View、Evidence、artifact、幂等和失败边界。
+- 阶段门禁：M303 与相邻 Composite 回归 **12/12**，compileall、architecture strict、Node projection smoke、Service smoke、生产 readiness **200** 全部通过。
+- 唯一一次显式真实模型验收使用 60 秒、0 重试预算，结果为中转/provider harness timeout，未创建执行 run；该结果按失败平面记录，没有被计为真实模型成功。
+- 已同步中文问题日志、阶段计划、任务账本和恢复快照；下一阶段从全局七维度规划 M304，重点处理 provider-backed 规划的可观测可靠性、可恢复交互和实际成功率，不增加专题硬编码。

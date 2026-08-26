@@ -1261,3 +1261,18 @@
 - **修复**：公共 `result_contract` 将 Registry 声明的所有 ViewSpec ID 登记到 workspace；Domain Registry 仍是面板身份唯一来源，未增加 GIS 特判。
 - **验证**：修复前最小契约稳定失败，修复后通过；M302/答案/Composite **26/26**、生产 HTTP/异步/artifact/restart、compileall、architecture strict、Service smoke 和 Node projection smoke 均通过。
 - **预防**：每个公共 View fallback 都必须同时校验 workspace 声明；新增结果类型优先提供 ViewSpec，不在 transport 或前端补面板名称。
+
+## M303 异步 Composite 初始快照被误判为失败
+
+- **现象**：真实 Docker Composite 的后台 worker 和 GIS/Economic Domain 执行实际能够完成，但验收脚本在轮询初始 `PLANNING` 快照时提前得到 `FAILED`，没有等待到最终结果。
+- **根因**：Composite 运行尚未形成嵌套结果时，`get_run()` 复用了通用失败 fallback；异步轮询又把这个投影当作终态，掩盖了真实的 `PLANNING`/`EXECUTING` 状态。
+- **修复**：活动 Composite 快照现在投影为 `PLANNING`/`EXECUTING`，结果保持有界的 pending 表达；验收优先使用 `get_observability()` 判断终态，再读取最终运行详情。没有修改执行授权或通过放宽判断来制造成功。
+- **验证**：Docker M303 契约与相邻 Composite 回归 **12/12**；真实生产 HTTP、异步、artifact 和重启链路通过。
+- **预防**：异步读取必须区分活动快照、终态快照和终态证据；不能把“结果尚未形成”投影成失败，也不能只用详情接口代替可观测状态。
+
+## M303 真实模型 Composite 验收在中转链路超时
+
+- **现象**：阶段唯一一次真实模型 Composite Planner 验收在 60 秒 harness deadline 内超时，`max_retries=0`，没有形成组件计划，也没有创建 execution run。
+- **根因分类**：请求已经进入真实中转/模型调用边界，但 provider 响应未在有界时间内返回；这是 provider/网络延迟平面问题，不是 GIS 数据执行失败，也不是 Agent 生命周期失效。
+- **处理**：保留 `FAILED`、`error_plane=harness`、deadline 和 `execution_run_created=false` 的脱敏 receipt；不增加无界重试、不放宽 schema、不把超时伪装成澄清或成功。
+- **预防**：live 验收只在阶段门禁通过后显式执行一次；应单独显示“等待模型规划”的可恢复状态，并将 provider timeout 与事实澄清、计划拒绝、执行失败分开统计。

@@ -66,6 +66,8 @@ class M289PlanningOutcomeMatrixTests(unittest.TestCase):
                 return {
                     "status": "COMPLETED",
                     "run_id": "sync-1",
+                    "request_fingerprint": "m289-fingerprint",
+                    "execution_binding": {"binding_fingerprint": "m289-binding"},
                     "result": {"type": "composite_result"},
                     "components": [{"component_id": "space", "state": "completed", "status": "COMPLETED"}],
                     "artifact_ref": "sync-artifact",
@@ -79,6 +81,8 @@ class M289PlanningOutcomeMatrixTests(unittest.TestCase):
                 return {
                     "status": "COMPLETED",
                     "run_id": run_id,
+                    "request_fingerprint": "m289-fingerprint",
+                    "execution_binding": {"binding_fingerprint": "m289-binding"},
                     "result": {"type": "composite_result"},
                     "components": [{"component_id": "space", "state": "completed", "status": "COMPLETED"}],
                     "artifact_ref": "async-artifact",

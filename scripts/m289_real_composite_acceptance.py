@@ -113,15 +113,16 @@ def _wait_for_terminal(run_application: Any, run_id: str, timeout_seconds: float
     if not run_id:
         return {"status": "FAILED", "error_code": "async_run_id_missing"}
     deadline = time.time() + max(1.0, min(180.0, float(timeout_seconds)))
+    observability = getattr(run_application, "get_observability", None)
     while time.time() < deadline:
-        detail = run_application.get_run(run_id)
-        if str(detail.get("status") or "").upper() in {
-            "COMPLETED",
-            "PARTIAL",
-            "FAILED",
-            "BLOCKED",
-        }:
-            return detail
+        if callable(observability):
+            observation = observability(run_id)
+            status = str(observation.get("status") or "").upper()
+        else:
+            detail = run_application.get_run(run_id)
+            status = str(detail.get("status") or "").upper()
+        if status in {"COMPLETED", "PARTIAL", "FAILED", "BLOCKED", "CANCELLED", "TIMED_OUT"}:
+            return run_application.get_run(run_id)
         time.sleep(0.1)
     return {"status": "TIMED_OUT", "error_code": "async_acceptance_timeout"}
 

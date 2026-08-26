@@ -1,17 +1,17 @@
-# 当前实施计划：M303 开放式 LLM Composite 执行成功链路
+# 当前实施计划：M304 Provider-backed 规划可靠性与可恢复交互
 
-恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M303 Spec/Plan 和当前任务列出的文件。
+恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录、M304 Spec/Plan 和当前任务列出的文件。
 
-M302 已完成：阶段化 Planner Envelope、validated execution projection、Result/Evidence/View 事实闭合和 Docker/HTTP/异步/artifact/restart/live 阶段验收均已交付并推送。
+M303 已完成：canonical Composite DAG 适配、共享 TaskPlan/binding 执行闭合、真实 Docker GIS/Economic 跨入口恢复和阶段门禁均已交付；唯一 live 结果为有界 provider timeout，未创建 run。
 
-M303 按全局目标推进开放式 LLM Composite 的合法多步执行：
+M304 按全局目标提升 provider-backed Agent 的可用性与可恢复交互，不把 provider timeout 误判为用户澄清或执行失败：
 
-1. [x] M303-A 从产品、架构、数据、模型、部署、体验、测试七维度冻结状态矩阵和验收边界。
-2. [ ] M303-B 将 LLM 结构化选择安全适配为 canonical Composite 请求与合法组件 DAG，不修改 Runtime 主循环。
-3. [ ] M303-C 用 Rule/Replay/LLM 对照验证 TaskPlan、workflow、ToolRegistry、binding 和 Result/Evidence identity。
-4. [ ] M303-D 使用真实 Docker GIS/Economic 数据完成 sync、async、artifact、SQLite/restart 跨入口验收。
-5. [ ] M303-E 集中运行精简门禁和一次显式 live，按 provider/澄清/执行状态记录脱敏证据。
-6. [ ] M303-F 更新中文记忆、提交推送版本并再次从全局目标重规划。
+1. [ ] M304-A 从全局七维度冻结 provider 状态矩阵和验收边界。
+2. [ ] M304-B 统一 provider deadline、配置健康、结构化响应能力和脱敏 receipt。
+3. [ ] M304-C 提升真实模型形成合法 Composite 计划的可观测成功路径，保留 canonical DAG/TaskPlan/binding 唯一门禁。
+4. [ ] M304-D 统一 sync/async/HTTP/Console 的规划中、澄清、失败和可重试交互投影。
+5. [ ] M304-E 在 Docker 中集中运行精简门禁并进行一次显式 live。
+6. [ ] M304-F 更新中文记忆、提交推送版本并再次从全局目标重规划。
 
 默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行精简回归、compileall、architecture strict、Node projection、Service smoke、readiness 和一次显式 live，不为每个小改动重复测试。
 

@@ -579,3 +579,52 @@
 - 关键边界：模型输出必须经过现有 catalog、workflow、TaskPlan、ToolRegistry、execution binding 和 Result/Evidence 门禁；未知能力、空计划、事实不足和 provider 故障分别结构化处理。
 - 验证策略：开发阶段只做必要静态检查，阶段收口统一运行 Docker 精简契约、跨入口 acceptance、compileall、architecture strict、Node projection、Service smoke、readiness 和一次显式 live。
 - 当前任务：M303-B 审查并实现结构化模型选择到 canonical Composite 请求/DAG 的安全适配；明确文件见 `docs/agent-work-state.md`。
+
+### M303-B：结构化模型输出到 canonical DAG 适配 — 进行中
+- 目标：让 Rule/Replay/LLM 的结构化候选共享同一规范化入口；模型只能选择可信 catalog 中的 capability identity，组件依赖、输入引用和请求事实必须在既有 Composite/TaskPlan/DAG 门禁下闭合。
+- 当前动作：审查 `normalize_provider_response()`、`normalize_composite_plan()` 与应用层 TaskPlan/binding bridge；补充合法双组件、别名兼容、未知字段/能力、非法依赖和空计划的精简契约。
+- 明确文件：`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/runtime_core/planner_envelope.py`、`tests/test_m303_open_composite_execution.py`。
+- 验证：开发期间只做 `git diff --check` 与必要语法检查；阶段收口在 Docker 中集中运行本阶段契约和相邻 Planner/TaskPlan 回归。
+- 阻塞：无。
+
+### M303-B：结构化模型输出到 canonical DAG 适配 — 已完成
+- 结果：Planner 先生成 canonical Composite request，再从可信 canonical 组件重建 projection，避免大小写、依赖和输入引用 identity 漂移；严格拒绝非字符串依赖、非布尔 `required`、未知字段和 LLM 携带 workflow。
+- 文件：`agent/composite_planner.py`、`tests/test_m303_open_composite_execution.py`。
+- 验证：Docker 新镜像 M303-B 与 M279/M280/M283/M287 相邻回归 **32/32**；补充真实 `CompositeTaskPlanBridge` 的 M303-C 预验收 **6/6**，均未调用真实 provider。
+- 阻塞：无。下一步进入 M303-C，使用真实 TaskPlan/DAG、ToolRegistry policy 和 execution binding 做共享边界验收。
+
+### M303-C：Replay/Rule/LLM 共享执行闭合 — 进行中
+- 目标：验证合法多组件计划通过同一 TaskPlan/DAG、workflow、ToolRegistry 和 execution binding；非法能力、事实、依赖和 workflow 在创建 run 前终止。
+- 当前动作：把精简 fixture 从 Planner canonical output 接入真实 `CompositeTaskPlanBridge` 和 `build_execution_binding()`，补齐合法双组件与拒绝矩阵。
+- 明确文件：`agent/application/composite_planning.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/execution_binding.py`、`tests/test_m303_open_composite_execution.py`。
+- 验证：开发期间不重复运行相邻全量回归；M303 阶段收口统一在 Docker 运行。
+- 阻塞：无。
+
+### M303-C：Replay/Rule/LLM 共享执行闭合 — 已完成
+- 结果：Rule、Replay、LLM 通过同一 canonical request、组件 identity、DAG 依赖、TaskPlan bridge 和 execution binding；LLM 不得提供 workflow/task plan，未知能力、环依赖、空计划和非法字段均在创建 run 前拒绝。
+- 文件：`agent/composite_planner.py`、`tests/test_m303_open_composite_execution.py`。
+- 验证：Docker M303-C 精简契约 **7/7**；其中合法双组件使用真实 `CompositeTaskPlanBridge` 和 `build_execution_binding()`，未调用真实 provider。
+- 阻塞：无。下一步进入 M303-D，使用真实 Docker GIS/Economic 数据做跨入口执行与恢复对照。
+
+### M303-D：真实数据跨入口执行与恢复对照 — 进行中
+- 目标：在不重新规划的情况下，使用同一合法 canonical 计划完成 sync、async、artifact、SQLite/restart 和 evidence identity 对照。
+- 当前动作：已复现异步验收误报；同步与后台 worker 实际完成，但 `get_run()` 对尚未形成 Composite result 的 `PLANNING` 快照投影为 `FAILED`，导致 acceptance 提前结束。先修复 active Composite 读取/轮询边界，再重跑真实跨域 acceptance。
+- 明确文件：`scripts/m289_real_composite_acceptance.py`、`scripts/m280_real_composite_acceptance.py`、`production_api.py`、`agent/application/composite_runs.py`。
+- 验证：阶段收口集中运行 Docker acceptance；真实 provider 仅在计划和数据 readiness 均通过后显式调用一次。
+- 阻塞：无；已获得稳定的最小复现。
+
+### M303-D：真实数据跨入口执行与恢复对照 — 已完成
+- 结果：修复活动 Composite 快照的 `PLANNING`/`EXECUTING` 投影和异步 observability 终态轮询；真实 Docker GIS/Economic 数据的同步、异步、artifact、SQLite/restart 和 evidence identity 对照通过，两个组件均完成，重启接管 `recovery_count=1`。
+- 关键证据：生产 HTTP acceptance 返回 `sync_status=COMPLETED`、`async_status=COMPLETED`、artifact contract 为 `ok`、异步幂等为 true；M280 真实 GIS/Economic restart acceptance 返回 `COMPLETED`、两个组件 completed、`recovered=true`。
+- 边界：没有为验收放宽 execution binding，也没有重复调用真实模型；Rule 规划器对未明确组合的自然语言请求保持澄清属于预期离线行为。
+- 阻塞：无。
+
+### M303-E：Docker 门禁与一次显式 live — 已完成
+- 验证：Docker M303 与 M289 相邻精简契约 **12/12**；compileall、architecture strict、Node projection smoke、Service smoke 和生产 `/health/ready` HTTP **200** 全部通过。
+- 生产 HTTP：同步/异步、View、Evidence、artifact、失败 envelope、幂等和 readiness 均通过；当前容器为 healthy，Docker Engine `29.6.2`。
+- 显式 live：仅调用 1 次真实模型，60 秒 harness/provider deadline、0 重试，结果为 `FAILED/timeout`、`error_plane=harness`、`execution_run_created=false`；未保存模型原文、密钥或私有数据。
+- 分类：这是中转/provider 延迟失败，不代表 GIS 执行失败或 Agent 默认开关未启用；按失败 receipt 收口，不重复消耗 token。
+
+### M303-F：文档、版本与全局重规划 — 已完成
+- 已更新：`docs/agent-development-issues.md`、`docs/milestones.md`、`docs/m303-open-composite-execution-plan.md`、`tasks/todo.md`、`tasks/task-state.md`、`tasks/plan.md`、`docs/agent-work-state.md`。
+- 下一阶段：M304「Provider-backed 规划可靠性与可恢复交互」，从产品、架构、数据、模型、部署、体验、测试七维度处理真实模型 timeout/结构化成功/澄清/失败的一致生命周期与用户体验；不新增专题硬编码。

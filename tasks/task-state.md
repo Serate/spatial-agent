@@ -6,12 +6,19 @@
 
 ## 当前阶段
 
-- 阶段：M297 通用分析组合与跨类型结果闭合（已规划，A 待开始）
+- 阶段：M304 Provider-backed 规划可靠性与可恢复交互（已规划，A 待开始）
 - 阶段规划：
-  - `docs/m297-general-analysis-composition-capability-map.md`
-  - `docs/m297-general-analysis-composition-spec.md`
-  - `docs/m297-general-analysis-composition-plan.md`
+  - `docs/m304-provider-backed-reliability-capability-map.md`
+  - `docs/m304-provider-backed-reliability-spec.md`
+  - `docs/m304-provider-backed-reliability-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
+
+### M304-A：全局状态矩阵与入口基线（待开始）
+
+- 目标：从产品、架构、数据、模型、部署、体验、测试七个维度冻结 provider-backed success、timeout、clarification、rejection 和 execution failure 的公共状态矩阵。
+- 文件：当前只读取 M304 capability map/spec/plan、`agent/openai_config.py`、`agent/provider_structured_output.py`、`evaluation/live_provider_probe.py`、`agent/application/composite_planning.py`、`agent/application/composite_runs.py`、`web/src/console_result_projection.js` 及必要精简契约。
+- 验证：开发期间只做静态/契约检查；M304-B～E 合并后在 Docker 集中运行精简门禁和一次显式 live。
+- 阻塞：无；不得把 provider timeout 伪装成事实澄清或成功执行，不得重复调用 live。
 
 ### M297-A：目录与类型边界冻结（待开始）
 
@@ -357,3 +364,40 @@
 - 已完成：创建 `docs/m303-open-composite-execution-capability-map.md`、`docs/m303-open-composite-execution-spec.md` 和 `docs/m303-open-composite-execution-plan.md`；冻结 planner decision、canonical plan、执行闭合、跨入口和 live 交付模块及依赖顺序。
 - 当前任务：M303-B 审查并实现结构化模型选择到 canonical Composite 请求/DAG 的安全适配；只读取 M303 规划文件、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/runtime_core/planner_envelope.py` 和新增精简测试文件。
 - 阻塞：无。
+
+### M303-B：结构化模型输出到 canonical DAG 适配 — 已完成
+
+- 结果：Planner 先生成 canonical Composite request，再从可信 canonical 组件重建 projection，解决大小写、依赖和输入引用 identity 漂移；严格拒绝非字符串依赖、非布尔 `required`、未知字段和 LLM 携带 workflow。
+- 文件：`agent/composite_planner.py`、`tests/test_m303_open_composite_execution.py`。
+- 验证：Docker 新镜像 M303-B 与 M279/M280/M283/M287 相邻回归 **32/32**；真实 `CompositeTaskPlanBridge` 的闭合预验收 **6/6**；未调用真实 provider。
+- 阻塞：无。下一步进入 M303-C，扩展共享 TaskPlan/DAG、ToolRegistry policy、binding 与拒绝矩阵验收。
+
+### M303-C：Replay/Rule/LLM 共享执行闭合 — 进行中
+
+- 目标：合法多组件计划必须经过同一 TaskPlan/DAG、workflow、ToolRegistry 和 execution binding；非法能力、事实、依赖和 workflow 在创建 run 前终止。
+- 当前文件：`agent/application/composite_planning.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/execution_binding.py`、`tests/test_m303_open_composite_execution.py`。
+- 验证：开发期间只做必要检查，阶段收口集中使用 Docker 精简回归、跨入口验收和架构门禁。
+- 阻塞：无。
+
+### M303-C：Replay/Rule/LLM 共享执行闭合 — 已完成
+
+- 结果：Rule、Replay、LLM 通过同一 canonical request、组件 identity、DAG 依赖、TaskPlan bridge 和 execution binding；LLM 不得提供 workflow/task plan，未知能力、环依赖、空计划和非法字段均在创建 run 前拒绝。
+- 文件：`agent/composite_planner.py`、`tests/test_m303_open_composite_execution.py`。
+- 验证：Docker M303-C 精简契约 **7/7**；合法双组件使用真实 `CompositeTaskPlanBridge` 和 `build_execution_binding()`，未调用真实 provider。
+- 阻塞：无。下一步进入 M303-D，使用真实 Docker GIS/Economic 数据做跨入口执行与恢复对照。
+
+### M303-D：真实数据跨入口执行与恢复对照 — 进行中
+
+- 目标：同一合法 canonical 计划完成 sync、async、artifact、SQLite/restart 和 evidence identity 对照。
+- 当前文件：`scripts/m289_real_composite_acceptance.py`、`scripts/m280_real_composite_acceptance.py`、`production_api.py`、`agent/application/composite_runs.py`。
+- 当前诊断：真实后台 worker 和 Domain service 已返回完成；`CompositeRunApplication.get_run()` 在持久化的初始 `PLANNING` 快照没有嵌套 Composite result 时构造失败 fallback，造成轮询误判并过早结束。
+- 修复边界：active Composite snapshot 必须投影为 `PLANNING`/`EXECUTING` 与 pending Composite result；验收脚本改用 async observability 作为终态信号。
+- 验证：待补最小回归后在 Docker 重跑真实数据 acceptance；provider 仅在计划与数据 readiness 通过后显式调用一次。
+- 阻塞：无；已获得稳定最小复现。
+
+### M303-D/E/F：真实跨域验收、阶段门禁与交付 — 已完成
+
+- 结果：活动 Composite 快照改为正确投影 `PLANNING`/`EXECUTING`；真实 Docker GIS/Economic sync/async、artifact、SQLite/restart 和 evidence 对照通过，`recovery_count=1`。
+- 验证：M303 与相邻 Composite 回归 **12/12**；compileall、architecture strict、Node projection、Service smoke、生产 HTTP 和 readiness **200** 通过。
+- 显式 live：1 次、60 秒、0 重试，`FAILED/timeout`、`error_plane=harness`、未创建 run；不保存模型原文、密钥或私有数据。
+- 交付：中文问题日志、milestone、M303 Plan、任务账本、恢复快照已同步；M304 capability map、Spec、Plan 已创建。

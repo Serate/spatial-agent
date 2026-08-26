@@ -21,23 +21,32 @@
 
 ## 当前阶段
 
-- 阶段：M303 开放式 LLM Composite 执行成功链路（开发中）
-- 状态：M302-A/B/C/D/E 已完成并交付；M303-A 已完成全局能力图、Spec、Plan。当前重点是让真实 LLM Planner 在不改变 Runtime/ToolRegistry/生命周期的前提下，稳定选择已就绪 GIS/Economic 能力并形成合法多步 DAG。产品默认保持 `openai + local`。
-- 当前任务：M303-B 将结构化模型选择安全适配为 canonical Composite 请求与合法组件 DAG；详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M304 Provider-backed 规划可靠性与可恢复交互（已规划，A 待开始）
+- 状态：M303-A～F 已完成并交付；Docker 真实 GIS/Economic 跨入口链路通过，唯一一次真实模型验收按 60 秒/0 重试收口为 provider harness timeout。产品默认保持 `openai + local`。
+- 当前任务：M304-A 冻结 provider-backed success/timeout/clarification/rejection/execution failure 的全局状态矩阵；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m302-stage-aware-planner-context-capability-map.md`](m302-stage-aware-planner-context-capability-map.md)
-  - [`docs/m302-stage-aware-planner-context-spec.md`](m302-stage-aware-planner-context-spec.md)
-  - [`docs/m302-stage-aware-planner-context-plan.md`](m302-stage-aware-planner-context-plan.md)
+  - [`docs/m304-provider-backed-reliability-capability-map.md`](m304-provider-backed-reliability-capability-map.md)
+  - [`docs/m304-provider-backed-reliability-spec.md`](m304-provider-backed-reliability-spec.md)
+  - [`docs/m304-provider-backed-reliability-plan.md`](m304-provider-backed-reliability-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m303-open-composite-execution-capability-map.md`
-- `docs/m303-open-composite-execution-spec.md`
-- `docs/m303-open-composite-execution-plan.md`
-- `agent/composite_planner.py`
+- `docs/m304-provider-backed-reliability-capability-map.md`
+- `docs/m304-provider-backed-reliability-spec.md`
+- `docs/m304-provider-backed-reliability-plan.md`
+- `agent/openai_config.py`
+- `agent/provider_structured_output.py`
+- `evaluation/live_provider_probe.py`
 - `agent/application/composite_planning.py`
-- `agent/runtime_core/planner_envelope.py`
-- `tests/test_m303_open_composite_execution.py`
+- `agent/application/composite_runs.py`
+- `web/src/console_result_projection.js`
+
+## M304-A：全局状态矩阵与入口基线 — 待开始
+
+- 目标：从产品、架构、数据、模型、部署、体验、测试七个维度冻结 provider-backed 生命周期状态与可恢复动作。
+- 边界：只读取 M304 三份规划文件和当前任务明确源码/精简契约；不读取历史归档、模型原文、密钥或私有原始数据。
+- 验证：开发期间只做必要静态/契约检查；M304-B～E 合并后在 Docker 集中运行精简门禁和一次显式 live。
+- 阻塞：无；不得重复调用 live，不得绕过 canonical DAG、TaskPlan 或 execution binding。
 
 ## 验证与安全约定
 

@@ -147,7 +147,7 @@ class CompositeRunApplication:
         export_artifact: bool = False,
         planner_evidence: Mapping[str, Any] | None = None,
         execution_binding: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
+) -> dict[str, Any]:
         """Run a canonical request while preserving bounded planner evidence."""
         normalized = normalize_composite_request(request)
         return self._execute_and_persist(
@@ -712,7 +712,21 @@ def _response_from_result(
     )
     composite = result.get("composite") if isinstance(result.get("composite"), Mapping) else {}
     state = str(composite.get("state") or "failed")
-    status = {"completed": "COMPLETED", "partial": "PARTIAL", "blocked": "BLOCKED", "failed": "FAILED"}.get(state, "FAILED")
+    status = {
+        "pending": "PLANNING",
+        "completed": "COMPLETED",
+        "partial": "PARTIAL",
+        "blocked": "BLOCKED",
+        "failed": "FAILED",
+    }.get(state, "FAILED")
+    fallback_lifecycle = str(fallback_status or "").upper()
+    if fallback_lifecycle in {
+        "QUEUED",
+        "PLANNING",
+        "EXECUTING",
+        "CANCEL_REQUESTED",
+    }:
+        status = fallback_lifecycle
     response = {
         "schema_version": COMPOSITE_COORDINATOR_SCHEMA_VERSION,
         "run_id": run_id,
@@ -772,6 +786,29 @@ def _ensure_composite_result(
         category=fallback_error_category,
         existing=fallback_failure,
     )
+    active_status = str(fallback_status or "").upper()
+    if active_status in {
+        "QUEUED",
+        "PLANNING",
+        "EXECUTING",
+        "CANCEL_REQUESTED",
+    }:
+        child_status = "QUEUED" if active_status == "QUEUED" else "PLANNING"
+        children = {
+            component["component_id"]: {
+                "status": child_status,
+                "domain_id": component["domain_id"],
+            }
+            for component in request["components"]
+        }
+        recovered = build_composite_result_contract(
+            request,
+            children,
+            run_id=run_id,
+            answer="组合分析正在处理中，完成后将返回结构化结果。",
+        )
+        return normalize_result_contract(recovered)
+
     children = {
         component["component_id"]: {
             "status": "FAILED",

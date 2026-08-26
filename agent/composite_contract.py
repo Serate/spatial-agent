@@ -648,8 +648,10 @@ def _aggregate_state(components: Sequence[Mapping[str, Any]]) -> str:
         return "completed" if all(item.get("state") == "completed" for item in optional) else "partial"
     if "failed" in required_states:
         return "failed"
-    if "blocked" in required_states or "pending" in required_states:
+    if "blocked" in required_states:
         return "blocked"
+    if "pending" in required_states:
+        return "pending"
     return "failed"
 
 
@@ -670,6 +672,7 @@ def _component_state(status: str, *, child_available: bool) -> str:
 
 def _public_status(state: str) -> str:
     return {
+        "pending": "PLANNING",
         "completed": "COMPLETED",
         "partial": "COMPLETED",
         "blocked": "NEEDS_CLARIFICATION",
@@ -683,6 +686,8 @@ def _default_answer(state: str, components: Sequence[Mapping[str, Any]]) -> str:
         return f"已完成 {total} 个分析组件，并汇总为一份组合结果。"
     if state == "partial":
         return f"已完成部分分析，共收到 {total} 个组件结果；未完成部分已在执行证据中标明。"
+    if state == "pending":
+        return "组合分析正在处理中，完成后将返回结构化结果。"
     if state == "blocked":
         return "组合分析暂未完成，部分组件需要补充信息或等待可用数据。"
     return "组合分析未完成，组件失败原因已保留在结果证据中。"
