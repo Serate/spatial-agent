@@ -22,9 +22,15 @@ from agent.answer_generation import (
 )
 from agent.application.async_runs import AsyncApplication
 from agent.application.composite import CompositeApplication
-from agent.composite_contract import normalize_composite_request
+from agent.composite_contract import (
+    CompositeContractError,
+    build_composite_result_contract,
+    normalize_composite_request,
+    normalize_composite_section,
+)
 from agent.composite_view import build_composite_view_projection
 from agent.contract_versions import COMPOSITE_COORDINATOR_SCHEMA_VERSION
+from agent.failure_contract import build_failure_evidence
 from agent.models import AgentRunResult, RunStatus
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.runtime_context import build_runtime_context
@@ -226,25 +232,55 @@ class CompositeRunApplication:
         if result is None and safe_id:
             result = self._memory_results.get(safe_id)
         if result is None and safe_id:
+            job = self._state.async_job(safe_id, domain_id=COMPOSITE_RUN_SCOPE)
+            if isinstance(job, Mapping) and str(job.get("status") or "").upper() in {
+                "FAILED",
+                "CANCELLED",
+                "TIMED_OUT",
+            }:
+                return _response_from_result(
+                    {},
+                    run_id=safe_id,
+                    fallback_request=_composite_request_from_value(job.get("payload")),
+                    fallback_status=job.get("status"),
+                    fallback_error_category=job.get("failure_category"),
+                )
             artifact = self._artifact_store.read_run(
                 safe_id, domain_id=COMPOSITE_RUN_SCOPE
             )
             if isinstance(artifact, dict):
                 artifact_result = artifact.get("result")
-                if isinstance(artifact_result, Mapping):
-                    return _response_from_result(
-                        artifact_result,
-                        run_id=safe_id,
-                        artifact_ref=artifact.get("artifact_ref"),
-                        artifact_recovered=True,
-                    )
+                return _response_from_result(
+                    artifact_result if isinstance(artifact_result, Mapping) else {},
+                    run_id=safe_id,
+                    artifact_ref=artifact.get("artifact_ref"),
+                    artifact_recovered=True,
+                    fallback_request=_composite_request_from_value(artifact.get("request")),
+                    fallback_status=artifact.get("status"),
+                    fallback_error_code=artifact.get("error_code"),
+                    fallback_error_category=artifact.get("error_category"),
+                    fallback_failure=artifact.get("failure"),
+                )
         if result is None:
             raise ValueError("composite run not found: " + str(run_id))
+        async_job = (
+            self._state.async_job(safe_id, domain_id=COMPOSITE_RUN_SCOPE)
+            if safe_id and self._state.persistent
+            else None
+        )
+        fallback_request = _composite_request_from_value(getattr(result, "request", None))
+        if fallback_request is None and isinstance(async_job, Mapping):
+            fallback_request = _composite_request_from_value(async_job.get("payload"))
         return _response_from_result(
-            result.result or {},
+            result.result if isinstance(result.result, Mapping) else {},
             run_id=result.run_id,
             artifact_ref=result.artifact_ref,
             artifact_recovered=artifact_recovered,
+            fallback_request=fallback_request,
+            fallback_status=result.status.value,
+            fallback_error_code=result.error_code,
+            fallback_error_category=result.error_category,
+            fallback_failure=result.failure,
         )
 
     def get_observability(self, run_id: str) -> dict[str, Any]:
@@ -621,9 +657,23 @@ def _response_from_result(
     run_id: str,
     artifact_ref: Any = None,
     artifact_recovered: bool = False,
+    fallback_request: Mapping[str, Any] | None = None,
+    fallback_status: Any = None,
+    fallback_error_code: Any = None,
+    fallback_error_category: Any = None,
+    fallback_failure: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(result, Mapping):
         raise ValueError("composite result is invalid")
+    result = _ensure_composite_result(
+        result,
+        run_id=run_id,
+        fallback_request=fallback_request,
+        fallback_status=fallback_status,
+        fallback_error_code=fallback_error_code,
+        fallback_error_category=fallback_error_category,
+        fallback_failure=fallback_failure,
+    )
     composite = result.get("composite") if isinstance(result.get("composite"), Mapping) else {}
     state = str(composite.get("state") or "failed")
     status = {"completed": "COMPLETED", "partial": "PARTIAL", "blocked": "BLOCKED", "failed": "FAILED"}.get(state, "FAILED")
@@ -636,6 +686,12 @@ def _response_from_result(
         "components": composite.get("components") or [],
         "result": dict(result),
     }
+    if result.get("error_code"):
+        response["error_code"] = str(result["error_code"])[:96]
+    if result.get("error_category"):
+        response["error_category"] = str(result["error_category"])[:64]
+    if isinstance(result.get("failure"), Mapping):
+        response["failure"] = dict(result["failure"])
     binding = composite.get("request", {}).get("execution_binding")
     if isinstance(binding, Mapping):
         response["execution_binding"] = dict(binding)
@@ -645,6 +701,129 @@ def _response_from_result(
     if artifact_recovered:
         response["artifact_recovered"] = True
     return response
+
+
+def _ensure_composite_result(
+    result: Mapping[str, Any],
+    *,
+    run_id: str,
+    fallback_request: Mapping[str, Any] | None,
+    fallback_status: Any,
+    fallback_error_code: Any,
+    fallback_error_category: Any,
+    fallback_failure: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Make failed async snapshots readable without reviving execution.
+
+    ``AsyncApplication`` persists the generic ``AgentRunResult`` before a
+    worker starts.  If the worker raises before the Composite coordinator
+    returns, that snapshot legitimately has no nested Composite result.  Read
+    paths must still expose one stable Result/View contract rather than
+    throwing from the frontend boundary.
+    """
+
+    candidate = dict(result)
+    try:
+        normalize_composite_section(candidate.get("composite"))
+        return candidate
+    except (CompositeContractError, TypeError):
+        pass
+
+    request = fallback_request or _unavailable_composite_request()
+    failure = _normalize_fallback_failure(
+        status=fallback_status,
+        code=fallback_error_code,
+        category=fallback_error_category,
+        existing=fallback_failure,
+    )
+    children = {
+        component["component_id"]: {
+            "status": "FAILED",
+            "domain_id": component["domain_id"],
+            "error": "组合执行未能返回组件结果。",
+            "error_code": failure["code"],
+            "error_category": failure["category"],
+        }
+        for component in request["components"]
+    }
+    recovered = build_composite_result_contract(
+        request,
+        children,
+        run_id=run_id,
+        answer="组合分析未能完成，失败原因已记录，可根据失败证据进行恢复。",
+    )
+    recovered["error_code"] = failure["code"]
+    recovered["error_category"] = failure["category"]
+    recovered["failure"] = failure
+    return normalize_result_contract(recovered)
+
+
+def _composite_request_from_value(value: Any) -> dict[str, Any] | None:
+    """Decode only a bounded canonical request from a snapshot or job."""
+
+    candidate = value
+    if isinstance(candidate, str):
+        if len(candidate) > 64_000:
+            return None
+        try:
+            candidate = json.loads(candidate)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(candidate, Mapping):
+        return None
+    nested = candidate.get("request")
+    if isinstance(nested, Mapping):
+        candidate = nested
+    try:
+        return normalize_composite_request(candidate, allow_legacy=True)
+    except (CompositeContractError, TypeError):
+        return None
+
+
+def _unavailable_composite_request() -> dict[str, Any]:
+    """Return a truthful, domain-neutral request for unrecoverable snapshots."""
+
+    return normalize_composite_request(
+        {
+            "schema_version": "spatial-agent.composite-request.v1",
+            "request": "组合分析请求",
+            "components": [
+                {
+                    "component_id": "request",
+                    "domain_id": "unknown",
+                    "request": "恢复组合请求",
+                    "depends_on": [],
+                    "required": True,
+                }
+            ],
+        }
+    )
+
+
+def _normalize_fallback_failure(
+    *,
+    status: Any,
+    code: Any,
+    category: Any,
+    existing: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    existing = existing if isinstance(existing, Mapping) else {}
+    normalized_status = str(status or "FAILED").upper()
+    default_category = {
+        "CANCELLED": "cancelled",
+        "TIMED_OUT": "timeout",
+    }.get(normalized_status, "execution")
+    default_code = {
+        "CANCELLED": "run_cancelled",
+        "TIMED_OUT": "run_timeout",
+    }.get(normalized_status, "execution_failed")
+    return build_failure_evidence(
+        status="FAILED",
+        category=category or existing.get("category") or default_category,
+        code=code or existing.get("code") or default_code,
+        phase=existing.get("phase") or "execution",
+        retryable=existing.get("retryable"),
+    )
 
 
 def _safe_required_run_id(value: Any) -> str:

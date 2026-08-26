@@ -19,6 +19,11 @@ from agent.models import TaskPlan
 from agent.plan_schema import PlanningError, parse_task_plan
 from agent.runtime_core.planning import validate_plan
 from agent.runtime_core.projection import plan_dag, plan_to_dict
+from agent.runtime_core.composition import (
+    CompositionError,
+    normalize_component_inputs,
+    project_component_inputs,
+)
 
 
 EXECUTION_BINDING_SCHEMA_VERSION = "spatial-agent.execution-binding.v1"
@@ -128,6 +133,7 @@ def build_execution_binding(
                 "session_id": str(spec.get("session_id") or "")[:160] or None,
                 "required": bool(spec.get("required", True)),
                 "depends_on": [str(item)[:48] for item in (spec.get("depends_on") or [])[:_MAX_COMPONENTS]],
+                "inputs": project_component_inputs(spec.get("inputs")),
                 "workflow": workflow,
                 "plan": plan_payload,
                 "dag": plan_dag(plan),
@@ -210,6 +216,31 @@ def validate_execution_binding(
                 code="execution_binding_component_invalid",
             )
         component = _validate_component(raw)
+        if normalized_request is not None:
+            expected = next(
+                (
+                    item
+                    for item in normalized_request.get("components") or []
+                    if isinstance(item, Mapping)
+                    and str(item.get("component_id") or "")
+                    == str(component.get("component_id") or "")
+                ),
+                None,
+            )
+            if not isinstance(expected, Mapping):
+                raise ExecutionBindingError(
+                    "execution binding component is not present in the request",
+                    code="execution_binding_component_mismatch",
+                )
+            if list(component.get("depends_on") or []) != list(
+                expected.get("depends_on") or []
+            ) or project_component_inputs(component.get("inputs")) != project_component_inputs(
+                expected.get("inputs")
+            ):
+                raise ExecutionBindingError(
+                    "execution binding component dependencies or inputs do not match the request",
+                    code="execution_binding_component_mismatch",
+                )
         canonical_components.append(component)
 
     canonical = {
@@ -392,6 +423,13 @@ def _validate_component(raw: Mapping[str, Any]) -> dict[str, Any]:
             "execution binding result type is not allowlisted",
             code="execution_binding_result_type_not_allowlisted",
         )
+    try:
+        inputs = normalize_component_inputs(raw.get("inputs"))
+    except CompositionError as exc:
+        raise ExecutionBindingError(
+            "execution binding component inputs are invalid",
+            code=exc.code,
+        ) from exc
     workflow = _bounded_json_value(raw.get("workflow") or {})
     canonical = {
         "component_id": str(raw.get("component_id"))[:48],
@@ -402,6 +440,7 @@ def _validate_component(raw: Mapping[str, Any]) -> dict[str, Any]:
         "session_id": str(raw.get("session_id") or "")[:160] or None,
         "required": bool(raw.get("required", True)),
         "depends_on": [str(item)[:48] for item in (raw.get("depends_on") or [])[:_MAX_COMPONENTS]],
+        "inputs": inputs,
         "workflow": workflow,
         "plan": plan_to_dict(plan),
         "dag": plan_dag(plan),
@@ -436,6 +475,7 @@ def _project_component(value: Mapping[str, Any]) -> dict[str, Any]:
         "domain_id": str(value.get("domain_id") or "")[:32],
         "required": bool(value.get("required", True)),
         "depends_on": [str(item)[:48] for item in (value.get("depends_on") or [])[:_MAX_COMPONENTS]],
+        "inputs": project_component_inputs(value.get("inputs")),
         "plan_fingerprint": str(value.get("plan_fingerprint") or "")[:128],
         "result_type": str((plan.get("output") or {}).get("type") or "")[:96],
         "step_count": len(steps),

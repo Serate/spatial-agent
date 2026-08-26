@@ -14,6 +14,11 @@ from typing import Any
 
 from agent.composite_contract import normalize_composite_request
 from agent.planner_repair import safe_repair_request
+from agent.runtime_core.composition import (
+    CompositionError,
+    normalize_component_inputs,
+    validate_component_composition,
+)
 
 
 COMPOSITE_PLANNING_RESPONSE_SCHEMA_VERSION = "spatial-agent.composite-planning-response.v1"
@@ -60,11 +65,13 @@ _COMPONENT_FIELDS = {
     "depends_on",
     "required",
     "workflow",
+    "inputs",
 }
 _CONTEXT_SCHEMAS = {
     "spatial-agent.composite-planner-context.v1",
     "spatial-agent.composite-request-context.v2",
 }
+_MAX_CONTEXT_BYTES = 96_000
 
 
 class CompositePlannerError(ValueError):
@@ -238,6 +245,34 @@ def composite_plan_schema() -> dict[str, Any]:
                             "items": {"type": "string", "maxLength": 48},
                         },
                         "required": {"type": "boolean"},
+                        "inputs": {
+                            "type": "array",
+                            "maxItems": 8,
+                            "items": {
+                                "type": "object",
+                                "required": ["name", "source", "accepted_kinds", "required"],
+                                "additionalProperties": False,
+                                "properties": {
+                                    "name": {"type": "string", "maxLength": 160},
+                                    "source": {
+                                        "type": "object",
+                                        "required": ["component_id", "path"],
+                                        "additionalProperties": False,
+                                        "properties": {
+                                            "component_id": {"type": "string", "maxLength": 48},
+                                            "path": {"type": "string", "maxLength": 160},
+                                        },
+                                    },
+                                    "accepted_kinds": {
+                                        "type": "array",
+                                        "minItems": 1,
+                                        "maxItems": 8,
+                                        "items": {"type": "string"},
+                                    },
+                                    "required": {"type": "boolean"},
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -373,7 +408,9 @@ class LLMCompositePlanner:
                     "and components; never include analysis, reasoning, explanation, "
                     "metadata, or any other field. Each component may contain only "
                     "component_id, domain_id, capability_id, request, depends_on, "
-                    "and required. Workflow selection is resolved by the selected "
+                    "and required. A component may additionally include bounded inputs "
+                    "with name, source.component_id, source.path, accepted_kinds, and required. "
+                    "Workflow selection is resolved by the selected "
                     "Domain; do not return a workflow object. Choose only capability_id and "
                     "domain_id values present in the trusted context. Do not invent "
                     "tools, data, facts, paths, code, or measurements. Use "
@@ -499,6 +536,11 @@ def normalize_composite_plan(
                     code="plan_workflow_invalid",
                 )
             item["workflow"] = dict(raw["workflow"])
+        if raw.get("inputs") is not None:
+            try:
+                item["inputs"] = normalize_component_inputs(raw.get("inputs"))
+            except CompositionError as exc:
+                raise CompositePlannerError(str(exc), code=exc.code) from exc
         canonical_components.append(item)
         projected_components.append(
             {
@@ -509,6 +551,10 @@ def normalize_composite_plan(
         )
 
     _validate_context_capabilities(projected_components, context)
+    try:
+        validate_component_composition(projected_components, context=context)
+    except CompositionError as exc:
+        raise CompositePlannerError(str(exc), code=exc.code) from exc
     canonical_request = normalize_composite_request(
         {
             "schema_version": "spatial-agent.composite-request.v1",
@@ -566,7 +612,7 @@ def _bounded_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
             code="planner_context_schema_invalid",
         )
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True)
-    if len(encoded.encode("utf-8")) > 64_000:
+    if len(encoded.encode("utf-8")) > _MAX_CONTEXT_BYTES:
         raise CompositePlannerError(
             "planner context exceeds max_bytes", code="planner_context_too_large"
         )

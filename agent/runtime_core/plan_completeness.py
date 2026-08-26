@@ -311,7 +311,12 @@ def _capability_execution_readiness(
         }
 
     contract = domain.get("execution_contract")
-    if not isinstance(contract, Mapping):
+    # The public catalog projection keeps an empty object as a stable shape
+    # when a legacy Domain does not expose execution_contract().  Treat that
+    # the same as an omitted contract: it is unknown to the planner, not an
+    # explicitly invalid contract.  Production Domains still publish a
+    # non-empty, status-bearing contract and are checked strictly below.
+    if not isinstance(contract, Mapping) or not contract:
         return {
             "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
             "execution_readiness": "unknown",

@@ -30,6 +30,12 @@ from agent.data_kinds import (
     normalize_data_profile,
 )
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
+from agent.runtime_core.composition import (
+    CompositionError,
+    normalize_component_inputs,
+    project_component_inputs,
+    validate_component_composition,
+)
 
 
 COMPOSITE_RESULT_TYPE = "composite_result"
@@ -127,8 +133,13 @@ def normalize_composite_request(
             "planner": planner,
             "backend": backend,
             "required": bool(raw.get("required", True)),
-            "depends_on": depends_on,
-        }
+        "depends_on": depends_on,
+    }
+        if raw.get("inputs") is not None:
+            try:
+                item["inputs"] = normalize_component_inputs(raw.get("inputs"))
+            except CompositionError as exc:
+                raise CompositeContractError(str(exc), code=exc.code) from exc
         if session_id:
             item["session_id"] = session_id
         if raw.get("workflow") is not None:
@@ -150,6 +161,10 @@ def normalize_composite_request(
                 code="composite_dependency_missing",
             )
     _assert_acyclic(components)
+    try:
+        validate_component_composition(components)
+    except CompositionError as exc:
+        raise CompositeContractError(str(exc), code=exc.code) from exc
     canonical = {
         "schema_version": COMPOSITE_REQUEST_SCHEMA_VERSION,
         "request": request,
@@ -291,6 +306,7 @@ def normalize_composite_section(value: Any, *, allow_legacy: bool = True) -> dic
             "component_id": component_id,
             "domain_id": _identifier(raw.get("domain_id"), "domain_id", pattern=_DOMAIN_PATTERN),
             "required": bool(raw.get("required", True)),
+            "depends_on": _string_list(raw.get("depends_on")),
             "status": _optional_text(raw.get("status"), 32, fallback="UNAVAILABLE"),
             "state": _state(raw.get("state")),
             "result_type": _optional_text(raw.get("result_type"), 96, fallback="unknown"),
@@ -298,6 +314,11 @@ def normalize_composite_section(value: Any, *, allow_legacy: bool = True) -> dic
             "answer": _optional_text(raw.get("answer"), 1200, fallback=""),
             "view_refs": [str(item)[:96] for item in (raw.get("view_refs") or [])[:16] if isinstance(item, str)],
         }
+        if raw.get("inputs") is not None:
+            try:
+                item["inputs"] = normalize_component_inputs(raw.get("inputs"))
+            except CompositionError as exc:
+                raise CompositeContractError(str(exc), code=exc.code) from exc
         if isinstance(raw.get("execution"), Mapping):
             item["execution"] = {
                 "schema_version": str(raw["execution"].get("schema_version") or "")[:96],
@@ -316,6 +337,10 @@ def normalize_composite_section(value: Any, *, allow_legacy: bool = True) -> dic
             code="composite_evidence_missing",
         )
     normalized_evidence = _normalize_evidence(evidence, normalized_components)
+    try:
+        validate_component_composition(normalized_components)
+    except CompositionError as exc:
+        raise CompositeContractError(str(exc), code=exc.code) from exc
     state = _state(value.get("state"))
     return {
         "schema_version": COMPOSITE_RESULT_SCHEMA_VERSION,
@@ -343,6 +368,7 @@ def _project_component(spec: Mapping[str, Any], child: Any) -> dict[str, Any]:
         "component_id": spec["component_id"],
         "domain_id": spec["domain_id"],
         "required": bool(spec.get("required", True)),
+        "depends_on": _string_list(spec.get("depends_on")),
         "status": status,
         "state": state,
         "result_type": result_type,
@@ -350,6 +376,9 @@ def _project_component(spec: Mapping[str, Any], child: Any) -> dict[str, Any]:
         "answer": str(payload.get("answer") or nested.get("summary") or "")[:1200],
         "view_refs": [],
     }
+    inputs = project_component_inputs(spec.get("inputs"))
+    if inputs:
+        component["inputs"] = inputs
     if reported_domain and reported_domain != spec["domain_id"]:
         component["failure"] = {
             "code": "component_domain_mismatch",
@@ -487,7 +516,7 @@ def _collect_child_views(
 
 
 def _synthetic_plan(request: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    result = {
         "goal": request["request"],
         "output": {"type": COMPOSITE_RESULT_TYPE, "summary": True},
         "steps": [
@@ -500,6 +529,11 @@ def _synthetic_plan(request: Mapping[str, Any]) -> dict[str, Any]:
             for item in request["components"]
         ],
     }
+    for step, item in zip(result["steps"], request["components"]):
+        inputs = project_component_inputs(item.get("inputs"))
+        if inputs:
+            step["inputs"] = inputs
+    return result
 
 
 def _synthetic_steps(components: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:

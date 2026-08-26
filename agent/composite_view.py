@@ -8,6 +8,8 @@ from typing import Any
 
 from agent.composite_contract import normalize_composite_section
 from agent.provider_structured_output import project_structured_output_evidence
+from agent.data_kinds import SUPPORTED_DATA_KINDS
+from agent.runtime_core.composition import project_component_inputs
 
 
 COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1"
@@ -62,6 +64,7 @@ def build_composite_view_projection(
         "status": _status(result.get("status"), state),
         "state": state,
         "request_fingerprint": fingerprint or None,
+        "data_kinds": _aggregate_data_kinds(components),
         "execution_binding": _project_execution_binding(execution_binding),
         "answer": answer,
         "sections": sections,
@@ -154,12 +157,40 @@ def _build_sections(components: Sequence[Mapping[str, Any]]) -> list[dict[str, A
                 "status": _text(item.get("status"), 32),
                 "result_type": _text(item.get("result_type"), 96),
                 "data_profile": _safe_object(item.get("data_profile")),
+                "data_kinds": _data_profile_kinds(item.get("data_profile")),
+                "depends_on": _safe_strings(item.get("depends_on"), _MAX_COMPONENTS),
+                "inputs": project_component_inputs(item.get("inputs")),
                 "answer": _text(item.get("answer"), 640),
                 "view_refs": _safe_strings(item.get("view_refs"), 16),
                 "execution": _project_execution(item.get("execution")),
             }
         )
     return sections
+
+
+def _aggregate_data_kinds(components: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Describe the concrete result shapes present in a Composite response."""
+
+    found: set[str] = set()
+    for item in components:
+        if not isinstance(item, Mapping):
+            continue
+        found.update(_data_profile_kinds(item.get("data_profile")))
+    concrete = [kind for kind in SUPPORTED_DATA_KINDS if kind != "unknown" and kind in found]
+    return concrete[:8] or ["unknown"]
+
+
+def _data_profile_kinds(value: Any) -> list[str]:
+    profile = value if isinstance(value, Mapping) else {}
+    raw = profile.get("kinds")
+    values = [raw] if isinstance(raw, str) else raw
+    if not isinstance(values, (list, tuple)):
+        return []
+    return [
+        kind
+        for kind in SUPPORTED_DATA_KINDS
+        if kind in {str(item or "").strip() for item in values[:8]}
+    ][:8]
 
 
 def _build_views(value: Any, state: str) -> list[dict[str, Any]]:

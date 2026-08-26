@@ -66,6 +66,7 @@ _SAFE_CAPABILITY_FIELDS = (
     "capability_status",
     "workflow_ids",
     "plan_mode",
+    "output_profiles",
 )
 _SAFE_READINESS_FIELDS = (
     "status",
@@ -95,7 +96,10 @@ class CompositeCapabilityProjector:
         max_domains: int = 8,
         max_capabilities: int = 32,
         max_workflows: int = 32,
-        max_context_bytes: int = 64_000,
+        # The planner needs bounded output profiles in addition to the
+        # capability/workflow catalog.  Keep the same 96 KiB envelope used by
+        # CompositeRequestContext instead of silently dropping type metadata.
+        max_context_bytes: int = 96_000,
     ) -> None:
         if host is None or not callable(getattr(host, "catalog", None)):
             raise ValueError("host must expose catalog()")
@@ -183,6 +187,11 @@ class CompositeCapabilityProjector:
                 # the authoritative planning input.
                 readiness_value = runtime_readiness
             readiness[domain_id] = str(readiness_value.get("status") or "unknown")
+            result_profiles = _project_result_profiles(execution_contract.get("result_profiles"))
+            for capability in capabilities:
+                capability["output_profiles"] = _profiles_for_results(
+                    capability.get("result_types"), result_profiles
+                )
             domains.append(
                 {
                     "domain_id": domain_id,
@@ -201,6 +210,7 @@ class CompositeCapabilityProjector:
                     "known_result_types": _bounded_strings(
                         workflow.get("known_result_types")
                     ),
+                    "result_profiles": result_profiles,
                 }
             )
             for item in capabilities:
@@ -217,6 +227,7 @@ class CompositeCapabilityProjector:
                         "datasets": item.get("datasets", []),
                         "tools": item.get("tools", []),
                         "result_types": item.get("result_types", []),
+                        "output_profiles": item.get("output_profiles", []),
                     }
                 )
             for item in workflows:
@@ -1434,6 +1445,8 @@ def _project_workflow(key: Any, value: Mapping[str, Any]) -> dict[str, Any]:
         "description": _bounded_text(value.get("description")),
         "allowed_tools": _bounded_strings(value.get("allowed_tools")),
         "result_types": _bounded_strings(value.get("result_types")),
+        "input_profiles": _project_profile_list(value.get("input_profiles")),
+        "output_profiles": _project_profile_list(value.get("output_profiles")),
         "steps": [
             {
                 "id": _bounded_text(step.get("id")),
@@ -1466,10 +1479,61 @@ def _project_execution_contract(value: Mapping[str, Any]) -> dict[str, Any]:
     }
     if isinstance(value.get("tool_definitions"), Mapping):
         result["tool_schema_count"] = min(64, len(value["tool_definitions"]))
+    result["result_profiles"] = _project_result_profiles(value.get("result_profiles"))
     if value.get("result_registry_schema_version"):
         result["result_registry_schema_version"] = _bounded_text(
             value.get("result_registry_schema_version"), 96
         )
+    return result
+
+
+def _project_result_profiles(value: Any) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, Mapping):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for result_type, raw in list(value.items())[:64]:
+        if not isinstance(raw, Mapping):
+            continue
+        kinds = _bounded_strings(raw.get("kinds"), limit=8)
+        primary = _bounded_text(raw.get("primary"), 32)
+        if not kinds:
+            kinds = [primary or "unknown"]
+        if primary not in kinds:
+            primary = kinds[0]
+        result[_bounded_text(result_type, 96)] = {
+            "schema_version": _bounded_text(raw.get("schema_version"), 96)
+            or "spatial-agent.data-profile.v1",
+            "primary": primary,
+            "kinds": kinds,
+        }
+    return {key: value for key, value in result.items() if key}
+
+
+def _profiles_for_results(value: Any, profiles: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for result_type in _bounded_strings(value, limit=24):
+        profile = profiles.get(result_type)
+        if not isinstance(profile, Mapping):
+            continue
+        result.append({"result_type": result_type, **dict(profile)})
+    return result[:24]
+
+
+def _project_profile_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    result: list[dict[str, Any]] = []
+    for raw in list(value)[:24]:
+        if not isinstance(raw, Mapping):
+            continue
+        name = _bounded_text(raw.get("name") or raw.get("input"), 64)
+        kinds = _bounded_strings(raw.get("kinds") or raw.get("data_kinds"), limit=8)
+        if not kinds:
+            continue
+        item = {"kinds": kinds}
+        if name:
+            item["name"] = name
+        result.append(item)
     return result
 
 

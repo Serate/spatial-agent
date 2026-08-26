@@ -26,6 +26,7 @@ from agent.runtime_core.component_fact_handoff import (
     project_component_fact_handoff,
     project_composite_fact_handoff,
 )
+from agent.runtime_core.composition import project_component_inputs
 
 
 TASK_PLAN_BRIDGE_SCHEMA_VERSION = "spatial-agent.composite-taskplan-bridge.v1"
@@ -238,6 +239,7 @@ class CompositeTaskPlanBridge:
             "domain_id": domain_id,
             "state": "accepted",
             "source": source,
+            "inputs": project_component_inputs(component.get("inputs")),
             "fact_handoff": project_component_fact_handoff(fact_handoff),
             "plan": _project_plan(task_plan),
             "dag": plan_dag(task_plan),
@@ -368,6 +370,8 @@ def project_task_plan_bridge(value: Any) -> dict[str, Any]:
         }
         if raw.get("source"):
             item["source"] = _bounded_text(raw.get("source"), 32)
+        if raw.get("inputs"):
+            item["inputs"] = project_component_inputs(raw.get("inputs"))
         if isinstance(raw.get("fact_handoff"), Mapping):
             item["fact_handoff"] = project_component_fact_handoff(
                 raw["fact_handoff"]

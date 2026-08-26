@@ -58,11 +58,16 @@ def run_prepared_acceptance(
         }
 
     evidence = prepared.get("planner_evidence")
+    execution_binding = getattr(prepared, "execution_binding", None)
+    if not isinstance(execution_binding, Mapping):
+        candidate_binding = prepared.get("execution_binding")
+        execution_binding = candidate_binding if isinstance(candidate_binding, Mapping) else None
     sync = run_application.run_with_planning(
         canonical,
         session_id="m289-sync",
         export_artifact=True,
         planner_evidence=evidence if isinstance(evidence, Mapping) else None,
+        execution_binding=execution_binding,
     )
     async_submission = run_application.submit_async_with_planning(
         canonical,
@@ -70,6 +75,7 @@ def run_prepared_acceptance(
         idempotency_key="m289-async-1",
         export_artifact=True,
         planner_evidence=evidence if isinstance(evidence, Mapping) else None,
+        execution_binding=execution_binding,
     )
     async_detail = _wait_for_terminal(
         run_application, str(async_submission.get("run_id") or ""), timeout_seconds
@@ -80,7 +86,13 @@ def run_prepared_acceptance(
         "sync": _execution_receipt(sync),
         "async": _execution_receipt(async_detail),
         "comparison": comparison,
-        "passed": bool(comparison["same_result_type"] and comparison["same_component_states"]),
+        "passed": bool(
+            comparison["same_result_type"]
+            and comparison["same_component_states"]
+            and comparison["same_request_fingerprint"]
+            and comparison["same_binding_fingerprint"]
+            and comparison["same_data_kinds"]
+        ),
     }
 
 
@@ -114,12 +126,29 @@ def _planning_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
 
 def _execution_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
     result = value.get("result") if isinstance(value.get("result"), Mapping) else {}
+    composite = result.get("composite") if isinstance(result.get("composite"), Mapping) else {}
+    composite_request = composite.get("request") if isinstance(composite.get("request"), Mapping) else {}
+    view = value.get("view") if isinstance(value.get("view"), Mapping) else {}
     components = value.get("components") or result.get("components")
     return {
         "status": _text(value.get("status"), 32) or "FAILED",
         "error_code": _text(value.get("error_code"), 96) or None,
         "run_created": bool(_text(value.get("run_id"), 160)),
+        "request_fingerprint": _text(value.get("request_fingerprint") or composite_request.get("fingerprint"), 128) or None,
+        "binding_fingerprint": _text(
+            (value.get("execution_binding") or {}).get("binding_fingerprint")
+            if isinstance(value.get("execution_binding"), Mapping)
+            else composite_request.get("execution_binding", {}).get("binding_fingerprint")
+            if isinstance(composite_request.get("execution_binding"), Mapping)
+            else None,
+            128,
+        ) or None,
         "result_type": _text(result.get("type"), 96) or None,
+        "data_kinds": [
+            _text(item, 48)
+            for item in (view.get("data_kinds") or [])[:8]
+            if _text(item, 48)
+        ],
         "component_states": _component_states(components),
         "artifact_available": bool(_text(value.get("artifact_ref"), 240)),
     }
@@ -128,10 +157,19 @@ def _execution_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
 def _compare_results(sync: Mapping[str, Any], asynchronous: Mapping[str, Any]) -> dict[str, Any]:
     sync_result = sync.get("result") if isinstance(sync.get("result"), Mapping) else {}
     async_result = asynchronous.get("result") if isinstance(asynchronous.get("result"), Mapping) else {}
+    sync_receipt = _execution_receipt(sync)
+    async_receipt = _execution_receipt(asynchronous)
     return {
         "same_result_type": sync_result.get("type") == async_result.get("type"),
         "same_component_states": _component_states(sync.get("components"))
         == _component_states(asynchronous.get("components")),
+        "same_request_fingerprint": sync_receipt["request_fingerprint"]
+        == async_receipt["request_fingerprint"]
+        and bool(sync_receipt["request_fingerprint"]),
+        "same_binding_fingerprint": sync_receipt["binding_fingerprint"]
+        == async_receipt["binding_fingerprint"]
+        and bool(sync_receipt["binding_fingerprint"]),
+        "same_data_kinds": sync_receipt["data_kinds"] == async_receipt["data_kinds"],
     }
 
 

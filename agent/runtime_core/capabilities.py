@@ -121,6 +121,19 @@ class RuntimeCapabilitySurface:
             for item in (result_context.get("result_types") or [])
             if isinstance(item, Mapping) and str(item.get("type") or "").strip()
         ]
+        result_profiles = {
+            str(item.get("type"))[:96]: {
+                "schema_version": "spatial-agent.data-profile.v1",
+                "primary": str((item.get("data_kinds") or ["unknown"])[0])[:32],
+                "kinds": [
+                    str(kind)[:32]
+                    for kind in (item.get("data_kinds") or ["unknown"])[:8]
+                    if str(kind).strip()
+                ],
+            }
+            for item in (result_context.get("result_types") or [])
+            if isinstance(item, Mapping) and str(item.get("type") or "").strip()
+        }
         return {
             "schema_version": "spatial-agent.execution-contract.v1",
             "status": "valid",
@@ -130,6 +143,7 @@ class RuntimeCapabilitySurface:
             "tool_names": list(definitions.keys())[:64],
             "tool_definitions": definitions,
             "result_type_ids": result_types[:64],
+            "result_profiles": result_profiles,
             "result_registry_schema_version": "spatial-agent.result-contract-registry.v1",
         }
 

@@ -429,6 +429,7 @@ def _candidate_projection(
                 "result_types": _safe_strings(
                     item.get("result_types"), _MAX_RESULT_TYPES
                 ),
+                "output_profiles": _safe_profiles(item.get("output_profiles")),
                 "workflow_ids": _safe_strings(item.get("workflow_ids"), 16),
                 "plan_mode": _text(item.get("plan_mode"), 24) or None,
                 "request_requirements": _safe_requirements(
@@ -448,6 +449,28 @@ def _candidate_projection(
                 if item.get(key):
                     result[-1][key] = _safe_strings(item.get(key), 8)
     return result[:_MAX_CANDIDATES]
+
+
+def _safe_profiles(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, (list, tuple)):
+        return []
+    result: list[dict[str, Any]] = []
+    for raw in list(value)[:_MAX_RESULT_TYPES]:
+        if not isinstance(raw, Mapping):
+            continue
+        result_type = _text(raw.get("result_type"), 96)
+        kinds = _safe_strings(raw.get("kinds"), 8)
+        if not result_type or not kinds:
+            continue
+        result.append(
+            {
+                "result_type": result_type,
+                "schema_version": _text(raw.get("schema_version"), 96),
+                "primary": _text(raw.get("primary"), 32) or kinds[0],
+                "kinds": kinds,
+            }
+        )
+    return result
 
 
 def _workflow_index_projection(
