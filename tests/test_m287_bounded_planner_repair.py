@@ -2,6 +2,7 @@ import unittest
 
 from agent.application.composite_planning import CompositePlanningApplication
 from agent.composite_planner import LLMCompositePlanner, ReplayCompositePlanner
+from agent.models import PlanStep, TaskPlan
 from agent.planner_repair import (
     PlannerRepairError,
     build_planner_repair_request,
@@ -36,7 +37,21 @@ class _AcceptedTaskPlanBridge:
     def bridge(self, components, **kwargs):
         del kwargs
         projected = [
-            {"component_id": item["component_id"], "state": "accepted"}
+            {
+                "component_id": item["component_id"],
+                "state": "accepted",
+                "policy": {
+                    "allowed_tools": ["summary"],
+                    "result_types": ["summary_result"],
+                    "max_steps": 4,
+                },
+                "_validated_task_plan": TaskPlan(
+                    goal="形成空间摘要",
+                    steps=[PlanStep("summary", "summary", {})],
+                    output={"type": "summary_result"},
+                ),
+                "_execution_workflow": {"template_id": "gis.summary"},
+            }
             for item in components
         ]
         return {

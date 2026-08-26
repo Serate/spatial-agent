@@ -19,6 +19,11 @@ from agent.runtime_core.composition import (
     normalize_component_inputs,
     validate_component_composition,
 )
+from agent.runtime_core.planner_envelope import (
+    PLANNER_ENVELOPE_MAX_BYTES,
+    PlannerEnvelopeError,
+    build_planner_envelope,
+)
 
 
 COMPOSITE_PLANNING_RESPONSE_SCHEMA_VERSION = "spatial-agent.composite-planning-response.v1"
@@ -71,7 +76,7 @@ _CONTEXT_SCHEMAS = {
     "spatial-agent.composite-planner-context.v1",
     "spatial-agent.composite-request-context.v2",
 }
-_MAX_CONTEXT_BYTES = 96_000
+_MAX_CONTEXT_BYTES = PLANNER_ENVELOPE_MAX_BYTES
 
 
 class CompositePlannerError(ValueError):
@@ -412,7 +417,7 @@ class LLMCompositePlanner:
                     "with name, source.component_id, source.path, accepted_kinds, and required. "
                     "Workflow selection is resolved by the selected "
                     "Domain; do not return a workflow object. Choose only capability_id and "
-                    "domain_id values present in the trusted context. Do not invent "
+                    "domain_id values present in the trusted planner envelope. Do not invent "
                     "tools, data, facts, paths, code, or measurements. Use "
                     "needs_clarification when the request or context is insufficient. "
                     "Copy each domain_id and capability_id exactly from one "
@@ -428,7 +433,7 @@ class LLMCompositePlanner:
             {
                 "role": "user",
                 "content": request[:2000]
-                + "\n\n[Trusted capability context]\n"
+                + "\n\n[Trusted planner envelope]\n"
                 + json.dumps(bounded_context, ensure_ascii=False, sort_keys=True),
             },
         ]
@@ -611,12 +616,19 @@ def _bounded_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
             "planner context schema is unsupported",
             code="planner_context_schema_invalid",
         )
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True)
-    if len(encoded.encode("utf-8")) > _MAX_CONTEXT_BYTES:
+    try:
+        return build_planner_envelope(value, max_bytes=_MAX_CONTEXT_BYTES)
+    except PlannerEnvelopeError as exc:
         raise CompositePlannerError(
-            "planner context exceeds max_bytes", code="planner_context_too_large"
-        )
-    return dict(value)
+            "planner context exceeds max_bytes"
+            if exc.code == "planner_envelope_too_large"
+            else "planner context is invalid",
+            code=(
+                "planner_context_too_large"
+                if exc.code == "planner_envelope_too_large"
+                else exc.code
+            ),
+        ) from exc
 
 
 def _required_component_text(value: Mapping[str, Any], key: str, limit: int = 96) -> str:

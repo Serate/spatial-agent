@@ -282,6 +282,14 @@
 - 问题记录：已将 context 预算不一致、产品默认污染低层测试和 discovery 状态误判写入 `docs/agent-development-issues.md`。
 - 下一步：M299-A 以全局视角设计默认 Agent 的最小上下文与成功/澄清/不可用验收矩阵。
 
+### M299-A/B：Planner envelope 与统一预算 — 已完成
+
+- 结果：新增 `spatial-agent.planner-envelope.v1`；真实模型只接收请求事实、候选能力、选择摘要和候选执行契约四层投影，完整 Context 仍供 Runtime 校验/恢复使用。
+- 文件：`agent/runtime_core/planner_envelope.py`、`agent/composite_request_context.py`、`agent/composite_planner.py`、`agent/application/composite_planning.py`、`agent/runtime_core/analysis_discovery.py`、M299 contract。
+- 验证：M299/M297/M298 **18/18**；受影响的 M282/M286/M287 **19/19**；Docker compileall、architecture strict、Node projection smoke、readiness HTTP 200 通过。
+- 修复：M287 测试替身补齐当前 execution binding 要求的已校验 TaskPlan 和 policy，未放宽生产门禁。
+- 阻塞：无。下一步进入 M299-C，补统一选择/澄清 evidence。
+
 ## 更新协议
 
 1. 开始、完成或暂停子任务时更新状态、目标、文件、验证、阻塞和下一步。

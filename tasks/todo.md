@@ -161,8 +161,8 @@
 
 ## M299 默认 Agent 成功路径收口（进行中）
 
-- [ ] M299-A 全局基线、success/clarification/unavailable 矩阵与上下文预算
-- [ ] M299-B 分层 Planner context 与统一投影预算
+- [x] M299-A 全局基线、success/clarification/unavailable 矩阵与上下文预算
+- [x] M299-B 分层 Planner context 与统一投影预算
 - [ ] M299-C 选择/澄清 evidence 与可恢复摘要
 - [ ] M299-D 阶段体验与跨入口恢复投影
 - [ ] M299-E Docker 真实数据、Replay/Rule 对照与显式 live

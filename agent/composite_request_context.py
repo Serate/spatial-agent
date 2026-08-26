@@ -24,6 +24,11 @@ from agent.runtime_core.analysis_discovery import (
     AnalysisDiscoveryGateway,
     discovery_request_fingerprint,
 )
+from agent.runtime_core.planner_envelope import (
+    PLANNER_ENVELOPE_MAX_BYTES,
+    PlannerEnvelopeError,
+    build_planner_envelope,
+)
 
 
 COMPOSITE_REQUEST_CONTEXT_SCHEMA_VERSION = "spatial-agent.composite-request-context.v2"
@@ -39,7 +44,7 @@ _MAX_RESULT_TYPES = 24
 # A multi-Domain planner needs the bounded candidate catalog, discovery
 # receipt, and per-domain fact handoff in one context.  Keep the projection
 # finite while leaving enough room for the supported GIS + Economic pair.
-_MAX_BYTES = 96_000
+_MAX_BYTES = PLANNER_ENVELOPE_MAX_BYTES
 _PRIVATE_KEYS = {
     "api_key",
     "credential",
@@ -258,6 +263,19 @@ class CompositeRequestContextBuilder:
                 "max_bytes": self._max_bytes,
             },
         }
+        try:
+            context["planner_envelope"] = build_planner_envelope(
+                context, max_bytes=self._max_bytes
+            )
+        except PlannerEnvelopeError as exc:
+            raise CompositeRequestContextError(
+                "planner envelope is invalid",
+                code=(
+                    "context_budget_exceeded"
+                    if exc.code == "planner_envelope_too_large"
+                    else exc.code
+                ),
+            ) from exc
         _assert_budget(context, self._max_bytes)
         return context
 

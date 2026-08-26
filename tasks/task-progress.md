@@ -449,3 +449,17 @@
 - 验证策略：M299-A 只做契约审计和 Spec/Plan；M299-E/F 合并执行一轮 Docker 精简门禁与显式验收。
 - 阻塞：无。
 - 下一步：测量当前多领域 context 的字段贡献，设计分层 Planner envelope，不修改领域专用代码。
+
+### M299-A：全局基线、验收矩阵与上下文预算 — 已完成
+- 目标：冻结 success、clarification、data unavailable、provider failure 四类状态，以及 Context Builder、Planner、provider payload 和恢复边界的统一预算。
+- 实际修改：新增 `spatial-agent.planner-envelope.v1` 公共边界，预算统一为 96 KiB；保留脱敏、版本和 fail-closed 语义。
+- 验证：M299 envelope 契约、私有字段过滤和 128 字节超限拒绝通过；未改变真实模型默认值或执行门禁。
+- 阻塞：无。
+- 下一步：完成分层 provider 投影并补选择/澄清 evidence。
+
+### M299-B：分层 Planner context 与统一投影预算 — 已完成
+- 目标：将 provider 输入分为请求事实、能力索引、选择摘要和执行契约，减少无关目录重复，同时保留可规划的 data profile 与 workflow 闭合信息。
+- 实际修改：`agent/runtime_core/planner_envelope.py`；Context Builder 写入 envelope；LLM Planner 只发送 envelope；Planner evidence 记录 envelope 版本、层级、预算和候选数；候选 workflow 只按候选能力过滤。
+- 验证：M299/M297/M298 **18/18**；M282/M286/M287 **19/19**（M287 旧测试替身同时补齐当前 TaskPlan/policy 契约）；Docker compileall、architecture strict、Node projection smoke、readiness HTTP 200 通过。
+- 阻塞：无。
+- 下一步：进入 M299-C，统一选择、澄清、不可用原因和下一步动作的可读 evidence。

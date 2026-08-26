@@ -1150,3 +1150,11 @@
 - **修复**：未声明 discovery 视为目录回退，不阻断可用候选；只有 discovery adapter 显式失败才进入数据不可用状态。未知执行契约仍不会穿过执行就绪门禁。
 - **验证**：M279/M282/M296/M297/M298 合并回归通过；未放宽工具、workflow、TaskPlan 或 execution binding 校验。
 - **预防**：状态机必须区分未声明、未知、显式失败和数据缺失；新增状态时同步检查 discovery receipt、clarification、Planner 和恢复投影。
+
+## M299 Planner 将完整内部上下文直接发送给真实模型
+
+- **现象**：产品默认切换到真实模型后，Planner 仍把包含重复目录、领域上下文、workflow 和 discovery receipt 的完整 Context 序列化到 provider payload；多领域请求容易接近预算，模型还要从重复结构中自行辨认可选能力。
+- **根因**：Runtime 校验/恢复所需的完整上下文与模型选择所需的最小上下文没有独立边界，Context Builder、LLM Planner 和 provider payload 各自维护投影语义。
+- **修复**：新增领域中立 `spatial-agent.planner-envelope.v1`，将 provider 输入分成请求事实、能力索引、选择摘要和候选执行契约四层；保留结果类型 profile、workflow、readiness 和候选 identity，过滤私有字段与无关 workflow。统一使用 96 KiB 有界预算并超限 fail-closed。
+- **验证**：Docker M299/M297/M298 **18/18**，受影响 M282/M286/M287 **19/19**；provider payload 不含测试私有路径，选择候选外的 workflow 不进入执行层。
+- **预防**：后续扩展 Planner context 先判断字段属于“模型选择”还是“Runtime 证据”，只通过 envelope 增加有界投影；完整 Context 不得直接作为模型输入，也不得为了成功静默截断关键 identity、data profile 或 readiness。

@@ -44,6 +44,7 @@ from agent.runtime_core.plan_completeness import (
     validate_plan_completeness,
     PlanCompletenessError,
 )
+from agent.runtime_core.planner_envelope import PLANNER_ENVELOPE_MAX_BYTES
 from agent.runtime_core.clarification_continuation import (
     ClarificationContinuationError,
     consume_fact_continuation,
@@ -102,7 +103,7 @@ class CompositeCapabilityProjector:
         # The planner needs bounded output profiles in addition to the
         # capability/workflow catalog.  Keep the same 96 KiB envelope used by
         # CompositeRequestContext instead of silently dropping type metadata.
-        max_context_bytes: int = 96_000,
+        max_context_bytes: int = PLANNER_ENVELOPE_MAX_BYTES,
     ) -> None:
         if host is None or not callable(getattr(host, "catalog", None)):
             raise ValueError("host must expose catalog()")
@@ -937,6 +938,33 @@ class CompositePlanningApplication:
         discovery = context.get("discovery")
         if isinstance(discovery, Mapping):
             evidence["discovery"] = _project_discovery_evidence(discovery)
+        envelope = context.get("planner_envelope")
+        if isinstance(envelope, Mapping):
+            limits = envelope.get("limits")
+            selection = envelope.get("selection")
+            evidence["planner_envelope"] = {
+                "schema_version": str(envelope.get("schema_version") or "")[:96],
+                "layers": [
+                    str(item)[:64]
+                    for item in (envelope.get("layers") or [])[:8]
+                    if str(item).strip()
+                ],
+                "max_bytes": (
+                    limits.get("max_bytes")
+                    if isinstance(limits, Mapping)
+                    else None
+                ),
+                "candidate_count": (
+                    selection.get("candidate_count")
+                    if isinstance(selection, Mapping)
+                    else None
+                ),
+                "redacted": bool(
+                    (envelope.get("redaction") or {}).get("applied")
+                    if isinstance(envelope.get("redaction"), Mapping)
+                    else False
+                ),
+            }
         projected["planner_evidence"] = evidence
         return projected
 

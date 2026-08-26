@@ -17,6 +17,8 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from agent.runtime_core.planner_envelope import PLANNER_ENVELOPE_MAX_BYTES
+
 
 ANALYSIS_DISCOVERY_SCHEMA_VERSION = "spatial-agent.analysis-discovery.v1"
 ANALYSIS_DISCOVERY_EVIDENCE_SCHEMA_VERSION = (
@@ -26,7 +28,7 @@ _MAX_DOMAINS = 8
 _MAX_CANDIDATES = 16
 _MAX_DATA_REQUIREMENTS = 64
 _MAX_FIELDS = 8
-_MAX_BYTES = 64_000
+_MAX_BYTES = PLANNER_ENVELOPE_MAX_BYTES
 _PRIVATE_KEYS = {
     "api_key",
     "credential",

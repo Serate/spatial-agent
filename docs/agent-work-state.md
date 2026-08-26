@@ -19,9 +19,9 @@
 
 ## 当前阶段
 
-- 阶段：M299 默认 Agent 成功路径收口（A 进行中）
+- 阶段：M299 默认 Agent 成功路径收口（C 进行中）
 - 状态：M297 通用组合与跨类型结果已完成；M298 已完成产品默认 `openai + local`、Composite 继承和前端阶段可见性，版本交付正在按阶段拆分。
-- 当前任务：M299-A，全局基线与预算冻结；详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 当前任务：M299-C，选择与澄清 evidence；A/B 已完成。详见 [`tasks/task-progress.md`](../tasks/task-progress.md)；详细状态按需读取 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m299-default-agent-success-capability-map.md`](m299-default-agent-success-capability-map.md)
   - [`docs/m299-default-agent-success-spec.md`](m299-default-agent-success-spec.md)
@@ -38,7 +38,7 @@
 - `agent/composite_planner.py`
 - `agent/composite_request_context.py`
 - `agent/application/composite_planning.py`
-- `web/src/console_result_projection.js`
+- `agent/runtime_core/planner_envelope.py`
 - `tests/test_m299_default_agent_success_path.py`
 
 ## 验证与安全约定
