@@ -18,8 +18,8 @@
 ## 当前阶段
 
 - 阶段：M313 实时 Agent 交互与可观测执行体验（已完成）
-- 状态：A～F 已完成；RunEvent、内存/SQLite 账本、Runtime 事件发射、HTTP SSE、Last-Event-ID、polling fallback、Console 实时状态、答案 delta、Docker/浏览器/重启和一次真实模型 + 本地 GIS 验收均已通过。尚未提交/推送。
-- 当前任务：阶段交付收口、提交推送和全局重规划；M313 实现文件保持不变。
+- 状态：A～F 已完成；RunEvent、内存/SQLite 账本、Runtime 事件发射、HTTP SSE、Last-Event-ID、polling fallback、Console 实时状态、答案 delta、Docker/浏览器/重启和一次真实模型 + 本地 GIS 验收均已通过。版本 `737f2a3` 已提交并推送到 `main`。
+- 当前任务：无。M313 已完成并交付；下一阶段候选为复用实时契约的 React Console 增量迁移，需创建新 Goal 后开始。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；不启动并行子代理。长期记忆以本快照、任务账本和当前阶段 Spec/Plan 为权威，避免 Provider 限流和共享工作树冲突。
 - 阶段规划：
   - [`docs/m313-realtime-agent-experience-capability-map.md`](m313-realtime-agent-experience-capability-map.md)
