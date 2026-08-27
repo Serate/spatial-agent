@@ -1730,6 +1730,29 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 - 成功 Run SSE：384 个事件，其中 368 个 `answer_delta`、1 个终态事件；`Last-Event-ID: 1` 续传完整到第 384 个事件。
 - Docker M16/M313/M313-answer 定向回归 **26/26**、compileall、architecture strict、前端答案流 smoke 通过；不保存密钥、Prompt、模型原文或隐藏思维链。
 
+## 2026-08-28 真实 DEM 说明请求的 Planner JSON 截断
+
+### 现象
+
+- 前端请求“查询洪山区 DEM 栅格元数据，并用通俗中文说明覆盖范围、分辨率、坐标系、高程最小值和最大值，最后给出简短结论”时，显示 `规划错误 / invalid_model_response / 不可重试`。
+- 同一请求的失败 Run 使用 `completion_tokens=2048`，与当前 Planner 输出上限完全相等。
+
+### 根因
+
+- DeepSeek 的 OpenAI 兼容 `json_object` 响应在本次请求中生成超过 2048 token，返回内容在 JSON 完成前被截断；应用层随后正确拒绝不完整 JSON。
+- 原有 Runtime 只把该错误投影为不可重试失败，没有给 Provider 一次低成本、明确约束的计划恢复机会。
+
+### 处理
+
+- Planner 对 `invalid_model_response` 仅执行一次紧凑计划恢复：只要求最小执行计划，不生成回答、解释或 Markdown，并限制步骤/字段规模。
+- 恢复结果仍经过既有 TaskPlan、工具注册、workflow、执行绑定和结果契约校验；认证、超时、拒绝和工具错误不走该恢复。
+- TaskPlan schema 增加有界数组/字符串约束；Provider metrics 记录脱敏 `finish_reason`，Planner metrics 记录 `compact_recovery_attempts`。
+
+### 当前验证
+
+- 原始真实请求在 Docker + DeepSeek + 本地 GIS 下已返回 `COMPLETED`，规划选择 metadata/statistics 两步，答案生成 `streaming=true`。
+- 真实复验只发生一次有界恢复，没有自动 provider retry；不保存 key、Prompt、模型原文或隐藏思维链。
+
 ## 2026-08-28 DeepSeek 官方接口的结构化规划兼容与输出预算问题
 
 ### 现象
