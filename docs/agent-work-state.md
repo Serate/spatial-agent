@@ -17,9 +17,9 @@
 
 ## 当前阶段
 
-- 阶段：M314 真实模型流式交互与答案质量验收（补充修复完成）
-- 状态：已修复真实请求的 Planner JSON 截断问题；原始用户问题在 Docker + DeepSeek + 本地 GIS 下返回 `COMPLETED`，并通过紧凑计划恢复。
-- 当前任务：补充修复版本已提交并推送；不要重复真实模型调用，下一阶段需基于全局目标重新规划。
+- 阶段：M315 聊天区实时答案占位与逐字收敛（已完成）
+- 状态：右侧对话已接入实时答案气泡；规划/执行期间显示点状等待，收到答案事件后复用同一气泡逐字输出，完成后绑定运行详情且不重复追加。
+- 当前任务：M315 已完成待提交；不要重复真实模型调用，下一阶段需基于全局目标重新规划。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；不启动并行子代理。长期记忆以本快照、任务账本和当前阶段 Spec/Plan 为权威，避免 Provider 限流和共享工作树冲突。
 - 阶段规划：
   - [`docs/m313-realtime-agent-experience-capability-map.md`](m313-realtime-agent-experience-capability-map.md)
@@ -74,6 +74,7 @@
 - M314 修复：SSE 只在当前页含终态事件时关闭；跨页终态不再因 100 条分页上限丢失。新增 `page_contains_terminal_event()` 公共契约。
 - M314 效率：规划与答案使用独立 provider 预算；答案默认 20 秒、768 token、0 重试，可由 `OPENAI_ANSWER_*` 覆盖；不改变规划、工具和结果校验。
 - M314 补充修复：当 OpenAI 兼容 Provider 返回 `invalid_model_response`（本次实测输出 token 恰好达到 2048 上限）时，Planner 只进行一次紧凑计划恢复；恢复计划仍经过 TaskPlan、工具和执行绑定校验，并在 metrics 记录 `compact_recovery_attempts`。
+- M315：右侧对话新增“正在生成答案 · / ·· / ···”占位动效；首个 `answer_delta` 到达后移除占位并复用同一气泡逐字显示，终态只收敛现有消息；支持 `prefers-reduced-motion`。
 
 ## 阶段完成后的全局重规划指针
 

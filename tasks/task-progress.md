@@ -914,3 +914,11 @@
 - 修复：Planner 对 `invalid_model_response` 进行一次紧凑计划恢复；收紧 TaskPlan schema 的数组/字符串边界，并记录安全 `finish_reason` 与 `compact_recovery_attempts`。
 - 真实复验：同一问题返回 `COMPLETED`，执行 metadata/statistics 两步，答案生成 streaming 成功；规划 1 次主请求 + 1 次有界恢复，0 次 provider retry。
 - 验证：Docker M16 新增/相关回归通过；原始 live HTTP acceptance 已转绿。未保存 key、Prompt、模型原文或隐藏思维链。
+
+### M315：聊天区实时答案占位与逐字收敛 — 已完成
+
+- 目标：让右侧对话在规划和工具执行期间可见，并从循环点状占位平滑切换为真实答案逐字输出；不改变 RunEvent、SSE 或答案生成契约。
+- 结果：新增聊天助手占位气泡，复用现有 `ConsoleAnswerStream` 更新同一气泡；完成时将气泡绑定到运行详情，避免重复追加最终答案；补充点状等待、无布局跳动和减少动态效果样式。
+- 明确文件：`web/src/console_app.js`、`web/src/styles.css`、`scripts/console_answer_stream_smoke.js`。
+- 验证：Docker 镜像重建后，聊天答案流 smoke、`console_app.js` 语法检查和 `/health/ready` HTTP 200 通过；未重复调用真实模型。
+- 阻塞：无。

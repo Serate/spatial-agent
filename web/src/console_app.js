@@ -257,7 +257,7 @@
      let liveRunConsumer = null;
      let liveRunTicker = null;
      let liveRunDetailTimer = null;
-     const liveRunState = {runId:'',domainId:'',request:'',startedAt:0,lastEventAt:0,lastSequence:0,eventCount:0,currentPhase:'',currentAction:'',transport:'',answerBuffer:'',answerStream:null,finalizing:false,detailPolling:false};
+     const liveRunState = {runId:'',domainId:'',request:'',startedAt:0,lastEventAt:0,lastSequence:0,eventCount:0,currentPhase:'',currentAction:'',transport:'',answerBuffer:'',answerStream:null,answerMessage:null,finalizing:false,detailPolling:false};
      let activeRunId = null;
      let activeRunDomainId = null;
      let activeRunParams = {};
@@ -367,14 +367,16 @@
        liveRunState.lastEventAt=Date.now();
        liveRunState.currentPhase='evidence';
        liveRunState.currentAction=liveRunIsTerminal(data)?'最终结果已写入，可查看结构化结果。':'正在读取最终结果。';
-       const finalAnswer=answerText(data);
-       if(liveRunState.answerStream&&finalAnswer) await liveRunState.answerStream.finish(finalAnswer);
+       const finalAnswer=answerText(data)||'运行已结束。';
+       if(liveRunState.answerStream) await liveRunState.answerStream.finish(finalAnswer);
+       else renderLiveAssistantMessage(finalAnswer);
+       const hasLiveAssistantMessage=completeLiveAssistantMessage(runId);
        stopLiveRun({preserve:true});
        if(activeRunId===runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); }
        if(runId===liveRunState.runId&&domainId===currentDomainId()&&conversationGeneration>=0){
          rememberRunDomain(data,domainId);
          renderRun(data);
-         if(!liveRunState.finalAnswerShown){ appendMessage('assistant',answerText(data),runId); liveRunState.finalAnswerShown=true; }
+         if(!liveRunState.finalAnswerShown){ if(!hasLiveAssistantMessage) appendMessage('assistant',finalAnswer,runId); liveRunState.finalAnswerShown=true; }
        }
        refreshLiveSummary();
        liveRunState.finalizing=false;
@@ -403,7 +405,7 @@
        const runId=String(data?.run_id||'');
        if(!runId) return false;
        stopLiveRun();
-       liveRunState.runId=runId; liveRunState.domainId=domainId; liveRunState.request=request||''; liveRunState.startedAt=Date.now(); liveRunState.lastEventAt=Date.now(); liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase='resolve'; liveRunState.currentAction='已接收请求，等待运行时接管。'; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.answerStream=window.ConsoleAnswerStream?.create?.({onText:text=>{ if(liveRunState.runId!==runId) return; liveRunState.answerBuffer=text; $('answer').textContent=text; $('answer').className='answer'; }}); liveRunState.finalizing=false; liveRunState.finalAnswerShown=false;
+       liveRunState.runId=runId; liveRunState.domainId=domainId; liveRunState.request=request||''; liveRunState.startedAt=Date.now(); liveRunState.lastEventAt=Date.now(); liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase='resolve'; liveRunState.currentAction='已接收请求，等待运行时接管。'; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.answerMessage=createLiveAssistantMessage(runId); liveRunState.answerStream=window.ConsoleAnswerStream?.create?.({onText:text=>{ if(liveRunState.runId!==runId) return; liveRunState.answerBuffer=text; $('answer').textContent=text; $('answer').className='answer'; renderLiveAssistantMessage(text); }}); liveRunState.finalizing=false; liveRunState.finalAnswerShown=false;
        activeRunId=runId; activeRunDomainId=domainId; activeRunParams={planner:$('planner').value,backend:$('backend').value}; setCancelState(true);
        renderLiveRunShell(data,request);
        liveRunTicker=window.setInterval(refreshLiveSummary,1000);
@@ -507,7 +509,53 @@
        if(liveRunTicker!==null){ window.clearInterval(liveRunTicker); liveRunTicker=null; }
        if(liveRunDetailTimer!==null){ window.clearTimeout(liveRunDetailTimer); liveRunDetailTimer=null; }
        liveRunState.detailPolling=false;
-       if(!options.preserve){ if(activeRunId&&activeRunId===liveRunState.runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); } liveRunState.answerStream?.reset?.(); liveSummaryVisible(false); $('liveRunEvents')?.replaceChildren(); liveRunState.runId=''; liveRunState.domainId=''; liveRunState.request=''; liveRunState.startedAt=0; liveRunState.lastEventAt=0; liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase=''; liveRunState.currentAction=''; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.answerStream=null; liveRunState.finalizing=false; }
+       if(!options.preserve){ if(activeRunId&&activeRunId===liveRunState.runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); } liveRunState.answerStream?.reset?.(); liveSummaryVisible(false); $('liveRunEvents')?.replaceChildren(); liveRunState.runId=''; liveRunState.domainId=''; liveRunState.request=''; liveRunState.startedAt=0; liveRunState.lastEventAt=0; liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase=''; liveRunState.currentAction=''; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.answerStream=null; liveRunState.answerMessage=null; liveRunState.finalizing=false; }
+     }
+     function createLiveAssistantMessage(runId) {
+       const wrap=document.createElement('div');
+       wrap.className='msg assistant live-answer-message';
+       const role=document.createElement('div');
+       role.className='role';
+       role.textContent='智能体';
+       const bubble=document.createElement('div');
+       bubble.className='bubble live-answer-bubble';
+       bubble.setAttribute('aria-label','智能体正在生成答案');
+       const typing=document.createElement('span');
+       typing.className='live-answer-typing';
+       typing.setAttribute('aria-hidden','true');
+       const typingLabel=document.createElement('span');
+       typingLabel.textContent='正在生成答案';
+       const dots=document.createElement('span');
+       dots.className='live-answer-typing-dots';
+       dots.setAttribute('aria-hidden','true');
+       typing.append(typingLabel,dots);
+       const accessibleStatus=document.createElement('span');
+       accessibleStatus.className='sr-only';
+       accessibleStatus.textContent='正在生成答案';
+       bubble.append(typing,accessibleStatus);
+       wrap.append(role,bubble);
+       $('messages').appendChild(wrap);
+       $('messages').scrollTop=$('messages').scrollHeight;
+       return {runId,wrap,bubble,typing};
+     }
+     function renderLiveAssistantMessage(text) {
+       const message=liveRunState.answerMessage;
+       if(!message||message.runId!==liveRunState.runId) return;
+       if(message.typing){ message.typing.remove(); message.typing=null; }
+       message.bubble.removeAttribute('aria-label');
+       message.bubble.textContent=String(text||'');
+       message.bubble.classList.add('is-streaming');
+       $('messages').scrollTop=$('messages').scrollHeight;
+     }
+     function completeLiveAssistantMessage(runId) {
+       const message=liveRunState.answerMessage;
+       if(!message||message.runId!==runId) return false;
+       message.bubble.classList.remove('is-streaming');
+       message.wrap.classList.add('msg-linked');
+       message.wrap.dataset.runId=runId;
+       message.wrap.title='打开该次运行的完整详情（不重新执行模型）';
+       message.wrap.addEventListener('click',()=>openRunDetail(runId));
+       return true;
      }
      function appendLiveEvent(event) {
        const list=$('liveRunEvents'); if(!list) return;

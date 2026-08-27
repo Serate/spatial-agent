@@ -298,12 +298,24 @@
       box-shadow: 0 4px 16px rgba(124, 58, 237, .24);
     }
     .msg.assistant .bubble { background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+    .live-answer-message .bubble { min-width: 132px; color: var(--muted); }
+    .live-answer-typing { display: inline-flex; align-items: baseline; gap: 3px; }
+    .live-answer-typing-dots { display: inline-block; min-width: 1.5em; color: var(--teal); font-weight: 800; letter-spacing: .08em; }
+    .live-answer-typing-dots::after { content: "."; animation: live-answer-dots 1.2s steps(1, end) infinite; }
+    .live-answer-bubble.is-streaming { animation: live-answer-reveal .24s ease both; }
     .msg.system .bubble { background: var(--amber-soft); border: 1px solid rgba(224, 154, 91, .30); color: #7a5a33; }
     .msg.msg-linked { cursor: pointer; }
     .msg.msg-linked .bubble { transition: border-color .15s, box-shadow .15s; }
     .msg.msg-linked:hover .bubble { border-color: var(--teal); box-shadow: 0 3px 12px rgba(124, 58, 237, .16); }
     .msg.msg-linked .role::after { content: "打开详情 ↗"; font-size: 10px; font-weight: 600; color: var(--teal); margin-left: 6px; }
     @keyframes msg-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes live-answer-dots {
+      0%, 24% { content: "."; }
+      25%, 49% { content: ".."; }
+      50%, 74% { content: "..."; }
+      75%, 100% { content: "."; }
+    }
+    @keyframes live-answer-reveal { from { opacity: .72; } to { opacity: 1; } }
 
     .composer {
       flex: 0 0 auto;

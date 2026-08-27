@@ -12,10 +12,15 @@ assert(appScript >= 0, "console app must be present");
 const streamScript = html.indexOf("console_answer_stream.js");
 assert(streamScript >= 0 && streamScript < appScript, "answer stream must load before console app");
 const source = fs.readFileSync("web/src/console_answer_stream.js", "utf8");
+const appSource = fs.readFileSync("web/src/console_app.js", "utf8");
+const stylesSource = fs.readFileSync("web/src/styles.css", "utf8");
 const browserWindow = { setTimeout, clearTimeout };
 new Function("window", source)(browserWindow);
 const api = browserWindow.ConsoleAnswerStream;
 assert(api && typeof api.create === "function", "answer stream API is unavailable");
+assert(appSource.includes("createLiveAssistantMessage"), "live chat placeholder must be wired");
+assert(appSource.includes("renderLiveAssistantMessage"), "live chat message must be updated");
+assert(stylesSource.includes("live-answer-dots"), "live chat dots animation must be styled");
 
 function extractFunction(source, name) {
   const start = source.indexOf(`function ${name}`);
@@ -30,7 +35,57 @@ function extractFunction(source, name) {
   throw new Error(`${name} is not balanced`);
 }
 
-const appSource = fs.readFileSync("web/src/console_app.js", "utf8");
+function fakeElement(tagName) {
+  const element = {
+    tagName,
+    className: "",
+    textContent: "",
+    title: "",
+    dataset: {},
+    children: [],
+    parentNode: null,
+    scrollTop: 0,
+    scrollHeight: 0,
+    attributes: {},
+    append(...items) {
+      items.forEach(item => { item.parentNode = element; element.children.push(item); });
+    },
+    appendChild(item) {
+      element.append(item);
+      return item;
+    },
+    remove() {
+      if (!element.parentNode) return;
+      element.parentNode.children = element.parentNode.children.filter(item => item !== element);
+      element.parentNode = null;
+    },
+    setAttribute(name, value) { element.attributes[name] = String(value); },
+    removeAttribute(name) { delete element.attributes[name]; },
+    addEventListener() {},
+    classList: {
+      add(...names) { element.className = `${element.className} ${names.join(" ")}`.trim(); },
+      remove(...names) { element.className = element.className.split(/\s+/).filter(name => !names.includes(name)).join(" "); },
+    },
+  };
+  return element;
+}
+
+const messages = fakeElement("div");
+const fakeDocument = {createElement: fakeElement};
+const createLiveAssistantMessage = new Function(
+  "document", "$", `return (${extractFunction(appSource, "createLiveAssistantMessage")});`
+)(fakeDocument, id => id === "messages" ? messages : null);
+const renderLiveAssistantMessage = new Function(
+  "liveRunState", "$", `return (${extractFunction(appSource, "renderLiveAssistantMessage")});`
+);
+const liveMessage = createLiveAssistantMessage("run-chat");
+assert.strictEqual(messages.children.length, 1, "live answer placeholder must be added to chat");
+assert.strictEqual(liveMessage.bubble.attributes["aria-label"], "智能体正在生成答案");
+const chatState = {runId: "run-chat", answerMessage: liveMessage};
+renderLiveAssistantMessage(chatState, id => id === "messages" ? messages : null)("第一段");
+assert.strictEqual(liveMessage.typing, null, "typing placeholder must be removed on first answer text");
+assert.strictEqual(liveMessage.bubble.textContent, "第一段", "chat bubble must receive streamed answer text");
+
 const answerElement = { textContent: "", className: "" };
 const subtitleElement = { textContent: "" };
 const handlerScheduled = [];
