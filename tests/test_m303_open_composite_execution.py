@@ -154,6 +154,9 @@ EXECUTION_CONTEXT = {
             "domain_id": "gis",
             "capability_id": "gis.summary",
             "available": True,
+            "plan_mode": "workflow",
+            "workflow_ids": ["gis.summary_workflow"],
+            "execution_ready": True,
             "tools": ["tool-a"],
             "result_types": ["summary_result"],
             "execution_ready": True,
@@ -162,6 +165,9 @@ EXECUTION_CONTEXT = {
             "domain_id": "economic",
             "capability_id": "economic.summary",
             "available": True,
+            "plan_mode": "workflow",
+            "workflow_ids": ["economic.summary_workflow"],
+            "execution_ready": True,
             "tools": ["tool-a"],
             "result_types": ["summary_result"],
             "execution_ready": True,
@@ -171,6 +177,10 @@ EXECUTION_CONTEXT = {
 
 
 class _ExecutionService:
+    def resolve_capability_selection(self, capability_id, **kwargs):
+        del kwargs
+        return {"template_id": str(capability_id) + "_workflow"}
+
     def preview(self, request, **kwargs):
         del request, kwargs
         return {
@@ -207,7 +217,22 @@ class _ExecutionHost:
 class _ExecutionContext:
     def build(self, request, *, planner="rule", backend="memory", domain_ids=None):
         del request, planner, backend, domain_ids
-        return dict(EXECUTION_CONTEXT)
+        value = dict(EXECUTION_CONTEXT)
+        value["workflow_index"] = [
+            {
+                "domain_id": "gis",
+                "workflow_id": "gis.summary_workflow",
+                "allowed_tools": ["tool-a"],
+                "result_types": ["summary_result"],
+            },
+            {
+                "domain_id": "economic",
+                "workflow_id": "economic.summary_workflow",
+                "allowed_tools": ["tool-a"],
+                "result_types": ["summary_result"],
+            },
+        ]
+        return value
 
 
 class M303ExecutionClosureTests(unittest.TestCase):

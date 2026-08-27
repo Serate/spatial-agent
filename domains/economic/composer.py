@@ -41,6 +41,7 @@ class EconomicAnswerComposer:
             "economic_field_mismatch": "经济数据字段或来源证据不完整，暂不能安全分析。",
             "economic_indicator_unavailable": "当前数据源没有找到该经济指标。",
             "economic_region_unavailable": "当前数据源没有找到请求的统计区域。",
+            "economic_geography_level_unavailable": "当前数据源没有覆盖请求的区域层级。",
             "economic_time_range_unavailable": "当前数据源没有覆盖请求的期间或期间类型。",
             "economic_data_not_found": "没有找到同时满足指标、区域和期间条件的观测。",
             "economic_source_evidence_unavailable": "没有找到该请求对应的来源证据。",

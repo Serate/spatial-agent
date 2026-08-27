@@ -27,6 +27,9 @@ _COMMON_CONSTRAINTS = [
     {"name": "indicator", "label": "指标 ID", "type": "string", "required": True, "min_length": 1, "max_length": 96},
     {"name": "regions", "label": "区域列表", "type": "array", "required": True, "min_items": 1, "max_items": 16},
     {"name": "period_type", "label": "期间类型", "type": "enum", "required": False, "default": "annual", "choices": ["annual", "quarter", "half_year", "month", "month_ytd"]},
+    {"name": "geography_level", "label": "区域层级", "type": "string", "required": False, "min_length": 1, "max_length": 32},
+    {"name": "period_start", "label": "起始期间", "type": "string", "required": False, "max_length": 32},
+    {"name": "period_end", "label": "结束期间", "type": "string", "required": False, "max_length": 32},
 ]
 
 

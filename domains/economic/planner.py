@@ -56,9 +56,23 @@ class EconomicRulePlanner:
         )
         period_type = _period_type(text)
         template = "economic_" + operation
+        geography_level = _geography_level(text)
+        period_start, period_end = _period_bounds(text)
+        constraints = {
+            "dataset": ECONOMIC_DATASET,
+            "indicator": indicator,
+            "regions": regions,
+            "period_type": period_type,
+        }
+        if geography_level:
+            constraints["geography_level"] = geography_level
+        if period_start:
+            constraints["period_start"] = period_start
+        if period_end:
+            constraints["period_end"] = period_end
         return self._compile(
             template,
-            {"dataset": ECONOMIC_DATASET, "indicator": indicator, "regions": regions, "period_type": period_type},
+            constraints,
         )
 
     @staticmethod
@@ -79,6 +93,13 @@ class EconomicRulePlanner:
             known_tools=KNOWN_TOOL_NAMES,
             known_result_types=KNOWN_RESULT_TYPES,
         )
+        normalized_constraints = compiled.get("constraints") or {}
+        for step in compiled["steps"]:
+            args = step.get("args") or {}
+            for name in ("geography_level", "period_start", "period_end"):
+                if name in normalized_constraints:
+                    args[name] = normalized_constraints[name]
+            step["args"] = args
         return TaskPlan(
             str(compiled["goal"]),
             [PlanStep(str(item["id"]), str(item["tool"]), dict(item["args"]), list(item.get("depends_on", []))) for item in compiled["steps"]],
@@ -125,3 +146,27 @@ def _period_type(text: str) -> str:
     if any(term in text for term in ("月度", "每月")):
         return "month"
     return "annual"
+
+
+def _geography_level(text: str) -> str:
+    marked = re.search(
+        r"(?:区域层级|行政层级|统计层级)(?:为|是|[:：])?\s*([A-Za-z][A-Za-z0-9_-]{0,31})",
+        str(text),
+        re.IGNORECASE,
+    )
+    if marked:
+        return marked.group(1).lower()[:32]
+    for phrase, level in (("省级", "province"), ("市级", "city"), ("区级", "district"), ("县级", "county")):
+        if phrase in str(text):
+            return level
+    return ""
+
+
+def _period_bounds(text: str) -> tuple[str, str]:
+    match = re.search(
+        r"((?:19|20)\d{2})\s*(?:年\s*)?(?:至|到|[-—~～])\s*((?:19|20)\d{2})\s*年?",
+        str(text),
+    )
+    if not match:
+        return "", ""
+    return match.group(1), match.group(2)

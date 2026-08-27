@@ -281,6 +281,10 @@ class CompositeCapabilityProjector:
                 for key in ("missing_tools", "missing_result_types"):
                     if binding.get(key):
                         item[key] = _bounded_strings(binding.get(key))
+            if isinstance(binding.get("operation_binding"), Mapping):
+                item["operation_binding"] = _project_operation_binding(
+                    binding.get("operation_binding")
+                )
 
         result = {
             "schema_version": COMPOSITE_PLANNER_CONTEXT_SCHEMA_VERSION,
@@ -634,12 +638,13 @@ class CompositePlanningApplication:
             )
             result["planning_failure"] = planning_failure
             failure_evidence["planning_failure"] = planning_failure
-            result["failure"] = build_failure_evidence(
-                status=status,
-                code=exc.code,
-                phase="planning",
-                retryable=False,
-            )
+            if not provider_failed:
+                result["failure"] = build_failure_evidence(
+                    status=status,
+                    code=exc.code,
+                    phase="planning",
+                    retryable=False,
+                )
             if isinstance(result.get("continuation"), Mapping):
                 failure_evidence["continuation"] = _continuation_evidence(
                     result["continuation"]
@@ -1716,7 +1721,15 @@ def _project_capability(value: Mapping[str, Any]) -> dict[str, Any]:
     for field in _SAFE_CAPABILITY_FIELDS:
         if field not in value:
             continue
-        if field in {"datasets", "tools", "result_types", "analysis_operations", "missing_datasets", "derived_datasets"}:
+        if field in {
+            "datasets",
+            "tools",
+            "result_types",
+            "analysis_operations",
+            "missing_datasets",
+            "derived_datasets",
+            "workflow_ids",
+        }:
             projected[field] = _bounded_strings(value.get(field))
         elif field == "available":
             projected[field] = bool(value.get(field))
@@ -1813,6 +1826,42 @@ def _profiles_for_results(value: Any, profiles: Mapping[str, Mapping[str, Any]])
             continue
         result.append({"result_type": result_type, **dict(profile)})
     return result[:24]
+
+
+def _project_operation_binding(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Project operation/profile closure without exposing planner internals."""
+
+    status = str(value.get("status") or "unknown")
+    if status not in {"ready", "invalid", "unknown", "not_applicable", "not_declared"}:
+        status = "unknown"
+    result = {
+        "schema_version": str(
+            value.get("schema_version") or "spatial-agent.operation-binding.v1"
+        )[:96],
+        "status": status,
+        "reason_code": str(value.get("reason_code") or "operation_binding_unknown")[:96],
+        "operations": _bounded_strings(value.get("operations"), limit=8),
+        "workflow_ids": _bounded_strings(value.get("workflow_ids"), limit=8),
+        "result_types": _bounded_strings(value.get("result_types"), limit=16),
+    }
+    profiles = []
+    for raw in (value.get("output_profiles") or [])[:16]:
+        if not isinstance(raw, Mapping):
+            continue
+        profiles.append(
+            {
+                "result_type": _bounded_text(raw.get("result_type"), 96),
+                "primary": _bounded_text(raw.get("primary"), 32),
+                "kinds": _bounded_strings(raw.get("kinds"), limit=8),
+            }
+        )
+    if profiles:
+        result["output_profiles"] = profiles
+    for field in ("missing_result_profiles", "invalid_operations"):
+        values = _bounded_strings(value.get(field), limit=8)
+        if values:
+            result[field] = values
+    return result
 
 
 def _project_profile_list(value: Any) -> list[dict[str, Any]]:

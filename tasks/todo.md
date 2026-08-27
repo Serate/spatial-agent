@@ -228,11 +228,39 @@
 - [x] M307-E Docker 阶段门禁与必要跨入口验收
 - [x] M307-F 文档、提交推送与全局重规划
 
-## M308 开放式 3+ 组件纵向链路与用户答案质量（进行中）
+## M308 开放式 3+ 组件纵向链路与用户答案质量（已完成）
 
-- [ ] M308-A 全局基线与 3+ 组件混合结果契约
-- [ ] M308-B 开放组合 canonical DAG/TaskPlan/ToolRegistry 执行闭合
-- [ ] M308-C 结构化事实到简洁中文答案与动态 View
-- [ ] M308-D sync/async/HTTP/artifact/restart/Console 证据一致性
-- [ ] M308-E Docker 阶段门禁与必要的一次显式 live
-- [ ] M308-F 文档、提交推送与全局重规划
+- [x] M308-A 全局基线与 3+ 组件混合结果契约
+- [x] M308-B 开放组合 canonical DAG/TaskPlan/ToolRegistry 执行闭合
+- [x] M308-C 结构化事实到简洁中文答案与动态 View
+- [x] M308-D sync/async/HTTP/artifact/restart/Console 证据一致性
+- [x] M308-E Docker 阶段门禁与必要的一次显式 live
+- [x] M308-F 文档、提交推送与全局重规划
+
+## M309 真实模型开放组合与默认 Agent 体验（已完成）
+
+- [x] M309-A～B 真实模型计划矩阵、canonical plan 与 fail-closed 执行闭合
+- [x] M309-C～D 默认答案、阶段投影与跨入口恢复一致性
+- [x] M309-E～F Docker 门禁、一次显式 live、中文文档、提交推送与全局重规划
+
+## M310 开放请求能力选择与数据语义闭合（已完成）
+
+- [x] M310-A～D 事实需求、Domain workflow、TaskPlan/binding、readiness 与失败分类闭合
+
+## M311 通用分析意图与跨域开放链路（已完成）
+
+- [x] M311-A～F 分析意图、Result/View/Evidence 传播、真实 GIS 链路与阶段交付
+
+## M312 通用分析算子与跨域真实能力闭合（已完成）
+
+- [x] M312-A 操作、能力、workflow、Result profile 与 readiness 绑定审计
+- [x] M312-B clip/intersect/buffer/distance 通用空间算子闭合
+- [x] M312-C Economic query/trend/compare/evidence 真实数据与来源证据闭合
+- [x] M312-D～E 跨域 Planner/TaskPlan 执行闭合与动态结果消费者
+- [x] M312-F Docker 门禁、真实 GIS/Economic/Indicators、一次真实模型、文档和版本交付
+
+## 下一阶段候选：React 前端迁移（尚未开始）
+
+- [ ] 保持 HTTP、Result、View、Evidence、Trace 和 Artifact 契约不变
+- [ ] 迁移对话、阶段轨迹、动态结果视图、地图与会话管理
+- [ ] 以增量替换方式验证用户体验，不重写 Agent Runtime

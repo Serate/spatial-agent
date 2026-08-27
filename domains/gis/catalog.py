@@ -67,6 +67,20 @@ GIS_ANALYSIS_OPERATIONS = {
     "admin_raster_composite": ("query", "aggregate"),
 }
 
+# Capability IDs are the public discovery identity. Workflow IDs are the
+# executable Domain-owned identity. Keep aliases explicit so two capabilities
+# sharing a tool/result pair cannot be matched by coincidence.
+GIS_CAPABILITY_WORKFLOW_IDS = {
+    "spatial_overview": ("spatial_overview",),
+    "spatial_analysis": ("spatial_analysis",),
+    "admin_boundary_query": ("admin_boundary_query",),
+    "raster_metadata": ("raster_metadata",),
+    "earthquake_event_query": ("earthquake_event_query",),
+    "vector_operation": ("vector_operation",),
+    "vector_measurement": ("vector_measurement",),
+    "constrained_buildability_screening": ("constrained_buildability",),
+}
+
 
 def _request_requirements(*, entities=(), datasets=(), constraints=(), fields=()):
     """Declare request facts needed to clarify a GIS capability.
@@ -260,6 +274,11 @@ def _attach_request_hints(definitions):
             ),
             "analysis_operations": list(
                 GIS_ANALYSIS_OPERATIONS.get(str(item.get("id")), ())
+            ),
+            **(
+                {"workflow_ids": list(GIS_CAPABILITY_WORKFLOW_IDS[str(item.get("id"))])}
+                if str(item.get("id")) in GIS_CAPABILITY_WORKFLOW_IDS
+                else {}
             ),
         }
         for item in definitions

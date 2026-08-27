@@ -12,15 +12,26 @@ from .catalog import ECONOMIC_DATASET
 class EconomicEvidenceProvider:
     def runtime_snapshot(self, *, max_files: int = 10):
         del max_files
+        from .provider import EconomicToolProvider
+
         configured = os.environ.get("SPATIAL_AGENT_ECONOMIC_DATA")
+        health = EconomicToolProvider(data_path=configured or None).health()
+        provenance = health.get("provenance") if isinstance(health.get("provenance"), dict) else {}
+        status = str(health.get("status") or "unavailable")
         return {
-            "health_status": "configured" if configured else "auto_discovery",
-            "data_readiness": "external_source_bound",
+            "health_status": status,
+            "data_readiness": str(health.get("data_readiness") or status),
+            "source_status": str(health.get("source_status") or "unavailable"),
             "data_evidence": {
-                "dataset": ECONOMIC_DATASET,
-                "source": "武汉市洪山区人民政府统计信息公开页面",
+                "dataset": str(health.get("dataset") or ECONOMIC_DATASET)[:96],
+                "source": str(provenance.get("source") or "未知来源")[:256],
                 "configured_path": str(Path(configured).name) if configured else None,
+                "record_count": int(health.get("record_count") or 0),
+                "validation_issue_count": int(health.get("validation_issue_count") or 0),
+                "reason_code": health.get("reason_code"),
             },
+            "data_provenance": dict(provenance),
+            "freshness": dict(health.get("freshness") or {}),
             "capabilities": [
                 "economic_indicator_discovery",
                 "economic_indicator_latest",

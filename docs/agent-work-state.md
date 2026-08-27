@@ -15,9 +15,9 @@
 
 ## 当前阶段
 
-- 阶段：M312 通用分析算子与跨域真实能力闭合（已规划）
-- 状态：M311 已完成，Docker 精简门禁和一次真实模型验收均已记录；产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
-- 当前任务：M312-A 操作到 capability/result profile 绑定审计（已规划）；不新增区域专用流程，不改变 Runtime、TaskPlan/DAG、ToolRegistry 和生命周期权威边界。详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M312 通用分析算子与跨域真实能力闭合（已完成）
+- 状态：M312-A～F 已完成；Docker 精简门禁、真实 GIS/Economic/Indicators 跨域验收和一次真实模型验收均已记录；产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
+- 当前任务：无。下一阶段候选为 React 前端迁移；不改变 Runtime、TaskPlan/DAG、ToolRegistry 和生命周期权威边界。详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m312-general-operators-cross-domain-capability-map.md`](m312-general-operators-cross-domain-capability-map.md)
   - [`docs/m312-general-operators-cross-domain-spec.md`](m312-general-operators-cross-domain-spec.md)
@@ -31,9 +31,24 @@
 - `agent/analysis_intent.py`
 - `agent/capability_catalog.py`
 - `agent/domain_catalog.py`
+- `agent/operation_binding.py`
+- `agent/runtime_core/plan_completeness.py`
+- `agent/application/composite_planning.py`
+- `tools/schema/tool-definitions.json`
+- `domains/gis/adapters/spatial_backend.py`
+- `domains/gis/workflow_templates.py`
 - `domains/gis/catalog.py`
+- `domains/gis/result_registry.py`
+- `domains/economic/provider.py`
+- `domains/economic/evidence.py`
 - `domains/economic/catalog.py`
+- `domains/economic/workflow_templates.py`
+- `domains/economic/domain.py`
+- `domains/economic/composer.py`
 - `tests/test_m312_general_operators.py`
+- `scripts/m308_cross_entry_acceptance.py`
+- `scripts/m308_real_composition_acceptance.py`
+- `scripts/live_http_acceptance.py`
 
 > M312 当前按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
 > 避免恢复上下文时读取无关文件。

@@ -1230,6 +1230,9 @@ def _perform_spatial_operation(
     mask_frame = _clean_vector_geometries(mask_frame)
     if input_frame.empty or mask_frame.empty:
         raise ToolError("spatial_operation requires non-empty geometry")
+    input_crs = str(input_frame.crs)
+    mask_crs = str(mask_frame.crs)
+    reprojected_mask = input_crs != mask_crs
     if str(input_frame.crs) != str(mask_frame.crs):
         mask_frame = mask_frame.to_crs(input_frame.crs)
 
@@ -1306,6 +1309,9 @@ def _perform_spatial_operation(
         "max_features": int(max_features),
         "truncated": bool(truncated),
         "crs": str(output.crs or input_frame.crs),
+        "input_crs": input_crs,
+        "mask_crs": mask_crs,
+        "reprojected_mask": reprojected_mask,
         "distance_m": float(distance_m) if distance_m is not None else None,
     }
     if operation == "distance" and "nearest_distance_m" in output:

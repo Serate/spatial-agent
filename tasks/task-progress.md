@@ -782,3 +782,59 @@
 - 阶段门禁：compileall、architecture strict、Node projection smoke、Service smoke、生产 acceptance 和 `/health/ready` **200** 全部通过；生产 acceptance 为 `ok`。
 - 显式 live：仅 1 次，60 秒、0 重试；中转/provider 未在期限内返回，结果为 `FAILED/timeout`、`error_plane=harness`、`execution_run_created=false`。未保存密钥、prompt、模型原文或私有数据。
 - 结论：本阶段完成 provider 状态可观测和失败可恢复边界；真实模型成功计划仍需后续 provider 稳定性/延迟条件满足后再显式验收，不重复消耗 token。
+
+### M312-A：操作到 capability/result profile 绑定审计 — 进行中
+- 目标：把 `analysis_operations`、Domain workflow、ToolRegistry/Result Contract 和请求事实要求连接成可审计的闭合边界；未知、冲突或结果 profile 不兼容时不进入执行。
+- 已完成：新增领域中立 `agent/operation_binding.py`；能力到 workflow 的隐式“工具/结果子集匹配”收紧为精确 identity 或显式 alias；GIS/Economic Domain catalog 补充已存在 workflow 的显式绑定。
+- 当前动作：把 operation-binding receipt 接入 catalog consistency、execution readiness、Composite capability index，并补齐精简失败矩阵。
+- 明确文件：`agent/operation_binding.py`、`agent/runtime_core/plan_completeness.py`、`agent/application/composite_planning.py`、`agent/domain_catalog.py`、`domains/gis/catalog.py`、`domains/economic/catalog.py`、`tests/test_m312_general_operators.py`。
+- 验证：开发期间只做 diff/语法检查；阶段收口在 Docker 集中运行 M312 契约与必要相邻回归，不重复调用真实模型。
+- 阻塞：无。
+
+### M312-A：操作到 capability/result profile 绑定审计 — 已完成
+- 结果：新增 `spatial-agent.operation-binding.v1`；operation、workflow identity、Result data profile 和 readiness 形成安全 receipt。
+- 结果：workflow 只接受 capability identity 或显式 alias，不再使用“工具/结果子集兼容”猜测；GIS/Economic 已存在 workflow 的 alias 已声明，未闭合的历史能力明确保持 `workflow_unbound`。
+- 验证：Docker M312-A **5/5**、M311/M310/M296 相邻回归 **36/36**、compileall 和 architecture strict 通过；未调用真实模型。
+- 阻塞：无。下一步进入 M312-B，闭合通用 GIS 空间算子。
+
+### M312-B：通用 GIS 空间算子闭合 — 进行中
+- 目标：基于现有 ToolRegistry 和 GIS adapter 闭合 `clip`、`intersect`、`buffer`、`distance` 的 workflow、参数、CRS、空结果和 `spatial_operation_result` profile；不改变 Runtime 主循环。
+- 当前动作：审计 `spatial_operation` 的 schema、adapter 实现和已有结果/错误投影，补齐最小 Domain workflow 与失败契约。
+- 明确文件：`tools/schema/tool-definitions.json`、`domains/gis/adapters/spatial_backend.py`、`domains/gis/workflow_templates.py`、`domains/gis/catalog.py`、`domains/gis/result_registry.py`、`tests/test_m312_general_operators.py`。
+- 验证：开发期间只做必要静态检查；B 阶段收口在 Docker 集中运行 GIS 契约与必要相邻回归。
+- 阻塞：无。
+
+### M312-B：通用 GIS 空间算子闭合 — 已完成
+- 结果：四个 operation 共用已有 GIS backend；ToolRegistry schema、workflow 分组和 `spatial_operation_result` profile 保持一致。
+- 结果：空间结果保留输入/掩膜 CRS、是否发生重投影、返回要素预算和空结果摘要；不为无交集伪造几何。
+- 验证：Docker M312 GIS 契约 **7/7**、M247/M69/M311 必要回归 **25/25** 通过；未调用真实模型。
+- 阻塞：无。下一步进入 M312-C，闭合 Economic 真实数据与来源证据。
+
+### M312-C：Economic 真实数据与来源证据闭合 — 进行中
+- 目标：核对 `query/trend/compare/evidence` 的指标、区域、时间范围、数据 freshness 和 provenance 是否形成同一结果契约；缺失事实或数据时结构化澄清/不可用。
+- 当前动作：审计 Economic provider、source evidence、workflow 与 result registry，补齐不一致的字段/时间范围/来源状态。
+- 明确文件：`domains/economic/provider.py`、`domains/economic/evidence.py`、`domains/economic/catalog.py`、`domains/economic/workflow_templates.py`、`domains/economic/domain.py`、`domains/economic/composer.py`、`tests/test_m312_general_operators.py`。
+- 验证：开发期间只做必要静态检查；C 阶段收口在 Docker 运行真实数据契约和必要相邻回归。
+- 阻塞：无。
+
+### M312-C：Economic 真实数据与来源证据闭合 — 已完成
+
+- 结果：Economic 的 query/trend/compare/evidence 共用真实本地武汉/洪山指标数据、区域/时间事实、freshness 和 `document_evidence` provenance；数据缺失、字段不全、时间范围不匹配时保持结构化澄清或不可用。
+- 验证：M312 Economic 专项与跨域回归已纳入阶段集中回归；未新增领域专用 Runtime 或前端分支。
+- 阻塞：无。
+
+### M312-D/E：跨域 Planner、执行闭合与动态结果消费者 — 已完成
+
+- 结果：GIS、Economic、Indicators 使用同一 operation → capability → workflow → TaskPlan/DAG → ToolRegistry → execution binding → Result/View/Evidence 链路；前端 projection 支持 vector、raster、metrics、timeseries、document_evidence 和 composite。
+- 验证：真实 Docker 三组件跨域 sync/async/artifact/SQLite/restart 均 `COMPLETED`，组件数 3，结果与 evidence identity 全部一致；真实 GIS/Economic 双域重启接管 `recovery_count=1`。
+- 阻塞：无。
+
+### M312-F：Docker、真实模型与阶段交付 — 已完成
+
+- 修复：`agent/application/composite_planning.py` 不再用 `planner_provider_failed` 覆盖底层 `provider_timeout` 和 `retryable`；现有 M304 回归由失败变为通过。
+- 修复：`scripts/m308_real_composition_acceptance.py` 直接执行时补充项目根路径；Docker 重建明确使用 `--env-file .env.production`，避免数据卷错误指向项目内 `data`。
+- 验证：M263/M264/M303/M304/M305/M306/M308/M310/M311/M312 **88/88**；全目录 compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness `200/ready` 通过。
+- 真实模型：显式 GIS live run 最终 `COMPLETED`，模型规划 1 次、0 重试，8 个工具步骤执行完成；模型 evidence 记录约 10.8k tokens，回答生成独立成功。使用既有 run 的无模型复核确认 run/artifact/evidence/polling 全部 `ok`，未保存密钥、prompt 或模型原文。
+- 说明：本次 live harness 最初因人为传入 18 秒轮询窗口提前报告未终态，服务端 run 后续正常完成；后续复核使用同一 run，未重复调用模型。
+- 阻塞：无。
+- 下一步：当前 Goal 满足阶段交付条件；先标记完成，再创建独立 React 前端迁移 Goal。

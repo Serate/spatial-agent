@@ -14,6 +14,15 @@
 - Goal 级最小读取规则：恢复上下文时只打开当前任务明确需要的文件；如果仅需判断状态，仅读取快照和任务账本尾部；不得因为“了解项目”而批量读取历史文档、全量源码、全量测试或模型输出。
 - 读取范围必须随当前任务同步更新：开始任务前列出必要文件，发现不需要的文件立即停止读取；新增文件只有在能证明与当前任务直接相关时才加入。
 
+## 最新状态（M312 已完成）
+
+- 当前 Goal 已完成：通用分析算子、真实 Economic 数据、跨域 Planner/TaskPlan/ToolRegistry、
+  Result/View/Evidence、Docker 真实 GIS/Economic/Indicators 验收和一次真实模型验收均已收口。
+- 详细恢复入口仍是 `docs/agent-work-state.md` 与 `tasks/task-progress.md`；下一阶段候选是
+  独立 React 前端 Goal，不在当前 Goal 内改写 Runtime。
+- 最新版本交付前若需继续工作，先检查 `git status`、任务账本尾部和当前 Goal 状态，不批量读取
+  历史阶段文档或全量源码。
+
 ## Agent 能力与日常体验补充约束
 
 - 默认用户路径应优先体现 LLM Planner、能力发现和多步计划；规则 Planner 主要用于离线测试、确定性验收、模型不可用时的显式降级，不应成为日常成功路径的无感替代。
@@ -239,3 +248,16 @@
 
 - 能力图、Spec、Plan 已创建；顺序为 3+ 组件契约 → 开放组合执行 → 结构化事实到答案 → 跨入口证据 → Docker 收口。
 - 当前恢复入口为 `docs/agent-work-state.md` 和 `tasks/task-progress.md`，当前任务是 M308-A；不默认读取完整历史、全量源码、全量测试、模型原文或敏感配置。
+
+## M312：通用分析算子与跨域真实能力闭合（已完成）
+
+- M312-A～E 已闭合 operation/capability/workflow/Result profile、通用 GIS 空间算子、
+  Economic 真实数据、跨域 Planner/TaskPlan/ToolRegistry、动态 Result/View/Evidence。
+- Docker 真实 GIS/Economic/Indicators 三组件 sync/async/artifact/SQLite/restart 全部完成，
+  跨入口 identity 一致；生产 HTTP、readiness、compileall、architecture strict、Node
+  projection 和 Service smoke 通过。
+- 唯一一次显式真实模型验收在 Docker 中成功完成，记录为脱敏 live evidence；不保存密钥、
+  prompt 或模型原文。M304 provider failure 覆盖、Compose `--env-file` 数据卷错挂和验收
+  脚本根路径问题已修复并写入中文问题日志。
+- 当前 Goal 已满足验收条件，下一阶段候选为独立 React 前端迁移；React 不改写 Runtime、
+  Planner、ToolRegistry 和公共 Result/View/Evidence 契约。

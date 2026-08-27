@@ -129,12 +129,17 @@ class IndicatorAnalysisEngine:
         """Execute latest, trend or compare over bounded observations."""
 
         if not self._records:
-            return self._status_result("unavailable", self._code("data_unavailable"), arguments)
+            return self._status_result(
+                "unavailable",
+                self._code("data_unavailable"),
+                arguments,
+            )
 
         operation = str(arguments.get("operation") or "latest")
         indicator = str(arguments.get("indicator") or "").strip()
         regions = _regions(arguments.get("regions"))
         period_type = str(arguments.get("period_type") or "").strip()
+        geography_level = str(arguments.get("geography_level") or "").strip()
         start = str(arguments.get("period_start") or "").strip()
         end = str(arguments.get("period_end") or "").strip()
 
@@ -149,9 +154,35 @@ class IndicatorAnalysisEngine:
             result["missing_regions"] = missing_regions[:16]
             return result
 
-        records = self._filter(indicator, regions, period_type, start, end)
+        if geography_level:
+            known_levels = {
+                str(item.get("geography_level"))
+                for item in self._records
+                if item.get("geography_level")
+            }
+            if geography_level not in known_levels:
+                return self._status_result(
+                    "unavailable",
+                    self._code("geography_level_unavailable"),
+                    arguments,
+                )
+
+        records = self._filter(
+            indicator,
+            regions,
+            period_type,
+            geography_level,
+            start,
+            end,
+        )
         if not records:
-            code_key = "time_range_unavailable" if period_type or start or end else "data_not_found"
+            code_key = (
+                "geography_level_unavailable"
+                if geography_level
+                else "time_range_unavailable"
+                if period_type or start or end
+                else "data_not_found"
+            )
             return self._status_result("unavailable", self._code(code_key), arguments)
 
         records.sort(key=lambda item: (str(item.get("region")), _period_key(item.get("period"))))
@@ -204,6 +235,11 @@ class IndicatorAnalysisEngine:
             "operation": operation,
             "dataset": self._dataset_id,
             "indicator": indicator,
+            "regions": list(regions[:16]),
+            "geography_level": geography_level or None,
+            "period_type": period_type or None,
+            "period_start": start or None,
+            "period_end": end or None,
             "rows": deepcopy(rows[: max(1, int(self._config.max_rows))]),
             "metrics": metrics,
             "data_profile": build_data_profile(profile),
@@ -217,23 +253,81 @@ class IndicatorAnalysisEngine:
         """Return source entries using the same filter as :meth:`query`."""
 
         if not self._records:
-            return self._status_result("unavailable", self._code("data_unavailable"), arguments)
+            return self._status_result(
+                "unavailable",
+                self._code("data_unavailable"),
+                arguments,
+                data_kinds=("document_evidence",),
+                result_type=f"{self._config.result_prefix}_evidence_result",
+            )
         indicator = str(arguments.get("indicator") or "").strip()
         regions = _regions(arguments.get("regions"))
         period_type = str(arguments.get("period_type") or "").strip()
+        geography_level = str(arguments.get("geography_level") or "").strip()
         start = str(arguments.get("period_start") or "").strip()
         end = str(arguments.get("period_end") or "").strip()
-        rows = self._filter(indicator, regions, period_type, start, end)
+
+        known_indicators = {str(item.get("indicator")) for item in self._records}
+        if indicator not in known_indicators:
+            return self._status_result(
+                "unavailable",
+                self._code("indicator_unavailable"),
+                arguments,
+                data_kinds=("document_evidence",),
+                result_type=f"{self._config.result_prefix}_evidence_result",
+            )
+        known_regions = {str(item.get("region")) for item in self._records}
+        missing_regions = [region for region in regions if region not in known_regions]
+        if missing_regions:
+            result = self._status_result(
+                "unavailable",
+                self._code("region_unavailable"),
+                arguments,
+                data_kinds=("document_evidence",),
+                result_type=f"{self._config.result_prefix}_evidence_result",
+            )
+            result["missing_regions"] = missing_regions[:16]
+            return result
+        if geography_level:
+            known_levels = {
+                str(item.get("geography_level"))
+                for item in self._records
+                if item.get("geography_level")
+            }
+            if geography_level not in known_levels:
+                return self._status_result(
+                    "unavailable",
+                    self._code("geography_level_unavailable"),
+                    arguments,
+                    data_kinds=("document_evidence",),
+                    result_type=f"{self._config.result_prefix}_evidence_result",
+                )
+        rows = self._filter(
+            indicator,
+            regions,
+            period_type,
+            geography_level,
+            start,
+            end,
+        )
         if not rows:
             return self._status_result(
                 "unavailable",
                 self._code("source_evidence_unavailable"),
                 arguments,
+                data_kinds=("document_evidence",),
+                result_type=f"{self._config.result_prefix}_evidence_result",
             )
         return {
             "status": "ready",
+            "result_type": f"{self._config.result_prefix}_evidence_result",
             "dataset": self._dataset_id,
             "indicator": indicator,
+            "regions": list(regions[:16]),
+            "geography_level": geography_level or None,
+            "period_type": period_type or None,
+            "period_start": start or None,
+            "period_end": end or None,
             "sources": self._source_entries(rows),
             "data_profile": build_data_profile(("document_evidence",)),
             "provenance": dict(self._provenance),
@@ -244,6 +338,7 @@ class IndicatorAnalysisEngine:
         indicator: str,
         regions: Sequence[str],
         period_type: str,
+        geography_level: str,
         start: str,
         end: str,
     ) -> list[dict[str, Any]]:
@@ -253,6 +348,14 @@ class IndicatorAnalysisEngine:
         ]
         if period_type:
             filters.append({"field": "period_type", "operator": "eq", "value": period_type})
+        if geography_level:
+            filters.append(
+                {
+                    "field": "geography_level",
+                    "operator": "eq",
+                    "value": geography_level,
+                }
+            )
         result = self._record_engine.analyze(
             self._records,
             operation="filter",
@@ -273,9 +376,12 @@ class IndicatorAnalysisEngine:
         status: str,
         code: str,
         arguments: Mapping[str, Any] | None = None,
+        *,
+        data_kinds: Sequence[str] = ("metrics",),
+        result_type: str | None = None,
     ) -> dict[str, Any]:
         args = dict(arguments or {})
-        return {
+        result = {
             "status": status,
             "code": code,
             "retryable": code in set(self._config.retryable_codes),
@@ -283,15 +389,21 @@ class IndicatorAnalysisEngine:
             "requested": {
                 "indicator": str(args.get("indicator") or ""),
                 "regions": _regions(args.get("regions"))[:16],
+                "geography_level": str(args.get("geography_level") or "")[:32],
                 "period_type": str(args.get("period_type") or ""),
                 "period_start": str(args.get("period_start") or ""),
                 "period_end": str(args.get("period_end") or ""),
             },
             "rows": [],
             "metrics": {},
-            "data_profile": build_data_profile(("metrics",)),
+            "data_profile": build_data_profile(data_kinds),
             "provenance": dict(self._provenance),
         }
+        if result_type:
+            result["result_type"] = str(result_type)[:96]
+        if "document_evidence" in data_kinds:
+            result["sources"] = []
+        return result
 
     def _source_entries(self, rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         unique: dict[tuple[str, str, str], dict[str, Any]] = {}

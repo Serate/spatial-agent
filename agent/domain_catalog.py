@@ -161,6 +161,16 @@ def validate_domain_catalog_spec(spec: DomainCatalogSpec) -> None:
                 f"capability {capability_id} references unknown analysis operations: "
                 + ", ".join(unknown_operations)
             )
+        explicit_workflows = _unique_strings(
+            item.get("workflow_ids") or item.get("workflow_id") or (),
+            f"capability {capability_id}.workflow_ids",
+        )
+        unknown_workflows = sorted(set(explicit_workflows) - set(spec.workflow_templates or {}))
+        if unknown_workflows:
+            raise ValueError(
+                f"capability {capability_id} references unknown workflows: "
+                + ", ".join(unknown_workflows)
+            )
 
     workflow_ids = set()
     for key, template in (spec.workflow_templates or {}).items():

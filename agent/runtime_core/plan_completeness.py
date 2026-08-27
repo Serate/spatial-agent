@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from agent.operation_binding import inspect_operation_binding
+
 
 PLAN_COMPLETENESS_SCHEMA_VERSION = "spatial-agent.plan-completeness.v1"
 EXECUTION_READINESS_SCHEMA_VERSION = "spatial-agent.execution-readiness.v1"
@@ -76,6 +78,17 @@ def assess_catalog_consistency(catalog: Mapping[str, Any]) -> dict[str, Any]:
                 for item in compatible
                 if _text(item.get("id"), 96)
             ]
+            execution_contract = domain.get("execution_contract")
+            result_profiles = (
+                execution_contract.get("result_profiles")
+                if isinstance(execution_contract, Mapping)
+                else None
+            )
+            operation_binding = inspect_operation_binding(
+                capability,
+                workflow_ids=workflow_ids,
+                result_profiles=result_profiles,
+            )
             if not tools and (not results or "direct_answer" in results):
                 mode = "answer_only"
                 reason_code = "answer_only_capability"
@@ -97,7 +110,21 @@ def assess_catalog_consistency(catalog: Mapping[str, Any]) -> dict[str, Any]:
                 compatible,
                 workflow_ids=workflow_ids,
                 mode=mode,
+                operation_binding=operation_binding,
             )
+            if (
+                operation_binding.get("status") == "invalid"
+                and operation_binding.get("reason_code") != "workflow_unbound"
+            ):
+                violations.append(
+                    {
+                        "domain_id": domain_id,
+                        "capability_id": capability_id,
+                        "reason_code": operation_binding.get(
+                            "reason_code", "operation_binding_invalid"
+                        ),
+                    }
+                )
             bindings.append(
                 {
                     "domain_id": domain_id,
@@ -105,6 +132,7 @@ def assess_catalog_consistency(catalog: Mapping[str, Any]) -> dict[str, Any]:
                     "workflow_ids": workflow_ids[:8],
                     "plan_mode": mode,
                     "reason_code": reason_code,
+                    "operation_binding": operation_binding,
                     **execution,
                 }
             )
@@ -163,6 +191,8 @@ def annotate_catalog_capabilities(
                     for key in ("missing_tools", "missing_result_types"):
                         if binding.get(key):
                             item[key] = _strings(binding.get(key))
+                if isinstance(binding.get("operation_binding"), Mapping):
+                    item["operation_binding"] = dict(binding["operation_binding"])
             capabilities.append(item)
         domain_copy["capabilities"] = capabilities
         result.append(domain_copy)
@@ -272,10 +302,15 @@ def _workflow_matches(
     if not workflow_id:
         return False
     if explicit_ids:
-        return workflow_id in explicit_ids
-    if workflow_id == capability_id:
-        return _policy_subset(workflow, tools=tools, results=results)
-    return _policy_subset(workflow, tools=tools, results=results)
+        return workflow_id in explicit_ids and _policy_subset(
+            workflow, tools=tools, results=results
+        )
+    # A compatible tool/result subset is not enough to identify a workflow:
+    # two capabilities can intentionally share the same tool and Result
+    # profile. Without an explicit alias, only an identity match is safe.
+    return workflow_id == capability_id and _policy_subset(
+        workflow, tools=tools, results=results
+    )
 
 
 def _capability_execution_readiness(
@@ -284,6 +319,7 @@ def _capability_execution_readiness(
     *,
     workflow_ids: Sequence[str],
     mode: str,
+    operation_binding: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Check the catalog against the actual Tool/Result contract.
 
@@ -308,6 +344,34 @@ def _capability_execution_readiness(
             "execution_readiness": "workflow_unbound",
             "execution_ready": False,
             "execution_reason_code": "workflow_unbound",
+        }
+
+    operation_state = (
+        str((operation_binding or {}).get("status") or "not_declared")
+        if isinstance(operation_binding, Mapping)
+        else "not_declared"
+    )
+    if operation_state == "invalid":
+        return {
+            "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+            "execution_readiness": "schema_invalid",
+            "execution_ready": False,
+            "execution_reason_code": str(
+                (operation_binding or {}).get(
+                    "reason_code", "operation_binding_invalid"
+                )
+            )[:96],
+        }
+    if operation_state == "unknown":
+        return {
+            "execution_readiness_schema_version": EXECUTION_READINESS_SCHEMA_VERSION,
+            "execution_readiness": "unknown",
+            "execution_ready": False,
+            "execution_reason_code": str(
+                (operation_binding or {}).get(
+                    "reason_code", "operation_binding_unknown"
+                )
+            )[:96],
         }
 
     contract = domain.get("execution_contract")

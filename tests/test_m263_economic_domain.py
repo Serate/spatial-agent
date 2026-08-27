@@ -121,7 +121,15 @@ class M263EconomicDomainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "economic.json"
             payload = _payload()
-            payload["records"].append(dict(payload["records"][0], region_id="420100", region="武汉市", geography_level="city"))
+            payload["records"].append(
+                dict(
+                    payload["records"][0],
+                    region_id="420100",
+                    region="武汉市",
+                    geography_level="city",
+                    source=dict(payload["records"][0]["source"], geography_level="city"),
+                )
+            )
             path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             old = os.environ.get("SPATIAL_AGENT_ECONOMIC_DATA")
             os.environ["SPATIAL_AGENT_ECONOMIC_DATA"] = str(path)

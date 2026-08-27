@@ -5276,3 +5276,25 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 阶段文档、中文问题日志、工作快照和任务账本已同步；下一阶段按全局目标规划通用
   分析算子与 Economic Domain 的真实数据闭合，React 前端迁移另立独立阶段，不改变
   Runtime 公共契约。
+
+## M312：通用分析算子与跨域真实能力闭合（已完成）
+
+- 完成 operation → capability → workflow → Result profile → readiness 绑定审计；
+  通用 `clip`、`intersect`、`buffer`、`distance` 共用 ToolRegistry、GIS adapter、
+  CRS/空结果/预算和 `vector` 结果契约。
+- Economic 的 query/trend/compare/evidence 使用真实武汉/洪山指标数据和来源证据，
+  统一指标、区域、时间范围、freshness 与 `document_evidence` 投影；缺失数据保持结构化
+  澄清或不可用。
+- GIS、Economic、Indicators 通过同一 Planner、TaskPlan/DAG、ToolRegistry、workflow、
+  execution binding、Result/View/Evidence 完成真实 Docker 三组件同步/异步/artifact/
+  SQLite/restart 对照；三组件均 `COMPLETED`，跨入口 identity 全部一致。
+- 阶段门禁：M263/M264/M303/M304/M305/M306/M308/M310/M311/M312 **88/88**；全目录
+  compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance
+  和 readiness `200/ready` 通过；真实 GIS/Economic 双域重启接管 `recovery_count=1`。
+- 唯一一次显式真实模型验收使用 `deepseek-v4-flash`，规划和回答生成均成功，8 个 GIS
+  工具步骤完成、0 重试；仅记录脱敏 model evidence 和既有 run 的无模型合同复核，不保存
+  密钥、prompt 或模型原文。
+- 收口修复：provider failure 不再被通用错误覆盖；Docker 验收明确使用
+  `--env-file .env.production`；直接执行验收脚本补齐项目根路径。
+- 下一阶段候选：独立 React 前端迁移；保持 HTTP、Result、View、Evidence、Trace、Artifact
+  与 Runtime 公共契约不变。

@@ -112,13 +112,21 @@ class EconomicDomainPack:
             if any(term in text for term in ("比较", "对比", "差异"))
             else "latest"
         )
-        from .planner import _indicator_id, _period_type, _regions
+        from .planner import _geography_level, _indicator_id, _period_bounds, _period_type, _regions
 
         indicator = _indicator_id(text)
         regions = _regions(text)
         period_type = _period_type(text)
+        geography_level = _geography_level(text)
+        period_start, period_end = _period_bounds(text)
         constraints = {"dataset": ECONOMIC_DATASET, "indicator": indicator, "regions": regions, "period_type": period_type}
-        return RequestFacts(text=text, admin_name=None, tasks=(task,), datasets=(ECONOMIC_DATASET,), constraints=constraints, evidence=("answer", "provenance", "source_evidence"), entities={"indicator": indicator, "regions": regions, "period_type": period_type})
+        if geography_level:
+            constraints["geography_level"] = geography_level
+        if period_start:
+            constraints["period_start"] = period_start
+        if period_end:
+            constraints["period_end"] = period_end
+        return RequestFacts(text=text, admin_name=None, tasks=(task,), datasets=(ECONOMIC_DATASET,), constraints=constraints, evidence=("answer", "provenance", "source_evidence"), entities={"indicator": indicator, "regions": regions, "period_type": period_type, "geography_level": geography_level, "period_start": period_start, "period_end": period_end})
 
     def analysis_intent(self, request: str, request_facts: Any) -> Mapping[str, Any] | None:
         """Project Economic task semantics into the shared intent contract."""
@@ -135,7 +143,7 @@ class EconomicDomainPack:
             "evidence": ["document_evidence"],
         }[operation]
         constraints = facts.get("constraints") or {}
-        fact_refs = [key for key in ("indicator", "regions", "period_type") if constraints.get(key)]
+        fact_refs = [key for key in ("indicator", "regions", "geography_level", "period_type", "period_start", "period_end") if constraints.get(key)]
         operations: list[dict[str, Any]] = [{"id": "analysis", "kind": operation, "output_kinds": output_kinds, "fact_refs": fact_refs}]
         if operation != "evidence" and "source_evidence" in (facts.get("evidence") or []):
             operations.append({"id": "evidence", "kind": "evidence", "depends_on": ["analysis"], "output_kinds": ["document_evidence"], "fact_refs": ["source_evidence"]})

@@ -6,23 +6,40 @@
 
 ## 当前阶段
 
-- 阶段：M312 通用分析算子与跨域真实能力闭合（已规划）
+- 阶段：M312 通用分析算子与跨域真实能力闭合（已完成）
 - 阶段规划：
   - `docs/m312-general-operators-cross-domain-capability-map.md`
   - `docs/m312-general-operators-cross-domain-spec.md`
   - `docs/m312-general-operators-cross-domain-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
-- 当前任务：M312-A 操作到 capability/result profile 绑定审计（已规划）；不改变 Runtime、TaskPlan/DAG、ToolRegistry 或生命周期的权威边界。
+- 当前任务：无；M312-F 已完成，下一阶段候选为 React 前端迁移。React 另立 Goal，
+  不改变 Runtime、TaskPlan/DAG、ToolRegistry 或生命周期的权威边界。
 - M311 结果：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，以及 compileall、architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和 readiness **200** 全部通过；唯一一次真实模型调用到达 provider 并完成真实 GIS 执行，后续发现的缺失 `output.type` 已通过计划边界修复，未重复调用。
-- 下一步：先审计 M311 operation → capability/result profile 的闭合，再进入通用 GIS 算子和 Economic 真实数据切片。
+- 下一步：先为 React 前端迁移创建 capability map、Spec、Plan 和独立 Goal；当前 Goal
+  不再混入前端技术迁移。
 
-### M312-A：操作到能力/结果类型绑定（已规划）
+### M312-A：操作到能力/结果类型绑定（已完成）
 
 - 目标：确认每类通用分析操作都能映射到已注册 capability、workflow、输入/输出 profile 和事实要求；未知或冲突绑定必须 fail closed。
 - 依据：`docs/m312-general-operators-cross-domain-capability-map.md`、`docs/m312-general-operators-cross-domain-spec.md`、`docs/m312-general-operators-cross-domain-plan.md`。
-- 当前需要修改的文件：审计后按直接依赖增量加入，优先 `agent/analysis_intent.py`、`agent/capability_catalog.py`、`agent/domain_catalog.py`、对应 Domain catalog 和 M312 精简契约。
+- 实际修改文件：`agent/operation_binding.py`、`agent/runtime_core/plan_completeness.py`、
+  `agent/domain_catalog.py`、对应 GIS/Economic catalog 和 M312 精简契约。
 - 验证：开发期间只做直接相关契约；M312 阶段收口集中执行 Docker、真实 GIS/Economic 和一次 live。
 - 阻塞：无。
+
+### M312-A～F：通用分析算子与跨域真实能力闭合 — 已完成
+
+- 完成 operation → capability → workflow → Result profile → readiness 绑定、通用 GIS
+  `clip/intersect/buffer/distance`、Economic 真实数据与来源证据、跨域 TaskPlan/DAG 和
+  动态结果消费者；不改变 Runtime 主循环或增加领域专用前端分支。
+- Docker M263/M264/M303/M304/M305/M306/M308/M310/M311/M312 **88/88**；全目录
+  compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance、
+  artifact/async/restart 和 readiness `200/ready` 通过。
+- 真实 Docker GIS/Economic/Indicators 三组件跨入口 identity 一致；真实 GIS/Economic 双域
+  restart `recovery_count=1`；一次显式真实模型规划和答案生成成功，0 重试。
+- 收口修复与问题日志：provider failure 覆盖、Compose 环境文件导致数据卷错误、live 轮询
+  窗口不足、直接执行验收脚本缺少根路径。
+- 当前无进行中任务；下一阶段候选为独立 React 前端迁移，需另建 Spec、Plan 和 Goal。
 
 ### M311：通用分析意图与跨域开放链路（已完成）
 
@@ -546,3 +563,22 @@
 - 验证：Docker M304/M305 **14/14**、M303/M283 **16/16**，合并 **30/30**；compileall、architecture strict、Service smoke、生产 acceptance、Node projection 和 readiness **200** 通过。
 - 显式 live：1 次、60 秒、0 重试；真实 provider 返回合法单组件计划并完成 sync/async/artifact 对照，未保存密钥、prompt 或模型原文。
 - 下一步：完成 M305-F 文档、版本交付和全局重规划。
+
+### M312-A：操作到 capability/result profile 绑定审计 — 已完成
+- 新增 `spatial-agent.operation-binding.v1`，把 operation、workflow identity、Result data profile 与执行 readiness 形成结构化 receipt。
+- workflow 匹配收紧为 capability identity 或显式 alias；同工具/同结果的候选不再自动猜测，未闭合历史能力保持 `workflow_unbound`。
+- Docker M312-A **5/5**、M311/M310/M296 **36/36**、compileall 和 architecture strict 通过；未调用真实模型。
+
+### M312-B：通用 GIS 空间算子闭合 — 已完成
+- 目标：在现有 ToolRegistry/GIS adapter 边界内闭合 `clip`、`intersect`、`buffer`、`distance` 的 workflow、CRS、空结果、错误和 `spatial_operation_result` profile。
+- 当前文件：`tools/schema/tool-definitions.json`、`domains/gis/adapters/spatial_backend.py`、`domains/gis/workflow_templates.py`、`domains/gis/catalog.py`、`domains/gis/result_registry.py`、`tests/test_m312_general_operators.py`。
+- 验证：阶段收口在 Docker 中运行精简 GIS 契约和必要相邻回归；不重复调用真实模型。
+
+### M312-B：通用 GIS 空间算子闭合 — 已完成
+- 四个空间 operation 继续共用已有 GIS backend；结果统一返回 `vector` profile、输出 CRS、重投影状态、预算和空结果摘要。
+- Docker M312 GIS **7/7**、M247/M69/M311 **25/25** 通过；未调用真实模型。
+
+### M312-C：Economic 真实数据与来源证据闭合 — 已完成
+- 目标：闭合 Economic 的 query/trend/compare/evidence 数据、时间/区域事实和 provenance。
+- 当前文件：`domains/economic/provider.py`、`domains/economic/evidence.py`、`domains/economic/catalog.py`、`domains/economic/workflow_templates.py`、`domains/economic/domain.py`、`domains/economic/composer.py`、`tests/test_m312_general_operators.py`。
+- 验证：Docker 真实数据契约与必要相邻回归；不重复调用真实模型。

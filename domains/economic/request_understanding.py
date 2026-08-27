@@ -15,6 +15,9 @@ ECONOMIC_REQUEST_UNDERSTANDING_GUIDANCE = {
         {"id": "indicator", "label": "经济指标 ID", "phrases": ["指标", "GDP", "投资", "消费", "收入"]},
         {"id": "regions", "label": "统计区域", "phrases": ["市", "区", "县", "区域"]},
         {"id": "period_type", "label": "期间类型", "phrases": ["年度", "季度", "半年", "月度"]},
+        {"id": "geography_level", "label": "区域层级", "phrases": ["省级", "市级", "区级", "县级", "行政层级"]},
+        {"id": "period_start", "label": "起始期间", "phrases": ["起始年份", "期间"]},
+        {"id": "period_end", "label": "结束期间", "phrases": ["结束年份", "期间"]},
     ],
     "evidence_hints": [{"id": "provenance", "label": "来源证据", "phrases": ["来源", "出处", "统计口径"]}],
     "clarification_policy": [

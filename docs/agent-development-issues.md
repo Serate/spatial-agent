@@ -1470,3 +1470,94 @@ Docker Desktop 环境从容器访问宿主机服务使用 `host.docker.internal`
 
 任何新增 Planner、Result 或 View 入口都要验证 `计划输出类型 → Result Contract →
 View/Artifact` 的完整传播；不能只断言步骤执行成功而忽略结果类型和视图可用性。
+
+## M312 Composite provider failure 被末尾投影覆盖
+
+### 现象
+
+M304 provider failure 契约期望保留底层 `provider_timeout` 和 `retryable=true`，实际结果
+却被改写为 `planner_provider_failed`，导致前端和恢复动作丢失更准确的 provider 分类。
+
+### 根因
+
+`CompositePlanningApplication` 先按 `details.provider_failure` 构造了安全的 provider
+failure evidence，随后异常处理末尾又无条件写入通用 planning failure，覆盖了前面的结果。
+
+### 修复与预防
+
+- provider failure 分支只保留底层安全错误码、分类和 retryable；通用 failure 只用于非
+  provider 异常。
+- 回归测试覆盖“底层 provider code 与规划器包装 code 不同”的场景，并检查下一步动作。
+- 同一异常处理函数中不得对同一个公共 evidence 字段进行无条件二次写入；新增错误投影
+  后应运行对应的最小 failure contract。
+
+## M312 Docker Compose 环境文件与数据卷不一致
+
+### 现象
+
+容器环境变量显示真实数据根目录，但容器内只有项目 `data` 目录中的 Economic 文件，
+GIS 数据不可用；健康检查仍可能返回 200，容易误判为 GIS 数据已经挂载。
+
+### 根因
+
+Compose 的变量插值发生在 `env_file` 生效之前。执行 `docker compose` 时未显式传入
+`--env-file .env.production`，卷路径从默认 `.env` 插值为 `./data`；服务环境变量则仍从
+`.env.production` 读取，形成配置与挂载分离。
+
+### 修复与预防
+
+- 生产/真实 GIS 验收统一使用：
+  `docker compose -f docker-compose.prod.yml --env-file .env.production ...`。
+- 重建后同时检查 `docker compose config` 的卷源、容器 `/data` 文件清单和数据健康报告，
+  不能只检查 `/health/ready`。
+- 健康检查应区分“依赖库可用”和“配置数据可读”；缺失数据必须进入结构化 degraded/
+  unavailable 证据。
+
+## M312 Live 验收轮询预算小于 provider 预算
+
+### 现象
+
+真实模型请求已提交并最终完成，但验收脚本提前报告“异步 run 未进入终态”。
+
+### 根因
+
+本次手动参数将轮询次数与间隔组合成约 18 秒，小于 provider 允许的约 90 秒预算；服务端
+worker 仍在正常执行，harness 的失败不是业务 run 失败。
+
+### 修复与预防
+
+- live 验收的轮询总预算必须大于 `request_timeout + 异步排队余量`，默认使用脚本的有界
+  轮询配置，不手动缩短到低于 provider deadline。
+- harness 失败时先查询已有 run 的 observability 和 artifact，再决定是 provider、harness
+  还是执行失败；不要因为轮询超时重复发起模型请求。
+- 复核已有 run 使用 `--verify-run-id`，只做无模型合同检查。
+
+## M312 直接执行验收脚本缺少项目根路径
+
+### 现象
+
+`python scripts/m308_real_composition_acceptance.py` 直接执行时报 `ModuleNotFoundError`，
+但作为模块或其它入口运行正常。
+
+### 根因
+
+脚本导入 `agent` 前没有把仓库根目录加入 `sys.path`；脚本工作目录不是可靠的模块导入前提。
+
+### 修复与预防
+
+- 直接执行的仓库验收脚本在导入项目包前根据 `__file__` 注入仓库根路径。
+- 每个新验收脚本至少做一次“从仓库根目录直接执行”的 smoke；错误只记录类型和状态，
+  不输出配置密钥或模型原文。
+
+## M312 前端健康浏览器 smoke 依赖 Chrome CDP
+
+### 现象
+
+`console_health_smoke.js` 在未启动 Chrome CDP `9222` 时失败，错误为连接被拒绝；这不
+代表页面、Node projection 或后端服务失败。
+
+### 处理与预防
+
+- 将 Node projection smoke 与需要浏览器 CDP 的交互 smoke 分开报告。
+- 浏览器 smoke 执行前显式启动隔离 Chrome/CDP，并先检查 `/json/list`；若环境未提供 CDP，
+  记录为环境未满足，不伪装成项目通过。
