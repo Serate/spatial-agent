@@ -20,11 +20,13 @@
   GIS 答案流验收。成功 Run 共 384 个事件、368 个 answer delta，Last-Event-ID 续传完整。
 - M314 已加入独立答案 provider 预算：默认 20 秒、768 token、0 重试；Docker 定向回归、
   compileall、architecture strict、实时事件/规划等待/答案流 smoke 和一次真实回答验收已通过。
+- M314 补充修复了 Planner 输出截断：真实请求输出达到 2048 token 时只触发一次紧凑计划恢复，
+  原始问题已在真实 DeepSeek + 本地 GIS 下恢复为 `COMPLETED`；恢复计划不绕过任何校验。
 - 版本交付后按全局目标重新规划下一阶段；若 Provider 配置再次失败，记录安全错误 receipt，
   不重复重试。
 - 详细恢复入口仍是 `docs/agent-work-state.md` 与 `tasks/task-progress.md`；当前开发方式为
   单 Agent、最大并发度 1。恢复时只读取 M314 Spec/Plan、当前快照、任务账本尾部和明确文件。
-- 最新版本 `737f2a3` 已提交并推送；若继续工作，先检查 `git status`、任务账本当前/最近区块和
+- 最新版本 `0cb0c63` 已提交并推送；若继续工作，先检查 `git status`、任务账本当前/最近区块和
   当前 Goal 状态，不批量读取历史阶段文档或全量源码。
 
 ## Agent 能力与日常体验补充约束

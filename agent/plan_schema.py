@@ -12,24 +12,30 @@ TASK_PLAN_SCHEMA: Dict[str, Any] = {
         "goal": {"type": "string"},
         "outcome": {"type": "string", "enum": ["success", "direct_answer", "needs_clarification", "rejected"]},
         "message": {"type": "string"},
-        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "assumptions": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {"type": "string", "maxLength": 200},
+        },
         "output": {
             "type": "object",
             "required": ["type"],
+            "additionalProperties": False,
             "properties": {
-                "type": {"type": "string", "minLength": 1},
+                "type": {"type": "string", "minLength": 1, "maxLength": 96},
             },
         },
         "steps": {
             "type": "array",
             "minItems": 0,
+            "maxItems": 8,
             "items": {
                 "type": "object",
                 "required": ["id", "tool", "args"],
                 "additionalProperties": False,
                 "properties": {
-                    "id": {"type": "string"},
-                    "tool": {"type": "string"},
+                    "id": {"type": "string", "maxLength": 96},
+                    "tool": {"type": "string", "maxLength": 96},
                     "args": {"type": "object"},
                     "depends_on": {"type": "array", "items": {"type": "string"}},
                 },

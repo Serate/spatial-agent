@@ -906,3 +906,11 @@
 - 已完成：阶段集中回归、工作区/问题日志同步；提交并推送阶段版本后进入全局重规划。
 - 验证：SSE 红灯回归已先失败后通过；M16/M313/M313-answer 共 26 个 Docker 用例通过；compileall、architecture strict、前端答案 smoke 通过。
 - 阻塞：无。不得保存或输出密钥、Prompt、模型原文、隐藏思维链或私有路径。
+
+### M314 补充修复：真实请求 Planner JSON 截断 — 已完成
+
+- 复现：用户的 DEM 元数据 + 覆盖范围/分辨率/坐标系/最小最大高程请求在真实 Docker 环境返回 `invalid_model_response`。
+- 根因：Provider `completion_tokens=2048` 恰好达到 `OPENAI_MAX_OUTPUT_TOKENS`，JSON 输出被截断；不是 URL、认证、GIS 或前端渲染问题。
+- 修复：Planner 对 `invalid_model_response` 进行一次紧凑计划恢复；收紧 TaskPlan schema 的数组/字符串边界，并记录安全 `finish_reason` 与 `compact_recovery_attempts`。
+- 真实复验：同一问题返回 `COMPLETED`，执行 metadata/statistics 两步，答案生成 streaming 成功；规划 1 次主请求 + 1 次有界恢复，0 次 provider retry。
+- 验证：Docker M16 新增/相关回归通过；原始 live HTTP acceptance 已转绿。未保存 key、Prompt、模型原文或隐藏思维链。

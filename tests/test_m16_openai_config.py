@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from agent.errors import PlanningError
 from agent.llm_planner import (
+    LLMPlanner,
     OpenAIPlannerClient,
     _append_query_param,
     _chat_completions_url,
@@ -212,6 +213,70 @@ class M16OpenAIConfigTests(unittest.TestCase):
         self.assertEqual(body["max_tokens"], 800)
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 12)
         self.assertEqual(client.metrics()["usage"]["total_tokens"], 14)
+
+    def test_chat_completions_records_bounded_finish_reason(self):
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, _exc_type, _exc_value, _traceback):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "choices": [
+                            {
+                                "finish_reason": "length",
+                                "message": {"content": '{"goal":"'}
+                            }
+                        ],
+                        "usage": {"prompt_tokens": 10, "completion_tokens": 800, "total_tokens": 810},
+                    }
+                ).encode("utf-8")
+
+        client = OpenAIPlannerClient(
+            api_key="sk-test",
+            base_url="https://api.deepseek.com",
+            wire_api="chat_completions",
+            max_output_tokens=800,
+            max_retries=0,
+        )
+        with patch("agent.llm_planner.urllib.request.urlopen", return_value=FakeResponse()):
+            with self.assertRaises(PlanningError) as raised:
+                client.complete_json([], {})
+        self.assertEqual(raised.exception.code, "invalid_model_response")
+        self.assertEqual(client.metrics()["finish_reason"], "length")
+
+    def test_invalid_model_response_gets_one_compact_plan_recovery(self):
+        class RecoveryClient:
+            def __init__(self):
+                self.calls = []
+
+            def complete_json(self, messages, _schema):
+                self.calls.append(messages)
+                if len(self.calls) == 1:
+                    raise PlanningError(
+                        "invalid JSON",
+                        category="planning",
+                        code="invalid_model_response",
+                    )
+                return {
+                    "goal": "查询 DEM 元数据",
+                    "steps": [{"id": "metadata", "tool": "get_raster_metadata", "args": {}}],
+                    "output": {"type": "raster_metadata_result"},
+                }
+
+            def metrics(self):
+                return {"status": "success"}
+
+        client = RecoveryClient()
+        planner = LLMPlanner(client, ["get_raster_metadata"])
+        plan = planner.plan("查询 DEM 元数据")
+        self.assertEqual(plan.steps[0].tool, "get_raster_metadata")
+        self.assertEqual(len(client.calls), 2)
+        self.assertEqual(planner.metrics()["compact_recovery_attempts"], 1)
+        self.assertIn("exactly one compact JSON", client.calls[1][0]["content"])
 
 
 @unittest.skipUnless(os.environ.get("SPATIAL_AGENT_LIVE_OPENAI") == "1", "set SPATIAL_AGENT_LIVE_OPENAI=1 to run live OpenAI planner smoke")
