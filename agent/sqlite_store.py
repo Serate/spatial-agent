@@ -18,6 +18,7 @@ from .recovery_action import normalize_action_receipt
 from .execution_timeline import normalize_execution_timeline
 from .nested_schema import normalize_domain_routing_evidence_contract
 from .interaction_contract import InteractionContractError
+from .run_events import normalize_run_event, validate_event_cursor, validate_event_limit
 
 
 _ASYNC_JOB_SELECT = """
@@ -648,6 +649,10 @@ class SQLiteStateStore:
                     run_ids,
                 )
                 connection.execute(
+                    "DELETE FROM run_events WHERE run_id IN (" + placeholders + ")",
+                    run_ids,
+                )
+                connection.execute(
                     "DELETE FROM agent_runs WHERE run_id IN (" + placeholders + ")",
                     run_ids,
                 )
@@ -668,6 +673,79 @@ class SQLiteStateStore:
                 (session_id,) + async_parameters,
             )
         return len(rows)
+
+    def append_run_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Append one idempotent event and assign a run-local sequence."""
+        normalized = normalize_run_event(event)
+        with self._connection() as connection:
+            existing = connection.execute(
+                "SELECT payload FROM run_events WHERE event_id = ?",
+                (normalized["event_id"],),
+            ).fetchone()
+            if existing is not None:
+                return json.loads(existing[0])
+            row = connection.execute(
+                "SELECT COALESCE(MAX(sequence), 0) FROM run_events WHERE run_id = ?",
+                (normalized["run_id"],),
+            ).fetchone()
+            normalized["sequence"] = int(row[0] or 0) + 1
+            payload = json.dumps(normalized, ensure_ascii=True, separators=(",", ":"))
+            connection.execute(
+                """
+                INSERT INTO run_events
+                    (event_id, run_id, sequence, created_at, payload)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    normalized["event_id"],
+                    normalized["run_id"],
+                    normalized["sequence"],
+                    normalized["created_at"],
+                    payload,
+                ),
+            )
+        return normalized
+
+    def list_run_events(
+        self,
+        run_id: str,
+        *,
+        after: Any = 0,
+        limit: Any = 100,
+        domain_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Read a bounded, ordered event window after a run-local cursor."""
+        cursor = validate_event_cursor(after)
+        count = validate_event_limit(limit)
+        domain_clause = ""
+        parameters: tuple[Any, ...] = (str(run_id), cursor, count)
+        if domain_id:
+            domain_clause = """
+                   AND EXISTS (
+                       SELECT 1 FROM agent_runs AS runs
+                        WHERE runs.run_id = run_events.run_id
+                          AND COALESCE(json_extract(runs.payload, '$.domain_id'), ?) = ?
+                   )
+            """
+            parameters = (
+                str(run_id),
+                cursor,
+                self._legacy_domain_id,
+                str(domain_id),
+                count,
+            )
+        with self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload FROM run_events
+                 WHERE run_id = ? AND sequence > ?
+                """ + domain_clause + """
+                 ORDER BY sequence ASC
+                 LIMIT ?
+                """,
+                parameters,
+            ).fetchall()
+        return [normalize_run_event(json.loads(row[0]), expected_run_id=str(run_id)) for row in rows]
 
     def metrics(self, domain_id: Optional[str] = None) -> Dict[str, Any]:
         records = self.list_runs(limit=1000000, domain_id=domain_id)
@@ -743,6 +821,16 @@ class SQLiteStateStore:
                     payload TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS run_events (
+                    event_id TEXT PRIMARY KEY,
+                    run_id TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    UNIQUE (run_id, sequence)
+                );
+                CREATE INDEX IF NOT EXISTS idx_run_events_run_sequence
+                    ON run_events(run_id, sequence);
                 CREATE TABLE IF NOT EXISTS run_controls (
                     run_id TEXT PRIMARY KEY,
                     cancel_requested INTEGER NOT NULL DEFAULT 0

@@ -6,17 +6,16 @@
 
 ## 当前阶段
 
-- 阶段：M312 通用分析算子与跨域真实能力闭合（已完成）
+- 阶段：M313 实时 Agent 交互与可观测执行体验（已完成）
 - 阶段规划：
-  - `docs/m312-general-operators-cross-domain-capability-map.md`
-  - `docs/m312-general-operators-cross-domain-spec.md`
-  - `docs/m312-general-operators-cross-domain-plan.md`
+  - `docs/m313-realtime-agent-experience-capability-map.md`
+  - `docs/m313-realtime-agent-experience-spec.md`
+  - `docs/m313-realtime-agent-experience-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
-- 当前任务：无；M312-F 已完成，下一阶段候选为 React 前端迁移。React 另立 Goal，
-  不改变 Runtime、TaskPlan/DAG、ToolRegistry 或生命周期的权威边界。
+- 当前任务：无。M313-A～F 已完成，阶段门禁通过，待提交/推送后进入全局重规划。
+- 交接入口：`docs/agent-work-state.md`；恢复只读快照、任务进度当前/最近区块和明确文件，历史状态按需读取。
 - M311 结果：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，以及 compileall、architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和 readiness **200** 全部通过；唯一一次真实模型调用到达 provider 并完成真实 GIS 执行，后续发现的缺失 `output.type` 已通过计划边界修复，未重复调用。
-- 下一步：先为 React 前端迁移创建 capability map、Spec、Plan 和独立 Goal；当前 Goal
-  不再混入前端技术迁移。
+- 下一步：提交并推送 M313；从产品、架构、数据、模型、部署、体验、测试七个维度规划下一阶段。
 
 ### M312-A：操作到能力/结果类型绑定（已完成）
 

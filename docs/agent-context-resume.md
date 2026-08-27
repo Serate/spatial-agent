@@ -1,6 +1,6 @@
 # Agent 历史恢复卡
 
-本文件保存阶段性历史结论，不是新对话或上下文压缩后的启动文件。恢复时只执行 `pwsh -NoProfile -File scripts/resume_context.ps1`，脚本默认读取 [`agent-work-state.md`](agent-work-state.md)，不加载本文件。
+本文件保存阶段性历史结论，不是新对话或上下文压缩后的主要启动内容。恢复时优先读取本文件和 [`task-resume.md`](task-resume.md) 的入口规则，再执行 `pwsh -NoProfile -File scripts/resume_context.ps1`；脚本默认只读取 [`agent-work-state.md`](agent-work-state.md) 和任务账本有界区块，不加载本文件的历史正文。
 
 ## 目标
 
@@ -8,20 +8,21 @@
 
 ## 上下文恢复约束
 
-- 只读取当前工作快照、对应阶段规划、最近进行中的任务和明确列出的待修改文件。
+- 只读取当前工作快照、对应阶段规划、最近进行中的任务和明确列出的待修改文件；本文件和 `task-resume.md` 默认只读取入口规则，不全文读取历史。
 - 完整历史、问题日志、milestones、归档、全量测试和模型响应必须按需读取，不能作为默认恢复输入。
 - 每个子任务的状态、文件、验证、阻塞和下一步先记录到 `tasks/task-progress.md`；`tasks/task-state.md` 保留详细兼容状态；`docs/agent-work-state.md` 只保留当前快照和恢复入口；阶段完成后再归档到本文件。
 - Goal 级最小读取规则：恢复上下文时只打开当前任务明确需要的文件；如果仅需判断状态，仅读取快照和任务账本尾部；不得因为“了解项目”而批量读取历史文档、全量源码、全量测试或模型输出。
 - 读取范围必须随当前任务同步更新：开始任务前列出必要文件，发现不需要的文件立即停止读取；新增文件只有在能证明与当前任务直接相关时才加入。
 
-## 最新状态（M312 已完成）
+## 最新状态（M313 已完成）
 
-- 当前 Goal 已完成：通用分析算子、真实 Economic 数据、跨域 Planner/TaskPlan/ToolRegistry、
-  Result/View/Evidence、Docker 真实 GIS/Economic/Indicators 验收和一次真实模型验收均已收口。
-- 详细恢复入口仍是 `docs/agent-work-state.md` 与 `tasks/task-progress.md`；下一阶段候选是
-  独立 React 前端 Goal，不在当前 Goal 内改写 Runtime。
-- 最新版本交付前若需继续工作，先检查 `git status`、任务账本尾部和当前 Goal 状态，不批量读取
-  历史阶段文档或全量源码。
+- 当前阶段已完成：版本化 RunEvent、Runtime 生命周期事件、HTTP SSE、Last-Event-ID、
+  polling fallback、Console 实时状态、真实模型答案 delta、Docker/浏览器/重启恢复和一次
+  真实模型 + 本地 GIS 验收均已收口。
+- 详细恢复入口仍是 `docs/agent-work-state.md` 与 `tasks/task-progress.md`；当前开发方式为
+  单 Agent、最大并发度 1。下一阶段候选是复用实时契约的 React Console 增量迁移。
+- 最新版本交付前若需继续工作，先检查 `git status`、任务账本当前/最近区块和当前 Goal 状态，
+  不批量读取历史阶段文档或全量源码。
 
 ## Agent 能力与日常体验补充约束
 

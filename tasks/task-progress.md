@@ -16,7 +16,38 @@
 - Goal 级上下文约束：恢复或继续任务时，只读取当前任务明确必需的文件；仅判断状态时只读取工作快照和任务账本尾部，不批量读取历史文档、全量源码、全量测试或模型响应。发现新的直接依赖后，才将其加入必要文件清单。
 - Goal 正式最小读取约束：上下文恢复不得默认加载历史文档、全量源码、全量测试、模型原文或无关数据；只有当前任务明确证明某文件是直接依赖时，才把它加入必要文件清单并读取。
 
-## 当前任务
+## 当前进行中
+
+### M313 交付收口、提交推送与全局重规划 — 进行中
+
+- 目标：保留已完成的 M313 实现和验收证据，完成版本提交推送，并为下一阶段建立全局规划入口。
+- 当前修改文件：M313 实现、契约测试、Console smoke、阶段 Spec/Plan、交接快照、任务账本和中文问题日志；`.playwright-mcp/` 不纳入提交。
+- 验证：M313 Docker 11/11、Node event smoke、生产验收、Domain SSE/续传、重启恢复、浏览器、compileall 和 architecture strict 均通过；一次真实模型 + 本地 GIS 已完成。
+- 阻塞：无。不得展示隐藏思维链、Prompt、密钥、原始模型响应或未经校验的工具参数。
+- 下一步：提交并推送 M313；完成后按产品、架构、数据、模型、部署、体验、测试七个维度重规划。
+
+## 最近完成
+
+### 当前 Goal 调整：单 Agent 与精简目标 — 已完成
+
+- 结果：当前阶段目标收敛为实时事件、可观测进展、答案流和可恢复交互；删除并行开发相关要求，最大并发度固定为 1。
+- 记录：精简目标已同步到 `docs/agent-project-direction.md` 和 `docs/agent-work-state.md`；M313 的实现范围保持不变。
+- 验证：文档一致性检查通过；无需运行代码测试。
+
+### M313-D～F：实时 Console、答案流与阶段交付 — 已完成
+
+- 结果：Console 消费真实 RunEvent，展示阶段、动作、耗时、心跳、摘要和降级；答案生成支持真实模型 delta 与完整答案 fallback；轮询临时错误有限重试，降级证据补充安全默认原因。
+- 验证：Docker M313 事件/答案流契约 **11/11**；Node event smoke、生产验收、Domain SSE（81 事件/51 个 `answer_delta`）、`Last-Event-ID` 续传、服务重启恢复、浏览器动态结果、compileall、architecture strict 和 readiness **200** 全部通过。
+- 真实验收：一次真实模型 + 本地 GIS 返回 `live_model`、`answer_streaming=true`；未保存密钥、Prompt 或模型原文。
+- 交付：M313 Spec/Plan、交接快照、任务账本、中文问题日志和精简目标约束已同步；下一步为提交推送与全局重规划。
+
+### M313-A～C：RunEvent、生命周期事件与 HTTP 实时读取 — 已完成
+
+- 结果：新增版本化 `RunEvent` 及内存/SQLite 事件账本；Runtime、异步 worker、工具步骤和终态发出阶段事件；HTTP 共享 `run_events` 读取语义，FastAPI/stdlib 支持 SSE、`Last-Event-ID` 和 polling 读取。
+- 验证：Docker M313 事件/SQLite 契约 **6/6**；生产 HTTP SSE 已验证按序读取 13 个事件；服务 readiness 为 200。事件账本不替代 Result、Trace 或 Evidence。
+- 未提交变更：保留上一轮 `agent/tool_provider.py`、`tests/test_m135_runtime_context.py` 和中文问题日志修复，以及本阶段代码。
+
+## 历史任务
 
 ### M311：通用分析意图与跨域开放链路 — 已完成
 
@@ -838,3 +869,11 @@
 - 说明：本次 live harness 最初因人为传入 18 秒轮询窗口提前报告未终态，服务端 run 后续正常完成；后续复核使用同一 run，未重复调用模型。
 - 阻塞：无。
 - 下一步：当前 Goal 满足阶段交付条件；先标记完成，再创建独立 React 前端迁移 Goal。
+### M313-A：RunEvent 契约与事件账本 — 已完成
+
+- 目标：建立版本化、脱敏、可排序、可恢复的领域中立 `RunEvent`；内存和 SQLite 使用同一读取/追加语义，支持后续 SSE 的 `Last-Event-ID`。
+- 已完成：读取本轮目标文件；完成 M313 capability map、Spec、Plan；审计现有异步生命周期、Runtime 阶段、SQLite schema、FastAPI/stdlib HTTP 边界和原生 Console 轮询。
+- 当前动作：已实现 `agent/run_events.py` 及内存/SQLite 事件账本，不修改上一轮 runtime context 修复。
+- 明确文件：`agent/run_events.py`、`agent/runtime_state.py`、`agent/sqlite_store.py`、`agent/service_state.py`、`tests/test_m313_realtime_events.py`。
+- 验证：当前只做 `git diff --check` 和必要语法检查；A 完成后在 Docker 集中运行 M313 事件契约与 SQLite 重启回归。
+- 阻塞：无。不得保存 Prompt、模型原文、密钥、完整错误堆栈或私有路径；不得用事件账本替代 Result/Evidence。

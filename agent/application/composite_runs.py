@@ -46,6 +46,7 @@ from agent.provider_runtime import (
     project_planner_attempt_receipt,
     project_provider_runtime_evidence,
 )
+from agent.run_events import new_run_event
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
 from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.planner_repair import build_repair_lineage
@@ -401,16 +402,43 @@ class CompositeRunApplication:
         if not isinstance(canonical, Mapping):
             raise ValueError("composite coordinator returned no result contract")
         canonical = normalize_result_contract(canonical)
+        actual_run_id = _safe_required_run_id(response.get("run_id"))
+        self._append_run_event(
+            actual_run_id,
+            phase="answer",
+            kind="stage_started",
+            status="EXECUTING",
+            message="正在汇总组合分析结果",
+        )
+        streamed_length = 0
+
+        def emit_answer_delta(delta: str) -> None:
+            nonlocal streamed_length
+            if not isinstance(delta, str) or not delta:
+                return
+            streamed_length += len(delta)
+            self._append_run_event(
+                actual_run_id,
+                phase="answer",
+                kind="answer_delta",
+                status="EXECUTING",
+                message="答案正在生成",
+                data={
+                    "answer_delta": delta[:512],
+                    "answer_length": min(streamed_length, 1800),
+                },
+                terminal=False,
+            )
         canonical = self._compose_composite_answer(
             canonical,
             planning_evidence=planning_evidence,
+            on_delta=emit_answer_delta,
         )
         if planning_evidence:
             canonical = dict(canonical)
             canonical["planner_evidence"] = dict(planning_evidence)
         if execution_binding is not None:
             response["execution_binding"] = project_execution_binding(execution_binding)
-        actual_run_id = _safe_required_run_id(response.get("run_id"))
         snapshot = AgentRunResult(
             run_id=actual_run_id,
             status=_run_status(response.get("status")),
@@ -441,13 +469,51 @@ class CompositeRunApplication:
         # that the same request explicitly asked us to export.
         self._memory_results[actual_run_id] = snapshot
         self._state.save_run(snapshot)
+        self._append_run_event(
+            actual_run_id,
+            phase="answer",
+            kind="stage_completed",
+            status=snapshot.status.value,
+            message="组合分析答案已生成",
+            data={"answer_length": len(snapshot.answer or "")},
+        )
         return response
+
+    def _append_run_event(
+        self,
+        run_id: str,
+        *,
+        phase: str,
+        kind: str,
+        status: str,
+        message: str,
+        data: Mapping[str, Any] | None = None,
+        terminal: bool | None = None,
+    ) -> None:
+        sink = getattr(self._state, "append_run_event", None)
+        if not callable(sink):
+            return
+        try:
+            sink(
+                new_run_event(
+                    run_id=run_id,
+                    phase=phase,
+                    kind=kind,
+                    status=status,
+                    message=message,
+                    data=data,
+                    terminal=terminal,
+                )
+            )
+        except Exception:
+            return
 
     def _compose_composite_answer(
         self,
         result: Mapping[str, Any],
         *,
         planning_evidence: Mapping[str, Any] | None = None,
+        on_delta=None,
     ) -> dict[str, Any]:
         """Attach an LLM answer only to an LLM-planned Composite result.
 
@@ -468,7 +534,11 @@ class CompositeRunApplication:
         if generator is None or not callable(getattr(generator, "generate", None)):
             return dict(result)
         try:
-            generated = generator.generate(result)
+            stream_generate = getattr(generator, "generate_stream", None)
+            if callable(on_delta) and callable(stream_generate):
+                generated = stream_generate(result, on_delta=on_delta)
+            else:
+                generated = generator.generate(result)
             answer = getattr(generated, "answer", None)
             evidence = getattr(generated, "evidence", None)
             if not isinstance(answer, Mapping) or not isinstance(evidence, Mapping):

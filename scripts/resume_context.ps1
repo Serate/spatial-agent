@@ -2,8 +2,6 @@
 param(
     [ValidateRange(800, 4000)]
     [int]$MaxCurrentChars = 3600,
-    [ValidateRange(600, 3000)]
-[int]$MaxTaskStateChars = 2200,
     [ValidateRange(600, 2600)]
     [int]$MaxTaskProgressChars = 1800,
     [string]$Topic = '',
@@ -17,14 +15,10 @@ param(
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $snapshotPath = Join-Path $repoRoot 'docs/agent-work-state.md'
-$taskStatePath = Join-Path $repoRoot 'tasks/task-state.md'
 $taskProgressPath = Join-Path $repoRoot 'tasks/task-progress.md'
 
 if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) {
     throw "Missing work state snapshot: $snapshotPath"
-}
-if (-not (Test-Path -LiteralPath $taskStatePath -PathType Leaf)) {
-    throw "Missing task state ledger: $taskStatePath"
 }
 if (-not (Test-Path -LiteralPath $taskProgressPath -PathType Leaf)) {
     throw "Missing task progress ledger: $taskProgressPath"
@@ -47,9 +41,19 @@ function Get-TaskProgressExcerpt {
     $lines = @(Get-Content -LiteralPath $Path)
     $currentIndex = [Array]::IndexOf($lines, '## 当前进行中')
     $recentIndex = [Array]::IndexOf($lines, '## 最近完成')
+    function Find-NextTopLevelSection {
+        param(
+            [string[]]$SectionLines,
+            [int]$Start
+        )
+        for ($i = $Start; $i -lt $SectionLines.Count; $i++) {
+            if ([string]$SectionLines[$i] -match '^## [^#]') { return $i }
+        }
+        return $SectionLines.Count
+    }
     $currentLines = @()
     if ($currentIndex -ge 0) {
-        $currentEnd = if ($recentIndex -gt $currentIndex) { $recentIndex } else { $lines.Count }
+        $currentEnd = Find-NextTopLevelSection -SectionLines $lines -Start ($currentIndex + 1)
         $currentLines = @($lines[$currentIndex..($currentEnd - 1)])
     }
 
@@ -58,20 +62,20 @@ function Get-TaskProgressExcerpt {
     $selectedRecent = New-Object System.Collections.Generic.List[string]
     $used = 0
     if ($recentIndex -ge 0) {
+        $recentEnd = Find-NextTopLevelSection -SectionLines $lines -Start ($recentIndex + 1)
         $headers = @(
-            for ($i = $recentIndex + 1; $i -lt $lines.Count; $i++) {
+            for ($i = $recentIndex + 1; $i -lt $recentEnd; $i++) {
                 if ([string]$lines[$i] -like '### *') { $i }
             }
         )
-        # The ledger keeps the newest completed task immediately below
-        # "## 最近完成".  Read from the top of this section so old archive
-        # entries cannot crowd the current task out of the recovery excerpt.
+        # The ledger keeps only the newest completed task blocks in this
+        # bounded section; old entries are below the next top-level section.
         for ($headerOffset = 0; $headerOffset -lt $headers.Count; $headerOffset++) {
             $start = [int]$headers[$headerOffset]
             $end = if ($headerOffset -lt ($headers.Count - 1)) {
                 [int]$headers[$headerOffset + 1]
             } else {
-                $lines.Count
+                $recentEnd
             }
             $block = (($lines[$start..($end - 1)]) -join "`n").Trim()
             $cost = $block.Length + 2
@@ -108,7 +112,7 @@ if ($Diagnostics) {
 
 if ([string]::IsNullOrWhiteSpace($Topic)) {
     Write-Output '=== Read policy ==='
-    Write-Output 'Only the current snapshot and recent task-progress tail were loaded. Use -Diagnostics or -Topic explicitly for more context.'
+    Write-Output 'Only the current handoff snapshot and bounded current/recent task-progress sections were loaded. Use -Diagnostics or -Topic explicitly for more context.'
 }
 
 if (-not [string]::IsNullOrWhiteSpace($Topic)) {

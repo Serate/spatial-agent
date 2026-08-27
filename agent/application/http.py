@@ -31,6 +31,11 @@ from agent.composite_contract import inherit_composite_runtime_selection
 from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
 from agent.evidence_registry import normalize_evidence_registry
 from agent.runtime_defaults import with_product_defaults
+from agent.run_events import (
+    RUN_EVENT_SCHEMA_VERSION,
+    validate_event_cursor,
+    validate_event_limit,
+)
 
 
 class HTTPApplication:
@@ -328,6 +333,41 @@ class HTTPApplication:
             return service.get_async_observability(
                 run_id=_required_resource(resource_id, "run_id")
             )
+        if action == "run_events":
+            run_id = _required_resource(resource_id, "run_id")
+            after = validate_event_cursor(body.get("after"))
+            limit = validate_event_limit(body.get("limit"))
+            events = service.list_run_events(run_id, after=after, limit=limit)
+            next_cursor = events[-1]["sequence"] if events else after
+            terminal = any(bool(item.get("terminal")) for item in events)
+            if not terminal:
+                try:
+                    detail = service.get_run(run_id)
+                except Exception:
+                    detail = None
+                if detail is None and not events:
+                    raise ValueError("run events not found: " + run_id)
+                terminal_statuses = {
+                    "COMPLETED",
+                    "NEEDS_CLARIFICATION",
+                    "REJECTED",
+                    "FAILED",
+                    "CANCELLED",
+                    "TIMED_OUT",
+                }
+                terminal = bool(
+                    isinstance(detail, dict)
+                    and str(detail.get("status") or "") in terminal_statuses
+                )
+            return {
+                "schema_version": RUN_EVENT_SCHEMA_VERSION,
+                "run_id": run_id,
+                "events": events,
+                "after": after,
+                "next_cursor": next_cursor,
+                "has_more": len(events) >= limit,
+                "terminal": terminal,
+            }
         if action == "sessions":
             return service.list_sessions(limit=body.get("limit", 50))
         if action == "session_runs":

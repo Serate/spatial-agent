@@ -1,10 +1,12 @@
 # Agent 当前工作快照
 
-> 新对话或上下文压缩后的唯一默认入口。恢复脚本只读取本快照和 [`tasks/task-progress.md`](../tasks/task-progress.md) 最近记录；不要自动读取完整历史、全量源码、全量测试、模型响应或敏感配置。
+> 新对话或上下文压缩后的唯一默认交接入口。先读本文件顶部短快照，再读 [`tasks/task-progress.md`](../tasks/task-progress.md) 的“当前进行中/最近完成”有界区块；不要自动读取完整历史、全量源码、全量测试、模型响应或敏感配置。
 
-## Goal 摘要
+## Goal 摘要（精简版）
 
-建设可测试、可观测、可替换、可恢复的领域中立 Agent Runtime。GIS 只是业务载体；系统通过能力目录、Planner、TaskPlan/DAG、ToolRegistry、统一生命周期、Result/View/Artifact/Evidence 支撑开放式、多领域、可恢复分析，不为单一区域、单一问句或单一数据集增加硬编码流程。
+建设 Agent Runtime 的实时交互与可观测体验：用户提交开放式问题后，持续看到真实的阶段进展、工具状态、可审计摘要和最终答案流，并能在断线、重启或失败后恢复。GIS 只是业务载体，不为单一区域、单一问句或单一数据集增加硬编码流程。
+
+本阶段聚焦版本化 `RunEvent`、SSE/断线与重启恢复、polling fallback、真实模型的校验后答案流、前端分层结果展示，以及取消/重试/恢复。CLI、HTTP、前端和恢复流程共享事件、结果与证据契约；不展示隐藏思维链、Prompt、模型原文或敏感信息。
 
 ## Goal 附加约束：低成本上下文恢复
 
@@ -15,43 +17,57 @@
 
 ## 当前阶段
 
-- 阶段：M312 通用分析算子与跨域真实能力闭合（已完成）
-- 状态：M312-A～F 已完成；Docker 精简门禁、真实 GIS/Economic/Indicators 跨域验收和一次真实模型验收均已记录；产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
-- 当前任务：无。下一阶段候选为 React 前端迁移；不改变 Runtime、TaskPlan/DAG、ToolRegistry 和生命周期权威边界。详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M313 实时 Agent 交互与可观测执行体验（已完成）
+- 状态：A～F 已完成；RunEvent、内存/SQLite 账本、Runtime 事件发射、HTTP SSE、Last-Event-ID、polling fallback、Console 实时状态、答案 delta、Docker/浏览器/重启和一次真实模型 + 本地 GIS 验收均已通过。尚未提交/推送。
+- 当前任务：阶段交付收口、提交推送和全局重规划；M313 实现文件保持不变。
+- 协作方式：单 Agent 顺序开发，最大并发度为 1；不启动并行子代理。长期记忆以本快照、任务账本和当前阶段 Spec/Plan 为权威，避免 Provider 限流和共享工作树冲突。
 - 阶段规划：
-  - [`docs/m312-general-operators-cross-domain-capability-map.md`](m312-general-operators-cross-domain-capability-map.md)
-  - [`docs/m312-general-operators-cross-domain-spec.md`](m312-general-operators-cross-domain-spec.md)
-  - [`docs/m312-general-operators-cross-domain-plan.md`](m312-general-operators-cross-domain-plan.md)
+  - [`docs/m313-realtime-agent-experience-capability-map.md`](m313-realtime-agent-experience-capability-map.md)
+  - [`docs/m313-realtime-agent-experience-spec.md`](m313-realtime-agent-experience-spec.md)
+  - [`docs/m313-realtime-agent-experience-plan.md`](m313-realtime-agent-experience-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m312-general-operators-cross-domain-capability-map.md`
-- `docs/m312-general-operators-cross-domain-spec.md`
-- `docs/m312-general-operators-cross-domain-plan.md`
-- `agent/analysis_intent.py`
-- `agent/capability_catalog.py`
-- `agent/domain_catalog.py`
-- `agent/operation_binding.py`
-- `agent/runtime_core/plan_completeness.py`
-- `agent/application/composite_planning.py`
-- `tools/schema/tool-definitions.json`
-- `domains/gis/adapters/spatial_backend.py`
-- `domains/gis/workflow_templates.py`
-- `domains/gis/catalog.py`
-- `domains/gis/result_registry.py`
-- `domains/economic/provider.py`
-- `domains/economic/evidence.py`
-- `domains/economic/catalog.py`
-- `domains/economic/workflow_templates.py`
-- `domains/economic/domain.py`
-- `domains/economic/composer.py`
-- `tests/test_m312_general_operators.py`
-- `scripts/m308_cross_entry_acceptance.py`
-- `scripts/m308_real_composition_acceptance.py`
-- `scripts/live_http_acceptance.py`
+- `docs/m313-realtime-agent-experience-capability-map.md`
+- `docs/m313-realtime-agent-experience-spec.md`
+- `docs/m313-realtime-agent-experience-plan.md`
+- `agent/run_events.py`
+- `agent/runtime_state.py`
+- `agent/sqlite_store.py`
+- `agent/service_state.py`
+- `agent/runtime_core/run_lifecycle.py`
+- `agent/runtime.py`
+- `agent/application/http.py`
+- `production_api.py`
+- `serve_api.py`
+- `web/src/console_app.js`
+- `web/src/index.html`
+- `web/src/styles.css`
+- `tests/test_m313_realtime_events.py`
+- `web/src/console_run_events.js`
+- `scripts/console_run_events_smoke.js`
 
-> M312 当前按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
+> 当前阶段按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
 > 避免恢复上下文时读取无关文件。
+
+## M313 阶段验收摘要
+
+- Docker M313 事件与答案流契约：**11/11**；Node 实时事件 smoke：通过；生产验收：通过。
+- Domain SSE：真实运行产生 **81** 个事件，其中 **51** 个 `answer_delta`；`Last-Event-ID: 1` 从第 2 个事件续传。
+- 重启恢复：服务重启后同一 run 仍可读取第 2～13 个事件；readiness **200**。
+- 浏览器：动态加载 `spatial_overview_result` 的 `overview/map`，地图真实路径 **1** 条、轨迹 **11** 项、无错误。
+- 真实模型 + 本地 GIS：最终结果为 `live_model`，`answer_streaming=true`；不保存密钥、Prompt 或模型原文。
+
+## 阶段完成后的全局重规划指针
+
+- 产品：实时进展已可见，下一步应降低技术信息噪声，强化面向用户的结论、解释和恢复操作。
+- 架构：保持 RunEvent/Result/View/Evidence 单一契约，下一阶段不重复建设 Runtime 生命周期。
+- 数据/GIS：继续扩展可登记数据能力与健康证据，但不把单一数据集写成系统分支。
+- 模型：保留结构化计划校验与答案流，继续记录延迟、降级和可替换 provider 证据。
+- 部署：Docker 已成为 GIS/live 验收环境，继续保持默认离线门禁和显式 live 验收。
+- 体验：候选方向为 React 增量迁移，复用现有实时事件与动态结果视图契约。
+- 测试：维持单 Agent、精简风险分层；只增加能够证明新边界的契约或浏览器验收。
+- 下一阶段候选：M314 React Console 增量迁移与实时契约复用；创建新 Goal 前需另行形成 capability map、Spec 和 Plan。
 
 ## M311：通用分析意图与跨域开放链路 — 已完成
 
@@ -157,7 +173,7 @@
 
 ## 恢复后的最小动作
 
-1. 读取本文件和 `tasks/task-progress.md` 最近记录。
-2. 按当前任务记录读取对应阶段 Spec/Plan。
-3. 只读取当前任务明确列出的源码/测试文件。
-4. 完成或暂停子任务后先更新 `tasks/task-progress.md`，再同步 `tasks/task-state.md` 和本快照。
+1. 只读取本文件顶部快照。
+2. 只读取 `tasks/task-progress.md` 的当前进行中和最近完成有界区块。
+3. 按当前任务记录读取对应阶段 Spec/Plan 及明确列出的源码/测试文件。
+4. 完成或暂停子任务后先更新 `tasks/task-progress.md`，再同步本快照；兼容状态文件按需更新。

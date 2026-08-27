@@ -9,9 +9,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from threading import Lock
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from .models import AgentRunResult
+from .run_events import (
+    normalize_run_event,
+    validate_event_cursor,
+    validate_event_limit,
+)
 
 
 class InMemoryStateStore:
@@ -20,6 +25,7 @@ class InMemoryStateStore:
     def __init__(self):
         self._runs: Dict[str, AgentRunResult] = {}
         self._cancelled: set[str] = set()
+        self._run_events: Dict[str, list[Dict[str, Any]]] = {}
         self._lock = Lock()
 
     def save(self, result: AgentRunResult) -> None:
@@ -61,7 +67,29 @@ class InMemoryStateStore:
             for run_id in run_ids:
                 self._runs.pop(run_id, None)
                 self._cancelled.discard(run_id)
+                self._run_events.pop(run_id, None)
         return len(run_ids)
+
+    def append_run_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Append one event and assign a monotonic cursor for its run."""
+        normalized = normalize_run_event(event)
+        with self._lock:
+            events = self._run_events.setdefault(normalized["run_id"], [])
+            for existing in events:
+                if existing["event_id"] == normalized["event_id"]:
+                    return dict(existing)
+            normalized["sequence"] = len(events) + 1
+            events.append(normalized)
+            return dict(normalized)
+
+    def list_run_events(
+        self, run_id: str, *, after: Any = 0, limit: Any = 100
+    ) -> list[Dict[str, Any]]:
+        cursor = validate_event_cursor(after)
+        count = validate_event_limit(limit)
+        with self._lock:
+            events = list(self._run_events.get(str(run_id), []))
+        return [dict(item) for item in events if item["sequence"] > cursor][:count]
 
     def request_cancel(self, run_id: str) -> None:
         with self._lock:

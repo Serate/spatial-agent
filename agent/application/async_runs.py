@@ -44,6 +44,7 @@ from agent.service_sessions import async_job_payload as _async_job_payload
 from agent.trace_formatter import format_trace
 from agent.evidence_registry import normalize_evidence_registry
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
+from agent.run_events import new_run_event
 from result_contract import build_lineage_index, build_result_contract
 
 
@@ -236,6 +237,13 @@ class AsyncApplication:
                                 workflow=job_payload.get("workflow"),
                             )
                         )
+                        self._append_event(
+                            run_id,
+                            phase="resolve",
+                            kind="stage_started",
+                            status="QUEUED",
+                            message="已接收请求，等待运行时接管",
+                        )
                         if not self._state.claim_async_job(run_id, os.getpid()):
                             # The insert and claim are separate store seams. A
                             # concurrent worker may win the claim; submission
@@ -276,6 +284,13 @@ class AsyncApplication:
                         "last_event": "submitted",
                     }
                     self._jobs[idempotency_key] = job
+                    self._append_event(
+                        run_id,
+                        phase="resolve",
+                        kind="stage_started",
+                        status="QUEUED",
+                        message="已接收请求，等待运行时接管",
+                    )
                     self._schedule(job_payload)
         if early is not None:
             # Polling evidence re-enters the memory lock; never build it while
@@ -285,6 +300,36 @@ class AsyncApplication:
 
     def _schedule(self, payload: Dict[str, Any]) -> None:
         self._submit_job(self.run_job, payload)
+
+    def _append_event(
+        self,
+        run_id: str,
+        *,
+        phase: str,
+        kind: str,
+        status: str,
+        message: str,
+        data: Optional[Mapping[str, Any]] = None,
+        terminal: Optional[bool] = None,
+    ) -> None:
+        """Best-effort queue event; run correctness stays in the lifecycle."""
+        sink = getattr(self._state, "append_run_event", None)
+        if not callable(sink):
+            return
+        try:
+            sink(
+                new_run_event(
+                    run_id=run_id,
+                    phase=phase,
+                    kind=kind,
+                    status=status,
+                    message=message,
+                    data=data,
+                    terminal=terminal,
+                )
+            )
+        except Exception:
+            return
 
     def run_job(self, job_payload: Dict[str, Any]) -> None:
         """Execute one claimed payload and make worker failures durable."""
@@ -297,6 +342,20 @@ class AsyncApplication:
         completed = False
         failure_category = None
         self._mark_started(run_id)
+        self._append_event(
+            run_id,
+            phase="resolve",
+            kind="stage_progress",
+            status="RUNNING",
+            message="运行时已接管请求",
+            data={
+                "recovery_count": (
+                    self._state.async_job(run_id).get("recovery_count", 0)
+                    if self._state.async_job(run_id)
+                    else 0
+                )
+            },
+        )
         try:
             if runtime_context is not None:
                 current_context = self._runtime_context(
@@ -354,6 +413,15 @@ class AsyncApplication:
                     retryable=getattr(exc, "retryable", None),
                 )
                 self._state.save_run(result)
+            self._append_event(
+                run_id,
+                phase="execute" if kwargs.get("request") else "plan",
+                kind="run_failed",
+                status="FAILED",
+                message="运行未能完成",
+                data={"error_category": failure_category},
+                terminal=True,
+            )
         if self._state.persistent and not completed:
             self._state.finish_async_job(run_id, status, os.getpid(), failure_category)
         elif not self._state.persistent:

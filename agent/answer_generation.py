@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass
 from typing import Any, Mapping
 
@@ -171,10 +172,98 @@ class LLMCompositeAnswerGenerator:
             ),
         )
 
+    def generate_stream(
+        self,
+        result: Mapping[str, Any],
+        *,
+        on_delta,
+    ) -> CompositeAnswerGenerationResult:
+        """Stream a user-facing summary after Composite execution is complete.
+
+        Composite facts and the final structured answer remain authoritative.
+        The streamed text only fills the human-readable summary; deterministic
+        key findings and limitations are retained as the structured fallback.
+        """
+
+        context = build_composite_answer_context(result)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是面向普通用户的分析结果解读助手。只能根据提供的可信事实，"
+                    "用自然中文输出一段简洁总结，不要输出 JSON、工具名、内部引用、Prompt、"
+                    "隐藏思维过程或未经事实支持的结论。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
+            },
+        ]
+        stream = getattr(self._client, "stream_text", None)
+        if not callable(stream):
+            generated = self.generate(result)
+            if callable(on_delta):
+                on_delta(generated.answer.get("summary", ""))
+            evidence = dict(generated.evidence)
+            evidence["streaming"] = False
+            return CompositeAnswerGenerationResult(
+                answer=generated.answer,
+                evidence=evidence,
+            )
+        chunks: list[str] = []
+        size = 0
+        try:
+            for chunk in stream(messages, max_chars=800):
+                text = _normalize_stream_text(chunk, max_length=min(800 - size, 800))
+                if not text:
+                    continue
+                candidate = "".join(chunks) + text
+                if _contains_internal_reference(candidate):
+                    raise PlanningError("answer stream contains an internal reference")
+                chunks.append(text)
+                size += len(text)
+                if callable(on_delta):
+                    on_delta(text)
+                if size >= 800:
+                    break
+        except (AttributeError, NotImplementedError) as exc:
+            return self._fallback_stream(result, on_delta, exc)
+        except PlanningError as exc:
+            if _is_stream_unsupported(exc):
+                return self._fallback_stream(result, on_delta, exc)
+            raise
+        summary = _normalize_stream_text("".join(chunks), max_length=800)
+        if not summary:
+            raise PlanningError("answer stream returned an empty summary")
+        if _contains_internal_reference(summary):
+            raise PlanningError("answer stream contains an internal reference")
+        base = fallback_composite_answer(result, "streamed_summary").answer
+        answer = dict(base)
+        answer["summary"] = summary
+        answer["headline"] = summary.splitlines()[0][:160] or answer.get("headline", "分析结果")
+        return CompositeAnswerGenerationResult(
+            answer=_normalize_composite_answer(answer),
+            evidence=project_answer_generation_evidence(
+                {**self._client_metrics(), "streaming": True},
+                status="success",
+                available=True,
+            ),
+        )
+
     def _client_metrics(self) -> Mapping[str, Any]:
         metrics = getattr(self._client, "metrics", None)
         value = metrics() if callable(metrics) else {}
         return value if isinstance(value, Mapping) else {}
+
+    def _fallback_stream(self, result: Mapping[str, Any], on_delta, cause: Exception) -> CompositeAnswerGenerationResult:
+        generated = self.generate(result)
+        if callable(on_delta):
+            on_delta(generated.answer.get("summary", ""))
+        evidence = dict(generated.evidence)
+        evidence["streaming"] = False
+        evidence["fallback_reason"] = "stream_unsupported"
+        return CompositeAnswerGenerationResult(answer=generated.answer, evidence=evidence)
 
 
 def fallback_composite_answer(
@@ -295,6 +384,68 @@ class LLMAnswerGenerator:
             ),
         )
 
+    def generate_stream(self, result: Any, *, on_delta) -> AnswerGenerationResult:
+        """Generate a bounded natural-language answer through provider deltas."""
+
+        stream = getattr(self._client, "stream_text", None)
+        if not callable(stream):
+            generated = self.generate(result)
+            if callable(on_delta):
+                on_delta(generated.answer)
+            evidence = dict(generated.evidence)
+            evidence["streaming"] = False
+            return AnswerGenerationResult(answer=generated.answer, evidence=evidence)
+        context = build_answer_context(result)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是面向普通用户的分析结果解读助手。只根据可信事实，用自然中文输出简洁答案；"
+                    "不要输出 JSON、工具名、内部引用、Prompt、隐藏思维过程或未经事实支持的结论。"
+                    "数据不完整时明确说明影响。答案不超过 1800 字。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
+            },
+        ]
+        chunks: list[str] = []
+        size = 0
+        try:
+            for chunk in stream(messages, max_chars=1800):
+                text = _normalize_stream_text(chunk, max_length=min(1800 - size, 1800))
+                if not text:
+                    continue
+                candidate = "".join(chunks) + text
+                if _contains_internal_reference(candidate):
+                    raise PlanningError("answer stream contains an internal reference")
+                chunks.append(text)
+                size += len(text)
+                if callable(on_delta):
+                    on_delta(text)
+                if size >= 1800:
+                    break
+        except (AttributeError, NotImplementedError) as exc:
+            return self._fallback_stream(result, on_delta, exc)
+        except PlanningError as exc:
+            if _is_stream_unsupported(exc):
+                return self._fallback_stream(result, on_delta, exc)
+            raise
+        answer = _normalize_stream_text("".join(chunks), max_length=1800)
+        if not answer:
+            raise PlanningError("answer stream returned an empty answer")
+        if _contains_internal_reference(answer):
+            raise PlanningError("answer stream contains an internal reference")
+        return AnswerGenerationResult(
+            answer=answer,
+            evidence=project_answer_generation_evidence(
+                {**self._client_metrics(), "streaming": True},
+                status="success",
+                available=True,
+            ),
+        )
+
     def failure_evidence(self, reason_code: str) -> dict[str, Any]:
         """Expose only bounded client metrics for Runtime fallback handling."""
 
@@ -307,6 +458,15 @@ class LLMAnswerGenerator:
         metrics = getattr(self._client, "metrics", None)
         value = metrics() if callable(metrics) else {}
         return value if isinstance(value, Mapping) else {}
+
+    def _fallback_stream(self, result: Any, on_delta, cause: Exception) -> AnswerGenerationResult:
+        generated = self.generate(result)
+        if callable(on_delta):
+            on_delta(generated.answer)
+        evidence = dict(generated.evidence)
+        evidence["streaming"] = False
+        evidence["fallback_reason"] = "stream_unsupported"
+        return AnswerGenerationResult(answer=generated.answer, evidence=evidence)
 
 
 def fallback_answer_generation_evidence(
@@ -321,7 +481,7 @@ def fallback_answer_generation_evidence(
         status="fallback",
         available=False,
     )
-    evidence["reason_code"] = _safe_text(reason_code, 96) or "generation_unavailable"
+    evidence["reason_code"] = _safe_reason_code(reason_code)
     return evidence
 
 
@@ -360,7 +520,13 @@ def project_answer_generation_evidence(
     }
     for key in ("provider", "model", "wire_api", "error_type", "reason_code"):
         if source.get(key):
-            result[key] = _safe_text(source[key], 96)
+            safe_value = _safe_evidence_text(source[key])
+            if safe_value:
+                result[key] = safe_value
+    if normalized_status == "fallback" and "reason_code" not in result:
+        result["reason_code"] = "generation_unavailable"
+    if isinstance(source.get("streaming"), bool):
+        result["streaming"] = source["streaming"]
     for key in ("attempts", "retries"):
         try:
             number = int(source.get(key))
@@ -422,6 +588,36 @@ def _project_value(value: Any, *, key: str = "", depth: int = 0) -> Any:
 def _safe_text(value: Any, limit: int) -> str:
     text = str(value or "")
     return text[:limit]
+
+
+def _safe_evidence_text(value: Any) -> str:
+    text = _safe_text(value, 96)
+    lowered = text.lower()
+    if any(marker in lowered for marker in ("prompt", "memory://", "artifact://", "result_ref", "tool_args")):
+        return ""
+    return text
+
+
+def _safe_reason_code(value: Any) -> str:
+    text = _safe_text(value, 96)
+    return text if re.fullmatch(r"[A-Za-z0-9_.-]{1,96}", text) else "generation_unavailable"
+
+
+def _normalize_stream_text(value: Any, *, max_length: int) -> str:
+    """Normalize a visible delta without persisting provider metadata."""
+
+    if not isinstance(value, str) or max_length <= 0:
+        return ""
+    return value.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n")[:max_length]
+
+
+def _contains_internal_reference(value: str) -> bool:
+    lowered = value.lower()
+    return any(marker in lowered for marker in ("memory://", "artifact://", "result_ref", "prompt"))
+
+
+def _is_stream_unsupported(error: PlanningError) -> bool:
+    return getattr(error, "code", None) == "stream_unsupported"
 
 
 def _normalize_composite_answer(value: Any) -> dict[str, Any]:

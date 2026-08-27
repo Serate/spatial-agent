@@ -28,6 +28,9 @@ from ..errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTime
 from ..models import AgentRunResult, RunStatus, StepRun, TaskPlan
 
 
+_LIFECYCLE_STAGE_COUNT = 7
+
+
 @dataclass
 class _LifecycleContext:
     """Private state shared by the stages of one synchronous run.
@@ -246,6 +249,22 @@ class RuntimeRunLifecycle:
         )
         context.result.context_evidence = context.context_packet.evidence
         runtime._state_store.save(context.result)
+        runtime._emit_progress_event(
+            context.resolved_run_id,
+            phase="resolve",
+            kind="stage_completed",
+            status=RunStatus.PLANNING.value,
+            message="已理解请求并读取会话上下文",
+            data={"stage_index": 1, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
+        runtime._emit_progress_event(
+            context.resolved_run_id,
+            phase="clarify",
+            kind="stage_started",
+            status=RunStatus.PLANNING.value,
+            message="正在检查请求信息和数据条件",
+            data={"stage_index": 2, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
 
     # ------------------------------------------------------------------
     # Plan and validate/repair
@@ -255,6 +274,14 @@ class RuntimeRunLifecycle:
         runtime = self._runtime
         result = self._result(context)
         runtime._check_control(result.run_id, context.deadline)
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="plan",
+            kind="stage_started",
+            status=RunStatus.PLANNING.value,
+            message="正在生成任务计划",
+            data={"stage_index": 3, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
         if context.validated_plan is not None:
             if not isinstance(context.validated_plan, TaskPlan):
                 raise ToolError("validated execution plan is invalid")
@@ -271,6 +298,18 @@ class RuntimeRunLifecycle:
             )
         result.plan = context.candidate_plan
         runtime._check_control(result.run_id, context.deadline)
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="plan",
+            kind="stage_completed",
+            status=RunStatus.PLANNING.value,
+            message="任务计划已生成",
+            data={
+                "stage_index": 3,
+                "stage_count": _LIFECYCLE_STAGE_COUNT,
+                "summary": "{} 个步骤".format(len(context.candidate_plan.steps)),
+            },
+        )
 
     def _validate_and_repair(self, context: _LifecycleContext) -> None:
         """Validate the candidate and build the same plan/evidence gates."""
@@ -279,6 +318,14 @@ class RuntimeRunLifecycle:
         result = self._result(context)
         if context.candidate_plan is None:
             raise ToolError("planner returned no plan")
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="validate",
+            kind="stage_started",
+            status=RunStatus.PLANNING.value,
+            message="正在校验计划和执行条件",
+            data={"stage_index": 4, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
         plan, context.repair_event = runtime._validate_or_repair_plan(
             context.candidate_plan,
             context.resolved_request,
@@ -310,6 +357,18 @@ class RuntimeRunLifecycle:
         )
         self._validate_fingerprints(context)
         result.planner_metrics = runtime._planner_metrics()
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="validate",
+            kind="stage_completed",
+            status=RunStatus.PLANNING.value,
+            message="计划校验完成，可以执行",
+            data={
+                "stage_index": 4,
+                "stage_count": _LIFECYCLE_STAGE_COUNT,
+                "fallback": bool(context.repair_event is not None),
+            },
+        )
 
     def _validate_fingerprints(self, context: _LifecycleContext) -> None:
         result = self._result(context)
@@ -405,12 +464,32 @@ class RuntimeRunLifecycle:
             StepRun(step.id, step.tool, step.args, list(step.depends_on))
             for step in result.plan.steps
         ]
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="execute",
+            kind="stage_started",
+            status=RunStatus.EXECUTING.value,
+            message="开始执行分析步骤",
+            data={
+                "stage_index": 5,
+                "stage_count": _LIFECYCLE_STAGE_COUNT,
+                "summary": "{} 个步骤".format(len(result.steps)),
+            },
+        )
         context.replan_count = 1 if context.repair_event is not None else 0
         index = 0
         while index < len(result.steps):
             step_run = result.steps[index]
             step = result.plan.steps[index]
             try:
+                runtime._emit_progress_event(
+                    result.run_id,
+                    phase="execute",
+                    kind="tool_started",
+                    status=RunStatus.EXECUTING.value,
+                    message="正在执行分析步骤",
+                    data={"step_id": step.id, "tool": step.tool},
+                )
                 runtime._check_control(result.run_id, context.deadline)
                 runtime._execute_step(
                     result.run_id,
@@ -423,14 +502,56 @@ class RuntimeRunLifecycle:
                 context.completed.add(step.id)
                 if step_run.result is not None:
                     context.completed_results[step.id] = step_run.result
+                runtime._emit_progress_event(
+                    result.run_id,
+                    phase="execute",
+                    kind="tool_completed",
+                    status=RunStatus.EXECUTING.value,
+                    message="分析步骤已完成",
+                    data={
+                        "step_id": step.id,
+                        "tool": step.tool,
+                        "attempts": step_run.attempts,
+                    },
+                )
                 index += 1
             except RunCancelled as exc:
+                runtime._emit_progress_event(
+                    result.run_id,
+                    phase="execute",
+                    kind="tool_failed",
+                    status=RunStatus.CANCELLED.value,
+                    message="分析步骤已取消",
+                    data={"step_id": step.id, "tool": step.tool, "reason_code": "cancelled"},
+                )
                 runtime._block_remaining_steps(result.steps, index, step.id, str(exc))
                 raise
             except RunTimedOut as exc:
+                runtime._emit_progress_event(
+                    result.run_id,
+                    phase="execute",
+                    kind="tool_failed",
+                    status=RunStatus.TIMED_OUT.value,
+                    message="分析步骤超时",
+                    data={"step_id": step.id, "tool": step.tool, "reason_code": "timeout"},
+                )
                 runtime._block_remaining_steps(result.steps, index, step.id, str(exc))
                 raise
             except Exception as exc:
+                runtime._emit_progress_event(
+                    result.run_id,
+                    phase="execute",
+                    kind="tool_failed",
+                    status=RunStatus.EXECUTING.value,
+                    message="分析步骤未完成，正在判断是否恢复",
+                    data={
+                        "step_id": step.id,
+                        "tool": step.tool,
+                        "error_category": step_run.error_category,
+                        "reason_code": step_run.error_code,
+                        "retryable": step_run.retryable,
+                    },
+                )
                 if not runtime._try_replan(
                     result,
                     context.resolved_request,
@@ -448,6 +569,18 @@ class RuntimeRunLifecycle:
                     )
                     raise
                 context.replan_count += 1
+                runtime._emit_progress_event(
+                    result.run_id,
+                    phase="execute",
+                    kind="stage_progress",
+                    status=RunStatus.EXECUTING.value,
+                    message="已调整后续计划，继续执行",
+                    data={
+                        "stage_index": 5,
+                        "stage_count": _LIFECYCLE_STAGE_COUNT,
+                        "fallback": True,
+                    },
+                )
                 index += 1
 
     def _answer_directly(self, context: _LifecycleContext) -> bool:
@@ -455,6 +588,14 @@ class RuntimeRunLifecycle:
         if result.plan is None or result.plan.output.get("type") != "direct_answer":
             return False
         runtime = self._runtime
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="answer",
+            kind="stage_started",
+            status=RunStatus.PLANNING.value,
+            message="正在整理回答",
+            data={"stage_index": 6, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
         result.status = RunStatus.COMPLETED
         result.answer = str(result.plan.output.get("message", ""))
         runtime._conversation_store.clear_pending(context.session_id)
@@ -462,17 +603,62 @@ class RuntimeRunLifecycle:
             context.session_id, context.resolved_request
         )
         runtime._remember(result)
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="answer",
+            kind="stage_completed",
+            status=RunStatus.COMPLETED.value,
+            message="回答已准备完成",
+            data={"stage_index": 6, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
         return True
 
     def _answer(self, context: _LifecycleContext) -> None:
         runtime = self._runtime
         result = self._result(context)
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="answer",
+            kind="stage_started",
+            status=RunStatus.EXECUTING.value,
+            message="正在汇总分析结果",
+            data={"stage_index": 6, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
+        result.status = RunStatus.EXECUTING
+        streamed_length = 0
+
+        def emit_answer_delta(delta: str) -> None:
+            nonlocal streamed_length
+            if not isinstance(delta, str) or not delta:
+                return
+            streamed_length += len(delta)
+            runtime._emit_progress_event(
+                result.run_id,
+                phase="answer",
+                kind="answer_delta",
+                status=RunStatus.EXECUTING.value,
+                message="答案正在生成",
+                data={
+                    "answer_delta": delta[:512],
+                    "answer_length": min(streamed_length, 1800),
+                },
+                terminal=False,
+            )
+
+        result.answer = runtime._compose_answer(result, on_delta=emit_answer_delta)
         result.status = RunStatus.COMPLETED
-        result.answer = runtime._compose_answer(result)
         runtime._remember(result)
         runtime._conversation_store.clear_pending(context.session_id)
         runtime._conversation_store.save_completed(
             context.session_id, context.resolved_request
+        )
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="answer",
+            kind="stage_completed",
+            status=RunStatus.COMPLETED.value,
+            message="分析结论已生成",
+            data={"stage_index": 6, "stage_count": _LIFECYCLE_STAGE_COUNT},
         )
 
     # ------------------------------------------------------------------
@@ -503,6 +689,7 @@ class RuntimeRunLifecycle:
             runtime._conversation_store.save_pending(
                 context.session_id, context.resolved_request, result.error
             )
+            self._emit_failure_event(context, phase="clarify", message="需要补充信息")
             return
         if isinstance(exc, RequestRejected):
             result.status = RunStatus.REJECTED
@@ -518,6 +705,7 @@ class RuntimeRunLifecycle:
                 )
             _runtime_module._record_run_failure(result, exc, phase="planning")
             runtime._conversation_store.clear_pending(context.session_id)
+            self._emit_failure_event(context, phase="plan", message="请求未通过计划校验")
             return
         if isinstance(exc, RunCancelled):
             result.status = RunStatus.CANCELLED
@@ -532,6 +720,7 @@ class RuntimeRunLifecycle:
                     repair_lineage=result.replan_events,
                 )
             _runtime_module._record_run_failure(result, exc, phase="control")
+            self._emit_failure_event(context, phase="execute", message="分析已取消")
             return
         if isinstance(exc, RunTimedOut):
             result.status = RunStatus.TIMED_OUT
@@ -546,6 +735,7 @@ class RuntimeRunLifecycle:
                     repair_lineage=result.replan_events,
                 )
             _runtime_module._record_run_failure(result, exc, phase="control")
+            self._emit_failure_event(context, phase="execute", message="分析已超时")
             return
 
         result.status = RunStatus.FAILED
@@ -571,6 +761,34 @@ class RuntimeRunLifecycle:
             phase="planning" if context.candidate_plan is None else None,
         )
         result.answer = runtime._answer_composer.compose_failure(result)
+        self._emit_failure_event(
+            context,
+            phase="execute" if context.candidate_plan is not None else "plan",
+            message="分析未能完成",
+        )
+
+    def _emit_failure_event(
+        self,
+        context: _LifecycleContext,
+        *,
+        phase: str,
+        message: str,
+    ) -> None:
+        """Emit a safe failure milestone without forwarding exception text."""
+        result = self._result(context)
+        failure = result.failure if isinstance(result.failure, Mapping) else {}
+        self._runtime._emit_progress_event(
+            result.run_id,
+            phase=phase,
+            kind="stage_failed",
+            status=result.status.value,
+            message=message,
+            data={
+                "error_category": result.error_category,
+                "reason_code": failure.get("code") or result.error_code,
+                "retryable": failure.get("retryable"),
+            },
+        )
 
     def _evidence_and_finalize(self, context: _LifecycleContext) -> AgentRunResult:
         """Complete the evidence/state/event boundary exactly once."""
@@ -579,7 +797,49 @@ class RuntimeRunLifecycle:
         result = self._result(context)
         if result.planner_metrics is None:
             result.planner_metrics = runtime._planner_metrics()
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="evidence",
+            kind="stage_started",
+            status=result.status.value,
+            message="正在整理结果证据",
+            data={"stage_index": 7, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
         runtime._state_store.save(result)
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="evidence",
+            kind="stage_completed",
+            status=result.status.value,
+            message="结果证据已整理",
+            data={"stage_index": 7, "stage_count": _LIFECYCLE_STAGE_COUNT},
+        )
+        status = result.status.value
+        if status == RunStatus.COMPLETED.value:
+            final_kind = "run_completed"
+            final_message = "分析已完成"
+            terminal = True
+        elif status == RunStatus.WAITING_FOR_DECISION.value:
+            final_kind = "run_waiting"
+            final_message = "等待确认后继续"
+            terminal = False
+        elif status == RunStatus.NEEDS_CLARIFICATION.value:
+            final_kind = "run_waiting"
+            final_message = "等待补充信息"
+            terminal = True
+        else:
+            final_kind = "run_failed"
+            final_message = "分析未完成"
+            terminal = True
+        runtime._emit_progress_event(
+            result.run_id,
+            phase="evidence",
+            kind=final_kind,
+            status=status,
+            message=final_message,
+            data={"stage_index": 7, "stage_count": _LIFECYCLE_STAGE_COUNT},
+            terminal=terminal,
+        )
         runtime._emit_run_event(result)
         return result
 

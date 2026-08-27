@@ -26,6 +26,7 @@ from agent.decision_lifecycle import InMemoryDecisionStore, SQLiteDecisionStore
 from agent.memory import FactMemory
 from agent.observability import ObservabilityEmitter
 from agent.sqlite_store import SQLiteConversationStore, SQLiteStateStore
+from agent.runtime_state import InMemoryStateStore
 from agent.service_sessions import runtime_key as _runtime_key
 
 _MEMORY_JOB_FIELDS = (
@@ -117,6 +118,9 @@ class ServiceState:
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._jobs_lock = threading.Lock()
         self._jobs: Dict[str, Dict[str, Any]] = {}
+        # Memory mode needs one event ledger shared by every cached Runtime;
+        # SQLite mode delegates the same seam to the durable state store.
+        self._event_store = InMemoryStateStore()
         self._interaction_lock = threading.Lock()
         self._interactions: Dict[tuple[str, str, str], Dict[str, Any]] = {}
         self._timeout_seconds = async_timeout_seconds()
@@ -177,6 +181,7 @@ class ServiceState:
                 "conversation_store": self._conversation_store,
                 "memory": self._memory,
                 "observability": self._observability,
+                "event_sink": self.append_run_event,
             }
             try:
                 parameters = inspect.signature(self._runtime_factory).parameters
@@ -189,6 +194,8 @@ class ServiceState:
                 parameters = {}
             if accepts_kwargs or "decision_store" in parameters:
                 kwargs["decision_store"] = self._decision_store
+            if not accepts_kwargs and "event_sink" not in parameters:
+                kwargs.pop("event_sink", None)
             runtime = self._runtime_factory(planner, backend, **kwargs)
             self._runtimes[key] = runtime
             return runtime
@@ -364,6 +371,27 @@ class ServiceState:
     def save_run(self, result: Any) -> None:
         if self._state_store is not None:
             self._state_store.save(result)
+
+    def append_run_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Append one realtime event through the selected state adapter."""
+        if self._state_store is not None:
+            return self._state_store.append_run_event(event)
+        return self._event_store.append_run_event(event)
+
+    def list_run_events(
+        self,
+        run_id: str,
+        *,
+        after: Any = 0,
+        limit: Any = 100,
+        domain_id: Optional[str] = None,
+    ) -> list[Dict[str, Any]]:
+        """Read the same bounded event window used by SSE and polling."""
+        if self._state_store is not None:
+            return self._state_store.list_run_events(
+                run_id, after=after, limit=limit, domain_id=domain_id or self._domain_id
+            )
+        return self._event_store.list_run_events(run_id, after=after, limit=limit)
 
     def get_run(self, run_id: str, domain_id: Optional[str] = None) -> Optional[Any]:
         if self._state_store is None:

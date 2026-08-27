@@ -1561,3 +1561,130 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 - 将 Node projection smoke 与需要浏览器 CDP 的交互 smoke 分开报告。
 - 浏览器 smoke 执行前显式启动隔离 Chrome/CDP，并先检查 `/json/list`；若环境未提供 CDP，
   记录为环境未满足，不伪装成项目通过。
+
+## 2026-08-27 经济指标泛称测试触发澄清
+
+### 现象
+
+在前端提问“查询洪山区 2025 年经济指标”时，回答为 `planner needs clarification`，没有直接返回经济数据。
+
+### 诊断
+
+- “经济指标”没有指定具体指标，Economic Domain 的 `indicator` 是必填事实；显式选择 Economic 后，系统实际只缺少 `indicator`，进入澄清属于预期行为。
+- 前端默认领域仍为 GIS；如果继续使用已绑定 GIS 的会话，请求会沿用 GIS 领域，而不会自动切换到 Economic。
+- 新的自动路由会话对泛称“经济指标”的匹配词不够宽，可能在领域选择阶段返回 `no_domain_capability_match`。
+- `agent/llm_planner.py` 在模型返回 `needs_clarification` 但缺少 `message` 时使用英文兜底文案 `planner needs clarification`，应由后续用户体验任务改为结构化中文澄清。
+
+### 当前验证
+
+- 使用新会话、自动路由和规则 Planner 提交该问题：未匹配领域。
+- 使用显式 Economic 领域提交该问题：返回 `NEEDS_CLARIFICATION`，缺少字段为 `indicator`。
+- 使用新会话提交“查询洪山区 2025 年 GDP”：Economic 自动路由和本地真实数据执行完成。
+
+### 测试约定与预防
+
+- 测试经济查询时，先选择“区域经济分析”或“智能选择”，并新建会话。
+- 查询具体指标时使用“查询洪山区 2025 年 GDP”，不要只写“经济指标”。
+- 测试“经济指标”泛称时，应验证系统给出中文结构化澄清，并提供可查询指标目录，而不是把澄清误判为数据源故障。
+
+## 2026-08-27 Economic 异步执行的 runtime context 指纹不一致
+
+### 现象
+
+选择“区域经济分析”后提交 Economic 请求，前端返回 `persisted runtime context differs from the current runtime`，任务没有进入工具执行。
+
+### 根因
+
+- 异步提交阶段通过 `build_runtime_context_snapshot()` 读取 Economic Domain 的 `tool_provider_info()`，工具提供方 ID 为 `economic-source-bound`。
+- worker 执行阶段通过 `ToolRegistry.provider_info()` 读取实际 provider，ID 为 `native`。
+- 两个上下文虽然领域、规划器、后端和工具数量相同，但 provider identity 不同，指纹自然不同，`assert_runtime_context_compatible()` 按设计拒绝执行。
+- 前端绑定领域后的请求会自动转为异步入口，因此该问题在前端稳定暴露；清空会话或重新选择同一领域不能修复。
+
+### 处理原则
+
+- 统一 Domain 声明的 provider identity 与实际 `ToolRegistry` provider identity，并保留 runtime context 一致性门禁。
+- 增加 Economic 异步提交到 worker 的 context fingerprint 回归；不得通过跳过校验或接受任意 provider identity 规避问题。
+- 阶段收口时同时验证同步、异步、SQLite/restart 和前端入口。
+
+### 本次修复
+
+- `NativeToolProvider` 现在默认从 adapter 读取稳定的 `provider_id`；未声明时仍兼容使用 `native`。
+- Economic、Indicators、Text 的提交快照与实际 Registry provider 现在使用同一 identity。
+- 新增内置 Domain context 一致性回归和 Economic 异步执行回归。
+- Docker HTTP 异步入口已验证返回 `COMPLETED`；M135 runtime-context 回归 **12/12** 通过。
+
+## 2026-08-27 Goal 长文本附件化与恢复读取过量
+
+### 现象
+
+长 Goal 粘贴后，Goal 工具显示为 `pasted text file: ...` 的附件路径；恢复时又容易
+重复读取完整恢复卡、历史账本、全量源码和测试，挤占实际代码修改的上下文预算。
+
+### 根因
+
+- 平台会将较长的多行粘贴内容保存为临时附件，Goal objective 记录的是附件引用，
+  而不是原文文本。
+- 项目原先虽然约定了快照和任务账本，但账本中的当前任务记录追加在历史区末尾，
+  恢复脚本无法可靠地按“当前/最近”边界截取。
+- `tasks/task-state.md` 与历史恢复文档仍被部分流程误认为默认入口。
+
+### 处理
+
+- 明确 `docs/agent-work-state.md` 为唯一默认交接文档；顶部固定记录当前阶段、完整
+  进行中任务、Spec/Plan、明确文件、验证、阻塞、未提交变更和下一步。
+- `tasks/task-progress.md` 顶部固定“当前进行中”和“最近完成”两个有界区块，旧记录
+  归入历史区；恢复脚本只读取这两个区块，不再要求读取详细状态账本。
+- 恢复顺序固定为：工作快照 → 任务账本当前/最近区块 → 当前任务明确文件；其它历史和
+  源码仅在证明为直接依赖时按主题读取。
+- Goal 文本的持久化依据同步写入仓库总体方向文档，不依赖临时附件长期保存项目规则。
+
+### 预防
+
+- 每个子任务开始、完成或暂停后立即更新交接快照和任务账本。
+- 代码实现优先；测试按独立风险集中执行，不按任务数量重复运行；简单文档或样式修改
+  可不运行测试，Runtime、HTTP、持久化、恢复和真实模型边界仍保留针对性验收。
+
+## 2026-08-27 子代理并行开发遇到 provider 429
+
+### 现象
+
+并行启动 backend 和 frontend 子代理执行 M313 答案流/实时事件最小收口时，两个子代理
+均未返回代码，平台通知为 `429 Too Many Requests`，并在达到重试上限后结束。
+
+### 判断
+
+- 失败发生在子代理 provider 调度层，尚未进入项目代码执行；不能把它归因于 Runtime、
+  RunEvent、前端事件消费者或测试代码。
+- 之前的短协作试运行已证明角色规约、任务卡、完成通知和同一 `agent_id` 续接可用；
+  本次暴露的是并发 provider 配额/限流风险。
+
+### 处理原则
+
+- 历史处理曾建议保持总并发度不超过 3；当前已收敛为单 Agent、最大并发度 1，不再启动并行子代理，避免 provider 限流和共享工作树冲突。
+- 关闭失败会话并将任务标记为可恢复受阻；由主控在不扩大范围的前提下继续关键路径。
+- 后续阶段记录子代理 provider 状态，但不保存 request id、密钥、Prompt 或模型原文；
+  真实模型调用继续由主控在阶段收口时显式执行。
+
+## 2026-08-27 M313 实时验收中的事件、镜像与浏览器夹具问题
+
+### 现象
+
+- 前端事件消费者遇到 HTTP 500 时立即结束轮询，未执行有限重试。
+- Docker 增量验收复用了旧镜像，导致容器缺少本轮新增的答案流测试；浏览器验收脚本还硬编码了旧版 `spatial_analysis_result` 与 `raster/composite/map` 面板。
+- 真实模型请求在验收脚本的 60 秒窗口内仍处于规划阶段，脚本超时退出，但服务端随后完成了该 run。
+
+### 根因
+
+- 轮询实现把所有非 2xx 响应当作立即不可用，没有区分临时错误与明确不支持。
+- Docker `run` 不会因为源码变化自动更新已构建镜像；浏览器夹具没有跟随动态 Result/View 契约迁移。
+- Provider 延迟超过 harness 的观察窗口；超时只代表验收窗口结束，不能推断服务端 run 已失败。
+
+### 处理与预防
+
+- 对 408、425、429 和 5xx 执行最多三次指数退避；404、405、501 等明确不支持立即回退或结束。
+- 代码或新增测试进入 Docker 验收前显式重建镜像；阶段浏览器夹具只断言动态结果类型、`map` 视图、轨迹和错误状态，不固化某一领域的面板集合。
+- 真实模型阶段只调用一次；超时后读取已有 run 状态和事件，不重复提交。只记录脱敏状态、事件数量和 streaming 标志，不保存密钥、Prompt 或模型原文。
+
+### 当前验证
+
+- Docker M313 事件/答案流契约 **11/11**、Node event smoke、生产验收、Domain SSE/Last-Event-ID、服务重启恢复、浏览器动态结果和 compileall/architecture strict 均通过。

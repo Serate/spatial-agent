@@ -93,13 +93,13 @@
   }
   socket.close();
   console.log(JSON.stringify(snapshot));
-  const expectedPanels = ["raster", "composite", "map"];
   if (
     !snapshot?.loaded
     || snapshot.status !== "COMPLETED"
-    || snapshot.resultType !== "spatial_analysis_result"
-    || expectedPanels.some(id => !snapshot.declaredPanels.includes(id))
-    || expectedPanels.some(id => !snapshot.viewKinds[id])
+    || typeof snapshot.resultType !== "string"
+    || !snapshot.resultType
+    || !snapshot.declaredPanels.includes("map")
+    || !snapshot.viewKinds.map
     || !snapshot.genericVisible
     || !snapshot.mapVisible
     || snapshot.mapEmpty

@@ -42,6 +42,15 @@
         </div>
       </section>
       <div id="resultWorkspace" class="grid" role="region" aria-label="分析结果工作区" aria-live="polite" aria-busy="false">
+        <details id="liveRunSummary" class="live-run-summary" hidden>
+          <summary><span>分析过程摘要</span><small id="liveSummaryMeta">等待 Agent 开始工作</small></summary>
+          <div class="live-run-summary-body" aria-live="polite">
+            <div class="live-progress-head"><strong id="liveRunPhase">等待运行时接管</strong><span id="liveRunDuration">0 秒</span></div>
+            <div class="live-progress-track" aria-hidden="true"><span id="liveProgressFill"></span></div>
+            <div class="live-run-meta"><span id="liveRunAction">提交后将显示当前动作</span><span class="live-heartbeat"><i aria-hidden="true"></i><span id="liveRunHeartbeat">尚未收到事件</span></span></div>
+            <ol id="liveRunEvents" class="live-run-events"></ol>
+          </div>
+        </details>
         <div id="resultEmpty" class="result-empty">等待 Agent 返回结果类型。提出问题后，这里只显示与本次任务相关的结果。</div>
         <section class="panel result-panel common-result answer-result"><h3>分析结论</h3><div id="answer" class="answer muted"></div><div id="answerProjection" class="answer-projection" hidden></div><div id="geometryEvidence" class="distribution-note"></div><div id="error"></div></section>
         <section class="panel result-panel map-result"><div class="map-panel-head"><h3>空间结果</h3><span id="mapSummary" class="map-summary">交互式地图</span></div><div id="map" class="map"></div><div id="mapSelection" class="map-selection muted">点击地图要素查看详情，或将选中区域作为下一次请求的上下文。</div><button id="useMapSelection" type="button" disabled>使用选中上下文继续</button></section>
@@ -71,6 +80,7 @@
   <script src="./console_action_host.js"></script>
   <script src="./console_interaction.js"></script>
   <script src="./console_gis_plugin.js"></script>
+  <script src="./console_run_events.js"></script>
   <script src="./console_app.js"></script>
   </body>
 </html>

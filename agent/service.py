@@ -368,6 +368,17 @@ class AgentService:
     def get_async_observability(self, run_id: str) -> Dict[str, Any]:
         return self._async_application.get_observability(run_id)
 
+    def list_run_events(
+        self, run_id: str, *, after: Any = 0, limit: Any = 100
+    ) -> list[Dict[str, Any]]:
+        """Read the bounded realtime event window for one run."""
+        return self._state.list_run_events(
+            run_id,
+            after=after,
+            limit=limit,
+            domain_id=self._resolved_domain_id,
+        )
+
     def _attach_async_observability(self, payload: Dict[str, Any], run_id: str) -> None:
         return self._async_application.attach_observability(payload, run_id)
 

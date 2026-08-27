@@ -343,6 +343,123 @@ class OpenAIPlannerClient:
                 "response_json_error",
             ) from exc
 
+    def stream_text(self, messages, *, max_chars: int = 1800):
+        """Yield only user-facing text deltas from an OpenAI-compatible stream.
+
+        This path is deliberately separate from ``complete_json``.  Plans and
+        tool arguments continue to use the non-streaming structured contract;
+        only the already-selected answer surface may use text deltas.
+        """
+
+        if self._wire_api == "chat_completions":
+            body: Dict[str, Any] = {
+                "model": self._model,
+                "messages": messages,
+                "stream": True,
+            }
+            if self._max_output_tokens is not None:
+                body["max_tokens"] = self._max_output_tokens
+        else:
+            body = {
+                "model": self._model,
+                "input": messages,
+                "stream": True,
+                "reasoning": {"effort": self._reasoning_effort},
+            }
+            if self._max_output_tokens is not None:
+                body["max_output_tokens"] = self._max_output_tokens
+        request = urllib.request.Request(
+            self._request_url(),
+            data=json.dumps(body).encode("utf-8"),
+            headers={**self._headers(), "Accept": "text/event-stream"},
+            method="POST",
+        )
+        started = perf_counter()
+        attempts = 0
+        emitted = 0
+        usage: Mapping[str, Any] = {}
+        self._last_metrics = dict(self._last_metrics)
+        for key in ("usage", "error_type", "response_status", "latency_ms"):
+            self._last_metrics.pop(key, None)
+        self._last_metrics.update({"attempts": 0, "retries": 0, "status": "in_progress"})
+        while attempts <= self._max_retries:
+            attempts += 1
+            self._last_metrics["attempts"] = attempts
+            emitted = 0
+            try:
+                with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                    for raw_line in response:
+                        line = raw_line.decode("utf-8", errors="replace").strip()
+                        if not line or not line.startswith("data:"):
+                            continue
+                        payload_text = line[5:].strip()
+                        if payload_text == "[DONE]":
+                            break
+                        try:
+                            payload = json.loads(payload_text)
+                        except json.JSONDecodeError:
+                            continue
+                        if isinstance(payload, Mapping) and isinstance(payload.get("usage"), Mapping):
+                            usage = payload["usage"]
+                        delta = _stream_text_delta(payload, self._wire_api)
+                        if not delta:
+                            continue
+                        remaining = max(0, int(max_chars) - emitted)
+                        if not remaining:
+                            break
+                        delta = str(delta)[:remaining]
+                        emitted += len(delta)
+                        if delta:
+                            yield delta
+                if not emitted:
+                    self._record_error(started, "response_shape_error", attempts)
+                    raise _planner_error(
+                        "OpenAI stream did not contain answer text",
+                        "response_shape_error",
+                    )
+                self._record_success(started, attempts, {"usage": usage})
+                return
+            except urllib.error.HTTPError as exc:
+                if exc.code in (400, 404, 405, 501):
+                    self._record_error(started, "stream_unsupported", attempts, exc.code)
+                    raise PlanningError(
+                        "OpenAI provider does not support text streaming",
+                        category="provider",
+                        code="stream_unsupported",
+                        retryable=False,
+                    ) from exc
+                if _retryable_http_status(exc.code) and attempts <= self._max_retries:
+                    self._wait_before_retry(attempts)
+                    continue
+                self._record_error(started, "http_error", attempts, exc.code)
+                raise _planner_error(
+                    "OpenAI stream request failed (HTTP {})".format(exc.code),
+                    "http_error",
+                    response_status=exc.code,
+                    retryable=_retryable_http_status(exc.code),
+                ) from exc
+            except urllib.error.URLError as exc:
+                is_retryable = _retryable_url_error(exc)
+                if is_retryable and attempts <= self._max_retries:
+                    self._wait_before_retry(attempts)
+                    continue
+                self._record_error(started, "url_error", attempts)
+                raise _planner_error(
+                    "OpenAI stream request failed (network)",
+                    "url_error",
+                    retryable=is_retryable,
+                ) from exc
+            except (TimeoutError, socket.timeout) as exc:
+                if attempts <= self._max_retries:
+                    self._wait_before_retry(attempts)
+                    continue
+                self._record_error(started, "timeout", attempts)
+                raise _planner_error(
+                    "OpenAI stream request timed out",
+                    "timeout",
+                    retryable=True,
+                ) from exc
+
     def metrics(self) -> Dict[str, Any]:
         return dict(self._last_metrics)
 
@@ -421,6 +538,25 @@ class OpenAIPlannerClient:
         elif self._auth_location != "query":
             raise PlanningError("OPENAI_AUTH_LOCATION must be one of: header, query")
         return headers
+
+
+def _stream_text_delta(payload: Any, wire_api: str) -> str:
+    """Extract only visible answer text from known SSE payload shapes."""
+
+    if not isinstance(payload, Mapping):
+        return ""
+    if wire_api == "chat_completions":
+        choices = payload.get("choices")
+        if isinstance(choices, list) and choices and isinstance(choices[0], Mapping):
+            delta = choices[0].get("delta")
+            if isinstance(delta, Mapping) and isinstance(delta.get("content"), str):
+                return delta["content"]
+        return ""
+    event_type = str(payload.get("type") or "")
+    if event_type in {"response.output_text.delta", "response.text.delta"}:
+        delta = payload.get("delta")
+        return delta if isinstance(delta, str) else ""
+    return ""
 
 
 def _planner_url(api_url: Optional[str], base_url: str, wire_api: str = "responses") -> str:

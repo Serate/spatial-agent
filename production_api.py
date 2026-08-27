@@ -7,13 +7,15 @@ projection and artifact access are shared with ``serve_api.py`` through
 """
 
 import atexit
+import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from agent.environment_status import environment_status
 from agent.domain_http import assert_domain_payload
@@ -41,6 +43,7 @@ from agent.application.http_transport import (
     load_artifact_json,
     safe_artifact_path,
 )
+from agent.run_events import validate_event_cursor, validate_event_limit
 from agent.web_assets import console_asset as resolve_console_asset
 from agent.web_assets import console_index as resolve_console_index
 from agent.web_assets import console_root
@@ -197,6 +200,46 @@ def _http_application(target_service: AgentService = None) -> HTTPApplication:
         ),
         on_session_delete=domain_routing.forget_session,
     )
+
+
+def _sse_line(event: Dict[str, Any]) -> str:
+    """Encode one already-normalized RunEvent as an SSE message."""
+    return "id: {}\nevent: run_event\ndata: {}\n\n".format(
+        event["sequence"],
+        json.dumps(event, ensure_ascii=False, separators=(",", ":")),
+    )
+
+
+async def _run_event_stream(
+    reader: HTTPApplication,
+    run_id: str,
+    *,
+    after: int,
+    limit: int,
+    request: Request,
+):
+    """Replay persisted events and keep the connection alive with heartbeats."""
+    cursor = after
+    while True:
+        if await request.is_disconnected():
+            return
+        payload = reader.read(
+            "run_events",
+            {"after": cursor, "limit": limit},
+            resource_id=run_id,
+        )
+        events = payload.get("events") or []
+        if events:
+            for event in events:
+                yield _sse_line(event)
+            cursor = int(payload.get("next_cursor") or cursor)
+            if payload.get("terminal"):
+                return
+            continue
+        if payload.get("terminal"):
+            return
+        yield ": heartbeat\n\n"
+        await asyncio.sleep(0.75)
 
 
 @app.get("/health/live")
@@ -651,6 +694,45 @@ def async_observability(run_id: str):
         _raise_for(exc, not_found=True)
 
 
+@app.get("/runs/{run_id}/events")
+async def run_events(
+    run_id: str,
+    request: Request,
+    after: Optional[int] = None,
+    limit: int = 100,
+    last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
+):
+    try:
+        cursor = validate_event_cursor(
+            last_event_id if last_event_id is not None else after
+        )
+        event_limit = validate_event_limit(limit)
+        # Validate the resource before opening a streaming response so a
+        # missing/foreign run produces a normal JSON error status.
+        _http_application().read(
+            "run_events",
+            {"after": cursor, "limit": event_limit},
+            resource_id=run_id,
+        )
+        return StreamingResponse(
+            _run_event_stream(
+                _http_application(),
+                run_id,
+                after=cursor,
+                limit=event_limit,
+                request=request,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
 @app.post("/comparisons")
 def compare(payload: Dict[str, Any]):
     try:
@@ -1037,6 +1119,46 @@ def domain_async_observability(domain_id: str, run_id: str):
         selected_service = _domain_service(domain_id)
         return _http_application(selected_service).read(
             "async_observability", resource_id=run_id
+        )
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.get("/domains/{domain_id}/runs/{run_id}/events")
+async def domain_run_events(
+    domain_id: str,
+    run_id: str,
+    request: Request,
+    after: Optional[int] = None,
+    limit: int = 100,
+    last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
+):
+    try:
+        selected_service = _domain_service(domain_id)
+        reader = _http_application(selected_service)
+        cursor = validate_event_cursor(
+            last_event_id if last_event_id is not None else after
+        )
+        event_limit = validate_event_limit(limit)
+        reader.read(
+            "run_events",
+            {"after": cursor, "limit": event_limit},
+            resource_id=run_id,
+        )
+        return StreamingResponse(
+            _run_event_stream(
+                reader,
+                run_id,
+                after=cursor,
+                limit=event_limit,
+                request=request,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)

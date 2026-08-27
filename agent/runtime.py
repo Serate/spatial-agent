@@ -2,7 +2,7 @@ import uuid
 import inspect
 from datetime import datetime, timezone
 from time import perf_counter
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Set
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from .capability_catalog import (
@@ -42,6 +42,7 @@ from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .plan_repair import PlanRepairEngine, PlanRepairInput
 from .observability import ObservabilityEmitter
+from .run_events import new_run_event
 from .plan_identity import build_plan_identity
 from .evidence_revalidation import (
     build_evidence_binding,
@@ -119,6 +120,7 @@ class AgentRuntime:
         allowed_permissions: Optional[Iterable[str]] = None,
         approved_tools: Optional[Iterable[str]] = None,
         require_dependency_evidence: bool = False,
+        event_sink: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None,
     ):
         self._planner = planner
         self._registry = registry
@@ -144,6 +146,7 @@ class AgentRuntime:
         )
         self._memory = memory
         self._observability = observability
+        self._event_sink = event_sink
         # The selected Domain Pack owns its default grant. Callers can still
         # narrow or replace it explicitly for a deployment.
         self._allowed_permissions = {
@@ -529,7 +532,7 @@ class AgentRuntime:
         metrics = getattr(self._planner, "metrics", None)
         return metrics() if callable(metrics) else None
 
-    def _compose_answer(self, result: AgentRunResult) -> str:
+    def _compose_answer(self, result: AgentRunResult, *, on_delta=None) -> str:
         """Generate a natural-language answer with a deterministic fallback.
 
         The Domain Composer remains responsible for the trusted fallback.  A
@@ -546,7 +549,11 @@ class AgentRuntime:
             )
             return _append_execution_degradation_notice(result, fallback)
         try:
-            generated = generate(result)
+            stream_generate = getattr(generator, "generate_stream", None)
+            if callable(on_delta) and callable(stream_generate):
+                generated = stream_generate(result, on_delta=on_delta)
+            else:
+                generated = generate(result)
             answer = getattr(generated, "answer", None)
             evidence = getattr(generated, "evidence", None)
             if not isinstance(answer, str) or not answer.strip():
@@ -782,6 +789,39 @@ class AgentRuntime:
         )
         if span_id:
             self._run_span_ids.pop(result.run_id, None)
+
+    def _emit_progress_event(
+        self,
+        run_id: str,
+        *,
+        phase: str,
+        kind: str,
+        status: str,
+        message: str,
+        data: Optional[Mapping[str, Any]] = None,
+        terminal: Optional[bool] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Append one safe realtime event without changing run semantics."""
+        event = new_run_event(
+            run_id=run_id,
+            phase=phase,
+            kind=kind,
+            status=status,
+            message=message,
+            data=data,
+            terminal=terminal,
+        )
+        sink = self._event_sink
+        if not callable(sink):
+            sink = getattr(self._state_store, "append_run_event", None)
+        if not callable(sink):
+            return None
+        try:
+            return sink(event)
+        except Exception:
+            # Realtime delivery must never make a valid Agent run fail. The
+            # durable result and existing observability remain authoritative.
+            return None
 
     def _emit_step_event(
         self,

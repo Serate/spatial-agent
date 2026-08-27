@@ -1,5 +1,6 @@
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -213,6 +214,46 @@ class M135RuntimeContextTests(unittest.TestCase):
 
         self.assertEqual(snapshot["domain_id"], "gis")
         self.assertEqual(snapshot["tool_provider"]["id"], "native")
+
+    def test_builtin_domain_submission_and_worker_contexts_match(self):
+        for domain_id in ("gis", "text", "indicators", "economic"):
+            with self.subTest(domain_id=domain_id):
+                submitted = build_runtime_context_snapshot(
+                    "rule", "local", domain_id=domain_id
+                )
+                runtime = build_runtime("rule", "local", domain_id=domain_id)
+
+                assert_runtime_context_compatible(submitted, runtime.runtime_context())
+
+    def test_economic_async_run_passes_context_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = AgentService(
+                state_db_path=str(Path(directory) / "agent.db"),
+                artifact_store=ArtifactStore(str(Path(directory) / "runs")),
+                domain_id="economic",
+            )
+            try:
+                submitted = service.run_async(
+                    request="查询洪山区 2025 年 GDP。",
+                    session_id="m135-economic-async",
+                    planner="rule",
+                    backend="local",
+                )
+                result = service.get_run(
+                    submitted["run_id"], planner="rule", backend="local"
+                )
+                for _ in range(100):
+                    if result["status"] not in {"QUEUED", "PLANNING", "EXECUTING"}:
+                        break
+                    time.sleep(0.01)
+                    result = service.get_run(
+                        submitted["run_id"], planner="rule", backend="local"
+                    )
+            finally:
+                service.close()
+
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertNotEqual(result.get("error_code"), "runtime_context_mismatch")
 
     def test_console_renders_runtime_context_alongside_execution_record(self):
         source = read_console_source(Path(__file__).parents[1])

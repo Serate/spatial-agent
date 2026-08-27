@@ -109,10 +109,11 @@
       }
     }
     dockWorkspaceControls();
-    function setResultPanel(selector, visible) { document.querySelectorAll(selector).forEach(panel => panel.classList.toggle('is-visible', visible)); }
-    function setAdvancedVisibility(visible, summary, expand) { const details=$('advancedResults'); if(!details) return; details.hidden=!visible; if(summary) $('advancedSummary').textContent=summary; if(typeof expand==='boolean') details.open=expand; }
-    function resetResultWorkspace(reason='reset') {
-      rendererRegistry?.reset({reason,generation:conversationGeneration,surfaces:{generic:$('genericResult'),visual:$('map')}});
+     function setResultPanel(selector, visible) { document.querySelectorAll(selector).forEach(panel => panel.classList.toggle('is-visible', visible)); }
+     function setAdvancedVisibility(visible, summary, expand) { const details=$('advancedResults'); if(!details) return; details.hidden=!visible; if(summary) $('advancedSummary').textContent=summary; if(typeof expand==='boolean') details.open=expand; }
+     function resetResultWorkspace(reason='reset') {
+       stopLiveRun();
+       rendererRegistry?.reset({reason,generation:conversationGeneration,surfaces:{generic:$('genericResult'),visual:$('map')}});
       $('resultEmpty').style.display = 'flex';
       setResultPanel('.result-panel', false);
       $('planPreview').innerHTML = '点击“预览计划”查看工具 DAG；预览不会执行工具。';
@@ -248,15 +249,19 @@
         button.disabled=false;
       }
     }
-    let lastRunData = null;
-    let lastPlanPreview = null;
-    let runtimeEvidenceSnapshot = null;
-    let runtimeEvidencePromise = null;
-    let conversationGeneration = 0;
-    resetResultWorkspace();
-    let activeRunId = null;
-    let activeRunDomainId = null;
-    let activeRunParams = {};
+     let lastRunData = null;
+     let lastPlanPreview = null;
+     let runtimeEvidenceSnapshot = null;
+     let runtimeEvidencePromise = null;
+     let conversationGeneration = 0;
+     let liveRunConsumer = null;
+     let liveRunTicker = null;
+     let liveRunDetailTimer = null;
+     const liveRunState = {runId:'',domainId:'',request:'',startedAt:0,lastEventAt:0,lastSequence:0,eventCount:0,currentPhase:'',currentAction:'',transport:'',answerBuffer:'',finalizing:false,detailPolling:false};
+     let activeRunId = null;
+     let activeRunDomainId = null;
+     let activeRunParams = {};
+     resetResultWorkspace();
     let workflowTemplates = {};
     let actionCatalog = {schema_version:'spatial-agent.actions.v1',domain_id:'unknown',actions:[]};
     let actionCatalogPromise = null;
@@ -313,7 +318,7 @@
       localDraftSessionIds.add(autoDraftSessionId);
       return autoDraftSessionId;
     }
-    async function pollQueuedRun(queued,payload,runDomain) {
+     async function pollQueuedRun(queued,payload,runDomain) {
       rememberRunDomain(queued,runDomain);
       activeRunId=queued.run_id;
       activeRunDomainId=runDomain;
@@ -334,9 +339,88 @@
         }
       }
       if(activeRunId===queued.run_id) { activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); }
-      return data;
-    }
-    window.fetch = async (input, init) => {
+       return data;
+     }
+     function liveRunIsTerminal(data) { return ['COMPLETED','PARTIAL','FAILED','REJECTED','BLOCKED','CANCELLED','TIMED_OUT'].includes(String(data?.status||'').toUpperCase()); }
+     function runEventsPath(runId,domainId) { return domainPath('/runs/'+encodeURIComponent(runId)+'/events',domainId); }
+     async function fetchLiveRunDetail(runId,domainId) {
+       for(let attempt=0;attempt<4;attempt++) {
+         try {
+           const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId),domainId)+'?planner='+encodeURIComponent(activeRunParams.planner||$('planner').value||'rule')+'&backend='+encodeURIComponent(activeRunParams.backend||$('backend').value||'memory'),{cache:'no-store'});
+           if(response.ok) return await response.json();
+         } catch(_) { /* A later bounded attempt may observe the persisted terminal result. */ }
+         if(attempt<3) await sleep(120);
+       }
+       return null;
+     }
+     async function finishLiveRun(event,providedData) {
+       if(liveRunState.finalizing||!liveRunState.runId) return;
+       liveRunState.finalizing=true;
+       const runId=liveRunState.runId,domainId=liveRunState.domainId;
+       const data=providedData||await fetchLiveRunDetail(runId,domainId);
+       if(!data) {
+         liveRunState.finalizing=false;
+         $('liveRunAction').textContent='运行已结束，但最终结果暂时无法读取。';
+         $('error').innerHTML='<div class="error">运行已结束，最终结果读取失败；请稍后从历史任务恢复。</div>';
+         return;
+       }
+       liveRunState.lastEventAt=Date.now();
+       liveRunState.currentPhase='evidence';
+       liveRunState.currentAction=liveRunIsTerminal(data)?'最终结果已写入，可查看结构化结果。':'正在读取最终结果。';
+       stopLiveRun({preserve:true});
+       if(activeRunId===runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); }
+       if(runId===liveRunState.runId&&domainId===currentDomainId()&&conversationGeneration>=0){
+         rememberRunDomain(data,domainId);
+         renderRun(data);
+         if(!liveRunState.finalAnswerShown){ appendMessage('assistant',answerText(data),runId); liveRunState.finalAnswerShown=true; }
+       }
+       refreshLiveSummary();
+       liveRunState.finalizing=false;
+     }
+     function startRunDetailFallback(runId,domainId) {
+       if(liveRunState.detailPolling||liveRunState.runId!==String(runId)) return;
+       liveRunConsumer?.stop?.(); liveRunConsumer=null;
+       liveRunState.detailPolling=true; liveRunState.transport='polling';
+       liveRunState.currentAction='实时事件暂不可用，已切换为状态轮询。'; refreshLiveSummary();
+       const poll=async()=>{
+         if(liveRunState.runId!==String(runId)||liveRunState.finalizing){ liveRunState.detailPolling=false; return; }
+         try {
+           const data=await fetchLiveRunDetail(runId,domainId);
+           if(data){
+             lastRunData=data;
+             if(data.status) setStatus(data);
+             if(liveRunIsTerminal(data)){ liveRunState.detailPolling=false; await finishLiveRun(null,data); return; }
+             liveRunState.lastEventAt=Date.now(); liveRunState.currentAction='运行状态：'+statusName(data.status||'处理中'); refreshLiveSummary();
+           }
+         } catch(_) { /* Keep the bounded fallback alive while the worker is running. */ }
+         if(liveRunState.detailPolling) liveRunDetailTimer=window.setTimeout(poll,900);
+       };
+       poll();
+     }
+     function startLiveRun(data,request,domainId) {
+       const runId=String(data?.run_id||'');
+       if(!runId) return false;
+       stopLiveRun();
+       liveRunState.runId=runId; liveRunState.domainId=domainId; liveRunState.request=request||''; liveRunState.startedAt=Date.now(); liveRunState.lastEventAt=Date.now(); liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase='resolve'; liveRunState.currentAction='已接收请求，等待运行时接管。'; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.finalizing=false; liveRunState.finalAnswerShown=false;
+       activeRunId=runId; activeRunDomainId=domainId; activeRunParams={planner:$('planner').value,backend:$('backend').value}; setCancelState(true);
+       renderLiveRunShell(data,request);
+       liveRunTicker=window.setInterval(refreshLiveSummary,1000);
+       if(!window.ConsoleRunEvents?.create){ startRunDetailFallback(runId,domainId); return true; }
+       liveRunConsumer=window.ConsoleRunEvents.create({
+         runId,
+         eventsPath:()=>runEventsPath(runId,domainId),
+         after:0,
+         onEvent:handleLiveEvent,
+         onTransport:info=>{ liveRunState.transport=info.transport||''; if(info.transport==='polling') liveRunState.currentAction='实时连接不可用，正在使用轮询获取事件。'; refreshLiveSummary(); },
+         onOpen:()=>{ liveRunState.currentAction='已连接实时事件流，等待下一阶段。'; refreshLiveSummary(); },
+         onError:info=>{ if(info?.transport==='sse') liveRunState.currentAction='实时连接中断，正在尝试轮询恢复。'; else liveRunState.currentAction='事件读取暂时失败，正在重试。'; refreshLiveSummary(); },
+         onUnavailable:()=>startRunDetailFallback(runId,domainId),
+         onComplete:event=>finishLiveRun(event),
+       });
+       liveRunConsumer.start();
+       return true;
+     }
+     window.fetch = async (input, init) => {
       const payload=init?.body&&typeof init.body==='string'?JSON.parse(init.body||'{}'):{};
       const submittedDomain=payload.domain_id||currentDomainId();
       if(input==='/runs/auto' && init?.method==='POST') {
@@ -344,37 +428,43 @@
         if(!routingResponse.ok) return routingResponse;
         let data=await routingResponse.json();
         const runDomain=data?.domain_id;
-        if(runDomain&&data?.run_id) {
-          bindAutoDomain(data,runDomain);
-          rememberRunDomain(data,runDomain);
-          if(['QUEUED','PLANNING','EXECUTING'].includes(data.status)) data=await pollQueuedRun(data,payload,runDomain);
-        }
+         if(runDomain&&data?.run_id) {
+           bindAutoDomain(data,runDomain);
+           rememberRunDomain(data,runDomain);
+         }
         return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
       }
       if(input===domainPath('/runs',submittedDomain) && init?.method==='POST') {
         const queuedResponse=await nativeFetch(domainPath('/runs/async',submittedDomain),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(withDomainPayload(payload,submittedDomain))});
         if(!queuedResponse.ok) return queuedResponse;
-        const queued=await queuedResponse.json();
-        if(usesAutoRouting()) bindAutoDomain(queued,submittedDomain);
-        const data=['QUEUED','PLANNING','EXECUTING'].includes(queued.status)?await pollQueuedRun(queued,payload,submittedDomain):queued;
-        return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
+         const queued=await queuedResponse.json();
+         if(usesAutoRouting()) bindAutoDomain(queued,submittedDomain);
+         return new Response(JSON.stringify(queued),{status:200,headers:{'Content-Type':'application/json'}});
       }
       return nativeFetch(input,init);
     };
-    const statusNames={IDLE:'待机',PLANNING:'规划中',PLANNED:'计划已生成',EXECUTING:'执行中',WAITING_FOR_DECISION:'等待确认',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
+       const statusNames={IDLE:'待机',SUBMITTED:'已提交',QUEUED:'排队中',RUNNING:'运行中',PLANNING:'规划中',PLANNED:'计划已生成',EXECUTING:'执行中',WAITING_FOR_DECISION:'等待确认',COMPLETED:'已完成',NEEDS_CLARIFICATION:'等待澄清',REJECTED:'已拒绝',FAILED:'失败',BLOCKED:'已阻塞',CANCELLED:'已取消',TIMED_OUT:'已超时'};
     const errorCategoryLabels={provider:'模型服务错误',planning:'规划错误',tool:'工具执行错误',timeout:'执行超时',invalid_input:'无效输入',execution:'执行错误',cancelled:'已取消',rejected:'请求已拒绝',clarification:'需要澄清'};
     function failureEvidenceBadge(failure) { if(!failure) return ''; const phase=String(failure.phase||'unknown'); const code=String(failure.code||'unknown'); const retryable=failure.retryable===true?'可重试':'不可重试'; return '<span class="failure-evidence" title="版本化失败证据：'+escapeHtml(String(failure.schema_version||''))+'">阶段：'+escapeHtml(phase)+' · 错误码：'+escapeHtml(code)+' · '+retryable+'</span>'; }
     function errorCategoryBadge(category) { if(!category) return ''; const key=String(category).toLowerCase(); const failure=(typeof lastRunData!=='undefined'&&lastRunData)?(lastRunData.failure||(lastRunData.result||{}).failure):null; return '<span class="error-category '+key+'" title="结构化错误分类：'+escapeHtml(key)+'">'+escapeHtml(errorCategoryLabels[key]||category)+'</span>'+failureEvidenceBadge(failure); }
     let health={capabilities:{}};
     const statusName=value=>statusNames[value]||value;
-    function agentStageStates(value) {
-      const data=value&&typeof value==='object'?value:{};
-      const status=String(data.status||value||'IDLE').toUpperCase();
-      const clarification=data.clarification||data.result?.clarification||{};
-      const selection=(data.plan_evidence||data.result?.planning||data.result?.plan_evidence||{}).selection_evidence||{};
-      const clarificationState=String(clarification.state||selection.clarification?.state||'').toLowerCase();
-      if(status==='COMPLETED'||status==='PARTIAL') return ['complete','complete','complete','complete','complete'];
-      if(status==='EXECUTING') return ['complete','complete','complete','active','waiting'];
+     function agentStageStates(value) {
+       const data=value&&typeof value==='object'?value:{};
+       const status=String(data.status||value||'IDLE').toUpperCase();
+       const phase=String(data.phase||'').toLowerCase();
+       const clarification=data.clarification||data.result?.clarification||{};
+       const selection=(data.plan_evidence||data.result?.planning||data.result?.plan_evidence||{}).selection_evidence||{};
+       const clarificationState=String(clarification.state||selection.clarification?.state||'').toLowerCase();
+       if(status==='COMPLETED'||status==='PARTIAL') return ['complete','complete','complete','complete','complete'];
+       const phaseIndex={resolve:0,clarify:1,plan:2,validate:2,execute:3,answer:4,evidence:4}[phase];
+       if(phaseIndex!==undefined&&['SUBMITTED','QUEUED','RUNNING','PLANNING','EXECUTING','WAITING_FOR_DECISION'].includes(status)) {
+         const states=['waiting','waiting','waiting','waiting','waiting'];
+         for(let index=0;index<phaseIndex;index++) states[index]='complete';
+         states[phaseIndex]=status==='WAITING_FOR_DECISION'||status==='NEEDS_CLARIFICATION'?'active':'active';
+         return states;
+       }
+       if(status==='EXECUTING') return ['complete','complete','complete','active','waiting'];
       if(status==='QUEUED') return ['complete','complete','active','waiting','waiting'];
       if(status==='WAITING_FOR_DECISION') return ['complete','active','waiting','waiting','waiting'];
       if(status==='PLANNED') return ['complete','complete','complete','waiting','waiting'];
@@ -393,19 +483,84 @@
       target.innerHTML=AGENT_STAGE_DEFINITIONS.map(([label,short],index)=>'<span class="agent-stage is-'+states[index]+'"><i aria-hidden="true"></i><b>'+short+'</b><small>'+stateLabels[states[index]]+'</small><em class="sr-only">'+label+'</em></span>').join('');
       target.setAttribute('aria-label','Agent 处理阶段：'+statusName(status));
     }
-    function setStatus(value) {
+     function setStatus(value) {
       const statusValue=typeof value==='object'?(value?.status||'IDLE'):value;
       const label=statusName(statusValue);
       const normalized=String(statusValue||'').toUpperCase();
-      const busy=['QUEUED','PLANNING','EXECUTING'].includes(normalized);
+       const busy=['SUBMITTED','QUEUED','RUNNING','PLANNING','EXECUTING'].includes(normalized);
       const el=$('status');
       el.textContent=label;
       el.className='badge '+String(statusValue).toLowerCase();
       el.setAttribute('aria-label','运行状态：'+label);
       $('chatPanel')?.setAttribute('aria-busy',busy?'true':'false');
       $('resultWorkspace')?.setAttribute('aria-busy',busy?'true':'false');
-      renderAgentStageBar(typeof value==='object'?value:(normalized||'IDLE'));
-    }
+       renderAgentStageBar(typeof value==='object'?value:(normalized||'IDLE'));
+     }
+     function liveDurationText() { const elapsed=Math.max(0,Date.now()-(liveRunState.startedAt||Date.now())); return elapsed<1000?'< 1 秒':Math.round(elapsed/1000)+' 秒'; }
+     function liveHeartbeatText() { if(!liveRunState.lastEventAt) return '尚未收到事件'; const elapsed=Math.max(0,Date.now()-liveRunState.lastEventAt); return elapsed<1000?'刚刚':Math.round(elapsed/1000)+' 秒前'; }
+     function liveSummaryVisible(visible) { const target=$('liveRunSummary'); if(!target) return; target.hidden=!visible; if(!visible) target.open=false; }
+     function stopLiveRun(options={}) {
+       liveRunConsumer?.stop?.();
+       liveRunConsumer=null;
+       if(liveRunTicker!==null){ window.clearInterval(liveRunTicker); liveRunTicker=null; }
+       if(liveRunDetailTimer!==null){ window.clearTimeout(liveRunDetailTimer); liveRunDetailTimer=null; }
+       liveRunState.detailPolling=false;
+       if(!options.preserve){ if(activeRunId&&activeRunId===liveRunState.runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); } liveSummaryVisible(false); $('liveRunEvents')?.replaceChildren(); liveRunState.runId=''; liveRunState.domainId=''; liveRunState.request=''; liveRunState.startedAt=0; liveRunState.lastEventAt=0; liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase=''; liveRunState.currentAction=''; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.finalizing=false; }
+     }
+     function appendLiveEvent(event) {
+       const list=$('liveRunEvents'); if(!list) return;
+       const item=document.createElement('li');
+       item.className='live-event live-event-'+String(event.kind||'state').replace(/[^a-z0-9_-]/gi,'-');
+       const label=window.ConsoleRunEvents?.kindLabel?window.ConsoleRunEvents.kindLabel(event.kind):'运行状态';
+       const message=event.message||label;
+       item.innerHTML='<span class="live-event-dot" aria-hidden="true"></span><span class="live-event-copy"><b>'+escapeHtml(label)+'</b><span>'+escapeHtml(message)+'</span></span><small>#'+escapeHtml(event.sequence)+'</small>';
+       list.prepend(item);
+       while(list.children.length>8) list.lastElementChild.remove();
+     }
+     function refreshLiveSummary() {
+       const phaseLabel=window.ConsoleRunEvents?.phaseLabel?window.ConsoleRunEvents.phaseLabel(liveRunState.currentPhase):'处理中';
+       const phase=$('liveRunPhase'),duration=$('liveRunDuration'),action=$('liveRunAction'),heartbeat=$('liveRunHeartbeat'),meta=$('liveSummaryMeta');
+       if(phase) phase.textContent=phaseLabel;
+       if(duration) duration.textContent=liveDurationText();
+       if(action) action.textContent=liveRunState.currentAction||'运行时正在准备下一步';
+       if(heartbeat) heartbeat.textContent=liveHeartbeatText();
+       if(meta) meta.textContent=(liveRunState.transport==='polling'?'轮询降级 · ':'实时事件 · ')+liveRunState.eventCount+' 个事件';
+       const fill=$('liveProgressFill'); if(fill){ const map={resolve:18,clarify:30,plan:48,validate:58,execute:74,answer:88,evidence:96}; fill.style.width=(map[liveRunState.currentPhase]||12)+'%'; }
+     }
+     function renderLiveRunShell(data,request) {
+       const safe=normalizeConsoleResult(data).data;
+       lastRunData=safe;
+       liveSummaryVisible(true);
+       if($('liveRunSummary')) $('liveRunSummary').open=false;
+       $('resultEmpty').style.display='none';
+       setResultPanel('.result-panel',false);
+       setResultPanel('.answer-result',true);
+       setAdvancedVisibility(false);
+       $('title').textContent='正在分析';
+       $('subtitle').textContent='Agent 正在分阶段处理请求，进展会实时更新。';
+       $('answer').textContent='正在分析，请稍候…';
+       $('answer').className='answer muted';
+       $('answerProjection').innerHTML=''; $('answerProjection').hidden=true;
+       $('error').innerHTML='';
+       $('liveRunAction').textContent=request?'已接收请求，等待运行时接管':'等待运行时接管';
+       setStatus({status:safe.status||'QUEUED',phase:liveRunState.currentPhase||'resolve'});
+       refreshLiveSummary();
+     }
+     function handleLiveEvent(event) {
+       if(!event||event.run_id!==liveRunState.runId||liveRunState.finalizing) return;
+       liveRunState.lastSequence=event.sequence; liveRunState.lastEventAt=Date.now(); liveRunState.eventCount+=1;
+       if(event.phase) liveRunState.currentPhase=event.phase;
+       const tool=event.data?.tool;
+       liveRunState.currentAction=event.message||((tool?'正在处理工具：'+tool:'')||'运行时正在处理当前阶段');
+       if(event.kind==='answer_delta'&&typeof event.data?.answer_delta==='string'){
+         liveRunState.answerBuffer=(liveRunState.answerBuffer+event.data.answer_delta).slice(0,1800);
+         $('answer').textContent=liveRunState.answerBuffer;
+         $('answer').className='answer';
+       }
+       if(event.status) setStatus({status:event.status,phase:event.phase||liveRunState.currentPhase});
+       $('subtitle').textContent=event.message||('Agent 正在'+(window.ConsoleRunEvents?.phaseLabel?window.ConsoleRunEvents.phaseLabel(event.phase):'处理中')+'。');
+       appendLiveEvent(event); refreshLiveSummary();
+     }
     renderAgentStageBar('IDLE');
     function appendMessage(role, text, runId) { const labels={user:'你',assistant:'智能体',system:'系统'}; const wrap=document.createElement('div'); wrap.className='msg '+role; wrap.innerHTML='<div class="role">'+labels[role]+'</div><div class="bubble">'+escapeHtml(text)+'</div>'; if(runId){ wrap.classList.add('msg-linked'); wrap.dataset.runId=runId; wrap.title='打开该次运行的完整详情（不重新执行模型）'; wrap.addEventListener('click',()=>openRunDetail(runId)); } $('messages').appendChild(wrap); $('messages').scrollTop=$('messages').scrollHeight; }
     function selectedDomainLabel() { return $('domain').selectedOptions[0]?.textContent||'默认领域'; }
@@ -954,7 +1109,7 @@
       } catch(error) { if(domainId===currentDomainId()){ $('historyList').innerHTML='<div class="muted">历史任务暂不可用。</div>'; $('runtimeMetrics').textContent='运行指标暂不可用。'; } }
     }
     function validateSelection(request) { const caps=health.capabilities||{}; if(!String(request||'').trim()) throw new Error('请输入问题后再发送。'); if($('planner').value==='openai'&&!caps.live_llm_configured) throw new Error('当前服务没有可用的大模型配置。请先配置本地模型配置或环境变量。'); if($('planner').value==='openai'&&!caps.live_llm_network) throw new Error('当前服务进程不能访问大模型网络。请从允许出站网络的终端重新启动服务，或先切回规则规划器。'); }
-    async function retryRun(runId) { const domainId=domainForRun(runId); setStatus('EXECUTING'); $('subtitle').textContent='正在从失败步骤恢复，已完成步骤不会重复执行。'; try { const body=withDomainPayload({planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true},domainId); const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId)+'/retry',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json(); if(!response.ok) throw new Error(responseError(data,'重试失败')); rememberRunDomain(data,domainId); if(domainId===currentDomainId()){ renderRun(data); appendMessage('assistant',answerText(data)); } } catch(e) { if(domainId===currentDomainId()){ setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } } }
+     async function retryRun(runId) { const domainId=domainForRun(runId); setStatus('EXECUTING'); $('subtitle').textContent='正在从失败步骤恢复，已完成步骤不会重复执行。'; try { const body=withDomainPayload({planner:$('planner').value,backend:$('backend').value,export_artifact:true,export_geojson:true},domainId); const response=await nativeFetch(domainPath('/runs/'+encodeURIComponent(runId)+'/retry',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json(); if(!response.ok) throw new Error(responseError(data,'重试失败')); rememberRunDomain(data,domainId); if(domainId===currentDomainId()){ if(data.run_id&&['SUBMITTED','QUEUED','PLANNING','EXECUTING'].includes(String(data.status||'').toUpperCase())) startLiveRun(data,data.request||'重试失败步骤',domainId); else { renderRun(data); appendMessage('assistant',answerText(data),data.run_id); } } } catch(e) { if(domainId===currentDomainId()){ setStatus('FAILED'); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); } } }
     async function resolveRunDecision(decisionId, choice, version) { if(!decisionId) return; const domainId=decisionDomains.get(String(decisionId))||responseDomain(lastRunData); document.querySelectorAll('.decision-action-bar button').forEach(button=>button.disabled=true); try { const body=withDomainPayload({choice,expected_version:version,planner:$('planner').value,backend:$('backend').value},domainId); const response=await nativeFetch(domainPath('/decisions/'+encodeURIComponent(decisionId)+'/resolve',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data=await response.json().catch(()=>({})); if(!response.ok) throw new Error(responseError(data,'决策提交失败')); rememberRunDomain(data,domainId); if(domainId===currentDomainId()){ renderRun(data); appendMessage('assistant',answerText(data),data.run_id); } } catch(error){ if(domainId===currentDomainId()){ $('error').innerHTML='<div class="error">'+escapeHtml(error.message)+'</div>'; document.querySelectorAll('.decision-action-bar button').forEach(button=>button.disabled=false); } } }
     const interactionCommandKeys=new Map();
     function interactionCommandKey(model,actionId){
@@ -1067,14 +1222,18 @@
         const response=await fetch(unboundAuto?'/runs/auto':domainPath('/runs',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         const data=await response.json();
         if(!response.ok) throw new Error(responseError(data,'请求失败'));
-        if(unboundAuto&&data.status==='NEEDS_CLARIFICATION'){ data._console_auto_request=request; data._console_auto_payload=payload; }
-        const responseDomainId=data.domain_id||domainId;
-        if(unboundAuto&&data.domain_id) bindAutoDomain(data,data.domain_id);
-        rememberRunDomain(data,responseDomainId);
-        if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){ renderRun(data); appendMessage('assistant',answerText(data),data.run_id); if(unboundAuto&&data.domain_id) await hydrateAutoDomainState(data); }
-      } catch(e) {
+         if(unboundAuto&&data.status==='NEEDS_CLARIFICATION'){ data._console_auto_request=request; data._console_auto_payload=payload; }
+         const responseDomainId=data.domain_id||domainId;
+         if(unboundAuto&&data.domain_id) bindAutoDomain(data,data.domain_id);
+         rememberRunDomain(data,responseDomainId);
+         if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){
+           if(data.run_id&&['SUBMITTED','QUEUED','PLANNING','EXECUTING'].includes(String(data.status||'').toUpperCase())) startLiveRun(data,request,responseDomainId);
+           else { renderRun(data); appendMessage('assistant',answerText(data),data.run_id); }
+           if(unboundAuto&&data.domain_id) await hydrateAutoDomainState(data);
+         }
+       } catch(e) {
         if(mode===selectedDomainModeId()&&generation===domainGeneration&&viewGeneration===conversationGeneration){ setStatus('FAILED'); $('resultEmpty').style.display='none'; setResultPanel('.answer-result',true); $('error').innerHTML='<div class="error">'+escapeHtml(e.message)+'</div>'; appendMessage('system',e.message); }
-      } finally { button.disabled=window.__consoleDomainReady===false; $('prompt').focus(); }
+       } finally { button.disabled=Boolean(activeRunId)||window.__consoleDomainReady===false; $('prompt').focus(); }
     }
     $('send').addEventListener('click',()=>sendChat());
     $('previewPlan').addEventListener('click',previewPlan);

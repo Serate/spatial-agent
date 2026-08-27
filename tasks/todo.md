@@ -264,3 +264,12 @@
 - [ ] 保持 HTTP、Result、View、Evidence、Trace 和 Artifact 契约不变
 - [ ] 迁移对话、阶段轨迹、动态结果视图、地图与会话管理
 - [ ] 以增量替换方式验证用户体验，不重写 Agent Runtime
+
+## M313 实时 Agent 交互与可观测执行体验（进行中）
+
+- [x] M313-A RunEvent 契约、脱敏、序号和内存/SQLite 事件账本
+- [x] M313-B Runtime 生命周期、异步、工具和终态事件发射
+- [x] M313-C HTTP SSE、Last-Event-ID、断线续传和 polling fallback
+- [x] M313-D Console 实时阶段、心跳、动作、摘要和恢复体验
+- [x] M313-E 真实模型答案 delta 流与完整答案 fallback
+- [x] M313-F Docker/浏览器/重启/真实数据验收、交接文档、提交推送和全局重规划

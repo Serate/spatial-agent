@@ -1,27 +1,27 @@
-# 当前实施计划：React 前端迁移（下一 Goal，尚未开始）
+# 当前实施计划：M313 实时 Agent 交互与可观测执行体验
 
-当前 Agent Runtime Goal 已完成。React 阶段需另立 Goal；恢复时只读取当前快照、
-`tasks/task-progress.md` 最近记录和 React 阶段明确列出的文件。
+当前阶段先在现有原生 Console 上完成实时事件、SSE、恢复和答案流；React 前端迁移仍需
+另立 Goal。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录和当前任务明确文件。
 
 前置条件：HTTP、Result、View、Evidence、Trace、Artifact 和会话生命周期契约已稳定；
-React 只改变前端实现与体验，不重写 Runtime、Planner、ToolRegistry 或 Domain Pack。
+M313 只扩展 RunEvent 和实时读取，不重写 Runtime、Planner、ToolRegistry 或 Domain Pack。
 
-建议任务包：
+任务包：
 
-1. [ ] React shell 与现有 Console 页面并行运行，确认路由、静态资源和部署入口。
-2. [ ] 将对话、会话选择、清空/新建、阶段轨迹接入现有 HTTP API。
-3. [ ] 将结构化 Result/View/Evidence 动态映射为通用结果组件，不按领域分支。
-4. [ ] 接入地图、栅格、指标、趋势、来源证据和 artifact 下载视图。
-5. [ ] 保留错误、澄清、异步轮询、恢复和 provider 状态的用户投影。
-6. [ ] 完成一次浏览器验收与精简前端契约，再决定是否删除旧 Console。
+1. [x] RunEvent 契约、内存/SQLite 事件账本和游标恢复。
+2. [x] Runtime 生命周期、异步提交、工具和终态事件发射。
+3. [x] 共享 HTTP 读取语义、FastAPI SSE、Last-Event-ID 和 polling fallback。
+4. [ ] 原生 Console 的实时阶段、心跳、当前动作、取消/恢复和默认收起摘要。
+5. [ ] 真实模型最终答案 delta 流和完整答案 fallback。
+6. [ ] Docker、浏览器、重启恢复、真实 GIS/模型显式验收与版本交付。
 
 ---
 
-当前任务：无。下一步应先创建 React 阶段的 capability map、Spec、Plan 和 Goal，
-再开始实现；不在本次已完成 Goal 中混入 React 改造。
+当前任务：M313 已完成，正在进行阶段交付收口与提交推送。React 阶段待 M313 版本交付后再从
+项目全局另立 capability map、Spec、Plan 和 Goal，不与实时事件改造耦合。
 
-默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行精简浏览器验收、
-HTTP contract 和构建检查，不为每个小改动重复测试。
+默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行 M313 精简事件契约、
+HTTP/SSE、Node/browser smoke 和构建检查，不为每个小改动重复测试。
 
 ---
 

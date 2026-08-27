@@ -155,13 +155,23 @@ def _validate_string_list(
 class NativeToolProvider:
     """Provider for in-process adapters and repository tool definitions."""
 
-    def __init__(self, definitions: Mapping[str, Mapping[str, Any]], adapter: NativeToolAdapter):
+    def __init__(
+        self,
+        definitions: Mapping[str, Mapping[str, Any]],
+        adapter: NativeToolAdapter,
+        *,
+        provider_id: str | None = None,
+    ):
         self._definitions = deepcopy(dict(definitions))
         self._adapter = adapter
+        declared_id = provider_id
+        if declared_id is None:
+            declared_id = getattr(adapter, "provider_id", None)
+        self._provider_id = str(declared_id or "native")[:64]
 
     @property
     def provider_id(self) -> str:
-        return "native"
+        return self._provider_id
 
     def health(self) -> Dict[str, Any]:
         return {
@@ -174,10 +184,16 @@ class NativeToolProvider:
         }
 
     @classmethod
-    def from_json(cls, path: str, adapter: NativeToolAdapter) -> "NativeToolProvider":
+    def from_json(
+        cls,
+        path: str,
+        adapter: NativeToolAdapter,
+        *,
+        provider_id: str | None = None,
+    ) -> "NativeToolProvider":
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
         definitions = {tool["name"]: tool for tool in payload["tools"]}
-        return cls(definitions, adapter)
+        return cls(definitions, adapter, provider_id=provider_id)
 
     def definitions(self) -> Mapping[str, Mapping[str, Any]]:
         """Return a copy so a Registry cannot mutate provider state."""

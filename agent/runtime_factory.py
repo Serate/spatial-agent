@@ -8,7 +8,7 @@ factory for CLI compatibility.
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Callable, Iterable, Optional
 
 from .domain_contract import (
     DomainPack,
@@ -41,6 +41,7 @@ def build_runtime(
     domain_pack: Optional[DomainPack] = None,
     domain_id: Optional[str] = None,
     answer_generator: Any = None,
+    event_sink: Optional[Callable[[dict], dict]] = None,
 ) -> AgentRuntime:
     root = Path(__file__).resolve().parent.parent
     if domain_pack is not None and domain_id is not None:
@@ -96,6 +97,7 @@ def build_runtime(
         allowed_permissions=allowed_permissions,
         approved_tools=approved_tools,
         require_dependency_evidence=require_dependency_evidence,
+        event_sink=event_sink,
     )
 
 

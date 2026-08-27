@@ -1,6 +1,8 @@
 import argparse
 import atexit
+import json
 import os
+import time
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -40,6 +42,7 @@ from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
     WorkflowTemplateError,
 )
+from agent.run_events import validate_event_cursor, validate_event_limit
 
 
 _legacy_runtime_capability_snapshot = runtime_capability_snapshot
@@ -271,6 +274,61 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             return
         if parsed.path.startswith("/runs/"):
             parts = parsed.path.strip("/").split("/")
+            if len(parts) == 3 and parts[1] and parts[2] == "events":
+                query = parse_qs(parsed.query)
+                try:
+                    header_cursor = self.headers.get("Last-Event-ID")
+                    cursor = validate_event_cursor(
+                        header_cursor
+                        if header_cursor is not None
+                        else query.get("after", [None])[0]
+                    )
+                    limit = validate_event_limit(query.get("limit", [100])[0])
+                    app = self._http_application()
+                    # Read before committing response headers so a missing
+                    # or foreign run still receives a normal JSON error.
+                    payload = app.read(
+                        "run_events",
+                        {"after": cursor, "limit": limit},
+                        resource_id=parts[1],
+                    )
+                except ValueError as exc:
+                    self._write_error(exc, not_found=True)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+                try:
+                    while True:
+                        events = payload.get("events") or []
+                        for event in events:
+                            encoded = json.dumps(
+                                event, ensure_ascii=False, separators=(",", ":")
+                            )
+                            self.wfile.write(
+                                (
+                                    "id: {}\nevent: run_event\ndata: {}\n\n".format(
+                                        event["sequence"], encoded
+                                    )
+                                ).encode("utf-8")
+                            )
+                        self.wfile.flush()
+                        cursor = int(payload.get("next_cursor") or cursor)
+                        if payload.get("terminal"):
+                            return
+                        self.wfile.write(b": heartbeat\n\n")
+                        self.wfile.flush()
+                        time.sleep(0.75)
+                        payload = app.read(
+                            "run_events",
+                            {"after": cursor, "limit": limit},
+                            resource_id=parts[1],
+                        )
+                except (BrokenPipeError, ConnectionResetError):
+                    return
             if len(parts) == 3 and parts[1] and parts[2] == "evidence":
                 try:
                     result = self._http_application().read(
