@@ -27,6 +27,7 @@ WEB_ASSETS = frozenset(
         "console_interaction.js",
         "console_gis_plugin.js",
         "console_run_events.js",
+        "console_answer_stream.js",
     }
 )
 

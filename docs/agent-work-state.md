@@ -17,14 +17,16 @@
 
 ## 当前阶段
 
-- 阶段：M313 实时 Agent 交互与可观测执行体验（已完成）
-- 状态：A～F 已完成；RunEvent、内存/SQLite 账本、Runtime 事件发射、HTTP SSE、Last-Event-ID、polling fallback、Console 实时状态、答案 delta、Docker/浏览器/重启和一次真实模型 + 本地 GIS 验收均已通过。版本 `737f2a3` 已提交并推送到 `main`。
-- 当前任务：无。M313 已完成并交付；下一阶段候选为复用实时契约的 React Console 增量迁移，需创建新 Goal 后开始。
+- 阶段：M314 真实模型流式交互与答案质量验收（已完成）
+- 状态：SSE 分页终态修复、真实模型最小回答验收、答案流验收和回答效率优化均已完成；Docker 收口验证通过。
+- 当前任务：阶段版本交付；下一阶段需基于全局目标重新规划，不在本阶段继续扩大 live 调用。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；不启动并行子代理。长期记忆以本快照、任务账本和当前阶段 Spec/Plan 为权威，避免 Provider 限流和共享工作树冲突。
 - 阶段规划：
   - [`docs/m313-realtime-agent-experience-capability-map.md`](m313-realtime-agent-experience-capability-map.md)
   - [`docs/m313-realtime-agent-experience-spec.md`](m313-realtime-agent-experience-spec.md)
   - [`docs/m313-realtime-agent-experience-plan.md`](m313-realtime-agent-experience-plan.md)
+  - [`docs/m314-live-model-stream-acceptance-spec.md`](m314-live-model-stream-acceptance-spec.md)
+  - [`docs/m314-live-model-stream-acceptance-plan.md`](m314-live-model-stream-acceptance-plan.md)
 
 ## 当前任务明确文件
 
@@ -44,8 +46,15 @@
 - `web/src/index.html`
 - `web/src/styles.css`
 - `tests/test_m313_realtime_events.py`
+- `tests/test_m16_openai_config.py`
+- `agent/openai_config.py`
+- `agent/runtime_factory.py`
 - `web/src/console_run_events.js`
 - `scripts/console_run_events_smoke.js`
+- `web/src/console_answer_stream.js`
+- `scripts/console_answer_stream_smoke.js`
+- `agent/web_assets.py`
+- `scripts/console_existing_run_browser_acceptance.js`
 
 > 当前阶段按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
 > 避免恢复上下文时读取无关文件。
@@ -57,6 +66,11 @@
 - 重启恢复：服务重启后同一 run 仍可读取第 2～13 个事件；readiness **200**。
 - 浏览器：动态加载 `spatial_overview_result` 的 `overview/map`，地图真实路径 **1** 条、轨迹 **11** 项、无错误。
 - 真实模型 + 本地 GIS：最终结果为 `live_model`，`answer_streaming=true`；不保存密钥、Prompt 或模型原文。
+- 后续修复：真实模型已有 run 产生 73 个事件、57 个 `answer_delta`，前端通过 `ConsoleAnswerStream` 在终态前逐字符消费；未重复调用模型。
+- 后续修复：规划阶段超过 12 秒会显示“模型响应较慢，仍在等待返回”及累计耗时；本次用户 Run 的安全失败证据为 planning/provider_timeout，终态事件完整。
+- M314 当前验收：真实 Provider 探测 `READY`，真实 DeepSeek + 本地 GIS 最小回答 `COMPLETED`，1 次规划请求、0 重试；该 Run 产生 384 个事件、368 个 `answer_delta`，SSE 与 `Last-Event-ID: 1` 续传均完整。
+- M314 修复：SSE 只在当前页含终态事件时关闭；跨页终态不再因 100 条分页上限丢失。新增 `page_contains_terminal_event()` 公共契约。
+- M314 效率：规划与答案使用独立 provider 预算；答案默认 20 秒、768 token、0 重试，可由 `OPENAI_ANSWER_*` 覆盖；不改变规划、工具和结果校验。
 
 ## 阶段完成后的全局重规划指针
 

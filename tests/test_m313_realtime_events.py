@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from agent.models import AgentRunResult, PlanStep, RunStatus, TaskPlan
@@ -43,6 +44,34 @@ class _EventService:
 
     def get_run(self, run_id, planner="rule", backend="memory"):
         return {"run_id": run_id, "status": "EXECUTING"}
+
+
+class _PagedEventReader:
+    def __init__(self, events):
+        self.events = events
+        self.reads = []
+
+    def read(self, action, body, resource_id=None):
+        self.reads.append((action, dict(body), resource_id))
+        after = int(body.get("after") or 0)
+        limit = int(body.get("limit") or 100)
+        page = [event for event in self.events if event["sequence"] > after][:limit]
+        return {
+            "schema_version": "spatial-agent.run-event.v1",
+            "run_id": resource_id,
+            "events": page,
+            "after": after,
+            "next_cursor": page[-1]["sequence"] if page else after,
+            # This is Run-level terminal state, not proof that this page contains
+            # the terminal event. It reproduces the production pagination bug.
+            "terminal": True,
+            "has_more": len(page) >= limit,
+        }
+
+
+class _ConnectedRequest:
+    async def is_disconnected(self):
+        return False
 
 
 def _registry():
@@ -199,6 +228,60 @@ class M313RunEventContractTests(unittest.TestCase):
             )["events"],
             [],
         )
+
+    def test_production_sse_reads_past_a_full_nonterminal_page(self):
+        """A terminal Run must not truncate a page before its terminal event."""
+        import asyncio
+
+        from production_api import _run_event_stream
+
+        events = [
+            new_run_event(
+                run_id="run-sse",
+                phase="execute",
+                kind="tool_completed",
+                status="EXECUTING",
+                message="步骤已完成",
+            )
+            for _ in range(100)
+        ]
+        for sequence, event in enumerate(events, start=1):
+            event["sequence"] = sequence
+        terminal = new_run_event(
+            run_id="run-sse",
+            phase="evidence",
+            kind="run_completed",
+            status="COMPLETED",
+            message="分析完成",
+            terminal=True,
+        )
+        terminal["sequence"] = 101
+        events.append(terminal)
+        reader = _PagedEventReader(events)
+
+        async def collect():
+            chunks = []
+            with patch("production_api.asyncio.sleep", return_value=None):
+                async for chunk in _run_event_stream(
+                    reader,
+                    "run-sse",
+                    after=0,
+                    limit=100,
+                    request=_ConnectedRequest(),
+                ):
+                    chunks.append(chunk)
+            return chunks
+
+        chunks = asyncio.run(collect())
+        ids = [
+            line[4:]
+            for chunk in chunks
+            for line in chunk.splitlines()
+            if line.startswith("id: ")
+        ]
+        self.assertEqual(ids, [str(sequence) for sequence in range(1, 102)])
+        self.assertTrue(chunks[-1].endswith("\n\n"))
+        self.assertEqual([item[1]["after"] for item in reader.reads], [0, 100])
 
 
 if __name__ == "__main__":

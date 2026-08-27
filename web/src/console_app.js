@@ -257,7 +257,7 @@
      let liveRunConsumer = null;
      let liveRunTicker = null;
      let liveRunDetailTimer = null;
-     const liveRunState = {runId:'',domainId:'',request:'',startedAt:0,lastEventAt:0,lastSequence:0,eventCount:0,currentPhase:'',currentAction:'',transport:'',answerBuffer:'',finalizing:false,detailPolling:false};
+     const liveRunState = {runId:'',domainId:'',request:'',startedAt:0,lastEventAt:0,lastSequence:0,eventCount:0,currentPhase:'',currentAction:'',transport:'',answerBuffer:'',answerStream:null,finalizing:false,detailPolling:false};
      let activeRunId = null;
      let activeRunDomainId = null;
      let activeRunParams = {};
@@ -367,6 +367,8 @@
        liveRunState.lastEventAt=Date.now();
        liveRunState.currentPhase='evidence';
        liveRunState.currentAction=liveRunIsTerminal(data)?'最终结果已写入，可查看结构化结果。':'正在读取最终结果。';
+       const finalAnswer=answerText(data);
+       if(liveRunState.answerStream&&finalAnswer) await liveRunState.answerStream.finish(finalAnswer);
        stopLiveRun({preserve:true});
        if(activeRunId===runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); }
        if(runId===liveRunState.runId&&domainId===currentDomainId()&&conversationGeneration>=0){
@@ -401,7 +403,7 @@
        const runId=String(data?.run_id||'');
        if(!runId) return false;
        stopLiveRun();
-       liveRunState.runId=runId; liveRunState.domainId=domainId; liveRunState.request=request||''; liveRunState.startedAt=Date.now(); liveRunState.lastEventAt=Date.now(); liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase='resolve'; liveRunState.currentAction='已接收请求，等待运行时接管。'; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.finalizing=false; liveRunState.finalAnswerShown=false;
+       liveRunState.runId=runId; liveRunState.domainId=domainId; liveRunState.request=request||''; liveRunState.startedAt=Date.now(); liveRunState.lastEventAt=Date.now(); liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase='resolve'; liveRunState.currentAction='已接收请求，等待运行时接管。'; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.answerStream=window.ConsoleAnswerStream?.create?.({onText:text=>{ if(liveRunState.runId!==runId) return; liveRunState.answerBuffer=text; $('answer').textContent=text; $('answer').className='answer'; }}); liveRunState.finalizing=false; liveRunState.finalAnswerShown=false;
        activeRunId=runId; activeRunDomainId=domainId; activeRunParams={planner:$('planner').value,backend:$('backend').value}; setCancelState(true);
        renderLiveRunShell(data,request);
        liveRunTicker=window.setInterval(refreshLiveSummary,1000);
@@ -505,7 +507,7 @@
        if(liveRunTicker!==null){ window.clearInterval(liveRunTicker); liveRunTicker=null; }
        if(liveRunDetailTimer!==null){ window.clearTimeout(liveRunDetailTimer); liveRunDetailTimer=null; }
        liveRunState.detailPolling=false;
-       if(!options.preserve){ if(activeRunId&&activeRunId===liveRunState.runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); } liveSummaryVisible(false); $('liveRunEvents')?.replaceChildren(); liveRunState.runId=''; liveRunState.domainId=''; liveRunState.request=''; liveRunState.startedAt=0; liveRunState.lastEventAt=0; liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase=''; liveRunState.currentAction=''; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.finalizing=false; }
+       if(!options.preserve){ if(activeRunId&&activeRunId===liveRunState.runId){ activeRunId=null; activeRunDomainId=null; activeRunParams={}; setCancelState(false); } liveRunState.answerStream?.reset?.(); liveSummaryVisible(false); $('liveRunEvents')?.replaceChildren(); liveRunState.runId=''; liveRunState.domainId=''; liveRunState.request=''; liveRunState.startedAt=0; liveRunState.lastEventAt=0; liveRunState.lastSequence=0; liveRunState.eventCount=0; liveRunState.currentPhase=''; liveRunState.currentAction=''; liveRunState.transport=''; liveRunState.answerBuffer=''; liveRunState.answerStream=null; liveRunState.finalizing=false; }
      }
      function appendLiveEvent(event) {
        const list=$('liveRunEvents'); if(!list) return;
@@ -519,10 +521,14 @@
      }
      function refreshLiveSummary() {
        const phaseLabel=window.ConsoleRunEvents?.phaseLabel?window.ConsoleRunEvents.phaseLabel(liveRunState.currentPhase):'处理中';
-       const phase=$('liveRunPhase'),duration=$('liveRunDuration'),action=$('liveRunAction'),heartbeat=$('liveRunHeartbeat'),meta=$('liveSummaryMeta');
+       const phase=$('liveRunPhase'),duration=$('liveRunDuration'),action=$('liveRunAction'),heartbeat=$('liveRunHeartbeat'),meta=$('liveSummaryMeta'),subtitle=$('subtitle');
        if(phase) phase.textContent=phaseLabel;
        if(duration) duration.textContent=liveDurationText();
-       if(action) action.textContent=liveRunState.currentAction||'运行时正在准备下一步';
+       const elapsed=Date.now()-(liveRunState.startedAt||Date.now());
+       const planningWait=liveRunState.currentPhase==='plan'&&elapsed>=12000&&!liveRunState.finalizing;
+       const actionText=liveRunState.currentAction||'运行时正在准备下一步';
+       if(action) action.textContent=planningWait?actionText+' · 模型响应较慢，已等待 '+liveDurationText()+'。':actionText;
+       if(planningWait&&subtitle) subtitle.textContent='模型响应较慢，仍在等待返回（已等待 '+liveDurationText()+'）。';
        if(heartbeat) heartbeat.textContent=liveHeartbeatText();
        if(meta) meta.textContent=(liveRunState.transport==='polling'?'轮询降级 · ':'实时事件 · ')+liveRunState.eventCount+' 个事件';
        const fill=$('liveProgressFill'); if(fill){ const map={resolve:18,clarify:30,plan:48,validate:58,execute:74,answer:88,evidence:96}; fill.style.width=(map[liveRunState.currentPhase]||12)+'%'; }
@@ -553,9 +559,12 @@
        const tool=event.data?.tool;
        liveRunState.currentAction=event.message||((tool?'正在处理工具：'+tool:'')||'运行时正在处理当前阶段');
        if(event.kind==='answer_delta'&&typeof event.data?.answer_delta==='string'){
-         liveRunState.answerBuffer=(liveRunState.answerBuffer+event.data.answer_delta).slice(0,1800);
-         $('answer').textContent=liveRunState.answerBuffer;
-         $('answer').className='answer';
+         if(liveRunState.answerStream) liveRunState.answerStream.push(event.data.answer_delta);
+         else {
+           liveRunState.answerBuffer=(liveRunState.answerBuffer+event.data.answer_delta).slice(0,1800);
+           $('answer').textContent=liveRunState.answerBuffer;
+           $('answer').className='answer';
+         }
        }
        if(event.status) setStatus({status:event.status,phase:event.phase||liveRunState.currentPhase});
        $('subtitle').textContent=event.message||('Agent 正在'+(window.ConsoleRunEvents?.phaseLabel?window.ConsoleRunEvents.phaseLabel(event.phase):'处理中')+'。');

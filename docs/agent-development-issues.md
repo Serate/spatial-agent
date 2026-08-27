@@ -2,6 +2,22 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## 服务端答案 delta 已存在但前端仍一次性显示
+
+- **现象**：真实模型运行已经产生多个 answer_delta，但用户在页面上看到答案像一次性出现，无法获得 Codex/Claude Code 类似的逐字反馈。
+- **根因**：console_app.js 收到每个 delta 后直接同步设置 answer.textContent；provider chunk 大小和 SSE 到达速度会进一步放大浏览器尚未绘制就连续处理完事件的观感。服务端增量事件本身并不等于前端逐字渲染。
+- **诊断**：先用单个完整 chunk 驱动实际 handleLiveEvent，在终态前断言 DOM 不能等于完整 chunk；再读取同一 run 的 SSE 帧，只统计事件数和字符数，不输出答案、Prompt 或模型原文。若真实 run 有多个 delta 但前一断言失败，问题位于前端消费节奏，不要重复调用模型或修改计划/工具参数流。
+- **修复**：新增领域无关的 ConsoleAnswerStream，将 delta 放入有界队列，每个 requestAnimationFrame（无支持时使用定时器）最多消费一个 Unicode code point；终态 finish() 可等待队列排空，并对与最终结构化摘要不一致的前缀执行安全校正。运行取消或切换时重置队列；新增脚本加入静态资源白名单。
+- **预防**：实时体验验收必须同时覆盖“服务端产生多个 delta”和“终态前 DOM 多次变化”两条边界；答案可以逐字显示，但结构化计划、工具参数、隐藏思维链、Prompt 和敏感信息不得流入展示层。大 chunk 不应在 provider 层强行拆成伪 token，前端节奏化是独立的呈现策略。
+
+## Provider 重试期间前端长期停留在“正在生成任务计划”
+
+- **现象**：真实模型请求失败前，页面长时间显示“正在生成任务计划”，用户容易误以为页面卡死。
+- **根因**：provider 默认每次请求有 60 秒期限并允许 2 次重试；规划阶段只有开始和结束事件，阻塞 HTTP 调用期间没有新的阶段事件，最终一次失败 Run 的等待时间可接近 3 分钟。
+- **诊断**：读取同一 Run 的状态和事件，不重复提交模型请求；若状态由 PLANNING 变为 FAILED，事件包含终态，且安全 evidence 为 planning/provider_timeout、attempts=3、retries=2，则问题是 provider 等待体验而不是 SSE 丢事件或前端旧资源。
+- **修复**：Console 在规划阶段等待超过 12 秒后，在实时摘要和副标题明确显示“模型响应较慢，仍在等待返回”及累计等待时间；真实事件或失败终态到达后覆盖该提示，不伪造进度、重试次数或工具状态。
+- **预防**：实时 UI 必须区分“等待 provider”和“运行时无事件”；默认保留真实 heartbeat、耗时和 transport 信息。provider 的 timeout/retry 策略应继续由配置和 evidence 控制，不能用前端动画掩盖失败。
+
 ## Async Application 迁移后 worker 仍需保留动态执行端口
 
 - **现象**：异步应用已从 `AgentService` 下沉后，测试通过 `patch.object(service, "run", ...)` 注入 worker 异常时，任务仍然执行成功；另外旧测试对 `agent.service._process_is_alive` 的 patch 可能失效。
@@ -1688,3 +1704,59 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 ### 当前验证
 
 - Docker M313 事件/答案流契约 **11/11**、Node event smoke、生产验收、Domain SSE/Last-Event-ID、服务重启恢复、浏览器动态结果和 compileall/architecture strict 均通过。
+
+## 2026-08-28 M314 SSE 跨分页终态与真实回答验收
+
+### 现象
+
+- 某个已完成 Run 的 SSE 请求使用 `limit=100` 时只返回前 100 个事件，连接提前结束；最后看到的是 `answer_delta`，没有看到终态事件。
+- 真实模型更换配置后的首次请求曾返回 HTTP 401/404；更新为可用配置后，Provider 探测和真实 GIS 回答均成功。
+
+### 根因
+
+- HTTP 读取结果中的 `terminal=true` 表示整个 Run 已进入终态，不表示当前分页已经包含 `run_completed` 或 `run_failed` 事件。生产 FastAPI 和 stdlib 入口都错误地直接使用该字段关闭流。
+- 401/404 属于 Provider 配置或认证边界，不是 GIS、SSE 或 Runtime 执行错误；必须按安全错误 receipt 停止无效重试。
+
+### 处理
+
+- 在 `agent/run_events.py` 增加 `page_contains_terminal_event()`，两个 HTTP 传输入口只有在当前页确实包含终态事件时才关闭；若 Run 已终态但当前页仍有更多事件，则沿 `next_cursor` 继续读取。
+- 增加 100+ 事件最小回归，先确认红灯再修复；保留轮询、Last-Event-ID 和恢复语义。
+- 分离规划与答案模型预算：答案默认 20 秒、768 token、0 重试，可通过 `OPENAI_ANSWER_TIMEOUT_SECONDS`、`OPENAI_ANSWER_MAX_OUTPUT_TOKENS`、`OPENAI_ANSWER_MAX_RETRIES` 覆盖，减少回答阶段无效等待和 token 消耗。
+
+### 当前验证
+
+- Docker 真实 Provider 探测：`READY`，约 928 ms，1 次请求、0 重试。
+- Docker 真实 DeepSeek + 本地 GIS：`COMPLETED`，1 次规划、0 重试，结果与 artifact/evidence/polling 对照通过。
+- 成功 Run SSE：384 个事件，其中 368 个 `answer_delta`、1 个终态事件；`Last-Event-ID: 1` 续传完整到第 384 个事件。
+- Docker M16/M313/M313-answer 定向回归 **26/26**、compileall、architecture strict、前端答案流 smoke 通过；不保存密钥、Prompt、模型原文或隐藏思维链。
+
+## 2026-08-28 DeepSeek 官方接口的结构化规划兼容与输出预算问题
+
+### 现象
+
+- `OPENAI_BASE_URL=https://api.deepseek.com` 与 `chat_completions` 路径可达，但真实
+  GIS 规划请求不能稳定完成。
+- `json_schema` 模式被接口快速返回 HTTP 400；切换 `json_object` 后，输出上限 4096
+  时模型输出被截断为非法 JSON，输出上限 10000 时复杂规划又超过交互等待预算。
+
+### 判断
+
+- 官方 DeepSeek OpenAI 兼容入口的基础地址是 `https://api.deepseek.com`，项目会自动
+  拼接 `/chat/completions`；这不是 URL 拼接错误。
+- 简单 Provider 探测可以成功，说明不是单纯网络不可达；故障集中在真实规划请求的
+  结构化协议兼容性和过大输出预算，不是 GDAL/GIS 执行错误。
+
+### 处理
+
+- 本地生产配置使用 `OPENAI_STRUCTURED_OUTPUT_MODE=json_object`，应用层继续执行完整
+  JSON、能力、TaskPlan、ToolRegistry、执行绑定和结果契约校验。
+- Planner 提示要求立即返回紧凑 JSON，不返回解释、Markdown 或分析文本。
+- `OPENAI_TIMEOUT_SECONDS` 设为 45，`OPENAI_MAX_RETRIES` 设为 1；真实请求验证后将
+  `OPENAI_MAX_OUTPUT_TOKENS` 收敛为 2048，避免模型在大预算下长时间生成。
+- 不把 Provider 原始响应、密钥或 Prompt 写入报告、artifact 或问题日志。
+
+### 当前验证
+
+- 临时 2048 输出上限、0 重试下，同一真实洪山区 DEM 请求成功完成，规划耗时约 7.1 秒。
+- 生产配置重载与完整 HTTP/SSE/答案流验收仍在进行；若 Provider 再次超时，按失败
+  receipt 停止重复调用，不伪造成功。

@@ -18,14 +18,34 @@
 
 ## 当前进行中
 
-### 暂无进行中任务
+### M314-A：真实模型流式验收闭环 — 进行中
 
-- 目标：M313 已完成，版本 `737f2a3` 已提交并推送。
-- 验证：M313 Docker 11/11、Node event smoke、生产验收、Domain SSE/续传、重启恢复、浏览器、compileall 和 architecture strict 均通过；一次真实模型 + 本地 GIS 已完成。
-- 阻塞：无。`.playwright-mcp/` 为本地工具目录，不纳入提交；不得展示隐藏思维链、Prompt、密钥、原始模型响应或未经校验的工具参数。
-- 下一步：等待新 Goal；候选方向是从项目全局规划 React Console 增量迁移并复用实时契约。
+- 目标：在 Docker、真实中转模型和真实本地 GIS 上验证规划等待、RunEvent、SSE 续传、
+  失败恢复、答案 delta、前端逐字呈现和用户可读答案。
+- 当前文件：`docs/m314-live-model-stream-acceptance-spec.md`、
+  `docs/m314-live-model-stream-acceptance-plan.md`、现有 M313 实时事件/答案流入口；
+  后续新增验收脚本时再登记具体文件。
+- 验证：先运行 Docker readiness、M313 紧凑契约、compileall、architecture strict 和
+  Node smoke；真实模型完整验收集中执行，单 Agent、并发度 1、每场最多一次提交。
+- 阻塞：无。不得保存或输出密钥、Prompt、模型原文、隐藏思维链、完整异常堆栈或私有路径。
+- 诊断：DeepSeek 官方接口的 `json_schema` 返回 HTTP 400；切换 `json_object` 后，输出上限 4096 会截断 JSON，上限 10000 会在复杂规划上超时；同一请求临时使用 2048、0 重试已成功完成（约 7.1 秒）。
+- 下一步：将生产 Planner 输出预算收敛为 2048，重载 Docker 后验证真实 HTTP、RunEvent、SSE 和答案流。
 
 ## 最近完成
+
+### M313 后续修复：规划阶段慢模型可感知等待 — 已完成
+
+- 结果：规划阶段等待超过 12 秒时，实时摘要和副标题显示模型响应较慢及累计等待时间；真实事件、成功结果或失败终态到达后自动覆盖，不伪造进度。
+- 诊断：复核用户 Run 的状态从 PLANNING 到 FAILED，安全 evidence 为 planning/provider_timeout，attempts=3、retries=2、总耗时约 184 秒；终态事件完整存在。
+- 文件：web/src/console_app.js、scripts/console_planning_wait_smoke.js、docs/agent-development-issues.md、docs/agent-work-state.md。
+- 验证：修复前规划等待 smoke 红灯；修复后 Docker planning-wait smoke、answer-stream smoke、健康检查和已有真实 Run 浏览器恢复验收通过；未重复调用真实模型。
+
+### M313 后续修复：前端答案逐字渲染 — 已完成
+
+- 结果：新增 ConsoleAnswerStream 有界渲染队列；每个动画/定时帧最多显示一个 Unicode code point，终态等待队列排空并校正最终摘要；运行取消或切换时安全清空。
+- 文件：web/src/console_answer_stream.js、web/src/console_app.js、web/src/index.html、agent/web_assets.py、scripts/console_answer_stream_smoke.js。
+- 验证：先用现有 handleLiveEvent 的完整 chunk 复现一次性写入并红灯；修复后 Docker 内答案流 smoke 通过，M313 后端契约 5/5、compileall、architecture strict 和 /health/ready 200 通过；真实模型已有 run 统计为 73 个事件、57 个答案 delta，未重复调用。
+- 边界：不拆改服务端 RunEvent，不展示 Prompt/隐藏思维链/模型原文；本次未提交，等待用户确认后再按阶段交付规则提交推送。
 
 ### 当前 Goal 调整：单 Agent 与精简目标 — 已完成
 
@@ -876,3 +896,13 @@
 - 明确文件：`agent/run_events.py`、`agent/runtime_state.py`、`agent/sqlite_store.py`、`agent/service_state.py`、`tests/test_m313_realtime_events.py`。
 - 验证：当前只做 `git diff --check` 和必要语法检查；A 完成后在 Docker 集中运行 M313 事件契约与 SQLite 重启回归。
 - 阻塞：无。不得保存 Prompt、模型原文、密钥、完整错误堆栈或私有路径；不得用事件账本替代 Result/Evidence。
+
+### M314：真实模型流式验收与回答效率 — 已完成
+
+- 当前子任务：真实模型成功回答、答案事件流和回答阶段延迟优化。
+- 已完成修复：SSE 只在当前页含终态事件时关闭；Run 级 terminal 状态不再截断后续分页。
+- 已完成优化：规划与答案使用独立配置；答案默认 20 秒、768 token、0 重试，支持 `OPENAI_ANSWER_*` 覆盖。
+- 真实验收：Provider `READY`；DeepSeek + 本地 GIS `COMPLETED`，1 次规划、0 重试；384 个事件、368 个答案增量，续传从 2 到 384。
+- 已完成：阶段集中回归、工作区/问题日志同步；提交并推送阶段版本后进入全局重规划。
+- 验证：SSE 红灯回归已先失败后通过；M16/M313/M313-answer 共 26 个 Docker 用例通过；compileall、architecture strict、前端答案 smoke 通过。
+- 阻塞：无。不得保存或输出密钥、Prompt、模型原文、隐藏思维链或私有路径。

@@ -13,7 +13,7 @@ from agent.llm_planner import (
     _planner_url,
     _responses_url,
 )
-from agent.openai_config import load_openai_config
+from agent.openai_config import load_answer_generation_config, load_openai_config
 from run_demo import build_runtime
 
 
@@ -70,6 +70,46 @@ class M16OpenAIConfigTests(unittest.TestCase):
 
         self.assertEqual(config["api_key"], "sk-env")
         self.assertEqual(config["model"], "env-model")
+
+    def test_answer_generation_uses_a_separate_latency_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "openai.local.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "OPENAI_API_KEY": "sk-test",
+                        "model": "answer-model",
+                        "max_output_tokens": 4096,
+                        "timeout_seconds": 45,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                config = load_answer_generation_config(str(path))
+
+        self.assertEqual(config["timeout_seconds"], 20.0)
+        self.assertEqual(config["max_output_tokens"], 768)
+        self.assertEqual(config["max_retries"], 0)
+
+    def test_answer_generation_budget_can_be_explicitly_overridden(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "openai.local.json"
+            path.write_text(json.dumps({"OPENAI_API_KEY": "sk-test"}), encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {
+                    "OPENAI_ANSWER_TIMEOUT_SECONDS": "9",
+                    "OPENAI_ANSWER_MAX_OUTPUT_TOKENS": "320",
+                    "OPENAI_ANSWER_MAX_RETRIES": "1",
+                },
+                clear=True,
+            ):
+                config = load_answer_generation_config(str(path))
+
+        self.assertEqual(config["timeout_seconds"], 9.0)
+        self.assertEqual(config["max_output_tokens"], 320)
+        self.assertEqual(config["max_retries"], 1)
 
     def test_responses_url_accepts_provider_base_urls(self):
         self.assertEqual(_responses_url("https://crs.ruinique.com"), "https://crs.ruinique.com/v1/responses")

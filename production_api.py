@@ -37,13 +37,17 @@ from agent.application.composite_planning import (
 from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
 from agent.answer_generation import LLMCompositeAnswerGenerator
 from agent.llm_planner import OpenAIPlannerClient
-from agent.openai_config import load_openai_config
+from agent.openai_config import load_answer_generation_config, load_openai_config
 from agent.application.http_transport import (
     error_projection,
     load_artifact_json,
     safe_artifact_path,
 )
-from agent.run_events import validate_event_cursor, validate_event_limit
+from agent.run_events import (
+    page_contains_terminal_event,
+    validate_event_cursor,
+    validate_event_limit,
+)
 from agent.web_assets import console_asset as resolve_console_asset
 from agent.web_assets import console_index as resolve_console_index
 from agent.web_assets import console_root
@@ -60,7 +64,7 @@ def _composite_answer_generator():
     if os.environ.get("SPATIAL_AGENT_DISABLE_LLM_ANSWER") == "1":
         return None
     try:
-        config = load_openai_config()
+        config = load_answer_generation_config()
         if not config.get("api_key"):
             return None
         return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**config))
@@ -233,7 +237,12 @@ async def _run_event_stream(
             for event in events:
                 yield _sse_line(event)
             cursor = int(payload.get("next_cursor") or cursor)
-            if payload.get("terminal"):
+            if page_contains_terminal_event(events):
+                return
+            # ``terminal`` is Run-level state. If this is the last available
+            # page, there is no terminal event left to replay. Otherwise keep
+            # following next_cursor until the terminal event is delivered.
+            if payload.get("terminal") and not payload.get("has_more"):
                 return
             continue
         if payload.get("terminal"):

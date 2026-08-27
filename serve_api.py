@@ -35,14 +35,18 @@ from agent.application.composite_planning import (
 from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
 from agent.answer_generation import LLMCompositeAnswerGenerator
 from agent.llm_planner import OpenAIPlannerClient
-from agent.openai_config import load_openai_config
+from agent.openai_config import load_answer_generation_config, load_openai_config
 from agent.web_assets import WEB_ASSETS, console_asset, console_index, console_root
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
     WorkflowTemplateError,
 )
-from agent.run_events import validate_event_cursor, validate_event_limit
+from agent.run_events import (
+    page_contains_terminal_event,
+    validate_event_cursor,
+    validate_event_limit,
+)
 
 
 _legacy_runtime_capability_snapshot = runtime_capability_snapshot
@@ -52,7 +56,7 @@ def _composite_answer_generator():
     if os.environ.get("SPATIAL_AGENT_DISABLE_LLM_ANSWER") == "1":
         return None
     try:
-        config = load_openai_config()
+        config = load_answer_generation_config()
         if not config.get("api_key"):
             return None
         return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**config))
@@ -317,7 +321,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                             )
                         self.wfile.flush()
                         cursor = int(payload.get("next_cursor") or cursor)
-                        if payload.get("terminal"):
+                        if page_contains_terminal_event(events):
+                            return
+                        if payload.get("terminal") and not payload.get("has_more"):
                             return
                         self.wfile.write(b": heartbeat\n\n")
                         self.wfile.flush()

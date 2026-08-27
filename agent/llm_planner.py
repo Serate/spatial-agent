@@ -121,7 +121,10 @@ class LLMPlanner:
             + "\"depends_on\":[]}],\"output\":{\"type\":\"...\"}}. "
             + "Never use shortcut tool/args output. References require their source in depends_on. "
             + "Do not invent tools or measurements, and do not generate SQL, shell commands, or code. "
-            + "Reject destructive, unauthorized, oversized, or unsafe requests."
+            + "Reject destructive, unauthorized, oversized, or unsafe requests. "
+            + "Return compact JSON immediately: do not include reasoning, analysis, markdown, "
+            + "or explanatory text. For a simple request prefer one to three steps; keep the "
+            + "serialized response well below 2000 tokens."
         )
 
 class OpenAIPlannerClient:
@@ -171,7 +174,10 @@ class OpenAIPlannerClient:
         self._timeout_seconds = _first_not_none(
             timeout_seconds, _env_float("OPENAI_TIMEOUT_SECONDS"), 60.0
         )
-        self._max_retries = _first_not_none(max_retries, _env_int("OPENAI_MAX_RETRIES"), 2)
+        # Keep the default bounded for interactive runs.  A second retry can
+        # make a slow relay look like a frozen planning stage for several
+        # minutes; callers can still opt into a different explicit budget.
+        self._max_retries = _first_not_none(max_retries, _env_int("OPENAI_MAX_RETRIES"), 1)
         self._retry_backoff_seconds = _first_not_none(
             retry_backoff_seconds,
             _env_float("OPENAI_RETRY_BACKOFF_SECONDS"),

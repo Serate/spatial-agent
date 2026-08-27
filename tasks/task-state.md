@@ -6,16 +6,16 @@
 
 ## 当前阶段
 
-- 阶段：M313 实时 Agent 交互与可观测执行体验（已完成）
+- 阶段：M314 真实模型流式交互与答案质量验收（进行中）
 - 阶段规划：
   - `docs/m313-realtime-agent-experience-capability-map.md`
   - `docs/m313-realtime-agent-experience-spec.md`
   - `docs/m313-realtime-agent-experience-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
-- 当前任务：无。M313-A～F 已完成，阶段门禁通过，版本 `737f2a3` 已提交并推送；等待新 Goal 后进入下一阶段。
+- 当前任务：建立 7 场真实模型验收闭环，优先定位规划阶段卡住、SSE 断线恢复和答案增量展示问题；M313 后续流式修复作为本阶段基线，尚未提交。
 - 交接入口：`docs/agent-work-state.md`；恢复只读快照、任务进度当前/最近区块和明确文件，历史状态按需读取。
 - M311 结果：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，以及 compileall、architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和 readiness **200** 全部通过；唯一一次真实模型调用到达 provider 并完成真实 GIS 执行，后续发现的缺失 `output.type` 已通过计划边界修复，未重复调用。
-- 下一步：新 Goal 启动后，从产品、架构、数据、模型、部署、体验、测试七个维度规划下一阶段。
+- 下一步：在 Docker 中集中执行紧凑门禁和一次完整 7 场 live，修复实际失败点后完成阶段交付。
 
 ### M312-A：操作到能力/结果类型绑定（已完成）
 
@@ -581,3 +581,9 @@
 - 目标：闭合 Economic 的 query/trend/compare/evidence 数据、时间/区域事实和 provenance。
 - 当前文件：`domains/economic/provider.py`、`domains/economic/evidence.py`、`domains/economic/catalog.py`、`domains/economic/workflow_templates.py`、`domains/economic/domain.py`、`domains/economic/composer.py`、`tests/test_m312_general_operators.py`。
 - 验证：Docker 真实数据契约与必要相邻回归；不重复调用真实模型。
+
+### M314：真实模型流式验收与回答效率 — 已完成
+- SSE 跨分页终态提前结束已修复，公共事件契约新增页内终态判断；FastAPI 与 stdlib 入口同步收敛。
+- 真实 Provider 探测和 DeepSeek + 本地 GIS 最小回答均成功；答案 Run 产生 384 个事件、368 个答案增量，Last-Event-ID 续传完整。
+- 规划与答案 provider 预算已分离：答案默认 20 秒、768 token、0 重试，并保留环境变量覆盖。
+- Docker 定向测试、compileall、architecture strict、实时事件/规划等待/答案流 smoke 已通过；阶段文档和问题日志已收口，版本交付后进入全局重规划。

@@ -202,6 +202,20 @@ def validate_event_cursor(value: Any) -> int:
     return cursor
 
 
+def page_contains_terminal_event(events: Any) -> bool:
+    """Return whether an event page itself contains the terminal event.
+
+    A page response may also expose a Run-level ``terminal`` flag when the
+    persisted Run has reached a terminal status.  That flag does not mean
+    the current bounded page contains the terminal event, so transports must
+    use this predicate before closing a replay stream.
+    """
+
+    if not isinstance(events, (list, tuple)):
+        return False
+    return any(isinstance(event, Mapping) and bool(event.get("terminal")) for event in events)
+
+
 def validate_event_limit(value: Any, default: int = 100) -> int:
     if value is None or value == "":
         return min(MAX_EVENT_LIMIT, max(1, int(default)))

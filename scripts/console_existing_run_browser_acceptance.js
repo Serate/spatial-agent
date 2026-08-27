@@ -80,6 +80,7 @@
           mapVisible: document.querySelector('.map-result')?.classList.contains('is-visible') === true,
           mapPaths: document.querySelectorAll('#map .leaflet-overlay-pane path, #map svg path').length,
           mapEmpty: Boolean(document.querySelector('#map .map-empty')),
+          answerStream: typeof window.ConsoleAnswerStream?.create === 'function',
           traceItems: document.querySelectorAll('#trace li').length,
           workflowCards: document.querySelectorAll('.workflow-component-card').length,
           errorVisible: Boolean(document.querySelector('#error .error')),
@@ -100,6 +101,7 @@
     || !snapshot.resultType
     || !snapshot.declaredPanels.includes("map")
     || !snapshot.viewKinds.map
+    || !snapshot.answerStream
     || !snapshot.genericVisible
     || !snapshot.mapVisible
     || snapshot.mapEmpty

@@ -20,7 +20,7 @@ from .domain_contract import (
 from .domain_registry import resolve_domain_pack
 from .answer_generation import LLMAnswerGenerator
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
-from .openai_config import load_openai_config
+from .openai_config import load_answer_generation_config, load_openai_config
 from .planner import RuleBasedPlanner
 from .runtime import AgentRuntime
 from .runtime_context import build_runtime_context
@@ -67,7 +67,7 @@ def build_runtime(
         # cannot overwrite the planner evidence persisted for the run.
         if resolved_answer_generator is None:
             resolved_answer_generator = LLMAnswerGenerator(
-                OpenAIPlannerClient(**model_config)
+                OpenAIPlannerClient(**load_answer_generation_config())
             )
     else:
         planner = resolve_rule_planner(selected_domain_pack) or RuleBasedPlanner()
