@@ -12,4 +12,3 @@ data/
 .env.production
 config/*.local.json
 web/dist/
-.agent-state/
