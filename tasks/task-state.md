@@ -6,12 +6,25 @@
 
 ## 当前阶段
 
-- 阶段：M309 真实模型开放组合与默认 Agent 体验（已规划，A 进行中）
+- 阶段：M310 开放请求能力选择与数据语义闭合（已规划，A 进行中）
 - 阶段规划：
   - `docs/m309-real-model-agent-experience-capability-map.md`
   - `docs/m309-real-model-agent-experience-spec.md`
   - `docs/m309-real-model-agent-experience-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
+
+### M309-E/F：Docker 阶段验收、文档与版本交付（已完成）
+
+- 阶段门禁：重建 Docker 镜像并强制重建服务后，M309/M308/M303/M305 精简契约 **31/31**，compileall、architecture strict、Node projection、Service smoke、跨入口验收、真实 GIS 三组件验收和生产 HTTP acceptance 全部通过；readiness 为 `ready`。
+- 真实模型：唯一一次调用在修复前于 GIS `raster_metadata` preview 阶段失败，未创建 execution run；修复后的链路由脱敏 Replay 和真实 Docker GIS 验收证明，不冒充 live 成功。
+- 交付：M309 中文问题日志、Plan、恢复快照、任务账本和 M310 能力图/Spec/Plan 已同步；本次版本提交后推送。
+
+### M310-A：事实需求矩阵与基数语义（进行中）
+
+- 目标：冻结 `any/all/one` 事实需求语义及缺失、歧义、ready、unavailable 的公共投影，支撑开放请求能力选择；不改变 Runtime、Planner、ToolRegistry 的执行授权边界。
+- 当前文件：`agent/capability_catalog.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/composite_request_context.py`、`tests/test_m310_open_request_capability_closure.py`。
+- 验证：开发期间只运行新增契约和必要静态检查，阶段收口集中执行 Docker 精简门禁。
+- 阻塞：无。
 
 ### M308-F：开放式 3+ 组件纵向链路与用户答案质量（已完成）
 
@@ -19,6 +32,45 @@
 - 验证：Docker M308/相邻 Composite **28/28**，真实组合与跨入口验收通过；compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200/ready**。
 - 交付：新增 M308 真实验收脚本，中文问题日志、阶段计划、任务账本和恢复快照已更新；未保存密钥、prompt、模型原文或完整原始数据。
 - 下一阶段：M309 真实模型开放组合与默认 Agent 体验。
+
+### M309-A：模型计划结果矩阵与全局基线（已完成）
+
+- 结果：冻结 provider-backed 成功、澄清、拒绝、有限修复、provider failure 和执行失败的有界状态矩阵；补齐无 metrics 客户端的 planner-attempt 调用状态与 retryable 兜底。
+- 文件：`agent/composite_planner.py`、`tests/test_m309_real_model_agent_experience.py` 及 M309 capability map/Spec/Plan。
+- 验证：Docker M309-A 精简契约 **4/4** 通过；未执行真实模型。
+- 阻塞：无；下一步进入 M309-B。
+
+### M309-B：真实模型到可执行计划的受控闭合（已完成）
+
+- 目标：让多目标开放请求按 Capability Catalog 组合多个能力，经过 schema、canonical DAG、TaskPlan、ToolRegistry、workflow 和 execution binding 全部门禁。
+- 当前文件：`agent/composite_planner.py`、`agent/runtime_core/planner_envelope.py`、`agent/application/composite_planning.py`、`tests/test_m309_real_model_agent_experience.py`。
+- 验证：开发期间仅做必要契约检查；M309-A～D 合并后在 Docker 集中收口。
+- 阻塞：无。
+
+### M309-C：默认 Agent 的可感知体验（进行中）
+
+- 目标：修复结构化答案对象的用户文本投影，并让通用失败提示按错误平面表达可执行的下一步。
+- 当前文件：`web/src/console_app.js`、`web/src/console_result_projection.js`。
+- 验证：阶段收口保留 Node projection smoke、浏览器/静态脚本解析和 Docker 前端构建门禁。
+- 阻塞：无。
+
+### M309-C：默认 Agent 的可感知体验（已完成）
+
+- 结果：结构化答案对象安全投影为摘要；provider/planning/rejected/execution 失败提示按公共错误平面生成通用中文文案。
+- 文件：`web/src/console_app.js`、`web/src/console_result_projection.js`。
+- 验证：Docker 前端构建与 Node Console Result Projection smoke 通过。
+
+### M309-D：跨入口恢复与一致性（已完成）
+
+- 目标：对照同步、异步、HTTP、View、artifact、SQLite/restart 的 planner/result/answer/evidence identity。
+- 结果：Docker 三组件跨入口验收六项 identity 对照全部为 `true`，artifact 可用，View answer 保留 `next_steps`。
+- 验证：`scripts/m308_cross_entry_acceptance.py` 通过；未执行额外真实模型请求。
+
+### M309-E：Docker 阶段验收与一次显式 live（进行中）
+
+- 目标：强制重建 Docker 服务，集中运行阶段门禁，并进行最多一次显式真实模型 + 真实 GIS/Docker 验收。
+- 当前文件：`docs/m309-real-model-agent-experience-plan.md`、`tests/test_m309_real_model_agent_experience.py`、`scripts/m308_cross_entry_acceptance.py`。
+- 验证：阶段门禁集中执行；真实模型结果按成功、澄清、拒绝或 provider/harness 失败记录。
 
 ### M306-F：文档、版本与全局重规划（已完成）
 

@@ -407,7 +407,9 @@ def _requirements_projection(value: Any) -> dict[str, Any]:
             "kind": kind,
             "required": bool(raw.get("required", True)),
             "source": "catalog",
-            "mode": _text(raw.get("mode"), 8) if raw.get("mode") in {"any", "all"} else "any",
+            "mode": _text(raw.get("mode"), 8)
+            if raw.get("mode") in {"any", "all", "one"}
+            else "any",
         }
         key = raw.get("key") or raw.get("fact")
         if key:
@@ -453,7 +455,14 @@ def _missing_fields(
         elif kind == "dataset":
             expected = set(_safe_strings(field.get("values") or requirements.get("datasets"), 24))
             observed = datasets
-            present = bool(expected & observed) if field.get("mode") != "all" else expected.issubset(observed)
+            mode = field.get("mode")
+            present = (
+                expected.issubset(observed)
+                if mode == "all"
+                else len(expected & observed) == 1
+                if mode == "one"
+                else bool(expected & observed)
+            )
         elif kind == "constraint":
             expected = set(_safe_strings(field.get("keys") or requirements.get("constraints"), 24))
             present = all(key in constraints and constraints.get(key) not in (None, "") for key in expected)
@@ -475,6 +484,10 @@ def _missing_fields(
             item["key"] = _text(field.get("key"), 80)
         if field.get("keys"):
             item["keys"] = _safe_strings(field.get("keys"), 16)
+        if field.get("values"):
+            item["values"] = _safe_strings(field.get("values"), 24)
+        if field.get("mode") in {"any", "all", "one"}:
+            item["mode"] = field["mode"]
         missing.append(item)
         if len(missing) >= max(1, min(_MAX_FIELDS, int(max_fields))):
             break

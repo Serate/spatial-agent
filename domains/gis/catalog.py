@@ -303,6 +303,10 @@ GIS_CAPABILITIES = _attach_request_hints((
         "result_types": ["raster_metadata_result"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
+        "request_requirements": _request_requirements(
+            datasets=("dem", "land_use"),
+            fields=({**_DATASET_FIELD, "mode": "one"},),
+        ),
     },
     {
         "id": "zonal_raster_statistics",

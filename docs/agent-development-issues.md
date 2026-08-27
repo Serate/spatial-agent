@@ -1331,3 +1331,19 @@
 - **修复**：跨入口验收统一比较公共 View、Evidence 和结果事实 identity；组件内部状态只作为独立的执行完整性断言，不参与 artifact View 的直接等值比较。
 - **验证**：`scripts/m308_cross_entry_acceptance.py` 在 Docker 中确认 sync/async/HTTP/artifact/SQLite restart 的公共 View/Evidence identity 一致。
 - **预防**：每个跨入口测试先声明比较层级（内部生命周期、Result、View、Evidence 或 Artifact），禁止用不同层级对象直接比较；新增投影时必须同时覆盖首次返回与恢复读取。
+
+## M309 无 metrics 的 LLM 客户端导致 planner-attempt 假显示未调用
+
+- **现象**：合法的 LLM 客户端只实现 `complete_json()` 而不提供可选 `metrics()` 时，规划已返回澄清或拒绝，但 planner-attempt receipt 可能显示 `not_started`、0 次尝试，且 provider 异常的 retryable 动作丢失。
+- **根因**：Composite Planner 原先只合并客户端 metrics 和 envelope 大小；调用状态没有由 Planner 适配器提供最小兜底，异常恢复标志也没有经过安全边界。
+- **修复**：LLM Planner 在调用前、成功和异常路径维护有界 `status/attempts/retries`；仅在异常提供布尔 `retryable` 时透传该字段，客户端已有 metrics 保持权威；不透传异常文本、URL、响应体或任意字段。
+- **验证**：Docker M309-A 精简契约 **4/4** 通过，覆盖最小客户端成功、provider failure、语义拒绝和非法输出。
+- **预防**：可选观测接口不能成为生命周期状态的唯一来源；所有 provider adapter 至少要在自身边界记录一次调用的开始/结果，并对公开 evidence 使用白名单投影。
+
+## M309 结构化 answer 在聊天摘要中退化为对象字符串
+
+- **现象**：某些结果返回结构化 `answer` 对象而不是旧版字符串时，聊天消息摘要直接把对象交给 DOM 文本，用户看到 `[object Object]`，或者看到不适合用户的内部字段。
+- **根因**：聊天摘要兼容逻辑只优先读取 Composite View，随后把任意 truthy 的 `data.answer` 当作字符串，没有复用结构化答案的安全字段投影。
+- **修复**：摘要只接受结构化答案中的 `summary/headline` 或明确字符串；其它对象不直接字符串化，继续回退到错误/状态文本。失败卡片也按 provider、planning/rejected、execution 等公共错误平面使用通用中文提示。
+- **验证**：前端构建会在 Docker 镜像阶段执行；阶段收口保留 Node projection smoke 和浏览器/静态脚本解析门禁。
+- **预防**：任何前端摘要入口都必须先经过公共 Result/View/Answer projection；禁止直接渲染未知对象或根据领域/工具名猜测用户文案。

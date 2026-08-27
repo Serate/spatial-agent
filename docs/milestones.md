@@ -5224,8 +5224,15 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 修复并记录了上下文 workflow 与 capability-specific workflow 约束漂移、handoff 约束无条件合并以及跨层 artifact 比较器混用状态层级的问题。
 - 下一阶段：M309 真实模型开放组合与默认 Agent 体验，重点提高真实 provider-backed 多步计划的可观测成功率和用户可感知度。
 
-## M309：真实模型开放组合与默认 Agent 体验（已规划）
+## M309：真实模型开放组合与默认 Agent 体验（已完成）
 
-- 已创建 `docs/m309-real-model-agent-experience-capability-map.md`、`docs/m309-real-model-agent-experience-spec.md` 和 `docs/m309-real-model-agent-experience-plan.md`。
-- 目标：在 M308 的 3+ 组件闭环之上，收口真实模型输出到受控 canonical plan 的成功/澄清/修复/失败边界，并让默认 Agent 阶段、答案、限制、下一步和证据统一呈现。
-- 约束：不新增固定区域、固定问句、专题硬编码、RAG 或自由联网数据；模型只能选择已登记并通过 readiness/schema 门禁的能力；Docker 为统一验收环境，真实模型最多显式调用一次。
+- 已完成真实模型计划结果矩阵、受控 canonical plan 闭合、默认 Agent 用户投影和跨入口恢复一致性；模型只能选择已登记且通过 schema、TaskPlan/DAG、ToolRegistry、workflow 和 execution binding 门禁的能力。
+- Docker 阶段门禁：M309/M308/M303/M305 精简契约 **31/31**，compileall、architecture strict、Node projection、Service smoke、跨入口验收、真实 GIS 三组件验收和生产 HTTP/readiness 全部通过。
+- 唯一一次显式 live 在 GIS `raster_metadata` preview 修复前失败，未创建 execution run；修复后的链路由脱敏 Replay 和真实 Docker GIS 验收证明，不冒充 live 成功。
+- 已更新中文问题日志、恢复快照、任务账本和阶段计划；下一阶段为 M310 开放请求能力选择与数据语义闭合。
+
+## M310：开放请求能力选择与数据语义闭合（已规划）
+
+- 已创建 `docs/m310-open-request-capability-closure-capability-map.md`、`docs/m310-open-request-capability-closure-spec.md` 和 `docs/m310-open-request-capability-closure-plan.md`。
+- 目标：让每个开放请求组件明确实体、数据集、约束和时间事实的来源、缺失/歧义状态，并闭合 capability、workflow、TaskPlan/DAG、ToolRegistry 和 execution binding 的身份。
+- 约束：不新增固定区域、固定问句、专题硬编码、RAG 或自由联网数据；按串行方式实施，测试在阶段收口集中执行。

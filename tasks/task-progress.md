@@ -18,14 +18,13 @@
 
 ## 当前进行中
 
-### M309-A：模型计划结果矩阵与全局基线 — 进行中
+### M310-A：事实需求矩阵与基数语义 — 进行中
 
-- 目标：以 M308 的 3+ 组件闭环为基线，冻结真实模型/Replay 的成功、澄清、非法计划、有限修复、provider failure 和执行失败矩阵，以及 execution run 创建边界。
-- 已完成：创建 `docs/m309-real-model-agent-experience-capability-map.md`、`docs/m309-real-model-agent-experience-spec.md`、`docs/m309-real-model-agent-experience-plan.md`；同步 M308 计划、工作快照和任务状态，避免恢复入口指向已完成阶段。
-- 当前需要修改的文件：`tests/test_m309_real_model_agent_experience.py`、`agent/composite_planner.py`、`agent/runtime_core/planner_envelope.py`、`agent/application/composite_planning.py`（仅在契约检查发现缺口时增量修改）。
-- 验证：先做静态/契约级检查；M309-A～D 合并后统一在 Docker 收口，不重复 M308 已通过的阶段回归。
+- 目标：冻结 `any/all/one` 事实需求语义及缺失、歧义、ready、unavailable 的公共投影，支撑开放请求能力选择；不改变执行授权边界。
+- 当前需要修改的文件：`agent/capability_catalog.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/composite_request_context.py`、`tests/test_m310_open_request_capability_closure.py`。
+- 验证：开发期间只运行新增契约和必要静态检查；M310 阶段收口再集中执行 Docker 精简门禁。
 - 阻塞：无。
-- 下一步：读取上述 M309 规范和直接依赖，检查现有 planner receipt/plan receipt 的状态矩阵并补最小契约。
+- 下一步：盘点当前 requirements、handoff 和 discovery 的语义差异，补齐公共闭合契约。
 
 ## 最近完成
 

@@ -32,7 +32,17 @@
     function answerText(data) {
       const projection = compositeViewProjection(data);
       const answer = projection?.answer || {};
-      return answer.summary || answer.headline || data?.answer || data?.error || statusName(data?.status);
+      if (typeof answer.summary === 'string' && answer.summary.trim()) return answer.summary;
+      if (typeof answer.headline === 'string' && answer.headline.trim()) return answer.headline;
+      const candidates = [data?.answer, data?.result?.answer, data?.error];
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) return candidate;
+        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+          if (typeof candidate.summary === 'string' && candidate.summary.trim()) return candidate.summary;
+          if (typeof candidate.headline === 'string' && candidate.headline.trim()) return candidate.headline;
+        }
+      }
+      return statusName(data?.status);
     }
     function normalizeDecisionEvidence(data) {
       return (window.ConsoleDecisionEvidence && typeof window.ConsoleDecisionEvidence.normalize === 'function')

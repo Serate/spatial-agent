@@ -286,12 +286,14 @@
   }
 
   function renderFailure(failure, status, escapeHtml) {
-    if (!failure?.category && status !== "FAILED") return "";
+    if (!failure?.category && !["FAILED", "REJECTED"].includes(status)) return "";
     const copy = failure?.category === "provider"
       ? {title: "模型暂时不可用", message: "这次还没有开始执行分析任务，可以稍后重试。"}
-      : failure?.phase === "planning" || failure?.category === "planning" || failure?.category === "rejected"
-        ? {title: "暂时无法生成分析计划", message: "请补充分析范围、时间或指标后重新提交。"}
-        : {title: "分析未完成", message: "本次分析没有形成完整结果，请查看已保留的状态和证据。"};
+      : failure?.phase === "planning" || failure?.category === "planning" || failure?.category === "rejected" || status === "REJECTED"
+        ? {title: "暂时无法生成分析计划", message: "请补充清晰的分析目标、范围或必要条件后重新提交。"}
+      : failure?.category === "execution"
+        ? {title: "分析未完成", message: "计划已经生成，但执行没有完成；可以查看已保留的部分结果或稍后恢复。"}
+      : {title: "分析未完成", message: "本次分析没有形成完整结果，请查看已保留的状态和证据。"};
     return '<section class="projection-section projection-failure"><h4>' + escapeHtml(copy.title) + '</h4><p>' + escapeHtml(copy.message) + '</p></section>';
   }
 

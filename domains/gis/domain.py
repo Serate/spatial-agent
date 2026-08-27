@@ -455,6 +455,28 @@ class GisDomainPack:
             else {}
         )
         constraints = dict(source.get("constraints") or {})
+        if "dataset" not in constraints:
+            # A capability may declare a required dataset constraint while
+            # request understanding stores the detected dataset in the
+            # generic ``datasets`` fact list.  Resolve an unambiguous value
+            # from the Domain-owned template schema; never guess when the
+            # request names more than one compatible raster.
+            template = self.workflow_template_catalog().get(template_id, {})
+            choices = {
+                str(value).strip()
+                for spec in (template.get("constraint_specs") or [])
+                if isinstance(spec, Mapping)
+                and str(spec.get("name") or "") == "dataset"
+                for value in (spec.get("choices") or [])
+                if str(value).strip()
+            }
+            detected = [
+                str(value).strip()
+                for value in (source.get("datasets") or [])
+                if str(value).strip() in choices
+            ]
+            if len(detected) == 1:
+                constraints["dataset"] = detected[0]
         admin_name = source.get("admin_name")
         if not admin_name:
             entities = source.get("entities")

@@ -299,7 +299,7 @@ def _normalize_request_requirements(value: Any) -> Dict[str, Any]:
         if values:
             field["values"] = values
         mode = str(raw_field.get("mode") or "any")
-        field["mode"] = mode if mode in {"any", "all"} else "any"
+        field["mode"] = mode if mode in {"any", "all", "one"} else "any"
         normalized["clarification_fields"].append(field)
     return normalized
 
@@ -363,6 +363,8 @@ def _clarification_field_missing(
         return not bool(observed)
     if mode == "all":
         return not expected.issubset(observed)
+    if mode == "one":
+        return len(expected & observed) != 1
     return not bool(expected & observed)
 
 

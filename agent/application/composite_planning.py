@@ -1785,6 +1785,11 @@ def _project_requirements(value: Any) -> dict[str, Any]:
                 "key": _bounded_text(field.get("key") or field.get("fact")),
                 "keys": _bounded_strings(field.get("keys")),
                 "values": _bounded_strings(field.get("values")),
+                "mode": (
+                    _bounded_text(field.get("mode"), 8)
+                    if field.get("mode") in {"any", "all", "one"}
+                    else "any"
+                ),
             }
         )
     return result

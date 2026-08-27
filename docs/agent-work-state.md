@@ -15,9 +15,9 @@
 
 ## 当前阶段
 
-- 阶段：M309 真实模型开放组合与默认 Agent 体验（已规划，A 进行中）
-- 状态：M308 已完成阶段验收，准备在本次工作区统一提交并推送；产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
-- 当前任务：M309-A 冻结真实模型/Replay 计划结果矩阵、run 创建边界和公共 identity；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M310 开放请求能力选择与数据语义闭合（已规划，A 进行中）
+- 状态：M309 已完成实现、Docker 阶段验收和文档收口，当前准备提交阶段版本；产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
+- 当前任务：M310-A 冻结开放请求的事实需求矩阵与 `any/all/one` 语义；详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
   - [`docs/m309-real-model-agent-experience-capability-map.md`](m309-real-model-agent-experience-capability-map.md)
   - [`docs/m309-real-model-agent-experience-spec.md`](m309-real-model-agent-experience-spec.md)
@@ -25,14 +25,13 @@
 
 ## 当前任务明确文件
 
-- `docs/m308-open-composition-vertical-slice-capability-map.md`
-- `docs/m308-open-composition-vertical-slice-spec.md`
-- `docs/m308-open-composition-vertical-slice-plan.md`
-- `agent/application/composite.py`
-- `agent/application/composite_planning.py`
-- `agent/runtime_core/composite_taskplan.py`
-- `agent/runtime_core/execution_binding.py`
-- `tests/test_m308_open_composition_vertical_slice.py`
+- `docs/m310-open-request-capability-closure-capability-map.md`
+- `docs/m310-open-request-capability-closure-spec.md`
+- `docs/m310-open-request-capability-closure-plan.md`
+- `agent/capability_catalog.py`
+- `agent/runtime_core/component_fact_handoff.py`
+- `agent/composite_request_context.py`
+- `tests/test_m310_open_request_capability_closure.py`
 
 ## M308-F：开放组合纵向链路与用户答案质量 — 已完成
 
@@ -40,12 +39,46 @@
 - 验证：Docker M308/相邻 Composite **28/28**，真实组合与跨入口验收通过；compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200/ready**。
 - 交付准备：阶段文档已补齐，下一阶段 M309 文档已创建；本次工作区待统一提交并推送。
 
-## M309-A：模型计划结果矩阵与全局基线 — 进行中
+## M309-A：模型计划结果矩阵与全局基线 — 已完成
 
 - 目标：以 M308 的 3+ 组件闭环为基线，冻结 provider-backed 成功、澄清、非法计划、有限修复、provider failure 和执行失败的公共状态与 run 创建边界。
 - 边界：只使用现有 Planner Envelope、Capability Catalog、TaskPlan/DAG、ToolRegistry、workflow、execution binding 和 Result/Evidence seam，不新增专题工具或领域专用前端分支。
-- 当前文件：`docs/m309-real-model-agent-experience-capability-map.md`、`docs/m309-real-model-agent-experience-spec.md`、`docs/m309-real-model-agent-experience-plan.md`；后续按任务增量加入契约测试和实现文件。
-- 验证：开发期间仅做必要静态/契约检查；M309-A～D 合并后在 Docker 集中收口，真实模型最多显式调用一次。
+- 结果：planner-attempt 对无 metrics 客户端也能记录真实调用状态和 retryable；provider failure、语义拒绝和澄清保持独立状态。
+- 验证：Docker M309-A 精简契约 **4/4** 通过；阶段门禁仍在 M309-E 集中执行，真实模型最多显式调用一次。
+- 阻塞：无。
+
+## M309-B：真实模型到可执行计划的受控闭合 — 已完成
+
+- 目标：让多目标开放请求通过 Capability Catalog 形成多个已登记组件，并在 schema、canonical DAG、TaskPlan、ToolRegistry、workflow 和 execution binding 全部门禁通过后执行。
+- 结果：模型提示补充通用多目标拆分原则；3+ 组件输出继续经过 catalog/schema/canonical DAG/TaskPlan/ToolRegistry/workflow/execution binding 全部门禁。
+- 验证：Docker M309-A/B 相关契约与 M305/M287 相邻回归 **18/18** 通过；未执行真实模型。
+- 边界：有限 repair 最多一次；不得用 Rule/Replay 静默替代真实模型失败，不得放宽执行授权。
+- 阻塞：无。
+
+## M309-C：默认 Agent 的可感知体验 — 已完成
+
+- 目标：结构化答案对象只投影可读文本；失败提示按公共错误平面生成；阶段状态、限制和下一步继续由 Result/View/Evidence 驱动。
+- 结果：聊天摘要安全读取 `summary/headline` 或明确字符串；拒绝、规划失败和执行失败提示通用化，不展示内部对象字段。
+- 验证：Docker 前端构建与 Node Console Result Projection smoke 通过。
+- 阻塞：无。
+
+## M309-D：跨入口恢复与一致性 — 已完成
+
+- 目标：确认 M309 的 planner receipt、默认答案和阶段投影不改变同步、异步、HTTP、View、artifact、SQLite/restart 的公共 identity。
+- 结果：Docker 三组件跨入口验收六项 identity 对照全部为 `true`，artifact 可用，View answer 保留 `next_steps` 字段。
+- 验证：`scripts/m308_cross_entry_acceptance.py` 通过；未执行额外真实模型请求。
+- 阻塞：无。
+
+## M309-E/F：阶段验收、文档与版本交付 — 已完成
+
+- 阶段门禁：重建 Docker 镜像并强制重建服务后，M309/M308/M303/M305 精简契约 **31/31**，compileall、architecture strict、Node projection、Service smoke、跨入口验收、真实 GIS 三组件验收和生产 HTTP acceptance 全部通过；`/health/ready` 为 `ready`。
+- 真实模型：唯一一次调用在修复前返回结构化计划，但 GIS `raster_metadata` preview 因缺少 `dataset` 事实失败；未创建 execution run。修复后的成功由脱敏 Replay 和真实 Docker GIS 验收证明，不冒充 live 成功。
+- 交付：中文问题日志、M309 Plan、恢复快照、任务账本和 M310 能力图/Spec/Plan 已同步；本次版本提交后推送。
+
+## M310-A：事实需求矩阵与基数语义 — 进行中
+
+- 目标：冻结 `any/all/one` 事实需求语义及缺失、歧义、ready、unavailable 的公共投影；不改变 Runtime、Planner、ToolRegistry 的执行授权边界。
+- 当前文件：`agent/capability_catalog.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/composite_request_context.py`、`tests/test_m310_open_request_capability_closure.py`。
 - 阻塞：无。
 
 ## 验证与安全约定

@@ -392,6 +392,15 @@ class LLMCompositePlanner:
             raise ValueError("client must expose complete_json()")
         self._client = client
         self._last_envelope_metrics: dict[str, Any] = {}
+        # ``complete_json`` is the only required client seam.  Keep a small
+        # adapter-level fallback so clients that intentionally do not expose
+        # metrics still produce an honest planner-attempt receipt.  Provider
+        # metrics remain authoritative whenever they are available.
+        self._last_call_metrics: dict[str, Any] = {
+            "status": "not_started",
+            "attempts": 0,
+            "retries": 0,
+        }
 
     def metrics(self) -> Mapping[str, Any]:
         provider_metrics = getattr(self._client, "metrics", None)
@@ -400,6 +409,9 @@ class LLMCompositePlanner:
         else:
             value = {}
         result = dict(value) if isinstance(value, Mapping) else {}
+        for key, fallback in self._last_call_metrics.items():
+            if result.get(key) in (None, ""):
+                result[key] = fallback
         result.update(self._last_envelope_metrics)
         return result
 
@@ -419,6 +431,11 @@ class LLMCompositePlanner:
             "projection_stage": projection_stage,
             "envelope_bytes": len(encoded_context.encode("utf-8")),
             "envelope_max_bytes": _MAX_CONTEXT_BYTES,
+        }
+        self._last_call_metrics = {
+            "status": "in_progress",
+            "attempts": 1,
+            "retries": 0,
         }
         repair_instruction = ""
         if repair_request is not None:
@@ -448,6 +465,13 @@ class LLMCompositePlanner:
                     "capability_index entry; selection_key is only a reference hint "
                     "and must not be returned as a component field. Do not infer an "
                     "ID from a label or tool name. "
+                    "When the request contains multiple independent analytical goals, "
+                    "map each goal to the smallest suitable registered capability and "
+                    "keep distinct goals as distinct components; compose multiple "
+                    "components when the request requires multiple outputs. Do not "
+                    "collapse a multi-goal request into one component merely to shorten "
+                    "the plan. Preserve dependencies only when a later component uses "
+                    "an earlier result. "
                     "For success, components must be non-empty; for "
                     "needs_clarification or rejected, components must be an empty "
                     "array. Never return components with a non-success outcome."
@@ -468,6 +492,17 @@ class LLMCompositePlanner:
             # implement only the public minimal protocol.
             payload = self._client.complete_json(messages, composite_plan_schema())
         except Exception as exc:
+            call_metrics: dict[str, Any] = {
+                "status": "error",
+                "attempts": 1,
+                "retries": 0,
+            }
+            retryable = getattr(exc, "retryable", None)
+            if isinstance(retryable, bool):
+                # Only copy the bounded recovery flag.  Never copy exception
+                # text, URLs, response bodies or arbitrary provider fields.
+                call_metrics["retryable"] = retryable
+            self._last_call_metrics = call_metrics
             provider_failure = {}
             for key in ("category", "code"):
                 value = getattr(exc, key, None)
@@ -483,6 +518,11 @@ class LLMCompositePlanner:
                 if provider_failure
                 else None,
             ) from exc
+        self._last_call_metrics = {
+            "status": "success",
+            "attempts": 1,
+            "retries": 0,
+        }
         return _normalize_planner_payload(
             payload,
             request=request,
