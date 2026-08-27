@@ -14,6 +14,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agent.request_understanding import normalize_request_understanding_guidance
+from agent.data_readiness import project_data_readiness
+from agent.request_requirements import project_requirement_fields
 from agent.runtime_core.request_fact_readiness import project_request_fact_readiness
 
 
@@ -925,11 +927,7 @@ def _small_clarification(value: Any) -> dict[str, Any]:
 
 
 def _readiness(value: Any) -> dict[str, Any]:
-    source = value if isinstance(value, Mapping) else {}
-    return {
-        "status": _text(source.get("status"), 32) or "unknown",
-        "reason_code": _text(source.get("reason_code"), 96) or None,
-    }
+    return project_data_readiness(value)
 
 
 def _readiness_projection(
@@ -976,30 +974,23 @@ def _repair_projection(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _requirements(value: Any) -> dict[str, Any]:
-    source = value if isinstance(value, Mapping) else {}
-    fields = []
-    for raw in _sequence(source.get("clarification_fields"))[:_MAX_FIELDS]:
-        if not isinstance(raw, Mapping):
-            continue
-        field_id = _text(raw.get("id"), 80)
-        label = _text(raw.get("label"), 120)
-        if not field_id or not label:
-            continue
-        fields.append(
-            {
-                "id": field_id,
-                "label": label,
-                "kind": _text(raw.get("kind"), 32),
-                "required": bool(raw.get("required", True)),
-            }
+    return {
+        "clarification_fields": project_requirement_fields(
+            value, max_fields=_MAX_FIELDS, source=None
         )
-    return {"clarification_fields": fields}
+    }
 
 
-def _fact_fields(value: Any) -> list[dict[str, str]]:
-    result: list[dict[str, str]] = []
+def _fact_fields(value: Any) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
     for raw in _sequence(value)[:8]:
         if not isinstance(raw, Mapping):
+            continue
+        projected = project_requirement_fields(
+            {"clarification_fields": [raw]}, max_fields=1, source=None
+        )
+        if projected:
+            result.append(projected[0])
             continue
         field_id = _text(raw.get("id"), 80)
         if not field_id:

@@ -422,7 +422,7 @@ def _catalog_guidance_cards(
     return cards
 
 
-def _normalize_guidance_fields(value: Any) -> list[dict[str, str]]:
+def _normalize_guidance_fields(value: Any) -> list[dict[str, Any]]:
     values = value if isinstance(value, (list, tuple)) else []
     result = []
     for item in values[:16]:
@@ -432,7 +432,26 @@ def _normalize_guidance_fields(value: Any) -> list[dict[str, str]]:
         label = str(item.get("label") or "").strip()[:120]
         kind = str(item.get("kind") or "fact").strip()[:32]
         if field_id and label:
-            result.append({"id": field_id, "label": label, "kind": kind})
+            field: dict[str, Any] = {
+                "id": field_id,
+                "label": label,
+                "kind": kind,
+                "required": item.get("required")
+                if isinstance(item.get("required"), bool)
+                else True,
+            }
+            mode = item.get("mode")
+            if mode in {"any", "all", "one"}:
+                field["mode"] = mode
+            for key in ("key", "fact"):
+                if item.get(key):
+                    field["key"] = str(item[key]).strip()[:80]
+                    break
+            for key in ("keys", "values"):
+                values = _bounded_strings(item.get(key), limit=24)
+                if values:
+                    field[key] = list(values)
+            result.append(field)
     return result
 
 

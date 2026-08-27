@@ -5236,3 +5236,19 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 已创建 `docs/m310-open-request-capability-closure-capability-map.md`、`docs/m310-open-request-capability-closure-spec.md` 和 `docs/m310-open-request-capability-closure-plan.md`。
 - 目标：让每个开放请求组件明确实体、数据集、约束和时间事实的来源、缺失/歧义状态，并闭合 capability、workflow、TaskPlan/DAG、ToolRegistry 和 execution binding 的身份。
 - 约束：不新增固定区域、固定问句、专题硬编码、RAG 或自由联网数据；按串行方式实施，测试在阶段收口集中执行。
+
+## M310：开放请求能力选择与数据语义闭合（已完成）
+
+- 统一 `any/all/one` 事实需求语义，闭合 capability、Domain workflow、TaskPlan/DAG、
+  ToolRegistry 和 execution binding；新增领域中立 data readiness 与有界
+  `planning_failure` 结果证据。
+- 修复前端 planning failure 阶段投影，能够用中文显示等待补充、计划未生成和计划校验
+  未通过；不暴露内部错误码、工具名、prompt、模型原文或私有路径。
+- 重建 Docker 镜像并强制重建服务后，M310 精简契约 **14/14**、M309 相邻回归
+  **8/8**、compileall、architecture strict、Node projection、Service smoke、跨入口
+  identity、真实本地 GIS HTTP 和 `/health/ready` **200** 通过。
+- 本阶段唯一一次真实模型调用实际到达 provider，structured output 通道成功但返回结构化
+  `NEEDS_CLARIFICATION`，未创建 execution run；按真实语义澄清记录，未用 Replay 冒充
+  live 成功。
+- 下一步：基于项目整体目标重新规划通用能力扩展；受控 ReAct 仍作为后续独立阶段，不在
+  当前阶段改变 Planner、ToolRegistry 和生命周期的权威边界。

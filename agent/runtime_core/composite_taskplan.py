@@ -228,6 +228,7 @@ class CompositeTaskPlanBridge:
         if plan_payload is None:
             plan_payload, preview_workflow = self._preview_plan(
                 component,
+                capability=capability,
                 workflow=preview_workflow,
                 fact_handoff=fact_handoff,
                 planner=planner,
@@ -283,6 +284,7 @@ class CompositeTaskPlanBridge:
         self,
         component: Mapping[str, Any],
         *,
+        capability: Mapping[str, Any],
         workflow: Mapping[str, Any] | None,
         fact_handoff: Mapping[str, Any],
         planner: str,
@@ -293,6 +295,11 @@ class CompositeTaskPlanBridge:
         service_resolver = getattr(self._host, "service", None)
         selector = getattr(self._host, "select", None)
         if not callable(service_resolver) or not callable(selector):
+            if prefer_domain_workflow:
+                raise CompositeTaskPlanBridgeError(
+                    "selected capability has no Domain workflow resolver",
+                    code="capability_workflow_unresolved",
+                )
             return None, workflow
         try:
             selection = selector(component.get("domain_id"), source="automatic")
@@ -318,6 +325,31 @@ class CompositeTaskPlanBridge:
             backend=preview_backend,
             prefer_domain_workflow=prefer_domain_workflow,
         )
+        if prefer_domain_workflow and not isinstance(effective_workflow, Mapping):
+            raise CompositeTaskPlanBridgeError(
+                "selected capability has no resolvable Domain workflow",
+                code="capability_workflow_unresolved",
+            )
+        template_id = (
+            _bounded_text(effective_workflow.get("template_id"), 96)
+            if isinstance(effective_workflow, Mapping)
+            else ""
+        )
+        if prefer_domain_workflow and not template_id:
+            raise CompositeTaskPlanBridgeError(
+                "Domain workflow identity is incomplete",
+                code="capability_workflow_unresolved",
+            )
+        workflow_ids = {
+            _bounded_text(value, 96)
+            for value in (capability.get("workflow_ids") or [])
+            if _bounded_text(value, 96)
+        }
+        if workflow_ids and template_id not in workflow_ids:
+            raise CompositeTaskPlanBridgeError(
+                "Domain workflow is not bound to the selected capability",
+                code="capability_workflow_mismatch",
+            )
         kwargs: dict[str, Any] = {
             "session_id": _preview_session_id(session_id, component),
             # The Composite LLM has already selected the registered Domain
@@ -621,49 +653,54 @@ def _resolve_preview_workflow(
         return fallback
     resolver = getattr(service, "resolve_capability_selection", None)
     facts_resolver = getattr(service, "extract_request_facts", None)
-    if callable(resolver):
-        facts = None
-        if callable(facts_resolver):
+    if not callable(resolver):
+        # A selected capability must not inherit a stale context workflow when
+        # the Domain does not expose the resolver seam.  The context workflow
+        # is discovery evidence; only the Domain can authorize materialization.
+        return None if prefer_domain_workflow else fallback
+
+    facts = None
+    if callable(facts_resolver):
+        try:
+            facts = facts_resolver(
+                _bounded_text(component.get("request"), 2000),
+                planner=planner,
+                backend=backend,
+            )
+        except TypeError:
+            # Preserve the minimal legacy Domain Service seam.
             try:
                 facts = facts_resolver(
-                    _bounded_text(component.get("request"), 2000),
-                    planner=planner,
-                    backend=backend,
+                    _bounded_text(component.get("request"), 2000)
                 )
-            except TypeError:
-                # Preserve the minimal legacy Domain Service seam.
-                try:
-                    facts = facts_resolver(
-                        _bounded_text(component.get("request"), 2000)
-                    )
-                except Exception:
-                    facts = None
             except Exception:
                 facts = None
+        except Exception:
+            facts = None
+    try:
+        resolved = resolver(
+            _bounded_text(component.get("capability_id"), 96),
+            request_facts=facts,
+            selection=None,
+            planner=planner,
+            backend=backend,
+        )
+    except TypeError:
+        # Older test doubles and Domain Services may expose the resolver
+        # without planner/backend routing arguments.
         try:
             resolved = resolver(
                 _bounded_text(component.get("capability_id"), 96),
                 request_facts=facts,
                 selection=None,
-                planner=planner,
-                backend=backend,
             )
-        except TypeError:
-            # Older test doubles and Domain Services may expose the resolver
-            # without planner/backend routing arguments.
-            try:
-                resolved = resolver(
-                    _bounded_text(component.get("capability_id"), 96),
-                    request_facts=facts,
-                    selection=None,
-                )
-            except Exception:
-                resolved = None
         except Exception:
             resolved = None
-        if isinstance(resolved, Mapping) and resolved.get("template_id"):
-            return resolved
-    return fallback
+    except Exception:
+        resolved = None
+    if isinstance(resolved, Mapping) and resolved.get("template_id"):
+        return resolved
+    return None if prefer_domain_workflow else fallback
 
 
 def _registered_workflow(

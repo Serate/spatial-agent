@@ -221,4 +221,45 @@ assert.equal(providerFailure.phases[2].state, "unavailable");
 assert.match(projection.render(providerFailure), /模型暂时不可用/);
 assert.match(projection.render(providerFailure), /还没有开始执行分析任务/);
 
-console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "mixed_result_kinds", "clarification_projection", "component_clarification_projection", "composite_clarification_projection", "repair_projection", "provider_failure_projection"]}));
+const planningFailures = [
+  {
+    payload: {
+      status: "NEEDS_CLARIFICATION",
+      planning_failure: {state: "clarification", code: "request_facts_missing", next_actions: ["补充指标和时间范围"]},
+    },
+    statusLabel: "等待补充",
+    phaseIndex: 1,
+    phaseState: "active",
+    text: "补充指标和时间范围",
+  },
+  {
+    payload: {
+      status: "REJECTED",
+      result: {planning_failure: {state: "preview_invalid", code: "taskplan_component_preview_invalid"}},
+    },
+    statusLabel: "计划未生成",
+    phaseIndex: 2,
+    phaseState: "unavailable",
+    text: "计划格式不完整",
+  },
+  {
+    payload: {
+      status: "FAILED",
+      plan_evidence: {planning_failure: {state: "binding_failed", code: "execution_binding_plan_missing", next_actions: ["重新生成计划"]}},
+    },
+    statusLabel: "计划未通过校验",
+    phaseIndex: 2,
+    phaseState: "unavailable",
+    text: "计划校验未通过",
+  },
+];
+for (const item of planningFailures) {
+  const normalized = projection.normalize(item.payload);
+  assert.equal(normalized.status_label, item.statusLabel);
+  assert.equal(normalized.phases[item.phaseIndex].state, item.phaseState);
+  const html = projection.render(normalized);
+  assert.match(html, new RegExp(item.text));
+  assert.doesNotMatch(html, /taskplan_component|execution_binding_plan_missing|request_facts_missing/);
+}
+
+console.log(JSON.stringify({status: "ok", cases: ["completed_projection", "mixed_result_kinds", "clarification_projection", "component_clarification_projection", "composite_clarification_projection", "repair_projection", "provider_failure_projection", "planning_failure_projection"]}));

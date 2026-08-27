@@ -18,6 +18,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from agent.runtime_core.planner_envelope import PLANNER_ENVELOPE_MAX_BYTES
+from agent.data_readiness import project_data_readiness
+from agent.request_requirements import project_requirement_fields
 from agent.runtime_core.request_fact_readiness import project_request_fact_readiness
 
 
@@ -624,19 +626,7 @@ def _workflow_summary(value: Any) -> dict[str, Any]:
 
 
 def _readiness(value: Any) -> dict[str, Any]:
-    source = value if isinstance(value, Mapping) else {"status": value}
-    result: dict[str, Any] = {}
-    for key in (
-        "status",
-        "coverage",
-        "time_range",
-        "crs",
-        "resolution",
-        "availability_reason",
-    ):
-        if source.get(key) is not None:
-            result[key] = _safe_value(source.get(key), depth=0)
-    return result or {"status": "unknown"}
+    return project_data_readiness(value)
 
 
 def _readiness_status(value: Any) -> str:
@@ -675,6 +665,12 @@ def _fields(value: Any, limit: int) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for raw in values[:limit]:
         if isinstance(raw, Mapping):
+            projected = project_requirement_fields(
+                {"clarification_fields": [raw]}, max_fields=1, source=None
+            )
+            if projected:
+                result.append(projected[0])
+                continue
             field_id = _text(raw.get("id") or raw.get("key"), 80)
             label = _text(raw.get("label") or field_id, 120)
             kind = _text(raw.get("kind"), 32) or "fact"
@@ -706,8 +702,13 @@ def _workflow_missing_fields(source: Mapping[str, Any], value: Any) -> list[Any]
         field_id = _text(raw.get("id") if isinstance(raw, Mapping) else raw, 80)
         declared = definitions.get(field_id)
         if declared is not None:
+            projected = project_requirement_fields(
+                {"clarification_fields": [declared]}, max_fields=1, source=None
+            )
             result.append(
-                {
+                projected[0]
+                if projected
+                else {
                     "id": field_id,
                     "label": _text(declared.get("label") or field_id, 120),
                     "kind": _text(declared.get("kind"), 32) or "fact",

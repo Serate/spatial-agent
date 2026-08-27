@@ -4,11 +4,18 @@ from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
 from .evidence_contract import normalize_capability_evidence
+from .request_requirements import (
+    REQUEST_REQUIREMENTS_SCHEMA_VERSION,
+    missing_requirement_fields,
+    normalize_request_requirements,
+    request_facts_snapshot,
+    requirement_satisfied,
+)
 from .workflow_templates import workflow_template_catalog
 
 
 CAPABILITY_CONTEXT_SCHEMA_VERSION = "spatial-agent.capability-catalog-context.v1"
-CLARIFICATION_REQUIREMENTS_SCHEMA_VERSION = "spatial-agent.capability-requirements.v1"
+CLARIFICATION_REQUIREMENTS_SCHEMA_VERSION = REQUEST_REQUIREMENTS_SCHEMA_VERSION
 
 
 def _default_gis_contract():
@@ -87,7 +94,7 @@ def capability_catalog(
         if not str(entry.get("description") or "").strip():
             label = str(entry.get("label") or entry.get("id") or "能力").strip()
             entry["description"] = f"提供“{label}”能力。"
-        entry["request_requirements"] = _normalize_request_requirements(
+        entry["request_requirements"] = normalize_request_requirements(
             entry.get("request_requirements")
         )
         missing = sorted(
@@ -217,27 +224,21 @@ def project_clarification_requirements(
         if value and value in definition_by_id and value not in selected:
             selected.append(value)
 
-    facts = _request_facts_snapshot(request_facts)
+    facts = request_facts_snapshot(request_facts)
     missing_fields: list[Dict[str, Any]] = []
     seen = set()
     for capability_id in selected:
-        requirements = _normalize_request_requirements(
+        requirements = normalize_request_requirements(
             definition_by_id[capability_id].get("request_requirements")
         )
-        for field in requirements["clarification_fields"]:
+        for field in missing_requirement_fields(
+            requirements, facts, max_fields=max_fields - len(missing_fields)
+        ):
             field_id = field["id"]
-            if field_id in seen or not _clarification_field_missing(
-                field, requirements, facts
-            ):
+            if field_id in seen:
                 continue
             seen.add(field_id)
-            missing_fields.append(
-                {
-                    "id": field_id,
-                    "label": field["label"],
-                    "kind": field["kind"],
-                }
-            )
+            missing_fields.append(field)
             if len(missing_fields) >= max(1, int(max_fields)):
                 break
         if len(missing_fields) >= max(1, int(max_fields)):
@@ -251,94 +252,8 @@ def project_clarification_requirements(
     }
 
 
-def _normalize_request_requirements(value: Any) -> Dict[str, Any]:
-    """Return bounded, JSON-safe capability request requirements."""
-
-    source = value if isinstance(value, Mapping) else {}
-
-    def strings(raw: Any, *, limit: int = 16) -> list[str]:
-        if isinstance(raw, str):
-            raw = [raw]
-        if not isinstance(raw, (list, tuple, set)):
-            return []
-        result = []
-        for item in raw:
-            text = str(item).strip()[:80]
-            if text and text not in result:
-                result.append(text)
-            if len(result) >= limit:
-                break
-        return result
-
-    normalized: Dict[str, Any] = {
-        "schema_version": CLARIFICATION_REQUIREMENTS_SCHEMA_VERSION,
-        "entities": strings(source.get("entities")),
-        "datasets": strings(source.get("datasets")),
-        "constraints": strings(source.get("constraints")),
-        "clarification_fields": [],
-    }
-    raw_fields = source.get("clarification_fields")
-    if not isinstance(raw_fields, (list, tuple)):
-        return normalized
-    for raw_field in raw_fields[:16]:
-        if not isinstance(raw_field, Mapping):
-            continue
-        field_id = str(raw_field.get("id") or "").strip()[:80]
-        label = str(raw_field.get("label") or "").strip()[:120]
-        kind = str(raw_field.get("kind") or "").strip()[:32]
-        if not field_id or not label or kind not in {"entity", "dataset", "constraint"}:
-            continue
-        field: Dict[str, Any] = {"id": field_id, "label": label, "kind": kind}
-        key = raw_field.get("key") or raw_field.get("fact")
-        if key:
-            field["key"] = str(key)[:80]
-        keys = strings(raw_field.get("keys"))
-        values = strings(raw_field.get("values"))
-        if keys:
-            field["keys"] = keys
-        if values:
-            field["values"] = values
-        mode = str(raw_field.get("mode") or "any")
-        field["mode"] = mode if mode in {"any", "all", "one"} else "any"
-        normalized["clarification_fields"].append(field)
-    return normalized
-
-
 def _request_facts_snapshot(request_facts: Any) -> Dict[str, Any]:
-    if isinstance(request_facts, Mapping):
-        source = request_facts
-    else:
-        as_context = getattr(request_facts, "as_context_dict", None)
-        value = as_context() if callable(as_context) else None
-        source = value if isinstance(value, Mapping) else {}
-        if not source and request_facts is not None:
-            source = {
-                name: getattr(request_facts, name, None)
-                for name in ("admin_name", "datasets", "constraints")
-            }
-    datasets = source.get("datasets")
-    if isinstance(datasets, str):
-        datasets = [datasets]
-    constraints = source.get("constraints")
-    raw_entities = source.get("entities")
-    entities = {
-        str(key)[:80]: value
-        for key, value in (raw_entities.items() if isinstance(raw_entities, Mapping) else ())
-        if str(key).strip() and value is not None
-    }
-    # Legacy snapshots predate the generic entity bag.
-    for key in ("admin_name", "region", "entity", "place"):
-        if source.get(key) is not None and key not in entities:
-            entities[key] = source.get(key)
-    return {
-        "entities": entities,
-        "datasets": {
-            str(value)
-            for value in (datasets or [])
-            if str(value).strip()
-        },
-        "constraints": constraints if isinstance(constraints, Mapping) else {},
-    }
+    return request_facts_snapshot(request_facts)
 
 
 def _clarification_field_missing(
@@ -346,26 +261,7 @@ def _clarification_field_missing(
     requirements: Mapping[str, Any],
     facts: Mapping[str, Any],
 ) -> bool:
-    kind = field.get("kind")
-    mode = field.get("mode", "any")
-    if kind == "entity":
-        key = str(field.get("key") or "admin_name")
-        return not bool(facts["entities"].get(key))
-    if kind == "dataset":
-        expected = set(field.get("values") or requirements.get("datasets") or [])
-        observed = set(facts["datasets"])
-    elif kind == "constraint":
-        expected = set(field.get("keys") or requirements.get("constraints") or [])
-        observed = set(facts["constraints"])
-    else:
-        return False
-    if not expected:
-        return not bool(observed)
-    if mode == "all":
-        return not expected.issubset(observed)
-    if mode == "one":
-        return len(expected & observed) != 1
-    return not bool(expected & observed)
+    return not requirement_satisfied(field, requirements, facts)
 
 
 def capability_context_summary(
@@ -605,7 +501,7 @@ def _capability_context_item(
         "missing_datasets": [str(value) for value in item.get("missing_datasets", [])],
         "derived_datasets": [str(value) for value in item.get("derived_datasets", [])],
         "geometry": str(item.get("geometry", "unknown"))[:80],
-        "request_requirements": _normalize_request_requirements(
+        "request_requirements": normalize_request_requirements(
             item.get("request_requirements")
         ),
     }

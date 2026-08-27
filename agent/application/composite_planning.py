@@ -30,6 +30,8 @@ from agent.planner_repair import (
     is_repairable_planner_error,
 )
 from agent.provider_structured_output import project_structured_output_evidence
+from agent.request_requirements import project_request_requirements
+from agent.data_readiness import project_data_readiness
 from agent.provider_runtime import (
     build_planner_attempt_receipt,
     project_planner_attempt_receipt,
@@ -85,16 +87,6 @@ _SAFE_CAPABILITY_FIELDS = (
     "plan_mode",
     "output_profiles",
 )
-_SAFE_READINESS_FIELDS = (
-    "status",
-    "coverage",
-    "time_range",
-    "crs",
-    "resolution",
-    "availability_reason",
-)
-
-
 class _PreparedComposite(dict):
     """Public mapping plus a non-serialized binding for the submit seam."""
 
@@ -634,6 +626,18 @@ class CompositePlanningApplication:
                         "missing_fields": list(handoff.get("missing_fields") or [])[:8],
                         "next_actions": ["provide_facts"],
                     }
+            planning_failure = _planning_failure_projection(
+                exc.code,
+                status=status,
+            )
+            result["planning_failure"] = planning_failure
+            failure_evidence["planning_failure"] = planning_failure
+            result["failure"] = build_failure_evidence(
+                status=status,
+                code=exc.code,
+                phase="planning",
+                retryable=False,
+            )
             if isinstance(result.get("continuation"), Mapping):
                 failure_evidence["continuation"] = _continuation_evidence(
                     result["continuation"]
@@ -1577,6 +1581,48 @@ def _selection_state_for_status(status: str) -> str:
     return "unavailable"
 
 
+_PLANNING_CLARIFICATION_CODES = frozenset(
+    {
+        "planner_context_too_large",
+        "plan_components_required",
+        "capability_unavailable",
+        "taskplan_component_clarification",
+        "taskplan_composite_clarification",
+        "component_facts_missing",
+    }
+)
+
+
+def _planning_failure_projection(code: Any, *, status: Any) -> dict[str, Any]:
+    """Project a planning gate without exposing exception text or payloads."""
+
+    reason_code = str(code or "planning_application_failed").strip()[:96]
+    if reason_code in _PLANNING_CLARIFICATION_CODES or str(status or "").upper() == "NEEDS_CLARIFICATION":
+        state = "clarification"
+        next_actions = ["补充信息后重新提交"]
+    elif reason_code == "taskplan_component_preview_invalid":
+        state = "preview_invalid"
+        next_actions = ["检查领域返回的计划格式后重试"]
+    elif reason_code == "taskplan_component_preview_failed":
+        state = "preview_failed"
+        next_actions = ["检查数据或领域服务状态后重试"]
+    elif reason_code.startswith("execution_binding_"):
+        state = "binding_failed"
+        next_actions = ["重新生成计划后重试"]
+    else:
+        state = "rejected"
+        next_actions = ["调整问题后重新提交"]
+    return {
+        "schema_version": "spatial-agent.planning-failure.v1",
+        "state": state,
+        "code": reason_code,
+        "phase": "planning",
+        "retryable": False,
+        "execution_run_created": False,
+        "next_actions": next_actions,
+    }
+
+
 def _selection_reason_for_candidate(candidate: Mapping[str, Any], status: str) -> str:
     validation = candidate.get("validation") if isinstance(candidate, Mapping) else None
     if isinstance(validation, Mapping) and validation.get("reason_code"):
@@ -1763,48 +1809,11 @@ def _project_profile_list(value: Any) -> list[dict[str, Any]]:
 
 
 def _project_requirements(value: Any) -> dict[str, Any]:
-    source = value if isinstance(value, Mapping) else {}
-    result = {
-        "entities": _bounded_strings(source.get("entities")),
-        "datasets": _bounded_strings(source.get("datasets")),
-        "constraints": _bounded_strings(source.get("constraints")),
-        "clarification_fields": [],
-    }
-    for field in (source.get("clarification_fields") or [])[:16]:
-        if not isinstance(field, Mapping):
-            continue
-        kind = str(field.get("kind") or "")
-        field_id = str(field.get("id") or "").strip()
-        if not field_id or kind not in {"entity", "dataset", "constraint"}:
-            continue
-        result["clarification_fields"].append(
-            {
-                "id": field_id[:80],
-                "label": _bounded_text(field.get("label")),
-                "kind": kind,
-                "key": _bounded_text(field.get("key") or field.get("fact")),
-                "keys": _bounded_strings(field.get("keys")),
-                "values": _bounded_strings(field.get("values")),
-                "mode": (
-                    _bounded_text(field.get("mode"), 8)
-                    if field.get("mode") in {"any", "all", "one"}
-                    else "any"
-                ),
-            }
-        )
-    return result
+    return project_request_requirements(value, max_fields=16, source=None)
 
 
 def _project_readiness(value: Any) -> dict[str, Any]:
-    if isinstance(value, Mapping):
-        return {
-            key: _bounded_text(value.get(key))
-            for key in _SAFE_READINESS_FIELDS
-            if key in value
-        } or {"status": "unknown"}
-    if isinstance(value, str) and value.strip():
-        return {"status": value.strip()[:32]}
-    return {"status": "unknown"}
+    return project_data_readiness(value)
 
 
 def _selected_domain_ids(

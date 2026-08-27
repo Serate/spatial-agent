@@ -553,7 +553,7 @@ def _normalize_workflow_components(value: Any) -> list[dict[str, Any]]:
     return result
 
 
-def _normalize_input_facts(value: Any) -> list[dict[str, str]]:
+def _normalize_input_facts(value: Any) -> list[dict[str, Any]]:
     values = value if isinstance(value, (list, tuple)) else []
     result = []
     for item in values[:_MAX_ITEMS]:
@@ -563,7 +563,24 @@ def _normalize_input_facts(value: Any) -> list[dict[str, str]]:
         label = _text(item.get("label") or field_id)
         kind = _text(item.get("kind") or "fact")
         if field_id and label:
-            result.append({"id": field_id, "label": label, "kind": kind})
+            field: dict[str, Any] = {
+                "id": field_id,
+                "label": label,
+                "kind": kind,
+            }
+            if isinstance(item.get("required"), bool):
+                field["required"] = item["required"]
+            if item.get("mode") in {"any", "all", "one"}:
+                field["mode"] = item["mode"]
+            for key in ("key", "fact"):
+                if item.get(key):
+                    field["key"] = _text(item[key])
+                    break
+            for key in ("keys", "values"):
+                values = _string_list(item.get(key))
+                if values:
+                    field[key] = values[:_MAX_ITEMS]
+            result.append(field)
     return result
 
 
@@ -584,7 +601,7 @@ def _facts_summary(value: Any) -> dict[str, Any]:
     }
 
 
-def _normalize_missing(value: Any) -> list[dict[str, str]]:
+def _normalize_missing(value: Any) -> list[dict[str, Any]]:
     values = value if isinstance(value, (list, tuple)) else []
     result = []
     for item in values[:_MAX_ITEMS]:
@@ -593,7 +610,24 @@ def _normalize_missing(value: Any) -> list[dict[str, str]]:
             label = _text(item.get("label"))
             kind = _text(item.get("kind"))
             if field_id and label:
-                result.append({"id": field_id, "label": label, "kind": kind or "fact"})
+                field: dict[str, Any] = {
+                    "id": field_id,
+                    "label": label,
+                    "kind": kind or "fact",
+                }
+                if isinstance(item.get("required"), bool):
+                    field["required"] = item["required"]
+                if item.get("mode") in {"any", "all", "one"}:
+                    field["mode"] = item["mode"]
+                for key in ("key", "fact"):
+                    if item.get(key):
+                        field["key"] = _text(item[key])
+                        break
+                for key in ("keys", "values"):
+                    values = _string_list(item.get(key))
+                    if values:
+                        field[key] = values[:_MAX_ITEMS]
+                result.append(field)
         elif _text(item):
             result.append({"id": _text(item), "label": _text(item), "kind": "fact"})
     return result

@@ -16,6 +16,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from agent.request_model import RequestFacts
+from agent.request_requirements import (
+    missing_requirement_fields,
+    project_request_requirements,
+)
 from agent.runtime_core.clarification_continuation import (
     issue_composite_continuation,
     issue_component_continuation,
@@ -391,43 +395,9 @@ def _facts_projection(value: Any) -> dict[str, Any]:
 
 
 def _requirements_projection(value: Any) -> dict[str, Any]:
-    source = value if isinstance(value, Mapping) else {}
-    fields: list[dict[str, Any]] = []
-    for raw in (source.get("clarification_fields") or [])[:16]:
-        if not isinstance(raw, Mapping):
-            continue
-        field_id = _text(raw.get("id"), 80)
-        kind = _text(raw.get("kind"), 32)
-        label = _text(raw.get("label"), 120)
-        if not field_id or kind not in _ALLOWED_KINDS or not label:
-            continue
-        item = {
-            "id": field_id,
-            "label": label,
-            "kind": kind,
-            "required": bool(raw.get("required", True)),
-            "source": "catalog",
-            "mode": _text(raw.get("mode"), 8)
-            if raw.get("mode") in {"any", "all", "one"}
-            else "any",
-        }
-        key = raw.get("key") or raw.get("fact")
-        if key:
-            item["key"] = _text(key, 80)
-        keys = _safe_strings(raw.get("keys"), 16)
-        values = _safe_strings(raw.get("values"), 16)
-        if keys:
-            item["keys"] = keys
-        if values:
-            item["values"] = values
-        fields.append(item)
-    return {
-        "schema_version": _text(source.get("schema_version"), 96),
-        "entities": _safe_strings(source.get("entities"), 16),
-        "datasets": _safe_strings(source.get("datasets"), 24),
-        "constraints": _safe_strings(source.get("constraints"), 24),
-        "clarification_fields": fields[:_MAX_FIELDS],
-    }
+    return project_request_requirements(
+        value, max_fields=_MAX_FIELDS, source="catalog"
+    )
 
 
 def _missing_fields(
@@ -440,58 +410,18 @@ def _missing_fields(
     capability_id: str,
     max_fields: int,
 ) -> list[dict[str, Any]]:
-    missing: list[dict[str, Any]] = []
-    entities = facts.get("entities") if isinstance(facts.get("entities"), Mapping) else {}
-    datasets = set(_safe_strings(facts.get("datasets"), 24))
-    constraints = dict(facts.get("constraints") or {})
-    constraints.update(workflow_constraints)
-    for field in requirements.get("clarification_fields") or []:
-        if not isinstance(field, Mapping) or not field.get("required", True):
-            continue
-        kind = str(field.get("kind") or "")
-        if kind == "entity":
-            key = str(field.get("key") or "admin_name")
-            present = bool(entities.get(key))
-        elif kind == "dataset":
-            expected = set(_safe_strings(field.get("values") or requirements.get("datasets"), 24))
-            observed = datasets
-            mode = field.get("mode")
-            present = (
-                expected.issubset(observed)
-                if mode == "all"
-                else len(expected & observed) == 1
-                if mode == "one"
-                else bool(expected & observed)
-            )
-        elif kind == "constraint":
-            expected = set(_safe_strings(field.get("keys") or requirements.get("constraints"), 24))
-            present = all(key in constraints and constraints.get(key) not in (None, "") for key in expected)
-        else:
-            present = True
-        if present:
-            continue
-        item = {
+    return missing_requirement_fields(
+        requirements,
+        facts,
+        workflow_constraints=workflow_constraints,
+        max_fields=max_fields,
+        identity={
             "component_id": component_id,
             "domain_id": domain_id,
             "capability_id": capability_id,
-            "id": _text(field.get("id"), 80),
-            "label": _text(field.get("label"), 120),
-            "kind": kind,
-            "source": "user",
-            "required": True,
-        }
-        if field.get("key"):
-            item["key"] = _text(field.get("key"), 80)
-        if field.get("keys"):
-            item["keys"] = _safe_strings(field.get("keys"), 16)
-        if field.get("values"):
-            item["values"] = _safe_strings(field.get("values"), 24)
-        if field.get("mode") in {"any", "all", "one"}:
-            item["mode"] = field["mode"]
-        missing.append(item)
-        if len(missing) >= max(1, min(_MAX_FIELDS, int(max_fields))):
-            break
-    return missing
+        },
+        source="user",
+    )
 
 
 def _selection_fingerprint(*, request_fingerprint: str | None, component: Mapping[str, Any], workflow: Any) -> str:
@@ -548,6 +478,15 @@ def _normalize_missing_fields(value: Any, component_id: str, domain_id: str, cap
             "source": _text(raw.get("source"), 32),
             "required": bool(raw.get("required", True)),
         }
+        if raw.get("mode") in {"any", "all", "one"}:
+            item["mode"] = raw["mode"]
+        key = raw.get("key") or raw.get("fact")
+        if key:
+            item["key"] = _text(key, 80)
+        for name, limit in (("keys", 16), ("values", 24)):
+            values = _safe_strings(raw.get(name), limit)
+            if values:
+                item[name] = values
         if not item["id"] or not item["label"] or item["kind"] not in _ALLOWED_KINDS or item["source"] not in {"request", "catalog", "workflow", "user"}:
             raise ComponentFactHandoffError(
                 "missing field contains unsupported metadata", code="component_fact_field_invalid"

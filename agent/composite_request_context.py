@@ -20,6 +20,11 @@ from agent.domain_contract import (
     select_workflow,
 )
 from agent.request_model import RequestFacts
+from agent.data_readiness import project_data_readiness
+from agent.request_requirements import (
+    project_request_requirements,
+    project_requirement_fields,
+)
 from agent.runtime_core.analysis_discovery import (
     AnalysisDiscoveryError,
     AnalysisDiscoveryGateway,
@@ -211,8 +216,8 @@ class CompositeRequestContextBuilder:
                     **_safe_workflow(workflow),
                 },
                 "clarification": requirements,
-                "data_readiness": _safe_value(
-                    domain_catalog.get("data_readiness") or {}, depth=0
+                "data_readiness": project_data_readiness(
+                    domain_catalog.get("data_readiness") or {}
                 ),
             }
             domain_contexts.append(domain_context)
@@ -549,16 +554,11 @@ def _attach_candidate_fact_gaps(
             capability_definitions=definitions,
             max_fields=max_fields,
         )
-        fields = [
-            {
-                "id": str(item.get("id") or "")[:80],
-                "label": str(item.get("label") or "")[:120],
-                "kind": str(item.get("kind") or "")[:32],
-            }
-            for item in (requirements.get("missing_fields") or [])
-            if isinstance(item, Mapping)
-            and str(item.get("id") or "").strip()
-        ]
+        fields = project_requirement_fields(
+            {"clarification_fields": requirements.get("missing_fields") or []},
+            max_fields=max_fields,
+            source="user",
+        )
         if not fields:
             candidate["missing_fact_ids"] = []
             candidate["missing_facts"] = []
@@ -807,43 +807,9 @@ def _safe_workflow(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _safe_requirements(value: Any) -> dict[str, Any]:
-    source = value if isinstance(value, Mapping) else {}
-    fields: list[dict[str, Any]] = []
-    for raw in (source.get("clarification_fields") or [])[:_MAX_FIELDS]:
-        if not isinstance(raw, Mapping):
-            continue
-        field_id = _text(raw.get("id"), 80)
-        kind = _text(raw.get("kind"), 32)
-        label = _text(raw.get("label"), 120)
-        if not field_id or not label or kind not in {"entity", "dataset", "constraint"}:
-            continue
-        field = {
-            "id": field_id,
-            "label": label,
-            "kind": kind,
-            "required": bool(raw.get("required", True)),
-            "source": "catalog",
-            "mode": _text(raw.get("mode"), 8)
-            if str(raw.get("mode") or "") in {"any", "all"}
-            else "any",
-        }
-        key = raw.get("key") or raw.get("fact")
-        if key:
-            field["key"] = _text(key, 80)
-        keys = _safe_strings(raw.get("keys"), _MAX_FIELDS)
-        values = _safe_strings(raw.get("values"), _MAX_FIELDS)
-        if keys:
-            field["keys"] = keys
-        if values:
-            field["values"] = values
-        fields.append(field)
-    return {
-        "schema_version": _text(source.get("schema_version"), 96),
-        "entities": _safe_strings(source.get("entities"), 16),
-        "datasets": _safe_strings(source.get("datasets"), 16),
-        "constraints": _safe_strings(source.get("constraints"), 16),
-        "clarification_fields": fields,
-    }
+    return project_request_requirements(
+        value, max_fields=_MAX_FIELDS, source="catalog"
+    )
 
 
 def _safe_value(value: Any, *, depth: int) -> Any:

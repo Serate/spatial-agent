@@ -1347,3 +1347,60 @@
 - **修复**：摘要只接受结构化答案中的 `summary/headline` 或明确字符串；其它对象不直接字符串化，继续回退到错误/状态文本。失败卡片也按 provider、planning/rejected、execution 等公共错误平面使用通用中文提示。
 - **验证**：前端构建会在 Docker 镜像阶段执行；阶段收口保留 Node projection smoke 和浏览器/静态脚本解析门禁。
 - **预防**：任何前端摘要入口都必须先经过公共 Result/View/Answer projection；禁止直接渲染未知对象或根据领域/工具名猜测用户文案。
+
+## M310 前端 planning failure 阶段投影条件和字段命名不一致
+
+- **现象**：后端已经返回 `planning_failure` 时，前端结果投影的失败卡片可以显示，但
+  阶段条可能仍把“信息确认”或“生成计划”显示为等待，无法准确反映“等待补充、计划
+  未生成、计划校验未通过”。
+- **根因**：归一化结果使用公开字段 `planning_failure`，`buildPhases` 的内部参数使用
+  `planningFailure`；中断补丁还遗漏了一个逻辑或运算符，导致阶段判断既不完整又可能
+  触发语法错误。
+- **修复**：在单一前端 projection 内统一使用受控的 planning-failure 对象，按状态映射
+  阶段和中文文案；补齐逻辑运算符，并对白名单状态、下一步提示和内部错误码做有界投影。
+- **验证**：Node projection smoke 和 Docker 内 projection smoke 均通过，覆盖 clarification、
+  preview invalid/failed、binding failed、rejected 与 provider failure；内部错误码不会
+  出现在用户 HTML 中。
+- **预防**：新增结构化字段时同时检查“公开字段名、内部参数名、阶段判断和渲染入口”；
+  前端 smoke 至少覆盖成功、澄清和每个用户可见失败平面。
+
+## M310 真实模型返回结构化澄清而未进入执行
+
+- **现象**：本阶段唯一一次真实模型验收已到达 provider，structured output 通道成功，
+  但模型认为请求仍缺少可确定的事实，返回 `NEEDS_CLARIFICATION`，未创建执行任务。
+- **处理**：按真实语义澄清记录，不将 provider 通道成功误报为分析执行成功；Replay 仅
+  用于离线验证已注册能力和真实 GIS 数据链路，不替代 live 结果。
+- **预防**：真实模型验收必须同时记录 provider 通道状态、语义状态和 run 创建边界，
+  并通过公开的 Result/View/Evidence 契约展示下一步；不得保存模型原文、prompt 或密钥。
+## M310：Domain workflow resolver 失败时不能回退旧 context workflow
+
+### 问题
+
+Composite Planner 选中 capability 后，TaskPlan bridge 需要通过 Domain 的
+resolver 得到该 capability 对应的 workflow。旧逻辑在 resolver 不存在、返回空值
+或调用失败时，可能继续使用 request context 中的 workflow 快照。这样会把 discovery
+阶段的历史/建议信息误当成 Domain 对当前 capability 的执行授权，造成 capability、
+workflow 和 TaskPlan 身份不闭合；某些场景还会错误进入 preview。
+
+### 根因
+
+context workflow 是有界的发现证据，不是执行授权。bridge 同时承担了兼容旧 Domain
+接口和物化 TaskPlan 的职责，原先把 fallback workflow 用作 resolver 失败后的兼容
+路径，缺少“选中 capability 必须由 Domain 再确认 workflow”的门禁。
+
+### 修复
+
+- 选中 capability 且未提供显式 replay workflow 时，必须调用 Domain resolver；resolver
+  不存在、返回空 workflow 或 workflow 身份不完整时，返回
+  `capability_workflow_unresolved`。
+- resolver 返回的 workflow 必须与 capability 声明的 `workflow_ids` 一致；不一致时
+  返回 `capability_workflow_mismatch`，并在 preview 前终止。
+- context workflow 仍可作为候选和约束提示，但不能替代 Domain-owned resolver。
+- 增加单组件、不可用、未绑定、resolver 失败和 workflow mismatch 的精简契约，确认
+  不创建未验证的执行任务。
+
+### 预防
+
+以后新增 capability/workflow 映射时，必须同时覆盖 capability catalog、Domain
+resolver、workflow index、TaskPlan bridge 和 execution binding 的身份对照；测试中
+要加入“context 有 workflow 但 resolver 失败”的反例，防止发现证据重新变成授权。

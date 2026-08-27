@@ -79,6 +79,14 @@
     const failure = normalizeFailure(
       firstRecord(data.failure, result.failure, composite?.failure, evidence.failure),
     );
+    const planningFailure = normalizePlanningFailure(
+      firstRecord(
+        data.planning_failure,
+        result.planning_failure,
+        planning?.planning_failure,
+        evidence.planning_failure,
+      ),
+    );
     const answerGeneration = firstRecord(
       composite?.evidence?.answer_generation,
       data.answer_generation_evidence,
@@ -109,7 +117,7 @@
     return {
       schema_version: SCHEMA_VERSION,
       status,
-      status_label: statusLabelFor(status, failure),
+      status_label: statusLabelFor(status, failure, planningFailure),
       result_type: resultType,
       result_kind: kindLabels[result?.data_profile?.primary] || kindLabels["unknown"],
       result_kinds: resultKinds.map(kind => ({id: kind, label: kindLabels[kind] || "结构化结果"})),
@@ -122,6 +130,7 @@
       composite_fact_handoff: compositeHandoff || {},
       continuation: continuation || {},
       planning,
+      planning_failure: planningFailure,
       repair_lineage: repairLineage,
       plan,
       evidence,
@@ -135,7 +144,7 @@
       steps,
       view_count: viewCount,
       component_count: Math.max(0, Math.min(MAX_ITEMS, componentCount)),
-      phases: buildPhases({status, answer, context, clarification, planning, selectionEvidence, repairLineage, plan, evidence, evidenceRegistry, views, artifacts, steps, failure}),
+      phases: buildPhases({status, answer, context, clarification, planning, planningFailure, selectionEvidence, repairLineage, plan, evidence, evidenceRegistry, views, artifacts, steps, failure}),
     };
   }
 
@@ -172,8 +181,26 @@
     };
   }
 
-  function statusLabelFor(status, failure) {
+  function normalizePlanningFailure(raw) {
+    if (!record(raw)) return {};
+    const states = ["clarification", "preview_invalid", "preview_failed", "binding_failed", "rejected"];
+    const state = states.includes(text(raw.state, 32)) ? text(raw.state, 32) : "rejected";
+    return {
+      schema_version: text(raw.schema_version || "spatial-agent.planning-failure.v1", 96),
+      state,
+      code: text(raw.code, 96),
+      phase: text(raw.phase || "planning", 32),
+      retryable: raw.retryable === true,
+      execution_run_created: raw.execution_run_created === true,
+      next_actions: safeTextList(raw.next_actions, MAX_ITEMS),
+    };
+  }
+
+  function statusLabelFor(status, failure, planningFailure) {
     if (status === "FAILED" && failure?.category === "provider") return "模型暂时不可用";
+    if (planningFailure?.state === "clarification") return "等待补充";
+    if (["preview_invalid", "preview_failed"].includes(planningFailure?.state)) return "计划未生成";
+    if (["binding_failed", "rejected"].includes(planningFailure?.state)) return "计划未通过校验";
     if (status === "FAILED" && failure?.phase === "planning") return "暂时无法生成计划";
     return statusLabels[status] || status || "等待结果";
   }
@@ -204,8 +231,10 @@
   function buildPhases(model) {
     const status = model.status;
     const hasContext = Boolean(Object.keys(model.context || {}).length || model.status);
-    const planningFailed = status === "FAILED" && (
-      model.failure?.category === "provider"
+    const planningFailed = ["FAILED", "REJECTED"].includes(status) && (
+      ["preview_invalid", "preview_failed", "binding_failed", "rejected"].includes(model.planningFailure?.state)
+      || model.planningFailure?.phase === "planning"
+      || model.failure?.category === "provider"
       || model.failure?.category === "planning"
       || model.failure?.category === "rejected"
       || model.failure?.phase === "planning"
@@ -220,6 +249,7 @@
     const hasEvidence = Boolean(Object.keys(model.evidence || {}).length || Object.keys(model.evidenceRegistry || {}).length || model.views.length || model.artifacts.length);
     const clarificationState = String(model.clarification.state || "").toLowerCase();
     const clarificationNeeded = status === "NEEDS_CLARIFICATION"
+      || model.planningFailure?.state === "clarification"
       || clarificationState === "needs_clarification"
       || clarificationState === "component_facts_required"
       || clarificationState === "composite_facts_required";
@@ -266,7 +296,7 @@
       : "";
     const limitations = model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const nextSteps = model.answer.next_steps.length ? '<section class="projection-section projection-next"><h4>建议下一步</h4><ul>' + model.answer.next_steps.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
-    const failureHtml = renderFailure(model.failure, model.status, escapeHtml);
+    const failureHtml = renderFailure(model.failure, model.planning_failure, model.status, escapeHtml);
     const missing = safeTextList(
       model.clarification.missing || model.clarification.missing_fields,
       MAX_ITEMS,
@@ -285,16 +315,24 @@
       + discoveryHtml + selectionHtml + clarification + failureHtml + resultKinds + findings + limitations + nextSteps + '</div>';
   }
 
-  function renderFailure(failure, status, escapeHtml) {
-    if (!failure?.category && !["FAILED", "REJECTED"].includes(status)) return "";
+  function renderFailure(failure, planningFailure, status, escapeHtml) {
+    if (!failure?.category && !planningFailure?.state && !["FAILED", "REJECTED"].includes(status)) return "";
     const copy = failure?.category === "provider"
       ? {title: "模型暂时不可用", message: "这次还没有开始执行分析任务，可以稍后重试。"}
+      : planningFailure?.state === "preview_invalid"
+        ? {title: "计划格式不完整", message: "领域没有返回可验证的计划，本次没有开始执行。"}
+      : planningFailure?.state === "preview_failed"
+        ? {title: "计划生成失败", message: "领域服务暂时没有生成计划，本次没有开始执行。"}
+      : planningFailure?.state === "binding_failed"
+        ? {title: "计划校验未通过", message: "生成的计划没有通过执行链路校验，本次没有开始执行。"}
       : failure?.phase === "planning" || failure?.category === "planning" || failure?.category === "rejected" || status === "REJECTED"
         ? {title: "暂时无法生成分析计划", message: "请补充清晰的分析目标、范围或必要条件后重新提交。"}
       : failure?.category === "execution"
         ? {title: "分析未完成", message: "计划已经生成，但执行没有完成；可以查看已保留的部分结果或稍后恢复。"}
       : {title: "分析未完成", message: "本次分析没有形成完整结果，请查看已保留的状态和证据。"};
-    return '<section class="projection-section projection-failure"><h4>' + escapeHtml(copy.title) + '</h4><p>' + escapeHtml(copy.message) + '</p></section>';
+    const actions = safeTextList(planningFailure?.next_actions, MAX_ITEMS);
+    return '<section class="projection-section projection-failure"><h4>' + escapeHtml(copy.title) + '</h4><p>' + escapeHtml(copy.message) + '</p>'
+      + (actions.length ? '<small>下一步：' + escapeHtml(actions.join("；")) + '</small>' : "") + '</section>';
   }
 
   function firstRecord(...values) {
@@ -323,6 +361,9 @@
     }
     if (record(compositePlanning) && !record(result.canonical_plan) && record(compositePlanning.canonical_plan)) {
       result.canonical_plan = {...compositePlanning.canonical_plan};
+    }
+    if (record(compositePlanning) && !record(result.planning_failure) && record(compositePlanning.planning_failure)) {
+      result.planning_failure = {...compositePlanning.planning_failure};
     }
     if (record(result.provider_runtime)) {
       result.provider_runtime = normalizeProviderRuntime(result.provider_runtime);
