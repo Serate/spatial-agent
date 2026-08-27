@@ -20,6 +20,7 @@ from agent.answer_generation import (
     fallback_composite_answer,
     project_answer_generation_evidence,
 )
+from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.application.async_runs import AsyncApplication
 from agent.application.composite import CompositeApplication
 from agent.composite_contract import (
@@ -538,6 +539,7 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
         "continuation",
         "discovery",
         "selection_evidence",
+        "analysis_intents",
     }
     result = {key: value[key] for key in allowed if key in value}
     result["schema_version"] = str(
@@ -632,6 +634,10 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
             result["selection_evidence"] = selection_evidence
         else:
             result.pop("selection_evidence", None)
+    if "analysis_intents" in result:
+        result["analysis_intents"] = _safe_analysis_intents(result.get("analysis_intents"))
+        if not result["analysis_intents"]:
+            result.pop("analysis_intents", None)
     if "continuation" in result:
         continuation = result.get("continuation")
         if isinstance(continuation, Mapping):
@@ -687,6 +693,27 @@ def _safe_planning_evidence(value: Any) -> dict[str, Any]:
                 result.pop("repair_lineage", None)
         else:
             result.pop("repair_lineage", None)
+    return result
+
+
+def _safe_analysis_intents(value: Any) -> list[dict[str, Any]]:
+    """Preserve only normalized intent receipts across async/artifact reads."""
+
+    if not isinstance(value, (list, tuple)):
+        return []
+    result: list[dict[str, Any]] = []
+    for raw in list(value)[:8]:
+        if not isinstance(raw, Mapping):
+            continue
+        try:
+            intent = normalize_analysis_intent(raw.get("intent"))
+        except AnalysisIntentError:
+            continue
+        item = {"intent": intent}
+        domain_id = str(raw.get("domain_id") or "").strip()[:64]
+        if domain_id:
+            item["domain_id"] = domain_id
+        result.append(item)
     return result
 
 

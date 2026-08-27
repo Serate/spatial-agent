@@ -143,6 +143,22 @@ class TextDomainPack:
             evidence=("answer",),
         )
 
+    def analysis_intent(self, request: str, request_facts: Any) -> Mapping[str, Any] | None:
+        """Project text task semantics into the shared intent contract."""
+
+        del request
+        facts = request_facts.as_dict() if hasattr(request_facts, "as_dict") else request_facts
+        facts = facts if isinstance(facts, Mapping) else {}
+        tasks = [str(item).strip().lower() for item in (facts.get("tasks") or ()) if str(item).strip()]
+        if not tasks:
+            return None
+        operations = []
+        for index, task in enumerate(tasks[:3]):
+            kind = "aggregate" if task == "stats" else "query"
+            operation_id = kind if not any(item["id"] == kind for item in operations) else f"{kind}-{index + 1}"
+            operations.append({"id": operation_id, "kind": kind, "depends_on": [operations[-1]["id"]] if operations else [], "output_kinds": ["text"], "fact_refs": []})
+        return {"operations": operations, "data_kinds": ["text"], "fact_refs": [], "source": "domain"}
+
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
         return capability_catalog(
             environment=environment,

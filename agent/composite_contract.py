@@ -29,6 +29,7 @@ from agent.data_kinds import (
     build_data_profile,
     normalize_data_profile,
 )
+from agent.analysis_intent import SUPPORTED_ANALYSIS_OPERATIONS
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
 from agent.runtime_core.composition import (
     CompositionError,
@@ -135,6 +136,10 @@ def normalize_composite_request(
             "required": _required_flag(raw, "required"),
             "depends_on": depends_on,
         }
+        if raw.get("analysis_operations") is not None:
+            item["analysis_operations"] = _normalize_analysis_operations(
+                raw.get("analysis_operations")
+            )
         if raw.get("inputs") is not None:
             try:
                 item["inputs"] = normalize_component_inputs(raw.get("inputs"))
@@ -844,6 +849,25 @@ def _required_flag(value: Mapping[str, Any], key: str) -> bool:
             code="composite_boolean_invalid",
         )
     return raw
+
+
+def _normalize_analysis_operations(value: Any) -> list[str]:
+    if not isinstance(value, list) or not value or len(value) > 8:
+        raise CompositeContractError(
+            "analysis_operations must be a bounded non-empty list",
+            code="composite_analysis_operations_invalid",
+        )
+    result: list[str] = []
+    for item in value:
+        operation = str(item or "").strip()
+        if operation not in SUPPORTED_ANALYSIS_OPERATIONS:
+            raise CompositeContractError(
+                "analysis operation is unsupported",
+                code="composite_analysis_operation_unsupported",
+            )
+        if operation not in result:
+            result.append(operation)
+    return result
 
 
 def _assert_json_size(value: Any, limit: int, label: str) -> None:

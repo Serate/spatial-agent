@@ -489,6 +489,15 @@ def _capability_context_item(
         "datasets": [str(value) for value in item.get("datasets", [])],
         "tools": [str(value) for value in item.get("tools", [])],
         "result_types": [str(value) for value in item.get("result_types", [])],
+        "analysis_operations": [
+            str(value)[:48]
+            for value in (
+                item.get("analysis_operations")
+                if isinstance(item.get("analysis_operations"), (list, tuple))
+                else ()
+            )[:8]
+            if str(value).strip()
+        ],
         "environment_supported": bool(item.get("environment_supported", False)),
         "demo_supported": bool(item.get("demo_supported", False)),
         "native_available": bool(item.get("native_available", False)),

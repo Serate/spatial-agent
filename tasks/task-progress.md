@@ -18,30 +18,36 @@
 
 ## 当前任务
 
-### M310-A：事实需求矩阵与基数语义 — 已完成
+### M311：通用分析意图与跨域开放链路 — 已完成
 
-- 目标：冻结 `any/all/one` 事实需求语义及缺失、歧义、ready、unavailable 的公共投影，支撑开放请求能力选择；不改变执行授权边界。
-- 结果：新增领域中立 `agent/request_requirements.py`，统一归一化、满足判断和缺失字段投影；Composite context、component handoff、Planner envelope、discovery 和 workflow selection 保留同一份字段元数据。
-- 验证：Docker M310-A **5/5**，相邻需求/handoff/planner 回归 **26/26**，compileall 通过。
+- 结果：新增 `analysis-intent.v1`，闭合通用操作、data kinds、事实引用、有界依赖、
+  capability operation 声明、Planner Envelope、Composite View 和异步/artifact evidence；
+  前端以通用“本次分析内容”展示，不增加领域页面分支。
+- 结果：正常 LLM 工具计划现在必须提供 `output.type`，缺失时在执行前 fail closed，
+  不再把实际工具结果包装为 `unknown`；旧单工具快捷路径保持兼容。
+- 验证：Docker M311 **13/13**、M2 LLM 相邻回归 **17/17**、M310 **14/14**、M309
+  **8/8**；compileall、architecture strict、Node projection、Service smoke、跨入口
+  identity、真实本地 GIS HTTP 和 readiness **200** 通过。
+- 真实模型：阶段唯一调用到达 openai-compatible provider，返回结构化计划并完成本地 GIS
+  执行，1 次请求、0 重试；首次暴露的缺少 `output.type` 已修复，未重复调用。
+- 交付：M311 Spec/Plan、中文问题日志、milestone、工作快照和任务账本已同步；无阻塞。
+
+### M312-A：操作到能力/结果类型绑定 — 已规划
+
+- 依据：`docs/m312-general-operators-cross-domain-capability-map.md`、
+  `docs/m312-general-operators-cross-domain-spec.md`、
+  `docs/m312-general-operators-cross-domain-plan.md`。
+- 目标：在不改 Runtime 主循环的前提下，验证并补齐通用操作到 capability、workflow、
+  result profile 和事实缺口的绑定，为 GIS 通用算子与 Economic 真实数据闭合提供公共入口。
+- 当前需要修改的文件：待 M312-A 审计后按直接依赖增量加入；不读取无关历史源码。
+- 验证：M312 阶段收口集中执行精简契约、Docker 静态门禁、真实 GIS/Economic 和一次 live。
 - 阻塞：无。
 
-### M310-D：数据 readiness 与结果证据 — 已完成
+### M310：开放请求能力选择与数据语义闭合 — 已完成
 
-- 目标：将 capability 的字段、空间/时间对齐、覆盖范围和来源状态投影为明确 readiness，并保持事实、限制和结果证据一致；失败分类的公共投影已在 M310-C 完成。
-- M310-C 结果：规划失败返回有界 `planning_failure`，区分 clarification、preview_invalid、preview_failed、binding_failed 和 rejected；同时保留通用 `failure.v1`，所有非 `PLANNED` 状态都不会进入 execution submit。
-- M310-C 验证：Docker 新增契约 **12/12**，覆盖 preview invalid/failed、binding failed、不可用/未绑定和 resolver 回退反例。
-- M310-B 结果：Domain resolver 失败时不再回退 context workflow；resolver 返回的 workflow 必须具备身份并匹配 capability 的 `workflow_ids`；新增不可用、未绑定、resolver 失败、workflow mismatch 的精简矩阵。
-- M310-B 验证：Docker **10/10**；未执行真实模型。
-- 实际文件：`agent/data_readiness.py`、`agent/capability_catalog.py`、`agent/runtime_core/analysis_discovery.py`、`agent/composite_request_context.py`、`agent/composite_view.py`、`agent/application/composite_planning.py`、`web/src/console_result_projection.js`、`scripts/console_result_projection_smoke.js`、`tests/test_m310_open_request_capability_closure.py`。
-- 结果：readiness 保留字段、覆盖、CRS、分辨率、空间/时间对齐和来源状态；`planning_failure` 通过公共结果投影显示，敏感字段不进入公开 evidence。
-- 验证：Docker M310 **14/14**、M309 相邻回归 **8/8**、Node projection、compileall、architecture strict、Service smoke、跨入口、真实本地 GIS HTTP 和 readiness **200** 通过；阶段唯一真实模型验收返回结构化澄清。
-- 阻塞：无。
-
-### M310-E/F：前端投影、Docker 验收与版本收口 — 已完成
-
-- 结果：修复 planning failure 阶段投影的逻辑条件，前端按用户语义展示等待补充、计划未生成和计划校验未通过；不暴露内部错误码、工具名、prompt 或 provider 原文。
-- 真实模型：唯一一次显式调用实际到达 provider，structured output 通道成功，模型返回 `NEEDS_CLARIFICATION`，未创建 execution run；按真实语义澄清记录。
-- 交付：阶段 Spec/Plan、中文问题日志、milestones、工作快照和任务状态已同步；当前工作区待提交并推送，随后进行全局重规划。
+- 结果：统一事实需求、Domain workflow、TaskPlan/binding、readiness 和 planning failure；前端已能展示用户可读的规划失败状态。
+- 验证：Docker M310 **14/14**、M309 相邻回归 **8/8**、跨入口、真实本地 GIS HTTP、compileall、architecture strict、Node projection、Service smoke 和 readiness **200** 通过；唯一一次真实模型返回结构化澄清，未创建 run。
+- 交付：提交并推送版本 `37e6896`；中文问题日志、milestones、工作快照和任务状态已同步。
 
 ## 最近完成
 

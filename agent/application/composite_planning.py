@@ -23,6 +23,7 @@ from agent.composite_request_context import (
     CompositeRequestContextError,
 )
 from agent.composite_planner import CompositePlannerError
+from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.failure_contract import build_failure_evidence
 from agent.planner_repair import (
     build_planner_repair_request,
@@ -76,6 +77,7 @@ _SAFE_CAPABILITY_FIELDS = (
     "datasets",
     "tools",
     "result_types",
+    "analysis_operations",
     "available",
     "availability_mode",
     "availability_reason",
@@ -1035,6 +1037,9 @@ class CompositePlanningApplication:
         discovery = context.get("discovery")
         if isinstance(discovery, Mapping):
             evidence["discovery"] = _project_discovery_evidence(discovery)
+        analysis_intents = _project_analysis_intents(context)
+        if analysis_intents:
+            evidence["analysis_intents"] = analysis_intents
         envelope = context.get("planner_envelope")
         if isinstance(envelope, Mapping):
             limits = envelope.get("limits")
@@ -1387,6 +1392,26 @@ def _continuation_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _project_analysis_intents(context: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Publish only normalized Domain intent receipts."""
+
+    result: list[dict[str, Any]] = []
+    for raw in (context.get("domain_contexts") or [])[:8]:
+        if not isinstance(raw, Mapping) or raw.get("analysis_intent") is None:
+            continue
+        try:
+            intent = normalize_analysis_intent(raw.get("analysis_intent"))
+        except AnalysisIntentError:
+            continue
+        result.append(
+            {
+                "domain_id": str(raw.get("domain_id") or "")[:64],
+                "intent": intent,
+            }
+        )
+    return result
+
+
 def _planner_evidence(
     candidate: Mapping[str, Any],
     *,
@@ -1691,7 +1716,7 @@ def _project_capability(value: Mapping[str, Any]) -> dict[str, Any]:
     for field in _SAFE_CAPABILITY_FIELDS:
         if field not in value:
             continue
-        if field in {"datasets", "tools", "result_types", "missing_datasets", "derived_datasets"}:
+        if field in {"datasets", "tools", "result_types", "analysis_operations", "missing_datasets", "derived_datasets"}:
             projected[field] = _bounded_strings(value.get(field))
         elif field == "available":
             projected[field] = bool(value.get(field))

@@ -46,6 +46,27 @@ GIS_DATASET_GROUPS = {
     "optional": ("roads", "water", "earthquakes_wuhan"),
 }
 
+GIS_ANALYSIS_OPERATIONS = {
+    "spatial_overview": ("query", "aggregate"),
+    "spatial_analysis": ("query", "aggregate", "filter", "spatial_operation"),
+    "admin_boundary_query": ("query",),
+    "raster_metadata": ("query",),
+    "zonal_raster_statistics": ("aggregate",),
+    "zonal_terrain_land_use": ("aggregate",),
+    "buildability_screening": ("filter",),
+    "constrained_buildability_screening": ("filter", "spatial_operation"),
+    "vector_summary": ("query", "aggregate"),
+    "dataset_health": ("query",),
+    "raster_statistics": ("query", "aggregate"),
+    "vector_query": ("query", "filter"),
+    "earthquake_event_query": ("query", "filter"),
+    "vector_relation": ("spatial_operation",),
+    "vector_operation": ("spatial_operation",),
+    "vector_measurement": ("spatial_operation",),
+    "legacy_road_slope": ("query", "spatial_operation"),
+    "admin_raster_composite": ("query", "aggregate"),
+}
+
 
 def _request_requirements(*, entities=(), datasets=(), constraints=(), fields=()):
     """Declare request facts needed to clarify a GIS capability.
@@ -236,6 +257,9 @@ def _attach_request_hints(definitions):
             **item,
             "request_hints": hints.get(
                 str(item.get("id")), _request_hints()
+            ),
+            "analysis_operations": list(
+                GIS_ANALYSIS_OPERATIONS.get(str(item.get("id")), ())
             ),
         }
         for item in definitions

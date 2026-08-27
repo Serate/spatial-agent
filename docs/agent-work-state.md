@@ -15,31 +15,39 @@
 
 ## 当前阶段
 
-- 阶段：M310 开放请求能力选择与数据语义闭合（已完成）
-- 状态：M309 已完成并推送版本 `19e8506`；M310 已完成 Docker 阶段验收、文档收口，产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
-- 当前任务：M310 已完成；Docker M310 契约 14/14、M309 相邻回归 8/8、跨入口、真实本地 GIS HTTP、Node projection、compileall、architecture strict、Service smoke 和 readiness 通过。唯一一次真实模型调用到达 provider 并返回结构化澄清，未创建 run。下一阶段需按项目全局重新规划。详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
+- 阶段：M312 通用分析算子与跨域真实能力闭合（已规划）
+- 状态：M311 已完成，Docker 精简门禁和一次真实模型验收均已记录；产品默认保持 `openai + local`，Docker 是统一 Python/GIS/live 验收环境。
+- 当前任务：M312-A 操作到 capability/result profile 绑定审计（已规划）；不新增区域专用流程，不改变 Runtime、TaskPlan/DAG、ToolRegistry 和生命周期权威边界。详见 [`tasks/task-progress.md`](../tasks/task-progress.md) 与 [`tasks/task-state.md`](../tasks/task-state.md)。
 - 阶段规划：
-  - [`docs/m310-open-request-capability-closure-capability-map.md`](m310-open-request-capability-closure-capability-map.md)
-  - [`docs/m310-open-request-capability-closure-spec.md`](m310-open-request-capability-closure-spec.md)
-  - [`docs/m310-open-request-capability-closure-plan.md`](m310-open-request-capability-closure-plan.md)
+  - [`docs/m312-general-operators-cross-domain-capability-map.md`](m312-general-operators-cross-domain-capability-map.md)
+  - [`docs/m312-general-operators-cross-domain-spec.md`](m312-general-operators-cross-domain-spec.md)
+  - [`docs/m312-general-operators-cross-domain-plan.md`](m312-general-operators-cross-domain-plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m310-open-request-capability-closure-capability-map.md`
-- `docs/m310-open-request-capability-closure-spec.md`
-- `docs/m310-open-request-capability-closure-plan.md`
-- `agent/data_readiness.py`
+- `docs/m312-general-operators-cross-domain-capability-map.md`
+- `docs/m312-general-operators-cross-domain-spec.md`
+- `docs/m312-general-operators-cross-domain-plan.md`
+- `agent/analysis_intent.py`
 - `agent/capability_catalog.py`
-- `agent/composite_request_context.py`
-- `agent/runtime_core/analysis_discovery.py`
-- `agent/runtime_core/planner_envelope.py`
-- `agent/application/composite_planning.py`
-- `tests/test_m310_open_request_capability_closure.py`
-- `web/src/console_result_projection.js`
-- `scripts/console_result_projection_smoke.js`
+- `agent/domain_catalog.py`
+- `domains/gis/catalog.py`
+- `domains/economic/catalog.py`
+- `tests/test_m312_general_operators.py`
 
-> M310 已收口；上述文件仅用于阶段追溯。下一阶段开始前，先创建新的 Spec/Plan，
-> 再把新的待修改文件替换到本清单，避免恢复上下文时读取无关文件。
+> M312 当前按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
+> 避免恢复上下文时读取无关文件。
+
+## M311：通用分析意图与跨域开放链路 — 已完成
+
+- 新增 `spatial-agent.analysis-intent.v1`，接入 Domain facts、Capability Catalog、
+  Planner Envelope、Composite View、异步/artifact evidence 和 Console projection。
+- 正常 LLM 工具计划强制声明 `output.type`，缺失时在执行前 fail closed，避免实际步骤
+  成功却被包装为 `unknown` Result。
+- Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，compileall、
+  architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS
+  HTTP 和 readiness **200** 通过；一次真实模型调用到达 provider 并完成真实 GIS 执行。
+- 本阶段不重复调用模型；未保存密钥、prompt、模型原文或私有原始数据。
 
 ## M310：开放请求能力选择与数据语义闭合 — 已完成
 
@@ -117,7 +125,7 @@
 - 验证：开发期间只运行新增或直接相关契约；阶段收口在 Docker 集中执行，并包含一次显式真实模型验收。
 - 阻塞：无。
 
-## M310-D：数据 readiness 与结果证据 — 进行中
+## M310-D：数据 readiness 与结果证据 — 已完成
 
 - 目标：将 capability 的字段、空间/时间对齐、覆盖范围和来源状态投影为明确 readiness，并保持事实、限制和结果证据一致。
 - 结果：规划失败返回有界 `planning_failure`，区分 clarification、preview_invalid、preview_failed、binding_failed 和 rejected；通用 `failure.v1` 同步保留，非 `PLANNED` 状态不创建 execution run。

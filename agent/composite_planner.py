@@ -18,6 +18,7 @@ from agent.composite_contract import (
 )
 from agent.planner_repair import safe_repair_request
 from agent.data_kinds import SUPPORTED_DATA_KINDS
+from agent.analysis_intent import SUPPORTED_ANALYSIS_OPERATIONS
 from agent.runtime_core.composition import (
     CompositionError,
     normalize_component_inputs,
@@ -73,6 +74,7 @@ _COMPONENT_FIELDS = {
     "request",
     "depends_on",
     "required",
+    "analysis_operations",
     "workflow",
     "inputs",
 }
@@ -254,6 +256,14 @@ def composite_plan_schema() -> dict[str, Any]:
                             "items": {"type": "string", "maxLength": 48},
                         },
                         "required": {"type": "boolean"},
+                        "analysis_operations": {
+                            "type": "array",
+                            "maxItems": 8,
+                            "items": {
+                                "type": "string",
+                                "enum": list(SUPPORTED_ANALYSIS_OPERATIONS),
+                            },
+                        },
                         "inputs": {
                             "type": "array",
                             "maxItems": 8,
@@ -454,7 +464,7 @@ class LLMCompositePlanner:
                     "and components; never include analysis, reasoning, explanation, "
                     "metadata, or any other field. Each component may contain only "
                     "component_id, domain_id, capability_id, request, depends_on, "
-                    "and required. A component may additionally include bounded inputs "
+                    "required, and optional analysis_operations. A component may additionally include bounded inputs "
                     "with name, source.component_id, source.path, accepted_kinds, and required. "
                     "Workflow selection is resolved by the selected "
                     "Domain; do not return a workflow object. Choose only capability_id and "
@@ -472,6 +482,9 @@ class LLMCompositePlanner:
                     "collapse a multi-goal request into one component merely to shorten "
                     "the plan. Preserve dependencies only when a later component uses "
                     "an earlier result. "
+                    "Use the bounded analysis_intent and each capability's "
+                    "analysis_operations as semantic guidance; do not invent an "
+                    "operation, data kind, dataset, workflow, or result type. "
                     "For success, components must be non-empty; for "
                     "needs_clarification or rejected, components must be an empty "
                     "array. Never return components with a non-success outcome."
@@ -617,6 +630,10 @@ def normalize_composite_plan(
             "depends_on": [value[:48] for value in dependencies],
             "required": _required_bool(raw, "required"),
         }
+        if raw.get("analysis_operations") is not None:
+            item["analysis_operations"] = _normalize_analysis_operations(
+                raw.get("analysis_operations")
+            )
         if raw.get("workflow") is not None:
             if not isinstance(raw["workflow"], Mapping):
                 raise CompositePlannerError(
@@ -657,6 +674,11 @@ def normalize_composite_plan(
                 **canonical,
                 "capability_id": capability_ids[index],
                 "index": index,
+                **(
+                    {"analysis_operations": source["analysis_operations"]}
+                    if "analysis_operations" in source
+                    else {}
+                ),
                 # ``normalize_composite_request`` intentionally bounds deeply
                 # nested public workflow payloads.  Keep the original
                 # planner-side workflow only for deterministic Rule/Replay
@@ -730,6 +752,19 @@ def _validate_context_capabilities(
                 "planner selected a capability that is not execution-ready",
                 code=reason or "capability_unavailable",
             )
+        requested_operations = set(component.get("analysis_operations") or ())
+        supported_operations = set(item.get("analysis_operations") or ())
+        if requested_operations:
+            if not supported_operations:
+                raise CompositePlannerError(
+                    "planner selected a capability without declared analysis operations",
+                    code="capability_operation_undeclared",
+                )
+            if not requested_operations.issubset(supported_operations):
+                raise CompositePlannerError(
+                    "planner selected a capability that does not support the requested analysis operation",
+                    code="capability_operation_mismatch",
+                )
 
 
 def _bounded_context(value: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -792,6 +827,30 @@ def _required_bool(value: Mapping[str, Any], key: str) -> bool:
             code="plan_component_field_invalid",
         )
     return raw
+
+
+def _normalize_analysis_operations(value: Any) -> list[str]:
+    if not isinstance(value, list) or not value:
+        raise CompositePlannerError(
+            "component analysis_operations must be a non-empty array",
+            code="plan_analysis_operations_invalid",
+        )
+    if len(value) > 8 or any(not isinstance(item, str) for item in value):
+        raise CompositePlannerError(
+            "component analysis_operations is invalid",
+            code="plan_analysis_operations_invalid",
+        )
+    result: list[str] = []
+    for item in value:
+        operation = item.strip()
+        if operation not in SUPPORTED_ANALYSIS_OPERATIONS:
+            raise CompositePlannerError(
+                "component analysis operation is unsupported",
+                code="plan_analysis_operation_unsupported",
+            )
+        if operation not in result:
+            result.append(operation)
+    return result
 
 
 def _normalize_planner_inputs(value: Any) -> list[dict[str, Any]]:

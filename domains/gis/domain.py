@@ -191,6 +191,43 @@ class GisDomainPack:
 
         return parse_spatial_request(request)
 
+    def analysis_intent(self, request: str, request_facts: Any) -> Mapping[str, Any] | None:
+        """Project GIS request semantics without selecting a tool."""
+
+        facts = request_facts.as_dict() if hasattr(request_facts, "as_dict") else request_facts
+        facts = facts if isinstance(facts, Mapping) else {}
+        tasks = {str(item).strip() for item in (facts.get("tasks") or ()) if str(item).strip()}
+        constraints = facts.get("constraints") or {}
+        if not tasks and not constraints:
+            return None
+        lowered = str(request or "").lower()
+        if any(term in lowered for term in ("裁剪", "相交", "叠加", "缓冲", "距离测算", "最近距离")):
+            operation = "spatial_operation"
+            output_kinds = ["vector"]
+        elif "buildability" in tasks:
+            operation = "filter"
+            output_kinds = ["vector", "metrics"]
+        elif tasks.intersection({"elevation", "slope", "land_use"}):
+            operation = "aggregate"
+            output_kinds = ["raster", "metrics"]
+        else:
+            operation = "query"
+            output_kinds = ["vector"] if tasks.intersection({"admin_boundary", "roads", "water", "earthquake_events"}) else ["unknown"]
+        fact_refs: list[str] = []
+        if facts.get("admin_name"):
+            fact_refs.append("admin_name")
+        fact_refs.extend(
+            key
+            for key in ("dataset", "slope_max", "road_distance_max", "exclude_water")
+            if constraints.get(key) is not None
+        )
+        return {
+            "operations": [{"id": "analysis", "kind": operation, "output_kinds": output_kinds, "fact_refs": fact_refs}],
+            "data_kinds": output_kinds,
+            "fact_refs": fact_refs,
+            "source": "domain",
+        }
+
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
         catalog = build_domain_catalog(
             GIS_CATALOG_SPEC,

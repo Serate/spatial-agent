@@ -30,6 +30,7 @@ from agent.runtime_core.analysis_discovery import (
     AnalysisDiscoveryGateway,
     discovery_request_fingerprint,
 )
+from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.runtime_core.planner_envelope import (
     PLANNER_ENVELOPE_MAX_BYTES,
     PlannerEnvelopeError,
@@ -195,6 +196,7 @@ class CompositeRequestContextBuilder:
                 safe_facts,
                 discovery_state=discovery_state,
             )
+            analysis_intent = _domain_analysis_intent(service, text, facts)
             domain_context = {
                 "domain_id": domain_id,
                 "facts": safe_facts,
@@ -220,6 +222,8 @@ class CompositeRequestContextBuilder:
                     domain_catalog.get("data_readiness") or {}
                 ),
             }
+            if analysis_intent:
+                domain_context["analysis_intent"] = analysis_intent
             domain_contexts.append(domain_context)
             candidate_index.extend(
                 {**item, "domain_id": domain_id} for item in safe_candidates
@@ -384,6 +388,29 @@ def _facts_projection(facts: Any) -> dict[str, Any]:
     }
 
 
+def _domain_analysis_intent(service: Any, request: str, facts: Any) -> dict[str, Any]:
+    """Ask an optional Domain seam for intent; never infer Domain semantics here."""
+
+    method = getattr(service, "analysis_intent", None)
+    if not callable(method):
+        return {}
+    try:
+        value = method(request, facts)
+        if value is None:
+            return {}
+        return normalize_analysis_intent(value)
+    except AnalysisIntentError as exc:
+        raise CompositeRequestContextError(
+            "domain analysis intent is invalid",
+            code="analysis_intent_invalid",
+        ) from exc
+    except Exception as exc:
+        raise CompositeRequestContextError(
+            "domain analysis intent is unavailable",
+            code="analysis_intent_unavailable",
+        ) from exc
+
+
 def _request_understanding(service: Any, domain_id: str) -> dict[str, Any]:
     """Project optional Domain understanding guidance without leaking policy.
 
@@ -506,6 +533,9 @@ def _candidate_projection(
                 "tools": _safe_strings(item.get("tools"), _MAX_TOOLS),
                 "result_types": _safe_strings(
                     item.get("result_types"), _MAX_RESULT_TYPES
+                ),
+                "analysis_operations": _safe_strings(
+                    item.get("analysis_operations"), 8
                 ),
                 "output_profiles": _safe_profiles(item.get("output_profiles")),
                 "workflow_ids": _safe_strings(item.get("workflow_ids"), 16),

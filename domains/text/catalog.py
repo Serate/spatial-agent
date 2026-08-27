@@ -18,6 +18,7 @@ TEXT_CAPABILITIES = (
         "datasets": ["documents"],
         "tools": ["normalize_text"],
         "result_types": ["text_normalize_result"],
+        "analysis_operations": ["query"],
         "environments": ["memory"],
         "geometry": "none",
         "request_hints": {
@@ -32,6 +33,7 @@ TEXT_CAPABILITIES = (
         "datasets": ["documents"],
         "tools": ["summarize_text"],
         "result_types": ["text_summary_result"],
+        "analysis_operations": ["query"],
         "environments": ["memory"],
         "geometry": "none",
         "request_hints": {
@@ -46,6 +48,7 @@ TEXT_CAPABILITIES = (
         "datasets": ["documents"],
         "tools": ["text_stats"],
         "result_types": ["text_stats_result"],
+        "analysis_operations": ["aggregate"],
         "environments": ["memory"],
         "geometry": "none",
         "request_hints": {
@@ -60,6 +63,7 @@ TEXT_CAPABILITIES = (
         "datasets": ["documents"],
         "tools": ["normalize_text", "summarize_text", "text_stats"],
         "result_types": ["text_analysis_result"],
+        "analysis_operations": ["query", "aggregate"],
         "environments": ["memory"],
         "geometry": "none",
         "request_hints": {

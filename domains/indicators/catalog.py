@@ -18,6 +18,7 @@ INDICATOR_CAPABILITIES = (
         "datasets": ["regional_indicators"],
         "tools": ["list_indicators"],
         "result_types": ["indicator_catalog_result"],
+        "analysis_operations": ["query"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {
@@ -32,6 +33,7 @@ INDICATOR_CAPABILITIES = (
         "datasets": ["regional_indicators"],
         "tools": ["indicator_query"],
         "result_types": ["indicator_metrics_result"],
+        "analysis_operations": ["query"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {
@@ -46,6 +48,7 @@ INDICATOR_CAPABILITIES = (
         "datasets": ["regional_indicators"],
         "tools": ["indicator_query"],
         "result_types": ["indicator_timeseries_result"],
+        "analysis_operations": ["trend"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {
@@ -60,6 +63,7 @@ INDICATOR_CAPABILITIES = (
         "datasets": ["regional_indicators"],
         "tools": ["indicator_query"],
         "result_types": ["indicator_comparison_result"],
+        "analysis_operations": ["compare"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {

@@ -95,6 +95,30 @@ class IndicatorsDomainPack:
         indicator = _indicator_id(text)
         return RequestFacts(text=text, admin_name=None, tasks=tasks, datasets=("regional_indicators",), constraints={"indicator": indicator, "regions": regions}, evidence=("answer", "provenance"), entities={"indicator": indicator, "regions": regions})
 
+    def analysis_intent(self, request: str, request_facts: Any) -> Mapping[str, Any] | None:
+        """Project indicator task semantics into the shared intent contract."""
+
+        del request
+        facts = request_facts.as_dict() if hasattr(request_facts, "as_dict") else request_facts
+        facts = facts if isinstance(facts, Mapping) else {}
+        task = str((facts.get("tasks") or ["latest"])[0]).strip().lower()
+        operation = {"trend": "trend", "compare": "compare"}.get(task, "query")
+        output_kinds = (
+            ["timeseries", "metrics"]
+            if operation == "trend"
+            else ["metrics", "composite"]
+            if operation == "compare"
+            else ["metrics"]
+        )
+        constraints = facts.get("constraints") or {}
+        fact_refs = [key for key in ("indicator", "regions") if constraints.get(key)]
+        return {
+            "operations": [{"id": "analysis", "kind": operation, "output_kinds": output_kinds, "fact_refs": fact_refs}],
+            "data_kinds": output_kinds,
+            "fact_refs": fact_refs,
+            "source": "domain",
+        }
+
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
         return build_domain_catalog(
             INDICATOR_CATALOG_SPEC,

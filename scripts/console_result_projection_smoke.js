@@ -21,6 +21,15 @@ const completed = projection.normalize({
   plan_evidence: {
     source: "replay",
     step_count: 1,
+    analysis_intents: [{
+      domain_id: "gis",
+      intent: {
+        schema_version: "spatial-agent.analysis-intent.v1",
+        operations: [{kind: "spatial_operation", output_kinds: ["vector"]}],
+        data_kinds: ["vector"],
+        source: "domain",
+      },
+    }],
     selection_evidence: {
       schema_version: "spatial-agent.selection-evidence.v1",
       state: "selected",
@@ -106,6 +115,8 @@ assert.equal(completed.planning.planner_attempt.outcome, "success");
 assert.equal(completed.planning.planner_attempt.budget.envelope_bytes, 18240);
 assert.deepEqual(completed.planning.planner_attempt.next_actions, ["submit"]);
 assert.equal(completed.planning.canonical_plan.executable, true);
+assert.equal(completed.analysis_intents.length, 1);
+assert.equal(completed.analysis_intents[0].operations[0].kind, "spatial_operation");
 assert.equal(completed.discovery.state, "ready");
 assert.equal(completed.discovery.candidate_count, 2);
 assert.equal(completed.selection_evidence.state, "selected");
@@ -120,6 +131,9 @@ assert.match(completedHtml, /执行链路已核验/);
 assert.match(completedHtml, /能力与数据准备/);
 assert.match(completedHtml, /能力与数据已发现/);
 assert.match(completedHtml, /已选择：空间摘要/);
+assert.match(completedHtml, /本次分析内容/);
+assert.match(completedHtml, /空间关系/);
+assert.match(completedHtml, /矢量/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);
 assert.doesNotMatch(completedHtml, /private_tool/);
 

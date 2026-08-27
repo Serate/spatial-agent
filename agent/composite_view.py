@@ -13,6 +13,7 @@ from agent.provider_runtime import (
     project_provider_runtime_evidence,
 )
 from agent.data_kinds import SUPPORTED_DATA_KINDS
+from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.runtime_core.composition import project_component_inputs
 from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
@@ -336,6 +337,9 @@ def _build_planning(value: Any) -> dict[str, Any]:
     selection_evidence = normalize_selection_evidence(value.get("selection_evidence"))
     if selection_evidence:
         result["selection_evidence"] = selection_evidence
+    analysis_intents = _project_analysis_intents(value.get("analysis_intents"))
+    if analysis_intents:
+        result["analysis_intents"] = analysis_intents
     continuation = value.get("continuation")
     if isinstance(continuation, Mapping):
         result["continuation"] = {
@@ -370,6 +374,27 @@ def _build_planning(value: Any) -> dict[str, Any]:
             result["continuation"].pop("capability_id", None)
             result["continuation"].pop("field_ids", None)
     return {key: item for key, item in result.items() if item not in (None, "")}
+
+
+def _project_analysis_intents(value: Any) -> list[dict[str, Any]]:
+    """Keep normalized, domain-neutral intent receipts for result consumers."""
+
+    if not isinstance(value, (list, tuple)):
+        return []
+    result: list[dict[str, Any]] = []
+    for raw in list(value)[:_MAX_COMPONENTS]:
+        if not isinstance(raw, Mapping):
+            continue
+        try:
+            normalized = normalize_analysis_intent(raw.get("intent"))
+        except AnalysisIntentError:
+            continue
+        item = {"intent": normalized}
+        domain_id = _text(raw.get("domain_id"), 64)
+        if domain_id:
+            item["domain_id"] = domain_id
+        result.append(item)
+    return result
 
 
 def _collect_artifacts(

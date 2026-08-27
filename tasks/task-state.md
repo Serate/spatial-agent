@@ -6,14 +6,29 @@
 
 ## 当前阶段
 
-- 阶段：M310 开放请求能力选择与数据语义闭合（已完成）
+- 阶段：M312 通用分析算子与跨域真实能力闭合（已规划）
 - 阶段规划：
-  - `docs/m310-open-request-capability-closure-capability-map.md`
-  - `docs/m310-open-request-capability-closure-spec.md`
-  - `docs/m310-open-request-capability-closure-plan.md`
+  - `docs/m312-general-operators-cross-domain-capability-map.md`
+  - `docs/m312-general-operators-cross-domain-spec.md`
+  - `docs/m312-general-operators-cross-domain-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
-- 阶段结果：Docker M310 契约 **14/14**、M309 相邻回归 **8/8**、跨入口 identity、真实本地 GIS HTTP、compileall、architecture strict、Node projection、Service smoke 和 readiness **200** 通过；唯一一次真实模型调用到达 provider 并返回结构化 `NEEDS_CLARIFICATION`，未创建 execution run。
-- 下一步：基于项目全局目标规划下一阶段；新阶段 Spec/Plan 确定后替换恢复入口的待修改文件清单。
+- 当前任务：M312-A 操作到 capability/result profile 绑定审计（已规划）；不改变 Runtime、TaskPlan/DAG、ToolRegistry 或生命周期的权威边界。
+- M311 结果：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，以及 compileall、architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和 readiness **200** 全部通过；唯一一次真实模型调用到达 provider 并完成真实 GIS 执行，后续发现的缺失 `output.type` 已通过计划边界修复，未重复调用。
+- 下一步：先审计 M311 operation → capability/result profile 的闭合，再进入通用 GIS 算子和 Economic 真实数据切片。
+
+### M312-A：操作到能力/结果类型绑定（已规划）
+
+- 目标：确认每类通用分析操作都能映射到已注册 capability、workflow、输入/输出 profile 和事实要求；未知或冲突绑定必须 fail closed。
+- 依据：`docs/m312-general-operators-cross-domain-capability-map.md`、`docs/m312-general-operators-cross-domain-spec.md`、`docs/m312-general-operators-cross-domain-plan.md`。
+- 当前需要修改的文件：审计后按直接依赖增量加入，优先 `agent/analysis_intent.py`、`agent/capability_catalog.py`、`agent/domain_catalog.py`、对应 Domain catalog 和 M312 精简契约。
+- 验证：开发期间只做直接相关契约；M312 阶段收口集中执行 Docker、真实 GIS/Economic 和一次 live。
+- 阻塞：无。
+
+### M311：通用分析意图与跨域开放链路（已完成）
+
+- 结果：意图契约、Planner/Composite/Result/View/Evidence 接线完成；正常 LLM 工具计划强制声明 `output.type`，避免 `unknown` Result。
+- 验证：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，compileall、architecture strict、Node projection、Service smoke、真实本地 GIS HTTP、跨入口 identity 和 readiness **200** 通过。
+- 真实模型：一次 provider 成功调用、0 重试、真实 GIS 执行完成；不保存密钥、prompt 或模型原文。
 
 ### M309-E/F：Docker 阶段验收、文档与版本交付（已完成）
 

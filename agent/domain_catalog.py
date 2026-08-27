@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import re
 from typing import Any, Iterable, Mapping
 
+from .analysis_intent import SUPPORTED_ANALYSIS_OPERATIONS
 from .capability_catalog import capability_catalog
 
 
@@ -147,6 +148,18 @@ def validate_domain_catalog_spec(spec: DomainCatalogSpec) -> None:
             raise ValueError(
                 f"capability {capability_id} references unknown result types: "
                 + ", ".join(unknown_results)
+            )
+        declared_operations = _unique_strings(
+            item.get("analysis_operations") or (),
+            f"capability {capability_id}.analysis_operations",
+        )
+        unknown_operations = sorted(
+            set(declared_operations) - set(SUPPORTED_ANALYSIS_OPERATIONS)
+        )
+        if unknown_operations:
+            raise ValueError(
+                f"capability {capability_id} references unknown analysis operations: "
+                + ", ".join(unknown_operations)
             )
 
     workflow_ids = set()

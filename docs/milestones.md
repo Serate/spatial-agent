@@ -5252,3 +5252,27 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
   live 成功。
 - 下一步：基于项目整体目标重新规划通用能力扩展；受控 ReAct 仍作为后续独立阶段，不在
   当前阶段改变 Planner、ToolRegistry 和生命周期的权威边界。
+
+## M311：通用分析意图与跨域开放链路（已完成）
+
+- 新增版本化、领域中立的 `spatial-agent.analysis-intent.v1`，统一表达 query、filter、
+  aggregate、trend、compare、spatial_operation 和 evidence，并校验数据类型、事实引用、
+  有界依赖、重复 ID 与循环依赖。
+- 分析意图接入 Domain-owned request facts、Capability Catalog、Planner Envelope、
+  Composite plan 校验和组件 operation 声明；模型只能选择目录已声明的操作，不改变
+  Runtime、TaskPlan/DAG、ToolRegistry 或 execution binding 的授权边界。
+- Composite View、异步/artifact evidence 和 Console projection 统一消费结构化意图；前端
+  以“本次分析内容”展示分析方式和结果类型，不新增领域或工具专用页面分支。
+- 收紧正常 LLM 工具计划的 Result Contract：缺少 `output.type` 的计划在执行前失败闭合，
+  防止实际步骤成功却被包装为 `unknown`；历史快捷路径保持兼容。
+- Docker 门禁：M311 **13/13**、M2 LLM 相邻回归 **17/17**、M310 **14/14**、M309
+  **8/8**；compileall、architecture strict、Node projection 和 Service smoke 通过。
+- 真实本地 GIS/Docker HTTP、异步、artifact、Evidence 和 readiness **200** 通过；跨入口
+  sync/async/HTTP View/artifact/restart identity 全部一致。
+- 唯一一次显式真实模型调用到达 openai-compatible provider，`deepseek-v4-flash` 返回
+  结构化计划并完成本地 GIS 执行，1 次请求、0 重试；首次结果发现缺少 `output.type`，
+  已按公共契约修复，未重复调用模型。该次 live 仅记录脱敏 receipt，不保存密钥、prompt
+  或模型原文。
+- 阶段文档、中文问题日志、工作快照和任务账本已同步；下一阶段按全局目标规划通用
+  分析算子与 Economic Domain 的真实数据闭合，React 前端迁移另立独立阶段，不改变
+  Runtime 公共契约。

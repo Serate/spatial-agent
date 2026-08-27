@@ -120,6 +120,28 @@ class EconomicDomainPack:
         constraints = {"dataset": ECONOMIC_DATASET, "indicator": indicator, "regions": regions, "period_type": period_type}
         return RequestFacts(text=text, admin_name=None, tasks=(task,), datasets=(ECONOMIC_DATASET,), constraints=constraints, evidence=("answer", "provenance", "source_evidence"), entities={"indicator": indicator, "regions": regions, "period_type": period_type})
 
+    def analysis_intent(self, request: str, request_facts: Any) -> Mapping[str, Any] | None:
+        """Project Economic task semantics into the shared intent contract."""
+
+        del request
+        facts = request_facts.as_dict() if hasattr(request_facts, "as_dict") else request_facts
+        facts = facts if isinstance(facts, Mapping) else {}
+        task = str((facts.get("tasks") or ["latest"])[0]).strip().lower()
+        operation = {"trend": "trend", "compare": "compare", "evidence": "evidence"}.get(task, "query")
+        output_kinds = {
+            "query": ["metrics"],
+            "trend": ["timeseries", "metrics"],
+            "compare": ["metrics", "composite"],
+            "evidence": ["document_evidence"],
+        }[operation]
+        constraints = facts.get("constraints") or {}
+        fact_refs = [key for key in ("indicator", "regions", "period_type") if constraints.get(key)]
+        operations: list[dict[str, Any]] = [{"id": "analysis", "kind": operation, "output_kinds": output_kinds, "fact_refs": fact_refs}]
+        if operation != "evidence" and "source_evidence" in (facts.get("evidence") or []):
+            operations.append({"id": "evidence", "kind": "evidence", "depends_on": ["analysis"], "output_kinds": ["document_evidence"], "fact_refs": ["source_evidence"]})
+            output_kinds = list(dict.fromkeys([*output_kinds, "document_evidence"]))
+        return {"operations": operations, "data_kinds": output_kinds, "fact_refs": fact_refs, "source": "domain"}
+
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
         return build_domain_catalog(
             ECONOMIC_CATALOG_SPEC,

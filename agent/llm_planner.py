@@ -78,7 +78,14 @@ class LLMPlanner:
             raise ClarificationNeeded(str(payload.get("message", "planner needs clarification")))
         if outcome == "rejected":
             raise RequestRejected(str(payload.get("message", "request rejected by planner")))
-        return parse_task_plan(_normalize_shortcut_plan(payload), self._allowed_tools)
+        normalized = _normalize_shortcut_plan(payload)
+        # A full provider plan must identify its public Result contract.  The
+        # legacy one-tool shortcut remains compatible, but a normal plan with
+        # steps and no output type must fail closed instead of producing an
+        # apparently successful ``unknown`` result for downstream consumers.
+        if ("goal" in payload or "steps" in payload) and not _has_output_type(normalized):
+            raise PlanningError("planner output must include output.type")
+        return parse_task_plan(normalized, self._allowed_tools)
 
     def metrics(self) -> Dict[str, Any]:
         provider_metrics = getattr(self._client, "metrics", None)
@@ -605,6 +612,11 @@ def _normalize_shortcut_plan(payload: Mapping[str, Any]) -> Mapping[str, Any]:
         "steps": [{"id": "step-1", "tool": tool, "args": args, "depends_on": []}],
         "output": {},
     }
+
+
+def _has_output_type(payload: Mapping[str, Any]) -> bool:
+    output = payload.get("output")
+    return isinstance(output, Mapping) and isinstance(output.get("type"), str) and bool(output["type"].strip())
 
 
 def _normalize_step_arguments(step: Mapping[str, Any]) -> Mapping[str, Any]:

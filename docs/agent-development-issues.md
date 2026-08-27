@@ -1404,3 +1404,69 @@ context workflow 是有界的发现证据，不是执行授权。bridge 同时�
 以后新增 capability/workflow 映射时，必须同时覆盖 capability catalog、Domain
 resolver、workflow index、TaskPlan bridge 和 execution binding 的身份对照；测试中
 要加入“context 有 workflow 但 resolver 失败”的反例，防止发现证据重新变成授权。
+
+## M311 前端数组证据误用对象选择器
+
+### 现象
+
+后端已经在 planner evidence 中输出 `analysis_intents` 数组，但前端归一化后数组为空，
+因此用户看不到本次分析包含的查询、趋势或空间关系等通用分析内容。
+
+### 根因
+
+前端已有的 `firstRecord()` 只接受对象，用它读取数组证据时会安全地回退为空值。对象和
+数组证据没有分别使用匹配的选择器。
+
+### 修复
+
+- 增加数组专用的有界选择器，按优先级读取首个非空 `analysis_intents`。
+- Composite View、异步/artifact evidence 和 Console projection 均只保留经过
+  `analysis-intent.v1` 归一化的字段。
+- 前端用通用的“本次分析内容”展示操作和结果类型，不按 GIS、经济或工具名写页面分支。
+
+### 预防
+
+新增结构化证据字段时，先确认字段形态（对象、数组或标量），不要复用形态不匹配的
+选择器；至少覆盖后端 View、异步持久化和前端 projection 三个边界。
+
+## M311 Docker HTTP 验收容器误用 127.0.0.1
+
+### 现象
+
+在宿主机服务已启动且健康检查为 200 的情况下，从 Docker 验收容器运行真实本地 GIS
+HTTP 脚本时出现 transport failure。
+
+### 根因
+
+验收脚本运行在独立容器内，`127.0.0.1` 指向验收容器自身，而不是宿主机上的服务；这
+不是 GIS 后端或 HTTP 业务链路失败。
+
+### 修复与预防
+
+Docker Desktop 环境从容器访问宿主机服务使用 `host.docker.internal`，并先检查宿主机
+服务 `/health/ready` 为 200，再执行 HTTP/artifact/异步对照。脚本输出只保留脱敏状态，
+不记录密钥、prompt 或模型原文。
+
+## M311 LLM 工具计划缺少结果类型导致 unknown Result
+
+### 现象
+
+一次真实模型调用中，模型选择的栅格元数据步骤实际执行成功，但由于计划省略
+`output.type`，顶层 Result 被标成 `unknown`，前端出现不可用的 generic 视图。
+
+### 根因
+
+旧 `task_plan_schema` 和 LLM Planner 边界允许带工具步骤的计划没有公共结果类型；运行时
+无法安全地从工具名称猜测 Result Contract，只能把结果归为 `unknown`。
+
+### 修复
+
+- 计划 schema 要求顶层 `output` 且要求 `output.type`。
+- 正常 provider 计划在进入执行前检查结果类型，缺失时以规划失败结束，不创建“看似成功
+  但类型未知”的结果。
+- 保留历史单工具快捷路径兼容；不通过工具名硬编码推断领域结果类型。
+
+### 预防
+
+任何新增 Planner、Result 或 View 入口都要验证 `计划输出类型 → Result Contract →
+View/Artifact` 的完整传播；不能只断言步骤执行成功而忽略结果类型和视图可用性。

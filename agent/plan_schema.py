@@ -6,14 +6,20 @@ from .models import PlanStep, TaskPlan
 
 TASK_PLAN_SCHEMA: Dict[str, Any] = {
     "type": "object",
-    "required": ["goal", "steps"],
+    "required": ["goal", "steps", "output"],
     "additionalProperties": False,
     "properties": {
         "goal": {"type": "string"},
         "outcome": {"type": "string", "enum": ["success", "direct_answer", "needs_clarification", "rejected"]},
         "message": {"type": "string"},
         "assumptions": {"type": "array", "items": {"type": "string"}},
-        "output": {"type": "object"},
+        "output": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+                "type": {"type": "string", "minLength": 1},
+            },
+        },
         "steps": {
             "type": "array",
             "minItems": 0,

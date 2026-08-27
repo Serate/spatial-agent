@@ -126,6 +126,13 @@ class DomainPack(Protocol):
     def extract_request_facts(self, request: str) -> Any:
         """Return the domain-neutral request facts for a request."""
 
+    def analysis_intent(self, request: str, request_facts: Any) -> Any:
+        """Optionally return a bounded domain-owned analysis intent.
+
+        The Runtime validates the returned ``analysis-intent.v1`` object but
+        does not infer operation semantics from Domain task names.
+        """
+
     def capability_catalog(self, *, environment: str = "unknown") -> Mapping[str, Any]:
         """Return a JSON-safe capability catalog for the runtime context."""
 

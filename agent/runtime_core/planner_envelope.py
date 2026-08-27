@@ -16,6 +16,7 @@ from typing import Any
 from agent.request_understanding import normalize_request_understanding_guidance
 from agent.data_readiness import project_data_readiness
 from agent.request_requirements import project_requirement_fields
+from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.runtime_core.request_fact_readiness import project_request_fact_readiness
 
 
@@ -36,6 +37,7 @@ PLANNER_PROJECTION_STAGES = (
 PLANNER_ENVELOPE_DEFAULT_STAGE = "selection"
 PLANNER_ENVELOPE_LAYERS = (
     "request_facts",
+    "analysis_intent",
     "capability_index",
     "selection",
     "execution_contract",
@@ -70,6 +72,7 @@ _PROJECTED_TOP_LEVEL_FIELDS = {
     "layers",
     "redaction",
     "request_facts",
+    "analysis_intent",
     "capability_index",
     "selection",
     "execution_contract",
@@ -170,6 +173,10 @@ def build_planner_envelope(
             "max_workflows": workflow_limit,
         },
     }
+    if context.get("analysis_intent") is not None:
+        envelope["analysis_intent"] = _analysis_intent_projection(
+            context.get("analysis_intent")
+        )
     if stage == "discovery":
         # Discovery answers “what may be relevant?”  Workflow bindings and
         # diagnostic consistency details stay inside Runtime until selection.
@@ -258,6 +265,10 @@ def normalize_planner_envelope(
         if str(key) in _PROJECTED_TOP_LEVEL_FIELDS
         and str(key).strip().lower().replace("-", "_") not in _PRIVATE_KEYS
     }
+    if "analysis_intent" in envelope:
+        envelope["analysis_intent"] = _analysis_intent_projection(
+            envelope["analysis_intent"]
+        )
     envelope["schema_version"] = PLANNER_ENVELOPE_SCHEMA_VERSION
     envelope["projection_stage"] = stage
     envelope["source_context_schema_version"] = _text(
@@ -479,23 +490,28 @@ def _request_facts(
             "datasets": _strings(facts.get("datasets"), 16),
             "constraints": _safe_value(facts.get("constraints") or {}, depth=0),
         }
+        if raw.get("analysis_intent") is not None:
+            projected_intent = _analysis_intent_projection(raw.get("analysis_intent"))
+        else:
+            projected_intent = None
         if not compact:
             projected_facts["evidence"] = _strings(facts.get("evidence"), 8)
-        domains.append(
-            {
-                "domain_id": domain_id,
-                "facts": projected_facts,
-                "understanding": _understanding_projection(
-                    raw.get("request_understanding"),
-                    domain_id=raw.get("domain_id"),
-                ),
-                "data_readiness": _readiness(raw.get("data_readiness")),
-                "fact_readiness": project_request_fact_readiness(
-                    raw.get("fact_readiness")
-                ),
-                "clarification": _small_clarification(raw.get("clarification")),
-            }
-        )
+        domain_projection = {
+            "domain_id": domain_id,
+            "facts": projected_facts,
+            "understanding": _understanding_projection(
+                raw.get("request_understanding"),
+                domain_id=raw.get("domain_id"),
+            ),
+            "data_readiness": _readiness(raw.get("data_readiness")),
+            "fact_readiness": project_request_fact_readiness(
+                raw.get("fact_readiness")
+            ),
+            "clarification": _small_clarification(raw.get("clarification")),
+        }
+        if projected_intent is not None:
+            domain_projection["analysis_intent"] = projected_intent
+        domains.append(domain_projection)
     if not domains:
         facts = context.get("facts")
         if domain_ids is None:
@@ -508,6 +524,18 @@ def _request_facts(
                 }
             )
     return {"domains": domains}
+
+
+def _analysis_intent_projection(value: Any) -> dict[str, Any]:
+    """Validate the optional intent without carrying provider-only fields."""
+
+    try:
+        return normalize_analysis_intent(value)
+    except AnalysisIntentError as exc:
+        raise PlannerEnvelopeError(
+            "analysis intent is invalid",
+            code="analysis_intent_invalid",
+        ) from exc
 
 
 def _understanding_projection(value: Any, *, domain_id: Any = None) -> dict[str, Any]:
@@ -558,6 +586,7 @@ def _candidate_index(
             "datasets": _strings(raw.get("datasets"), 8),
             "missing_datasets": _strings(raw.get("missing_datasets"), 8),
             "result_types": _strings(raw.get("result_types"), 16),
+            "analysis_operations": _strings(raw.get("analysis_operations"), 8),
             "output_profiles": _profiles(raw.get("output_profiles")),
             "missing_fact_ids": _strings(raw.get("missing_fact_ids"), 8),
             "missing_facts": _fact_fields(raw.get("missing_facts")),

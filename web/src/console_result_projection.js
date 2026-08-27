@@ -57,6 +57,14 @@
         result.selection_evidence,
       ),
     );
+    const analysisIntents = normalizeAnalysisIntents(
+      firstList(
+        planning?.analysis_intents,
+        data.analysis_intents,
+        result.analysis_intents,
+        composite?.planning?.analysis_intents,
+      ),
+    );
     let clarification = firstRecord(data.clarification, result.clarification, composite?.clarification) || {};
     const componentHandoff = firstRecord(data.component_fact_handoff, result.component_fact_handoff);
     const compositeHandoff = firstRecord(data.composite_fact_handoff, result.composite_fact_handoff);
@@ -125,6 +133,7 @@
       context,
       discovery,
       selection_evidence: selectionEvidence,
+      analysis_intents: analysisIntents,
       clarification,
       component_fact_handoff: handoff || {},
       composite_fact_handoff: compositeHandoff || {},
@@ -290,6 +299,7 @@
     const chipHtml = chips.slice(0, MAX_CHIPS).map(item => '<span class="result-chip">' + escapeHtml(item) + '</span>').join("");
     const discoveryHtml = renderDiscovery(model.discovery, escapeHtml);
     const selectionHtml = renderSelectionEvidence(model.selection_evidence, escapeHtml);
+    const analysisIntentHtml = renderAnalysisIntents(model.analysis_intents, escapeHtml);
     const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const resultKinds = model.result_kinds.length > 1
       ? '<section class="projection-section projection-result-kinds"><h4>结果组成</h4><p>' + escapeHtml(model.result_kinds.map(item => item.label).join("、")) + '</p></section>'
@@ -312,7 +322,7 @@
       + (clarificationActions.length ? '<small>下一步：' + escapeHtml(clarificationActions.join("；")) + '</small>' : "") + '</section>' : "";
     return '<div class="result-projection" data-projection-schema="' + escapeHtml(SCHEMA_VERSION) + '"><ol class="result-phases" aria-label="分析阶段">' + phases + '</ol>'
       + (chipHtml ? '<div class="result-chips" aria-label="结果摘要">' + chipHtml + '</div>' : "")
-      + discoveryHtml + selectionHtml + clarification + failureHtml + resultKinds + findings + limitations + nextSteps + '</div>';
+      + discoveryHtml + selectionHtml + analysisIntentHtml + clarification + failureHtml + resultKinds + findings + limitations + nextSteps + '</div>';
   }
 
   function renderFailure(failure, planningFailure, status, escapeHtml) {
@@ -339,6 +349,10 @@
     return values.find(value => record(value)) || null;
   }
 
+  function firstList(...values) {
+    return values.find(value => Array.isArray(value) && value.length) || [];
+  }
+
   function mergePlanningEvidence(primary, compositePlanning) {
     const result = record(primary) ? {...primary} : {};
     if (record(compositePlanning) && !record(result.structured_output) && record(compositePlanning.structured_output)) {
@@ -352,6 +366,9 @@
     }
     if (record(compositePlanning) && !record(result.selection_evidence) && record(compositePlanning.selection_evidence)) {
       result.selection_evidence = {...compositePlanning.selection_evidence};
+    }
+    if (record(compositePlanning) && !list(result.analysis_intents).length && list(compositePlanning.analysis_intents).length) {
+      result.analysis_intents = [...compositePlanning.analysis_intents];
     }
     if (record(compositePlanning) && !record(result.provider_runtime) && record(compositePlanning.provider_runtime)) {
       result.provider_runtime = {...compositePlanning.provider_runtime};
@@ -520,6 +537,22 @@
     };
   }
 
+  function normalizeAnalysisIntents(raw) {
+    return list(raw).slice(0, MAX_ITEMS).filter(record).map(item => {
+      const intent = record(item.intent) ? item.intent : {};
+      const operations = list(intent.operations).slice(0, MAX_ITEMS).filter(record).map(operation => ({
+        kind: text(operation.kind, 48),
+        output_kinds: normalizeKinds(operation.output_kinds),
+      })).filter(operation => operation.kind);
+      return {
+        domain_id: text(item.domain_id, 64),
+        schema_version: text(intent.schema_version, 96),
+        operations,
+        data_kinds: normalizeKinds(intent.data_kinds),
+      };
+    }).filter(item => item.operations.length || item.data_kinds.length);
+  }
+
   function normalizeKinds(raw) {
     const values = typeof raw === "string" ? [raw] : list(raw);
     const supported = ["vector", "raster", "metrics", "timeseries", "document_evidence", "composite", "text", "unknown"];
@@ -581,6 +614,28 @@
       ? '<small>下一步：' + escapeHtml(selection.next_actions.join("；")) + '</small>'
       : "";
     return '<section class="projection-section projection-selection" data-selection-state="' + escapeHtml(selection.state) + '"><h4>分析能力</h4><p><strong>' + escapeHtml(selected) + '</strong></p>' + clarification + actions + '</section>';
+  }
+
+  function renderAnalysisIntents(intents, escapeHtml) {
+    if (!intents?.length) return "";
+    const operationLabels = {
+      query: "查询",
+      filter: "筛选",
+      aggregate: "汇总",
+      trend: "趋势分析",
+      compare: "区域对比",
+      spatial_operation: "空间关系",
+      evidence: "来源核验",
+    };
+    const operations = [...new Set(intents.flatMap(item => item.operations.map(operation => operationLabels[operation.kind] || "分析")))].slice(0, MAX_ITEMS);
+    const kinds = [...new Set(intents.flatMap(item => item.data_kinds))]
+      .filter(kind => kind !== "unknown")
+      .slice(0, MAX_ITEMS);
+    if (!operations.length && !kinds.length) return "";
+    const rows = [];
+    if (operations.length) rows.push('<p><strong>分析方式：</strong>' + escapeHtml(operations.join("、")) + '</p>');
+    if (kinds.length) rows.push('<p><strong>结果类型：</strong>' + escapeHtml(kinds.map(kind => kindLabels[kind] || "结构化结果").join("、")) + '</p>');
+    return '<section class="projection-section projection-analysis-intents"><h4>本次分析内容</h4>' + rows.join("") + '</section>';
   }
 
   function normalizeRepairLineage(raw) {
