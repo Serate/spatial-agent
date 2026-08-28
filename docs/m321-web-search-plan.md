@@ -36,7 +36,7 @@
   响应字节、来源数量和 HTML/JSON 解析限制；输出只保留 `document_evidence.v1` 来源摘要。
 - Runtime factory 在构造 Planner 前登记 `web_search`，真实模型能看到该工具契约；ReAct `search`
   经由普通 `web_search` StepRun 执行，继续复用取消、重试、事件、Result 和恢复边界。
-- Docker M321 + M320 + M318 **29/29**，compileall、architecture strict、smoke、readiness **200** 通过。
+- Docker M321 + M320 + M318 **30/30**，compileall、architecture strict、smoke、readiness **200** 通过。
 - 未配置白名单时实际 opener 调用次数为 0；未执行真实公共网页请求，也未保存网页全文、Prompt、
   模型原文、密钥或私有路径。真实联网验收留到配置明确后的 M325。
 

@@ -19,7 +19,9 @@ REACT_ACTIONS = frozenset(
 )
 REACT_VALIDATION_STATES = frozenset({"proposed", "accepted", "blocked", "completed"})
 REACT_SOURCES = frozenset({"model", "rule", "replay", "runtime"})
-REACT_RUN_STATES = frozenset({"finished", "clarification", "rejected", "blocked"})
+REACT_RUN_STATES = frozenset(
+    {"finished", "clarification", "rejected", "blocked", "awaiting_approval"}
+)
 _MAX_SUMMARY = 240
 _MAX_MESSAGE = 800
 _MAX_QUERY = 512
@@ -59,15 +61,24 @@ REACT_DECISION_SCHEMA: dict[str, Any] = {
         "max_results": {"type": "integer", "minimum": 1, "maximum": 8},
         "message": {"type": "string", "maxLength": _MAX_MESSAGE},
         "output_type": {"type": "string", "maxLength": 96},
-        "proposal": {
-            "type": "object",
-            "additionalProperties": False,
+            "proposal": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "description",
+                    "input_schema",
+                    "output_schema",
+                    "source",
+                    "example_arguments",
+                ],
+                "additionalProperties": False,
             "properties": {
                 "name": {"type": "string", "maxLength": 96},
                 "description": {"type": "string", "maxLength": 400},
                 "input_schema": {"type": "object"},
                 "output_schema": {"type": "object"},
                 "source": {"type": "string", "maxLength": _MAX_SOURCE},
+                "example_arguments": {"type": "object"},
             },
         },
     },
@@ -213,6 +224,7 @@ def build_react_evidence(
     reason_code: str | None = None,
     result_ref: str | None = None,
     citation_count: int = 0,
+    proposal_receipt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a bounded, safe evidence record for one ReAct turn."""
 
@@ -233,6 +245,7 @@ def build_react_evidence(
         "reason_code": str(reason_code or "")[:96] or None,
         "result_ref": str(result_ref or "")[:160] or None,
         "citation_count": max(0, min(int(citation_count), 64)),
+        "proposal_receipt": _project_proposal_receipt(proposal_receipt),
     }
     return evidence
 
@@ -252,6 +265,7 @@ def normalize_react_evidence(value: Any) -> dict[str, Any]:
             "reason_code": "react_evidence_unknown_schema",
             "result_ref": None,
             "citation_count": 0,
+            "proposal_receipt": None,
         }
     state = value.get("validation_state")
     if state not in REACT_VALIDATION_STATES:
@@ -271,6 +285,7 @@ def normalize_react_evidence(value: Any) -> dict[str, Any]:
         "reason_code": str(value.get("reason_code") or "")[:96] or None,
         "result_ref": str(value.get("result_ref") or "")[:160] or None,
         "citation_count": _bounded_int(value.get("citation_count"), 0, 64),
+        "proposal_receipt": _project_proposal_receipt(value.get("proposal_receipt")),
     }
 
 
@@ -359,7 +374,14 @@ def normalize_react_run_evidence(value: Any) -> dict[str, Any]:
 def _normalize_proposal(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ReactDecisionError("proposal must be an object")
-    allowed = {"name", "description", "input_schema", "output_schema", "source"}
+    allowed = {
+        "name",
+        "description",
+        "input_schema",
+        "output_schema",
+        "source",
+        "example_arguments",
+    }
     if set(value) - allowed:
         raise ReactDecisionError("proposal contains unknown fields")
     name = _required_text(value, "name", 96)
@@ -379,7 +401,47 @@ def _normalize_proposal(value: Any) -> dict[str, Any]:
     }
     if source is not None:
         result["source"] = source
+    if "example_arguments" in value:
+        example_arguments = value.get("example_arguments")
+        if not isinstance(example_arguments, Mapping):
+            raise ReactDecisionError("proposal example_arguments must be an object")
+        result["example_arguments"] = deepcopy(dict(example_arguments))
     return result
+
+
+def _project_proposal_receipt(value: Any) -> dict[str, Any] | None:
+    """Keep proposal evidence auditable without retaining source or samples."""
+
+    if not isinstance(value, Mapping):
+        return None
+    result: dict[str, Any] = {}
+    for key in (
+        "schema_version",
+        "proposal_id",
+        "name",
+        "status",
+        "source_hash",
+        "schema_hash",
+        "duration_ms",
+        "output_bytes",
+        "reason_code",
+    ):
+        if value.get(key) is not None:
+            result[key] = str(value[key])[:160] if key not in {"duration_ms", "output_bytes"} else value[key]
+    checks = value.get("checks")
+    if isinstance(checks, Mapping):
+        result["checks"] = {
+            str(key)[:48]: str(item)[:32] for key, item in list(checks.items())[:12]
+        }
+    profile = value.get("sandbox_profile")
+    if isinstance(profile, Mapping):
+        result["sandbox_profile"] = {
+            "name": str(profile.get("name") or "python-pure-v1")[:64],
+            "network": "none",
+            "filesystem": "read-only",
+            "timeout_seconds": profile.get("timeout_seconds", 3.0),
+        }
+    return result or None
 
 
 def _required_text(value: Mapping[str, Any], key: str, limit: int) -> str:

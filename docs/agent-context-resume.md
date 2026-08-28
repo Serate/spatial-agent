@@ -288,3 +288,12 @@
   脚本根路径问题已修复并写入中文问题日志。
 - 当前 Goal 已满足验收条件，下一阶段候选为独立 React 前端迁移；React 不改写 Runtime、
   Planner、ToolRegistry 和公共 Result/View/Evidence 契约。
+
+## M322：Python 工具提案与 Docker 沙箱（已完成）
+
+- 完成 `tool-proposal.v1`、`tool-proposal-receipt.v1`、AST/JSON 有界校验、Unix socket
+  client/worker/runner 和无网络 Docker sidecar；ReAct 提案只形成 `awaiting_approval`，不自动注册或在主进程执行。
+- Docker M322 契约 **7/7**，本次 M318/M319/M320/M321/M322 合并回归 **43/43**；compileall、architecture strict、
+  smoke、readiness **200**、真实 sidecar 调用和 SQLite receipt 恢复通过。
+- sidecar healthcheck、公开字段传输和 receipt/hash 测试边界问题已记录在中文问题日志；Docker 修改后必须重建镜像。
+- 未调用真实模型；M323 继续实现人工审批、持久化审批状态和受控 Registry 注册。

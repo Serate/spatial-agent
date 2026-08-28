@@ -25,6 +25,7 @@ from .network import WebSearchAdapter, web_search_tool_definition
 from .openai_config import load_answer_generation_config, load_openai_config
 from .planner import RuleBasedPlanner
 from .runtime import AgentRuntime
+from .tooling import ToolProposalValidator, UnixSocketSandboxClient
 from .runtime_context import build_runtime_context
 from .tools import ToolRegistry
 
@@ -63,6 +64,12 @@ def build_runtime(
             WebSearchAdapter.from_settings(agent_defaults).invoke,
         )
     resolved_answer_generator = answer_generator
+    proposal_validator = ToolProposalValidator(
+        UnixSocketSandboxClient(
+            agent_defaults["tool_proposal_sandbox_socket"],
+            timeout_seconds=agent_defaults["tool_proposal_sandbox_timeout_seconds"],
+        )
+    ) if agent_defaults["tool_proposals_enabled"] else None
     if planner_name == "openai":
         model_config = load_openai_config()
         planner_client = OpenAIPlannerClient(**model_config)
@@ -107,6 +114,7 @@ def build_runtime(
         backend_name=backend_name,
         planner_name=planner_name,
         answer_generator=resolved_answer_generator,
+        proposal_validator=proposal_validator,
         domain_pack=selected_domain_pack,
         allowed_permissions=allowed_permissions,
         approved_tools=approved_tools,

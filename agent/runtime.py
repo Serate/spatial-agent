@@ -108,6 +108,7 @@ class AgentRuntime:
         conversation_store: Optional[InMemoryConversationStore] = None,
         answer_composer: Optional[Any] = None,
         answer_generator: Optional[Any] = None,
+        proposal_validator: Optional[Any] = None,
         context_builder: Optional[ContextBuilder] = None,
         max_steps: int = 12,
         max_retries: int = 2,
@@ -155,6 +156,7 @@ class AgentRuntime:
         )
         self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
         self._answer_generator = answer_generator
+        self._proposal_validator = proposal_validator
         self._context_builder = context_builder or ContextBuilder()
         self._max_steps = max_steps
         self._max_retries = max_retries

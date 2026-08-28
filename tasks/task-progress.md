@@ -18,7 +18,25 @@
 
 ## 当前进行中
 
-### M321：白名单网络搜索 — 已完成，待版本推送
+### M322：Python 工具提案与 Docker 沙箱 — 已完成
+
+- 目标：让 ReAct 提出纯 Python 计算工具，并在无网络、只读、资源受限的 Docker sidecar 中完成静态校验和示例执行；验证通过仍只能等待 M323 人工审批。
+- 结果：完成提案规范化、schema/source hash、AST allowlist、JSON schema 子集校验、Unix socket client/worker/runner、Runtime/ReAct 待审批 receipt 和 Compose sidecar；提案不会自动注册或在主进程执行。
+- 实际修改文件：`agent/tooling/__init__.py`、`agent/tooling/proposal.py`、`agent/tooling/sandbox.py`、`agent/tooling/sandbox_worker.py`、`agent/tooling/sandbox_runner.py`、`agent/react/contracts.py`、`agent/react/loop.py`、`agent/runtime.py`、`agent/runtime_core/react_runtime.py`、`agent/runtime_factory.py`、`agent/agent_settings.py`、`.env.example`、`docker-compose.prod.yml`、`tests/test_m322_tool_proposal.py` 及阶段文档。
+- 验证：Docker M322 **7/7**；本次 M318/M319/M320/M321/M322 合并回归 **43/43**；compileall、`architecture_check.py --strict`、`smoke_check.py`、readiness **200**、真实 sidecar Unix socket 调用和 SQLite receipt 恢复均通过。
+- 问题修复：sidecar healthcheck 改为只检查 socket 文件，worker 忽略客户端断开；传输层只发送公开 proposal 字段；receipt 的 `source_hash` 不再被测试误当作 normalized proposal 输入；Docker 测试前需重建镜像。
+- 阻塞：无。未调用真实模型，不保存源码之外的模型原文、Prompt、密钥或敏感路径。
+- 下一步：建立 M323 能力图、Spec、Plan，实现人工审批、持久化审批状态和受控 Registry 注册。
+
+### M323：人工审批、持久化和 Registry 治理 — 规划中
+
+- 目标：把已验证的工具提案纳入可恢复、可审计、默认不自动批准的人工决策生命周期；批准后才生成版本化 Registry 工具。
+- 需要修改的文件：待 M323 capability map、Spec、Plan 冻结后列出；预计涉及 `agent/tooling/`、`agent/tools.py`、Runtime 决策/恢复边界、HTTP 应用层、SQLite 状态和紧凑契约测试。
+- 验证：开发期间只做必要静态检查；阶段收口集中执行审批状态、拒绝/过期/撤销、重启恢复、Registry 隔离、HTTP contract、compileall、architecture strict 和 readiness。
+- 边界：不执行未经批准的源码；不允许审批接口改变既有工具权限；不记录 Prompt、模型原文、源码全文或敏感配置。
+- 下一步：先创建 `docs/m323-tool-approval-capability-map.md`、`docs/m323-tool-approval-spec.md` 和 `docs/m323-tool-approval-plan.md`，再实现状态机与注册适配。
+
+### M321：白名单网络搜索 — 已完成并推送
 
 - 目标：让默认开启的 ReAct 通过服务端白名单调用 `web_search`，输出有界 `document_evidence`，
   无白名单、未配置 Provider 或网络异常时结构化降级。
@@ -28,11 +46,11 @@
 - 文件：`agent/agent_settings.py`、`agent/network/__init__.py`、`agent/network/web_search.py`、
   `.env.example`、`agent/runtime_factory.py`、`agent/runtime_context.py`、`agent/react/contracts.py`、
   `agent/react/loop.py`、`agent/runtime_core/react_runtime.py`、`tests/test_m321_web_search.py` 及交接文档。
-- 验证：Docker M321/M320/M318 **29/29**；compileall、architecture strict、smoke、readiness **200**。
+- 验证：Docker M321/M320/M318 **30/30**；compileall、architecture strict、smoke、readiness **200**。
   未执行真实公共网页请求，空白白名单 opener 调用次数为 0；真实联网留到 M325 显式验收。
 - 阻塞：无代码阻塞；部署环境需要明确配置 `SPATIAL_AGENT_WEB_SEARCH_URL` 和
   `SPATIAL_AGENT_WEB_ALLOWED_DOMAINS` 才会实际访问网络。
-- 下一步：提交并推送 M321，按项目全局规划 M322 工具提案。
+- 下一步：M321 提交 `19f3386` 已推送；当前进入上方 M322-A。
 
 ### M320：ReAct Runtime 接入与真实模型验收 — 已完成并推送
 

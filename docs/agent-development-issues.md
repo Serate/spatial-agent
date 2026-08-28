@@ -1894,3 +1894,29 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 - 显式真实模型验收确认 Provider 可达并执行 GIS 首动作，但本阶段尚未证明真实模型 + GIS
   对该开放请求稳定完成全链路；后续 M321/M325 继续分别处理工具能力和 live 验收，不通过
   放宽 Runtime 安全边界来掩盖失败。
+
+## 2026-08-28 M322 Python 工具提案 sidecar 与 receipt 传输问题
+
+### 现象
+
+- Docker sidecar 首次启动时健康检查只建立 Unix socket 连接、不发送协议数据；worker 读取到
+  客户端已断开的连接后尝试回写，触发 `BrokenPipeError`，容器被判定为不健康。
+- 主服务将包含 `source_hash`、`schema_hash` 等内部字段的 normalized proposal 直接传给 worker，
+  worker 再次规范化时把内部字段当成未知输入，导致合法提案被误拒绝。
+- 测试把 receipt 中的 `source_hash` 当作完整 normalized proposal 传输，造成断言看似失败；Docker
+  复用旧镜像时，宿主机新测试也可能没有进入容器。
+
+### 根因与处理
+
+- healthcheck 改为只检查 socket 文件类型，不触发业务协议；worker 对客户端提前断开做安全忽略，
+  不因健康检查退出。
+- client、worker、runner 之间只传输公开 proposal 字段，内部 identity/hash 只在各自边界重新生成；
+  receipt 只保留脱敏 identity、hash、检查状态、耗时、输出字节数和 sandbox profile。
+- 测试分别构造 proposal 与 receipt；修改 Python、测试或 Docker 配置后，先重建目标镜像再运行验收。
+
+### 当前验证
+
+- Docker M322 **7/7**，本次 M318/M319/M320/M321/M322 合并回归 **43/43**；compileall、architecture strict、
+  smoke、readiness **200**、主服务到 sidecar 的真实 Unix socket 调用和 SQLite receipt 恢复通过。
+- 提案验证通过不会注册 ToolRegistry，也不会在主进程执行生成代码；未调用真实模型，未保存 Prompt、
+  模型原文、密钥或完整源码输出。

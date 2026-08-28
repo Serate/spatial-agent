@@ -1,13 +1,46 @@
 services:
+  tool-proposal-sandbox:
+    build: .
+    env_file:
+      - .env.production
+    environment:
+      SPATIAL_AGENT_TOOL_PROPOSAL_SANDBOX_SOCKET: /app/outputs/sandbox/worker.sock
+    volumes:
+      - ./outputs:/app/outputs
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: "1.0"
+    network_mode: none
+    restart: unless-stopped
+    command: ["python", "-m", "agent.tooling.sandbox_worker"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, stat; assert stat.S_ISSOCK(os.stat('/app/outputs/sandbox/worker.sock').st_mode)"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
   spatial-agent:
     build: .
     ports:
       - "8088:8088"
     env_file:
       - .env.production
+    environment:
+      SPATIAL_AGENT_TOOL_PROPOSAL_SANDBOX_SOCKET: /app/outputs/sandbox/worker.sock
     volumes:
       - ${SPATIAL_AGENT_HOST_DATASET_ROOT:-./data}:/data:ro
       - ./outputs:/app/outputs
+    depends_on:
+      tool-proposal-sandbox:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health/ready', timeout=3)"]

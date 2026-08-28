@@ -18,14 +18,17 @@
 ## 当前阶段
 
 - 阶段：M318-M325 受控开放 Agent Runtime
-- 状态：M319、M320、M321 已完成；M321 版本待提交推送，下一阶段为 M322 工具提案。
-- 当前任务：收口 M321 文档和版本，随后从项目全局规划 M322 沙箱 Python 工具提案。
-- 交付状态：M321 适配器、Registry/ReAct 接入和精简 Docker 验收已完成；真实联网待 M325 显式配置后验收。
+- 状态：M319、M320、M321、M322 已完成并推送；当前进入 M323 人工审批、持久化和 Registry 治理规划。
+- 当前任务：建立 M323 capability map、Spec、Plan，冻结提案审批状态机与受控注册边界。
+- 交付状态：M322 已完成提案验证、无网络 sidecar 和待审批 receipt；M323 尚未实现人工审批或 Registry 注册。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；Python、GIS、测试和阶段验收使用 Docker。
 - 阶段规划：
   - [`docs/m318-open-agent-capability-map.md`](m318-open-agent-capability-map.md)
   - [`docs/m318-open-agent-spec.md`](m318-open-agent-spec.md)
   - [`docs/m318-open-agent-plan.md`](m318-open-agent-plan.md)
+  - [`docs/m323-tool-approval-capability-map.md`](m323-tool-approval-capability-map.md)
+  - [`docs/m323-tool-approval-spec.md`](m323-tool-approval-spec.md)
+  - [`docs/m323-tool-approval-plan.md`](m323-tool-approval-plan.md)
   - [`tasks/plan.md`](../tasks/plan.md)
 
 ## 当前任务明确文件
@@ -33,6 +36,9 @@
 - `docs/m321-web-search-capability-map.md`
 - `docs/m321-web-search-spec.md`
 - `docs/m321-web-search-plan.md`
+- `docs/m322-python-tool-proposal-capability-map.md`
+- `docs/m322-python-tool-proposal-spec.md`
+- `docs/m322-python-tool-proposal-plan.md`
 - `tasks/plan.md`
 - `tasks/task-progress.md`
 - `agent/runtime_factory.py`
@@ -44,6 +50,14 @@
 - `agent/react/loop.py`
 - `agent/runtime_core/react_runtime.py`
 - `tests/test_m321_web_search.py`
+- `agent/tools.py`
+- `docker-compose.prod.yml`
+- `agent/tooling/`
+- `agent/tools.py`
+- `agent/runtime_core/`
+- `agent/application/http.py`
+- `agent/sqlite_store.py`
+- `tests/test_m323_tool_approval.py`（待创建）
 
 > 当前阶段按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
 > 避免恢复上下文时读取无关文件。
@@ -66,7 +80,7 @@
 - 修改：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning_surface.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_core/preview.py`、`agent/runtime.py`、`agent/runtime_core/__init__.py`、M319 文档/测试及兼容性测试断言。
 - 阻塞：无。恢复时先读取本快照、`tasks/task-progress.md` 尾部和 M318 总 Spec/Plan；开始 M320 后再建立并读取 M320 专属交接文件，不批量读取历史。
 
-## M321 当前交接：白名单网络搜索 — 已完成，待版本推送
+## M321 当前交接：白名单网络搜索 — 已完成并推送
 
 - 目标：让默认开启的 ReAct 在服务端白名单允许时调用 `web_search`，只返回有界
   `document_evidence`；无白名单、策略关闭或网络异常时结构化降级，不进行任意 URL 访问。
@@ -80,7 +94,37 @@
 - 验证：Docker M321/M320/M318 **29/29**，compileall、architecture strict、smoke、readiness **200**；
   未执行真实联网请求，留到 M325 显式白名单验收。
 - 阻塞：无代码阻塞；真实公共搜索需要部署者明确配置搜索入口和域名白名单。
-- 下一步：提交并推送 M321；完成全局重规划后进入 M322 工具提案，不重复读取 M320 历史实现。
+- 下一步：M321 提交 `19f3386` 已推送；当前恢复入口切换到 M322-A，不重复读取 M320 历史实现。
+
+## M322 阶段交接：Python 工具提案与 Docker 沙箱 — 已完成并待版本收口
+
+- 目标：模型只能提出纯 Python 计算工具；提案在 AST 和无网络 Docker sidecar 中验证，验证通过只产生
+  `tool-proposal-receipt.v1`，不自动注册、不在主进程执行；人工审批留给 M323。
+- 已完成：提案规范化、schema/source hash、AST allowlist、JSON schema 子集校验、Unix socket
+  client/worker/runner、Runtime/ReAct 待审批 receipt 和 Docker sidecar。
+- 直接修改文件：`agent/tooling/__init__.py`、`agent/tooling/proposal.py`、`agent/tooling/sandbox.py`、
+  `agent/tooling/sandbox_worker.py`、`agent/tooling/sandbox_runner.py`、`agent/react/contracts.py`、
+  `agent/react/loop.py`、`agent/runtime.py`、`agent/runtime_core/react_runtime.py`、
+  `agent/runtime_factory.py`、`agent/agent_settings.py`、`.env.example`、`docker-compose.prod.yml`、
+  `tests/test_m322_tool_proposal.py` 及 M322 文档。
+- 验证：Docker M322 **7/7**，本次 M318/M319/M320/M321/M322 合并回归 **43/43**；compileall、architecture
+  strict、smoke、readiness **200**、真实 sidecar socket 调用和 SQLite receipt 恢复通过。
+- 安全收口：sidecar 无网络、只读根文件系统、tmpfs、非 root、资源受限；不自动注册、不在主进程
+  执行生成代码，receipt 不暴露源码、示例参数、输出、Prompt 或密钥。
+- 阻塞：无。M322 不自动注册或执行提案，sidecar 不可用时不得回退到主进程执行。
+- 下一步：提交 M322 版本后，完成 M323 审批状态、持久化恢复和受控 Registry 注册。
+
+## M323 当前交接：人工审批、持久化和 Registry 治理 — 规划中
+
+- 目标：已验证 proposal 只能在显式人工决策后进入版本化 Registry；审批、拒绝、过期、撤销和恢复
+  均进入统一生命周期与 evidence，未批准提案永远不可执行。
+- 当前子任务：M323-A，建立能力图、Spec 和 Plan，确认审批状态机、持久化边界、注册版本和 HTTP
+  语义，不先改 Runtime 主循环。
+- 待修改文件：以 M323 Plan 冻结为准，预计为 `agent/tooling/`、`agent/tools.py`、SQLite/Runtime
+  状态边界、HTTP Application 和 `tests/test_m323_tool_approval.py`。
+- 验证：开发期间只做必要静态检查；阶段收口集中验证审批矩阵、重启恢复、Registry 隔离、HTTP
+  contract、compileall、architecture strict 和 readiness。
+- 阻塞：无。不得执行未经批准源码，不得保存 Prompt、模型原文、源码全文或敏感配置。
 
 ## M320 当前交接：ReAct 循环接入 — 已完成并推送
 

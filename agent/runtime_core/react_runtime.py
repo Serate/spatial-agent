@@ -44,6 +44,7 @@ class RuntimeReactExecution:
         tool_proposals_enabled = bool(
             settings.get("tool_proposals_enabled", True)
         )
+        proposal_validator = getattr(runtime, "_proposal_validator", None)
         initial_decision = self._initial_decision(
             context,
             allowed_tools=allowed_tools,
@@ -121,6 +122,28 @@ class RuntimeReactExecution:
                 )
             return self._execute_tool_action(context, *prepared_action)
 
+        def validate_proposal(
+            decision: Mapping[str, Any], turn_index: int, action_id: str
+        ) -> Mapping[str, Any]:
+            del turn_index, action_id
+            if proposal_validator is None:
+                return {
+                    "status": "unavailable",
+                    "reason_code": "sandbox_unavailable",
+                }
+            method = getattr(proposal_validator, "validate", None)
+            if not callable(method):
+                raise ToolError(
+                    "tool proposal validator is unavailable",
+                    category="validation",
+                    code="proposal_validator_unavailable",
+                    retryable=False,
+                )
+            return method(
+                decision.get("proposal"),
+                existing_tools=runtime._registry.names,
+            )
+
         loop = ReactLoop(
             runtime._planner,
             allowed_tools=allowed_tools,
@@ -143,6 +166,7 @@ class RuntimeReactExecution:
             validate_action=validate_action,
             execute_tool=execute_tool,
             execute_search=execute_search,
+            validate_proposal=validate_proposal,
         )
         result.react_evidence = build_react_run_evidence(
             outcome.evidence,
@@ -156,7 +180,7 @@ class RuntimeReactExecution:
             context.candidate_plan = result.plan
             self._record_plan_evidence(context)
         runtime._state_store.save(result)
-        self._finish_outcome(context, outcome)
+        return self._finish_outcome(context, outcome)
 
     def _initial_decision(
         self,
@@ -451,7 +475,7 @@ class RuntimeReactExecution:
         )
         result.planner_metrics = runtime._planner_metrics()
 
-    def _finish_outcome(self, context: Any, outcome: Any) -> None:
+    def _finish_outcome(self, context: Any, outcome: Any) -> bool:
         runtime = self._runtime
         result = _result(context)
         if outcome.state == "clarification":
@@ -465,6 +489,27 @@ class RuntimeReactExecution:
             )
         if outcome.state == "rejected":
             raise RequestRejected(outcome.final_message or "请求未通过策略校验")
+        if outcome.state == "awaiting_approval":
+            result.status = RunStatus.WAITING_FOR_DECISION
+            result.action_receipt = {
+                "schema_version": "spatial-agent.tool-proposal-action.v1",
+                "state": "awaiting_approval",
+                "receipt": dict(outcome.proposal_receipt or {}),
+            }
+            runtime._emit_progress_event(
+                result.run_id,
+                phase="execute",
+                kind="run_waiting",
+                status=RunStatus.WAITING_FOR_DECISION.value,
+                message="工具提案已验证，等待人工审批",
+                data={
+                    "reason_code": "react_tool_proposal_awaiting_approval",
+                    "action_count": outcome.action_count,
+                },
+                terminal=False,
+            )
+            runtime._state_store.save(result)
+            return False
         if outcome.state != "finished":
             raise ToolError(
                 "ReAct execution did not complete",
@@ -488,6 +533,7 @@ class RuntimeReactExecution:
                 "summary": "{} 个动作".format(outcome.action_count),
             },
         )
+        return True
 
     def _emit_react_event(
         self,
@@ -502,6 +548,7 @@ class RuntimeReactExecution:
             "react_action_completed": "动作已完成",
             "react_action_blocked": "动作未通过执行门禁",
             "react_finished": "逐步分析已收敛",
+            "react_waiting_for_approval": "工具提案已验证，等待人工审批",
         }
         self._runtime._emit_progress_event(
             result.run_id,

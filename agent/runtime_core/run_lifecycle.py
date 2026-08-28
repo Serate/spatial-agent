@@ -122,8 +122,9 @@ class RuntimeRunLifecycle:
         self._clarify(context)
         try:
             if self._should_use_react(context):
-                self._react_execution.run(context)
-                self._answer(context)
+                should_answer = self._react_execution.run(context)
+                if should_answer:
+                    self._answer(context)
             else:
                 self._plan(context)
                 self._validate_and_repair(context)

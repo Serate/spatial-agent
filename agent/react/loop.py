@@ -54,6 +54,7 @@ class ReactLoopOutcome:
     error_category: Optional[str] = None
     error_code: Optional[str] = None
     retryable: Optional[bool] = None
+    proposal_receipt: Optional[dict[str, Any]] = None
 
 
 class ReactLoop:
@@ -95,6 +96,7 @@ class ReactLoop:
         validate_action: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
         execute_tool: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
         execute_search: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
+        validate_proposal: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
     ) -> ReactLoopOutcome:
         """Run until finish, clarification, rejection or a bounded stop.
 
@@ -232,6 +234,51 @@ class ReactLoop:
                         retryable=getattr(exc, "retryable", None),
                     )
 
+            proposal_receipt = None
+            if action == "propose_tool" and callable(validate_proposal):
+                try:
+                    proposal_receipt = validate_proposal(decision, turn_index, action_id)
+                except (RunCancelled, RunTimedOut):
+                    raise
+                except Exception as exc:
+                    return self._blocked(
+                        decision,
+                        turn_index,
+                        action_count,
+                        evidence,
+                        history,
+                        action_id=action_id,
+                        reason_code=str(
+                            getattr(exc, "code", None) or "react_tool_proposal_validation_failed"
+                        )[:96],
+                        error_category=getattr(exc, "category", None),
+                        error_code=getattr(exc, "code", None),
+                        retryable=getattr(exc, "retryable", None),
+                    )
+                if not isinstance(proposal_receipt, Mapping):
+                    return self._blocked(
+                        decision,
+                        turn_index,
+                        action_count,
+                        evidence,
+                        history,
+                        action_id=action_id,
+                        reason_code="react_tool_proposal_invalid_receipt",
+                    )
+                if proposal_receipt.get("status") != "validated":
+                    return self._blocked(
+                        decision,
+                        turn_index,
+                        action_count,
+                        evidence,
+                        history,
+                        action_id=action_id,
+                        reason_code=str(
+                            proposal_receipt.get("reason_code") or "react_tool_proposal_rejected"
+                        )[:96],
+                        proposal_receipt=proposal_receipt,
+                    )
+
             accepted = build_react_evidence(
                 decision,
                 turn_index=turn_index,
@@ -330,6 +377,31 @@ class ReactLoop:
                 self._emit("react_action_completed", item)
                 continue
 
+            if action == "propose_tool" and callable(validate_proposal):
+                item = build_react_evidence(
+                    decision,
+                    turn_index=turn_index,
+                    validation_state="completed",
+                    policy_mode="react",
+                    source="model",
+                    action_id=action_id,
+                    reason_code="react_tool_proposal_validated",
+                    proposal_receipt=proposal_receipt,
+                )
+                evidence.append(item)
+                self._emit("react_action_completed", item)
+                self._emit("react_waiting_for_approval", item)
+                return self._outcome(
+                    "awaiting_approval",
+                    turn_index,
+                    action_count,
+                    evidence,
+                    history,
+                    final_decision=decision,
+                    reason_code="react_tool_proposal_awaiting_approval",
+                    proposal_receipt=dict(proposal_receipt),
+                )
+
             if action == "propose_tool":
                 item = build_react_evidence(
                     decision,
@@ -420,6 +492,7 @@ class ReactLoop:
         error_category: Optional[str] = None,
         error_code: Optional[str] = None,
         retryable: Optional[bool] = None,
+        proposal_receipt: Optional[Mapping[str, Any]] = None,
     ) -> ReactLoopOutcome:
         item = build_react_evidence(
             decision,
@@ -429,6 +502,7 @@ class ReactLoop:
             source="runtime",
             action_id=action_id,
             reason_code=reason_code,
+            proposal_receipt=proposal_receipt,
         )
         evidence.append(item)
         self._emit("react_action_blocked", item)
@@ -443,6 +517,7 @@ class ReactLoop:
             error_category=error_category,
             error_code=error_code,
             retryable=retryable,
+            proposal_receipt=dict(proposal_receipt) if isinstance(proposal_receipt, Mapping) else None,
         )
 
     def _outcome(self, state: str, turn_count: int, action_count: int, evidence, history, **kwargs):
