@@ -6,16 +6,16 @@
 
 ## 当前阶段
 
-- 阶段：M314 真实模型流式交互与答案质量验收（进行中）
+- 阶段：M316 真实模型 Planner 截断恢复预算修复（已完成）
 - 阶段规划：
   - `docs/m313-realtime-agent-experience-capability-map.md`
   - `docs/m313-realtime-agent-experience-spec.md`
   - `docs/m313-realtime-agent-experience-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
-- 当前任务：建立 7 场真实模型验收闭环，优先定位规划阶段卡住、SSE 断线恢复和答案增量展示问题；M313 后续流式修复作为本阶段基线，尚未提交。
+- 当前任务：M316 已完成 Planner 截断恢复、Docker 定向回归、真实同会话验收、交接文档同步和版本推送；下一步按全局目标重新规划。
 - 交接入口：`docs/agent-work-state.md`；恢复只读快照、任务进度当前/最近区块和明确文件，历史状态按需读取。
 - M311 结果：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，以及 compileall、architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和 readiness **200** 全部通过；唯一一次真实模型调用到达 provider 并完成真实 GIS 执行，后续发现的缺失 `output.type` 已通过计划边界修复，未重复调用。
-- 下一步：在 Docker 中集中执行紧凑门禁和一次完整 7 场 live，修复实际失败点后完成阶段交付。
+- 下一步：从项目全局重新规划下一阶段；真实模型仅在新的阶段验收需要时显式调用。
 
 ### M312-A：操作到能力/结果类型绑定（已完成）
 
@@ -588,8 +588,9 @@
 - 规划与答案 provider 预算已分离：答案默认 20 秒、768 token、0 重试，并保留环境变量覆盖。
 - Docker 定向测试、compileall、architecture strict、实时事件/规划等待/答案流 smoke 已通过；阶段文档和问题日志已收口，版本交付后进入全局重规划。
 
-### M316：真实模型 Planner 截断恢复预算修复 — 进行中
+### M316：真实模型 Planner 截断恢复预算修复 — 已完成
 - 复现：同一前端 DEM 请求的主请求和旧紧凑恢复均达到 2048 completion token，并以 `finish_reason=length` 失败。
 - 实现：紧凑恢复使用独立 `complete_compact_json`，预算有界为 4096～8192，并设置 `temperature=0`；普通 fake/replay client 保持兼容。
 - 验证：Docker M16 定向回归 **17/17**；同一会话真实请求 `COMPLETED`，恢复次数 1，答案已形成。
-- 当前：待完成阶段收口验证、提交和推送；不重复真实模型调用。
+- 验证：Docker M16 定向回归 **17/17**；同一会话真实请求 `COMPLETED`，恢复次数 1，答案已形成；不重复真实模型调用。
+- 交付：提交 `764fad8` 已推送；下一步按项目全局目标重规划。

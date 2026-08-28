@@ -18,7 +18,7 @@
 
 ## 当前进行中
 
-### M314-A：真实模型流式验收闭环 — 进行中
+### M314-A：真实模型流式验收闭环 — 已完成
 
 - 目标：在 Docker、真实中转模型和真实本地 GIS 上验证规划等待、RunEvent、SSE 续传、
   失败恢复、答案 delta、前端逐字呈现和用户可读答案。
@@ -29,7 +29,7 @@
   Node smoke；真实模型完整验收集中执行，单 Agent、并发度 1、每场最多一次提交。
 - 阻塞：无。不得保存或输出密钥、Prompt、模型原文、隐藏思维链、完整异常堆栈或私有路径。
 - 诊断：DeepSeek 官方接口的 `json_schema` 返回 HTTP 400；切换 `json_object` 后，输出上限 4096 会截断 JSON，上限 10000 会在复杂规划上超时；同一请求临时使用 2048、0 重试已成功完成（约 7.1 秒）。
-- 下一步：将生产 Planner 输出预算收敛为 2048，重载 Docker 后验证真实 HTTP、RunEvent、SSE 和答案流。
+- 结果：本阶段及后续 M314/M315 的实时事件、答案流、前端逐字呈现和真实 GIS 验收已完成；后续 Planner 截断修复在 M316 单独收口。
 
 ## 最近完成
 
@@ -923,11 +923,12 @@
 - 验证：Docker 镜像重建后，聊天答案流 smoke、`console_app.js` 语法检查和 `/health/ready` HTTP 200 通过；未重复调用真实模型。
 - 阻塞：无。
 
-### M316：真实模型 Planner 截断恢复预算修复 — 进行中
+### M316：真实模型 Planner 截断恢复预算修复 — 已完成
 
 - 复现：前端同一 DEM 说明请求再次返回 `invalid_model_response`；失败 Run 的主请求和紧凑恢复请求均以 `finish_reason=length` 结束，completion 均达到 2048 上限。
 - 根因：原有紧凑恢复复用了 Planner 的 2048 token 上限，恢复没有获得额外输出空间；这是 Provider 输出预算/随机性问题，不是 URL、密钥、GIS 或前端渲染问题。
-- 当前动作：为 OpenAI-compatible Client 增加一次有界 `complete_compact_json`；恢复预算按配置计算为 4096～8192，并使用确定性 `temperature=0`；普通 fake/replay client 保持两参数兼容。
+- 结果：为 OpenAI-compatible Client 增加一次有界 `complete_compact_json`；恢复预算按配置计算为 4096～8192，并使用确定性 `temperature=0`；普通 fake/replay client 保持两参数兼容。
 - 明确文件：`agent/llm_planner.py`、`tests/test_m16_openai_config.py`、`docs/agent-development-issues.md`。
-- 验证：Docker M16 定向回归和同一会话真实请求完成后收口；不保存 key、Prompt、模型原文或完整异常。
+- 验证：Docker M16 定向回归 **17/17**；同一会话真实请求 `COMPLETED`，恢复次数为 1，答案已形成；不保存 key、Prompt、模型原文或完整异常。
 - 阻塞：无。
+- 交付：提交 `764fad8` 已推送；下一步按全局目标重新规划阶段，不重复调用真实模型。
