@@ -28,6 +28,8 @@ class LLMClient(Protocol):
         schema: Mapping[str, Any],
         *,
         schema_name: Optional[str] = None,
+        max_output_tokens: Optional[int] = None,
+        deterministic: bool = False,
     ) -> Mapping[str, Any]:
         ...
 
@@ -71,10 +73,15 @@ class LLMPlanner:
             if getattr(exc, "code", None) != "invalid_model_response":
                 raise
             self._compact_recovery_attempts = 1
-            payload = self._client.complete_json(
-                self._compact_planning_messages(request, context),
-                task_plan_schema(),
-            )
+            compact_messages = self._compact_planning_messages(request, context)
+            compact_method = getattr(self._client, "complete_compact_json", None)
+            if callable(compact_method):
+                payload = compact_method(compact_messages, task_plan_schema())
+            else:
+                # Preserve the small fake/replay client seam used by offline
+                # tests and third-party adapters that only implement the
+                # original two-argument method.
+                payload = self._client.complete_json(compact_messages, task_plan_schema())
         outcome = payload.get("outcome")
         if outcome == "needs_clarification":
             raise ClarificationNeeded(str(payload.get("message", "planner needs clarification")))
@@ -125,8 +132,10 @@ class LLMPlanner:
                 context, ensure_ascii=False, sort_keys=True, separators=(",", ":")
             )
         compact_system = (
-            "Return exactly one compact JSON execution plan and nothing else. "
-            "Do not explain, reason, use Markdown, or answer the user. "
+            "The previous plan response was truncated. Return exactly one compact JSON "
+            "execution plan on one line and nothing else. The first character must be { "
+            "and the last character must be }. Do not explain, reason, use Markdown, "
+            "or answer the user. "
             "Use only registered tools and trusted facts. The shape is "
             '{"goal":"...","steps":[{"id":"...","tool":"...",'
             '"args":{},"depends_on":[]}],"output":{"type":"..."}}. '
@@ -280,6 +289,8 @@ class OpenAIPlannerClient:
         schema: Mapping[str, Any],
         *,
         schema_name: Optional[str] = None,
+        max_output_tokens: Optional[int] = None,
+        deterministic: bool = False,
     ) -> Mapping[str, Any]:
         structured_schema_name = _structured_schema_name(schema_name)
         structured_mode = self._structured_output_profile["structured_mode"]
@@ -301,8 +312,15 @@ class OpenAIPlannerClient:
                 "messages": messages,
                 "response_format": response_format,
             }
-            if self._max_output_tokens is not None:
-                body["max_tokens"] = self._max_output_tokens
+            output_limit = (
+                max_output_tokens
+                if max_output_tokens is not None
+                else self._max_output_tokens
+            )
+            if output_limit is not None:
+                body["max_tokens"] = output_limit
+            if deterministic:
+                body["temperature"] = 0
         else:
             response_format = {
                 "type": "json_schema",
@@ -318,8 +336,15 @@ class OpenAIPlannerClient:
                 "reasoning": {"effort": self._reasoning_effort},
                 "text": {"format": response_format},
             }
-            if self._max_output_tokens is not None:
-                body["max_output_tokens"] = self._max_output_tokens
+            output_limit = (
+                max_output_tokens
+                if max_output_tokens is not None
+                else self._max_output_tokens
+            )
+            if output_limit is not None:
+                body["max_output_tokens"] = output_limit
+            if deterministic:
+                body["temperature"] = 0
         url = self._request_url()
         request = urllib.request.Request(
             url,
@@ -397,6 +422,28 @@ class OpenAIPlannerClient:
                 "OpenAI response was not valid JSON",
                 "response_json_error",
             ) from exc
+
+    def complete_compact_json(
+        self,
+        messages,
+        schema: Mapping[str, Any],
+        *,
+        schema_name: Optional[str] = None,
+    ) -> Mapping[str, Any]:
+        """Retry one truncated plan with a larger, deterministic JSON budget."""
+
+        configured = self._max_output_tokens or 0
+        # A truncated 2048-token response needs headroom for providers that
+        # spend part of the completion budget on invisible planning. This is
+        # only used after a malformed response and remains bounded.
+        recovery_limit = min(max(configured * 2, 4096), 8192)
+        return self.complete_json(
+            messages,
+            schema,
+            schema_name=schema_name,
+            max_output_tokens=recovery_limit,
+            deterministic=True,
+        )
 
     def stream_text(self, messages, *, max_chars: int = 1800):
         """Yield only user-facing text deltas from an OpenAI-compatible stream.

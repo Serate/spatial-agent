@@ -248,6 +248,75 @@ class M16OpenAIConfigTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "invalid_model_response")
         self.assertEqual(client.metrics()["finish_reason"], "length")
 
+    def test_compact_recovery_uses_larger_deterministic_budget(self):
+        class FakeResponse:
+            def __init__(self, content, finish_reason, completion_tokens):
+                self._payload = json.dumps(
+                    {
+                        "choices": [
+                            {
+                                "finish_reason": finish_reason,
+                                "message": {"content": content},
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 10,
+                            "completion_tokens": completion_tokens,
+                            "total_tokens": 10 + completion_tokens,
+                        },
+                    }
+                ).encode("utf-8")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, _exc_type, _exc_value, _traceback):
+                return False
+
+            def read(self):
+                return self._payload
+
+        responses = [
+            FakeResponse('{"goal":"', "length", 2048),
+            FakeResponse(
+                json.dumps(
+                    {
+                        "goal": "查询 DEM 元数据",
+                        "steps": [
+                            {
+                                "id": "metadata",
+                                "tool": "get_raster_metadata",
+                                "args": {},
+                            }
+                        ],
+                        "output": {"type": "raster_metadata_result"},
+                    }
+                ),
+                "stop",
+                180,
+            ),
+        ]
+        client = OpenAIPlannerClient(
+            api_key="sk-test",
+            base_url="https://api.deepseek.com",
+            wire_api="chat_completions",
+            max_output_tokens=2048,
+            max_retries=0,
+        )
+        with patch(
+            "agent.llm_planner.urllib.request.urlopen",
+            side_effect=responses,
+        ) as urlopen:
+            plan = LLMPlanner(client, ["get_raster_metadata"]).plan("查询 DEM 元数据")
+
+        self.assertEqual(plan.steps[0].tool, "get_raster_metadata")
+        self.assertEqual(urlopen.call_count, 2)
+        first_body = json.loads(urlopen.call_args_list[0].args[0].data.decode("utf-8"))
+        recovery_body = json.loads(urlopen.call_args_list[1].args[0].data.decode("utf-8"))
+        self.assertEqual(first_body["max_tokens"], 2048)
+        self.assertEqual(recovery_body["max_tokens"], 4096)
+        self.assertEqual(recovery_body["temperature"], 0)
+
     def test_invalid_model_response_gets_one_compact_plan_recovery(self):
         class RecoveryClient:
             def __init__(self):

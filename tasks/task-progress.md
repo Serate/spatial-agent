@@ -922,3 +922,12 @@
 - 明确文件：`web/src/console_app.js`、`web/src/styles.css`、`scripts/console_answer_stream_smoke.js`。
 - 验证：Docker 镜像重建后，聊天答案流 smoke、`console_app.js` 语法检查和 `/health/ready` HTTP 200 通过；未重复调用真实模型。
 - 阻塞：无。
+
+### M316：真实模型 Planner 截断恢复预算修复 — 进行中
+
+- 复现：前端同一 DEM 说明请求再次返回 `invalid_model_response`；失败 Run 的主请求和紧凑恢复请求均以 `finish_reason=length` 结束，completion 均达到 2048 上限。
+- 根因：原有紧凑恢复复用了 Planner 的 2048 token 上限，恢复没有获得额外输出空间；这是 Provider 输出预算/随机性问题，不是 URL、密钥、GIS 或前端渲染问题。
+- 当前动作：为 OpenAI-compatible Client 增加一次有界 `complete_compact_json`；恢复预算按配置计算为 4096～8192，并使用确定性 `temperature=0`；普通 fake/replay client 保持两参数兼容。
+- 明确文件：`agent/llm_planner.py`、`tests/test_m16_openai_config.py`、`docs/agent-development-issues.md`。
+- 验证：Docker M16 定向回归和同一会话真实请求完成后收口；不保存 key、Prompt、模型原文或完整异常。
+- 阻塞：无。

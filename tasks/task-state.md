@@ -587,3 +587,9 @@
 - 真实 Provider 探测和 DeepSeek + 本地 GIS 最小回答均成功；答案 Run 产生 384 个事件、368 个答案增量，Last-Event-ID 续传完整。
 - 规划与答案 provider 预算已分离：答案默认 20 秒、768 token、0 重试，并保留环境变量覆盖。
 - Docker 定向测试、compileall、architecture strict、实时事件/规划等待/答案流 smoke 已通过；阶段文档和问题日志已收口，版本交付后进入全局重规划。
+
+### M316：真实模型 Planner 截断恢复预算修复 — 进行中
+- 复现：同一前端 DEM 请求的主请求和旧紧凑恢复均达到 2048 completion token，并以 `finish_reason=length` 失败。
+- 实现：紧凑恢复使用独立 `complete_compact_json`，预算有界为 4096～8192，并设置 `temperature=0`；普通 fake/replay client 保持兼容。
+- 验证：Docker M16 定向回归 **17/17**；同一会话真实请求 `COMPLETED`，恢复次数 1，答案已形成。
+- 当前：待完成阶段收口验证、提交和推送；不重复真实模型调用。

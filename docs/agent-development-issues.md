@@ -1783,3 +1783,25 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 - 临时 2048 输出上限、0 重试下，同一真实洪山区 DEM 请求成功完成，规划耗时约 7.1 秒。
 - 生产配置重载与完整 HTTP/SSE/答案流验收仍在进行；若 Provider 再次超时，按失败
   receipt 停止重复调用，不伪造成功。
+
+## 2026-08-28 Planner 紧凑恢复仍受原始 token 上限影响
+
+### 现象
+
+- 前端同一 DEM 栅格元数据说明请求再次返回 `invalid_model_response`。
+- 失败 Run 的主 Planner 请求和紧凑恢复请求都以 `finish_reason=length` 结束，且
+  completion 都达到 2048；说明上一次恢复实际上没有增加可用输出空间。
+
+### 根因与处理
+
+- 原有 `LLMPlanner` 虽然只恢复一次，但调用的是原始 `complete_json`，因此继续复用
+  Planner 的 2048 上限。
+- `OpenAIPlannerClient` 新增独立 `complete_compact_json`：恢复预算限制在 4096～8192，
+  并设置 `temperature=0`；主 Planner 预算、ToolRegistry、TaskPlan 和执行门禁不变。
+- 不支持该扩展方法的 fake/replay client 继续走原有两参数接口，避免破坏离线测试 seam。
+
+### 当前验证
+
+- Docker M16 定向回归 **17/17** 通过。
+- 同一会话真实 DeepSeek + 本地 GIS 请求 `COMPLETED`，`compact_recovery_attempts=1`，
+  恢复 completion 为 1183，答案已形成；未保存 key、Prompt、模型原文或完整异常。
