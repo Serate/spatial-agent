@@ -23,7 +23,7 @@ Spatial Agent 是一个可演示、可测试、可扩展的空间智能体系统
 
 洪山区综合空间分析仅作为复杂回归样例，不再作为系统设计中心。
 
-### 当前阶段 Goal（精简版）
+### 已完成阶段 Goal：实时交互与可观测执行体验
 
 建设 Agent Runtime 的实时交互与可观测体验：用户提交开放式问题后，能够持续看到真实的阶段进展、工具状态、可审计摘要和最终答案流，并在断线、重启或失败后恢复。
 
@@ -36,6 +36,24 @@ Spatial Agent 是一个可演示、可测试、可扩展的空间智能体系统
 5. 采用单 Agent 顺序开发：全局规划 → Spec → Plan → 实现 → 最小必要验证 → 交接记录 → 全局重规划 → 提交推送；最大并发度为 1，不启动并行子代理。
 
 阶段验收以一条复杂开放式请求、断线/重启恢复、一次真实模型 + Docker/GIS 验收为主；默认测试保持离线、精简且按独立风险集中执行。
+
+### 当前阶段 Goal：受控开放 Agent Runtime（M318-M325）
+
+在已完成的实时事件、SSE、恢复和答案流之上，建设通用开放 Agent：真实模型默认进入
+full ReAct；网络搜索和工具提案默认开启，但网络只能访问公共网页白名单，Python 工具只能
+进入无网络 Docker 沙箱并等待人工审批。Capability 不再强制绑定 workflow，新增专题优先扩展
+能力目录、工具 schema、数据适配器和 Result Profile。
+
+当前阶段必须完成：
+
+1. Execution Policy、ReAct Decision/Evidence、Web Evidence、Tool Proposal 和 Approval 的版本化契约。
+2. 通用 direct tool、generated DAG、Domain workflow、ReAct 执行策略。
+3. 全量真实模型 ReAct、有限轮次、重复动作检测、澄清、恢复和答案流。
+4. 默认开启的搜索适配器、公共网页白名单抓取和来源引用。
+5. 默认开启的 Python 工具提案、Docker 沙箱和人工审批注册。
+6. CLI、HTTP、SSE、前端、artifact、SQLite 和重启恢复的一致性验收。
+
+阶段编号和交付顺序见 [`docs/m318-open-agent-plan.md`](m318-open-agent-plan.md)。
 
 ### Goal 新增执行约束：更完整的阶段包与低频验证
 

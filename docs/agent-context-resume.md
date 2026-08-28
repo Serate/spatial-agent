@@ -14,7 +14,15 @@
 - Goal 级最小读取规则：恢复上下文时只打开当前任务明确需要的文件；如果仅需判断状态，仅读取快照和任务账本尾部；不得因为“了解项目”而批量读取历史文档、全量源码、全量测试或模型输出。
 - 读取范围必须随当前任务同步更新：开始任务前列出必要文件，发现不需要的文件立即停止读取；新增文件只有在能证明与当前任务直接相关时才加入。
 
-## 最新状态（M317 已完成）
+## 最新状态（M318 已完成）
+
+- M318 已建立 `spatial-agent.execution-policy.v1`、`spatial-agent.react-decision.v1` 和
+  `spatial-agent.react-evidence.v1`，并新增安全归一化/投影、默认 full ReAct、默认网络搜索、
+  默认工具提案和有界轮次配置。M318 Docker 契约 **8/8**、compileall、architecture strict
+  通过；未调用真实模型。
+- M319 当前将把 Execution Policy 接入规划、绑定、异步和恢复；不重复读取历史源码或重复调用真实模型。
+
+## M317 历史状态（已完成）
 
 - M313 基线已完成；M314 已修复 SSE 跨分页终态提前结束，并完成一次真实 DeepSeek + 本地
   GIS 答案流验收。成功 Run 共 384 个事件、368 个 answer delta，Last-Event-ID 续传完整。

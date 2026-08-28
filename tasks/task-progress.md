@@ -18,20 +18,30 @@
 
 ## 当前进行中
 
-### M314-A：真实模型流式验收闭环 — 已完成
+### M319-A：通用 Execution Policy 接入 — 进行中
 
-- 目标：在 Docker、真实中转模型和真实本地 GIS 上验证规划等待、RunEvent、SSE 续传、
-  失败恢复、答案 delta、前端逐字呈现和用户可读答案。
-- 当前文件：`docs/m314-live-model-stream-acceptance-spec.md`、
-  `docs/m314-live-model-stream-acceptance-plan.md`、现有 M313 实时事件/答案流入口；
-  后续新增验收脚本时再登记具体文件。
-- 验证：先运行 Docker readiness、M313 紧凑契约、compileall、architecture strict 和
-  Node smoke；真实模型完整验收集中执行，单 Agent、并发度 1、每场最多一次提交。
-- 阻塞：无。不得保存或输出密钥、Prompt、模型原文、隐藏思维链、完整异常堆栈或私有路径。
-- 诊断：DeepSeek 官方接口的 `json_schema` 返回 HTTP 400；切换 `json_object` 后，输出上限 4096 会截断 JSON，上限 10000 会在复杂规划上超时；同一请求临时使用 2048、0 重试已成功完成（约 7.1 秒）。
-- 结果：本阶段及后续 M314/M315 的实时事件、答案流、前端逐字呈现和真实 GIS 验收已完成；后续 Planner 截断修复在 M316 单独收口。
+- 目标：将 direct tool、generated DAG、Domain workflow、ReAct 统一为可校验的 Execution Policy，解除 workflow 对普通能力的强制绑定，同时保留高风险 Domain 门禁。
+- 当前文件：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning.py`、
+  `agent/runtime_core/execution_binding.py`、`agent/runtime.py`、`agent/plan_policy.py`、
+  `agent/capability_catalog.py`、`tests/test_m319_execution_policy.py`。
+- 前置结果：M318 已建立契约、默认 full ReAct/搜索/提案配置和恢复文档；M319 需要把策略真正接入规划、绑定、异步和恢复，不改变旧 RunEvent 契约。
+- 验证：开发期间只做策略边界检查；阶段收口集中运行 Docker 策略矩阵、跨入口契约、compileall 和 architecture strict；不重复调用真实模型。
+- 阻塞：无。不得保存或输出 API key、Prompt、模型原文、隐藏思维链、完整异常堆栈或私有路径。
 
 ## 最近完成
+
+### M318-A：受控开放 Agent 契约与基线 — 已完成
+
+- 结果：新增 Execution Policy、ReAct Decision/Evidence 版本化契约和安全投影；新增真实模型 full ReAct、默认网络搜索、默认工具提案及 ReAct 预算配置；更新总体方向、能力地图、Spec、Plan 和任务恢复入口。
+- 文件：`agent/runtime_core/execution_policy.py`、`agent/react/contracts.py`、`agent/agent_settings.py`、`agent/runtime_core/__init__.py`、`.env.example`、`.env.production.example` 及阶段文档/测试。
+- 验证：Docker M318 契约 **8/8**、compileall、architecture strict 通过；未调用真实模型，未保存敏感信息。
+- 下一步：进入 M319，将策略接入现有 Runtime 规划和执行绑定。
+
+### M317：用户答案预算扩容 — 已完成
+
+- 默认答案预算提高到 4096 token，普通答案可见上限提高到 6000 字符；Planner 预算和显式答案环境变量覆盖不变。
+- Docker M16 + M313 答案流回归 **21/21** 通过，compileall 和前端语法检查通过；提交 `8f9bf93` 已完成。
+- 不重复调用真实模型；未保存 key、Prompt、模型原文或私有数据。
 
 ### M313 后续修复：规划阶段慢模型可感知等待 — 已完成
 

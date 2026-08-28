@@ -6,16 +6,16 @@
 
 ## 当前阶段
 
-- 阶段：M317 用户答案预算扩容（已完成）
+- 阶段：M318-M325 受控开放 Agent Runtime
 - 阶段规划：
-  - `docs/m313-realtime-agent-experience-capability-map.md`
-  - `docs/m313-realtime-agent-experience-spec.md`
-  - `docs/m313-realtime-agent-experience-plan.md`
-- 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
-- 当前任务：M317 已完成答案预算扩容、Docker 定向回归、交接文档同步和代码提交；下一步按全局目标重新规划。
+  - `docs/m318-open-agent-capability-map.md`
+  - `docs/m318-open-agent-spec.md`
+  - `docs/m318-open-agent-plan.md`
+- 执行方式：单 Agent 串行、最大并发度 1；默认测试离线精简并集中收口；真实模型、GIS、Docker、网络和浏览器只做显式验收
+- 当前任务：M318-A 契约与基线已完成代码和 8/8 Docker 契约验证；下一步进入 M319 通用 Execution Policy。
+- 默认策略：真实模型 full ReAct、网络搜索开启、工具提案开启；网络受公共网页白名单限制，工具提案受 Docker 沙箱和人工审批限制；CI 显式关闭外部网络和提案执行。
 - 交接入口：`docs/agent-work-state.md`；恢复只读快照、任务进度当前/最近区块和明确文件，历史状态按需读取。
-- M311 结果：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，以及 compileall、architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和 readiness **200** 全部通过；唯一一次真实模型调用到达 provider 并完成真实 GIS 执行，后续发现的缺失 `output.type` 已通过计划边界修复，未重复调用。
-- 下一步：从项目全局重新规划下一阶段；真实模型仅在新的阶段验收需要时显式调用。
+- 下一步：实现 workflow 可选的通用执行策略；真实模型暂不重复调用。
 
 ### M312-A：操作到能力/结果类型绑定（已完成）
 

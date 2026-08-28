@@ -4,9 +4,9 @@
 
 ## Goal 摘要（精简版）
 
-建设 Agent Runtime 的实时交互与可观测体验：用户提交开放式问题后，持续看到真实的阶段进展、工具状态、可审计摘要和最终答案流，并能在断线、重启或失败后恢复。GIS 只是业务载体，不为单一区域、单一问句或单一数据集增加硬编码流程。
+建设通用 Agent Runtime：用户提交开放式问题后，真实模型默认通过受控 ReAct 理解请求、选择能力、调用工具、搜索白名单网页、汇总证据并流式回答；系统在断线、重启或失败后可恢复。GIS 只是业务载体，不为单一区域、单一问句或单一数据集增加硬编码流程。
 
-本阶段聚焦版本化 `RunEvent`、SSE/断线与重启恢复、polling fallback、真实模型的校验后答案流、前端分层结果展示，以及取消/重试/恢复。CLI、HTTP、前端和恢复流程共享事件、结果与证据契约；不展示隐藏思维链、Prompt、模型原文或敏感信息。
+本阶段按 M318-M325 扩展 Execution Policy、full ReAct、默认开启的公共网页白名单搜索、沙箱 Python 工具提案、人工审批注册和跨入口整合。CLI、HTTP、前端和恢复流程共享事件、结果与证据契约；不展示隐藏思维链、Prompt、模型原文或敏感信息。
 
 ## Goal 附加约束：低成本上下文恢复
 
@@ -17,49 +17,43 @@
 
 ## 当前阶段
 
-- 阶段：M317 用户答案预算扩容（已完成）
-- 状态：已确认用户答案默认预算为 768 token 且普通答案还有 1800 字符上限；已将答案预算独立提高到 4096 token、可见上限提高到 6000 字符，并完成 Docker 回归。
-- 当前任务：M317 已收口，代码提交 `8f9bf93` 已完成；下一步从产品、架构、数据、模型、部署、体验和测试全局重规划，不重复调用真实模型。
-- 协作方式：单 Agent 顺序开发，最大并发度为 1；不启动并行子代理。长期记忆以本快照、任务账本和当前阶段 Spec/Plan 为权威，避免 Provider 限流和共享工作树冲突。
+- 阶段：M318-M325 受控开放 Agent Runtime
+- 状态：M318 已完成；Execution Policy、ReAct Decision/Evidence、安全投影、默认配置和总 Spec/Plan 已落库并通过 Docker 契约门禁。
+- 当前任务：M319-A 通用 Execution Policy，正在把执行策略接入现有 Runtime 规划/绑定门禁；不重复调用真实模型。
+- 协作方式：单 Agent 顺序开发，最大并发度为 1；Python、GIS、测试和阶段验收使用 Docker。
 - 阶段规划：
-  - [`docs/m313-realtime-agent-experience-capability-map.md`](m313-realtime-agent-experience-capability-map.md)
-  - [`docs/m313-realtime-agent-experience-spec.md`](m313-realtime-agent-experience-spec.md)
-  - [`docs/m313-realtime-agent-experience-plan.md`](m313-realtime-agent-experience-plan.md)
-  - [`docs/m314-live-model-stream-acceptance-spec.md`](m314-live-model-stream-acceptance-spec.md)
-  - [`docs/m314-live-model-stream-acceptance-plan.md`](m314-live-model-stream-acceptance-plan.md)
+  - [`docs/m318-open-agent-capability-map.md`](m318-open-agent-capability-map.md)
+  - [`docs/m318-open-agent-spec.md`](m318-open-agent-spec.md)
+  - [`docs/m318-open-agent-plan.md`](m318-open-agent-plan.md)
+  - [`tasks/plan.md`](../tasks/plan.md)
 
 ## 当前任务明确文件
 
-- `docs/m313-realtime-agent-experience-capability-map.md`
-- `docs/m313-realtime-agent-experience-spec.md`
-- `docs/m313-realtime-agent-experience-plan.md`
-- `agent/run_events.py`
-- `agent/runtime_state.py`
-- `agent/sqlite_store.py`
-- `agent/service_state.py`
-- `agent/runtime_core/run_lifecycle.py`
+- `docs/m318-open-agent-capability-map.md`
+- `docs/m318-open-agent-spec.md`
+- `docs/m318-open-agent-plan.md`
+- `tasks/plan.md`
+- `agent/runtime_core/execution_policy.py`
+- `agent/runtime_core/planning.py`
+- `agent/runtime_core/execution_binding.py`
 - `agent/runtime.py`
-- `agent/application/http.py`
-- `production_api.py`
-- `serve_api.py`
-- `web/src/console_app.js`
-- `web/src/index.html`
-- `web/src/styles.css`
-- `tests/test_m313_realtime_events.py`
-- `tests/test_m16_openai_config.py`
-- `agent/openai_config.py`
-- `agent/runtime_factory.py`
-- `agent/llm_planner.py`
-- `agent/plan_schema.py`
-- `web/src/console_run_events.js`
-- `scripts/console_run_events_smoke.js`
-- `web/src/console_answer_stream.js`
-- `scripts/console_answer_stream_smoke.js`
-- `agent/web_assets.py`
-- `scripts/console_existing_run_browser_acceptance.js`
+- `agent/plan_policy.py`
+- `agent/capability_catalog.py`
+- `tests/test_m319_execution_policy.py`
+- `tasks/task-progress.md`
+- `docs/agent-development-issues.md`
 
 > 当前阶段按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
 > 避免恢复上下文时读取无关文件。
+
+## M318 阶段交接
+
+- ReAct：真实模型默认 full ReAct；简单请求允许第一轮 `finish`，最大轮次 8、工具动作 12、单轮一个动作。
+- 网络：搜索适配器 + 公共网页白名单抓取，产品运行时默认开启；白名单为空或网络不可用时结构化降级。
+- 工具提案：默认开启沙箱 Python 提案；Docker 沙箱验证通过后仍需人工确认，不能自动注册或执行。
+- 验证：M318 先运行契约、compileall 和 architecture strict；真实模型只在 M320/M325 显式验收，不保存密钥、Prompt 或模型原文。
+- 验证结果：Docker M318 契约 **8/8**、compileall、architecture strict 通过。
+- 阻塞：无。M318 变更已准备提交；下一步为 M319 Execution Policy 接入。
 
 ## M313 阶段验收摘要
 

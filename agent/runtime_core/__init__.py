@@ -21,6 +21,17 @@ from .projection import (
 from .planning import invoke_planner, require_workflow_selection, validate_plan
 from .execution import StepExecutionHooks, block_remaining_steps, execute_step
 from .control import RunControl
+from .execution_policy import (
+    DEFAULT_REACT_MAX_ACTIONS,
+    DEFAULT_REACT_MAX_TURNS,
+    EXECUTION_POLICY_MODES,
+    EXECUTION_POLICY_SCHEMA_VERSION,
+    ExecutionPolicyError,
+    build_execution_policy,
+    execution_policy_schema,
+    normalize_execution_policy,
+    validate_execution_policy,
+)
 
 __all__ = [
     "append_execution_degradation_notice",
@@ -46,4 +57,13 @@ __all__ = [
     "block_remaining_steps",
     "execute_step",
     "RunControl",
+    "DEFAULT_REACT_MAX_ACTIONS",
+    "DEFAULT_REACT_MAX_TURNS",
+    "EXECUTION_POLICY_MODES",
+    "EXECUTION_POLICY_SCHEMA_VERSION",
+    "ExecutionPolicyError",
+    "build_execution_policy",
+    "execution_policy_schema",
+    "normalize_execution_policy",
+    "validate_execution_policy",
 ]

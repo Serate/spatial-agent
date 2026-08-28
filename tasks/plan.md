@@ -1,4 +1,27 @@
-# 当前实施计划：M313 实时 Agent 交互与可观测执行体验
+# 当前实施计划：M318-M325 受控开放 Agent Runtime
+
+恢复入口：[`docs/agent-work-state.md`](../docs/agent-work-state.md)。当前总计划、能力地图和
+规格分别见 [`docs/m318-open-agent-plan.md`](../docs/m318-open-agent-plan.md)、
+[`docs/m318-open-agent-capability-map.md`](../docs/m318-open-agent-capability-map.md) 和
+[`docs/m318-open-agent-spec.md`](../docs/m318-open-agent-spec.md)。
+
+## 当前任务包
+
+1. [ ] M318：契约、配置、基线和交接记录。
+2. [ ] M319：通用 Execution Policy，解除 workflow 强绑定。
+3. [ ] M320：真实模型默认 full ReAct。
+4. [ ] M321：默认开启的白名单网络搜索。
+5. [ ] M322：默认开启的沙箱 Python 工具提案。
+6. [ ] M323：人工审批、持久化和 Registry 治理。
+7. [ ] M324：前端、SSE、恢复和双 HTTP 入口整合。
+8. [ ] M325：Docker、真实模型、GIS、搜索验收与版本交付。
+
+阶段约束：单 Agent、最大并发度 1；开发中只做受影响的精简检查，阶段收口集中验证；
+网络搜索和工具提案在产品运行时默认开启，但 CI 通过环境变量关闭。
+
+---
+
+# 历史实施计划：M313 实时 Agent 交互与可观测执行体验
 
 当前阶段先在现有原生 Console 上完成实时事件、SSE、恢复和答案流；React 前端迁移仍需
 另立 Goal。恢复时只读取当前快照、`tasks/task-progress.md` 最近记录和当前任务明确文件。
