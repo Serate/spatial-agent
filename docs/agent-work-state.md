@@ -17,9 +17,9 @@
 
 ## 当前阶段
 
-- 阶段：M316 真实模型 Planner 截断恢复预算修复（已完成）
-- 状态：已确认同一前端 DEM 请求的主请求和旧紧凑恢复均在 2048 token 上限截断；已实现独立有界恢复预算和确定性模式，并完成 Docker 回归与真实同会话验收。
-- 当前任务：M316 已收口并提交推送；下一步从产品、架构、数据、模型、部署、体验和测试全局重规划，不重复调用真实模型。
+- 阶段：M317 用户答案预算扩容（已完成）
+- 状态：已确认用户答案默认预算为 768 token 且普通答案还有 1800 字符上限；已将答案预算独立提高到 4096 token、可见上限提高到 6000 字符，并完成 Docker 回归。
+- 当前任务：M317 已收口，代码提交 `8f9bf93` 已完成；下一步从产品、架构、数据、模型、部署、体验和测试全局重规划，不重复调用真实模型。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；不启动并行子代理。长期记忆以本快照、任务账本和当前阶段 Spec/Plan 为权威，避免 Provider 限流和共享工作树冲突。
 - 阶段规划：
   - [`docs/m313-realtime-agent-experience-capability-map.md`](m313-realtime-agent-experience-capability-map.md)
@@ -76,6 +76,7 @@
 - M314 补充修复：当 OpenAI 兼容 Provider 返回 `invalid_model_response`（本次实测输出 token 恰好达到 2048 上限）时，Planner 只进行一次紧凑计划恢复；恢复计划仍经过 TaskPlan、工具和执行绑定校验，并在 metrics 记录 `compact_recovery_attempts`。
 - M315：右侧对话新增“正在生成答案 · / ·· / ···”占位动效；首个 `answer_delta` 到达后移除占位并复用同一气泡逐字显示，终态只收敛现有消息；支持 `prefers-reduced-motion`。
 - M316：当 Provider 返回 `invalid_model_response` 且 `finish_reason=length` 时，Planner 的一次紧凑恢复改用 4096～8192 的有界预算并设置 `temperature=0`；同一会话真实验收已 `COMPLETED`，恢复次数为 1，答案已形成。
+- M317：用户答案默认预算从 768 提高到 4096 token；普通答案 schema、流式答案和前端回退显示上限从 1800 提高到 6000 字符；Planner 预算不变，显式 `OPENAI_ANSWER_MAX_OUTPUT_TOKENS` 仍可覆盖。
 
 ## 阶段完成后的全局重规划指针
 

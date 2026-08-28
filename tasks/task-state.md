@@ -6,13 +6,13 @@
 
 ## 当前阶段
 
-- 阶段：M316 真实模型 Planner 截断恢复预算修复（已完成）
+- 阶段：M317 用户答案预算扩容（已完成）
 - 阶段规划：
   - `docs/m313-realtime-agent-experience-capability-map.md`
   - `docs/m313-realtime-agent-experience-spec.md`
   - `docs/m313-realtime-agent-experience-plan.md`
 - 执行方式：串行；阶段任务包完整；默认测试离线精简并集中收口；真实模型、GIS、Docker 和浏览器只做显式验收
-- 当前任务：M316 已完成 Planner 截断恢复、Docker 定向回归、真实同会话验收、交接文档同步和版本推送；下一步按全局目标重新规划。
+- 当前任务：M317 已完成答案预算扩容、Docker 定向回归、交接文档同步和代码提交；下一步按全局目标重新规划。
 - 交接入口：`docs/agent-work-state.md`；恢复只读快照、任务进度当前/最近区块和明确文件，历史状态按需读取。
 - M311 结果：Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，以及 compileall、architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和 readiness **200** 全部通过；唯一一次真实模型调用到达 provider 并完成真实 GIS 执行，后续发现的缺失 `output.type` 已通过计划边界修复，未重复调用。
 - 下一步：从项目全局重新规划下一阶段；真实模型仅在新的阶段验收需要时显式调用。
@@ -594,3 +594,8 @@
 - 验证：Docker M16 定向回归 **17/17**；同一会话真实请求 `COMPLETED`，恢复次数 1，答案已形成。
 - 验证：Docker M16 定向回归 **17/17**；同一会话真实请求 `COMPLETED`，恢复次数 1，答案已形成；不重复真实模型调用。
 - 交付：提交 `764fad8` 已推送；下一步按项目全局目标重规划。
+
+### M317：用户答案预算扩容 — 已完成
+- 默认答案预算提高到 4096 token，普通答案可见上限提高到 6000 字符；Planner 预算和显式答案环境变量覆盖不变。
+- Docker M16 + M313 答案流 **21/21** 通过（真实模型用例按开关跳过），compileall 和前端语法检查通过。
+- 代码提交 `8f9bf93` 已完成；交接文档待同步推送。

@@ -932,3 +932,12 @@
 - 验证：Docker M16 定向回归 **17/17**；同一会话真实请求 `COMPLETED`，恢复次数为 1，答案已形成；不保存 key、Prompt、模型原文或完整异常。
 - 阻塞：无。
 - 交付：提交 `764fad8` 已推送；下一步按全局目标重新规划阶段，不重复调用真实模型。
+
+### M317：用户答案预算扩容 — 已完成
+
+- 目标：避免正常自然语言答案因独立答案预算和显示长度过小而提前结束；保持 Planner 的结构化预算、校验和恢复边界不变。
+- 结果：答案生成默认预算从 768 提高到 4096 token；普通答案 schema、流式生成和前端回退上限从 1800 提高到 6000 字符；显式 `OPENAI_ANSWER_MAX_OUTPUT_TOKENS` 仍优先。
+- 修改文件：`agent/openai_config.py`、`agent/answer_generation.py`、`web/src/console_app.js`、`tests/test_m16_openai_config.py`。
+- 验证：Docker M16 + M313 答案流回归 **21/21** 通过，1 项真实模型测试按开关跳过；Docker `compileall`、前端语法检查通过；未重复调用真实模型。
+- 阻塞：无。
+- 交付：代码提交 `8f9bf93` 已完成；交接文档同步后推送。
