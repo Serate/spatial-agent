@@ -21,6 +21,7 @@ from .domain_registry import resolve_domain_pack
 from .answer_generation import LLMAnswerGenerator
 from .agent_settings import open_agent_defaults
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
+from .network import WebSearchAdapter, web_search_tool_definition
 from .openai_config import load_answer_generation_config, load_openai_config
 from .planner import RuleBasedPlanner
 from .runtime import AgentRuntime
@@ -48,17 +49,23 @@ def build_runtime(
     if domain_pack is not None and domain_id is not None:
         raise ValueError("domain_pack and domain_id are mutually exclusive")
     selected_domain_pack = domain_pack or resolve_domain_pack(domain_id)
+    agent_defaults = open_agent_defaults()
     provider_factory = getattr(selected_domain_pack, "tool_provider", None)
     if callable(provider_factory):
         provider = provider_factory(backend_name=backend_name, root=root)
         registry = ToolRegistry.from_provider(provider)
     else:
         registry = _legacy_gis_registry(backend_name, root)
+    if agent_defaults["web_search_enabled"] and "web_search" not in registry.names:
+        registry.register_tool(
+            "web_search",
+            web_search_tool_definition(),
+            WebSearchAdapter.from_settings(agent_defaults).invoke,
+        )
     resolved_answer_generator = answer_generator
     if planner_name == "openai":
         model_config = load_openai_config()
         planner_client = OpenAIPlannerClient(**model_config)
-        agent_defaults = open_agent_defaults()
         planner = LLMPlanner(
             planner_client,
             registry.names,
@@ -123,6 +130,7 @@ def build_runtime_context_snapshot(
     if domain_pack is not None and domain_id is not None:
         raise ValueError("domain_pack and domain_id are mutually exclusive")
     selected_domain_pack = domain_pack or resolve_domain_pack(domain_id)
+    agent_defaults = open_agent_defaults()
     if allowed_permissions is None:
         allowed_permissions = _csv_env("SPATIAL_AGENT_PERMISSIONS") or default_permissions(
             selected_domain_pack
@@ -140,6 +148,11 @@ def build_runtime_context_snapshot(
         value = info_factory(backend_name=backend_name, root=root)
         if isinstance(value, Mapping):
             provider_info = dict(value)
+    if agent_defaults["web_search_enabled"] and provider_info:
+        try:
+            provider_info["tool_count"] = int(provider_info.get("tool_count") or 0) + 1
+        except (TypeError, ValueError):
+            provider_info["tool_count"] = 1
     return build_runtime_context(
         domain_id=str(getattr(selected_domain_pack, "domain_id", "unknown")),
         planner=planner_name,

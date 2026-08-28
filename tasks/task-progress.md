@@ -18,7 +18,23 @@
 
 ## 当前进行中
 
-### M320：ReAct Runtime 接入与真实模型验收 — 已完成，待版本提交
+### M321：白名单网络搜索 — 已完成，待版本推送
+
+- 目标：让默认开启的 ReAct 通过服务端白名单调用 `web_search`，输出有界 `document_evidence`，
+  无白名单、未配置 Provider 或网络异常时结构化降级。
+- 结果：新增标准库 `WebSearchAdapter`，支持 HTTPS/域名、私网/IP literal、重定向次数、超时、
+  响应大小、来源数量和 HTML/JSON 解析限制；Runtime factory 在 Planner 前动态登记 `web_search`，
+  ReAct `search` 物化为普通 StepRun；提交快照计入动态工具，避免异步恢复 fingerprint 漂移。
+- 文件：`agent/agent_settings.py`、`agent/network/__init__.py`、`agent/network/web_search.py`、
+  `.env.example`、`agent/runtime_factory.py`、`agent/runtime_context.py`、`agent/react/contracts.py`、
+  `agent/react/loop.py`、`agent/runtime_core/react_runtime.py`、`tests/test_m321_web_search.py` 及交接文档。
+- 验证：Docker M321/M320/M318 **29/29**；compileall、architecture strict、smoke、readiness **200**。
+  未执行真实公共网页请求，空白白名单 opener 调用次数为 0；真实联网留到 M325 显式验收。
+- 阻塞：无代码阻塞；部署环境需要明确配置 `SPATIAL_AGENT_WEB_SEARCH_URL` 和
+  `SPATIAL_AGENT_WEB_ALLOWED_DOMAINS` 才会实际访问网络。
+- 下一步：提交并推送 M321，按项目全局规划 M322 工具提案。
+
+### M320：ReAct Runtime 接入与真实模型验收 — 已完成并推送
 
 - 结果：`LLMPlanner.decide()` 使用版本化 ReAct JSON 契约，并向真实模型提供有界的已登记工具
   输入/结果摘要；`ReactLoop` 支持单动作、多轮结果引用、重复/预算保护、澄清、拒绝和有限响应修复。
@@ -36,9 +52,7 @@
 - 真实验收：显式 DeepSeek + Docker/local GIS 已到达 Provider，并至少成功执行首个
   `get_dataset_health_report`；多次安全失败分别暴露了宽松 JSON envelope 和后续 backend failure，
   已修正响应适配，但最终 live 用例仍未宣称 COMPLETED。未保存 key、Prompt、模型原文或私有数据。
-- 下一步：阶段收口前复核 diff，提交并推送 M320；随后按产品、架构、数据、模型、部署、体验、测试
-  七个维度规划 M321 白名单网络搜索执行器。恢复只读取本条、`docs/agent-work-state.md` M320 区块、
-  `docs/m320-react-plan.md` 和当前改动文件。
+- 下一步：M320 提交 `daba073` 已推送；当前恢复入口切换到上方 M321-A，不重复读取 M320 历史实现。
 
 ### M319-A：通用 Execution Policy 接入 — 已完成
 

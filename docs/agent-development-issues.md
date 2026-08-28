@@ -2,6 +2,19 @@
 
 本文件用于记录近期仍有参考价值的工程问题，使用中文维护。每条问题至少包含：现象、根因、诊断、修复和预防。历史条目已归档到 `docs/archive/context-history/agent-development-issues-history.md`，恢复上下文时不得全文读取。
 
+## 动态工具注册晚于 Planner 初始化导致模型看不到能力
+
+- **现象**：`web_search` 已经能够在 Runtime 中执行，但真实模型的 ReAct 工具目录没有该工具，
+  因为模型在构造时只接收了旧的 Registry 名称。
+- **根因**：初版接入把动态网络工具放在 `LLMPlanner` 创建之后注册；Runtime 执行端能查到工具，
+  Planner 却拿不到同一份能力目录，形成“执行可用、规划不可见”的边界分裂。
+- **诊断**：同时检查 Runtime Registry、Planner 的 `allowed_tools`、工具契约摘要和异步提交快照；
+  不能只调用 Registry 判断能力已经接通。
+- **修复**：Runtime factory 在创建 Planner 前通过 `ToolRegistry.register_tool()` 登记 `web_search`；
+  同时让提交时 runtime context 计入动态工具数量，避免异步 worker 因 fingerprint 漂移拒绝接管。
+- **预防**：任何动态能力接入都必须验证“注册 → Planner context → 执行 → 恢复快照”四个边界；
+  新工具不可只在执行分支临时挂载，也不能把 Planner 使用的工具列表另行手写维护。
+
 ## 服务端答案 delta 已存在但前端仍一次性显示
 
 - **现象**：真实模型运行已经产生多个 answer_delta，但用户在页面上看到答案像一次性出现，无法获得 Codex/Claude Code 类似的逐字反馈。

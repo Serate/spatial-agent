@@ -18,9 +18,9 @@
 ## 当前阶段
 
 - 阶段：M318-M325 受控开放 Agent Runtime
-- 状态：M319、M320-B/C 已完成；M320-A 的公共契约已落地，当前正在把 ReActLoop 接入 Runtime。
-- 当前任务：实现 Runtime 单动作桥接、终态/evidence 和答案流收口；搜索/工具提案在 M320 仍只做结构化降级。
-- 交付状态：当前 M320 代码和文档仍在工作区，尚未提交或运行 Docker 验收；不要把骨架落地记录为阶段完成。
+- 状态：M319、M320、M321 已完成；M321 版本待提交推送，下一阶段为 M322 工具提案。
+- 当前任务：收口 M321 文档和版本，随后从项目全局规划 M322 沙箱 Python 工具提案。
+- 交付状态：M321 适配器、Registry/ReAct 接入和精简 Docker 验收已完成；真实联网待 M325 显式配置后验收。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；Python、GIS、测试和阶段验收使用 Docker。
 - 阶段规划：
   - [`docs/m318-open-agent-capability-map.md`](m318-open-agent-capability-map.md)
@@ -30,23 +30,20 @@
 
 ## 当前任务明确文件
 
-- `docs/m320-react-spec.md`
-- `docs/m320-react-plan.md`
-- `docs/m320-react-capability-map.md`
+- `docs/m321-web-search-capability-map.md`
+- `docs/m321-web-search-spec.md`
+- `docs/m321-web-search-plan.md`
 - `tasks/plan.md`
 - `tasks/task-progress.md`
+- `agent/runtime_factory.py`
+- `agent/agent_settings.py`
+- `agent/network/__init__.py`
+- `agent/network/web_search.py`
+- `agent/runtime_context.py`
 - `agent/react/contracts.py`
 - `agent/react/loop.py`
-- `agent/llm_planner.py`
-- `agent/runtime_core/run_lifecycle.py`
-- `agent/runtime_core/execution_policy.py`
-- `agent/runtime_core/decision_resume.py`
-- `agent/runtime_factory.py`
-- `agent/run_events.py`
-- `agent/models.py`
-- `agent/sqlite_store.py`
-- `agent/tools.py`
-- `tests/test_m320_react_runtime.py`（待创建）
+- `agent/runtime_core/react_runtime.py`
+- `tests/test_m321_web_search.py`
 
 > 当前阶段按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
 > 避免恢复上下文时读取无关文件。
@@ -69,7 +66,23 @@
 - 修改：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning_surface.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_core/preview.py`、`agent/runtime.py`、`agent/runtime_core/__init__.py`、M319 文档/测试及兼容性测试断言。
 - 阻塞：无。恢复时先读取本快照、`tasks/task-progress.md` 尾部和 M318 总 Spec/Plan；开始 M320 后再建立并读取 M320 专属交接文件，不批量读取历史。
 
-## M320 当前交接：ReAct 循环接入 — 已完成，待版本提交
+## M321 当前交接：白名单网络搜索 — 已完成，待版本推送
+
+- 目标：让默认开启的 ReAct 在服务端白名单允许时调用 `web_search`，只返回有界
+  `document_evidence`；无白名单、策略关闭或网络异常时结构化降级，不进行任意 URL 访问。
+- 已完成：`document_evidence.v1`、环境配置、HTTPS/allowlist 搜索适配器、HTML/JSON 有界解析、
+  Runtime factory 注册、ReAct `execute_search` 和动态工具快照计数。
+- 安全：无 Provider URL 或服务端白名单时不发起请求；只返回标题、摘要、域名和 HTTPS URL，
+  不保留网页全文、响应头、Cookie、Prompt、模型原文或密钥。
+- 直接修改文件：`agent/agent_settings.py`、`agent/network/__init__.py`、`agent/network/web_search.py`、
+  `.env.example`、`agent/runtime_factory.py`、`agent/runtime_context.py`、`agent/react/contracts.py`、
+  `agent/react/loop.py`、`agent/runtime_core/react_runtime.py`、`tests/test_m321_web_search.py`。
+- 验证：Docker M321/M320/M318 **29/29**，compileall、architecture strict、smoke、readiness **200**；
+  未执行真实联网请求，留到 M325 显式白名单验收。
+- 阻塞：无代码阻塞；真实公共搜索需要部署者明确配置搜索入口和域名白名单。
+- 下一步：提交并推送 M321；完成全局重规划后进入 M322 工具提案，不重复读取 M320 历史实现。
+
+## M320 当前交接：ReAct 循环接入 — 已完成并推送
 
 - 目标：把 M318 的 `spatial-agent.react-decision.v1` 和 `react-evidence.v1` 接成真实模型逐轮决策，并复用既有 Runtime、ToolRegistry、Result、RunEvent 和答案流。
 - 已完成：M320 capability map、Spec、Plan；单动作、结果引用、轮次/动作预算、重复/空转保护和搜索/提案结构化降级边界；ReActLoop、契约字段、事件字段、结果/SQLite 投影及 ToolRegistry seam 已实现。
@@ -79,8 +92,8 @@
 - 已完成适配：真实模型可获得有界工具输入契约摘要；兼容宽松 `json_object` Provider 的额外字段/可选空值执行有限 envelope 修复，动作参数仍完整经过 schema、权限、数据 readiness 和 Execution Policy 校验。
 - 明确文件：`docs/m320-react-spec.md`、`docs/m320-react-plan.md`、`agent/react/contracts.py`、`agent/react/loop.py`、`agent/llm_planner.py`、`agent/runtime_core/react_runtime.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_factory.py`、`agent/run_events.py`、`agent/models.py`、`agent/sqlite_store.py`、`agent/tools.py`、`tests/test_m320_react_runtime.py`。
 - 验证：Docker M320 **14/14**、M131/M133/M135 相邻回归 **22/22**、compileall、architecture strict 和 `git diff --check` 通过；显式 DeepSeek + Docker/local GIS 已到达 Provider 并成功执行首个 GIS 工具，但最终 live 用例因后续真实 backend/动作链失败，未宣称全链路成功。
-- 阻塞：无代码阻塞；真实 GIS/live 当前仍有 Provider 输出稳定性和数据后端可用性风险，已安全失败并保留阶段证据。当前 M320 改动尚未提交；不读取无关历史文档、全量源码、全量测试、模型原文或敏感配置。
-- 下一步：复核最终 diff，提交并推送 M320 版本；然后从项目全局规划 M321 白名单网络搜索执行器。
+- 阻塞：无代码阻塞；真实 GIS/live 当前仍有 Provider 输出稳定性和数据后端可用性风险，已安全失败并保留阶段证据。M320 提交 `daba073` 已推送。
+- 下一步：按 M321 Spec/Plan 实现白名单网络搜索；不重复读取 M320 历史源码或模型原文。
 
 ## M313 阶段验收摘要
 

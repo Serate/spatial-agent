@@ -70,6 +70,13 @@ class RuntimeReactExecution:
                     turn_index=turn_index,
                     action_id=action_id,
                 )
+            elif action == "search":
+                prepared[action_id] = self._prepare_search_action(
+                    context,
+                    decision,
+                    turn_index=turn_index,
+                    action_id=action_id,
+                )
             elif action == "finish":
                 self._prepare_finish(context, decision)
             if not validation_announced:
@@ -100,6 +107,20 @@ class RuntimeReactExecution:
                 )
             return self._execute_tool_action(context, *prepared_action)
 
+        def execute_search(
+            decision: Mapping[str, Any], turn_index: int, action_id: str
+        ) -> ReactToolOutcome:
+            del decision, turn_index
+            prepared_action = prepared.pop(action_id, None)
+            if prepared_action is None:
+                raise ToolError(
+                    "validated ReAct search action is unavailable",
+                    category="validation",
+                    code="react_action_not_prepared",
+                    retryable=False,
+                )
+            return self._execute_tool_action(context, *prepared_action)
+
         loop = ReactLoop(
             runtime._planner,
             allowed_tools=allowed_tools,
@@ -121,6 +142,7 @@ class RuntimeReactExecution:
             initial_decision=initial_decision,
             validate_action=validate_action,
             execute_tool=execute_tool,
+            execute_search=execute_search,
         )
         result.react_evidence = build_react_run_evidence(
             outcome.evidence,
@@ -300,6 +322,32 @@ class RuntimeReactExecution:
         runtime._planning_surface.validate_plan_for_execution(plan, context.workflow)
         result.plan = plan
         context.candidate_plan = plan
+
+    def _prepare_search_action(
+        self,
+        context: Any,
+        decision: Mapping[str, Any],
+        *,
+        turn_index: int,
+        action_id: str,
+    ) -> tuple[PlanStep, TaskPlan]:
+        """Materialize a ReAct search as the ordinary registered tool."""
+
+        arguments: dict[str, Any] = {"query": str(decision.get("query") or "")}
+        if decision.get("domains") is not None:
+            arguments["domains"] = list(decision.get("domains") or [])
+        if decision.get("max_results") is not None:
+            arguments["max_results"] = decision["max_results"]
+        return self._prepare_tool_action(
+            context,
+            {
+                "tool_name": "web_search",
+                "arguments": arguments,
+                "output_type": "document_evidence",
+            },
+            turn_index=turn_index,
+            action_id=action_id,
+        )
 
     def _execute_tool_action(
         self,

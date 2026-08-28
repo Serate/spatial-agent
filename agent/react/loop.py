@@ -94,6 +94,7 @@ class ReactLoop:
         initial_decision: Any = None,
         validate_action: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
         execute_tool: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
+        execute_search: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
     ) -> ReactLoopOutcome:
         """Run until finish, clarification, rejection or a bounded stop.
 
@@ -242,8 +243,9 @@ class ReactLoop:
             )
             self._emit("react_action_accepted", accepted)
 
-            if action == "call_tool":
-                if execute_tool is None:
+            if action in {"call_tool", "search"}:
+                executor = execute_tool if action == "call_tool" else execute_search
+                if executor is None:
                     return self._blocked(
                         decision,
                         turn_index,
@@ -251,15 +253,24 @@ class ReactLoop:
                         evidence,
                         history,
                         action_id=action_id,
-                        reason_code="react_tool_executor_missing",
+                        reason_code=(
+                            "react_tool_executor_missing"
+                            if action == "call_tool"
+                            else "react_search_executor_missing"
+                        ),
                     )
                 try:
-                    raw_outcome = execute_tool(decision, turn_index, action_id)
+                    raw_outcome = executor(decision, turn_index, action_id)
                     outcome = _coerce_tool_outcome(raw_outcome, action_id)
                 except (RunCancelled, RunTimedOut):
                     raise
                 except Exception as exc:
-                    reason_code = str(getattr(exc, "code", None) or "react_tool_execution_failed")[:96]
+                    fallback_code = (
+                        "react_tool_execution_failed"
+                        if action == "call_tool"
+                        else "react_search_execution_failed"
+                    )
+                    reason_code = str(getattr(exc, "code", None) or fallback_code)[:96]
                     item = build_react_evidence(
                         decision,
                         turn_index=turn_index,
@@ -292,8 +303,9 @@ class ReactLoop:
                     {
                         "turn_index": turn_index,
                         "action_id": action_id,
-                        "action": "call_tool",
-                        "tool_name": decision.get("tool_name"),
+                        "action": action,
+                        "tool_name": decision.get("tool_name") if action == "call_tool" else None,
+                        "query": decision.get("query") if action == "search" else None,
                         "result_ref": result_ref,
                         "output_type": _bounded_text(outcome.output_type or decision.get("output_type"), 96) or None,
                         "summary": summary,
@@ -306,7 +318,11 @@ class ReactLoop:
                     policy_mode="react",
                     source="model",
                     action_id=action_id,
-                    reason_code="react_tool_completed",
+                    reason_code=(
+                        "react_tool_completed"
+                        if action == "call_tool"
+                        else "react_search_completed"
+                    ),
                     result_ref=result_ref,
                     citation_count=outcome.citation_count,
                 )
@@ -314,12 +330,7 @@ class ReactLoop:
                 self._emit("react_action_completed", item)
                 continue
 
-            if action in {"search", "propose_tool"}:
-                reason_code = (
-                    "react_search_unavailable"
-                    if action == "search"
-                    else "react_tool_proposal_unavailable"
-                )
+            if action == "propose_tool":
                 item = build_react_evidence(
                     decision,
                     turn_index=turn_index,
@@ -327,7 +338,7 @@ class ReactLoop:
                     policy_mode="react",
                     source="runtime",
                     action_id=action_id,
-                    reason_code=reason_code,
+                    reason_code="react_tool_proposal_unavailable",
                 )
                 evidence.append(item)
                 self._emit("react_action_blocked", item)
@@ -338,7 +349,7 @@ class ReactLoop:
                     evidence,
                     history,
                     final_decision=decision,
-                    reason_code=reason_code,
+                    reason_code="react_tool_proposal_unavailable",
                 )
 
             item = build_react_evidence(
@@ -545,7 +556,12 @@ def _action_signature(decision: Mapping[str, Any]) -> str:
             "depends_on": decision.get("depends_on") or [],
         }
     elif action == "search":
-        body = {"action": action, "query": decision.get("query"), "domains": decision.get("domains")}
+        body = {
+            "action": action,
+            "query": decision.get("query"),
+            "domains": decision.get("domains"),
+            "max_results": decision.get("max_results"),
+        }
     elif action == "propose_tool":
         proposal = decision.get("proposal") or {}
         body = {"action": action, "name": proposal.get("name")}

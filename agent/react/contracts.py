@@ -182,6 +182,10 @@ def project_react_decision(value: Any) -> dict[str, Any]:
     for key in ("summary", "tool_name", "query", "message", "output_type"):
         if key in decision:
             result[key] = decision[key]
+    if decision.get("domains"):
+        result["domains"] = list(decision["domains"][:8])
+    if "max_results" in decision:
+        result["max_results"] = decision["max_results"]
     if decision.get("depends_on"):
         result["depends_on"] = list(decision["depends_on"])
     if isinstance(decision.get("arguments"), Mapping):
