@@ -1,0 +1,122 @@
+{
+  "schema_version": "spatial-agent.document-index.v1",
+  "updated": "2026-08-28",
+  "active_stage": "M323",
+  "resume": {
+    "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
+    "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
+    "default_files": [
+      "docs/agent-work-state.md",
+      "docs/document-index.json",
+      "tasks/current-state.md",
+      "docs/stages/M323/handoff.md"
+    ],
+    "never_default": [
+      "docs/archive/",
+      "docs/agent-context-resume.md",
+      "docs/agent-development-issues.md",
+      "tasks/task-progress.md",
+      "tasks/plan.md",
+      "完整源码",
+      "完整测试",
+      "模型原文和敏感配置"
+    ]
+  },
+  "layers": [
+    {
+      "id": "hot",
+      "purpose": "当前恢复状态",
+      "paths": ["docs/agent-work-state.md", "tasks/current-state.md"]
+    },
+    {
+      "id": "stage",
+      "purpose": "当前阶段的能力、规格、计划和交接",
+      "paths": ["docs/stages/"]
+    },
+    {
+      "id": "knowledge",
+      "purpose": "跨阶段稳定的产品、架构、API、数据和部署知识",
+      "paths": [
+        "docs/agent-project-direction.md",
+        "docs/architecture-map.md",
+        "docs/api.md",
+        "docs/dataset-inventory.md",
+        "docs/demo-checklist.md",
+        "docs/core-acceptance.md"
+      ]
+    },
+    {
+      "id": "archive",
+      "purpose": "历史过程、旧快照、旧总计划和旧账本",
+      "paths": ["docs/archive/", "docs/milestones.md", "docs/m*.md", "tasks/task-progress.md"]
+    }
+  ],
+  "stage_packages": [
+    {
+      "id": "M323",
+      "status": "planning",
+      "root": "docs/stages/M323",
+      "capability_map": "docs/stages/M323/capability-map.md",
+      "spec": "docs/stages/M323/spec.md",
+      "plan": "docs/stages/M323/plan.md",
+      "handoff": "docs/stages/M323/handoff.md",
+      "read_on_resume": ["docs/stages/M323/handoff.md"],
+      "source_files": [
+        "agent/tooling/proposal.py",
+        "agent/tooling/__init__.py",
+        "agent/tools.py",
+        "agent/runtime.py",
+        "agent/runtime_core/react_runtime.py",
+        "agent/sqlite_store.py",
+        "agent/application/http.py",
+        "tests/test_m323_tool_approval.py"
+      ],
+      "verify": [
+        "tests/test_m323_tool_approval.py",
+        "scripts/architecture_check.py --strict",
+        "health/ready"
+      ]
+    },
+    {
+      "id": "M322",
+      "status": "complete",
+      "root": "docs/",
+      "capability_map": "docs/m322-python-tool-proposal-capability-map.md",
+      "spec": "docs/m322-python-tool-proposal-spec.md",
+      "plan": "docs/m322-python-tool-proposal-plan.md",
+      "handoff": "docs/agent-context-resume.md",
+      "read_on_resume": []
+    },
+    {
+      "id": "M318-M321",
+      "status": "complete",
+      "root": "docs/",
+      "legacy_pattern": "docs/m{stage}-{topic}-{kind}.md",
+      "read_on_resume": []
+    }
+  ],
+  "lookup": {
+    "stable_knowledge": [
+      "docs/agent-project-direction.md",
+      "docs/architecture-map.md",
+      "docs/api.md",
+      "docs/compatibility-matrix.md",
+      "docs/dataset-inventory.md"
+    ],
+    "operations": [
+      "docs/demo-checklist.md",
+      "docs/core-acceptance.md",
+      "docs/console-browser-acceptance.md",
+      "docs/code-cleanup-process.md",
+      "docs/agent-development-issues.md",
+      "scripts/archive_document_sections.ps1",
+      "scripts/validate_document_index.ps1"
+    ],
+    "legacy_history": [
+      "docs/archive/",
+      "docs/archive/context-history/agent-work-state-history.md",
+      "docs/archive/task-plans/plan-history.md",
+      "docs/archive/task-progress-history.md"
+    ]
+  }
+}

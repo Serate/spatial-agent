@@ -1,277 +1,55 @@
 # Agent 当前工作快照
 
-> 新对话或上下文压缩后的唯一默认交接入口。先读本文件顶部短快照，再读 [`tasks/task-progress.md`](../tasks/task-progress.md) 的“当前进行中/最近完成”有界区块；不要自动读取完整历史、全量源码、全量测试、模型响应或敏感配置。
+> 这是默认恢复入口，必须保持短小，只记录当前阶段。历史阶段、完整计划和问题记录不放在这里。
+> 默认恢复命令：`pwsh -NoProfile -File scripts/resume_context.ps1`。
 
-## Goal 摘要（精简版）
+## 当前目标
 
-建设通用 Agent Runtime：用户提交开放式问题后，真实模型默认通过受控 ReAct 理解请求、选择能力、调用工具、搜索白名单网页、汇总证据并流式回答；系统在断线、重启或失败后可恢复。GIS 只是业务载体，不为单一区域、单一问句或单一数据集增加硬编码流程。
-
-本阶段按 M318-M325 扩展 Execution Policy、full ReAct、默认开启的公共网页白名单搜索、沙箱 Python 工具提案、人工审批注册和跨入口整合。CLI、HTTP、前端和恢复流程共享事件、结果与证据契约；不展示隐藏思维链、Prompt、模型原文或敏感信息。
-
-## Goal 附加约束：低成本上下文恢复
-
-- 恢复只读取本快照、当前阶段 Spec/Plan、任务账本中最近的进行中任务，以及该任务明确列出的待修改文件。
-- 只读取当前任务必需的文件；历史文档、milestones、归档、全量源码、全量测试、模型原文和敏感配置按需读取。
-- 每个子任务开始、完成或暂停时更新 `tasks/task-progress.md`；阶段收口再同步任务状态、快照和历史恢复卡。
-- 阶段任务按完整能力切片编排，测试按独立失败模式合并到阶段收口，不因每个小改动重复执行相同测试。
+建设可测试、可观测、可替换、可恢复的通用 Agent Runtime；真实模型默认通过受控 ReAct
+理解开放式问题、发现能力、调用工具、搜索白名单网页、汇总证据并流式回答。GIS 只是业务载体。
 
 ## 当前阶段
 
 - 阶段：M318-M325 受控开放 Agent Runtime
-- 状态：M319、M320、M321、M322 已完成并推送；当前进入 M323 人工审批、持久化和 Registry 治理规划。
-- 当前任务：建立 M323 capability map、Spec、Plan，冻结提案审批状态机与受控注册边界。
-- 交付状态：M322 已完成提案验证、无网络 sidecar 和待审批 receipt；M323 尚未实现人工审批或 Registry 注册。
-- 协作方式：单 Agent 顺序开发，最大并发度为 1；Python、GIS、测试和阶段验收使用 Docker。
-- 阶段规划：
-  - [`docs/m318-open-agent-capability-map.md`](m318-open-agent-capability-map.md)
-  - [`docs/m318-open-agent-spec.md`](m318-open-agent-spec.md)
-  - [`docs/m318-open-agent-plan.md`](m318-open-agent-plan.md)
-  - [`docs/m323-tool-approval-capability-map.md`](m323-tool-approval-capability-map.md)
-  - [`docs/m323-tool-approval-spec.md`](m323-tool-approval-spec.md)
-  - [`docs/m323-tool-approval-plan.md`](m323-tool-approval-plan.md)
-  - [`tasks/plan.md`](../tasks/plan.md)
+- 当前阶段：M323 人工审批、持久化和 Registry 治理
+- 当前任务：M323-A，冻结审批状态机、持久化边界、注册版本和 HTTP 语义
+- 状态：规划中
+- 最近交付：M322 已完成并推送，版本 `1b0bcdc`
+- 协作：单 Agent，最大并发度 1；Python、GIS、测试和阶段验收优先使用 Docker
 
-## 当前任务明确文件
+## 当前阶段入口
 
-- `docs/m321-web-search-capability-map.md`
-- `docs/m321-web-search-spec.md`
-- `docs/m321-web-search-plan.md`
-- `docs/m322-python-tool-proposal-capability-map.md`
-- `docs/m322-python-tool-proposal-spec.md`
-- `docs/m322-python-tool-proposal-plan.md`
-- `tasks/plan.md`
-- `tasks/task-progress.md`
-- `agent/runtime_factory.py`
-- `agent/agent_settings.py`
-- `agent/network/__init__.py`
-- `agent/network/web_search.py`
-- `agent/runtime_context.py`
-- `agent/react/contracts.py`
-- `agent/react/loop.py`
+- 能力图：[`stages/M323/capability-map.md`](stages/M323/capability-map.md)
+- Spec：[`stages/M323/spec.md`](stages/M323/spec.md)
+- Plan：[`stages/M323/plan.md`](stages/M323/plan.md)
+- 交接：[`stages/M323/handoff.md`](stages/M323/handoff.md)
+- 任务状态：[`../tasks/current-state.md`](../tasks/current-state.md)
+- 文档索引：[`document-index.json`](document-index.json)
+
+## 当前任务必要文件
+
+- `agent/tooling/proposal.py`
+- `agent/tooling/__init__.py`
+- `agent/tools.py`
+- `agent/runtime.py`
 - `agent/runtime_core/react_runtime.py`
-- `tests/test_m321_web_search.py`
-- `agent/tools.py`
-- `docker-compose.prod.yml`
-- `agent/tooling/`
-- `agent/tools.py`
-- `agent/runtime_core/`
-- `agent/application/http.py`
 - `agent/sqlite_store.py`
+- `agent/application/http.py`
 - `tests/test_m323_tool_approval.py`（待创建）
+- `scripts/resume_context.ps1`
+- `scripts/validate_document_index.ps1`
+- `scripts/archive_document_sections.ps1`
 
-> 当前阶段按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
-> 避免恢复上下文时读取无关文件。
+## 最近验证
 
-## M318 阶段交接
+- M322 Docker 契约：7/7
+- M318-M322 合并契约：43/43
+- Docker compileall、architecture strict、smoke、readiness 200 和 sidecar socket 验证通过
+- 当前无阻塞；未调用真实模型，未保存 Prompt、模型原文、密钥或敏感数据
 
-- ReAct：真实模型默认 full ReAct；简单请求允许第一轮 `finish`，最大轮次 8、工具动作 12、单轮一个动作。
-- 网络：搜索适配器 + 公共网页白名单抓取，产品运行时默认开启；白名单为空或网络不可用时结构化降级。
-- 工具提案：默认开启沙箱 Python 提案；Docker 沙箱验证通过后仍需人工确认，不能自动注册或执行。
-- 验证：M318 先运行契约、compileall 和 architecture strict；真实模型只在 M320/M325 显式验收，不保存密钥、Prompt 或模型原文。
-- 验证结果：Docker M318 契约 **8/8**、compileall、architecture strict 通过。
-- 阻塞：无。M318 已交付；M319 已完成，下一步为 M320 ReAct 循环的独立 Spec/Plan。
+## 恢复规则
 
-## M319 阶段交接
-
-- 目标：让 direct tool、generated DAG、Domain workflow 和预留 ReAct 使用同一版本化 `spatial-agent.execution-policy.v1`，解除普通能力对 workflow 的强制依赖，同时保留 Domain 高风险门禁。
-- 结果：`ExecutionPolicyResolver` 已接入 `RuntimePlanningSurface.validate_plan_for_execution()`；同步 lifecycle、preview、计划修复、执行重规划和失败 evidence 使用同一策略投影。策略不调用工具、不注册工具、不绕过权限、数据 readiness、Domain validator 或 ToolRegistry。
-- 兼容：`execution_policy` 保留旧 `tools`、provider、权限与依赖摘要；execution-binding、SQLite、artifact 和 recovery 不改 schema，只继续消费原有 `allowed_tools`/`result_types`/`max_steps` 投影。
-- 验证：Docker 阶段相关回归 **23/23**、compileall、architecture strict 和跨入口 preview identity 通过；真实模型留到 M320/M325 显式验收。
-- 修改：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning_surface.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_core/preview.py`、`agent/runtime.py`、`agent/runtime_core/__init__.py`、M319 文档/测试及兼容性测试断言。
-- 阻塞：无。恢复时先读取本快照、`tasks/task-progress.md` 尾部和 M318 总 Spec/Plan；开始 M320 后再建立并读取 M320 专属交接文件，不批量读取历史。
-
-## M321 当前交接：白名单网络搜索 — 已完成并推送
-
-- 目标：让默认开启的 ReAct 在服务端白名单允许时调用 `web_search`，只返回有界
-  `document_evidence`；无白名单、策略关闭或网络异常时结构化降级，不进行任意 URL 访问。
-- 已完成：`document_evidence.v1`、环境配置、HTTPS/allowlist 搜索适配器、HTML/JSON 有界解析、
-  Runtime factory 注册、ReAct `execute_search` 和动态工具快照计数。
-- 安全：无 Provider URL 或服务端白名单时不发起请求；只返回标题、摘要、域名和 HTTPS URL，
-  不保留网页全文、响应头、Cookie、Prompt、模型原文或密钥。
-- 直接修改文件：`agent/agent_settings.py`、`agent/network/__init__.py`、`agent/network/web_search.py`、
-  `.env.example`、`agent/runtime_factory.py`、`agent/runtime_context.py`、`agent/react/contracts.py`、
-  `agent/react/loop.py`、`agent/runtime_core/react_runtime.py`、`tests/test_m321_web_search.py`。
-- 验证：Docker M321/M320/M318 **29/29**，compileall、architecture strict、smoke、readiness **200**；
-  未执行真实联网请求，留到 M325 显式白名单验收。
-- 阻塞：无代码阻塞；真实公共搜索需要部署者明确配置搜索入口和域名白名单。
-- 下一步：M321 提交 `19f3386` 已推送；当前恢复入口切换到 M322-A，不重复读取 M320 历史实现。
-
-## M322 阶段交接：Python 工具提案与 Docker 沙箱 — 已完成并待版本收口
-
-- 目标：模型只能提出纯 Python 计算工具；提案在 AST 和无网络 Docker sidecar 中验证，验证通过只产生
-  `tool-proposal-receipt.v1`，不自动注册、不在主进程执行；人工审批留给 M323。
-- 已完成：提案规范化、schema/source hash、AST allowlist、JSON schema 子集校验、Unix socket
-  client/worker/runner、Runtime/ReAct 待审批 receipt 和 Docker sidecar。
-- 直接修改文件：`agent/tooling/__init__.py`、`agent/tooling/proposal.py`、`agent/tooling/sandbox.py`、
-  `agent/tooling/sandbox_worker.py`、`agent/tooling/sandbox_runner.py`、`agent/react/contracts.py`、
-  `agent/react/loop.py`、`agent/runtime.py`、`agent/runtime_core/react_runtime.py`、
-  `agent/runtime_factory.py`、`agent/agent_settings.py`、`.env.example`、`docker-compose.prod.yml`、
-  `tests/test_m322_tool_proposal.py` 及 M322 文档。
-- 验证：Docker M322 **7/7**，本次 M318/M319/M320/M321/M322 合并回归 **43/43**；compileall、architecture
-  strict、smoke、readiness **200**、真实 sidecar socket 调用和 SQLite receipt 恢复通过。
-- 安全收口：sidecar 无网络、只读根文件系统、tmpfs、非 root、资源受限；不自动注册、不在主进程
-  执行生成代码，receipt 不暴露源码、示例参数、输出、Prompt 或密钥。
-- 阻塞：无。M322 不自动注册或执行提案，sidecar 不可用时不得回退到主进程执行。
-- 下一步：提交 M322 版本后，完成 M323 审批状态、持久化恢复和受控 Registry 注册。
-
-## M323 当前交接：人工审批、持久化和 Registry 治理 — 规划中
-
-- 目标：已验证 proposal 只能在显式人工决策后进入版本化 Registry；审批、拒绝、过期、撤销和恢复
-  均进入统一生命周期与 evidence，未批准提案永远不可执行。
-- 当前子任务：M323-A，建立能力图、Spec 和 Plan，确认审批状态机、持久化边界、注册版本和 HTTP
-  语义，不先改 Runtime 主循环。
-- 待修改文件：以 M323 Plan 冻结为准，预计为 `agent/tooling/`、`agent/tools.py`、SQLite/Runtime
-  状态边界、HTTP Application 和 `tests/test_m323_tool_approval.py`。
-- 验证：开发期间只做必要静态检查；阶段收口集中验证审批矩阵、重启恢复、Registry 隔离、HTTP
-  contract、compileall、architecture strict 和 readiness。
-- 阻塞：无。不得执行未经批准源码，不得保存 Prompt、模型原文、源码全文或敏感配置。
-
-## M320 当前交接：ReAct 循环接入 — 已完成并推送
-
-- 目标：把 M318 的 `spatial-agent.react-decision.v1` 和 `react-evidence.v1` 接成真实模型逐轮决策，并复用既有 Runtime、ToolRegistry、Result、RunEvent 和答案流。
-- 已完成：M320 capability map、Spec、Plan；单动作、结果引用、轮次/动作预算、重复/空转保护和搜索/提案结构化降级边界；ReActLoop、契约字段、事件字段、结果/SQLite 投影及 ToolRegistry seam 已实现。
-- 已完成 M320-B：`LLMPlanner.decide()` 使用版本化 structured JSON schema、Planner/Runtime 工具交集和有界脱敏上下文/历史；旧 fake/replay client 保持兼容。
-- 已完成 M320-C：ReActLoop 已闭合单动作、多轮安全历史、重复动作、预算和终态状态，工具副作用保持注入式边界。
-- 已完成 D：首轮决策、单动作执行、后续结果引用、澄清/拒绝/失败/取消和 finish 后答案流已接入 Runtime；具体 bridge 已独立到 `agent/runtime_core/react_runtime.py`，`run_lifecycle.py` 不再保留重复 ReAct 实现。
-- 已完成适配：真实模型可获得有界工具输入契约摘要；兼容宽松 `json_object` Provider 的额外字段/可选空值执行有限 envelope 修复，动作参数仍完整经过 schema、权限、数据 readiness 和 Execution Policy 校验。
-- 明确文件：`docs/m320-react-spec.md`、`docs/m320-react-plan.md`、`agent/react/contracts.py`、`agent/react/loop.py`、`agent/llm_planner.py`、`agent/runtime_core/react_runtime.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_factory.py`、`agent/run_events.py`、`agent/models.py`、`agent/sqlite_store.py`、`agent/tools.py`、`tests/test_m320_react_runtime.py`。
-- 验证：Docker M320 **14/14**、M131/M133/M135 相邻回归 **22/22**、compileall、architecture strict 和 `git diff --check` 通过；显式 DeepSeek + Docker/local GIS 已到达 Provider 并成功执行首个 GIS 工具，但最终 live 用例因后续真实 backend/动作链失败，未宣称全链路成功。
-- 阻塞：无代码阻塞；真实 GIS/live 当前仍有 Provider 输出稳定性和数据后端可用性风险，已安全失败并保留阶段证据。M320 提交 `daba073` 已推送。
-- 下一步：按 M321 Spec/Plan 实现白名单网络搜索；不重复读取 M320 历史源码或模型原文。
-
-## M313 阶段验收摘要
-
-- Docker M313 事件与答案流契约：**11/11**；Node 实时事件 smoke：通过；生产验收：通过。
-- Domain SSE：真实运行产生 **81** 个事件，其中 **51** 个 `answer_delta`；`Last-Event-ID: 1` 从第 2 个事件续传。
-- 重启恢复：服务重启后同一 run 仍可读取第 2～13 个事件；readiness **200**。
-- 浏览器：动态加载 `spatial_overview_result` 的 `overview/map`，地图真实路径 **1** 条、轨迹 **11** 项、无错误。
-- 真实模型 + 本地 GIS：最终结果为 `live_model`，`answer_streaming=true`；不保存密钥、Prompt 或模型原文。
-- 后续修复：真实模型已有 run 产生 73 个事件、57 个 `answer_delta`，前端通过 `ConsoleAnswerStream` 在终态前逐字符消费；未重复调用模型。
-- 后续修复：规划阶段超过 12 秒会显示“模型响应较慢，仍在等待返回”及累计耗时；本次用户 Run 的安全失败证据为 planning/provider_timeout，终态事件完整。
-- M314 当前验收：真实 Provider 探测 `READY`，真实 DeepSeek + 本地 GIS 最小回答 `COMPLETED`，1 次规划请求、0 重试；该 Run 产生 384 个事件、368 个 `answer_delta`，SSE 与 `Last-Event-ID: 1` 续传均完整。
-- M314 修复：SSE 只在当前页含终态事件时关闭；跨页终态不再因 100 条分页上限丢失。新增 `page_contains_terminal_event()` 公共契约。
-- M314 效率：规划与答案使用独立 provider 预算；答案默认 20 秒、768 token、0 重试，可由 `OPENAI_ANSWER_*` 覆盖；不改变规划、工具和结果校验。
-- M314 补充修复：当 OpenAI 兼容 Provider 返回 `invalid_model_response`（本次实测输出 token 恰好达到 2048 上限）时，Planner 只进行一次紧凑计划恢复；恢复计划仍经过 TaskPlan、工具和执行绑定校验，并在 metrics 记录 `compact_recovery_attempts`。
-- M315：右侧对话新增“正在生成答案 · / ·· / ···”占位动效；首个 `answer_delta` 到达后移除占位并复用同一气泡逐字显示，终态只收敛现有消息；支持 `prefers-reduced-motion`。
-- M316：当 Provider 返回 `invalid_model_response` 且 `finish_reason=length` 时，Planner 的一次紧凑恢复改用 4096～8192 的有界预算并设置 `temperature=0`；同一会话真实验收已 `COMPLETED`，恢复次数为 1，答案已形成。
-- M317：用户答案默认预算从 768 提高到 4096 token；普通答案 schema、流式答案和前端回退显示上限从 1800 提高到 6000 字符；Planner 预算不变，显式 `OPENAI_ANSWER_MAX_OUTPUT_TOKENS` 仍可覆盖。
-
-## 阶段完成后的全局重规划指针
-
-- 产品：实时进展已可见，下一步应降低技术信息噪声，强化面向用户的结论、解释和恢复操作。
-- 架构：保持 RunEvent/Result/View/Evidence 单一契约，下一阶段不重复建设 Runtime 生命周期。
-- 数据/GIS：继续扩展可登记数据能力与健康证据，但不把单一数据集写成系统分支。
-- 模型：保留结构化计划校验与答案流，继续记录延迟、降级和可替换 provider 证据。
-- 部署：Docker 已成为 GIS/live 验收环境，继续保持默认离线门禁和显式 live 验收。
-- 体验：候选方向为 React 增量迁移，复用现有实时事件与动态结果视图契约。
-- 测试：维持单 Agent、精简风险分层；只增加能够证明新边界的契约或浏览器验收。
-- 下一阶段候选：M314 React Console 增量迁移与实时契约复用；创建新 Goal 前需另行形成 capability map、Spec 和 Plan。
-
-## M311：通用分析意图与跨域开放链路 — 已完成
-
-- 新增 `spatial-agent.analysis-intent.v1`，接入 Domain facts、Capability Catalog、
-  Planner Envelope、Composite View、异步/artifact evidence 和 Console projection。
-- 正常 LLM 工具计划强制声明 `output.type`，缺失时在执行前 fail closed，避免实际步骤
-  成功却被包装为 `unknown` Result。
-- Docker M311 **13/13**、M2 **17/17**、M310 **14/14**、M309 **8/8**，compileall、
-  architecture strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS
-  HTTP 和 readiness **200** 通过；一次真实模型调用到达 provider 并完成真实 GIS 执行。
-- 本阶段不重复调用模型；未保存密钥、prompt、模型原文或私有原始数据。
-
-## M310：开放请求能力选择与数据语义闭合 — 已完成
-
-- 结果：统一 `any/all/one` 事实需求语义，闭合 capability → Domain workflow →
-  TaskPlan/DAG → ToolRegistry → execution binding；新增领域中立 readiness 和有界
-  `planning_failure` 投影，区分澄清、预览失败、绑定失败和拒绝。
-- 前端：结构化结果投影能够显示等待补充、计划未生成和计划校验未通过，不显示内部
-  错误码、工具名、prompt 或 provider 原文；修复 planning failure 阶段条件的字段
-  命名/逻辑运算符问题。
-- 验证：Docker M310 **14/14**、M309 相邻回归 **8/8**、compileall、architecture
-  strict、Node projection、Service smoke、跨入口 identity、真实本地 GIS HTTP 和
-  `/health/ready` 200 通过。
-- 真实模型：唯一一次显式调用使用结构化输出通道并到达 provider，返回
-  `NEEDS_CLARIFICATION`，未创建执行 run；按真实语义澄清记录。
-
-## M308-F：开放组合纵向链路与用户答案质量 — 已完成
-
-- 结果：真实 GIS/Economic/Indicators 三组件完成规划和执行；答案契约增加可选 `next_steps`；上下文 workflow 约束漂移与 handoff 无条件合并问题已修复。
-- 验证：Docker M308/相邻 Composite **28/28**，真实组合与跨入口验收通过；compileall、architecture strict、Node projection、Service smoke、生产 HTTP acceptance 和 readiness **200/ready**。
-- 交付准备：阶段文档已补齐，下一阶段 M309 文档已创建；本次工作区待统一提交并推送。
-
-## M309-A：模型计划结果矩阵与全局基线 — 已完成
-
-- 目标：以 M308 的 3+ 组件闭环为基线，冻结 provider-backed 成功、澄清、非法计划、有限修复、provider failure 和执行失败的公共状态与 run 创建边界。
-- 边界：只使用现有 Planner Envelope、Capability Catalog、TaskPlan/DAG、ToolRegistry、workflow、execution binding 和 Result/Evidence seam，不新增专题工具或领域专用前端分支。
-- 结果：planner-attempt 对无 metrics 客户端也能记录真实调用状态和 retryable；provider failure、语义拒绝和澄清保持独立状态。
-- 验证：Docker M309-A 精简契约 **4/4** 通过；阶段门禁仍在 M309-E 集中执行，真实模型最多显式调用一次。
-- 阻塞：无。
-
-## M309-B：真实模型到可执行计划的受控闭合 — 已完成
-
-- 目标：让多目标开放请求通过 Capability Catalog 形成多个已登记组件，并在 schema、canonical DAG、TaskPlan、ToolRegistry、workflow 和 execution binding 全部门禁通过后执行。
-- 结果：模型提示补充通用多目标拆分原则；3+ 组件输出继续经过 catalog/schema/canonical DAG/TaskPlan/ToolRegistry/workflow/execution binding 全部门禁。
-- 验证：Docker M309-A/B 相关契约与 M305/M287 相邻回归 **18/18** 通过；未执行真实模型。
-- 边界：有限 repair 最多一次；不得用 Rule/Replay 静默替代真实模型失败，不得放宽执行授权。
-- 阻塞：无。
-
-## M309-C：默认 Agent 的可感知体验 — 已完成
-
-- 目标：结构化答案对象只投影可读文本；失败提示按公共错误平面生成；阶段状态、限制和下一步继续由 Result/View/Evidence 驱动。
-- 结果：聊天摘要安全读取 `summary/headline` 或明确字符串；拒绝、规划失败和执行失败提示通用化，不展示内部对象字段。
-- 验证：Docker 前端构建与 Node Console Result Projection smoke 通过。
-- 阻塞：无。
-
-## M309-D：跨入口恢复与一致性 — 已完成
-
-- 目标：确认 M309 的 planner receipt、默认答案和阶段投影不改变同步、异步、HTTP、View、artifact、SQLite/restart 的公共 identity。
-- 结果：Docker 三组件跨入口验收六项 identity 对照全部为 `true`，artifact 可用，View answer 保留 `next_steps` 字段。
-- 验证：`scripts/m308_cross_entry_acceptance.py` 通过；未执行额外真实模型请求。
-- 阻塞：无。
-
-## M309-E/F：阶段验收、文档与版本交付 — 已完成
-
-- 阶段门禁：重建 Docker 镜像并强制重建服务后，M309/M308/M303/M305 精简契约 **31/31**，compileall、architecture strict、Node projection、Service smoke、跨入口验收、真实 GIS 三组件验收和生产 HTTP acceptance 全部通过；`/health/ready` 为 `ready`。
-- 真实模型：唯一一次调用在修复前返回结构化计划，但 GIS `raster_metadata` preview 因缺少 `dataset` 事实失败；未创建 execution run。修复后的成功由脱敏 Replay 和真实 Docker GIS 验收证明，不冒充 live 成功。
-- 交付：中文问题日志、M309 Plan、恢复快照、任务账本和 M310 能力图/Spec/Plan 已同步；本次版本提交后推送。
-
-## M310-A：事实需求矩阵与基数语义 — 已完成
-
-- 目标：冻结 `any/all/one` 事实需求语义及缺失、歧义、ready、unavailable 的公共投影；不改变 Runtime、Planner、ToolRegistry 的执行授权边界。
-- 当前文件：`agent/capability_catalog.py`、`agent/runtime_core/component_fact_handoff.py`、`agent/composite_request_context.py`、`tests/test_m310_open_request_capability_closure.py`。
-- 阻塞：无。
-
-## M310-B：Capability 到 Domain workflow 闭合 — 已完成
-
-- 结果：选中 capability 的 workflow 必须由 Domain resolver 确认，不能从 context workflow 兜底；workflow 身份不完整或不属于 capability 时在 preview 前终止；不可用与未绑定 capability 保持不同状态。
-- 文件：`agent/runtime_core/composite_taskplan.py`、`tests/test_m310_open_request_capability_closure.py` 及 M310-A 公共 requirements 投影文件。
-- 验证：Docker M310-B **10/10**；未执行真实模型。
-- 下一步：进入 M310-C，统一 TaskPlan 物化和失败分类。
-
-## M310-C：TaskPlan 物化与失败分类 — 已完成
-
-- 目标：复用已有 TaskPlan/DAG、ToolRegistry 和 execution binding 门禁，统一 clarification、preview invalid/failed 和 binding failed 的 public evidence 与 run 创建边界。
-- 当前文件：`agent/application/composite_planning.py`、`agent/runtime_core/composite_taskplan.py`、`agent/runtime_core/execution_binding.py`、`tests/test_m310_open_request_capability_closure.py`。
-- 验证：开发期间只运行新增或直接相关契约；阶段收口在 Docker 集中执行，并包含一次显式真实模型验收。
-- 阻塞：无。
-
-## M310-D：数据 readiness 与结果证据 — 已完成
-
-- 目标：将 capability 的字段、空间/时间对齐、覆盖范围和来源状态投影为明确 readiness，并保持事实、限制和结果证据一致。
-- 结果：规划失败返回有界 `planning_failure`，区分 clarification、preview_invalid、preview_failed、binding_failed 和 rejected；通用 `failure.v1` 同步保留，非 `PLANNED` 状态不创建 execution run。
-- 当前文件：`agent/capability_catalog.py`、`agent/runtime_core/analysis_discovery.py`、`agent/composite_request_context.py`、`agent/composite_view.py`、`tests/test_m310_open_request_capability_closure.py`。
-- 验证：开发期间仅运行新增或直接相关契约；阶段收口在 Docker 集中执行，并包含一次显式真实模型验收。
-- 阻塞：无。
-
-## 验证与安全约定
-
-- Python、GIS、compileall、架构检查统一在 Docker 中运行：
-  `docker compose -f docker-compose.prod.yml --env-file .env.production run --rm spatial-agent ...`
-- 默认测试保持离线精简；真实模型、真实 GIS、Docker HTTP 和浏览器只做显式验收。
-- 不读取、输出或提交 API key、`.env.production`、模型原文、真实原始数据或宿主机私有路径。
-
-## 恢复后的最小动作
-
-1. 只读取本文件顶部快照。
-2. 只读取 `tasks/task-progress.md` 的当前进行中和最近完成有界区块。
-3. 按当前任务记录读取对应阶段 Spec/Plan 及明确列出的源码/测试文件。
-4. 完成或暂停子任务后先更新 `tasks/task-progress.md`，再同步本快照；兼容状态文件按需更新。
+1. 先读取本文件、`document-index.json`、`tasks/current-state.md` 和当前阶段 `handoff.md`。
+2. 只按交接文件的“必要文件”读取源码、Spec 或 Plan；不读取完整历史。
+3. 需要查历史时使用 `resume_context.ps1 -Topic ...`，需要归档时显式增加 `-IncludeHistory`。
+4. 每个子任务完成后更新 `tasks/current-state.md`、`tasks/task-progress.md` 和本快照。
