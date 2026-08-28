@@ -14,13 +14,19 @@
 - Goal 级最小读取规则：恢复上下文时只打开当前任务明确需要的文件；如果仅需判断状态，仅读取快照和任务账本尾部；不得因为“了解项目”而批量读取历史文档、全量源码、全量测试或模型输出。
 - 读取范围必须随当前任务同步更新：开始任务前列出必要文件，发现不需要的文件立即停止读取；新增文件只有在能证明与当前任务直接相关时才加入。
 
-## 最新状态（M318 已完成）
+## 最新状态（M319 已完成）
+
+- M319 已将 `ExecutionPolicyResolver` 接入 Runtime 规划、preview、计划修复、执行重规划和失败 evidence；普通无 workflow 的 direct tool/通用 DAG 可以通过，Domain validator、ToolRegistry、权限和数据 readiness 门禁仍保留。
+- `spatial-agent.execution-policy.v1` 统一投影 mode、工具/结果 allowlist、动作/轮次预算、确认、网络和工具提案开关，同时兼容旧 `tools`/治理摘要及 execution-binding、SQLite、artifact/recovery 消费形状。
+- Docker 阶段相关回归 **23/23**、compileall、architecture strict 和跨入口 preview identity 通过；未调用真实模型。M320 负责实际 ReAct 逐轮循环。
+
+## M318 历史状态（已完成）
 
 - M318 已建立 `spatial-agent.execution-policy.v1`、`spatial-agent.react-decision.v1` 和
   `spatial-agent.react-evidence.v1`，并新增安全归一化/投影、默认 full ReAct、默认网络搜索、
   默认工具提案和有界轮次配置。M318 Docker 契约 **8/8**、compileall、architecture strict
   通过；未调用真实模型。
-- M319 当前将把 Execution Policy 接入规划、绑定、异步和恢复；不重复读取历史源码或重复调用真实模型。
+- M319 已将 Execution Policy 接入规划、绑定、preview、修复/重规划和失败 evidence；不重复读取历史源码或重复调用真实模型。
 
 ## M317 历史状态（已完成）
 

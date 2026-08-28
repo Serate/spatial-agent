@@ -18,8 +18,8 @@
 ## 当前阶段
 
 - 阶段：M318-M325 受控开放 Agent Runtime
-- 状态：M318 已完成；Execution Policy、ReAct Decision/Evidence、安全投影、默认配置和总 Spec/Plan 已落库并通过 Docker 契约门禁。
-- 当前任务：M319-A 通用 Execution Policy，正在把执行策略接入现有 Runtime 规划/绑定门禁；不重复调用真实模型。
+- 状态：M319 已完成；Execution Policy 已接入 Runtime 规划、preview、修复/重规划和失败 evidence，M318 的 ReAct Decision/Evidence、安全投影与默认配置保持不变。
+- 当前任务：M319 已收口；下一步是按全局 M320 计划建立 ReAct 循环的独立 capability map、Spec 和 Plan，尚未开始 M320 实现。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；Python、GIS、测试和阶段验收使用 Docker。
 - 阶段规划：
   - [`docs/m318-open-agent-capability-map.md`](m318-open-agent-capability-map.md)
@@ -33,13 +33,11 @@
 - `docs/m318-open-agent-spec.md`
 - `docs/m318-open-agent-plan.md`
 - `tasks/plan.md`
+- `agent/react/contracts.py`
 - `agent/runtime_core/execution_policy.py`
-- `agent/runtime_core/planning.py`
-- `agent/runtime_core/execution_binding.py`
-- `agent/runtime.py`
-- `agent/plan_policy.py`
-- `agent/capability_catalog.py`
-- `tests/test_m319_execution_policy.py`
+- `agent/runtime_core/run_lifecycle.py`
+- `agent/runtime_core/decision_resume.py`
+- `tests/test_m320_react_runtime.py`（开始 M320 规划后创建）
 - `tasks/task-progress.md`
 - `docs/agent-development-issues.md`
 
@@ -53,7 +51,16 @@
 - 工具提案：默认开启沙箱 Python 提案；Docker 沙箱验证通过后仍需人工确认，不能自动注册或执行。
 - 验证：M318 先运行契约、compileall 和 architecture strict；真实模型只在 M320/M325 显式验收，不保存密钥、Prompt 或模型原文。
 - 验证结果：Docker M318 契约 **8/8**、compileall、architecture strict 通过。
-- 阻塞：无。M318 变更已准备提交；下一步为 M319 Execution Policy 接入。
+- 阻塞：无。M318 已交付；M319 已完成，下一步为 M320 ReAct 循环的独立 Spec/Plan。
+
+## M319 阶段交接
+
+- 目标：让 direct tool、generated DAG、Domain workflow 和预留 ReAct 使用同一版本化 `spatial-agent.execution-policy.v1`，解除普通能力对 workflow 的强制依赖，同时保留 Domain 高风险门禁。
+- 结果：`ExecutionPolicyResolver` 已接入 `RuntimePlanningSurface.validate_plan_for_execution()`；同步 lifecycle、preview、计划修复、执行重规划和失败 evidence 使用同一策略投影。策略不调用工具、不注册工具、不绕过权限、数据 readiness、Domain validator 或 ToolRegistry。
+- 兼容：`execution_policy` 保留旧 `tools`、provider、权限与依赖摘要；execution-binding、SQLite、artifact 和 recovery 不改 schema，只继续消费原有 `allowed_tools`/`result_types`/`max_steps` 投影。
+- 验证：Docker 阶段相关回归 **23/23**、compileall、architecture strict 和跨入口 preview identity 通过；真实模型留到 M320/M325 显式验收。
+- 修改：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning_surface.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_core/preview.py`、`agent/runtime.py`、`agent/runtime_core/__init__.py`、M319 文档/测试及兼容性测试断言。
+- 阻塞：无。恢复时先读取本快照、`tasks/task-progress.md` 尾部和 M318 总 Spec/Plan；开始 M320 后再建立并读取 M320 专属交接文件，不批量读取历史。
 
 ## M313 阶段验收摘要
 

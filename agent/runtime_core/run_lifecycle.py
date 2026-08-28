@@ -290,7 +290,10 @@ class RuntimeRunLifecycle:
             # invoked again for this component.
             context.candidate_plan = context.validated_plan
         else:
-            runtime._require_workflow_selection(context.context_packet, context.workflow)
+            # Workflow is an optional execution strategy. Domain Packs still
+            # enforce high-risk rules after the planner returns, but an open
+            # request is allowed to produce a direct tool or generic DAG
+            # without being rejected merely because no workflow was selected.
             context.candidate_plan = runtime._plan(
                 context.resolved_request,
                 context.workflow,
@@ -351,7 +354,11 @@ class RuntimeRunLifecycle:
             reason_code="accepted",
             repair_lineage=result.replan_events,
         )
-        result.plan_evidence["execution_policy"] = runtime._execution_policy_evidence(plan)
+        result.plan_evidence["execution_policy"] = runtime._execution_policy_evidence(
+            plan,
+            context.workflow,
+            requires_confirmation=context.require_confirmation,
+        )
         result.plan_evidence["evidence_binding"] = build_evidence_binding(
             context.context_packet.payload
         )

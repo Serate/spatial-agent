@@ -18,15 +18,14 @@
 
 ## 当前进行中
 
-### M319-A：通用 Execution Policy 接入 — 进行中
+### M319-A：通用 Execution Policy 接入 — 已完成
 
-- 目标：将 direct tool、generated DAG、Domain workflow、ReAct 统一为可校验的 Execution Policy，解除 workflow 对普通能力的强制绑定，同时保留高风险 Domain 门禁。
-- 当前文件：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning.py`、
-  `agent/runtime_core/execution_binding.py`、`agent/runtime.py`、`agent/plan_policy.py`、
-  `agent/capability_catalog.py`、`tests/test_m319_execution_policy.py`。
-- 前置结果：M318 已建立契约、默认 full ReAct/搜索/提案配置和恢复文档；M319 需要把策略真正接入规划、绑定、异步和恢复，不改变旧 RunEvent 契约。
-- 验证：开发期间只做策略边界检查；阶段收口集中运行 Docker 策略矩阵、跨入口契约、compileall 和 architecture strict；不重复调用真实模型。
-- 阻塞：无。不得保存或输出 API key、Prompt、模型原文、隐藏思维链、完整异常堆栈或私有路径。
+- 结果：新增 `ExecutionPolicyResolver`，统一 direct tool、generated DAG、Domain workflow 和预留 ReAct 的模式、工具/结果 allowlist、动作/轮次预算、确认、网络和工具提案开关；普通无 workflow 计划不再被 Runtime 无条件阻断。
+- 实现：策略已接入 RuntimePlanningSurface、同步生命周期、preview、计划修复/执行重规划和失败 evidence；保留 Domain validator、ToolRegistry、权限、数据 readiness 与旧 `tools` 治理摘要。
+- 文件：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning_surface.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_core/preview.py`、`agent/runtime.py`、`agent/runtime_core/__init__.py`、M319 文档与精简测试。
+- 兼容修正：跨入口契约测试显式指定相同的 rule/memory 选择，避免与 HTTP 产品默认的真实模型/local 选择冲突；Text Domain 策略测试与已落库的自动匹配语义对齐；preview 源码断言改为当前共享 HTTPApplication seam。
+- 验证：Docker 阶段相关回归 **23/23**、compileall、architecture strict 通过；未调用真实模型，未保存密钥、Prompt、模型原文或隐藏思维链。
+- 阻塞：无。下一步按 M318-M325 全局计划建立 M320 ReAct 独立 Spec/Plan；M319 不提前实现 ReAct 循环。
 
 ## 最近完成
 

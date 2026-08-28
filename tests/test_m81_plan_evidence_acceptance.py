@@ -64,7 +64,10 @@ class M81PlanEvidenceAcceptanceTests(unittest.TestCase):
 
         production_source = (ROOT / "production_api.py").read_text(encoding="utf-8")
         self.assertIn('@app.post("/runs/preview")', production_source)
-        self.assertIn("service.preview(**preview_kwargs(payload))", production_source)
+        self.assertIn(
+            '_http_application().execute("preview", payload)',
+            production_source,
+        )
 
     def test_spatial_analysis_model_fixture_matches_exact_blueprint(self):
         report = evaluate_model_fixture_file(ROOT / "tests" / "fixtures" / "m81_spatial_analysis_model.json")

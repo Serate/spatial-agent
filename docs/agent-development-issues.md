@@ -1826,3 +1826,27 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 - Docker M16 + M313 答案流回归 **21/21** 通过，1 项真实模型测试按开关跳过；compileall
   和前端语法检查通过。
 - 未重复调用真实模型；未保存 key、Prompt、模型原文或完整异常。
+
+## 2026-08-28 M319 执行策略接入中的跨入口测试与 Docker 镜像问题
+
+### 现象
+
+- M319 相邻回归中，直接调用 `AgentService` 的测试很快完成，但 HTTP 预览/运行测试在 5 秒内超时；HTTP 入口默认使用产品配置的真实模型 + 本地适配器，而直接 Service 默认使用规则规划器 + 内存适配器。
+- 修改宿主机测试后立即使用 `docker compose run`，容器仍执行旧镜像中的测试断言，容易把陈旧测试误判为代码回归。
+- 部分历史测试仍断言已被共享 `HTTPApplication` 和 Domain 自动匹配替换的旧实现/旧语义。
+
+### 根因
+
+- 跨入口“结果一致”测试没有显式固定 planner/backend，实际比较了两套合法但不同的产品选择；HTTP 客户端的短超时掩盖了这是配置差异而非接口失败。
+- `docker compose run` 默认复用已有 image；源码或测试变化不会自动进入镜像。
+- 架构重构后，旧测试的源码字符串断言和早期 Domain policy 预期没有同步更新。
+
+### 处理与预防
+
+- 跨入口契约需要比较同一请求、同一 session 语义和显式相同的 planner/backend；若专门验证产品默认值，则单独做默认值测试，不混入 parity 测试。
+- Python、GIS、测试和编译验收前先重建目标镜像；出现“修改不生效”时先核对镜像时间/构建输出，再判断代码。
+- 历史测试只更新到当前公共 seam 和已落库 Domain 语义，不为通过测试削弱 Runtime 门禁；仍保留最小的跨入口、preview、repair/replan 和 policy 回归。
+
+### 当前验证
+
+- Docker M319 策略矩阵 **6/6**、M111/M141/M154/M161/M81 相关回归合计 **23/23**，compileall、architecture strict 和跨入口 preview identity 均通过。

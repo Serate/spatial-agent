@@ -30,7 +30,12 @@ def _post_json(port, payload, path):
 class M111OpenCapabilityContractTests(unittest.TestCase):
     def test_structured_clarification_is_catalog_labeled_across_service_and_http(self):
         request = "查询武汉城市绿地空间分布"
-        direct = AgentService().run(request, session_id="m111-direct")
+        direct = AgentService().run(
+            request,
+            session_id="m111-direct",
+            planner="rule",
+            backend="memory",
+        )
 
         class TestHandler(AgentApiHandler):
             service = AgentService()
@@ -41,7 +46,12 @@ class M111OpenCapabilityContractTests(unittest.TestCase):
         try:
             http = _post_json(
                 server.server_address[1],
-                {"request": request, "session_id": "m111-http"},
+                {
+                    "request": request,
+                    "session_id": "m111-http",
+                    "planner": "rule",
+                    "backend": "memory",
+                },
                 "/runs",
             )
         finally:
@@ -65,7 +75,12 @@ class M111OpenCapabilityContractTests(unittest.TestCase):
 
     def test_open_capability_preview_is_consistent_across_service_and_http(self):
         request = "请概括江夏区的道路和水体分布"
-        direct = AgentService().preview(request, session_id="m111-preview-direct")
+        direct = AgentService().preview(
+            request,
+            session_id="m111-preview-direct",
+            planner="rule",
+            backend="memory",
+        )
 
         class TestHandler(AgentApiHandler):
             service = AgentService()
@@ -76,7 +91,12 @@ class M111OpenCapabilityContractTests(unittest.TestCase):
         try:
             http = _post_json(
                 server.server_address[1],
-                {"request": request, "session_id": "m111-preview-http"},
+                {
+                    "request": request,
+                    "session_id": "m111-preview-http",
+                    "planner": "rule",
+                    "backend": "memory",
+                },
                 "/runs/preview",
             )
         finally:

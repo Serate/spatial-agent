@@ -22,6 +22,7 @@ from ..domain_contract import (
     discovery_context,
     evidence_action_guidance as resolve_evidence_action_guidance,
     extract_request_facts,
+    plan_policy as resolve_plan_policy,
     request_understanding_guidance,
     select_workflow as resolve_workflow_selection,
     selected_capability_ids,
@@ -46,6 +47,7 @@ from ..planner_context import (
     PLANNER_CONTEXT_PROJECTION_SCHEMA_VERSION,
     project_planner_sections,
 )
+from .execution_policy import ExecutionPolicyResolver
 from .planning import invoke_planner, require_workflow_selection, validate_plan
 from .projection import compact_workflow_templates, replan_context
 
@@ -81,6 +83,7 @@ class RuntimePlanningSurface:
         domain_id: Callable[[], str],
         capability_context_evidence: Callable[[], Mapping[str, Any]],
         control_check: Callable[[str, Optional[float]], None],
+        execution_policy_resolver: Optional[ExecutionPolicyResolver] = None,
     ) -> None:
         self._planner = planner
         self._registry = registry
@@ -95,6 +98,11 @@ class RuntimePlanningSurface:
         self._domain_id = domain_id
         self._capability_context_evidence = capability_context_evidence
         self._control_check = control_check
+        self._execution_policy_resolver = execution_policy_resolver or ExecutionPolicyResolver(
+            known_tools=self._registry.names,
+            enforce_known_result_profiles=False,
+            max_actions=max(1, min(128, int(max_steps))),
+        )
 
     def build_context_packet(
         self,
@@ -242,7 +250,7 @@ class RuntimePlanningSurface:
         self,
         plan: TaskPlan,
         workflow: Optional[Mapping[str, Any]],
-    ) -> None:
+    ) -> Dict[str, Any]:
         if workflow is not None:
             validator = getattr(self._domain_pack, "validate_workflow_plan", None)
             if callable(validator):
@@ -252,6 +260,31 @@ class RuntimePlanningSurface:
             validator(plan)
         if plan.output.get("type") != "direct_answer":
             validate_plan(plan, self._registry.names, self._max_steps)
+        policy = self.resolve_execution_policy(plan, workflow)
+        return self._execution_policy_resolver.validate_plan(plan, policy)
+
+    def resolve_execution_policy(
+        self,
+        plan: TaskPlan,
+        workflow: Optional[Mapping[str, Any]],
+        *,
+        requires_confirmation: bool = False,
+    ) -> Dict[str, Any]:
+        """Resolve one policy through the shared Domain-neutral resolver."""
+
+        domain_policy = resolve_plan_policy(
+            self._domain_pack,
+            plan,
+            workflow=workflow,
+        )
+        requested_mode = getattr(self._planner, "execution_policy_mode", None)
+        return self._execution_policy_resolver.resolve(
+            plan,
+            workflow=workflow,
+            domain_policy=domain_policy,
+            requested_mode=requested_mode,
+            requires_confirmation=requires_confirmation,
+        )
 
     def validate_plan(self, plan: TaskPlan) -> None:
         """Keep the historical generic validation seam available."""

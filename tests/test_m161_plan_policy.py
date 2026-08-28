@@ -74,10 +74,10 @@ class M161PlanPolicyTests(unittest.TestCase):
             domain_policy=policy,
             domain_id="text",
         )
-        self.assertFalse(evidence["available"])
+        self.assertTrue(evidence["available"])
         self.assertTrue(evidence["accepted"])
-        self.assertEqual(evidence["source"], "none")
-        self.assertEqual(evidence["allowed_tools"], [])
+        self.assertEqual(evidence["source"], "domain_auto_match")
+        self.assertEqual(evidence["allowed_tools"], ["summarize_text"])
         self.assertNotIn("get_raster_metadata", evidence["allowed_tools"])
 
     def test_repair_lineage_is_bounded_and_normalized(self):

@@ -12,10 +12,17 @@
   - `docs/m318-open-agent-spec.md`
   - `docs/m318-open-agent-plan.md`
 - 执行方式：单 Agent 串行、最大并发度 1；默认测试离线精简并集中收口；真实模型、GIS、Docker、网络和浏览器只做显式验收
-- 当前任务：M318-A 契约与基线已完成代码和 8/8 Docker 契约验证；下一步进入 M319 通用 Execution Policy。
+- 当前任务：M319-A 通用 Execution Policy 已完成代码、跨入口兼容回归和 Docker 门禁；下一步按 M320 建立 ReAct 循环的独立 Spec/Plan。
 - 默认策略：真实模型 full ReAct、网络搜索开启、工具提案开启；网络受公共网页白名单限制，工具提案受 Docker 沙箱和人工审批限制；CI 显式关闭外部网络和提案执行。
 - 交接入口：`docs/agent-work-state.md`；恢复只读快照、任务进度当前/最近区块和明确文件，历史状态按需读取。
-- 下一步：实现 workflow 可选的通用执行策略；真实模型暂不重复调用。
+- 下一步：建立并实现 M320 受控 ReAct 循环；真实模型只在 M320 阶段收口显式调用，失败后查询已有 Run，不重复提交。
+
+### M319-A：通用 Execution Policy 接入（已完成）
+
+- 结果：`ExecutionPolicyResolver` 已统一 direct tool、generated DAG、Domain workflow 和预留 ReAct 的模式、allowlist、预算、确认及默认能力开关；普通无 workflow 计划不再被无条件阻断。
+- 接线：Runtime planning、同步 lifecycle、preview、计划修复/执行重规划和失败 evidence 共用策略投影；Domain validator、ToolRegistry、权限、数据 readiness 与旧 execution-binding 形状保持不变。
+- 验证：Docker 阶段相关回归 **23/23**、compileall、architecture strict 和跨入口 preview identity 通过；不重复调用真实模型，不保存敏感信息。
+- 交接：详细记录见 `docs/agent-work-state.md`、`tasks/task-progress.md` 和 `docs/m319-execution-policy-plan.md`；无阻塞。
 
 ### M312-A：操作到能力/结果类型绑定（已完成）
 

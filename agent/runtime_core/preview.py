@@ -142,7 +142,6 @@ class RuntimePreviewSurface:
                         "next_actions": ["provide_facts"],
                     },
                 )
-            runtime._require_workflow_selection(context_packet, workflow)
             plan = runtime._plan(resolved_request, workflow, context_packet)
             candidate_plan = plan
             plan, repair_event = runtime._validate_or_repair_plan(
@@ -167,7 +166,10 @@ class RuntimePreviewSurface:
                 reason_code="accepted",
                 repair_lineage=[repair_event] if repair_event is not None else [],
             )
-            plan_evidence["execution_policy"] = runtime._execution_policy_evidence(plan)
+            plan_evidence["execution_policy"] = runtime._execution_policy_evidence(
+                plan,
+                workflow,
+            )
             plan_evidence["evidence_binding"] = build_evidence_binding(
                 context_packet.payload
             )

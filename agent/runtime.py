@@ -5,6 +5,7 @@ from time import perf_counter
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Set
 
 from .errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
+from .agent_settings import open_agent_defaults
 from .capability_catalog import (
     CAPABILITY_CONTEXT_SCHEMA_VERSION,
     capability_context_summary,
@@ -76,6 +77,7 @@ from .runtime_core.projection import (
 )
 from .runtime_core import planning as _runtime_planning
 from .runtime_core import execution as _runtime_execution
+from .runtime_core.execution_policy import ExecutionPolicyResolver, build_execution_policy
 from .runtime_core.capabilities import RuntimeCapabilitySurface
 from .runtime_core.control import RunControl
 from .runtime_core.decision_resume import RuntimeDecisionResume
@@ -130,6 +132,26 @@ class AgentRuntime:
         self._planner_name = str(planner_name or "unknown")[:32]
         self._domain_pack = domain_pack or default_domain_pack()
         self._result_registry = resolve_result_registry(self._domain_pack)
+        execution_defaults = open_agent_defaults()
+        self._execution_policy_resolver = ExecutionPolicyResolver(
+            known_tools=self._registry.names,
+            max_actions=max(
+                1,
+                min(
+                    128,
+                    int(max_steps),
+                    int(execution_defaults["react_max_actions"]),
+                ),
+            ),
+            max_turns=int(execution_defaults["react_max_turns"]),
+            network_enabled=bool(execution_defaults["web_search_enabled"]),
+            tool_proposals_enabled=bool(execution_defaults["tool_proposals_enabled"]),
+            # Older custom Domain Packs use result labels that are not in the
+            # default GIS registry. Their own plan_policy/result contract is
+            # still enforced; the global registry check remains opt-in until
+            # those packs publish a complete result registry.
+            enforce_known_result_profiles=False,
+        )
         self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
         self._answer_generator = answer_generator
         self._context_builder = context_builder or ContextBuilder()
@@ -182,6 +204,7 @@ class AgentRuntime:
             domain_id=lambda: self.domain_id,
             capability_context_evidence=self._capability_surface.context_evidence,
             control_check=self._check_control,
+            execution_policy_resolver=self._execution_policy_resolver,
         )
         self._run_lifecycle = RuntimeRunLifecycle(self)
         self._decision_resume = RuntimeDecisionResume(self)
@@ -391,8 +414,19 @@ class AgentRuntime:
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict:
         return self._registry.export_result(result_ref, max_features=max_features)
 
-    def _execution_policy_evidence(self, plan: TaskPlan) -> Dict[str, Any]:
-        """Project the Registry governance used by this plan into evidence."""
+    def _execution_policy_evidence(
+        self,
+        plan: TaskPlan,
+        workflow: Optional[Mapping[str, Any]] = None,
+        *,
+        requires_confirmation: bool = False,
+    ) -> Dict[str, Any]:
+        """Project the resolved policy plus legacy Registry governance evidence."""
+        policy = self._planning_surface.resolve_execution_policy(
+            plan,
+            workflow,
+            requires_confirmation=requires_confirmation,
+        )
         tools = []
         seen = set()
         for step in plan.steps:
@@ -400,15 +434,32 @@ class AgentRuntime:
                 continue
             seen.add(step.tool)
             tools.append(self._registry.governance_for(step.tool))
-        return {
-            "schema_version": "spatial-agent.execution-policy.v1",
-            "provider_id": self._registry.provider_info().get("id", "unknown"),
-            "dependency_evidence_required": self._require_dependency_evidence,
-            "allowed_permission_count": len(self._allowed_permissions),
-            "wildcard_permission": "*" in self._allowed_permissions,
-            "approved_tool_count": len(self._approved_tools),
-            "tools": tools[:32],
-        }
+        policy = dict(policy)
+        # Keep the M94/M110 evidence fields so existing result, artifact and
+        # acceptance consumers remain readable while the core policy now
+        # carries the actual execution mode and bounded allowlists.
+        policy.update(
+            {
+                "provider_id": self._registry.provider_info().get("id", "unknown"),
+                "dependency_evidence_required": self._require_dependency_evidence,
+                "allowed_permission_count": len(self._allowed_permissions),
+                "wildcard_permission": "*" in self._allowed_permissions,
+                "approved_tool_count": len(self._approved_tools),
+                "tools": tools[:32],
+            }
+        )
+        return policy
+
+    @staticmethod
+    def _unavailable_execution_policy(reason_code: str) -> Dict[str, Any]:
+        """Return a safe policy projection when no executable plan exists."""
+
+        return build_execution_policy(
+            mode="react",
+            state="unavailable",
+            source="runtime",
+            reason_code=str(reason_code or "execution_policy_unavailable")[:96],
+        )
 
     def _plan_policy_evidence(
         self,
@@ -469,6 +520,7 @@ class AgentRuntime:
                 reason_code=reason_code,
                 repair_lineage=repair_lineage,
             ),
+            "execution_policy": self._unavailable_execution_policy(reason_code),
             "workflow_selection": normalize_workflow_selection_evidence(selection),
             "planner_selection": build_planner_selection_evidence(
                 plan,
@@ -702,6 +754,10 @@ class AgentRuntime:
                 state="accepted",
                 reason_code="execution_replan_accepted",
                 repair_lineage=result.replan_events,
+            )
+            result.plan_evidence["execution_policy"] = self._execution_policy_evidence(
+                outcome.plan,
+                result.workflow,
             )
             result.plan_evidence["plan_identity"] = build_plan_identity(
                 outcome.plan,
