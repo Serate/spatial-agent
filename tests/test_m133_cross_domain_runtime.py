@@ -113,6 +113,7 @@ class M133CrossDomainRuntimeTests(unittest.TestCase):
                 body=json.dumps(
                     {
                         "request": "请摘要这段文本",
+                        "planner": "rule",
                         "backend": "memory",
                         "session_id": "m133-text-http",
                     },

@@ -19,6 +19,7 @@ REACT_ACTIONS = frozenset(
 )
 REACT_VALIDATION_STATES = frozenset({"proposed", "accepted", "blocked", "completed"})
 REACT_SOURCES = frozenset({"model", "rule", "replay", "runtime"})
+REACT_RUN_STATES = frozenset({"finished", "clarification", "rejected", "blocked"})
 _MAX_SUMMARY = 240
 _MAX_MESSAGE = 800
 _MAX_QUERY = 512
@@ -44,6 +45,11 @@ REACT_DECISION_SCHEMA: dict[str, Any] = {
         "summary": {"type": "string", "maxLength": _MAX_SUMMARY},
         "tool_name": {"type": "string", "maxLength": 96},
         "arguments": {"type": "object"},
+        "depends_on": {
+            "type": "array",
+            "maxItems": 16,
+            "items": {"type": "string", "maxLength": 96},
+        },
         "query": {"type": "string", "maxLength": _MAX_QUERY},
         "domains": {
             "type": "array",
@@ -105,7 +111,9 @@ def normalize_react_decision(
         if key in value:
             result[key] = _required_text(value, key, limit)
     if "domains" in value:
-        result["domains"] = _strings(value.get("domains"), 8)
+        result["domains"] = _strings(value.get("domains"), 8, "domains")
+    if "depends_on" in value:
+        result["depends_on"] = _strings(value.get("depends_on"), 16, "depends_on")
     if "max_results" in value:
         max_results = value.get("max_results")
         if isinstance(max_results, bool) or not isinstance(max_results, int):
@@ -131,7 +139,10 @@ def normalize_react_decision(
             raise ReactDecisionError("call_tool requires arguments")
         if allowed_tools is not None and tool_name not in {str(item) for item in allowed_tools}:
             raise ReactDecisionError("react decision selected an unregistered tool")
-        _reject_fields(result, {"summary", "tool_name", "arguments", "output_type"})
+        _reject_fields(
+            result,
+            {"summary", "tool_name", "arguments", "depends_on", "output_type"},
+        )
     elif action == "search":
         if not network_enabled:
             raise ReactDecisionError("network search is disabled by policy")
@@ -171,6 +182,8 @@ def project_react_decision(value: Any) -> dict[str, Any]:
     for key in ("summary", "tool_name", "query", "message", "output_type"):
         if key in decision:
             result[key] = decision[key]
+    if decision.get("depends_on"):
+        result["depends_on"] = list(decision["depends_on"])
     if isinstance(decision.get("arguments"), Mapping):
         result["argument_names"] = [
             str(key)[:96] for key in list(decision["arguments"])[:_MAX_ARGUMENT_KEYS]
@@ -257,6 +270,88 @@ def normalize_react_evidence(value: Any) -> dict[str, Any]:
     }
 
 
+def build_react_run_evidence(
+    turns: Any,
+    *,
+    state: str,
+    action_count: int = 0,
+    final_decision: Any = None,
+    reason_code: str | None = None,
+    final_summary: str | None = None,
+) -> dict[str, Any]:
+    """Build the bounded run-level ReAct evidence index.
+
+    Individual turn evidence is already safe, but a run-level index is useful
+    to Result, SQLite and artifact consumers because they should not need to
+    reconstruct the loop from transport events.  The index contains no raw
+    arguments, model response or source code.
+    """
+
+    normalized_state = state if state in REACT_RUN_STATES else "blocked"
+    values = turns if isinstance(turns, (list, tuple)) else []
+    normalized_turns = [
+        normalize_react_evidence(item)
+        for item in values[:32]
+        if isinstance(item, Mapping)
+    ]
+    bounded_actions = _bounded_int(action_count, 0, 128)
+    return {
+        "schema_version": REACT_EVIDENCE_SCHEMA_VERSION,
+        "state": normalized_state,
+        "turn_count": min(len(normalized_turns), 32),
+        "action_count": bounded_actions,
+        "turns": normalized_turns,
+        "final_decision": (
+            project_react_decision(final_decision)
+            if isinstance(final_decision, Mapping)
+            else None
+        ),
+        "reason_code": str(reason_code or "")[:96] or None,
+        "final_summary": str(final_summary or "")[:_MAX_SUMMARY] or None,
+    }
+
+
+def normalize_react_run_evidence(value: Any) -> dict[str, Any]:
+    """Normalize persisted run-level ReAct evidence and fail closed."""
+
+    if not isinstance(value, Mapping) or value.get("schema_version") != REACT_EVIDENCE_SCHEMA_VERSION:
+        return build_react_run_evidence(
+            [],
+            state="blocked",
+            reason_code="react_evidence_unknown_schema",
+        )
+    state = value.get("state")
+    if state not in REACT_RUN_STATES:
+        state = "blocked"
+    raw_turns = value.get("turns")
+    turns = [
+        normalize_react_evidence(item)
+        for item in (raw_turns if isinstance(raw_turns, list) else [])[:32]
+        if isinstance(item, Mapping)
+    ]
+    final_decision = value.get("final_decision")
+    return {
+        "schema_version": REACT_EVIDENCE_SCHEMA_VERSION,
+        "state": state,
+        "turn_count": min(
+            max(0, int(value.get("turn_count", len(turns))))
+            if isinstance(value.get("turn_count", len(turns)), int)
+            and not isinstance(value.get("turn_count", len(turns)), bool)
+            else len(turns),
+            32,
+        ),
+        "action_count": _bounded_int(value.get("action_count"), 0, 128),
+        "turns": turns,
+        "final_decision": (
+            project_react_decision(final_decision)
+            if isinstance(final_decision, Mapping)
+            else None
+        ),
+        "reason_code": str(value.get("reason_code") or "")[:96] or None,
+        "final_summary": str(value.get("final_summary") or "")[:_MAX_SUMMARY] or None,
+    }
+
+
 def _normalize_proposal(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ReactDecisionError("proposal must be an object")
@@ -290,13 +385,13 @@ def _required_text(value: Mapping[str, Any], key: str, limit: int) -> str:
     return item.strip()[:limit]
 
 
-def _strings(value: Any, limit: int) -> list[str]:
+def _strings(value: Any, limit: int, field_name: str) -> list[str]:
     if not isinstance(value, list):
-        raise ReactDecisionError("domains must be an array")
+        raise ReactDecisionError(field_name + " must be an array")
     result: list[str] = []
     for item in value[:limit]:
         if not isinstance(item, str) or not item.strip():
-            raise ReactDecisionError("domains must contain non-empty strings")
+            raise ReactDecisionError(field_name + " must contain non-empty strings")
         text = item.strip()[:96]
         if text not in result:
             result.append(text)
@@ -320,10 +415,13 @@ __all__ = [
     "REACT_DECISION_SCHEMA",
     "REACT_DECISION_SCHEMA_VERSION",
     "REACT_EVIDENCE_SCHEMA_VERSION",
+    "REACT_RUN_STATES",
     "ReactDecisionError",
     "build_react_evidence",
+    "build_react_run_evidence",
     "normalize_react_decision",
     "normalize_react_evidence",
+    "normalize_react_run_evidence",
     "project_react_decision",
     "react_decision_schema",
 ]

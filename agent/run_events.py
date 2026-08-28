@@ -38,6 +38,11 @@ RUN_EVENT_KINDS = frozenset(
         "run_failed",
         "run_waiting",
         "run_finished",
+        "react_turn_started",
+        "react_action_accepted",
+        "react_action_completed",
+        "react_action_blocked",
+        "react_finished",
     }
 )
 RUN_EVENT_STATUSES = frozenset(
@@ -81,6 +86,15 @@ RUN_EVENT_DATA_FIELDS = frozenset(
         "run_duration_ms",
         "elapsed_ms",
         "summary",
+        "turn_index",
+        "action",
+        "action_id",
+        "validation_state",
+        "result_ref",
+        "output_type",
+        "action_count",
+        "max_actions",
+        "max_turns",
     }
 )
 

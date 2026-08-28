@@ -84,6 +84,9 @@ class AgentRunResult:
     request_facts: Optional[Dict[str, Any]] = None
     plan: Optional[TaskPlan] = None
     planner_metrics: Optional[Dict[str, Any]] = None
+    # Versioned, bounded ReAct turn/evidence projection. Raw model decisions
+    # and tool arguments never cross this field.
+    react_evidence: Optional[Dict[str, Any]] = None
     # Safe evidence for the optional natural-language answer generation pass.
     # The model input and raw response are never persisted here.
     answer_generation_evidence: Optional[Dict[str, Any]] = None
@@ -152,6 +155,14 @@ class AgentRunResult:
             data.pop("request_facts", None)
         if data.get("answer_generation_evidence") is None:
             data.pop("answer_generation_evidence", None)
+        if data.get("react_evidence") is None:
+            data.pop("react_evidence", None)
+        else:
+            from agent.react.contracts import normalize_react_run_evidence
+
+            data["react_evidence"] = normalize_react_run_evidence(
+                data["react_evidence"]
+            )
         if data.get("result") is None:
             data.pop("result", None)
         if data.get("conversation_turn") is None:

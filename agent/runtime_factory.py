@@ -19,6 +19,7 @@ from .domain_contract import (
 )
 from .domain_registry import resolve_domain_pack
 from .answer_generation import LLMAnswerGenerator
+from .agent_settings import open_agent_defaults
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .openai_config import load_answer_generation_config, load_openai_config
 from .planner import RuleBasedPlanner
@@ -56,11 +57,17 @@ def build_runtime(
     resolved_answer_generator = answer_generator
     if planner_name == "openai":
         model_config = load_openai_config()
+        planner_client = OpenAIPlannerClient(**model_config)
+        agent_defaults = open_agent_defaults()
         planner = LLMPlanner(
-            OpenAIPlannerClient(**model_config),
+            planner_client,
             registry.names,
             planner_guidance=planner_guidance(selected_domain_pack),
             request_hint=planner_request_hint(selected_domain_pack),
+            react_enabled=(
+                bool(getattr(planner_client, "supports_react", False))
+                and agent_defaults["react_mode"] != "off"
+            ),
         )
         # Keep planner and answer metrics independent.  The second call is
         # intentionally a separate client instance so an answer timeout

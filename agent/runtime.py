@@ -133,6 +133,7 @@ class AgentRuntime:
         self._domain_pack = domain_pack or default_domain_pack()
         self._result_registry = resolve_result_registry(self._domain_pack)
         execution_defaults = open_agent_defaults()
+        self._agent_settings = dict(execution_defaults)
         self._execution_policy_resolver = ExecutionPolicyResolver(
             known_tools=self._registry.names,
             max_actions=max(

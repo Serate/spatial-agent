@@ -18,8 +18,9 @@
 ## 当前阶段
 
 - 阶段：M318-M325 受控开放 Agent Runtime
-- 状态：M319 已完成；Execution Policy 已接入 Runtime 规划、preview、修复/重规划和失败 evidence，M318 的 ReAct Decision/Evidence、安全投影与默认配置保持不变。
-- 当前任务：M319 已收口；下一步是按全局 M320 计划建立 ReAct 循环的独立 capability map、Spec 和 Plan，尚未开始 M320 实现。
+- 状态：M319、M320-B/C 已完成；M320-A 的公共契约已落地，当前正在把 ReActLoop 接入 Runtime。
+- 当前任务：实现 Runtime 单动作桥接、终态/evidence 和答案流收口；搜索/工具提案在 M320 仍只做结构化降级。
+- 交付状态：当前 M320 代码和文档仍在工作区，尚未提交或运行 Docker 验收；不要把骨架落地记录为阶段完成。
 - 协作方式：单 Agent 顺序开发，最大并发度为 1；Python、GIS、测试和阶段验收使用 Docker。
 - 阶段规划：
   - [`docs/m318-open-agent-capability-map.md`](m318-open-agent-capability-map.md)
@@ -29,17 +30,23 @@
 
 ## 当前任务明确文件
 
-- `docs/m318-open-agent-capability-map.md`
-- `docs/m318-open-agent-spec.md`
-- `docs/m318-open-agent-plan.md`
+- `docs/m320-react-spec.md`
+- `docs/m320-react-plan.md`
+- `docs/m320-react-capability-map.md`
 - `tasks/plan.md`
-- `agent/react/contracts.py`
-- `agent/runtime_core/execution_policy.py`
-- `agent/runtime_core/run_lifecycle.py`
-- `agent/runtime_core/decision_resume.py`
-- `tests/test_m320_react_runtime.py`（开始 M320 规划后创建）
 - `tasks/task-progress.md`
-- `docs/agent-development-issues.md`
+- `agent/react/contracts.py`
+- `agent/react/loop.py`
+- `agent/llm_planner.py`
+- `agent/runtime_core/run_lifecycle.py`
+- `agent/runtime_core/execution_policy.py`
+- `agent/runtime_core/decision_resume.py`
+- `agent/runtime_factory.py`
+- `agent/run_events.py`
+- `agent/models.py`
+- `agent/sqlite_store.py`
+- `agent/tools.py`
+- `tests/test_m320_react_runtime.py`（待创建）
 
 > 当前阶段按 Spec → Plan → 实现推进；若实现发现直接依赖，再把文件加入清单，
 > 避免恢复上下文时读取无关文件。
@@ -61,6 +68,19 @@
 - 验证：Docker 阶段相关回归 **23/23**、compileall、architecture strict 和跨入口 preview identity 通过；真实模型留到 M320/M325 显式验收。
 - 修改：`agent/runtime_core/execution_policy.py`、`agent/runtime_core/planning_surface.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_core/preview.py`、`agent/runtime.py`、`agent/runtime_core/__init__.py`、M319 文档/测试及兼容性测试断言。
 - 阻塞：无。恢复时先读取本快照、`tasks/task-progress.md` 尾部和 M318 总 Spec/Plan；开始 M320 后再建立并读取 M320 专属交接文件，不批量读取历史。
+
+## M320 当前交接：ReAct 循环接入 — 已完成，待版本提交
+
+- 目标：把 M318 的 `spatial-agent.react-decision.v1` 和 `react-evidence.v1` 接成真实模型逐轮决策，并复用既有 Runtime、ToolRegistry、Result、RunEvent 和答案流。
+- 已完成：M320 capability map、Spec、Plan；单动作、结果引用、轮次/动作预算、重复/空转保护和搜索/提案结构化降级边界；ReActLoop、契约字段、事件字段、结果/SQLite 投影及 ToolRegistry seam 已实现。
+- 已完成 M320-B：`LLMPlanner.decide()` 使用版本化 structured JSON schema、Planner/Runtime 工具交集和有界脱敏上下文/历史；旧 fake/replay client 保持兼容。
+- 已完成 M320-C：ReActLoop 已闭合单动作、多轮安全历史、重复动作、预算和终态状态，工具副作用保持注入式边界。
+- 已完成 D：首轮决策、单动作执行、后续结果引用、澄清/拒绝/失败/取消和 finish 后答案流已接入 Runtime；具体 bridge 已独立到 `agent/runtime_core/react_runtime.py`，`run_lifecycle.py` 不再保留重复 ReAct 实现。
+- 已完成适配：真实模型可获得有界工具输入契约摘要；兼容宽松 `json_object` Provider 的额外字段/可选空值执行有限 envelope 修复，动作参数仍完整经过 schema、权限、数据 readiness 和 Execution Policy 校验。
+- 明确文件：`docs/m320-react-spec.md`、`docs/m320-react-plan.md`、`agent/react/contracts.py`、`agent/react/loop.py`、`agent/llm_planner.py`、`agent/runtime_core/react_runtime.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime_factory.py`、`agent/run_events.py`、`agent/models.py`、`agent/sqlite_store.py`、`agent/tools.py`、`tests/test_m320_react_runtime.py`。
+- 验证：Docker M320 **14/14**、M131/M133/M135 相邻回归 **22/22**、compileall、architecture strict 和 `git diff --check` 通过；显式 DeepSeek + Docker/local GIS 已到达 Provider 并成功执行首个 GIS 工具，但最终 live 用例因后续真实 backend/动作链失败，未宣称全链路成功。
+- 阻塞：无代码阻塞；真实 GIS/live 当前仍有 Provider 输出稳定性和数据后端可用性风险，已安全失败并保留阶段证据。当前 M320 改动尚未提交；不读取无关历史文档、全量源码、全量测试、模型原文或敏感配置。
+- 下一步：复核最终 diff，提交并推送 M320 版本；然后从项目全局规划 M321 白名单网络搜索执行器。
 
 ## M313 阶段验收摘要
 

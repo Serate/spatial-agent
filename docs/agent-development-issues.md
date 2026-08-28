@@ -1850,3 +1850,34 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 ### 当前验证
 
 - Docker M319 策略矩阵 **6/6**、M111/M141/M154/M161/M81 相关回归合计 **23/23**，compileall、architecture strict 和跨入口 preview identity 均通过。
+
+## 2026-08-28 M320 ReAct 真实模型与宽松 JSON Provider 兼容问题
+
+### 现象
+
+- ReAct 真实模型可以返回 JSON，但在 `json_object` 兼容模式下偶尔附带 schema 未声明的
+  字段或可选字段为空，导致严格动作契约直接进入失败路径。
+- 工具目录只给模型工具名称时，模型可能选择已登记工具但遗漏必填参数；Runtime 会正确
+  阻断，但 Agent 无法形成稳定的真实执行链。
+- 增加工具契约摘要和有限响应修复后，真实 DeepSeek + Docker/local GIS 已到达 Provider，
+  并成功执行首个 `get_dataset_health_report`；后续 live 仍出现 backend/动作链失败，不能
+  将其记录为全链路成功。
+
+### 根因与处理
+
+- 部分 OpenAI 兼容中转/Provider 对 `json_schema` 支持不完整，只能使用 `json_object`，
+  因而本地必须继续做 schema 校验，不能只信任 wire 层声明。
+- `LLMPlanner.decide()` 现在向模型提供由 `ToolRegistry.definition_summary()` 生成的有界
+  工具输入/输出契约；模型返回后只允许一次有限 envelope 修复，剥离未声明字段和无效可选
+  空值，不修改工具参数、工具名或依赖；随后仍经过 ReAct、ToolRegistry、权限、数据
+  readiness 和 Execution Policy 门禁。
+- 真实模型的最终失败继续按 `backend_execution` 或 `react_decision_invalid` 安全投影，保留
+  可诊断的状态和 metrics，不写入模型原文、Prompt、密钥或完整后端异常。
+
+### 当前验证
+
+- Docker M320 ReAct 契约 **14/14**，M131/M133/M135 相邻回归 **22/22**，compileall、
+  architecture strict 和 `git diff --check` 通过。
+- 显式真实模型验收确认 Provider 可达并执行 GIS 首动作，但本阶段尚未证明真实模型 + GIS
+  对该开放请求稳定完成全链路；后续 M321/M325 继续分别处理工具能力和 live 验收，不通过
+  放宽 Runtime 安全边界来掩盖失败。

@@ -26,6 +26,7 @@ from ..evidence_revalidation import (
 )
 from ..errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from ..models import AgentRunResult, RunStatus, StepRun, TaskPlan
+from .react_runtime import RuntimeReactExecution
 
 
 _LIFECYCLE_STAGE_COUNT = 7
@@ -76,6 +77,7 @@ class RuntimeRunLifecycle:
 
     def __init__(self, runtime: Any) -> None:
         self._runtime = runtime
+        self._react_execution = RuntimeReactExecution(runtime)
 
     def run(
         self,
@@ -119,14 +121,18 @@ class RuntimeRunLifecycle:
 
         self._clarify(context)
         try:
-            self._plan(context)
-            self._validate_and_repair(context)
-            if self._await_confirmation(context):
-                return self._evidence_and_finalize(context)
-            if self._answer_directly(context):
-                return self._evidence_and_finalize(context)
-            self._execute(context)
-            self._answer(context)
+            if self._should_use_react(context):
+                self._react_execution.run(context)
+                self._answer(context)
+            else:
+                self._plan(context)
+                self._validate_and_repair(context)
+                if self._await_confirmation(context):
+                    return self._evidence_and_finalize(context)
+                if self._answer_directly(context):
+                    return self._evidence_and_finalize(context)
+                self._execute(context)
+                self._answer(context)
         except ClarificationNeeded as exc:
             self._handle_failure(context, exc)
         except RequestRejected as exc:
@@ -312,6 +318,20 @@ class RuntimeRunLifecycle:
                 "stage_count": _LIFECYCLE_STAGE_COUNT,
                 "summary": "{} 个步骤".format(len(context.candidate_plan.steps)),
             },
+        )
+
+    def _should_use_react(self, context: _LifecycleContext) -> bool:
+        runtime = self._runtime
+        settings = getattr(runtime, "_agent_settings", {})
+        mode = str(settings.get("react_mode") or "off")
+        return bool(
+            getattr(runtime._planner, "react_enabled", False)
+            and mode in {"full", "hybrid"}
+            and context.validated_plan is None
+            and context.workflow is None
+            and not context.require_confirmation
+            and context.expected_plan_fingerprint is None
+            and context.expected_evidence_fingerprint is None
         )
 
     def _validate_and_repair(self, context: _LifecycleContext) -> None:

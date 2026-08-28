@@ -7,9 +7,14 @@
 
 ## 当前任务包
 
-1. [ ] M318：契约、配置、基线和交接记录。
-2. [ ] M319：通用 Execution Policy，解除 workflow 强绑定。
-3. [ ] M320：真实模型默认 full ReAct。
+1. [x] M318：契约、配置、基线和交接记录。
+2. [x] M319：通用 Execution Policy，解除 workflow 强绑定。
+3. [x] M320：真实模型默认 full ReAct（已完成）。
+   - [x] M320-A：RunEvent、AgentRunResult、SQLite 和 ToolRegistry 的 ReAct 契约骨架。
+   - [x] M320-B：LLMPlanner `decide()` 与结构化决策适配。
+   - [x] M320-C：ReActLoop 单动作、预算、重复保护、安全历史和终态契约。
+   - [x] M320-D：Runtime 单动作桥接、事件/evidence、恢复和答案流。
+   - [x] M320-E/F：Docker 精简验收、文档交接、提交推送和全局重规划。
 4. [ ] M321：默认开启的白名单网络搜索。
 5. [ ] M322：默认开启的沙箱 Python 工具提案。
 6. [ ] M323：人工审批、持久化和 Registry 治理。
@@ -40,8 +45,9 @@ M313 只扩展 RunEvent 和实时读取，不重写 Runtime、Planner、ToolRegi
 
 ---
 
-当前任务：无。M313 已完成，版本 `737f2a3` 已提交并推送。React 阶段待新 Goal 启动后再从
-项目全局另立 capability map、Spec、Plan 和 Goal，不与实时事件改造耦合。
+当前任务：M320 已完成，待提交并推送阶段版本。M313 已完成，版本 `737f2a3` 已提交并推送。
+下一阶段从项目全局另立 M321 capability map、Spec、Plan，聚焦默认开启的白名单网络搜索，
+不与 ReAct Runtime 生命周期重复耦合。
 
 默认测试策略：开发期间只做必要静态/契约检查；阶段收口集中运行 M313 精简事件契约、
 HTTP/SSE、Node/browser smoke 和构建检查，不为每个小改动重复测试。

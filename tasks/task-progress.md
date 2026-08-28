@@ -18,6 +18,28 @@
 
 ## 当前进行中
 
+### M320：ReAct Runtime 接入与真实模型验收 — 已完成，待版本提交
+
+- 结果：`LLMPlanner.decide()` 使用版本化 ReAct JSON 契约，并向真实模型提供有界的已登记工具
+  输入/结果摘要；`ReactLoop` 支持单动作、多轮结果引用、重复/预算保护、澄清、拒绝和有限响应修复。
+  Runtime bridge 已从 `run_lifecycle.py` 独立到 `agent/runtime_core/react_runtime.py`，复用既有
+  ToolRegistry、Execution Policy、Domain preflight、StepRun、RunEvent、Result、答案流和 SQLite。
+- 安全：模型原文、Prompt、工具参数原文和密钥不进入 evidence/事件/恢复；Provider 宽松
+  `json_object` 的额外 envelope 字段只做有界剥离，动作参数仍须完整 schema/policy 校验。
+- 文件：`agent/llm_planner.py`、`agent/react/contracts.py`、`agent/react/loop.py`、
+  `agent/runtime_core/react_runtime.py`、`agent/runtime_core/run_lifecycle.py`、
+  `agent/models.py`、`agent/run_events.py`、`agent/sqlite_store.py`、`agent/tools.py`、
+  `agent/runtime.py`、`agent/runtime_factory.py`、`tests/test_m320_react_runtime.py` 及 M320 文档。
+- 验证：Docker M320 **14/14**；M131/M133/M135 相邻回归 **22/22**；compileall、
+  architecture strict、`git diff --check` 通过。曾修正一个省略 planner 的历史 HTTP 测试，使其
+  显式验证 rule/memory，不改变生产默认 openai/local。
+- 真实验收：显式 DeepSeek + Docker/local GIS 已到达 Provider，并至少成功执行首个
+  `get_dataset_health_report`；多次安全失败分别暴露了宽松 JSON envelope 和后续 backend failure，
+  已修正响应适配，但最终 live 用例仍未宣称 COMPLETED。未保存 key、Prompt、模型原文或私有数据。
+- 下一步：阶段收口前复核 diff，提交并推送 M320；随后按产品、架构、数据、模型、部署、体验、测试
+  七个维度规划 M321 白名单网络搜索执行器。恢复只读取本条、`docs/agent-work-state.md` M320 区块、
+  `docs/m320-react-plan.md` 和当前改动文件。
+
 ### M319-A：通用 Execution Policy 接入 — 已完成
 
 - 结果：新增 `ExecutionPolicyResolver`，统一 direct tool、generated DAG、Domain workflow 和预留 ReAct 的模式、工具/结果 allowlist、动作/轮次预算、确认、网络和工具提案开关；普通无 workflow 计划不再被 Runtime 无条件阻断。
@@ -950,3 +972,29 @@
 - 验证：Docker M16 + M313 答案流回归 **21/21** 通过，1 项真实模型测试按开关跳过；Docker `compileall`、前端语法检查通过；未重复调用真实模型。
 - 阻塞：无。
 - 交付：代码提交 `8f9bf93` 已完成；交接文档同步后推送。
+
+### M320-A/B/C/D/E/F：ReAct 循环接入 — 已完成（历史收口记录）
+
+- 目标：把 M318 的 ReAct Decision/Evidence 契约接成真实模型逐轮决策边界；保持
+  Rule/Replay 和旧 LLMPlanner `plan()` 兼容。
+- 已完成：建立 `docs/m320-react-capability-map.md`、`docs/m320-react-spec.md` 和
+  `docs/m320-react-plan.md`；冻结单动作、结果引用、预算、重复/空转保护及搜索/提案
+  结构化降级边界。
+- 已完成骨架：`agent/react/loop.py`、ReAct Decision/Evidence 字段、RunEvent 扩展、
+  `AgentRunResult`/SQLite 投影和 ToolRegistry 参数/结果类型读取 seam 已写入工作区。
+- M320-B 已完成：`LLMPlanner.decide()` 复用 structured JSON client，通过 Planner/Runtime
+  allowlist 交集约束工具，模型输入只包含有界脱敏上下文和安全历史；两参数 fake/replay
+  client 保持兼容。
+- M320-C 已完成：ReActLoop 的单动作、多轮安全历史、重复动作、动作预算、澄清和拒绝
+  契约已闭合；工具副作用仍只由 Runtime bridge 注入。
+- 已完成：Runtime bridge 已独立到 `agent/runtime_core/react_runtime.py`；终态 answer 流、
+  失败/取消/澄清收口、SQLite reopen 和安全 evidence 已闭合；`run_lifecycle.py` 不保留重复
+  ReAct 实现。
+- 明确文件：`agent/react/contracts.py`、`agent/react/loop.py`、`agent/llm_planner.py`、
+  `agent/run_events.py`、`agent/models.py`、`agent/sqlite_store.py`、
+  `agent/runtime_core/run_lifecycle.py`、`agent/runtime_factory.py`、
+  `tests/test_m320_react_runtime.py`。
+- 验证：Docker M320 **14/14**、M131/M133/M135 相邻回归 **22/22**、compileall、
+  architecture strict 和 `git diff --check` 通过；显式真实模型 + Docker/local GIS 到达
+  Provider 并执行首个 GIS 工具，但最终 live 因 backend/动作链失败，未宣称全链路成功。
+- 阻塞：无代码阻塞；下一步提交 M320 版本并从全局规划 M321 白名单网络搜索执行器。

@@ -1836,6 +1836,7 @@ def _result_from_dict(
         request_facts=payload.get("request_facts"),
         plan=plan,
         planner_metrics=payload.get("planner_metrics"),
+        react_evidence=payload.get("react_evidence"),
         answer_generation_evidence=payload.get("answer_generation_evidence"),
         steps=steps,
         result=payload.get("result"),

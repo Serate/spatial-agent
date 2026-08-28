@@ -285,8 +285,7 @@ class ToolRegistry:
         definition = self._definitions.get(name)
         if definition is None:
             raise ToolError("Unknown tool: " + name)
-        schema = definition.get("input_schema", {})
-        self._validate(arguments, schema, "$")
+        self.validate_arguments(name, arguments)
         effective_timeout = timeout_seconds
         if effective_timeout is not None:
             try:
@@ -337,6 +336,29 @@ class ToolRegistry:
                 retryable=False,
             )
         return result
+
+    def validate_arguments(self, name: str, arguments: Dict[str, Any]) -> None:
+        """Validate one call against the Registry-owned input schema."""
+        definition = self._definitions.get(name)
+        if definition is None:
+            raise ToolError("Unknown tool: " + str(name))
+        schema = definition.get("input_schema", {})
+        self._validate(arguments, schema, "$")
+
+    def result_type_for_tool(self, name: str) -> str | None:
+        """Return an explicitly declared output result type, when present."""
+        definition = self._definitions.get(name)
+        if not isinstance(definition, Mapping):
+            raise ToolError("Unknown tool: " + str(name))
+        schema = definition.get("output_schema")
+        if not isinstance(schema, Mapping):
+            return None
+        properties = schema.get("properties")
+        result_type = properties.get("result_type") if isinstance(properties, Mapping) else None
+        if isinstance(result_type, Mapping) and result_type.get("const"):
+            return str(result_type["const"])[:96]
+        declared = schema.get("result_type")
+        return str(declared)[:96] if isinstance(declared, str) and declared.strip() else None
 
     def _invoke_unbounded(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         handler = self._dynamic_handlers.get(name)
