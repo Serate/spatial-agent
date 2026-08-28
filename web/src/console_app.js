@@ -609,7 +609,7 @@
        if(event.kind==='answer_delta'&&typeof event.data?.answer_delta==='string'){
          if(liveRunState.answerStream) liveRunState.answerStream.push(event.data.answer_delta);
          else {
-           liveRunState.answerBuffer=(liveRunState.answerBuffer+event.data.answer_delta).slice(0,1800);
+           liveRunState.answerBuffer=(liveRunState.answerBuffer+event.data.answer_delta).slice(0,6000);
            $('answer').textContent=liveRunState.answerBuffer;
            $('answer').className='answer';
          }

@@ -90,7 +90,7 @@ class M16OpenAIConfigTests(unittest.TestCase):
                 config = load_answer_generation_config(str(path))
 
         self.assertEqual(config["timeout_seconds"], 20.0)
-        self.assertEqual(config["max_output_tokens"], 768)
+        self.assertEqual(config["max_output_tokens"], 4096)
         self.assertEqual(config["max_retries"], 0)
 
     def test_answer_generation_budget_can_be_explicitly_overridden(self):

@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 
 DEFAULT_CONFIG_PATH = Path("config") / "openai.local.json"
+_DEFAULT_ANSWER_OUTPUT_TOKENS = 4096
 
 
 def load_openai_config(path: Optional[str] = None) -> Dict[str, Any]:
@@ -68,8 +69,9 @@ def load_answer_generation_config(path: Optional[str] = None) -> Dict[str, Any]:
 
     planner_timeout = config.get("timeout_seconds")
     default_timeout = min(float(planner_timeout), 20.0) if planner_timeout else 20.0
-    planner_tokens = config.get("max_output_tokens")
-    default_tokens = min(int(planner_tokens), 768) if planner_tokens else 768
+    # Keep the user-facing answer budget independent from the compact planner
+    # budget. A 2048-token planner cap must not shorten a normal answer.
+    default_tokens = _DEFAULT_ANSWER_OUTPUT_TOKENS
     answer_timeout = _float_setting(
         os.environ.get("OPENAI_ANSWER_TIMEOUT_SECONDS", source.get("answer_timeout_seconds"))
     )

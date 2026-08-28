@@ -19,6 +19,7 @@ from .errors import PlanningError
 
 ANSWER_GENERATION_SCHEMA_VERSION = "spatial-agent.answer-generation.v1"
 COMPOSITE_ANSWER_SCHEMA_VERSION = "spatial-agent.composite-answer.v1"
+_MAX_ANSWER_CHARS = 6000
 ANSWER_GENERATION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "required": ["answer"],
@@ -27,7 +28,7 @@ ANSWER_GENERATION_SCHEMA: dict[str, Any] = {
         "answer": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 1800,
+            "maxLength": _MAX_ANSWER_CHARS,
         }
     },
 }
@@ -354,7 +355,7 @@ class LLMAnswerGenerator:
                     "你是面向普通用户的分析结果解读助手。只根据可信事实回答，不得补造事实、坐标、"
                     "数量或规划结论。结论优先，把说明要点写在 answer 字符串中；内部状态、工具名、"
                     "result_ref、memory:// 和 JSON 字段都要翻译成自然中文。若数据不完整，明确说明影响。"
-                    "只返回一个 JSON 对象，且只能有 answer 字段；answer 必须是 1800 字符以内的非空字符串。"
+                    "只返回一个 JSON 对象，且只能有 answer 字段；answer 必须是 6000 字符以内的非空字符串。"
                 ),
             },
             {
@@ -371,7 +372,7 @@ class LLMAnswerGenerator:
         if not isinstance(answer, str) or not answer.strip():
             raise PlanningError("answer generator output must include a non-empty answer")
         answer = answer.strip()
-        if len(answer) > 1800:
+        if len(answer) > _MAX_ANSWER_CHARS:
             raise PlanningError("answer generator output exceeds the answer limit")
         if any(marker in answer for marker in ("memory://", "artifact://", "result_ref")):
             raise PlanningError("answer generator output contains an internal reference")
@@ -402,7 +403,7 @@ class LLMAnswerGenerator:
                 "content": (
                     "你是面向普通用户的分析结果解读助手。只根据可信事实，用自然中文输出简洁答案；"
                     "不要输出 JSON、工具名、内部引用、Prompt、隐藏思维过程或未经事实支持的结论。"
-                    "数据不完整时明确说明影响。答案不超过 1800 字。"
+                    "数据不完整时明确说明影响。答案不超过 6000 字。"
                 ),
             },
             {
@@ -413,8 +414,10 @@ class LLMAnswerGenerator:
         chunks: list[str] = []
         size = 0
         try:
-            for chunk in stream(messages, max_chars=1800):
-                text = _normalize_stream_text(chunk, max_length=min(1800 - size, 1800))
+            for chunk in stream(messages, max_chars=_MAX_ANSWER_CHARS):
+                text = _normalize_stream_text(
+                    chunk, max_length=min(_MAX_ANSWER_CHARS - size, _MAX_ANSWER_CHARS)
+                )
                 if not text:
                     continue
                 candidate = "".join(chunks) + text
@@ -424,7 +427,7 @@ class LLMAnswerGenerator:
                 size += len(text)
                 if callable(on_delta):
                     on_delta(text)
-                if size >= 1800:
+                if size >= _MAX_ANSWER_CHARS:
                     break
         except (AttributeError, NotImplementedError) as exc:
             return self._fallback_stream(result, on_delta, exc)
@@ -432,7 +435,7 @@ class LLMAnswerGenerator:
             if _is_stream_unsupported(exc):
                 return self._fallback_stream(result, on_delta, exc)
             raise
-        answer = _normalize_stream_text("".join(chunks), max_length=1800)
+        answer = _normalize_stream_text("".join(chunks), max_length=_MAX_ANSWER_CHARS)
         if not answer:
             raise PlanningError("answer stream returned an empty answer")
         if _contains_internal_reference(answer):
