@@ -12,12 +12,17 @@
 
 机器可读的完整索引是 [`document-index.json`](document-index.json)。
 
+源码功能索引是 [`code-index.json`](code-index.json)，人工职责覆盖是
+[`code-index-overrides.json`](code-index-overrides.json)。前者由 AST 生成文件、公共类/函数/方法、
+项目内 import 和行数；后者只维护职责、层级、阶段、依赖和测试映射。
+
 ## 四层结构
 
 | 层级 | 文件/目录 | 内容 | 默认读取 |
 | --- | --- | --- | --- |
 | 热状态 | `agent-work-state.md`、`tasks/current-state.md` | 当前阶段、当前任务、必要文件、阻塞和最近验证 | 是 |
 | 阶段包 | `stages/Mxxx/` | 当前阶段 capability map、Spec、Plan、handoff | 只读 handoff |
+| 源码索引 | `code-index.json`、`code-index-overrides.json` | 文件职责、公共符号、依赖和测试映射 | 否 |
 | 稳定知识 | `agent-project-direction.md`、`architecture-map.md`、`api.md`、数据文档 | 长期有效的架构、产品和部署知识 | 否 |
 | 历史归档 | `archive/`、旧版阶段文档、历史账本 | 已完成阶段的过程和问题 | 否 |
 
@@ -91,3 +96,12 @@ pwsh -NoProfile -File scripts/validate_document_index.ps1
 ```
 
 该检查只验证索引、热状态和当前阶段文件是否存在且边界正确，不读取历史正文。
+
+源码索引生成与校验：
+
+```powershell
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm -v "D:\Project\job\ai-agent:/workspace" -w /workspace spatial-agent python scripts/build_code_index.py --repo-root /workspace
+pwsh -NoProfile -File scripts/validate_code_index.ps1
+```
+
+代码变更后只需重新生成并校验索引；默认恢复不会读取完整 `code-index.json`。

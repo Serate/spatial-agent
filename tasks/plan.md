@@ -30,6 +30,7 @@
 
 - 默认恢复：`docs/agent-work-state.md`
 - 文档索引：`docs/document-index.json` 和 `docs/README.md`
+- 源码索引：`docs/code-index.json` 和 `docs/code-index-overrides.json`
 - 当前状态：`tasks/current-state.md`
 - 历史账本：`tasks/task-progress.md`
 - 当前阶段包：`docs/stages/M323/`

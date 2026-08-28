@@ -43,7 +43,7 @@ if ($null -ne $index) {
     if ($null -eq $stageEntry) {
         Add-Error ("active stage is not indexed: {0}" -f $activeStage)
     } else {
-        foreach ($field in @('capability_map', 'spec', 'plan', 'handoff')) {
+        foreach ($field in @('capability_map', 'spec', 'plan', 'handoff', 'code_index', 'code_index_overrides')) {
             $value = [string]$stageEntry.$field
             if ([string]::IsNullOrWhiteSpace($value) -or -not (Test-Path -LiteralPath (Resolve-RepoPath $value) -PathType Leaf)) {
                 Add-Error ("stage {0} has missing {1}" -f $activeStage, $field)
@@ -61,6 +61,12 @@ if ($null -ne $index) {
         }
         if (-not (Test-Path -LiteralPath (Resolve-RepoPath ([string]$path)) -PathType Leaf)) {
             Add-Error ("default resume path is missing: {0}" -f $path)
+        }
+    }
+    foreach ($field in @('code_index', 'code_index_overrides')) {
+        $path = [string]$index.resume.$field
+        if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path -LiteralPath (Resolve-RepoPath $path) -PathType Leaf)) {
+            Add-Error ("resume {0} is missing: {1}" -f $field, $path)
         }
     }
 }

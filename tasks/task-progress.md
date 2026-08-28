@@ -20,9 +20,17 @@
 - 目标：已验证的 M322 提案经过显式人工决策后，才能进入版本化 ToolRegistry；审批、拒绝、过期、撤销和重启恢复均可审计。
 - 当前任务：M323-A，冻结 approval record、状态机、receipt fingerprint、版本和 HTTP 语义。
 - 必要文件：`docs/document-index.json`、`docs/stages/M323/`、`scripts/resume_context.ps1`、`agent/tooling/proposal.py`、`agent/tools.py`、`agent/sqlite_store.py`、`agent/application/http.py`。
-- 验证：文档索引和恢复脚本的 PowerShell/JSON/路径检查已通过；归档脚本 dry-run、真实归档和重复执行已通过；代码变更后只运行受影响契约、compileall、architecture strict 和 readiness。
+- 验证：文档索引和恢复脚本的 PowerShell/JSON/路径检查已通过；归档脚本 dry-run、真实归档和重复执行已通过；源码索引覆盖 299 个文件（260 Python、39 JavaScript）并通过 `validate_code_index.ps1`；代码变更后只运行受影响契约、compileall、architecture strict 和 readiness。
 - 阻塞：无。不得自动批准、执行未经批准源码、绕过 ToolRegistry 或保存敏感模型数据。
 - 下一步：实现 M323 approval record 和状态机。
+
+### M323-A-source-index — 已完成
+
+- 目标：完成 Python/JavaScript 文件、导出符号和本地导入的 compact code index，并接入恢复查询。
+- 修改范围：`scripts/build_code_index.py`、`scripts/validate_code_index.ps1`、`docs/code-index.json`、`docs/code-index-overrides.json` 及交接索引文档。
+- 验证：Docker 生成 299 个文件；`validate_code_index.ps1`、`validate_document_index.ps1` 和 `resume_context.ps1 -Topic RuntimeReactExecution` 通过；未运行全量业务测试。
+- 阻塞：无。不得索引或提交密钥、Prompt、模型原文和私有数据。
+- 下一步：进入 M323-A approval record 和状态机实现。
 
 ## 最近完成
 

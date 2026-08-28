@@ -12,7 +12,7 @@
 
 - 阶段：M318-M325 受控开放 Agent Runtime
 - 当前阶段：M323 人工审批、持久化和 Registry 治理
-- 当前任务：M323-A，冻结审批状态机、持久化边界、注册版本和 HTTP 语义
+- 当前任务：M323-A，审批契约和状态机
 - 状态：规划中
 - 最近交付：M322 已完成并推送，版本 `1b0bcdc`
 - 协作：单 Agent，最大并发度 1；Python、GIS、测试和阶段验收优先使用 Docker
@@ -25,6 +25,7 @@
 - 交接：[`stages/M323/handoff.md`](stages/M323/handoff.md)
 - 任务状态：[`../tasks/current-state.md`](../tasks/current-state.md)
 - 文档索引：[`document-index.json`](document-index.json)
+- 源码索引：[`code-index.json`](code-index.json)，职责覆盖：[`code-index-overrides.json`](code-index-overrides.json)
 
 ## 当前任务必要文件
 
@@ -39,12 +40,15 @@
 - `scripts/resume_context.ps1`
 - `scripts/validate_document_index.ps1`
 - `scripts/archive_document_sections.ps1`
+- `scripts/build_code_index.py`
+- `scripts/validate_code_index.ps1`
 
 ## 最近验证
 
 - M322 Docker 契约：7/7
 - M318-M322 合并契约：43/43
 - Docker compileall、architecture strict、smoke、readiness 200 和 sidecar socket 验证通过
+- code-index 已覆盖 299 个源码文件（260 Python、39 JavaScript）；生成器、校验器和主题查询验证通过
 - 当前无阻塞；未调用真实模型，未保存 Prompt、模型原文、密钥或敏感数据
 
 ## 恢复规则

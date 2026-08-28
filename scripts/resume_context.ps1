@@ -93,6 +93,8 @@ if (-not [string]::IsNullOrWhiteSpace($Topic)) {
         $taskProgressPath,
         (Join-Path $repoRoot 'tasks/plan.md'),
         (Join-Path $repoRoot 'tasks/todo.md'),
+        (Join-Path $repoRoot ([string]$index.resume.code_index)),
+        (Join-Path $repoRoot ([string]$index.resume.code_index_overrides)),
         $handoffPath,
         (Join-Path $repoRoot ([string]$stageRecord.spec)),
         (Join-Path $repoRoot ([string]$stageRecord.plan)),

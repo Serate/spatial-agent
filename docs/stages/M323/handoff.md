@@ -11,19 +11,21 @@
 ## 已完成
 
 - M322 已提供脱敏 `tool-proposal-receipt.v1`，合法提案只能停留在 `awaiting_approval`。
+- 文件功能索引生成器已扩展为 Python/JavaScript，Docker 已生成 299 个源码文件（260 Python、39 JavaScript）。
 - 文档索引已分为热状态、阶段包、稳定知识和历史归档四层。
 - 文档架构校验已通过，默认恢复只读取热快照、索引、当前状态和本交接文件。
 
 ## 进行中
 
-- 冻结 approval record、状态转换、fingerprint、版本和 decision receipt 契约。
-- 设计 SQLite 恢复及批准后 Registry 发布的边界；暂不修改 Runtime 主循环。
+- 源码索引生成、校验和恢复主题查询已收口；下一步开始 approval record 状态机。
 
 ## 必要文件
 
 - `docs/stages/M323/capability-map.md`
 - `docs/stages/M323/spec.md`
 - `docs/stages/M323/plan.md`
+- `docs/code-index.json`
+- `docs/code-index-overrides.json`
 - `agent/tooling/proposal.py`
 - `agent/tooling/__init__.py`
 - `agent/tools.py`
@@ -35,7 +37,9 @@
 ## 验证与阻塞
 
 - `validate_document_index.ps1` 和 `resume_context.ps1` 默认/M323 主题恢复验证通过。
-- 本阶段不重复运行 Docker 业务测试；代码变更后再运行受影响契约。
+- `build_code_index.py` 已支持 Python/JavaScript；索引计数、符号行号、文档索引和主题查询均已校验通过。
+- `validate_code_index.ps1` 已修复为仅校验覆盖项实际声明的测试路径，前端无测试覆盖时不会误报空路径。
+- 本阶段不重复运行 Docker 业务测试；本轮仅使用 Docker 生成索引，并运行索引/文档恢复校验。
 - 阻塞：无。
 
 ## 下一步

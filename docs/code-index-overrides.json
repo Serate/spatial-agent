@@ -1,0 +1,118 @@
+{
+  "schema_version": "spatial-agent.code-index-overrides.v1",
+  "defaults": {
+    "layer": "unclassified",
+    "role": "未分类源码",
+    "stage": null,
+    "stability": "internal"
+  },
+  "files": {
+    "agent/runtime.py": {
+      "layer": "runtime",
+      "role": "AgentRuntime 门面与生命周期入口",
+      "stage": "M318-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m320_react_runtime.py"]
+    },
+    "agent/runtime_core/run_lifecycle.py": {
+      "layer": "runtime",
+      "role": "运行生命周期阶段编排",
+      "stage": "M307",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m320_react_runtime.py"]
+    },
+    "agent/runtime_core/react_runtime.py": {
+      "layer": "runtime",
+      "role": "ReAct 决策与工具执行桥接",
+      "stage": "M320",
+      "stability": "public-boundary",
+      "depends_on": ["agent/react/loop.py", "agent/tools.py"],
+      "tests": ["tests/test_m320_react_runtime.py", "tests/test_m322_tool_proposal.py"]
+    },
+    "agent/react/loop.py": {
+      "layer": "planner",
+      "role": "受控 ReAct 单动作循环",
+      "stage": "M320",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m320_react_runtime.py", "tests/test_m322_tool_proposal.py"]
+    },
+    "agent/tools.py": {
+      "layer": "tooling",
+      "role": "ToolRegistry schema 校验与 dispatch",
+      "stage": "M81-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m320_react_runtime.py", "tests/test_m322_tool_proposal.py"]
+    },
+    "agent/tooling/proposal.py": {
+      "layer": "tooling",
+      "role": "Python 工具提案规范化与 AST 校验",
+      "stage": "M322",
+      "stability": "public-boundary",
+      "depends_on": ["agent/tooling/sandbox.py"],
+      "tests": ["tests/test_m322_tool_proposal.py"]
+    },
+    "agent/tooling/sandbox.py": {
+      "layer": "tooling",
+      "role": "提案沙箱 Unix socket client",
+      "stage": "M322",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m322_tool_proposal.py"]
+    },
+    "agent/tooling/sandbox_worker.py": {
+      "layer": "tooling",
+      "role": "提案沙箱 sidecar worker",
+      "stage": "M322",
+      "stability": "internal",
+      "tests": ["tests/test_m322_tool_proposal.py"]
+    },
+    "agent/sqlite_store.py": {
+      "layer": "persistence",
+      "role": "SQLite 运行状态与证据持久化",
+      "stage": "M313-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m320_react_runtime.py", "tests/test_m322_tool_proposal.py"]
+    },
+    "agent/application/http.py": {
+      "layer": "application",
+      "role": "传输无关的 HTTP 语义分发",
+      "stage": "M307-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m313_realtime_events.py"]
+    },
+    "agent/llm_planner.py": {
+      "layer": "planner",
+      "role": "真实模型结构化规划与 ReAct 决策适配",
+      "stage": "M286-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m320_react_runtime.py"]
+    },
+    "web/src/console_app.js": {
+      "layer": "frontend",
+      "role": "控制台应用状态、会话和结果展示编排",
+      "stage": "M231-M325",
+      "stability": "public-boundary",
+      "depends_on": ["web/src/console_run_events.js", "web/src/console_result_projection.js", "web/src/console_renderer_registry.js"]
+    },
+    "web/src/console_answer_stream.js": {
+      "layer": "frontend",
+      "role": "答案增量渲染与逐字输出",
+      "stage": "M315-M325",
+      "stability": "public-boundary",
+      "depends_on": ["web/src/console_app.js"]
+    },
+    "domains/gis/catalog.py": {
+      "layer": "domain",
+      "role": "GIS 能力目录与数据就绪声明",
+      "stage": "M312",
+      "stability": "domain-boundary",
+      "tests": ["tests/test_m312_general_operators.py"]
+    },
+    "domains/economic/catalog.py": {
+      "layer": "domain",
+      "role": "Economic 能力目录与指标事实声明",
+      "stage": "M312",
+      "stability": "domain-boundary",
+      "tests": ["tests/test_m312_general_operators.py"]
+    }
+  }
+}
