@@ -10,6 +10,7 @@ from typing import Any, Dict, Mapping, Optional
 
 from ..capability_catalog import CAPABILITY_CONTEXT_SCHEMA_VERSION
 from ..capability_routing import CAPABILITY_DISCOVERY_SCHEMA_VERSION
+from ..capability_selection import build_capability_selection_evidence
 from ..context_engineering import ContextPacket
 from ..domain_contract import DOMAIN_DISCOVERY_SCHEMA_VERSION
 from ..evidence_revalidation import build_evidence_binding
@@ -215,6 +216,17 @@ def build_plan_evidence(
         plan,
         alignment_selection,
         planner_kind=planner_kind,
+    )
+    evidence["capability_selection"] = build_capability_selection_evidence(
+        discovery=capability_section if isinstance(capability_section, Mapping) else None,
+        selection=selection_section if isinstance(selection_section, Mapping) else None,
+        capability_catalog=(
+            capability_catalog_section
+            if isinstance(capability_catalog_section, Mapping)
+            else None
+        ),
+        request_facts=request_facts if isinstance(request_facts, Mapping) else None,
+        not_applicable=output_type == "direct_answer",
     )
     if capability_catalog_available and isinstance(capability_catalog_section, Mapping):
         catalog_capabilities = capability_catalog_section.get("capabilities")

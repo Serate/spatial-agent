@@ -4,6 +4,10 @@ from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
 from agent.evidence.contract import normalize_capability_evidence
+from .capability_descriptor import (
+    CAPABILITY_DESCRIPTOR_SCHEMA_VERSION,
+    project_capability_descriptors,
+)
 from .request_requirements import (
     REQUEST_REQUIREMENTS_SCHEMA_VERSION,
     missing_requirement_fields,
@@ -160,11 +164,19 @@ def capability_catalog(
             entry["availability_mode"] = "unavailable"
             entry["availability_reason"] = "data_readiness_unavailable"
         capabilities.append(entry)
+    capability_descriptors = project_capability_descriptors(
+        capabilities,
+        domain_id=domain_id,
+        catalog_version="1.0",
+    )
     return {
         "version": "1.0",
         "domain_id": str(domain_id),
         "environment": environment,
         "capabilities": capabilities,
+        "capability_descriptor_schema_version": CAPABILITY_DESCRIPTOR_SCHEMA_VERSION,
+        "capability_descriptor_count": len(capability_descriptors),
+        "capability_descriptors": capability_descriptors,
         "dataset_tools": deepcopy(tool_capabilities),
         "available_dataset_tools": available,
         "dataset_groups": {
@@ -274,6 +286,7 @@ def capability_context_summary(
     selected_capability_ids: Iterable[str] | None = None,
     max_capabilities: int = 10,
     max_tools: int = 16,
+    max_descriptors: int = 8,
 ) -> Dict[str, Any]:
     """Return a compact planner-facing capability catalog summary."""
     source = catalog or capability_catalog()
@@ -300,6 +313,25 @@ def capability_context_summary(
         _capability_context_item(item, data_evidence=data_evidence)
         for item in ordered
     ]
+    descriptor_source = source.get("capability_descriptors")
+    descriptor_source = (
+        descriptor_source if isinstance(descriptor_source, (list, tuple)) else []
+    )
+    descriptor_by_id = {
+        str(item.get("capability_id")): item
+        for item in descriptor_source
+        if isinstance(item, Mapping) and item.get("capability_id")
+    }
+    descriptor_ids = selected or [
+        str(item.get("capability_id"))
+        for item in descriptor_source
+        if isinstance(item, Mapping) and item.get("capability_id")
+    ]
+    descriptors = [
+        deepcopy(descriptor_by_id[capability_id])
+        for capability_id in descriptor_ids
+        if capability_id in descriptor_by_id
+    ][: max(1, min(16, int(max_descriptors or 1)))]
     tool_names = []
     seen_tools = set()
     for item in capability_items:
@@ -325,6 +357,11 @@ def capability_context_summary(
         "capability_count": len(capabilities),
         "selected_capability_ids": [item for item in selected if item],
         "capabilities": capability_items,
+        "capability_descriptor_schema_version": source.get(
+            "capability_descriptor_schema_version"
+        ),
+        "capability_descriptor_count": len(descriptor_source),
+        "capability_descriptors": descriptors,
         "tool_schemas": tool_schemas,
         "tool_schema_count": len(tool_schemas),
         "dataset_groups": deepcopy(source.get("dataset_groups") or {}),

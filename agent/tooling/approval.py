@@ -59,6 +59,10 @@ class ToolApprovalRecord:
     updated_at: float
     expires_at: float | None
     reason_code: str | None
+    # The waiting run is part of the approval identity boundary.  It is safe
+    # to expose as an opaque identifier and lets a later decision resume only
+    # the run that created this proposal.
+    run_id: str | None = None
     definition: dict[str, Any] | None = None
     decision_receipts: tuple[dict[str, Any], ...] = ()
 
@@ -68,6 +72,7 @@ class ToolApprovalRecord:
         receipt: Any,
         *,
         domain_id: str,
+        run_id: str | None = None,
         expires_at: float | None = None,
         now: float | None = None,
     ) -> "ToolApprovalRecord":
@@ -98,6 +103,7 @@ class ToolApprovalRecord:
         )
         approval_id = "approval-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
         bounded_expiry = _optional_timestamp(expires_at)
+        bounded_run_id = _optional_text(run_id)
         return cls(
             schema_version=TOOL_APPROVAL_SCHEMA_VERSION,
             approval_id=approval_id,
@@ -114,6 +120,7 @@ class ToolApprovalRecord:
             updated_at=timestamp,
             expires_at=bounded_expiry,
             reason_code=None if valid else "approval_receipt_invalid",
+            run_id=bounded_run_id,
             definition=definition,
             decision_receipts=(),
         )
@@ -138,6 +145,7 @@ class ToolApprovalRecord:
             "updated_at": self.updated_at,
             "expires_at": self.expires_at,
             "reason_code": self.reason_code,
+            "run_id": self.run_id,
             "allowed_actions": list(self.allowed_actions()),
         }
         if self.definition:
@@ -257,6 +265,7 @@ def project_tool_approval_visibility(
         "expires_at": _bounded_public_float(value.get("expires_at"), nullable=True),
         "reason_code": str(value.get("reason_code") or "")[:96],
         "receipt_fingerprint": str(value.get("receipt_fingerprint") or "")[:128],
+        "run_id": str(value.get("run_id") or "")[:160] or None,
         "allowed_actions": actions[:4],
         "recovery": {
             "state": str(recovery_value.get("state") or "not_loaded")[:32],
@@ -267,7 +276,12 @@ def project_tool_approval_visibility(
 
 class ToolApprovalStore(Protocol):
     def create_from_receipt(
-        self, receipt: Mapping[str, Any], *, domain_id: str, expires_at: float | None = None
+        self,
+        receipt: Mapping[str, Any],
+        *,
+        domain_id: str,
+        run_id: str | None = None,
+        expires_at: float | None = None,
     ) -> ToolApprovalRecord: ...
 
     def get(self, approval_id: str, *, domain_id: str) -> ToolApprovalRecord | None: ...
@@ -296,10 +310,15 @@ class InMemoryToolApprovalStore:
         self._lock = threading.RLock()
 
     def create_from_receipt(
-        self, receipt: Mapping[str, Any], *, domain_id: str, expires_at: float | None = None
+        self,
+        receipt: Mapping[str, Any],
+        *,
+        domain_id: str,
+        run_id: str | None = None,
+        expires_at: float | None = None,
     ) -> ToolApprovalRecord:
         record = ToolApprovalRecord.from_receipt(
-            receipt, domain_id=domain_id, expires_at=expires_at
+            receipt, domain_id=domain_id, run_id=run_id, expires_at=expires_at
         )
         with self._lock:
             existing = self._records.get(record.approval_id)
@@ -308,6 +327,11 @@ class InMemoryToolApprovalStore:
                     raise ToolApprovalError(
                         "approval identity fingerprint mismatch",
                         code="tool_approval_fingerprint_mismatch",
+                    )
+                if record.run_id and existing.run_id and record.run_id != existing.run_id:
+                    raise ToolApprovalError(
+                        "approval run identity mismatch",
+                        code="tool_approval_run_mismatch",
                     )
                 return existing.expire()
             self._records[record.approval_id] = record
@@ -388,10 +412,15 @@ class SQLiteToolApprovalStore:
             )
 
     def create_from_receipt(
-        self, receipt: Mapping[str, Any], *, domain_id: str, expires_at: float | None = None
+        self,
+        receipt: Mapping[str, Any],
+        *,
+        domain_id: str,
+        run_id: str | None = None,
+        expires_at: float | None = None,
     ) -> ToolApprovalRecord:
         record = ToolApprovalRecord.from_receipt(
-            receipt, domain_id=domain_id, expires_at=expires_at
+            receipt, domain_id=domain_id, run_id=run_id, expires_at=expires_at
         )
         with self._connection() as connection:
             existing = connection.execute(
@@ -418,6 +447,11 @@ class SQLiteToolApprovalStore:
                 raise ToolApprovalError(
                     "approval identity fingerprint mismatch",
                     code="tool_approval_fingerprint_mismatch",
+                )
+            if record.run_id and restored.run_id and record.run_id != restored.run_id:
+                raise ToolApprovalError(
+                    "approval run identity mismatch",
+                    code="tool_approval_run_mismatch",
                 )
         return self.get(record.approval_id, domain_id=domain_id) or record
 
@@ -721,6 +755,7 @@ def _record_from_payload(value: Any) -> ToolApprovalRecord:
         updated_at=float(data.get("updated_at") or 0),
         expires_at=_optional_timestamp(data.get("expires_at")),
         reason_code=_optional_text(data.get("reason_code")),
+        run_id=_optional_text(data.get("run_id")),
         definition=_safe_definition(data.get("definition")),
         decision_receipts=history,
     )

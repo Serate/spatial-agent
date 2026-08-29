@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 
 from agent.persistence.artifact_store import ArtifactStore
 from agent.errors import ToolError
+from agent.models import RunStatus
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.domain_registry import DomainSelectionError, resolve_domain_id
@@ -411,10 +412,32 @@ class AgentService:
         receipt_fingerprint: str | None = None,
         actor_id: str = "admin",
     ) -> Dict[str, Any]:
-        """Apply an approval action and publish/revoke only through Registry."""
+        """Apply an approval action and continue its waiting run if possible."""
         if not isinstance(approval_id, str) or not approval_id.strip():
             raise ValueError("approval_id must be a non-empty string")
         domain_id = self._approval_domain_id()
+        existing = self._state.tool_approval_store.get(
+            approval_id.strip(), domain_id=domain_id
+        )
+        if existing is None:
+            raise ToolApprovalError(
+                "approval not found", code="tool_approval_not_found"
+            )
+        if existing.status == "expired":
+            runtime, waiting = self._approval_runtime_and_result(existing)
+            closed = self._close_tool_approval_run(runtime, existing, waiting)
+            return {
+                "schema_version": TOOL_APPROVAL_SCHEMA_VERSION,
+                "domain_id": domain_id,
+                "approval": existing.as_dict(),
+                "visibility": project_tool_approval_visibility(
+                    existing,
+                    recovery=self._approval_recovery_by_id().get(existing.approval_id),
+                ),
+                "registered": [],
+                "registration_count": 0,
+                "run": self._approval_run_projection(closed),
+            }
         record = self._state.tool_approval_store.resolve(
             approval_id.strip(),
             action=action,
@@ -423,9 +446,12 @@ class AgentService:
             expected_version=expected_version,
             expected_fingerprint=receipt_fingerprint,
         )
+        runtime, waiting = self._approval_runtime_and_result(record)
         registered = []
         if record.status == "approved":
-            registered = self._publish_tool_approval(record.as_dict())
+            registered = self._publish_tool_approval(
+                record.as_dict(), preferred_runtime=runtime
+            )
         elif record.status == "revoked":
             for runtime in self._state.runtimes().values():
                 if getattr(runtime, "domain_id", None) != record.domain_id:
@@ -434,6 +460,7 @@ class AgentService:
                 revoke = getattr(registry, "revoke_approved_tool", None)
                 if callable(revoke) and revoke(record.approval_id):
                     registered.append({"runtime": "revoked"})
+        resumed = self._apply_tool_approval_run(runtime, record, waiting)
         return {
             "schema_version": TOOL_APPROVAL_SCHEMA_VERSION,
             "domain_id": domain_id,
@@ -443,6 +470,7 @@ class AgentService:
             ),
             "registered": registered,
             "registration_count": len(registered),
+            "run": self._approval_run_projection(resumed),
         }
 
     def _approval_domain_id(self) -> str:
@@ -450,9 +478,19 @@ class AgentService:
             self._resolved_domain_id or self._configured_domain_id or self._legacy_domain_id or "unknown"
         )[:80]
 
-    def _publish_tool_approval(self, approval: Dict[str, Any]) -> list[Dict[str, Any]]:
+    def _publish_tool_approval(
+        self,
+        approval: Dict[str, Any],
+        *,
+        preferred_runtime: Any = None,
+    ) -> list[Dict[str, Any]]:
         published = []
-        for runtime in self._state.runtimes().values():
+        runtimes = (
+            [preferred_runtime]
+            if preferred_runtime is not None
+            else list(self._state.runtimes().values())
+        )
+        for runtime in runtimes:
             if getattr(runtime, "domain_id", None) != approval.get("domain_id"):
                 continue
             validator = getattr(runtime, "_proposal_validator", None)
@@ -469,6 +507,111 @@ class AgentService:
             )
             published.extend(outcome.get("bindings") or [])
         return published
+
+    def _approval_runtime_and_result(self, record: Any) -> tuple[Any, Any]:
+        """Locate the runtime/result pair without crossing a source boundary."""
+        run_id = str(getattr(record, "run_id", None) or "").strip()
+        domain_id = str(
+            getattr(record, "domain_id", None) or self._approval_domain_id()
+        )
+        if not run_id:
+            return None, None
+        for runtime in self._state.runtimes().values():
+            if getattr(runtime, "domain_id", None) != domain_id:
+                continue
+            getter = getattr(runtime, "get_run", None)
+            result = getter(run_id) if callable(getter) else None
+            if result is not None:
+                return runtime, result
+        result = self._state.get_run(run_id, domain_id=domain_id)
+        if result is None:
+            return None, None
+        context = result.runtime_context if isinstance(result.runtime_context, dict) else {}
+        planner = str(context.get("planner") or "rule")
+        backend = str(context.get("backend") or "memory")
+        return self._runtime(planner, backend), result
+
+    def _apply_tool_approval_run(self, runtime: Any, record: Any, waiting: Any) -> Any:
+        if runtime is None or waiting is None:
+            return None
+        apply = getattr(runtime, "apply_tool_approval", None)
+        if not callable(apply):
+            return None
+        if getattr(waiting, "status", None) != RunStatus.WAITING_FOR_DECISION:
+            return waiting
+        resumed = apply(record.as_dict(), timeout_seconds=self._state.timeout_seconds)
+        return self._finalize_tool_approval_result(resumed)
+
+    def _close_tool_approval_run(self, runtime: Any, record: Any, waiting: Any) -> Any:
+        if runtime is None or waiting is None:
+            return None
+        apply = getattr(runtime, "apply_tool_approval", None)
+        if not callable(apply):
+            return None
+        if getattr(waiting, "status", None) != RunStatus.WAITING_FOR_DECISION:
+            return waiting
+        closed = apply(record.as_dict(), timeout_seconds=self._state.timeout_seconds)
+        return self._finalize_tool_approval_result(closed)
+
+    def _finalize_tool_approval_result(self, result: Any) -> Any:
+        """Project a resumed in-process Result through the normal app seam."""
+        if result is None:
+            return None
+        context = result.runtime_context if isinstance(result.runtime_context, dict) else {}
+        planner = str(context.get("planner") or "rule")
+        backend = str(context.get("backend") or "memory")
+        job = self._state.async_job(result.run_id, domain_id=result.domain_id)
+        payload = job.get("payload") if isinstance(job, dict) else {}
+        return self._run_application.execute(
+            request=result.request,
+            session_id=result.session_id or "default",
+            planner=planner,
+            backend=backend,
+            normalized_context=(
+                dict(result.spatial_context)
+                if isinstance(result.spatial_context, dict)
+                else {}
+            ),
+            runtime_kwargs={},
+            workflow_context=result.workflow,
+            export_artifact=bool(payload.get("export_artifact") or result.artifact_ref),
+            export_geojson=bool(payload.get("export_geojson") or result.geojson_ref),
+            geojson_max_features=int(
+                payload.get("geojson_max_features", DEFAULT_GEOJSON_MAX_FEATURES)
+            ),
+            async_requested=bool(job),
+            domain_routing_evidence=result.domain_routing_evidence,
+            result_override=result,
+        )
+
+    @staticmethod
+    def _approval_run_projection(value: Any) -> Dict[str, Any] | None:
+        if value is None:
+            return None
+        if isinstance(value, Mapping):
+            status = str(value.get("status") or "")[:32]
+            receipt = value.get("action_receipt")
+            return {
+                "run_id": str(value.get("run_id") or "")[:160],
+                "status": status,
+                "action_receipt_state": (
+                    str(receipt.get("state") or "")[:48]
+                    if isinstance(receipt, Mapping)
+                    else None
+                ),
+            }
+        status = getattr(value, "status", "")
+        status = getattr(status, "value", status)
+        receipt = getattr(value, "action_receipt", None)
+        return {
+            "run_id": str(getattr(value, "run_id", ""))[:160],
+            "status": str(status)[:32],
+            "action_receipt_state": (
+                str(receipt.get("state") or "")[:48]
+                if isinstance(receipt, dict)
+                else None
+            ),
+        }
 
     def _approval_recovery_by_id(self) -> Dict[str, Dict[str, Any]]:
         """Collect safe binding state from already-created Runtime instances."""

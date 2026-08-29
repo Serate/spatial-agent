@@ -147,6 +147,114 @@ class RuntimeRunLifecycle:
             self._handle_failure(context, exc)
         return self._evidence_and_finalize(context)
 
+    def resume_tool_approval(
+        self,
+        result: AgentRunResult,
+        *,
+        approval: Mapping[str, Any],
+        timeout_seconds: Optional[float] = None,
+    ) -> AgentRunResult:
+        """Continue one waiting ReAct run after its proposal was approved.
+
+        This path intentionally rebuilds only the trusted context packet and
+        safe ReAct evidence from the persisted result.  It does not re-plan
+        the original request from scratch, so the approved proposal remains
+        bound to the same run and receipt fingerprint.
+        """
+
+        runtime = self._runtime
+        if result.status != RunStatus.WAITING_FOR_DECISION:
+            raise ToolError("run is not waiting for tool approval: " + result.run_id)
+        if not isinstance(approval, Mapping):
+            raise ToolError(
+                "tool approval is invalid",
+                category="approval",
+                code="approval_record_invalid",
+                retryable=False,
+            )
+        if str(approval.get("run_id") or "") != result.run_id:
+            raise ToolError(
+                "tool approval does not belong to run",
+                category="approval",
+                code="approval_run_mismatch",
+                retryable=False,
+            )
+        receipt = result.action_receipt if isinstance(result.action_receipt, Mapping) else {}
+        stored_approval = receipt.get("approval") if isinstance(receipt.get("approval"), Mapping) else {}
+        if (
+            str(stored_approval.get("approval_id") or "")
+            != str(approval.get("approval_id") or "")
+            or str(stored_approval.get("receipt_fingerprint") or "")
+            != str(approval.get("receipt_fingerprint") or "")
+        ):
+            raise ToolError(
+                "tool approval receipt identity mismatch",
+                category="approval",
+                code="approval_fingerprint_mismatch",
+                retryable=False,
+            )
+
+        resolved_request = result.resolved_request or result.request
+        request_facts = extract_request_facts(runtime._domain_pack, resolved_request)
+        context = _LifecycleContext(
+            request=result.request,
+            session_id=result.session_id or "default",
+            timeout_seconds=timeout_seconds,
+            run_id=result.run_id,
+            workflow=result.workflow,
+            validated_plan=result.plan,
+            expected_plan_fingerprint=None,
+            expected_evidence_fingerprint=None,
+            require_confirmation=False,
+            decision_evidence=None,
+            decision_id=None,
+            decision_version=None,
+            decision_input=None,
+            decision_ttl_seconds=None,
+            resolved_request_override=resolved_request,
+            deadline=(
+                perf_counter() + timeout_seconds
+                if timeout_seconds is not None
+                else None
+            ),
+            resolved_request=resolved_request,
+            request_facts=request_facts,
+            resolved_run_id=result.run_id,
+            result=result,
+            candidate_plan=result.plan,
+            replan_count=len(result.replan_events or []),
+        )
+        context.context_packet = runtime._build_context_packet(
+            result.request,
+            resolved_request,
+            context.session_id,
+            result.workflow,
+            request_facts=request_facts,
+        )
+        if not result.context_evidence:
+            result.context_evidence = context.context_packet.evidence
+        result.action_receipt = {
+            **dict(receipt),
+            "state": "approved_resume",
+            "approval": dict(approval),
+        }
+        runtime._state_store.save(result)
+        try:
+            should_answer = self._react_execution.run(context, resume=True)
+            if should_answer:
+                self._answer(context)
+        except ClarificationNeeded as exc:
+            self._handle_failure(context, exc)
+        except RequestRejected as exc:
+            self._handle_failure(context, exc)
+        except RunCancelled as exc:
+            self._handle_failure(context, exc)
+        except RunTimedOut as exc:
+            self._handle_failure(context, exc)
+        except Exception as exc:
+            self._handle_failure(context, exc)
+        return self._evidence_and_finalize(context)
+
     # ------------------------------------------------------------------
     # Resolve and clarify
     # ------------------------------------------------------------------

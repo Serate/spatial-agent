@@ -129,6 +129,9 @@ class M224DomainHttpTests(unittest.TestCase):
             ("GET", "/domains/{domain_id}/runs/{run_id}"),
             ("POST", "/domains/{domain_id}/runs/{run_id}/interaction"),
             ("POST", "/domains/{domain_id}/actions/{action_id}"),
+            ("GET", "/domains/{domain_id}/tools/approvals"),
+            ("GET", "/domains/{domain_id}/tools/approvals/{approval_id}"),
+            ("POST", "/domains/{domain_id}/tools/approvals/{approval_id}/resolve"),
             ("GET", "/domains/{domain_id}/artifacts/runs/{name}"),
         }
 

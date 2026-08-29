@@ -47,6 +47,7 @@ from agent.result_completeness import (
     build_result_completeness,
     normalize_result_completeness,
 )
+from agent.result_summary import normalize_result_summary
 from agent.data_kinds import DataProfileError, normalize_data_profile
 from agent.contract_versions import ASYNC_RESULT_EVIDENCE_SCHEMA_VERSION
 from agent.recovery_action import normalize_action_receipt
@@ -327,6 +328,7 @@ def build_async_result_evidence(
             "plan_identity": plan_identity,
             "evidence_binding": evidence_binding,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+            "capability_selection": selection["capability_selection"],
             "workflow_selection": selection["workflow_selection"],
             "planner_selection": selection["planner_selection"],
         },
@@ -352,6 +354,16 @@ def build_async_result_evidence(
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
     }
+    summary = value.get("result_summary")
+    if isinstance(summary, Mapping):
+        try:
+            # The async seam exposes the same safe summary as the canonical
+            # Result, while still rejecting a future/hand-written schema.
+            result["result_summary"] = normalize_result_summary(
+                summary, allow_legacy=False
+            )
+        except (TypeError, ValueError):
+            pass
     if execution is not None:
         result["execution"] = execution
     if isinstance(value.get("action_receipt"), Mapping):
@@ -609,6 +621,7 @@ def normalize_async_result_evidence(
             "plan_identity": plan_identity,
             "evidence_binding": evidence_binding,
             "plan_quality": project_plan_quality_evidence(planning.get("plan_quality")),
+            "capability_selection": selection["capability_selection"],
             "workflow_selection": selection["workflow_selection"],
             "planner_selection": selection["planner_selection"],
         },
@@ -634,6 +647,14 @@ def normalize_async_result_evidence(
         "evidence_projection": evidence_projection,
         "evidence_recovery": evidence_recovery,
     }
+    summary = value.get("result_summary")
+    if isinstance(summary, Mapping):
+        try:
+            result["result_summary"] = normalize_result_summary(
+                summary, allow_legacy=False
+            )
+        except (TypeError, ValueError):
+            pass
     if execution is not None:
         result["execution"] = execution
     if isinstance(value.get("action_receipt"), Mapping):

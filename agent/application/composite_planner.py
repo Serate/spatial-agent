@@ -9,6 +9,7 @@ later application seam submits it to the Composite lifecycle.
 from __future__ import annotations
 
 import json
+import inspect
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -475,6 +476,12 @@ class LLMCompositePlanner:
                     "capability_index entry; selection_key is only a reference hint "
                     "and must not be returned as a component field. Do not infer an "
                     "ID from a label or tool name. "
+                    "Select only candidates whose available field is true and, when "
+                    "present, whose execution_ready field is true. Candidates with "
+                    "plan_mode=unbound, execution_ready=false, workflow_not_registered, "
+                    "or missing facts are advisory only and must not be selected for "
+                    "a success plan; if no suitable ready candidate exists, return "
+                    "needs_clarification. "
                     "When the request contains multiple independent analytical goals, "
                     "map each goal to the smallest suitable registered capability and "
                     "keep distinct goals as distinct components; compose multiple "
@@ -498,16 +505,54 @@ class LLMCompositePlanner:
                 + json.dumps(bounded_context, ensure_ascii=False, sort_keys=True),
             },
         ]
+        schema = composite_plan_schema()
         try:
             # Keep the long-standing two-argument client seam.  Structured
             # wire mode is negotiated by the provider client itself; adding a
             # keyword here would break replay/fake clients that intentionally
             # implement only the public minimal protocol.
-            payload = self._client.complete_json(messages, composite_plan_schema())
+            payload = _complete_composite_json(
+                self._client,
+                messages,
+                schema,
+                deterministic=True,
+            )
         except Exception as exc:
+            # Some compatible gateways return an empty/truncated JSON body
+            # even though the HTTP request itself succeeded.  The ordinary
+            # Planner already has a bounded compact recovery seam; Composite
+            # planning must use the same one so a transient provider shape
+            # failure does not become a false capability failure.  This is
+            # exactly one additional provider call and still crosses the same
+            # normalization, capability, TaskPlan and execution gates.
+            compact = getattr(self._client, "complete_compact_json", None)
+            if (
+                getattr(exc, "code", None) == "invalid_model_response"
+                and callable(compact)
+            ):
+                try:
+                    payload = compact(messages, schema)
+                except Exception as compact_exc:
+                    exc = compact_exc
+                else:
+                    self._last_call_metrics = {
+                        "status": "success",
+                        "attempts": 2,
+                        "retries": 0,
+                        "compact_recovery_attempts": 1,
+                    }
+                    return _normalize_planner_payload(
+                        payload,
+                        request=request,
+                        context=context,
+                        planner_source=self.source,
+                    )
             call_metrics: dict[str, Any] = {
                 "status": "error",
-                "attempts": 1,
+                "attempts": 2
+                if getattr(exc, "code", None) == "invalid_model_response"
+                and callable(compact)
+                else 1,
                 "retries": 0,
             }
             retryable = getattr(exc, "retryable", None)
@@ -542,6 +587,43 @@ class LLMCompositePlanner:
             context=context,
             planner_source=self.source,
         )
+
+
+def _complete_composite_json(
+    client: Any,
+    messages: Any,
+    schema: Mapping[str, Any],
+    *,
+    deterministic: bool,
+) -> Mapping[str, Any]:
+    """Call a structured provider without widening the minimal client seam."""
+
+    method = getattr(client, "complete_json", None)
+    if not callable(method):
+        raise CompositePlannerError(
+            "planner client does not support structured JSON",
+            code="planner_provider_unavailable",
+        )
+    try:
+        parameters = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    accepts_kwargs = any(
+        item.kind == inspect.Parameter.VAR_KEYWORD
+        for item in parameters.values()
+    )
+    kwargs: dict[str, Any] = {}
+    if accepts_kwargs or "schema_name" in parameters:
+        kwargs["schema_name"] = "composite_plan"
+    if accepts_kwargs or "deterministic" in parameters:
+        kwargs["deterministic"] = bool(deterministic)
+    payload = method(messages, schema, **kwargs)
+    if not isinstance(payload, Mapping):
+        raise CompositePlannerError(
+            "planner output must be an object",
+            code="plan_object_required",
+        )
+    return payload
 
 
 def normalize_composite_plan(

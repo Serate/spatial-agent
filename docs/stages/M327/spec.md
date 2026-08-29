@@ -13,7 +13,7 @@ Runtime 不携带 GIS 专用策略，也不把固定关键词当作能力边界�
 
 ```text
 Build: docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
-Targeted: docker compose --env-file .env.production -f docker-compose.prod.yml run --rm spatial-agent python -m unittest tests.test_m326_result_completeness tests.test_m320_react_runtime -v
+Targeted: docker compose --env-file .env.production -f docker-compose.prod.yml run --rm spatial-agent python -m unittest tests.test_m327_result_summary tests.test_m326_result_completeness tests.test_m313_answer_stream -v
 Compile: docker compose --env-file .env.production -f docker-compose.prod.yml run --rm spatial-agent python -m compileall -q agent domains scripts
 Architecture: docker compose --env-file .env.production -f docker-compose.prod.yml run --rm spatial-agent python scripts/architecture_check.py --strict
 Readiness: Invoke-WebRequest -Uri http://127.0.0.1:8088/health/ready -UseBasicParsing
@@ -69,6 +69,34 @@ CapabilityDescriptor(
 3. 跨矢量、栅格和指标结果的答案摘要动态生成，不依赖 GIS 专用页面分支，并明确限制与证据来源。
 4. CLI、HTTP、前端、Artifact 和恢复对同一请求保持核心结果、能力 identity 和 evidence 一致。
 5. 默认测试精简且离线；Docker/真实模型验收可复现且不泄露敏感内容。
+
+## M327-C 契约冻结：跨类型结果摘要
+
+公共 Runtime 新增 `spatial-agent.result-summary.v1` 投影。它接收已经通过
+`Result` 契约校验的结果、`completeness`、typed sections 和 evidence，输出有界的
+`blocks`、`limitations` 和 `evidence`。每个 block 至少包含稳定的 `block_id`、
+`kind`、`result_type`、`state`、`conclusion`、可展开的 `facts`、限制和 evidence
+摘要；`kind` 只能来自公共 `data_profile`，首版覆盖 `vector`、`raster`、`metrics`、
+`timeseries`、`text`、`document_evidence` 和 `composite`。
+
+摘要只允许传播用户可读结论、有限标量/短列表和 evidence 状态，不传播 Prompt、模型
+原文、工具参数、坐标数组、几何 features、路径、密钥或任意内部引用。未知或非法的
+typed section 降级为 `unknown`/不可用 block，而不是让公共层猜测 Domain 语义。
+
+答案生成上下文只消费该摘要投影；结构化 Result、View 和完整 evidence 仍分别保留，
+因此“结论优先、技术详情可展开”由契约层保证，而不是由前端或 GIS 页面分支保证。
+
+## M327-D 跨入口与前端接入
+
+`result_summary` 是同步 Result、异步结果证据、Artifact、恢复证据和 Composite evidence
+共同消费的唯一摘要投影。同步/恢复响应可在顶层提供同值别名，但嵌套 Result 始终是规范来源；
+Artifact 只保存该有界投影，不重新拼接答案。异步运行尚未完成时可以不提供摘要，完成后应与
+规范 Result 的摘要逐字段一致。
+
+Console 先读取版本化 `result_summary`，以领域中立方式显示结论、关键发现、结果明细、限制和
+证据来源；地图、图表等 View 通过 Renderer Registry 作为可选展示面，不得成为摘要的替代品。
+未知摘要版本或非法 block 必须降级为空态，不能把任意对象直接拼接成 `[object Object]`，也不能
+显示路径、坐标、Prompt、模型原文或密钥。
 
 ## Open Questions
 

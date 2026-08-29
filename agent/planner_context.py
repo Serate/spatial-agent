@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from .capability_descriptor import normalize_capability_descriptor
+
 
 PLANNER_CONTEXT_PROJECTION_SCHEMA_VERSION = "spatial-agent.planner-context-projection.v1"
 
@@ -80,10 +82,19 @@ def _project_capability_catalog(value: Mapping[str, Any]) -> dict[str, Any]:
             "data_readiness",
             "analysis_ready",
             "capability_count",
+            "capability_descriptor_schema_version",
+            "capability_descriptor_count",
             "selected_capability_ids",
             "tool_schema_count",
         ),
     )
+    projected["capability_descriptors"] = []
+    for item in (value.get("capability_descriptors") or [])[:8]:
+        if not isinstance(item, Mapping):
+            continue
+        descriptor = _project_capability_descriptor(item)
+        if descriptor:
+            projected["capability_descriptors"].append(descriptor)
     projected["capabilities"] = [
         _project_capability(item)
         for item in (value.get("capabilities") or [])[:4]
@@ -97,6 +108,32 @@ def _project_capability_catalog(value: Mapping[str, Any]) -> dict[str, Any]:
     } if isinstance(schemas, Mapping) else {}
     projected["tool_schema_count"] = len(projected["tool_schemas"])
     return projected
+
+
+def _project_capability_descriptor(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep the model-facing descriptor complete enough for selection only."""
+
+    descriptor = normalize_capability_descriptor(value)
+    if descriptor is None:
+        return {}
+    # The descriptor contract already strips extension fields.  Keeping the
+    # explicit allowlist here makes this seam robust if that contract grows:
+    # Planner context must never inherit prompts, model text, or tool args.
+    return {
+        "schema_version": descriptor["schema_version"],
+        "catalog_version": descriptor["catalog_version"],
+        "domain_id": descriptor["domain_id"],
+        "capability_id": descriptor["capability_id"],
+        "label": descriptor["label"],
+        "summary": descriptor["summary"],
+        "inputs": descriptor["inputs"],
+        "outputs": descriptor["outputs"],
+        "preconditions": descriptor["preconditions"],
+        "evidence_requirements": descriptor["evidence_requirements"],
+        "execution": descriptor["execution"],
+        "cost_hint": descriptor["cost_hint"],
+        "availability": descriptor["availability"],
+    }
 
 
 def _project_capability(value: Mapping[str, Any]) -> dict[str, Any]:

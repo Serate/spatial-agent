@@ -40,6 +40,33 @@ const completed = projection.normalize({
   result: {
     type: "composite_result",
     data_profile: {primary: "composite", kinds: ["composite", "metrics"]},
+    result_summary: {
+      schema_version: "spatial-agent.result-summary.v1",
+      state: "complete",
+      conclusion: "公共摘要已统一提供给所有入口。",
+      key_findings: ["摘要不依赖 GIS 页面分支。"],
+      evidence: {
+        available: true,
+        source_count: 1,
+        sources: ["demo-source"],
+        status: "ok",
+        source_records: [{title: "官方统计公报", url: "https://www.gov.cn/report?id=1", domain: "www.gov.cn", snippet: "公开资料摘要"}],
+      },
+      blocks: [{
+        block_id: "metrics",
+        title: "指标结果",
+        kind: "metrics",
+        conclusion: "指标结果已整理。",
+        facts: {count: 3, distribution: {bins: [{lower: 0, upper: 1, count: 2}]}},
+        evidence: {
+          available: true,
+          source_count: 1,
+          sources: ["demo-source"],
+          status: "ok",
+          source_records: [{title: "官方统计公报", url: "https://www.gov.cn/report?id=1", domain: "www.gov.cn", snippet: "公开资料摘要"}],
+        },
+      }],
+    },
     view: {
       schema_version: "spatial-agent.composite-view.v1",
       answer: {headline: "分析完成", summary: "已形成一份可读的综合结论。", key_findings: ["发现一", "发现二"], limitations: ["仅供演示"]},
@@ -122,6 +149,9 @@ assert.equal(completed.discovery.candidate_count, 2);
 assert.equal(completed.selection_evidence.state, "selected");
 assert.equal(completed.execution_binding.binding_fingerprint, "sha256:binding-is-not-rendered");
 assert.equal(completed.answer_generation.status, "success");
+assert.equal(completed.result_summary.conclusion, "公共摘要已统一提供给所有入口。");
+assert.equal(completed.result_summary.blocks[0].kind, "metrics");
+assert.equal(completed.result_summary.evidence.source_records[0].domain, "www.gov.cn");
 const completedHtml = projection.render(completed);
 assert.match(completedHtml, /关键发现/);
 assert.match(completedHtml, /分析上下文已建立/);
@@ -134,6 +164,12 @@ assert.match(completedHtml, /已选择：空间摘要/);
 assert.match(completedHtml, /本次分析内容/);
 assert.match(completedHtml, /空间关系/);
 assert.match(completedHtml, /矢量/);
+assert.match(completedHtml, /统一结果摘要/);
+assert.match(completedHtml, /公共摘要已统一提供给所有入口/);
+assert.match(completedHtml, /官方统计公报/);
+assert.match(completedHtml, /https:\/\/www\.gov\.cn\/report\?id=1/);
+assert.match(completedHtml, /结果明细/);
+assert.doesNotMatch(completedHtml, /\[object Object\]/);
 assert.doesNotMatch(completedHtml, /secret-context-is-not-rendered/);
 assert.doesNotMatch(completedHtml, /private_tool/);
 

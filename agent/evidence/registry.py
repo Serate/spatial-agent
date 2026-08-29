@@ -19,6 +19,7 @@ from agent.contract_versions import (
     RESULT_ENVELOPE_SCHEMA_VERSION,
 )
 from agent.evidence.contract import DOMAIN_EVIDENCE_SCHEMA_VERSION
+from agent.capability_selection import CAPABILITY_SELECTION_EVIDENCE_SCHEMA_VERSION
 from agent.execution_timeline import EXECUTION_TIMELINE_SCHEMA_VERSION, normalize_execution_timeline
 from agent.plan_quality import PLAN_QUALITY_EVIDENCE_SCHEMA_VERSION, project_plan_quality_evidence
 from agent.planner_selection import PLANNER_SELECTION_SCHEMA_VERSION
@@ -46,6 +47,7 @@ _KNOWN_SCHEMA_VERSIONS = {
     ACTION_LIFECYCLE_SCHEMA_VERSION,
     REPLANNING_SCHEMA_VERSION,
     WORKFLOW_SELECTION_SCHEMA_VERSION,
+    CAPABILITY_SELECTION_EVIDENCE_SCHEMA_VERSION,
     PLANNER_SELECTION_SCHEMA_VERSION,
     WORKFLOW_COMPONENT_EVIDENCE_SCHEMA_VERSION,
     DOMAIN_EVIDENCE_SCHEMA_VERSION,
@@ -76,6 +78,7 @@ def build_evidence_registry(
     replanning = result.get("replanning") if isinstance(result.get("replanning"), Mapping) else {}
     events = replanning.get("events") if isinstance(replanning.get("events"), list) else []
     selection = planning.get("workflow_selection") if isinstance(planning.get("workflow_selection"), Mapping) else {}
+    capability_selection = planning.get("capability_selection") if isinstance(planning.get("capability_selection"), Mapping) else {}
     planner_selection = planning.get("planner_selection") if isinstance(planning.get("planner_selection"), Mapping) else {}
     routing = result.get("domain_routing_evidence")
     routing = routing if isinstance(routing, Mapping) else {}
@@ -93,6 +96,13 @@ def build_evidence_registry(
             bool(selection),
             _selection_state(selection),
             "result.planning.workflow_selection",
+        ),
+        _entry(
+            "capability_selection",
+            CAPABILITY_SELECTION_EVIDENCE_SCHEMA_VERSION,
+            bool(capability_selection),
+            _selection_state(capability_selection),
+            "result.planning.capability_selection",
         ),
         _entry(
             "planner_selection",
@@ -351,6 +361,7 @@ def _text(value: Any) -> str:
 
 
 __all__ = [
+    "CAPABILITY_SELECTION_EVIDENCE_SCHEMA_VERSION",
     "EVIDENCE_COMPLETENESS_SCHEMA_VERSION",
     "EVIDENCE_REGISTRY_SCHEMA_VERSION",
     "REPLANNING_SCHEMA_VERSION",

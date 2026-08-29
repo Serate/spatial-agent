@@ -6,15 +6,15 @@
     "scripts",
     "web/src"
   ],
-  "file_count": 325,
+  "file_count": 329,
   "semantic_index": {
-    "classified_files": 325,
+    "classified_files": 329,
     "file_override_files": 30,
-    "path_rule_files": 295,
+    "path_rule_files": 299,
     "default_files": 0,
-    "agent_files": 194,
-    "agent_files_with_responsibility": 194,
-    "agent_files_with_module_doc": 180,
+    "agent_files": 198,
+    "agent_files_with_responsibility": 198,
+    "agent_files_with_module_doc": 184,
     "coverage_percent": 100.0
   },
   "files": [
@@ -430,7 +430,7 @@
     {
       "path": "agent/answer_generation.py",
       "language": "python",
-      "line_count": 670,
+      "line_count": 718,
       "layer": "result",
       "role": "答案组合、生成与用户语义投影",
       "stage": "M8-M325",
@@ -443,17 +443,17 @@
         {
           "name": "AnswerGenerationResult",
           "kind": "class",
-          "line": 98
+          "line": 99
         },
         {
           "name": "CompositeAnswerGenerationResult",
           "kind": "class",
-          "line": 106
+          "line": 107
         },
         {
           "name": "build_composite_answer_context",
           "kind": "function",
-          "line": 113
+          "line": 114
         },
         {
           "name": "LLMCompositeAnswerGenerator",
@@ -468,47 +468,47 @@
         {
           "name": "LLMCompositeAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 179
+          "line": 180
         },
         {
           "name": "fallback_composite_answer",
           "kind": "function",
-          "line": 273
+          "line": 275
         },
         {
           "name": "build_answer_context",
           "kind": "function",
-          "line": 287
+          "line": 289
         },
         {
           "name": "LLMAnswerGenerator",
           "kind": "class",
-          "line": 347
+          "line": 394
         },
         {
           "name": "LLMAnswerGenerator.generate",
           "kind": "method",
-          "line": 353
+          "line": 400
         },
         {
           "name": "LLMAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 394
+          "line": 442
         },
         {
           "name": "LLMAnswerGenerator.failure_evidence",
           "kind": "method",
-          "line": 458
+          "line": 507
         },
         {
           "name": "fallback_answer_generation_evidence",
           "kind": "function",
-          "line": 481
+          "line": 530
         },
         {
           "name": "project_answer_generation_evidence",
           "kind": "function",
-          "line": 497
+          "line": 546
         }
       ],
       "imports": [
@@ -921,7 +921,7 @@
     {
       "path": "agent/application/composite.py",
       "language": "python",
-      "line_count": 453,
+      "line_count": 452,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -958,7 +958,7 @@
     {
       "path": "agent/application/composite_contract.py",
       "language": "python",
-      "line_count": 919,
+      "line_count": 922,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -991,7 +991,7 @@
         {
           "name": "normalize_composite_section",
           "kind": "function",
-          "line": 320
+          "line": 323
         }
       ],
       "imports": [
@@ -1004,13 +1004,14 @@
         "agent.persistence.artifact_reference",
         "agent.result_completeness",
         "agent.result_registry",
+        "agent.result_summary",
         "agent.runtime_core.composition"
       ]
     },
     {
       "path": "agent/application/composite_planner.py",
       "language": "python",
-      "line_count": 884,
+      "line_count": 965,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1023,57 +1024,57 @@
         {
           "name": "CompositePlannerError",
           "kind": "class",
-          "line": 88
+          "line": 89
         },
         {
           "name": "normalize_provider_response",
           "kind": "function",
-          "line": 103
+          "line": 104
         },
         {
           "name": "composite_plan_schema",
           "kind": "function",
-          "line": 221
+          "line": 222
         },
         {
           "name": "RuleCompositePlanner",
           "kind": "class",
-          "line": 327
+          "line": 328
         },
         {
           "name": "RuleCompositePlanner.plan",
           "kind": "method",
-          "line": 337
+          "line": 338
         },
         {
           "name": "ReplayCompositePlanner",
           "kind": "class",
-          "line": 359
+          "line": 360
         },
         {
           "name": "ReplayCompositePlanner.plan",
           "kind": "method",
-          "line": 369
+          "line": 370
         },
         {
           "name": "LLMCompositePlanner",
           "kind": "class",
-          "line": 395
+          "line": 396
         },
         {
           "name": "LLMCompositePlanner.metrics",
           "kind": "method",
-          "line": 415
+          "line": 416
         },
         {
           "name": "LLMCompositePlanner.plan",
           "kind": "method",
-          "line": 428
+          "line": 429
         },
         {
           "name": "normalize_composite_plan",
           "kind": "function",
-          "line": 547
+          "line": 629
         }
       ],
       "imports": [
@@ -1088,7 +1089,7 @@
     {
       "path": "agent/application/composite_planning.py",
       "language": "python",
-      "line_count": 1982,
+      "line_count": 1981,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1188,7 +1189,7 @@
     {
       "path": "agent/application/composite_runs.py",
       "language": "python",
-      "line_count": 1048,
+      "line_count": 1060,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1201,57 +1202,57 @@
         {
           "name": "CompositeRunApplication",
           "kind": "class",
-          "line": 76
+          "line": 77
         },
         {
           "name": "CompositeRunApplication.run",
           "kind": "method",
-          "line": 133
+          "line": 134
         },
         {
           "name": "CompositeRunApplication.run_with_planning",
           "kind": "method",
-          "line": 149
+          "line": 150
         },
         {
           "name": "CompositeRunApplication.submit_async",
           "kind": "method",
-          "line": 168
+          "line": 169
         },
         {
           "name": "CompositeRunApplication.submit_async_with_planning",
           "kind": "method",
-          "line": 202
+          "line": 203
         },
         {
           "name": "CompositeRunApplication.get_run",
           "kind": "method",
-          "line": 236
+          "line": 237
         },
         {
           "name": "CompositeRunApplication.get_observability",
           "kind": "method",
-          "line": 294
+          "line": 295
         },
         {
           "name": "CompositeRunApplication.get_evidence",
           "kind": "method",
-          "line": 297
+          "line": 298
         },
         {
           "name": "CompositeRunApplication.get_view",
           "kind": "method",
-          "line": 322
+          "line": 324
         },
         {
           "name": "CompositeRunApplication.recover",
           "kind": "method",
-          "line": 334
+          "line": 336
         },
         {
           "name": "CompositeRunApplication.close",
           "kind": "method",
-          "line": 337
+          "line": 339
         }
       ],
       "imports": [
@@ -1271,6 +1272,7 @@
         "agent.nested_schema",
         "agent.persistence.artifact_store",
         "agent.planner_repair",
+        "agent.result_summary",
         "agent.run_events",
         "agent.runtime_context",
         "agent.runtime_core.composite_taskplan",
@@ -1282,7 +1284,7 @@
     {
       "path": "agent/application/composite_view.py",
       "language": "python",
-      "line_count": 565,
+      "line_count": 567,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1295,12 +1297,12 @@
         {
           "name": "CompositeViewError",
           "kind": "class",
-          "line": 40
+          "line": 41
         },
         {
           "name": "build_composite_view_projection",
           "kind": "function",
-          "line": 44
+          "line": 45
         }
       ],
       "imports": [
@@ -1311,6 +1313,7 @@
         "agent.integration.provider_runtime",
         "agent.integration.provider_structured_output",
         "agent.result_completeness",
+        "agent.result_summary",
         "agent.runtime_core.composition",
         "agent.runtime_core.plan_receipt",
         "agent.runtime_core.selection_evidence"
@@ -1357,7 +1360,7 @@
     {
       "path": "agent/application/http.py",
       "language": "python",
-      "line_count": 469,
+      "line_count": 468,
       "layer": "application",
       "role": "传输无关的 HTTP 语义分发",
       "stage": "M307-M325",
@@ -1529,7 +1532,7 @@
     {
       "path": "agent/application/run.py",
       "language": "python",
-      "line_count": 232,
+      "line_count": 236,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1565,7 +1568,7 @@
     {
       "path": "agent/application/run_recovery.py",
       "language": "python",
-      "line_count": 465,
+      "line_count": 477,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1578,42 +1581,42 @@
         {
           "name": "RunRecoveryApplication",
           "kind": "class",
-          "line": 50
+          "line": 51
         },
         {
           "name": "RunRecoveryApplication.memory_run",
           "kind": "method",
-          "line": 78
+          "line": 79
         },
         {
           "name": "RunRecoveryApplication.infer_runtime_selection",
           "kind": "method",
-          "line": 86
+          "line": 87
         },
         {
           "name": "RunRecoveryApplication.retry",
           "kind": "method",
-          "line": 118
+          "line": 119
         },
         {
           "name": "RunRecoveryApplication.cancel",
           "kind": "method",
-          "line": 236
+          "line": 237
         },
         {
           "name": "RunRecoveryApplication.get_run",
           "kind": "method",
-          "line": 288
+          "line": 289
         },
         {
           "name": "RunRecoveryApplication.list_runs",
           "kind": "method",
-          "line": 324
+          "line": 326
         },
         {
           "name": "RunRecoveryApplication.get_run_evidence",
           "kind": "method",
-          "line": 335
+          "line": 337
         }
       ],
       "imports": [
@@ -1627,13 +1630,14 @@
         "agent.nested_schema",
         "agent.persistence.artifact_store",
         "agent.provenance",
+        "agent.result_summary",
         "agent.trace_formatter"
       ]
     },
     {
       "path": "agent/application/service_async.py",
       "language": "python",
-      "line_count": 806,
+      "line_count": 827,
       "layer": "application",
       "role": "Application 异步作业状态、证据和时序支撑",
       "stage": "M68-M325",
@@ -1646,92 +1650,92 @@
         {
           "name": "terminal_run_statuses",
           "kind": "function",
-          "line": 76
+          "line": 77
         },
         {
           "name": "async_fingerprint",
           "kind": "function",
-          "line": 80
+          "line": 81
         },
         {
           "name": "async_status",
           "kind": "function",
-          "line": 90
+          "line": 91
         },
         {
           "name": "build_async_observability",
           "kind": "function",
-          "line": 99
+          "line": 100
         },
         {
           "name": "build_async_result_evidence",
           "kind": "function",
-          "line": 188
+          "line": 189
         },
         {
           "name": "unavailable_async_result_evidence",
           "kind": "function",
-          "line": 410
+          "line": 422
         },
         {
           "name": "normalize_async_result_evidence",
           "kind": "function",
-          "line": 441
+          "line": 453
         },
         {
           "name": "failure_category_for",
           "kind": "function",
-          "line": 649
+          "line": 670
         },
         {
           "name": "async_event",
           "kind": "function",
-          "line": 680
+          "line": 701
         },
         {
           "name": "as_float",
           "kind": "function",
-          "line": 693
+          "line": 714
         },
         {
           "name": "round_ms",
           "kind": "function",
-          "line": 700
+          "line": 721
         },
         {
           "name": "epoch_to_iso",
           "kind": "function",
-          "line": 704
+          "line": 725
         },
         {
           "name": "duration_summary",
           "kind": "function",
-          "line": 711
+          "line": 732
         },
         {
           "name": "empty_async_metrics",
           "kind": "function",
-          "line": 734
+          "line": 755
         },
         {
           "name": "async_worker_count",
           "kind": "function",
-          "line": 746
+          "line": 767
         },
         {
           "name": "async_response",
           "kind": "function",
-          "line": 757
+          "line": 778
         },
         {
           "name": "process_is_alive",
           "kind": "function",
-          "line": 766
+          "line": 787
         },
         {
           "name": "build_lineage_for_result",
           "kind": "function",
-          "line": 797
+          "line": 818
         }
       ],
       "imports": [
@@ -1757,6 +1761,7 @@
         "agent.recovery_action",
         "agent.request_identity",
         "agent.result_completeness",
+        "agent.result_summary",
         "agent.runtime_context",
         "agent.selection_interaction",
         "agent.trace_formatter"
@@ -1769,7 +1774,7 @@
     {
       "path": "agent/application/service_format.py",
       "language": "python",
-      "line_count": 302,
+      "line_count": 303,
       "layer": "application",
       "role": "Application 结果格式化、空间证据和请求归一化",
       "stage": "M68-M325",
@@ -1827,12 +1832,12 @@
         {
           "name": "analysis_ready_summary",
           "kind": "function",
-          "line": 225
+          "line": 226
         },
         {
           "name": "export_geometry",
           "kind": "function",
-          "line": 272
+          "line": 273
         }
       ],
       "imports": [
@@ -2327,7 +2332,7 @@
     {
       "path": "agent/capability_catalog.py",
       "language": "python",
-      "line_count": 769,
+      "line_count": 806,
       "layer": "planner",
       "role": "能力目录、发现、路由与运行时能力投影",
       "stage": "M59-M325",
@@ -2340,33 +2345,64 @@
         {
           "name": "capability_catalog",
           "kind": "function",
-          "line": 51
+          "line": 55
         },
         {
           "name": "capability_suggestions",
           "kind": "function",
-          "line": 186
+          "line": 198
         },
         {
           "name": "project_clarification_requirements",
           "kind": "function",
-          "line": 199
+          "line": 211
         },
         {
           "name": "capability_context_summary",
           "kind": "function",
-          "line": 267
+          "line": 279
         },
         {
           "name": "runtime_capability_catalog",
           "kind": "function",
-          "line": 346
+          "line": 383
         }
       ],
       "imports": [
         "agent.evidence.contract",
         "domains.gis.catalog"
       ]
+    },
+    {
+      "path": "agent/capability_descriptor.py",
+      "language": "python",
+      "line_count": 270,
+      "layer": "planner",
+      "role": "能力目录、发现、路由与运行时能力投影",
+      "stage": "M59-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Bounded, domain-neutral descriptors for capability discovery.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "project_capability_descriptors",
+          "kind": "function",
+          "line": 26
+        },
+        {
+          "name": "build_capability_descriptor",
+          "kind": "function",
+          "line": 56
+        },
+        {
+          "name": "normalize_capability_descriptor",
+          "kind": "function",
+          "line": 138
+        }
+      ],
+      "imports": []
     },
     {
       "path": "agent/capability_discovery.py",
@@ -2483,6 +2519,32 @@
       ]
     },
     {
+      "path": "agent/capability_selection.py",
+      "language": "python",
+      "line_count": 378,
+      "layer": "planner",
+      "role": "能力目录、发现、路由与运行时能力投影",
+      "stage": "M59-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Bounded capability-selection evidence for Planner and public results.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "build_capability_selection_evidence",
+          "kind": "function",
+          "line": 34
+        },
+        {
+          "name": "normalize_capability_selection_evidence",
+          "kind": "function",
+          "line": 158
+        }
+      ],
+      "imports": []
+    },
+    {
       "path": "agent/component_evidence.py",
       "language": "python",
       "line_count": 10,
@@ -2533,7 +2595,7 @@
     {
       "path": "agent/contract_versions.py",
       "language": "python",
-      "line_count": 49,
+      "line_count": 51,
       "layer": "runtime",
       "role": "版本化公共契约常量",
       "stage": "M1-M325",
@@ -3957,7 +4019,7 @@
     {
       "path": "agent/evidence/component.py",
       "language": "python",
-      "line_count": 206,
+      "line_count": 205,
       "layer": "evidence",
       "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
       "stage": "M71-M325",
@@ -3991,7 +4053,7 @@
     {
       "path": "agent/evidence/contract.py",
       "language": "python",
-      "line_count": 365,
+      "line_count": 364,
       "layer": "evidence",
       "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
       "stage": "M71-M325",
@@ -4037,7 +4099,7 @@
     {
       "path": "agent/evidence/projection.py",
       "language": "python",
-      "line_count": 275,
+      "line_count": 280,
       "layer": "evidence",
       "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
       "stage": "M71-M325",
@@ -4050,16 +4112,17 @@
         {
           "name": "project_evidence_projection",
           "kind": "function",
-          "line": 35
+          "line": 36
         },
         {
           "name": "project_evidence_recovery",
           "kind": "function",
-          "line": 219
+          "line": 224
         }
       ],
       "imports": [
         "agent.action_lifecycle",
+        "agent.capability_selection",
         "agent.evidence.registry",
         "agent.planner_selection",
         "agent.recovery_action",
@@ -4070,7 +4133,7 @@
     {
       "path": "agent/evidence/recovery.py",
       "language": "python",
-      "line_count": 17,
+      "line_count": 16,
       "layer": "evidence",
       "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
       "stage": "M71-M325",
@@ -4087,7 +4150,7 @@
     {
       "path": "agent/evidence/registry.py",
       "language": "python",
-      "line_count": 361,
+      "line_count": 371,
       "layer": "evidence",
       "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
       "stage": "M71-M325",
@@ -4100,21 +4163,22 @@
         {
           "name": "build_evidence_registry",
           "kind": "function",
-          "line": 58
+          "line": 60
         },
         {
           "name": "normalize_evidence_registry",
           "kind": "function",
-          "line": 167
+          "line": 177
         },
         {
           "name": "project_evidence_registry_completeness",
           "kind": "function",
-          "line": 211
+          "line": 221
         }
       ],
       "imports": [
         "agent.action_lifecycle",
+        "agent.capability_selection",
         "agent.contract_versions",
         "agent.evidence.component",
         "agent.evidence.contract",
@@ -4127,7 +4191,7 @@
     {
       "path": "agent/evidence/revalidation.py",
       "language": "python",
-      "line_count": 274,
+      "line_count": 273,
       "layer": "evidence",
       "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
       "stage": "M71-M325",
@@ -4226,7 +4290,7 @@
     {
       "path": "agent/evidence_registry.py",
       "language": "python",
-      "line_count": 12,
+      "line_count": 13,
       "layer": "evidence",
       "role": "Evidence canonical 实现的兼容入口",
       "stage": "M71-M325",
@@ -4386,7 +4450,7 @@
     {
       "path": "agent/integration/model_evidence.py",
       "language": "python",
-      "line_count": 94,
+      "line_count": 93,
       "layer": "integration",
       "role": "Provider 配置、结构化输出与脱敏运行证据 canonical 实现",
       "stage": "M16-M325",
@@ -4436,7 +4500,7 @@
     {
       "path": "agent/integration/provider_runtime.py",
       "language": "python",
-      "line_count": 483,
+      "line_count": 482,
       "layer": "integration",
       "role": "Provider 配置、结构化输出与脱敏运行证据 canonical 实现",
       "stage": "M16-M325",
@@ -4484,7 +4548,7 @@
     {
       "path": "agent/integration/provider_structured_output.py",
       "language": "python",
-      "line_count": 135,
+      "line_count": 134,
       "layer": "integration",
       "role": "Provider 配置、结构化输出与脱敏运行证据 canonical 实现",
       "stage": "M16-M325",
@@ -4622,7 +4686,7 @@
     {
       "path": "agent/llm_planner.py",
       "language": "python",
-      "line_count": 1493,
+      "line_count": 1516,
       "layer": "planner",
       "role": "真实模型结构化规划与 ReAct 决策适配",
       "stage": "M286-M325",
@@ -4675,27 +4739,27 @@
         {
           "name": "OpenAIPlannerClient",
           "kind": "class",
-          "line": 714
+          "line": 733
         },
         {
           "name": "OpenAIPlannerClient.complete_json",
           "kind": "method",
-          "line": 814
+          "line": 833
         },
         {
           "name": "OpenAIPlannerClient.complete_compact_json",
           "kind": "method",
-          "line": 954
+          "line": 973
         },
         {
           "name": "OpenAIPlannerClient.stream_text",
           "kind": "method",
-          "line": 976
+          "line": 999
         },
         {
           "name": "OpenAIPlannerClient.metrics",
           "kind": "method",
-          "line": 1093
+          "line": 1116
         }
       ],
       "imports": [
@@ -4793,7 +4857,7 @@
     {
       "path": "agent/nested_schema.py",
       "language": "python",
-      "line_count": 374,
+      "line_count": 388,
       "layer": "result",
       "role": "嵌套结果、View 和 Evidence schema 校验",
       "stage": "M149-M325",
@@ -4806,47 +4870,47 @@
         {
           "name": "NestedSchemaError",
           "kind": "class",
-          "line": 36
+          "line": 37
         },
         {
           "name": "normalize_result_contract",
           "kind": "function",
-          "line": 47
+          "line": 48
         },
         {
           "name": "normalize_domain_routing_evidence_contract",
           "kind": "function",
-          "line": 114
+          "line": 129
         },
         {
           "name": "normalize_workspace",
           "kind": "function",
-          "line": 176
+          "line": 191
         },
         {
           "name": "normalize_view_spec",
           "kind": "function",
-          "line": 208
+          "line": 223
         },
         {
           "name": "normalize_views",
           "kind": "function",
-          "line": 233
+          "line": 248
         },
         {
           "name": "normalize_panel",
           "kind": "function",
-          "line": 261
+          "line": 276
         },
         {
           "name": "validate_async_nested_sections",
           "kind": "function",
-          "line": 287
+          "line": 302
         },
         {
           "name": "unavailable_nested_view",
           "kind": "function",
-          "line": 300
+          "line": 315
         }
       ],
       "imports": [
@@ -4857,7 +4921,8 @@
         "agent.domain_routing_evidence",
         "agent.interaction_contract",
         "agent.persistence.artifact_reference",
-        "agent.result_completeness"
+        "agent.result_completeness",
+        "agent.result_summary"
       ]
     },
     {
@@ -5135,7 +5200,7 @@
     {
       "path": "agent/persistence/artifact_store.py",
       "language": "python",
-      "line_count": 755,
+      "line_count": 765,
       "layer": "persistence",
       "role": "Artifact、SQLite 与 Memory canonical 持久化实现",
       "stage": "M14-M325",
@@ -5148,72 +5213,72 @@
         {
           "name": "ArtifactStore",
           "kind": "class",
-          "line": 84
+          "line": 85
         },
         {
           "name": "ArtifactStore.write_run",
           "kind": "method",
-          "line": 117
+          "line": 118
         },
         {
           "name": "ArtifactStore.attach_action_receipt",
           "kind": "method",
-          "line": 224
+          "line": 234
         },
         {
           "name": "ArtifactStore.write_action",
           "kind": "method",
-          "line": 243
+          "line": 253
         },
         {
           "name": "ArtifactStore.find_action_by_idempotency_key",
           "kind": "method",
-          "line": 279
+          "line": 289
         },
         {
           "name": "ArtifactStore.migrate_run",
           "kind": "method",
-          "line": 309
+          "line": 319
         },
         {
           "name": "ArtifactStore.read_run",
           "kind": "method",
-          "line": 368
+          "line": 378
         },
         {
           "name": "ArtifactStore.read_manifest",
           "kind": "method",
-          "line": 426
+          "line": 436
         },
         {
           "name": "ArtifactStore.find_decision",
           "kind": "method",
-          "line": 439
+          "line": 449
         },
         {
           "name": "ArtifactStore.read_action",
           "kind": "method",
-          "line": 496
+          "line": 506
         },
         {
           "name": "ArtifactStore.list_actions",
           "kind": "method",
-          "line": 526
+          "line": 536
         },
         {
           "name": "ArtifactStore.list_runs",
           "kind": "method",
-          "line": 567
+          "line": 577
         },
         {
           "name": "ArtifactStore.metrics",
           "kind": "method",
-          "line": 619
+          "line": 629
         },
         {
           "name": "ArtifactStore.action_metrics",
           "kind": "method",
-          "line": 638
+          "line": 648
         }
       ],
       "imports": [
@@ -5228,6 +5293,7 @@
         "agent.interaction_contract",
         "agent.nested_schema",
         "agent.recovery_action",
+        "agent.result_summary",
         "agent.runtime_context"
       ]
     },
@@ -5755,7 +5821,7 @@
     {
       "path": "agent/planner_context.py",
       "language": "python",
-      "line_count": 271,
+      "line_count": 308,
       "layer": "planner",
       "role": "Planner 上下文、指导、选择与修复",
       "stage": "M129-M325",
@@ -5768,7 +5834,7 @@
         {
           "name": "project_planner_sections",
           "kind": "function",
-          "line": 18
+          "line": 20
         }
       ],
       "imports": []
@@ -6003,7 +6069,7 @@
     {
       "path": "agent/react/loop.py",
       "language": "python",
-      "line_count": 776,
+      "line_count": 789,
       "layer": "planner",
       "role": "受控 ReAct 单动作循环",
       "stage": "M320",
@@ -6036,12 +6102,12 @@
         {
           "name": "invoke_react_decider",
           "kind": "function",
-          "line": 647
+          "line": 660
         },
         {
           "name": "summarize_tool_result",
           "kind": "function",
-          "line": 697
+          "line": 710
         }
       ],
       "imports": [],
@@ -6455,6 +6521,41 @@
       ]
     },
     {
+      "path": "agent/result_summary.py",
+      "language": "python",
+      "line_count": 628,
+      "layer": "result",
+      "role": "结果契约、类型注册与视图声明",
+      "stage": "M46-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Domain-neutral, bounded summary projection for typed results.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "ResultSummaryError",
+          "kind": "class",
+          "line": 108
+        },
+        {
+          "name": "build_result_summary",
+          "kind": "function",
+          "line": 112
+        },
+        {
+          "name": "normalize_result_summary",
+          "kind": "function",
+          "line": 147
+        }
+      ],
+      "imports": [
+        "agent.contract_versions",
+        "agent.data_kinds",
+        "agent.result_completeness"
+      ]
+    },
+    {
       "path": "agent/rule_planning.py",
       "language": "python",
       "line_count": 37,
@@ -6536,7 +6637,7 @@
     {
       "path": "agent/runtime.py",
       "language": "python",
-      "line_count": 1084,
+      "line_count": 1107,
       "layer": "runtime",
       "role": "AgentRuntime 门面与生命周期入口",
       "stage": "M318-M325",
@@ -6549,122 +6650,127 @@
         {
           "name": "AgentRuntime",
           "kind": "class",
-          "line": 101
+          "line": 103
         },
         {
           "name": "AgentRuntime.approval_rehydration",
           "kind": "method",
-          "line": 225
+          "line": 228
         },
         {
           "name": "AgentRuntime.domain_id",
           "kind": "method",
-          "line": 247
+          "line": 250
         },
         {
           "name": "AgentRuntime.runtime_context",
           "kind": "method",
-          "line": 251
+          "line": 254
         },
         {
           "name": "AgentRuntime.result_registry",
           "kind": "method",
-          "line": 263
+          "line": 266
         },
         {
           "name": "AgentRuntime.domain_actions",
           "kind": "method",
-          "line": 267
+          "line": 270
         },
         {
           "name": "AgentRuntime.execute_domain_action",
           "kind": "method",
-          "line": 271
+          "line": 274
         },
         {
           "name": "AgentRuntime.capability_catalog",
           "kind": "method",
-          "line": 286
+          "line": 289
         },
         {
           "name": "AgentRuntime.workflow_template_catalog",
           "kind": "method",
-          "line": 290
+          "line": 293
         },
         {
           "name": "AgentRuntime.workflow_contract",
           "kind": "method",
-          "line": 294
+          "line": 297
         },
         {
           "name": "AgentRuntime.execution_contract",
           "kind": "method",
-          "line": 298
+          "line": 301
         },
         {
           "name": "AgentRuntime.extract_request_facts",
           "kind": "method",
-          "line": 302
+          "line": 305
         },
         {
           "name": "AgentRuntime.discover",
           "kind": "method",
-          "line": 306
+          "line": 309
         },
         {
           "name": "AgentRuntime.select_workflow",
           "kind": "method",
-          "line": 316
+          "line": 319
         },
         {
           "name": "AgentRuntime.resolve_capability_selection",
           "kind": "method",
-          "line": 331
+          "line": 334
         },
         {
           "name": "AgentRuntime.runtime_capabilities",
           "kind": "method",
-          "line": 346
+          "line": 349
         },
         {
           "name": "AgentRuntime.release_evidence",
           "kind": "method",
-          "line": 350
+          "line": 353
         },
         {
           "name": "AgentRuntime.run",
           "kind": "method",
-          "line": 367
+          "line": 370
         },
         {
           "name": "AgentRuntime.preview",
           "kind": "method",
-          "line": 416
+          "line": 419
         },
         {
           "name": "AgentRuntime.clear_session",
           "kind": "method",
-          "line": 433
+          "line": 436
         },
         {
           "name": "AgentRuntime.get_run",
           "kind": "method",
-          "line": 437
+          "line": 440
         },
         {
           "name": "AgentRuntime.cancel",
           "kind": "method",
-          "line": 440
+          "line": 443
         },
         {
           "name": "AgentRuntime.retry_failed",
           "kind": "method",
-          "line": 443
+          "line": 446
+        },
+        {
+          "name": "AgentRuntime.apply_tool_approval",
+          "kind": "method",
+          "line": 449
         },
         {
           "name": "AgentRuntime.export_result",
           "kind": "method",
-          "line": 445
+          "line": 460
         }
       ],
       "imports": [
@@ -7150,7 +7256,7 @@
     {
       "path": "agent/runtime_core/execution_binding.py",
       "language": "python",
-      "line_count": 567,
+      "line_count": 566,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7208,7 +7314,7 @@
     {
       "path": "agent/runtime_core/execution_policy.py",
       "language": "python",
-      "line_count": 634,
+      "line_count": 639,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7254,19 +7360,24 @@
           "line": 283
         },
         {
-          "name": "ExecutionPolicyResolver.resolve",
+          "name": "ExecutionPolicyResolver.refresh_known_tools",
           "kind": "method",
           "line": 288
         },
         {
+          "name": "ExecutionPolicyResolver.resolve",
+          "kind": "method",
+          "line": 293
+        },
+        {
           "name": "ExecutionPolicyResolver.validate_plan",
           "kind": "method",
-          "line": 395
+          "line": 400
         },
         {
           "name": "ExecutionPolicyResolver.resolve_and_validate",
           "kind": "method",
-          "line": 477
+          "line": 482
         }
       ],
       "imports": []
@@ -7312,7 +7423,7 @@
     {
       "path": "agent/runtime_core/plan_evidence.py",
       "language": "python",
-      "line_count": 354,
+      "line_count": 366,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7325,32 +7436,32 @@
         {
           "name": "build_plan_evidence",
           "kind": "function",
-          "line": 31
+          "line": 32
         },
         {
           "name": "planner_source",
           "kind": "function",
-          "line": 314
+          "line": 326
         },
         {
           "name": "matched_template_ids",
           "kind": "function",
-          "line": 318
+          "line": 330
         },
         {
           "name": "blueprint_steps_match",
           "kind": "function",
-          "line": 335
+          "line": 347
         },
         {
           "name": "safe_small_mapping",
           "kind": "function",
-          "line": 342
+          "line": 354
         },
         {
           "name": "unique",
           "kind": "function",
-          "line": 346
+          "line": 358
         }
       ],
       "imports": []
@@ -7475,7 +7586,7 @@
     {
       "path": "agent/runtime_core/planning_surface.py",
       "language": "python",
-      "line_count": 450,
+      "line_count": 455,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7503,42 +7614,42 @@
         {
           "name": "RuntimePlanningSurface.resolve_request",
           "kind": "method",
-          "line": 207
+          "line": 212
         },
         {
           "name": "RuntimePlanningSurface.require_workflow_selection",
           "kind": "method",
-          "line": 234
+          "line": 239
         },
         {
           "name": "RuntimePlanningSurface.plan",
           "kind": "method",
-          "line": 241
+          "line": 246
         },
         {
           "name": "RuntimePlanningSurface.validate_plan_for_execution",
           "kind": "method",
-          "line": 249
+          "line": 254
         },
         {
           "name": "RuntimePlanningSurface.resolve_execution_policy",
           "kind": "method",
-          "line": 280
+          "line": 285
         },
         {
           "name": "RuntimePlanningSurface.validate_plan",
           "kind": "method",
-          "line": 310
+          "line": 315
         },
         {
           "name": "RuntimePlanningSurface.validate_or_repair",
           "kind": "method",
-          "line": 314
+          "line": 319
         },
         {
           "name": "RuntimePlanningSurface.try_replan",
           "kind": "method",
-          "line": 345
+          "line": 350
         }
       ],
       "imports": []
@@ -7674,7 +7785,7 @@
     {
       "path": "agent/runtime_core/react_runtime.py",
       "language": "python",
-      "line_count": 722,
+      "line_count": 788,
       "layer": "runtime",
       "role": "ReAct 决策与工具执行桥接",
       "stage": "M320",
@@ -7771,7 +7882,7 @@
     {
       "path": "agent/runtime_core/run_lifecycle.py",
       "language": "python",
-      "line_count": 883,
+      "line_count": 991,
       "layer": "runtime",
       "role": "运行生命周期阶段编排",
       "stage": "M307",
@@ -7790,6 +7901,11 @@
           "name": "RuntimeRunLifecycle.run",
           "kind": "method",
           "line": 83
+        },
+        {
+          "name": "RuntimeRunLifecycle.resume_tool_approval",
+          "kind": "method",
+          "line": 150
         }
       ],
       "imports": [],
@@ -7819,6 +7935,32 @@
           "name": "normalize_selection_evidence",
           "kind": "function",
           "line": 79
+        }
+      ],
+      "imports": []
+    },
+    {
+      "path": "agent/runtime_core/tool_approval_resume.py",
+      "language": "python",
+      "line_count": 154,
+      "layer": "runtime",
+      "role": "Runtime 核心规划、执行、恢复与投影",
+      "stage": "M253-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Approval-bound continuation for ReAct tool proposals.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "RuntimeToolApprovalResume",
+          "kind": "class",
+          "line": 17
+        },
+        {
+          "name": "RuntimeToolApprovalResume.apply",
+          "kind": "method",
+          "line": 23
         }
       ],
       "imports": []
@@ -8066,7 +8208,7 @@
     {
       "path": "agent/service.py",
       "language": "python",
-      "line_count": 1074,
+      "line_count": 1217,
       "layer": "application",
       "role": "AgentService 兼容门面与资源生命周期",
       "stage": "M78-M325",
@@ -8079,237 +8221,237 @@
         {
           "name": "AgentService",
           "kind": "class",
-          "line": 57
+          "line": 58
         },
         {
           "name": "AgentService.start_reaper",
           "kind": "method",
-          "line": 238
+          "line": 239
         },
         {
           "name": "AgentService.run",
           "kind": "method",
-          "line": 268
+          "line": 269
         },
         {
           "name": "AgentService.preview",
           "kind": "method",
-          "line": 318
+          "line": 319
         },
         {
           "name": "AgentService.get_decision",
           "kind": "method",
-          "line": 342
+          "line": 343
         },
         {
           "name": "AgentService.resolve_decision",
           "kind": "method",
-          "line": 346
+          "line": 347
         },
         {
           "name": "AgentService.list_tool_approvals",
           "kind": "method",
-          "line": 365
+          "line": 366
         },
         {
           "name": "AgentService.get_tool_approval",
           "kind": "method",
-          "line": 387
+          "line": 388
         },
         {
           "name": "AgentService.resolve_tool_approval",
           "kind": "method",
-          "line": 405
+          "line": 406
         },
         {
           "name": "AgentService.run_async",
           "kind": "method",
-          "line": 495
+          "line": 638
         },
         {
           "name": "AgentService.get_async_observability",
           "kind": "method",
-          "line": 504
+          "line": 647
         },
         {
           "name": "AgentService.list_run_events",
           "kind": "method",
-          "line": 507
+          "line": 650
         },
         {
           "name": "AgentService.retry",
           "kind": "method",
-          "line": 534
+          "line": 677
         },
         {
           "name": "AgentService.cancel",
           "kind": "method",
-          "line": 572
+          "line": 715
         },
         {
           "name": "AgentService.get_run",
           "kind": "method",
-          "line": 586
+          "line": 729
         },
         {
           "name": "AgentService.get_run_interaction",
           "kind": "method",
-          "line": 591
+          "line": 734
         },
         {
           "name": "AgentService.apply_run_interaction",
           "kind": "method",
-          "line": 688
+          "line": 831
         },
         {
           "name": "AgentService.list_runs",
           "kind": "method",
-          "line": 766
+          "line": 909
         },
         {
           "name": "AgentService.get_run_evidence",
           "kind": "method",
-          "line": 769
+          "line": 912
         },
         {
           "name": "AgentService.list_session_runs",
           "kind": "method",
-          "line": 772
+          "line": 915
         },
         {
           "name": "AgentService.list_sessions",
           "kind": "method",
-          "line": 775
+          "line": 918
         },
         {
           "name": "AgentService.create_session",
           "kind": "method",
-          "line": 778
+          "line": 921
         },
         {
           "name": "AgentService.clear_session",
           "kind": "method",
-          "line": 781
+          "line": 924
         },
         {
           "name": "AgentService.delete_session",
           "kind": "method",
-          "line": 784
+          "line": 927
         },
         {
           "name": "AgentService.metrics",
           "kind": "method",
-          "line": 787
+          "line": 930
         },
         {
           "name": "AgentService.capabilities",
           "kind": "method",
-          "line": 790
+          "line": 933
         },
         {
           "name": "AgentService.workflow_contract",
           "kind": "method",
-          "line": 798
+          "line": 941
         },
         {
           "name": "AgentService.execution_contract",
           "kind": "method",
-          "line": 806
+          "line": 949
         },
         {
           "name": "AgentService.extract_request_facts",
           "kind": "method",
-          "line": 819
+          "line": 962
         },
         {
           "name": "AgentService.discover",
           "kind": "method",
-          "line": 828
+          "line": 971
         },
         {
           "name": "AgentService.select_workflow",
           "kind": "method",
-          "line": 838
+          "line": 981
         },
         {
           "name": "AgentService.resolve_capability_selection",
           "kind": "method",
-          "line": 854
+          "line": 997
         },
         {
           "name": "AgentService.domains",
           "kind": "method",
-          "line": 871
+          "line": 1014
         },
         {
           "name": "AgentService.actions",
           "kind": "method",
-          "line": 875
+          "line": 1018
         },
         {
           "name": "AgentService.execute_action",
           "kind": "method",
-          "line": 883
+          "line": 1026
         },
         {
           "name": "AgentService.get_action_execution",
           "kind": "method",
-          "line": 900
+          "line": 1043
         },
         {
           "name": "AgentService.list_action_executions",
           "kind": "method",
-          "line": 904
+          "line": 1047
         },
         {
           "name": "AgentService.runtime_capabilities",
           "kind": "method",
-          "line": 908
+          "line": 1051
         },
         {
           "name": "AgentService.release_evidence",
           "kind": "method",
-          "line": 919
+          "line": 1062
         },
         {
           "name": "AgentService.close",
           "kind": "method",
-          "line": 934
+          "line": 1077
         },
         {
           "name": "AgentService.list_memory",
           "kind": "method",
-          "line": 944
+          "line": 1087
         },
         {
           "name": "AgentService.register_tool",
           "kind": "method",
-          "line": 958
+          "line": 1101
         },
         {
           "name": "AgentService.list_dynamic_tools",
           "kind": "method",
-          "line": 967
+          "line": 1110
         },
         {
           "name": "AgentService.estimate_area_handler",
           "kind": "method",
-          "line": 971
+          "line": 1114
         },
         {
           "name": "AgentService.compare_buildability",
           "kind": "method",
-          "line": 1002
+          "line": 1145
         },
         {
           "name": "AgentService.compare_buildability_regions",
           "kind": "method",
-          "line": 1018
+          "line": 1161
         },
         {
           "name": "AgentService.compare_constrained_buildability",
           "kind": "method",
-          "line": 1058
+          "line": 1201
         }
       ],
       "imports": [
@@ -8331,6 +8473,7 @@
         "agent.domain_registry",
         "agent.errors",
         "agent.geojson_exporter",
+        "agent.models",
         "agent.persistence.artifact_store",
         "agent.recovery_action",
         "agent.runtime_factory",
@@ -8591,7 +8734,7 @@
     {
       "path": "agent/tooling/approval.py",
       "language": "python",
-      "line_count": 814,
+      "line_count": 849,
       "layer": "tooling",
       "role": "工具提案、沙箱与审批治理",
       "stage": "M322-M325",
@@ -8614,112 +8757,112 @@
         {
           "name": "ToolApprovalRecord.from_receipt",
           "kind": "method",
-          "line": 66
+          "line": 70
         },
         {
           "name": "ToolApprovalRecord.as_dict",
           "kind": "method",
-          "line": 121
+          "line": 128
         },
         {
           "name": "ToolApprovalRecord.allowed_actions",
           "kind": "method",
-          "line": 150
+          "line": 158
         },
         {
           "name": "ToolApprovalRecord.transition",
           "kind": "method",
-          "line": 157
+          "line": 165
         },
         {
           "name": "ToolApprovalRecord.expire",
           "kind": "method",
-          "line": 207
+          "line": 215
         },
         {
           "name": "project_tool_approval_visibility",
           "kind": "function",
-          "line": 231
+          "line": 239
         },
         {
           "name": "ToolApprovalStore",
           "kind": "class",
-          "line": 268
+          "line": 277
         },
         {
           "name": "ToolApprovalStore.create_from_receipt",
           "kind": "method",
-          "line": 269
+          "line": 278
         },
         {
           "name": "ToolApprovalStore.get",
           "kind": "method",
-          "line": 273
+          "line": 287
         },
         {
           "name": "ToolApprovalStore.list",
           "kind": "method",
-          "line": 275
+          "line": 289
         },
         {
           "name": "ToolApprovalStore.resolve",
           "kind": "method",
-          "line": 279
+          "line": 293
         },
         {
           "name": "InMemoryToolApprovalStore",
           "kind": "class",
-          "line": 291
+          "line": 305
         },
         {
           "name": "InMemoryToolApprovalStore.create_from_receipt",
           "kind": "method",
-          "line": 298
+          "line": 312
         },
         {
           "name": "InMemoryToolApprovalStore.get",
           "kind": "method",
-          "line": 316
+          "line": 340
         },
         {
           "name": "InMemoryToolApprovalStore.list",
           "kind": "method",
-          "line": 326
+          "line": 350
         },
         {
           "name": "InMemoryToolApprovalStore.resolve",
           "kind": "method",
-          "line": 342
+          "line": 366
         },
         {
           "name": "SQLiteToolApprovalStore",
           "kind": "class",
-          "line": 366
+          "line": 390
         },
         {
           "name": "SQLiteToolApprovalStore.create_from_receipt",
           "kind": "method",
-          "line": 390
+          "line": 414
         },
         {
           "name": "SQLiteToolApprovalStore.get",
           "kind": "method",
-          "line": 424
+          "line": 458
         },
         {
           "name": "SQLiteToolApprovalStore.list",
           "kind": "method",
-          "line": 439
+          "line": 473
         },
         {
           "name": "SQLiteToolApprovalStore.resolve",
           "kind": "method",
-          "line": 473
+          "line": 507
         },
         {
           "name": "receipt_fingerprint",
           "kind": "function",
-          "line": 544
+          "line": 578
         }
       ],
       "imports": []
@@ -8789,7 +8932,7 @@
     {
       "path": "agent/tooling/rehydration.py",
       "language": "python",
-      "line_count": 191,
+      "line_count": 192,
       "layer": "tooling",
       "role": "工具提案、沙箱与审批治理",
       "stage": "M322-M325",
@@ -11151,7 +11294,7 @@
     {
       "path": "domains/indicators/catalog.py",
       "language": "python",
-      "line_count": 152,
+      "line_count": 156,
       "layer": "domain",
       "role": "Indicators Domain Pack 与通用指标查询",
       "stage": "M251-M325",
@@ -11164,7 +11307,7 @@
         {
           "name": "indicator_tool_definitions",
           "kind": "function",
-          "line": 148
+          "line": 152
         }
       ],
       "imports": []
@@ -12471,7 +12614,7 @@
     {
       "path": "scripts/console_result_projection_smoke.js",
       "language": "javascript",
-      "line_count": 279,
+      "line_count": 300,
       "layer": "frontend",
       "role": "Console 浏览器与前端交互验收脚本",
       "stage": "M45-M325",
@@ -12830,7 +12973,7 @@
     {
       "path": "scripts/live_provider_probe.py",
       "language": "python",
-      "line_count": 112,
+      "line_count": 116,
       "layer": "acceptance",
       "role": "真实模型、HTTP 与数据验收脚本",
       "stage": "M66-M325",
@@ -12909,7 +13052,7 @@
     {
       "path": "scripts/m308_cross_entry_acceptance.py",
       "language": "python",
-      "line_count": 252,
+      "line_count": 251,
       "layer": "acceptance",
       "role": "开放组合真实验收脚本",
       "stage": "M308",
@@ -12939,7 +13082,7 @@
     {
       "path": "scripts/m308_real_composition_acceptance.py",
       "language": "python",
-      "line_count": 131,
+      "line_count": 130,
       "layer": "acceptance",
       "role": "开放组合真实验收脚本",
       "stage": "M308",
@@ -14493,7 +14636,7 @@
     {
       "path": "web/src/console_result_projection.js",
       "language": "javascript",
-      "line_count": 665,
+      "line_count": 801,
       "layer": "frontend",
       "role": "Console 前端状态、渲染与结果展示",
       "stage": "M231-M325",
@@ -14506,137 +14649,177 @@
         {
           "name": "normalize",
           "kind": "function",
-          "line": 29
+          "line": 34
         },
         {
           "name": "normalizeAnswer",
           "kind": "function",
-          "line": 160
+          "line": 169
         },
         {
-          "name": "normalizeFailure",
+          "name": "normalizeResultSummary",
           "kind": "function",
-          "line": 179
+          "line": 188
         },
         {
-          "name": "normalizePlanningFailure",
-          "kind": "function",
-          "line": 193
-        },
-        {
-          "name": "statusLabelFor",
-          "kind": "function",
-          "line": 208
-        },
-        {
-          "name": "normalizeProviderRuntime",
+          "name": "normalizeSummaryBlock",
           "kind": "function",
           "line": 217
         },
         {
+          "name": "normalizeSummaryEvidence",
+          "kind": "function",
+          "line": 234
+        },
+        {
+          "name": "normalizeSummaryFacts",
+          "kind": "function",
+          "line": 245
+        },
+        {
+          "name": "normalizeSummaryValue",
+          "kind": "function",
+          "line": 257
+        },
+        {
+          "name": "normalizeFailure",
+          "kind": "function",
+          "line": 267
+        },
+        {
+          "name": "normalizePlanningFailure",
+          "kind": "function",
+          "line": 281
+        },
+        {
+          "name": "statusLabelFor",
+          "kind": "function",
+          "line": 296
+        },
+        {
+          "name": "normalizeProviderRuntime",
+          "kind": "function",
+          "line": 305
+        },
+        {
           "name": "buildPhases",
-          "kind": "function",
-          "line": 240
-        },
-        {
-          "name": "phase",
-          "kind": "function",
-          "line": 276
-        },
-        {
-          "name": "render",
-          "kind": "function",
-          "line": 280
-        },
-        {
-          "name": "renderFailure",
           "kind": "function",
           "line": 328
         },
         {
-          "name": "firstRecord",
+          "name": "phase",
           "kind": "function",
-          "line": 348
+          "line": 373
         },
         {
-          "name": "firstList",
+          "name": "render",
           "kind": "function",
-          "line": 352
+          "line": 377
         },
         {
-          "name": "mergePlanningEvidence",
+          "name": "renderResultSummary",
           "kind": "function",
-          "line": 356
+          "line": 427
         },
         {
-          "name": "normalizeCanonicalPlan",
-          "kind": "function",
-          "line": 397
-        },
-        {
-          "name": "normalizePlannerAttempt",
-          "kind": "function",
-          "line": 415
-        },
-        {
-          "name": "boundedBudget",
+          "name": "renderSummaryBlock",
           "kind": "function",
           "line": 448
         },
         {
-          "name": "normalizePlanCompleteness",
+          "name": "formatSummaryValue",
           "kind": "function",
-          "line": 452
+          "line": 455
         },
         {
-          "name": "normalizeDiscovery",
+          "name": "renderFailure",
           "kind": "function",
-          "line": 466
+          "line": 464
         },
         {
-          "name": "normalizeSelectionEvidence",
+          "name": "firstRecord",
+          "kind": "function",
+          "line": 484
+        },
+        {
+          "name": "firstList",
           "kind": "function",
           "line": 488
         },
         {
+          "name": "mergePlanningEvidence",
+          "kind": "function",
+          "line": 492
+        },
+        {
+          "name": "normalizeCanonicalPlan",
+          "kind": "function",
+          "line": 533
+        },
+        {
+          "name": "normalizePlannerAttempt",
+          "kind": "function",
+          "line": 551
+        },
+        {
+          "name": "boundedBudget",
+          "kind": "function",
+          "line": 584
+        },
+        {
+          "name": "normalizePlanCompleteness",
+          "kind": "function",
+          "line": 588
+        },
+        {
+          "name": "normalizeDiscovery",
+          "kind": "function",
+          "line": 602
+        },
+        {
+          "name": "normalizeSelectionEvidence",
+          "kind": "function",
+          "line": 624
+        },
+        {
           "name": "normalizeAnalysisIntents",
           "kind": "function",
-          "line": 540
+          "line": 676
         },
         {
           "name": "normalizeKinds",
           "kind": "function",
-          "line": 556
+          "line": 692
         },
         {
           "name": "normalizeSections",
           "kind": "function",
-          "line": 563
+          "line": 699
         },
         {
           "name": "renderDiscovery",
           "kind": "function",
-          "line": 582
+          "line": 718
         },
         {
           "name": "renderSelectionEvidence",
           "kind": "function",
-          "line": 600
+          "line": 736
         },
         {
           "name": "renderAnalysisIntents",
           "kind": "function",
-          "line": 619
+          "line": 755
         },
         {
           "name": "normalizeRepairLineage",
           "kind": "function",
-          "line": 641
+          "line": 777
         },
         {
           "name": "safeTextList",
           "kind": "function",
-          "line": 656
+          "line": 792
         }
       ],
       "imports": []

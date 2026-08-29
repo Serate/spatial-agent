@@ -22,8 +22,10 @@ from agent.evidence_projection import project_evidence_recovery
 from agent.model_evidence import project_model_evidence
 from agent.answer_generation import project_answer_generation_evidence
 from agent.result_completeness import build_result_completeness
+from agent.result_summary import build_result_summary
 from agent.recovery_action import normalize_action_receipt
 from agent.planner_selection import normalize_planner_selection_evidence
+from agent.capability_selection import normalize_capability_selection_evidence
 from agent.workflow_selection import normalize_workflow_selection_evidence
 from agent.contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
 from agent.selection_interaction import build_selection_interaction
@@ -288,6 +290,10 @@ def build_result_contract(
     contract["evidence_recovery"] = project_evidence_recovery(
         {"result": contract}
     )
+    summary_payload = dict(payload)
+    summary_payload["completeness"] = contract["completeness"]
+    summary_payload["evidence_registry"] = contract["evidence_registry"]
+    contract["result_summary"] = build_result_summary(summary_payload)
     if action_receipt is not None:
         contract["action_receipt"] = action_receipt
     if normalized_runtime_context is not None:
@@ -324,6 +330,10 @@ def _normalize_planning_evidence(value: Any) -> Dict[str, Any]:
     if "planner_selection" in result:
         result["planner_selection"] = normalize_planner_selection_evidence(
             result.get("planner_selection")
+        )
+    if "capability_selection" in result:
+        result["capability_selection"] = normalize_capability_selection_evidence(
+            result.get("capability_selection")
         )
     return result
 

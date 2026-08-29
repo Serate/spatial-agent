@@ -19,6 +19,7 @@ INDICATOR_CAPABILITIES = (
         "tools": ["list_indicators"],
         "result_types": ["indicator_catalog_result"],
         "analysis_operations": ["query"],
+        "workflow_ids": ["indicator_discovery"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {
@@ -34,6 +35,7 @@ INDICATOR_CAPABILITIES = (
         "tools": ["indicator_query"],
         "result_types": ["indicator_metrics_result"],
         "analysis_operations": ["query"],
+        "workflow_ids": ["indicator_latest"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {
@@ -49,6 +51,7 @@ INDICATOR_CAPABILITIES = (
         "tools": ["indicator_query"],
         "result_types": ["indicator_timeseries_result"],
         "analysis_operations": ["trend"],
+        "workflow_ids": ["indicator_trend"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {
@@ -64,6 +67,7 @@ INDICATOR_CAPABILITIES = (
         "tools": ["indicator_query"],
         "result_types": ["indicator_comparison_result"],
         "analysis_operations": ["compare"],
+        "workflow_ids": ["indicator_compare"],
         "environments": ["memory", "local", "production"],
         "geometry": "none",
         "request_hints": {

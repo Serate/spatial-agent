@@ -99,6 +99,10 @@ class ReactLoop:
         *,
         context: Optional[Mapping[str, Any]] = None,
         initial_decision: Any = None,
+        initial_history: Any = None,
+        initial_evidence: Any = None,
+        initial_action_count: int = 0,
+        start_turn: int = 0,
         validate_action: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
         execute_tool: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
         execute_search: Optional[Callable[[Mapping[str, Any], int, str], Any]] = None,
@@ -111,13 +115,22 @@ class ReactLoop:
         only ``history`` entries built by this loop.
         """
 
-        history: list[dict[str, Any]] = []
-        evidence: list[dict[str, Any]] = []
+        history: list[dict[str, Any]] = [
+            dict(item)
+            for item in (initial_history if isinstance(initial_history, (list, tuple)) else [])[:32]
+            if isinstance(item, Mapping)
+        ]
+        evidence: list[dict[str, Any]] = [
+            dict(item)
+            for item in (initial_evidence if isinstance(initial_evidence, (list, tuple)) else [])[:32]
+            if isinstance(item, Mapping)
+        ]
         seen_signatures: set[str] = set()
-        action_count = 0
+        action_count = _bounded_int(initial_action_count, 0, self._max_actions)
+        start_turn = _bounded_int(start_turn, 0, self._max_turns)
         initial = initial_decision
 
-        for turn_index in range(1, self._max_turns + 1):
+        for turn_index in range(start_turn + 1, self._max_turns + 1):
             self._check_control()
             action_id = "react-{}".format(turn_index)
             self._emit(
@@ -131,7 +144,7 @@ class ReactLoop:
                 },
             )
             try:
-                raw = initial if turn_index == 1 and initial is not None else invoke_react_decider(
+                raw = initial if turn_index == start_turn + 1 and initial is not None else invoke_react_decider(
                     self._decision_provider,
                     request,
                     context=context,
@@ -177,7 +190,7 @@ class ReactLoop:
                     reason_code="react_decision_invalid",
                 )
             finally:
-                if turn_index == 1:
+                if turn_index == start_turn + 1:
                     initial = None
 
             signature = _action_signature(decision)

@@ -77,13 +77,16 @@ class RunApplication:
         async_requested: bool = False,
         resolved_request_override: Optional[str] = None,
         domain_routing_evidence: Optional[Dict[str, Any]] = None,
+        result_override: Any = None,
     ) -> Dict[str, Any]:
         runtime = self._runtime_provider(planner, backend)
         runtime_kwargs = dict(runtime_kwargs)
         if workflow_context is not None:
             runtime_kwargs["workflow"] = workflow_context
         contextualized_request = contextualize_request(request, normalized_context)
-        if resolved_request_override is None:
+        if result_override is not None:
+            result = result_override
+        elif resolved_request_override is None:
             result = runtime.run(contextualized_request, **runtime_kwargs)
         else:
             result = runtime.run(
@@ -127,6 +130,7 @@ class RunApplication:
             payload,
             registry=_runtime_result_registry(runtime),
         )
+        payload["result_summary"] = payload["result"].get("result_summary")
         result.evidence_registry = payload["result"].get("evidence_registry")
         payload.pop("_geometry_feature_count", None)
         payload.pop("_geometry_evidence", None)

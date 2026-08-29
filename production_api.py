@@ -643,6 +643,43 @@ def resolve_tool_approval(approval_id: str, payload: Dict[str, Any]):
         _raise_for(exc)
 
 
+@app.get("/domains/{domain_id}/tools/approvals")
+def domain_list_tool_approvals(
+    domain_id: str, limit: int = 50, status: Optional[str] = None
+):
+    try:
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "tool_approvals", {"limit": limit, "status": status}
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/domains/{domain_id}/tools/approvals/{approval_id}")
+def domain_get_tool_approval(domain_id: str, approval_id: str):
+    try:
+        selected_service = _domain_service(domain_id)
+        return _http_application(selected_service).read(
+            "tool_approval", resource_id=approval_id
+        )
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.post("/domains/{domain_id}/tools/approvals/{approval_id}/resolve")
+def domain_resolve_tool_approval(
+    domain_id: str, approval_id: str, payload: Dict[str, Any]
+):
+    try:
+        selected_service = _domain_service(domain_id, payload)
+        return _http_application(selected_service).execute(
+            "tool_approval_resolve", payload, run_id=approval_id
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
 @app.post("/tools")
 def register_tool(payload: Dict[str, Any]):
     try:

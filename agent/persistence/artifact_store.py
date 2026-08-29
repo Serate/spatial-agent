@@ -30,6 +30,7 @@ from agent.evidence.registry import (
 )
 from agent.recovery_action import normalize_action_receipt
 from agent.interaction_contract import project_interaction
+from agent.result_summary import build_result_summary, normalize_result_summary
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
@@ -133,6 +134,14 @@ class ArtifactStore:
         if isinstance(nested_result, dict):
             nested_result = dict(nested_result)
             nested_result["domain_routing_evidence"] = routing_evidence
+        result_summary = None
+        if isinstance(nested_result, dict):
+            try:
+                result_summary = normalize_result_summary(
+                    nested_result.get("result_summary"), allow_legacy=True
+                )
+            except (TypeError, ValueError):
+                result_summary = build_result_summary(nested_result)
         interaction = project_interaction(payload, prefer_existing=False)
         if isinstance(nested_result, dict):
             nested_result["interaction"] = interaction
@@ -173,6 +182,7 @@ class ArtifactStore:
                 if isinstance(nested_result, dict)
                 else None
             ),
+            "result_summary": result_summary,
             "clarification": payload.get("clarification"),
             "result": nested_result,
             "degradation": _degradation_summary(payload),

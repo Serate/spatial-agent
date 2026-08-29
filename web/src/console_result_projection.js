@@ -5,6 +5,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function createModule() {
   const SCHEMA_VERSION = "spatial-agent.console-result-projection.v1";
   const COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1";
+  const RESULT_SUMMARY_SCHEMA_VERSION = "spatial-agent.result-summary.v1";
   const MAX_ITEMS = 6;
   const MAX_CHIPS = 8;
   const MAX_TEXT = 480;
@@ -25,6 +26,10 @@
     vector: "矢量", raster: "栅格", metrics: "指标", timeseries: "时间序列",
     document_evidence: "文档证据", composite: "组合结果", text: "文本", unknown: "结构化结果",
   });
+  const summaryStateLabels = Object.freeze({
+    complete: "已完成", partial: "部分完成", pending: "生成中",
+    waiting_decision: "等待确认", blocked: "暂时阻塞", unavailable: "不可用",
+  });
 
   function normalize(input) {
     const data = record(input) ? input : {};
@@ -33,7 +38,10 @@
       record(value) && value.schema_version === COMPOSITE_VIEW_SCHEMA_VERSION
     )) || null;
     const compositeAnswer = record(composite?.answer) ? composite.answer : {};
-    const answer = normalizeAnswer(compositeAnswer, data, result, composite);
+    const resultSummary = normalizeResultSummary(
+      firstRecord(data.result_summary, result.result_summary, composite?.result_summary),
+    );
+    const answer = normalizeAnswer(compositeAnswer, data, result, composite, resultSummary);
     let planning = mergePlanningEvidence(
       firstRecord(data.plan_evidence, result.planning, result.plan_evidence, data.planning),
       composite?.planning,
@@ -153,13 +161,14 @@
       steps,
       view_count: viewCount,
       component_count: Math.max(0, Math.min(MAX_ITEMS, componentCount)),
-      phases: buildPhases({status, answer, context, clarification, planning, planningFailure, selectionEvidence, repairLineage, plan, evidence, evidenceRegistry, views, artifacts, steps, failure}),
+      result_summary: resultSummary,
+      phases: buildPhases({status, answer, resultSummary, context, clarification, planning, planningFailure, selectionEvidence, repairLineage, plan, evidence, evidenceRegistry, views, artifacts, steps, failure}),
     };
   }
 
-  function normalizeAnswer(raw, data, result, composite) {
+  function normalizeAnswer(raw, data, result, composite, resultSummary) {
     const legacySummary = [data.answer, result.answer, data.error].find(value => typeof value === "string" && value.trim());
-    const summary = text(raw.summary || legacySummary, 800);
+    const summary = text(raw.summary || resultSummary?.conclusion || legacySummary, 800);
     const headline = text(raw.headline || result.title, 160);
     const findings = safeTextList(raw.key_findings, MAX_ITEMS);
     const sectionFindings = list(composite?.sections)
@@ -174,6 +183,112 @@
       limitations,
       next_steps: nextSteps,
     };
+  }
+
+  function normalizeResultSummary(raw) {
+    const unavailable = {
+      schema_version: RESULT_SUMMARY_SCHEMA_VERSION,
+      state: "unavailable",
+      conclusion: "",
+      key_findings: [],
+      limitations: [],
+      evidence: {available: false, state: "unavailable", status: "unavailable", source_count: 0, sources: [], source_records: []},
+      blocks: [],
+      available: false,
+    };
+    if (!record(raw)) return unavailable;
+    if (raw.schema_version && raw.schema_version !== RESULT_SUMMARY_SCHEMA_VERSION) {
+      return {...unavailable, reason: "结果摘要版本暂不支持。"};
+    }
+    const blocks = list(raw.blocks).slice(0, 8).map((item, index) => normalizeSummaryBlock(item, index)).filter(Boolean);
+    const evidence = normalizeSummaryEvidence(raw.evidence);
+    return {
+      schema_version: RESULT_SUMMARY_SCHEMA_VERSION,
+      state: text(raw.state, 32) || "unavailable",
+      conclusion: text(raw.conclusion || raw.summary, 800),
+      key_findings: safeTextList(raw.key_findings, MAX_ITEMS),
+      limitations: safeTextList(raw.limitations, MAX_ITEMS),
+      evidence,
+      blocks,
+      available: Boolean(raw.conclusion || raw.key_findings || blocks.length || evidence.available),
+    };
+  }
+
+  function normalizeSummaryBlock(raw, index) {
+    if (!record(raw)) return null;
+    const kinds = list(raw.kinds).filter(item => kindLabels[item]).slice(0, 4);
+    const kind = kindLabels[raw.kind] ? raw.kind : (kinds[0] || "unknown");
+    return {
+      block_id: text(raw.block_id || "result-" + (index + 1), 96),
+      title: text(raw.title || kindLabels[kind] || "结果", 160),
+      kind,
+      kind_label: kindLabels[kind] || "结构化结果",
+      state: text(raw.state, 32) || "unavailable",
+      conclusion: text(raw.conclusion || raw.summary, 480),
+      facts: normalizeSummaryFacts(raw.facts),
+      limitations: safeTextList(raw.limitations, 3),
+      evidence: normalizeSummaryEvidence(raw.evidence),
+    };
+  }
+
+  function normalizeSummaryEvidence(raw) {
+    if (!record(raw)) return {available: false, state: "unavailable", status: "unavailable", source_count: 0, sources: [], source_records: []};
+    const sourceCount = Number(raw.source_count);
+    const sourceRecords = list(raw.source_records).slice(0, 8).map(normalizeSourceRecord).filter(Boolean);
+    return {
+      available: raw.available === true,
+      state: text(raw.state, 32) || (raw.available === true ? "available" : "unavailable"),
+      status: text(raw.status, 32) || (raw.available === true ? "ok" : "unavailable"),
+      reason_code: text(raw.reason_code, 96),
+      source_count: Number.isFinite(sourceCount) ? Math.max(0, Math.min(128, sourceCount)) : 0,
+      sources: safeTextList(raw.sources, 4).filter(item => !/(prompt|token|secret|memory:\/\/|artifact:\/\/)/i.test(item)),
+      source_records: sourceRecords,
+      query: text(raw.query, 240),
+      allowed_domains: safeTextList(raw.allowed_domains, 8).filter(item => /^[a-z0-9.-]+$/i.test(item)),
+    };
+  }
+
+  function normalizeSourceRecord(raw) {
+    if (!record(raw)) return null;
+    const rawUrl = text(raw.url, 2048);
+    let url = "";
+    try {
+      const parsed = new URL(rawUrl);
+      if (parsed.protocol !== "https:" || parsed.username || parsed.password || !parsed.hostname || parsed.hostname === "localhost") return null;
+      parsed.hash = "";
+      url = parsed.toString().slice(0, 2048);
+    } catch (_) {
+      return null;
+    }
+    if (!url) return null;
+    return {
+      title: text(raw.title, 160) || "未命名来源",
+      url,
+      domain: text(raw.domain, 160) || "未知来源",
+      snippet: text(raw.snippet, 320),
+    };
+  }
+
+  function normalizeSummaryFacts(raw, depth = 0) {
+    if (!record(raw) || depth > 2) return {};
+    const privateKeys = /^(api_key|authorization|credentials|password|secret|token|prompt|messages|raw_response|result_ref|artifact_ref|path|file_path|dataset_path|geometry|coordinates|features|geojson|views|plan|steps|tool|args|references|request|domain_id|fingerprint|capability_id|component_ids|depends_on|required|view_refs|result)$/i;
+    const output = {};
+    Object.entries(raw).slice(0, 12).forEach(([key, value]) => {
+      if (privateKeys.test(key) || /password|secret|token/i.test(key)) return;
+      const normalized = normalizeSummaryValue(value, depth + 1);
+      if (normalized !== undefined) output[text(key, 64)] = normalized;
+    });
+    return output;
+  }
+
+  function normalizeSummaryValue(value, depth) {
+    if (value === null || typeof value === "boolean") return value;
+    if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+    if (typeof value === "string") return text(value, 160);
+    if (depth > 2) return undefined;
+    if (Array.isArray(value)) return value.slice(0, 6).map(item => normalizeSummaryValue(item, depth + 1)).filter(item => item !== undefined);
+    if (record(value)) return normalizeSummaryFacts(value, depth);
+    return undefined;
   }
 
   function normalizeFailure(raw) {
@@ -254,8 +369,17 @@
       || status === "WAITING_FOR_DECISION"
     );
     const hasExecution = model.steps.length > 0 || ["COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "TIMED_OUT"].includes(status);
-    const hasAnswer = Boolean(model.answer.summary && model.answer.summary !== "暂未形成可读结论。");
-    const hasEvidence = Boolean(Object.keys(model.evidence || {}).length || Object.keys(model.evidenceRegistry || {}).length || model.views.length || model.artifacts.length);
+    const hasAnswer = Boolean(
+      (model.answer.summary && model.answer.summary !== "暂未形成可读结论。")
+      || model.resultSummary?.conclusion,
+    );
+    const hasEvidence = Boolean(
+      Object.keys(model.evidence || {}).length
+      || Object.keys(model.evidenceRegistry || {}).length
+      || model.views.length
+      || model.artifacts.length
+      || model.resultSummary?.evidence?.available,
+    );
     const clarificationState = String(model.clarification.state || "").toLowerCase();
     const clarificationNeeded = status === "NEEDS_CLARIFICATION"
       || model.planningFailure?.state === "clarification"
@@ -300,11 +424,13 @@
     const discoveryHtml = renderDiscovery(model.discovery, escapeHtml);
     const selectionHtml = renderSelectionEvidence(model.selection_evidence, escapeHtml);
     const analysisIntentHtml = renderAnalysisIntents(model.analysis_intents, escapeHtml);
-    const findings = model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
+    const summaryHtml = renderResultSummary(model.result_summary, escapeHtml);
+    const hasSharedSummary = model.result_summary?.available === true;
+    const findings = !hasSharedSummary && model.answer.key_findings.length ? '<section class="projection-section"><h4>关键发现</h4><ul>' + model.answer.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const resultKinds = model.result_kinds.length > 1
       ? '<section class="projection-section projection-result-kinds"><h4>结果组成</h4><p>' + escapeHtml(model.result_kinds.map(item => item.label).join("、")) + '</p></section>'
       : "";
-    const limitations = model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
+    const limitations = !hasSharedSummary && model.answer.limitations.length ? '<section class="projection-section projection-limitations"><h4>使用边界</h4><ul>' + model.answer.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const nextSteps = model.answer.next_steps.length ? '<section class="projection-section projection-next"><h4>建议下一步</h4><ul>' + model.answer.next_steps.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></section>' : "";
     const failureHtml = renderFailure(model.failure, model.planning_failure, model.status, escapeHtml);
     const missing = safeTextList(
@@ -322,7 +448,62 @@
       + (clarificationActions.length ? '<small>下一步：' + escapeHtml(clarificationActions.join("；")) + '</small>' : "") + '</section>' : "";
     return '<div class="result-projection" data-projection-schema="' + escapeHtml(SCHEMA_VERSION) + '"><ol class="result-phases" aria-label="分析阶段">' + phases + '</ol>'
       + (chipHtml ? '<div class="result-chips" aria-label="结果摘要">' + chipHtml + '</div>' : "")
-      + discoveryHtml + selectionHtml + analysisIntentHtml + clarification + failureHtml + resultKinds + findings + limitations + nextSteps + '</div>';
+      + summaryHtml + discoveryHtml + selectionHtml + analysisIntentHtml + clarification + failureHtml + resultKinds + findings + limitations + nextSteps + '</div>';
+  }
+
+  function renderResultSummary(summary, escapeHtml) {
+    if (!summary?.available) return "";
+    const state = escapeHtml(summaryStateLabels[summary.state] || "处理中");
+    const conclusion = summary.conclusion
+      ? '<p class="result-summary-conclusion">' + escapeHtml(summary.conclusion) + '</p>'
+      : '<p class="result-summary-conclusion muted">暂未形成完整结论。</p>';
+    const findings = summary.key_findings.length
+      ? '<div class="result-summary-findings"><h4>关键发现</h4><ul>' + summary.key_findings.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></div>'
+      : "";
+    const blocks = summary.blocks.length
+      ? '<div class="result-summary-blocks"><h4>结果明细</h4>' + summary.blocks.slice(0, 8).map(block => renderSummaryBlock(block, escapeHtml)).join("") + '</div>'
+      : "";
+    const limitations = summary.limitations.length
+      ? '<div class="result-summary-limitations"><h4>使用边界</h4><ul>' + summary.limitations.slice(0, MAX_ITEMS).map(item => '<li>' + escapeHtml(item) + '</li>').join("") + '</ul></div>'
+      : "";
+    const evidence = renderSummaryEvidence(summary.evidence, escapeHtml);
+    return '<section class="result-summary-card" data-result-summary-schema="' + escapeHtml(RESULT_SUMMARY_SCHEMA_VERSION) + '"><div class="result-summary-head"><h4>统一结果摘要</h4><span>' + state + '</span></div>' + conclusion + findings + blocks + limitations + evidence + '</section>';
+  }
+
+  function renderSummaryBlock(block, escapeHtml) {
+    const facts = Object.entries(block.facts || {}).slice(0, 8).map(([key, value]) => '<div class="result-summary-fact"><span>' + escapeHtml(key) + '</span><b>' + escapeHtml(formatSummaryValue(value)) + '</b></div>').join("");
+    const details = facts ? '<details><summary>查看数据详情</summary><div class="result-summary-facts">' + facts + '</div></details>' : "";
+    const limitation = block.limitations?.length ? '<small class="result-summary-block-note">' + escapeHtml(block.limitations.join("；")) + '</small>' : "";
+    const evidence = renderSummaryEvidence(block.evidence, escapeHtml, true);
+    return '<article class="result-summary-block" data-summary-kind="' + escapeHtml(block.kind) + '"><div class="result-summary-block-head"><strong>' + escapeHtml(block.title) + '</strong><span>' + escapeHtml(block.kind_label) + '</span></div>' + (block.conclusion ? '<p>' + escapeHtml(block.conclusion) + '</p>' : '') + details + evidence + limitation + '</article>';
+  }
+
+  function renderSummaryEvidence(evidence, escapeHtml, compact = false) {
+    if (!record(evidence)) return "";
+    const stateLabels = {available: "来源可用", degraded: "来源部分可用", no_results: "没有找到来源", unavailable: "来源不可用"};
+    const state = text(evidence.state, 32) || "unavailable";
+    const label = stateLabels[state] || "来源状态未知";
+    const count = Number.isFinite(Number(evidence.source_count)) ? Number(evidence.source_count) : 0;
+    const reason = evidence.reason_code ? ' · ' + escapeHtml(evidence.reason_code) : '';
+    const records = list(evidence.source_records).slice(0, 8).map(item => {
+      const title = escapeHtml(item.title || item.domain || "未命名来源");
+      const domain = item.domain ? ' <small>' + escapeHtml(item.domain) + '</small>' : '';
+      const snippet = item.snippet ? '<p>' + escapeHtml(item.snippet) + '</p>' : '';
+      return '<li><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener noreferrer">' + title + '</a>' + domain + snippet + '</li>';
+    }).join("");
+    const sources = records ? '<ul class="result-summary-source-list">' + records + '</ul>' : '';
+    const sourceNames = !records && evidence.sources?.length ? '<small>' + escapeHtml(evidence.sources.join("、")) + '</small>' : '';
+    const query = !compact && evidence.query ? '<small>检索词：' + escapeHtml(evidence.query) + '</small>' : '';
+    return '<div class="result-summary-evidence result-summary-evidence-' + escapeHtml(state) + '"><span>' + escapeHtml(label) + ' · ' + escapeHtml(count) + ' 项</span>' + reason + query + sourceNames + sources + '</div>';
+  }
+
+  function formatSummaryValue(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    if (typeof value === "boolean") return value ? "是" : "否";
+    if (typeof value === "number" && Number.isFinite(value)) return value.toLocaleString("zh-CN", {maximumFractionDigits: 3});
+    if (Array.isArray(value)) return value.map(item => formatSummaryValue(item)).join("、");
+    if (record(value)) return Object.entries(value).slice(0, 6).map(([key, item]) => key + "：" + formatSummaryValue(item)).join("，");
+    return text(value, 240);
   }
 
   function renderFailure(failure, planningFailure, status, escapeHtml) {

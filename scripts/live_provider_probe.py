@@ -67,7 +67,11 @@ def main() -> int:
     config = load_openai_config()
     config["timeout_seconds"] = args.timeout_seconds
     config["max_retries"] = 0
-    config["max_output_tokens"] = max(64, min(4096, int(args.max_output_tokens)))
+    # Composite envelopes can legitimately need a five-digit budget when
+    # several domains, capabilities and readiness facts are present. Keep
+    # the live probe bounded, but do not silently undercut the production
+    # budget or turn a provider truncation into a JSON compatibility error.
+    config["max_output_tokens"] = max(64, min(12_000, int(args.max_output_tokens)))
     if args.composite:
         # The production composition root creates the OpenAI client lazily.
         # Pass the complete explicit probe budget through the process

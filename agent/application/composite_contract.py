@@ -307,6 +307,9 @@ def build_composite_result_contract(
         status=payload["status"],
     )
     result["views"] = _build_composite_views(components, child_views, state=state)
+    from agent.result_summary import build_result_summary
+
+    result["result_summary"] = build_result_summary(result)
     from agent.evidence.registry import build_evidence_registry
     from agent.evidence.projection import project_evidence_recovery
 

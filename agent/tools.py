@@ -71,6 +71,30 @@ class ToolRegistry:
             "tool_count": len(self._definitions),
         }
 
+    def base_provider_info(self) -> Dict[str, Any]:
+        """Return the stable provider identity without volatile dynamic tools.
+
+        Runtime context fingerprints describe the configured provider, while
+        approved proposal bindings are deliberately rehydrated at process
+        start and may change the Registry's current name set. Keeping the
+        base count here makes submission snapshots comparable across that
+        rehydration boundary; ``provider_info`` remains the live catalog count.
+        """
+        return {
+            "id": str(getattr(self._provider, "provider_id", "unknown"))[:64],
+            "tool_count": max(
+                0,
+                len(self._definitions)
+                - sum(
+                    1
+                    for name in self._dynamic_handlers
+                    if isinstance(self._definitions.get(name), Mapping)
+                    and isinstance(self._definitions[name].get("approval_id"), str)
+                    and bool(self._definitions[name].get("approval_id").strip())
+                ),
+            ),
+        }
+
     def provider_contract(self) -> Dict[str, Any]:
         """Return the validated provider/catalog contract evidence."""
         return {

@@ -15,9 +15,9 @@
 
 | 指标 | 数值 |
 | --- | ---: |
-| `agent/` 源码文件 | 194 |
-| 全仓源码文件 | 325 |
-| 职责覆盖 | 194/194 |
+| `agent/` 源码文件 | 197 |
+| 全仓源码文件 | 328 |
+| 职责覆盖 | 197/197 |
 | 语义覆盖率 | 100.0% |
 
 ### 语义层分布
@@ -34,8 +34,8 @@
 | `integration` | 11 |
 | `observability` | 2 |
 | `persistence` | 15 |
-| `planner` | 28 |
-| `result` | 6 |
+| `planner` | 30 |
+| `result` | 7 |
 | `runtime` | 48 |
 | `tooling` | 9 |
 | `verification` | 3 |
@@ -44,7 +44,7 @@
 
 | 当前目录 | 文件数 | 主要语义层 |
 | --- | ---: | --- |
-| `agent/（根目录公共入口与契约）` | 107 | adapter (3), application (11), data (2), domain (11), evidence (7), frontend (1), integration (4), observability (2), persistence (7), planner (25), result (6), runtime (23), tooling (2), verification (3) |
+| `agent/（根目录公共入口与契约）` | 110 | adapter (3), application (11), data (2), domain (11), evidence (7), frontend (1), integration (4), observability (2), persistence (7), planner (27), result (7), runtime (23), tooling (2), verification (3) |
 | `agent/analysis/` | 5 | analysis (5) |
 | `agent/application/` | 25 | application (25) |
 | `agent/evidence/` | 7 | evidence (7) |
@@ -80,8 +80,10 @@
 | `agent/artifact_store.py` | `persistence` | Compatibility facade for canonical persistence artifact storage. | `public-boundary` | `M14-M325` | `path-rule` | 0 | — |
 | `agent/artifact_viewer.py` | `persistence` | Compatibility facade for canonical persistence artifact viewing. | `public-boundary` | `M14-M325` | `path-rule` | 0 | — |
 | `agent/capability_catalog.py` | `planner` | The shared, safe capability contract for planners, APIs, and the Console. | `public-boundary` | `M59-M325` | `path-rule` | 5 | — |
+| `agent/capability_descriptor.py` | `planner` | Bounded, domain-neutral descriptors for capability discovery. | `public-boundary` | `M59-M325` | `path-rule` | 3 | — |
 | `agent/capability_discovery.py` | `planner` | Domain-neutral capability discovery value objects. | `public-boundary` | `M59-M325` | `path-rule` | 9 | — |
 | `agent/capability_routing.py` | `planner` | Compatibility facade for the former GIS capability router. | `public-boundary` | `M59-M325` | `path-rule` | 7 | — |
+| `agent/capability_selection.py` | `planner` | Bounded capability-selection evidence for Planner and public results. | `public-boundary` | `M59-M325` | `path-rule` | 2 | — |
 | `agent/component_evidence.py` | `evidence` | Compatibility facade for canonical component evidence. | `public-boundary` | `M293-M325` | `path-rule` | 0 | — |
 | `agent/context_engineering.py` | `planner` | Bounded, auditable context construction for planner calls. | `public-boundary` | `M77-M325` | `path-rule` | 3 | — |
 | `agent/contract_versions.py` | `runtime` | Version identifiers for the domain-neutral planning/result contracts. | `public-boundary` | `M1-M325` | `path-rule` | 0 | — |
@@ -144,6 +146,7 @@
 | `agent/request_understanding.py` | `planner` | Generic, bounded guidance for domain-owned request understanding. | `public-boundary` | `M77-M325` | `path-rule` | 2 | — |
 | `agent/result_completeness.py` | `result` | Domain-neutral completion projection for run results. | `public-boundary` | `M46-M325` | `path-rule` | 2 | — |
 | `agent/result_registry.py` | `result` | Domain-neutral result type metadata registry. | `public-boundary` | `M46-M325` | `path-rule` | 16 | — |
+| `agent/result_summary.py` | `result` | Domain-neutral, bounded summary projection for typed results. | `public-boundary` | `M46-M325` | `path-rule` | 3 | — |
 | `agent/rule_planning.py` | `planner` | Compatibility facade for the former GIS plan composer. | `internal` | `M7-M325` | `path-rule` | 3 | — |
 | `agent/run_events.py` | `runtime` | Versioned, bounded lifecycle events for realtime Agent consumers. | `public-boundary` | `M13-M325` | `path-rule` | 6 | — |
 | `agent/runtime.py` | `runtime` | AgentRuntime 门面与生命周期入口 | `public-boundary` | `M318-M325` | `file-override` | 24 | `tests/test_m320_react_runtime.py` |

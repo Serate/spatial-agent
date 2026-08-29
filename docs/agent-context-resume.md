@@ -297,3 +297,16 @@
   smoke、readiness **200**、真实 sidecar 调用和 SQLite receipt 恢复通过。
 - sidecar healthcheck、公开字段传输和 receipt/hash 测试边界问题已记录在中文问题日志；Docker 修改后必须重建镜像。
 - 未调用真实模型；M323 继续实现人工审批、持久化审批状态和受控 Registry 注册。
+
+## M328：受控开放行动闭环（已完成）
+
+- 审批恢复已闭合：`tool_approval_accepted` 作为有界运行事实注入安全历史；批准后恢复同一 Run，动态 Registry 工具
+  可被后续 ReAct 轮次发现；基础 Provider 工具集合与动态授权分离，Runtime context fingerprint 保持稳定。
+- Web evidence 已闭合：成功、无结果和网络不可用共享版本化 document evidence；真实网络不可达时返回
+  `unavailable/search_network_error`，不伪造来源。
+- Docker 紧凑回归 `32/32`，readiness `200`，compileall、architecture strict、代码/文档索引和前端 projection smoke 通过。
+- 真实验收：经济本地数据 + Web 搜索 4 个工具步骤并完成 SSE/Last-Event-ID 续传；经济目录 + 区域指标目录 LLM 规划为
+  2 个组件并完成；工具提案经 sandbox、人工审批、同一 Run 恢复后实际执行成功。未保存密钥、Prompt、模型原文、网页正文
+  或工具 source。
+- 复杂请求缺少具体指标、数据不可用或 Provider 字段漂移时保持结构化澄清/拒绝，不创建执行 Run；下一阶段从全局目标重新
+  规划，不默认读取本阶段全量源码或模型输出。

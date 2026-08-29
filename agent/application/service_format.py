@@ -182,6 +182,7 @@ def format_result(
     if isinstance(payload.get("plan_evidence"), dict) and payload["plan_evidence"].get("plan_identity"):
         payload["plan_identity"] = dict(payload["plan_evidence"]["plan_identity"])
     payload["result"] = build_result_contract(payload, registry=result_registry)
+    payload["result_summary"] = payload["result"].get("result_summary")
     payload.pop("_geometry_evidence", None)
     _attach_error_category(payload)
     payload["execution_record"] = build_execution_record(payload, kind="run")

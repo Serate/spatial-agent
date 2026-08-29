@@ -52,6 +52,7 @@ from agent.evidence.revalidation import (
 from .plan_quality import diagnose_plan, project_plan_quality_evidence
 from .plan_policy import build_plan_policy_evidence
 from .planner_selection import build_planner_selection_evidence
+from .capability_selection import build_capability_selection_evidence
 from .planner_context import (
     PLANNER_CONTEXT_PROJECTION_SCHEMA_VERSION,
     project_planner_sections,
@@ -81,6 +82,7 @@ from .runtime_core.execution_policy import ExecutionPolicyResolver, build_execut
 from .runtime_core.capabilities import RuntimeCapabilitySurface
 from .runtime_core.control import RunControl
 from .runtime_core.decision_resume import RuntimeDecisionResume
+from .runtime_core.tool_approval_resume import RuntimeToolApprovalResume
 from .runtime_core.planning_surface import RuntimePlanningSurface
 from .runtime_core.preview import RuntimePreviewSurface
 from .runtime_core.plan_evidence import (
@@ -218,6 +220,7 @@ class AgentRuntime:
         )
         self._run_lifecycle = RuntimeRunLifecycle(self)
         self._decision_resume = RuntimeDecisionResume(self)
+        self._tool_approval_resume = RuntimeToolApprovalResume(self)
         self._recovery = RuntimeRecoverySurface(self)
         self._preview = RuntimePreviewSurface(self)
         self._run_span_ids: Dict[str, str] = {}
@@ -250,11 +253,17 @@ class AgentRuntime:
 
     def runtime_context(self) -> Dict[str, Any]:
         """Return the immutable configuration evidence for this Runtime."""
+        provider_info = getattr(self._registry, "base_provider_info", None)
+        tool_provider = (
+            provider_info()
+            if callable(provider_info)
+            else self._registry.provider_info()
+        )
         return build_runtime_context(
             domain_id=self.domain_id,
             planner=self._planner_name,
             backend=self._backend_name,
-            tool_provider=self._registry.provider_info(),
+            tool_provider=tool_provider,
             permissions=self._allowed_permissions,
             approved_tools=self._approved_tools,
             require_dependency_evidence=self._require_dependency_evidence,
@@ -442,6 +451,18 @@ class AgentRuntime:
 
     def retry_failed(self, run_id: str) -> AgentRunResult:
         return self._recovery.retry_failed(run_id)
+
+    def apply_tool_approval(
+        self,
+        approval: Mapping[str, Any],
+        *,
+        timeout_seconds: Optional[float] = None,
+    ) -> Optional[AgentRunResult]:
+        """Apply an approved/rejected proposal to its associated waiting run."""
+        return self._tool_approval_resume.apply(
+            approval,
+            timeout_seconds=timeout_seconds,
+        )
     def export_result(self, result_ref: str, max_features: int = 100) -> Dict:
         return self._registry.export_result(result_ref, max_features=max_features)
 
@@ -548,12 +569,14 @@ class AgentRuntime:
     ) -> Dict[str, Any]:
         """Create planning evidence even when no executable plan survived."""
         selection = None
+        sections: Mapping[str, Any] = {}
         if context_packet is not None:
             sections = (
                 context_packet.source_payload or context_packet.payload or {}
             ).get("sections", {})
             if isinstance(sections, Mapping):
                 selection = sections.get("workflow_selection")
+        sections = sections if isinstance(sections, Mapping) else {}
         return {
             "available": False,
             "planner_kind": type(self._planner).__name__,
@@ -572,6 +595,12 @@ class AgentRuntime:
             ),
             "execution_policy": self._unavailable_execution_policy(reason_code),
             "workflow_selection": normalize_workflow_selection_evidence(selection),
+            "capability_selection": build_capability_selection_evidence(
+                discovery=sections.get("capability_discovery"),
+                selection=selection,
+                capability_catalog=sections.get("capability_catalog"),
+                request_facts=sections.get("spatial_request"),
+            ),
             "planner_selection": build_planner_selection_evidence(
                 plan,
                 selection,

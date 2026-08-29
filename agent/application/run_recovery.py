@@ -28,6 +28,7 @@ from agent.application.service_format import (
 )
 from agent.application.service_sessions import attach_history_lineage as _attach_history_lineage
 from agent.trace_formatter import format_trace
+from agent.result_summary import build_result_summary, normalize_result_summary
 from result_contract import build_result_contract
 
 
@@ -315,6 +316,7 @@ class RunRecoveryApplication:
             payload,
             registry=_runtime_result_registry(runtime),
         )
+        payload["result_summary"] = payload["result"].get("result_summary")
         payload.pop("_geometry_evidence", None)
         _attach_error_category(payload)
         payload["execution_record"] = build_execution_record(payload, kind="run")
@@ -356,6 +358,14 @@ class RunRecoveryApplication:
             self._reject_cross_domain_run_id(run_id, domain_id)
             raise ValueError("run evidence not found: " + run_id)
         source = artifact if isinstance(artifact, dict) else (payload or {})
+        nested_result = source.get("result") if isinstance(source.get("result"), dict) else source
+        raw_summary = source.get("result_summary")
+        if not isinstance(raw_summary, dict) and isinstance(nested_result, dict):
+            raw_summary = nested_result.get("result_summary")
+        try:
+            result_summary = normalize_result_summary(raw_summary, allow_legacy=True)
+        except (TypeError, ValueError):
+            result_summary = build_result_summary(nested_result)
         return {
             "schema_version": "spatial-agent.evidence-reference.v1",
             "run_id": run_id,
@@ -364,6 +374,7 @@ class RunRecoveryApplication:
             "evidence_registry": registry,
             "evidence_projection": project_evidence_projection(source),
             "evidence_recovery": project_evidence_recovery(source),
+            "result_summary": result_summary,
         }
 
     def _wait_for_consistent_snapshot(
@@ -427,6 +438,7 @@ class RunRecoveryApplication:
             payload,
             registry=_runtime_result_registry(runtime),
         )
+        payload["result_summary"] = payload["result"].get("result_summary")
         artifact_views = (
             normalized_artifact_result.get("views")
             if isinstance(normalized_artifact_result, dict)

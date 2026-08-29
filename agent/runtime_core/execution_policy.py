@@ -281,9 +281,14 @@ class ExecutionPolicyResolver:
 
     @property
     def known_tools(self) -> tuple[str, ...]:
-        """Return the immutable server-owned tool allowlist."""
+        """Return the current server-owned tool allowlist."""
 
         return self._known_tools
+
+    def refresh_known_tools(self, values: Iterable[Any]) -> None:
+        """Refresh the allowlist after a guarded Registry publication."""
+
+        self._known_tools = tuple(_iter_strings(values))
 
     def resolve(
         self,

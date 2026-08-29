@@ -2005,3 +2005,205 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 
 - 真实模型验收只记录脱敏状态、预算、动作数和结果完整性，不记录 Prompt、模型原文、密钥或私有结果。
 - 调整预算后仍必须经过 Planner envelope、TaskPlan、ToolRegistry、权限、审批、数据 readiness 和 Execution Policy 校验。
+
+## 2026-08-29 M327 定向回归中的既有测试环境污染与上下文预算假设
+
+### 现象
+
+- 合并执行 M327 与相邻回归时，M173 的一个用例因 Docker 挂载的生产 SQLite 中残留同名跨域 session，
+  报告“session belongs to another domain”；M77 的模板上下文用例因完整模板摘要超过 12000 字符预算，
+  得到明确的 `context_budget` 裁剪对象后仍按未裁剪结构断言。
+
+### 判断与处理
+
+- 两个问题均不由 M327-B 的能力选择代码引入：M173 是持久化测试状态未隔离，M77 是旧用例对上下文预算的既有假设。
+  M327-B 采用独立专项测试和无污染的相邻用例验证，专项 `8/8`、相邻定向回归 `21/21` 通过。
+- 后续 Docker 测试不得复用生产 `outputs/spatial-agent.db`；涉及大上下文时必须断言版本化的裁剪状态，
+  或使用显式 compact projection，不把“字段被裁剪”误判为业务失败。
+
+## 2026-08-29 M327-C 轻量答案结果对象兼容
+
+### 现象
+
+- 答案流的旧离线用例传入只提供属性的轻量对象，没有 `AgentRunResult.to_dict()`；新增共享结果摘要后，
+  答案上下文在生成摘要前直接调用 `to_dict()`，导致尚未进入流式 Provider 就抛出 `AttributeError`。
+
+### 根因与处理
+
+- 答案上下文此前只隐式依赖正式 Runtime 对象，测试和可替换 Adapter 的对象协议没有被显式收口。
+- 现在先通过 `to_dict()` 读取正式对象；缺少该方法时使用有界的 request/status/plan/steps 适配 payload，
+  再统一进入 `result_summary` 投影。适配层不复制 Prompt、工具参数、路径或模型原文。
+
+### 预防
+
+- 公共摘要、答案生成和替换 Adapter 的测试优先通过 `build_result_summary()` 与轻量结果对象验证，
+  不让调用方依赖某个具体 Runtime 类的内部方法。
+
+## 2026-08-29 M327-D 异步摘要归一化遗漏
+
+### 现象
+
+- 异步构建结果已经带有 `result_summary`，但经过异步 evidence 归一化后字段消失，导致异步读取和同步
+  Result 的摘要不一致；最初表现为跨入口测试读取不到统一摘要。
+
+### 根因与处理
+
+- `build_async_result_evidence()` 和 `normalize_async_result_evidence()` 是两个独立的投影函数，只在构建端
+  接入摘要时，归一化端仍按旧字段白名单重建结果。
+- 两个函数现在都使用 `normalize_result_summary(..., allow_legacy=False)` 重新校验同一版本化摘要；未知版本
+  安全丢弃，不把未验证对象传播到异步边界。Artifact、恢复证据和 Composite evidence 也通过同一投影读取。
+
+### 预防
+
+- 新增公共结果字段时，必须同时检查 build、normalize、Artifact read/write、recovery 和前端 projection 五个入口。
+- 跨入口契约测试至少比较同步 Result、异步归一化结果和 Artifact/恢复读取结果；不要只验证单个 builder 的输出。
+
+## 2026-08-30 M327 live Composite 验收预算被脚本截断
+
+### 现象
+
+- 真实 Composite 规划使用命令行传入万级 `max-output-tokens`，但验收脚本仍把值上限固定为 4096；复杂请求因此可能返回空/不完整 JSON，
+  看起来像 Provider 不兼容。
+
+### 根因与处理
+
+- `scripts/live_provider_probe.py` 的探测上限落后于生产 `.env.production` 的 10000 配置。
+- 上限调整为有界 12000；仍保留 Planner 的结构化解析、一次 compact recovery 和所有执行门禁。
+- 修复后真实 Composite 规划一次成功，`gis + economic` 两组件进入执行并完成。
+
+### 预防
+
+- live 验收参数不能静默低于生产配置；预算变化必须记录在脱敏 evidence 中，并保持有限上限。
+
+## 2026-08-30 M327 Composite 模型误选不可物化能力
+
+### 现象
+
+- 真实模型返回合法 JSON，但选择了 `workflow_not_registered` 候选，规划被安全拒绝为 `capability_not_materializable`。
+
+### 根因与处理
+
+- Planner context 同时包含可发现但未绑定 workflow 的 advisory 候选和可执行候选，提示没有明确 `execution_ready` 的选择规则。
+- Composite Planner 现在明确要求 `available=true` 且 `execution_ready=true`；未就绪候选只能用于解释/澄清，不能进入 success plan。
+
+### 预防
+
+- 能力目录可包含“已发现但暂不可执行”的候选，但模型-facing projection 必须同时携带就绪状态和不可选语义。
+- 计划校验仍必须保留 fail closed，不能只依赖 Prompt。
+
+## 2026-08-30 M327 ReAct 工具提案提示与沙箱策略不一致
+
+### 现象
+
+- 真实模型提出 proposal 时，先后出现 `invalid_model_response`、`proposal_schema_keyword_forbidden` 和 `proposal_call_forbidden`。
+
+### 根因与处理
+
+- ReAct 提示笼统禁止 source code，却要求 `propose_tool` 携带 `proposal.source`；同时没有声明有限 Schema 关键字和 AST 允许的纯函数语法。
+- 提示现已明确 source 只能位于 proposal 内，proposal 必须有六个字段，Schema 使用有限子集，代码只允许纯 `run(arguments)`、索引、算术和安全内置函数。
+- 修复后真实 proposal 通过有限 Schema、AST 和 Docker 无网络 sandbox，进入 `WAITING_FOR_DECISION`；未自动发布或执行。
+
+### 预防
+
+- 生成式能力的 Prompt、公开 Schema、静态校验和 sandbox 策略必须来自同一份允许列表；实际审批前永远不进入 Registry。
+
+## 2026-08-30 M327 Web 搜索真实网络不可达
+
+### 现象
+
+- 真实经济请求实际执行 `web_search`，但 DuckDuckGo provider 返回 `search_network_error/unavailable`。
+
+### 判断与处理
+
+- 这是容器到公共搜索服务的网络可达性问题，不是搜索结果解析成功；同一次运行中的本地经济工具仍完成，最终回答明确降级。
+- 系统没有伪造来源，HTTP、Artifact、SSE 和 Last-Event-ID 对照仍通过。
+
+### 预防
+
+- 不为通过验收而扩大白名单或绕过 HTTPS；若要成功路径，应在 M328 通过显式 provider/网络配置或受控公开 fixture 验收，仍保留真实网络失败降级。
+
+## 2026-08-30 M328 审批恢复未携带批准事实
+
+### 现象
+
+- 工具提案已经人工批准并发布到 Registry，但恢复的 ReAct 运行仍可能把该工具视为未批准，重复停在审批状态，
+  或无法从原等待点继续。
+
+### 根因与处理
+
+- 恢复路径只恢复 proposal receipt 和 Registry binding，没有把“批准动作已发生”的有界事实安全注入当前运行历史。
+- 审批 record/store 现在保存 `run_id`，恢复时校验 `run_id`、proposal version 和 receipt fingerprint，并注入
+  `tool_approval_accepted` 事件后从安全历史继续；拒绝、撤销和过期仍会关闭运行且不执行工具。
+
+### 预防
+
+- 审批属于运行生命周期事件，不能只修改工具目录；必须与同一 Run identity、版本、fingerprint、Artifact 和恢复证据闭合。
+
+## 2026-08-30 M328 动态审批工具被静态 Planner 白名单遮蔽
+
+### 现象
+
+- 审批后动态工具已经绑定，但后续 ReAct Planner 的工具目录仍只有基础工具，模型无法选择刚刚批准的工具。
+
+### 根因与处理
+
+- Planner 使用启动时的静态 Provider 工具白名单，而不是 Runtime 当前 Registry 的可用工具目录。
+- ReAct 每轮从当前 Registry 读取工具，提示仅保留有界 `approved_tools` 元数据；schema、权限、审批和执行策略门禁不变。
+
+### 预防
+
+- 动态能力的模型可见目录必须来自运行时 Registry；静态基础工具集合只能作为稳定的上下文身份和离线基线。
+
+## 2026-08-30 M328 动态绑定导致 Runtime context 指纹漂移
+
+### 现象
+
+- 审批绑定动态工具后，同一异步运行的 Runtime context fingerprint 发生变化，恢复或跨入口读取被误判为上下文不一致。
+
+### 根因与处理
+
+- Runtime context 把当前动态 Registry 工具数量纳入稳定基础 Provider 身份，审批后工具数量变化自然导致指纹漂移。
+- 现在稳定指纹只使用基础 Provider 工具集合；动态批准工具通过有界执行策略和审批 receipt 单独表达。
+
+### 预防
+
+- 恢复身份必须区分“基础运行上下文”与“运行期间动态授权”；不能用可变能力目录直接生成不可变上下文指纹。
+
+## 2026-08-30 M328 真实跨域数据与 Web/GIS 降级边界
+
+### 现象
+
+- 真实经济多步请求可以完成本地数据分析，但容器访问公共搜索服务时可能得到
+  `unavailable/search_network_error`；GIS 数据缺失时无法产生栅格空间结论。
+
+### 判断与处理
+
+- 这是外部 Web 可达性或数据后端状态，不是可以用伪造来源或默认值掩盖的成功；本地可用步骤继续执行，结果标记
+  `partial`/`data_unavailable`，答案明确说明限制。
+- 真实验收已检查 HTTP、Artifact、SSE、Last-Event-ID 和答案流的脱敏状态；没有保存网页正文、Prompt、模型原文、
+  密钥或私有路径。
+
+### 预防
+
+- 复杂验收必须同时记录成功动作和失败动作的结构化 reason code；Web 成功路径使用服务器白名单和受控 provider，
+  网络失败路径也必须作为一等可恢复结果验证。
+
+## 2026-08-30 M328 复杂 Composite 请求的事实缺口与模型字段漂移
+
+### 现象
+
+- 过宽请求同时要求经济、区域指标、GIS、Web、时期比较和 freshness 时，Composite 可能返回结构化澄清，不创建执行 Run。
+- 即使补充具体指标，兼容 Provider 偶尔返回不符合 Composite 组件契约的字段，最终以 `plan_component_field_invalid` 安全拒绝。
+
+### 判断与处理
+
+- 经济能力要求明确 `indicator`，不能从“经济指标”猜测具体指标；当前目录只有部分能力可执行时，不能让模型选择
+  `workflow_unbound`、缺事实或数据不可用候选。
+- Composite Planner 保持严格字段/能力/TaskPlan 校验；非法结构不进入执行。已用已就绪的经济目录 + 区域指标目录完成
+ 真实两组件验收；具体指标的失败被记录为结构化边界，不伪造答案。
+
+### 预防
+
+- 真实测试应分层：先用已就绪能力验证跨域执行，再用明确事实验证专题分析；报告必须区分“模型未运行的澄清”“模型输出
+  不合约的拒绝”“工具/数据/网络执行失败”。
+- 若要提高复杂请求成功率，应在下一阶段扩展能力目录、事实抽取和受控 repair，而不是放宽字段校验或增加固定问句分支。

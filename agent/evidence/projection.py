@@ -23,6 +23,7 @@ from agent.evidence.registry import (
     project_evidence_registry_completeness,
 )
 from agent.planner_selection import normalize_planner_selection_evidence
+from agent.capability_selection import normalize_capability_selection_evidence
 from agent.recovery_action import normalize_action_receipt
 from agent.workflow_selection import normalize_workflow_selection_evidence
 
@@ -60,6 +61,9 @@ def project_evidence_projection(
     )
     planner = normalize_planner_selection_evidence(
         planning.get("planner_selection")
+    )
+    capability_selection = normalize_capability_selection_evidence(
+        planning.get("capability_selection")
     )
     migration = _migration_projection(raw_registry, completeness)
     lifecycle = _stable_lifecycle_projection(payload)
@@ -102,6 +106,7 @@ def project_evidence_projection(
         "evidence_registry_completeness": completeness,
         "migration": migration,
         "selection": {
+            "capability_selection": capability_selection,
             "workflow_selection": workflow,
             "planner_selection": planner,
         },

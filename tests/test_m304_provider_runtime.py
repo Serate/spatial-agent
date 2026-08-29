@@ -77,6 +77,73 @@ class M304ProviderRuntimeTests(unittest.TestCase):
         self.assertEqual(details["provider_failure"]["code"], "provider_timeout")
         self.assertTrue(details["provider_failure"]["retryable"])
 
+    def test_llm_composite_planner_uses_one_compact_recovery_for_invalid_json(self):
+        calls = []
+
+        class _Client:
+            def complete_json(self, messages, schema):
+                calls.append("normal")
+                raise PlanningError(
+                    "invalid model response",
+                    category="planning",
+                    code="invalid_model_response",
+                    retryable=False,
+                )
+
+            def complete_compact_json(self, messages, schema, *, schema_name=None):
+                calls.append("compact")
+                return {
+                    "outcome": "needs_clarification",
+                    "goal": "",
+                    "message": "需要补充信息",
+                    "components": [],
+                }
+
+        planner = LLMCompositePlanner(_Client())
+        result = planner.plan("规划组合分析", context={})
+
+        self.assertEqual(result["status"], "NEEDS_CLARIFICATION")
+        self.assertEqual(calls, ["normal", "compact"])
+        self.assertEqual(planner.metrics()["compact_recovery_attempts"], 1)
+
+    def test_llm_composite_prompt_excludes_unready_capabilities(self):
+        captured = []
+
+        class _Client:
+            def complete_json(self, messages, schema, **kwargs):
+                del schema, kwargs
+                captured.extend(messages)
+                return {
+                    "outcome": "needs_clarification",
+                    "goal": "",
+                    "message": "没有可执行能力",
+                    "components": [],
+                }
+
+        LLMCompositePlanner(_Client()).plan(
+            "组合分析",
+            context={
+                "capability_index": [
+                    {
+                        "domain_id": "gis",
+                        "capability_id": "unbound",
+                        "available": True,
+                        "execution_ready": False,
+                        "plan_mode": "unbound",
+                    },
+                    {
+                        "domain_id": "gis",
+                        "capability_id": "ready",
+                        "available": True,
+                        "execution_ready": True,
+                    },
+                ]
+            },
+        )
+        system = next(item["content"] for item in captured if item["role"] == "system")
+        self.assertIn("execution_ready", system)
+        self.assertIn("workflow_not_registered", system)
+
     def test_provider_runtime_survives_composite_view_projection(self):
         runtime = project_provider_runtime_evidence(
             {

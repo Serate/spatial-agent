@@ -5298,3 +5298,11 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
   `--env-file .env.production`；直接执行验收脚本补齐项目根路径。
 - 下一阶段候选：独立 React 前端迁移；保持 HTTP、Result、View、Evidence、Trace、Artifact
   与 Runtime 公共契约不变。
+
+## M328：受控开放行动闭环（2026-08-30，已完成）
+
+- 完成提案审批后的同一 Run 恢复、动态工具发现和稳定 Runtime context；拒绝、撤销、过期保持不可执行。
+- 完成 Web evidence 的成功/无结果/网络不可用统一投影；网络失败不伪造来源。
+- Docker 紧凑回归 `32/32`，readiness `200`，compileall、architecture strict、代码/文档索引和前端 smoke 通过。
+- 真实模型验收覆盖本地经济数据 + `web_search` 的 4 步链路、经济 + 区域指标的 2 组件 Composite，以及沙箱工具提案
+  的审批恢复执行；SSE/Last-Event-ID 和答案流可用。

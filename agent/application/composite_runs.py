@@ -52,6 +52,7 @@ from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.planner_repair import build_repair_lineage
 from agent.application.service_async import process_is_alive
 from agent.application.service_state import ServiceState
+from agent.result_summary import build_result_summary, normalize_result_summary
 
 
 COMPOSITE_RUN_SCOPE = "composite"
@@ -317,6 +318,7 @@ class CompositeRunApplication:
             "evidence_recovery": result.get("evidence_recovery") or {"available": False},
             "execution_binding": binding_evidence,
             "answer_generation": result.get("answer_generation_evidence") or {"available": False},
+            "result_summary": _safe_result_summary(result),
         }
 
     def get_view(self, run_id: str) -> dict[str, Any]:
@@ -452,6 +454,7 @@ class CompositeRunApplication:
         response = dict(response)
         response["run_id"] = actual_run_id
         response["result"] = canonical
+        response["result_summary"] = canonical.get("result_summary")
         # The synchronous response must expose the same View contract as the
         # later HTTP/artifact recovery path.  Without this projection the
         # Console sees a result envelope immediately but cannot render the
@@ -565,6 +568,16 @@ class CompositeRunApplication:
         payload["_async_requested"] = True
         payload["async_observability"] = self._async.get_observability(run_id)
         self._artifact_store.write_run(payload)
+
+
+def _safe_result_summary(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the canonical bounded summary at the evidence read seam."""
+
+    raw = value.get("result_summary") if isinstance(value, Mapping) else None
+    try:
+        return normalize_result_summary(raw, allow_legacy=True)
+    except (TypeError, ValueError):
+        return build_result_summary(value)
 
 
 def _run_status(value: Any) -> RunStatus:

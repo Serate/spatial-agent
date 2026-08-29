@@ -16,6 +16,7 @@ from typing import Any, Mapping
 
 from .errors import PlanningError
 from .result_completeness import build_result_completeness
+from .result_summary import build_result_summary
 
 
 ANSWER_GENERATION_SCHEMA_VERSION = "spatial-agent.answer-generation.v1"
@@ -116,17 +117,15 @@ def build_composite_answer_context(result: Mapping[str, Any]) -> dict[str, Any]:
     from agent.application.composite_view import build_composite_view_projection
 
     projection = build_composite_view_projection(result)
+    result_summary = projection.get("result_summary")
+    result_summary = (
+        result_summary if isinstance(result_summary, Mapping)
+        else build_result_summary(result)
+    )
     sections = [
-        {
-            "component_id": item.get("component_id"),
-            "state": item.get("state"),
-            "status": item.get("status"),
-            "result_type": item.get("result_type"),
-            "data_profile": item.get("data_profile"),
-            "answer": item.get("answer"),
-        }
-        for item in projection.get("sections", [])
-        if isinstance(item, Mapping) and item.get("kind") == "component"
+        dict(item)
+        for item in result_summary.get("blocks", [])
+        if isinstance(item, Mapping)
     ]
     return {
         "schema_version": COMPOSITE_ANSWER_SCHEMA_VERSION,
@@ -134,6 +133,7 @@ def build_composite_answer_context(result: Mapping[str, Any]) -> dict[str, Any]:
         "status": projection.get("status"),
         "completeness": projection.get("completeness"),
         "components": sections[:_MAX_COMPONENTS],
+        "result_summary": dict(result_summary),
         "fallback_answer": projection.get("answer"),
     }
 
@@ -154,6 +154,7 @@ class LLMCompositeAnswerGenerator:
                     "不得补造事实、数量、坐标或规划许可结论。返回严格 JSON，只有 answer 字段，"
                     "answer 必须包含 headline、summary、key_findings、limitations；可选 next_steps；不要输出工具名、"
                     "fingerprint、result_ref、artifact 引用、prompt 或模型内部过程。若 completeness.state 为 partial、"
+                    "优先依据 result_summary 的结论、关键发现、限制和 evidence 组织答案；facts 只用于必要的技术细节。"
                     "blocked 或 waiting_decision，必须明确说明已完成范围、未完成范围和是否可以继续，不得写成全部完成。"
                 ),
             },
@@ -196,7 +197,8 @@ class LLMCompositeAnswerGenerator:
                 "content": (
                     "你是面向普通用户的分析结果解读助手。只能根据提供的可信事实，"
                     "用自然中文输出一段简洁总结，不要输出 JSON、工具名、内部引用、Prompt、"
-                    "隐藏思维过程或未经事实支持的结论。若结果不完整，明确说明已完成内容、缺失范围和后续动作。"
+                    "隐藏思维过程或未经事实支持的结论。优先依据结论、关键发现、限制和证据来源组织总结；"
+                    "若结果不完整，明确说明已完成内容、缺失范围和后续动作。"
                 ),
             },
             {
@@ -311,24 +313,34 @@ def build_answer_context(result: Any) -> dict[str, Any]:
             item["error"] = _safe_text(error, 240)
         steps.append(item)
 
+    result_payload = _result_payload_for_summary(result, plan=plan, steps=steps)
+
     packet: dict[str, Any] = {
         "schema_version": ANSWER_GENERATION_SCHEMA_VERSION,
         "request": _safe_text(getattr(result, "request", ""), _MAX_REQUEST_CHARS),
         "goal": _safe_text(getattr(plan, "goal", "") if plan else "", 400),
         "result_type": _safe_text(output.get("type"), 96),
         "status": _safe_text(getattr(getattr(result, "status", None), "value", getattr(result, "status", "")), 32),
-        "completeness": build_result_completeness(result.to_dict()),
+        "completeness": build_result_completeness(result_payload),
         "assumptions": [
             _safe_text(item, 200)
             for item in (getattr(plan, "assumptions", []) or [])[:8]
             if isinstance(item, (str, int, float))
         ],
         "steps": steps,
+        "result_summary": build_result_summary(result_payload),
     }
     # Keep the serialized packet bounded even when a custom Domain returns a
     # particularly wide scalar result.
     encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
     if len(encoded) > _MAX_CONTEXT_CHARS:
+        summary = packet.get("result_summary")
+        if isinstance(summary, dict):
+            for block in summary.get("blocks", []):
+                if isinstance(block, dict):
+                    block["facts"] = {}
+            summary["blocks"] = list(summary.get("blocks", []))[:8]
+            encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
         packet["steps"] = steps[:8]
         encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
         if len(encoded) > _MAX_CONTEXT_CHARS:
@@ -342,6 +354,41 @@ def build_answer_context(result: Any) -> dict[str, Any]:
                 for item in packet["steps"]
             ]
     return packet
+
+
+def _result_payload_for_summary(
+    result: Any, *, plan: Any, steps: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Adapt legacy result-like test objects to the shared summary seam."""
+
+    to_dict = getattr(result, "to_dict", None)
+    if callable(to_dict):
+        value = to_dict()
+        if isinstance(value, Mapping):
+            return dict(value)
+    output = getattr(plan, "output", {}) if plan is not None else {}
+    output = dict(output) if isinstance(output, Mapping) else {}
+    return {
+        "request": _safe_text(getattr(result, "request", ""), _MAX_REQUEST_CHARS),
+        "status": _safe_text(
+            getattr(getattr(result, "status", None), "value", getattr(result, "status", "")),
+            32,
+        ),
+        "plan": {
+            "goal": _safe_text(getattr(plan, "goal", "") if plan else "", 400),
+            "output": output,
+        },
+        "steps": [
+            {
+                "id": item.get("id"),
+                "tool": item.get("tool"),
+                "status": item.get("status"),
+                "result": item.get("facts") or {},
+                "error": item.get("error"),
+            }
+            for item in steps
+        ],
+    }
 
 
 class LLMAnswerGenerator:
@@ -359,6 +406,7 @@ class LLMAnswerGenerator:
                     "你是面向普通用户的分析结果解读助手。只根据可信事实回答，不得补造事实、坐标、"
                     "数量或规划结论。结论优先，把说明要点写在 answer 字符串中；内部状态、工具名、"
                     "result_ref、memory:// 和 JSON 字段都要翻译成自然中文。若数据不完整，明确说明影响。"
+                    "优先依据 result_summary 的结论、关键发现、限制和 evidence 组织答案；facts 只用于必要的技术细节。"
                     "若 completeness.state 为 partial、blocked 或 waiting_decision，必须区分已完成内容与未完成范围，"
                     "不得声称全部分析已完成。"
                     "只返回一个 JSON 对象，且只能有 answer 字段；answer 必须是 6000 字符以内的非空字符串。"
@@ -409,6 +457,7 @@ class LLMAnswerGenerator:
                 "content": (
                     "你是面向普通用户的分析结果解读助手。只根据可信事实，用自然中文输出简洁答案；"
                     "不要输出 JSON、工具名、内部引用、Prompt、隐藏思维过程或未经事实支持的结论。"
+                    "优先根据 result_summary 的结论、关键发现、限制和证据来源回答，技术 facts 只作必要补充；"
                     "数据不完整时明确说明影响。答案不超过 6000 字。"
                 ),
             },

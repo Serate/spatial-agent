@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
   "updated": "2026-08-29",
-  "active_stage": "M327",
+  "active_stage": "M328",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -64,6 +64,43 @@
   ],
   "stage_packages": [
     {
+      "id": "M328",
+      "status": "in_progress",
+      "root": "docs/stages/M328",
+      "capability_map": "docs/stages/M328/capability-map.md",
+      "spec": "docs/stages/M328/spec.md",
+      "plan": "docs/stages/M328/plan.md",
+      "handoff": "docs/stages/M328/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M328/handoff.md"
+      ],
+      "source_files": [
+        "agent/tooling/approval.py",
+        "agent/tooling/rehydration.py",
+        "agent/tools.py",
+        "agent/react/loop.py",
+        "agent/runtime_core/react_runtime.py",
+        "agent/runtime_core/execution_policy.py",
+        "agent/runtime_core/tool_approval_resume.py",
+        "agent/runtime_core/run_lifecycle.py",
+        "agent/runtime.py",
+        "agent/application/run.py",
+        "agent/service.py",
+        "tests/test_m328_tool_approval_resume.py"
+      ],
+      "verify": [
+        "tests/test_m328_tool_approval_resume.py",
+        "tests/test_m322_tool_proposal.py",
+        "tests/test_m323_tool_approval.py",
+        "tests/test_m324_tool_governance.py",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready"
+      ]
+    },
+    {
       "id": "M327",
       "status": "in_progress",
       "root": "docs/stages/M327",
@@ -77,6 +114,7 @@
         "docs/stages/M327/handoff.md"
       ],
       "source_files": [
+        "agent/capability_descriptor.py",
         "agent/capability_catalog.py",
         "agent/application/catalog.py",
         "agent/domain_contract.py",
@@ -84,10 +122,10 @@
         "agent/result_completeness.py",
         "agent/evidence/projection.py",
         "agent/llm_planner.py",
-        "tests/test_m326_result_completeness.py"
+        "tests/test_m327_capability_descriptor.py"
       ],
       "verify": [
-        "tests/test_m326_result_completeness.py",
+        "tests/test_m327_capability_descriptor.py",
         "scripts/architecture_check.py --strict",
         "python -m compileall -q agent domains scripts",
         "health/ready"

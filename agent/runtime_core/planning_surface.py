@@ -176,9 +176,14 @@ class RuntimePlanningSurface:
             tool_provider=self._registry.provider_info(),
             tool_provider_health=self._registry.provider_health(),
             tool_governance=self._registry.governance_summary(max_tools=4),
-            selected_capability_ids=selected_capability_ids(discovery)[:1],
+            # Keep every bounded discovery candidate available to the
+            # descriptor projection.  The legacy ``capabilities`` cards stay
+            # limited by ``max_capabilities``; descriptors carry the compact
+            # alternatives needed for open requests and clarification.
+            selected_capability_ids=selected_capability_ids(discovery),
             max_capabilities=1,
             max_tools=12,
+            max_descriptors=8,
         )
         planner_sections = project_planner_sections(
             capability_discovery=discovery_payload,

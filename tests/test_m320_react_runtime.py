@@ -307,6 +307,26 @@ class M320ReactDecisionAdapterTests(unittest.TestCase):
         self.assertIn("available_tool_contracts", serialized_messages)
         self.assertIn("dataset", serialized_messages)
 
+    def test_proposal_prompt_allows_source_only_inside_sandbox_proposal(self):
+        client = _CapturingClient(
+            {
+                "schema_version": REACT_DECISION_SCHEMA_VERSION,
+                "action": "finish",
+                "summary": "已有证据足够",
+                "output_type": "direct_answer",
+            }
+        )
+        LLMPlanner(client, ("safe_tool",)).decide(
+            "判断是否需要新工具",
+            tool_proposals_enabled=True,
+        )
+        system = next(item["content"] for item in client.messages if item["role"] == "system")
+        self.assertIn("proposal.source", system)
+        self.assertIn("no imports", system)
+        self.assertIn("input_schema, output_schema, source, and example_arguments", system)
+        self.assertIn("do not use $ref, oneOf, anyOf, allOf", system)
+        self.assertIn("do not use attribute access, methods, imports", system)
+
     def test_decide_preserves_two_argument_client_compatibility(self):
         planner = LLMPlanner(
             _LegacyClient(

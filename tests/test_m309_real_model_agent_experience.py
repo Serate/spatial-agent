@@ -10,6 +10,7 @@ from agent.application.composite_planner import (
     LLMCompositePlanner,
     ReplayCompositePlanner,
 )
+from agent.errors import PlanningError
 from agent.domain_runtime_host import DomainRuntimeHost
 from agent.application.composite_planning import (
     CompositeCapabilityProjector,
@@ -110,7 +111,41 @@ class _Client:
         return self.response
 
 
+class _CompactRecoveryClient:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+        self.normal_kwargs = {}
+
+    def complete_json(self, messages, schema, **kwargs):
+        del messages, schema
+        self.calls.append("normal")
+        self.normal_kwargs = dict(kwargs)
+        raise PlanningError(
+            "invalid provider response",
+            category="planning",
+            code="invalid_model_response",
+            retryable=False,
+        )
+
+    def complete_compact_json(self, messages, schema):
+        del messages, schema
+        self.calls.append("compact")
+        return self.response
+
+
 class M309PlannerOutcomeMatrixTests(unittest.TestCase):
+    def test_empty_provider_plan_uses_one_bounded_compact_recovery(self):
+        client = _CompactRecoveryClient(_payload("needs_clarification"))
+        planner = LLMCompositePlanner(client)
+
+        result = planner.plan("分析一个开放问题", context=CONTEXT)
+
+        self.assertEqual(result["status"], "NEEDS_CLARIFICATION")
+        self.assertEqual(client.calls, ["normal", "compact"])
+        self.assertTrue(client.normal_kwargs["deterministic"])
+        self.assertEqual(planner.metrics()["compact_recovery_attempts"], 1)
+
     def test_selected_raster_capability_materializes_from_dataset_fact(self):
         """A selected raster capability must cross the real preview bridge."""
 

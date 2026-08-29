@@ -18,6 +18,7 @@ from agent.runtime_core.composition import project_component_inputs
 from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
 from agent.result_completeness import build_result_completeness
+from agent.result_summary import build_result_summary
 
 
 COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1"
@@ -69,6 +70,7 @@ def build_composite_view_projection(
         answer_generation=result.get("answer_generation_evidence"),
     )
     planning = _build_planning(result.get("planner_evidence"))
+    result_summary = build_result_summary({**dict(result), "composite": composite})
     artifacts = _collect_artifacts(composite, components)
     completion_payload = dict(result)
     completion_payload.pop("completeness", None)
@@ -86,6 +88,7 @@ def build_composite_view_projection(
         "data_kinds": _aggregate_data_kinds(components),
         "execution_binding": _project_execution_binding(execution_binding),
         "answer": answer,
+        "result_summary": result_summary,
         "sections": sections,
         "views": views,
         "evidence": evidence,

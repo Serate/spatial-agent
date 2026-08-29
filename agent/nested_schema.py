@@ -31,6 +31,7 @@ from agent.domain_routing_evidence import (
     unavailable_domain_routing_evidence,
 )
 from agent.result_completeness import normalize_result_completeness
+from agent.result_summary import ResultSummaryError, build_result_summary, normalize_result_summary
 
 
 class NestedSchemaError(ValueError):
@@ -83,6 +84,20 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
     result["completeness"] = normalize_result_completeness(
         result.get("completeness")
     )
+    try:
+        result["result_summary"] = (
+            build_result_summary(result)
+            if result.get("result_summary") is None and allow_legacy
+            else normalize_result_summary(
+                result.get("result_summary"), allow_legacy=allow_legacy
+            )
+        )
+    except ResultSummaryError as exc:
+        raise NestedSchemaError(
+            str(exc),
+            path="result.result_summary",
+            reason_code="result_summary_invalid",
+        ) from exc
     result["interaction"] = (
         normalize_interaction(result.get("interaction"))
         if result.get("interaction") is not None

@@ -35,7 +35,7 @@ class RuntimeReactExecution:
     def __init__(self, runtime: Any) -> None:
         self._runtime = runtime
 
-    def run(self, context: Any) -> None:
+    def run(self, context: Any, *, resume: bool = False) -> None:
         runtime = self._runtime
         result = _result(context)
         settings = runtime._agent_settings
@@ -46,13 +46,35 @@ class RuntimeReactExecution:
             settings.get("tool_proposals_enabled", True)
         )
         proposal_validator = getattr(runtime, "_proposal_validator", None)
-        initial_decision = self._initial_decision(
-            context,
-            allowed_tools=allowed_tools,
-            tool_catalog=tool_catalog,
-            network_enabled=network_enabled,
-            tool_proposals_enabled=tool_proposals_enabled,
-        )
+        if resume:
+            initial_decision = None
+            initial_history, initial_evidence, initial_action_count, start_turn = (
+                self._resume_state(result)
+            )
+            runtime._emit_progress_event(
+                result.run_id,
+                phase="plan",
+                kind="stage_completed",
+                status=RunStatus.EXECUTING.value,
+                message="已恢复审批通过的运行，继续生成下一步动作",
+                data={
+                    "stage_index": 3,
+                    "stage_count": _LIFECYCLE_STAGE_COUNT,
+                    "reason_code": "tool_approval_accepted_resume",
+                },
+            )
+        else:
+            initial_decision = self._initial_decision(
+                context,
+                allowed_tools=allowed_tools,
+                tool_catalog=tool_catalog,
+                network_enabled=network_enabled,
+                tool_proposals_enabled=tool_proposals_enabled,
+            )
+            initial_history = ()
+            initial_evidence = ()
+            initial_action_count = 0
+            start_turn = 0
         result.status = RunStatus.EXECUTING
         self._emit_stage_starts(result)
 
@@ -164,6 +186,10 @@ class RuntimeReactExecution:
             context.resolved_request,
             context=context.context_packet.payload,
             initial_decision=initial_decision,
+            initial_history=initial_history,
+            initial_evidence=initial_evidence,
+            initial_action_count=initial_action_count,
+            start_turn=start_turn,
             validate_action=validate_action,
             execute_tool=execute_tool,
             execute_search=execute_search,
@@ -182,6 +208,67 @@ class RuntimeReactExecution:
             self._record_plan_evidence(context)
         runtime._state_store.save(result)
         return self._finish_outcome(context, outcome)
+
+    @staticmethod
+    def _resume_state(result: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, int]:
+        """Rebuild only safe ReAct state needed after an approval decision."""
+
+        evidence = getattr(result, "react_evidence", None)
+        turns = evidence.get("turns") if isinstance(evidence, Mapping) else []
+        history: list[dict[str, Any]] = []
+        safe_evidence: list[dict[str, Any]] = []
+        for item in turns if isinstance(turns, list) else []:
+            if not isinstance(item, Mapping):
+                continue
+            safe_evidence.append(dict(item))
+            decision = item.get("decision")
+            if not isinstance(decision, Mapping):
+                continue
+            entry: dict[str, Any] = {
+                "turn_index": item.get("turn_index"),
+                "action_id": item.get("action_id"),
+                "action": decision.get("action"),
+                "tool_name": decision.get("tool_name"),
+                "result_ref": item.get("result_ref"),
+                "output_type": decision.get("output_type"),
+                "summary": decision.get("summary") or item.get("reason_code"),
+            }
+            history.append({key: value for key, value in entry.items() if value is not None})
+        # Approval is a durable control fact, not a completed tool result. It
+        # belongs in the bounded model history so a resumed model knows that
+        # the proposal is already accepted and registered. Keep this
+        # projection source-free: no proposal code, prompt, example arguments,
+        # or model response crosses the resume boundary.
+        action_receipt = getattr(result, "action_receipt", None)
+        approval = (
+            action_receipt.get("approval")
+            if isinstance(action_receipt, Mapping)
+            and isinstance(action_receipt.get("approval"), Mapping)
+            else {}
+        )
+        if approval.get("status") == "approved":
+            tool_name = approval.get("name")
+            approval_id = approval.get("approval_id")
+            if isinstance(tool_name, str) and tool_name.strip():
+                history.append(
+                    {
+                        "action_id": (
+                            "approval-" + str(approval_id).strip()[:96]
+                            if isinstance(approval_id, str) and approval_id.strip()
+                            else "approval-accepted"
+                        ),
+                        "action": "tool_approval_accepted",
+                        "tool_name": tool_name.strip()[:96],
+                        "summary": "工具提案已获批准并注册，可以直接调用该工具",
+                    }
+                )
+        turn_count = evidence.get("turn_count", len(safe_evidence)) if isinstance(evidence, Mapping) else len(safe_evidence)
+        action_count = evidence.get("action_count", 0) if isinstance(evidence, Mapping) else 0
+        if isinstance(turn_count, bool) or not isinstance(turn_count, int):
+            turn_count = len(safe_evidence)
+        if isinstance(action_count, bool) or not isinstance(action_count, int):
+            action_count = 0
+        return history[-32:], safe_evidence[-32:], max(0, action_count), max(0, turn_count)
 
     def _initial_decision(
         self,
@@ -253,6 +340,9 @@ class RuntimeReactExecution:
         del turn_index
         runtime = self._runtime
         result = _result(context)
+        refresh_tools = getattr(runtime._execution_policy_resolver, "refresh_known_tools", None)
+        if callable(refresh_tools):
+            refresh_tools(runtime._registry.names)
         tool = str(decision.get("tool_name") or "")
         arguments = decision.get("arguments")
         if not tool or not isinstance(arguments, dict):
@@ -575,10 +665,14 @@ class RuntimeReactExecution:
             approval = runtime._approval_store.create_from_receipt(
                 proposal_receipt,
                 domain_id=runtime.domain_id,
+                run_id=result.run_id,
             )
             result.action_receipt = {
                 "schema_version": "spatial-agent.tool-proposal-action.v1",
                 "state": "awaiting_approval",
+                "run_id": result.run_id,
+                "proposal_version": approval.proposal_version,
+                "receipt_fingerprint": approval.receipt_fingerprint,
                 "receipt": proposal_receipt,
                 "approval": approval.as_dict(),
             }

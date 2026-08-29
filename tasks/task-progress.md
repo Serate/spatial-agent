@@ -321,6 +321,136 @@
 - 目标：从产品、Runtime、Domain、数据、模型、部署、体验和测试七个维度，补齐能力描述、选择解释和跨类型结果摘要，
   不为固定区域、问句或 GIS 页面增加专用分支。
 - 入口：`docs/stages/M327/capability-map.md`、`spec.md`、`plan.md`、`handoff.md`。
-- 当前任务：M327-A 能力描述契约；只读取 Catalog、Result/Evidence 和当前紧凑回归相关文件。
+- 当前任务：M327-B 能力选择与用户可见解释；只读取 Catalog、Result/Evidence 和当前紧凑回归相关文件。
 - 边界：首版不引入 RAG、自动下载或模型生成工具自动上线；保持 Registry、权限、审批、网络白名单、数据 readiness 和结果校验。
 - 阻塞：无。
+
+### M327-A：能力描述契约 — 已完成
+
+- 结果：新增 `agent/capability_descriptor.py`，提供版本化 `spatial-agent.capability-descriptor.v1` 投影，统一表达输入事实、
+  数据前置条件、输出 Result 类型、证据要求、执行工具、成本提示和可用性。
+- 接入：`capability_catalog()` 为所有 Domain Pack 暴露 `capability_descriptors` 和 descriptor schema/count；保留既有
+  `capabilities` 字段，兼容旧调用方，不修改 Runtime 生命周期或执行门禁。
+- 安全：descriptor 只保留有界公开元数据；缺失身份或未知 schema 的 descriptor 不进入 Planner 可用投影，未知扩展字段不被传播。
+- 验证：Docker M327-A 与相邻 Catalog/requirements 回归 `28/28`，覆盖文本非 GIS Domain、GIS 兼容字段、未知版本和可变性隔离。
+- 下一步：M327-B 将 descriptor 接入 Planner context，并生成脱敏的能力选择解释 evidence。
+
+### M327-B：能力选择与用户可见解释 — 已完成
+
+- 实现：Planner context 的 capability catalog 现在携带有界 descriptor 摘要，优先保留发现候选；LLM Planner
+  将 descriptor 视为能力选择元数据，workflow template 仅作为兼容执行提示，不改变 Registry、权限、审批和 readiness 门禁。
+- 实现：新增 `agent/capability_selection.py`，提供版本化 `spatial-agent.capability-selection.v1`，统一记录
+  chosen/selected capability、candidate ids、缺失事实、选择原因、来源、匹配信号和安全候选摘要。
+- 接入：成功计划、无计划失败、Result contract、evidence projection、evidence registry、异步/Artifact 公共投影均保留
+  同一能力选择 identity；descriptor 和 receipt 不含 Prompt、模型原文或工具参数。
+- 修改：`agent/capability_catalog.py`、`agent/planner_context.py`、`agent/llm_planner.py`、
+  `agent/runtime_core/planning_surface.py`、`agent/runtime_core/plan_evidence.py`、`agent/runtime.py`、
+  `agent/capability_selection.py`、`agent/evidence/projection.py`、`agent/evidence/registry.py`、
+  `agent/application/service_async.py`、`result_contract.py`、`tests/test_m327_capability_selection.py`。
+- 验证：Docker M327-B 专项 `8/8`；相邻能力/evidence/async/selection 回归 `21/21`；规则 Runtime 实际链路、compileall、
+  architecture strict、code/document index 校验均通过。不调用真实模型，不保存敏感内容。
+- 下一步：进入 M327-C，统一矢量、栅格、指标和文本结果的跨类型摘要输入与输出契约。
+
+### M327-C：跨类型结果摘要 — 契约冻结
+
+- 目标：让公共 Runtime 用同一个有界 projection 表达矢量、栅格、指标、时间序列、文本和文档证据结果，
+  并让 Composite View 与答案生成共享该输入。
+- 已完成：补充 M327-C Spec/Plan/handoff；冻结 `spatial-agent.result-summary.v1` 的输入、block、facts、限制和
+  evidence 边界。摘要不传播 Prompt、模型原文、工具参数、路径、几何 features、密钥或任意内部引用。
+- 必要文件：`agent/result_summary.py`、`agent/application/composite_view.py`、`agent/answer_generation.py`、
+  `agent/contract_versions.py`、`tests/test_m327_result_summary.py`。
+- 下一步：实现领域中立摘要 projection，接入 Composite View 与答案 context，再运行三类结果紧凑回归。
+- 阻塞：无；不调用真实模型，不保存真实私有结果。
+
+### M327-C：跨类型结果摘要 — 已完成
+
+- 实现：新增 `agent/result_summary.py`，提供版本化 `spatial-agent.result-summary.v1`，统一输出 conclusion、key findings、
+  limitations、evidence 和 typed blocks；支持 vector/raster/metrics/timeseries/text/document_evidence/composite。
+- 接入：公共 `result_contract`、Composite Result/View 和答案生成 context 共用同一投影；技术 facts 有界保留，Prompt、模型原文、
+  工具参数、路径、几何 features、内部引用和密钥均不传播；答案提示优先使用结论、关键发现、限制与证据来源。
+- 兼容：答案上下文增加无 `to_dict()` 的轻量结果对象适配，保持旧流式测试及正式 `AgentRunResult` 路径一致。
+- 修改：`agent/result_summary.py`、`agent/contract_versions.py`、`agent/nested_schema.py`、`result_contract.py`、
+  `agent/application/composite_contract.py`、`agent/application/composite_view.py`、`agent/answer_generation.py`、
+  `tests/test_m327_result_summary.py` 及 M327 文档。
+- 验证：Docker M327-C 专项 `4/4`；受影响 Result/答案/Composite 回归 `26/26`；答案流相邻回归 `5/5`；compileall、
+  architecture strict、代码索引（328 文件、语义覆盖 100%）和文档索引通过。
+- 下一步：进入 M327-D，统一跨入口消费并接入 Console 的公共摘要；不在本阶段增加 GIS 页面专用分支。
+
+### M327-D：跨入口与前端接入 — 已完成
+
+- 实现：同步 `Result`、异步结果 evidence、Artifact 顶层、普通恢复证据和 Composite evidence 统一消费
+  `spatial-agent.result-summary.v1`；同步/恢复响应提供同值顶层别名，嵌套 Result 仍是规范来源。
+- 实现：Console Result Projection 优先读取统一摘要，动态展示结论、关键发现、结果明细、限制和证据来源；
+  不依赖 GIS 页面分支，地图/图表仍由 Renderer Registry 作为可选 View。前端对有界对象值进行可读格式化，
+  不再出现 `[object Object]`。
+- 修改：`agent/application/service_async.py`、`agent/application/run.py`、`agent/application/service_format.py`、
+  `agent/application/run_recovery.py`、`agent/application/composite_runs.py`、`agent/persistence/artifact_store.py`、
+  `web/src/console_result_projection.js`、`web/src/styles.css`、`scripts/console_result_projection_smoke.js`、
+  `tests/test_m327_cross_entry_projection.py` 及 M327 交接文档。
+- 验证：Docker M327-C/D 与相邻紧凑回归 `16/16`，跨入口 Artifact/恢复/异步摘要一致性 `2/2`，前端结构化
+  projection smoke、Node 语法、Docker compileall 和 architecture strict 通过；strict 仅保留既有 runtime/service
+  God module 警告。
+- 下一步：进入 M327-E，运行 Docker 阶段门禁与 readiness；环境可用时完成一次显式真实模型 + Docker/GIS 验收，
+  再做七维度全局重规划并提交阶段版本。
+
+### M327-E：Docker/live 验收与阶段收口 — 已完成
+
+- 修复：`scripts/live_provider_probe.py` 的 live Composite 输出预算上限从 4096 提升为有界 12000，避免验收脚本
+  把复杂计划截断误报为 JSON 错误；Composite Planner 明确只选择 `available=true` 且 `execution_ready=true` 的候选。
+- 修复：ReAct proposal 提示明确 source 仅可出现在 `proposal.source`，并声明六个必需字段、有限 JSON Schema
+  关键字和 sandbox 允许的纯函数语法；未放宽 Registry、AST、sandbox 或人工审批门禁。
+- 验证：Docker 受影响紧凑回归 `66/66`；compileall、architecture strict、readiness `200`、Console projection smoke 通过。
+- 真实 Composite：DeepSeek 一次结构化规划选出 GIS+经济两组件；异步执行两组件完成，结果含 composite/vector/metrics，
+  Artifact 与 `spatial-agent.result-summary.v1` 可读。
+- 真实 Web/数据：经济本地数据步骤完成，明确请求触发 `web_search`；实际返回 `search_network_error/unavailable`，
+  本地数据继续处理且没有伪造网页来源；HTTP/Artifact/SSE/Last-Event-ID 对照通过。
+- 真实工具提案：模型 proposal 经过有限 Schema、AST 和 Docker 无网络 sandbox 校验，运行进入 `WAITING_FOR_DECISION`；
+  未执行、未发布，receipt 不含 source/example。
+- 真实流式回答：两次真实经济运行分别产生 `512`、`331` 个 `answer_delta`，均回放到 terminal；未保存模型正文、Prompt、
+  密钥、网页正文或完整私有结果。
+- 下一阶段：已完成七维度全局规划，建立 `docs/stages/M328/{capability-map.md,spec.md,plan.md,handoff.md}`；
+  M328-A 从审批后的运行恢复闭环开始。
+
+### M328-A：审批后的运行恢复闭环 — 已完成
+
+- 目标：让工具提案从 `WAITING_FOR_DECISION` 经审批后恢复原运行，审批前不执行，并用同一 run identity、proposal version 和 receipt fingerprint 保护 Registry binding。
+- 已确认：`RuntimeReactExecution` 已保存 bounded proposal receipt，但没有把 approval record 关联到 run；`Service.resolve_tool_approval` 只发布/撤销工具，不继续等待中的 run。
+- 实现：approval record/store 保存有界 `run_id`；ToolRegistry binding 和 execution-policy allowlist 支持动态审批工具；新增 `RuntimeToolApprovalResume`，批准后从安全 ReAct 历史继续原 run，拒绝/撤销/过期安全结束。
+- 实现：Service approval 入口按同一 run identity 恢复并通过统一 RunApplication 投影结果；ReAct loop 支持续跑参数；旧 SQLite approval payload 兼容读取。
+- 修改：`agent/tooling/approval.py`、`agent/tooling/rehydration.py`、`agent/tools.py`、`agent/react/loop.py`、`agent/runtime_core/react_runtime.py`、`agent/runtime_core/execution_policy.py`、`agent/runtime_core/tool_approval_resume.py`、`agent/runtime_core/run_lifecycle.py`、`agent/runtime.py`、`agent/application/run.py`、`agent/service.py`、`tests/test_m328_tool_approval_resume.py`。
+- 验证：Docker M328-A 专项 `3/3`；M322/M323/M324 相邻回归 `26/26`；compileall 通过。
+- 下一步：进入 M328-B Web evidence 可用性；阶段显式验收时再执行一次真实模型 proposal 审批闭环。
+
+### M328-B：Web evidence 可用性 — 已完成
+
+- 目标：让公开网页搜索的成功、无结果、部分结果和网络不可用在公共 Result Summary 中保持同一可验证契约，
+  并由答案与前端显示来源状态和限制。
+- 实现：`result_summary` 新增文档证据归一化，安全保留 bounded HTTPS source record（标题、链接、域名、摘要）、
+  status、reason_code、query 和 allowlist；无结果、不可用与部分可用分别映射为 `no_results`、`unavailable`、
+  `degraded`，不将网络失败伪装为来源成功。
+- 实现：Console Result Projection 只消费结构化 `source_records`，安全校验链接并渲染来源列表；不再把来源对象
+  转成 `[object Object]`，也不把技术失败信息当作网页正文展示。
+- 修改：`agent/result_summary.py`、`web/src/console_result_projection.js`、`web/src/styles.css`、
+  `tests/test_m328_web_evidence.py`、`scripts/console_result_projection_smoke.js`。
+- 验证：Docker M321 Web、M328-B、M327 Result Summary、M328-A 回归 `17/17`；前端结果投影 smoke 通过；
+  Docker 服务重建成功。
+- 下一步：进入 M328-C，完成经济/指标/Web 的多步骤真实回答，并验收 proposal 审批后的同一运行恢复。
+
+### M328-C/D/E：跨域开放行动、实时体验与阶段收口 — 已完成
+
+- 实现：Composite/Domain ReAct 共享当前 Runtime Registry、Execution Policy 和 `result_summary`；未增加固定区域、
+  固定问句或 GIS 专用 Runtime 分支。
+- 修复：审批恢复补充有界 `tool_approval_accepted` history；ReAct 每轮读取动态 Registry 工具；基础 Provider 工具
+  集合与动态审批工具解耦，避免 Runtime context fingerprint 漂移。
+- 验收：真实经济多步本地数据 + `web_search` 共 4 个工具步骤；Web 安全返回
+  `unavailable/search_network_error`，本地结果继续保留且未伪造来源。真实工具提案已完成 sandbox 校验、人工审批、
+  同一 Run 恢复和动态工具实际执行。
+- 最终回归：Docker 重建后 M322/M323/M324/M328 紧凑回归 `32/32`；离线 smoke、compileall、architecture strict、代码索引、
+  文档索引、readiness `200` 和前端结果投影 smoke 全部通过。
+- 真实复杂验收：经济本地数据 + `web_search` 完成 4 个工具步骤，`COMPLETED`，SSE 420 事件并成功 Last-Event-ID 续传；
+  经济目录 + 区域指标目录由真实模型规划为 2 个组件并全部完成；真实工具提案经过 sandbox、人工审批、同一 Run 恢复后
+  实际执行成功，审批前 0 步、审批后 1 步。
+- 真实边界验收：过宽请求和缺少具体指标的请求返回结构化 `NEEDS_CLARIFICATION`；Provider 组件字段漂移返回
+  `plan_component_field_invalid`，均未创建执行 Run。
+- 安全边界：只记录脱敏状态、动作/事件计数、reason code、结果完整性、SSE 续传和答案流计数；不保存密钥、Prompt、
+  模型原文、网页正文、工具 source 或私有路径。

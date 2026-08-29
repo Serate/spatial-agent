@@ -121,6 +121,7 @@ def _public_record(item: Any) -> dict[str, Any]:
         "proposal_id",
         "name",
         "domain_id",
+        "run_id",
         "receipt_fingerprint",
         "source_hash",
         "schema_hash",
