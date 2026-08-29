@@ -1,7 +1,7 @@
 import unittest
 
 from agent.application.composite_planning import CompositePlanningApplication
-from agent.composite_planner import LLMCompositePlanner, ReplayCompositePlanner
+from agent.application.composite_planner import LLMCompositePlanner, ReplayCompositePlanner
 from agent.models import PlanStep, TaskPlan
 from agent.planner_repair import (
     PlannerRepairError,

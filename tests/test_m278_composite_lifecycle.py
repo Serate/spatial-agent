@@ -4,7 +4,7 @@ import time
 import unittest
 from pathlib import Path
 
-from agent.composite_contract import build_composite_result_contract
+from agent.application.composite_contract import build_composite_result_contract
 from agent.application.composite_runs import CompositeRunApplication
 from agent.models import AgentRunResult, RunStatus
 from agent.sqlite_store import SQLiteStateStore

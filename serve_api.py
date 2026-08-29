@@ -32,13 +32,13 @@ from agent.application.composite_planning import (
     CompositeCapabilityProjector,
     CompositePlanningApplication,
 )
-from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
+from agent.application.composite_planner import LLMCompositePlanner, RuleCompositePlanner
 from agent.answer_generation import LLMCompositeAnswerGenerator
 from agent.llm_planner import OpenAIPlannerClient
-from agent.openai_config import load_answer_generation_config, load_openai_config
+from agent.integration.openai_config import load_answer_generation_config, load_openai_config
 from agent.web_assets import WEB_ASSETS, console_asset, console_index, console_root
-from agent.runtime_capabilities import runtime_capability_snapshot
-from agent.release_evidence import release_evidence_snapshot
+from domains.gis.adapters.runtime_capabilities import runtime_capability_snapshot
+from domains.gis.adapters.release_evidence import release_evidence_snapshot
 from agent.workflow_templates import (
     WorkflowTemplateError,
 )
@@ -122,8 +122,8 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     host = domain_host
     service = legacy_service
     routing = domain_routing
-    artifact_root = Path("outputs/runs")
-    geojson_root = Path("outputs/geojson")
+    artifact_root = Path(os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"))
+    geojson_root = Path(os.environ.get("SPATIAL_AGENT_GEOJSON_ROOT", "outputs/geojson"))
     web_root = console_root()
 
     def _http_application(self) -> HTTPApplication:
@@ -481,6 +481,39 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if parsed.path == "/tools/dynamic":
             self._write_json(200, self._http_application().read("dynamic_tools"))
             return
+        if parsed.path == "/tools/approvals":
+            query = parse_qs(parsed.query)
+            try:
+                result = self._http_application().read(
+                    "tool_approvals",
+                    {
+                        "limit": int(query.get("limit", [50])[0]),
+                        "status": query.get("status", [None])[0],
+                    },
+                )
+            except ValueError as exc:
+                self._write_error(exc)
+            else:
+                self._write_json(200, result)
+            return
+        if parsed.path.startswith("/tools/approvals/"):
+            parts = parsed.path.strip("/").split("/")
+            if len(parts) == 4 and parts[3] == "resolve":
+                self._write_json(404, {"error": "approval must be resolved with POST"})
+                return
+            if len(parts) == 3 and not parts[2]:
+                self._write_json(404, {"error": "not found"})
+                return
+            if len(parts) == 3 and parts[2]:
+                try:
+                    result = self._http_application().read(
+                        "tool_approval", resource_id=parts[2]
+                    )
+                except ValueError as exc:
+                    self._write_error(exc, not_found=True)
+                else:
+                    self._write_json(200, result)
+                return
         if parsed.path in ("/", "/index.html"):
             self._write_file(console_index(), "text/html")
             return
@@ -580,6 +613,11 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         is_constrained_comparison = selection is None and parsed.path == "/constrained-comparisons"
         is_domain_action = parsed.path.startswith("/actions/")
         is_tool_register = selection is None and parsed.path == "/tools"
+        is_tool_approval_resolve = (
+            selection is None
+            and parsed.path.startswith("/tools/approvals/")
+            and parsed.path.endswith("/resolve")
+        )
         is_session_create = parsed.path == "/sessions"
         is_session_clear = parsed.path.startswith("/sessions/") and parsed.path.endswith("/clear")
         is_domain_select = selection is None and parsed.path == "/domain-routing/select"
@@ -611,7 +649,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         if len(workflow_parts) == 3 and workflow_parts[0] == "workflows" and workflow_parts[2] in ("validate", "revise"):
             workflow_template_id = workflow_parts[1]
             workflow_action = workflow_parts[2]
-        if parsed.path != "/runs" and not is_composite_run and not is_composite_async_run and not is_composite_plan and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_session_create and not is_session_clear and not is_decision_resolve and not is_domain_select and not is_auto_run and routing_override_id is None and routing_clear_session_id is None and workflow_action is None:
+        if parsed.path != "/runs" and not is_composite_run and not is_composite_async_run and not is_composite_plan and not is_preview and not is_async_run and not is_retry and not is_cancel and not is_interaction and not is_comparison and not is_region_comparison and not is_constrained_comparison and not is_domain_action and not is_tool_register and not is_tool_approval_resolve and not is_session_create and not is_session_clear and not is_decision_resolve and not is_domain_select and not is_auto_run and routing_override_id is None and routing_clear_session_id is None and workflow_action is None:
             self._write_json(404, {"error": "not found"})
             return
         try:
@@ -638,6 +676,14 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 )
             elif is_tool_register:
                 result = self._http_application().execute("tool_register", payload)
+            elif is_tool_approval_resolve:
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) != 4 or not parts[2] or parts[3] != "resolve":
+                    self._write_json(404, {"error": "not found"})
+                    return
+                result = self._http_application().execute(
+                    "tool_approval_resolve", payload, run_id=parts[2]
+                )
             elif is_preview:
                 result = self._http_application().execute("preview", payload)
             elif is_async_run:

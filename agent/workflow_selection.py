@@ -11,11 +11,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .evidence_contract import (
+from agent.evidence.contract import (
     build_capability_evidence,
     normalize_capability_evidence,
 )
-from .component_evidence import (
+from agent.evidence.component import (
     normalize_component_evidence,
     normalize_workflow_component_evidence,
     project_workflow_component_evidence,

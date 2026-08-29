@@ -14,7 +14,7 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from agent.artifact_reference import build_artifact_reference
+from agent.persistence.artifact_reference import build_artifact_reference
 from agent.contract_versions import (
     COMPOSITE_EVIDENCE_SCHEMA_VERSION,
     COMPOSITE_REQUEST_SCHEMA_VERSION,
@@ -31,6 +31,7 @@ from agent.data_kinds import (
 )
 from agent.analysis_intent import SUPPORTED_ANALYSIS_OPERATIONS
 from agent.result_registry import ResultContractRegistry, ResultTypeSpec, ViewSpec
+from agent.result_completeness import build_result_completeness
 from agent.runtime_core.composition import (
     CompositionError,
     normalize_component_inputs,
@@ -296,9 +297,18 @@ def build_composite_result_contract(
     # after the generic envelope is built and validate it again below.
     result["data_profile"] = profile
     result["composite"] = composite_section
+    # The generic builder runs before the Composite section is attached.  Rebuild
+    # the shared completion projection now so partial/blocked child components
+    # cannot be reported as a completed parent result.
+    completion_payload = dict(result)
+    completion_payload.pop("completeness", None)
+    result["completeness"] = build_result_completeness(
+        {**completion_payload, "composite": composite_section},
+        status=payload["status"],
+    )
     result["views"] = _build_composite_views(components, child_views, state=state)
-    from agent.evidence_registry import build_evidence_registry
-    from agent.evidence_projection import project_evidence_recovery
+    from agent.evidence.registry import build_evidence_registry
+    from agent.evidence.projection import project_evidence_recovery
 
     result["evidence_registry"] = build_evidence_registry({"result": result, "status": payload["status"]}, custom_entries=registry.evidence_specs_for(COMPOSITE_RESULT_TYPE))
     result["evidence_recovery"] = project_evidence_recovery({"result": result})

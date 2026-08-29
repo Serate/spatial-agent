@@ -2,7 +2,7 @@
 
 import unittest
 
-from agent.composite_contract import CompositeContractError, normalize_composite_request
+from agent.application.composite_contract import CompositeContractError, normalize_composite_request
 from agent.runtime_core.analysis_discovery import AnalysisDiscoveryGateway
 from agent.runtime_core.composition import CompositionError, normalize_component_inputs
 from agent.runtime_core.composite_taskplan import (

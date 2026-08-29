@@ -61,12 +61,15 @@ class M288WireStructuredOutputTests(unittest.TestCase):
         )
 
     def test_chat_request_uses_strict_schema_by_default(self):
-        client = OpenAIPlannerClient(
-            api_key="sk-test",
-            model="deepseek-v4-flash",
-            base_url="https://gateway.example",
-            wire_api="chat_completions",
-        )
+        # The production relay intentionally uses json_object.  Isolate that
+        # container setting so this unit test verifies the client default.
+        with patch.dict(os.environ, {"OPENAI_STRUCTURED_OUTPUT_MODE": ""}):
+            client = OpenAIPlannerClient(
+                api_key="sk-test",
+                model="deepseek-v4-flash",
+                base_url="https://gateway.example",
+                wire_api="chat_completions",
+            )
         with patch(
             "agent.llm_planner.urllib.request.urlopen",
             return_value=_Response(

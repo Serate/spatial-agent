@@ -14,6 +14,13 @@ SCHEMA_VERSION = "spatial-agent.code-index.v1"
 OVERRIDES_SCHEMA_VERSION = "spatial-agent.code-index-overrides.v1"
 DEFAULT_ROOTS = ("agent", "domains", "scripts", "web/src")
 SOURCE_SUFFIXES = {".py": "python", ".js": "javascript"}
+SEMANTIC_FIELDS = ("layer", "role", "stage", "stability")
+DEFAULT_SEMANTICS = {
+    "layer": "unclassified",
+    "role": "未分类源码",
+    "stage": None,
+    "stability": "internal",
+}
 
 
 def build_index(repo_root: Path, overrides_path: Path, roots: tuple[str, ...]) -> dict[str, Any]:
@@ -24,6 +31,7 @@ def build_index(repo_root: Path, overrides_path: Path, roots: tuple[str, ...]) -
     if not isinstance(override_files, dict):
         raise ValueError("code-index-overrides files must be an object")
     defaults = overrides.get("defaults") if isinstance(overrides.get("defaults"), dict) else {}
+    rules = _semantic_rules(overrides.get("rules"))
     files: list[dict[str, Any]] = []
     discovered: set[str] = set()
     for root_name in roots:
@@ -36,14 +44,47 @@ def build_index(repo_root: Path, overrides_path: Path, roots: tuple[str, ...]) -
                 continue
             relative = path.relative_to(repo_root).as_posix()
             discovered.add(relative)
-            files.append(_index_file(path, relative, language, defaults, override_files.get(relative, {})))
+            files.append(
+                _index_file(
+                    path,
+                    relative,
+                    language,
+                    defaults,
+                    rules,
+                    override_files.get(relative, {}),
+                )
+            )
     unknown_overrides = sorted(set(override_files) - discovered)
     if unknown_overrides:
         raise ValueError("override points to undiscovered file: " + ", ".join(unknown_overrides))
+    agent_entries = [entry for entry in files if entry["path"].startswith("agent/")]
+    semantic_counts = {
+        "classified_files": sum(
+            1 for entry in files if entry["semantic_source"] != "default"
+        ),
+        "file_override_files": sum(
+            1 for entry in files if entry["semantic_source"] == "file-override"
+        ),
+        "path_rule_files": sum(
+            1 for entry in files if entry["semantic_source"] == "path-rule"
+        ),
+        "default_files": sum(1 for entry in files if entry["semantic_source"] == "default"),
+        "agent_files": len(agent_entries),
+        "agent_files_with_responsibility": sum(
+            1 for entry in agent_entries if entry.get("responsibility")
+        ),
+        "agent_files_with_module_doc": sum(
+            1 for entry in agent_entries if entry.get("responsibility_source") == "module-doc"
+        ),
+    }
+    semantic_counts["coverage_percent"] = round(
+        100 * semantic_counts["classified_files"] / len(files), 2
+    ) if files else 100.0
     return {
         "schema_version": SCHEMA_VERSION,
         "roots": list(roots),
         "file_count": len(files),
+        "semantic_index": semantic_counts,
         "files": files,
     }
 
@@ -53,6 +94,7 @@ def _index_file(
     relative: str,
     language: str,
     defaults: dict[str, Any],
+    rules: list[dict[str, Any]],
     override: Any,
 ) -> dict[str, Any]:
     if not isinstance(override, dict):
@@ -61,25 +103,38 @@ def _index_file(
         source = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise ValueError("cannot read " + relative) from exc
+    module_tree: ast.Module | None = None
     if language == "python":
         try:
             tree = ast.parse(source, filename=relative)
         except SyntaxError as exc:
             raise ValueError("cannot parse " + relative) from exc
+        module_tree = tree
         symbols = _public_symbols(tree)
         imports = sorted(_project_imports(tree))
     else:
         symbols = _javascript_symbols(source)
         imports = sorted(_javascript_imports(source))
     line_count = len(source.splitlines())
+    semantic, semantic_source, semantic_level = _resolve_semantics(
+        relative, defaults, rules, override
+    )
+    responsibility = _module_summary(source, module_tree, language)
+    responsibility_source = "module-doc" if responsibility else "semantic-role"
+    if not responsibility:
+        responsibility = str(semantic["role"])
     entry: dict[str, Any] = {
         "path": relative,
         "language": language,
         "line_count": line_count,
-        "layer": str(override.get("layer", defaults.get("layer", "unclassified"))),
-        "role": str(override.get("role", defaults.get("role", "未分类源码"))),
-        "stage": override.get("stage", defaults.get("stage")),
-        "stability": str(override.get("stability", defaults.get("stability", "internal"))),
+        "layer": str(semantic["layer"]),
+        "role": str(semantic["role"]),
+        "stage": semantic["stage"],
+        "stability": str(semantic["stability"]),
+        "semantic_source": semantic_source,
+        "semantic_level": semantic_level,
+        "responsibility": responsibility,
+        "responsibility_source": responsibility_source,
         "public_symbols": symbols,
         "imports": imports,
     }
@@ -88,6 +143,73 @@ def _index_file(
         if isinstance(value, list):
             entry[field] = [str(item).replace("\\", "/") for item in value[:32]]
     return entry
+
+
+def _module_summary(
+    source: str, tree: ast.Module | None, language: str
+) -> str:
+    """Extract a short module responsibility without indexing source content."""
+    if language == "python" and tree is not None:
+        text = ast.get_docstring(tree, clean=True) or ""
+    elif language == "javascript":
+        comments = []
+        for line in source.splitlines()[:12]:
+            stripped = line.strip()
+            if stripped.startswith(("//", "/*", "*", "*/")):
+                comments.append(stripped.lstrip("/* ").rstrip("*/ "))
+            elif comments:
+                break
+        text = " ".join(comments)
+    else:
+        text = ""
+    first_paragraph = next((part.strip() for part in text.split("\n\n") if part.strip()), "")
+    first_paragraph = " ".join(first_paragraph.split())
+    return first_paragraph[:240]
+
+
+def _semantic_rules(value: Any) -> list[dict[str, Any]]:
+    """Validate and normalize path rules from the human-maintained manifest."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError("code-index-overrides rules must be an array")
+    rules: list[dict[str, Any]] = []
+    for index, raw_rule in enumerate(value):
+        if not isinstance(raw_rule, dict):
+            raise ValueError(f"semantic rule {index} must be an object")
+        prefix = str(raw_rule.get("prefix") or "").replace("\\", "/").strip()
+        if not prefix:
+            raise ValueError(f"semantic rule {index} has no prefix")
+        rule = {"prefix": prefix}
+        for field in SEMANTIC_FIELDS:
+            if field in raw_rule:
+                rule[field] = raw_rule[field]
+        if not any(field in rule for field in SEMANTIC_FIELDS):
+            raise ValueError(f"semantic rule {index} has no semantic fields")
+        rules.append(rule)
+    return rules
+
+
+def _resolve_semantics(
+    relative: str,
+    defaults: dict[str, Any],
+    rules: list[dict[str, Any]],
+    override: dict[str, Any],
+) -> tuple[dict[str, Any], str, str]:
+    """Resolve exact file metadata over the most-specific path rule and defaults."""
+    semantic = dict(DEFAULT_SEMANTICS)
+    semantic.update({field: defaults[field] for field in SEMANTIC_FIELDS if field in defaults})
+    matching_rules = [rule for rule in rules if relative.startswith(str(rule["prefix"]))]
+    rule = max(matching_rules, key=lambda item: len(str(item["prefix"])), default=None)
+    if rule is not None:
+        semantic.update({field: rule[field] for field in SEMANTIC_FIELDS if field in rule})
+    exact_fields = [field for field in SEMANTIC_FIELDS if field in override]
+    semantic.update({field: override[field] for field in exact_fields})
+    if exact_fields:
+        return semantic, "file-override", "file"
+    if rule is not None:
+        return semantic, "path-rule", "package"
+    return semantic, "default", "unclassified"
 
 
 def _public_symbols(tree: ast.Module) -> list[dict[str, Any]]:

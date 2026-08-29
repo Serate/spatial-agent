@@ -1,8 +1,8 @@
 import unittest
 
 from agent.application.composite_planning import CompositePlanningApplication
-from agent.composite_contract import normalize_composite_request
-from agent.composite_planner import (
+from agent.application.composite_contract import normalize_composite_request
+from agent.application.composite_planner import (
     CompositePlannerError,
     LLMCompositePlanner,
 )

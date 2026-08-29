@@ -3,11 +3,11 @@ import unittest
 
 from agent.application.composite_planning import CompositePlanningApplication
 from agent.application.http import HTTPApplication
-from agent.composite_request_context import (
+from agent.application.composite_request_context import (
     CompositeRequestContextBuilder,
     CompositeRequestContextError,
 )
-from agent.composite_planner import (
+from agent.application.composite_planner import (
     CompositePlannerError,
     LLMCompositePlanner,
     RuleCompositePlanner,

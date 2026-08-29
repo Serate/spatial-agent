@@ -7,9 +7,9 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from agent.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
 from agent.planner import RuleBasedPlanner
-from agent.spatial_backend import GeoPackageBackend, SpatialToolAdapter
+from domains.gis.adapters.spatial_backend import GeoPackageBackend, SpatialToolAdapter
 from agent.tools import ToolRegistry
 from domains.gis.domain import GIS_CATALOG_SPEC, GisDomainPack
 from domains.gis.request_model import parse_spatial_request

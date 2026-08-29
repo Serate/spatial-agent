@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 from agent.decision_lifecycle import DecisionLifecycleError, DecisionRecord
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
 from agent.models import RunStatus
-from agent.service_format import format_result
+from agent.application.service_format import format_result
 from result_contract import build_result_contract
 
 
@@ -164,7 +164,7 @@ class DecisionApplication:
                 record.subject_id, domain_id=domain_id
             )
             if isinstance(artifact, dict):
-                from agent.sqlite_store import _result_from_dict
+                from agent.persistence.sqlite_store import _result_from_dict
 
                 restored = _result_from_dict(
                     artifact,

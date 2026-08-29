@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Dict
 from urllib.parse import urlsplit
 
-from agent.openai_config import load_openai_config
+from agent.integration.openai_config import load_openai_config
 from agent.capability_catalog import capability_catalog
-from agent.provider_runtime import build_provider_health
+from agent.integration.provider_runtime import build_provider_health
 
 
 def environment_status() -> Dict:

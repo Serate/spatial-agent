@@ -2,8 +2,8 @@ import unittest
 from unittest.mock import patch
 
 from agent.capability_catalog import capability_catalog, runtime_capability_catalog
-from agent.data_quality import dataset_health_report
-from agent.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.data_quality import dataset_health_report
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
 
 
 class M61DataQualityLayerTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class M61DataQualityLayerTests(unittest.TestCase):
                 "metrics": {"checked_files": 1 if name in {"admin_areas", "dem", "land_use"} else 0},
             }
 
-        with patch("agent.data_quality._health_for_entry", side_effect=fake_health):
+        with patch("domains.gis.adapters.data_quality._health_for_entry", side_effect=fake_health):
             report = dataset_health_report(DatasetCatalog("unused", {}))
 
         self.assertEqual(report["status"], "ready")

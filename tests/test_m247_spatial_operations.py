@@ -3,7 +3,7 @@ from pathlib import Path
 
 from agent.errors import ToolError
 from agent.planner import RuleBasedPlanner
-from agent.spatial_backend import GeoPackageBackend, InMemorySpatialBackend, SpatialToolAdapter
+from domains.gis.adapters.spatial_backend import GeoPackageBackend, InMemorySpatialBackend, SpatialToolAdapter
 from agent.tools import ToolRegistry
 
 

@@ -24,9 +24,9 @@ from agent.application.composite_planning import (
 )
 from agent.application.composite_runs import CompositeRunApplication
 from agent.application.http import HTTPApplication
-from agent.artifact_store import ArtifactStore
-from agent.composite_view import build_composite_view_projection
-from agent.composite_planner import ReplayCompositePlanner
+from agent.persistence.artifact_store import ArtifactStore
+from agent.application.composite_view import build_composite_view_projection
+from agent.application.composite_planner import ReplayCompositePlanner
 from agent.domain_runtime_host import DomainRuntimeHost
 from scripts.m308_real_composition_acceptance import _payload
 

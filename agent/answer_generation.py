@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .errors import PlanningError
+from .result_completeness import build_result_completeness
 
 
 ANSWER_GENERATION_SCHEMA_VERSION = "spatial-agent.answer-generation.v1"
@@ -112,7 +113,7 @@ class CompositeAnswerGenerationResult:
 def build_composite_answer_context(result: Mapping[str, Any]) -> dict[str, Any]:
     """Project only Composite facts needed for a user-facing answer."""
 
-    from agent.composite_view import build_composite_view_projection
+    from agent.application.composite_view import build_composite_view_projection
 
     projection = build_composite_view_projection(result)
     sections = [
@@ -131,6 +132,7 @@ def build_composite_answer_context(result: Mapping[str, Any]) -> dict[str, Any]:
         "schema_version": COMPOSITE_ANSWER_SCHEMA_VERSION,
         "state": projection.get("state"),
         "status": projection.get("status"),
+        "completeness": projection.get("completeness"),
         "components": sections[:_MAX_COMPONENTS],
         "fallback_answer": projection.get("answer"),
     }
@@ -151,7 +153,8 @@ class LLMCompositeAnswerGenerator:
                     "你是面向普通用户的分析结果解读助手。只能根据可信 Composite facts 回答，"
                     "不得补造事实、数量、坐标或规划许可结论。返回严格 JSON，只有 answer 字段，"
                     "answer 必须包含 headline、summary、key_findings、limitations；可选 next_steps；不要输出工具名、"
-                    "fingerprint、result_ref、artifact 引用、prompt 或模型内部过程。"
+                    "fingerprint、result_ref、artifact 引用、prompt 或模型内部过程。若 completeness.state 为 partial、"
+                    "blocked 或 waiting_decision，必须明确说明已完成范围、未完成范围和是否可以继续，不得写成全部完成。"
                 ),
             },
             {
@@ -193,7 +196,7 @@ class LLMCompositeAnswerGenerator:
                 "content": (
                     "你是面向普通用户的分析结果解读助手。只能根据提供的可信事实，"
                     "用自然中文输出一段简洁总结，不要输出 JSON、工具名、内部引用、Prompt、"
-                    "隐藏思维过程或未经事实支持的结论。"
+                    "隐藏思维过程或未经事实支持的结论。若结果不完整，明确说明已完成内容、缺失范围和后续动作。"
                 ),
             },
             {
@@ -272,7 +275,7 @@ def fallback_composite_answer(
 ) -> CompositeAnswerGenerationResult:
     """Use the deterministic Composite projection when model generation fails."""
 
-    from agent.composite_view import build_composite_view_projection
+    from agent.application.composite_view import build_composite_view_projection
 
     projection = build_composite_view_projection(result)
     return CompositeAnswerGenerationResult(
@@ -314,6 +317,7 @@ def build_answer_context(result: Any) -> dict[str, Any]:
         "goal": _safe_text(getattr(plan, "goal", "") if plan else "", 400),
         "result_type": _safe_text(output.get("type"), 96),
         "status": _safe_text(getattr(getattr(result, "status", None), "value", getattr(result, "status", "")), 32),
+        "completeness": build_result_completeness(result.to_dict()),
         "assumptions": [
             _safe_text(item, 200)
             for item in (getattr(plan, "assumptions", []) or [])[:8]
@@ -355,6 +359,8 @@ class LLMAnswerGenerator:
                     "你是面向普通用户的分析结果解读助手。只根据可信事实回答，不得补造事实、坐标、"
                     "数量或规划结论。结论优先，把说明要点写在 answer 字符串中；内部状态、工具名、"
                     "result_ref、memory:// 和 JSON 字段都要翻译成自然中文。若数据不完整，明确说明影响。"
+                    "若 completeness.state 为 partial、blocked 或 waiting_decision，必须区分已完成内容与未完成范围，"
+                    "不得声称全部分析已完成。"
                     "只返回一个 JSON 对象，且只能有 answer 字段；answer 必须是 6000 字符以内的非空字符串。"
                 ),
             },

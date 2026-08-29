@@ -2,7 +2,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 from agent.errors import ToolError
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
@@ -10,18 +10,24 @@ from agent.domain_registry import DomainSelectionError, resolve_domain_id
 from agent.recovery_action import (
     project_legacy_interaction_receipt,
 )
-from agent.service_state import ServiceState
+from agent.application.service_state import ServiceState
+from agent.tooling import (
+    TOOL_APPROVAL_SCHEMA_VERSION,
+    ToolApprovalError,
+    project_tool_approval_visibility,
+    rehydrate_approved_tools,
+)
 
-from agent.service_async import (
+from agent.application.service_async import (
     async_worker_count as _async_worker_count,
     process_is_alive as _process_is_alive,  # legacy patch/import seam
 )
-from agent.service_format import (
+from agent.application.service_format import (
     exported_geometry_evidence as _exported_geometry_evidence,
     normalize_spatial_context as _normalize_spatial_context,
     tag_geometry_features as _tag_geometry_features,
 )
-from agent.service_sessions import (
+from agent.application.service_sessions import (
     dedupe_run_records as _dedupe_run_records,
     validate_session_id as _validate_session_id,
 )
@@ -355,6 +361,136 @@ class AgentService:
             backend=backend,
             idempotency_key=idempotency_key,
         )
+
+    def list_tool_approvals(
+        self, *, limit: int = 50, status: str | None = None
+    ) -> Dict[str, Any]:
+        """Return bounded proposal approvals for the selected Domain."""
+        domain_id = self._approval_domain_id()
+        records = self._state.tool_approval_store.list(
+            domain_id=domain_id, limit=limit, status=status
+        )
+        recovery = self._approval_recovery_by_id()
+        return {
+            "schema_version": TOOL_APPROVAL_SCHEMA_VERSION,
+            "domain_id": domain_id,
+            "approvals": [record.as_dict() for record in records],
+            "visibility": [
+                project_tool_approval_visibility(
+                    record, recovery=recovery.get(record.approval_id)
+                )
+                for record in records
+            ],
+            "count": len(records),
+        }
+
+    def get_tool_approval(self, approval_id: str) -> Dict[str, Any]:
+        """Read one proposal approval without exposing its source."""
+        if not isinstance(approval_id, str) or not approval_id.strip():
+            raise ValueError("approval_id must be a non-empty string")
+        domain_id = self._approval_domain_id()
+        record = self._state.tool_approval_store.get(
+            approval_id.strip(), domain_id=domain_id
+        )
+        if record is None:
+            raise ToolApprovalError("approval not found", code="tool_approval_not_found")
+        recovery = self._approval_recovery_by_id().get(record.approval_id)
+        return {
+            "schema_version": TOOL_APPROVAL_SCHEMA_VERSION,
+            "domain_id": domain_id,
+            "approval": record.as_dict(),
+            "visibility": project_tool_approval_visibility(record, recovery=recovery),
+        }
+
+    def resolve_tool_approval(
+        self,
+        approval_id: str,
+        *,
+        action: str,
+        expected_version: int | None = None,
+        receipt_fingerprint: str | None = None,
+        actor_id: str = "admin",
+    ) -> Dict[str, Any]:
+        """Apply an approval action and publish/revoke only through Registry."""
+        if not isinstance(approval_id, str) or not approval_id.strip():
+            raise ValueError("approval_id must be a non-empty string")
+        domain_id = self._approval_domain_id()
+        record = self._state.tool_approval_store.resolve(
+            approval_id.strip(),
+            action=action,
+            domain_id=domain_id,
+            actor_id=actor_id,
+            expected_version=expected_version,
+            expected_fingerprint=receipt_fingerprint,
+        )
+        registered = []
+        if record.status == "approved":
+            registered = self._publish_tool_approval(record.as_dict())
+        elif record.status == "revoked":
+            for runtime in self._state.runtimes().values():
+                if getattr(runtime, "domain_id", None) != record.domain_id:
+                    continue
+                registry = getattr(runtime, "_registry", None)
+                revoke = getattr(registry, "revoke_approved_tool", None)
+                if callable(revoke) and revoke(record.approval_id):
+                    registered.append({"runtime": "revoked"})
+        return {
+            "schema_version": TOOL_APPROVAL_SCHEMA_VERSION,
+            "domain_id": domain_id,
+            "approval": record.as_dict(),
+            "visibility": project_tool_approval_visibility(
+                record, recovery=self._approval_recovery_by_id().get(record.approval_id)
+            ),
+            "registered": registered,
+            "registration_count": len(registered),
+        }
+
+    def _approval_domain_id(self) -> str:
+        return str(
+            self._resolved_domain_id or self._configured_domain_id or self._legacy_domain_id or "unknown"
+        )[:80]
+
+    def _publish_tool_approval(self, approval: Dict[str, Any]) -> list[Dict[str, Any]]:
+        published = []
+        for runtime in self._state.runtimes().values():
+            if getattr(runtime, "domain_id", None) != approval.get("domain_id"):
+                continue
+            validator = getattr(runtime, "_proposal_validator", None)
+            factory = getattr(validator, "handler_for", None)
+            registry = getattr(runtime, "_registry", None)
+            publish = getattr(registry, "register_approved_tool", None)
+            if not callable(publish):
+                continue
+            outcome = rehydrate_approved_tools(
+                registry=registry,
+                records=[approval],
+                handler_factory=factory,
+                domain_id=approval.get("domain_id", "unknown"),
+            )
+            published.extend(outcome.get("bindings") or [])
+        return published
+
+    def _approval_recovery_by_id(self) -> Dict[str, Dict[str, Any]]:
+        """Collect safe binding state from already-created Runtime instances."""
+        result: Dict[str, Dict[str, Any]] = {}
+        for runtime in self._state.runtimes().values():
+            getter = getattr(runtime, "approval_rehydration", None)
+            if not callable(getter):
+                continue
+            try:
+                evidence = getter()
+            except Exception:
+                continue
+            if not isinstance(evidence, dict):
+                continue
+            for key in ("bindings", "degraded"):
+                for item in evidence.get(key, []):
+                    if isinstance(item, dict) and item.get("approval_id"):
+                        result[str(item["approval_id"])] = {
+                            "state": item.get("state"),
+                            "reason_code": item.get("reason_code"),
+                        }
+        return result
 
     def run_async(self, **kwargs) -> Dict:
         return self._async_application.submit(**kwargs)

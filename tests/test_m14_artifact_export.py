@@ -55,7 +55,12 @@ class M14ArtifactExportTests(unittest.TestCase):
             try:
                 result = _post_json(
                     server.server_address[1],
-                    {"request": ADMIN_QUERY, "export_artifact": True},
+                    {
+                        "request": ADMIN_QUERY,
+                        "planner": "rule",
+                        "backend": "memory",
+                        "export_artifact": True,
+                    },
                 )
             finally:
                 server.shutdown()

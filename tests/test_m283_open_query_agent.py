@@ -4,10 +4,10 @@ import unittest
 from pathlib import Path
 
 from agent.application.composite_runs import CompositeRunApplication
-from agent.composite_contract import build_composite_result_contract
+from agent.application.composite_contract import build_composite_result_contract
 from agent.application.composite_planning import CompositePlanningApplication
 from agent.application.http import HTTPApplication
-from agent.composite_planner import (
+from agent.application.composite_planner import (
     CompositePlannerError,
     ReplayCompositePlanner,
     RuleCompositePlanner,

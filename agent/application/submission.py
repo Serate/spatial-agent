@@ -21,7 +21,7 @@ from agent.domain_routing_evidence import (
 )
 from agent.failure_contract import build_failure_evidence
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
-from agent.service_format import (
+from agent.application.service_format import (
     _attach_error_category,
     contextualize_request,
     format_result,

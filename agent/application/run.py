@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 from agent.domain_routing_evidence import (
     bind_domain_routing_evidence,
     unavailable_domain_routing_evidence,
@@ -22,7 +22,7 @@ from agent.geojson_exporter import export_run_summary
 from agent.models import RunStatus
 from agent.provenance import build_provenance
 from result_contract import build_result_contract
-from agent.service_format import (
+from agent.application.service_format import (
     _attach_error_category,
     contextualize_request,
     exported_geometry_evidence as _exported_geometry_evidence,

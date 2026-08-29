@@ -5,7 +5,7 @@ from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 
 from agent.application.composite_planning import CompositeCapabilityProjector
-from agent.composite_planner import (
+from agent.application.composite_planner import (
     CompositePlannerError,
     LLMCompositePlanner,
     RuleCompositePlanner,

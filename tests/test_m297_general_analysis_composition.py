@@ -4,13 +4,13 @@ import time
 import unittest
 
 from agent.application.composite_runs import CompositeRunApplication
-from agent.composite_contract import (
+from agent.application.composite_contract import (
     CompositeContractError,
     build_composite_result_contract,
     normalize_composite_request,
 )
-from agent.composite_planner import CompositePlannerError, normalize_composite_plan
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_planner import CompositePlannerError, normalize_composite_plan
+from agent.application.composite_view import build_composite_view_projection
 from agent.runtime_core.composition import (
     COMPOSITION_SCHEMA_VERSION,
     normalize_component_inputs,

@@ -14,7 +14,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from agent.composite_contract import normalize_composite_request
+from agent.application.composite_contract import normalize_composite_request
 from agent.models import TaskPlan
 from agent.plan_schema import PlanningError, parse_task_plan
 from agent.runtime_core.planning import validate_plan

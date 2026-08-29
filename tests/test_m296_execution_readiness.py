@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 from agent.application.composite_planning import CompositeCapabilityProjector
-from agent.composite_request_context import CompositeRequestContextBuilder
+from agent.application.composite_request_context import CompositeRequestContextBuilder
 from agent.service import AgentService
 from agent.runtime_core.analysis_discovery import AnalysisDiscoveryGateway
 from agent.runtime_core.plan_completeness import assess_catalog_consistency

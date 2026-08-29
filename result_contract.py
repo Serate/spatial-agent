@@ -21,6 +21,7 @@ from agent.evidence_registry import (
 from agent.evidence_projection import project_evidence_recovery
 from agent.model_evidence import project_model_evidence
 from agent.answer_generation import project_answer_generation_evidence
+from agent.result_completeness import build_result_completeness
 from agent.recovery_action import normalize_action_receipt
 from agent.planner_selection import normalize_planner_selection_evidence
 from agent.workflow_selection import normalize_workflow_selection_evidence
@@ -213,6 +214,7 @@ def build_result_contract(
         "data_profile": registry.data_profile_for(result_type),
         "title": str(output.get("title") or registry.title_for(result_type)),
         "summary": payload.get("answer") or payload.get("error") or "暂无结果摘要。",
+        "completeness": build_result_completeness(payload),
         "request_identity": build_request_identity(payload),
         "conversation_turn": normalize_conversation_turn(
             payload.get("conversation_turn")

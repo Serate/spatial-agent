@@ -9,10 +9,10 @@ from tests.test_m303_open_composite_execution import (
     _two_component_payload,
 )
 
-from agent.composite_planner import LLMCompositePlanner
+from agent.application.composite_planner import LLMCompositePlanner
 from agent.application.composite_planning import CompositePlanningApplication
 from agent.application.composite_runs import _safe_planning_evidence
-from agent.composite_planner import ReplayCompositePlanner
+from agent.application.composite_planner import ReplayCompositePlanner
 from agent.provider_runtime import (
     PLANNER_ATTEMPT_RECEIPT_SCHEMA_VERSION,
     build_planner_attempt_receipt,

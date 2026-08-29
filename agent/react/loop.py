@@ -13,7 +13,13 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional
 
-from ..errors import RunCancelled, RunTimedOut
+from ..errors import (
+    ClarificationNeeded,
+    PlanningError,
+    RequestRejected,
+    RunCancelled,
+    RunTimedOut,
+)
 from .contracts import (
     ReactDecisionError,
     build_react_evidence,
@@ -141,6 +147,15 @@ class ReactLoop:
                     network_enabled=self._network_enabled,
                     tool_proposals_enabled=self._tool_proposals_enabled,
                 )
+            except PlanningError:
+                if not history:
+                    raise
+                return self._finish_after_planner_failure(
+                    turn_index,
+                    action_count,
+                    evidence,
+                    history,
+                )
             except ReactDecisionError:
                 item = build_react_evidence(
                     {"action": "reject"},
@@ -219,6 +234,32 @@ class ReactLoop:
                 except (RunCancelled, RunTimedOut):
                     raise
                 except Exception as exc:
+                    reason_code = str(
+                        getattr(exc, "code", None) or "react_action_validation_failed"
+                    )[:96]
+                    if history and _safe_partial_recovery(exc):
+                        blocked = build_react_evidence(
+                            decision,
+                            turn_index=turn_index,
+                            validation_state="blocked",
+                            policy_mode="react",
+                            source="runtime",
+                            action_id=action_id,
+                            reason_code=reason_code,
+                        )
+                        evidence.append(blocked)
+                        self._emit("react_action_blocked", blocked)
+                        return self._finish_after_planner_failure(
+                            turn_index,
+                            action_count,
+                            evidence,
+                            history,
+                            reason_code="react_action_validation_recovery_finish",
+                            final_message=(
+                                "已根据已完成的分析证据生成部分结论；"
+                                "后续动作未通过校验"
+                            ),
+                        )
                     return self._blocked(
                         decision,
                         turn_index,
@@ -226,9 +267,7 @@ class ReactLoop:
                         evidence,
                         history,
                         action_id=action_id,
-                        reason_code=str(
-                            getattr(exc, "code", None) or "react_action_validation_failed"
-                        )[:96],
+                        reason_code=reason_code,
                         error_category=getattr(exc, "category", None),
                         error_code=getattr(exc, "code", None),
                         retryable=getattr(exc, "retryable", None),
@@ -479,6 +518,53 @@ class ReactLoop:
             reason_code="react_turn_budget_exceeded",
         )
 
+    def _finish_after_planner_failure(
+        self,
+        turn_index: int,
+        action_count: int,
+        evidence: list[dict[str, Any]],
+        history: list[dict[str, Any]],
+        *,
+        reason_code: str = "react_planner_recovery_finish",
+        final_message: str = (
+            "已根据已完成的分析证据生成部分结论；后续自动规划未完成"
+        ),
+    ) -> ReactLoopOutcome:
+        """Finish from completed evidence after a later planning failure.
+
+        This is a bounded recovery for an otherwise useful partial run.  It
+        never invents another tool action and never forwards the provider
+        exception; the answer layer receives the completed tool facts and can
+        state that automatic exploration stopped early.
+        """
+
+        decision = {
+            "schema_version": "spatial-agent.react-decision.v1",
+            "action": "finish",
+            "summary": "已根据已完成的分析证据生成部分结论",
+        }
+        item = build_react_evidence(
+            decision,
+            turn_index=turn_index,
+            validation_state="completed",
+            policy_mode="react",
+            source="runtime",
+            action_id="react-{}".format(turn_index),
+            reason_code=reason_code,
+        )
+        evidence.append(item)
+        self._emit("react_finished", item)
+        return self._outcome(
+            "partial",
+            turn_index,
+            action_count,
+            evidence,
+            history,
+            final_decision=decision,
+            final_message=final_message,
+            reason_code=reason_code,
+        )
+
     def _blocked(
         self,
         decision: Mapping[str, Any],
@@ -544,6 +630,20 @@ class ReactLoop:
             return
 
 
+def _safe_partial_recovery(error: BaseException) -> bool:
+    """Allow partial completion without weakening policy or authorization gates."""
+
+    if isinstance(error, (ClarificationNeeded, RequestRejected)):
+        return False
+    category = str(getattr(error, "category", None) or "").strip().lower()
+    code = str(getattr(error, "code", None) or "").strip().lower()
+    if category in {"policy", "security", "authorization", "approval"}:
+        return False
+    if code.startswith(("permission_", "approval_", "execution_policy_")):
+        return False
+    return True
+
+
 def invoke_react_decider(
     provider: Any,
     request: str,
@@ -580,7 +680,18 @@ def invoke_react_decider(
     kwargs = values if accepts_kwargs else {
         name: value for name, value in values.items() if name in parameters
     }
-    return method(request, **kwargs)
+    try:
+        return method(request, **kwargs)
+    except ReactDecisionError:
+        # A provider-side decision failure happens before any action reaches
+        # validation or dispatch. Keep the public lifecycle in planning and
+        # avoid exposing provider-shaped validation text.
+        raise PlanningError(
+            "ReAct 规划器返回的动作未通过结构化校验",
+            category="planning",
+            code="invalid_model_response",
+            retryable=False,
+        ) from None
 
 
 def summarize_tool_result(result: Any) -> str:

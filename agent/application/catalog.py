@@ -15,7 +15,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 from agent.domain_registry import domain_registry
 from agent.domain_registry import resolve_domain_id
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
-from agent.service_format import normalize_workflow_payload as _legacy_normalize_workflow
+from agent.application.service_format import normalize_workflow_payload as _legacy_normalize_workflow
 
 
 def _bind_domain_pack(domain_pack: Any) -> Callable[..., Any]:

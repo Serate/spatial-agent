@@ -23,6 +23,7 @@ from .sandbox import SANDBOX_PROTOCOL_SCHEMA_VERSION
 _MAX_REQUEST_BYTES = 128 * 1024
 _MAX_CHILD_OUTPUT_BYTES = 64 * 1024
 _DEFAULT_SOCKET = "/run/spatial-agent-sandbox/worker.sock"
+_PROPOSAL_CACHE: dict[str, dict[str, Any]] = {}
 
 
 def main() -> int:
@@ -59,7 +60,10 @@ def _handle(payload: bytes, timeout_seconds: float) -> dict[str, Any]:
         return _response("rejected", "sandbox_request_invalid")
     if not isinstance(envelope, Mapping) or envelope.get("schema_version") != SANDBOX_PROTOCOL_SCHEMA_VERSION:
         return _response("rejected", "sandbox_protocol_invalid")
-    if envelope.get("operation") != "validate_and_run":
+    operation = envelope.get("operation")
+    if operation == "execute":
+        return _execute_cached(envelope, timeout_seconds)
+    if operation != "validate_and_run":
         return _response("rejected", "sandbox_operation_invalid")
     proposal = envelope.get("proposal")
     try:
@@ -134,13 +138,90 @@ def _handle(payload: bytes, timeout_seconds: float) -> dict[str, Any]:
         output_bytes=result.get("output_bytes", 0),
         duration_ms=(time.monotonic() - started) * 1000.0,
     )
+    if response["status"] == "validated" and normalized.get("proposal_id"):
+        if len(_PROPOSAL_CACHE) >= 32:
+            _PROPOSAL_CACHE.pop(next(iter(_PROPOSAL_CACHE)))
+        _PROPOSAL_CACHE[str(normalized["proposal_id"])] = normalized
     if process.returncode not in {0, None} and response["status"] == "validated":
         response["status"] = "unavailable"
         response["reason_code"] = "sandbox_runner_failed"
     return response
 
 
-def _response(status: str, reason_code: Any, *, checks: Any = None, output_bytes: Any = 0, duration_ms: Any = 0) -> dict[str, Any]:
+def _execute_cached(envelope: Mapping[str, Any], timeout_seconds: float) -> dict[str, Any]:
+    reference = envelope.get("proposal_ref")
+    arguments = envelope.get("arguments")
+    if not isinstance(reference, Mapping) or not isinstance(arguments, Mapping):
+        return _response("rejected", "sandbox_request_invalid")
+    proposal_id = str(reference.get("proposal_id") or "")[:96]
+    source_hash = str(reference.get("source_hash") or "")[:96]
+    proposal = _PROPOSAL_CACHE.get(proposal_id)
+    if not isinstance(proposal, Mapping) or str(proposal.get("source_hash") or "") != source_hash:
+        return _response("unavailable", "sandbox_proposal_not_hydrated")
+    try:
+        from .proposal import validate_json_value
+
+        validate_json_value(
+            dict(arguments),
+            proposal.get("input_schema") or {"type": "object"},
+            code="proposal_arguments_invalid",
+        )
+    except Exception as exc:
+        return _response(
+            "rejected",
+            str(getattr(exc, "code", None) or "proposal_arguments_invalid")[:96],
+        )
+    execution = dict(proposal)
+    execution["example_arguments"] = dict(arguments)
+    child_input = json.dumps(
+        {
+            "schema_version": SANDBOX_PROTOCOL_SCHEMA_VERSION,
+            "operation": "execute",
+            "proposal": execution,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    started = time.monotonic()
+    process = None
+    try:
+        process = subprocess.Popen(
+            [sys.executable, "-I", os.path.join(os.path.dirname(__file__), "sandbox_runner.py")],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            preexec_fn=_set_resource_limits,
+        )
+        stdout, _ = process.communicate(child_input, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        if process is not None:
+            _terminate_process(process)
+        return _response("rejected", "proposal_execution_timeout")
+    except (OSError, ValueError):
+        return _response("unavailable", "sandbox_runner_unavailable")
+    if len(stdout) > _MAX_CHILD_OUTPUT_BYTES:
+        return _response("rejected", "sandbox_runner_output_too_large")
+    try:
+        result = json.loads(stdout.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return _response("unavailable", "sandbox_runner_invalid_response")
+    if not isinstance(result, Mapping):
+        return _response("unavailable", "sandbox_runner_invalid_response")
+    status = result.get("status")
+    if status not in {"validated", "rejected", "unavailable"}:
+        status = "unavailable"
+    return _response(
+        status,
+        result.get("reason_code") or "sandbox_runner_failed",
+        checks=result.get("checks"),
+        output_bytes=result.get("output_bytes", 0),
+        result=result.get("result"),
+        duration_ms=(time.monotonic() - started) * 1000.0,
+    )
+
+
+def _response(status: str, reason_code: Any, *, checks: Any = None, output_bytes: Any = 0, result: Any = None, duration_ms: Any = 0) -> dict[str, Any]:
     try:
         output_size = max(0, min(int(output_bytes), 1024 * 1024))
     except (TypeError, ValueError):
@@ -152,7 +233,7 @@ def _response(status: str, reason_code: Any, *, checks: Any = None, output_bytes
     safe_checks = {}
     if isinstance(checks, Mapping):
         safe_checks = {str(key)[:48]: str(value)[:32] for key, value in list(checks.items())[:12]}
-    return {
+    response = {
         "schema_version": SANDBOX_PROTOCOL_SCHEMA_VERSION,
         "status": status if status in {"validated", "rejected", "unavailable"} else "unavailable",
         "reason_code": str(reason_code or "sandbox_failed")[:96],
@@ -166,6 +247,9 @@ def _response(status: str, reason_code: Any, *, checks: Any = None, output_bytes
         },
         "duration_ms": round(duration, 2),
     }
+    if isinstance(result, Mapping):
+        response["result"] = dict(result)
+    return response
 
 
 def _read_line(connection: socket.socket) -> bytes:

@@ -4,7 +4,6 @@ from time import monotonic
 from typing import Any, Callable, Dict, Iterable, Mapping, Protocol
 
 from .errors import ToolError
-from .spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
 from .tool_provider import (
     TOOL_PROVIDER_CONTRACT_SCHEMA,
     NativeToolProvider,
@@ -41,6 +40,8 @@ class ToolRegistry:
         provider_definitions = provider.definitions()
         self._definitions = validate_tool_definitions(provider_definitions)
         self._dynamic_handlers: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {}
+        self._approval_bindings: Dict[str, str] = {}
+        self._approval_guard: Callable[[Mapping[str, Any]], None] | None = None
 
     @classmethod
     def from_json(cls, path: str, adapter: ToolAdapter) -> "ToolRegistry":
@@ -50,6 +51,14 @@ class ToolRegistry:
     def from_provider(cls, provider: ToolProvider) -> "ToolRegistry":
         """Build a Registry from any provider without exposing its adapter."""
         return cls(provider=provider)
+
+    def set_approval_guard(
+        self, guard: Callable[[Mapping[str, Any]], None] | None
+    ) -> None:
+        """Install the Runtime-owned approval check for dynamic dispatch."""
+        if guard is not None and not callable(guard):
+            raise TypeError("approval guard must be callable")
+        self._approval_guard = guard
 
     @property
     def names(self):
@@ -186,6 +195,123 @@ class ToolRegistry:
             "input_schema": definition["input_schema"],
         }
 
+    def register_approved_tool(
+        self,
+        approval: Mapping[str, Any],
+        handler: Callable[[Dict[str, Any]], Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Publish one approved proposal through the Registry boundary.
+
+        Approval records are public projections, so the method accepts only
+        their bounded definition and fingerprint.  Source loading and source
+        execution remain outside the Registry and must be represented by the
+        injected controlled handler.
+        """
+        if not isinstance(approval, Mapping):
+            raise ToolError(
+                "tool approval must be an object",
+                category="policy",
+                code="approval_record_invalid",
+                retryable=False,
+            )
+        if approval.get("status") != "approved":
+            raise ToolError(
+                "only an approved tool proposal can enter the Registry",
+                category="policy",
+                code="approval_required",
+                retryable=False,
+            )
+        approval_id = str(approval.get("approval_id") or "").strip()
+        fingerprint = str(approval.get("receipt_fingerprint") or "").strip()
+        name = str(approval.get("name") or "").strip()
+        definition = approval.get("definition")
+        if not approval_id or not fingerprint or not name or not isinstance(definition, Mapping):
+            raise ToolError(
+                "approved tool definition is incomplete",
+                category="validation",
+                code="approval_definition_missing",
+                retryable=False,
+            )
+        if str(definition.get("name") or "").strip() != name:
+            raise ToolError(
+                "approved tool definition identity does not match approval",
+                category="validation",
+                code="approval_definition_mismatch",
+                retryable=False,
+            )
+        if not callable(handler):
+            raise ToolError(
+                "approved tool handler must be callable",
+                category="validation",
+                code="approval_handler_invalid",
+                retryable=False,
+            )
+        existing = self._definitions.get(name)
+        if existing is not None:
+            if str(existing.get("approval_id") or "") == approval_id:
+                if (
+                    int(existing.get("approval_version") or 0)
+                    != int(approval.get("version") or 0)
+                    or str(existing.get("approval_fingerprint") or "") != fingerprint
+                ):
+                    raise ToolError(
+                        "approved tool binding is stale",
+                        category="policy",
+                        code="approval_binding_stale",
+                        retryable=False,
+                    )
+                return self._registered_tool_summary(name, existing)
+            raise ToolError("tool already registered: " + name)
+        entry = dict(definition)
+        entry.update(
+            {
+                "name": name,
+                "dynamic": True,
+                "requires_approval": False,
+                "approval_id": approval_id,
+                "approval_version": int(approval.get("version") or 0),
+                "approval_fingerprint": fingerprint,
+                "handler_ref": "approval:" + approval_id,
+            }
+        )
+        registered = self.register_tool(name, entry, handler)
+        self._approval_bindings[approval_id] = name
+        registered.update(
+            {
+                "approval_id": approval_id,
+                "approval_version": entry["approval_version"],
+                "approval_fingerprint": fingerprint,
+                "handler_ref": entry["handler_ref"],
+            }
+        )
+        return registered
+
+    def revoke_approved_tool(self, approval_id: str) -> bool:
+        """Remove a previously published proposal from this Registry."""
+        key = str(approval_id or "").strip()
+        name = self._approval_bindings.pop(key, None)
+        if not name:
+            return False
+        definition = self._definitions.get(name)
+        if isinstance(definition, Mapping) and definition.get("approval_id") == key:
+            self._definitions.pop(name, None)
+            self._dynamic_handlers.pop(name, None)
+            return True
+        return False
+
+    def _registered_tool_summary(self, name: str, definition: Mapping[str, Any]) -> Dict[str, Any]:
+        return {
+            "name": name,
+            "dynamic": bool(definition.get("dynamic", False)),
+            "description": str(definition.get("description") or ""),
+            "input_schema": definition.get("input_schema") or {"type": "object"},
+            **{
+                key: definition[key]
+                for key in ("approval_id", "approval_version", "approval_fingerprint", "handler_ref")
+                if key in definition
+            },
+        }
+
     def dynamic_tools(self) -> list:
         """Return bounded summaries of the dynamically registered tools."""
         return [
@@ -194,6 +320,16 @@ class ToolRegistry:
                 "description": str(
                     (self._definitions.get(name) or {}).get("description") or ""
                 ),
+                **{
+                    key: (self._definitions.get(name) or {}).get(key)
+                    for key in (
+                        "approval_id",
+                        "approval_version",
+                        "approval_fingerprint",
+                        "handler_ref",
+                    )
+                    if key in (self._definitions.get(name) or {})
+                },
             }
             for name in sorted(self._dynamic_handlers)
         ]
@@ -285,6 +421,8 @@ class ToolRegistry:
         definition = self._definitions.get(name)
         if definition is None:
             raise ToolError("Unknown tool: " + name)
+        if self._approval_guard is not None:
+            self._approval_guard(definition)
         self.validate_arguments(name, arguments)
         effective_timeout = timeout_seconds
         if effective_timeout is not None:
@@ -482,8 +620,10 @@ def _tool_governance_summary(name: str, definition: Mapping[str, Any]) -> Dict[s
     }
 
 
-class DemoSpatialAdapter(SpatialToolAdapter):
-    """Backward-compatible name for the M1 demo adapter."""
+def __getattr__(name: str):
+    """Lazily expose the historical GIS demo adapter without a Domain import."""
+    if name == "DemoSpatialAdapter":
+        from domains.gis.adapters.demo_tool import DemoSpatialAdapter
 
-    def __init__(self):
-        super().__init__(InMemorySpatialBackend())
+        return DemoSpatialAdapter
+    raise AttributeError(name)

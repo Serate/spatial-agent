@@ -133,7 +133,7 @@ class M140CapabilityRequirementsTests(unittest.TestCase):
             "health_status": "ready",
         }
         with patch(
-            "agent.runtime_capabilities.runtime_capability_snapshot",
+            "domains.gis.adapters.runtime_capabilities.runtime_capability_snapshot",
             return_value=legacy,
         ):
             result = GIS_EVIDENCE_PROVIDER.runtime_snapshot(max_files=1)

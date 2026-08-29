@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 from agent.answer_composer import AnswerComposer
 from agent.capability_catalog import runtime_capability_catalog
-from agent.data_quality import dataset_health_report
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.data_quality import dataset_health_report
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
 from agent.models import AgentRunResult, RunStatus, StepRun, TaskPlan
 from scripts.prepare_analysis_rasters import _write_analysis_config, _warp_sources
 
@@ -198,8 +198,8 @@ class M70AnalysisReadyRasterTests(unittest.TestCase):
                 "metrics": {"checked_files": 1},
             }
 
-        return patch("agent.data_quality._health_for_entry", side_effect=fake_health), patch(
-            "agent.data_quality._raster_alignment_summary",
+        return patch("domains.gis.adapters.data_quality._health_for_entry", side_effect=fake_health), patch(
+            "domains.gis.adapters.data_quality._raster_alignment_summary",
             return_value={"status": "ready", "overlapping_pairs": 1},
         )
 

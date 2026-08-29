@@ -26,6 +26,7 @@ from ..evidence_revalidation import (
 )
 from ..errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from ..models import AgentRunResult, RunStatus, StepRun, TaskPlan
+from ..result_completeness import build_result_completeness
 from .react_runtime import RuntimeReactExecution
 
 
@@ -865,7 +866,11 @@ class RuntimeRunLifecycle:
             kind=final_kind,
             status=status,
             message=final_message,
-            data={"stage_index": 7, "stage_count": _LIFECYCLE_STAGE_COUNT},
+            data={
+                "stage_index": 7,
+                "stage_count": _LIFECYCLE_STAGE_COUNT,
+                "completeness": build_result_completeness(result.to_dict()),
+            },
             terminal=terminal,
         )
         runtime._emit_run_event(result)

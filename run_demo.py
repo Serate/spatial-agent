@@ -1,7 +1,7 @@
 import argparse
 import json
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 from agent.domain_registry import domain_registry
 from agent.domain_runtime_host import DomainRuntimeHost
 from agent.domain_routing_entry import (

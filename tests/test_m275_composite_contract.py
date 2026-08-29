@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from agent.composite_contract import (
+from agent.application.composite_contract import (
     CompositeContractError,
     build_composite_result_contract,
     normalize_composite_request,

@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent.application.http import HTTPApplication
-from agent.composite_contract import inherit_composite_runtime_selection
+from agent.application.composite_contract import inherit_composite_runtime_selection
 from agent.runtime_defaults import (
     DEFAULT_BACKEND,
     DEFAULT_PLANNER,

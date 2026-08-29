@@ -2,7 +2,7 @@
 
 import unittest
 
-from agent.composite_request_context import (
+from agent.application.composite_request_context import (
     COMPOSITE_REQUEST_CONTEXT_MAX_BYTES,
     CompositeRequestContextBuilder,
 )

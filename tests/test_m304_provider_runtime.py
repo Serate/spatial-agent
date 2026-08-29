@@ -6,9 +6,9 @@ import json
 import unittest
 
 from agent.environment_status import environment_status
-from agent.composite_planner import CompositePlannerError, LLMCompositePlanner
+from agent.application.composite_planner import CompositePlannerError, LLMCompositePlanner
 from agent.application.composite_planning import CompositePlanningApplication
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_view import build_composite_view_projection
 from agent.errors import PlanningError
 from agent.provider_runtime import (
     PROVIDER_HEALTH_SCHEMA_VERSION,

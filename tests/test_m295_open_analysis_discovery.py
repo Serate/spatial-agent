@@ -1,9 +1,9 @@
 import json
 import unittest
 
-from agent.composite_request_context import CompositeRequestContextBuilder
+from agent.application.composite_request_context import CompositeRequestContextBuilder
 from agent.application.composite_runs import _safe_planning_evidence
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_view import build_composite_view_projection
 from agent.runtime_core.analysis_discovery import (
     ANALYSIS_DISCOVERY_SCHEMA_VERSION,
     AnalysisDiscoveryError,

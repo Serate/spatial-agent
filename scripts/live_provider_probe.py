@@ -12,7 +12,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from agent.llm_planner import OpenAIPlannerClient
-from agent.openai_config import load_openai_config
+from agent.integration.openai_config import load_openai_config
 from evaluation.live_provider_probe import (
     run_composite_planning_probe,
     run_provider_probe,

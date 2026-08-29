@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent.release_evidence import release_evidence_snapshot
+from domains.gis.adapters.release_evidence import release_evidence_snapshot
 
 
 def main() -> int:

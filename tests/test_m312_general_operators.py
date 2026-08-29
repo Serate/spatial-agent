@@ -168,7 +168,7 @@ class M312GeneralOperatorsTests(unittest.TestCase):
     def test_gis_operations_share_result_profile_and_preserve_output_crs(self):
         import geopandas as gpd
         from shapely.geometry import Polygon
-        from agent.spatial_backend import GeoPackageBackend
+        from domains.gis.adapters.spatial_backend import GeoPackageBackend
 
         backend = GeoPackageBackend.__new__(GeoPackageBackend)
         backend._entries = {}
@@ -208,7 +208,7 @@ class M312GeneralOperatorsTests(unittest.TestCase):
     def test_gis_operation_empty_intersection_is_a_valid_empty_result(self):
         import geopandas as gpd
         from shapely.geometry import Polygon
-        from agent.spatial_backend import GeoPackageBackend
+        from domains.gis.adapters.spatial_backend import GeoPackageBackend
 
         backend = GeoPackageBackend.__new__(GeoPackageBackend)
         backend._entries = {}

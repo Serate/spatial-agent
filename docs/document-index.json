@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
-  "updated": "2026-08-28",
-  "active_stage": "M323",
+  "updated": "2026-08-29",
+  "active_stage": "M327",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -11,7 +11,7 @@
       "docs/agent-work-state.md",
       "docs/document-index.json",
       "tasks/current-state.md",
-      "docs/stages/M323/handoff.md"
+      "docs/stages/M327/handoff.md"
     ],
     "never_default": [
       "docs/archive/",
@@ -48,6 +48,8 @@
       "paths": [
         "docs/agent-project-direction.md",
         "docs/architecture-map.md",
+        "docs/code-index-guide.md",
+        "docs/agent-module-responsibilities.md",
         "docs/api.md",
         "docs/dataset-inventory.md",
         "docs/demo-checklist.md",
@@ -62,8 +64,169 @@
   ],
   "stage_packages": [
     {
+      "id": "M327",
+      "status": "in_progress",
+      "root": "docs/stages/M327",
+      "capability_map": "docs/stages/M327/capability-map.md",
+      "spec": "docs/stages/M327/spec.md",
+      "plan": "docs/stages/M327/plan.md",
+      "handoff": "docs/stages/M327/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M327/handoff.md"
+      ],
+      "source_files": [
+        "agent/capability_catalog.py",
+        "agent/application/catalog.py",
+        "agent/domain_contract.py",
+        "agent/result_contract.py",
+        "agent/result_completeness.py",
+        "agent/evidence/projection.py",
+        "agent/llm_planner.py",
+        "tests/test_m326_result_completeness.py"
+      ],
+      "verify": [
+        "tests/test_m326_result_completeness.py",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready"
+      ]
+    },
+    {
+      "id": "agent-physical-layout",
+      "status": "complete",
+      "root": "docs/stages/agent-physical-layout",
+      "capability_map": "docs/stages/agent-physical-layout/capability-map.md",
+      "spec": "docs/stages/agent-physical-layout/spec.md",
+      "plan": "docs/stages/agent-physical-layout/plan.md",
+      "handoff": "docs/stages/agent-physical-layout/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": ["docs/stages/agent-physical-layout/handoff.md"],
+      "source_files": [
+        "domains/gis/adapters/analysis_ready_binding.py",
+        "domains/gis/adapters/release_evidence.py",
+        "domains/gis/adapters/runtime_capabilities.py",
+        "domains/gis/adapters/demo_tool.py",
+        "agent/application/",
+        "agent/persistence/",
+        "agent/integration/",
+        "agent/evidence/contract.py",
+        "agent/evidence/projection.py",
+        "agent/evidence/recovery.py",
+        "agent/evidence/registry.py",
+        "agent/evidence/revalidation.py",
+        "agent/evidence/component.py",
+        "agent/evidence_contract.py",
+        "agent/evidence_projection.py",
+        "agent/evidence_recovery.py",
+        "agent/evidence_registry.py",
+        "agent/evidence_revalidation.py",
+        "agent/component_evidence.py"
+      ],
+      "verify": [
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready"
+      ]
+    },
+    {
+      "id": "M324",
+      "status": "complete",
+      "root": "docs/stages/M324",
+      "capability_map": "docs/stages/M324/capability-map.md",
+      "spec": "docs/stages/M324/spec.md",
+      "plan": "docs/stages/M324/plan.md",
+      "handoff": "docs/stages/M324/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": ["docs/stages/M324/handoff.md"],
+      "source_files": [
+        "agent/tooling/rehydration.py",
+        "agent/tooling/approval.py",
+        "agent/tooling/__init__.py",
+        "agent/tools.py",
+        "agent/runtime.py",
+        "agent/service.py",
+        "agent/application/http.py",
+        "web/src/console_tool_approvals.js",
+        "web/src/console_app.js",
+        "web/src/index.html",
+        "web/src/styles.css",
+        "tests/test_m324_tool_governance.py",
+        "scripts/console_tool_approvals_smoke.js"
+      ],
+      "verify": [
+        "tests/test_m324_tool_governance.py",
+        "scripts/console_tool_approvals_smoke.js",
+        "scripts/architecture_check.py --strict",
+        "health/ready"
+      ]
+    },
+    {
+      "id": "M326",
+      "status": "complete",
+      "root": "docs/stages/M326",
+      "capability_map": "docs/stages/M326/capability-map.md",
+      "spec": "docs/stages/M326/spec.md",
+      "plan": "docs/stages/M326/plan.md",
+      "handoff": "docs/stages/M326/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": ["docs/stages/M326/handoff.md"],
+      "source_files": [
+        "agent/react/loop.py",
+        "agent/runtime_core/react_runtime.py",
+        "agent/runtime_core/planning_surface.py",
+        "agent/runtime_core/execution_policy.py",
+        "domains/gis/domain.py",
+        "agent/answer_generation.py",
+        "tests/test_m320_react_runtime.py"
+      ],
+      "verify": [
+        "tests/test_m320_react_runtime.py",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready"
+      ]
+    },
+    {
+      "id": "M325",
+      "status": "complete",
+      "root": "docs/stages/M325",
+      "capability_map": "docs/stages/M325/capability-map.md",
+      "spec": "docs/stages/M325/spec.md",
+      "plan": "docs/stages/M325/plan.md",
+      "handoff": "docs/stages/M325/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": ["docs/stages/M325/handoff.md"],
+      "source_files": [
+        "scripts/live_provider_probe.py",
+        "scripts/live_http_acceptance.py",
+        "evaluation/live_provider_probe.py",
+        "agent/integration/openai_config.py",
+        "agent/llm_planner.py",
+        "agent/runtime_core/react_runtime.py",
+        "agent/network/web_search.py",
+        "domains/gis/domain.py",
+        "config/datasets.container.example.json",
+        "tests/test_m320_react_runtime.py",
+        "tests/test_m321_web_search.py"
+      ],
+      "verify": [
+        "scripts/live_provider_probe.py --allow-network",
+        "scripts/live_http_acceptance.py --allow-live",
+        "tests/test_m320_react_runtime.py",
+        "tests/test_m321_web_search.py",
+        "scripts/architecture_check.py --strict",
+        "health/ready"
+      ]
+    },
+    {
       "id": "M323",
-      "status": "planning",
+      "status": "complete",
       "root": "docs/stages/M323",
       "capability_map": "docs/stages/M323/capability-map.md",
       "spec": "docs/stages/M323/spec.md",
@@ -78,7 +241,9 @@
         "agent/tools.py",
         "agent/runtime.py",
         "agent/runtime_core/react_runtime.py",
-        "agent/sqlite_store.py",
+        "agent/persistence/sqlite_store.py",
+        "agent/tooling/approval.py",
+        "agent/application/service_state.py",
         "agent/application/http.py",
         "tests/test_m323_tool_approval.py"
       ],
@@ -117,7 +282,10 @@
     "code_index": [
       "docs/code-index.json",
       "docs/code-index-overrides.json",
+      "docs/code-index-guide.md",
+      "docs/agent-module-responsibilities.md",
       "scripts/build_code_index.py",
+      "scripts/build_agent_module_map.py",
       "scripts/validate_code_index.ps1"
     ],
     "operations": [

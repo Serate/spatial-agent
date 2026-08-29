@@ -12,7 +12,7 @@ from agent.geojson_exporter import (
     export_run_summary,
     resolve_max_bytes,
 )
-from agent.geometry_export import normalize_feature_collection
+from domains.gis.adapters.geometry_export import normalize_feature_collection
 from agent.service import AgentService, _exported_geometry_evidence, _tag_geometry_features
 
 

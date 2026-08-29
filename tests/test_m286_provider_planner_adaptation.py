@@ -1,12 +1,12 @@
 import unittest
 
-from agent.composite_planner import (
+from agent.application.composite_planner import (
     CompositePlannerError,
     LLMCompositePlanner,
     normalize_provider_response,
     normalize_composite_plan,
 )
-from agent.composite_request_context import _candidate_projection
+from agent.application.composite_request_context import _candidate_projection
 
 
 class _Client:

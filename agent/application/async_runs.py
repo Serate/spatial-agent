@@ -17,7 +17,7 @@ import time
 import uuid
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 from agent.failure_contract import build_failure_evidence
 from agent.domain_routing_evidence import (
     DomainRoutingEvidenceError,
@@ -28,7 +28,7 @@ from agent.domain_routing_evidence import (
 )
 from agent.models import AgentRunResult, RunStatus
 from agent.runtime_context import assert_runtime_context_compatible
-from agent.service_async import (
+from agent.application.service_async import (
     async_event as _async_event,
     async_fingerprint as _async_fingerprint,
     async_response as _async_response,
@@ -39,10 +39,10 @@ from agent.service_async import (
     normalize_async_result_evidence as _normalize_async_result_evidence,
     unavailable_async_result_evidence as _unavailable_async_result_evidence,
 )
-from agent.service_format import result_type as _result_type
-from agent.service_sessions import async_job_payload as _async_job_payload
+from agent.application.service_format import result_type as _result_type
+from agent.application.service_sessions import async_job_payload as _async_job_payload
 from agent.trace_formatter import format_trace
-from agent.evidence_registry import normalize_evidence_registry
+from agent.evidence.registry import normalize_evidence_registry
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.run_events import new_run_event
 from result_contract import build_lineage_index, build_result_contract

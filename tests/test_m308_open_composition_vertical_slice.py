@@ -7,9 +7,9 @@ import unittest
 from agent.answer_generation import build_composite_answer_context
 from agent.application.composite import CompositeApplication
 from agent.application.composite_planning import CompositePlanningApplication
-from agent.composite_contract import build_composite_result_contract
-from agent.composite_planner import ReplayCompositePlanner
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_contract import build_composite_result_contract
+from agent.application.composite_planner import ReplayCompositePlanner
+from agent.application.composite_view import build_composite_view_projection
 from agent.runtime_core.composite_taskplan import CompositeTaskPlanBridge
 from agent.runtime_core.preview import _merge_component_handoff_constraints
 

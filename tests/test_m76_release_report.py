@@ -7,8 +7,8 @@ from tests.console_source import read_console_source
 from unittest.mock import patch
 
 from agent.analysis_ready_binding import build_source_binding
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
-from agent.dataset_manifest import build_dataset_manifest
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.dataset_manifest import build_dataset_manifest
 from agent.release_evidence import release_evidence_snapshot
 
 
@@ -46,7 +46,7 @@ class M76ReleaseReportTests(unittest.TestCase):
                 "usable_for": [],
             }
 
-        return patch("agent.data_quality._health_for_entry", side_effect=fake_health)
+        return patch("domains.gis.adapters.data_quality._health_for_entry", side_effect=fake_health)
 
     def test_full_report_separates_metadata_source_and_output_sha256(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -99,7 +99,7 @@ class M76ReleaseReportTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self._health_patch(), patch(
-                "agent.data_quality._raster_alignment_summary",
+                "domains.gis.adapters.data_quality._raster_alignment_summary",
                 return_value={"status": "aligned"},
             ):
                 result = release_evidence_snapshot(str(config_path))

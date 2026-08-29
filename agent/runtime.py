@@ -36,7 +36,7 @@ from .domain_contract import (
 )
 from .decision_lifecycle import DecisionLifecycleError, DecisionRequest, DecisionStore
 from .action_lifecycle import project_action_lifecycle
-from .evidence_contract import project_capability_catalog_evidence
+from agent.evidence.contract import project_capability_catalog_evidence
 from .failure_contract import build_failure_evidence
 from .answer_generation import fallback_answer_generation_evidence
 from .memory import FactMemory
@@ -45,7 +45,7 @@ from .plan_repair import PlanRepairEngine, PlanRepairInput
 from .observability import ObservabilityEmitter
 from .run_events import new_run_event
 from .plan_identity import build_plan_identity
-from .evidence_revalidation import (
+from agent.evidence.revalidation import (
     build_evidence_binding,
     build_evidence_revalidation_gate,
 )
@@ -95,6 +95,7 @@ from .runtime_state import (
     InMemoryStateStore,
     PendingClarification,
 )
+from .tooling import InMemoryToolApprovalStore, rehydrate_approved_tools
 
 
 class AgentRuntime:
@@ -115,6 +116,7 @@ class AgentRuntime:
         replan_policy: Optional[ReplanningPolicy] = None,
         plan_repair_engine: Optional[PlanRepairEngine] = None,
         decision_store: Optional[DecisionStore] = None,
+        approval_store: Optional[Any] = None,
         memory: Optional[FactMemory] = None,
         observability: Optional[ObservabilityEmitter] = None,
         backend_name: str = "unknown",
@@ -135,6 +137,16 @@ class AgentRuntime:
         self._result_registry = resolve_result_registry(self._domain_pack)
         execution_defaults = open_agent_defaults()
         self._agent_settings = dict(execution_defaults)
+        self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
+        self._answer_generator = answer_generator
+        self._proposal_validator = proposal_validator
+        self._context_builder = context_builder or ContextBuilder()
+        self._max_steps = max_steps
+        self._max_retries = max_retries
+        self._replan_policy = replan_policy or ReplanningPolicy()
+        self._decision_store = decision_store
+        self._approval_store = approval_store or InMemoryToolApprovalStore()
+        self._approval_rehydration = self._restore_approved_tools()
         self._execution_policy_resolver = ExecutionPolicyResolver(
             known_tools=self._registry.names,
             max_actions=max(
@@ -154,14 +166,9 @@ class AgentRuntime:
             # those packs publish a complete result registry.
             enforce_known_result_profiles=False,
         )
-        self._answer_composer = answer_composer or resolve_answer_composer(self._domain_pack)
-        self._answer_generator = answer_generator
-        self._proposal_validator = proposal_validator
-        self._context_builder = context_builder or ContextBuilder()
-        self._max_steps = max_steps
-        self._max_retries = max_retries
-        self._replan_policy = replan_policy or ReplanningPolicy()
-        self._decision_store = decision_store
+        approval_guard = getattr(self._registry, "set_approval_guard", None)
+        if callable(approval_guard):
+            approval_guard(self._approval_gate)
         self._plan_repair_engine = plan_repair_engine or PlanRepairEngine(
             self._planner,
             self._replan_policy,
@@ -214,6 +221,27 @@ class AgentRuntime:
         self._recovery = RuntimeRecoverySurface(self)
         self._preview = RuntimePreviewSurface(self)
         self._run_span_ids: Dict[str, str] = {}
+
+    def approval_rehydration(self) -> Dict[str, Any]:
+        """Return safe evidence for approved binding restoration."""
+        return dict(self._approval_rehydration)
+
+    def _restore_approved_tools(self) -> Dict[str, Any]:
+        """Restore approved records before planning sees the Registry names."""
+        listing = getattr(self._approval_store, "list", None)
+        records = []
+        if callable(listing):
+            try:
+                records = listing(domain_id=self.domain_id, limit=64, status="approved")
+            except Exception:
+                records = []
+        factory = getattr(self._proposal_validator, "handler_for", None)
+        return rehydrate_approved_tools(
+            registry=self._registry,
+            records=records,
+            handler_factory=factory,
+            domain_id=self.domain_id,
+        )
 
     @property
     def domain_id(self) -> str:
@@ -423,12 +451,14 @@ class AgentRuntime:
         workflow: Optional[Mapping[str, Any]] = None,
         *,
         requires_confirmation: bool = False,
+        policy_mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Project the resolved policy plus legacy Registry governance evidence."""
         policy = self._planning_surface.resolve_execution_policy(
             plan,
             workflow,
             requires_confirmation=requires_confirmation,
+            policy_mode=policy_mode,
         )
         tools = []
         seen = set()
@@ -469,16 +499,33 @@ class AgentRuntime:
         plan: Optional[TaskPlan],
         workflow: Optional[Mapping[str, Any]],
         *,
+        policy_mode: Optional[str] = None,
         state: str = "accepted",
         reason_code: Optional[str] = None,
         repair_lineage: Optional[Iterable[Mapping[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Project Domain policy metadata through one generic Runtime seam."""
-        domain_policy = resolve_plan_policy(
-            self._domain_pack,
-            plan,
-            workflow=workflow,
-        )
+        if policy_mode == "open_react" and workflow is None:
+            domain_policy = {
+                "schema_version": "spatial-agent.plan-policy.v1",
+                "available": True,
+                "domain_id": self.domain_id,
+                "policy_id": "runtime.open_react",
+                "source": "open_react",
+                "selected_by": "runtime",
+                "allowed_tools": [
+                    step.tool for step in plan.steps
+                ] if isinstance(plan, TaskPlan) else [],
+                "result_types": [
+                    str(plan.output.get("type") or "")
+                ] if isinstance(plan, TaskPlan) and isinstance(plan.output, Mapping) else [],
+            }
+        else:
+            domain_policy = resolve_plan_policy(
+                self._domain_pack,
+                plan,
+                workflow=workflow,
+            )
         return build_plan_policy_evidence(
             plan,
             domain_policy=domain_policy,
@@ -813,6 +860,32 @@ class AgentRuntime:
             required_datasets=self._registry.data_dependencies(tool, arguments),
             require_dependency_evidence=self._require_dependency_evidence,
         )
+
+    def _approval_gate(self, definition: Mapping[str, Any]) -> None:
+        """Fail closed when a dynamically published tool lost approval."""
+        approval_id = str(definition.get("approval_id") or "").strip()
+        if not approval_id:
+            return
+        getter = getattr(self._approval_store, "get", None)
+        record = getter(approval_id, domain_id=self.domain_id) if callable(getter) else None
+        if record is None or getattr(record, "status", None) != "approved":
+            raise ToolError(
+                "工具审批已失效，禁止执行",
+                category="policy",
+                code="approval_required",
+                retryable=False,
+            )
+        expected_version = int(definition.get("approval_version") or 0)
+        expected_fingerprint = str(definition.get("approval_fingerprint") or "")
+        if expected_version != int(getattr(record, "version", 0)) or expected_fingerprint != str(
+            getattr(record, "receipt_fingerprint", "")
+        ):
+            raise ToolError(
+                "工具审批版本或指纹已漂移，禁止执行",
+                category="policy",
+                code="approval_version_mismatch",
+                retryable=False,
+            )
 
     def _remember(self, result: AgentRunResult) -> None:
         """Persist one bounded memory fact for a completed run."""

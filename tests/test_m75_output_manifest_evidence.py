@@ -1,7 +1,7 @@
 import unittest
 
 from agent.capability_catalog import runtime_capability_catalog
-from agent.data_quality import _analysis_output_manifest_summary
+from domains.gis.adapters.data_quality import _analysis_output_manifest_summary
 from agent.service import AgentService
 from unittest.mock import patch
 

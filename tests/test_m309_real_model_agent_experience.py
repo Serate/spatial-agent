@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import unittest
 
-from agent.composite_planner import (
+from agent.application.composite_planner import (
     CompositePlannerError,
     LLMCompositePlanner,
     ReplayCompositePlanner,

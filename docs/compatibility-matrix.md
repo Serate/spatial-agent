@@ -14,6 +14,12 @@
 | `agent/workflow_templates` | 通用校验 + GIS lazy fallback | workflow compiler | 保留兼容导出，活动路径显式传入 Domain catalog |
 | `agent/request_model` | Domain parser facade | Domain-owned request facts | 保留旧导入，禁止公共 Runtime 直接调用 GIS parser |
 | `agent/answer_composer` | GIS composer re-export | Domain-owned composer + Answer Generation | 只保留兼容导出 |
+| `agent/service_async` / `service_format` / `service_sessions` / `service_state` | Application Service 支撑实现 | `agent/application/service_*.py` | canonical 实现已迁移，旧路径保留单向兼容 facade |
+| `agent/analysis_ready_binding` | GIS analysis-ready source binding | `domains/gis/adapters/analysis_ready_binding.py` | canonical 实现已下沉，旧路径保留单向兼容 facade |
+| `agent/release_evidence` | GIS release evidence | `domains/gis/adapters/release_evidence.py` | canonical 实现已下沉，旧路径保留单向兼容 facade |
+| `agent/runtime_capabilities` | GIS runtime capability snapshot | `domains/gis/adapters/runtime_capabilities.py` | canonical 实现已下沉，旧路径保留单向兼容 facade |
+| `agent.tools.DemoSpatialAdapter` | GIS deterministic demo Adapter | `domains/gis/adapters/demo_tool.py` | `agent.tools` 惰性兼容导出，ToolRegistry 保持领域中立 |
+| `agent/evidence_contract.py`、`evidence_projection.py`、`evidence_recovery.py`、`evidence_registry.py`、`evidence_revalidation.py`、`component_evidence.py` | Evidence 契约、投影、恢复、注册、重验证和组件证据 | `agent/evidence/` | canonical 实现已下沉；旧路径只做单向兼容 facade，schema 与恢复语义不变 |
 | `web/index.html` | 内联 CSS/JS + 静态入口 | `frontend/src` + `web/dist` | 迁移后不再作为源码维护 |
 
 ## 架构守卫清单

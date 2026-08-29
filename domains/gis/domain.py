@@ -40,6 +40,12 @@ GIS_CATALOG_SPEC = DomainCatalogSpec(
 )
 
 
+# Health is a read-only, Domain-owned preflight action used by ReAct and by
+# selected workflows before a data-dependent tool.  It is not a substitute
+# for the template's actual analysis tool and remains a registered tool.
+_PREFLIGHT_TOOLS = frozenset({"get_dataset_health_report"})
+
+
 class GisDomainPack:
     """Provide GIS discovery/catalog behavior without embedding it in Runtime."""
 
@@ -581,7 +587,8 @@ class GisDomainPack:
                     for tool in (template.get("allowed_tools") or [])
                 }
                 tools = [str(step.tool) for step in getattr(plan, "steps", ())]
-                unexpected = sorted(set(tools) - allowed)
+                analysis_tools = [tool for tool in tools if tool not in _PREFLIGHT_TOOLS]
+                unexpected = sorted(set(analysis_tools) - allowed)
                 if unexpected:
                     raise WorkflowTemplateError(
                         "domain workflow composition rejected tools: "
@@ -590,10 +597,10 @@ class GisDomainPack:
                 max_steps = sum(
                     int(template.get("max_steps") or 0) for template in templates
                 )
-                if max_steps and len(tools) > max_steps:
+                if max_steps and len(analysis_tools) > max_steps:
                     raise WorkflowTemplateError(
                         "domain workflow composition exceeded max steps: {} > {}".format(
-                            len(tools), max_steps
+                            len(analysis_tools), max_steps
                         )
                     )
                 return
@@ -607,17 +614,18 @@ class GisDomainPack:
             return
         template = candidates[0]
         tools = [str(step.tool) for step in getattr(plan, "steps", ())]
+        analysis_tools = [tool for tool in tools if tool not in _PREFLIGHT_TOOLS]
         allowed = {str(item) for item in (template.get("allowed_tools") or [])}
-        unexpected = sorted(set(tools) - allowed)
+        unexpected = sorted(set(analysis_tools) - allowed)
         if unexpected:
             raise WorkflowTemplateError(
                 "domain workflow policy rejected tools: " + ", ".join(unexpected)
             )
         max_steps = template.get("max_steps")
-        if isinstance(max_steps, int) and len(tools) > max_steps:
+        if isinstance(max_steps, int) and len(analysis_tools) > max_steps:
             raise WorkflowTemplateError(
                 "domain workflow policy exceeded max steps: {} > {}".format(
-                    len(tools), max_steps
+                    len(analysis_tools), max_steps
                 )
             )
 
@@ -652,6 +660,15 @@ class GisDomainPack:
                     for template in selected_templates
                     for tool in (template.get("allowed_tools") or [])
                 ))[:32]
+                preflight_count = sum(
+                    1
+                    for step in getattr(plan, "steps", ())
+                    if str(getattr(step, "tool", "")) in _PREFLIGHT_TOOLS
+                )
+                if preflight_count:
+                    allowed_tools = list(dict.fromkeys(
+                        [*allowed_tools, *_PREFLIGHT_TOOLS]
+                    ))[:32]
                 component_ids = [
                     str(item.get("template_id"))
                     for item in components[:8]
@@ -670,7 +687,7 @@ class GisDomainPack:
                     "max_steps": sum(
                         int(template.get("max_steps") or 0)
                         for template in selected_templates
-                    ),
+                    ) + preflight_count,
                     "result_types": [str(output_type)] if output_type else [],
                     "required_constraints": list(dict.fromkeys(
                         str(field)
@@ -715,6 +732,14 @@ class GisDomainPack:
                 "reason_code": "workflow_policy_unavailable",
             }
         template_id = str(selected.get("id"))
+        preflight_count = sum(
+            1
+            for step in getattr(plan, "steps", ())
+            if str(getattr(step, "tool", "")) in _PREFLIGHT_TOOLS
+        )
+        allowed_tools = [str(item) for item in (selected.get("allowed_tools") or [])[:24]]
+        if preflight_count:
+            allowed_tools = list(dict.fromkeys([*allowed_tools, *_PREFLIGHT_TOOLS]))[:32]
         return {
             "schema_version": "spatial-agent.plan-policy.v1",
             "available": True,
@@ -724,8 +749,12 @@ class GisDomainPack:
             "selected_by": "user" if explicit_id else "domain",
             "workflow_template_id": template_id,
             "workflow_template_version": str(selected.get("version") or "1.0.0"),
-            "allowed_tools": [str(item) for item in (selected.get("allowed_tools") or [])[:24]],
-            "max_steps": selected.get("max_steps"),
+            "allowed_tools": allowed_tools,
+            "max_steps": (
+                int(selected.get("max_steps") or 0) + preflight_count
+                if selected.get("max_steps") is not None
+                else None
+            ),
             "result_types": [str(item) for item in (selected.get("result_types") or [])[:8]],
             "required_constraints": [
                 str(item) for item in (selected.get("required_constraints") or [])[:16]

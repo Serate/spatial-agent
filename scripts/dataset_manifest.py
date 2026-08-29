@@ -13,8 +13,12 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent.dataset_catalog import DatasetCatalog
-from agent.dataset_manifest import build_dataset_manifest, load_manifest, verify_dataset_manifest
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.dataset_manifest import (
+    build_dataset_manifest,
+    load_manifest,
+    verify_dataset_manifest,
+)
 
 
 def main() -> int:

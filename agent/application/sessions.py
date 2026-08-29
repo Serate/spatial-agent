@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 
-from agent.service_sessions import (
+from agent.application.service_sessions import (
     attach_history_lineage,
     dedupe_run_records,
     validate_session_id,

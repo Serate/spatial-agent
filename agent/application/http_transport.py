@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from urllib.parse import ParseResult, parse_qs, urlparse
 
 from agent.api_contract import error_response, error_status
-from agent.artifact_access import resolve_artifact_path
+from agent.persistence.artifact_access import resolve_artifact_path
 
 
 def parse_request_target(raw_path: str) -> ParseResult:

@@ -39,11 +39,11 @@ from agent.action_effect import (
     normalize_action_effect,
     project_action_effect,
 )
-from agent.evidence_registry import (
+from agent.evidence.registry import (
     normalize_evidence_registry,
     project_evidence_registry_completeness,
 )
-from agent.evidence_projection import project_evidence_projection
+from agent.evidence.projection import project_evidence_projection
 from agent.recovery_action import (
     ACTION_RECEIPT_SCHEMA_VERSION,
     normalize_action_receipt,
@@ -58,7 +58,7 @@ from agent.transition_evidence import (
     TRANSITION_EVIDENCE_SCHEMA_VERSION,
     normalize_transition_evidence as _normalize_transition_evidence,
 )
-from agent.evidence_revalidation import (
+from agent.evidence.revalidation import (
     EVIDENCE_REVALIDATION_SCHEMA_VERSION,
     normalize_evidence_binding as _normalize_evidence_binding,
     normalize_evidence_revalidation as _normalize_evidence_revalidation,

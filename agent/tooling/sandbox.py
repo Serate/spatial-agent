@@ -106,6 +106,89 @@ class UnixSocketSandboxClient:
             if key in response
         }
 
+    def execute_proposal(
+        self,
+        proposal_id: str,
+        source_hash: str,
+        arguments: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Execute a previously validated proposal held by the sidecar.
+
+        The main process sends only the proposal identity and JSON arguments.
+        Source remains in the sidecar's bounded volatile cache and is never
+        persisted in an approval record or accepted from this operation.
+        """
+        if not isinstance(arguments, Mapping):
+            raise SandboxClientError(
+                "sandbox arguments must be an object", code="sandbox_request_invalid"
+            )
+        envelope = {
+            "schema_version": SANDBOX_PROTOCOL_SCHEMA_VERSION,
+            "operation": "execute",
+            "proposal_ref": {
+                "proposal_id": str(proposal_id or "")[:96],
+                "source_hash": str(source_hash or "")[:96],
+            },
+            "arguments": dict(arguments),
+        }
+        response = self._exchange(envelope)
+        return {
+            key: response[key]
+            for key in (
+                "status",
+                "reason_code",
+                "checks",
+                "output_bytes",
+                "sandbox_profile",
+                "result",
+            )
+            if key in response
+        }
+
+    def _exchange(self, envelope: Mapping[str, Any]) -> Mapping[str, Any]:
+        try:
+            request = json.dumps(
+                envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+            ).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise SandboxClientError(
+                "sandbox request is not JSON serializable",
+                code="sandbox_request_invalid",
+            ) from exc
+        if len(request) > _MAX_REQUEST_BYTES:
+            raise SandboxClientError(
+                "sandbox request is too large", code="sandbox_request_too_large"
+            )
+        if not self._socket_path:
+            raise SandboxClientError("sandbox socket is not configured")
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(self._timeout_seconds)
+                connection.connect(self._socket_path)
+                connection.sendall(request + b"\n")
+                payload = _receive_line(connection)
+        except socket.timeout as exc:
+            raise SandboxClientError(
+                "sandbox request timed out", code="sandbox_timeout"
+            ) from exc
+        except (OSError, ValueError) as exc:
+            raise SandboxClientError("sandbox is unavailable") from exc
+        try:
+            response = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SandboxClientError(
+                "sandbox response is invalid", code="sandbox_invalid_response"
+            ) from exc
+        if not isinstance(response, Mapping):
+            raise SandboxClientError(
+                "sandbox response must be an object", code="sandbox_invalid_response"
+            )
+        if response.get("schema_version") != SANDBOX_PROTOCOL_SCHEMA_VERSION:
+            raise SandboxClientError(
+                "sandbox protocol is unsupported", code="sandbox_protocol_invalid"
+            )
+        return response
+
 
 def _receive_line(connection: socket.socket) -> bytes:
     chunks: list[bytes] = []

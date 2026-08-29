@@ -1,8 +1,8 @@
 import json
 import unittest
 
-from agent.composite_request_context import CompositeRequestContextBuilder
-from agent.composite_planner import CompositePlannerError, normalize_composite_plan
+from agent.application.composite_request_context import CompositeRequestContextBuilder
+from agent.application.composite_planner import CompositePlannerError, normalize_composite_plan
 from agent.application.composite_planning import CompositePlanningApplication
 from agent.application.composite_runs import CompositeRunApplication
 from agent.runtime_core.planner_envelope import PLANNER_ENVELOPE_SCHEMA_VERSION

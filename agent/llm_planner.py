@@ -15,11 +15,11 @@ from .errors import ClarificationNeeded, PlanningError, RequestRejected
 from .models import TaskPlan
 from .plan_schema import parse_task_plan, task_plan_schema
 from .planner_guidance import render_planner_guidance_for_context
-from .provider_structured_output import (
+from agent.integration.provider_structured_output import (
     build_structured_output_profile,
     project_structured_output_profile,
 )
-from .provider_runtime import build_provider_health
+from agent.integration.provider_runtime import build_provider_health
 from .react.contracts import (
     REACT_DECISION_SCHEMA_VERSION,
     ReactDecisionError,
@@ -190,7 +190,7 @@ class LLMPlanner:
                 network_enabled=network_enabled,
                 tool_proposals_enabled=tool_proposals_enabled,
             )
-        except ReactDecisionError:
+        except ReactDecisionError as decision_error:
             repaired = _repair_react_payload(payload)
             if repaired is not None:
                 try:
@@ -205,7 +205,7 @@ class LLMPlanner:
                     pass
             compact_method = getattr(self._client, "complete_compact_json", None)
             if not callable(compact_method):
-                raise
+                raise _classify_react_response_failure(decision_error) from None
             self._compact_recovery_attempts += 1
             repair_messages = [
                 *messages,
@@ -230,16 +230,19 @@ class LLMPlanner:
                     network_enabled=network_enabled,
                     tool_proposals_enabled=tool_proposals_enabled,
                 )
-            except ReactDecisionError:
+            except ReactDecisionError as compact_error:
                 safe_payload = _repair_react_payload(repaired_payload)
                 if safe_payload is None:
-                    raise
-                return normalize_react_decision(
-                    safe_payload,
-                    allowed_tools=effective_tools,
-                    network_enabled=network_enabled,
-                    tool_proposals_enabled=tool_proposals_enabled,
-                )
+                    raise _classify_react_response_failure(compact_error) from None
+                try:
+                    return normalize_react_decision(
+                        safe_payload,
+                        allowed_tools=effective_tools,
+                        network_enabled=network_enabled,
+                        tool_proposals_enabled=tool_proposals_enabled,
+                    )
+                except ReactDecisionError as final_error:
+                    raise _classify_react_response_failure(final_error) from None
 
     def metrics(self) -> Dict[str, Any]:
         provider_metrics = getattr(self._client, "metrics", None)
@@ -293,13 +296,20 @@ class LLMPlanner:
             "For a dependent tool call, copy prior result_ref values into depends_on and use only "
             "validated {$from: result_ref, path: optional.path} references in arguments. "
             "For call_tool, output_type is the expected final public Result type for the run. "
+            "A valid call_tool example is {\"schema_version\":\""
+            + REACT_DECISION_SCHEMA_VERSION
+            + "\",\"action\":\"call_tool\",\"tool_name\":\"<one registered name>\","
+            + "\"arguments\":{},\"output_type\":\"<trusted result type>\"}; "
+            + "if you cannot select a registered tool, use ask_clarification instead of call_tool. "
             "Do not repeat a completed action. Available actions: "
             + ", ".join(actions)
             + ". Registered tools: "
             + ", ".join(allowed_tools)
             + ". The schema_version must be "
             + REACT_DECISION_SCHEMA_VERSION
-            + "."
+            + ". For call_tool the required keys are exactly tool_name and arguments; "
+            + "never use tool, name, args, parameters, or a natural-language explanation "
+            + "in their place."
         )
         user_payload = {
             "request": request.strip()[:8_000],
@@ -437,6 +447,28 @@ def _call_structured_client(
     return payload
 
 
+def _classify_react_response_failure(error: ReactDecisionError) -> Exception:
+    """Classify an unrecoverable model action without changing policy errors.
+
+    The original validation detail is intentionally not forwarded.  It may
+    contain provider-shaped text, while the public lifecycle only needs a
+    stable, credential-free classification and must never treat an invalid
+    model action as a tool execution failure.
+    """
+
+    # Missing required fields are malformed model output.  Policy failures
+    # (for example disabled search or an unregistered tool) retain their
+    # historical ReactDecisionError type so callers can distinguish them.
+    if str(error) in {"call_tool requires tool_name", "call_tool requires arguments"}:
+        return PlanningError(
+            "真实模型返回的 ReAct 动作未通过结构化校验",
+            category="planning",
+            code="invalid_model_response",
+            retryable=False,
+        )
+    return error
+
+
 def _call_compact_structured_client(
     client: Any,
     messages: Any,
@@ -484,8 +516,30 @@ def _repair_react_payload(value: Any) -> Optional[Dict[str, Any]]:
     fields = allowed_by_action.get(action.strip())
     if fields is None:
         return None
+    source = dict(value)
+    # A few JSON-only gateways normalize the model's field names to the
+    # common function-calling vocabulary even though the public contract uses
+    # ``tool_name``/``arguments``.  Treat these aliases as a bounded
+    # compatibility repair, then let the normal allowlist and schema checks
+    # decide whether the repaired values are executable.  No tool is guessed.
+    if action.strip() == "call_tool":
+        if "tool_name" not in source:
+            for alias in ("tool", "name"):
+                if isinstance(source.get(alias), str) and source[alias].strip():
+                    source["tool_name"] = source[alias]
+                    break
+        if "arguments" not in source:
+            for alias in ("args", "parameters"):
+                if isinstance(source.get(alias), Mapping):
+                    source["arguments"] = source[alias]
+                    break
+    elif action.strip() == "search" and "query" not in source:
+        for alias in ("search_query", "text"):
+            if isinstance(source.get(alias), str) and source[alias].strip():
+                source["query"] = source[alias]
+                break
     repaired: Dict[str, Any] = {}
-    for key, item in value.items():
+    for key, item in source.items():
         if key not in fields:
             continue
         if key in {"schema_version", "action"}:
@@ -889,8 +943,8 @@ class OpenAIPlannerClient:
             self._record_error(started, "response_shape_error", attempts)
             raise _planner_error(str(exc), "response_shape_error") from exc
         try:
-            return json.loads(text)
-        except json.JSONDecodeError as exc:
+            return _decode_structured_json(text)
+        except (json.JSONDecodeError, ValueError) as exc:
             self._record_error(started, "response_json_error", attempts)
             raise _planner_error(
                 "OpenAI response was not valid JSON",
@@ -1144,6 +1198,45 @@ def _planner_url(api_url: Optional[str], base_url: str, wire_api: str = "respons
     if wire_api == "chat_completions":
         return _chat_completions_url(base_url)
     return _responses_url(base_url)
+
+
+def _decode_structured_json(text: str) -> Any:
+    """Decode JSON while tolerating two bounded provider presentation wrappers.
+
+    Some OpenAI-compatible gateways return an otherwise valid JSON document
+    inside a Markdown fence or after a complete ``<think>`` block. Only a
+    full, explicitly bounded wrapper is accepted; schema validation remains
+    the caller's responsibility and wrapper text is never persisted.
+    """
+    if not isinstance(text, str):
+        raise ValueError("structured response must be text")
+    candidate = text.strip().lstrip("\ufeff")
+    if not candidate:
+        raise ValueError("structured response is empty")
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        original_error = exc
+
+    think_match = re.fullmatch(
+        r"<think>.*?</think>\s*(?P<body>.+)",
+        candidate,
+        flags=re.DOTALL,
+    )
+    if think_match:
+        candidate = think_match.group("body").strip()
+
+    fence_match = re.fullmatch(
+        r"```(?:json)?\s*(?P<body>.*?)\s*```",
+        candidate,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if fence_match:
+        candidate = fence_match.group("body").strip()
+
+    if candidate == text.strip().lstrip("\ufeff"):
+        raise original_error
+    return json.loads(candidate)
 
 
 def _responses_url(base_url: str) -> str:

@@ -684,6 +684,8 @@
       runtimeEvidenceSnapshot=null;
       runtimeEvidencePromise=null;
       lastPlanPreview=null;
+      $('toolGovernanceMeta').textContent='正在读取审批状态…';
+      $('toolApprovals').innerHTML='<div class="tool-governance-empty">正在读取工具审批状态…</div>';
       resetConversationView();
       welcome();
       $('session').innerHTML='';
@@ -707,7 +709,7 @@
       $('deleteSession').disabled=false;
       $('historyList').innerHTML='<div class="muted">正在读取当前领域历史任务…</div>';
       $('runtimeMetrics').textContent='正在读取当前领域运行指标…';
-      await Promise.all([loadCapabilities(domainId),loadActions(domainId),loadWorkflows(domainId),loadSessions(domainId)]);
+      await Promise.all([loadCapabilities(domainId),loadActions(domainId),loadWorkflows(domainId),loadSessions(domainId),loadToolApprovals(domainId)]);
       if(generation!==domainGeneration||domainId!==currentDomainId()) return;
       if(generation===domainGeneration&&domainId===currentDomainId()) { window.__consoleDomainReady=true; $('send').disabled=false; $('previewPlan').disabled=false; }
       Promise.allSettled([loadHistory(domainId),restoreSession(domainId)]).catch(()=>{});
@@ -721,7 +723,7 @@
       $('newSession').disabled=false;
       $('deleteSession').disabled=false;
       $('previewPlan').disabled=false;
-      await Promise.all([loadCapabilities(domainId),loadActions(domainId),loadWorkflows(domainId),loadSessions(domainId)]);
+      await Promise.all([loadCapabilities(domainId),loadActions(domainId),loadWorkflows(domainId),loadSessions(domainId),loadToolApprovals(domainId)]);
       if(generation!==domainGeneration||!usesAutoRouting()||currentDomainId()!==domainId) return;
       if(sessionId){
         const option=[...$('session').options].find(item=>item.value===sessionId);
@@ -1120,6 +1122,34 @@
     function renderHealth(data) { health=data; const caps=data.capabilities||{}; const rows=Object.entries(caps).filter(([id,value])=>typeof value==='boolean'&&!['live_llm','live_llm_configured'].includes(id)).slice(0,8).map(([id,available])=>[capabilityHealthLabel(id),available?'可用':'不可用',available]); rows.push(llmHealthLabel(caps)); $('env').innerHTML=rows.map(x=>'<div class="'+(x[2]?'':'bad')+'">'+escapeHtml(x[0])+'：'+escapeHtml(x[1])+'</div>').join(''); renderCapabilities(data); }
     async function loadHealth() { try { const response=await fetch('/health'); renderHealth(await response.json()); } catch(e) { $('env').innerHTML='<div class="bad">无法读取运行环境状态</div>'; $('capabilityStatus').textContent='能力目录暂不可用。'; } }
     async function loadCapabilities(domainId=currentDomainId()) { try { const query='?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value); const response=await nativeFetch(domainPath('/capabilities',domainId)+query); const data=await response.json(); if(!response.ok) throw new Error(responseError(data,'能力目录不可用')); if(domainId===currentDomainId()) renderCapabilities(data); } catch(error) { if(domainId===currentDomainId()) $('capabilityStatus').textContent='当前领域能力目录暂不可用：'+error.message; } }
+    function renderToolApprovals(data) {
+      const renderer=window.ConsoleToolApprovals;
+      if(!renderer||typeof renderer.mount!=='function') { $('toolApprovals').innerHTML='<div class="tool-governance-empty">工具治理投影模块不可用。</div>'; return; }
+      const model=renderer.mount({target:$('toolApprovals'),payload:data,escapeHtml,onAction:resolveToolApproval});
+      $('toolGovernanceMeta').textContent=model.items.length?'共 '+model.items.length+' 条审批记录':'暂无审批记录';
+    }
+    async function loadToolApprovals(domainId=currentDomainId()) {
+      if(domainId===AUTO_DOMAIN_VALUE) return;
+      try {
+        const response=await nativeFetch(domainPath('/tools/approvals?limit=32',domainId));
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok) throw new Error(responseError(data,'审批状态暂不可用'));
+        if(domainId===currentDomainId()) renderToolApprovals(data);
+      } catch(error) {
+        if(domainId===currentDomainId()) {
+          $('toolGovernanceMeta').textContent='暂不可用';
+          $('toolApprovals').innerHTML='<div class="tool-governance-empty">'+escapeHtml(error.message)+'。</div>';
+        }
+      }
+    }
+    async function resolveToolApproval(item, action) {
+      const domainId=item.domain_id||currentDomainId();
+      const body=withDomainPayload({action,expected_version:item.version,receipt_fingerprint:item.receipt_fingerprint,actor_id:'console'},domainId);
+      const response=await nativeFetch(domainPath('/tools/approvals/'+encodeURIComponent(item.approval_id)+'/resolve',domainId),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok) throw new Error(responseError(data,'审批动作失败'));
+      await loadToolApprovals(domainId);
+    }
     function actionSpec(actionId) { return (actionCatalog.actions||[]).find(item=>item&&item.id===actionId)||null; }
     function renderActionWorkbench() { if(!window.ConsoleActionHost){ $('actionWorkbenchBody').innerHTML='<div class="distribution-note">Action Host 不可用。</div>'; return; } window.ConsoleActionHost.mount({target:$('actionWorkbenchBody'),catalog:actionCatalog,initialValues:{planner:$('planner').value,backend:$('backend').value},invoke:executeDomainAction,onResult:async(data,action)=>{ if(responseDomain(data)!==currentDomainId()) return; setStatus(data.status||'COMPLETED'); appendMessage('assistant',answerText(data)||action.label+' 已完成'); renderActionExecution(data); $('actionWorkbench').open=false; loadHistory(responseDomain(data)); }}); }
     async function loadActions(domainId=currentDomainId()) { const generation=domainGeneration; const query='?planner='+encodeURIComponent($('planner').value)+'&backend='+encodeURIComponent($('backend').value); const promise=nativeFetch(domainPath('/actions',domainId)+query).then(async response=>{ if(!response.ok) throw new Error('action catalog unavailable'); const data=await response.json(); const catalog={schema_version:data.schema_version||'spatial-agent.actions.v1',domain_id:data.domain_id||domainId,actions:Array.isArray(data.actions)?data.actions:[]}; if(generation===domainGeneration&&domainId===currentDomainId()){ actionCatalog=catalog; renderActionWorkbench(); } return catalog; }).catch(()=>{ const catalog={schema_version:'spatial-agent.actions.v1',domain_id:domainId,actions:[]}; if(generation===domainGeneration&&domainId===currentDomainId()){ actionCatalog=catalog; renderActionWorkbench(); } return catalog; }).finally(()=>{ if(actionCatalogPromise===promise) actionCatalogPromise=null; }); actionCatalogPromise=promise; return promise; }

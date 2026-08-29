@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent.data_quality import dataset_health_report
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.data_quality import dataset_health_report
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
 from agent.runtime_capabilities import runtime_capability_snapshot
 
 
@@ -146,12 +146,12 @@ class M67DataProvenanceTests(unittest.TestCase):
             config_path = Path(temp_dir) / "datasets.json"
             config_path.write_text(json.dumps({"root": temp_dir, "datasets": {}}), encoding="utf-8")
             with patch.dict(os.environ, {"SPATIAL_AGENT_DATASET_CONFIG": str(config_path)}), patch(
-                "agent.runtime_capabilities.environment_status",
+                "domains.gis.adapters.runtime_capabilities.environment_status",
                 return_value={
                     "capabilities": {"local_gis_backend": False},
                     "dependencies": {"geopandas": False, "rasterio": False},
                 },
-            ), patch("agent.runtime_capabilities.dataset_health_report", return_value=health):
+            ), patch("domains.gis.adapters.runtime_capabilities.dataset_health_report", return_value=health):
                 snapshot = runtime_capability_snapshot(max_files=1)
 
         expected = {"source": "ASTER GDEM", "version": "v3"}

@@ -18,7 +18,7 @@ from .domain_selector import (
     normalize_domain_discovery_snapshot,
 )
 from .llm_planner import OpenAIPlannerClient
-from .openai_config import load_openai_config
+from agent.integration.openai_config import load_openai_config
 
 
 DOMAIN_SELECTOR_PROVIDER_STATUS_SCHEMA_VERSION = (

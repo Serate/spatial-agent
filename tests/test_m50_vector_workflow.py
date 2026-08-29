@@ -104,8 +104,8 @@ class RealVectorWorkflowTests(unittest.TestCase):
         self.assertIn("OpenStreetMap", result.answer)
 
     def test_real_zonal_vector_summary_returns_categories(self):
-        from agent.dataset_catalog import DatasetCatalog
-        from agent.spatial_backend import HybridSpatialBackend
+        from domains.gis.adapters.dataset_catalog import DatasetCatalog
+        from domains.gis.adapters.spatial_backend import HybridSpatialBackend
 
         backend = HybridSpatialBackend(DatasetCatalog.from_json(str(ROOT / "config" / "datasets.wuhan.local.example.json")))
         result = backend.get_zonal_vector_summary("roads", "洪山区", max_features=1000)
@@ -114,8 +114,8 @@ class RealVectorWorkflowTests(unittest.TestCase):
         self.assertTrue(result["summary"]["category_counts"])
 
     def test_real_road_water_near_join(self):
-        from agent.dataset_catalog import DatasetCatalog
-        from agent.spatial_backend import GeoPackageBackend
+        from domains.gis.adapters.dataset_catalog import DatasetCatalog
+        from domains.gis.adapters.spatial_backend import GeoPackageBackend
 
         backend = GeoPackageBackend(DatasetCatalog.from_json(str(ROOT / "config" / "datasets.wuhan.local.example.json")))
         result = backend.spatial_join("roads", "water", "near", 500)
@@ -123,8 +123,8 @@ class RealVectorWorkflowTests(unittest.TestCase):
         self.assertGreater(result["count"], 0)
 
     def test_real_constrained_buildability_returns_sample_summary(self):
-        from agent.dataset_catalog import DatasetCatalog
-        from agent.spatial_backend import HybridSpatialBackend
+        from domains.gis.adapters.dataset_catalog import DatasetCatalog
+        from domains.gis.adapters.spatial_backend import HybridSpatialBackend
 
         backend = HybridSpatialBackend(DatasetCatalog.from_json(str(ROOT / "config" / "datasets.wuhan.local.example.json")))
         result = backend.get_zonal_constrained_buildability_analysis("洪山区", slope_limit_degrees=20, road_distance_m=500, exclude_water=True, max_files=10)

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from agent.models import PlanStep, TaskPlan
 from agent.runtime import AgentRuntime
-from agent.spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
+from domains.gis.adapters.spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
 from agent.tools import ToolRegistry
 
 

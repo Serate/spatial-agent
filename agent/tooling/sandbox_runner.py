@@ -80,14 +80,15 @@ def main() -> int:
             return _write({"status": "rejected", "reason_code": "proposal_execution_timeout"})
         except Exception:
             return _write({"status": "rejected", "reason_code": "proposal_execution_failed"})
-        return _write(
-            {
-                "status": "validated",
-                "reason_code": "proposal_validated",
-                "output_bytes": len(encoded),
-                "checks": {"ast": "passed", "execution": "passed", "output_schema": "passed"},
-            }
-        )
+        response = {
+            "status": "validated",
+            "reason_code": "proposal_validated",
+            "output_bytes": len(encoded),
+            "checks": {"ast": "passed", "execution": "passed", "output_schema": "passed"},
+        }
+        if isinstance(envelope, dict) and envelope.get("operation") == "execute":
+            response["result"] = output
+        return _write(response)
     except Exception:
         return _write({"status": "unavailable", "reason_code": "sandbox_runner_failed"})
 

@@ -10,7 +10,7 @@ from typing import Any
 from evaluation.live_baseline import run_bounded_operation
 from evaluation.model_evaluation import sanitize_provider_metrics
 from agent.planner_repair import build_repair_lineage
-from agent.provider_structured_output import project_structured_output_evidence
+from agent.integration.provider_structured_output import project_structured_output_evidence
 
 
 PROVIDER_PROBE_SCHEMA_VERSION = "spatial-agent.live-provider-probe.v1"

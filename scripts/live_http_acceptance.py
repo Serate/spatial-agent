@@ -125,11 +125,13 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
         args.http_timeout,
     )
     _completed(async_full, "async run")
+    async_contract = _full_contract(async_full)
+    if args.planner == "openai":
+        _require_successful_live_model(async_contract["model_evidence"], "async run")
     async_bundle = _artifact_bundle(
         base_url, async_full, args.http_timeout, domain_id=domain_id
     )
 
-    async_contract = _full_contract(async_full)
     _match(
         "async/artifact",
         async_contract,
@@ -148,6 +150,7 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
         _evidence_contract(async_bundle["artifact_evidence"]),
         ("registry", "projection", "recovery"),
     )
+    sse = _sse_contract(base_url, domain_id, run_id, args.http_timeout)
 
     report = {
         "status": "ok",
@@ -174,7 +177,9 @@ def run_acceptance(args: argparse.Namespace) -> Dict[str, Any]:
             "async_artifact": "ok",
             "async_polling_artifact": "ok",
             "async_evidence_endpoints": "ok",
+            "sse": "ok",
         },
+        "sse": sse,
     }
     if args.include_run_id:
         report["async"]["run_id"] = run_id
@@ -211,6 +216,8 @@ def _verify_existing_run(
         base_url, full, args.http_timeout, domain_id=domain_id
     )
     contract = _full_contract(full)
+    if args.planner == "openai":
+        _require_successful_live_model(contract["model_evidence"], "recovered run")
     _match(
         "recovered run/artifact",
         contract,
@@ -229,6 +236,7 @@ def _verify_existing_run(
         _evidence_contract(bundle["artifact_evidence"]),
         ("registry", "projection", "recovery"),
     )
+    sse = _sse_contract(base_url, domain_id, run_id, args.http_timeout)
     report = {
         "status": "ok",
         "mode": "existing_run_verification",
@@ -254,7 +262,9 @@ def _verify_existing_run(
             "run_artifact": "ok",
             "polling_artifact": "ok",
             "evidence_endpoints": "ok",
+            "sse": "ok",
         },
+        "sse": sse,
     }
     if args.include_run_id:
         report["run_id"] = run_id
@@ -415,6 +425,110 @@ def _model_identity(value: Mapping[str, Any]) -> Dict[str, Any]:
         )
         if key in value
     }
+
+
+def _sse_contract(
+    base_url: str,
+    domain_id: str,
+    run_id: str,
+    timeout: float,
+) -> Dict[str, Any]:
+    """Verify bounded SSE replay and Last-Event-ID continuation."""
+    path = _domain_path(domain_id, f"/runs/{quote(run_id)}/events?limit=100")
+    events = _sse_request(base_url, path, timeout=timeout)
+    if len(events) < 2:
+        raise AcceptanceFailure("SSE did not expose enough lifecycle events")
+    sequences = [event["sequence"] for event in events]
+    if sequences != sorted(sequences) or len(set(sequences)) != len(sequences):
+        raise AcceptanceFailure("SSE event sequences are not strictly increasing")
+    if not events[-1].get("terminal"):
+        raise AcceptanceFailure("SSE replay did not end with a terminal event")
+    cursor = sequences[0]
+    resumed = _sse_request(
+        base_url,
+        path,
+        timeout=timeout,
+        last_event_id=cursor,
+    )
+    if not resumed or any(event["sequence"] <= cursor for event in resumed):
+        raise AcceptanceFailure("SSE Last-Event-ID replay returned an old event")
+    if not resumed[-1].get("terminal"):
+        raise AcceptanceFailure("SSE Last-Event-ID replay did not reach terminal event")
+    return {
+        "event_count": len(events),
+        "first_sequence": sequences[0],
+        "last_sequence": sequences[-1],
+        "resume_after": cursor,
+        "resumed_event_count": len(resumed),
+        "resumed_first_sequence": resumed[0]["sequence"],
+        "terminal": True,
+    }
+
+
+def _sse_request(
+    base_url: str,
+    path: str,
+    *,
+    timeout: float,
+    last_event_id: Optional[int] = None,
+) -> list[Dict[str, Any]]:
+    headers = {"Accept": "text/event-stream"}
+    if last_event_id is not None:
+        headers["Last-Event-ID"] = str(last_event_id)
+    request = Request(urljoin(base_url, path.lstrip("/")), headers=headers, method="GET")
+    try:
+        with urlopen(request, timeout=max(1.0, timeout)) as response:
+            body = response.read(MAX_RESPONSE_BYTES + 1)
+    except HTTPError as exc:
+        raise AcceptanceFailure(f"HTTP {exc.code} for SSE {path}") from exc
+    except (URLError, TimeoutError) as exc:
+        raise AcceptanceFailure(f"transport failure for SSE {type(exc).__name__}") from exc
+    if len(body) > MAX_RESPONSE_BYTES:
+        raise AcceptanceFailure("SSE response too large")
+    try:
+        lines = body.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        raise AcceptanceFailure("SSE response is not UTF-8") from exc
+    events: list[Dict[str, Any]] = []
+    event_id: Optional[int] = None
+    data_lines: list[str] = []
+    for line in lines + [""]:
+        if line.startswith("id:"):
+            try:
+                event_id = int(line[3:].strip())
+            except ValueError as exc:
+                raise AcceptanceFailure("SSE event id is invalid") from exc
+        elif line.startswith("data:"):
+            data_lines.append(line[5:].lstrip())
+        elif not line and data_lines:
+            try:
+                event = json.loads("\n".join(data_lines))
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise AcceptanceFailure("SSE event data is not valid JSON") from exc
+            if not isinstance(event, Mapping) or not isinstance(event_id, int):
+                raise AcceptanceFailure("SSE event envelope is invalid")
+            if not isinstance(event.get("sequence"), int) or event["sequence"] != event_id:
+                raise AcceptanceFailure("SSE event id and sequence differ")
+            if event.get("run_id") is None:
+                raise AcceptanceFailure("SSE event run_id is missing")
+            events.append(dict(event))
+            event_id = None
+            data_lines = []
+    return events
+
+
+def _require_successful_live_model(
+    value: Mapping[str, Any], label: str
+) -> None:
+    """Reject a fallback result when an explicit live-model run was requested."""
+    if (
+        value.get("available") is True
+        and value.get("execution_mode") == "live_model"
+        and value.get("status") == "success"
+    ):
+        return
+    reason = _safe_text(value.get("error_type") or value.get("status")) or "unknown"
+    raise AcceptanceFailure(f"{label} live model did not succeed: {reason}")
 
 
 def _json_request(

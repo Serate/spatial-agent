@@ -20,8 +20,8 @@ from agent.action_identity import (
 )
 from agent.action_lineage import append_action_lineage
 from agent.action_precondition import project_action_preconditions
-from agent.artifact_store import ArtifactStore
-from agent.evidence_revalidation import build_evidence_revalidation
+from agent.persistence.artifact_store import ArtifactStore
+from agent.evidence.revalidation import build_evidence_revalidation
 from agent.execution_contract import build_execution_record
 from agent.execution_timeline import attach_action_receipt_timeline
 from agent.recovery_action import action_input_fingerprint

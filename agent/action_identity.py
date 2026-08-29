@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .contract_versions import RESULT_ENVELOPE_SCHEMA_VERSION
-from .evidence_projection import EVIDENCE_PROJECTION_SCHEMA_VERSION, project_evidence_projection
+from agent.evidence.projection import EVIDENCE_PROJECTION_SCHEMA_VERSION, project_evidence_projection
 from .plan_identity import normalize_plan_identity
 from .request_identity import normalize_request_identity
 

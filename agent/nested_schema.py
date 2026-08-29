@@ -23,13 +23,14 @@ from agent.contract_versions import (
     WORKSPACE_SCHEMA_VERSION,
 )
 from agent.data_kinds import DataProfileError, normalize_data_profile
-from agent.artifact_reference import normalize_artifact_reference
+from agent.persistence.artifact_reference import normalize_artifact_reference
 from agent.conversation_turn import normalize_conversation_turn
 from agent.interaction_contract import normalize_interaction, project_interaction
 from agent.domain_routing_evidence import (
     normalize_domain_routing_evidence,
     unavailable_domain_routing_evidence,
 )
+from agent.result_completeness import normalize_result_completeness
 
 
 class NestedSchemaError(ValueError):
@@ -79,6 +80,9 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
     result["domain_routing_evidence"] = normalize_domain_routing_evidence_contract(
         result.get("domain_routing_evidence")
     )
+    result["completeness"] = normalize_result_completeness(
+        result.get("completeness")
+    )
     result["interaction"] = (
         normalize_interaction(result.get("interaction"))
         if result.get("interaction") is not None
@@ -87,7 +91,7 @@ def normalize_result_contract(value: Any, *, allow_legacy: bool = True) -> dict[
     if result.get("type") == "composite_result":
         # Import lazily: the Composite seam uses the public result builder,
         # which itself depends on this nested-schema module.
-        from agent.composite_contract import (
+        from agent.application.composite_contract import (
             CompositeContractError,
             normalize_composite_section,
         )

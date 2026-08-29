@@ -11,8 +11,9 @@ from __future__ import annotations
 from typing import Any, Dict, Mapping
 
 from agent.errors import ClarificationNeeded, RequestRejected, ToolError
-from agent.evidence_revalidation import build_evidence_binding
+from agent.evidence.revalidation import build_evidence_binding
 from agent.models import PlanStep, RunStatus, StepRun, TaskPlan
+from agent.result_completeness import build_result_completeness
 from agent.react import (
     ReactLoop,
     ReactToolOutcome,
@@ -297,6 +298,7 @@ class RuntimeReactExecution:
             str(decision.get("output_type") or "").strip()
             or current_output
             or str(runtime._registry.result_type_for_tool(tool) or "").strip()
+            or self._inferred_output_type(context)
         )
         if not output_type:
             raise ToolError(
@@ -310,8 +312,80 @@ class RuntimeReactExecution:
             steps=[*existing_steps, step],
             output={"type": output_type[:96]},
         )
-        runtime._planning_surface.validate_plan_for_execution(plan, context.workflow)
+        runtime._planning_surface.validate_plan_for_execution(
+            plan,
+            context.workflow,
+            policy_mode="open_react",
+        )
         return step, plan
+
+    @staticmethod
+    def _inferred_output_type(context: Any) -> str:
+        """Use trusted selection metadata when a JSON-only model omits output_type.
+
+        ReAct decisions are allowed to be small, but the final public result
+        type must still come from a checked Domain catalog or explicit
+        workflow.  This fallback never derives a type from a tool name and
+        never accepts a model-invented value.
+        """
+
+        packet = getattr(context, "context_packet", None)
+        payload = getattr(packet, "payload", None)
+        sections = payload.get("sections") if isinstance(payload, Mapping) else None
+        if not isinstance(sections, Mapping):
+            return ""
+
+        candidates: list[str] = []
+
+        def add(values: Any) -> None:
+            if isinstance(values, str):
+                values = [values]
+            if not isinstance(values, (list, tuple)):
+                return
+            for value in values[:16]:
+                if isinstance(value, str) and value.strip() and value.strip() not in candidates:
+                    candidates.append(value.strip()[:96])
+
+        workflow = sections.get("workflow")
+        if isinstance(workflow, Mapping):
+            add(workflow.get("result_types"))
+            output = workflow.get("output")
+            if isinstance(output, Mapping):
+                add(output.get("type"))
+
+        selection = sections.get("workflow_selection")
+        if isinstance(selection, Mapping):
+            add(selection.get("result_types"))
+            template_id = selection.get("workflow_template_id")
+            templates = sections.get("workflow_templates")
+            if isinstance(template_id, str) and isinstance(templates, Mapping):
+                template = templates.get(template_id)
+                if isinstance(template, Mapping):
+                    add(template.get("result_types"))
+                    output = template.get("output_template")
+                    if isinstance(output, Mapping):
+                        add(output.get("type"))
+            selected_id = selection.get("selected_capability_id")
+            for item in selection.get("known_capability_result_types") or []:
+                if not isinstance(item, Mapping):
+                    continue
+                if str(item.get("id") or "") == str(selected_id or ""):
+                    add(item.get("result_types"))
+            for item in selection.get("candidate_details") or []:
+                if not isinstance(item, Mapping):
+                    continue
+                if str(item.get("id") or "") == str(selected_id or ""):
+                    add(item.get("result_types"))
+                    detail = item.get("workflow")
+                    if isinstance(detail, Mapping):
+                        add(detail.get("result_types"))
+            for item in selection.get("candidate_summaries") or []:
+                if not isinstance(item, Mapping):
+                    continue
+                if str(item.get("id") or "") == str(selected_id or ""):
+                    add(item.get("result_types"))
+
+        return candidates[0] if candidates else ""
 
     def _prepare_finish(
         self,
@@ -343,7 +417,11 @@ class RuntimeReactExecution:
                 output={"type": output_type},
                 assumptions=list(result.plan.assumptions),
             )
-        runtime._planning_surface.validate_plan_for_execution(plan, context.workflow)
+        runtime._planning_surface.validate_plan_for_execution(
+            plan,
+            context.workflow,
+            policy_mode="open_react",
+        )
         result.plan = plan
         context.candidate_plan = plan
 
@@ -462,6 +540,7 @@ class RuntimeReactExecution:
         result.plan_evidence["plan_policy"] = runtime._plan_policy_evidence(
             result.plan,
             context.workflow,
+            policy_mode="open_react",
             state="accepted",
             reason_code="react_plan_accepted",
             repair_lineage=result.replan_events,
@@ -469,6 +548,7 @@ class RuntimeReactExecution:
         result.plan_evidence["execution_policy"] = runtime._execution_policy_evidence(
             result.plan,
             context.workflow,
+            policy_mode="open_react",
         )
         result.plan_evidence["evidence_binding"] = build_evidence_binding(
             context.context_packet.payload
@@ -491,10 +571,16 @@ class RuntimeReactExecution:
             raise RequestRejected(outcome.final_message or "请求未通过策略校验")
         if outcome.state == "awaiting_approval":
             result.status = RunStatus.WAITING_FOR_DECISION
+            proposal_receipt = dict(outcome.proposal_receipt or {})
+            approval = runtime._approval_store.create_from_receipt(
+                proposal_receipt,
+                domain_id=runtime.domain_id,
+            )
             result.action_receipt = {
                 "schema_version": "spatial-agent.tool-proposal-action.v1",
                 "state": "awaiting_approval",
-                "receipt": dict(outcome.proposal_receipt or {}),
+                "receipt": proposal_receipt,
+                "approval": approval.as_dict(),
             }
             runtime._emit_progress_event(
                 result.run_id,
@@ -505,12 +591,15 @@ class RuntimeReactExecution:
                 data={
                     "reason_code": "react_tool_proposal_awaiting_approval",
                     "action_count": outcome.action_count,
+                    "completeness": {
+                        **build_result_completeness(result.to_dict()),
+                    },
                 },
                 terminal=False,
             )
             runtime._state_store.save(result)
             return False
-        if outcome.state != "finished":
+        if outcome.state not in {"finished", "partial"}:
             raise ToolError(
                 "ReAct execution did not complete",
                 category=outcome.error_category or "execution",
@@ -526,11 +615,19 @@ class RuntimeReactExecution:
             phase="execute",
             kind="stage_completed",
             status=RunStatus.EXECUTING.value,
-            message="分析动作已执行完成",
+            message=(
+                "分析动作已部分收束"
+                if outcome.state == "partial"
+                else "分析动作已执行完成"
+            ),
             data={
                 "stage_index": 5,
                 "stage_count": _LIFECYCLE_STAGE_COUNT,
                 "summary": "{} 个动作".format(outcome.action_count),
+                "completion_state": (
+                    "partial" if outcome.state == "partial" else "complete"
+                ),
+                "stop_reason": outcome.reason_code,
             },
         )
         return True

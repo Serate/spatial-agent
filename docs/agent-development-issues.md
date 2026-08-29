@@ -1920,3 +1920,88 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
   smoke、readiness **200**、主服务到 sidecar 的真实 Unix socket 调用和 SQLite receipt 恢复通过。
 - 提案验证通过不会注册 ToolRegistry，也不会在主进程执行生成代码；未调用真实模型，未保存 Prompt、
   模型原文、密钥或完整源码输出。
+
+## 2026-08-29 M325 真实 ReAct 后续动作校验失败导致 run 提前失败
+
+### 现象
+
+- 真实模型 + Docker + 本地 GIS 请求已完成若干真实工具步骤，但模型提出下一步动作时，
+  workflow/TaskPlan 校验失败，run 被错误标记为 `FAILED`，最终没有利用已经获得的证据生成答案。
+- 服务日志显示请求和轮询均正常，失败不是 Docker、网络或 GIS 初始化问题，而是 ReAct 执行阶段的
+  动作校验边界问题。
+
+### 根因与处理
+
+- ReAct 原有有界恢复只捕获后续 Planner 抛出的 `PlanningError`；Runtime 注入的
+  `validate_action` 若抛出 workflow、工具参数或一般校验异常，会直接返回 blocked，未进入部分结果收束。
+- 现在对已有成功工具历史的非策略类校验失败：先写入有界 blocked evidence，再生成
+  `react_action_validation_recovery_finish` 终态，让答案层基于真实已完成事实生成“部分结论”并明确说明
+  后续动作未通过校验。
+- 权限、审批、执行策略、澄清和拒绝类错误继续 fail closed，不因已有部分结果而绕过治理门禁；不猜测新
+  工具、不转发模型原文。
+
+### 当前验证
+
+- Docker M320 ReAct 回归 **21/21**，其中包含校验失败恢复和策略错误保持 blocked；M325 Domain **1/1**。
+- 一次真实 `openai + local` GIS HTTP 请求返回 `COMPLETED`，真实模型一次请求、0 次重试，artifact、
+  轮询和 evidence endpoints 对比通过。
+- 同一 run 的 SSE 事件 1～180 单调回放，`Last-Event-ID:100` 从 101 续传到终态；重启临时 GIS 容器后
+  run/artifact/polling/evidence 恢复对比通过。
+
+## 2026-08-29 M326 Artifact 原子发布竞态
+
+### 现象
+
+- 异步运行已经进入完成状态时，HTTP 偶尔读取到非 JSON 或不完整的 Artifact 文件；立即重试通常恢复，
+  容易被误判为 GIS 或服务不稳定。
+
+### 根因与处理
+
+- `ArtifactStore.write_run()` 直接写最终路径，多次更新时读者可能看到截断内容。
+- 现在先在同一目录写入临时文件，再使用原子替换发布；读者要么看到旧的完整文件，要么看到新的完整文件。
+- 新增并发读写回归，覆盖旧 Artifact 始终可解析；Artifact 根目录由 `SPATIAL_AGENT_ARTIFACT_ROOT` 统一约定，
+  stdlib 与 Application 入口均消费该配置。
+
+### 预防
+
+- 任何“状态已完成但 Artifact 不可读”的问题，先检查发布原子性和目录配置，再检查业务后端。
+- 修改 Artifact 或容器配置后必须重建目标 Docker 镜像，不能依赖旧镜像运行宿主机新代码。
+
+## 2026-08-29 M326 Artifact 根目录跨入口配置不一致
+
+### 现象
+
+- Application、stdlib HTTP 或一次性 GIS 容器使用不同 Artifact 根目录时，运行本身可能成功，但跨入口读取、
+  重启恢复或 Artifact 对照会出现“找不到文件”或读取到另一份状态。
+
+### 根因与处理
+
+- 不同入口各自提供默认 Artifact 路径，环境变量没有在所有写入/读取边界显式传递。
+- `artifact_store.py`、Composite runs 和 `serve_api.py` 现在都读取同一个
+  `SPATIAL_AGENT_ARTIFACT_ROOT`；生产验收显式固定挂载目录，并在完成后清理临时容器。
+
+### 预防
+
+- 跨入口验收必须固定 planner、backend、session 和 Artifact 根目录；生产配置不写入私有宿主路径。
+- Artifact identity、结果完整性和 evidence 只能比较同一运行及同一持久化根目录。
+
+## 2026-08-29 M326 DeepSeek 结构化计划预算不足
+
+### 现象
+
+- 复杂开放请求使用 DeepSeek 或兼容 Provider 时，HTTP 调用成功但结构化 content 为空或 JSON 不完整，
+  规划失败后可能安全降级为部分结果；不能据此判定真实模型链路成功。
+
+### 根因与处理
+
+- 默认 Planner 输出预算为 2048 时，多步 ReAct 的结构化计划可能达到上限；部分兼容 Provider 对
+  `json_schema` 支持也不完整。
+- Planner 增加原始 JSON、完整 Markdown JSON fence 和完整 `<think>` 包裹的有界兼容解析，并把空 content
+  统一映射为 `planning/invalid_model_response`。
+- 显式真实验收临时使用 8192 输出 token、0 重试和有界超时，用于区分预算不足、Provider wire 兼容和业务执行失败；
+  验收脚本同时要求 live evidence 成功，不能把 fallback 当作真实模型成功。
+
+### 预防
+
+- 真实模型验收只记录脱敏状态、预算、动作数和结果完整性，不记录 Prompt、模型原文、密钥或私有结果。
+- 调整预算后仍必须经过 Planner envelope、TaskPlan、ToolRegistry、权限、审批、数据 readiness 和 Execution Policy 校验。

@@ -22,7 +22,7 @@ from .answer_generation import LLMAnswerGenerator
 from .agent_settings import open_agent_defaults
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
 from .network import WebSearchAdapter, web_search_tool_definition
-from .openai_config import load_answer_generation_config, load_openai_config
+from agent.integration.openai_config import load_answer_generation_config, load_openai_config
 from .planner import RuleBasedPlanner
 from .runtime import AgentRuntime
 from .tooling import ToolProposalValidator, UnixSocketSandboxClient
@@ -38,6 +38,7 @@ def build_runtime(
     memory=None,
     observability=None,
     decision_store=None,
+    approval_store=None,
     allowed_permissions: Optional[Iterable[str]] = None,
     approved_tools: Optional[Iterable[str]] = None,
     require_dependency_evidence: Optional[bool] = None,
@@ -111,6 +112,7 @@ def build_runtime(
         memory=memory,
         observability=observability,
         decision_store=decision_store,
+        approval_store=approval_store,
         backend_name=backend_name,
         planner_name=planner_name,
         answer_generator=resolved_answer_generator,
@@ -174,8 +176,12 @@ def build_runtime_context_snapshot(
 
 def _legacy_gis_registry(backend_name: str, root: Path) -> ToolRegistry:
     """Keep older Domain Packs working until they expose ``tool_provider``."""
-    from .dataset_catalog import DatasetCatalog
-    from .spatial_backend import HybridSpatialBackend, InMemorySpatialBackend, SpatialToolAdapter
+    from domains.gis.adapters.dataset_catalog import DatasetCatalog
+    from domains.gis.adapters.spatial_backend import (
+        HybridSpatialBackend,
+        InMemorySpatialBackend,
+        SpatialToolAdapter,
+    )
 
     if backend_name == "local":
         catalog_path = os.environ.get(

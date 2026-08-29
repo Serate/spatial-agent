@@ -15,9 +15,9 @@ from time import monotonic
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional
 
 from agent.models import AgentRunResult
-from agent.runtime_capabilities import runtime_capability_snapshot
+from domains.gis.adapters.runtime_capabilities import runtime_capability_snapshot
 from agent.plan_quality import project_plan_quality_evidence
-from agent.evidence_registry import project_evidence_registry_completeness
+from agent.evidence.registry import project_evidence_registry_completeness
 from evaluation.model_evaluation import (
     DEFAULT_MODEL_REPLAY_FIXTURE,
     evaluate_model_replay_suite_file,

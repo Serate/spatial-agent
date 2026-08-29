@@ -2,8 +2,8 @@ import importlib.util
 import unittest
 from pathlib import Path
 
-from agent.dataset_catalog import DatasetCatalog
-from agent.spatial_backend import GeoPackageBackend, HybridSpatialBackend
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.spatial_backend import GeoPackageBackend, HybridSpatialBackend
 
 
 ROOT = Path(__file__).parents[1]

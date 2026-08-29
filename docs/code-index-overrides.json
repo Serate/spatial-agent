@@ -6,6 +6,631 @@
     "stage": null,
     "stability": "internal"
   },
+  "rules": [
+    {
+      "prefix": "agent/application/",
+      "layer": "application",
+      "role": "Application 用例与 HTTP 语义编排",
+      "stage": "M254-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/persistence/",
+      "layer": "persistence",
+      "role": "Artifact、SQLite 与 Memory canonical 持久化实现",
+      "stage": "M14-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/integration/",
+      "layer": "integration",
+      "role": "Provider 配置、结构化输出与脱敏运行证据 canonical 实现",
+      "stage": "M16-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/evidence/",
+      "layer": "evidence",
+      "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
+      "stage": "M71-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/runtime_core/",
+      "layer": "runtime",
+      "role": "Runtime 核心规划、执行、恢复与投影",
+      "stage": "M253-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/tooling/",
+      "layer": "tooling",
+      "role": "工具提案、沙箱与审批治理",
+      "stage": "M322-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/react/",
+      "layer": "planner",
+      "role": "受控 ReAct 决策循环契约",
+      "stage": "M320-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/network/",
+      "layer": "integration",
+      "role": "受控网络搜索适配器",
+      "stage": "M321-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/analysis/",
+      "layer": "analysis",
+      "role": "领域中立记录与指标分析引擎",
+      "stage": "M243-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/action_",
+      "layer": "runtime",
+      "role": "动作契约、身份、前置条件与生命周期",
+      "stage": "M127-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/artifact_",
+      "layer": "persistence",
+      "role": "Persistence canonical 实现的兼容入口",
+      "stage": "M14-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/capability_",
+      "layer": "planner",
+      "role": "能力目录、发现、路由与运行时能力投影",
+      "stage": "M59-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/composite_",
+      "layer": "application",
+      "role": "跨领域请求、计划、结果与视图组合",
+      "stage": "M275-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/data_",
+      "layer": "data",
+      "role": "数据形态、就绪状态与质量投影",
+      "stage": "M51-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/dataset_",
+      "layer": "data",
+      "role": "数据集目录、manifest 与探测兼容入口",
+      "stage": "M5-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "agent/domain_",
+      "layer": "domain",
+      "role": "Domain Pack 注册、选择、路由与运行宿主",
+      "stage": "M112-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/evidence_",
+      "layer": "evidence",
+      "role": "Evidence canonical 实现的兼容入口",
+      "stage": "M71-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/execution_",
+      "layer": "runtime",
+      "role": "执行记录、时间线与工具执行证据",
+      "stage": "M128-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/failure_",
+      "layer": "runtime",
+      "role": "失败分类、错误投影与恢复语义",
+      "stage": "M33-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/interaction_",
+      "layer": "application",
+      "role": "交互命令、确认与动作宿主",
+      "stage": "M164-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/plan_",
+      "layer": "planner",
+      "role": "计划 schema、质量、策略、身份与修复",
+      "stage": "M141-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/planner_",
+      "layer": "planner",
+      "role": "Planner 上下文、指导、选择与修复",
+      "stage": "M129-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/provider_",
+      "layer": "integration",
+      "role": "Provider integration canonical 实现的兼容入口",
+      "stage": "M93-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/request_",
+      "layer": "planner",
+      "role": "用户请求身份、事实与需求解析",
+      "stage": "M77-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/result_",
+      "layer": "result",
+      "role": "结果契约、类型注册与视图声明",
+      "stage": "M46-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/runtime_",
+      "layer": "runtime",
+      "role": "Runtime 配置、状态、上下文与工厂",
+      "stage": "M1-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/service_",
+      "layer": "application",
+      "role": "Service 状态、会话、异步与结果格式",
+      "stage": "M68-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/spatial_",
+      "layer": "domain",
+      "role": "GIS 空间适配兼容入口",
+      "stage": "M3-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "agent/trace_",
+      "layer": "observability",
+      "role": "执行轨迹格式化与可读投影",
+      "stage": "M13-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/workflow_",
+      "layer": "planner",
+      "role": "工作流选择、模板与计划编译",
+      "stage": "M44-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/observability.py",
+      "layer": "observability",
+      "role": "运行观测事件与脱敏记录",
+      "stage": "M80-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/provenance.py",
+      "layer": "evidence",
+      "role": "结果来源与数据血缘构建",
+      "stage": "M35-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/transition_",
+      "layer": "runtime",
+      "role": "生命周期转换证据",
+      "stage": "M182-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/run_",
+      "layer": "runtime",
+      "role": "运行事件、请求执行与生命周期支持",
+      "stage": "M13-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/answer_",
+      "layer": "result",
+      "role": "答案组合、生成与用户语义投影",
+      "stage": "M8-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/agent_settings.py",
+      "layer": "runtime",
+      "role": "Agent Runtime 配置读取与默认值",
+      "stage": "M1-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/analysis_intent.py",
+      "layer": "planner",
+      "role": "分析意图契约与操作归一化",
+      "stage": "M311-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/analysis_ready_binding.py",
+      "layer": "data",
+      "role": "分析就绪数据绑定与来源指纹",
+      "stage": "M69-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/api_contract.py",
+      "layer": "application",
+      "role": "HTTP/API 响应、错误与公共契约",
+      "stage": "M10-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/component_evidence.py",
+      "layer": "evidence",
+      "role": "Evidence canonical 组件投影的兼容入口",
+      "stage": "M293-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/context_engineering.py",
+      "layer": "planner",
+      "role": "上下文构建与模型输入投影",
+      "stage": "M77-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/contract_versions.py",
+      "layer": "runtime",
+      "role": "版本化公共契约常量",
+      "stage": "M1-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/conversation_turn.py",
+      "layer": "application",
+      "role": "会话轮次与上下文历史契约",
+      "stage": "M217-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/cost_governance.py",
+      "layer": "runtime",
+      "role": "请求预算、并发和 token 治理",
+      "stage": "M81-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/decision_lifecycle.py",
+      "layer": "application",
+      "role": "用户决策、确认与恢复生命周期",
+      "stage": "M151-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/deployment_evidence.py",
+      "layer": "verification",
+      "role": "部署、健康与验收证据投影",
+      "stage": "M136-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/environment_status.py",
+      "layer": "verification",
+      "role": "运行环境与依赖状态探测",
+      "stage": "M22-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/errors.py",
+      "layer": "runtime",
+      "role": "Runtime 稳定错误类型与错误码",
+      "stage": "M1-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/geojson_exporter.py",
+      "layer": "result",
+      "role": "空间结果 GeoJSON 有界导出",
+      "stage": "M18-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/memory.py",
+      "layer": "persistence",
+      "role": "Persistence Memory canonical 实现的兼容入口",
+      "stage": "M80-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/model_evidence.py",
+      "layer": "integration",
+      "role": "Provider model evidence canonical 实现的兼容入口",
+      "stage": "M61-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/models.py",
+      "layer": "runtime",
+      "role": "运行请求、计划、步骤和结果数据模型",
+      "stage": "M1-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/nested_schema.py",
+      "layer": "result",
+      "role": "嵌套结果、View 和 Evidence schema 校验",
+      "stage": "M149-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/openai_config.py",
+      "layer": "integration",
+      "role": "Provider config canonical 实现的兼容入口",
+      "stage": "M16-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/operation_binding.py",
+      "layer": "planner",
+      "role": "分析操作到执行绑定的身份闭合",
+      "stage": "M247-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/planner.py",
+      "layer": "planner",
+      "role": "Planner 协议与 Domain Planner 兼容入口",
+      "stage": "M2-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/recovery_action.py",
+      "layer": "runtime",
+      "role": "取消、重试和恢复动作契约",
+      "stage": "M181-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/release_evidence.py",
+      "layer": "verification",
+      "role": "发布前数据与部署验收证据",
+      "stage": "M76-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/replanning.py",
+      "layer": "planner",
+      "role": "失败后的有限重规划与修复接续",
+      "stage": "M80-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/rule_planning.py",
+      "layer": "planner",
+      "role": "规则 Planner 的 GIS 兼容入口",
+      "stage": "M7-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "agent/scenario.py",
+      "layer": "verification",
+      "role": "跨入口场景与验收输入",
+      "stage": "M57-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "agent/selection_interaction.py",
+      "layer": "application",
+      "role": "能力选择与用户交互契约",
+      "stage": "M164-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/service.py",
+      "layer": "application",
+      "role": "AgentService 兼容门面与资源生命周期",
+      "stage": "M78-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/tool_provider.py",
+      "layer": "tooling",
+      "role": "Tool Provider 适配与治理状态",
+      "stage": "M92-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/web_assets.py",
+      "layer": "frontend",
+      "role": "Console 静态资源选择与构建产物入口",
+      "stage": "M258-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/__init__.py",
+      "layer": "runtime",
+      "role": "Agent 包初始化入口",
+      "stage": "M1-M325",
+      "stability": "public-boundary"
+    },
+    {
+      "prefix": "agent/",
+      "layer": "runtime",
+      "role": "Runtime 公共契约、状态、规划与证据支持模块",
+      "stage": "M1-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "domains/gis/",
+      "layer": "domain",
+      "role": "GIS Domain Pack、适配器与空间能力",
+      "stage": "M1-M325",
+      "stability": "domain-boundary"
+    },
+    {
+      "prefix": "domains/gis/adapters/",
+      "layer": "adapter",
+      "role": "GIS 数据、栅格、矢量与几何 Adapter",
+      "stage": "M247-M325",
+      "stability": "domain-boundary"
+    },
+    {
+      "prefix": "domains/economic/",
+      "layer": "domain",
+      "role": "Economic Domain Pack 与指标事实",
+      "stage": "M251-M325",
+      "stability": "domain-boundary"
+    },
+    {
+      "prefix": "domains/indicators/",
+      "layer": "domain",
+      "role": "Indicators Domain Pack 与通用指标查询",
+      "stage": "M251-M325",
+      "stability": "domain-boundary"
+    },
+    {
+      "prefix": "domains/text/",
+      "layer": "domain",
+      "role": "Text Domain Pack 与文本分析能力",
+      "stage": "M113-M325",
+      "stability": "domain-boundary"
+    },
+    {
+      "prefix": "domains/",
+      "layer": "domain",
+      "role": "Domain Pack 注册与共享入口",
+      "stage": "M112-M325",
+      "stability": "domain-boundary"
+    },
+    {
+      "prefix": "scripts/console_",
+      "layer": "frontend",
+      "role": "Console 浏览器与前端交互验收脚本",
+      "stage": "M45-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/live_",
+      "layer": "acceptance",
+      "role": "真实模型、HTTP 与数据验收脚本",
+      "stage": "M66-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/m280_",
+      "layer": "acceptance",
+      "role": "Composite 真实验收脚本",
+      "stage": "M280",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/m289_",
+      "layer": "acceptance",
+      "role": "Composite 真实成功验收脚本",
+      "stage": "M289",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/m308_",
+      "layer": "acceptance",
+      "role": "开放组合真实验收脚本",
+      "stage": "M308",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/dataset_",
+      "layer": "data",
+      "role": "数据集 manifest 与数据就绪脚本",
+      "stage": "M69-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/download_",
+      "layer": "data",
+      "role": "公开数据下载脚本",
+      "stage": "M268-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/convert_",
+      "layer": "data",
+      "role": "空间数据格式转换脚本",
+      "stage": "M268-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/prepare_",
+      "layer": "data",
+      "role": "分析就绪数据预处理脚本",
+      "stage": "M268-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/validate_",
+      "layer": "verification",
+      "role": "项目索引与结构校验脚本",
+      "stage": "M1-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/architecture_check.py",
+      "layer": "verification",
+      "role": "架构边界静态守卫",
+      "stage": "M252-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/contract_harness_check.py",
+      "layer": "verification",
+      "role": "跨入口契约验收脚本",
+      "stage": "M108-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/test_profile.py",
+      "layer": "verification",
+      "role": "分层精简测试配置入口",
+      "stage": "M81-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/smoke_check.py",
+      "layer": "verification",
+      "role": "核心服务 smoke 验收入口",
+      "stage": "M11-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "scripts/",
+      "layer": "tooling",
+      "role": "开发、部署与阶段验收脚本",
+      "stage": "M1-M325",
+      "stability": "internal"
+    },
+    {
+      "prefix": "web/src/",
+      "layer": "frontend",
+      "role": "Console 前端状态、渲染与结果展示",
+      "stage": "M231-M325",
+      "stability": "public-boundary"
+    }
+  ],
   "files": {
     "agent/runtime.py": {
       "layer": "runtime",
@@ -13,6 +638,52 @@
       "stage": "M318-M325",
       "stability": "public-boundary",
       "tests": ["tests/test_m320_react_runtime.py"]
+    },
+    "agent/analysis_ready_binding.py": {
+      "layer": "adapter",
+      "role": "兼容入口：转发到 GIS analysis-ready source binding",
+      "stage": "M69-M325",
+      "stability": "public-boundary"
+    },
+    "agent/release_evidence.py": {
+      "layer": "adapter",
+      "role": "兼容入口：转发到 GIS release evidence adapter",
+      "stage": "M76-M325",
+      "stability": "public-boundary"
+    },
+    "agent/runtime_capabilities.py": {
+      "layer": "adapter",
+      "role": "兼容入口：转发到 GIS runtime capability adapter",
+      "stage": "M59-M325",
+      "stability": "public-boundary"
+    },
+    "domains/gis/adapters/analysis_ready_binding.py": {
+      "layer": "adapter",
+      "role": "GIS analysis-ready source binding and verification",
+      "stage": "M69-M325",
+      "stability": "domain-boundary",
+      "tests": ["tests/test_m72_analysis_ready_binding.py"]
+    },
+    "domains/gis/adapters/release_evidence.py": {
+      "layer": "adapter",
+      "role": "GIS release readiness and source/output evidence",
+      "stage": "M76-M325",
+      "stability": "domain-boundary",
+      "tests": ["tests/test_m76_release_report.py"]
+    },
+    "domains/gis/adapters/runtime_capabilities.py": {
+      "layer": "adapter",
+      "role": "GIS runtime capability, dataset health and provider snapshot",
+      "stage": "M59-M325",
+      "stability": "domain-boundary",
+      "tests": ["tests/test_m59_capability_catalog.py", "tests/test_m94_runtime_governance.py"]
+    },
+    "domains/gis/adapters/demo_tool.py": {
+      "layer": "adapter",
+      "role": "GIS deterministic demo Tool Adapter",
+      "stage": "M1-M325",
+      "stability": "domain-boundary",
+      "tests": ["tests/test_m1.py", "tests/test_m2_llm_planner.py"]
     },
     "agent/runtime_core/run_lifecycle.py": {
       "layer": "runtime",
@@ -67,10 +738,10 @@
     },
     "agent/sqlite_store.py": {
       "layer": "persistence",
-      "role": "SQLite 运行状态与证据持久化",
+      "role": "兼容入口：转发到 canonical SQLite 持久化实现",
       "stage": "M313-M325",
       "stability": "public-boundary",
-      "tests": ["tests/test_m320_react_runtime.py", "tests/test_m322_tool_proposal.py"]
+      "tests": ["tests/test_m42_sqlite_store.py", "tests/test_m320_react_runtime.py"]
     },
     "agent/application/http.py": {
       "layer": "application",
@@ -78,6 +749,58 @@
       "stage": "M307-M325",
       "stability": "public-boundary",
       "tests": ["tests/test_m313_realtime_events.py"]
+    },
+    "agent/application/service_async.py": {
+      "layer": "application",
+      "role": "Application 异步作业状态、证据和时序支撑",
+      "stage": "M68-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m146_async_view_evidence.py", "tests/test_m78_service_split.py"]
+    },
+    "agent/application/service_format.py": {
+      "layer": "application",
+      "role": "Application 结果格式化、空间证据和请求归一化",
+      "stage": "M68-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m78_service_split.py", "tests/test_m128_execution_contract.py"]
+    },
+    "agent/application/service_sessions.py": {
+      "layer": "application",
+      "role": "Application 会话标识、历史 lineage 和异步载荷",
+      "stage": "M68-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m78_service_split.py", "tests/test_m79_reaper.py"]
+    },
+    "agent/application/service_state.py": {
+      "layer": "application",
+      "role": "AgentService 可变状态、SQLite store 和作业回收策略",
+      "stage": "M78-M325",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m79_reaper.py"]
+    },
+    "agent/service_async.py": {
+      "layer": "application",
+      "role": "兼容入口：转发到 Application 异步支撑实现",
+      "stage": "M68-M325",
+      "stability": "public-boundary"
+    },
+    "agent/service_format.py": {
+      "layer": "application",
+      "role": "兼容入口：转发到 Application 结果格式化实现",
+      "stage": "M68-M325",
+      "stability": "public-boundary"
+    },
+    "agent/service_sessions.py": {
+      "layer": "application",
+      "role": "兼容入口：转发到 Application 会话实现",
+      "stage": "M68-M325",
+      "stability": "public-boundary"
+    },
+    "agent/service_state.py": {
+      "layer": "application",
+      "role": "兼容入口：转发到 Application ServiceState 实现",
+      "stage": "M78-M325",
+      "stability": "public-boundary"
     },
     "agent/llm_planner.py": {
       "layer": "planner",

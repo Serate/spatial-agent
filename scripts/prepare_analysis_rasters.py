@@ -18,9 +18,9 @@ from typing import Any, Iterable
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent.analysis_ready_binding import build_source_binding
-from agent.dataset_catalog import DatasetCatalog
-from agent.raster_alignment import raster_alignment_report
+from domains.gis.adapters.analysis_ready_binding import build_source_binding
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.raster_alignment import raster_alignment_report
 
 
 DEFAULT_DISTRICTS = (

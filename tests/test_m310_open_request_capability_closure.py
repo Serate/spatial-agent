@@ -6,7 +6,7 @@ import unittest
 
 from agent.capability_catalog import project_clarification_requirements
 from agent.application.composite_planning import CompositePlanningApplication
-from agent.composite_planner import ReplayCompositePlanner
+from agent.application.composite_planner import ReplayCompositePlanner
 from agent.data_readiness import project_data_readiness
 from agent.request_requirements import (
     missing_requirement_fields,

@@ -16,8 +16,8 @@ from agent.runtime_core.planner_envelope import (
     build_planner_envelope,
     normalize_planner_envelope,
 )
-from agent.composite_planner import CompositePlannerError, normalize_composite_plan
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_planner import CompositePlannerError, normalize_composite_plan
+from agent.application.composite_view import build_composite_view_projection
 from agent.application.composite_runs import _safe_planning_evidence
 from domains.economic.domain import EconomicDomainPack
 from domains.gis.domain import GisDomainPack

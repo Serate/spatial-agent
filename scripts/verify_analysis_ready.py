@@ -8,8 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
-from agent.analysis_ready_binding import verify_source_binding
-from agent.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.analysis_ready_binding import verify_source_binding
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
 
 
 def main() -> int:

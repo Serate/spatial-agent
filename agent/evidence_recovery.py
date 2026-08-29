@@ -1,14 +1,6 @@
-"""Compatibility facade for the canonical evidence projection seam.
+"""Compatibility facade for the canonical evidence recovery seam."""
 
-The recovery projection now lives beside the evidence projection so all
-consumers use one deep, read-only contract. Keep this import path for
-artifact readers and historical integrations.
-"""
-
-from .evidence_projection import (
-    EVIDENCE_RECOVERY_SCHEMA_VERSION,
-    project_evidence_recovery,
-)
+from agent.evidence.recovery import *  # noqa: F401,F403
 
 __all__ = [
     "EVIDENCE_RECOVERY_SCHEMA_VERSION",

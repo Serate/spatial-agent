@@ -1,14 +1,17 @@
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from agent.errors import PlanningError, ToolError
 from agent.llm_planner import LLMPlanner
 from agent.models import RunStatus
 from agent.react.contracts import ReactDecisionError, REACT_DECISION_SCHEMA_VERSION
-from agent.react.loop import ReactLoop, ReactToolOutcome
+from agent.react.loop import ReactLoop, ReactToolOutcome, invoke_react_decider
 from agent.request_model import RequestFacts
 from agent.runtime import AgentRuntime
+from agent.runtime_core.react_runtime import RuntimeReactExecution
 from agent.runtime_state import InMemoryStateStore
 from agent.sqlite_store import SQLiteStateStore
 from agent.tools import ToolRegistry
@@ -59,6 +62,29 @@ class _RecoveringClient:
             "summary": "已完成安全校正",
             "output_type": "direct_answer",
             "extra_provider_field": "ignored safely",
+        }
+
+
+class _MissingToolNameClient:
+    def __init__(self):
+        self.calls = []
+
+    def complete_json(self, messages, schema, *, schema_name=None):
+        self.calls.append(("normal", schema_name))
+        return {
+            "schema_version": REACT_DECISION_SCHEMA_VERSION,
+            "action": "call_tool",
+            "summary": "需要调用工具",
+            "arguments": {"dataset": "dem"},
+        }
+
+    def complete_compact_json(self, messages, schema, *, schema_name=None):
+        self.calls.append(("compact", schema_name))
+        return {
+            "schema_version": REACT_DECISION_SCHEMA_VERSION,
+            "action": "call_tool",
+            "summary": "需要调用工具",
+            "arguments": {"dataset": "dem"},
         }
 
 
@@ -146,6 +172,25 @@ class _MinimalDomain:
         )
 
 
+class _TemplateBoundDomain(_MinimalDomain):
+    """Model a Domain auto-template that is narrower than open ReAct."""
+
+    def validate_plan(self, plan):
+        if len(plan.steps) > 1:
+            raise ValueError("template blueprint allows one step")
+
+
+class _OpenReactPolicyDomain(_MinimalDomain):
+    def validate_open_react_plan(self, plan):
+        del plan
+        raise ToolError(
+            "open ReAct policy denied the action",
+            category="policy",
+            code="permission_denied",
+            retryable=False,
+        )
+
+
 class _AnswerComposer:
     def compose(self, result):
         return "已根据 {} 个工具结果完成分析。".format(len(result.steps))
@@ -183,7 +228,7 @@ def _runtime_registry(adapter):
     )
 
 
-def _runtime(planner, adapter, store):
+def _runtime(planner, adapter, store, domain_pack=None):
     defaults = {
         "react_mode": "full",
         "web_search_enabled": True,
@@ -198,7 +243,7 @@ def _runtime(planner, adapter, store):
             state_store=store,
             answer_composer=_AnswerComposer(),
             planner_name="openai",
-            domain_pack=_MinimalDomain(),
+            domain_pack=domain_pack or _MinimalDomain(),
             max_retries=0,
         )
 
@@ -288,6 +333,61 @@ class M320ReactDecisionAdapterTests(unittest.TestCase):
         self.assertEqual(decision["action"], "finish")
         self.assertEqual(client.calls, [("normal", "react_decision"), ("compact", "react_decision")])
 
+    def test_decide_repairs_common_gateway_tool_aliases_without_guessing_tool(self):
+        planner = LLMPlanner(
+            _LegacyClient(
+                {
+                    "schema_version": REACT_DECISION_SCHEMA_VERSION,
+                    "action": "call_tool",
+                    "tool": "safe_tool",
+                    "args": {"value": "demo"},
+                    "output_type": "metrics",
+                }
+            ),
+            ("safe_tool",),
+        )
+
+        decision = planner.decide("读取数据")
+
+        self.assertEqual(decision["tool_name"], "safe_tool")
+        self.assertEqual(decision["arguments"], {"value": "demo"})
+
+    def test_decide_classifies_unrecoverable_missing_tool_name_as_planning_error(self):
+        client = _MissingToolNameClient()
+        planner = LLMPlanner(client, ("safe_tool",))
+
+        with self.assertRaises(PlanningError) as raised:
+            planner.decide("读取 DEM 数据")
+
+        self.assertEqual(raised.exception.category, "planning")
+        self.assertEqual(raised.exception.code, "invalid_model_response")
+        self.assertFalse(raised.exception.retryable)
+        self.assertEqual(
+            client.calls,
+            [("normal", "react_decision"), ("compact", "react_decision")],
+        )
+
+    def test_runtime_can_infer_public_result_type_from_trusted_selection(self):
+        context = SimpleNamespace(
+            context_packet=SimpleNamespace(
+                payload={
+                    "sections": {
+                        "workflow_selection": {
+                            "selected_capability_id": "demo_capability",
+                            "candidate_details": [
+                                {"id": "demo_capability", "result_types": ["metrics"]}
+                            ],
+                        }
+                    }
+                }
+            )
+        )
+
+        self.assertEqual(
+            RuntimeReactExecution._inferred_output_type(context),
+            "metrics",
+        )
+
     def test_decide_rejects_tool_outside_runtime_allowlist(self):
         planner = LLMPlanner(
             _LegacyClient(
@@ -321,6 +421,113 @@ class M320ReactDecisionAdapterTests(unittest.TestCase):
 
 
 class M320ReactLoopTests(unittest.TestCase):
+    def test_loop_finishes_from_completed_evidence_after_later_planner_failure(self):
+        class _LaterFailureDecider:
+            def __init__(self):
+                self.calls = 0
+
+            def decide(self, request, **kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    return _decision(
+                        "call_tool",
+                        tool_name="safe_tool",
+                        arguments={"dataset": "demo"},
+                    )
+                raise PlanningError("provider response was unavailable")
+
+        outcome = ReactLoop(
+            _LaterFailureDecider(),
+            allowed_tools=("safe_tool",),
+        ).run(
+            "读取数据并总结",
+            execute_tool=lambda *_args: {"status": "ok", "result_type": "metrics"},
+        )
+
+        self.assertEqual(outcome.state, "partial")
+        self.assertEqual(outcome.action_count, 1)
+        self.assertEqual(outcome.reason_code, "react_planner_recovery_finish")
+        self.assertEqual(outcome.final_decision["action"], "finish")
+        self.assertEqual(outcome.evidence[-1]["source"], "runtime")
+
+    def test_loop_finishes_from_completed_evidence_after_later_action_validation_failure(self):
+        class _SecondActionInvalidDecider:
+            def __init__(self):
+                self.calls = 0
+
+            def decide(self, request, **kwargs):
+                self.calls += 1
+                return _decision(
+                    "call_tool",
+                    tool_name="safe_tool",
+                    arguments={"dataset": "demo", "turn": self.calls},
+                )
+
+        decider = _SecondActionInvalidDecider()
+
+        def validate_action(_decision, turn_index, _action_id):
+            if turn_index == 2:
+                raise ValueError("workflow blueprint rejected the next action")
+
+        outcome = ReactLoop(
+            decider,
+            allowed_tools=("safe_tool",),
+        ).run(
+            "读取数据并总结",
+            validate_action=validate_action,
+            execute_tool=lambda *_args: {"status": "ok", "result_type": "metrics"},
+        )
+
+        self.assertEqual(outcome.state, "partial")
+        self.assertEqual(outcome.action_count, 2)
+        self.assertEqual(
+            outcome.reason_code,
+            "react_action_validation_recovery_finish",
+        )
+        self.assertEqual(outcome.final_decision["action"], "finish")
+
+    def test_loop_keeps_policy_validation_failure_blocked_after_partial_success(self):
+        decider = _QueueDecider(
+            [
+                _decision("call_tool", tool_name="safe_tool", arguments={"dataset": "demo"}),
+                _decision("call_tool", tool_name="safe_tool", arguments={"dataset": "restricted"}),
+            ]
+        )
+
+        def validate_action(_decision, turn_index, _action_id):
+            if turn_index == 2:
+                raise ToolError(
+                    "permission denied",
+                    category="policy",
+                    code="permission_denied",
+                    retryable=False,
+                )
+
+        outcome = ReactLoop(
+            decider,
+            allowed_tools=("safe_tool",),
+        ).run(
+            "读取受限数据",
+            validate_action=validate_action,
+            execute_tool=lambda *_args: {"status": "ok"},
+        )
+
+        self.assertEqual(outcome.state, "blocked")
+        self.assertEqual(outcome.reason_code, "permission_denied")
+        self.assertEqual(outcome.error_category, "policy")
+
+    def test_provider_decision_error_is_classified_as_planning_failure(self):
+        class _RaisingDecider:
+            def decide(self, request, **kwargs):
+                raise ReactDecisionError("provider action was malformed")
+
+        with self.assertRaises(PlanningError) as raised:
+            invoke_react_decider(_RaisingDecider(), "分析数据")
+
+        self.assertEqual(raised.exception.category, "planning")
+        self.assertEqual(raised.exception.code, "invalid_model_response")
+        self.assertFalse(raised.exception.retryable)
+
     def test_loop_executes_one_tool_per_turn_then_finishes_with_safe_history(self):
         decider = _QueueDecider(
             [
@@ -429,6 +636,65 @@ class M320ReactLoopTests(unittest.TestCase):
 
 
 class M320ReactRuntimeTests(unittest.TestCase):
+    def test_open_react_can_continue_beyond_narrow_domain_template(self):
+        planner = _ReactPlanner(
+            [
+                _decision(
+                    "call_tool",
+                    tool_name="make_value",
+                    arguments={"value": "seed"},
+                    output_type="metrics",
+                ),
+                _decision(
+                    "call_tool",
+                    tool_name="use_value",
+                    arguments={"value": "derived"},
+                    output_type="metrics",
+                ),
+                _decision("finish", summary="两步证据已足够", output_type="metrics"),
+            ]
+        )
+        adapter = _RuntimeAdapter()
+
+        result = _runtime(
+            planner,
+            adapter,
+            InMemoryStateStore(),
+            domain_pack=_TemplateBoundDomain(),
+        ).run("执行两步开放式分析")
+
+        self.assertEqual(result.status, RunStatus.COMPLETED)
+        self.assertEqual([step.tool for step in result.steps], ["make_value", "use_value"])
+        self.assertEqual(len(adapter.calls), 2)
+        self.assertEqual(result.plan_evidence["plan_policy"]["source"], "open_react")
+        self.assertEqual(
+            result.plan_evidence["execution_policy"]["source"], "open_react"
+        )
+
+    def test_open_react_keeps_domain_safety_gate(self):
+        planner = _ReactPlanner(
+            [
+                _decision(
+                    "call_tool",
+                    tool_name="make_value",
+                    arguments={"value": "seed"},
+                    output_type="metrics",
+                )
+            ]
+        )
+        adapter = _RuntimeAdapter()
+
+        result = _runtime(
+            planner,
+            adapter,
+            InMemoryStateStore(),
+            domain_pack=_OpenReactPolicyDomain(),
+        ).run("执行受策略保护的开放分析")
+
+        self.assertEqual(result.status, RunStatus.FAILED)
+        self.assertEqual(result.error_code, "permission_denied")
+        self.assertEqual(adapter.calls, [])
+
     def test_runtime_can_finish_without_dispatching_a_tool(self):
         planner = _ReactPlanner(
             [

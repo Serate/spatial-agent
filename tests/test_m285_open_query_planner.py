@@ -4,7 +4,7 @@ import unittest
 
 from agent.application.composite_planning import CompositePlanningApplication
 from agent.application.http import HTTPApplication
-from agent.composite_planner import CompositePlannerError, ReplayCompositePlanner
+from agent.application.composite_planner import CompositePlannerError, ReplayCompositePlanner
 
 
 CONTEXT = {

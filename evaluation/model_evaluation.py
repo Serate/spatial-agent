@@ -25,11 +25,11 @@ from agent.workflow_selection import (
     normalize_evidence_action_guidance,
     normalize_workflow_selection_evidence,
 )
-from agent.evidence_registry import (
+from agent.evidence.registry import (
     EVIDENCE_COMPLETENESS_SCHEMA_VERSION,
     project_evidence_registry_completeness,
 )
-from agent.evidence_projection import (
+from agent.evidence.projection import (
     EVIDENCE_PROJECTION_SCHEMA_VERSION,
     project_evidence_projection,
 )

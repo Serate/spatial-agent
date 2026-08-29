@@ -9,8 +9,8 @@ from agent.capability_catalog import (
     capability_context_summary,
     capability_suggestions,
 )
-from agent.data_quality import dataset_health_report
-from agent.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.data_quality import dataset_health_report
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
 from agent.service import AgentService
 from agent.runtime_capabilities import runtime_capability_snapshot
 from result_contract import build_result_contract

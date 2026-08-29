@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from agent.data_quality import dataset_health_report
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.data_quality import dataset_health_report
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
 
 
 class M74DerivationEvidenceTests(unittest.TestCase):
@@ -73,8 +73,8 @@ class M74DerivationEvidenceTests(unittest.TestCase):
             }
 
         return (
-            patch("agent.data_quality._health_for_entry", side_effect=fake_health),
-            patch("agent.data_quality._raster_alignment_summary", return_value={"status": "ready"}),
+            patch("domains.gis.adapters.data_quality._health_for_entry", side_effect=fake_health),
+            patch("domains.gis.adapters.data_quality._raster_alignment_summary", return_value={"status": "ready"}),
         )
 
     def test_valid_derivation_evidence_is_exposed(self):

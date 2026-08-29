@@ -10,7 +10,7 @@ from pathlib import Path
 
 from agent.application.composite import CompositeApplication, CompositeCoordinatorError
 from agent.application.composite_runs import CompositeRunApplication
-from agent.composite_contract import build_composite_result_contract
+from agent.application.composite_contract import build_composite_result_contract
 from agent.models import PlanStep, TaskPlan
 from agent.runtime_core.execution_binding import (
     ExecutionBindingError,

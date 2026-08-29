@@ -4,7 +4,7 @@ import unittest
 from threading import Event
 from unittest.mock import patch
 
-from agent.composite_request_context import _unique_candidates
+from agent.application.composite_request_context import _unique_candidates
 from agent.runtime_core.composite_taskplan import CompositeTaskPlanBridge
 from agent.service import AgentService
 from agent.sqlite_store import SQLiteConversationStore

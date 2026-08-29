@@ -27,7 +27,7 @@ from agent.interaction_contract import (
 from agent.interaction_host import InteractionHost
 from agent.recovery_action import action_input_fingerprint, project_action_receipt
 from agent.domain_selector_provider import domain_selector_from_environment
-from agent.sqlite_store import SQLiteConversationStore
+from agent.persistence.sqlite_store import SQLiteConversationStore
 
 
 class DomainRoutingApplicationError(ValueError):

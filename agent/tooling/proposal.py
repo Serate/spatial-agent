@@ -399,6 +399,45 @@ class ToolProposalValidator:
             duration_ms=_duration_ms(started),
         )
 
+    def handler_for(self, approval: Mapping[str, Any]):
+        """Build a controlled handler from an approved public record.
+
+        The handler references the sidecar cache by identity.  It never reads
+        source from the approval record and therefore fails closed when the
+        sidecar was restarted before the proposal was published.
+        """
+        if self._sandbox_client is None:
+            return None
+        execute = getattr(self._sandbox_client, "execute_proposal", None)
+        if not callable(execute):
+            return None
+        proposal_id = str(approval.get("proposal_id") or "")[:96]
+        source_hash = str(approval.get("source_hash") or "")[:96]
+        if not proposal_id or not source_hash:
+            return None
+
+        def invoke(arguments: dict[str, Any]) -> dict[str, Any]:
+            response = execute(proposal_id, source_hash, arguments)
+            if not isinstance(response, Mapping) or response.get("status") != "validated":
+                reason = str(
+                    response.get("reason_code")
+                    if isinstance(response, Mapping)
+                    else "sandbox_execution_unavailable"
+                )[:96]
+                raise ProposalValidationError(
+                    "approved tool execution is unavailable: " + reason,
+                    code="approved_tool_execution_unavailable",
+                )
+            result = response.get("result")
+            if not isinstance(result, dict):
+                raise ProposalValidationError(
+                    "approved tool returned an invalid result",
+                    code="approved_tool_result_invalid",
+                )
+            return result
+
+        return invoke
+
     def _invalid_receipt(self, proposal: Any, reason_code: str, started: float) -> dict[str, Any]:
         name = str(proposal.get("name") if isinstance(proposal, Mapping) else "")[:96]
         return build_proposal_receipt(
@@ -418,6 +457,7 @@ class ToolProposalValidator:
             name=proposal.get("name"),
             source_hash=proposal.get("source_hash"),
             schema_hash=proposal.get("schema_hash"),
+            definition=_proposal_definition(proposal),
             **kwargs,
         )
 
@@ -434,6 +474,7 @@ def build_proposal_receipt(
     output_bytes: Any = 0,
     reason_code: Any = None,
     sandbox_profile: Any = None,
+    definition: Any = None,
 ) -> dict[str, Any]:
     """Build the only proposal payload allowed beyond the validation seam."""
 
@@ -458,7 +499,7 @@ def build_proposal_receipt(
         "filesystem": "read-only",
         "timeout_seconds": _finite_float(profile.get("timeout_seconds"), 3.0, 0.1, 30.0),
     }
-    return {
+    receipt = {
         "schema_version": TOOL_PROPOSAL_RECEIPT_SCHEMA_VERSION,
         "proposal_id": str(proposal_id or "")[:96] or None,
         "name": str(name or "")[:96] or None,
@@ -471,6 +512,29 @@ def build_proposal_receipt(
         "reason_code": str(reason_code or "")[:96] or None,
         "sandbox_profile": safe_profile,
     }
+    if isinstance(definition, Mapping):
+        receipt["definition"] = _proposal_definition(definition)
+    return receipt
+
+
+def _proposal_definition(proposal: Mapping[str, Any]) -> dict[str, Any]:
+    """Project Registry metadata without source or example arguments."""
+
+    result: dict[str, Any] = {
+        "name": str(proposal.get("name") or "")[:96],
+        "description": str(proposal.get("description") or "")[:_MAX_DESCRIPTION],
+        "input_schema": deepcopy(proposal.get("input_schema"))
+        if isinstance(proposal.get("input_schema"), Mapping)
+        else {"type": "object"},
+        "output_schema": deepcopy(proposal.get("output_schema"))
+        if isinstance(proposal.get("output_schema"), Mapping)
+        else {"type": "object"},
+        "dynamic": True,
+        "requires_approval": True,
+        "side_effect": "unknown",
+        "handler_ref": "proposal:" + str(proposal.get("proposal_id") or "")[:96],
+    }
+    return result
 
 
 def _normalize_schema(value: Any, field_name: str) -> dict[str, Any]:

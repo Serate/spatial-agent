@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
 
 
 ROOT = Path(__file__).parents[1]

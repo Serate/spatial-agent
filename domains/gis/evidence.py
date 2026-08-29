@@ -34,7 +34,7 @@ class GisEvidenceProvider:
         raise ValueError("unknown GIS evidence kind: " + str(kind))
 
     def runtime_snapshot(self, *, max_files: int = 10) -> Mapping[str, Any]:
-        from agent.runtime_capabilities import runtime_capability_snapshot
+        from domains.gis.adapters.runtime_capabilities import runtime_capability_snapshot
 
         value = runtime_capability_snapshot(max_files=max_files)
         if not isinstance(value, Mapping):
@@ -57,7 +57,7 @@ class GisEvidenceProvider:
         config_path: str | None = None,
         max_files: int = 10,
     ) -> Mapping[str, Any]:
-        from agent.release_evidence import release_evidence_snapshot
+        from domains.gis.adapters.release_evidence import release_evidence_snapshot
 
         return release_evidence_snapshot(config_path=config_path, max_files=max_files)
 

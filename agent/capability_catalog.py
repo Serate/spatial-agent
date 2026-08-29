@@ -3,7 +3,7 @@
 from copy import deepcopy
 from typing import Any, Dict, Iterable, Mapping
 
-from .evidence_contract import normalize_capability_evidence
+from agent.evidence.contract import normalize_capability_evidence
 from .request_requirements import (
     REQUEST_REQUIREMENTS_SCHEMA_VERSION,
     missing_requirement_fields,

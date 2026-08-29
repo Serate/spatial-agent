@@ -26,10 +26,10 @@ from agent.api_contract import (
     run_kwargs,
     workflow_action_result,
 )
-from agent.artifact_manifest import build_artifact_manifest
-from agent.composite_contract import inherit_composite_runtime_selection
-from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
-from agent.evidence_registry import normalize_evidence_registry
+from agent.persistence.artifact_manifest import build_artifact_manifest
+from agent.application.composite_contract import inherit_composite_runtime_selection
+from agent.evidence.projection import project_evidence_projection, project_evidence_recovery
+from agent.evidence.registry import normalize_evidence_registry
 from agent.runtime_defaults import with_product_defaults
 from agent.run_events import (
     RUN_EVENT_SCHEMA_VERSION,
@@ -218,6 +218,14 @@ class HTTPApplication:
                 definition=body.get("definition", {}),
                 handler=self._action_handler,
             )
+        if action == "tool_approval_resolve":
+            return service.resolve_tool_approval(
+                _required_resource(run_id, "approval_id"),
+                action=body.get("action", ""),
+                expected_version=body.get("expected_version"),
+                receipt_fingerprint=body.get("receipt_fingerprint"),
+                actor_id=body.get("actor_id", "admin"),
+            )
         if action == "run_auto":
             return self._routing_required().run(body)
         if action == "domain_select":
@@ -386,6 +394,12 @@ class HTTPApplication:
             )
         if action == "dynamic_tools":
             return service.list_dynamic_tools()
+        if action == "tool_approvals":
+            return service.list_tool_approvals(
+                limit=body.get("limit", 50), status=body.get("status")
+            )
+        if action == "tool_approval":
+            return service.get_tool_approval(_required_resource(resource_id, "approval_id"))
         if action == "observability_health":
             state = service._state.observability
             return {

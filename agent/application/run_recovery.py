@@ -12,21 +12,21 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Dict, Optional
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 from agent.execution_contract import build_execution_record
-from agent.evidence_projection import project_evidence_projection, project_evidence_recovery
-from agent.evidence_registry import normalize_evidence_registry
+from agent.evidence.projection import project_evidence_projection, project_evidence_recovery
+from agent.evidence.registry import normalize_evidence_registry
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES, export_run_summary
 from agent.models import RunStatus
 from agent.nested_schema import NestedSchemaError, normalize_result_contract
 from agent.provenance import build_provenance
-from agent.service_format import (
+from agent.application.service_format import (
     _attach_error_category,
     exported_geometry_evidence as _exported_geometry_evidence,
     result_type as _result_type,
     tag_geometry_features as _tag_geometry_features,
 )
-from agent.service_sessions import attach_history_lineage as _attach_history_lineage
+from agent.application.service_sessions import attach_history_lineage as _attach_history_lineage
 from agent.trace_formatter import format_trace
 from result_contract import build_result_contract
 

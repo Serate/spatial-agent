@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from agent.analysis_ready_binding import build_source_binding, verify_source_binding
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
 
 
 class M72AnalysisReadyBindingTests(unittest.TestCase):

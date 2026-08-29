@@ -3,9 +3,9 @@
 import json
 import unittest
 
-from agent.composite_planner import LLMCompositePlanner
-from agent.composite_request_context import CompositeRequestContextBuilder
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_planner import LLMCompositePlanner
+from agent.application.composite_request_context import CompositeRequestContextBuilder
+from agent.application.composite_view import build_composite_view_projection
 from result_contract import build_result_contract
 from agent.runtime_core.planner_envelope import (
     PLANNER_ENVELOPE_SCHEMA_VERSION,

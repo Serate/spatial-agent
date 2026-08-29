@@ -6,8 +6,8 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
-from agent.data_quality import dataset_health_report
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.data_quality import dataset_health_report
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
 from agent.runtime_capabilities import runtime_capability_snapshot
 from agent.workflow_templates import workflow_template_catalog
 from serve_api import AgentApiHandler
@@ -45,7 +45,7 @@ class M68IntegrationTests(unittest.TestCase):
                 ),
             },
         )
-        with patch("agent.data_quality._health_for_entry", side_effect=fake_health):
+        with patch("domains.gis.adapters.data_quality._health_for_entry", side_effect=fake_health):
             report = dataset_health_report(catalog)
 
         alignment = report["relationships"]["dem_land_use"]["grid_alignment"]
@@ -68,9 +68,9 @@ class M68IntegrationTests(unittest.TestCase):
             config = Path(directory) / "datasets.json"
             config.write_text('{"root":"' + directory.replace("\\", "/") + '","datasets":{}}', encoding="utf-8")
             with patch.dict("os.environ", {"SPATIAL_AGENT_DATASET_CONFIG": str(config)}), patch(
-                "agent.runtime_capabilities.dataset_health_report", return_value=health
+                "domains.gis.adapters.runtime_capabilities.dataset_health_report", return_value=health
             ), patch(
-                "agent.runtime_capabilities.environment_status",
+                "domains.gis.adapters.runtime_capabilities.environment_status",
                 return_value={
                     "capabilities": {"local_gis_backend": False},
                     "dependencies": {"geopandas": False, "rasterio": False},

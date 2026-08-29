@@ -250,17 +250,31 @@ class RuntimePlanningSurface:
         self,
         plan: TaskPlan,
         workflow: Optional[Mapping[str, Any]],
+        *,
+        policy_mode: Optional[str] = None,
     ) -> Dict[str, Any]:
+        open_react = policy_mode == "open_react" and workflow is None
         if workflow is not None:
             validator = getattr(self._domain_pack, "validate_workflow_plan", None)
             if callable(validator):
                 validator(plan, workflow)
-        validator = getattr(self._domain_pack, "validate_plan", None)
+        # Legacy ``validate_plan`` implementations are template/blueprint
+        # gates. They must not turn an automatically inferred workflow into
+        # the capability boundary of an open ReAct request. Domain Packs can
+        # still expose non-template safety rules through the explicit seam.
+        validator_name = (
+            "validate_open_react_plan" if open_react else "validate_plan"
+        )
+        validator = getattr(self._domain_pack, validator_name, None)
         if callable(validator):
             validator(plan)
         if plan.output.get("type") != "direct_answer":
             validate_plan(plan, self._registry.names, self._max_steps)
-        policy = self.resolve_execution_policy(plan, workflow)
+        policy = self.resolve_execution_policy(
+            plan,
+            workflow,
+            policy_mode=policy_mode,
+        )
         return self._execution_policy_resolver.validate_plan(plan, policy)
 
     def resolve_execution_policy(
@@ -269,13 +283,19 @@ class RuntimePlanningSurface:
         workflow: Optional[Mapping[str, Any]],
         *,
         requires_confirmation: bool = False,
+        policy_mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Resolve one policy through the shared Domain-neutral resolver."""
 
-        domain_policy = resolve_plan_policy(
-            self._domain_pack,
-            plan,
-            workflow=workflow,
+        open_react = policy_mode == "open_react" and workflow is None
+        domain_policy = (
+            {}
+            if open_react
+            else resolve_plan_policy(
+                self._domain_pack,
+                plan,
+                workflow=workflow,
+            )
         )
         requested_mode = getattr(self._planner, "execution_policy_mode", None)
         return self._execution_policy_resolver.resolve(
@@ -284,6 +304,7 @@ class RuntimePlanningSurface:
             domain_policy=domain_policy,
             requested_mode=requested_mode,
             requires_confirmation=requires_confirmation,
+            open_react=open_react,
         )
 
     def validate_plan(self, plan: TaskPlan) -> None:

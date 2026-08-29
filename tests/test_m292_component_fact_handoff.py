@@ -3,7 +3,7 @@
 import unittest
 
 from agent.application.composite_planning import CompositePlanningApplication
-from agent.composite_planner import ReplayCompositePlanner
+from agent.application.composite_planner import ReplayCompositePlanner
 from agent.runtime_core.clarification_continuation import (
     ClarificationContinuationError,
     consume_component_continuation,

@@ -16,6 +16,7 @@ from agent.errors import ToolError
 from agent.models import AgentRunResult, RunStatus, TaskPlan
 from agent.plan_quality import repair_context
 from agent.replanning import failure_category
+from agent.result_completeness import build_result_completeness
 
 
 def plan_to_dict(plan: TaskPlan) -> Dict[str, Any]:
@@ -180,13 +181,14 @@ def safe_small_mapping(value: Any) -> Dict[str, Any]:
 
 def append_execution_degradation_notice(result: AgentRunResult, answer: str) -> str:
     """Keep bounded fallback completion visibly distinct from full success."""
-    if result.status != RunStatus.COMPLETED or not result.replan_events:
+    if result.status != RunStatus.COMPLETED:
         return answer
-    if not any(step.status == "FAILED" for step in result.steps):
+    completeness = build_result_completeness(result.to_dict())
+    if completeness.get("state") != "partial":
         return answer
     notice = (
-        "说明：原计划中的部分步骤未完成，当前内容是根据可用结果生成的降级结论；"
-        "修复相关数据或条件后可重新执行。"
+        "说明：本次只完成了部分分析，当前结论仅基于已获得的证据；"
+        "未完成部分的结果未知，修复相关条件后可以重新执行。"
     )
     if notice in answer:
         return answer

@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from agent.raster_alignment import (
+from domains.gis.adapters.raster_alignment import (
     ALIGNMENT_STATUSES,
     compare_raster_alignment,
     raster_alignment_report,

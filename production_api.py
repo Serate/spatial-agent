@@ -34,10 +34,10 @@ from agent.application.composite_planning import (
     CompositeCapabilityProjector,
     CompositePlanningApplication,
 )
-from agent.composite_planner import LLMCompositePlanner, RuleCompositePlanner
+from agent.application.composite_planner import LLMCompositePlanner, RuleCompositePlanner
 from agent.answer_generation import LLMCompositeAnswerGenerator
 from agent.llm_planner import OpenAIPlannerClient
-from agent.openai_config import load_answer_generation_config, load_openai_config
+from agent.integration.openai_config import load_answer_generation_config, load_openai_config
 from agent.application.http_transport import (
     error_projection,
     load_artifact_json,
@@ -613,6 +613,34 @@ def observability_health():
 @app.get("/tools/dynamic")
 def list_dynamic_tools():
     return _http_application().read("dynamic_tools")
+
+
+@app.get("/tools/approvals")
+def list_tool_approvals(limit: int = 50, status: Optional[str] = None):
+    try:
+        return _http_application().read(
+            "tool_approvals", {"limit": limit, "status": status}
+        )
+    except Exception as exc:
+        _raise_for(exc)
+
+
+@app.get("/tools/approvals/{approval_id}")
+def get_tool_approval(approval_id: str):
+    try:
+        return _http_application().read("tool_approval", resource_id=approval_id)
+    except Exception as exc:
+        _raise_for(exc, not_found=True)
+
+
+@app.post("/tools/approvals/{approval_id}/resolve")
+def resolve_tool_approval(approval_id: str, payload: Dict[str, Any]):
+    try:
+        return _http_application().execute(
+            "tool_approval_resolve", payload, run_id=approval_id
+        )
+    except Exception as exc:
+        _raise_for(exc)
 
 
 @app.post("/tools")

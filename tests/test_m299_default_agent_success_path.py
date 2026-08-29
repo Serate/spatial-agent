@@ -12,9 +12,9 @@ from agent.application.composite_runs import (
     CompositeRunApplication,
     _safe_planning_evidence,
 )
-from agent.composite_contract import build_composite_result_contract
-from agent.composite_planner import LLMCompositePlanner
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_contract import build_composite_result_contract
+from agent.application.composite_planner import LLMCompositePlanner
+from agent.application.composite_view import build_composite_view_projection
 from agent.runtime_core.planner_envelope import (
     PLANNER_ENVELOPE_LAYERS,
     PLANNER_ENVELOPE_SCHEMA_VERSION,

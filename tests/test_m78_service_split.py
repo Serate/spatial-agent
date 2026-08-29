@@ -25,9 +25,9 @@ class M78ServiceSplitTests(unittest.TestCase):
             self.assertIsNotNone(module.__file__)
 
         service_source = Path(service.__file__).read_text(encoding="utf-8")
-        self.assertIn("from agent.service_async import", service_source)
-        self.assertIn("from agent.service_format import", service_source)
-        self.assertIn("from agent.service_sessions import", service_source)
+        self.assertIn("from agent.application.service_async import", service_source)
+        self.assertIn("from agent.application.service_format import", service_source)
+        self.assertIn("from agent.application.service_sessions import", service_source)
 
     def test_runtime_factory_is_shared_and_run_demo_reexports_it(self):
         import run_demo

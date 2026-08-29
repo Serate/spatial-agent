@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Mapping
 from typing import Any, Callable, Optional
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 from agent.answer_generation import (
     fallback_composite_answer,
     project_answer_generation_evidence,
@@ -23,13 +23,13 @@ from agent.answer_generation import (
 from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.application.async_runs import AsyncApplication
 from agent.application.composite import CompositeApplication
-from agent.composite_contract import (
+from agent.application.composite_contract import (
     CompositeContractError,
     build_composite_result_contract,
     normalize_composite_request,
     normalize_composite_section,
 )
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_view import build_composite_view_projection
 from agent.contract_versions import COMPOSITE_COORDINATOR_SCHEMA_VERSION
 from agent.failure_contract import build_failure_evidence
 from agent.models import AgentRunResult, RunStatus
@@ -41,8 +41,8 @@ from agent.runtime_core.execution_binding import (
     project_execution_binding,
     validate_execution_binding,
 )
-from agent.provider_structured_output import project_structured_output_evidence
-from agent.provider_runtime import (
+from agent.integration.provider_structured_output import project_structured_output_evidence
+from agent.integration.provider_runtime import (
     project_planner_attempt_receipt,
     project_provider_runtime_evidence,
 )
@@ -50,8 +50,8 @@ from agent.run_events import new_run_event
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
 from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.planner_repair import build_repair_lineage
-from agent.service_async import process_is_alive
-from agent.service_state import ServiceState
+from agent.application.service_async import process_is_alive
+from agent.application.service_state import ServiceState
 
 
 COMPOSITE_RUN_SCOPE = "composite"
@@ -85,7 +85,7 @@ class CompositeRunApplication:
         state: Any = None,
         artifact_store: ArtifactStore | None = None,
         state_db_path: str | None = None,
-        artifact_root: str = "outputs/runs",
+        artifact_root: str | None = None,
         worker_count: int = 1,
         answer_generator: Any = None,
     ) -> None:
@@ -100,7 +100,7 @@ class CompositeRunApplication:
             legacy_domain_id=COMPOSITE_RUN_SCOPE,
         )
         self._artifact_store = artifact_store or ArtifactStore(
-            artifact_root,
+            artifact_root or os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"),
             legacy_domain_id=COMPOSITE_RUN_SCOPE,
         )
         self._memory_results: dict[str, AgentRunResult] = {}

@@ -21,7 +21,7 @@ from agent.application.composite_planning import (
     CompositeCapabilityProjector,
     CompositePlanningApplication,
 )
-from agent.composite_planner import ReplayCompositePlanner
+from agent.application.composite_planner import ReplayCompositePlanner
 from agent.domain_runtime_host import DomainRuntimeHost
 
 

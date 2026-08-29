@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 
-from agent.artifact_store import ArtifactStore
+from agent.persistence.artifact_store import ArtifactStore
 
 
 class InspectionApplication:

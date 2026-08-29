@@ -10,8 +10,8 @@ from agent.answer_generation import (
     LLMCompositeAnswerGenerator,
     fallback_composite_answer,
 )
-from agent.composite_contract import build_composite_result_contract
-from agent.composite_view import build_composite_view_projection
+from agent.application.composite_contract import build_composite_result_contract
+from agent.application.composite_view import build_composite_view_projection
 
 
 def _request():

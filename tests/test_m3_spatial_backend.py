@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 from agent.errors import ToolError
-from agent.spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
+from domains.gis.adapters.spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
 from agent.tools import ToolRegistry
 
 

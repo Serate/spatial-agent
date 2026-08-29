@@ -206,7 +206,7 @@ def project_action_receipt(
         )
         if transition_evidence is not None:
             result["transition_evidence"] = transition_evidence
-            from .evidence_revalidation import (
+            from agent.evidence.revalidation import (
                 build_evidence_revalidation,
                 normalize_evidence_revalidation,
             )

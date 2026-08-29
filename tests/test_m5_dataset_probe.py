@@ -2,8 +2,8 @@ import importlib.util
 import unittest
 from pathlib import Path
 
-from agent.dataset_catalog import DatasetCatalog
-from agent.dataset_probe import probe_catalog
+from domains.gis.adapters.dataset_catalog import DatasetCatalog
+from domains.gis.adapters.dataset_probe import probe_catalog
 
 
 ROOT = Path(__file__).parents[1]

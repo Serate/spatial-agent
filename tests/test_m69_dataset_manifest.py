@@ -3,9 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent.data_quality import dataset_health_report
-from agent.dataset_catalog import DatasetCatalog, DatasetEntry
-from agent.dataset_manifest import build_dataset_manifest, verify_dataset_manifest
+from domains.gis.adapters.data_quality import dataset_health_report
+from domains.gis.adapters.dataset_catalog import DatasetCatalog, DatasetEntry
+from domains.gis.adapters.dataset_manifest import build_dataset_manifest, verify_dataset_manifest
 from scripts.bind_dataset_manifest import bind_manifest
 
 

@@ -10,50 +10,48 @@
 
 ## 当前阶段
 
-- 阶段：M318-M325 受控开放 Agent Runtime
-- 当前阶段：M323 人工审批、持久化和 Registry 治理
-- 当前任务：M323-A，审批契约和状态机
-- 状态：规划中
-- 最近交付：M322 已完成并推送，版本 `1b0bcdc`
+- 阶段：`M327`
+- 当前任务：M327-A 能力描述契约
+- 状态：规划完成，尚未实现
+- 最近交付：M326 已完成开放式 ReAct 稳定交付、真实 Docker/GIS 验收和跨入口恢复对照
 - 协作：单 Agent，最大并发度 1；Python、GIS、测试和阶段验收优先使用 Docker
+- M326 已完成：开放 ReAct 与自动 Domain 模板策略解耦；Result/evidence/artifact/SSE/答案统一表达部分结果；
+  Artifact 原子发布和 Provider JSON 错误边界已修复；真实模型 + Docker/GIS 多步与矢量请求完成安全验收。
+- M327 目标：完善通用能力描述、选择解释和跨类型结果摘要，不为固定区域、问句或 GIS 页面增加专用分支。
 
 ## 当前阶段入口
 
-- 能力图：[`stages/M323/capability-map.md`](stages/M323/capability-map.md)
-- Spec：[`stages/M323/spec.md`](stages/M323/spec.md)
-- Plan：[`stages/M323/plan.md`](stages/M323/plan.md)
-- 交接：[`stages/M323/handoff.md`](stages/M323/handoff.md)
+- 当前阶段能力图：[`stages/M327/capability-map.md`](stages/M327/capability-map.md)
+- 当前阶段 Spec：[`stages/M327/spec.md`](stages/M327/spec.md)
+- 当前阶段 Plan：[`stages/M327/plan.md`](stages/M327/plan.md)
+- 当前阶段交接：[`stages/M327/handoff.md`](stages/M327/handoff.md)
 - 任务状态：[`../tasks/current-state.md`](../tasks/current-state.md)
 - 文档索引：[`document-index.json`](document-index.json)
-- 源码索引：[`code-index.json`](code-index.json)，职责覆盖：[`code-index-overrides.json`](code-index-overrides.json)
 
 ## 当前任务必要文件
 
-- `agent/tooling/proposal.py`
-- `agent/tooling/__init__.py`
-- `agent/tools.py`
-- `agent/runtime.py`
-- `agent/runtime_core/react_runtime.py`
-- `agent/sqlite_store.py`
-- `agent/application/http.py`
-- `tests/test_m323_tool_approval.py`（待创建）
-- `scripts/resume_context.ps1`
+- `docs/stages/M327/handoff.md`
+- `docs/stages/M327/spec.md`
+- `docs/stages/M327/plan.md`
+- `agent/capability_catalog.py`
+- `agent/application/catalog.py`
+- `agent/domain_contract.py`
+- `agent/result_contract.py`
+- `agent/result_completeness.py`
+- `agent/evidence/projection.py`
+- `tests/test_m326_result_completeness.py`
+- `docs/document-index.json`
 - `scripts/validate_document_index.ps1`
-- `scripts/archive_document_sections.ps1`
-- `scripts/build_code_index.py`
-- `scripts/validate_code_index.ps1`
 
 ## 最近验证
 
-- M322 Docker 契约：7/7
-- M318-M322 合并契约：43/43
-- Docker compileall、architecture strict、smoke、readiness 200 和 sidecar socket 验证通过
-- code-index 已覆盖 299 个源码文件（260 Python、39 JavaScript）；生成器、校验器和主题查询验证通过
-- 当前无阻塞；未调用真实模型，未保存 Prompt、模型原文、密钥或敏感数据
+- M326 Docker 阶段紧凑回归 `49/49`、Artifact/Provider 定向回归、compileall、architecture strict 和 readiness `200` 通过。
+- 真实 Docker/GIS：sync/async/polling/artifact/evidence/SSE/Last-Event-ID/restart 对照通过；真实数据仅一次性只读挂载。
+- 未保存 Prompt、模型原文、密钥或敏感数据。
 
 ## 恢复规则
 
-1. 先读取本文件、`document-index.json`、`tasks/current-state.md` 和当前阶段 `handoff.md`。
-2. 只按交接文件的“必要文件”读取源码、Spec 或 Plan；不读取完整历史。
+1. 先读取本文件、`document-index.json`、`tasks/current-state.md` 和 M327 handoff。
+2. 只按 M327 Plan 的当前批次读取明确列出的源码；不读取已完成阶段历史。
 3. 需要查历史时使用 `resume_context.ps1 -Topic ...`，需要归档时显式增加 `-IncludeHistory`。
-4. 每个子任务完成后更新 `tasks/current-state.md`、`tasks/task-progress.md` 和本快照。
+4. M323～M326 已完成；恢复时只读取本快照、M327 handoff/plan/spec 和明确源码。

@@ -20,7 +20,7 @@ REACT_ACTIONS = frozenset(
 REACT_VALIDATION_STATES = frozenset({"proposed", "accepted", "blocked", "completed"})
 REACT_SOURCES = frozenset({"model", "rule", "replay", "runtime"})
 REACT_RUN_STATES = frozenset(
-    {"finished", "clarification", "rejected", "blocked", "awaiting_approval"}
+    {"finished", "partial", "clarification", "rejected", "blocked", "awaiting_approval"}
 )
 _MAX_SUMMARY = 240
 _MAX_MESSAGE = 800

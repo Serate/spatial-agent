@@ -3,7 +3,8 @@
 The policy is the seam between capability discovery and execution.  A Domain
 Pack may contribute policy metadata, but callers only need this small,
 validated projection to decide whether a request uses a direct tool, a
-generated DAG, an explicit workflow, or the bounded ReAct loop.
+generated DAG, an explicit workflow, or the bounded ReAct loop. Open ReAct is
+a Runtime execution surface, not an automatically selected Domain workflow.
 """
 
 from __future__ import annotations
@@ -292,6 +293,7 @@ class ExecutionPolicyResolver:
         domain_policy: Mapping[str, Any] | None = None,
         requested_mode: str | None = None,
         requires_confirmation: bool = False,
+        open_react: bool = False,
     ) -> dict[str, Any]:
         """Build a bounded policy from trusted planning-side metadata."""
 
@@ -304,11 +306,18 @@ class ExecutionPolicyResolver:
         if _bool_value(
             domain_value.get("workflow_required")
             or domain_value.get("requires_workflow")
-        ) and not has_workflow and not domain_available:
+        ) and not has_workflow:
             raise ExecutionPolicyError(
                 "this Domain policy requires an explicit workflow",
                 code="execution_policy_workflow_required",
             )
+        # An open ReAct request is governed by the Runtime/Registry boundary.
+        # An automatically inferred Domain template is advisory here; only an
+        # explicitly selected workflow may narrow the action set.
+        open_react_mode = bool(open_react and not has_workflow)
+        if open_react_mode:
+            domain_value = {}
+            domain_available = False
 
         normalized_requested = _normalized_mode(requested_mode)
         if requested_mode is not None and normalized_requested is None:
@@ -358,6 +367,9 @@ class ExecutionPolicyResolver:
         if has_workflow:
             source = "explicit_workflow"
             reason_code = "explicit_workflow_selected"
+        elif open_react_mode:
+            source = "open_react"
+            reason_code = "open_react_policy_selected"
         elif domain_available:
             source = "domain_catalog"
             reason_code = "domain_policy_selected"
@@ -470,6 +482,7 @@ class ExecutionPolicyResolver:
         domain_policy: Mapping[str, Any] | None = None,
         requested_mode: str | None = None,
         requires_confirmation: bool = False,
+        open_react: bool = False,
     ) -> dict[str, Any]:
         """Resolve then validate a plan in one non-mutating operation."""
 
@@ -479,6 +492,7 @@ class ExecutionPolicyResolver:
             domain_policy=domain_policy,
             requested_mode=requested_mode,
             requires_confirmation=requires_confirmation,
+            open_react=open_react,
         )
         return self.validate_plan(plan, policy)
 

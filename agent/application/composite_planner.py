@@ -12,7 +12,7 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from agent.composite_contract import (
+from agent.application.composite_contract import (
     CompositeContractError,
     normalize_composite_request,
 )

@@ -6,7 +6,7 @@ from agent.answer_composer import AnswerComposer
 from agent.models import AgentRunResult, RunStatus, StepRun
 from agent.planner import RuleBasedPlanner
 from agent.runtime import AgentRuntime
-from agent.spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
+from domains.gis.adapters.spatial_backend import InMemorySpatialBackend, SpatialToolAdapter
 from agent.tools import ToolRegistry
 
 
@@ -38,7 +38,7 @@ class DataQualityContractTests(unittest.TestCase):
         self.assertTrue(all(item["usable_for"] == [] for item in result["datasets"]))
 
     def test_real_health_report_declares_operation_capabilities(self):
-        from agent.data_quality import DATASET_CAPABILITIES
+        from domains.gis.adapters.data_quality import DATASET_CAPABILITIES
 
         self.assertIn("get_zonal_slope_statistics", DATASET_CAPABILITIES["dem"])
         self.assertIn("get_zonal_land_use_distribution", DATASET_CAPABILITIES["land_use"])
@@ -111,8 +111,8 @@ class DataQualityContractTests(unittest.TestCase):
 @unittest.skipUnless(HAS_GIS_DATA, "requires generated Wuhan GIS data and GIS dependencies")
 class RealDataQualityTests(unittest.TestCase):
     def test_wuhan_catalog_reports_all_sources(self):
-        from agent.dataset_catalog import DatasetCatalog
-        from agent.data_quality import dataset_health_report
+        from domains.gis.adapters.dataset_catalog import DatasetCatalog
+        from domains.gis.adapters.data_quality import dataset_health_report
 
         catalog = DatasetCatalog.from_json(str(ROOT / "config" / "datasets.wuhan.local.example.json"))
         result = dataset_health_report(catalog, max_files=10)

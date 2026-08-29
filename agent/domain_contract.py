@@ -210,6 +210,17 @@ class DomainPack(Protocol):
         own declared workflow/capability contract.
         """
 
+    def validate_open_react_plan(self, plan: Any) -> None:
+        """Optionally validate safety rules for an open ReAct plan.
+
+        ``validate_plan`` remains the explicit workflow/template gate. An
+        open ReAct request deliberately does not inherit an automatic
+        template's step count or allowlist. Domain Packs with additional
+        non-template safety rules may implement this seam; the generic
+        Runtime still applies Registry/schema, permission, approval and data
+        gates.
+        """
+
     def plan_policy(
         self,
         plan: Any,
@@ -646,7 +657,7 @@ def runtime_evidence(domain_pack: DomainPack, *, max_files: int = 10) -> dict[st
             value = method(max_files=max_files)
     if not isinstance(value, Mapping):
         return {}
-    from .evidence_contract import attach_evidence_contract
+    from agent.evidence.contract import attach_evidence_contract
 
     return attach_evidence_contract(
         value,
@@ -692,7 +703,7 @@ def release_evidence(
             value = method(config_path=config_path, max_files=max_files)
     if not isinstance(value, Mapping):
         return {}
-    from .evidence_contract import attach_evidence_contract
+    from agent.evidence.contract import attach_evidence_contract
 
     return attach_evidence_contract(
         value,

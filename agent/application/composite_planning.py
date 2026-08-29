@@ -13,16 +13,16 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from agent.composite_contract import (
+from agent.application.composite_contract import (
     inherit_composite_runtime_selection,
     normalize_composite_request,
 )
-from agent.composite_request_context import (
+from agent.application.composite_request_context import (
     COMPOSITE_REQUEST_CONTEXT_MAX_BYTES,
     CompositeRequestContextBuilder,
     CompositeRequestContextError,
 )
-from agent.composite_planner import CompositePlannerError
+from agent.application.composite_planner import CompositePlannerError
 from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.failure_contract import build_failure_evidence
 from agent.planner_repair import (
@@ -30,10 +30,10 @@ from agent.planner_repair import (
     build_repair_lineage,
     is_repairable_planner_error,
 )
-from agent.provider_structured_output import project_structured_output_evidence
+from agent.integration.provider_structured_output import project_structured_output_evidence
 from agent.request_requirements import project_request_requirements
 from agent.data_readiness import project_data_readiness
-from agent.provider_runtime import (
+from agent.integration.provider_runtime import (
     build_planner_attempt_receipt,
     project_planner_attempt_receipt,
     project_provider_runtime_evidence,

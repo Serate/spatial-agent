@@ -205,7 +205,7 @@ def _action_event(
         normalize_action_transition_identity,
     )
     from .transition_evidence import normalize_transition_evidence
-    from .evidence_revalidation import normalize_evidence_revalidation
+    from agent.evidence.revalidation import normalize_evidence_revalidation
     from .action_precondition import (
         normalize_action_preconditions,
         project_action_preconditions,
@@ -286,7 +286,7 @@ def _normalize_action_linkage(value: Any) -> dict[str, Any]:
     from .action_identity import normalize_action_receipt_identity_linkage
     from .action_identity import normalize_action_transition_identity
     from .transition_evidence import normalize_transition_evidence
-    from .evidence_revalidation import normalize_evidence_revalidation
+    from agent.evidence.revalidation import normalize_evidence_revalidation
     from .action_precondition import normalize_action_preconditions
     from .action_lineage import normalize_action_lineage
     from .action_effect import normalize_action_effect

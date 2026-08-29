@@ -21,6 +21,7 @@ PLAN_POLICY_SOURCES = {
     "explicit_workflow",
     "domain_auto_match",
     "domain_catalog",
+    "open_react",
     "none",
 }
 _MAX_ITEMS = 24

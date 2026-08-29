@@ -15,7 +15,7 @@ from agent.scenario import (
     BuildabilityComparisonScenario,
     ConstrainedBuildabilityComparisonScenario,
 )
-from agent.service_format import (
+from agent.application.service_format import (
     analysis_ready_summary as _analysis_ready_summary,
     normalize_spatial_context as _normalize_spatial_context,
 )
