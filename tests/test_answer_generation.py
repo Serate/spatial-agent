@@ -77,6 +77,15 @@ class AnswerGenerationTests(unittest.TestCase):
         self.assertNotIn("coordinates", encoded)
         self.assertIn("valid_pixel_count", encoded)
 
+    def test_answer_context_distinguishes_finalization_from_running(self):
+        result = self._result()
+        result.status = RunStatus.EXECUTING
+        context = build_answer_context(result)
+        self.assertEqual(context["status"], "FINALIZING")
+        self.assertEqual(context["answer_phase"], "finalizing")
+        self.assertTrue(context["execution_complete"])
+        self.assertEqual(context["result_summary"]["completeness"]["state"], "complete")
+
     def test_llm_answer_is_structured_and_metrics_are_allowlisted(self):
         client = _Client({"answer": "结论：数据已准备好，适合继续查看。"})
         generated = LLMAnswerGenerator(client).generate(self._result())

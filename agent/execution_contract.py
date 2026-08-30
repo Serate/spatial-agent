@@ -54,12 +54,15 @@ def build_execution_record(
         planning = result.get("planning")
         if isinstance(planning, Mapping):
             domain_id = planning.get("domain_id")
+    request_mode = payload.get("request_mode")
+    request_mode = request_mode if isinstance(request_mode, Mapping) else {}
     return {
         "schema_version": EXECUTION_RECORD_SCHEMA_VERSION,
         "kind": normalized_kind,
         "id": str(identifier)[:128],
         "status": str(payload.get("status") or action_execution.get("status") or "UNKNOWN")[:32],
         "domain_id": str(domain_id or "unknown")[:80],
+        "request_mode": str(request_mode.get("mode") or "unknown")[:24],
         "result_type": str(result_type or "unknown")[:96],
         "duration_ms": duration,
         "trace_count": min(trace_count, 1000),
@@ -87,6 +90,7 @@ def execution_record_summary(record: Mapping[str, Any]) -> dict[str, Any]:
             "kind",
             "status",
             "domain_id",
+            "request_mode",
             "result_type",
             "trace_count",
             "artifact_available",

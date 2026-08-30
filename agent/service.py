@@ -6,7 +6,12 @@ from agent.persistence.artifact_store import ArtifactStore
 from agent.errors import ToolError
 from agent.models import RunStatus
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
-from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
+from agent.runtime_factory import (
+    build_general_runtime,
+    build_general_runtime_context_snapshot,
+    build_runtime,
+    build_runtime_context_snapshot,
+)
 from agent.domain_registry import DomainSelectionError, resolve_domain_id
 from agent.recovery_action import (
     project_legacy_interaction_receipt,
@@ -66,32 +71,47 @@ class AgentService:
         domain_pack: Any = None,
         domain_id: str = None,
         legacy_domain_id: str = None,
+        general: bool = False,
     ):
         self._artifact_store = artifact_store
         self._state_db_path = state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB")
         self._configured_domain_id = None
         self._configured_domain_pack = None
         self._resolved_domain_id = None
+        if general and (runtime_factory is not None or domain_pack is not None or domain_id is not None):
+            raise ValueError("general cannot be combined with runtime_factory, domain_pack, or domain_id")
         if runtime_factory is not None and (domain_pack is not None or domain_id is not None):
             raise ValueError("runtime_factory cannot be combined with domain_pack or domain_id")
         if domain_pack is not None and domain_id is not None:
             raise ValueError("domain_pack and domain_id are mutually exclusive")
-        if runtime_factory is not None:
+        if general:
+            # Product entrypoints use the domain-neutral factory while
+            # explicit AgentService callers retain the historical GIS
+            # default.  ``general`` is explicit here so compatibility
+            # services cannot silently change their persistence namespace.
+            self._configured_domain_id = "general"
+            self._runtime_factory = build_general_runtime
+            self._runtime_context_snapshot = build_general_runtime_context_snapshot
+        elif runtime_factory is not None:
             self._runtime_factory = runtime_factory
+            self._runtime_context_snapshot = build_runtime_context_snapshot
         elif domain_pack is not None:
             self._configured_domain_pack = domain_pack
             self._configured_domain_id = str(
                 getattr(domain_pack, "domain_id", "unknown")
             )[:80]
             self._runtime_factory = _bind_domain_pack(domain_pack)
+            self._runtime_context_snapshot = build_runtime_context_snapshot
         elif domain_id is not None:
             self._configured_domain_id = resolve_domain_id(domain_id)
             self._runtime_factory = _bind_domain_id(self._configured_domain_id)
+            self._runtime_context_snapshot = build_runtime_context_snapshot
         else:
             # Resolve once at the application boundary so all runtimes and
             # persistence reads in this service use one selected Domain.
             self._configured_domain_id = resolve_domain_id()
             self._runtime_factory = build_runtime
+            self._runtime_context_snapshot = build_runtime_context_snapshot
         self._resolved_domain_id = self._configured_domain_id
         selected_legacy_domain = str(
             legacy_domain_id or self._configured_domain_id or "gis"
@@ -118,8 +138,24 @@ class AgentService:
             configured_domain_id=self._configured_domain_id,
             configured_domain_pack=self._configured_domain_pack,
             resolved_domain_id=self._resolved_domain_id,
-            runtime_context_snapshot=lambda planner, backend, **kwargs: build_runtime_context_snapshot(
-                planner, backend, **kwargs
+            runtime_context_snapshot=(
+                lambda planner, backend, **kwargs: self._runtime_context_snapshot(
+                    planner,
+                    backend,
+                    **(
+                        {
+                            key: kwargs[key]
+                            for key in (
+                                "allowed_permissions",
+                                "approved_tools",
+                                "require_dependency_evidence",
+                            )
+                            if key in kwargs
+                        }
+                        if general
+                        else kwargs
+                    ),
+                )
             ),
         )
         self._run_recovery_application = RunRecoveryApplication(

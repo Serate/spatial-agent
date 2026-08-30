@@ -18,6 +18,8 @@ from .domain_contract import (
     rule_planner as resolve_rule_planner,
 )
 from .domain_registry import resolve_domain_pack
+from .general_capability_host import GeneralCapabilityHost
+from .general_runtime import GeneralRuntimePack
 from .answer_generation import LLMAnswerGenerator
 from .agent_settings import open_agent_defaults
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
@@ -122,6 +124,65 @@ def build_runtime(
         approved_tools=approved_tools,
         require_dependency_evidence=require_dependency_evidence,
         event_sink=event_sink,
+    )
+
+
+def build_general_runtime(
+    planner_name: str = "openai",
+    backend_name: str = "local",
+    *,
+    host: GeneralCapabilityHost | None = None,
+    domain_ids: Iterable[str] | None = None,
+    **kwargs: Any,
+) -> AgentRuntime:
+    """Build the open-request Runtime over all registered Domain Packs.
+
+    The explicit ``build_runtime(..., domain_id=...)`` path remains unchanged
+    for single-Domain compatibility.  This helper is the narrow factory seam
+    intended for the future default HTTP/CLI/Console entrypoints.
+    """
+
+    if "domain_id" in kwargs or "domain_pack" in kwargs:
+        raise ValueError("general runtime cannot be combined with an explicit Domain")
+    root = Path(__file__).resolve().parent.parent
+    selected_host = host or GeneralCapabilityHost(
+        backend_name=backend_name,
+        root=root,
+        domain_ids=domain_ids,
+    )
+    return build_runtime(
+        planner_name,
+        backend_name,
+        domain_pack=GeneralRuntimePack(selected_host),
+        **kwargs,
+    )
+
+
+def build_general_runtime_context_snapshot(
+    planner_name: str = "openai",
+    backend_name: str = "local",
+    *,
+    host: GeneralCapabilityHost | None = None,
+    domain_ids: Iterable[str] | None = None,
+    allowed_permissions: Optional[Iterable[str]] = None,
+    approved_tools: Optional[Iterable[str]] = None,
+    require_dependency_evidence: Optional[bool] = None,
+) -> dict:
+    """Build a submission-time context for the general Runtime."""
+
+    root = Path(__file__).resolve().parent.parent
+    selected_host = host or GeneralCapabilityHost(
+        backend_name=backend_name,
+        root=root,
+        domain_ids=domain_ids,
+    )
+    return build_runtime_context_snapshot(
+        planner_name,
+        backend_name,
+        domain_pack=GeneralRuntimePack(selected_host),
+        allowed_permissions=allowed_permissions,
+        approved_tools=approved_tools,
+        require_dependency_evidence=require_dependency_evidence,
     )
 
 

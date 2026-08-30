@@ -6,6 +6,7 @@ from agent.execution_contract import build_execution_record
 from agent.conversation_turn import normalize_conversation_turn
 from agent.runtime_context import normalize_runtime_context
 from agent.nested_schema import normalize_domain_routing_evidence_contract
+from agent.request_mode import normalize_request_mode
 
 
 class RunStatus(str, Enum):
@@ -66,6 +67,9 @@ class AgentRunResult:
     # Domain-neutral, bounded identity of how this input related to session
     # continuation.  Raw pending request text is never persisted here.
     conversation_turn: Optional[Dict[str, Any]] = None
+    # Versioned, domain-neutral classification of the actual request path.
+    # It is derived by Runtime after execution and is optional for old runs.
+    request_mode: Optional[Dict[str, Any]] = None
     # Stable Domain Pack identity used to isolate persistence and recovery.
     # Older synthetic fixtures may omit it; real Runtime runs populate it.
     domain_id: Optional[str] = None
@@ -171,6 +175,10 @@ class AgentRunResult:
             data["conversation_turn"] = normalize_conversation_turn(
                 data["conversation_turn"]
             )
+        if data.get("request_mode") is None:
+            data.pop("request_mode", None)
+        else:
+            data["request_mode"] = normalize_request_mode(data["request_mode"])
         if data.get("decision_evidence") is None:
             data.pop("decision_evidence", None)
         if data.get("evidence_registry") is None:

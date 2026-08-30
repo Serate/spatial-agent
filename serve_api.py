@@ -66,7 +66,11 @@ def _composite_answer_generator():
 
 domain_host = DomainRuntimeHost()
 domain_host.start()
-legacy_service = domain_host.service(resolve_domain_id())
+legacy_service = AgentService(
+    general=True,
+    legacy_domain_id=resolve_domain_id(),
+)
+legacy_service.start_reaper()
 domain_routing = DomainRoutingApplication(
     domain_host,
     state=routing_state_from_environment(),
@@ -879,6 +883,7 @@ class AgentApiHandler(BaseHTTPRequestHandler):
 def _close_default_service() -> None:
     """Release every Domain service owned by the development Host."""
     composite_application.close()
+    AgentApiHandler.service.close()
     AgentApiHandler.host.close()
 
 

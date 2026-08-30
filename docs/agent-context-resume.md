@@ -310,3 +310,14 @@
   或工具 source。
 - 复杂请求缺少具体指标、数据不可用或 Provider 字段漂移时保持结构化澄清/拒绝，不创建执行 Run；下一阶段从全局目标重新
   规划，不默认读取本阶段全量源码或模型输出。
+
+## M329：通用请求路由与跨域能力汇聚（已完成）
+
+- `GeneralCapabilityHost` 聚合 GIS、文本、指标、经济 Domain Pack，提供唯一工具 owner dispatch、preflight、结果 owner、
+  provider 局部降级和稳定上下文指纹；descriptor 的 availability 始终保持版本化对象契约。
+- `GeneralRuntimePack` 接入公共 Runtime；产品 `/runs`、preview、async、events、Artifact 和 CLI 默认使用 `general`，
+  显式 `/domains/{domain_id}` 保持隔离。默认真实模型使用 full ReAct，白名单 Web 和工具提案开启，提案仍需 sandbox + 人工审批。
+- Docker/真实模型验收覆盖直接回答、跨域经济工具链、Web 不可用降级、工具提案等待/审批同一 Run 恢复、SQLite/Artifact 重启、
+  多轮续问和 SSE Last-Event-ID；Docker 紧凑回归 18/18，答案定向回归 15/15，readiness 200、architecture/index 和前端 smoke 通过。
+- 答案生成上下文把内部 `EXECUTING` 明确投影为 `FINALIZING`，真实模型不再把已结束的工具执行描述成“仍在执行”。下一阶段为 M330，
+  聚焦开放问题质量与纵向行为验收；恢复默认只读取热状态、M330 handoff 和当前任务必要文件。

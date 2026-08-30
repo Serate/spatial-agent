@@ -5306,3 +5306,20 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - Docker 紧凑回归 `32/32`，readiness `200`，compileall、architecture strict、代码/文档索引和前端 smoke 通过。
 - 真实模型验收覆盖本地经济数据 + `web_search` 的 4 步链路、经济 + 区域指标的 2 组件 Composite，以及沙箱工具提案
   的审批恢复执行；SSE/Last-Event-ID 和答案流可用。
+
+## M329：通用请求路由与跨域能力汇聚（2026-08-30，已完成）
+
+- `GeneralCapabilityHost` 聚合四个 Domain Pack，统一提供工具 owner、dispatch、preflight、结果 owner、健康状态和局部降级；
+  `GeneralRuntimePack` 接入公共 Runtime，不携带 GIS 专用策略。
+- 产品 `/runs`、preview、async、events、Artifact 和 CLI 默认进入 `general`；显式 `/domains/{domain_id}` 保持 Domain 隔离。
+  默认真实模型使用 full ReAct，白名单 Web 搜索和受控工具提案开启，提案仍需 sandbox + 人工审批。
+- Docker/真实模型验收覆盖普通回答、跨域经济工具链、Web 网络不可用降级、工具提案审批同一 Run 恢复、SQLite/Artifact 重启、
+  多轮续问和 SSE `Last-Event-ID`；阶段回归 `18/18`，答案上下文回归 `15/15`，readiness `200`、架构/索引和前端 smoke 通过。
+- 修复答案生成期间内部 `EXECUTING` 状态误导模型的问题，真实复验不再输出“仍处于执行中”。下一阶段按全局目标规划 M330，
+  聚焦开放问题质量与通用 Agent 纵向行为，不引入 RAG 或固定专题分支。
+
+## M330：通用 Agent 开放问题质量与纵向行为验收（2026-08-30，已规划）
+
+- 已建立 `docs/stages/M330/{capability-map.md,spec.md,plan.md,handoff.md}`。
+- 目标：验证非数据普通问题、单域/跨域事实、白名单 Web、工具提案、澄清、降级、恢复、答案流和前端分层展示的完整行为链。
+- 约束：单 Agent、最大并发度 1；默认测试精简且使用 Docker，真实模型为显式验收；不读取或保存模型原文、Prompt、密钥和隐藏思维链。

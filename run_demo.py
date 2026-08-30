@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 
 from agent.persistence.artifact_store import ArtifactStore
 from agent.domain_registry import domain_registry
@@ -15,6 +16,12 @@ from agent.service import AgentService
 
 def parse_args():
     defaults = product_defaults()
+    configured_domain = str(os.environ.get("SPATIAL_AGENT_DOMAIN") or "").strip().lower()
+    domain_default = (
+        configured_domain
+        if configured_domain in domain_registry().ids()
+        else "general"
+    )
     parser = argparse.ArgumentParser(description="Run the spatial Agent Runtime demo.")
     parser.add_argument(
         "request",
@@ -35,9 +42,9 @@ def parse_args():
     )
     parser.add_argument(
         "--domain",
-        choices=(*domain_registry().ids(), "auto"),
-        default=None,
-        help="Registered Domain Pack or auto. Defaults to SPATIAL_AGENT_DOMAIN or GIS.",
+        choices=(*domain_registry().ids(), "general", "auto"),
+        default=domain_default,
+        help="Registered Domain Pack, general, or auto. Defaults to the general Runtime.",
     )
     parser.add_argument(
         "--session-id",
@@ -99,7 +106,8 @@ if __name__ == "__main__":
     else:
         service = AgentService(
             artifact_store=ArtifactStore(args.artifact_root),
-            domain_id=args.domain,
+            general=args.domain == "general",
+            domain_id=None if args.domain == "general" else args.domain,
         )
 
         def execute(user_request):

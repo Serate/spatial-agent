@@ -15,9 +15,9 @@
 
 | 指标 | 数值 |
 | --- | ---: |
-| `agent/` 源码文件 | 197 |
-| 全仓源码文件 | 328 |
-| 职责覆盖 | 197/197 |
+| `agent/` 源码文件 | 201 |
+| 全仓源码文件 | 333 |
+| 职责覆盖 | 201/201 |
 | 语义覆盖率 | 100.0% |
 
 ### 语义层分布
@@ -34,9 +34,9 @@
 | `integration` | 11 |
 | `observability` | 2 |
 | `persistence` | 15 |
-| `planner` | 30 |
+| `planner` | 31 |
 | `result` | 7 |
-| `runtime` | 48 |
+| `runtime` | 51 |
 | `tooling` | 9 |
 | `verification` | 3 |
 
@@ -44,7 +44,7 @@
 
 | 当前目录 | 文件数 | 主要语义层 |
 | --- | ---: | --- |
-| `agent/（根目录公共入口与契约）` | 110 | adapter (3), application (11), data (2), domain (11), evidence (7), frontend (1), integration (4), observability (2), persistence (7), planner (27), result (7), runtime (23), tooling (2), verification (3) |
+| `agent/（根目录公共入口与契约）` | 113 | adapter (3), application (11), data (2), domain (11), evidence (7), frontend (1), integration (4), observability (2), persistence (7), planner (28), result (7), runtime (25), tooling (2), verification (3) |
 | `agent/analysis/` | 5 | analysis (5) |
 | `agent/application/` | 25 | application (25) |
 | `agent/evidence/` | 7 | evidence (7) |
@@ -52,7 +52,7 @@
 | `agent/network/` | 2 | integration (2) |
 | `agent/persistence/` | 8 | persistence (8) |
 | `agent/react/` | 3 | planner (3) |
-| `agent/runtime_core/` | 25 | runtime (25) |
+| `agent/runtime_core/` | 26 | runtime (26) |
 | `agent/tooling/` | 7 | tooling (7) |
 
 ## 文件职责清单
@@ -113,6 +113,8 @@
 | `agent/execution_contract.py` | `runtime` | Domain-neutral execution identity and observability projection. | `public-boundary` | `M128-M325` | `path-rule` | 2 | — |
 | `agent/execution_timeline.py` | `runtime` | Domain-neutral, bounded execution timeline evidence. | `public-boundary` | `M128-M325` | `path-rule` | 3 | — |
 | `agent/failure_contract.py` | `runtime` | Stable, credential-free run-level failure evidence. | `public-boundary` | `M33-M325` | `path-rule` | 2 | — |
+| `agent/general_capability_host.py` | `runtime` | Domain-neutral capability and provider aggregation. | `internal` | `M1-M325` | `path-rule` | 18 | — |
+| `agent/general_runtime.py` | `runtime` | Domain-neutral Runtime adapter backed by :mod:`general_capability_host`. | `internal` | `M1-M325` | `path-rule` | 38 | — |
 | `agent/geojson_exporter.py` | `result` | 空间结果 GeoJSON 有界导出 | `public-boundary` | `M18-M325` | `path-rule` | 2 | — |
 | `agent/interaction_contract.py` | `application` | Versioned, domain-neutral contract for all user/runtime interactions. | `public-boundary` | `M164-M325` | `path-rule` | 11 | — |
 | `agent/interaction_host.py` | `application` | Stateful host for authoritative interaction inspection and invocation. | `public-boundary` | `M164-M325` | `path-rule` | 3 | — |
@@ -141,6 +143,7 @@
 | `agent/release_evidence.py` | `adapter` | Compatibility facade for the canonical GIS release evidence adapter. | `public-boundary` | `M76-M325` | `file-override` | 0 | — |
 | `agent/replanning.py` | `planner` | Adaptive replanning during execution. | `public-boundary` | `M80-M325` | `path-rule` | 10 | — |
 | `agent/request_identity.py` | `planner` | Build a stable, transport-neutral identity for a user request. | `public-boundary` | `M77-M325` | `path-rule` | 2 | — |
+| `agent/request_mode.py` | `planner` | Versioned, domain-neutral classification of one completed request. | `public-boundary` | `M77-M325` | `path-rule` | 2 | — |
 | `agent/request_model.py` | `planner` | Domain-neutral RequestFacts value object and legacy GIS parser facade. | `public-boundary` | `M77-M325` | `path-rule` | 5 | — |
 | `agent/request_requirements.py` | `planner` | Domain-neutral request-fact requirements and satisfaction semantics. | `public-boundary` | `M77-M325` | `path-rule` | 6 | — |
 | `agent/request_understanding.py` | `planner` | Generic, bounded guidance for domain-owned request understanding. | `public-boundary` | `M77-M325` | `path-rule` | 2 | — |
@@ -149,11 +152,11 @@
 | `agent/result_summary.py` | `result` | Domain-neutral, bounded summary projection for typed results. | `public-boundary` | `M46-M325` | `path-rule` | 3 | — |
 | `agent/rule_planning.py` | `planner` | Compatibility facade for the former GIS plan composer. | `internal` | `M7-M325` | `path-rule` | 3 | — |
 | `agent/run_events.py` | `runtime` | Versioned, bounded lifecycle events for realtime Agent consumers. | `public-boundary` | `M13-M325` | `path-rule` | 6 | — |
-| `agent/runtime.py` | `runtime` | AgentRuntime 门面与生命周期入口 | `public-boundary` | `M318-M325` | `file-override` | 24 | `tests/test_m320_react_runtime.py` |
+| `agent/runtime.py` | `runtime` | AgentRuntime 门面与生命周期入口 | `public-boundary` | `M318-M325` | `file-override` | 25 | `tests/test_m320_react_runtime.py` |
 | `agent/runtime_capabilities.py` | `adapter` | Compatibility facade for the canonical GIS runtime capability adapter. | `public-boundary` | `M59-M325` | `file-override` | 0 | — |
 | `agent/runtime_context.py` | `runtime` | Versioned, bounded configuration evidence for one Agent Runtime run. | `public-boundary` | `M1-M325` | `path-rule` | 5 | — |
 | `agent/runtime_defaults.py` | `runtime` | Product-facing defaults for the Agent Runtime. | `public-boundary` | `M1-M325` | `path-rule` | 3 | — |
-| `agent/runtime_factory.py` | `runtime` | Runtime factory shared by the CLI, HTTP services, evaluation, and tests. | `public-boundary` | `M1-M325` | `path-rule` | 2 | — |
+| `agent/runtime_factory.py` | `runtime` | Runtime factory shared by the CLI, HTTP services, evaluation, and tests. | `public-boundary` | `M1-M325` | `path-rule` | 4 | — |
 | `agent/runtime_state.py` | `runtime` | In-memory runtime state adapters. | `public-boundary` | `M1-M325` | `path-rule` | 17 | — |
 | `agent/scenario.py` | `verification` | Validated, transport-friendly spatial comparison scenarios. | `internal` | `M57-M325` | `path-rule` | 7 | — |
 | `agent/selection_interaction.py` | `application` | Domain-neutral interaction projection for workflow selection. | `public-boundary` | `M164-M325` | `path-rule` | 2 | — |
@@ -165,7 +168,7 @@
 | `agent/spatial_intent.py` | `domain` | Legacy compatibility facade for the GIS intent policy. | `internal` | `M3-M325` | `path-rule` | 3 | — |
 | `agent/sqlite_store.py` | `persistence` | Compatibility facade for canonical persistence SQLite stores. | `public-boundary` | `M313-M325` | `file-override` | 0 | `tests/test_m42_sqlite_store.py`<br>`tests/test_m320_react_runtime.py` |
 | `agent/tool_provider.py` | `tooling` | Pluggable sources of tool definitions and implementations. | `public-boundary` | `M92-M325` | `path-rule` | 22 | — |
-| `agent/tools.py` | `tooling` | ToolRegistry schema 校验与 dispatch | `public-boundary` | `M81-M325` | `file-override` | 23 | `tests/test_m320_react_runtime.py`<br>`tests/test_m322_tool_proposal.py` |
+| `agent/tools.py` | `tooling` | ToolRegistry schema 校验与 dispatch | `public-boundary` | `M81-M325` | `file-override` | 24 | `tests/test_m320_react_runtime.py`<br>`tests/test_m322_tool_proposal.py` |
 | `agent/trace_formatter.py` | `observability` | 执行轨迹格式化与可读投影 | `public-boundary` | `M13-M325` | `path-rule` | 1 | — |
 | `agent/transition_evidence.py` | `runtime` | Bounded data-evidence transition projection for recovery actions. | `public-boundary` | `M182-M325` | `path-rule` | 3 | — |
 | `agent/web_assets.py` | `frontend` | Canonical static asset seam for the Console HTTP adapters. | `public-boundary` | `M258-M325` | `path-rule` | 3 | — |
@@ -277,7 +280,7 @@
 | `agent/runtime_core/decision_resume.py` | `runtime` | Decision-approved Runtime resume lifecycle. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
 | `agent/runtime_core/execution.py` | `runtime` | Tool execution seam for the domain-neutral Runtime. | `public-boundary` | `M253-M325` | `path-rule` | 3 | — |
 | `agent/runtime_core/execution_binding.py` | `runtime` | Validated execution input for composed Domain runs. | `public-boundary` | `M253-M325` | `path-rule` | 7 | — |
-| `agent/runtime_core/execution_policy.py` | `runtime` | Domain-neutral execution-policy contract. | `public-boundary` | `M253-M325` | `path-rule` | 10 | — |
+| `agent/runtime_core/execution_policy.py` | `runtime` | Domain-neutral execution-policy contract. | `public-boundary` | `M253-M325` | `path-rule` | 11 | — |
 | `agent/runtime_core/plan_completeness.py` | `runtime` | Domain-neutral completeness checks for Composite planning. | `public-boundary` | `M253-M325` | `path-rule` | 4 | — |
 | `agent/runtime_core/plan_evidence.py` | `runtime` | Canonical plan evidence projection. | `public-boundary` | `M253-M325` | `path-rule` | 6 | — |
 | `agent/runtime_core/plan_receipt.py` | `runtime` | Safe receipts for plans that have crossed the execution gate. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
@@ -289,8 +292,9 @@
 | `agent/runtime_core/react_runtime.py` | `runtime` | Runtime bridge for bounded, one-action-at-a-time ReAct execution. | `public-boundary` | `M320` | `file-override` | 2 | `tests/test_m320_react_runtime.py`<br>`tests/test_m322_tool_proposal.py` |
 | `agent/runtime_core/recovery.py` | `runtime` | Runtime cancel and retry recovery seam. | `public-boundary` | `M253-M325` | `path-rule` | 3 | — |
 | `agent/runtime_core/request_fact_readiness.py` | `runtime` | Bounded, domain-neutral readiness for Planner-facing request facts. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
-| `agent/runtime_core/run_lifecycle.py` | `runtime` | Synchronous Runtime run lifecycle behind a small compatibility seam. | `public-boundary` | `M307` | `file-override` | 2 | `tests/test_m320_react_runtime.py` |
+| `agent/runtime_core/run_lifecycle.py` | `runtime` | Synchronous Runtime run lifecycle behind a small compatibility seam. | `public-boundary` | `M307` | `file-override` | 3 | `tests/test_m320_react_runtime.py` |
 | `agent/runtime_core/selection_evidence.py` | `runtime` | Bounded evidence for capability selection and clarification outcomes. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
+| `agent/runtime_core/tool_approval_resume.py` | `runtime` | Approval-bound continuation for ReAct tool proposals. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
 
 ### `agent/tooling/`
 

@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
-  "updated": "2026-08-29",
-  "active_stage": "M328",
+  "updated": "2026-08-30",
+  "active_stage": "M330",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -11,7 +11,7 @@
       "docs/agent-work-state.md",
       "docs/document-index.json",
       "tasks/current-state.md",
-      "docs/stages/M327/handoff.md"
+      "docs/stages/M330/handoff.md"
     ],
     "never_default": [
       "docs/archive/",
@@ -64,8 +64,82 @@
   ],
   "stage_packages": [
     {
-      "id": "M328",
+      "id": "M330",
       "status": "in_progress",
+      "root": "docs/stages/M330",
+      "capability_map": "docs/stages/M330/capability-map.md",
+      "spec": "docs/stages/M330/spec.md",
+      "plan": "docs/stages/M330/plan.md",
+      "handoff": "docs/stages/M330/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M330/handoff.md"
+      ],
+      "source_files": [
+        "agent/general_runtime.py",
+        "agent/general_capability_host.py",
+        "agent/runtime_core/react_runtime.py",
+        "agent/llm_planner.py",
+        "agent/answer_generation.py",
+        "agent/result_summary.py",
+        "agent/run_events.py",
+        "agent/application/http.py",
+        "agent/service.py",
+        "production_api.py",
+        "serve_api.py",
+        "run_demo.py",
+        "web/src/console_result_projection.js"
+      ],
+      "verify": [
+        "M330 compact contract tests",
+        "M328 ReAct/Web/proposal regression",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains",
+        "health/ready",
+        "Docker real-model acceptance"
+      ]
+    },
+    {
+      "id": "M329",
+      "status": "complete",
+      "root": "docs/stages/M329",
+      "capability_map": "docs/stages/M329/capability-map.md",
+      "spec": "docs/stages/M329/spec.md",
+      "plan": "docs/stages/M329/plan.md",
+      "handoff": "docs/stages/M329/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M329/handoff.md"
+      ],
+      "source_files": [
+        "agent/general_capability_host.py",
+        "agent/general_runtime.py",
+        "agent/request_mode.py",
+        "agent/runtime_factory.py",
+        "agent/service.py",
+        "agent/application/http.py",
+        "production_api.py",
+        "serve_api.py",
+        "run_demo.py",
+        "tests/test_m329_capability_host.py",
+        "tests/test_m329_general_route.py"
+      ],
+      "verify": [
+        "tests/test_m329_capability_host.py",
+        "tests/test_m329_general_route.py",
+        "tests/test_m328_web_evidence.py",
+        "tests/test_m328_tool_approval_resume.py",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains",
+        "health/ready",
+        "Docker real-model/general HTTP acceptance"
+      ]
+    },
+    {
+      "id": "M328",
+      "status": "complete",
       "root": "docs/stages/M328",
       "capability_map": "docs/stages/M328/capability-map.md",
       "spec": "docs/stages/M328/spec.md",
@@ -102,7 +176,7 @@
     },
     {
       "id": "M327",
-      "status": "in_progress",
+      "status": "complete",
       "root": "docs/stages/M327",
       "capability_map": "docs/stages/M327/capability-map.md",
       "spec": "docs/stages/M327/spec.md",

@@ -314,13 +314,31 @@ def build_answer_context(result: Any) -> dict[str, Any]:
         steps.append(item)
 
     result_payload = _result_payload_for_summary(result, plan=plan, steps=steps)
+    execution_status = _safe_text(
+        getattr(
+            getattr(result, "status", None),
+            "value",
+            getattr(result, "status", ""),
+        ),
+        32,
+    )
+    # ``run_lifecycle`` marks a run EXECUTING while it emits answer deltas.
+    # Tool execution has already ended at this point, so exposing that raw
+    # lifecycle status to the answer model can produce the false user-facing
+    # claim that the analysis is still running.  Keep the durable result
+    # contract untouched and project an explicit finalization state instead.
+    answer_finalizing = execution_status == "EXECUTING"
+    if answer_finalizing:
+        result_payload["status"] = "COMPLETED"
 
     packet: dict[str, Any] = {
         "schema_version": ANSWER_GENERATION_SCHEMA_VERSION,
         "request": _safe_text(getattr(result, "request", ""), _MAX_REQUEST_CHARS),
         "goal": _safe_text(getattr(plan, "goal", "") if plan else "", 400),
         "result_type": _safe_text(output.get("type"), 96),
-        "status": _safe_text(getattr(getattr(result, "status", None), "value", getattr(result, "status", "")), 32),
+        "status": "FINALIZING" if answer_finalizing else execution_status,
+        "answer_phase": "finalizing" if answer_finalizing else "complete",
+        "execution_complete": answer_finalizing or execution_status == "COMPLETED",
         "completeness": build_result_completeness(result_payload),
         "assumptions": [
             _safe_text(item, 200)
@@ -408,7 +426,8 @@ class LLMAnswerGenerator:
                     "result_ref、memory:// 和 JSON 字段都要翻译成自然中文。若数据不完整，明确说明影响。"
                     "优先依据 result_summary 的结论、关键发现、限制和 evidence 组织答案；facts 只用于必要的技术细节。"
                     "若 completeness.state 为 partial、blocked 或 waiting_decision，必须区分已完成内容与未完成范围，"
-                    "不得声称全部分析已完成。"
+                    "不得声称全部分析已完成。若 answer_phase 为 finalizing 或 execution_complete 为 true，说明工具执行已经结束，"
+                    "只能总结已得到的结果，不得说分析仍在执行。"
                     "只返回一个 JSON 对象，且只能有 answer 字段；answer 必须是 6000 字符以内的非空字符串。"
                 ),
             },
@@ -458,7 +477,8 @@ class LLMAnswerGenerator:
                     "你是面向普通用户的分析结果解读助手。只根据可信事实，用自然中文输出简洁答案；"
                     "不要输出 JSON、工具名、内部引用、Prompt、隐藏思维过程或未经事实支持的结论。"
                     "优先根据 result_summary 的结论、关键发现、限制和证据来源回答，技术 facts 只作必要补充；"
-                    "数据不完整时明确说明影响。答案不超过 6000 字。"
+                    "数据不完整时明确说明影响。若 answer_phase 为 finalizing 或 execution_complete 为 true，说明工具执行已经结束，"
+                    "不要告诉用户分析仍在执行。答案不超过 6000 字。"
                 ),
             },
             {

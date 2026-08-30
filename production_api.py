@@ -80,7 +80,10 @@ class UTF8JSONResponse(JSONResponse):
 host = DomainRuntimeHost()
 host.start()
 LEGACY_DOMAIN_ID = resolve_domain_id()
-service = host.service(LEGACY_DOMAIN_ID)
+# Plain product routes are domain-neutral.  Explicit ``/domains/{id}`` routes
+# continue to use the isolated services owned by ``DomainRuntimeHost``.
+service = AgentService(general=True, legacy_domain_id=LEGACY_DOMAIN_ID)
+service.start_reaper()
 domain_routing = DomainRoutingApplication(
     host,
     state=routing_state_from_environment(),
@@ -132,6 +135,7 @@ def _close_host() -> None:
     and the direct-import atexit fallback can safely share this hook.
     """
     composite_application.close()
+    service.close()
     host.close()
 
 

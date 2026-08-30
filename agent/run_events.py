@@ -95,6 +95,10 @@ RUN_EVENT_DATA_FIELDS = frozenset(
         "action_count",
         "max_actions",
         "max_turns",
+        "request_mode",
+        "request_mode_reason",
+        "tool_count",
+        "execution_started",
     }
 )
 

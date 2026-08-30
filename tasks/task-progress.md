@@ -454,3 +454,82 @@
   `plan_component_field_invalid`，均未创建执行 Run。
 - 安全边界：只记录脱敏状态、动作/事件计数、reason code、结果完整性、SSE 续传和答案流计数；不保存密钥、Prompt、
   模型原文、网页正文、工具 source 或私有路径。
+
+### M329-0：阶段初始化与恢复入口收敛 — 已完成
+
+- 目标：建立通用请求路由与跨域能力汇聚阶段的 capability map、Spec、Plan、handoff，并把热恢复入口切换到 M329。
+- 实现：新增 `docs/stages/M329/{capability-map.md,spec.md,plan.md,handoff.md}`；精简并更新
+  `docs/agent-work-state.md`、`tasks/current-state.md`、`tasks/plan.md` 和 `tasks/todo.md`。
+- 约束：单 Agent、最大并发度 1；默认恢复只读热状态、当前阶段 handoff 和必要源码；不读取模型原文、Prompt、密钥或完整历史。
+- 验证：`81e79ab` 基线干净；文档文件已创建，代码尚未修改，M329-A 进入执行队列。
+- 下一步：实现 `spatial-agent.request-mode.v1`，接入 Result、SQLite/artifact、execution record 和终态事件。
+
+### M329-A：Request Mode 契约 — 已完成
+
+- 目标：用统一、领域中立的模式描述直接回答、工具执行、混合回答和澄清，避免新增模型分类调用。
+- 实现：新增 `agent/request_mode.py`；`AgentRunResult`、SQLite 恢复、execution record 和终态 RunEvent 接入
+  `spatial-agent.request-mode.v1`，仅公开模式、原因、工具计数和执行是否开始。
+- 兼容：旧快照没有 `request_mode` 时仍可恢复；非法可选字段归一化为安全的 answer 投影。
+- 验证：Docker `tests.test_m329_general_route` 共 `4/4` 通过。
+- 下一步：M329-B 聚合已注册 Domain Pack 的 capability/provider，并实现 owner dispatch 和局部不可用降级。
+
+### M329-B：通用 Capability Host — 已完成
+
+- 目标：把已登记 Domain Pack 的 capability、provider、权限、健康状态和结果类型汇聚到一个领域中立 Host，
+  为通用 Runtime 提供唯一 ToolProvider seam。
+- 实现：新增 `agent/general_capability_host.py`；`GeneralCapabilityHost` 提供有界聚合 catalog、唯一 tool owner map、
+  ToolRegistry-compatible `definitions/invoke`、Domain-owned `preflight_tool` 转发、结果导出 owner 记录和稳定 context fingerprint。
+- 降级：provider 初始化或健康异常只标记对应 Domain 为 `degraded/unavailable`；不影响其他 provider 或无工具直接回答。
+- 安全：能力 ID、工具名、实际结果类型重复跨 Domain 时 fail-closed；未被能力/工作流/工具输出引用的旧兼容结果条目不进入
+  公共结果平面，避免遗留元数据制造假冲突；没有动态重命名、反射 dispatch 或敏感错误传播。
+- 验证：Docker 重建后 `tests.test_m329_capability_host` 与 `tests.test_m329_general_route` 共 `8/8`；四个内置 Domain Pack
+  聚合为 `22` 个工具、`32` 个能力、`31` 个实际结果类型并报告 `ready`；ToolRegistry 实际调用文本与经济 provider 成功。
+- 下一步：M329-C 构建通用 Runtime Pack/Factory，接入默认 `/runs`、CLI 和前端，同时保留显式 Domain Runtime 隔离。
+
+### M329-C-1：通用 Runtime Pack/Factory — 已完成
+
+- 目标：把 `GeneralCapabilityHost` 接入现有 Runtime 生命周期，提供领域中立的请求事实合并、能力发现、结果注册和 fallback。
+- 实现：新增 `agent/general_runtime.py` 的 `GeneralRuntimePack`、`GeneralResultRegistry`、`GeneralAnswerComposer` 和诚实的
+  离线规则 Planner；新增 `build_general_runtime` 与提交时上下文快照 factory。
+- 兼容：显式 `build_runtime(..., domain_id=...)` 不变；通用 Runtime 使用 `general` 身份和 Host provider，结果 View/来源仍按
+  唯一结果 owner 转发；不在公共 Runtime 代码引入 GIS 专用策略。
+- 验证：Docker 重建后 Host/Request Mode/General Runtime 紧凑回归 `9/9`；通用规则 Runtime 完成 direct-answer，聚合 Host
+  使用 `23` 个工具并报告 `32` 个能力、`ready` 健康状态。
+- 下一步：M329-C-2 验证通用 Runtime 的真实模型 full ReAct、Web 搜索、工具提案和领域中立降级。
+
+### M329-C-2：真实模型与开放行动默认配置 — 已完成
+
+- 实现：默认 Agent 设置保持 `full ReAct`、白名单 Web 搜索和工具提案开启；提案仍由 Docker sandbox 校验并等待人工审批，
+  不自动注册或执行。修复 Host provider 不可用时 descriptor `availability` 的契约形状，并为 Host 增加公开 backend 属性。
+- 真实验收：DeepSeek + Docker 普通通用问题 `COMPLETED`；跨域经济请求实际调用 `economic_list_indicators` 与
+  `economic_indicator_query`；白名单 Web 请求实际调用 `web_search` 并在网络不可用时返回
+  `document_evidence/unavailable/search_network_error`；新工具请求进入 `WAITING_FOR_DECISION`，审批状态为 pending。
+- 验证：Docker 重建成功，M329 紧凑回归 `10/10`；未保存密钥、Prompt、模型原文、网页正文或工具 source。
+- 下一步：M329-D 将产品 HTTP、CLI 和前端默认切换到 `general` Runtime，同时保留显式 Domain 入口。
+
+### M329-D：通用 Runtime 产品入口 — 已完成
+
+- 实现：`AgentService(general=True)` 使用通用 Runtime factory 和通用提交上下文；production FastAPI、stdlib `serve_api.py`
+  默认服务改为 general，CLI `--domain` 默认加入并选择 general。显式 `/domains/{domain_id}` 和 `--domain gis/text/...`
+  仍走原 Domain Runtime。
+- 验证：Docker `/capabilities` 返回 `general` 与 32 个能力；`/runs`、`/runs/preview`、`/runs/async`、`/runs/{id}`、
+  `/runs/{id}/events` 和 Artifact 均完成通用身份/契约验证；`/domains/text/runs` 仍返回 `text`。Docker 端 M329 回归 `10/10`。
+- 下一步：进入 M329-E，验证 SQLite/Artifact 重启恢复、多轮会话、SSE/Last-Event-ID 和审批恢复，再进行阶段收口。
+
+### M329-E/F：恢复验收与阶段交付 — 已完成
+
+- 验收：临时 SQLite + Artifact 重启后同一 Run、`general` 身份、结果摘要和事件可恢复；重启后的同一会话可继续运行，
+  会话 Run 数保持一致。HTTP SSE 使用 `Last-Event-ID=6` 时只回放 7–13 号事件并包含终态。
+- 验收：真实 HTTP 通用 Runtime 提案先返回 `WAITING_FOR_DECISION`，审批后沿同一 `run_id` 恢复并 `COMPLETED`；没有自动发布，
+  既有显式 Domain proposal resume 回归继续通过。
+- 阶段门禁：Docker M329/M328 相关紧凑回归 `18/18`，答案生成定向回归 `15/15`；compileall、architecture strict、readiness
+  `200`、code-index `333/333` 且语义覆盖 `100%`、document-index 和 Console projection smoke 均通过。
+- 质量修复：答案生成上下文把内部 `EXECUTING` 明确投影为 `FINALIZING`，真实模型复验不再输出“仍处于执行中”。
+- 交付：M329 全部任务完成，下一阶段从全局目标重新规划 M330；不默认读取 M327/M328 完整历史、模型原文、Prompt、密钥或
+  全量测试。
+### M330-A：通用直接回答场景矩阵 — 进行中
+
+- 开始：已将热状态、当前阶段交接和必要源码入口切换到 M330-A；本子任务不增加固定问句路由。
+- 当前动作：固定非 GIS/经济的概念解释、比较、总结、写作和简单计算场景，验证公共 `general` Runtime 的 direct-answer、
+  `request_mode=answer`、无工具步骤和领域中立降级契约。
+- 下一步：补充场景矩阵文档与紧凑契约测试；完成后再做一次显式真实模型验收。

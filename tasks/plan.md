@@ -1,4 +1,4 @@
-# 当前总计划：M318-M326 受控开放 Agent Runtime
+# 当前总计划：通用 Agent Runtime 与开放请求能力
 
 > 本文件只保留当前总计划，不保存已完成阶段的详细过程。历史版本见
 > `docs/archive/task-plans/plan-history.md`；阶段细节见 `docs/stages/` 或文档索引。
@@ -19,7 +19,10 @@
 7. [x] M324：approved 工具重启再绑定、治理投影和 Console 可见化。
 8. [x] M325：Docker、真实模型、GIS、白名单搜索和 ReAct 纵向验收与版本交付。
 9. [x] M326：开放式 ReAct 多步稳定性、部分结果表达与跨入口一致性交付。
-10. [ ] M327：开放请求能力发现、选择解释与跨类型结果质量。
+10. [x] M327：开放请求能力发现、选择解释与跨类型结果质量。
+11. [x] M328：受控开放行动、Web evidence、工具提案审批恢复与真实验收。
+12. [x] M329：通用请求路由与跨域能力汇聚。
+13. [ ] M330：通用 Agent 开放问题质量与纵向行为验收。
 
 ## 阶段循环
 
@@ -28,12 +31,11 @@
 阶段任务应覆盖完整能力链；测试按独立失败模式合并，默认只运行受影响的紧凑测试、必要 smoke
 和阶段验收。真实模型、真实 GIS、网络和 Docker 只走显式验收路径，不进入默认离线 CI。
 
-## 当前阶段：M327（规划完成）
+## 当前阶段：M330（规划中）
 
-M326 已在真实模型、Docker/GIS、白名单搜索、SSE、artifact、轮询和重启恢复上完成最小纵向验收，
-并完成开放 ReAct 增量动作、部分结果和 Artifact 原子发布收口。M327 从产品、Runtime、Domain、
-数据、模型、部署、体验和测试七个维度补齐通用能力描述、选择解释和跨类型结果摘要；详细文件见
-`docs/stages/M327/`。
+M329 已完成通用入口和跨域能力汇聚：产品默认进入 general Runtime，真实模型可直接回答、调用跨域工具、受控搜索和
+提交工具提案，并在 SQLite/Artifact/SSE/审批恢复链路中保持统一身份。M330 从全局目标验证开放问题的可用率、答案质量、
+能力发现和失败恢复，不把工作退化为单一数据集适配；详细文件见 `docs/stages/M330/`。
 
 ## 文档入口
 
@@ -42,4 +44,4 @@ M326 已在真实模型、Docker/GIS、白名单搜索、SSE、artifact、轮询
 - 源码索引：`docs/code-index.json` 和 `docs/code-index-overrides.json`
 - 当前状态：`tasks/current-state.md`
 - 历史账本：`tasks/task-progress.md`
-- 当前阶段包：`docs/stages/M327/`
+- 当前阶段包：`docs/stages/M330/`

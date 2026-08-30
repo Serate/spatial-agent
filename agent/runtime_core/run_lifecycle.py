@@ -932,6 +932,9 @@ class RuntimeRunLifecycle:
 
         runtime = self._runtime
         result = self._result(context)
+        from ..request_mode import derive_request_mode
+
+        result.request_mode = derive_request_mode(result)
         if result.planner_metrics is None:
             result.planner_metrics = runtime._planner_metrics()
         runtime._emit_progress_event(
@@ -978,6 +981,10 @@ class RuntimeRunLifecycle:
                 "stage_index": 7,
                 "stage_count": _LIFECYCLE_STAGE_COUNT,
                 "completeness": build_result_completeness(result.to_dict()),
+                "request_mode": result.request_mode["mode"],
+                "request_mode_reason": result.request_mode["reason_code"],
+                "tool_count": result.request_mode["tool_count"],
+                "execution_started": result.request_mode["execution_started"],
             },
             terminal=terminal,
         )

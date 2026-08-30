@@ -19,6 +19,7 @@ from ..execution_timeline import normalize_execution_timeline
 from ..nested_schema import normalize_domain_routing_evidence_contract
 from ..interaction_contract import InteractionContractError
 from ..run_events import normalize_run_event, validate_event_cursor, validate_event_limit
+from ..request_mode import normalize_request_mode
 
 
 _ASYNC_JOB_SELECT = """
@@ -1820,6 +1821,11 @@ def _result_from_dict(
         conversation_turn=(
             normalize_conversation_turn(payload.get("conversation_turn"))
             if payload.get("conversation_turn") is not None
+            else None
+        ),
+        request_mode=(
+            normalize_request_mode(payload.get("request_mode"))
+            if payload.get("request_mode") is not None
             else None
         ),
         # Older snapshots omitted domain_id. The adapter's configured legacy
