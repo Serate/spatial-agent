@@ -758,6 +758,10 @@ class RuntimeRunLifecycle:
                     step,
                     context.completed,
                     context.completed_results,
+                    result_projector=lambda tool, value: runtime._project_transient_tool_result(
+                        result, tool, value
+                    ),
+                    source_request=context.resolved_request,
                 )
                 context.completed.add(step.id)
                 if step_run.result is not None:

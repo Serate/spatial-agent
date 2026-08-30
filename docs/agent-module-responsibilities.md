@@ -15,9 +15,9 @@
 
 | 指标 | 数值 |
 | --- | ---: |
-| `agent/` 源码文件 | 203 |
-| 全仓源码文件 | 335 |
-| 职责覆盖 | 203/203 |
+| `agent/` 源码文件 | 207 |
+| 全仓源码文件 | 339 |
+| 职责覆盖 | 207/207 |
 | 语义覆盖率 | 100.0% |
 
 ### 语义层分布
@@ -31,12 +31,12 @@
 | `domain` | 11 |
 | `evidence` | 14 |
 | `frontend` | 1 |
-| `integration` | 12 |
+| `integration` | 14 |
 | `observability` | 2 |
 | `persistence` | 15 |
 | `planner` | 31 |
 | `result` | 8 |
-| `runtime` | 51 |
+| `runtime` | 53 |
 | `tooling` | 9 |
 | `verification` | 3 |
 
@@ -49,10 +49,10 @@
 | `agent/application/` | 25 | application (25) |
 | `agent/evidence/` | 7 | evidence (7) |
 | `agent/integration/` | 6 | integration (6) |
-| `agent/network/` | 2 | integration (2) |
+| `agent/network/` | 4 | integration (4) |
 | `agent/persistence/` | 8 | persistence (8) |
 | `agent/react/` | 3 | planner (3) |
-| `agent/runtime_core/` | 26 | runtime (26) |
+| `agent/runtime_core/` | 28 | runtime (28) |
 | `agent/tooling/` | 7 | tooling (7) |
 
 ## 文件职责清单
@@ -212,7 +212,7 @@
 | `agent/application/service_async.py` | `application` | Async job lifecycle helpers shared by the service facade and entry points. | `public-boundary` | `M68-M325` | `file-override` | 18 | `tests/test_m146_async_view_evidence.py`<br>`tests/test_m78_service_split.py` |
 | `agent/application/service_format.py` | `application` | Result formatting, geometry evidence, and request normalization helpers. | `public-boundary` | `M68-M325` | `file-override` | 11 | `tests/test_m78_service_split.py`<br>`tests/test_m128_execution_contract.py` |
 | `agent/application/service_sessions.py` | `application` | Session identity helpers shared by the service facade. | `public-boundary` | `M68-M325` | `file-override` | 6 | `tests/test_m78_service_split.py`<br>`tests/test_m79_reaper.py` |
-| `agent/application/service_state.py` | `application` | Converged mutable state for AgentService. | `public-boundary` | `M78-M325` | `file-override` | 46 | `tests/test_m79_reaper.py` |
+| `agent/application/service_state.py` | `application` | Converged mutable state for AgentService. | `public-boundary` | `M78-M325` | `file-override` | 47 | `tests/test_m79_reaper.py` |
 | `agent/application/sessions.py` | `application` | Session catalog and lifecycle application use case. | `public-boundary` | `M254-M325` | `path-rule` | 6 | — |
 | `agent/application/submission.py` | `application` | Canonical run and preview submission application. | `public-boundary` | `M254-M325` | `path-rule` | 3 | — |
 
@@ -243,8 +243,10 @@
 
 | 文件 | 层 | 职责 | 稳定性 | 阶段 | 来源 | 导出 | 验证入口 |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
-| `agent/network/__init__.py` | `integration` | Network capabilities kept behind explicit, server-owned policy seams. | `public-boundary` | `M321-M325` | `path-rule` | 0 | — |
-| `agent/network/web_search.py` | `integration` | Bounded public-web search adapter. | `public-boundary` | `M321-M325` | `path-rule` | 8 | — |
+| `agent/network/__init__.py` | `integration` | Network capabilities kept behind explicit, server-owned policy seams. | `public-boundary` | `M321-M333` | `path-rule` | 0 | — |
+| `agent/network/web_fetch.py` | `integration` | Bounded HTML fetching behind the shared public-web policy. | `public-boundary` | `M321-M333` | `path-rule` | 7 | — |
+| `agent/network/web_policy.py` | `integration` | Server-owned policy for bounded public web access. | `public-boundary` | `M321-M333` | `path-rule` | 10 | — |
+| `agent/network/web_search.py` | `integration` | Bounded public-web search adapter. | `public-boundary` | `M321-M333` | `path-rule` | 8 | — |
 
 ### `agent/persistence/`
 
@@ -290,10 +292,12 @@
 | `agent/runtime_core/planning.py` | `runtime` | Domain-neutral planning helpers behind the Runtime planning seam. | `public-boundary` | `M253-M325` | `path-rule` | 3 | — |
 | `agent/runtime_core/planning_surface.py` | `runtime` | Runtime planning and replanning surface. | `public-boundary` | `M253-M325` | `path-rule` | 11 | — |
 | `agent/runtime_core/preview.py` | `runtime` | Planning-only Runtime preview seam. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
+| `agent/runtime_core/progress.py` | `runtime` | Real-time progress coordination for one Runtime Run. | `public-boundary` | `M253-M325` | `path-rule` | 11 | — |
 | `agent/runtime_core/projection.py` | `runtime` | Pure Runtime projections used by planning and lifecycle orchestration. | `public-boundary` | `M253-M325` | `path-rule` | 16 | — |
 | `agent/runtime_core/react_runtime.py` | `runtime` | Runtime bridge for bounded, one-action-at-a-time ReAct execution. | `public-boundary` | `M320` | `file-override` | 2 | `tests/test_m320_react_runtime.py`<br>`tests/test_m322_tool_proposal.py` |
 | `agent/runtime_core/recovery.py` | `runtime` | Runtime cancel and retry recovery seam. | `public-boundary` | `M253-M325` | `path-rule` | 3 | — |
 | `agent/runtime_core/request_fact_readiness.py` | `runtime` | Bounded, domain-neutral readiness for Planner-facing request facts. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
+| `agent/runtime_core/run_budget.py` | `runtime` | Domain-neutral wall-clock budgets for one Agent Run. | `public-boundary` | `M253-M325` | `path-rule` | 20 | — |
 | `agent/runtime_core/run_lifecycle.py` | `runtime` | Synchronous Runtime run lifecycle behind a small compatibility seam. | `public-boundary` | `M307` | `file-override` | 3 | `tests/test_m320_react_runtime.py` |
 | `agent/runtime_core/selection_evidence.py` | `runtime` | Bounded evidence for capability selection and clarification outcomes. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
 | `agent/runtime_core/tool_approval_resume.py` | `runtime` | Approval-bound continuation for ReAct tool proposals. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |

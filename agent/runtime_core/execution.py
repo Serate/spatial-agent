@@ -26,6 +26,7 @@ class StepExecutionHooks:
     control_check: Callable[[str, Any], None]
     emit_step: Callable[[str, StepRun], None]
     now: Callable[[], str]
+    project_result: Callable[[str, Dict[str, Any]], Dict[str, Any]] | None = None
 
 
 def execute_step(
@@ -70,10 +71,15 @@ def execute_step(
                     raise RunTimedOut("run exceeded timeout_seconds")
                 if tool_timeout is not None:
                     tool_timeout = min(float(tool_timeout), remaining)
-            step_run.result = hooks.registry.invoke(
+            raw_result = hooks.registry.invoke(
                 step.tool,
                 resolved_args,
                 timeout_seconds=tool_timeout,
+            )
+            step_run.result = (
+                hooks.project_result(step.tool, raw_result)
+                if callable(hooks.project_result)
+                else raw_result
             )
             step_run.status = "COMPLETED"
             step_run.finished_at = hooks.now()

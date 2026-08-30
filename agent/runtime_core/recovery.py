@@ -95,7 +95,18 @@ class RuntimeRecoverySurface:
                 step = result.plan.steps[index]
                 try:
                     runtime._check_control(run_id, None)
-                    runtime._execute_step(run_id, None, step_run, step, completed, completed_results)
+                    runtime._execute_step(
+                        run_id,
+                        None,
+                        step_run,
+                        step,
+                        completed,
+                        completed_results,
+                        result_projector=lambda tool, value: runtime._project_transient_tool_result(
+                            result, tool, value
+                        ),
+                        source_request=result.resolved_request or result.request,
+                    )
                 except RunCancelled as exc:
                     runtime._block_remaining_steps(result.steps, index, step.id, str(exc))
                     raise

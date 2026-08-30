@@ -89,6 +89,18 @@ class GeneralResultRegistry(ResultContractRegistry):
                 view_specs=view_specs,
                 data_kinds=tuple(str(item) for item in (raw.get("data_kinds") or []) if str(item)),
             )
+        # Public web tools are Runtime capabilities rather than a Domain
+        # Pack. Keep their shared evidence type available to strict general
+        # ReAct validation without assigning ownership to GIS or text.
+        specs.setdefault(
+            "document_evidence",
+            ResultTypeSpec(
+                title="公开网页证据",
+                panels=("generic",),
+                view_specs=(ViewSpec("generic", "table", "来源证据"),),
+                data_kinds=("document_evidence",),
+            ),
+        )
         super().__init__(specs, fallback_title="运行结果")
 
     def build_views(self, result_type: str, **kwargs: Any) -> dict[str, Any]:

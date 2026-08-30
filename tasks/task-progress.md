@@ -727,3 +727,29 @@
 
 - 交付：M332 的实时执行体验、预算、恢复、终态一致性和真实 GIS 链路已闭合；下一阶段从产品体验、Runtime、Planner、Domain/数据、部署和测试全局规划。
 - 约束：默认测试继续离线、精简、按风险分层；真实模型/GIS 只作为显式验收；不保存模型原文、Prompt、网页正文、工具源码或密钥。
+
+### M333-0：受控公共网页模式 — 已完成
+
+- 目标：在现有白名单搜索之外，提供显式 `public` HTTPS 网页模式和 `web_fetch` 正文读取能力。
+- 边界：默认仍为 `allowlist`；公共模式阻断私网/保留地址、IP 字面量、认证信息和越权重定向；不执行脚本、不下载文件、不保存网页正文。
+- 文档：已建立 `docs/stages/M333/{capability-map.md,spec.md,plan.md,handoff.md}`，热状态已切换到 M333-A。
+- 下一步：实现 `web_policy` 配置与地址校验，再实现网页抓取工具。
+
+### M333-A：网页策略与配置 — 已完成
+
+- 开始：只读取 M333 阶段文档、现有 `web_search`、设置、Factory 和紧凑搜索测试。
+- 实现：增加模式兼容和独立 WebPolicy seam；保持旧的 provider/allowlist 配置可用。
+- 验证：本机 M333/M321 定向回归通过；Docker M333/M321/M320 合计 `43/43` 通过。
+
+### M333-B/C：网页读取与 Runtime 集成 — 已完成
+
+- 实现：新增 `web_fetch`，只读取受控 HTTPS HTML；同一 Run 只允许用户明确 URL 或搜索来源；正文只进入临时模型上下文。
+- 实现：Factory、ReAct、答案生成、恢复、SQLite/Artifact、HTTP/SSE/轮询均消费同一 `document_evidence` 安全投影。
+- 修复：答案上下文增加最终硬上限；恢复后按安全 URL 重新抓取网页正文；持久化、事件和公开结果不保存正文。
+- 验证：本机 M333 `11/11`；Docker M333+M321+M320 `43/43`；compileall、architecture strict、readiness `200` 通过。
+- 真实验收：Docker `public` + 真实模型 + 真实公共 HTML 为 `COMPLETED`，1 个 `web_fetch` 步骤完成，规划和答案生成成功。
+
+### M333-D：阶段交付与全局重规划输入 — 已完成
+
+- 交付：阶段计划、handoff、中文问题日志、代码职责索引和文档索引已更新；未保存模型原文、Prompt、网页正文、密钥或私有数据。
+- 下一阶段输入：评估多来源网页证据去重与新鲜度、网络不可用时的回答质量、跨域 Composite 证据组合和开放请求成功率；继续保持公共网络受控、默认测试精简、单 Agent。

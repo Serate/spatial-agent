@@ -25,6 +25,14 @@ from urllib.parse import (
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from ..errors import ToolError
+from .web_policy import (
+    DEFAULT_WEB_MODE,
+    WEB_MODE_ALLOWLIST,
+    WebAccessPolicy,
+    domain_allowed,
+    normalize_web_domains,
+    normalize_web_mode,
+)
 
 
 DOCUMENT_EVIDENCE_SCHEMA_VERSION = "spatial-agent.document-evidence.v1"
@@ -47,13 +55,14 @@ class WebSearchConfig:
     max_response_bytes: int = 2 * 1024 * 1024
     max_sources: int = 8
     user_agent: str = "spatial-agent-web-search/1.0"
+    mode: str = DEFAULT_WEB_MODE
 
     @classmethod
     def from_settings(cls, settings: Mapping[str, Any] | None) -> "WebSearchConfig":
         values = settings if isinstance(settings, Mapping) else {}
         return cls(
             provider_url=str(values.get("web_search_provider_url") or "").strip()[:_MAX_URL],
-            allowed_domains=_normalize_domains(values.get("web_allowed_domains")),
+            allowed_domains=normalize_web_domains(values.get("web_allowed_domains")),
             timeout_seconds=_bounded_float(values.get("web_search_timeout_seconds"), 8.0, 1.0, 30.0),
             max_response_bytes=_bounded_int(
                 values.get("web_search_max_response_bytes"),
@@ -62,6 +71,7 @@ class WebSearchConfig:
                 20 * 1024 * 1024,
             ),
             max_sources=_bounded_int(values.get("web_search_max_sources"), 8, 1, 8),
+            mode=normalize_web_mode(values.get("web_mode")),
         )
 
 
@@ -73,9 +83,23 @@ class WebSearchAdapter:
         config: WebSearchConfig | None = None,
         *,
         opener: Any = None,
+        resolver: Callable[..., Any] | None = None,
     ) -> None:
         self._config = config or WebSearchConfig()
-        self._allowed_domains = _normalize_domains(self._config.allowed_domains)
+        if self._config.mode not in {"off", "allowlist", "public"}:
+            self._config = WebSearchConfig(
+                provider_url=self._config.provider_url,
+                allowed_domains=self._config.allowed_domains,
+                timeout_seconds=self._config.timeout_seconds,
+                max_response_bytes=self._config.max_response_bytes,
+                max_sources=self._config.max_sources,
+                user_agent=self._config.user_agent,
+                mode=DEFAULT_WEB_MODE,
+            )
+        self._allowed_domains = normalize_web_domains(self._config.allowed_domains)
+        self._policy = WebAccessPolicy(
+            self._config.mode, self._allowed_domains, resolver=resolver
+        )
         self._opener = opener
 
     @classmethod
@@ -103,23 +127,23 @@ class WebSearchAdapter:
         max_results: Any = None,
     ) -> dict[str, Any]:
         query_text = _required_query(query)
-        requested_domains = _normalize_domains(domains)
+        requested_domains = normalize_web_domains(domains)
         limit = _bounded_int(max_results, self._config.max_sources, 1, 8)
-        effective_domains = _effective_domains(self._allowed_domains, requested_domains)
+        effective_domains = (
+            requested_domains[:8]
+            if self._config.mode != WEB_MODE_ALLOWLIST
+            else _effective_domains(self._allowed_domains, requested_domains)
+        )
         base = _base_result(query_text, effective_domains)
 
-        if not effective_domains:
+        if not effective_domains and self._config.mode == WEB_MODE_ALLOWLIST:
             return _unavailable(base, "search_allowlist_empty")
-        provider_host = _validated_url_host(
-            self._config.provider_url,
-            self._allowed_domains,
-            "search_provider_not_allowlisted",
-        )
-        if provider_host is None:
+        provider_decision = self._policy.check_provider(self._config.provider_url)
+        if not provider_decision.allowed:
             reason = (
                 "search_provider_url_unconfigured"
                 if not self._config.provider_url
-                else "search_provider_not_allowlisted"
+                else provider_decision.reason_code
             )
             return _unavailable(base, reason)
 
@@ -133,8 +157,12 @@ class WebSearchAdapter:
             response = self._open(request_url)
             try:
                 final_url = str(response.geturl() or request_url)
-                if _validated_url_host(final_url, self._allowed_domains, "search_redirect_not_allowlisted") is None:
-                    return _unavailable(base, "search_redirect_not_allowlisted")
+                redirect_decision = self._policy.check_url(final_url)
+                if not redirect_decision.allowed:
+                    return _unavailable(
+                        base,
+                        _search_policy_reason(redirect_decision.reason_code),
+                    )
                 content_length = _header(response, "Content-Length")
                 if content_length is not None and content_length > self._config.max_response_bytes:
                     return _unavailable(base, "search_response_too_large")
@@ -155,7 +183,12 @@ class WebSearchAdapter:
             return _unavailable(base, "search_network_error")
 
         items = _parse_items(body, content_type, final_url)
-        sources = _project_sources(items, self._allowed_domains, limit)
+        sources = _project_sources(
+            items,
+            self._allowed_domains,
+            limit,
+            policy=self._policy if self._config.mode != WEB_MODE_ALLOWLIST else None,
+        )
         if sources:
             return {
                 **base,
@@ -205,8 +238,11 @@ class WebSearchAdapter:
                     raise _WebSearchPolicyError("search_redirect_limit_exceeded")
                 redirect_count += 1
                 target = urljoin(req.full_url, newurl)
-                if _validated_url_host(target, allowed, "search_redirect_not_allowlisted") is None:
-                    raise _WebSearchPolicyError("search_redirect_not_allowlisted")
+                decision = self._policy.check_url(target)
+                if not decision.allowed:
+                    raise _WebSearchPolicyError(
+                        _search_policy_reason(decision.reason_code)
+                    )
                 return super().redirect_request(req, fp, code, msg, headers, target)
 
         return build_opener(AllowlistedRedirectHandler())
@@ -363,7 +399,7 @@ def _validated_url_host(url: str, allowed: tuple[str, ...], reason_code: str) ->
         return None
     if parsed.scheme.lower() != "https" or not host or parsed.username or parsed.password:
         return None
-    if _is_ip_literal(host) or host == "localhost" or not any(_domain_allowed(host, item) for item in allowed):
+    if _is_ip_literal(host) or host == "localhost" or not any(domain_allowed(host, item) for item in allowed):
         return None
     return host
 
@@ -486,6 +522,8 @@ def _project_sources(
     items: Iterable[Mapping[str, Any]],
     allowed_domains: tuple[str, ...],
     limit: int,
+    *,
+    policy: WebAccessPolicy | None = None,
 ) -> list[dict[str, str]]:
     sources = []
     seen: set[str] = set()
@@ -497,8 +535,12 @@ def _project_sources(
         redirect = parse_qs(parsed.query).get("uddg")
         if redirect and redirect[0]:
             raw_url = unquote(str(redirect[0]))[:_MAX_URL]
-        host = _validated_url_host(raw_url, allowed_domains, "search_source_not_allowlisted")
-        if host is None:
+        if policy is not None:
+            decision = policy.check_url(raw_url, require_allowlisted=False)
+            host = decision.host if decision.allowed else ""
+        else:
+            host = _validated_url_host(raw_url, allowed_domains, "search_source_not_allowlisted")
+        if not host:
             continue
         url = _canonical_url(raw_url)
         if not url or url in seen:
@@ -538,6 +580,14 @@ def _response_is_invalid(body: bytes, content_type: str) -> bool:
         except (TypeError, ValueError, json.JSONDecodeError):
             return True
     return not text or ("<" not in text and not text.startswith(("{", "[")))
+
+
+def _search_policy_reason(reason_code: str) -> str:
+    """Keep M321 public reason codes stable while sharing policy logic."""
+
+    if reason_code in {"web_host_not_allowlisted", "web_address_not_public"}:
+        return "search_redirect_not_allowlisted"
+    return reason_code or "search_network_error"
 
 
 def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:

@@ -41,7 +41,10 @@ class RuntimeReactExecution:
         settings = runtime._agent_settings
         allowed_tools = tuple(runtime._registry.names)
         tool_catalog = runtime._registry.definition_summary(allowed_tools)
-        network_enabled = bool(settings.get("web_search_enabled", True))
+        network_enabled = bool(
+            settings.get("web_search_enabled", True)
+            and settings.get("web_mode", "allowlist") != "off"
+        )
         tool_proposals_enabled = bool(
             settings.get("tool_proposals_enabled", True)
         )
@@ -617,6 +620,10 @@ class RuntimeReactExecution:
                 step,
                 context.completed,
                 context.completed_results,
+                result_projector=lambda tool, value: runtime._project_transient_tool_result(
+                    result, tool, value
+                ),
+                source_request=context.resolved_request,
             )
         except Exception:
             runtime._emit_progress_event(
@@ -638,6 +645,10 @@ class RuntimeReactExecution:
         context.completed.add(step.id)
         if step_run.result is not None:
             context.completed_results[step.id] = step_run.result
+            self._append_transient_context(
+                context,
+                getattr(result, "_transient_model_context", None),
+            )
         runtime._state_store.save(result)
         runtime._emit_progress_event(
             result.run_id,
@@ -658,6 +669,24 @@ class RuntimeReactExecution:
             output_type=str(plan.output.get("type") or "") or None,
             summary=summarize_tool_result(tool_result),
         )
+
+    @staticmethod
+    def _append_transient_context(context: Any, documents: Any) -> None:
+        if not isinstance(documents, list) or not documents:
+            return
+        packet = getattr(context, "context_packet", None)
+        payload = getattr(packet, "payload", None)
+        if not isinstance(payload, Mapping):
+            return
+        projected = payload.setdefault("web_documents", [])
+        if not isinstance(projected, list):
+            projected = []
+            payload["web_documents"] = projected
+        projected[:] = [
+            item
+            for item in documents[-8:]
+            if isinstance(item, Mapping) and item.get("text")
+        ]
 
     def _record_plan_evidence(self, context: Any) -> None:
         runtime = self._runtime

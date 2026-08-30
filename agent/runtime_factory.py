@@ -23,7 +23,12 @@ from .general_runtime import GeneralRuntimePack
 from .answer_generation import LLMAnswerGenerator
 from .agent_settings import open_agent_defaults
 from .llm_planner import LLMPlanner, OpenAIPlannerClient
-from .network import WebSearchAdapter, web_search_tool_definition
+from .network import (
+    WebFetchAdapter,
+    WebSearchAdapter,
+    web_fetch_tool_definition,
+    web_search_tool_definition,
+)
 from agent.integration.openai_config import load_answer_generation_config, load_openai_config
 from .planner import RuleBasedPlanner
 from .runtime import AgentRuntime
@@ -60,11 +65,25 @@ def build_runtime(
         registry = ToolRegistry.from_provider(provider)
     else:
         registry = _legacy_gis_registry(backend_name, root)
-    if agent_defaults["web_search_enabled"] and "web_search" not in registry.names:
+    if (
+        agent_defaults["web_search_enabled"]
+        and agent_defaults.get("web_mode") != "off"
+        and "web_search" not in registry.names
+    ):
         registry.register_tool(
             "web_search",
             web_search_tool_definition(),
             WebSearchAdapter.from_settings(agent_defaults).invoke,
+        )
+    if (
+        agent_defaults["web_search_enabled"]
+        and agent_defaults.get("web_mode") != "off"
+        and "web_fetch" not in registry.names
+    ):
+        registry.register_tool(
+            "web_fetch",
+            web_fetch_tool_definition(),
+            WebFetchAdapter.from_settings(agent_defaults).invoke,
         )
     resolved_answer_generator = answer_generator
     proposal_validator = ToolProposalValidator(
@@ -219,9 +238,15 @@ def build_runtime_context_snapshot(
         value = info_factory(backend_name=backend_name, root=root)
         if isinstance(value, Mapping):
             provider_info = dict(value)
-    if agent_defaults["web_search_enabled"] and provider_info:
+    if (
+        agent_defaults["web_search_enabled"]
+        and agent_defaults.get("web_mode") != "off"
+        and provider_info
+    ):
         try:
             provider_info["tool_count"] = int(provider_info.get("tool_count") or 0) + 1
+            if agent_defaults.get("web_mode") != "off":
+                provider_info["tool_count"] += 1
         except (TypeError, ValueError):
             provider_info["tool_count"] = 1
     return build_runtime_context(
@@ -232,6 +257,7 @@ def build_runtime_context_snapshot(
         permissions=allowed_permissions,
         approved_tools=approved_tools,
         require_dependency_evidence=bool(require_dependency_evidence),
+        web_mode=agent_defaults.get("web_mode", "allowlist"),
     )
 
 

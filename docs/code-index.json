@@ -6,15 +6,15 @@
     "scripts",
     "web/src"
   ],
-  "file_count": 337,
+  "file_count": 339,
   "semantic_index": {
-    "classified_files": 337,
+    "classified_files": 339,
     "file_override_files": 30,
-    "path_rule_files": 307,
+    "path_rule_files": 309,
     "default_files": 0,
-    "agent_files": 205,
-    "agent_files_with_responsibility": 205,
-    "agent_files_with_module_doc": 191,
+    "agent_files": 207,
+    "agent_files_with_responsibility": 207,
+    "agent_files_with_module_doc": 193,
     "coverage_percent": 100.0
   },
   "files": [
@@ -214,7 +214,7 @@
     {
       "path": "agent/agent_settings.py",
       "language": "python",
-      "line_count": 144,
+      "line_count": 172,
       "layer": "runtime",
       "role": "Agent Runtime 配置读取与默认值",
       "stage": "M1-M325",
@@ -227,7 +227,7 @@
         {
           "name": "open_agent_defaults",
           "kind": "function",
-          "line": 34
+          "line": 42
         }
       ],
       "imports": []
@@ -430,7 +430,7 @@
     {
       "path": "agent/answer_generation.py",
       "language": "python",
-      "line_count": 1151,
+      "line_count": 1222,
       "layer": "result",
       "role": "答案组合、生成与用户语义投影",
       "stage": "M8-M325",
@@ -483,32 +483,32 @@
         {
           "name": "LLMAnswerGenerator",
           "kind": "class",
-          "line": 538
+          "line": 609
         },
         {
           "name": "LLMAnswerGenerator.generate",
           "kind": "method",
-          "line": 545
+          "line": 616
         },
         {
           "name": "LLMAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 661
+          "line": 732
         },
         {
           "name": "LLMAnswerGenerator.failure_evidence",
           "kind": "method",
-          "line": 773
+          "line": 844
         },
         {
           "name": "fallback_answer_generation_evidence",
           "kind": "function",
-          "line": 810
+          "line": 881
         },
         {
           "name": "project_answer_generation_evidence",
           "kind": "function",
-          "line": 826
+          "line": 897
         }
       ],
       "imports": [
@@ -4556,7 +4556,7 @@
     {
       "path": "agent/general_runtime.py",
       "language": "python",
-      "line_count": 491,
+      "line_count": 503,
       "layer": "runtime",
       "role": "Runtime 公共契约、状态、规划与证据支持模块",
       "stage": "M1-M325",
@@ -4589,172 +4589,172 @@
         {
           "name": "GeneralResultRegistry.build_views",
           "kind": "method",
-          "line": 94
+          "line": 106
         },
         {
           "name": "GeneralResultRegistry.project_provenance",
           "kind": "method",
-          "line": 105
+          "line": 117
         },
         {
           "name": "GeneralResultRegistry.evidence_specs_for",
           "kind": "method",
-          "line": 121
+          "line": 133
         },
         {
           "name": "GeneralRuntimePack",
           "kind": "class",
-          "line": 132
+          "line": 144
         },
         {
           "name": "GeneralRuntimePack.host",
           "kind": "method",
-          "line": 145
+          "line": 157
         },
         {
           "name": "GeneralRuntimePack.action_specs",
           "kind": "method",
-          "line": 148
+          "line": 160
         },
         {
           "name": "GeneralRuntimePack.execute_action",
           "kind": "method",
-          "line": 151
+          "line": 163
         },
         {
           "name": "GeneralRuntimePack.answer_composer",
           "kind": "method",
-          "line": 155
+          "line": 167
         },
         {
           "name": "GeneralRuntimePack.default_permissions",
           "kind": "method",
-          "line": 158
+          "line": 170
         },
         {
           "name": "GeneralRuntimePack.tool_provider",
           "kind": "method",
-          "line": 161
+          "line": 173
         },
         {
           "name": "GeneralRuntimePack.tool_provider_info",
           "kind": "method",
-          "line": 165
+          "line": 177
         },
         {
           "name": "GeneralRuntimePack.preflight_tool",
           "kind": "method",
-          "line": 169
+          "line": 181
         },
         {
           "name": "GeneralRuntimePack.result_registry",
           "kind": "method",
-          "line": 186
+          "line": 198
         },
         {
           "name": "GeneralRuntimePack.evidence_provider",
           "kind": "method",
-          "line": 189
+          "line": 201
         },
         {
           "name": "GeneralRuntimePack.runtime_evidence",
           "kind": "method",
-          "line": 192
+          "line": 204
         },
         {
           "name": "GeneralRuntimePack.release_evidence",
           "kind": "method",
-          "line": 217
+          "line": 229
         },
         {
           "name": "GeneralRuntimePack.extract_request_facts",
           "kind": "method",
-          "line": 238
+          "line": 250
         },
         {
           "name": "GeneralRuntimePack.analysis_intent",
           "kind": "method",
-          "line": 253
+          "line": 265
         },
         {
           "name": "GeneralRuntimePack.capability_catalog",
           "kind": "method",
-          "line": 257
+          "line": 269
         },
         {
           "name": "GeneralRuntimePack.discover",
           "kind": "method",
-          "line": 263
+          "line": 275
         },
         {
           "name": "GeneralRuntimePack.select_workflow",
           "kind": "method",
-          "line": 274
+          "line": 286
         },
         {
           "name": "GeneralRuntimePack.resolve_capability_selection",
           "kind": "method",
-          "line": 298
+          "line": 310
         },
         {
           "name": "GeneralRuntimePack.normalize_workflow",
           "kind": "method",
-          "line": 315
+          "line": 327
         },
         {
           "name": "GeneralRuntimePack.validate_workflow_plan",
           "kind": "method",
-          "line": 332
+          "line": 344
         },
         {
           "name": "GeneralRuntimePack.validate_open_react_plan",
           "kind": "method",
-          "line": 340
+          "line": 352
         },
         {
           "name": "GeneralRuntimePack.plan_policy",
           "kind": "method",
-          "line": 343
+          "line": 355
         },
         {
           "name": "GeneralRuntimePack.workflow_template_catalog",
           "kind": "method",
-          "line": 353
+          "line": 365
         },
         {
           "name": "GeneralRuntimePack.workflow_template_context",
           "kind": "method",
-          "line": 360
+          "line": 372
         },
         {
           "name": "GeneralRuntimePack.planner_guidance",
           "kind": "method",
-          "line": 374
+          "line": 386
         },
         {
           "name": "GeneralRuntimePack.planner_request_hint",
           "kind": "method",
-          "line": 389
+          "line": 401
         },
         {
           "name": "GeneralRuntimePack.request_understanding_guidance",
           "kind": "method",
-          "line": 393
+          "line": 405
         },
         {
           "name": "GeneralRuntimePack.clarification_details",
           "kind": "method",
-          "line": 402
+          "line": 414
         },
         {
           "name": "GeneralRuntimePack.evidence_action_guidance",
           "kind": "method",
-          "line": 406
+          "line": 418
         },
         {
           "name": "GeneralRuntimePack.rule_planner",
           "kind": "method",
-          "line": 417
+          "line": 429
         }
       ],
       "imports": []
@@ -5327,10 +5327,10 @@
     {
       "path": "agent/network/__init__.py",
       "language": "python",
-      "line_count": 15,
+      "line_count": 49,
       "layer": "integration",
-      "role": "受控网络搜索适配器",
-      "stage": "M321-M325",
+      "role": "受控网络访问与网页证据适配器",
+      "stage": "M321-M333",
       "stability": "public-boundary",
       "semantic_source": "path-rule",
       "semantic_level": "package",
@@ -5340,12 +5340,129 @@
       "imports": []
     },
     {
+      "path": "agent/network/web_fetch.py",
+      "language": "python",
+      "line_count": 376,
+      "layer": "integration",
+      "role": "受控网络访问与网页证据适配器",
+      "stage": "M321-M333",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Bounded HTML fetching behind the shared public-web policy.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "WebFetchConfig",
+          "kind": "class",
+          "line": 33
+        },
+        {
+          "name": "WebFetchAdapter",
+          "kind": "class",
+          "line": 42
+        },
+        {
+          "name": "WebFetchAdapter.from_settings",
+          "kind": "method",
+          "line": 63
+        },
+        {
+          "name": "WebFetchAdapter.config",
+          "kind": "method",
+          "line": 90
+        },
+        {
+          "name": "WebFetchAdapter.invoke",
+          "kind": "method",
+          "line": 93
+        },
+        {
+          "name": "WebFetchAdapter.fetch",
+          "kind": "method",
+          "line": 96
+        },
+        {
+          "name": "web_fetch_tool_definition",
+          "kind": "function",
+          "line": 254
+        }
+      ],
+      "imports": []
+    },
+    {
+      "path": "agent/network/web_policy.py",
+      "language": "python",
+      "line_count": 221,
+      "layer": "integration",
+      "role": "受控网络访问与网页证据适配器",
+      "stage": "M321-M333",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Server-owned policy for bounded public web access.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "WebPolicyDecision",
+          "kind": "class",
+          "line": 30
+        },
+        {
+          "name": "WebPolicyDecision.to_dict",
+          "kind": "method",
+          "line": 38
+        },
+        {
+          "name": "WebAccessPolicy",
+          "kind": "class",
+          "line": 47
+        },
+        {
+          "name": "WebAccessPolicy.mode",
+          "kind": "method",
+          "line": 63
+        },
+        {
+          "name": "WebAccessPolicy.allowed_domains",
+          "kind": "method",
+          "line": 67
+        },
+        {
+          "name": "WebAccessPolicy.check_url",
+          "kind": "method",
+          "line": 70
+        },
+        {
+          "name": "WebAccessPolicy.check_provider",
+          "kind": "method",
+          "line": 98
+        },
+        {
+          "name": "normalize_web_mode",
+          "kind": "function",
+          "line": 107
+        },
+        {
+          "name": "normalize_web_domains",
+          "kind": "function",
+          "line": 112
+        },
+        {
+          "name": "domain_allowed",
+          "kind": "function",
+          "line": 141
+        }
+      ],
+      "imports": []
+    },
+    {
       "path": "agent/network/web_search.py",
       "language": "python",
-      "line_count": 568,
+      "line_count": 618,
       "layer": "integration",
-      "role": "受控网络搜索适配器",
-      "stage": "M321-M325",
+      "role": "受控网络访问与网页证据适配器",
+      "stage": "M321-M333",
       "stability": "public-boundary",
       "semantic_source": "path-rule",
       "semantic_level": "package",
@@ -5355,42 +5472,42 @@
         {
           "name": "WebSearchConfig",
           "kind": "class",
-          "line": 41
+          "line": 49
         },
         {
           "name": "WebSearchConfig.from_settings",
           "kind": "method",
-          "line": 52
+          "line": 61
         },
         {
           "name": "WebSearchAdapter",
           "kind": "class",
-          "line": 68
+          "line": 78
         },
         {
           "name": "WebSearchAdapter.from_settings",
           "kind": "method",
-          "line": 82
+          "line": 106
         },
         {
           "name": "WebSearchAdapter.config",
           "kind": "method",
-          "line": 86
+          "line": 110
         },
         {
           "name": "WebSearchAdapter.invoke",
           "kind": "method",
-          "line": 89
+          "line": 113
         },
         {
           "name": "WebSearchAdapter.search",
           "kind": "method",
-          "line": 98
+          "line": 122
         },
         {
           "name": "web_search_tool_definition",
           "kind": "function",
-          "line": 262
+          "line": 298
         }
       ],
       "imports": []
@@ -7062,7 +7179,7 @@
     {
       "path": "agent/runtime.py",
       "language": "python",
-      "line_count": 1267,
+      "line_count": 1427,
       "layer": "runtime",
       "role": "AgentRuntime 门面与生命周期入口",
       "stage": "M318-M325",
@@ -7075,127 +7192,127 @@
         {
           "name": "AgentRuntime",
           "kind": "class",
-          "line": 105
+          "line": 106
         },
         {
           "name": "AgentRuntime.approval_rehydration",
           "kind": "method",
-          "line": 240
+          "line": 244
         },
         {
           "name": "AgentRuntime.domain_id",
           "kind": "method",
-          "line": 262
+          "line": 266
         },
         {
           "name": "AgentRuntime.runtime_context",
           "kind": "method",
-          "line": 266
+          "line": 270
         },
         {
           "name": "AgentRuntime.result_registry",
           "kind": "method",
-          "line": 284
+          "line": 289
         },
         {
           "name": "AgentRuntime.domain_actions",
           "kind": "method",
-          "line": 288
+          "line": 293
         },
         {
           "name": "AgentRuntime.execute_domain_action",
           "kind": "method",
-          "line": 292
+          "line": 297
         },
         {
           "name": "AgentRuntime.capability_catalog",
           "kind": "method",
-          "line": 307
+          "line": 312
         },
         {
           "name": "AgentRuntime.workflow_template_catalog",
           "kind": "method",
-          "line": 311
+          "line": 316
         },
         {
           "name": "AgentRuntime.workflow_contract",
           "kind": "method",
-          "line": 315
+          "line": 320
         },
         {
           "name": "AgentRuntime.execution_contract",
           "kind": "method",
-          "line": 319
+          "line": 324
         },
         {
           "name": "AgentRuntime.extract_request_facts",
           "kind": "method",
-          "line": 323
+          "line": 328
         },
         {
           "name": "AgentRuntime.discover",
           "kind": "method",
-          "line": 327
+          "line": 332
         },
         {
           "name": "AgentRuntime.select_workflow",
           "kind": "method",
-          "line": 337
+          "line": 342
         },
         {
           "name": "AgentRuntime.resolve_capability_selection",
           "kind": "method",
-          "line": 352
+          "line": 357
         },
         {
           "name": "AgentRuntime.runtime_capabilities",
           "kind": "method",
-          "line": 367
+          "line": 372
         },
         {
           "name": "AgentRuntime.release_evidence",
           "kind": "method",
-          "line": 371
+          "line": 376
         },
         {
           "name": "AgentRuntime.run",
           "kind": "method",
-          "line": 388
+          "line": 393
         },
         {
           "name": "AgentRuntime.preview",
           "kind": "method",
-          "line": 437
+          "line": 442
         },
         {
           "name": "AgentRuntime.clear_session",
           "kind": "method",
-          "line": 454
+          "line": 459
         },
         {
           "name": "AgentRuntime.get_run",
           "kind": "method",
-          "line": 458
+          "line": 463
         },
         {
           "name": "AgentRuntime.cancel",
           "kind": "method",
-          "line": 461
+          "line": 466
         },
         {
           "name": "AgentRuntime.retry_failed",
           "kind": "method",
-          "line": 464
+          "line": 469
         },
         {
           "name": "AgentRuntime.apply_tool_approval",
           "kind": "method",
-          "line": 467
+          "line": 472
         },
         {
           "name": "AgentRuntime.export_result",
           "kind": "method",
-          "line": 478
+          "line": 483
         }
       ],
       "imports": [
@@ -7227,7 +7344,7 @@
     {
       "path": "agent/runtime_context.py",
       "language": "python",
-      "line_count": 193,
+      "line_count": 200,
       "layer": "runtime",
       "role": "Runtime 配置、状态、上下文与工厂",
       "stage": "M1-M325",
@@ -7250,17 +7367,17 @@
         {
           "name": "normalize_runtime_context",
           "kind": "function",
-          "line": 77
+          "line": 79
         },
         {
           "name": "runtime_context_fingerprint",
           "kind": "function",
-          "line": 104
+          "line": 111
         },
         {
           "name": "assert_runtime_context_compatible",
           "kind": "function",
-          "line": 113
+          "line": 120
         }
       ],
       "imports": []
@@ -7620,7 +7737,7 @@
     {
       "path": "agent/runtime_core/decision_resume.py",
       "language": "python",
-      "line_count": 160,
+      "line_count": 164,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7646,7 +7763,7 @@
     {
       "path": "agent/runtime_core/execution.py",
       "language": "python",
-      "line_count": 113,
+      "line_count": 119,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7664,12 +7781,12 @@
         {
           "name": "execute_step",
           "kind": "function",
-          "line": 31
+          "line": 32
         },
         {
           "name": "block_remaining_steps",
           "kind": "function",
-          "line": 100
+          "line": 106
         }
       ],
       "imports": [
@@ -8281,7 +8398,7 @@
     {
       "path": "agent/runtime_core/react_runtime.py",
       "language": "python",
-      "line_count": 904,
+      "line_count": 933,
       "layer": "runtime",
       "role": "ReAct 决策与工具执行桥接",
       "stage": "M320",
@@ -8321,7 +8438,7 @@
     {
       "path": "agent/runtime_core/recovery.py",
       "language": "python",
-      "line_count": 115,
+      "line_count": 126,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -8496,7 +8613,7 @@
     {
       "path": "agent/runtime_core/run_lifecycle.py",
       "language": "python",
-      "line_count": 1256,
+      "line_count": 1260,
       "layer": "runtime",
       "role": "运行生命周期阶段编排",
       "stage": "M307",
@@ -8613,7 +8730,7 @@
     {
       "path": "agent/runtime_factory.py",
       "language": "python",
-      "line_count": 271,
+      "line_count": 297,
       "layer": "runtime",
       "role": "Runtime 配置、状态、上下文与工厂",
       "stage": "M1-M325",
@@ -8626,22 +8743,22 @@
         {
           "name": "build_runtime",
           "kind": "function",
-          "line": 35
+          "line": 40
         },
         {
           "name": "build_general_runtime",
           "kind": "function",
-          "line": 130
+          "line": 149
         },
         {
           "name": "build_general_runtime_context_snapshot",
           "kind": "function",
-          "line": 161
+          "line": 180
         },
         {
           "name": "build_runtime_context_snapshot",
           "kind": "function",
-          "line": 189
+          "line": 208
         }
       ],
       "imports": [

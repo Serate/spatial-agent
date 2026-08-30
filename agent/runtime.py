@@ -1,5 +1,6 @@
 import uuid
 import inspect
+import re
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Set
@@ -169,7 +170,10 @@ class AgentRuntime:
                 ),
             ),
             max_turns=int(execution_defaults["react_max_turns"]),
-            network_enabled=bool(execution_defaults["web_search_enabled"]),
+            network_enabled=bool(
+                execution_defaults["web_search_enabled"]
+                and execution_defaults.get("web_mode") != "off"
+            ),
             tool_proposals_enabled=bool(execution_defaults["tool_proposals_enabled"]),
             # Older custom Domain Packs use result labels that are not in the
             # default GIS registry. Their own plan_policy/result contract is
@@ -279,6 +283,7 @@ class AgentRuntime:
             permissions=self._allowed_permissions,
             approved_tools=self._approved_tools,
             require_dependency_evidence=self._require_dependency_evidence,
+            web_mode=self._agent_settings.get("web_mode", "allowlist"),
         )
 
     def result_registry(self):
@@ -702,6 +707,10 @@ class AgentRuntime:
                 answer,
             )
             return answer
+        # Web正文 intentionally never crosses persistence. When a persisted
+        # run is resumed in a new process, re-fetch the already authorized
+        # pages through the same Registry/policy boundary before generation.
+        self._rehydrate_web_context(result, budget=budget)
         try:
             stream_generate = getattr(generator, "generate_stream", None)
             if callable(on_delta) and callable(stream_generate):
@@ -739,9 +748,7 @@ class AgentRuntime:
         except Exception:
             failure_evidence = getattr(generator, "failure_evidence", None)
             if callable(failure_evidence):
-                evidence = failure_evidence(
-                    "answer_generation_failed"
-                )
+                evidence = failure_evidence("answer_generation_failed")
             else:
                 evidence = fallback_answer_generation_evidence(
                     "answer_generation_failed"
@@ -751,6 +758,65 @@ class AgentRuntime:
                 result, evidence, answer
             )
             return answer
+
+    def _rehydrate_web_context(
+        self,
+        result: AgentRunResult,
+        *,
+        budget: Any = None,
+    ) -> None:
+        """Best-effort restore of transient web text after a process restart."""
+
+        existing = getattr(result, "_transient_model_context", None)
+        if isinstance(existing, list) and any(
+            isinstance(item, Mapping) and item.get("text") for item in existing
+        ):
+            return
+        completed_results = {
+            step.id: step.result
+            for step in result.steps
+            if step.status == "COMPLETED" and isinstance(step.result, Mapping)
+        }
+        seen: set[str] = set()
+        for step in result.steps:
+            if step.tool != "web_fetch" or step.status != "COMPLETED":
+                continue
+            value = step.result if isinstance(step.result, Mapping) else {}
+            url = str(value.get("url") or "").strip()
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            arguments = {"url": url}
+            try:
+                self._enforce_preflight_policy(
+                    "web_fetch", arguments, completed_results
+                )
+                self._enforce_web_fetch_source(
+                    arguments,
+                    request=result.resolved_request or result.request,
+                    completed_results=completed_results,
+                )
+                timeout = self._registry.timeout_seconds("web_fetch")
+                if budget is not None:
+                    child_timeout = getattr(budget, "child_timeout", None)
+                    if callable(child_timeout):
+                        timeout = min(
+                            float(timeout or 30.0),
+                            float(child_timeout(kind="provider")),
+                        )
+                raw = self._registry.invoke(
+                    "web_fetch", arguments, timeout_seconds=timeout
+                )
+                if isinstance(raw, Mapping) and raw.get("_model_context"):
+                    self._project_transient_tool_result(
+                        result, "web_fetch", dict(raw)
+                    )
+            except Exception:
+                # The durable result remains useful without page text. The
+                # answer layer will state the source limitation from evidence.
+                continue
+            if len(getattr(result, "_transient_model_context", []) or []) >= 4:
+                break
 
     @staticmethod
     def _answer_quality_evidence(
@@ -857,14 +923,31 @@ class AgentRuntime:
         step: PlanStep,
         completed: Set[str],
         completed_results: Dict[str, Dict[str, Any]],
+        *,
+        result_projector: Optional[Callable[[str, Dict[str, Any]], Dict[str, Any]]] = None,
+        source_request: Optional[str] = None,
     ) -> None:
+        def preflight(
+            tool_name: str,
+            arguments: Dict[str, Any],
+            prior_results: Dict[str, Dict[str, Any]],
+        ) -> None:
+            self._enforce_preflight_policy(tool_name, arguments, prior_results)
+            if tool_name == "web_fetch" and source_request is not None:
+                self._enforce_web_fetch_source(
+                    arguments,
+                    request=source_request,
+                    completed_results=prior_results,
+                )
+
         hooks = _runtime_execution.StepExecutionHooks(
             registry=self._registry,
             max_retries=self._max_retries,
-            preflight=self._enforce_preflight_policy,
+            preflight=preflight,
             control_check=self._check_control,
             emit_step=self._emit_step_event,
             now=_utc_now,
+            project_result=result_projector or _public_tool_result,
         )
         return _runtime_execution.execute_step(
             hooks,
@@ -875,6 +958,44 @@ class AgentRuntime:
             completed,
             completed_results,
         )
+
+    @staticmethod
+    def _project_transient_tool_result(
+        result: AgentRunResult | None,
+        tool: str,
+        value: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Keep model-only web text in memory and strip it before persistence."""
+
+        projected = _public_tool_result(tool, value)
+        transient = value.get("_model_context") if isinstance(value, Mapping) else None
+        if tool == "web_fetch" and isinstance(transient, Mapping) and result is not None:
+            records = getattr(result, "_transient_model_context", None)
+            if not isinstance(records, list):
+                records = []
+                setattr(result, "_transient_model_context", records)
+            records.append(
+                {
+                    "url": str(transient.get("url") or "")[:2048],
+                    "domain": str(transient.get("domain") or "")[:255],
+                    "title": str(transient.get("title") or "")[:240],
+                    "text": str(transient.get("text") or "")[:8000],
+                }
+            )
+            del records[:-8]
+            total = 0
+            bounded: list[dict[str, str]] = []
+            for item in reversed(records):
+                remaining = 24000 - total
+                if remaining <= 0:
+                    break
+                text = str(item.get("text") or "")[: min(8000, remaining)]
+                if not text:
+                    continue
+                bounded.append({**item, "text": text})
+                total += len(text)
+            records[:] = list(reversed(bounded))
+        return projected
 
     def _try_replan(
         self,
@@ -980,6 +1101,36 @@ class AgentRuntime:
             required_datasets=self._registry.data_dependencies(tool, arguments),
             require_dependency_evidence=self._require_dependency_evidence,
         )
+
+    def _enforce_web_fetch_source(
+        self,
+        arguments: Mapping[str, Any],
+        *,
+        request: str,
+        completed_results: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        """Allow fetches only from the request or a prior search result."""
+
+        url = str(arguments.get("url") or "").strip() if isinstance(arguments, Mapping) else ""
+        explicit_urls = {
+            item.rstrip(".,;:!?)]}")
+            for item in re.findall(r"https://[^\s<>\"']+", str(request or ""))
+        }
+        searched_urls: set[str] = set()
+        for value in (completed_results or {}).values():
+            if not isinstance(value, Mapping):
+                continue
+            for source_key in ("sources", "source_records"):
+                for source in value.get(source_key) or []:
+                    if isinstance(source, Mapping) and source.get("url"):
+                        searched_urls.add(str(source["url"]).strip())
+        if url not in explicit_urls and url not in searched_urls:
+            raise ToolError(
+                "web_fetch 只能读取用户请求中的明确链接或搜索结果来源",
+                category="policy",
+                code="web_fetch_source_not_authorized",
+                retryable=False,
+            )
 
     def _approval_gate(self, definition: Mapping[str, Any]) -> None:
         """Fail closed when a dynamically published tool lost approval."""
@@ -1265,3 +1416,12 @@ def _invoke_answer_generator(
         if value is not None and (accepts_kwargs or name in parameters):
             kwargs[name] = value
     return method(result, **kwargs)
+
+
+def _public_tool_result(tool: str, value: Dict[str, Any]) -> Dict[str, Any]:
+    """Strip private adapter handoffs before any generic Result boundary."""
+
+    del tool
+    if not isinstance(value, Mapping):
+        return {}
+    return {key: item for key, item in value.items() if str(key) != "_model_context"}

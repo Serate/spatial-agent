@@ -59,8 +59,8 @@
     {
       "prefix": "agent/network/",
       "layer": "integration",
-      "role": "受控网络搜索适配器",
-      "stage": "M321-M325",
+      "role": "受控网络访问与网页证据适配器",
+      "stage": "M321-M333",
       "stability": "public-boundary"
     },
     {

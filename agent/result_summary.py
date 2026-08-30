@@ -678,7 +678,7 @@ def _project_document_evidence(value: Mapping[str, Any]) -> dict[str, Any] | Non
 
     result_type = _text(value.get("result_type") or value.get("type"), 96).lower()
     schema_version = _text(value.get("schema_version"), 96)
-    if result_type != "document_evidence" and "document-evidence" not in schema_version:
+    if result_type not in {"document_evidence", "web_document"} and "document-evidence" not in schema_version:
         return None
     raw_status = _text(value.get("status"), 32).lower()
     source_records = _safe_source_records(value.get("source_records"))
@@ -712,7 +712,7 @@ def _project_document_evidence(value: Mapping[str, Any]) -> dict[str, Any] | Non
 def _is_document_evidence(value: Mapping[str, Any]) -> bool:
     result_type = _text(value.get("result_type") or value.get("type"), 96).lower()
     schema_version = _text(value.get("schema_version"), 96)
-    return result_type == "document_evidence" or "document-evidence" in schema_version
+    return result_type in {"document_evidence", "web_document"} or "document-evidence" in schema_version
 
 
 def _document_evidence_limitation(evidence: Mapping[str, Any]) -> str:

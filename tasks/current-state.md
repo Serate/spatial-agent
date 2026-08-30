@@ -4,10 +4,10 @@
 
 ## 当前阶段
 
-- 阶段：`M332`
-- 当前任务：M332 阶段交付与全局重规划
-- 状态：M331-A～F 已完成并推送（`11d7492`）；M332-A～F 已完成并推送（`e470cdd`）
-- 基线：`0ce3ba4`
+- 阶段：`M333`
+- 当前任务：M333 阶段收口与交付
+- 状态：M333-A～D 已完成，代码和文档待提交推送
+- 基线：`fb64824`
 - 协作：单 Agent，最大并发度 1；测试、GIS 和 live 验收优先使用 Docker
 
 ## 已完成
@@ -96,5 +96,28 @@
 
 ## 阻塞与下一步
 
-- 阻塞：无；M332 阶段验收已完成，不保存模型原文、Prompt、网页正文或敏感配置。
-- 下一步：按产品体验、Runtime、Planner、Domain/数据、部署和测试全局重规划下一阶段，优先提升开放多领域请求的答案质量与成功率。
+- 阻塞：无；不保存模型原文、Prompt、网页正文或敏感配置。
+- 当前：提交 M333 受控公共网页模式与网页正文读取版本。
+- 下一步：提交后从产品、Runtime、Planner、Domain/数据、部署和测试全局重规划下一阶段。
+
+### M333-A：网页策略与配置 — 已完成
+
+- 交付：新增独立 `WebAccessPolicy`，承载 `off/allowlist/public` 模式、HTTPS/凭据/端口校验和公共模式 DNS 地址安全检查；`web_search` 复用共享策略并保持旧配置语义。
+- 配置：增加 `SPATIAL_AGENT_WEB_MODE`、网页读取限额和代理说明；`off` 模式不登记网络工具。
+- 验证：M333 公共策略/抓取测试与 M321 搜索回归通过；策略模块不发起网络请求。
+- 下一步：完成 M333-B/C 的通用文档证据契约、ReAct/标准计划接入和恢复边界。
+
+### M333-B/C：网页读取与 Runtime 集成 — 已完成
+
+- 开始：新增 `WebFetchAdapter` 和 `web_fetch` ToolRegistry 定义，执行层加入可选结果投影 seam。
+- 当前动作：统一 `web_fetch` 与 `document_evidence` 结果契约，严格限制答案上下文总量，补齐 SQLite/Artifact 恢复和 HTTP 读取契约回归。
+- 修改范围：`agent/network/web_fetch.py`、`agent/runtime.py`、`agent/runtime_core/execution.py`、`agent/runtime_core/{run_lifecycle,react_runtime,decision_resume,recovery}.py`、`agent/answer_generation.py`。
+- 实现：Factory、ReAct、答案生成、恢复、SQLite/Artifact、HTTP/SSE/轮询均消费同一 `document_evidence` 安全投影。
+- 修复：答案上下文增加最终硬上限；恢复后按安全 URL 重新抓取网页正文；持久化、事件和公开结果不保存正文。
+- 验证：本机 M333 `11/11`；Docker M333+M321+M320 `43/43`；compileall、architecture strict、readiness `200` 通过。
+- 真实验收：Docker `public` + 真实模型 + 真实公共 HTML 为 `COMPLETED`，1 个 `web_fetch` 步骤完成，规划和答案生成成功。
+
+### M333-D：阶段交付与全局重规划输入 — 已完成
+
+- 交付：阶段计划、handoff、中文问题日志、代码职责索引和文档索引已更新；未保存模型原文、Prompt、网页正文、密钥或私有数据。
+- 下一阶段输入：评估多来源网页证据去重与新鲜度、网络不可用时的回答质量、跨域 Composite 证据组合和开放请求成功率；继续保持公共网络受控、默认测试精简、单 Agent。

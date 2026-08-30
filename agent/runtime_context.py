@@ -39,6 +39,7 @@ def build_runtime_context(
     permissions: Iterable[str] = (),
     approved_tools: Iterable[str] = (),
     require_dependency_evidence: bool = False,
+    web_mode: str = "allowlist",
 ) -> dict[str, Any]:
     """Build a stable JSON-safe snapshot of the selected runtime boundary."""
 
@@ -61,6 +62,7 @@ def build_runtime_context(
         "approved_tools": _bounded_strings(approved_tools, 32, 96),
         "policies": {
             "require_dependency_evidence": bool(require_dependency_evidence),
+            "web_mode": str(web_mode or "allowlist")[:32],
         },
         "contracts": {
             "domain_registry": DOMAIN_REGISTRY_SCHEMA_VERSION,
@@ -95,6 +97,11 @@ def normalize_runtime_context(value: Any) -> dict[str, Any] | None:
                 if isinstance(value.get("policies"), Mapping)
                 else False
             ),
+            "web_mode": str(
+                (value.get("policies") or {}).get("web_mode", "allowlist")
+                if isinstance(value.get("policies"), Mapping)
+                else "allowlist"
+            )[:32],
         },
         "contracts": _normalize_contracts(value.get("contracts")),
     }

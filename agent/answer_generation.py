@@ -474,30 +474,101 @@ def build_answer_context(result: Any) -> dict[str, Any]:
         "steps": steps,
         "result_summary": build_result_summary(result_payload),
     }
+    transient_documents = getattr(result, "_transient_model_context", None)
+    if isinstance(transient_documents, list):
+        packet["web_documents"] = _project_web_documents(transient_documents)
     # Keep the serialized packet bounded even when a custom Domain returns a
     # particularly wide scalar result.
-    encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
-    if len(encoded) > _MAX_CONTEXT_CHARS:
-        summary = packet.get("result_summary")
-        if isinstance(summary, dict):
-            for block in summary.get("blocks", []):
-                if isinstance(block, dict):
-                    block["facts"] = {}
-            summary["blocks"] = list(summary.get("blocks", []))[:8]
-            encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
-        packet["steps"] = steps[:8]
-        encoded = json.dumps(packet, ensure_ascii=False, separators=(",", ":"))
-        if len(encoded) > _MAX_CONTEXT_CHARS:
-            packet["steps"] = [
-                {
-                    "id": item.get("id"),
-                    "tool": item.get("tool"),
-                    "status": item.get("status"),
-                    "error": item.get("error"),
-                }
-                for item in packet["steps"]
-            ]
+    _fit_answer_context(packet, steps)
     return packet
+
+
+def _project_web_documents(value: Any) -> list[dict[str, str]]:
+    """Keep page text useful while reserving a bounded answer context."""
+
+    result: list[dict[str, str]] = []
+    remaining = 6000
+    for item in value[-8:] if isinstance(value, list) else []:
+        if remaining <= 0 or not isinstance(item, Mapping):
+            break
+        text = _safe_text(item.get("text"), min(6000, remaining))
+        if not text:
+            continue
+        result.append(
+            {
+                "url": _safe_text(item.get("url"), _MAX_REQUEST_CHARS),
+                "domain": _safe_text(item.get("domain"), 255),
+                "title": _safe_text(item.get("title"), 240),
+                "text": text,
+            }
+        )
+        remaining -= len(text)
+    return result
+
+
+def _fit_answer_context(packet: dict[str, Any], steps: list[dict[str, Any]]) -> None:
+    """Reduce optional detail structurally and guarantee the packet limit."""
+
+    def size() -> int:
+        return len(json.dumps(packet, ensure_ascii=False, separators=(",", ":")))
+
+    if size() <= _MAX_CONTEXT_CHARS:
+        return
+    documents = packet.get("web_documents")
+    if isinstance(documents, list):
+        # Preserve page identity and source evidence, but remove body text
+        # before dropping the entire web section.
+        packet["web_documents"] = [
+            {
+                key: item[key]
+                for key in ("url", "domain", "title")
+                if key in item
+            }
+            for item in documents
+            if isinstance(item, Mapping)
+        ]
+    summary = packet.get("result_summary")
+    if isinstance(summary, dict):
+        for block in summary.get("blocks", []):
+            if isinstance(block, dict):
+                block["facts"] = {}
+        summary["blocks"] = list(summary.get("blocks", []))[:8]
+    packet["steps"] = steps[:8]
+    if size() <= _MAX_CONTEXT_CHARS:
+        return
+    packet["steps"] = [
+        {
+            "id": item.get("id"),
+            "tool": item.get("tool"),
+            "status": item.get("status"),
+            "error": item.get("error"),
+        }
+        for item in packet["steps"]
+    ]
+    if size() <= _MAX_CONTEXT_CHARS:
+        return
+    packet.pop("web_documents", None)
+    packet["assumptions"] = list(packet.get("assumptions") or [])[:3]
+    packet["goal"] = _safe_text(packet.get("goal"), 240)
+    packet["request"] = _safe_text(packet.get("request"), 400)
+    if size() <= _MAX_CONTEXT_CHARS:
+        return
+
+    # A custom Domain can still publish unusually wide summary metadata. At
+    # this point retain only the stable fields needed to explain the request;
+    # this final projection makes the bound an invariant rather than a best
+    # effort for ordinary payloads.
+    compact = {
+        "schema_version": ANSWER_GENERATION_SCHEMA_VERSION,
+        "request": _safe_text(packet.get("request"), 400),
+        "goal": _safe_text(packet.get("goal"), 240),
+        "result_type": _safe_text(packet.get("result_type"), 96),
+        "status": _safe_text(packet.get("status"), 32),
+        "answer_phase": _safe_text(packet.get("answer_phase"), 32),
+        "execution_complete": bool(packet.get("execution_complete")),
+    }
+    packet.clear()
+    packet.update(compact)
 
 
 def _result_payload_for_summary(

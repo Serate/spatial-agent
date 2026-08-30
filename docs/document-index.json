@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
-  "updated": "2026-08-30",
-  "active_stage": "M332",
+  "updated": "2026-08-31",
+  "active_stage": "M333",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -11,7 +11,7 @@
       "docs/agent-work-state.md",
       "docs/document-index.json",
       "tasks/current-state.md",
-      "docs/stages/M332/handoff.md"
+      "docs/stages/M333/handoff.md"
     ],
     "never_default": [
       "docs/archive/",
@@ -63,6 +63,49 @@
     }
   ],
   "stage_packages": [
+    {
+      "id": "M333",
+      "status": "complete",
+      "root": "docs/stages/M333",
+      "capability_map": "docs/stages/M333/capability-map.md",
+      "spec": "docs/stages/M333/spec.md",
+      "plan": "docs/stages/M333/plan.md",
+      "handoff": "docs/stages/M333/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M333/handoff.md"
+      ],
+      "source_files": [
+        "agent/agent_settings.py",
+        "agent/network/web_policy.py",
+        "agent/network/web_search.py",
+        "agent/network/web_fetch.py",
+        "agent/network/__init__.py",
+        "agent/runtime_factory.py",
+        "agent/runtime.py",
+        "agent/runtime_core/execution.py",
+        "agent/runtime_core/react_runtime.py",
+        "agent/runtime_core/decision_resume.py",
+        "agent/runtime_core/recovery.py",
+        "agent/answer_generation.py",
+        "agent/result_summary.py",
+        "agent/persistence/sqlite_store.py",
+        "agent/persistence/artifact_store.py",
+        "agent/application/http.py",
+        "tests/test_m333_web_public.py",
+        "tests/test_m321_web_search.py",
+        "tests/test_m320_react_runtime.py"
+      ],
+      "verify": [
+        "M333 compact contract tests",
+        "M321/M320 compact regression",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready",
+        "Docker real-model + public HTML acceptance"
+      ]
+    },
     {
       "id": "M332",
       "status": "complete",
