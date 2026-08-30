@@ -647,7 +647,7 @@
 - 验证：Docker M331 结构化输出/任务组合/答案体验/上下文/答案流/事件/生成回归 `42/42`，Console answer/event/projection smoke、compileall、architecture strict、服务 smoke 全部通过。
 - 真实模型：通用直答 `COMPLETED`、`live_model`、`streaming=True`、质量 `pass`；复杂 GIS 多步请求在临时 45 秒有界预算中未返回，记录为 provider 规划延迟，未保存模型原文。
 
-### M331-E/F：阶段验收与交付 — 已完成（待提交）
+### M331-E/F：阶段验收与交付 — 已完成并推送（`11d7492`）
 
 - 完成：更新热状态、M331 Plan/handoff、任务账本、开发问题记录和代码/文档索引；全局重规划输入已写入 M331 Plan/handoff。
-- 下一步：提交并推送阶段版本；后续优先处理真实模型复杂规划的可控超时/增量反馈，并保持通用能力边界不退化。
+- 下一步：后续优先处理真实模型复杂规划的可控超时/增量反馈，并保持通用能力边界不退化。
