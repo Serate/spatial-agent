@@ -430,7 +430,7 @@
     {
       "path": "agent/answer_generation.py",
       "language": "python",
-      "line_count": 738,
+      "line_count": 743,
       "layer": "result",
       "role": "答案组合、生成与用户语义投影",
       "stage": "M8-M325",
@@ -493,22 +493,22 @@
         {
           "name": "LLMAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 461
+          "line": 464
         },
         {
           "name": "LLMAnswerGenerator.failure_evidence",
           "kind": "method",
-          "line": 527
+          "line": 532
         },
         {
           "name": "fallback_answer_generation_evidence",
           "kind": "function",
-          "line": 550
+          "line": 555
         },
         {
           "name": "project_answer_generation_evidence",
           "kind": "function",
-          "line": 566
+          "line": 571
         }
       ],
       "imports": [
@@ -4409,7 +4409,7 @@
     {
       "path": "agent/general_capability_host.py",
       "language": "python",
-      "line_count": 759,
+      "line_count": 850,
       "layer": "runtime",
       "role": "Runtime 公共契约、状态、规划与证据支持模块",
       "stage": "M1-M325",
@@ -4455,59 +4455,64 @@
           "line": 144
         },
         {
-          "name": "GeneralCapabilityHost.provider_info",
+          "name": "GeneralCapabilityHost.result_type_for_tool",
           "kind": "method",
           "line": 153
         },
         {
+          "name": "GeneralCapabilityHost.provider_info",
+          "kind": "method",
+          "line": 199
+        },
+        {
           "name": "GeneralCapabilityHost.owner_for",
           "kind": "method",
-          "line": 163
+          "line": 209
         },
         {
           "name": "GeneralCapabilityHost.domain_pack_for",
           "kind": "method",
-          "line": 169
+          "line": 215
         },
         {
           "name": "GeneralCapabilityHost.result_owner_for",
           "kind": "method",
-          "line": 178
+          "line": 224
         },
         {
           "name": "GeneralCapabilityHost.owner_map",
           "kind": "method",
-          "line": 183
+          "line": 229
         },
         {
           "name": "GeneralCapabilityHost.invoke",
           "kind": "method",
-          "line": 191
+          "line": 237
         },
         {
           "name": "GeneralCapabilityHost.preflight_tool",
           "kind": "method",
-          "line": 237
+          "line": 283
         },
         {
           "name": "GeneralCapabilityHost.health",
           "kind": "method",
-          "line": 265
+          "line": 311
         },
         {
           "name": "GeneralCapabilityHost.provider_health",
           "kind": "method",
-          "line": 309
+          "line": 355
         },
         {
           "name": "GeneralCapabilityHost.capability_catalog",
           "kind": "method",
-          "line": 314
+          "line": 360
         },
         {
           "name": "GeneralCapabilityHost.export_result",
           "kind": "method",
-          "line": 436
+          "line": 482
         }
       ],
       "imports": []
@@ -4515,7 +4520,7 @@
     {
       "path": "agent/general_runtime.py",
       "language": "python",
-      "line_count": 476,
+      "line_count": 479,
       "layer": "runtime",
       "role": "Runtime 公共契约、状态、规划与证据支持模块",
       "stage": "M1-M325",
@@ -4568,152 +4573,152 @@
         {
           "name": "GeneralRuntimePack.host",
           "kind": "method",
-          "line": 130
+          "line": 133
         },
         {
           "name": "GeneralRuntimePack.action_specs",
           "kind": "method",
-          "line": 133
+          "line": 136
         },
         {
           "name": "GeneralRuntimePack.execute_action",
           "kind": "method",
-          "line": 136
+          "line": 139
         },
         {
           "name": "GeneralRuntimePack.answer_composer",
           "kind": "method",
-          "line": 140
+          "line": 143
         },
         {
           "name": "GeneralRuntimePack.default_permissions",
           "kind": "method",
-          "line": 143
+          "line": 146
         },
         {
           "name": "GeneralRuntimePack.tool_provider",
           "kind": "method",
-          "line": 146
+          "line": 149
         },
         {
           "name": "GeneralRuntimePack.tool_provider_info",
           "kind": "method",
-          "line": 150
+          "line": 153
         },
         {
           "name": "GeneralRuntimePack.preflight_tool",
           "kind": "method",
-          "line": 154
+          "line": 157
         },
         {
           "name": "GeneralRuntimePack.result_registry",
           "kind": "method",
-          "line": 171
+          "line": 174
         },
         {
           "name": "GeneralRuntimePack.evidence_provider",
           "kind": "method",
-          "line": 174
+          "line": 177
         },
         {
           "name": "GeneralRuntimePack.runtime_evidence",
           "kind": "method",
-          "line": 177
+          "line": 180
         },
         {
           "name": "GeneralRuntimePack.release_evidence",
           "kind": "method",
-          "line": 202
+          "line": 205
         },
         {
           "name": "GeneralRuntimePack.extract_request_facts",
           "kind": "method",
-          "line": 223
+          "line": 226
         },
         {
           "name": "GeneralRuntimePack.analysis_intent",
           "kind": "method",
-          "line": 238
+          "line": 241
         },
         {
           "name": "GeneralRuntimePack.capability_catalog",
           "kind": "method",
-          "line": 242
+          "line": 245
         },
         {
           "name": "GeneralRuntimePack.discover",
           "kind": "method",
-          "line": 248
+          "line": 251
         },
         {
           "name": "GeneralRuntimePack.select_workflow",
           "kind": "method",
-          "line": 259
+          "line": 262
         },
         {
           "name": "GeneralRuntimePack.resolve_capability_selection",
           "kind": "method",
-          "line": 283
+          "line": 286
         },
         {
           "name": "GeneralRuntimePack.normalize_workflow",
           "kind": "method",
-          "line": 300
+          "line": 303
         },
         {
           "name": "GeneralRuntimePack.validate_workflow_plan",
           "kind": "method",
-          "line": 317
+          "line": 320
         },
         {
           "name": "GeneralRuntimePack.validate_open_react_plan",
           "kind": "method",
-          "line": 325
+          "line": 328
         },
         {
           "name": "GeneralRuntimePack.plan_policy",
           "kind": "method",
-          "line": 328
+          "line": 331
         },
         {
           "name": "GeneralRuntimePack.workflow_template_catalog",
           "kind": "method",
-          "line": 338
+          "line": 341
         },
         {
           "name": "GeneralRuntimePack.workflow_template_context",
           "kind": "method",
-          "line": 345
+          "line": 348
         },
         {
           "name": "GeneralRuntimePack.planner_guidance",
           "kind": "method",
-          "line": 359
+          "line": 362
         },
         {
           "name": "GeneralRuntimePack.planner_request_hint",
           "kind": "method",
-          "line": 374
+          "line": 377
         },
         {
           "name": "GeneralRuntimePack.request_understanding_guidance",
           "kind": "method",
-          "line": 378
+          "line": 381
         },
         {
           "name": "GeneralRuntimePack.clarification_details",
           "kind": "method",
-          "line": 387
+          "line": 390
         },
         {
           "name": "GeneralRuntimePack.evidence_action_guidance",
           "kind": "method",
-          "line": 391
+          "line": 394
         },
         {
           "name": "GeneralRuntimePack.rule_planner",
           "kind": "method",
-          "line": 402
+          "line": 405
         }
       ],
       "imports": []
@@ -6976,7 +6981,7 @@
     {
       "path": "agent/runtime.py",
       "language": "python",
-      "line_count": 1113,
+      "line_count": 1122,
       "layer": "runtime",
       "role": "AgentRuntime 门面与生命周期入口",
       "stage": "M318-M325",
@@ -6994,122 +6999,122 @@
         {
           "name": "AgentRuntime.approval_rehydration",
           "kind": "method",
-          "line": 228
+          "line": 237
         },
         {
           "name": "AgentRuntime.domain_id",
           "kind": "method",
-          "line": 250
+          "line": 259
         },
         {
           "name": "AgentRuntime.runtime_context",
           "kind": "method",
-          "line": 254
+          "line": 263
         },
         {
           "name": "AgentRuntime.result_registry",
           "kind": "method",
-          "line": 272
+          "line": 281
         },
         {
           "name": "AgentRuntime.domain_actions",
           "kind": "method",
-          "line": 276
+          "line": 285
         },
         {
           "name": "AgentRuntime.execute_domain_action",
           "kind": "method",
-          "line": 280
+          "line": 289
         },
         {
           "name": "AgentRuntime.capability_catalog",
           "kind": "method",
-          "line": 295
+          "line": 304
         },
         {
           "name": "AgentRuntime.workflow_template_catalog",
           "kind": "method",
-          "line": 299
+          "line": 308
         },
         {
           "name": "AgentRuntime.workflow_contract",
           "kind": "method",
-          "line": 303
+          "line": 312
         },
         {
           "name": "AgentRuntime.execution_contract",
           "kind": "method",
-          "line": 307
+          "line": 316
         },
         {
           "name": "AgentRuntime.extract_request_facts",
           "kind": "method",
-          "line": 311
+          "line": 320
         },
         {
           "name": "AgentRuntime.discover",
           "kind": "method",
-          "line": 315
+          "line": 324
         },
         {
           "name": "AgentRuntime.select_workflow",
           "kind": "method",
-          "line": 325
+          "line": 334
         },
         {
           "name": "AgentRuntime.resolve_capability_selection",
           "kind": "method",
-          "line": 340
+          "line": 349
         },
         {
           "name": "AgentRuntime.runtime_capabilities",
           "kind": "method",
-          "line": 355
+          "line": 364
         },
         {
           "name": "AgentRuntime.release_evidence",
           "kind": "method",
-          "line": 359
+          "line": 368
         },
         {
           "name": "AgentRuntime.run",
           "kind": "method",
-          "line": 376
+          "line": 385
         },
         {
           "name": "AgentRuntime.preview",
           "kind": "method",
-          "line": 425
+          "line": 434
         },
         {
           "name": "AgentRuntime.clear_session",
           "kind": "method",
-          "line": 442
+          "line": 451
         },
         {
           "name": "AgentRuntime.get_run",
           "kind": "method",
-          "line": 446
+          "line": 455
         },
         {
           "name": "AgentRuntime.cancel",
           "kind": "method",
-          "line": 449
+          "line": 458
         },
         {
           "name": "AgentRuntime.retry_failed",
           "kind": "method",
-          "line": 452
+          "line": 461
         },
         {
           "name": "AgentRuntime.apply_tool_approval",
           "kind": "method",
-          "line": 455
+          "line": 464
         },
         {
           "name": "AgentRuntime.export_result",
           "kind": "method",
-          "line": 466
+          "line": 475
         }
       ],
       "imports": [
@@ -8124,7 +8129,7 @@
     {
       "path": "agent/runtime_core/react_runtime.py",
       "language": "python",
-      "line_count": 816,
+      "line_count": 830,
       "layer": "runtime",
       "role": "ReAct 决策与工具执行桥接",
       "stage": "M320",
@@ -9395,7 +9400,7 @@
     {
       "path": "agent/tools.py",
       "language": "python",
-      "line_count": 653,
+      "line_count": 675,
       "layer": "tooling",
       "role": "ToolRegistry schema 校验与 dispatch",
       "stage": "M81-M325",
@@ -9523,7 +9528,7 @@
         {
           "name": "ToolRegistry.export_result",
           "kind": "method",
-          "line": 562
+          "line": 584
         }
       ],
       "imports": [

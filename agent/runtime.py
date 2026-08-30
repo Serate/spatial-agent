@@ -149,8 +149,15 @@ class AgentRuntime:
         self._decision_store = decision_store
         self._approval_store = approval_store or InMemoryToolApprovalStore()
         self._approval_rehydration = self._restore_approved_tools()
+        result_context = self._result_registry.as_context()
+        known_result_profiles = tuple(
+            str(item.get("type"))
+            for item in (result_context.get("result_types") or [])
+            if isinstance(item, Mapping) and str(item.get("type") or "").strip()
+        )
         self._execution_policy_resolver = ExecutionPolicyResolver(
             known_tools=self._registry.names,
+            known_result_profiles=known_result_profiles,
             max_actions=max(
                 1,
                 min(
@@ -166,7 +173,9 @@ class AgentRuntime:
             # default GIS registry. Their own plan_policy/result contract is
             # still enforced; the global registry check remains opt-in until
             # those packs publish a complete result registry.
-            enforce_known_result_profiles=False,
+            enforce_known_result_profiles=bool(
+                getattr(self._domain_pack, "strict_result_contract", False)
+            ),
         )
         approval_guard = getattr(self._registry, "set_approval_guard", None)
         if callable(approval_guard):

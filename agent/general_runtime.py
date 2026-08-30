@@ -121,6 +121,9 @@ class GeneralRuntimePack:
     """Adapter implementing the Domain Pack interface for open requests."""
 
     domain_id = "general"
+    # The aggregate Host publishes one complete result registry.  Open ReAct
+    # therefore rejects model-invented output labels before any tool runs.
+    strict_result_contract = True
 
     def __init__(self, host: GeneralCapabilityHost):
         self._host = host

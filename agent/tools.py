@@ -507,8 +507,30 @@ class ToolRegistry:
         schema = definition.get("input_schema", {})
         self._validate(arguments, schema, "$")
 
-    def result_type_for_tool(self, name: str) -> str | None:
-        """Return an explicitly declared output result type, when present."""
+    def result_type_for_tool(
+        self,
+        name: str,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> str | None:
+        """Return a checked output result type, optionally using action facts.
+
+        Providers may expose a domain-neutral resolver for tools whose public
+        result type depends on a validated argument such as ``operation``.
+        The ordinary schema declaration remains the fallback, preserving the
+        existing provider seam for native and third-party implementations.
+        """
+
+        resolver = getattr(self._provider, "result_type_for_tool", None)
+        if callable(resolver):
+            try:
+                resolved = resolver(name, arguments=arguments)
+            except TypeError:
+                # Older providers may only accept the tool name.  Keep this
+                # compatibility path narrow and let all other provider
+                # failures remain visible to the Runtime validation boundary.
+                resolved = resolver(name)
+            if isinstance(resolved, str) and resolved.strip():
+                return resolved.strip()[:96]
         definition = self._definitions.get(name)
         if not isinstance(definition, Mapping):
             raise ToolError("Unknown tool: " + str(name))

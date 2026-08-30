@@ -533,3 +533,63 @@
 - 当前动作：固定非 GIS/经济的概念解释、比较、总结、写作和简单计算场景，验证公共 `general` Runtime 的 direct-answer、
   `request_mode=answer`、无工具步骤和领域中立降级契约。
 - 下一步：补充场景矩阵文档与紧凑契约测试；完成后再做一次显式真实模型验收。
+
+### M330-A：通用直接回答场景矩阵 — 实现完成
+
+- 实现：新增 `docs/stages/M330/direct-answer-scenarios.md`，固定概念解释、比较、总结、写作和简单计算五类无数据场景，
+  统一断言 `request_mode=answer`、`direct_answer`、0 个工具步骤和领域中立 fallback。
+- 修改：`agent/answer_generation.py` 允许不依赖外部数据的通用请求使用用户请求直接回答；实时、地域和专门外部事实仍要求证据。
+  新增 `tests/test_m330_direct_answer.py`。
+- 验证：Docker 重建后 M330-A 紧凑测试 `4/4` 通过；初次失败仅为测试夹具缺少 `metrics` 和误调用不存在的 runtime `close()`，已修复。
+- 当前动作：运行答案生成/通用入口相邻回归，并执行一次显式真实模型通用直接回答验收；不保存模型原文、Prompt 或密钥。
+
+### M330-B：开放请求与能力发现 — 实现完成
+
+- 实现：`GeneralCapabilityHost` 从声明式 workflow blueprint 受控解析工具与操作对应的公共 Result 类型；`ToolRegistry` 和
+  ReAct 执行 seam 支持传入已校验参数。General Runtime 使用已发布 Result Registry 的严格 allowlist，可信目录推导优先于
+  模型标签，歧义/未知结果保持 fail-closed。
+- 修改：`agent/general_capability_host.py`、`agent/tools.py`、`agent/runtime.py`、`agent/general_runtime.py`、
+  `agent/runtime_core/react_runtime.py`、`tests/test_m330_open_capability.py`。
+- 验证：Docker M330-B 合并回归 `23/23`；真实模型能力选择为 `COMPLETED`、`general`、`mixed`、1 个已完成工具步骤、
+  `economic_catalog_result` 和 live-model answer evidence；不保存模型原文、Prompt 或密钥。
+- 下一步：M330-C 执行 Web 成功/无结果/网络失败、工具提案审批恢复、局部 provider 降级和澄清/重试/取消边界。
+
+### M330-C：开放行动与故障恢复 — 实现完成
+
+- 验证：Docker 紧凑回归 `15/15` 通过，覆盖 Web evidence 状态、Provider 降级、ReAct 预算/澄清/参数校验和提案恢复。
+- 显式真实验收：工具提案在审批前进入 `WAITING_FOR_DECISION` 且 0 步；批准后恢复同一 Run，`COMPLETED`、执行 1 步、
+  答案流开启。30 秒首次 HTTP 超时，扩大到 60 秒有界时限后通过，归类为 provider 延迟。
+- 安全边界：Web 网络不可达保持 `unavailable/search_network_error`；提案继续经过 sandbox 和人工审批，不自动上线。
+- 下一步：M330-D 验证 RunEvent、SSE/Last-Event-ID、轮询、Artifact 和前端动态投影。
+
+### M330-D：实时产品体验 — 实现完成
+
+- 验证：Docker compileall、architecture strict、readiness/home `200`、结果投影 smoke 和 RunEvent smoke 全部通过；保留既有
+  `runtime/service God module` warning，无 architecture error。
+- 默认 HTTP `/runs` 真实模型直答返回 `general`、`COMPLETED`、`answer`、`direct_answer` 和 live-model answer evidence；
+  默认异步 HTTP/SSE/Artifact 验收的轮询、artifact、证据端点和 Last-Event-ID 回放一致。
+- 说明：`/runs/auto` 是自动 Domain 选择入口，选到 GIS 属于既有语义；产品默认 `/runs` 已明确使用 `general`。
+
+### M330-E：阶段综合验收 — 实现完成
+
+- Docker 合并紧凑回归 `31/31` 通过，覆盖 M330-A/B、M329 通用 Host/入口/答案和 M328 Web/提案恢复；smoke、compileall、
+  architecture strict、代码索引、文档索引、readiness 和前端事件投影均通过。
+- 真实模型验收覆盖非数据直答、能力目录选择、Web 不可用降级、sandbox+人工审批同一 Run 恢复和默认 HTTP 异步/SSE/Artifact；
+  只保留脱敏状态、模式、动作计数、结果类型、evidence 和事件序列。
+- 阻塞：无。前一轮 30 秒提案请求超时在 60 秒有界时限下通过，归类为 provider 延迟而非功能失败。
+
+### M330-F：阶段交付与全局重规划 — 进行中
+
+- 当前动作：更新热状态、交接、里程碑和索引，执行 diff 检查后提交并推送 M330 版本。
+- 下一步：推送完成后，从产品、Runtime、Planner、Domain、数据、模型、部署、体验和测试全局规划下一阶段。
+
+### M330-F：阶段交付与全局重规划 — 已完成
+
+- 实现：更新 M330 Plan、handoff、热状态、任务计划、进度账本、里程碑、代码/文档索引，并建立 M331 capability map、Spec、
+  Plan 和 handoff；恢复入口切换到 M331-0。
+- 交付：M330 版本已提交并推送；未纳入私有配置、密钥、Prompt、模型原文、网页正文、工具源码或私有数据。
+- 下一阶段：M331 聚焦真实模型开放任务可靠性、有限修复、通用组合、长任务上下文、恢复和答案体验，不引入 RAG 或无边界执行。
+
+### M331-0：阶段初始化与全局规划 — 进行中
+
+- 当前动作：只保留 M331 规划入口和最小热状态；下一步进入 M331-A，建立真实模型结构化输出 conformance 场景矩阵。

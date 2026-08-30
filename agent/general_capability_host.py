@@ -150,6 +150,52 @@ class GeneralCapabilityHost:
                 result[name] = deepcopy(dict(definition))
         return result
 
+    def result_type_for_tool(
+        self,
+        name: str,
+        *,
+        arguments: Mapping[str, Any] | None = None,
+    ) -> str | None:
+        """Resolve a public result type from catalog declarations only.
+
+        Some tools serve several operations and therefore cannot publish one
+        static output type in their JSON Schema.  Workflow blueprints carry
+        the operation-to-result relation; this resolver uses that relation
+        only when it yields one unambiguous type.  Ambiguous or undeclared
+        relations return ``None`` so the model must declare a type and the
+        normal plan/result gates remain authoritative.
+        """
+
+        tool_name = str(name or "").strip()
+        if not tool_name:
+            return None
+        operation = ""
+        if isinstance(arguments, Mapping):
+            operation = str(arguments.get("operation") or "").strip()
+        candidates: set[str] = set()
+        for binding in self._bindings:
+            if tool_name not in binding.definitions:
+                continue
+            templates = binding.catalog.get("workflow_templates")
+            if not isinstance(templates, Mapping):
+                continue
+            for raw in templates.values():
+                if not isinstance(raw, Mapping):
+                    continue
+                allowed = {
+                    str(item).strip()
+                    for item in (raw.get("allowed_tools") or [])
+                    if str(item).strip()
+                }
+                if tool_name not in allowed:
+                    continue
+                if operation and not _workflow_matches_operation(raw, tool_name, operation):
+                    continue
+                result_type = _workflow_output_type(raw)
+                if result_type:
+                    candidates.add(result_type)
+        return next(iter(candidates)) if len(candidates) == 1 else None
+
     def provider_info(self) -> dict[str, Any]:
         """Return safe aggregate provider identity for Runtime context."""
 
@@ -721,6 +767,51 @@ def _referenced_result_types(binding: _DomainBinding) -> set[str]:
             if isinstance(value, Mapping) and value.get("const"):
                 referenced.add(str(value["const"]).strip())
     return referenced
+
+
+def _workflow_output_type(workflow: Mapping[str, Any]) -> str | None:
+    output = workflow.get("output_template")
+    if isinstance(output, Mapping):
+        value = output.get("type")
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:96]
+    values = workflow.get("result_types")
+    if isinstance(values, str):
+        values = [values]
+    if isinstance(values, (list, tuple)) and len(values) == 1:
+        value = values[0]
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:96]
+    return None
+
+
+def _workflow_matches_operation(
+    workflow: Mapping[str, Any],
+    tool_name: str,
+    operation: str,
+) -> bool:
+    """Match a literal operation in a declarative workflow blueprint."""
+
+    declared = workflow.get("operation") or workflow.get("analysis_operation")
+    if isinstance(declared, str) and declared.strip():
+        return declared.strip() == operation
+    declared_values = workflow.get("operations") or workflow.get("analysis_operations")
+    if isinstance(declared_values, str):
+        declared_values = [declared_values]
+    if isinstance(declared_values, (list, tuple)) and declared_values:
+        return operation in {str(item).strip() for item in declared_values}
+    blueprints = workflow.get("step_blueprint")
+    if not isinstance(blueprints, (list, tuple)):
+        return False
+    for step in blueprints:
+        if not isinstance(step, Mapping) or str(step.get("tool") or "").strip() != tool_name:
+            continue
+        args = step.get("args")
+        if isinstance(args, Mapping):
+            value = args.get("operation")
+            if isinstance(value, str) and value.strip() == operation:
+                return True
+    return False
 
 
 def _mapping_lists(value: Any) -> list[tuple[str, list[str]]]:

@@ -113,7 +113,7 @@
 | `agent/execution_contract.py` | `runtime` | Domain-neutral execution identity and observability projection. | `public-boundary` | `M128-M325` | `path-rule` | 2 | — |
 | `agent/execution_timeline.py` | `runtime` | Domain-neutral, bounded execution timeline evidence. | `public-boundary` | `M128-M325` | `path-rule` | 3 | — |
 | `agent/failure_contract.py` | `runtime` | Stable, credential-free run-level failure evidence. | `public-boundary` | `M33-M325` | `path-rule` | 2 | — |
-| `agent/general_capability_host.py` | `runtime` | Domain-neutral capability and provider aggregation. | `internal` | `M1-M325` | `path-rule` | 18 | — |
+| `agent/general_capability_host.py` | `runtime` | Domain-neutral capability and provider aggregation. | `internal` | `M1-M325` | `path-rule` | 19 | — |
 | `agent/general_runtime.py` | `runtime` | Domain-neutral Runtime adapter backed by :mod:`general_capability_host`. | `internal` | `M1-M325` | `path-rule` | 38 | — |
 | `agent/geojson_exporter.py` | `result` | 空间结果 GeoJSON 有界导出 | `public-boundary` | `M18-M325` | `path-rule` | 2 | — |
 | `agent/interaction_contract.py` | `application` | Versioned, domain-neutral contract for all user/runtime interactions. | `public-boundary` | `M164-M325` | `path-rule` | 11 | — |

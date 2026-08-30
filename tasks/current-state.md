@@ -4,9 +4,9 @@
 
 ## 当前阶段
 
-- 阶段：`M330`
-- 当前任务：M330-A 通用直接回答场景矩阵
-- 状态：M330-A 进行中；先固定公共行为契约，再做最小实现与验证
+- 阶段：`M331`
+- 当前任务：M331-0 全局规划与恢复入口
+- 状态：M330-A～F 已完成并交付；M331-0 进行中，只建立全局规划和最小恢复入口
 - 基线：`81e79ab`
 - 协作：单 Agent，最大并发度 1；测试、GIS 和 live 验收优先使用 Docker
 
@@ -27,21 +27,30 @@
 - M329-E/F 已完成：SQLite/Artifact 重启、多轮会话、SSE `Last-Event-ID`、proposal 同一 Run 恢复、显式 Domain 隔离、
   Docker/真实模型/索引/前端阶段门禁全部通过；答案生成上下文不再把内部执行状态写成用户仍在等待。
 
+## 已完成（当前阶段）
+
+- M330-A：新增通用直接回答场景矩阵和紧凑契约测试；答案生成允许不依赖外部数据的通用请求直接回答，真实模型验收通过。
+- M330-B：补充目录 workflow 到工具操作的结果类型推导；通用 Registry 优先使用已校验结果，未知或歧义结果仍 fail-closed；
+  完成多域目录、schema/结果契约和真实模型能力选择验收。
+- M330-C：完成 Web 状态、受控工具提案 sandbox/审批/同一 Run 恢复、Provider 局部降级、ReAct 预算/澄清/参数校验验收。
+- M330-D：完成 Runtime 事件、SSE/Last-Event-ID、轮询、Artifact、前端 projection 和产品 readiness 验收。
+- M330-E：完成阶段合并回归与真实模型纵向验收，未保存模型原文、Prompt、网页正文、工具源码或密钥。
+
+## 已完成（上一阶段）
+
+- M330：完成直接回答、能力发现、受控 Web/工具提案、降级恢复、实时事件、默认 HTTP/SSE/Artifact 与真实模型纵向验收。
+
 ## 进行中
 
-- M330-A：建立概念解释、比较、总结、写作、简单计算等非数据请求矩阵；确认通用 Runtime 不依赖关键词即可直接回答。
+- M331-0：从产品、Runtime、Planner、Domain、数据、模型、部署、体验和测试全局规划真实模型开放任务可靠性，
+  不读取无关历史或全量源码。
 
 ## 必要文件
 
-- `docs/stages/M329/{capability-map.md,spec.md,plan.md,handoff.md}`
-- `agent/runtime_factory.py`
-- `agent/domain_registry.py`
-- `agent/domain_contract.py`
-- `agent/tool_provider.py`
-- `agent/tools.py`
-- `agent/runtime_core/planning_surface.py`
-- `domains/*/domain.py`
-- `domains/*/provider.py`
+- `docs/stages/M331/{capability-map.md,spec.md,plan.md,handoff.md}`
+- `docs/stages/M330/handoff.md`
+- `tasks/current-state.md`
+- `docs/document-index.json`
 
 ## 验证
 
@@ -49,9 +58,19 @@
 - M329 Host/Request Mode/General Runtime 紧凑测试 `10/10`，答案上下文与相邻回归 `15/15`，阶段收口回归 `18/18`；真实模型
   普通回答、经济工具链、Web 降级、工具提案和同一 Run 恢复均完成；Docker HTTP 默认通用入口、显式 Domain、preview、async、
   events、Artifact、SSE 续传和前端 smoke 验证通过。
+- M330-A 显式真实模型验收通过：`COMPLETED`、`general`、`answer`、0 工具步骤、live-model answer evidence、答案非空且未命中
+  内部引用标记；只保留脱敏状态和计数。
+- M330-B Docker 紧凑测试 `23/23` 通过；覆盖 M330-A、M329 通用入口/Host/答案回归和结果类型推导。真实模型能力选择验收为
+  `COMPLETED`、`general`、`mixed`、1 个已完成工具步骤、`economic_catalog_result`、live-model answer evidence；不保存原文。
+- M330-C Docker 紧凑测试 `15/15` 通过；显式提案验收在 60 秒有界 HTTP 时限下通过，审批前 `WAITING_FOR_DECISION`/0 步，
+  批准后同一 Run `COMPLETED`/1 步/答案流开启；30 秒重试仅记录为 provider 延迟。
+- M330-D 门禁通过：Docker compileall、architecture strict、readiness/home `200`、结果投影 smoke 和 RunEvent smoke 通过。
+- M330-E 合并紧凑回归 `31/31` 通过；默认 `/runs` 真实模型直答为 `general`/`COMPLETED`/`answer`/`direct_answer`，
+  默认异步 HTTP/SSE/Artifact 验收通过；代码/文档索引均为 `333` 个源码文件、语义覆盖 `100%`。
+- M330-F 已完成交接、索引和阶段交付；下一阶段规划入口切换为 M331-0。
 
 ## 阻塞与下一步
 
 - 阻塞：无；Docker GIS provider 因当前挂载数据不完整保持局部 unavailable，通用 Runtime 已按契约降级，未影响经济、指标、
   文本和通用直接回答。
-- 下一步：完成 M330-A 紧凑契约与显式真实模型验收后，进入 M330-B 开放请求与能力发现。
+- 下一步：完成 M331-0 capability map、Spec、Plan、handoff 后，再进入 M331-A；恢复时只读取 M331 入口文件。

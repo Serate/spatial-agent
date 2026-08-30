@@ -384,10 +384,24 @@ class RuntimeReactExecution:
             if result.plan is not None
             else ""
         )
+        registry_output_type = str(
+            runtime._registry.result_type_for_tool(
+                tool,
+                resolved_arguments,
+            )
+            or ""
+        ).strip()
+        # A checked result already selected by an earlier action, or derived
+        # from this tool's operation contract, outranks a model-supplied
+        # label. Compatible models occasionally emit a JSON Schema primitive
+        # such as ``string`` instead of the public Result id; allowing that
+        # label to win would either reject a valid action or weaken the result
+        # contract. If no trusted inference exists, the model label remains a
+        # candidate and is validated by the normal policy gate below.
         output_type = (
-            str(decision.get("output_type") or "").strip()
-            or current_output
-            or str(runtime._registry.result_type_for_tool(tool) or "").strip()
+            current_output
+            or registry_output_type
+            or str(decision.get("output_type") or "").strip()
             or self._inferred_output_type(context)
         )
         if not output_type:
@@ -497,8 +511,8 @@ class RuntimeReactExecution:
             )
         else:
             output_type = str(
-                decision.get("output_type")
-                or result.plan.output.get("type")
+                result.plan.output.get("type")
+                or decision.get("output_type")
                 or "unknown"
             )[:96]
             plan = TaskPlan(

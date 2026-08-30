@@ -8,30 +8,27 @@
 
 ## 当前阶段
 
-- 阶段：`M330` 通用 Agent 开放问题质量与纵向行为验收
-- 当前任务：M330-A 通用直接回答场景矩阵
-- 状态：M330-A 进行中：固定通用直接回答场景矩阵并补齐最小契约验证
+- 阶段：`M331` 真实模型开放任务可靠性与通用能力可用率
+- 当前任务：M331-0 全局规划与恢复入口
+- 状态：M330 已完成并交付；M331-0 进行中，只建立全局规划和最小恢复入口
 - 基线：`81e79ab`
 - 协作：单 Agent，最大并发度 1；测试与 GIS 优先使用 Docker
 
 ## 阶段入口
 
-- [`docs/stages/M330/capability-map.md`](stages/M330/capability-map.md)
-- [`docs/stages/M330/spec.md`](stages/M330/spec.md)
-- [`docs/stages/M330/plan.md`](stages/M330/plan.md)
-- [`docs/stages/M330/handoff.md`](stages/M330/handoff.md)
+- [`docs/stages/M331/capability-map.md`](stages/M331/capability-map.md)
+- [`docs/stages/M331/spec.md`](stages/M331/spec.md)
+- [`docs/stages/M331/plan.md`](stages/M331/plan.md)
+- [`docs/stages/M331/handoff.md`](stages/M331/handoff.md)
 - [`tasks/current-state.md`](../tasks/current-state.md)
 - [`docs/document-index.json`](document-index.json)
 
 ## 当前任务必要文件
 
-- `agent/general_runtime.py`
-- `agent/answer_generation.py`
-- `agent/result_summary.py`
-- `agent/llm_planner.py`
-- `tests/test_answer_generation.py`
-- `tests/test_m330_direct_answer.py`
-- `docs/stages/M330/{capability-map.md,spec.md,plan.md,handoff.md}`
+- `docs/stages/M331/{capability-map.md,spec.md,plan.md,handoff.md}`
+- `docs/stages/M330/handoff.md`
+- `tasks/current-state.md`
+- `docs/document-index.json`
 
 ## 恢复规则
 

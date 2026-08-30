@@ -321,3 +321,13 @@
   多轮续问和 SSE Last-Event-ID；Docker 紧凑回归 18/18，答案定向回归 15/15，readiness 200、architecture/index 和前端 smoke 通过。
 - 答案生成上下文把内部 `EXECUTING` 明确投影为 `FINALIZING`，真实模型不再把已结束的工具执行描述成“仍在执行”。下一阶段为 M330，
   聚焦开放问题质量与纵向行为验收；恢复默认只读取热状态、M330 handoff 和当前任务必要文件。
+
+## M330：通用 Agent 开放问题质量与纵向行为验收（已完成）
+
+- 完成非数据普通问题直接回答场景矩阵；真实模型可在 `general` 默认入口回答概念解释等请求，答案生成不再因事实包为空而
+  误报“没有结果”。
+- 完成 Capability Catalog/ReAct 开放能力选择；工具操作到 Result profile 支持声明式受控推导，模型错误结果标签不覆盖可信
+  推导，未知/歧义结果仍 fail-closed。
+- 完成 Web evidence、工具提案 sandbox+人工审批同一 Run 恢复、Provider 降级、RunEvent/SSE/Artifact/前端投影与默认
+  `/runs` 真实 HTTP 验收；Docker 合并紧凑回归 `31/31`，readiness、架构、索引和 smoke 通过。
+- M330 阶段版本已推送。当前恢复入口切换为 `docs/stages/M331/`，默认只读取热状态、M331 handoff 和必要规划文件。

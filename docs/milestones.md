@@ -5318,8 +5318,17 @@ M199 从公共 workspace/evidence renderer 继续推进“开放式复杂请求�
 - 修复答案生成期间内部 `EXECUTING` 状态误导模型的问题，真实复验不再输出“仍处于执行中”。下一阶段按全局目标规划 M330，
   聚焦开放问题质量与通用 Agent 纵向行为，不引入 RAG 或固定专题分支。
 
-## M330：通用 Agent 开放问题质量与纵向行为验收（2026-08-30，已规划）
+## M330：通用 Agent 开放问题质量与纵向行为验收（2026-08-30，已完成）
 
-- 已建立 `docs/stages/M330/{capability-map.md,spec.md,plan.md,handoff.md}`。
-- 目标：验证非数据普通问题、单域/跨域事实、白名单 Web、工具提案、澄清、降级、恢复、答案流和前端分层展示的完整行为链。
-- 约束：单 Agent、最大并发度 1；默认测试精简且使用 Docker，真实模型为显式验收；不读取或保存模型原文、Prompt、密钥和隐藏思维链。
+- 已建立 `docs/stages/M330/{capability-map.md,spec.md,plan.md,handoff.md,direct-answer-scenarios.md}`。
+- 完成非数据普通问题直接回答、Capability Catalog/ReAct 能力选择、Web/提案/审批恢复/Provider 降级、RunEvent/SSE/Artifact/
+  前端投影和默认 `/runs` 通用入口验收；未增加固定问句或领域 Runtime 分支。
+- 新增工具操作到 Result profile 的受控声明式推导，可信推导优先于模型标签，未知/歧义结果 fail-closed。
+- Docker 合并紧凑回归 `31/31`，compileall、architecture strict、readiness/home `200`、smoke、代码/文档索引和真实模型纵向
+  验收通过；不保存模型原文、Prompt、密钥、网页正文、工具源码或私有数据。
+
+## M331：真实模型开放任务可靠性与通用能力可用率（2026-08-30，已规划）
+
+- 已建立 `docs/stages/M331/{capability-map.md,spec.md,plan.md,handoff.md}`。
+- 全局方向：提高真实模型在结构化输出、有限修复、通用组合、长任务上下文、恢复和答案体验上的可用率；继续保持
+  Domain-neutral Runtime、受控 Web/工具提案、人工审批、脱敏 evidence 和最小充分测试。
