@@ -15,6 +15,23 @@
 
 ## 当前进行中
 
+### M334-0：阶段初始化与契约冻结 — 已完成
+
+- 目标：基于 M333 的受控网页能力，建立多来源证据身份、质量、Bundle 和跨域 Composite 的全局阶段边界。
+- 修改范围：`docs/stages/M334/`、`docs/agent-work-state.md`、`tasks/current-state.md`、`docs/document-index.json`。
+- 已完成：M334 capability map、Spec、Plan、handoff 已建立；已固定不引入 RAG、不持久化网页正文、不自动裁决冲突来源。
+- 验证：`pwsh -NoProfile -File scripts/validate_document_index.ps1` 通过；未修改运行时代码。
+- 阻塞：无。
+- 下一步：实现 M334-A 来源身份与质量深模块。
+
+### M334-A：来源身份与质量深模块 — 待开始
+
+- 目标：为网页、GIS、指标和文本来源建立稳定身份、新鲜度、完整性和安全质量 receipt。
+- 必要文件：`agent/evidence/contract.py`、`agent/evidence/projection.py`、`agent/evidence/registry.py`、`agent/network/web_search.py`、`agent/network/web_fetch.py`、`tests/test_m334_evidence_quality.py`。
+- 验证：实现后集中运行 identity/quality 紧凑契约；不保存网页正文、Prompt、模型原文或密钥。
+- 阻塞：无。
+- 下一步：先读取上述必要文件，再实现 canonical 深模块和兼容投影。
+
 ### code-index-semantic-coverage — 已完成
 
 - 目标：将源码索引从“文件/符号可查”补强为“每个源码文件都有可恢复的层、职责和稳定性语义”，并让新增源码缺少分类时可被校验发现。

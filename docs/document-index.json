@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
   "updated": "2026-08-31",
-  "active_stage": "M333",
+  "active_stage": "M334",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -63,6 +63,41 @@
     }
   ],
   "stage_packages": [
+    {
+      "id": "M334",
+      "status": "active",
+      "root": "docs/stages/M334",
+      "capability_map": "docs/stages/M334/capability-map.md",
+      "spec": "docs/stages/M334/spec.md",
+      "plan": "docs/stages/M334/plan.md",
+      "handoff": "docs/stages/M334/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M334/handoff.md"
+      ],
+      "source_files": [
+        "agent/evidence/contract.py",
+        "agent/evidence/projection.py",
+        "agent/evidence/registry.py",
+        "agent/network/web_search.py",
+        "agent/network/web_fetch.py",
+        "agent/application/composite_view.py",
+        "agent/result_summary.py",
+        "agent/answer_generation.py",
+        "agent/runtime_core/react_runtime.py",
+        "tests/test_m334_evidence_quality.py"
+      ],
+      "verify": [
+        "M334 compact evidence quality contract tests",
+        "affected Composite/answer regression",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready",
+        "Docker cross-source acceptance",
+        "Docker real-model + GIS + public HTML acceptance"
+      ]
+    },
     {
       "id": "M333",
       "status": "complete",
