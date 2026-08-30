@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const DEFAULT_MAX_LENGTH = 1800;
+  const DEFAULT_MAX_LENGTH = 6000;
   const DEFAULT_INTERVAL = 24;
 
   function asCharacters(value) {

@@ -39,6 +39,8 @@ from .action_lifecycle import project_action_lifecycle
 from agent.evidence.contract import project_capability_catalog_evidence
 from .failure_contract import build_failure_evidence
 from .answer_generation import fallback_answer_generation_evidence
+from .answer_quality import assess_answer
+from .result_completeness import build_result_completeness
 from .memory import FactMemory
 from .models import AgentRunResult, PlanStep, RunStatus, StepRun, TaskPlan
 from .plan_repair import PlanRepairEngine, PlanRepairInput
@@ -684,10 +686,13 @@ class AgentRuntime:
         generator = self._answer_generator
         generate = getattr(generator, "generate", None) if generator is not None else None
         if not callable(generate):
-            result.answer_generation_evidence = fallback_answer_generation_evidence(
-                "answer_generation_disabled"
+            answer = _append_execution_degradation_notice(result, fallback)
+            result.answer_generation_evidence = self._answer_quality_evidence(
+                result,
+                fallback_answer_generation_evidence("answer_generation_disabled"),
+                answer,
             )
-            return _append_execution_degradation_notice(result, fallback)
+            return answer
         try:
             stream_generate = getattr(generator, "generate_stream", None)
             if callable(on_delta) and callable(stream_generate):
@@ -698,22 +703,51 @@ class AgentRuntime:
             evidence = getattr(generated, "evidence", None)
             if not isinstance(answer, str) or not answer.strip():
                 raise ValueError("answer generator returned an empty answer")
-            result.answer_generation_evidence = (
+            evidence = (
                 dict(evidence) if isinstance(evidence, Mapping) else
                 fallback_answer_generation_evidence("answer_generation_evidence_missing")
             )
-            return _append_execution_degradation_notice(result, answer.strip())
+            answer = _append_execution_degradation_notice(result, answer.strip())
+            result.answer_generation_evidence = self._answer_quality_evidence(
+                result, evidence, answer
+            )
+            return answer
         except Exception:
             failure_evidence = getattr(generator, "failure_evidence", None)
             if callable(failure_evidence):
-                result.answer_generation_evidence = failure_evidence(
+                evidence = failure_evidence(
                     "answer_generation_failed"
                 )
             else:
-                result.answer_generation_evidence = fallback_answer_generation_evidence(
+                evidence = fallback_answer_generation_evidence(
                     "answer_generation_failed"
                 )
-            return _append_execution_degradation_notice(result, fallback)
+            answer = _append_execution_degradation_notice(result, fallback)
+            result.answer_generation_evidence = self._answer_quality_evidence(
+                result, evidence, answer
+            )
+            return answer
+
+    @staticmethod
+    def _answer_quality_evidence(
+        result: AgentRunResult, evidence: Mapping[str, Any], answer: str
+    ) -> Dict[str, Any]:
+        projected = dict(evidence)
+        payload = result.to_dict()
+        quality_payload = dict(payload)
+        # During answer generation the lifecycle is temporarily EXECUTING,
+        # but tool execution has already finished. Keep the quality receipt
+        # aligned with the answer context's FINALIZING projection.
+        if quality_payload.get("status") == RunStatus.EXECUTING.value:
+            quality_payload["status"] = RunStatus.COMPLETED.value
+        projected["quality"] = assess_answer(
+            answer,
+            {
+                "status": quality_payload.get("status"),
+                "completeness": build_result_completeness(quality_payload),
+            },
+        )
+        return projected
 
     def _validate_or_repair_plan(
         self,

@@ -15,9 +15,9 @@
 
 | 指标 | 数值 |
 | --- | ---: |
-| `agent/` 源码文件 | 201 |
-| 全仓源码文件 | 333 |
-| 职责覆盖 | 201/201 |
+| `agent/` 源码文件 | 203 |
+| 全仓源码文件 | 335 |
+| 职责覆盖 | 203/203 |
 | 语义覆盖率 | 100.0% |
 
 ### 语义层分布
@@ -31,11 +31,11 @@
 | `domain` | 11 |
 | `evidence` | 14 |
 | `frontend` | 1 |
-| `integration` | 11 |
+| `integration` | 12 |
 | `observability` | 2 |
 | `persistence` | 15 |
 | `planner` | 31 |
-| `result` | 7 |
+| `result` | 8 |
 | `runtime` | 51 |
 | `tooling` | 9 |
 | `verification` | 3 |
@@ -44,11 +44,11 @@
 
 | 当前目录 | 文件数 | 主要语义层 |
 | --- | ---: | --- |
-| `agent/（根目录公共入口与契约）` | 113 | adapter (3), application (11), data (2), domain (11), evidence (7), frontend (1), integration (4), observability (2), persistence (7), planner (28), result (7), runtime (25), tooling (2), verification (3) |
+| `agent/（根目录公共入口与契约）` | 114 | adapter (3), application (11), data (2), domain (11), evidence (7), frontend (1), integration (4), observability (2), persistence (7), planner (28), result (8), runtime (25), tooling (2), verification (3) |
 | `agent/analysis/` | 5 | analysis (5) |
 | `agent/application/` | 25 | application (25) |
 | `agent/evidence/` | 7 | evidence (7) |
-| `agent/integration/` | 5 | integration (5) |
+| `agent/integration/` | 6 | integration (6) |
 | `agent/network/` | 2 | integration (2) |
 | `agent/persistence/` | 8 | persistence (8) |
 | `agent/react/` | 3 | planner (3) |
@@ -73,6 +73,7 @@
 | `agent/analysis_ready_binding.py` | `adapter` | Compatibility facade for the canonical GIS analysis-ready binding. | `public-boundary` | `M69-M325` | `file-override` | 0 | — |
 | `agent/answer_composer.py` | `result` | Backward-compatible import for the GIS Domain Pack answer composer. | `public-boundary` | `M8-M325` | `path-rule` | 0 | — |
 | `agent/answer_generation.py` | `result` | Controlled natural-language answer generation for completed runs. | `public-boundary` | `M8-M325` | `path-rule` | 14 | — |
+| `agent/answer_quality.py` | `result` | Small, domain-neutral checks for user-visible answer quality. | `public-boundary` | `M8-M325` | `path-rule` | 2 | — |
 | `agent/api_contract.py` | `application` | Shared HTTP request/response contract for the dev (stdlib) and production (FastAPI) entry points. | `public-boundary` | `M10-M325` | `path-rule` | 16 | — |
 | `agent/artifact_access.py` | `persistence` | Compatibility facade for canonical persistence artifact access. | `public-boundary` | `M14-M325` | `path-rule` | 0 | — |
 | `agent/artifact_manifest.py` | `persistence` | Compatibility facade for canonical persistence artifact manifests. | `public-boundary` | `M14-M325` | `path-rule` | 0 | — |
@@ -236,6 +237,7 @@
 | `agent/integration/openai_config.py` | `integration` | Provider 配置、结构化输出与脱敏运行证据 canonical 实现 | `public-boundary` | `M16-M325` | `path-rule` | 2 | — |
 | `agent/integration/provider_runtime.py` | `integration` | Bounded, provider-neutral health and deadline evidence. | `public-boundary` | `M16-M325` | `path-rule` | 6 | — |
 | `agent/integration/provider_structured_output.py` | `integration` | Provider-neutral structured-output capability profile. | `public-boundary` | `M16-M325` | `path-rule` | 4 | — |
+| `agent/integration/structured_response.py` | `integration` | Shared, bounded handling for provider structured responses. | `public-boundary` | `M16-M325` | `path-rule` | 5 | — |
 
 ### `agent/network/`
 

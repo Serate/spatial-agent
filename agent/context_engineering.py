@@ -121,6 +121,16 @@ class ContextBuilder:
         if len(rendered) <= self.max_chars:
             return rendered, False
         truncated = False
+        if "workflow_templates" in sections:
+            compact_templates = self._compact_workflow_templates(
+                sections["workflow_templates"]
+            )
+            if compact_templates != sections["workflow_templates"]:
+                sections["workflow_templates"] = compact_templates
+                rendered = self._render(sections)
+                truncated = True
+                if len(rendered) <= self.max_chars:
+                    return rendered, truncated
         # Keep the executable workflow catalog and selection seam available
         # for planning. Large advisory catalogs/discovery cards are cheaper to
         # omit because the selected IDs and bounded workflow context already
@@ -178,6 +188,65 @@ class ContextBuilder:
             rendered = best or self._render({"request": {"omitted": True, "reason": "context_budget"}})
             truncated = True
         return rendered, truncated
+
+    @staticmethod
+    def _compact_workflow_templates(value: Any) -> Any:
+        """Reduce a versioned template summary before dropping it entirely.
+
+        Workflow catalogs are planner metadata, not executable input. Preserve
+        their public identity and boundary fields while removing verbose
+        labels/constraint descriptions that can be regenerated from the
+        Domain Pack. This stays structural and domain-neutral: no template ID
+        or GIS-specific field is selected here.
+        """
+
+        if not isinstance(value, Mapping):
+            return value
+        templates = value.get("templates")
+        if not isinstance(templates, list):
+            return value
+
+        compact = dict(value)
+        compact["templates"] = []
+        for item in templates:
+            if not isinstance(item, Mapping):
+                continue
+            projected = {
+                key: item[key]
+                for key in (
+                    "id",
+                    "goal_template",
+                    "allowed_tools",
+                    "result_types",
+                    "required_constraints",
+                    "evidence_options",
+                    "max_steps",
+                    "has_blueprint",
+                    "step_blueprint",
+                    "output_type",
+                )
+                if key in item
+            }
+            steps = projected.get("step_blueprint")
+            if isinstance(steps, list):
+                projected["step_blueprint"] = [
+                    {
+                        key: step[key]
+                        for key in ("id", "tool", "depends_on", "arg_keys")
+                        if isinstance(step, Mapping) and key in step
+                    }
+                    for step in steps
+                    if isinstance(step, Mapping)
+                ]
+            compact["templates"].append(projected)
+        compact["returned_count"] = len(compact["templates"])
+        compact["omitted_count"] = max(
+            0,
+            int(value.get("template_count", len(templates)))
+            - len(compact["templates"]),
+        )
+        compact["compacted"] = True
+        return compact
 
     @staticmethod
     def _render(sections: Mapping[str, Any]) -> str:

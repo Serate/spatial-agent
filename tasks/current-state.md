@@ -5,9 +5,9 @@
 ## 当前阶段
 
 - 阶段：`M331`
-- 当前任务：M331-0 全局规划与恢复入口
-- 状态：M330-A～F 已完成并交付；M331-0 进行中，只建立全局规划和最小恢复入口
-- 基线：`81e79ab`
+- 当前任务：M331-F 阶段交付与全局重规划
+- 状态：M330-A～F、M331-A～F 已完成，待提交阶段版本
+- 基线：`0ce3ba4`
 - 协作：单 Agent，最大并发度 1；测试、GIS 和 live 验收优先使用 Docker
 
 ## 已完成
@@ -42,13 +42,18 @@
 
 ## 进行中
 
-- M331-0：从产品、Runtime、Planner、Domain、数据、模型、部署、体验和测试全局规划真实模型开放任务可靠性，
-  不读取无关历史或全量源码。
+- M331-F：已收口 M331 文档、索引和全局重规划；下一阶段优先处理真实模型复杂规划延迟与增量反馈。
 
 ## 必要文件
 
 - `docs/stages/M331/{capability-map.md,spec.md,plan.md,handoff.md}`
-- `docs/stages/M330/handoff.md`
+- `agent/context_engineering.py`
+- `agent/runtime_state.py`
+- `agent/sqlite_store.py`
+- `agent/artifact_store.py`
+- `agent/run_events.py`
+- `agent/application/async_runs.py`
+- `tests/` 中与上下文、事件回放和恢复直接相关的紧凑测试
 - `tasks/current-state.md`
 - `docs/document-index.json`
 
@@ -68,9 +73,11 @@
 - M330-E 合并紧凑回归 `31/31` 通过；默认 `/runs` 真实模型直答为 `general`/`COMPLETED`/`answer`/`direct_answer`，
   默认异步 HTTP/SSE/Artifact 验收通过；代码/文档索引均为 `333` 个源码文件、语义覆盖 `100%`。
 - M330-F 已完成交接、索引和阶段交付；下一阶段规划入口切换为 M331-0。
+- M331-C 已完成：上下文超预算时先压缩版本化 workflow template 摘要，再执行整体省略；Docker 恢复紧凑回归 `24/24` 通过，覆盖上下文、SQLite/Artifact、RunEvent/SSE 和工具审批恢复。
+- M331-D/E 已完成：新增领域无关答案质量 receipt；补齐 ReAct 事件的 Python/前端契约；答案流上限统一到 6000 字符。Docker 合并定向回归 `42/42`、Console answer/event/projection smoke、compileall、architecture strict 和服务 smoke 通过；真实模型直答流式验收通过。
 
 ## 阻塞与下一步
 
 - 阻塞：无；Docker GIS provider 因当前挂载数据不完整保持局部 unavailable，通用 Runtime 已按契约降级，未影响经济、指标、
   文本和通用直接回答。
-- 下一步：完成 M331-0 capability map、Spec、Plan、handoff 后，再进入 M331-A；恢复时只读取 M331 入口文件。
+- 下一步：提交推送 M331 阶段版本；恢复时只读取 M331 handoff、当前状态和本任务必要文件。

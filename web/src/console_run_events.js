@@ -10,6 +10,8 @@
     'stage_started', 'stage_progress', 'stage_completed', 'stage_failed',
     'tool_started', 'tool_completed', 'tool_failed', 'heartbeat',
     'answer_delta', 'run_completed', 'run_failed', 'run_waiting', 'run_finished',
+    'react_turn_started', 'react_action_accepted', 'react_action_completed',
+    'react_action_blocked', 'react_waiting_for_approval', 'react_finished',
   ]);
   const EVENT_PHASES = new Set(['resolve', 'clarify', 'plan', 'validate', 'execute', 'answer', 'evidence']);
   const EVENT_STATUSES = new Set([
@@ -21,7 +23,11 @@
     'tool', 'step_id', 'stage_index', 'stage_count', 'current_step', 'total_steps',
     'attempt', 'retryable', 'duration_ms', 'event_count', 'recovery_count',
     'error_category', 'answer_length', 'streaming', 'provider',
-    'answer_delta',
+    'answer_delta', 'reason_code', 'cursor', 'fallback', 'source',
+    'artifact_available', 'result_type', 'run_duration_ms', 'elapsed_ms',
+    'summary', 'turn_index', 'action', 'action_id', 'validation_state',
+    'output_type', 'action_count', 'max_actions', 'max_turns', 'request_mode',
+    'request_mode_reason', 'tool_count', 'execution_started',
   ]);
   const MAX_ANSWER_DELTA = 512;
   const PHASE_LABELS = Object.freeze({
@@ -39,6 +45,12 @@
     tool_started: '工具开始',
     tool_completed: '工具完成',
     tool_failed: '工具失败',
+    react_turn_started: '正在判断下一步动作',
+    react_action_accepted: '动作已通过校验',
+    react_action_completed: '动作已完成',
+    react_action_blocked: '动作未通过执行门禁',
+    react_waiting_for_approval: '工具提案已验证，等待人工审批',
+    react_finished: '逐步分析已收敛',
     retry_started: '开始重试',
     recovery_started: '开始恢复',
     answer_delta: '答案更新',

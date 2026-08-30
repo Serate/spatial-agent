@@ -777,7 +777,7 @@ class RuntimeRunLifecycle:
                 message="答案正在生成",
                 data={
                     "answer_delta": delta[:512],
-                    "answer_length": min(streamed_length, 1800),
+                    "answer_length": min(streamed_length, 6000),
                 },
                 terminal=False,
             )

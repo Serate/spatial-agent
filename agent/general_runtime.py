@@ -32,6 +32,18 @@ class GeneralAnswerComposer:
             and str(item.result.get("status") or "ready") != "unavailable"
         ]
         if usable:
+            incomplete = [
+                item
+                for item in result.steps
+                if str(item.status or "").upper() not in {"", "COMPLETED"}
+                or not isinstance(item.result, dict)
+                or str(item.result.get("status") or "ready") == "unavailable"
+            ]
+            if incomplete:
+                return (
+                    f"目前得到 {len(usable)} 项可用结果，但还有 {len(incomplete)} 项未完成。"
+                    "我已保留已完成内容，详细限制和数据来源见结果区域。"
+                )
             return (
                 f"已完成这次请求，得到 {len(usable)} 项可用结果。"
                 "详细内容和数据来源已整理在结果区域。"

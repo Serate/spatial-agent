@@ -42,6 +42,7 @@ RUN_EVENT_KINDS = frozenset(
         "react_action_accepted",
         "react_action_completed",
         "react_action_blocked",
+        "react_waiting_for_approval",
         "react_finished",
     }
 )

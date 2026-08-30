@@ -593,3 +593,61 @@
 ### M331-0：阶段初始化与全局规划 — 进行中
 
 - 当前动作：只保留 M331 规划入口和最小热状态；下一步进入 M331-A，建立真实模型结构化输出 conformance 场景矩阵。
+
+### M331-0：阶段初始化与全局规划 — 已完成
+
+- 交付：M330 已提交并推送为 `0ce3ba4`；代码索引、模块索引和文档索引重新生成并通过校验。
+- 规划：M331 已建立 capability map、Spec、Plan 和 handoff；当前按全局目标进入模型协议与有限修复，不新增固定问句或领域专用分支。
+- 下一步：M331-A 建立脱敏 conformance 场景矩阵，并从现有 Planner/ReAct/Answer 解析入口抽取最小公共修复边界。
+
+### M331-A：模型协议与有限修复 — 进行中
+
+- 开始：已将热状态和交接入口切换到 M331-A；当前只读取模型结构化响应解析、Provider 错误分类和直接相关测试。
+- 当前动作：梳理字段漂移、截断 JSON、错误结果类型、漏字段、额外字段和 timeout 的统一处理方式；不保存模型原文。
+- 下一步：形成可脱敏的场景矩阵并补最小公共解析/修复 seam，再执行 Docker 定向验证。
+
+### M331-A：模型协议与有限修复 — 已完成
+
+- 实现：新增 `agent/integration/structured_response.py`，统一 Planner、ReAct、普通答案和 Composite 答案的一次 compact recovery、
+  无歧义字段别名修复和稳定失败分类；ReAct 语义修复改为共享 compact 调用 seam，恢复响应不递归重试。
+- 文档：新增 `docs/stages/M331/structured-output-conformance.md`，只记录脱敏场景、决策、reason code 和恢复边界。
+- 兼容修复：ReAct 只向模型暴露当前可信 tool catalog 中存在契约的工具，保留动态审批工具的实时发现能力；避免未提供契约的注册名进入上下文。
+- 验证：Docker 新增 M331-A 契约与 M320/答案/M330 相邻回归 `40/40` 通过；未保存模型原文、Prompt、密钥或网页正文。
+- 下一步：M331-B 验证直接回答、单域、多域和混合任务的目录驱动组合及 Result/Evidence 闭合。
+
+### M331-B：通用任务组合与结果闭合 — 进行中
+
+- 开始：已切换热状态和阶段交接；必要文件限定为通用 Host/Runtime、ReAct 执行、ToolRegistry、Result Registry 及直接测试。
+- 当前动作：检查能力选择、操作到结果类型推导、依赖/权限/预算/preflight、部分成功和多结果汇总是否共用公共 seam。
+- 下一步：补充不依赖关键词的组合场景矩阵，先用 Docker 定向回归区分契约缺口和已有能力。
+
+### M331-B：通用任务组合与结果闭合 — 已完成
+
+- 文档/测试：新增 `docs/stages/M331/task-composition-matrix.md` 和 `tests/test_m331_task_composition.py`，覆盖目录 owner、操作结果类型、
+  通用直接问题和部分成功。
+- 修复：`GeneralAnswerComposer` 在有可用结果但存在失败步骤时明确报告“部分结果”和未完成项，不把请求说成全部完成。
+- 验证：Docker M331-A/B 与 M320、答案、Host、通用入口回归 `50/50` 通过；未新增关键词路由或领域 Runtime 分支。
+- 下一步：M331-C 检查多轮/长任务上下文裁剪、预算、取消、重试、澄清/审批续跑和 SQLite/Artifact/SSE 恢复。
+
+### M331-C：上下文、长任务与恢复可用率 — 进行中
+
+- 开始：已将热状态和阶段交接切换到 M331-C；只读取上下文工程、状态存储、Artifact、RunEvent、异步运行和直接测试。
+- 当前动作：确认安全历史投影、上下文预算、事件分页/Last-Event-ID、重启接管和同一 Run/session identity 的现有行为。
+- 下一步：补充最小恢复对照测试，只有发现可复现契约缺口时才修改公共恢复 seam。
+
+### M331-C：上下文、长任务与恢复可用率 — 已完成
+
+- 修复：上下文预算超限时先压缩版本化 workflow template 摘要，保留 schema、能力边界和步骤形状，再按预算继续裁剪；避免整段目录被替换为缺少版本字段的 `omitted` 对象。
+- 验证：Docker 恢复紧凑回归 `24/24` 通过，覆盖上下文脱敏、SQLite/Artifact、RunEvent/SSE、工具审批恢复和同一 Run identity。
+
+### M331-D：答案质量与实时体验 — 已完成
+
+- 实现：新增领域无关 `agent/answer_quality.py`，对最终答案做空值、长度、内部标记、乱码和非终态状态披露检查；receipt 通过 `answer_generation` evidence 进入共享结果契约，Runtime fallback、普通答案和 Composite 答案均覆盖。
+- 实现：补齐 Python/Console ReAct 事件契约可见性，修复答案流与 `answer_length` 的 1800 字符封顶，使前端逐字输出上限与答案契约统一为 6000 字符。
+- 验证：Docker M331 结构化输出/任务组合/答案体验/上下文/答案流/事件/生成回归 `42/42`，Console answer/event/projection smoke、compileall、architecture strict、服务 smoke 全部通过。
+- 真实模型：通用直答 `COMPLETED`、`live_model`、`streaming=True`、质量 `pass`；复杂 GIS 多步请求在临时 45 秒有界预算中未返回，记录为 provider 规划延迟，未保存模型原文。
+
+### M331-E/F：阶段验收与交付 — 已完成（待提交）
+
+- 完成：更新热状态、M331 Plan/handoff、任务账本、开发问题记录和代码/文档索引；全局重规划输入已写入 M331 Plan/handoff。
+- 下一步：提交并推送阶段版本；后续优先处理真实模型复杂规划的可控超时/增量反馈，并保持通用能力边界不退化。

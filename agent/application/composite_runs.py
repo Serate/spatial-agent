@@ -20,6 +20,7 @@ from agent.answer_generation import (
     fallback_composite_answer,
     project_answer_generation_evidence,
 )
+from agent.answer_quality import assess_answer
 from agent.analysis_intent import AnalysisIntentError, normalize_analysis_intent
 from agent.application.async_runs import AsyncApplication
 from agent.application.composite import CompositeApplication
@@ -552,8 +553,12 @@ class CompositeRunApplication:
             evidence = generated.evidence
         enriched = dict(result)
         enriched["answer_structured"] = dict(answer)
+        safe_evidence = dict(evidence)
+        safe_evidence["quality"] = assess_answer(
+            str(answer.get("summary") or ""), enriched
+        )
         enriched["answer_generation_evidence"] = project_answer_generation_evidence(
-            evidence
+            safe_evidence
         )
         enriched["answer"] = str(answer.get("summary") or enriched.get("answer") or "")[:1200]
         return enriched

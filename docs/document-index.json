@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
   "updated": "2026-08-30",
-  "active_stage": "M330",
+  "active_stage": "M331",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -11,7 +11,7 @@
       "docs/agent-work-state.md",
       "docs/document-index.json",
       "tasks/current-state.md",
-      "docs/stages/M330/handoff.md"
+      "docs/stages/M331/handoff.md"
     ],
     "never_default": [
       "docs/archive/",
@@ -64,8 +64,44 @@
   ],
   "stage_packages": [
     {
+      "id": "M331",
+      "status": "complete",
+      "root": "docs/stages/M331",
+      "capability_map": "docs/stages/M331/capability-map.md",
+      "spec": "docs/stages/M331/spec.md",
+      "plan": "docs/stages/M331/plan.md",
+      "handoff": "docs/stages/M331/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M331/handoff.md"
+      ],
+      "source_files": [
+        "agent/answer_quality.py",
+        "agent/answer_generation.py",
+        "agent/context_engineering.py",
+        "agent/runtime.py",
+        "agent/application/composite_runs.py",
+        "agent/run_events.py",
+        "agent/runtime_core/run_lifecycle.py",
+        "web/src/console_answer_stream.js",
+        "web/src/console_run_events.js",
+        "tests/test_m331_structured_response.py",
+        "tests/test_m331_task_composition.py",
+        "tests/test_m331_answer_experience.py"
+      ],
+      "verify": [
+        "M331 compact contract tests",
+        "Console answer/event/projection smoke",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready",
+        "Docker real-model acceptance"
+      ]
+    },
+    {
       "id": "M330",
-      "status": "in_progress",
+      "status": "complete",
       "root": "docs/stages/M330",
       "capability_map": "docs/stages/M330/capability-map.md",
       "spec": "docs/stages/M330/spec.md",

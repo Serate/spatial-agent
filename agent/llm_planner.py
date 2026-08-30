@@ -1,6 +1,5 @@
 import json
 import errno
-import inspect
 import os
 import re
 import socket
@@ -20,6 +19,11 @@ from agent.integration.provider_structured_output import (
     project_structured_output_profile,
 )
 from agent.integration.provider_runtime import build_provider_health
+from agent.integration.structured_response import (
+    call_compact_structured_json,
+    call_structured_json,
+    repair_structured_fields,
+)
 from .react.contracts import (
     REACT_DECISION_SCHEMA_VERSION,
     ReactDecisionError,
@@ -103,25 +107,16 @@ class LLMPlanner:
         if callable(self._request_hint):
             request = self._request_hint(request, workflow)
         messages = self._planning_messages(request, context)
-        try:
-            payload = self._client.complete_json(messages, task_plan_schema())
-        except PlanningError as exc:
-            # Some OpenAI-compatible providers advertise json_object but can
-            # still truncate or wrap the response. Give the model one bounded
-            # compact-plan recovery attempt. The normal TaskPlan parser and
-            # all execution gates remain unchanged.
-            if getattr(exc, "code", None) != "invalid_model_response":
-                raise
-            self._compact_recovery_attempts = 1
-            compact_messages = self._compact_planning_messages(request, context)
-            compact_method = getattr(self._client, "complete_compact_json", None)
-            if callable(compact_method):
-                payload = compact_method(compact_messages, task_plan_schema())
-            else:
-                # Preserve the small fake/replay client seam used by offline
-                # tests and third-party adapters that only implement the
-                # original two-argument method.
-                payload = self._client.complete_json(compact_messages, task_plan_schema())
+        compact_messages = self._compact_planning_messages(request, context)
+        call = call_structured_json(
+            self._client,
+            messages,
+            task_plan_schema(),
+            schema_name="task_plan",
+            recovery_messages=compact_messages,
+        )
+        payload = call.payload
+        self._compact_recovery_attempts = call.recovery_attempts
         outcome = payload.get("outcome")
         if outcome == "needs_clarification":
             raise ClarificationNeeded(str(payload.get("message", "planner needs clarification")))
@@ -151,7 +146,11 @@ class LLMPlanner:
 
         if not isinstance(request, str) or not request.strip():
             raise ClarificationNeeded("empty request")
-        effective_tools = _effective_react_tools(self._allowed_tools, allowed_tools)
+        effective_tools = _effective_react_tools(
+            self._allowed_tools,
+            allowed_tools,
+            tool_catalog=tool_catalog,
+        )
         messages = self._react_messages(
             request,
             context=context,
@@ -162,27 +161,15 @@ class LLMPlanner:
             tool_proposals_enabled=tool_proposals_enabled,
         )
         schema = react_decision_schema()
-        try:
-            payload = _call_structured_client(
-                self._client,
-                messages,
-                schema,
-                schema_name=_REACT_SCHEMA_NAME,
-            )
-        except PlanningError as exc:
-            # A few compatible gateways accept json_object but occasionally
-            # return a wrapped/truncated action. Give one decision-local,
-            # deterministic retry more output headroom; normalization and
-            # Runtime policy gates still decide whether it may execute.
-            if getattr(exc, "code", None) != "invalid_model_response":
-                raise
-            self._compact_recovery_attempts += 1
-            payload = _call_compact_structured_client(
-                self._client,
-                messages,
-                schema,
-                schema_name=_REACT_SCHEMA_NAME,
-            )
+        call = call_structured_json(
+            self._client,
+            messages,
+            schema,
+            schema_name=_REACT_SCHEMA_NAME,
+            recovery_messages=messages,
+        )
+        payload = call.payload
+        self._compact_recovery_attempts += call.recovery_attempts
         try:
             return normalize_react_decision(
                 payload,
@@ -217,7 +204,7 @@ class LLMPlanner:
                     ),
                 },
             ]
-            repaired_payload = _call_compact_structured_client(
+            repaired_payload = call_compact_structured_json(
                 self._client,
                 repair_messages,
                 schema,
@@ -436,17 +423,20 @@ class LLMPlanner:
         )
 
 
-def _effective_react_tools(base_tools: Any, requested_tools: Any) -> tuple[str, ...]:
+def _effective_react_tools(
+    base_tools: Any,
+    requested_tools: Any,
+    *,
+    tool_catalog: Optional[Mapping[str, Any]] = None,
+) -> tuple[str, ...]:
     base = tuple(dict.fromkeys(str(item) for item in (base_tools or ()) if str(item)))
     if requested_tools is None:
         return base
-    # Runtime passes the current ToolRegistry names here.  That set may
-    # include an approved dynamic tool published after this planner adapter
-    # was constructed, so intersecting it with the constructor snapshot would
-    # hide legitimate tools from the model forever.  The Runtime remains the
-    # execution authority: it validates the selected name and arguments again
-    # before dispatch.  This projection only keeps the planner's catalog in
-    # sync with that current trusted registry snapshot.
+    # Runtime passes the current ToolRegistry names here. That set may include
+    # an approved dynamic tool published after this planner adapter was
+    # constructed, so the constructor snapshot is not the authority. When a
+    # catalog is available, use it as the current trusted metadata boundary;
+    # Runtime still validates the selected name and arguments before dispatch.
     if isinstance(requested_tools, (str, bytes)):
         values = (requested_tools,)
     else:
@@ -454,33 +444,11 @@ def _effective_react_tools(base_tools: Any, requested_tools: Any) -> tuple[str, 
             values = tuple(requested_tools)
         except TypeError:
             values = ()
-    return tuple(dict.fromkeys(str(item) for item in values if str(item)))
-
-
-def _call_structured_client(
-    client: Any,
-    messages: Any,
-    schema: Mapping[str, Any],
-    *,
-    schema_name: str,
-) -> Mapping[str, Any]:
-    method = getattr(client, "complete_json", None)
-    if not callable(method):
-        raise PlanningError("LLM client does not support structured JSON")
-    kwargs: Dict[str, Any] = {}
-    try:
-        parameters = inspect.signature(method).parameters
-    except (TypeError, ValueError):
-        parameters = {}
-    accepts_kwargs = any(
-        item.kind == inspect.Parameter.VAR_KEYWORD for item in parameters.values()
-    )
-    if accepts_kwargs or "schema_name" in parameters:
-        kwargs["schema_name"] = schema_name
-    payload = method(messages, schema, **kwargs)
-    if not isinstance(payload, Mapping):
-        raise PlanningError("LLM structured response must be an object")
-    return payload
+    effective = tuple(dict.fromkeys(str(item) for item in values if str(item)))
+    if isinstance(tool_catalog, Mapping):
+        catalog_names = {str(name) for name in tool_catalog}
+        return tuple(name for name in effective if name in catalog_names)
+    return effective
 
 
 def _classify_react_response_failure(error: ReactDecisionError) -> Exception:
@@ -503,34 +471,6 @@ def _classify_react_response_failure(error: ReactDecisionError) -> Exception:
             retryable=False,
         )
     return error
-
-
-def _call_compact_structured_client(
-    client: Any,
-    messages: Any,
-    schema: Mapping[str, Any],
-    *,
-    schema_name: str,
-) -> Mapping[str, Any]:
-    method = getattr(client, "complete_compact_json", None)
-    if not callable(method):
-        return _call_structured_client(
-            client, messages, schema, schema_name=schema_name
-        )
-    kwargs: Dict[str, Any] = {}
-    try:
-        parameters = inspect.signature(method).parameters
-    except (TypeError, ValueError):
-        parameters = {}
-    accepts_kwargs = any(
-        item.kind == inspect.Parameter.VAR_KEYWORD for item in parameters.values()
-    )
-    if accepts_kwargs or "schema_name" in parameters:
-        kwargs["schema_name"] = schema_name
-    payload = method(messages, schema, **kwargs)
-    if not isinstance(payload, Mapping):
-        raise PlanningError("LLM structured response must be an object")
-    return payload
 
 
 def _repair_react_payload(value: Any) -> Optional[Dict[str, Any]]:
@@ -559,21 +499,20 @@ def _repair_react_payload(value: Any) -> Optional[Dict[str, Any]]:
     # compatibility repair, then let the normal allowlist and schema checks
     # decide whether the repaired values are executable.  No tool is guessed.
     if action.strip() == "call_tool":
-        if "tool_name" not in source:
-            for alias in ("tool", "name"):
-                if isinstance(source.get(alias), str) and source[alias].strip():
-                    source["tool_name"] = source[alias]
-                    break
-        if "arguments" not in source:
-            for alias in ("args", "parameters"):
-                if isinstance(source.get(alias), Mapping):
-                    source["arguments"] = source[alias]
-                    break
-    elif action.strip() == "search" and "query" not in source:
-        for alias in ("search_query", "text"):
-            if isinstance(source.get(alias), str) and source[alias].strip():
-                source["query"] = source[alias]
-                break
+        aliases = {
+            "tool_name": ("tool", "name"),
+            "arguments": ("args", "parameters"),
+        }
+        repaired = repair_structured_fields(source, aliases)
+        if repaired is not None:
+            source = repaired
+    elif action.strip() == "search":
+        repaired = repair_structured_fields(
+            source,
+            {"query": ("search_query", "text")},
+        )
+        if repaired is not None:
+            source = repaired
     repaired: Dict[str, Any] = {}
     for key, item in source.items():
         if key not in fields:

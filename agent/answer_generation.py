@@ -15,8 +15,13 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .errors import PlanningError
+from agent.integration.structured_response import (
+    call_structured_json,
+    repair_structured_fields,
+)
 from .result_completeness import build_result_completeness
 from .result_summary import build_result_summary
+from .answer_quality import assess_answer, project_answer_quality
 
 
 ANSWER_GENERATION_SCHEMA_VERSION = "spatial-agent.answer-generation.v1"
@@ -143,6 +148,7 @@ class LLMCompositeAnswerGenerator:
 
     def __init__(self, client: Any):
         self._client = client
+        self._structured_recovery_attempts = 0
 
     def generate(self, result: Mapping[str, Any]) -> CompositeAnswerGenerationResult:
         context = build_composite_answer_context(result)
@@ -163,17 +169,56 @@ class LLMCompositeAnswerGenerator:
                 "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
             },
         ]
-        payload = self._client.complete_json(messages, COMPOSITE_ANSWER_SCHEMA)
+        call = call_structured_json(
+            self._client,
+            messages,
+            COMPOSITE_ANSWER_SCHEMA,
+            schema_name="composite_answer",
+            recovery_messages=messages,
+        )
+        self._structured_recovery_attempts = call.recovery_attempts
+        payload = call.payload
+        if "answer" not in payload:
+            repaired = repair_structured_fields(
+                payload,
+                {"answer": ("content", "text", "response")},
+            )
+            if repaired is not None:
+                payload = repaired
         if not isinstance(payload, Mapping) or set(payload) != {"answer"}:
-            raise PlanningError("composite answer output contains unexpected fields")
-        answer = _normalize_composite_answer(payload.get("answer"))
+            raise PlanningError(
+                "composite answer output contains unexpected fields",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            )
+        try:
+            answer = _normalize_composite_answer(payload.get("answer"))
+        except PlanningError as exc:
+            raise PlanningError(
+                "composite answer failed contract validation",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            ) from exc
         encoded = json.dumps(answer, ensure_ascii=False)
         if any(marker in encoded for marker in ("memory://", "artifact://", "result_ref", "prompt")):
-            raise PlanningError("composite answer contains an internal reference")
+            raise PlanningError(
+                "composite answer contains an internal reference",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            )
         return CompositeAnswerGenerationResult(
             answer=answer,
             evidence=project_answer_generation_evidence(
-                self._client_metrics(), status="success", available=True
+                {
+                    **self._client_metrics(),
+                    "compact_recovery_attempts": self._structured_recovery_attempts,
+                    "quality": assess_answer(answer.get("summary"), context),
+                },
+                status="success",
+                available=True,
             ),
         )
 
@@ -251,7 +296,11 @@ class LLMCompositeAnswerGenerator:
         return CompositeAnswerGenerationResult(
             answer=_normalize_composite_answer(answer),
             evidence=project_answer_generation_evidence(
-                {**self._client_metrics(), "streaming": True},
+                {
+                    **self._client_metrics(),
+                    "streaming": True,
+                    "quality": assess_answer(answer.get("summary"), context),
+                },
                 status="success",
                 available=True,
             ),
@@ -414,6 +463,7 @@ class LLMAnswerGenerator:
 
     def __init__(self, client: Any):
         self._client = client
+        self._structured_recovery_attempts = 0
 
     def generate(self, result: Any) -> AnswerGenerationResult:
         context = build_answer_context(result)
@@ -439,23 +489,67 @@ class LLMAnswerGenerator:
                 "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
             },
         ]
-        payload = self._client.complete_json(messages, ANSWER_GENERATION_SCHEMA)
+        call = call_structured_json(
+            self._client,
+            messages,
+            ANSWER_GENERATION_SCHEMA,
+            schema_name="answer_generation",
+            recovery_messages=messages,
+        )
+        self._structured_recovery_attempts = call.recovery_attempts
+        payload = call.payload
+        if "answer" not in payload:
+            repaired = repair_structured_fields(
+                payload,
+                {"answer": ("content", "text", "response")},
+            )
+            if repaired is not None:
+                payload = repaired
         if not isinstance(payload, Mapping):
-            raise PlanningError("answer generator output must be an object")
+            raise PlanningError(
+                "answer generator output must be an object",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            )
         if set(payload) != {"answer"}:
-            raise PlanningError("answer generator output contains unexpected fields")
+            raise PlanningError(
+                "answer generator output contains unexpected fields",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            )
         answer = payload.get("answer")
         if not isinstance(answer, str) or not answer.strip():
-            raise PlanningError("answer generator output must include a non-empty answer")
+            raise PlanningError(
+                "answer generator output must include a non-empty answer",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            )
         answer = answer.strip()
         if len(answer) > _MAX_ANSWER_CHARS:
-            raise PlanningError("answer generator output exceeds the answer limit")
+            raise PlanningError(
+                "answer generator output exceeds the answer limit",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            )
         if any(marker in answer for marker in ("memory://", "artifact://", "result_ref")):
-            raise PlanningError("answer generator output contains an internal reference")
+            raise PlanningError(
+                "answer generator output contains an internal reference",
+                category="answer",
+                code="invalid_model_response",
+                retryable=False,
+            )
         return AnswerGenerationResult(
             answer=answer,
             evidence=project_answer_generation_evidence(
-                self._client_metrics(),
+                {
+                    **self._client_metrics(),
+                    "compact_recovery_attempts": self._structured_recovery_attempts,
+                    "quality": assess_answer(answer, context),
+                },
                 status="success",
                 available=True,
             ),
@@ -523,7 +617,11 @@ class LLMAnswerGenerator:
         return AnswerGenerationResult(
             answer=answer,
             evidence=project_answer_generation_evidence(
-                {**self._client_metrics(), "streaming": True},
+                {
+                    **self._client_metrics(),
+                    "streaming": True,
+                    "quality": assess_answer(answer, context),
+                },
                 status="success",
                 available=True,
             ),
@@ -610,7 +708,10 @@ def project_answer_generation_evidence(
         result["reason_code"] = "generation_unavailable"
     if isinstance(source.get("streaming"), bool):
         result["streaming"] = source["streaming"]
-    for key in ("attempts", "retries"):
+    quality = project_answer_quality(source.get("quality"))
+    if quality is not None:
+        result["quality"] = quality
+    for key in ("attempts", "retries", "compact_recovery_attempts"):
         try:
             number = int(source.get(key))
         except (TypeError, ValueError):
