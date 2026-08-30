@@ -45,6 +45,17 @@ _ROUTING_INTERACTION_RECEIPT_SELECT = """
 
 
 _DOMAIN_KEY_PREFIX = "spatial-agent-domain-key.v1:"
+_TERMINAL_ASYNC_STATUSES = frozenset(
+    {
+        "COMPLETED",
+        "NEEDS_CLARIFICATION",
+        "WAITING_FOR_DECISION",
+        "REJECTED",
+        "FAILED",
+        "CANCELLED",
+        "TIMED_OUT",
+    }
+)
 
 
 def _domain_scoped_key(domain_id: str, key: str) -> str:
@@ -89,9 +100,21 @@ class SQLiteStateStore:
         normalized = str(value or "").strip()
         return normalized[:80] if normalized else self._legacy_domain_id
 
-    def save(self, result: AgentRunResult) -> None:
+    def save(self, result: AgentRunResult) -> bool:
         payload = json.dumps(result.to_dict(), ensure_ascii=True)
         with self._connection() as connection:
+            async_row = connection.execute(
+                "SELECT status FROM async_jobs WHERE run_id = ?",
+                (result.run_id,),
+            ).fetchone()
+            if (
+                async_row is not None
+                and str(async_row[0] or "").upper() in _TERMINAL_ASYNC_STATUSES
+                and str(result.status.value) != str(async_row[0]).upper()
+            ):
+                # A reaper-written terminal job is a durable fence. A late
+                # worker may finish locally, but cannot replace that result.
+                return False
             connection.execute(
                 """
                 INSERT INTO agent_runs (run_id, payload, updated_at)
@@ -102,6 +125,7 @@ class SQLiteStateStore:
                 """,
                 (result.run_id, payload),
             )
+        return True
 
     def ensure_run_snapshot(self, result: AgentRunResult) -> None:
         """Create the initial snapshot without overwriting a concurrent result."""
@@ -459,6 +483,7 @@ class SQLiteStateStore:
                            ELSE 'finished'
                        END
                  WHERE run_id = ? AND owner_pid = ?
+                   AND status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')
                 """,
                 (
                     status, finished_at, finished_at, failure_category,
@@ -498,6 +523,7 @@ class SQLiteStateStore:
                            ELSE 'finished'
                        END
                  WHERE run_id = ?
+                   AND status IN ('QUEUED', 'RUNNING', 'CANCEL_REQUESTED')
                 """,
                 (
                     status, finished_at, finished_at, failure_category,
@@ -679,12 +705,31 @@ class SQLiteStateStore:
         """Append one idempotent event and assign a run-local sequence."""
         normalized = normalize_run_event(event)
         with self._connection() as connection:
+            # Sequence allocation and the terminal-fence check must share one
+            # write transaction. A reaper and a late worker can otherwise
+            # both observe the same MAX(sequence) and race into the unique
+            # (run_id, sequence) constraint.
+            connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 "SELECT payload FROM run_events WHERE event_id = ?",
                 (normalized["event_id"],),
             ).fetchone()
             if existing is not None:
                 return json.loads(existing[0])
+            terminal = connection.execute(
+                """
+                SELECT payload FROM run_events
+                 WHERE run_id = ?
+                   AND json_extract(payload, '$.terminal') = 1
+                 ORDER BY sequence DESC
+                 LIMIT 1
+                """,
+                (normalized["run_id"],),
+            ).fetchone()
+            if terminal is not None:
+                # A terminal event is a durable event fence. Late worker
+                # progress is ignored while the append seam stays idempotent.
+                return json.loads(terminal[0])
             row = connection.execute(
                 "SELECT COALESCE(MAX(sequence), 0) FROM run_events WHERE run_id = ?",
                 (normalized["run_id"],),
@@ -1842,6 +1887,7 @@ def _result_from_dict(
         request_facts=payload.get("request_facts"),
         plan=plan,
         planner_metrics=payload.get("planner_metrics"),
+        budget_evidence=payload.get("budget_evidence"),
         react_evidence=payload.get("react_evidence"),
         answer_generation_evidence=payload.get("answer_generation_evidence"),
         steps=steps,

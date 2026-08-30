@@ -89,7 +89,7 @@ class M16OpenAIConfigTests(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 config = load_answer_generation_config(str(path))
 
-        self.assertEqual(config["timeout_seconds"], 20.0)
+        self.assertEqual(config["timeout_seconds"], 45.0)
         self.assertEqual(config["max_output_tokens"], 4096)
         self.assertEqual(config["max_retries"], 0)
 

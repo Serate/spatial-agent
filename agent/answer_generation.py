@@ -9,10 +9,11 @@ fallback when the model is unavailable or returns an unsafe shape.
 from __future__ import annotations
 
 import json
+import inspect
 import math
 import re
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, Optional
 
 from .errors import PlanningError
 from agent.integration.structured_response import (
@@ -22,6 +23,7 @@ from agent.integration.structured_response import (
 from .result_completeness import build_result_completeness
 from .result_summary import build_result_summary
 from .answer_quality import assess_answer, project_answer_quality
+from .runtime_core.run_budget import RunBudget
 
 
 ANSWER_GENERATION_SCHEMA_VERSION = "spatial-agent.answer-generation.v1"
@@ -150,7 +152,14 @@ class LLMCompositeAnswerGenerator:
         self._client = client
         self._structured_recovery_attempts = 0
 
-    def generate(self, result: Mapping[str, Any]) -> CompositeAnswerGenerationResult:
+    def generate(
+        self,
+        result: Mapping[str, Any],
+        *,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    ) -> CompositeAnswerGenerationResult:
         context = build_composite_answer_context(result)
         messages = [
             {
@@ -169,14 +178,33 @@ class LLMCompositeAnswerGenerator:
                 "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
             },
         ]
-        call = call_structured_json(
-            self._client,
-            messages,
-            COMPOSITE_ANSWER_SCHEMA,
-            schema_name="composite_answer",
-            recovery_messages=messages,
-        )
+        options = _answer_budget_options(budget, progress=progress)
+        _answer_begin_attempt(budget, progress)
+        try:
+            call = call_structured_json(
+                self._client,
+                messages,
+                COMPOSITE_ANSWER_SCHEMA,
+                schema_name="composite_answer",
+                recovery_messages=messages,
+                on_recovery=lambda: _answer_begin_attempt(
+                    budget, progress, retry=True
+                ),
+                on_progress=_answer_provider_progress(
+                    progress, on_progress, phase="answer"
+                ),
+                timeout_provider=(
+                    lambda: budget.child_timeout(kind="provider")
+                    if budget is not None
+                    else None
+                ),
+                **options,
+            )
+        except PlanningError:
+            _answer_check_budget(budget)
+            raise
         self._structured_recovery_attempts = call.recovery_attempts
+        _answer_check_budget(budget)
         payload = call.payload
         if "answer" not in payload:
             repaired = repair_structured_fields(
@@ -227,6 +255,9 @@ class LLMCompositeAnswerGenerator:
         result: Mapping[str, Any],
         *,
         on_delta,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
     ) -> CompositeAnswerGenerationResult:
         """Stream a user-facing summary after Composite execution is complete.
 
@@ -253,7 +284,12 @@ class LLMCompositeAnswerGenerator:
         ]
         stream = getattr(self._client, "stream_text", None)
         if not callable(stream):
-            generated = self.generate(result)
+            generated = self.generate(
+                result,
+                budget=budget,
+                progress=progress,
+                on_progress=on_progress,
+            )
             if callable(on_delta):
                 on_delta(generated.answer.get("summary", ""))
             evidence = dict(generated.evidence)
@@ -264,8 +300,20 @@ class LLMCompositeAnswerGenerator:
             )
         chunks: list[str] = []
         size = 0
+        options = _answer_budget_options(budget, progress=progress)
+        _answer_begin_attempt(budget, progress)
         try:
-            for chunk in stream(messages, max_chars=800):
+            for chunk in _invoke_text_stream(
+                stream,
+                messages,
+                max_chars=800,
+                timeout_seconds=options.get("timeout_seconds"),
+                deadline=options.get("deadline"),
+                on_progress=_answer_provider_progress(
+                    progress, on_progress, phase="answer"
+                ),
+            ):
+                _answer_check_budget(budget)
                 text = _normalize_stream_text(chunk, max_length=min(800 - size, 800))
                 if not text:
                     continue
@@ -279,16 +327,31 @@ class LLMCompositeAnswerGenerator:
                 if size >= 800:
                     break
         except (AttributeError, NotImplementedError) as exc:
-            return self._fallback_stream(result, on_delta, exc)
+            return self._fallback_stream(
+                result,
+                on_delta,
+                exc,
+                budget=budget,
+                progress=progress,
+                on_progress=on_progress,
+            )
         except PlanningError as exc:
-            if _is_stream_unsupported(exc):
-                return self._fallback_stream(result, on_delta, exc)
+            if _is_stream_fallback_eligible(exc):
+                return self._fallback_stream(
+                    result,
+                    on_delta,
+                    exc,
+                    budget=budget,
+                    progress=progress,
+                    on_progress=on_progress,
+                )
             raise
         summary = _normalize_stream_text("".join(chunks), max_length=800)
         if not summary:
             raise PlanningError("answer stream returned an empty summary")
         if _contains_internal_reference(summary):
             raise PlanningError("answer stream contains an internal reference")
+        _answer_check_budget(budget)
         base = fallback_composite_answer(result, "streamed_summary").answer
         answer = dict(base)
         answer["summary"] = summary
@@ -311,13 +374,27 @@ class LLMCompositeAnswerGenerator:
         value = metrics() if callable(metrics) else {}
         return value if isinstance(value, Mapping) else {}
 
-    def _fallback_stream(self, result: Mapping[str, Any], on_delta, cause: Exception) -> CompositeAnswerGenerationResult:
-        generated = self.generate(result)
+    def _fallback_stream(
+        self,
+        result: Mapping[str, Any],
+        on_delta,
+        cause: Exception,
+        *,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    ) -> CompositeAnswerGenerationResult:
+        generated = self.generate(
+            result,
+            budget=budget,
+            progress=progress,
+            on_progress=on_progress,
+        )
         if callable(on_delta):
             on_delta(generated.answer.get("summary", ""))
         evidence = dict(generated.evidence)
         evidence["streaming"] = False
-        evidence["fallback_reason"] = "stream_unsupported"
+        evidence["fallback_reason"] = _stream_fallback_reason(cause)
         return CompositeAnswerGenerationResult(answer=generated.answer, evidence=evidence)
 
 
@@ -465,7 +542,14 @@ class LLMAnswerGenerator:
         self._client = client
         self._structured_recovery_attempts = 0
 
-    def generate(self, result: Any) -> AnswerGenerationResult:
+    def generate(
+        self,
+        result: Any,
+        *,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    ) -> AnswerGenerationResult:
         context = build_answer_context(result)
         messages = [
             {
@@ -489,14 +573,33 @@ class LLMAnswerGenerator:
                 "content": json.dumps(context, ensure_ascii=False, separators=(",", ":")),
             },
         ]
-        call = call_structured_json(
-            self._client,
-            messages,
-            ANSWER_GENERATION_SCHEMA,
-            schema_name="answer_generation",
-            recovery_messages=messages,
-        )
+        options = _answer_budget_options(budget, progress=progress)
+        _answer_begin_attempt(budget, progress)
+        try:
+            call = call_structured_json(
+                self._client,
+                messages,
+                ANSWER_GENERATION_SCHEMA,
+                schema_name="answer_generation",
+                recovery_messages=messages,
+                on_recovery=lambda: _answer_begin_attempt(
+                    budget, progress, retry=True
+                ),
+                on_progress=_answer_provider_progress(
+                    progress, on_progress, phase="answer"
+                ),
+                timeout_provider=(
+                    lambda: budget.child_timeout(kind="provider")
+                    if budget is not None
+                    else None
+                ),
+                **options,
+            )
+        except PlanningError:
+            _answer_check_budget(budget)
+            raise
         self._structured_recovery_attempts = call.recovery_attempts
+        _answer_check_budget(budget)
         payload = call.payload
         if "answer" not in payload:
             repaired = repair_structured_fields(
@@ -555,12 +658,25 @@ class LLMAnswerGenerator:
             ),
         )
 
-    def generate_stream(self, result: Any, *, on_delta) -> AnswerGenerationResult:
+    def generate_stream(
+        self,
+        result: Any,
+        *,
+        on_delta,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    ) -> AnswerGenerationResult:
         """Generate a bounded natural-language answer through provider deltas."""
 
         stream = getattr(self._client, "stream_text", None)
         if not callable(stream):
-            generated = self.generate(result)
+            generated = self.generate(
+                result,
+                budget=budget,
+                progress=progress,
+                on_progress=on_progress,
+            )
             if callable(on_delta):
                 on_delta(generated.answer)
             evidence = dict(generated.evidence)
@@ -587,8 +703,20 @@ class LLMAnswerGenerator:
         ]
         chunks: list[str] = []
         size = 0
+        options = _answer_budget_options(budget, progress=progress)
+        _answer_begin_attempt(budget, progress)
         try:
-            for chunk in stream(messages, max_chars=_MAX_ANSWER_CHARS):
+            for chunk in _invoke_text_stream(
+                stream,
+                messages,
+                max_chars=_MAX_ANSWER_CHARS,
+                timeout_seconds=options.get("timeout_seconds"),
+                deadline=options.get("deadline"),
+                on_progress=_answer_provider_progress(
+                    progress, on_progress, phase="answer"
+                ),
+            ):
+                _answer_check_budget(budget)
                 text = _normalize_stream_text(
                     chunk, max_length=min(_MAX_ANSWER_CHARS - size, _MAX_ANSWER_CHARS)
                 )
@@ -604,16 +732,31 @@ class LLMAnswerGenerator:
                 if size >= _MAX_ANSWER_CHARS:
                     break
         except (AttributeError, NotImplementedError) as exc:
-            return self._fallback_stream(result, on_delta, exc)
+            return self._fallback_stream(
+                result,
+                on_delta,
+                exc,
+                budget=budget,
+                progress=progress,
+                on_progress=on_progress,
+            )
         except PlanningError as exc:
-            if _is_stream_unsupported(exc):
-                return self._fallback_stream(result, on_delta, exc)
+            if _is_stream_fallback_eligible(exc):
+                return self._fallback_stream(
+                    result,
+                    on_delta,
+                    exc,
+                    budget=budget,
+                    progress=progress,
+                    on_progress=on_progress,
+                )
             raise
         answer = _normalize_stream_text("".join(chunks), max_length=_MAX_ANSWER_CHARS)
         if not answer:
             raise PlanningError("answer stream returned an empty answer")
         if _contains_internal_reference(answer):
             raise PlanningError("answer stream contains an internal reference")
+        _answer_check_budget(budget)
         return AnswerGenerationResult(
             answer=answer,
             evidence=project_answer_generation_evidence(
@@ -640,13 +783,27 @@ class LLMAnswerGenerator:
         value = metrics() if callable(metrics) else {}
         return value if isinstance(value, Mapping) else {}
 
-    def _fallback_stream(self, result: Any, on_delta, cause: Exception) -> AnswerGenerationResult:
-        generated = self.generate(result)
+    def _fallback_stream(
+        self,
+        result: Any,
+        on_delta,
+        cause: Exception,
+        *,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    ) -> AnswerGenerationResult:
+        generated = self.generate(
+            result,
+            budget=budget,
+            progress=progress,
+            on_progress=on_progress,
+        )
         if callable(on_delta):
             on_delta(generated.answer)
         evidence = dict(generated.evidence)
         evidence["streaming"] = False
-        evidence["fallback_reason"] = "stream_unsupported"
+        evidence["fallback_reason"] = _stream_fallback_reason(cause)
         return AnswerGenerationResult(answer=generated.answer, evidence=evidence)
 
 
@@ -800,8 +957,28 @@ def _contains_internal_reference(value: str) -> bool:
     return any(marker in lowered for marker in ("memory://", "artifact://", "result_ref", "prompt"))
 
 
-def _is_stream_unsupported(error: PlanningError) -> bool:
-    return getattr(error, "code", None) == "stream_unsupported"
+def _is_stream_fallback_eligible(error: PlanningError) -> bool:
+    """Allow a visible-answer fallback for bounded stream shape failures.
+
+    A relay may finish with reasoning-only chunks or reject SSE while its
+    structured endpoint remains usable. The fallback still validates the
+    answer schema; it never exposes those chunks or bypasses the budget.
+    """
+
+    return getattr(error, "code", None) in {
+        "stream_unsupported",
+        "invalid_model_response",
+        "provider_timeout",
+    }
+
+
+def _stream_fallback_reason(error: Exception) -> str:
+    code = str(getattr(error, "code", "") or "").strip()
+    return code if code in {
+        "stream_unsupported",
+        "invalid_model_response",
+        "provider_timeout",
+    } else "stream_unsupported"
 
 
 def _normalize_composite_answer(value: Any) -> dict[str, Any]:
@@ -825,6 +1002,136 @@ def _normalize_composite_answer(value: Any) -> dict[str, Any]:
             raise PlanningError("composite answer lists are invalid")
         answer[key] = [_safe_text(item, 320).strip() for item in values[:8] if _safe_text(item, 320).strip()]
     return answer
+
+
+def _answer_budget_options(
+    budget: Optional[RunBudget],
+    *,
+    progress: Any = None,
+) -> dict[str, Any]:
+    """Enter the answer phase and snapshot one provider-call deadline."""
+
+    if budget is None:
+        return {}
+    if progress is not None and callable(getattr(progress, "start_phase", None)):
+        progress.start_phase(
+            "answer",
+            status="EXECUTING",
+            message="正在生成答案",
+            emit_event=False,
+        )
+    if budget.phase != "answer":
+        budget.start_phase("answer")
+    budget.check()
+    return {
+        "timeout_seconds": budget.child_timeout(kind="provider"),
+        "deadline": budget.child_deadline(kind="provider"),
+    }
+
+
+def _answer_begin_attempt(
+    budget: Optional[RunBudget],
+    progress: Any = None,
+    *,
+    retry: bool = False,
+) -> None:
+    if budget is None:
+        return
+    begin_attempt = getattr(progress, "begin_attempt", None)
+    if callable(begin_attempt):
+        begin_attempt(retry=retry)
+    else:
+        budget.begin_attempt(retry=retry)
+
+
+def _answer_check_budget(budget: Optional[RunBudget]) -> None:
+    if budget is not None:
+        budget.check()
+
+
+def _answer_provider_progress(
+    progress: Any,
+    callback: Optional[Callable[[Mapping[str, Any]], None]],
+    *,
+    phase: str,
+) -> Optional[Callable[[Mapping[str, Any]], None]]:
+    if progress is None and not callable(callback):
+        return None
+
+    allowed = {
+        "kind",
+        "attempt",
+        "retry_count",
+        "received_chars",
+        "elapsed_ms",
+        "timeout_seconds",
+    }
+
+    def emit(value: Mapping[str, Any]) -> None:
+        if not isinstance(value, Mapping):
+            return
+        safe = {
+            key: value[key]
+            for key in allowed
+            if key in value and isinstance(value[key], (str, int, float, bool))
+        }
+        safe["phase"] = phase
+        if callable(callback):
+            try:
+                callback(dict(safe))
+            except Exception:
+                pass
+        update = getattr(progress, "progress", None)
+        if callable(update):
+            kind = str(safe.get("kind") or "provider_progress")
+            message = {
+                "provider_call_started": "正在生成答案",
+                "provider_retry": "答案生成正在重试",
+                "provider_stream_delta": "正在接收答案",
+                "provider_call_completed": "答案已生成",
+                "provider_call_failed": "答案生成失败",
+            }.get(kind, "答案生成中")
+            try:
+                update(message, data=safe)
+            except Exception:
+                pass
+
+    return emit
+
+
+def _invoke_text_stream(
+    stream: Callable[..., Any],
+    messages: Any,
+    *,
+    max_chars: int,
+    timeout_seconds: Optional[float],
+    deadline: Optional[float],
+    on_progress: Optional[Callable[[Mapping[str, Any]], None]],
+) -> Any:
+    """Call old and new stream adapters without leaking unsupported kwargs."""
+
+    try:
+        parameters = inspect.signature(stream).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    accepts_kwargs = any(
+        item.kind == inspect.Parameter.VAR_KEYWORD
+        for item in parameters.values()
+    )
+    kwargs: dict[str, Any] = {}
+    if accepts_kwargs or "max_chars" in parameters:
+        kwargs["max_chars"] = max_chars
+    for key, value in (
+        ("timeout_seconds", timeout_seconds),
+        ("deadline", deadline),
+        ("on_progress", on_progress),
+    ):
+        if value is not None and (accepts_kwargs or key in parameters):
+            kwargs[key] = value
+    if on_progress is not None and not accepts_kwargs and "on_progress" not in parameters:
+        if "progress_callback" in parameters:
+            kwargs["progress_callback"] = on_progress
+    return stream(messages, **kwargs)
 
 
 __all__ = [

@@ -4,9 +4,9 @@
 
 ## 当前阶段
 
-- 阶段：`M331`
-- 当前任务：M331-F 阶段交付与全局重规划
-- 状态：M330-A～F、M331-A～F 已完成并推送（`11d7492`）
+- 阶段：`M332`
+- 当前任务：M332 阶段交付与全局重规划
+- 状态：M331-A～F 已完成并推送（`11d7492`）；M332-A～F 已完成，代码和文档待提交
 - 基线：`0ce3ba4`
 - 协作：单 Agent，最大并发度 1；测试、GIS 和 live 验收优先使用 Docker
 
@@ -40,20 +40,38 @@
 
 - M330：完成直接回答、能力发现、受控 Web/工具提案、降级恢复、实时事件、默认 HTTP/SSE/Artifact 与真实模型纵向验收。
 
-## 进行中
+## 已完成（M332）
 
-- M331-F：已收口 M331 文档、索引和全局重规划；下一阶段优先处理真实模型复杂规划延迟与增量反馈。
+- M332-A：已完成统一 RunBudget 深模块，支持总/阶段/provider 单次预算、尝试/重试和安全 receipt。
+- M332-B：已完成 ProgressCoordinator 与 RunEvent 兼容扩展，支持有序阶段事件、heartbeat、恢复提示和安全关闭。
+- M332-C：已完成结构化 Provider、compact recovery、ReAct、普通答案与 Composite 答案的动态 timeout/deadline 和安全进度回调；Provider 重试退避受 deadline 限制。
+- M332-C 验证：M331 结构化响应 + M332 预算/进度/Provider 紧凑测试 `17/17` 通过；未执行真实模型请求。
+
+## 已完成（M332-D～F）
+
+- M332-D/E：已接入 Runtime 生命周期、reaper、SQLite/内存/Artifact 终态 fence；修复 M37 极短超时、M60 自定义 factory、M69 SQLite 超时和事件序号竞争。
+- M332-F：ReAct 后续 Planner 超时不再覆盖先前成功的真实模型指标；新增紧凑回归，保持 `model_evidence` 的成功事实。
+- 阶段验收：Docker M332 定向回归 `15/15`、compileall、architecture strict、服务 smoke、readiness `200`、Console 规划等待/答案流/事件/结果投影 smoke 全部通过。
+- 真实验收：生产 Compose 通过 `--env-file .env.production` 挂载 `D:/dataset/agent`；显式 GIS + 真实模型复杂请求 `COMPLETED`，异步/轮询/Artifact/SSE 续传/evidence 对照通过。
 
 ## 必要文件
 
-- `docs/stages/M331/{capability-map.md,spec.md,plan.md,handoff.md}`
-- `agent/context_engineering.py`
-- `agent/runtime_state.py`
-- `agent/sqlite_store.py`
-- `agent/artifact_store.py`
+- `docs/stages/M332/{capability-map.md,spec.md,plan.md,handoff.md}`
+- `agent/runtime_core/run_budget.py`
+- `agent/runtime_core/progress.py`
+- `agent/integration/structured_response.py`
+- `agent/llm_planner.py`
+- `agent/answer_generation.py`
+- `agent/runtime.py`
+- `agent/runtime_core/run_lifecycle.py`
 - `agent/run_events.py`
 - `agent/application/async_runs.py`
-- `tests/` 中与上下文、事件回放和恢复直接相关的紧凑测试
+- `agent/application/service_state.py`
+- `agent/persistence/sqlite_store.py`
+- `production_api.py`
+- `web/src/console_run_events.js`
+- `web/src/console_app.js`
+- M332 直接相关的紧凑测试
 - `tasks/current-state.md`
 - `docs/document-index.json`
 
@@ -78,6 +96,5 @@
 
 ## 阻塞与下一步
 
-- 阻塞：无；Docker GIS provider 因当前挂载数据不完整保持局部 unavailable，通用 Runtime 已按契约降级，未影响经济、指标、
-  文本和通用直接回答。
-- 下一步：进入下一阶段前建立新的 capability map/Spec/Plan；恢复时只读取当前阶段 handoff、当前状态和本任务必要文件。
+- 阻塞：无；M332 阶段验收已完成，不保存模型原文、Prompt、网页正文或敏感配置。
+- 下一步：提交并推送 M332 版本；随后按产品体验、Runtime、Planner、Domain/数据、部署和测试全局重规划下一阶段，优先提升开放多领域请求的答案质量与成功率。

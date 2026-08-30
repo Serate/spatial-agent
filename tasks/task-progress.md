@@ -651,3 +651,79 @@
 
 - 完成：更新热状态、M331 Plan/handoff、任务账本、开发问题记录和代码/文档索引；全局重规划输入已写入 M331 Plan/handoff。
 - 下一步：后续优先处理真实模型复杂规划的可控超时/增量反馈，并保持通用能力边界不退化。
+
+### M332-0：阶段初始化与契约落地 — 进行中
+
+- 开始：已将热状态、恢复入口和必要文件切换到 M332；本阶段按单 Agent、Docker 优先和最小充分验证执行。
+- 文档：已建立 M332 capability map、Spec、Plan、handoff，明确 RunBudget、阶段心跳、Provider deadline、超时恢复、终态隔离和实时投影的依赖顺序。
+- 当前动作：实现统一 `RunBudget` 与阶段进度协调器；不保存模型原文、Prompt、隐藏思维链或敏感配置。
+- 下一步：完成 M332-0 文档索引更新后进入 M332-A。
+
+### M332-0：阶段初始化与契约落地 — 已完成
+
+- 交付：建立 M332 capability map、Spec、Plan、handoff，切换热状态和文档索引到 M332。
+- 验证：`scripts/validate_document_index.ps1` 通过；未修改 Runtime、Provider 或前端代码。
+- 下一步：M332-A 实现统一 RunBudget 深模块。
+
+### M332-A：统一 RunBudget — 进行中
+
+- 开始：已切换热状态到 M332-A；当前只读取 Runtime 控制、Provider deadline 和现有 timeout 配置相关接口。
+- 当前动作：实现总预算、阶段预算、单次调用预算、剩余时间和脱敏 receipt；保持现有 `timeout_seconds` 兼容。
+- 下一步：完成预算契约后运行单组紧凑契约测试，再接入阶段进度协调器。
+
+### M332-A：统一 RunBudget — 已完成
+
+- 实现：新增 `agent/runtime_core/run_budget.py` 和 `spatial-agent.run-budget.v1` 安全 receipt；支持总预算、阶段预算、provider 单次预算、尝试/重试和剩余时间。
+- 集成：从 `agent/runtime_core/__init__.py` 导出公共 Runtime 深模块符号，未改变既有 Provider、ToolRegistry 或 Domain 行为。
+- 验证：Docker `tests.test_m332_realtime_budget` 通过 `4/4`；首次因旧镜像缺少新测试文件，重建 `docker-compose.prod.yml` 服务后通过。
+- 下一步：M332-B 实现阶段进度协调器和真实 heartbeat。
+
+### M332-B：阶段进度协调器 — 进行中
+
+- 开始：已切换热状态到 M332-B；当前只读取 `RunBudget` 和 RunEvent 安全字段相关接口。
+- 当前动作：实现可注入 event sink 的阶段协调器，确保 heartbeat 在线程阻塞期间产生且关闭时不泄漏。
+- 下一步：补充最小心跳/阶段顺序契约测试，再接入 Provider 和 Runtime。
+
+### M332-B：阶段进度协调器 — 已完成
+
+- 实现：新增 `agent/runtime_core/progress.py`，集中管理阶段开始、尝试、heartbeat、恢复和关闭；`run_events.py` 补齐超时/取消/重试/恢复事件及安全计时字段。
+- 验证：Docker 预算与进度合并测试 `6/6` 通过；后台 heartbeat 可关闭且不继续写入事件。
+- 下一步：M332-C 将阶段剩余时间传入 Provider、Planner、ReAct 和答案流。
+
+### M332-C：Provider、Planner、ReAct 与答案流预算接入 — 进行中
+
+- 开始：已切换热状态到 M332-C；当前只读取结构化调用、OpenAI-compatible client、Planner、ReAct 和答案生成接口。
+- 当前动作：增加有界 timeout、剩余 deadline 和安全进度回调；结构化响应仍必须完整校验后才能进入 Runtime。
+- 下一步：先完成 provider adapter 和 fake-client 紧凑测试，再接入 Runtime 生命周期。
+
+### M332-C：Provider、Planner、ReAct 与答案流预算接入 — 已完成
+
+- 实现：`structured_response` 支持调用级 `timeout_seconds`、单调 `deadline`、动态 `timeout_provider` 和脱敏 `on_progress`；结构化恢复沿用同一安全边界。
+- 实现：`LLMPlanner` 的规划/ReAct/compact recovery、普通答案和 Composite 答案均可接收 `RunBudget` 与安全进度协调器；结构化结果继续在完整校验后才可进入 Runtime。
+- 实现：`OpenAIPlannerClient` 的 Responses/Chat Completions 结构化请求与文本流均以调用级 deadline 限制 socket timeout、重试和退避；流式答案在增量边界检查阶段预算。
+- 验证：M331 结构化响应 + M332 预算/进度/Provider 紧凑测试 `17/17` 通过；只使用 fake client，未保存模型原文、Prompt、密钥或网页正文。
+- 下一步：M332-D 把 `RunBudget` 与 `ProgressCoordinator` 接入 `run_lifecycle.py`、`runtime.py`，统一超时和恢复终态。
+
+### M332-D：Runtime 超时与恢复接入 — 已完成
+
+- 实现：把规划、执行、答案和总 Run 的剩余预算接入统一生命周期；超时、失败、部分结果和恢复 lineage 均保留结构化证据。
+- 修复：处理 M37 极短超时、M60 自定义 factory 的 `event_sink` 兼容和 M69 异步超时类型丢失。
+- 验证：Runtime lifecycle、RunBudget、Progress、Provider、M37、M60、M69、M79 定向回归通过。
+
+### M332-E：异步与持久化终态隔离 — 已完成
+
+- 实现：reaper、SQLite、内存和 Artifact 共享终态 fence；迟到 worker 不能覆盖超时/取消/完成状态，事件序号竞争已修复。
+- 验证：新增终态事件 fence 回归；M332-D/E 定向 Docker 回归 `30/30` 通过，未调用真实模型。
+
+### M332-F：SSE/前端与阶段验收 — 已完成
+
+- 实现：SSE、轮询和前端消费 heartbeat、预算、重试、恢复与超时字段；规划等待、答案流、事件和结果投影保持结构化展示。
+- 修复：ReAct 后续 Planner 超时不再覆盖先前成功的 `planner_metrics`；新增紧凑回归，公开 `model_evidence` 仍能证明真实模型成功参与。
+- 修复：规划等待 smoke 显式注入独立抽取函数所需的预算格式化依赖，避免测试夹具误报前端闭包缺失。
+- 验证：Docker M332 定向回归 `15/15`、compileall、architecture strict、服务 smoke、readiness `200`、Console 规划等待/答案流/事件/结果投影 smoke 通过。
+- 真实验收：使用生产 Compose `--env-file .env.production` 正确挂载 `D:/dataset/agent`，显式 GIS + 真实模型复杂请求 `COMPLETED`；异步、轮询、Artifact、SSE 断点续传和 evidence 对照通过。仅记录脱敏状态/计数。
+
+### M332 阶段收口与全局重规划输入
+
+- 交付：M332 的实时执行体验、预算、恢复、终态一致性和真实 GIS 链路已闭合；下一阶段从产品体验、Runtime、Planner、Domain/数据、部署和测试全局规划。
+- 约束：默认测试继续离线、精简、按风险分层；真实模型/GIS 只作为显式验收；不保存模型原文、Prompt、网页正文、工具源码或密钥。

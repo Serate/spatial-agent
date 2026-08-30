@@ -35,11 +35,15 @@ const liveRunState = {
   transport: "sse",
   eventCount: 5,
 };
+const liveBudgetDuration = new Function(
+  "return (" + extractFunction(source, "liveBudgetDuration") + ");",
+)();
 const refreshLiveSummary = new Function(
   "liveRunState",
   "$",
   "liveDurationText",
   "liveHeartbeatText",
+  "liveBudgetDuration",
   "window",
   "return (" + extractFunction(source, "refreshLiveSummary") + ");",
 )(
@@ -47,6 +51,7 @@ const refreshLiveSummary = new Function(
   id => elements.get(id),
   () => "20 秒",
   () => "2 秒前",
+  liveBudgetDuration,
   {ConsoleRunEvents: {phaseLabel: () => "生成计划"}},
 );
 

@@ -68,13 +68,21 @@ def load_answer_generation_config(path: Optional[str] = None) -> Dict[str, Any]:
         source = json.loads(config_path.read_text(encoding="utf-8"))
 
     planner_timeout = config.get("timeout_seconds")
-    default_timeout = min(float(planner_timeout), 20.0) if planner_timeout else 20.0
+    # The answer call is separate from planning, but complex GIS runs can
+    # legitimately need more than the old 20-second cap to emit their first
+    # visible token. Keep it bounded and independently configurable.
+    default_timeout = min(float(planner_timeout), 60.0) if planner_timeout else 60.0
     # Keep the user-facing answer budget independent from the compact planner
     # budget. A 2048-token planner cap must not shorten a normal answer.
     default_tokens = _DEFAULT_ANSWER_OUTPUT_TOKENS
-    answer_timeout = _float_setting(
-        os.environ.get("OPENAI_ANSWER_TIMEOUT_SECONDS", source.get("answer_timeout_seconds"))
-    )
+    answer_timeout = _float_setting(os.environ.get("OPENAI_ANSWER_TIMEOUT_SECONDS"))
+    if answer_timeout is None:
+        answer_timeout = _float_setting(
+            os.environ.get(
+                "SPATIAL_AGENT_ANSWER_TIMEOUT_SECONDS",
+                source.get("answer_timeout_seconds"),
+            )
+        )
     answer_tokens = _int_setting(
         os.environ.get("OPENAI_ANSWER_MAX_OUTPUT_TOKENS", source.get("answer_max_output_tokens"))
     )

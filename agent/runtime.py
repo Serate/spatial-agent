@@ -192,6 +192,7 @@ class AgentRuntime:
         self._memory = memory
         self._observability = observability
         self._event_sink = event_sink
+        self._run_budgets: Dict[str, Any] = {}
         # The selected Domain Pack owns its default grant. Callers can still
         # narrow or replace it explicitly for a deployment.
         self._allowed_permissions = {
@@ -674,7 +675,15 @@ class AgentRuntime:
         metrics = getattr(self._planner, "metrics", None)
         return metrics() if callable(metrics) else None
 
-    def _compose_answer(self, result: AgentRunResult, *, on_delta=None) -> str:
+    def _compose_answer(
+        self,
+        result: AgentRunResult,
+        *,
+        on_delta=None,
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
+    ) -> str:
         """Generate a natural-language answer with a deterministic fallback.
 
         The Domain Composer remains responsible for the trusted fallback.  A
@@ -696,9 +705,22 @@ class AgentRuntime:
         try:
             stream_generate = getattr(generator, "generate_stream", None)
             if callable(on_delta) and callable(stream_generate):
-                generated = stream_generate(result, on_delta=on_delta)
+                generated = _invoke_answer_generator(
+                    stream_generate,
+                    result,
+                    on_delta=on_delta,
+                    budget=budget,
+                    progress=progress,
+                    on_progress=on_progress,
+                )
             else:
-                generated = generate(result)
+                generated = _invoke_answer_generator(
+                    generate,
+                    result,
+                    budget=budget,
+                    progress=progress,
+                    on_progress=on_progress,
+                )
             answer = getattr(generated, "answer", None)
             evidence = getattr(generated, "evidence", None)
             if not isinstance(answer, str) or not answer.strip():
@@ -712,6 +734,8 @@ class AgentRuntime:
                 result, evidence, answer
             )
             return answer
+        except (RunCancelled, RunTimedOut):
+            raise
         except Exception:
             failure_evidence = getattr(generator, "failure_evidence", None)
             if callable(failure_evidence):
@@ -759,6 +783,9 @@ class AgentRuntime:
         result: Optional[AgentRunResult] = None,
         run_id: Optional[str] = None,
         context_packet: Optional[ContextPacket] = None,
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
     ) -> tuple[TaskPlan, Optional[Dict[str, Any]]]:
         replacement, event = self._planning_surface.validate_or_repair(
             plan,
@@ -767,6 +794,9 @@ class AgentRuntime:
             deadline=deadline,
             run_id=run_id,
             context_packet=context_packet,
+            budget=budget,
+            progress=progress,
+            on_progress=on_progress,
         )
         if result is not None and event is not None:
             result.replan_events.append(event)
@@ -802,8 +832,19 @@ class AgentRuntime:
         request: str,
         workflow: Optional[Mapping[str, Any]],
         context_packet: ContextPacket,
+        *,
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
     ) -> TaskPlan:
-        return self._planning_surface.plan(request, workflow, context_packet)
+        return self._planning_surface.plan(
+            request,
+            workflow,
+            context_packet,
+            budget=budget,
+            progress=progress,
+            on_progress=on_progress,
+        )
 
     def _validate_plan(self, plan: TaskPlan) -> None:
         return self._planning_surface.validate_plan(plan)
@@ -847,6 +888,10 @@ class AgentRuntime:
         completed_results: Dict[str, Dict[str, Any]],
         replan_count: int,
         deadline: Optional[float],
+        *,
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
     ) -> bool:
         del exc
         outcome = self._planning_surface.try_replan(
@@ -860,6 +905,9 @@ class AgentRuntime:
             completed_results=completed_results,
             replan_count=replan_count,
             deadline=deadline,
+            budget=budget,
+            progress=progress,
+            on_progress=on_progress,
         )
         if outcome is None:
             return False
@@ -1006,13 +1054,36 @@ class AgentRuntime:
         terminal: Optional[bool] = None,
     ) -> Optional[Dict[str, Any]]:
         """Append one safe realtime event without changing run semantics."""
+        budget = self._run_budgets.get(str(run_id))
+        event_data = dict(data or {})
+        if budget is not None:
+            try:
+                receipt = budget.receipt()
+            except Exception:
+                receipt = {}
+            for key in (
+                "elapsed_ms",
+                "phase_elapsed_ms",
+                "run_elapsed_ms",
+                "phase_budget_ms",
+                "run_budget_remaining_ms",
+                "total_budget_ms",
+                "phase_remaining_ms",
+                "attempt",
+                "retry_count",
+                "heartbeat_count",
+                "budget_state",
+            ):
+                source_key = "run_remaining_ms" if key == "run_budget_remaining_ms" else key
+                if source_key in receipt:
+                    event_data.setdefault(key, receipt[source_key])
         event = new_run_event(
             run_id=run_id,
             phase=phase,
             kind=kind,
             status=status,
             message=message,
-            data=data,
+            data=event_data,
             terminal=terminal,
         )
         sink = self._event_sink
@@ -1051,7 +1122,16 @@ class AgentRuntime:
         )
 
     def _check_control(self, run_id: str, deadline: Optional[float]) -> None:
-        return self._control.check(run_id, deadline)
+        self._control.check(run_id, deadline)
+        budget = self._run_budgets.get(str(run_id))
+        if budget is not None:
+            budget.check()
+
+    def _register_run_budget(self, run_id: str, budget: Any) -> None:
+        self._run_budgets[str(run_id)] = budget
+
+    def _unregister_run_budget(self, run_id: str) -> None:
+        self._run_budgets.pop(str(run_id), None)
 
     def _block_remaining_steps(
         self, steps, start_index: int, failed_step_id: str, reason: str
@@ -1154,3 +1234,34 @@ def _record_run_failure(
 
 def _run_error_category(result: AgentRunResult) -> Optional[str]:
     return _runtime_projection.run_error_category(result)
+
+
+def _invoke_answer_generator(
+    method: Callable[..., Any],
+    result: AgentRunResult,
+    *,
+    on_delta: Any = None,
+    budget: Any = None,
+    progress: Any = None,
+    on_progress: Any = None,
+) -> Any:
+    """Keep legacy answer generators compatible with runtime controls."""
+
+    try:
+        parameters = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    accepts_kwargs = any(
+        item.kind == inspect.Parameter.VAR_KEYWORD
+        for item in parameters.values()
+    )
+    kwargs: dict[str, Any] = {}
+    for name, value in (
+        ("on_delta", on_delta),
+        ("budget", budget),
+        ("progress", progress),
+        ("on_progress", on_progress),
+    ):
+        if value is not None and (accepts_kwargs or name in parameters):
+            kwargs[name] = value
+    return method(result, **kwargs)

@@ -76,7 +76,7 @@ class RuntimeReactExecution:
             initial_action_count = 0
             start_turn = 0
         result.status = RunStatus.EXECUTING
-        self._emit_stage_starts(result)
+        self._emit_stage_starts(context)
 
         prepared: Dict[str, tuple[PlanStep, TaskPlan]] = {}
         validation_announced = False
@@ -175,6 +175,8 @@ class RuntimeReactExecution:
             max_actions=int(settings.get("react_max_actions") or 12),
             network_enabled=network_enabled,
             tool_proposals_enabled=tool_proposals_enabled,
+            budget=context.budget,
+            progress=context.progress,
             control_check=lambda: runtime._check_control(
                 result.run_id, context.deadline
             ),
@@ -281,6 +283,13 @@ class RuntimeReactExecution:
     ) -> Mapping[str, Any]:
         runtime = self._runtime
         result = _result(context)
+        if context.progress is not None:
+            context.progress.start_phase(
+                "plan",
+                status=RunStatus.PLANNING.value,
+                message="正在生成首个受控动作",
+                emit_event=False,
+            )
         runtime._check_control(result.run_id, context.deadline)
         runtime._emit_progress_event(
             result.run_id,
@@ -299,9 +308,11 @@ class RuntimeReactExecution:
             tool_catalog=tool_catalog,
             network_enabled=network_enabled,
             tool_proposals_enabled=tool_proposals_enabled,
+            budget=context.budget,
+            progress=context.progress,
         )
         runtime._check_control(result.run_id, context.deadline)
-        result.planner_metrics = runtime._planner_metrics()
+        self._record_planner_metrics(result)
         runtime._emit_progress_event(
             result.run_id,
             phase="plan",
@@ -312,11 +323,22 @@ class RuntimeReactExecution:
         )
         return decision
 
-    def _emit_stage_starts(self, result: Any) -> None:
+    def _emit_stage_starts(self, context: Any) -> None:
+        result = _result(context)
         for phase, message, stage_index in (
             ("validate", "正在校验动作和执行条件", 4),
             ("execute", "开始逐步执行分析动作", 5),
         ):
+            # ReAct uses the same coordinator as the ordinary lifecycle. The
+            # visible stage events below remain the compatibility surface; the
+            # coordinator call only switches the heartbeat phase.
+            if context.progress is not None:
+                context.progress.start_phase(
+                    phase,
+                    status=RunStatus.EXECUTING.value,
+                    message=message,
+                    emit_event=False,
+                )
             self._runtime._emit_progress_event(
                 result.run_id,
                 phase=phase,
@@ -563,6 +585,13 @@ class RuntimeReactExecution:
     ) -> ReactToolOutcome:
         runtime = self._runtime
         result = _result(context)
+        if context.progress is not None:
+            context.progress.start_phase(
+                "execute",
+                status=RunStatus.EXECUTING.value,
+                message="正在执行分析步骤",
+                emit_event=False,
+            )
         step_run = StepRun(
             step.id,
             step.tool,
@@ -657,7 +686,30 @@ class RuntimeReactExecution:
         result.plan_evidence["evidence_binding"] = build_evidence_binding(
             context.context_packet.payload
         )
-        result.planner_metrics = runtime._planner_metrics()
+        self._record_planner_metrics(result)
+
+    def _record_planner_metrics(self, result: Any) -> None:
+        """Retain successful model evidence across later ReAct attempts.
+
+        Planner adapters expose the metrics of their latest provider call.
+        A later ReAct turn may time out after an earlier turn already
+        succeeded, but replacing the result snapshot with that failure would
+        make the public model evidence falsely claim that no model call
+        succeeded. Keep the latest successful snapshot while allowing a
+        later success to refresh it; ReAct evidence still records the later
+        bounded failure and recovery decision.
+        """
+
+        metrics = self._runtime._planner_metrics()
+        if not isinstance(metrics, Mapping):
+            return
+        current = getattr(result, "planner_metrics", None)
+        if (
+            current is None
+            or not _planner_metrics_succeeded(current)
+            or _planner_metrics_succeeded(metrics)
+        ):
+            result.planner_metrics = dict(metrics)
 
     def _finish_outcome(self, context: Any, outcome: Any) -> bool:
         runtime = self._runtime
@@ -825,6 +877,28 @@ def _react_event_data(payload: Mapping[str, Any]) -> Dict[str, Any]:
             if decision.get(key) and key not in result:
                 result[key] = decision[key]
     return result
+
+
+def _planner_metrics_succeeded(value: Any) -> bool:
+    """Identify a usable planner snapshot without trusting arbitrary fields."""
+
+    if not isinstance(value, Mapping) or not value:
+        return False
+    status = str(value.get("status") or "").strip().lower()
+    if status in {
+        "error",
+        "failed",
+        "failure",
+        "timeout",
+        "timed_out",
+        "unavailable",
+    }:
+        return False
+    if value.get("error_type"):
+        return False
+    if status in {"success", "completed", "ok"}:
+        return True
+    return bool(value.get("execution_mode") or value.get("provider"))
 
 
 __all__ = ["RuntimeReactExecution"]

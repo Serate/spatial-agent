@@ -8,7 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from time import perf_counter
-from typing import Any, Dict, Mapping, Optional, Protocol
+from typing import Any, Callable, Dict, Mapping, Optional, Protocol
 
 from .errors import ClarificationNeeded, PlanningError, RequestRejected
 from .models import TaskPlan
@@ -30,6 +30,7 @@ from .react.contracts import (
     normalize_react_decision,
     react_decision_schema,
 )
+from .runtime_core.run_budget import RunBudget
 
 
 _REACT_SCHEMA_NAME = "react_decision"
@@ -64,6 +65,9 @@ class LLMClient(Protocol):
         schema_name: Optional[str] = None,
         max_output_tokens: Optional[int] = None,
         deterministic: bool = False,
+        timeout_seconds: Optional[float] = None,
+        deadline: Optional[float] = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
     ) -> Mapping[str, Any]:
         ...
 
@@ -100,6 +104,9 @@ class LLMPlanner:
         request: str,
         workflow: Optional[Mapping[str, Any]] = None,
         context: Optional[Mapping[str, Any]] = None,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
     ) -> TaskPlan:
         if not request.strip():
             raise ClarificationNeeded("empty request")
@@ -108,15 +115,39 @@ class LLMPlanner:
             request = self._request_hint(request, workflow)
         messages = self._planning_messages(request, context)
         compact_messages = self._compact_planning_messages(request, context)
-        call = call_structured_json(
-            self._client,
-            messages,
-            task_plan_schema(),
-            schema_name="task_plan",
-            recovery_messages=compact_messages,
+        options = _budget_call_options(
+            budget,
+            phase="plan",
+            kind="planning",
+            progress=progress,
         )
+        _begin_budget_attempt(budget, progress)
+        try:
+            call = call_structured_json(
+                self._client,
+                messages,
+                task_plan_schema(),
+                schema_name="task_plan",
+                recovery_messages=compact_messages,
+                on_recovery=lambda: _begin_budget_attempt(
+                    budget, progress, retry=True
+                ),
+                on_progress=_provider_progress(
+                    progress, on_progress, phase="plan"
+                ),
+                timeout_provider=(
+                    lambda: budget.child_timeout(kind="planning")
+                    if budget is not None
+                    else None
+                ),
+                **options,
+            )
+        except PlanningError:
+            _check_budget(budget)
+            raise
         payload = call.payload
         self._compact_recovery_attempts = call.recovery_attempts
+        _check_budget(budget)
         outcome = payload.get("outcome")
         if outcome == "needs_clarification":
             raise ClarificationNeeded(str(payload.get("message", "planner needs clarification")))
@@ -141,6 +172,9 @@ class LLMPlanner:
         tool_catalog: Optional[Mapping[str, Any]] = None,
         network_enabled: bool = True,
         tool_proposals_enabled: bool = True,
+        budget: Optional[RunBudget] = None,
+        progress: Any = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
         """Return one validated ReAct action without performing side effects."""
 
@@ -161,15 +195,39 @@ class LLMPlanner:
             tool_proposals_enabled=tool_proposals_enabled,
         )
         schema = react_decision_schema()
-        call = call_structured_json(
-            self._client,
-            messages,
-            schema,
-            schema_name=_REACT_SCHEMA_NAME,
-            recovery_messages=messages,
+        options = _budget_call_options(
+            budget,
+            phase="plan",
+            kind="planning",
+            progress=progress,
         )
+        _begin_budget_attempt(budget, progress)
+        try:
+            call = call_structured_json(
+                self._client,
+                messages,
+                schema,
+                schema_name=_REACT_SCHEMA_NAME,
+                recovery_messages=messages,
+                on_recovery=lambda: _begin_budget_attempt(
+                    budget, progress, retry=True
+                ),
+                on_progress=_provider_progress(
+                    progress, on_progress, phase="plan"
+                ),
+                timeout_provider=(
+                    lambda: budget.child_timeout(kind="planning")
+                    if budget is not None
+                    else None
+                ),
+                **options,
+            )
+        except PlanningError:
+            _check_budget(budget)
+            raise
         payload = call.payload
         self._compact_recovery_attempts += call.recovery_attempts
+        _check_budget(budget)
         try:
             return normalize_react_decision(
                 payload,
@@ -204,12 +262,33 @@ class LLMPlanner:
                     ),
                 },
             ]
-            repaired_payload = call_compact_structured_json(
-                self._client,
-                repair_messages,
-                schema,
-                schema_name=_REACT_SCHEMA_NAME,
+            _begin_budget_attempt(budget, progress, retry=True)
+            compact_options = _budget_call_options(
+                budget,
+                phase="plan",
+                kind="planning",
+                progress=progress,
             )
+            try:
+                repaired_payload = call_compact_structured_json(
+                    self._client,
+                    repair_messages,
+                    schema,
+                    schema_name=_REACT_SCHEMA_NAME,
+                    on_progress=_provider_progress(
+                        progress, on_progress, phase="plan"
+                    ),
+                    timeout_provider=(
+                        lambda: budget.child_timeout(kind="planning")
+                        if budget is not None
+                        else None
+                    ),
+                    **compact_options,
+                )
+            except PlanningError:
+                _check_budget(budget)
+                raise
+            _check_budget(budget)
             try:
                 return normalize_react_decision(
                     repaired_payload,
@@ -421,6 +500,109 @@ class LLMPlanner:
             + "analysis, markdown, or explanatory text. For a simple request prefer one to "
             + "three steps; keep the serialized response well below 2000 tokens."
         )
+
+
+def _budget_call_options(
+    budget: Optional[RunBudget],
+    *,
+    phase: str,
+    kind: str,
+    progress: Any = None,
+) -> dict[str, Any]:
+    """Enter a phase and create one provider-call deadline snapshot."""
+
+    if budget is None:
+        return {}
+    if progress is not None and callable(getattr(progress, "start_phase", None)):
+        progress.start_phase(
+            phase,
+            status="PLANNING" if phase == "plan" else "RUNNING",
+            message="正在请求真实模型",
+            emit_event=False,
+        )
+    if budget.phase != phase:
+        budget.start_phase(phase)
+    budget.check()
+    return {
+        "timeout_seconds": budget.child_timeout(kind=kind),
+        "deadline": budget.child_deadline(kind=kind),
+    }
+
+
+def _begin_budget_attempt(
+    budget: Optional[RunBudget],
+    progress: Any = None,
+    *,
+    retry: bool = False,
+) -> None:
+    if budget is None:
+        return
+    begin_attempt = getattr(progress, "begin_attempt", None)
+    if callable(begin_attempt):
+        begin_attempt(retry=retry)
+    else:
+        budget.begin_attempt(retry=retry)
+
+
+def _check_budget(budget: Optional[RunBudget]) -> None:
+    if budget is not None:
+        budget.check()
+
+
+def _provider_progress(
+    progress: Any,
+    callback: Optional[Callable[[Mapping[str, Any]], None]],
+    *,
+    phase: str,
+) -> Optional[Callable[[Mapping[str, Any]], None]]:
+    """Bridge provider-safe progress into the optional Runtime coordinator."""
+
+    if progress is None and not callable(callback):
+        return None
+
+    allowed = {
+        "kind",
+        "attempt",
+        "retry_count",
+        "recovery_attempt",
+        "received_chars",
+        "elapsed_ms",
+        "timeout_seconds",
+    }
+
+    def emit(value: Mapping[str, Any]) -> None:
+        if not isinstance(value, Mapping):
+            return
+        safe = {
+            key: value[key]
+            for key in allowed
+            if key in value and isinstance(value[key], (str, int, float, bool))
+        }
+        safe["phase"] = phase
+        if callable(callback):
+            try:
+                callback(dict(safe))
+            except Exception:
+                # Observability must not turn a valid provider response into a
+                # failed plan because a UI/event sink is unavailable.
+                pass
+        update = getattr(progress, "progress", None)
+        if callable(update):
+            kind = str(safe.get("kind") or "provider_progress")
+            message = {
+                "provider_call_started": "正在请求真实模型",
+                "provider_retry": "真实模型请求正在重试",
+                "provider_stream_delta": "正在接收答案",
+                "provider_call_completed": "真实模型响应已收到",
+                "provider_call_failed": "真实模型请求失败",
+                "structured_recovery_started": "正在修复结构化响应",
+            }.get(kind, "真实模型处理中")
+            try:
+                update(message, data=safe)
+            except Exception:
+                pass
+
+    return emit
 
 
 def _effective_react_tools(
@@ -794,6 +976,9 @@ class OpenAIPlannerClient:
         schema_name: Optional[str] = None,
         max_output_tokens: Optional[int] = None,
         deterministic: bool = False,
+        timeout_seconds: Optional[float] = None,
+        deadline: Optional[float] = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
     ) -> Mapping[str, Any]:
         structured_schema_name = _structured_schema_name(schema_name)
         structured_mode = self._structured_output_profile["structured_mode"]
@@ -865,9 +1050,32 @@ class OpenAIPlannerClient:
             attempts += 1
             self._last_metrics["attempts"] = attempts
             try:
-                with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                request_timeout = _effective_request_timeout(
+                    self._timeout_seconds, timeout_seconds, deadline
+                )
+                if request_timeout <= 0:
+                    raise socket.timeout()
+                _notify_provider_progress(
+                    on_progress,
+                    {
+                        "kind": "provider_call_started",
+                        "attempt": attempts,
+                        "retry_count": attempts - 1,
+                        "timeout_seconds": request_timeout,
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=request_timeout) as response:
                     payload = json.loads(response.read().decode("utf-8"))
                 self._record_success(started, attempts, payload)
+                _notify_provider_progress(
+                    on_progress,
+                    {
+                        "kind": "provider_call_completed",
+                        "attempt": attempts,
+                        "retry_count": attempts - 1,
+                        "elapsed_ms": self._last_metrics.get("latency_ms"),
+                    },
+                )
                 break
             except json.JSONDecodeError as exc:
                 self._record_error(started, "response_json_error", attempts)
@@ -876,8 +1084,12 @@ class OpenAIPlannerClient:
                     "response_json_error",
                 ) from exc
             except urllib.error.HTTPError as exc:
-                if _retryable_http_status(exc.code) and attempts <= self._max_retries:
-                    self._wait_before_retry(attempts)
+                if _retryable_http_status(exc.code) and self._can_retry(attempts, deadline):
+                    _notify_provider_progress(
+                        on_progress,
+                        {"kind": "provider_retry", "attempt": attempts + 1, "retry_count": attempts},
+                    )
+                    self._wait_before_retry(attempts, deadline=deadline)
                     continue
                 self._record_error(started, "http_error", attempts, exc.code)
                 # Do not copy provider response bodies into the run error or
@@ -892,8 +1104,12 @@ class OpenAIPlannerClient:
                 ) from exc
             except urllib.error.URLError as exc:
                 is_retryable = _retryable_url_error(exc)
-                if is_retryable and attempts <= self._max_retries:
-                    self._wait_before_retry(attempts)
+                if is_retryable and self._can_retry(attempts, deadline):
+                    _notify_provider_progress(
+                        on_progress,
+                        {"kind": "provider_retry", "attempt": attempts + 1, "retry_count": attempts},
+                    )
+                    self._wait_before_retry(attempts, deadline=deadline)
                     continue
                 self._record_error(started, "url_error", attempts)
                 raise _planner_error(
@@ -902,10 +1118,23 @@ class OpenAIPlannerClient:
                     retryable=is_retryable,
                 ) from exc
             except (TimeoutError, socket.timeout) as exc:
-                if attempts <= self._max_retries:
-                    self._wait_before_retry(attempts)
+                if self._can_retry(attempts, deadline):
+                    _notify_provider_progress(
+                        on_progress,
+                        {"kind": "provider_retry", "attempt": attempts + 1, "retry_count": attempts},
+                    )
+                    self._wait_before_retry(attempts, deadline=deadline)
                     continue
                 self._record_error(started, "timeout", attempts)
+                _notify_provider_progress(
+                    on_progress,
+                    {
+                        "kind": "provider_call_failed",
+                        "attempt": attempts,
+                        "retry_count": attempts - 1,
+                        "elapsed_ms": self._last_metrics.get("latency_ms"),
+                    },
+                )
                 raise _planner_error(
                     "OpenAI request timed out",
                     "timeout",
@@ -932,6 +1161,9 @@ class OpenAIPlannerClient:
         schema: Mapping[str, Any],
         *,
         schema_name: Optional[str] = None,
+        timeout_seconds: Optional[float] = None,
+        deadline: Optional[float] = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
     ) -> Mapping[str, Any]:
         """Retry one truncated plan with a larger, deterministic JSON budget."""
 
@@ -950,9 +1182,20 @@ class OpenAIPlannerClient:
             schema_name=schema_name,
             max_output_tokens=recovery_limit,
             deterministic=True,
+            timeout_seconds=timeout_seconds,
+            deadline=deadline,
+            on_progress=on_progress,
         )
 
-    def stream_text(self, messages, *, max_chars: int = 1800):
+    def stream_text(
+        self,
+        messages,
+        *,
+        max_chars: int = 1800,
+        timeout_seconds: Optional[float] = None,
+        deadline: Optional[float] = None,
+        on_progress: Optional[Callable[[Mapping[str, Any]], None]] = None,
+    ):
         """Yield only user-facing text deltas from an OpenAI-compatible stream.
 
         This path is deliberately separate from ``complete_json``.  Plans and
@@ -996,7 +1239,21 @@ class OpenAIPlannerClient:
             self._last_metrics["attempts"] = attempts
             emitted = 0
             try:
-                with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                request_timeout = _effective_request_timeout(
+                    self._timeout_seconds, timeout_seconds, deadline
+                )
+                if request_timeout <= 0:
+                    raise socket.timeout()
+                _notify_provider_progress(
+                    on_progress,
+                    {
+                        "kind": "provider_call_started",
+                        "attempt": attempts,
+                        "retry_count": attempts - 1,
+                        "timeout_seconds": request_timeout,
+                    },
+                )
+                with urllib.request.urlopen(request, timeout=request_timeout) as response:
                     for raw_line in response:
                         line = raw_line.decode("utf-8", errors="replace").strip()
                         if not line or not line.startswith("data:"):
@@ -1019,6 +1276,15 @@ class OpenAIPlannerClient:
                         delta = str(delta)[:remaining]
                         emitted += len(delta)
                         if delta:
+                            _notify_provider_progress(
+                                on_progress,
+                                {
+                                    "kind": "provider_stream_delta",
+                                    "attempt": attempts,
+                                    "retry_count": attempts - 1,
+                                    "received_chars": emitted,
+                                },
+                            )
                             yield delta
                 if not emitted:
                     self._record_error(started, "response_shape_error", attempts)
@@ -1027,6 +1293,16 @@ class OpenAIPlannerClient:
                         "response_shape_error",
                     )
                 self._record_success(started, attempts, {"usage": usage})
+                _notify_provider_progress(
+                    on_progress,
+                    {
+                        "kind": "provider_call_completed",
+                        "attempt": attempts,
+                        "retry_count": attempts - 1,
+                        "received_chars": emitted,
+                        "elapsed_ms": self._last_metrics.get("latency_ms"),
+                    },
+                )
                 return
             except urllib.error.HTTPError as exc:
                 if exc.code in (400, 404, 405, 501):
@@ -1037,8 +1313,12 @@ class OpenAIPlannerClient:
                         code="stream_unsupported",
                         retryable=False,
                     ) from exc
-                if _retryable_http_status(exc.code) and attempts <= self._max_retries:
-                    self._wait_before_retry(attempts)
+                if _retryable_http_status(exc.code) and self._can_retry(attempts, deadline):
+                    _notify_provider_progress(
+                        on_progress,
+                        {"kind": "provider_retry", "attempt": attempts + 1, "retry_count": attempts},
+                    )
+                    self._wait_before_retry(attempts, deadline=deadline)
                     continue
                 self._record_error(started, "http_error", attempts, exc.code)
                 raise _planner_error(
@@ -1049,8 +1329,12 @@ class OpenAIPlannerClient:
                 ) from exc
             except urllib.error.URLError as exc:
                 is_retryable = _retryable_url_error(exc)
-                if is_retryable and attempts <= self._max_retries:
-                    self._wait_before_retry(attempts)
+                if is_retryable and self._can_retry(attempts, deadline):
+                    _notify_provider_progress(
+                        on_progress,
+                        {"kind": "provider_retry", "attempt": attempts + 1, "retry_count": attempts},
+                    )
+                    self._wait_before_retry(attempts, deadline=deadline)
                     continue
                 self._record_error(started, "url_error", attempts)
                 raise _planner_error(
@@ -1059,10 +1343,24 @@ class OpenAIPlannerClient:
                     retryable=is_retryable,
                 ) from exc
             except (TimeoutError, socket.timeout) as exc:
-                if attempts <= self._max_retries:
-                    self._wait_before_retry(attempts)
+                if self._can_retry(attempts, deadline):
+                    _notify_provider_progress(
+                        on_progress,
+                        {"kind": "provider_retry", "attempt": attempts + 1, "retry_count": attempts},
+                    )
+                    self._wait_before_retry(attempts, deadline=deadline)
                     continue
                 self._record_error(started, "timeout", attempts)
+                _notify_provider_progress(
+                    on_progress,
+                    {
+                        "kind": "provider_call_failed",
+                        "attempt": attempts,
+                        "retry_count": attempts - 1,
+                        "received_chars": emitted,
+                        "elapsed_ms": self._last_metrics.get("latency_ms"),
+                    },
+                )
                 raise _planner_error(
                     "OpenAI stream request timed out",
                     "timeout",
@@ -1107,11 +1405,18 @@ class OpenAIPlannerClient:
         if response_status is not None:
             self._last_metrics["response_status"] = response_status
 
-    def _wait_before_retry(self, attempt: int) -> None:
+    def _can_retry(self, attempt: int, deadline: Optional[float]) -> bool:
+        return attempt <= self._max_retries and (
+            deadline is None or deadline - perf_counter() > 0
+        )
+
+    def _wait_before_retry(self, attempt: int, *, deadline: Optional[float] = None) -> None:
         delay = min(
             self._retry_backoff_seconds * (2 ** (attempt - 1)),
             self._retry_backoff_max_seconds,
         )
+        if deadline is not None:
+            delay = min(delay, max(0.0, deadline - perf_counter()))
         if delay > 0:
             time.sleep(delay)
 
@@ -1169,6 +1474,61 @@ def _stream_text_delta(payload: Any, wire_api: str) -> str:
         delta = payload.get("delta")
         return delta if isinstance(delta, str) else ""
     return ""
+
+
+def _effective_request_timeout(
+    configured_seconds: Optional[float],
+    call_seconds: Optional[float],
+    deadline: Optional[float],
+) -> float:
+    """Bound one socket call by adapter, caller and absolute deadlines."""
+
+    values: list[float] = []
+    for value in (configured_seconds, call_seconds):
+        if value is None:
+            continue
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if parsed != parsed or parsed in {float("inf"), float("-inf")}:
+            continue
+        values.append(max(0.0, parsed))
+    if deadline is not None:
+        try:
+            values.append(max(0.0, float(deadline) - perf_counter()))
+        except (TypeError, ValueError, OverflowError):
+            pass
+    # The client constructor always has a valid timeout, but retaining a small
+    # fallback makes custom test/configuration adapters deterministic.
+    return min(values) if values else 60.0
+
+
+def _notify_provider_progress(
+    callback: Optional[Callable[[Mapping[str, Any]], None]],
+    value: Mapping[str, Any],
+) -> None:
+    """Send only bounded provider state; callback failures are non-fatal."""
+
+    if not callable(callback):
+        return
+    try:
+        safe: dict[str, Any] = {}
+        for key in (
+            "kind",
+            "attempt",
+            "retry_count",
+            "recovery_attempt",
+            "received_chars",
+            "elapsed_ms",
+            "timeout_seconds",
+        ):
+            item = value.get(key)
+            if isinstance(item, (str, int, float, bool)):
+                safe[key] = item
+        callback(safe)
+    except Exception:
+        pass
 
 
 def _planner_url(api_url: Optional[str], base_url: str, wire_api: str = "responses") -> str:

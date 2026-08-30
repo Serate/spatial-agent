@@ -28,6 +28,8 @@ from ..errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTime
 from ..models import AgentRunResult, RunStatus, StepRun, TaskPlan
 from ..result_completeness import build_result_completeness
 from .react_runtime import RuntimeReactExecution
+from .progress import ProgressCoordinator
+from .run_budget import RunBudget
 
 
 _LIFECYCLE_STAGE_COUNT = 7
@@ -71,6 +73,8 @@ class _LifecycleContext:
     completed: Set[str] = field(default_factory=set)
     completed_results: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     replan_count: int = 0
+    budget: Optional[RunBudget] = None
+    progress: Optional[ProgressCoordinator] = None
 
 
 class RuntimeRunLifecycle:
@@ -117,11 +121,17 @@ class RuntimeRunLifecycle:
             decision_ttl_seconds=decision_ttl_seconds,
             resolved_request_override=resolved_request_override,
         )
-        if context.decision_result is not None:
-            return context.decision_result
-
-        self._clarify(context)
         try:
+            if context.decision_result is not None:
+                return context.decision_result
+
+            self._clarify(context)
+            # Request resolution and the initial context snapshot are local
+            # setup, not the potentially blocking planner/tool work this
+            # timeout is intended to bound. Start the measured Run budget
+            # immediately before the first planner/ReAct stage so very small
+            # legacy timeout fixtures still exercise the first tool boundary.
+            self._start_measured_run(context)
             if self._should_use_react(context):
                 should_answer = self._react_execution.run(context)
                 if should_answer:
@@ -135,17 +145,24 @@ class RuntimeRunLifecycle:
                     return self._evidence_and_finalize(context)
                 self._execute(context)
                 self._answer(context)
+            return self._evidence_and_finalize(context)
         except ClarificationNeeded as exc:
             self._handle_failure(context, exc)
+            return self._evidence_and_finalize(context)
         except RequestRejected as exc:
             self._handle_failure(context, exc)
+            return self._evidence_and_finalize(context)
         except RunCancelled as exc:
             self._handle_failure(context, exc)
+            return self._evidence_and_finalize(context)
         except RunTimedOut as exc:
             self._handle_failure(context, exc)
+            return self._evidence_and_finalize(context)
         except Exception as exc:
             self._handle_failure(context, exc)
-        return self._evidence_and_finalize(context)
+            return self._evidence_and_finalize(context)
+        finally:
+            self._close_controls(context)
 
     def resume_tool_approval(
         self,
@@ -224,6 +241,7 @@ class RuntimeRunLifecycle:
             candidate_plan=result.plan,
             replan_count=len(result.replan_events or []),
         )
+        self._attach_controls(context)
         context.context_packet = runtime._build_context_packet(
             result.request,
             resolved_request,
@@ -240,20 +258,88 @@ class RuntimeRunLifecycle:
         }
         runtime._state_store.save(result)
         try:
-            should_answer = self._react_execution.run(context, resume=True)
-            if should_answer:
-                self._answer(context)
-        except ClarificationNeeded as exc:
-            self._handle_failure(context, exc)
-        except RequestRejected as exc:
-            self._handle_failure(context, exc)
-        except RunCancelled as exc:
-            self._handle_failure(context, exc)
-        except RunTimedOut as exc:
-            self._handle_failure(context, exc)
-        except Exception as exc:
-            self._handle_failure(context, exc)
-        return self._evidence_and_finalize(context)
+            try:
+                should_answer = self._react_execution.run(context, resume=True)
+                if should_answer:
+                    self._answer(context)
+            except ClarificationNeeded as exc:
+                self._handle_failure(context, exc)
+            except RequestRejected as exc:
+                self._handle_failure(context, exc)
+            except RunCancelled as exc:
+                self._handle_failure(context, exc)
+            except RunTimedOut as exc:
+                self._handle_failure(context, exc)
+            except Exception as exc:
+                self._handle_failure(context, exc)
+            return self._evidence_and_finalize(context)
+        finally:
+            self._close_controls(context)
+
+    def _attach_controls(self, context: _LifecycleContext) -> None:
+        """Attach one budget and heartbeat coordinator to a Run identity."""
+
+        if context.budget is not None:
+            return
+        runtime = self._runtime
+        context.budget = RunBudget.from_environment(
+            total_seconds=context.timeout_seconds,
+            source="runtime",
+        )
+        context.progress = ProgressCoordinator(
+            context.resolved_run_id or str(context.run_id or "run"),
+            context.budget,
+            emit=lambda run_id, phase, kind, status, message, data: runtime._emit_progress_event(
+                run_id,
+                phase=phase,
+                kind=kind,
+                status=status,
+                message=message,
+                data=data,
+            ),
+        )
+        register = getattr(runtime, "_register_run_budget", None)
+        if callable(register):
+            register(context.resolved_run_id or str(context.run_id or "run"), context.budget)
+
+    def _start_measured_run(self, context: _LifecycleContext) -> None:
+        """Start the bounded portion of a run after local setup is persisted."""
+
+        if context.timeout_seconds is not None:
+            context.deadline = perf_counter() + context.timeout_seconds
+        self._attach_controls(context)
+
+    def _close_controls(self, context: _LifecycleContext) -> None:
+        progress = context.progress
+        if progress is not None:
+            progress.close()
+        unregister = getattr(self._runtime, "_unregister_run_budget", None)
+        if callable(unregister) and context.resolved_run_id:
+            unregister(context.resolved_run_id)
+
+    def _start_phase(
+        self,
+        context: _LifecycleContext,
+        phase: str,
+        *,
+        status: str,
+        message: str,
+    ) -> None:
+        """Start budget/heartbeat tracking without duplicating lifecycle events."""
+
+        budget = context.budget
+        if budget is not None and budget.state() == "exhausted":
+            return
+        progress = context.progress
+        if progress is not None:
+            progress.start_phase(
+                phase,
+                status=status,
+                message=message,
+                emit_event=False,
+            )
+        elif budget is not None:
+            budget.start_phase(phase)
 
     # ------------------------------------------------------------------
     # Resolve and clarify
@@ -303,6 +389,15 @@ class RuntimeRunLifecycle:
             runtime._domain_pack, context.resolved_request
         )
         context.resolved_run_id = context.run_id or str(uuid.uuid4())
+        runtime._emit_progress_event(
+            context.resolved_run_id,
+            phase="resolve",
+            kind="run_started",
+            status=RunStatus.PLANNING.value,
+            message="已开始处理请求",
+            data={"stage_index": 1, "stage_count": _LIFECYCLE_STAGE_COUNT},
+            terminal=False,
+        )
         if context.decision_id is not None:
             existing = runtime._state_store.get(context.resolved_run_id)
             if existing is None:
@@ -321,6 +416,12 @@ class RuntimeRunLifecycle:
         """Create and persist the initial planning Result/context snapshot."""
 
         runtime = self._runtime
+        self._start_phase(
+            context,
+            "clarify",
+            status=RunStatus.PLANNING.value,
+            message="正在检查请求信息和数据条件",
+        )
         run_span_id = uuid.uuid4().hex[:16]
         runtime._run_span_ids[context.resolved_run_id] = run_span_id
         pending = context.pending
@@ -389,6 +490,12 @@ class RuntimeRunLifecycle:
     def _plan(self, context: _LifecycleContext) -> None:
         runtime = self._runtime
         result = self._result(context)
+        self._start_phase(
+            context,
+            "plan",
+            status=RunStatus.PLANNING.value,
+            message="正在生成任务计划",
+        )
         runtime._check_control(result.run_id, context.deadline)
         runtime._emit_progress_event(
             result.run_id,
@@ -414,6 +521,8 @@ class RuntimeRunLifecycle:
                 context.resolved_request,
                 context.workflow,
                 context.context_packet,
+                budget=context.budget,
+                progress=context.progress,
             )
         result.plan = context.candidate_plan
         runtime._check_control(result.run_id, context.deadline)
@@ -451,6 +560,12 @@ class RuntimeRunLifecycle:
         result = self._result(context)
         if context.candidate_plan is None:
             raise ToolError("planner returned no plan")
+        self._start_phase(
+            context,
+            "validate",
+            status=RunStatus.PLANNING.value,
+            message="正在校验计划和执行条件",
+        )
         runtime._emit_progress_event(
             result.run_id,
             phase="validate",
@@ -467,6 +582,8 @@ class RuntimeRunLifecycle:
             result=result,
             run_id=result.run_id,
             context_packet=context.context_packet,
+            budget=context.budget,
+            progress=context.progress,
         )
         result.plan = plan
         from .. import runtime as _runtime_module
@@ -596,6 +713,12 @@ class RuntimeRunLifecycle:
         result = self._result(context)
         if result.plan is None:
             raise ToolError("validated plan is unavailable for execution")
+        self._start_phase(
+            context,
+            "execute",
+            status=RunStatus.EXECUTING.value,
+            message="开始执行分析步骤",
+        )
         result.status = RunStatus.EXECUTING
         result.steps = [
             StepRun(step.id, step.tool, step.args, list(step.depends_on))
@@ -700,6 +823,8 @@ class RuntimeRunLifecycle:
                     context.completed_results,
                     context.replan_count,
                     context.deadline,
+                    budget=context.budget,
+                    progress=context.progress,
                 ):
                     runtime._block_remaining_steps(
                         result.steps, index + 1, step.id, str(exc)
@@ -725,6 +850,12 @@ class RuntimeRunLifecycle:
         if result.plan is None or result.plan.output.get("type") != "direct_answer":
             return False
         runtime = self._runtime
+        self._start_phase(
+            context,
+            "answer",
+            status=RunStatus.PLANNING.value,
+            message="正在整理回答",
+        )
         runtime._emit_progress_event(
             result.run_id,
             phase="answer",
@@ -753,6 +884,12 @@ class RuntimeRunLifecycle:
     def _answer(self, context: _LifecycleContext) -> None:
         runtime = self._runtime
         result = self._result(context)
+        self._start_phase(
+            context,
+            "answer",
+            status=RunStatus.EXECUTING.value,
+            message="正在汇总分析结果",
+        )
         runtime._emit_progress_event(
             result.run_id,
             phase="answer",
@@ -782,7 +919,12 @@ class RuntimeRunLifecycle:
                 terminal=False,
             )
 
-        result.answer = runtime._compose_answer(result, on_delta=emit_answer_delta)
+        result.answer = runtime._compose_answer(
+            result,
+            on_delta=emit_answer_delta,
+            budget=context.budget,
+            progress=context.progress,
+        )
         result.status = RunStatus.COMPLETED
         runtime._remember(result)
         runtime._conversation_store.clear_pending(context.session_id)
@@ -807,6 +949,8 @@ class RuntimeRunLifecycle:
         result = self._result(context)
         from .. import runtime as _runtime_module
 
+        self._annotate_control_error(context, exc)
+
         if isinstance(exc, ClarificationNeeded):
             result.status = RunStatus.NEEDS_CLARIFICATION
             result.error = str(exc)
@@ -826,6 +970,7 @@ class RuntimeRunLifecycle:
             runtime._conversation_store.save_pending(
                 context.session_id, context.resolved_request, result.error
             )
+            self._announce_recovery(context)
             self._emit_failure_event(context, phase="clarify", message="需要补充信息")
             return
         if isinstance(exc, RequestRejected):
@@ -857,7 +1002,10 @@ class RuntimeRunLifecycle:
                     repair_lineage=result.replan_events,
                 )
             _runtime_module._record_run_failure(result, exc, phase="control")
-            self._emit_failure_event(context, phase="execute", message="分析已取消")
+            self._announce_recovery(context)
+            self._emit_failure_event(
+                context, phase=self._event_phase(context), message="分析已取消"
+            )
             return
         if isinstance(exc, RunTimedOut):
             result.status = RunStatus.TIMED_OUT
@@ -872,7 +1020,10 @@ class RuntimeRunLifecycle:
                     repair_lineage=result.replan_events,
                 )
             _runtime_module._record_run_failure(result, exc, phase="control")
-            self._emit_failure_event(context, phase="execute", message="分析已超时")
+            self._announce_recovery(context)
+            self._emit_failure_event(
+                context, phase=self._event_phase(context), message="分析已超时"
+            )
             return
 
         result.status = RunStatus.FAILED
@@ -898,10 +1049,66 @@ class RuntimeRunLifecycle:
             phase="planning" if context.candidate_plan is None else None,
         )
         result.answer = runtime._answer_composer.compose_failure(result)
+        self._announce_recovery(context)
         self._emit_failure_event(
             context,
-            phase="execute" if context.candidate_plan is not None else "plan",
+            phase=self._event_phase(context),
             message="分析未能完成",
+        )
+
+    def _annotate_control_error(
+        self, context: _LifecycleContext, exc: Exception
+    ) -> None:
+        """Add stable phase metadata when the cooperative control raised first."""
+
+        if isinstance(exc, RunCancelled):
+            if not getattr(exc, "code", None):
+                exc.code = "run_cancelled"
+            return
+        if not isinstance(exc, RunTimedOut):
+            return
+        phase = str(
+            getattr(exc, "phase", None)
+            or (context.budget.phase if context.budget is not None else "")
+            or "run"
+        ).strip().lower()
+        if not getattr(exc, "code", None):
+            exc.code = {
+                "plan": "planner_timeout",
+                "validate": "planner_timeout",
+                "execute": "execution_timeout",
+                "answer": "answer_timeout",
+            }.get(phase, "run_timeout")
+        exc.phase = phase
+        if getattr(exc, "retryable", None) is None:
+            exc.retryable = phase in {"plan", "validate", "execute", "answer"}
+        if context.budget is not None and not getattr(exc, "budget", None):
+            exc.budget = context.budget.receipt()
+
+    def _announce_recovery(self, context: _LifecycleContext) -> None:
+        result = self._result(context)
+        actions = _recovery_actions(result)
+        if not actions or context.progress is None:
+            return
+        message = (
+            "分析超时，可重试或恢复"
+            if result.status == RunStatus.TIMED_OUT
+            else "分析失败，存在可用恢复动作"
+        )
+        context.progress.recovery_started(
+            message,
+            data={
+                "recovery_action": actions[0],
+                "recovery_actions": list(actions),
+            },
+        )
+
+    def _event_phase(self, context: _LifecycleContext) -> str:
+        phase = str(
+            context.budget.phase if context.budget is not None else ""
+        ).strip().lower()
+        return phase if phase in {"resolve", "clarify", "plan", "validate", "execute", "answer", "evidence"} else (
+            "execute" if context.candidate_plan is not None else "plan"
         )
 
     def _emit_failure_event(
@@ -914,17 +1121,29 @@ class RuntimeRunLifecycle:
         """Emit a safe failure milestone without forwarding exception text."""
         result = self._result(context)
         failure = result.failure if isinstance(result.failure, Mapping) else {}
+        actions = _recovery_actions(result)
+        data = {
+            "error_category": result.error_category,
+            "reason_code": failure.get("code") or result.error_code,
+            "retryable": failure.get("retryable"),
+        }
+        if actions:
+            data["recovery_action"] = actions[0]
+            data["recovery_actions"] = list(actions)
+        kind = (
+            "run_timed_out"
+            if result.status == RunStatus.TIMED_OUT
+            else "run_cancelled"
+            if result.status == RunStatus.CANCELLED
+            else "stage_failed"
+        )
         self._runtime._emit_progress_event(
             result.run_id,
             phase=phase,
-            kind="stage_failed",
+            kind=kind,
             status=result.status.value,
             message=message,
-            data={
-                "error_category": result.error_category,
-                "reason_code": failure.get("code") or result.error_code,
-                "retryable": failure.get("retryable"),
-            },
+            data=data,
         )
 
     def _evidence_and_finalize(self, context: _LifecycleContext) -> AgentRunResult:
@@ -937,6 +1156,18 @@ class RuntimeRunLifecycle:
         result.request_mode = derive_request_mode(result)
         if result.planner_metrics is None:
             result.planner_metrics = runtime._planner_metrics()
+        self._start_phase(
+            context,
+            "evidence",
+            status=result.status.value,
+            message="正在整理结果证据",
+        )
+        # Evidence assembly is the final bounded stage. Stop the heartbeat and
+        # freeze the receipt before the first terminal snapshot is persisted.
+        if context.progress is not None:
+            context.progress.close()
+        if context.budget is not None:
+            result.budget_evidence = context.budget.receipt()
         runtime._emit_progress_event(
             result.run_id,
             phase="evidence",
@@ -967,25 +1198,38 @@ class RuntimeRunLifecycle:
             final_kind = "run_waiting"
             final_message = "等待补充信息"
             terminal = True
+        elif status == RunStatus.TIMED_OUT.value:
+            final_kind = "run_timed_out"
+            final_message = "分析已超时，可重试或恢复"
+            terminal = True
+        elif status == RunStatus.CANCELLED.value:
+            final_kind = "run_cancelled"
+            final_message = "分析已取消"
+            terminal = True
         else:
             final_kind = "run_failed"
             final_message = "分析未完成"
             terminal = True
+        completion_data = {
+            "stage_index": 7,
+            "stage_count": _LIFECYCLE_STAGE_COUNT,
+            "completeness": build_result_completeness(result.to_dict()),
+            "request_mode": result.request_mode["mode"],
+            "request_mode_reason": result.request_mode["reason_code"],
+            "tool_count": result.request_mode["tool_count"],
+            "execution_started": result.request_mode["execution_started"],
+        }
+        actions = _recovery_actions(result)
+        if actions:
+            completion_data["recovery_action"] = actions[0]
+            completion_data["recovery_actions"] = list(actions)
         runtime._emit_progress_event(
             result.run_id,
             phase="evidence",
             kind=final_kind,
             status=status,
             message=final_message,
-            data={
-                "stage_index": 7,
-                "stage_count": _LIFECYCLE_STAGE_COUNT,
-                "completeness": build_result_completeness(result.to_dict()),
-                "request_mode": result.request_mode["mode"],
-                "request_mode_reason": result.request_mode["reason_code"],
-                "tool_count": result.request_mode["tool_count"],
-                "execution_started": result.request_mode["execution_started"],
-            },
+            data=completion_data,
             terminal=terminal,
         )
         runtime._emit_run_event(result)
@@ -996,3 +1240,17 @@ class RuntimeRunLifecycle:
         if context.result is None:
             raise RuntimeError("lifecycle result has not been initialized")
         return context.result
+
+
+def _recovery_actions(result: AgentRunResult) -> tuple[str, ...]:
+    """Return bounded recovery choices for lifecycle event consumers."""
+
+    status = result.status
+    failure = result.failure if isinstance(result.failure, Mapping) else {}
+    if status == RunStatus.NEEDS_CLARIFICATION:
+        return ("clarify", "cancel")
+    if status == RunStatus.TIMED_OUT:
+        return ("retry", "recover", "cancel")
+    if status == RunStatus.FAILED and failure.get("retryable") is True:
+        return ("retry", "recover", "cancel")
+    return ()

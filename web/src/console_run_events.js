@@ -7,11 +7,12 @@
   const TERMINAL_KINDS = new Set(['run_completed', 'run_failed', 'run_cancelled', 'run_timed_out']);
   const RUN_EVENT_SCHEMA_VERSION = 'spatial-agent.run-event.v1';
   const EVENT_KINDS = new Set([
-    'stage_started', 'stage_progress', 'stage_completed', 'stage_failed',
+    'run_started', 'stage_started', 'stage_progress', 'stage_completed', 'stage_failed',
     'tool_started', 'tool_completed', 'tool_failed', 'heartbeat',
     'answer_delta', 'run_completed', 'run_failed', 'run_waiting', 'run_finished',
     'react_turn_started', 'react_action_accepted', 'react_action_completed',
     'react_action_blocked', 'react_waiting_for_approval', 'react_finished',
+    'retry_started', 'recovery_started', 'run_timed_out', 'run_cancelled',
   ]);
   const EVENT_PHASES = new Set(['resolve', 'clarify', 'plan', 'validate', 'execute', 'answer', 'evidence']);
   const EVENT_STATUSES = new Set([
@@ -28,6 +29,10 @@
     'summary', 'turn_index', 'action', 'action_id', 'validation_state',
     'output_type', 'action_count', 'max_actions', 'max_turns', 'request_mode',
     'request_mode_reason', 'tool_count', 'execution_started',
+    'phase_elapsed_ms', 'run_elapsed_ms', 'phase_budget_ms',
+    'run_budget_remaining_ms', 'total_budget_ms', 'phase_remaining_ms',
+    'retry_count', 'heartbeat_count', 'budget_state', 'resume_available',
+    'recovery_action', 'recovery_actions',
   ]);
   const MAX_ANSWER_DELTA = 512;
   const PHASE_LABELS = Object.freeze({
@@ -40,6 +45,7 @@
     evidence: '整理证据',
   });
   const KIND_LABELS = Object.freeze({
+    run_started: '已接收请求',
     stage_started: '阶段开始',
     stage_progress: '阶段进展',
     tool_started: '工具开始',
@@ -80,6 +86,10 @@
       if (typeof item === 'boolean') result[key] = item;
       else if (typeof item === 'number' && Number.isFinite(item)) result[key] = item;
       else if (typeof item === 'string') result[key] = boundedText(item, '', 128);
+      else if (key === 'recovery_actions' && Array.isArray(item)) {
+        result[key] = item.filter(action => typeof action === 'string')
+          .map(action => boundedText(action, '', 64)).filter(Boolean).slice(0, 4);
+      }
       if (key === 'answer_delta') {
         const delta = boundedAnswerDelta(item);
         if (delta) result[key] = delta;

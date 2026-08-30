@@ -78,6 +78,11 @@ class RunRecoveryApplication:
 
     def memory_run(self, run_id: str) -> Any:
         """Find a memory run across all cached planner/backend adapters."""
+        terminal = getattr(self._state, "memory_terminal_run", None)
+        if callable(terminal):
+            result = terminal(run_id)
+            if result is not None:
+                return result
         for runtime in self._state.runtimes().values():
             result = runtime.get_run(run_id)
             if result is not None:
@@ -385,7 +390,7 @@ class RunRecoveryApplication:
             result = (
                 self._state.get_run(run_id, domain_id=domain_id)
                 if self._state.persistent
-                else self._runtime_provider(planner, backend).get_run(run_id)
+                else self.memory_run(run_id)
             )
             if result is None or not self._state.persistent:
                 break

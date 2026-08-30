@@ -131,6 +131,7 @@ class AgentService:
             runtime_factory=self._runtime_factory,
             domain_id=self._configured_domain_id,
             legacy_domain_id=self._legacy_domain_id,
+            artifact_store=self._artifact_store,
         )
         self._catalog_application = CatalogApplication(
             state=self._state,

@@ -95,15 +95,16 @@ class CompositeRunApplication:
             raise ValueError("coordinator must expose run()")
         self._coordinator = coordinator
         self._answer_generator = answer_generator
+        self._artifact_store = artifact_store or ArtifactStore(
+            artifact_root or os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"),
+            legacy_domain_id=COMPOSITE_RUN_SCOPE,
+        )
         self._state = state or ServiceState(
             state_db_path=state_db_path or os.environ.get("SPATIAL_AGENT_STATE_DB"),
             runtime_factory=lambda _planner, _backend, **_kwargs: _CompositeRuntime(),
             domain_id=COMPOSITE_RUN_SCOPE,
             legacy_domain_id=COMPOSITE_RUN_SCOPE,
-        )
-        self._artifact_store = artifact_store or ArtifactStore(
-            artifact_root or os.environ.get("SPATIAL_AGENT_ARTIFACT_ROOT", "outputs/runs"),
-            legacy_domain_id=COMPOSITE_RUN_SCOPE,
+            artifact_store=self._artifact_store,
         )
         self._memory_results: dict[str, AgentRunResult] = {}
         self._executor = ThreadPoolExecutor(

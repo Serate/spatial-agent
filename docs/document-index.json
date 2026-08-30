@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
   "updated": "2026-08-30",
-  "active_stage": "M331",
+  "active_stage": "M332",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -11,7 +11,7 @@
       "docs/agent-work-state.md",
       "docs/document-index.json",
       "tasks/current-state.md",
-      "docs/stages/M331/handoff.md"
+      "docs/stages/M332/handoff.md"
     ],
     "never_default": [
       "docs/archive/",
@@ -63,6 +63,52 @@
     }
   ],
   "stage_packages": [
+    {
+      "id": "M332",
+      "status": "complete",
+      "root": "docs/stages/M332",
+      "capability_map": "docs/stages/M332/capability-map.md",
+      "spec": "docs/stages/M332/spec.md",
+      "plan": "docs/stages/M332/plan.md",
+      "handoff": "docs/stages/M332/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M332/handoff.md"
+      ],
+      "source_files": [
+        "agent/runtime_core/run_budget.py",
+        "agent/runtime_core/progress.py",
+        "agent/integration/structured_response.py",
+        "agent/llm_planner.py",
+        "agent/answer_generation.py",
+        "agent/runtime.py",
+        "agent/runtime_core/run_lifecycle.py",
+        "agent/run_events.py",
+        "agent/application/async_runs.py",
+        "agent/application/service_state.py",
+        "agent/persistence/sqlite_store.py",
+        "production_api.py",
+        "web/src/console_run_events.js",
+        "web/src/console_app.js",
+        "tests/test_m332_realtime_budget.py",
+        "tests/test_m332_progress.py",
+        "tests/test_m332_provider_budget.py",
+        "tests/test_m332_runtime_lifecycle.py",
+        "scripts/console_planning_wait_smoke.js",
+        "scripts/console_answer_stream_smoke.js",
+        "scripts/console_run_events_smoke.js",
+        "scripts/console_result_projection_smoke.js"
+      ],
+      "verify": [
+        "M332 compact contract tests",
+        "Console event/answer projection smoke",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts",
+        "health/ready",
+        "Docker real-model acceptance"
+      ]
+    },
     {
       "id": "M331",
       "status": "complete",

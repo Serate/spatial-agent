@@ -78,6 +78,9 @@ class ReactLoop:
         tool_proposals_enabled: bool = True,
         control_check: Optional[Callable[[], None]] = None,
         on_event: Optional[Callable[[str, Mapping[str, Any]], None]] = None,
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
     ) -> None:
         self._decision_provider = decision_provider
         self._allowed_tools = tuple(str(item) for item in (allowed_tools or ()) if str(item))
@@ -92,6 +95,9 @@ class ReactLoop:
         self._tool_proposals_enabled = tool_proposals_enabled
         self._control_check = control_check
         self._on_event = on_event
+        self._budget = budget
+        self._progress = progress
+        self._on_progress = on_progress
 
     def run(
         self,
@@ -153,6 +159,9 @@ class ReactLoop:
                     tool_catalog=self._tool_catalog,
                     network_enabled=self._network_enabled,
                     tool_proposals_enabled=self._tool_proposals_enabled,
+                    budget=self._budget,
+                    progress=self._progress,
+                    on_progress=self._on_progress,
                 )
                 decision = normalize_react_decision(
                     raw,
@@ -667,6 +676,9 @@ def invoke_react_decider(
     tool_catalog: Optional[Mapping[str, Any]] = None,
     network_enabled: bool = True,
     tool_proposals_enabled: bool = True,
+    budget: Any = None,
+    progress: Any = None,
+    on_progress: Any = None,
 ) -> Any:
     """Invoke a decider with only the kwargs its adapter declares."""
 
@@ -682,6 +694,9 @@ def invoke_react_decider(
         "tool_catalog": tool_catalog,
         "network_enabled": network_enabled,
         "tool_proposals_enabled": tool_proposals_enabled,
+        "budget": budget,
+        "progress": progress,
+        "on_progress": on_progress,
     }
     try:
         parameters = inspect.signature(method).parameters

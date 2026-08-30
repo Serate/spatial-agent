@@ -25,6 +25,7 @@ RUN_EVENT_PHASES = frozenset(
 )
 RUN_EVENT_KINDS = frozenset(
     {
+        "run_started",
         "stage_started",
         "stage_progress",
         "stage_completed",
@@ -44,6 +45,10 @@ RUN_EVENT_KINDS = frozenset(
         "react_action_blocked",
         "react_waiting_for_approval",
         "react_finished",
+        "retry_started",
+        "recovery_started",
+        "run_timed_out",
+        "run_cancelled",
     }
 )
 RUN_EVENT_STATUSES = frozenset(
@@ -100,6 +105,19 @@ RUN_EVENT_DATA_FIELDS = frozenset(
         "request_mode_reason",
         "tool_count",
         "execution_started",
+        "phase_elapsed_ms",
+        "run_elapsed_ms",
+        "phase_budget_ms",
+        "run_budget_remaining_ms",
+        "total_budget_ms",
+        "phase_remaining_ms",
+        "attempt",
+        "retry_count",
+        "heartbeat_count",
+        "budget_state",
+        "resume_available",
+        "recovery_action",
+        "recovery_actions",
     }
 )
 
@@ -138,7 +156,12 @@ def new_run_event(
             "data": dict(data or {}),
             "terminal": bool(terminal)
             if terminal is not None
-            else kind in {"run_completed", "run_failed"},
+            else kind in {
+                "run_completed",
+            "run_failed",
+            "run_timed_out",
+            "run_cancelled",
+            },
         }
     )
 

@@ -38,6 +38,10 @@ def call_structured_json(
     recovery_messages: Any = None,
     deterministic: bool = False,
     on_recovery: Callable[[], None] | None = None,
+    timeout_seconds: float | None = None,
+    deadline: float | None = None,
+    on_progress: Callable[[Mapping[str, Any]], None] | None = None,
+    timeout_provider: Callable[[], float | None] | None = None,
 ) -> StructuredResponseCall:
     """Call a structured provider and allow one shape-only recovery.
 
@@ -56,11 +60,18 @@ def call_structured_json(
             schema,
             schema_name=schema_name,
             deterministic=deterministic,
+            timeout_seconds=_resolve_timeout(timeout_seconds, timeout_provider),
+            deadline=deadline,
+            on_progress=on_progress,
         )
     except PlanningError as error:
         if getattr(error, "code", None) != "invalid_model_response":
             raise
         compact_messages = messages if recovery_messages is None else recovery_messages
+        _report_progress(
+            on_progress,
+            {"kind": "structured_recovery_started", "recovery_attempt": 1},
+        )
         if callable(on_recovery):
             on_recovery()
         method_name = (
@@ -75,6 +86,9 @@ def call_structured_json(
             schema,
             schema_name=schema_name,
             deterministic=True,
+            timeout_seconds=_resolve_timeout(timeout_seconds, timeout_provider),
+            deadline=deadline,
+            on_progress=on_progress,
         )
         return StructuredResponseCall(payload=payload, recovery_attempts=1)
     return StructuredResponseCall(payload=payload, recovery_attempts=0)
@@ -86,6 +100,10 @@ def call_compact_structured_json(
     schema: Mapping[str, Any],
     *,
     schema_name: str | None = None,
+    timeout_seconds: float | None = None,
+    deadline: float | None = None,
+    on_progress: Callable[[Mapping[str, Any]], None] | None = None,
+    timeout_provider: Callable[[], float | None] | None = None,
 ) -> Mapping[str, Any]:
     """Invoke an already-authorized semantic repair call exactly once.
 
@@ -100,6 +118,10 @@ def call_compact_structured_json(
         if callable(getattr(client, "complete_compact_json", None))
         else "complete_json"
     )
+    _report_progress(
+        on_progress,
+        {"kind": "structured_recovery_started", "recovery_attempt": 1},
+    )
     return _invoke(
         client,
         method_name,
@@ -107,6 +129,9 @@ def call_compact_structured_json(
         schema,
         schema_name=schema_name,
         deterministic=True,
+        timeout_seconds=_resolve_timeout(timeout_seconds, timeout_provider),
+        deadline=deadline,
+        on_progress=on_progress,
     )
 
 
@@ -182,6 +207,9 @@ def _invoke(
     *,
     schema_name: str | None,
     deterministic: bool,
+    timeout_seconds: float | None,
+    deadline: float | None,
+    on_progress: Callable[[Mapping[str, Any]], None] | None,
 ) -> Mapping[str, Any]:
     method = getattr(client, method_name, None)
     if not callable(method):
@@ -204,6 +232,15 @@ def _invoke(
         kwargs["schema_name"] = schema_name
     if deterministic and (accepts_kwargs or "deterministic" in parameters):
         kwargs["deterministic"] = True
+    if timeout_seconds is not None and (accepts_kwargs or "timeout_seconds" in parameters):
+        kwargs["timeout_seconds"] = timeout_seconds
+    if deadline is not None and (accepts_kwargs or "deadline" in parameters):
+        kwargs["deadline"] = deadline
+    if on_progress is not None:
+        if accepts_kwargs or "on_progress" in parameters:
+            kwargs["on_progress"] = on_progress
+        elif "progress_callback" in parameters:
+            kwargs["progress_callback"] = on_progress
     try:
         payload = method(messages, schema, **kwargs)
     except PlanningError:
@@ -223,6 +260,30 @@ def _invoke(
             retryable=False,
         )
     return payload
+
+
+def _resolve_timeout(
+    timeout_seconds: float | None,
+    timeout_provider: Callable[[], float | None] | None,
+) -> float | None:
+    """Resolve a fresh timeout for each normal/recovery provider call."""
+
+    if callable(timeout_provider):
+        return timeout_provider()
+    return timeout_seconds
+
+
+def _report_progress(
+    callback: Callable[[Mapping[str, Any]], None] | None,
+    value: Mapping[str, Any],
+) -> None:
+    if not callable(callback):
+        return
+    try:
+        callback(dict(value))
+    except Exception:
+        # Progress is advisory and must never weaken structured validation.
+        pass
 
 
 __all__ = [

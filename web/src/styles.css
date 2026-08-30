@@ -622,6 +622,7 @@
      .live-progress-track span { display: block; width: 12%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--teal), var(--color-accent)); transition: width .35s ease; }
      .live-run-meta > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
      .live-heartbeat { display: inline-flex; align-items: center; flex: 0 0 auto; gap: 6px; color: var(--muted-2); }
+     .live-run-budget { flex: 0 0 auto; color: var(--teal-deep); font-size: 10.5px; font-weight: 700; }
      .live-heartbeat i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3ba57f; box-shadow: 0 0 0 3px rgba(59, 165, 127, .12); animation: live-heartbeat 1.5s ease-in-out infinite; }
      .live-run-events { display: grid; gap: 6px; max-height: 190px; margin: 0; padding: 0; overflow: auto; list-style: none; }
      .live-event { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; border: 1px solid rgba(226, 232, 240, .78); border-radius: 8px; background: rgba(255,255,255,.48); color: var(--muted); font-size: 11px; animation: live-event-in .22s ease both; }

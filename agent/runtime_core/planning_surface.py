@@ -10,6 +10,7 @@ evidence projection, and step dispatch to the Runtime's other seams.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import inspect
 from time import perf_counter
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Set
 
@@ -248,8 +249,36 @@ class RuntimePlanningSurface:
         request: str,
         workflow: Optional[Mapping[str, Any]],
         context_packet: ContextPacket,
+        *,
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
     ) -> TaskPlan:
-        return invoke_planner(self._planner, request, workflow, context_packet)
+        plan = invoke_planner(
+            self._planner,
+            request,
+            workflow,
+            context_packet,
+            budget=budget,
+            progress=progress,
+            on_progress=on_progress,
+        )
+        # Preserve the historical Planner seam: older custom planners often
+        # omitted ``output.type`` entirely.  The execution-policy layer still
+        # requires an explicit result profile, so normalize that legacy shape
+        # to a bounded unknown profile before validation. New planners should
+        # always provide a concrete registered result type.
+        if isinstance(plan, TaskPlan):
+            output = dict(plan.output) if isinstance(plan.output, Mapping) else {}
+            if not str(output.get("type") or "").strip():
+                output["type"] = "unknown"
+                plan = TaskPlan(
+                    goal=plan.goal,
+                    steps=list(plan.steps),
+                    output=output,
+                    assumptions=list(plan.assumptions),
+                )
+        return plan
 
     def validate_plan_for_execution(
         self,
@@ -325,6 +354,9 @@ class RuntimePlanningSurface:
         deadline: Optional[float],
         run_id: Optional[str],
         context_packet: Optional[ContextPacket],
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
     ) -> tuple[TaskPlan, Optional[Dict[str, Any]]]:
         """Validate a candidate and perform at most one bounded repair."""
         try:
@@ -341,6 +373,9 @@ class RuntimePlanningSurface:
                     run_id=run_id,
                     deadline=deadline,
                     capability_context=capability_context,
+                    budget=budget,
+                    progress=progress,
+                    on_progress=on_progress,
                 )
             )
             if outcome.plan is None or outcome.event is None:
@@ -360,6 +395,9 @@ class RuntimePlanningSurface:
         completed_results: Dict[str, Dict[str, Any]],
         replan_count: int,
         deadline: Optional[float],
+        budget: Any = None,
+        progress: Any = None,
+        on_progress: Any = None,
     ) -> Optional[ReplanOutcome]:
         """Build, validate and merge one bounded execution replan."""
         if not self._replan_policy.should_replan(
@@ -392,7 +430,16 @@ class RuntimePlanningSurface:
             if getattr(self._planner, "capability_rules", None) is not None:
                 replacement = rule_replan_plan(failed_payload, completed_results)
             else:
-                replacement = self._planner.plan(request, context=replan_context(feedback))
+                replacement = self._planner.plan(
+                    request,
+                    context=replan_context(feedback),
+                    **_planner_budget_kwargs(
+                        self._planner,
+                        budget=budget,
+                        progress=progress,
+                        on_progress=on_progress,
+                    ),
+                )
             merged = merge_replanned_plan(original, replacement, failed_step_id=step.id)
             self.validate_plan_for_execution(merged, workflow)
             quality_after = diagnose_plan(merged, workflow_context(self._domain_pack))
@@ -453,3 +500,34 @@ class RuntimePlanningSurface:
             if item.id == step_id:
                 return item.tool
         return None
+
+
+def _planner_budget_kwargs(
+    planner: Any,
+    *,
+    budget: Any = None,
+    progress: Any = None,
+    on_progress: Any = None,
+) -> dict[str, Any]:
+    """Pass new budget hooks only to adapters that declare them."""
+
+    if budget is None and progress is None and on_progress is None:
+        return {}
+    method = getattr(planner, "plan", None)
+    try:
+        parameters = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    accepts_kwargs = any(
+        item.kind == inspect.Parameter.VAR_KEYWORD
+        for item in parameters.values()
+    )
+    return {
+        name: value
+        for name, value in (
+            ("budget", budget),
+            ("progress", progress),
+            ("on_progress", on_progress),
+        )
+        if value is not None and (accepts_kwargs or name in parameters)
+    }

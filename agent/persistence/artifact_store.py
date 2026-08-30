@@ -33,6 +33,19 @@ from agent.interaction_contract import project_interaction
 from agent.result_summary import build_result_summary, normalize_result_summary
 
 
+_TERMINAL_RUN_STATUSES = frozenset(
+    {
+        "COMPLETED",
+        "NEEDS_CLARIFICATION",
+        "WAITING_FOR_DECISION",
+        "REJECTED",
+        "FAILED",
+        "CANCELLED",
+        "TIMED_OUT",
+    }
+)
+
+
 def _atomic_write_text(path: Path, content: str) -> None:
     """Publish a complete artifact without exposing a truncated JSON file."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -123,6 +136,20 @@ class ArtifactStore:
         self._root.mkdir(parents=True, exist_ok=True)
         path = self._root / (run_id + ".json")
         self._assert_domain_compatible(path, self._payload_domain(payload))
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise ValueError("existing artifact is unreadable: " + path.name) from exc
+            existing_status = str(existing.get("status") or "").upper() if isinstance(existing, dict) else ""
+            incoming_status = str(payload.get("status") or "").upper()
+            if (
+                existing_status in _TERMINAL_RUN_STATUSES
+                and incoming_status != existing_status
+            ):
+                # Artifact publication is also a terminal fence. A late
+                # worker cannot replace a timeout/cancelled artifact.
+                return path.as_posix()
         execution_record = build_execution_record(
             {**payload, "artifact_ref": path.as_posix()}, kind="run"
         )
@@ -165,6 +192,7 @@ class ArtifactStore:
             "spatial_context": payload.get("spatial_context"),
             "result_type": payload.get("result_type"),
             "planner_metrics": payload.get("planner_metrics"),
+            "budget_evidence": payload.get("budget_evidence"),
             "answer_generation_evidence": payload.get("answer_generation_evidence"),
             "context_evidence": payload.get("context_evidence"),
             "plan_evidence": payload.get("plan_evidence"),

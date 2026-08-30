@@ -2251,3 +2251,45 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 ### 预防
 
 - 复杂真实验收必须设置有界总时限，并把规划、工具执行、答案生成分别计时；超时应产生可恢复的结构化失败/心跳，而不是让 CLI 长时间无输出。后续优化应优先做增量规划进展和 provider timeout 归因，不通过放宽 schema 或固定问句绕过问题。
+## 2026-08-30 M332 Docker Compose 数据卷变量未参与宿主机路径替换
+
+### 现象
+
+- 真实模型 + `local` GIS 验收可以完成模型规划并产生 heartbeat，但第一个 GIS 工具以
+  `backend_initialization_unavailable` 失败。
+- 容器环境变量显示 `SPATIAL_AGENT_HOST_DATASET_ROOT=D:/dataset/agent`，但容器 `/data`
+  实际只有 `economic`，没有 D 盘中的 GIS 数据。
+
+### 根因与处理
+
+- `docker-compose.prod.yml` 的卷使用 `${SPATIAL_AGENT_HOST_DATASET_ROOT:-./data}`；Compose
+  在解析卷时读取宿主机 shell 或 Compose env-file，不读取 service 的 `env_file`。仅在
+  service 内设置该变量不会改变宿主机卷替换结果。
+- 启动/重建生产演示环境时必须显式使用
+  `docker compose --env-file .env.production -f docker-compose.prod.yml ...`，或在宿主机
+  shell 先设置同名变量；容器内看到变量不等于卷已经正确挂载。
+- 该问题不是模型规划、RunEvent、超时或 GIS 算法错误；修复环境后仍需重新执行真实验收，
+  不用 fallback 结果冒充 GIS 成功。
+
+### 预防
+
+- Docker 验收启动前同时检查 Compose 解析出的卷和容器内 `/data` 目录；不能只检查环境变量。
+- 真实 GIS 验收报告记录数据挂载状态、模型状态和工具状态的分层结果，不保存密钥、Prompt、
+  模型原文或私有数据内容。
+
+## 2026-08-30 ReAct 后续规划超时覆盖成功模型证据
+
+### 现象
+
+- 复杂 ReAct 请求的首轮真实模型调用已经成功并执行了工具，但后续动作规划超时后，运行结果中的 `planner_metrics`
+  被最后一次失败指标覆盖，公开 `model_evidence` 误显示为空或失败。
+
+### 根因与处理
+
+- Planner 适配器暴露的是最近一次调用快照；Runtime 在 ReAct 收敛时再次无条件读取该快照，没有区分成功事实和后续失败尝试。
+- `RuntimeReactExecution` 现在保留最近一次成功的有界指标；后续成功可以刷新，后续失败不会覆盖。失败原因继续由 ReAct evidence、生命周期错误码和恢复 lineage 表达。
+
+### 预防
+
+- 任何“最近一次调用指标”都不能直接当作“整次运行模型证据”；需要通过状态合并保留成功、失败和恢复事实的语义区别。
+- 真实模型复杂验收应同时检查工具执行状态、`model_evidence` 和 ReAct 恢复证据，避免仅依赖最终 Planner 快照判断链路是否成功。

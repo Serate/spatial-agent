@@ -6,15 +6,15 @@
     "scripts",
     "web/src"
   ],
-  "file_count": 335,
+  "file_count": 337,
   "semantic_index": {
-    "classified_files": 335,
+    "classified_files": 337,
     "file_override_files": 30,
-    "path_rule_files": 305,
+    "path_rule_files": 307,
     "default_files": 0,
-    "agent_files": 203,
-    "agent_files_with_responsibility": 203,
-    "agent_files_with_module_doc": 189,
+    "agent_files": 205,
+    "agent_files_with_responsibility": 205,
+    "agent_files_with_module_doc": 191,
     "coverage_percent": 100.0
   },
   "files": [
@@ -430,7 +430,7 @@
     {
       "path": "agent/answer_generation.py",
       "language": "python",
-      "line_count": 844,
+      "line_count": 1151,
       "layer": "result",
       "role": "答案组合、生成与用户语义投影",
       "stage": "M8-M325",
@@ -443,72 +443,72 @@
         {
           "name": "AnswerGenerationResult",
           "kind": "class",
-          "line": 104
+          "line": 106
         },
         {
           "name": "CompositeAnswerGenerationResult",
           "kind": "class",
-          "line": 112
+          "line": 114
         },
         {
           "name": "build_composite_answer_context",
           "kind": "function",
-          "line": 119
+          "line": 121
         },
         {
           "name": "LLMCompositeAnswerGenerator",
           "kind": "class",
-          "line": 146
+          "line": 148
         },
         {
           "name": "LLMCompositeAnswerGenerator.generate",
           "kind": "method",
-          "line": 153
+          "line": 155
         },
         {
           "name": "LLMCompositeAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 225
+          "line": 253
         },
         {
           "name": "fallback_composite_answer",
           "kind": "function",
-          "line": 324
+          "line": 401
         },
         {
           "name": "build_answer_context",
           "kind": "function",
-          "line": 338
+          "line": 415
         },
         {
           "name": "LLMAnswerGenerator",
           "kind": "class",
-          "line": 461
+          "line": 538
         },
         {
           "name": "LLMAnswerGenerator.generate",
           "kind": "method",
-          "line": 468
+          "line": 545
         },
         {
           "name": "LLMAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 558
+          "line": 661
         },
         {
           "name": "LLMAnswerGenerator.failure_evidence",
           "kind": "method",
-          "line": 630
+          "line": 773
         },
         {
           "name": "fallback_answer_generation_evidence",
           "kind": "function",
-          "line": 653
+          "line": 810
         },
         {
           "name": "project_answer_generation_evidence",
           "kind": "function",
-          "line": 669
+          "line": 826
         }
       ],
       "imports": [
@@ -1216,7 +1216,7 @@
     {
       "path": "agent/application/composite_runs.py",
       "language": "python",
-      "line_count": 1065,
+      "line_count": 1066,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1234,52 +1234,52 @@
         {
           "name": "CompositeRunApplication.run",
           "kind": "method",
-          "line": 135
+          "line": 136
         },
         {
           "name": "CompositeRunApplication.run_with_planning",
           "kind": "method",
-          "line": 151
+          "line": 152
         },
         {
           "name": "CompositeRunApplication.submit_async",
           "kind": "method",
-          "line": 170
+          "line": 171
         },
         {
           "name": "CompositeRunApplication.submit_async_with_planning",
           "kind": "method",
-          "line": 204
+          "line": 205
         },
         {
           "name": "CompositeRunApplication.get_run",
           "kind": "method",
-          "line": 238
+          "line": 239
         },
         {
           "name": "CompositeRunApplication.get_observability",
           "kind": "method",
-          "line": 296
+          "line": 297
         },
         {
           "name": "CompositeRunApplication.get_evidence",
           "kind": "method",
-          "line": 299
+          "line": 300
         },
         {
           "name": "CompositeRunApplication.get_view",
           "kind": "method",
-          "line": 325
+          "line": 326
         },
         {
           "name": "CompositeRunApplication.recover",
           "kind": "method",
-          "line": 337
+          "line": 338
         },
         {
           "name": "CompositeRunApplication.close",
           "kind": "method",
-          "line": 340
+          "line": 341
         }
       ],
       "imports": [
@@ -1596,7 +1596,7 @@
     {
       "path": "agent/application/run_recovery.py",
       "language": "python",
-      "line_count": 477,
+      "line_count": 482,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1619,32 +1619,32 @@
         {
           "name": "RunRecoveryApplication.infer_runtime_selection",
           "kind": "method",
-          "line": 87
+          "line": 92
         },
         {
           "name": "RunRecoveryApplication.retry",
           "kind": "method",
-          "line": 119
+          "line": 124
         },
         {
           "name": "RunRecoveryApplication.cancel",
           "kind": "method",
-          "line": 237
+          "line": 242
         },
         {
           "name": "RunRecoveryApplication.get_run",
           "kind": "method",
-          "line": 289
+          "line": 294
         },
         {
           "name": "RunRecoveryApplication.list_runs",
           "kind": "method",
-          "line": 326
+          "line": 331
         },
         {
           "name": "RunRecoveryApplication.get_run_evidence",
           "kind": "method",
-          "line": 337
+          "line": 342
         }
       ],
       "imports": [
@@ -1939,7 +1939,7 @@
     {
       "path": "agent/application/service_state.py",
       "language": "python",
-      "line_count": 669,
+      "line_count": 833,
       "layer": "application",
       "role": "AgentService 可变状态、SQLite store 和作业回收策略",
       "stage": "M78-M325",
@@ -1952,241 +1952,249 @@
         {
           "name": "async_timeout_seconds",
           "kind": "function",
-          "line": 62
+          "line": 66
         },
         {
           "name": "reaper_interval_seconds",
           "kind": "function",
-          "line": 67
+          "line": 71
         },
         {
           "name": "ServiceState",
           "kind": "class",
-          "line": 71
+          "line": 75
         },
         {
           "name": "ServiceState.state_store",
           "kind": "method",
-          "line": 142
+          "line": 149
         },
         {
           "name": "ServiceState.conversation_store",
           "kind": "method",
-          "line": 146
+          "line": 153
         },
         {
           "name": "ServiceState.persistent",
           "kind": "method",
-          "line": 150
+          "line": 157
         },
         {
           "name": "ServiceState.memory",
           "kind": "method",
-          "line": 154
+          "line": 161
         },
         {
           "name": "ServiceState.observability",
           "kind": "method",
-          "line": 158
+          "line": 165
         },
         {
           "name": "ServiceState.cost",
           "kind": "method",
-          "line": 162
+          "line": 169
         },
         {
           "name": "ServiceState.decision_store",
           "kind": "method",
-          "line": 166
+          "line": 173
         },
         {
           "name": "ServiceState.tool_approval_store",
           "kind": "method",
-          "line": 170
+          "line": 177
         },
         {
           "name": "ServiceState.timeout_seconds",
           "kind": "method",
-          "line": 174
+          "line": 181
         },
         {
           "name": "ServiceState.runtime",
           "kind": "method",
-          "line": 181
+          "line": 188
         },
         {
           "name": "ServiceState.runtimes",
           "kind": "method",
-          "line": 215
+          "line": 231
         },
         {
           "name": "ServiceState.ensure_session",
           "kind": "method",
-          "line": 223
+          "line": 239
         },
         {
           "name": "ServiceState.create_session",
           "kind": "method",
-          "line": 235
+          "line": 251
         },
         {
           "name": "ServiceState.list_sessions",
           "kind": "method",
-          "line": 250
+          "line": 266
         },
         {
           "name": "ServiceState.list_session_runs",
           "kind": "method",
-          "line": 257
+          "line": 273
         },
         {
           "name": "ServiceState.clear_session",
           "kind": "method",
-          "line": 278
+          "line": 294
         },
         {
           "name": "ServiceState.delete_session",
           "kind": "method",
-          "line": 295
+          "line": 317
         },
         {
           "name": "ServiceState.sessions_view",
           "kind": "method",
-          "line": 317
+          "line": 345
         },
         {
           "name": "ServiceState.jobs_view",
           "kind": "method",
-          "line": 321
+          "line": 349
         },
         {
           "name": "ServiceState.session_lock",
           "kind": "method",
-          "line": 325
+          "line": 353
         },
         {
           "name": "ServiceState.jobs_lock",
           "kind": "method",
-          "line": 329
+          "line": 357
         },
         {
           "name": "ServiceState.clear_session_runs",
           "kind": "method",
-          "line": 332
+          "line": 360
         },
         {
           "name": "ServiceState.submit_memory_job",
           "kind": "method",
-          "line": 343
+          "line": 371
         },
         {
           "name": "ServiceState.memory_job_by_run_id",
           "kind": "method",
-          "line": 354
+          "line": 382
+        },
+        {
+          "name": "ServiceState.memory_terminal_run",
+          "kind": "method",
+          "line": 390
         },
         {
           "name": "ServiceState.async_job",
           "kind": "method",
-          "line": 362
+          "line": 396
         },
         {
           "name": "ServiceState.recover_async_jobs",
           "kind": "method",
-          "line": 369
+          "line": 403
         },
         {
           "name": "ServiceState.save_run",
           "kind": "method",
-          "line": 383
+          "line": 417
         },
         {
           "name": "ServiceState.append_run_event",
           "kind": "method",
-          "line": 387
+          "line": 421
         },
         {
           "name": "ServiceState.list_run_events",
           "kind": "method",
-          "line": 393
+          "line": 427
         },
         {
           "name": "ServiceState.get_run",
           "kind": "method",
-          "line": 408
+          "line": 442
         },
         {
           "name": "ServiceState.create_async_job",
           "kind": "method",
-          "line": 413
+          "line": 447
         },
         {
           "name": "ServiceState.reserve_interaction",
           "kind": "method",
-          "line": 418
+          "line": 452
         },
         {
           "name": "ServiceState.complete_interaction",
           "kind": "method",
-          "line": 458
+          "line": 492
         },
         {
           "name": "ServiceState.reopen_interaction",
           "kind": "method",
-          "line": 498
+          "line": 532
         },
         {
           "name": "ServiceState.claim_async_job",
           "kind": "method",
-          "line": 543
+          "line": 577
         },
         {
           "name": "ServiceState.finish_async_job",
           "kind": "method",
-          "line": 561
+          "line": 595
         },
         {
           "name": "ServiceState.ensure_run_snapshot",
           "kind": "method",
-          "line": 567
+          "line": 601
         },
         {
           "name": "ServiceState.list_runs",
           "kind": "method",
-          "line": 571
+          "line": 605
         },
         {
           "name": "ServiceState.store_metrics",
           "kind": "method",
-          "line": 585
+          "line": 619
         },
         {
           "name": "ServiceState.expired_run_ids",
           "kind": "method",
-          "line": 594
+          "line": 628
         },
         {
           "name": "ServiceState.expire_job",
           "kind": "method",
-          "line": 615
+          "line": 649
         },
         {
           "name": "ServiceState.start_reaper",
           "kind": "method",
-          "line": 636
+          "line": 800
         },
         {
           "name": "ServiceState.stop_reaper",
           "kind": "method",
-          "line": 647
+          "line": 811
         }
       ],
       "imports": [
         "agent.application.service_sessions",
         "agent.cost_governance",
         "agent.decision_lifecycle",
+        "agent.failure_contract",
+        "agent.models",
         "agent.observability",
         "agent.persistence.memory",
         "agent.persistence.sqlite_store",
+        "agent.run_events",
         "agent.runtime_state",
         "agent.tooling"
       ],
@@ -4819,7 +4827,7 @@
     {
       "path": "agent/integration/openai_config.py",
       "language": "python",
-      "line_count": 99,
+      "line_count": 107,
       "layer": "integration",
       "role": "Provider 配置、结构化输出与脱敏运行证据 canonical 实现",
       "stage": "M16-M325",
@@ -4929,7 +4937,7 @@
     {
       "path": "agent/integration/structured_response.py",
       "language": "python",
-      "line_count": 236,
+      "line_count": 297,
       "layer": "integration",
       "role": "Provider 配置、结构化输出与脱敏运行证据 canonical 实现",
       "stage": "M16-M325",
@@ -4952,17 +4960,17 @@
         {
           "name": "call_compact_structured_json",
           "kind": "function",
-          "line": 83
+          "line": 97
         },
         {
           "name": "repair_structured_fields",
           "kind": "function",
-          "line": 113
+          "line": 138
         },
         {
           "name": "structured_failure_receipt",
           "kind": "function",
-          "line": 142
+          "line": 167
         }
       ],
       "imports": [
@@ -5074,7 +5082,7 @@
     {
       "path": "agent/llm_planner.py",
       "language": "python",
-      "line_count": 1472,
+      "line_count": 1832,
       "layer": "planner",
       "role": "真实模型结构化规划与 ReAct 决策适配",
       "stage": "M286-M325",
@@ -5087,67 +5095,67 @@
         {
           "name": "LLMClient",
           "kind": "class",
-          "line": 58
+          "line": 59
         },
         {
           "name": "LLMClient.complete_json",
           "kind": "method",
-          "line": 59
+          "line": 60
         },
         {
           "name": "LLMPlanner",
           "kind": "class",
-          "line": 71
+          "line": 75
         },
         {
           "name": "LLMPlanner.react_enabled",
           "kind": "method",
-          "line": 91
+          "line": 95
         },
         {
           "name": "LLMPlanner.execution_policy_mode",
           "kind": "method",
-          "line": 95
+          "line": 99
         },
         {
           "name": "LLMPlanner.plan",
           "kind": "method",
-          "line": 98
+          "line": 102
         },
         {
           "name": "LLMPlanner.decide",
           "kind": "method",
-          "line": 134
+          "line": 165
         },
         {
           "name": "LLMPlanner.metrics",
           "kind": "method",
-          "line": 234
+          "line": 313
         },
         {
           "name": "OpenAIPlannerClient",
           "kind": "class",
-          "line": 689
+          "line": 871
         },
         {
           "name": "OpenAIPlannerClient.complete_json",
           "kind": "method",
-          "line": 789
+          "line": 971
         },
         {
           "name": "OpenAIPlannerClient.complete_compact_json",
           "kind": "method",
-          "line": 929
+          "line": 1158
         },
         {
           "name": "OpenAIPlannerClient.stream_text",
           "kind": "method",
-          "line": 955
+          "line": 1190
         },
         {
           "name": "OpenAIPlannerClient.metrics",
           "kind": "method",
-          "line": 1072
+          "line": 1370
         }
       ],
       "imports": [
@@ -5194,7 +5202,7 @@
     {
       "path": "agent/models.py",
       "language": "python",
-      "line_count": 188,
+      "line_count": 196,
       "layer": "runtime",
       "role": "运行请求、计划、步骤和结果数据模型",
       "stage": "M1-M325",
@@ -5232,7 +5240,7 @@
         {
           "name": "AgentRunResult.to_dict",
           "kind": "method",
-          "line": 129
+          "line": 131
         }
       ],
       "imports": [
@@ -5241,7 +5249,8 @@
         "agent.nested_schema",
         "agent.react.contracts",
         "agent.request_mode",
-        "agent.runtime_context"
+        "agent.runtime_context",
+        "agent.runtime_core.run_budget"
       ]
     },
     {
@@ -5590,7 +5599,7 @@
     {
       "path": "agent/persistence/artifact_store.py",
       "language": "python",
-      "line_count": 765,
+      "line_count": 793,
       "layer": "persistence",
       "role": "Artifact、SQLite 与 Memory canonical 持久化实现",
       "stage": "M14-M325",
@@ -5603,72 +5612,72 @@
         {
           "name": "ArtifactStore",
           "kind": "class",
-          "line": 85
+          "line": 98
         },
         {
           "name": "ArtifactStore.write_run",
           "kind": "method",
-          "line": 118
+          "line": 131
         },
         {
           "name": "ArtifactStore.attach_action_receipt",
           "kind": "method",
-          "line": 234
+          "line": 262
         },
         {
           "name": "ArtifactStore.write_action",
           "kind": "method",
-          "line": 253
+          "line": 281
         },
         {
           "name": "ArtifactStore.find_action_by_idempotency_key",
           "kind": "method",
-          "line": 289
+          "line": 317
         },
         {
           "name": "ArtifactStore.migrate_run",
           "kind": "method",
-          "line": 319
+          "line": 347
         },
         {
           "name": "ArtifactStore.read_run",
           "kind": "method",
-          "line": 378
+          "line": 406
         },
         {
           "name": "ArtifactStore.read_manifest",
           "kind": "method",
-          "line": 436
+          "line": 464
         },
         {
           "name": "ArtifactStore.find_decision",
           "kind": "method",
-          "line": 449
+          "line": 477
         },
         {
           "name": "ArtifactStore.read_action",
           "kind": "method",
-          "line": 506
+          "line": 534
         },
         {
           "name": "ArtifactStore.list_actions",
           "kind": "method",
-          "line": 536
+          "line": 564
         },
         {
           "name": "ArtifactStore.list_runs",
           "kind": "method",
-          "line": 577
+          "line": 605
         },
         {
           "name": "ArtifactStore.metrics",
           "kind": "method",
-          "line": 629
+          "line": 657
         },
         {
           "name": "ArtifactStore.action_metrics",
           "kind": "method",
-          "line": 648
+          "line": 676
         }
       ],
       "imports": [
@@ -5772,7 +5781,7 @@
     {
       "path": "agent/persistence/sqlite_store.py",
       "language": "python",
-      "line_count": 1864,
+      "line_count": 1910,
       "layer": "persistence",
       "role": "Artifact、SQLite 与 Memory canonical 持久化实现",
       "stage": "M14-M325",
@@ -5785,217 +5794,217 @@
         {
           "name": "SQLiteStateStore",
           "kind": "class",
-          "line": 75
+          "line": 86
         },
         {
           "name": "SQLiteStateStore.save",
           "kind": "method",
-          "line": 92
+          "line": 103
         },
         {
           "name": "SQLiteStateStore.ensure_run_snapshot",
           "kind": "method",
-          "line": 106
+          "line": 130
         },
         {
           "name": "SQLiteStateStore.get",
           "kind": "method",
-          "line": 118
+          "line": 142
         },
         {
           "name": "SQLiteStateStore.create_async_job",
           "kind": "method",
-          "line": 139
+          "line": 163
         },
         {
           "name": "SQLiteStateStore.reserve_interaction",
           "kind": "method",
-          "line": 180
+          "line": 204
         },
         {
           "name": "SQLiteStateStore.complete_interaction",
           "kind": "method",
-          "line": 236
+          "line": 260
         },
         {
           "name": "SQLiteStateStore.reopen_interaction",
           "kind": "method",
-          "line": 278
+          "line": 302
         },
         {
           "name": "SQLiteStateStore.get_async_job",
           "kind": "method",
-          "line": 319
+          "line": 343
         },
         {
           "name": "SQLiteStateStore.claim_async_job",
           "kind": "method",
-          "line": 337
+          "line": 361
         },
         {
           "name": "SQLiteStateStore.list_recoverable_async_jobs",
           "kind": "method",
-          "line": 380
+          "line": 404
         },
         {
           "name": "SQLiteStateStore.list_active_async_jobs",
           "kind": "method",
-          "line": 409
+          "line": 433
         },
         {
           "name": "SQLiteStateStore.finish_async_job",
           "kind": "method",
-          "line": 435
+          "line": 459
         },
         {
           "name": "SQLiteStateStore.finish_async_job_by_run_id",
           "kind": "method",
-          "line": 469
+          "line": 494
         },
         {
           "name": "SQLiteStateStore.request_cancel",
           "kind": "method",
-          "line": 508
+          "line": 534
         },
         {
           "name": "SQLiteStateStore.is_cancel_requested",
           "kind": "method",
-          "line": 535
+          "line": 561
         },
         {
           "name": "SQLiteStateStore.clear_cancel",
           "kind": "method",
-          "line": 542
+          "line": 568
         },
         {
           "name": "SQLiteStateStore.list_runs",
           "kind": "method",
-          "line": 546
+          "line": 572
         },
         {
           "name": "SQLiteStateStore.interaction_receipt_for_result_run",
           "kind": "method",
-          "line": 611
+          "line": 637
         },
         {
           "name": "SQLiteStateStore.clear_session_runs",
           "kind": "method",
-          "line": 629
+          "line": 655
         },
         {
           "name": "SQLiteStateStore.append_run_event",
           "kind": "method",
-          "line": 678
+          "line": 704
         },
         {
           "name": "SQLiteStateStore.list_run_events",
           "kind": "method",
-          "line": 710
+          "line": 755
         },
         {
           "name": "SQLiteStateStore.metrics",
           "kind": "method",
-          "line": 751
+          "line": 796
         },
         {
           "name": "SQLiteStateStore.async_metrics",
           "kind": "method",
-          "line": 767
+          "line": 812
         },
         {
           "name": "SQLiteConversationStore",
           "kind": "class",
-          "line": 910
+          "line": 955
         },
         {
           "name": "SQLiteConversationStore.get_bound_session_domain",
           "kind": "method",
-          "line": 963
+          "line": 1008
         },
         {
           "name": "SQLiteConversationStore.get_pending",
           "kind": "method",
-          "line": 975
+          "line": 1020
         },
         {
           "name": "SQLiteConversationStore.ensure_session",
           "kind": "method",
-          "line": 985
+          "line": 1030
         },
         {
           "name": "SQLiteConversationStore.create_session",
           "kind": "method",
-          "line": 1011
+          "line": 1056
         },
         {
           "name": "SQLiteConversationStore.list_sessions",
           "kind": "method",
-          "line": 1042
+          "line": 1087
         },
         {
           "name": "SQLiteConversationStore.save_pending",
           "kind": "method",
-          "line": 1065
+          "line": 1110
         },
         {
           "name": "SQLiteConversationStore.clear_pending",
           "kind": "method",
-          "line": 1077
+          "line": 1122
         },
         {
           "name": "SQLiteConversationStore.clear_session",
           "kind": "method",
-          "line": 1085
+          "line": 1130
         },
         {
           "name": "SQLiteConversationStore.delete_session",
           "kind": "method",
-          "line": 1125
+          "line": 1170
         },
         {
           "name": "SQLiteConversationStore.save_completed",
           "kind": "method",
-          "line": 1160
+          "line": 1205
         },
         {
           "name": "SQLiteConversationStore.get_last_request",
           "kind": "method",
-          "line": 1172
+          "line": 1217
         },
         {
           "name": "SQLiteConversationStore.save_domain_routing_decision",
           "kind": "method",
-          "line": 1181
+          "line": 1226
         },
         {
           "name": "SQLiteConversationStore.commit_domain_routing_interaction",
           "kind": "method",
-          "line": 1264
+          "line": 1309
         },
         {
           "name": "SQLiteConversationStore.get_domain_routing_decision",
           "kind": "method",
-          "line": 1421
+          "line": 1466
         },
         {
           "name": "SQLiteConversationStore.list_domain_routing_decisions",
           "kind": "method",
-          "line": 1452
+          "line": 1497
         },
         {
           "name": "SQLiteConversationStore.insert_memory_fact",
           "kind": "method",
-          "line": 1500
+          "line": 1545
         },
         {
           "name": "SQLiteConversationStore.list_memory_facts",
           "kind": "method",
-          "line": 1527
+          "line": 1572
         },
         {
           "name": "SQLiteConversationStore.delete_memory_facts",
           "kind": "method",
-          "line": 1570
+          "line": 1615
         }
       ],
       "imports": []
@@ -6091,7 +6100,7 @@
     {
       "path": "agent/plan_repair.py",
       "language": "python",
-      "line_count": 220,
+      "line_count": 230,
       "layer": "planner",
       "role": "计划 schema、质量、策略、身份与修复",
       "stage": "M141-M325",
@@ -6119,22 +6128,22 @@
         {
           "name": "PlanRepairOutcome",
           "kind": "class",
-          "line": 48
+          "line": 51
         },
         {
           "name": "PlanRepairOutcome.repaired",
           "kind": "method",
-          "line": 57
+          "line": 60
         },
         {
           "name": "PlanRepairEngine",
           "kind": "class",
-          "line": 61
+          "line": 64
         },
         {
           "name": "PlanRepairEngine.repair",
           "kind": "method",
-          "line": 79
+          "line": 82
         }
       ],
       "imports": []
@@ -6459,7 +6468,7 @@
     {
       "path": "agent/react/loop.py",
       "language": "python",
-      "line_count": 789,
+      "line_count": 804,
       "layer": "planner",
       "role": "受控 ReAct 单动作循环",
       "stage": "M320",
@@ -6487,17 +6496,17 @@
         {
           "name": "ReactLoop.run",
           "kind": "method",
-          "line": 96
+          "line": 102
         },
         {
           "name": "invoke_react_decider",
           "kind": "function",
-          "line": 660
+          "line": 669
         },
         {
           "name": "summarize_tool_result",
           "kind": "function",
-          "line": 710
+          "line": 725
         }
       ],
       "imports": [],
@@ -7007,7 +7016,7 @@
     {
       "path": "agent/run_events.py",
       "language": "python",
-      "line_count": 311,
+      "line_count": 334,
       "layer": "runtime",
       "role": "运行事件、请求执行与生命周期支持",
       "stage": "M13-M325",
@@ -7020,32 +7029,32 @@
         {
           "name": "RunEventError",
           "kind": "class",
-          "line": 109
+          "line": 127
         },
         {
           "name": "new_run_event",
           "kind": "function",
-          "line": 113
+          "line": 131
         },
         {
           "name": "normalize_run_event",
           "kind": "function",
-          "line": 146
+          "line": 169
         },
         {
           "name": "validate_event_cursor",
           "kind": "function",
-          "line": 208
+          "line": 231
         },
         {
           "name": "page_contains_terminal_event",
           "kind": "function",
-          "line": 224
+          "line": 247
         },
         {
           "name": "validate_event_limit",
           "kind": "function",
-          "line": 238
+          "line": 261
         }
       ],
       "imports": []
@@ -7053,7 +7062,7 @@
     {
       "path": "agent/runtime.py",
       "language": "python",
-      "line_count": 1156,
+      "line_count": 1267,
       "layer": "runtime",
       "role": "AgentRuntime 门面与生命周期入口",
       "stage": "M318-M325",
@@ -7071,122 +7080,122 @@
         {
           "name": "AgentRuntime.approval_rehydration",
           "kind": "method",
-          "line": 239
+          "line": 240
         },
         {
           "name": "AgentRuntime.domain_id",
           "kind": "method",
-          "line": 261
+          "line": 262
         },
         {
           "name": "AgentRuntime.runtime_context",
           "kind": "method",
-          "line": 265
+          "line": 266
         },
         {
           "name": "AgentRuntime.result_registry",
           "kind": "method",
-          "line": 283
+          "line": 284
         },
         {
           "name": "AgentRuntime.domain_actions",
           "kind": "method",
-          "line": 287
+          "line": 288
         },
         {
           "name": "AgentRuntime.execute_domain_action",
           "kind": "method",
-          "line": 291
+          "line": 292
         },
         {
           "name": "AgentRuntime.capability_catalog",
           "kind": "method",
-          "line": 306
+          "line": 307
         },
         {
           "name": "AgentRuntime.workflow_template_catalog",
           "kind": "method",
-          "line": 310
+          "line": 311
         },
         {
           "name": "AgentRuntime.workflow_contract",
           "kind": "method",
-          "line": 314
+          "line": 315
         },
         {
           "name": "AgentRuntime.execution_contract",
           "kind": "method",
-          "line": 318
+          "line": 319
         },
         {
           "name": "AgentRuntime.extract_request_facts",
           "kind": "method",
-          "line": 322
+          "line": 323
         },
         {
           "name": "AgentRuntime.discover",
           "kind": "method",
-          "line": 326
+          "line": 327
         },
         {
           "name": "AgentRuntime.select_workflow",
           "kind": "method",
-          "line": 336
+          "line": 337
         },
         {
           "name": "AgentRuntime.resolve_capability_selection",
           "kind": "method",
-          "line": 351
+          "line": 352
         },
         {
           "name": "AgentRuntime.runtime_capabilities",
           "kind": "method",
-          "line": 366
+          "line": 367
         },
         {
           "name": "AgentRuntime.release_evidence",
           "kind": "method",
-          "line": 370
+          "line": 371
         },
         {
           "name": "AgentRuntime.run",
           "kind": "method",
-          "line": 387
+          "line": 388
         },
         {
           "name": "AgentRuntime.preview",
           "kind": "method",
-          "line": 436
+          "line": 437
         },
         {
           "name": "AgentRuntime.clear_session",
           "kind": "method",
-          "line": 453
+          "line": 454
         },
         {
           "name": "AgentRuntime.get_run",
           "kind": "method",
-          "line": 457
+          "line": 458
         },
         {
           "name": "AgentRuntime.cancel",
           "kind": "method",
-          "line": 460
+          "line": 461
         },
         {
           "name": "AgentRuntime.retry_failed",
           "kind": "method",
-          "line": 463
+          "line": 464
         },
         {
           "name": "AgentRuntime.apply_tool_approval",
           "kind": "method",
-          "line": 466
+          "line": 467
         },
         {
           "name": "AgentRuntime.export_result",
           "kind": "method",
-          "line": 477
+          "line": 478
         }
       ],
       "imports": [
@@ -7259,7 +7268,7 @@
     {
       "path": "agent/runtime_core/__init__.py",
       "language": "python",
-      "line_count": 71,
+      "line_count": 108,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7966,7 +7975,7 @@
     {
       "path": "agent/runtime_core/planning.py",
       "language": "python",
-      "line_count": 116,
+      "line_count": 128,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -7984,12 +7993,12 @@
         {
           "name": "validate_plan",
           "kind": "function",
-          "line": 37
+          "line": 49
         },
         {
           "name": "require_workflow_selection",
           "kind": "function",
-          "line": 63
+          "line": 75
         }
       ],
       "imports": [
@@ -8002,7 +8011,7 @@
     {
       "path": "agent/runtime_core/planning_surface.py",
       "language": "python",
-      "line_count": 455,
+      "line_count": 533,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",
@@ -8015,57 +8024,57 @@
         {
           "name": "ReplanOutcome",
           "kind": "class",
-          "line": 56
+          "line": 57
         },
         {
           "name": "RuntimePlanningSurface",
           "kind": "class",
-          "line": 67
+          "line": 68
         },
         {
           "name": "RuntimePlanningSurface.build_context_packet",
           "kind": "method",
-          "line": 107
+          "line": 108
         },
         {
           "name": "RuntimePlanningSurface.resolve_request",
           "kind": "method",
-          "line": 212
+          "line": 213
         },
         {
           "name": "RuntimePlanningSurface.require_workflow_selection",
           "kind": "method",
-          "line": 239
+          "line": 240
         },
         {
           "name": "RuntimePlanningSurface.plan",
           "kind": "method",
-          "line": 246
+          "line": 247
         },
         {
           "name": "RuntimePlanningSurface.validate_plan_for_execution",
           "kind": "method",
-          "line": 254
+          "line": 283
         },
         {
           "name": "RuntimePlanningSurface.resolve_execution_policy",
           "kind": "method",
-          "line": 285
+          "line": 314
         },
         {
           "name": "RuntimePlanningSurface.validate_plan",
           "kind": "method",
-          "line": 315
+          "line": 344
         },
         {
           "name": "RuntimePlanningSurface.validate_or_repair",
           "kind": "method",
-          "line": 319
+          "line": 348
         },
         {
           "name": "RuntimePlanningSurface.try_replan",
           "kind": "method",
-          "line": 350
+          "line": 385
         }
       ],
       "imports": []
@@ -8092,6 +8101,77 @@
           "name": "RuntimePreviewSurface.preview",
           "kind": "method",
           "line": 33
+        }
+      ],
+      "imports": []
+    },
+    {
+      "path": "agent/runtime_core/progress.py",
+      "language": "python",
+      "line_count": 272,
+      "layer": "runtime",
+      "role": "Runtime 核心规划、执行、恢复与投影",
+      "stage": "M253-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Real-time progress coordination for one Runtime Run.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "ProgressCoordinator",
+          "kind": "class",
+          "line": 23
+        },
+        {
+          "name": "ProgressCoordinator.budget",
+          "kind": "method",
+          "line": 47
+        },
+        {
+          "name": "ProgressCoordinator.phase",
+          "kind": "method",
+          "line": 51
+        },
+        {
+          "name": "ProgressCoordinator.start_phase",
+          "kind": "method",
+          "line": 54
+        },
+        {
+          "name": "ProgressCoordinator.begin_attempt",
+          "kind": "method",
+          "line": 89
+        },
+        {
+          "name": "ProgressCoordinator.progress",
+          "kind": "method",
+          "line": 106
+        },
+        {
+          "name": "ProgressCoordinator.heartbeat_once",
+          "kind": "method",
+          "line": 124
+        },
+        {
+          "name": "ProgressCoordinator.finish_phase",
+          "kind": "method",
+          "line": 140
+        },
+        {
+          "name": "ProgressCoordinator.recovery_started",
+          "kind": "method",
+          "line": 162
+        },
+        {
+          "name": "ProgressCoordinator.close",
+          "kind": "method",
+          "line": 181
+        },
+        {
+          "name": "threading_current",
+          "kind": "function",
+          "line": 264
         }
       ],
       "imports": []
@@ -8201,7 +8281,7 @@
     {
       "path": "agent/runtime_core/react_runtime.py",
       "language": "python",
-      "line_count": 830,
+      "line_count": 904,
       "layer": "runtime",
       "role": "ReAct 决策与工具执行桥接",
       "stage": "M320",
@@ -8296,9 +8376,127 @@
       "imports": []
     },
     {
+      "path": "agent/runtime_core/run_budget.py",
+      "language": "python",
+      "line_count": 441,
+      "layer": "runtime",
+      "role": "Runtime 核心规划、执行、恢复与投影",
+      "stage": "M253-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Domain-neutral wall-clock budgets for one Agent Run.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "RunBudgetError",
+          "kind": "class",
+          "line": 46
+        },
+        {
+          "name": "RunBudget",
+          "kind": "class",
+          "line": 51
+        },
+        {
+          "name": "RunBudget.from_values",
+          "kind": "method",
+          "line": 95
+        },
+        {
+          "name": "RunBudget.from_environment",
+          "kind": "method",
+          "line": 130
+        },
+        {
+          "name": "RunBudget.phase",
+          "kind": "method",
+          "line": 174
+        },
+        {
+          "name": "RunBudget.attempt",
+          "kind": "method",
+          "line": 178
+        },
+        {
+          "name": "RunBudget.retry_count",
+          "kind": "method",
+          "line": 182
+        },
+        {
+          "name": "RunBudget.start_phase",
+          "kind": "method",
+          "line": 185
+        },
+        {
+          "name": "RunBudget.finish_phase",
+          "kind": "method",
+          "line": 197
+        },
+        {
+          "name": "RunBudget.close",
+          "kind": "method",
+          "line": 203
+        },
+        {
+          "name": "RunBudget.begin_attempt",
+          "kind": "method",
+          "line": 206
+        },
+        {
+          "name": "RunBudget.record_heartbeat",
+          "kind": "method",
+          "line": 215
+        },
+        {
+          "name": "RunBudget.remaining_seconds",
+          "kind": "method",
+          "line": 218
+        },
+        {
+          "name": "RunBudget.elapsed_seconds",
+          "kind": "method",
+          "line": 231
+        },
+        {
+          "name": "RunBudget.child_timeout",
+          "kind": "method",
+          "line": 239
+        },
+        {
+          "name": "RunBudget.child_deadline",
+          "kind": "method",
+          "line": 265
+        },
+        {
+          "name": "RunBudget.check",
+          "kind": "method",
+          "line": 282
+        },
+        {
+          "name": "RunBudget.state",
+          "kind": "method",
+          "line": 301
+        },
+        {
+          "name": "RunBudget.receipt",
+          "kind": "method",
+          "line": 311
+        },
+        {
+          "name": "project_run_budget",
+          "kind": "function",
+          "line": 339
+        }
+      ],
+      "imports": [
+        "agent.errors"
+      ]
+    },
+    {
       "path": "agent/runtime_core/run_lifecycle.py",
       "language": "python",
-      "line_count": 998,
+      "line_count": 1256,
       "layer": "runtime",
       "role": "运行生命周期阶段编排",
       "stage": "M307",
@@ -8311,17 +8509,17 @@
         {
           "name": "RuntimeRunLifecycle",
           "kind": "class",
-          "line": 76
+          "line": 80
         },
         {
           "name": "RuntimeRunLifecycle.run",
           "kind": "method",
-          "line": 83
+          "line": 87
         },
         {
           "name": "RuntimeRunLifecycle.resume_tool_approval",
           "kind": "method",
-          "line": 150
+          "line": 167
         }
       ],
       "imports": [],
@@ -8456,7 +8654,7 @@
     {
       "path": "agent/runtime_state.py",
       "language": "python",
-      "line_count": 133,
+      "line_count": 143,
       "layer": "runtime",
       "role": "Runtime 配置、状态、上下文与工厂",
       "stage": "M1-M325",
@@ -8489,67 +8687,67 @@
         {
           "name": "InMemoryStateStore.clear_session_runs",
           "kind": "method",
-          "line": 60
+          "line": 61
         },
         {
           "name": "InMemoryStateStore.append_run_event",
           "kind": "method",
-          "line": 73
+          "line": 74
         },
         {
           "name": "InMemoryStateStore.list_run_events",
           "kind": "method",
-          "line": 85
+          "line": 95
         },
         {
           "name": "InMemoryStateStore.request_cancel",
           "kind": "method",
-          "line": 94
+          "line": 104
         },
         {
           "name": "InMemoryStateStore.is_cancel_requested",
           "kind": "method",
-          "line": 98
+          "line": 108
         },
         {
           "name": "InMemoryStateStore.clear_cancel",
           "kind": "method",
-          "line": 102
+          "line": 112
         },
         {
           "name": "PendingClarification",
           "kind": "class",
-          "line": 108
+          "line": 118
         },
         {
           "name": "InMemoryConversationStore",
           "kind": "class",
-          "line": 113
+          "line": 123
         },
         {
           "name": "InMemoryConversationStore.get_pending",
           "kind": "method",
-          "line": 120
+          "line": 130
         },
         {
           "name": "InMemoryConversationStore.save_pending",
           "kind": "method",
-          "line": 123
+          "line": 133
         },
         {
           "name": "InMemoryConversationStore.clear_pending",
           "kind": "method",
-          "line": 126
+          "line": 136
         },
         {
           "name": "InMemoryConversationStore.save_completed",
           "kind": "method",
-          "line": 129
+          "line": 139
         },
         {
           "name": "InMemoryConversationStore.get_last_request",
           "kind": "method",
-          "line": 132
+          "line": 142
         }
       ],
       "imports": []
@@ -8634,7 +8832,7 @@
     {
       "path": "agent/service.py",
       "language": "python",
-      "line_count": 1253,
+      "line_count": 1254,
       "layer": "application",
       "role": "AgentService 兼容门面与资源生命周期",
       "stage": "M78-M325",
@@ -8652,232 +8850,232 @@
         {
           "name": "AgentService.start_reaper",
           "kind": "method",
-          "line": 275
+          "line": 276
         },
         {
           "name": "AgentService.run",
           "kind": "method",
-          "line": 305
+          "line": 306
         },
         {
           "name": "AgentService.preview",
           "kind": "method",
-          "line": 355
+          "line": 356
         },
         {
           "name": "AgentService.get_decision",
           "kind": "method",
-          "line": 379
+          "line": 380
         },
         {
           "name": "AgentService.resolve_decision",
           "kind": "method",
-          "line": 383
+          "line": 384
         },
         {
           "name": "AgentService.list_tool_approvals",
           "kind": "method",
-          "line": 402
+          "line": 403
         },
         {
           "name": "AgentService.get_tool_approval",
           "kind": "method",
-          "line": 424
+          "line": 425
         },
         {
           "name": "AgentService.resolve_tool_approval",
           "kind": "method",
-          "line": 442
+          "line": 443
         },
         {
           "name": "AgentService.run_async",
           "kind": "method",
-          "line": 674
+          "line": 675
         },
         {
           "name": "AgentService.get_async_observability",
           "kind": "method",
-          "line": 683
+          "line": 684
         },
         {
           "name": "AgentService.list_run_events",
           "kind": "method",
-          "line": 686
+          "line": 687
         },
         {
           "name": "AgentService.retry",
           "kind": "method",
-          "line": 713
+          "line": 714
         },
         {
           "name": "AgentService.cancel",
           "kind": "method",
-          "line": 751
+          "line": 752
         },
         {
           "name": "AgentService.get_run",
           "kind": "method",
-          "line": 765
+          "line": 766
         },
         {
           "name": "AgentService.get_run_interaction",
           "kind": "method",
-          "line": 770
+          "line": 771
         },
         {
           "name": "AgentService.apply_run_interaction",
           "kind": "method",
-          "line": 867
+          "line": 868
         },
         {
           "name": "AgentService.list_runs",
           "kind": "method",
-          "line": 945
+          "line": 946
         },
         {
           "name": "AgentService.get_run_evidence",
           "kind": "method",
-          "line": 948
+          "line": 949
         },
         {
           "name": "AgentService.list_session_runs",
           "kind": "method",
-          "line": 951
+          "line": 952
         },
         {
           "name": "AgentService.list_sessions",
           "kind": "method",
-          "line": 954
+          "line": 955
         },
         {
           "name": "AgentService.create_session",
           "kind": "method",
-          "line": 957
+          "line": 958
         },
         {
           "name": "AgentService.clear_session",
           "kind": "method",
-          "line": 960
+          "line": 961
         },
         {
           "name": "AgentService.delete_session",
           "kind": "method",
-          "line": 963
+          "line": 964
         },
         {
           "name": "AgentService.metrics",
           "kind": "method",
-          "line": 966
+          "line": 967
         },
         {
           "name": "AgentService.capabilities",
           "kind": "method",
-          "line": 969
+          "line": 970
         },
         {
           "name": "AgentService.workflow_contract",
           "kind": "method",
-          "line": 977
+          "line": 978
         },
         {
           "name": "AgentService.execution_contract",
           "kind": "method",
-          "line": 985
+          "line": 986
         },
         {
           "name": "AgentService.extract_request_facts",
           "kind": "method",
-          "line": 998
+          "line": 999
         },
         {
           "name": "AgentService.discover",
           "kind": "method",
-          "line": 1007
+          "line": 1008
         },
         {
           "name": "AgentService.select_workflow",
           "kind": "method",
-          "line": 1017
+          "line": 1018
         },
         {
           "name": "AgentService.resolve_capability_selection",
           "kind": "method",
-          "line": 1033
+          "line": 1034
         },
         {
           "name": "AgentService.domains",
           "kind": "method",
-          "line": 1050
+          "line": 1051
         },
         {
           "name": "AgentService.actions",
           "kind": "method",
-          "line": 1054
+          "line": 1055
         },
         {
           "name": "AgentService.execute_action",
           "kind": "method",
-          "line": 1062
+          "line": 1063
         },
         {
           "name": "AgentService.get_action_execution",
           "kind": "method",
-          "line": 1079
+          "line": 1080
         },
         {
           "name": "AgentService.list_action_executions",
           "kind": "method",
-          "line": 1083
+          "line": 1084
         },
         {
           "name": "AgentService.runtime_capabilities",
           "kind": "method",
-          "line": 1087
+          "line": 1088
         },
         {
           "name": "AgentService.release_evidence",
           "kind": "method",
-          "line": 1098
+          "line": 1099
         },
         {
           "name": "AgentService.close",
           "kind": "method",
-          "line": 1113
+          "line": 1114
         },
         {
           "name": "AgentService.list_memory",
           "kind": "method",
-          "line": 1123
+          "line": 1124
         },
         {
           "name": "AgentService.register_tool",
           "kind": "method",
-          "line": 1137
+          "line": 1138
         },
         {
           "name": "AgentService.list_dynamic_tools",
           "kind": "method",
-          "line": 1146
+          "line": 1147
         },
         {
           "name": "AgentService.estimate_area_handler",
           "kind": "method",
-          "line": 1150
+          "line": 1151
         },
         {
           "name": "AgentService.compare_buildability",
           "kind": "method",
-          "line": 1181
+          "line": 1182
         },
         {
           "name": "AgentService.compare_buildability_regions",
           "kind": "method",
-          "line": 1197
+          "line": 1198
         },
         {
           "name": "AgentService.compare_constrained_buildability",
           "kind": "method",
-          "line": 1237
+          "line": 1238
         }
       ],
       "imports": [
@@ -12967,7 +13165,7 @@
     {
       "path": "scripts/console_planning_wait_smoke.js",
       "language": "javascript",
-      "line_count": 59,
+      "line_count": 64,
       "layer": "frontend",
       "role": "Console 浏览器与前端交互验收脚本",
       "stage": "M45-M325",
@@ -13060,7 +13258,7 @@
     {
       "path": "scripts/console_run_events_smoke.js",
       "language": "javascript",
-      "line_count": 91,
+      "line_count": 101,
       "layer": "frontend",
       "role": "Console 浏览器与前端交互验收脚本",
       "stage": "M45-M325",
@@ -13786,7 +13984,7 @@
     {
       "path": "web/src/console_app.js",
       "language": "javascript",
-      "line_count": 1357,
+      "line_count": 1369,
       "layer": "frontend",
       "role": "控制台应用状态、会话和结果展示编排",
       "stage": "M231-M325",
@@ -14122,379 +14320,389 @@
           "line": 504
         },
         {
-          "name": "liveSummaryVisible",
+          "name": "liveBudgetDuration",
           "kind": "function",
           "line": 505
         },
         {
-          "name": "stopLiveRun",
+          "name": "liveBudgetText",
           "kind": "function",
           "line": 506
         },
         {
+          "name": "liveSummaryVisible",
+          "kind": "function",
+          "line": 507
+        },
+        {
+          "name": "stopLiveRun",
+          "kind": "function",
+          "line": 508
+        },
+        {
           "name": "createLiveAssistantMessage",
           "kind": "function",
-          "line": 514
+          "line": 516
         },
         {
           "name": "renderLiveAssistantMessage",
           "kind": "function",
-          "line": 541
+          "line": 543
         },
         {
           "name": "completeLiveAssistantMessage",
           "kind": "function",
-          "line": 550
+          "line": 552
         },
         {
           "name": "appendLiveEvent",
           "kind": "function",
-          "line": 560
+          "line": 562
         },
         {
           "name": "refreshLiveSummary",
           "kind": "function",
-          "line": 570
+          "line": 572
         },
         {
           "name": "renderLiveRunShell",
           "kind": "function",
-          "line": 584
+          "line": 587
         },
         {
           "name": "handleLiveEvent",
           "kind": "function",
-          "line": 603
+          "line": 606
         },
         {
           "name": "appendMessage",
           "kind": "function",
-          "line": 622
+          "line": 634
         },
         {
           "name": "selectedDomainLabel",
           "kind": "function",
-          "line": 623
+          "line": 635
         },
         {
           "name": "welcome",
           "kind": "function",
-          "line": 624
+          "line": 636
         },
         {
           "name": "resetConversationView",
           "kind": "function",
-          "line": 625
+          "line": 637
         },
         {
           "name": "selectedConversationLabel",
           "kind": "function",
-          "line": 626
+          "line": 638
         },
         {
           "name": "addConversationOption",
           "kind": "function",
-          "line": 627
+          "line": 639
         },
         {
           "name": "loadSessions",
           "kind": "function",
-          "line": 628
+          "line": 640
         },
         {
           "name": "loadDomains",
           "kind": "function",
-          "line": 646
+          "line": 658
         },
         {
           "name": "reloadDomainContext",
           "kind": "function",
-          "line": 672
+          "line": 684
         },
         {
           "name": "hydrateAutoDomainState",
           "kind": "function",
-          "line": 717
+          "line": 729
         },
         {
           "name": "selectedDomainContextLabel",
           "kind": "function",
-          "line": 738
+          "line": 750
         },
         {
           "name": "workflowFieldId",
           "kind": "function",
-          "line": 739
+          "line": 751
         },
         {
           "name": "renderWorkflowEditor",
           "kind": "function",
-          "line": 740
+          "line": 752
         },
         {
           "name": "collectWorkflowSelection",
           "kind": "function",
-          "line": 754
+          "line": 766
         },
         {
           "name": "validateWorkflowSelection",
           "kind": "function",
-          "line": 764
+          "line": 776
         },
         {
           "name": "loadWorkflows",
           "kind": "function",
-          "line": 774
+          "line": 786
         },
         {
           "name": "nextConversationName",
           "kind": "function",
-          "line": 775
+          "line": 787
         },
         {
           "name": "localSession",
           "kind": "function",
-          "line": 776
+          "line": 788
         },
         {
           "name": "newSession",
           "kind": "function",
-          "line": 783
+          "line": 795
         },
         {
           "name": "clearChat",
           "kind": "function",
-          "line": 819
+          "line": 831
         },
         {
           "name": "deleteConversation",
           "kind": "function",
-          "line": 842
+          "line": 854
         },
         {
           "name": "clearAllDomainIds",
           "kind": "function",
-          "line": 881
+          "line": 893
         },
         {
           "name": "clearAllSessions",
           "kind": "function",
-          "line": 888
+          "line": 900
         },
         {
           "name": "metrics",
           "kind": "function",
-          "line": 954
+          "line": 966
         },
         {
           "name": "stepResult",
           "kind": "function",
-          "line": 955
+          "line": 967
         },
         {
           "name": "conversationTurnLabel",
           "kind": "function",
-          "line": 956
+          "line": 968
         },
         {
           "name": "decisionMode",
           "kind": "function",
-          "line": 957
+          "line": 969
         },
         {
           "name": "renderClarification",
           "kind": "function",
-          "line": 958
+          "line": 970
         },
         {
           "name": "steps",
           "kind": "function",
-          "line": 959
+          "line": 971
         },
         {
           "name": "trace",
           "kind": "function",
-          "line": 960
+          "line": 972
         },
         {
           "name": "provenance",
           "kind": "function",
-          "line": 961
+          "line": 973
         },
         {
           "name": "llmHealthLabel",
           "kind": "function",
-          "line": 962
+          "line": 974
         },
         {
           "name": "geometryEvidence",
           "kind": "function",
-          "line": 963
+          "line": 975
         },
         {
           "name": "evidenceDataEntries",
           "kind": "function",
-          "line": 969
+          "line": 981
         },
         {
           "name": "analysisReadyBindingText",
           "kind": "function",
-          "line": 971
+          "line": 983
         },
         {
           "name": "analysisReadyText",
           "kind": "function",
-          "line": 972
+          "line": 984
         },
         {
           "name": "runtimeDataEvidence",
           "kind": "function",
-          "line": 973
+          "line": 985
         },
         {
           "name": "evidenceRevalidationText",
           "kind": "function",
-          "line": 974
+          "line": 986
         },
         {
           "name": "renderEvidence",
           "kind": "function",
-          "line": 975
+          "line": 987
         },
         {
           "name": "renderRun",
           "kind": "function",
-          "line": 1063
+          "line": 1075
         },
         {
           "name": "loadRuntimeEvidence",
           "kind": "function",
-          "line": 1119
+          "line": 1131
         },
         {
           "name": "renderCapabilities",
           "kind": "function",
-          "line": 1120
+          "line": 1132
         },
         {
           "name": "capabilityHealthLabel",
           "kind": "function",
-          "line": 1121
+          "line": 1133
         },
         {
           "name": "renderHealth",
           "kind": "function",
-          "line": 1122
+          "line": 1134
         },
         {
           "name": "loadHealth",
           "kind": "function",
-          "line": 1123
+          "line": 1135
         },
         {
           "name": "loadCapabilities",
           "kind": "function",
-          "line": 1124
+          "line": 1136
         },
         {
           "name": "renderToolApprovals",
           "kind": "function",
-          "line": 1125
+          "line": 1137
         },
         {
           "name": "loadToolApprovals",
           "kind": "function",
-          "line": 1131
+          "line": 1143
         },
         {
           "name": "resolveToolApproval",
           "kind": "function",
-          "line": 1145
+          "line": 1157
         },
         {
           "name": "actionSpec",
           "kind": "function",
-          "line": 1153
+          "line": 1165
         },
         {
           "name": "renderActionWorkbench",
           "kind": "function",
-          "line": 1154
+          "line": 1166
         },
         {
           "name": "loadActions",
           "kind": "function",
-          "line": 1155
+          "line": 1167
         },
         {
           "name": "executeDomainAction",
           "kind": "function",
-          "line": 1156
+          "line": 1168
         },
         {
           "name": "openRunDetail",
           "kind": "function",
-          "line": 1157
+          "line": 1169
         },
         {
           "name": "openActionDetail",
           "kind": "function",
-          "line": 1158
+          "line": 1170
         },
         {
           "name": "renderActionExecution",
           "kind": "function",
-          "line": 1159
+          "line": 1171
         },
         {
           "name": "restoreSession",
           "kind": "function",
-          "line": 1160
+          "line": 1172
         },
         {
           "name": "loadHistory",
           "kind": "function",
-          "line": 1178
+          "line": 1190
         },
         {
           "name": "validateSelection",
           "kind": "function",
-          "line": 1198
+          "line": 1210
         },
         {
           "name": "retryRun",
           "kind": "function",
-          "line": 1199
+          "line": 1211
         },
         {
           "name": "resolveRunDecision",
           "kind": "function",
-          "line": 1200
+          "line": 1212
         },
         {
           "name": "interactionCommandKey",
           "kind": "function",
-          "line": 1202
+          "line": 1214
         },
         {
           "name": "invokeCanonicalInteraction",
           "kind": "function",
-          "line": 1211
+          "line": 1223
         },
         {
           "name": "renderCanonicalInteraction",
           "kind": "function",
-          "line": 1246
+          "line": 1258
         },
         {
           "name": "matchingPreviewFingerprint",
           "kind": "function",
-          "line": 1282
+          "line": 1294
         },
         {
           "name": "sendChat",
           "kind": "function",
-          "line": 1283
+          "line": 1295
         }
       ],
       "imports": [],
@@ -15299,7 +15507,7 @@
     {
       "path": "web/src/console_run_events.js",
       "language": "javascript",
-      "line_count": 324,
+      "line_count": 334,
       "layer": "frontend",
       "role": "Console 前端状态、渲染与结果展示",
       "stage": "M231-M325",
@@ -15312,37 +15520,37 @@
         {
           "name": "boundedText",
           "kind": "function",
-          "line": 64
+          "line": 70
         },
         {
           "name": "boundedAnswerDelta",
           "kind": "function",
-          "line": 69
+          "line": 75
         },
         {
           "name": "safeData",
           "kind": "function",
-          "line": 74
+          "line": 80
         },
         {
           "name": "normalizeEvent",
           "kind": "function",
-          "line": 92
+          "line": 102
         },
         {
           "name": "isTerminal",
           "kind": "function",
-          "line": 117
+          "line": 127
         },
         {
           "name": "create",
           "kind": "function",
-          "line": 121
+          "line": 131
         },
         {
           "name": "stop",
           "kind": "function",
-          "line": 289
+          "line": 299
         }
       ],
       "imports": []

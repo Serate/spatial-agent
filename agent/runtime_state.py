@@ -53,6 +53,7 @@ class InMemoryStateStore:
                 "answer": item.answer,
                 "error": item.error,
                 "planner_metrics": item.planner_metrics,
+                "budget_evidence": item.budget_evidence,
             }
             for item in values
         ]
@@ -78,6 +79,15 @@ class InMemoryStateStore:
             for existing in events:
                 if existing["event_id"] == normalized["event_id"]:
                     return dict(existing)
+            terminal = next(
+                (item for item in reversed(events) if item.get("terminal")),
+                None,
+            )
+            if terminal is not None:
+                # Match SQLite's durable event fence: once a terminal event
+                # is visible, late worker progress cannot add a contradictory
+                # event to the same run.
+                return dict(terminal)
             normalized["sequence"] = len(events) + 1
             events.append(normalized)
             return dict(normalized)

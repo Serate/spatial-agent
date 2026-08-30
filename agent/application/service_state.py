@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import inspect
+import copy
 import threading
 import time
 from typing import Any, Callable, Dict, Optional
@@ -25,9 +26,12 @@ from agent.cost_governance import TokenBudget
 from agent.decision_lifecycle import InMemoryDecisionStore, SQLiteDecisionStore
 from agent.persistence.memory import FactMemory
 from agent.observability import ObservabilityEmitter
+from agent.failure_contract import build_failure_evidence
+from agent.models import AgentRunResult, RunStatus
 from agent.persistence.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.tooling import InMemoryToolApprovalStore, SQLiteToolApprovalStore
 from agent.runtime_state import InMemoryStateStore
+from agent.run_events import new_run_event
 from agent.application.service_sessions import runtime_key as _runtime_key
 
 _MEMORY_JOB_FIELDS = (
@@ -83,6 +87,7 @@ class ServiceState:
         runtime_factory: Callable[[str, str], Any] | None = None,
         domain_id: Optional[str] = None,
         legacy_domain_id: Optional[str] = None,
+        artifact_store: Any = None,
     ) -> None:
         self._state_db_path = state_db_path
         self._domain_id = domain_id
@@ -118,6 +123,7 @@ class ServiceState:
         self._observability = ObservabilityEmitter()
         self._cost = TokenBudget()
         self._runtime_factory = runtime_factory
+        self._artifact_store = artifact_store
         self._runtimes: Dict[str, Any] = {}
         self._runtime_lock = threading.Lock()
         self._session_lock = threading.Lock()
@@ -129,6 +135,7 @@ class ServiceState:
         self._event_store = InMemoryStateStore()
         self._interaction_lock = threading.Lock()
         self._interactions: Dict[tuple[str, str, str], Dict[str, Any]] = {}
+        self._terminal_results: Dict[str, AgentRunResult] = {}
         self._timeout_seconds = async_timeout_seconds()
         self._reaper_interval = reaper_interval_seconds()
         self._reaper_stop = threading.Event()
@@ -194,7 +201,16 @@ class ServiceState:
                 "event_sink": self.append_run_event,
             }
             try:
-                parameters = inspect.signature(self._runtime_factory).parameters
+                # A patched/test factory is often wrapped by Mock. Inspecting
+                # the Mock itself reports ``(*args, **kwargs)`` and causes
+                # optional lifecycle hooks to be passed to the real
+                # side-effect callable even when it does not support them.
+                signature_target = getattr(
+                    self._runtime_factory, "side_effect", None
+                )
+                if not callable(signature_target):
+                    signature_target = self._runtime_factory
+                parameters = inspect.signature(signature_target).parameters
                 accepts_kwargs = any(
                     item.kind == inspect.Parameter.VAR_KEYWORD
                     for item in parameters.values()
@@ -290,6 +306,12 @@ class ServiceState:
             clear = getattr(runtime, "clear_session", None)
             if callable(clear):
                 clear(session_id)
+        with self._jobs_lock:
+            self._terminal_results = {
+                run_id: result
+                for run_id, result in self._terminal_results.items()
+                if result.session_id != session_id
+            }
         return cleared_runs
 
     def delete_session(self, session_id: str) -> tuple[bool, int]:
@@ -309,6 +331,12 @@ class ServiceState:
             clear = getattr(runtime, "clear_session", None)
             if callable(clear):
                 clear(session_id)
+        with self._jobs_lock:
+            self._terminal_results = {
+                run_id: result
+                for run_id, result in self._terminal_results.items()
+                if result.session_id != session_id
+            }
         return deleted, cleared_runs
 
     # Live views for the legacy facade accessors. The facade keeps using the
@@ -358,6 +386,12 @@ class ServiceState:
                 None,
             )
             return dict(job) if job is not None else None
+
+    def memory_terminal_run(self, run_id: str) -> Optional[AgentRunResult]:
+        """Return a reaper-owned memory result before worker-local state."""
+        with self._jobs_lock:
+            result = self._terminal_results.get(str(run_id))
+            return copy.deepcopy(result) if result is not None else None
 
     def async_job(
         self, run_id: str, domain_id: Optional[str] = None
@@ -618,20 +652,150 @@ class ServiceState:
         if self._state_store is not None:
             self._state_store.request_cancel(run_id)
             job = self._state_store.get_async_job(run_id)
-            if job is not None:
-                self._state_store.finish_async_job_by_run_id(
-                    run_id, "TIMED_OUT", failure_category="timeout",
-                )
+            if job is None or job.get("status") not in {
+                "QUEUED",
+                "RUNNING",
+                "CANCEL_REQUESTED",
+            }:
+                return
+            self._state_store.finish_async_job_by_run_id(
+                run_id, "TIMED_OUT", failure_category="timeout",
+            )
+            current_job = self._state_store.get_async_job(run_id)
+            if current_job is None or current_job.get("status") != "TIMED_OUT":
+                return
+            existing = self._state_store.get(run_id, domain_id=self._domain_id)
+            if existing is not None and existing.status in {
+                RunStatus.COMPLETED,
+                RunStatus.NEEDS_CLARIFICATION,
+                RunStatus.WAITING_FOR_DECISION,
+                RunStatus.REJECTED,
+                RunStatus.FAILED,
+                RunStatus.CANCELLED,
+                RunStatus.TIMED_OUT,
+            }:
+                return
+            snapshot = self._timeout_snapshot(
+                run_id,
+                current_job.get("payload"),
+                existing,
+            )
+            self._state_store.save(snapshot)
+            self._publish_timeout_snapshot(snapshot)
+            self._append_timeout_event(run_id)
             return
+        job = None
         with self._jobs_lock:
             for job in self._jobs.values():
                 if job.get("run_id") != run_id:
                     continue
+                if job.get("status") not in {
+                    "QUEUED",
+                    "RUNNING",
+                    "CANCEL_REQUESTED",
+                }:
+                    return
                 job["status"] = "TIMED_OUT"
                 job["finished_at"] = time.time()
                 job["failure_category"] = "timeout"
                 job["last_event"] = "timed_out"
-                return
+                break
+        if job is None:
+            return
+        existing = self._memory_runtime_run(run_id)
+        if existing is not None and existing.status in {
+            RunStatus.COMPLETED,
+            RunStatus.NEEDS_CLARIFICATION,
+            RunStatus.WAITING_FOR_DECISION,
+            RunStatus.REJECTED,
+            RunStatus.FAILED,
+            RunStatus.CANCELLED,
+            RunStatus.TIMED_OUT,
+        }:
+            return
+        snapshot = self._timeout_snapshot(run_id, job.get("payload"), existing)
+        with self._jobs_lock:
+            self._terminal_results[run_id] = snapshot
+        self._publish_timeout_snapshot(snapshot)
+        self._append_timeout_event(run_id)
+
+    def _memory_runtime_run(self, run_id: str) -> Optional[AgentRunResult]:
+        """Read a worker-local snapshot without exposing it as authoritative."""
+        for runtime in self.runtimes().values():
+            store = getattr(runtime, "_state_store", None)
+            getter = getattr(store, "get", None)
+            if callable(getter):
+                result = getter(run_id)
+                if result is not None:
+                    return result
+        return None
+
+    def _timeout_snapshot(
+        self,
+        run_id: str,
+        payload: Any,
+        existing: Optional[AgentRunResult],
+    ) -> AgentRunResult:
+        if existing is not None:
+            snapshot = copy.deepcopy(existing)
+        else:
+            values = payload if isinstance(payload, dict) else {}
+            snapshot = AgentRunResult(
+                run_id=str(run_id),
+                status=RunStatus.TIMED_OUT,
+                request=str(values.get("request") or ""),
+                session_id=values.get("session_id"),
+                domain_id=values.get("domain_id") or self._domain_id or self._legacy_domain_id,
+                runtime_context=values.get("runtime_context"),
+                workflow=(
+                    dict(values.get("workflow"))
+                    if isinstance(values.get("workflow"), dict)
+                    else None
+                ),
+            )
+        snapshot.status = RunStatus.TIMED_OUT
+        snapshot.error = "运行超过异步总时限"
+        snapshot.error_category = "timeout"
+        snapshot.error_code = "async_run_timeout"
+        snapshot.failure = build_failure_evidence(
+            status=RunStatus.TIMED_OUT.value,
+            category="timeout",
+            code="async_run_timeout",
+            phase="control",
+            retryable=True,
+        )
+        return snapshot
+
+    def _publish_timeout_snapshot(self, result: AgentRunResult) -> None:
+        if self._artifact_store is None:
+            return
+        payload = result.to_dict()
+        payload["_async_requested"] = True
+        try:
+            self._artifact_store.write_run(payload)
+        except Exception:
+            # The SQLite/memory terminal snapshot remains authoritative when
+            # optional artifact publication is unavailable.
+            return
+
+    def _append_timeout_event(self, run_id: str) -> None:
+        self.append_run_event(
+            new_run_event(
+                run_id=str(run_id),
+                phase="execute",
+                kind="run_timed_out",
+                status=RunStatus.TIMED_OUT.value,
+                message="异步运行已超时，可重试或恢复",
+                data={
+                    "reason_code": "async_run_timeout",
+                    "source": "reaper",
+                    "recovery_action": "retry",
+                    "recovery_actions": ["retry", "recover", "cancel"],
+                    "resume_available": True,
+                },
+                terminal=True,
+            )
+        )
 
     def start_reaper(self) -> None:
         if self._reaper_thread is not None and self._reaper_thread.is_alive():

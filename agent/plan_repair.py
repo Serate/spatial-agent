@@ -42,6 +42,9 @@ class PlanRepairInput:
     run_id: Optional[str] = None
     deadline: Optional[float] = None
     capability_context: Optional[Mapping[str, Any]] = None
+    budget: Any = None
+    progress: Any = None
+    on_progress: Any = None
 
 
 @dataclass(frozen=True)
@@ -176,6 +179,13 @@ class PlanRepairEngine:
                 ),
             }
             kwargs["context"] = context
+        for name, value in (
+            ("budget", request.budget),
+            ("progress", request.progress),
+            ("on_progress", request.on_progress),
+        ):
+            if value is not None and (accepts_kwargs or name in parameters):
+                kwargs[name] = value
         return method(request.request, **kwargs)
 
 

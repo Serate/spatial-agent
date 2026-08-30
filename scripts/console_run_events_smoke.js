@@ -43,6 +43,16 @@ async function main() {
   assert.strictEqual(api.normalize(event(2, "answer_delta", "RUNNING", { answer_delta: "a".repeat(700) })).data.answer_delta.length, 512);
   assert(api.normalize(event(2, "react_action_accepted", "EXECUTING", {action: "query"})), "ReAct events must be visible");
   assert(api.normalize(event(2, "react_waiting_for_approval", "WAITING_FOR_DECISION")), "approval events must be visible");
+  const timed = api.normalize(event(2, "run_started", "PLANNING", {
+    run_budget_remaining_ms: 12000, phase_elapsed_ms: 20, heartbeat_count: 2,
+    recovery_action: "retry", retry_count: 1, prompt: "must be dropped",
+  }));
+  assert(timed, "run lifecycle events must be visible");
+  assert.strictEqual(timed.data.run_budget_remaining_ms, 12000);
+  assert.strictEqual(timed.data.recovery_action, "retry");
+  assert.strictEqual(timed.data.retry_count, 1);
+  assert.strictEqual("prompt" in timed.data, false);
+  assert(api.normalize(event(2, "recovery_started", "FAILED", {recovery_actions: ["retry", "cancel"]})), "recovery events must be visible");
   assert.strictEqual(api.normalize({ ...event(3, "stage_progress", "PLANNING"), schema_version: "wrong" }), null);
   sseListener({ data: JSON.stringify(event(3, "run_completed", "COMPLETED", {}, true)) });
   assert.deepStrictEqual(sseEvents, [1, 2, 3]);

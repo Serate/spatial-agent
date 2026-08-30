@@ -88,6 +88,8 @@ class AgentRunResult:
     request_facts: Optional[Dict[str, Any]] = None
     plan: Optional[TaskPlan] = None
     planner_metrics: Optional[Dict[str, Any]] = None
+    # Versioned, bounded total/phase budget receipt for lifecycle consumers.
+    budget_evidence: Optional[Dict[str, Any]] = None
     # Versioned, bounded ReAct turn/evidence projection. Raw model decisions
     # and tool arguments never cross this field.
     react_evidence: Optional[Dict[str, Any]] = None
@@ -159,6 +161,12 @@ class AgentRunResult:
             data.pop("request_facts", None)
         if data.get("answer_generation_evidence") is None:
             data.pop("answer_generation_evidence", None)
+        if isinstance(data.get("budget_evidence"), dict):
+            from agent.runtime_core.run_budget import project_run_budget
+
+            data["budget_evidence"] = project_run_budget(data["budget_evidence"])
+        if data.get("budget_evidence") is None:
+            data.pop("budget_evidence", None)
         if data.get("react_evidence") is None:
             data.pop("react_evidence", None)
         else:

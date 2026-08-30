@@ -16,6 +16,10 @@ def invoke_planner(
     request: str,
     workflow: Optional[Mapping[str, Any]],
     context_packet: ContextPacket,
+    *,
+    budget: Any = None,
+    progress: Any = None,
+    on_progress: Any = None,
 ) -> TaskPlan:
     """Call old and context-aware Planner implementations through one seam."""
     method = planner.plan
@@ -23,14 +27,22 @@ def invoke_planner(
         parameters = inspect.signature(method).parameters
     except (TypeError, ValueError):
         parameters = {}
-    accepts_context = "context" in parameters or any(
+    accepts_kwargs = any(
         item.kind == inspect.Parameter.VAR_KEYWORD for item in parameters.values()
     )
+    accepts_context = "context" in parameters or accepts_kwargs
     kwargs = {}
     if workflow is not None:
         kwargs["workflow"] = workflow
     if accepts_context:
         kwargs["context"] = context_packet.payload
+    for name, value in (
+        ("budget", budget),
+        ("progress", progress),
+        ("on_progress", on_progress),
+    ):
+        if value is not None and (accepts_kwargs or name in parameters):
+            kwargs[name] = value
     return method(request, **kwargs)
 
 
