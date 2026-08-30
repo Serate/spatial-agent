@@ -3,7 +3,7 @@
 ## 状态
 
 - 阶段：`M332` 真实模型复杂任务有界执行与增量反馈
-- 状态：M332-F 已完成，阶段验收通过，待提交并进入全局重规划
+- 状态：M332-F 已完成，阶段验收通过，已提交并推送（`e470cdd`）
 - 基线：M331 交付版本 `11d7492`
 - 协作：单 Agent，最大并发度 1；测试与 GIS 优先使用 Docker
 
@@ -45,7 +45,7 @@
 - M332-F：Docker 定向回归 `15/15`、compileall、architecture strict、服务 smoke、readiness `200` 和 Console 规划等待/答案流/事件/结果投影 smoke 通过。
 - 真实验收：使用 `docker compose --env-file .env.production -f docker-compose.prod.yml ...` 挂载 `D:/dataset/agent`，显式 `gis` + `openai` 复杂请求 `COMPLETED`；模型 evidence 为 `live_model/success`，SSE 共 `812` 个事件，断点续传后 `811` 个事件，异步/轮询/Artifact/evidence 对照通过。
 - M332-F 修复：ReAct 后续 Planner 超时不再覆盖先前成功的 `planner_metrics`；新增紧凑回归，保证公开 model evidence 不会因最后一次失败而误报。
-- 交付状态：M332 代码和文档已准备提交；不保存模型原文、Prompt、网页正文、工具源码、密钥或隐藏思维链。
+- 交付状态：M332 代码和文档已提交并推送；不保存模型原文、Prompt、网页正文、工具源码、密钥或隐藏思维链。
 
 ## 全局重规划输入
 
