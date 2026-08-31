@@ -26,7 +26,7 @@ class M67ConsoleEvidenceContractTests(unittest.TestCase):
             "degradationEvidence",
         ):
             self.assertIn(f'id="{element_id}"', self.html)
-        self.assertIn("setResultPanel('.evidence-result', hasRun)", self.html)
+        self.assertIn("setResultPanel('.evidence-result', hasEvidence)", self.html)
         self.assertIn("setResultPanel('.result-panel', false)", self.html)
 
     def test_geometry_contract_uses_result_geometry_without_inventing_drawability(self):
@@ -42,9 +42,8 @@ class M67ConsoleEvidenceContractTests(unittest.TestCase):
             "geometry.sources",
             "geometry.crs",
             "geometry.geojson_ref||data.geojson_ref",
-            "const view=resultViewPanels(data).raster",
-            "const view=resultViewPanels(data).health",
-            "const view=resultViewPanels(data).composite",
+            "compositeViewProjection(data)",
+            "resultViewPanels(data)",
         ):
             self.assertIn(marker, self.html)
 
