@@ -264,7 +264,7 @@ class M150ProductionRepairTests(unittest.TestCase):
             service = AgentService(
                 artifact_store=store,
                 state_db_path=str(root / "state.db"),
-                runtime_factory=_repair_runtime_factory,
+                runtime_factory=_repair_runtime_factory, domain_id="text",
             )
             try:
                 with _dev_server(service, root) as port:
@@ -353,7 +353,7 @@ class M150ProductionRepairTests(unittest.TestCase):
                 recovered_service = AgentService(
                     artifact_store=store,
                     state_db_path=str(root / "state.db"),
-                    runtime_factory=_repair_runtime_factory,
+                    runtime_factory=_repair_runtime_factory, domain_id="text",
                 )
                 try:
                     recovered = recovered_service.get_run(
@@ -383,7 +383,7 @@ class M150ProductionRepairTests(unittest.TestCase):
                 # still retain the repair schema and lineage count.
                 artifact_only_service = AgentService(
                     artifact_store=store,
-                    runtime_factory=_repair_runtime_factory,
+                    runtime_factory=_repair_runtime_factory, domain_id="text",
                 )
                 try:
                     artifact_only = artifact_only_service.get_run(
@@ -403,7 +403,7 @@ class M150ProductionRepairTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="m150-negative-") as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_repair_runtime_factory,
+                runtime_factory=_repair_runtime_factory, domain_id="text",
             )
             try:
                 payload = service.run(
@@ -440,7 +440,7 @@ class M150ProductionRepairTests(unittest.TestCase):
             root = Path(directory)
             replacement = AgentService(
                 artifact_store=ArtifactStore(root),
-                runtime_factory=_repair_runtime_factory,
+                runtime_factory=_repair_runtime_factory, domain_id="text",
             )
             old_service = production_api.service
             old_artifact_root = production_api.ARTIFACT_ROOT
