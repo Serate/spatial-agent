@@ -24,7 +24,7 @@ class M7AdminPlannerTests(unittest.TestCase):
     def test_rule_planner_asks_for_admin_name(self):
         result = build_runtime("rule").run(GENERIC_ADMIN_QUERY)
         self.assertEqual(result.status.value, "NEEDS_CLARIFICATION")
-        self.assertEqual(result.clarification["state"], "capability_facts_required")
+        self.assertEqual(result.clarification["state"], "matched_capability_missing_parameters")
         self.assertTrue(
             any(
                 field.get("id") == "region"

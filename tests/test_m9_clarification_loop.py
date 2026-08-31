@@ -21,7 +21,7 @@ class M9ClarificationLoopTests(unittest.TestCase):
 
         first = runtime.run(GENERIC_ADMIN_QUERY, session_id="m9-admin")
         self.assertEqual(first.status.value, "NEEDS_CLARIFICATION")
-        self.assertEqual(first.clarification["state"], "capability_facts_required")
+        self.assertEqual(first.clarification["state"], "matched_capability_missing_parameters")
         self.assertTrue(first.clarification["missing_fields"])
 
         second = runtime.run(ADMIN_NAME, session_id="m9-admin")
