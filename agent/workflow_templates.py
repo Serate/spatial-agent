@@ -1,11 +1,11 @@
 """Workflow template catalog + compiler (compatibility facade).
 
-The implementation lives in ``workflow_template_common``, ``workflow_template_catalog``
-and ``workflow_template_compiler``.  This module keeps the historical import path
-stable while new callers may import from a leaf module.
+The implementation lives in ``agent.templates.common``, ``agent.templates.catalog``
+and ``agent.templates.compiler``.  This module keeps the historical import path
+stable while new callers may import from the ``agent.templates`` package.
 """
 
-from agent.workflow_template_common import (  # noqa: F401
+from agent.templates.common import (  # noqa: F401
     WorkflowTemplateError,
     DEFAULT_TEMPLATE_VERSION,
     WORKFLOW_COMPOSITION_SCHEMA_VERSION,
@@ -13,8 +13,8 @@ from agent.workflow_template_common import (  # noqa: F401
     _TEMPLATE_KEYS, _REQUIRED_TEMPLATE_KEYS, _PLAN_KEYS, _STEP_KEYS,
     _STEP_BLUEPRINT_KEYS, _CONSTRAINT_SPEC_KEYS, _CHINESE_LABEL, _SEMVER,
 )
-from agent.workflow_template_catalog import *  # noqa: F401,F403
-from agent.workflow_template_compiler import *  # noqa: F401,F403
+from agent.templates.catalog import *  # noqa: F401,F403
+from agent.templates.compiler import *  # noqa: F401,F403
 
 
 def __getattr__(name: str):

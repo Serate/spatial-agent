@@ -14,7 +14,7 @@ import re
 from collections.abc import Mapping, Iterable
 from typing import Any, Dict, List, Optional, Set
 
-from .workflow_template_common import (
+from .common import (
     WorkflowTemplateError,
     DEFAULT_TEMPLATE_VERSION,
     WORKFLOW_COMPOSITION_SCHEMA_VERSION,

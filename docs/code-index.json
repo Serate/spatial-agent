@@ -6,15 +6,15 @@
     "scripts",
     "web/src"
   ],
-  "file_count": 359,
+  "file_count": 360,
   "semantic_index": {
-    "classified_files": 359,
+    "classified_files": 360,
     "file_override_files": 41,
-    "path_rule_files": 318,
+    "path_rule_files": 319,
     "default_files": 0,
-    "agent_files": 227,
-    "agent_files_with_responsibility": 227,
-    "agent_files_with_module_doc": 213,
+    "agent_files": 228,
+    "agent_files_with_responsibility": 228,
+    "agent_files_with_module_doc": 214,
     "coverage_percent": 100.0
   },
   "files": [
@@ -9953,6 +9953,155 @@
       ]
     },
     {
+      "path": "agent/templates/__init__.py",
+      "language": "python",
+      "line_count": 1,
+      "layer": "runtime",
+      "role": "Runtime 公共契约、状态、规划与证据支持模块",
+      "stage": "M1-M325",
+      "stability": "internal",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Workflow template catalog, compiler and shared helpers.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [],
+      "imports": []
+    },
+    {
+      "path": "agent/templates/catalog.py",
+      "language": "python",
+      "line_count": 326,
+      "layer": "runtime",
+      "role": "Runtime 公共契约、状态、规划与证据支持模块",
+      "stage": "M1-M325",
+      "stability": "internal",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Workflow template catalog: lookup, validation and legacy GIS helpers.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "workflow_template_catalog",
+          "kind": "function",
+          "line": 29
+        },
+        {
+          "name": "get_workflow_template",
+          "kind": "function",
+          "line": 43
+        },
+        {
+          "name": "validate_workflow_template_catalog",
+          "kind": "function",
+          "line": 60
+        },
+        {
+          "name": "validate_workflow_template",
+          "kind": "function",
+          "line": 94
+        },
+        {
+          "name": "workflow_template_context_summary",
+          "kind": "function",
+          "line": 201
+        }
+      ],
+      "imports": [
+        "domains.gis",
+        "domains.gis.workflow_templates"
+      ]
+    },
+    {
+      "path": "agent/templates/common.py",
+      "language": "python",
+      "line_count": 266,
+      "layer": "runtime",
+      "role": "Runtime 公共契约、状态、规划与证据支持模块",
+      "stage": "M1-M325",
+      "stability": "internal",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Shared workflow-template contract types, constants and low-level helpers.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "WorkflowTemplateError",
+          "kind": "class",
+          "line": 16
+        }
+      ],
+      "imports": [
+        "domains.gis",
+        "domains.gis.workflow_templates"
+      ]
+    },
+    {
+      "path": "agent/templates/compiler.py",
+      "language": "python",
+      "line_count": 758,
+      "layer": "runtime",
+      "role": "Runtime 公共契约、状态、规划与证据支持模块",
+      "stage": "M1-M325",
+      "stability": "internal",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Workflow template compiler: validate, compile and revise workflow plans.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "compile_workflow_plan",
+          "kind": "function",
+          "line": 41
+        },
+        {
+          "name": "compile_workflow_composition",
+          "kind": "function",
+          "line": 115
+        },
+        {
+          "name": "validate_workflow_plan",
+          "kind": "function",
+          "line": 206
+        },
+        {
+          "name": "revise_workflow_plan",
+          "kind": "function",
+          "line": 354
+        },
+        {
+          "name": "validate_template",
+          "kind": "function",
+          "line": 390
+        },
+        {
+          "name": "normalize_workflow_composition",
+          "kind": "function",
+          "line": 420
+        },
+        {
+          "name": "normalize_workflow_constraints",
+          "kind": "function",
+          "line": 509
+        },
+        {
+          "name": "normalize_workflow_evidence",
+          "kind": "function",
+          "line": 545
+        },
+        {
+          "name": "normalize_workflow_selection",
+          "kind": "function",
+          "line": 567
+        },
+        {
+          "name": "workflow_request_hint",
+          "kind": "function",
+          "line": 599
+        }
+      ],
+      "imports": []
+    },
+    {
       "path": "agent/tool_provider.py",
       "language": "python",
       "line_count": 273,
@@ -10667,140 +10816,6 @@
       ]
     },
     {
-      "path": "agent/workflow_template_catalog.py",
-      "language": "python",
-      "line_count": 326,
-      "layer": "planner",
-      "role": "工作流选择、模板与计划编译",
-      "stage": "M44-M325",
-      "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
-      "responsibility": "Workflow template catalog: lookup, validation and legacy GIS helpers.",
-      "responsibility_source": "module-doc",
-      "public_symbols": [
-        {
-          "name": "workflow_template_catalog",
-          "kind": "function",
-          "line": 29
-        },
-        {
-          "name": "get_workflow_template",
-          "kind": "function",
-          "line": 43
-        },
-        {
-          "name": "validate_workflow_template_catalog",
-          "kind": "function",
-          "line": 60
-        },
-        {
-          "name": "validate_workflow_template",
-          "kind": "function",
-          "line": 94
-        },
-        {
-          "name": "workflow_template_context_summary",
-          "kind": "function",
-          "line": 201
-        }
-      ],
-      "imports": [
-        "domains.gis",
-        "domains.gis.workflow_templates"
-      ]
-    },
-    {
-      "path": "agent/workflow_template_common.py",
-      "language": "python",
-      "line_count": 266,
-      "layer": "planner",
-      "role": "工作流选择、模板与计划编译",
-      "stage": "M44-M325",
-      "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
-      "responsibility": "Shared workflow-template contract types, constants and low-level helpers.",
-      "responsibility_source": "module-doc",
-      "public_symbols": [
-        {
-          "name": "WorkflowTemplateError",
-          "kind": "class",
-          "line": 16
-        }
-      ],
-      "imports": [
-        "domains.gis",
-        "domains.gis.workflow_templates"
-      ]
-    },
-    {
-      "path": "agent/workflow_template_compiler.py",
-      "language": "python",
-      "line_count": 758,
-      "layer": "planner",
-      "role": "工作流选择、模板与计划编译",
-      "stage": "M44-M325",
-      "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
-      "responsibility": "Workflow template compiler: validate, compile and revise workflow plans.",
-      "responsibility_source": "module-doc",
-      "public_symbols": [
-        {
-          "name": "compile_workflow_plan",
-          "kind": "function",
-          "line": 41
-        },
-        {
-          "name": "compile_workflow_composition",
-          "kind": "function",
-          "line": 115
-        },
-        {
-          "name": "validate_workflow_plan",
-          "kind": "function",
-          "line": 206
-        },
-        {
-          "name": "revise_workflow_plan",
-          "kind": "function",
-          "line": 354
-        },
-        {
-          "name": "validate_template",
-          "kind": "function",
-          "line": 390
-        },
-        {
-          "name": "normalize_workflow_composition",
-          "kind": "function",
-          "line": 420
-        },
-        {
-          "name": "normalize_workflow_constraints",
-          "kind": "function",
-          "line": 509
-        },
-        {
-          "name": "normalize_workflow_evidence",
-          "kind": "function",
-          "line": 545
-        },
-        {
-          "name": "normalize_workflow_selection",
-          "kind": "function",
-          "line": 567
-        },
-        {
-          "name": "workflow_request_hint",
-          "kind": "function",
-          "line": 599
-        }
-      ],
-      "imports": []
-    },
-    {
       "path": "agent/workflow_templates.py",
       "language": "python",
       "line_count": 47,
@@ -10814,9 +10829,9 @@
       "responsibility_source": "module-doc",
       "public_symbols": [],
       "imports": [
-        "agent.workflow_template_catalog",
-        "agent.workflow_template_common",
-        "agent.workflow_template_compiler",
+        "agent.templates.catalog",
+        "agent.templates.common",
+        "agent.templates.compiler",
         "domains.gis"
       ]
     },

@@ -14,7 +14,7 @@ from itertools import count
 from collections.abc import Mapping, Iterable
 from typing import Any, Dict, List, Optional, Set
 
-from .workflow_template_common import (
+from .common import (
     WorkflowTemplateError,
     DEFAULT_TEMPLATE_VERSION,
     WORKFLOW_COMPOSITION_SCHEMA_VERSION,
@@ -24,7 +24,7 @@ from .workflow_template_common import (
     _text, _string_list, _value_set, _assert_json_safe, _assert_acyclic,
     _normalize_constraint_specs, _normalize_output_template, _normalize_step_blueprint,
 )
-from .workflow_template_catalog import (
+from .catalog import (
     get_workflow_template,
     workflow_template_catalog,
     validate_workflow_template,
