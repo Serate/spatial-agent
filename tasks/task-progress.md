@@ -24,13 +24,14 @@
 - 阻塞：无。
 - 下一步：实现 M334-A 来源身份与质量深模块。
 
-### M334-A：来源身份与质量深模块 — 待开始
+### M334-A：来源身份与质量深模块 — 进行中
 
 - 目标：为网页、GIS、指标和文本来源建立稳定身份、新鲜度、完整性和安全质量 receipt。
 - 必要文件：`agent/evidence/contract.py`、`agent/evidence/projection.py`、`agent/evidence/registry.py`、`agent/network/web_search.py`、`agent/network/web_fetch.py`、`tests/test_m334_evidence_quality.py`。
-- 验证：实现后集中运行 identity/quality 紧凑契约；不保存网页正文、Prompt、模型原文或密钥。
+- 已完成：新增 `agent/evidence/identity.py`、`agent/evidence/quality.py`，支持稳定来源 ID、内容/定位去重键、时间新鲜度、完整性和安全质量 receipt。
+- 验证：`python -m unittest tests.test_m334_evidence_quality -v` 通过 `5/5`；compileall 通过；未保存网页正文、Prompt、模型原文或密钥。
 - 阻塞：无。
-- 下一步：先读取上述必要文件，再实现 canonical 深模块和兼容投影。
+- 下一步：把质量投影接入 `document_evidence` 的公共来源记录，保持旧字段兼容；随后进入 M334-B Bundle。
 
 ### code-index-semantic-coverage — 已完成
 
@@ -770,3 +771,33 @@
 
 - 交付：阶段计划、handoff、中文问题日志、代码职责索引和文档索引已更新；未保存模型原文、Prompt、网页正文、密钥或私有数据。
 - 下一阶段输入：评估多来源网页证据去重与新鲜度、网络不可用时的回答质量、跨域 Composite 证据组合和开放请求成功率；继续保持公共网络受控、默认测试精简、单 Agent。
+### M334-A～D：多来源证据与答案质量 — 已完成
+
+- 实现：新增 `agent/evidence/identity.py`、`quality.py`、`bundle.py`、`composite.py`，提供来源身份、内容指纹、新鲜度/完整性、去重 lineage、内容冲突、coverage、事实 receipt 和跨域 alignment。
+- 集成：Web Search/Fetch、Result Summary、Composite Contract/View、答案上下文、共享 Evidence Projection 和前端结果投影均消费有界安全 bundle；本地数据 locator 不再被强制当成 HTTPS URL。
+- 降级：答案层对 stale、unknown、partial、unavailable、来源冲突和跨域未对齐生成通俗中文提示；unknown 不被解释为最新，冲突不自动裁决。
+- 验证：M334 紧凑契约 `12/12`；受影响回归（答案生成、Evidence Projection、Contract Harness、Result Completeness）`31/31`；compileall 与前端 Node 语法检查通过。
+- 下一步：M334-E 在 Docker 中执行精简门禁、SQLite/Artifact/SSE/前端投影一致性和一次真实模型 + 本地 GIS + 受控公共网页验收。
+
+### M334-E：Docker/真实模型验收与阶段交付 — 进行中
+
+- 开始：恢复 M334-E，已复现 Docker quick 的 `session belongs to another domain`；失败发生在 dev-gate 的 CLI 子进程继承生产 `SPATIAL_AGENT_STATE_DB`，不是 M334 业务契约失败。
+- 假设：为 dev-gate 使用临时 SQLite 并让 CLI 子进程继承该隔离路径后，跨入口契约应恢复通过；生产持久库不应被清空或修改。
+- 修复并验证：`tests/test_dev_gate.py` 使用临时 SQLite，CLI 显式继承隔离路径并固定 `--domain gis`，已消除持久库污染与跨领域比较漂移。
+- 新发现：真实模型成功返回，但 ReAct 首个 `get_dataset_health_report` 动作携带未注册的大小写变体结果类型；能力目录已有可信 `dataset_health_result`，运行时推导优先级需要修正。
+- 修复并验证：`agent/runtime_core/react_runtime.py` 现在按可信结果类型优先于模型标签，新增 ReAct 回归 `4/4`，M334 受影响回归 `31/31`。
+- 真实验收观察：修复后通用跨域请求未再触发 `execution_policy_invalid`，但规划阶段 provider 超时，状态为 `FAILED/provider_timeout`、0 个工具步骤；记录为供应商时延降级，不保存模型原文。
+- 真实 GIS 诊断：真实模型成功生成第一动作，但本地工具返回 `backend_initialization_unavailable`；容器内 GIS 依赖存在，`/data` 下配置要求的文件均不存在。
+- 根因：`docker-compose.prod.yml` 的宿主卷使用 `${SPATIAL_AGENT_HOST_DATASET_ROOT}` 插值，该变量只写在 `env_file: .env.production`，不会参与 Compose 插值；未带 `--env-file .env.production` 重建时回退到空的 `./data`。
+- 当前动作：使用 `.env.production` 重新启动 Compose，使 `/data` 绑定到真实 `D:/dataset/agent`，再进行一次本地 GIS + `public` 网页验收。
+- M334-E 完成：Docker `quick + stage + smoke`、受影响回归 `56/56`、compileall、architecture strict、readiness `200` 和生产 HTTP acceptance 通过。
+- Acceptance 修复：通用 Host 使用 `capability_descriptors` 时兼容新能力平面；GIS 数据卷从 Domain runtime 快照校验；合法 direct-answer/direct-tool 可为空工具清单；失败与无效请求使用唯一会话，支持持久库重复验收。
+- 真实验收：真实模型 + 本地 GIS + `public` 网页请求实际执行 3 个工具步骤，但 Provider 在有界预算内未完成；网络来源未验证时保持安全降级，未保存模型原文、Prompt、网页正文或密钥。
+- 阶段交付：M334 plan/handoff、`docs/agent-work-state.md`、`tasks/current-state.md`、中文问题日志和代码/文档索引已更新；下一阶段全局输入为 M335 的 Provider/网络健康、通用多工具 ReAct、多结果组合、数据对齐和实时体验。
+
+### M335-0：阶段初始化与契约冻结 — 已完成
+
+- 建立 M335 capability map、Spec、Plan 和 handoff，更新总计划、热状态、当前任务和文档索引；恢复时只读取 M335 handoff 与必要热状态。
+- 冻结下一阶段公共边界：Provider Health、通用多工具 ReAct、Result closure、实时体验和显式 Docker/live 验收；不引入 RAG、不开放任意代码自动上线、不新增专题硬编码。
+- 验证：文档索引与代码索引校验通过；未修改 M335 业务代码。
+- 下一步：M335-A 实现 Provider/网络健康安全投影和失败归因。

@@ -170,6 +170,8 @@ class LLMCompositeAnswerGenerator:
                     "answer 必须包含 headline、summary、key_findings、limitations；可选 next_steps；不要输出工具名、"
                     "fingerprint、result_ref、artifact 引用、prompt 或模型内部过程。若 completeness.state 为 partial、"
                     "优先依据 result_summary 的结论、关键发现、限制和 evidence 组织答案；facts 只用于必要的技术细节。"
+                    "如果 evidence_bundle 中存在 stale、partial、unavailable、unknown 或冲突来源，"
+                    "只用通俗中文说明其对结论的影响；不得把 unknown 说成最新，也不得自行裁决冲突。"
                     "blocked 或 waiting_decision，必须明确说明已完成范围、未完成范围和是否可以继续，不得写成全部完成。"
                 ),
             },
@@ -274,7 +276,8 @@ class LLMCompositeAnswerGenerator:
                     "你是面向普通用户的分析结果解读助手。只能根据提供的可信事实，"
                     "用自然中文输出一段简洁总结，不要输出 JSON、工具名、内部引用、Prompt、"
                     "隐藏思维过程或未经事实支持的结论。优先依据结论、关键发现、限制和证据来源组织总结；"
-                    "若结果不完整，明确说明已完成内容、缺失范围和后续动作。"
+                    "如果来源质量为 stale、partial、unavailable 或 unknown，简短说明影响；冲突来源并列说明，"
+                    "不要自行判断哪一方正确。若结果不完整，明确说明已完成内容、缺失范围和后续动作。"
                 ),
             },
             {
@@ -514,10 +517,38 @@ def _fit_answer_context(packet: dict[str, Any], steps: list[dict[str, Any]]) -> 
 
     if size() <= _MAX_CONTEXT_CHARS:
         return
+    summary = packet.get("result_summary")
+    if isinstance(summary, dict):
+        for block in summary.get("blocks", []):
+            if isinstance(block, dict):
+                block["facts"] = {}
+                evidence = block.get("evidence")
+                if isinstance(evidence, dict):
+                    bundle = evidence.get("evidence_bundle")
+                    if isinstance(bundle, dict) and isinstance(bundle.get("entries"), list):
+                        # Page bodies live in the transient model context; the
+                        # answer model needs bundle quality, not duplicate
+                        # source cards in every step summary.
+                        bundle["entries"] = []
+                    records = evidence.get("source_records")
+                    if isinstance(records, list):
+                        evidence["source_records"] = [
+                            {
+                                key: item[key]
+                                for key in ("source_id", "title", "url", "domain", "quality")
+                                if isinstance(item, Mapping) and key in item
+                            }
+                            for item in records
+                            if isinstance(item, Mapping)
+                        ]
+        summary["blocks"] = list(summary.get("blocks", []))[:8]
+    packet["steps"] = steps[:8]
+    if size() <= _MAX_CONTEXT_CHARS:
+        return
     documents = packet.get("web_documents")
     if isinstance(documents, list):
         # Preserve page identity and source evidence, but remove body text
-        # before dropping the entire web section.
+        # only after optional execution details have been compacted.
         packet["web_documents"] = [
             {
                 key: item[key]
@@ -527,15 +558,6 @@ def _fit_answer_context(packet: dict[str, Any], steps: list[dict[str, Any]]) -> 
             for item in documents
             if isinstance(item, Mapping)
         ]
-    summary = packet.get("result_summary")
-    if isinstance(summary, dict):
-        for block in summary.get("blocks", []):
-            if isinstance(block, dict):
-                block["facts"] = {}
-        summary["blocks"] = list(summary.get("blocks", []))[:8]
-    packet["steps"] = steps[:8]
-    if size() <= _MAX_CONTEXT_CHARS:
-        return
     packet["steps"] = [
         {
             "id": item.get("id"),
@@ -763,6 +785,7 @@ class LLMAnswerGenerator:
                     "对于不依赖外部数据的概念解释、比较、总结、写作和简单算术，可以直接完成回答；"
                     "不要因为事实包为空就声称没有结果。涉及实时、地域或专门外部事实时，明确说明证据范围和限制。"
                     "优先根据 result_summary 的结论、关键发现、限制和证据来源回答，技术 facts 只作必要补充；"
+                    "遵守 evidence_bundle 的质量状态：unknown 不是最新，stale/partial/unavailable 和来源冲突必须说明影响。"
                     "数据不完整时明确说明影响。若 answer_phase 为 finalizing 或 execution_complete 为 true，说明工具执行已经结束，"
                     "不要告诉用户分析仍在执行。答案不超过 6000 字。"
                 ),

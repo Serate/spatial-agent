@@ -21,6 +21,14 @@ from agent.result_completeness import (
     build_result_completeness,
     normalize_result_completeness,
 )
+from agent.evidence.identity import normalize_source_locator, source_dedupe_key
+from agent.evidence.bundle import (
+    build_evidence_bundle,
+    evidence_quality_limitations,
+    normalize_evidence_bundle,
+)
+from agent.evidence.composite import normalize_alignment
+from agent.evidence.quality import project_source_record
 
 
 RESULT_SUMMARY_KINDS = frozenset(SUPPORTED_DATA_KINDS)
@@ -123,8 +131,11 @@ def build_result_summary(value: Any) -> dict[str, Any]:
     sections = _sections(source)
     blocks = [_build_block(item, source, index) for index, item in enumerate(sections)]
     blocks = [item for item in blocks if item is not None][: _MAX_BLOCKS]
-    limitations = _collect_limitations(source, completeness, blocks)
     evidence = _build_evidence(source, blocks)
+    limitations = _collect_limitations(source, completeness, blocks)
+    limitations.extend(evidence_quality_limitations(evidence.get("evidence_bundle")))
+    limitations.extend(_alignment_limitations(evidence.get("alignment")))
+    limitations = _unique_text(limitations, _MAX_BLOCKS)
     findings = [
         block["conclusion"]
         for block in blocks
@@ -402,6 +413,20 @@ def _collect_limitations(
             limitation = _document_evidence_limitation(evidence)
             if limitation:
                 values.append(limitation)
+            bundle = evidence.get("evidence_bundle")
+            if isinstance(bundle, Mapping):
+                values.extend(evidence_quality_limitations(bundle))
+            alignment = evidence.get("alignment")
+            if isinstance(alignment, Mapping):
+                values.extend(_alignment_limitations(alignment))
+    bundle = _evidence_bundle_from_summary_source(source)
+    if isinstance(bundle, Mapping):
+        values.extend(evidence_quality_limitations(bundle))
+    composite = source.get("composite") or source.get("_composite")
+    if isinstance(composite, Mapping):
+        composite_evidence = composite.get("evidence")
+        if isinstance(composite_evidence, Mapping):
+            values.extend(_alignment_limitations(composite_evidence.get("alignment")))
     if blocks and not any(block.get("evidence", {}).get("available") for block in blocks) and not any(
         block.get("evidence", {}).get("status")
         for block in blocks
@@ -409,6 +434,33 @@ def _collect_limitations(
     ):
         values.append("当前结果未提供可核验的证据来源。")
     return _unique_text(values, _MAX_BLOCKS)
+
+
+def _alignment_limitations(value: Any) -> list[str]:
+    alignment = normalize_alignment(value)
+    status = alignment.get("status")
+    if status == "conflict":
+        return ["不同数据来源的空间、时间或单位范围存在差异，系统未进行隐式拼接。"]
+    if status == "unknown":
+        return ["部分数据来源缺少可对齐的空间、时间或单位信息，系统未进行隐式拼接。"]
+    return []
+
+
+def _evidence_bundle_from_summary_source(source: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Locate a bundle already published by a Composite or result envelope."""
+
+    direct = source.get("evidence_bundle")
+    if isinstance(direct, Mapping):
+        return direct
+    evidence = source.get("evidence")
+    if isinstance(evidence, Mapping) and isinstance(evidence.get("evidence_bundle"), Mapping):
+        return evidence["evidence_bundle"]
+    composite = source.get("composite") or source.get("_composite")
+    if isinstance(composite, Mapping):
+        nested = composite.get("evidence")
+        if isinstance(nested, Mapping) and isinstance(nested.get("evidence_bundle"), Mapping):
+            return nested["evidence_bundle"]
+    return None
 
 
 def _section_limitations(first: Mapping[str, Any], second: Mapping[str, Any]) -> list[str]:
@@ -435,7 +487,8 @@ def _section_limitations(first: Mapping[str, Any], second: Mapping[str, Any]) ->
 
 def _build_evidence(source: Mapping[str, Any], blocks: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     sources: list[str] = []
-    source_records: list[dict[str, str]] = []
+    source_records: list[dict[str, Any]] = []
+    bundle_entries: list[dict[str, Any]] = []
     states: list[str] = []
     statuses: list[str] = []
     reason_codes: list[str] = []
@@ -447,9 +500,30 @@ def _build_evidence(source: Mapping[str, Any], blocks: Sequence[Mapping[str, Any
         count = _count(raw.get("entry_count"), raw.get("entries"))
         states.append(_text(raw.get("state") or ("available" if available else "unavailable"), 32))
         sources.extend(_safe_sources(raw.get("sources")))
-        source_records.extend(_safe_source_records(raw.get("source_records")))
+        raw_records = _safe_source_records(raw.get("source_records"))
+        source_records.extend(raw_records)
+        bundle_entries.extend(raw_records)
+        bundle_entries.extend(_source_entries_for_bundle(raw.get("sources")))
+        existing_bundle = raw.get("evidence_bundle")
+        if isinstance(existing_bundle, Mapping):
+            bundle_entries.extend(
+                item
+                for item in existing_bundle.get("entries", [])
+                if isinstance(item, Mapping)
+            )
         statuses.extend(_safe_statuses(raw.get("status")))
         reason_codes.extend(_safe_reason_codes(raw.get("reason_code")))
+    composite = source.get("composite") or source.get("_composite")
+    if isinstance(composite, Mapping):
+        composite_evidence = composite.get("evidence")
+        if isinstance(composite_evidence, Mapping):
+            composite_bundle = composite_evidence.get("evidence_bundle")
+            if isinstance(composite_bundle, Mapping):
+                entries = composite_bundle.get("entries")
+                if isinstance(entries, list):
+                    bundle_entries.extend(
+                        item for item in entries if isinstance(item, Mapping)
+                    )
     registry = source.get("evidence_registry")
     if isinstance(registry, Mapping):
         available = available or bool(registry.get("available"))
@@ -469,11 +543,22 @@ def _build_evidence(source: Mapping[str, Any], blocks: Sequence[Mapping[str, Any
         count += _count(evidence.get("source_count"), None)
         states.append(_text(evidence.get("state"), 32))
         sources.extend(_safe_sources(evidence.get("sources")))
-        source_records.extend(_safe_source_records(evidence.get("source_records")))
+        raw_records = _safe_source_records(evidence.get("source_records"))
+        source_records.extend(raw_records)
+        bundle_entries.extend(raw_records)
+        bundle_entries.extend(_source_entries_for_bundle(evidence.get("sources")))
+        existing_bundle = evidence.get("evidence_bundle")
+        if isinstance(existing_bundle, Mapping):
+            bundle_entries.extend(
+                item
+                for item in existing_bundle.get("entries", [])
+                if isinstance(item, Mapping)
+            )
         statuses.extend(_safe_statuses(evidence.get("status")))
         reason_codes.extend(_safe_reason_codes(evidence.get("reason_code")))
     if not sources and source.get("domain_id"):
         sources.append(_text(source.get("domain_id"), 64))
+    bundle = build_evidence_bundle(bundle_entries)
     states = [item for item in states if item]
     evidence_state = "available" if available else "unavailable"
     if not available and statuses:
@@ -487,7 +572,16 @@ def _build_evidence(source: Mapping[str, Any], blocks: Sequence[Mapping[str, Any
         "source_count": max(count, len(set(sources))),
         "sources": _unique_text(sources, _MAX_SOURCES),
         "states": _unique_text(states, _MAX_SOURCES),
+        "evidence_bundle": bundle,
     }
+    composite_evidence = composite.get("evidence") if isinstance(composite, Mapping) else None
+    if isinstance(composite_evidence, Mapping):
+        alignment = composite_evidence.get("alignment")
+        if isinstance(alignment, Mapping):
+            result["alignment"] = normalize_alignment(alignment)
+        limitations = _strings(composite_evidence.get("limitations"), _MAX_BLOCKS, _MAX_TEXT)
+        if limitations:
+            result["limitations"] = limitations
     if source_records:
         result["source_records"] = _unique_source_records(source_records)
     if statuses:
@@ -543,6 +637,29 @@ def _build_block_evidence(
         result["reason_code"] = reason_code
     if source_records:
         result["source_records"] = _unique_source_records(source_records)
+    bundle = next(
+        (
+            candidate.get("evidence_bundle")
+            for candidate in (raw, first, second, source)
+            if isinstance(candidate, Mapping)
+            and isinstance(candidate.get("evidence_bundle"), Mapping)
+        ),
+        None,
+    )
+    if isinstance(bundle, Mapping):
+        result["evidence_bundle"] = normalize_evidence_bundle(bundle)
+    else:
+        entries = []
+        if isinstance(raw, Mapping):
+            entries.extend(_safe_source_records(raw.get("source_records")))
+            entries.extend(_source_entries_for_bundle(raw.get("sources")))
+        if entries:
+            result["evidence_bundle"] = build_evidence_bundle(entries)
+    for candidate in (first, second):
+        alignment = candidate.get("alignment")
+        if isinstance(alignment, Mapping):
+            result["alignment"] = normalize_alignment(alignment)
+            break
     if document is not None:
         query = _text(raw.get("query"), _MAX_TEXT)
         if query and not _contains_private(query):
@@ -620,6 +737,8 @@ def _normalize_evidence(value: Any) -> dict[str, Any]:
     source_records = _unique_source_records(_safe_source_records(source.get("source_records")))
     if source_records:
         result["source_records"] = source_records
+    if isinstance(source.get("evidence_bundle"), Mapping):
+        result["evidence_bundle"] = normalize_evidence_bundle(source.get("evidence_bundle"))
     status = _text(source.get("status"), 32).lower()
     if status:
         result["status"] = status
@@ -776,34 +895,83 @@ def _safe_domains(value: Any) -> list[str]:
     return result
 
 
-def _safe_source_records(value: Any) -> list[dict[str, str]]:
+def _safe_source_records(value: Any) -> list[dict[str, Any]]:
     values = value if isinstance(value, (list, tuple)) else []
-    result: list[dict[str, str]] = []
+    result: list[dict[str, Any]] = []
     for raw in list(values)[:_MAX_SOURCES * 2]:
         if not isinstance(raw, Mapping):
             continue
-        url = _safe_https_url(raw.get("url"))
-        if not url:
-            continue
-        title = _text(raw.get("title"), 160)
-        snippet = _text(raw.get("snippet"), _MAX_TEXT)
-        domain = _text(raw.get("domain"), 255).lower().rstrip(".")
-        if not domain:
-            try:
-                domain = (urlsplit(url).hostname or "").lower().rstrip(".")
-            except ValueError:
-                domain = ""
-        if not domain or _contains_private(title) or _contains_private(snippet):
-            continue
-        item = {
-            "title": title or "未命名来源",
-            "url": url,
-            "domain": domain[:255],
-        }
-        if snippet:
-            item["snippet"] = snippet
-        result.append(item)
+        item = _normalize_public_source_record(raw)
+        if item is not None:
+            result.append(item)
     return result
+
+
+def _source_entries_for_bundle(value: Any) -> list[dict[str, Any]]:
+    """Convert legacy source labels into safe bundle entries when possible."""
+
+    values = value if isinstance(value, (list, tuple)) else []
+    result: list[dict[str, Any]] = []
+    for raw in list(values)[:_MAX_SOURCES * 2]:
+        if isinstance(raw, Mapping):
+            result.extend(_safe_source_records([raw]))
+            continue
+        locator = _text(raw, 2048)
+        if locator and not _contains_private(locator):
+            result.append(
+                {
+                    "locator": locator,
+                    "title": locator,
+                    "kind": "unknown",
+                    "status": "available",
+                }
+            )
+    return result
+
+
+def _normalize_public_source_record(value: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Keep web URLs and public dataset identifiers, never local paths."""
+
+    projected = project_source_record(value)
+    locator = _text(projected.get("locator"), 2048)
+    kind = _text(projected.get("kind"), 48).lower() or "unknown"
+    if not locator:
+        return None
+    url = ""
+    if kind == "web":
+        url = _safe_https_url(projected.get("url") or locator)
+        if not url:
+            return None
+        locator = url
+    else:
+        locator, locator_kind = normalize_source_locator(locator)
+        if not locator or locator_kind == "web":
+            return None
+    title = _text(projected.get("title"), 160)
+    snippet = _text(projected.get("snippet"), _MAX_TEXT)
+    domain = _text(projected.get("domain"), 255).lower().rstrip(".")
+    if kind == "web" and not domain:
+        try:
+            domain = (urlsplit(url).hostname or "").lower().rstrip(".")
+        except ValueError:
+            domain = ""
+    if (kind == "web" and not domain) or _contains_private(title) or _contains_private(snippet):
+        return None
+    item: dict[str, Any] = {
+        "title": title or "未命名来源",
+        "locator": locator,
+        "domain": domain[:255],
+        "source_id": _text(projected.get("source_id"), 80),
+        "kind": kind,
+    }
+    if url:
+        item["url"] = url
+    if snippet:
+        item["snippet"] = snippet
+    for key in ("version", "content_hash", "retrieved_at", "published_at", "quality"):
+        if projected.get(key) not in (None, "", {}):
+            item[key] = projected[key]
+    return item
 
 
 def _safe_https_url(value: Any) -> str:
@@ -822,24 +990,21 @@ def _safe_https_url(value: Any) -> str:
         return ""
 
 
-def _unique_source_records(values: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
-    result: list[dict[str, str]] = []
+def _unique_source_records(values: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for value in values:
         if not isinstance(value, Mapping):
             continue
-        url = _safe_https_url(value.get("url"))
-        if not url or url in seen:
+        item = _normalize_public_source_record(value)
+        if item is None:
             continue
-        seen.add(url)
-        item = {
-            "title": _text(value.get("title"), 160) or "未命名来源",
-            "url": url,
-            "domain": _text(value.get("domain"), 255).lower().rstrip(".") or "未知来源",
-        }
-        snippet = _text(value.get("snippet"), _MAX_TEXT)
-        if snippet and not _contains_private(snippet):
-            item["snippet"] = snippet
+        locator = item.get("locator") or ""
+        dedupe_key = source_dedupe_key(item)
+        if locator in seen or dedupe_key in seen:
+            continue
+        seen.add(locator)
+        seen.add(dedupe_key)
         result.append(item)
         if len(result) >= _MAX_SOURCES:
             break

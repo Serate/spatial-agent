@@ -180,19 +180,70 @@ def safe_small_mapping(value: Any) -> Dict[str, Any]:
 
 
 def append_execution_degradation_notice(result: AgentRunResult, answer: str) -> str:
-    """Keep bounded fallback completion visibly distinct from full success."""
-    if result.status != RunStatus.COMPLETED:
+    """Keep completion and evidence degradation visible in a short answer."""
+
+    notices: list[str] = []
+    if result.status == RunStatus.COMPLETED:
+        completeness = build_result_completeness(result.to_dict())
+        if completeness.get("state") == "partial":
+            notices.append(
+                "本次只完成了部分分析，当前结论仅基于已获得的证据；"
+                "未完成部分的结果未知，修复相关条件后可以重新执行。"
+            )
+
+    # Keep this import lazy: the Runtime projection module is imported by the
+    # result/answer stack, while the summary itself is a separate public seam.
+    try:
+        from agent.evidence.bundle import evidence_quality_limitations
+        from agent.evidence.composite import normalize_alignment
+        from agent.result_summary import build_result_summary
+
+        summary = build_result_summary(result.to_dict())
+        evidence = summary.get("evidence")
+        if isinstance(evidence, Mapping):
+            bundle = evidence.get("evidence_bundle")
+            if isinstance(bundle, Mapping):
+                quality_notices = evidence_quality_limitations(bundle)
+                kinds = set(
+                    bundle.get("coverage", {}).get("kinds", [])
+                    if isinstance(bundle.get("coverage"), Mapping)
+                    else []
+                )
+                temporal_kinds = {"web", "document_evidence", "metrics", "timeseries"}
+                if not kinds.intersection(temporal_kinds):
+                    quality_notices = [
+                        item
+                        for item in quality_notices
+                        if "缺少时间信息" not in item
+                        and "缺少可用时间信息" not in item
+                        and "无法判断是否最新" not in item
+                        and "无法判断新鲜度" not in item
+                    ]
+                notices.extend(quality_notices)
+            if isinstance(evidence.get("alignment"), Mapping):
+                alignment = normalize_alignment(evidence["alignment"])
+                if alignment.get("status") == "conflict":
+                    notices.append(
+                        "不同数据来源存在范围或单位差异，系统未进行隐式拼接。"
+                    )
+                elif alignment.get("status") == "unknown":
+                    notices.append(
+                        "部分数据来源缺少可对齐信息，系统未进行隐式拼接。"
+                    )
+    except Exception:
+        # A user-facing answer must not fail because an optional summary
+        # projection is unavailable on a legacy result object.
+        pass
+
+    unique: list[str] = []
+    for notice in notices:
+        if notice and notice not in answer and notice not in unique:
+            unique.append(notice)
+        if len(unique) >= 4:
+            break
+    if not unique:
         return answer
-    completeness = build_result_completeness(result.to_dict())
-    if completeness.get("state") != "partial":
-        return answer
-    notice = (
-        "说明：本次只完成了部分分析，当前结论仅基于已获得的证据；"
-        "未完成部分的结果未知，修复相关条件后可以重新执行。"
-    )
-    if notice in answer:
-        return answer
-    return answer.rstrip() + "\n\n" + notice
+    return answer.rstrip() + "\n\n证据提示：" + "；".join(unique)
 
 
 def unique(values: list[str]) -> list[str]:

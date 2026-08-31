@@ -1,6 +1,7 @@
 """Small offline developer gate for the shared Agent Runtime contract."""
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -23,7 +24,10 @@ class DevGateTests(unittest.TestCase):
     def test_runtime_result_and_artifact_share_contract(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            service = AgentService(artifact_store=ArtifactStore(str(root / "service-runs")))
+            service = AgentService(
+                artifact_store=ArtifactStore(str(root / "service-runs")),
+                state_db_path=str(root / "service.sqlite"),
+            )
             self.addCleanup(service.close)
             direct = service.run(
                 "查询洪山区行政区边界",
@@ -45,6 +49,8 @@ class DevGateTests(unittest.TestCase):
                     "rule",
                     "--backend",
                     "memory",
+                    "--domain",
+                    "gis",
                     "--export-artifact",
                     "--artifact-root",
                     str(root / "cli-runs"),
@@ -53,6 +59,14 @@ class DevGateTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=True,
+                env={
+                    **os.environ,
+                    # The Docker service keeps a durable production database.
+                    # The child CLI must use an isolated test database so a
+                    # pre-existing session-domain binding cannot affect this
+                    # cross-entry contract.
+                    "SPATIAL_AGENT_STATE_DB": str(root / "cli.sqlite"),
+                },
             )
             cli_payload = json.loads(cli.stdout)
             cli_artifact = json.loads(
@@ -112,10 +126,11 @@ class DevGateTests(unittest.TestCase):
         )
 
     def test_clarification_follow_up_is_session_scoped(self):
-        service = AgentService()
-        self.addCleanup(service.close)
-        first = service.run("查询行政区边界", session_id="dev-clarification")
-        second = service.run("洪山区", session_id="dev-clarification")
+        with tempfile.TemporaryDirectory() as directory:
+            service = AgentService(state_db_path=str(Path(directory) / "state.sqlite"))
+            self.addCleanup(service.close)
+            first = service.run("查询行政区边界", session_id="dev-clarification")
+            second = service.run("洪山区", session_id="dev-clarification")
 
         self.assertEqual(first["status"], "NEEDS_CLARIFICATION")
         self.assertEqual(second["status"], "COMPLETED")
@@ -123,13 +138,14 @@ class DevGateTests(unittest.TestCase):
         self.assertNotIn("memory://", second["answer"])
 
     def test_service_smoke_covers_raster_and_tool_dispatch(self):
-        service = AgentService()
-        self.addCleanup(service.close)
-        raster = service.run("查询DEM栅格元数据", session_id="dev-raster")
-        road = service.run(
-            "查询距离主干道500米以内、坡度超过25度的区域。",
-            session_id="dev-road",
-        )
+        with tempfile.TemporaryDirectory() as directory:
+            service = AgentService(state_db_path=str(Path(directory) / "state.sqlite"))
+            self.addCleanup(service.close)
+            raster = service.run("查询DEM栅格元数据", session_id="dev-raster")
+            road = service.run(
+                "查询距离主干道500米以内、坡度超过25度的区域。",
+                session_id="dev-road",
+            )
 
         self.assertEqual(raster["status"], "COMPLETED")
         self.assertEqual(raster["steps"][0]["tool"], "get_raster_metadata")

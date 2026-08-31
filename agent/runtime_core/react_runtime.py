@@ -416,18 +416,20 @@ class RuntimeReactExecution:
             )
             or ""
         ).strip()
-        # A checked result already selected by an earlier action, or derived
-        # from this tool's operation contract, outranks a model-supplied
-        # label. Compatible models occasionally emit a JSON Schema primitive
-        # such as ``string`` instead of the public Result id; allowing that
-        # label to win would either reject a valid action or weaken the result
-        # contract. If no trusted inference exists, the model label remains a
-        # candidate and is validated by the normal policy gate below.
+        # A checked result already selected by an earlier action, derived from
+        # this tool's operation contract, or inferred from the selected
+        # capability outranks a model-supplied label. Compatible models
+        # occasionally emit a JSON Schema primitive or a title-cased variant
+        # instead of the public Result id. Letting that label win would reject
+        # a valid action or weaken the result contract. If no trusted inference
+        # exists, the model label remains a candidate and is validated by the
+        # normal policy gate below.
+        inferred_output_type = self._inferred_output_type(context)
         output_type = (
             current_output
             or registry_output_type
+            or inferred_output_type
             or str(decision.get("output_type") or "").strip()
-            or self._inferred_output_type(context)
         )
         if not output_type:
             raise ToolError(

@@ -60,7 +60,7 @@
       "prefix": "agent/network/",
       "layer": "integration",
       "role": "受控网络访问与网页证据适配器",
-      "stage": "M321-M333",
+      "stage": "M321-M334",
       "stability": "public-boundary"
     },
     {
@@ -822,6 +822,83 @@
       "stage": "M315-M325",
       "stability": "public-boundary",
       "depends_on": ["web/src/console_app.js"]
+    },
+    "agent/evidence/identity.py": {
+      "layer": "evidence",
+      "role": "来源定位、稳定身份与内容指纹",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
+    },
+    "agent/evidence/quality.py": {
+      "layer": "evidence",
+      "role": "来源新鲜度、完整性与质量 receipt",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
+    },
+    "agent/evidence/bundle.py": {
+      "layer": "evidence",
+      "role": "多来源证据聚合、去重、冲突与覆盖投影",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
+    },
+    "agent/evidence/composite.py": {
+      "layer": "evidence",
+      "role": "Composite 事实来源 receipt 与跨域对齐投影",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
+    },
+    "agent/evidence/projection.py": {
+      "layer": "evidence",
+      "role": "共享 Evidence Registry、Bundle 与恢复投影",
+      "stage": "M71-M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m177_evidence_projection.py", "tests/test_m334_evidence_quality.py"]
+    },
+    "agent/result_summary.py": {
+      "layer": "result",
+      "role": "领域中立结果摘要、来源质量与用户限制投影",
+      "stage": "M46-M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
+    },
+    "agent/answer_generation.py": {
+      "layer": "result",
+      "role": "受控自然语言答案生成与证据质量提示",
+      "stage": "M8-M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_answer_generation.py", "tests/test_m334_evidence_quality.py"]
+    },
+    "agent/application/composite_contract.py": {
+      "layer": "application",
+      "role": "Composite 请求、结果、来源 Bundle 与对齐契约",
+      "stage": "M254-M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
+    },
+    "agent/application/composite_view.py": {
+      "layer": "application",
+      "role": "Composite 用户结果、来源质量与降级投影",
+      "stage": "M254-M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
+    },
+    "agent/runtime_core/projection.py": {
+      "layer": "runtime",
+      "role": "Runtime 计划、结果与证据限制纯投影",
+      "stage": "M253-M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m326_result_completeness.py", "tests/test_m334_evidence_quality.py"]
+    },
+    "web/src/console_result_projection.js": {
+      "layer": "frontend",
+      "role": "结构化结果、来源质量与跨域限制用户投影",
+      "stage": "M283-M334",
+      "stability": "public-boundary",
+      "tests": ["tests/test_m334_evidence_quality.py"]
     },
     "domains/gis/catalog.py": {
       "layer": "domain",

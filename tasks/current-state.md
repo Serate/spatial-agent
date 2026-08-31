@@ -4,21 +4,19 @@
 
 ## 当前阶段
 
-- 阶段：`M334` 多来源证据与跨域组合
-- 当前任务：M334-A 来源身份与质量深模块
-- 状态：M334-0 已完成，等待实现来源身份与质量
+- 阶段：`M335` 通用多工具执行与 Provider 健康
+- 当前任务：M335-A Provider/网络健康与失败归因
+- 状态：M334-A～E 已完成并收口；M335-0 阶段初始化与契约边界已完成，下一步实现 Provider Health
 - 基线：`722db01`
 - 协作：单 Agent，最大并发度 1；测试、GIS 和 live 验收优先使用 Docker
 
 ## 当前必要文件
 
-- `docs/stages/M334/{capability-map.md,spec.md,plan.md,handoff.md}`
+- `docs/stages/M335/{capability-map.md,spec.md,plan.md,handoff.md}`
 - `agent/evidence/{contract.py,projection.py,registry.py}`
+- `agent/evidence/{bundle.py,composite.py,identity.py,quality.py}`
+- `agent/runtime_core/{run_budget.py,progress.py,react_runtime.py}`
 - `agent/network/{web_search.py,web_fetch.py}`
-- `agent/application/composite_view.py`
-- `agent/result_summary.py`
-- `agent/answer_generation.py`
-- `agent/runtime_core/react_runtime.py`
 - `tests/test_m334_evidence_quality.py`
 - `docs/agent-work-state.md`
 
@@ -30,9 +28,10 @@
 
 ## 最近验证
 
-- M333：本机 `11/11`；Docker M333 + M321 + M320 `43/43`；compileall、architecture strict、readiness `200` 和真实模型 + 公共 HTML 验收通过。
+- M334：受影响回归 `56/56`；Docker `quick + stage + smoke`、compileall、architecture strict、readiness `200` 和生产 HTTP acceptance 通过。
+- 真实模型 + 本地 GIS + `public` 网页请求实际执行 3 个工具步骤，但 Provider 在有界预算内未完成；已记录 `provider_timeout`/网络不可用安全降级。
 
 ## 下一步
 
-- M334-0 文档索引校验已通过；下一项是实现来源身份与质量深模块。
-- 阶段收口统一执行精简门禁和 Docker/真实模型显式验收，并更新 handoff 后提交推送。
+- M334-A～E 已完成；阶段交接、中文问题日志、代码/文档索引已更新，待提交推送。
+- 提交后进入 M335，优先处理 Provider/网络健康、通用多工具 ReAct、多结果组合、数据对齐和全局实时体验。

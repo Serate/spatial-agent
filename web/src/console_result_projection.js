@@ -192,7 +192,7 @@
       conclusion: "",
       key_findings: [],
       limitations: [],
-      evidence: {available: false, state: "unavailable", status: "unavailable", source_count: 0, sources: [], source_records: []},
+      evidence: {available: false, state: "unavailable", status: "unavailable", source_count: 0, sources: [], source_records: [], evidence_bundle: null, alignment: null},
       blocks: [],
       available: false,
     };
@@ -243,6 +243,8 @@
       source_count: Number.isFinite(sourceCount) ? Math.max(0, Math.min(128, sourceCount)) : 0,
       sources: safeTextList(raw.sources, 4).filter(item => !/(prompt|token|secret|memory:\/\/|artifact:\/\/)/i.test(item)),
       source_records: sourceRecords,
+      evidence_bundle: normalizeEvidenceBundle(raw.evidence_bundle),
+      alignment: normalizeAlignment(raw.alignment),
       query: text(raw.query, 240),
       allowed_domains: safeTextList(raw.allowed_domains, 8).filter(item => /^[a-z0-9.-]+$/i.test(item)),
     };
@@ -251,21 +253,78 @@
   function normalizeSourceRecord(raw) {
     if (!record(raw)) return null;
     const rawUrl = text(raw.url, 2048);
-    let url = "";
-    try {
-      const parsed = new URL(rawUrl);
-      if (parsed.protocol !== "https:" || parsed.username || parsed.password || !parsed.hostname || parsed.hostname === "localhost") return null;
-      parsed.hash = "";
-      url = parsed.toString().slice(0, 2048);
-    } catch (_) {
-      return null;
-    }
-    if (!url) return null;
-    return {
+    const locator = text(raw.locator, 2048);
+    const kind = text(raw.kind, 48) || (rawUrl ? "web" : "unknown");
+    const common = {
+      source_id: text(raw.source_id, 80),
+      kind,
       title: text(raw.title, 160) || "未命名来源",
-      url,
-      domain: text(raw.domain, 160) || "未知来源",
+      domain: text(raw.domain, 160),
       snippet: text(raw.snippet, 320),
+      quality: normalizeSourceQuality(raw.quality),
+    };
+    let url = "";
+    if (rawUrl || kind === "web") {
+      try {
+        const parsed = new URL(rawUrl);
+        if (parsed.protocol !== "https:" || parsed.username || parsed.password || !parsed.hostname || parsed.hostname === "localhost") return null;
+        parsed.hash = "";
+        url = parsed.toString().slice(0, 2048);
+      } catch (_) {
+        return null;
+      }
+      return {...common, url, locator: url};
+    }
+    if (!locator || locator.startsWith("/") || locator.startsWith("\\") || !/^[A-Za-z0-9:._/-]+$/.test(locator)) return null;
+    return {...common, locator};
+  }
+
+  function normalizeSourceQuality(raw) {
+    if (!record(raw)) return null;
+    const freshness = record(raw.freshness) ? raw.freshness : {};
+    const status = ["available", "stale", "partial", "duplicate", "unavailable", "unknown"].includes(text(raw.status, 32))
+      ? text(raw.status, 32) : "unknown";
+    const freshnessState = ["fresh", "stale", "unknown"].includes(text(freshness.state, 24))
+      ? text(freshness.state, 24) : "unknown";
+    return {
+      status,
+      completeness: ["complete", "partial", "unknown"].includes(text(raw.completeness, 24)) ? text(raw.completeness, 24) : "unknown",
+      freshness: {state: freshnessState},
+      duplicate: raw.duplicate === true,
+      reason_codes: safeTextList(raw.reason_codes, 4),
+    };
+  }
+
+  function normalizeEvidenceBundle(raw) {
+    if (!record(raw)) return null;
+    const entries = list(raw.entries).slice(0, 16).map(normalizeSourceRecord).filter(Boolean);
+    const quality = record(raw.quality_summary) ? raw.quality_summary : {};
+    const statusCounts = record(quality.status_counts) ? quality.status_counts : {};
+    const freshnessCounts = record(quality.freshness_counts) ? quality.freshness_counts : {};
+    const count = value => Number.isFinite(Number(value)) ? Math.max(0, Math.min(16, Number(value))) : 0;
+    return {
+      entries,
+      unique_count: Math.max(0, Math.min(16, Number(raw.unique_count) || entries.length)),
+      duplicate_count: Math.max(0, Math.min(16, Number(raw.duplicate_count) || 0)),
+      conflict_count: Math.max(0, Math.min(16, Number(raw.conflict_count) || 0)),
+      limitations: safeTextList(raw.limitations, 4),
+      quality_summary: {
+        status_counts: statusCounts,
+        freshness_counts: freshnessCounts,
+        partial: count(statusCounts.partial),
+        unavailable: count(statusCounts.unavailable),
+        stale: count(freshnessCounts.stale),
+        unknown: count(freshnessCounts.unknown),
+      },
+    };
+  }
+
+  function normalizeAlignment(raw) {
+    if (!record(raw)) return null;
+    const allowed = ["aligned", "conflict", "unknown", "not_applicable"];
+    return {
+      status: allowed.includes(text(raw.status, 24)) ? text(raw.status, 24) : "unknown",
+      dimensions: safeTextList(raw.dimensions, 4),
     };
   }
 
@@ -480,21 +539,37 @@
 
   function renderSummaryEvidence(evidence, escapeHtml, compact = false) {
     if (!record(evidence)) return "";
-    const stateLabels = {available: "来源可用", degraded: "来源部分可用", no_results: "没有找到来源", unavailable: "来源不可用"};
+    const stateLabels = {available: "来源可用", degraded: "来源部分可用", no_results: "没有找到来源", unavailable: "来源不可用", unknown: "来源状态未知"};
     const state = text(evidence.state, 32) || "unavailable";
     const label = stateLabels[state] || "来源状态未知";
     const count = Number.isFinite(Number(evidence.source_count)) ? Number(evidence.source_count) : 0;
     const reason = evidence.reason_code ? ' · ' + escapeHtml(evidence.reason_code) : '';
-    const records = list(evidence.source_records).slice(0, 8).map(item => {
+    const bundle = evidence.evidence_bundle;
+    const recordSource = list(evidence.source_records).length ? evidence.source_records : list(bundle?.entries);
+    const records = recordSource.slice(0, 8).map(item => {
       const title = escapeHtml(item.title || item.domain || "未命名来源");
       const domain = item.domain ? ' <small>' + escapeHtml(item.domain) + '</small>' : '';
       const snippet = item.snippet ? '<p>' + escapeHtml(item.snippet) + '</p>' : '';
-      return '<li><a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener noreferrer">' + title + '</a>' + domain + snippet + '</li>';
+      const target = item.url
+        ? '<a href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener noreferrer">' + title + '</a>'
+        : '<span>' + title + '</span>';
+      return '<li>' + target + domain + snippet + '</li>';
     }).join("");
     const sources = records ? '<ul class="result-summary-source-list">' + records + '</ul>' : '';
     const sourceNames = !records && evidence.sources?.length ? '<small>' + escapeHtml(evidence.sources.join("、")) + '</small>' : '';
     const query = !compact && evidence.query ? '<small>检索词：' + escapeHtml(evidence.query) + '</small>' : '';
-    return '<div class="result-summary-evidence result-summary-evidence-' + escapeHtml(state) + '"><span>' + escapeHtml(label) + ' · ' + escapeHtml(count) + ' 项</span>' + reason + query + sourceNames + sources + '</div>';
+    const quality = bundle?.quality_summary || {};
+    const qualityText = [];
+    if (quality.stale) qualityText.push('可能过期 ' + quality.stale + ' 项');
+    if (quality.unknown) qualityText.push('时间未知 ' + quality.unknown + ' 项');
+    if (quality.partial) qualityText.push('内容不完整 ' + quality.partial + ' 项');
+    if (quality.unavailable) qualityText.push('不可用 ' + quality.unavailable + ' 项');
+    if (bundle?.conflict_count) qualityText.push('存在来源差异');
+    const bundleMeta = bundle ? '<small>已合并 ' + escapeHtml(bundle.unique_count) + ' 个来源' + (bundle.duplicate_count ? '，去重 ' + escapeHtml(bundle.duplicate_count) + ' 个' : '') + (qualityText.length ? ' · ' + escapeHtml(qualityText.join('，')) : '') + '</small>' : '';
+    const alignment = evidence.alignment?.status && evidence.alignment.status !== 'not_applicable'
+      ? '<small>跨域对齐：' + escapeHtml({aligned: '已对齐', conflict: '存在差异', unknown: '信息不足'}[evidence.alignment.status] || '未知') + '</small>' : '';
+    const limitations = bundle?.limitations?.length ? '<small>' + escapeHtml(bundle.limitations.slice(0, 3).join('；')) + '</small>' : '';
+    return '<div class="result-summary-evidence result-summary-evidence-' + escapeHtml(state) + '"><span>' + escapeHtml(label) + ' · ' + escapeHtml(count) + ' 项</span>' + reason + bundleMeta + alignment + limitations + query + sourceNames + sources + '</div>';
   }
 
   function formatSummaryValue(value) {

@@ -6,15 +6,15 @@
     "scripts",
     "web/src"
   ],
-  "file_count": 339,
+  "file_count": 343,
   "semantic_index": {
-    "classified_files": 339,
-    "file_override_files": 30,
-    "path_rule_files": 309,
+    "classified_files": 343,
+    "file_override_files": 41,
+    "path_rule_files": 302,
     "default_files": 0,
-    "agent_files": 207,
-    "agent_files_with_responsibility": 207,
-    "agent_files_with_module_doc": 193,
+    "agent_files": 211,
+    "agent_files_with_responsibility": 211,
+    "agent_files_with_module_doc": 197,
     "coverage_percent": 100.0
   },
   "files": [
@@ -430,13 +430,13 @@
     {
       "path": "agent/answer_generation.py",
       "language": "python",
-      "line_count": 1222,
+      "line_count": 1245,
       "layer": "result",
-      "role": "答案组合、生成与用户语义投影",
-      "stage": "M8-M325",
+      "role": "受控自然语言答案生成与证据质量提示",
+      "stage": "M8-M334",
       "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
       "responsibility": "Controlled natural-language answer generation for completed runs.",
       "responsibility_source": "module-doc",
       "public_symbols": [
@@ -468,52 +468,56 @@
         {
           "name": "LLMCompositeAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 253
+          "line": 255
         },
         {
           "name": "fallback_composite_answer",
           "kind": "function",
-          "line": 401
+          "line": 404
         },
         {
           "name": "build_answer_context",
           "kind": "function",
-          "line": 415
+          "line": 418
         },
         {
           "name": "LLMAnswerGenerator",
           "kind": "class",
-          "line": 609
+          "line": 631
         },
         {
           "name": "LLMAnswerGenerator.generate",
           "kind": "method",
-          "line": 616
+          "line": 638
         },
         {
           "name": "LLMAnswerGenerator.generate_stream",
           "kind": "method",
-          "line": 732
+          "line": 754
         },
         {
           "name": "LLMAnswerGenerator.failure_evidence",
           "kind": "method",
-          "line": 844
+          "line": 867
         },
         {
           "name": "fallback_answer_generation_evidence",
           "kind": "function",
-          "line": 881
+          "line": 904
         },
         {
           "name": "project_answer_generation_evidence",
           "kind": "function",
-          "line": 897
+          "line": 920
         }
       ],
       "imports": [
         "agent.application.composite_view",
         "agent.integration.structured_response"
+      ],
+      "tests": [
+        "tests/test_answer_generation.py",
+        "tests/test_m334_evidence_quality.py"
       ]
     },
     {
@@ -985,46 +989,48 @@
     {
       "path": "agent/application/composite_contract.py",
       "language": "python",
-      "line_count": 922,
+      "line_count": 1004,
       "layer": "application",
-      "role": "Application 用例与 HTTP 语义编排",
-      "stage": "M254-M325",
+      "role": "Composite 请求、结果、来源 Bundle 与对齐契约",
+      "stage": "M254-M334",
       "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
       "responsibility": "Domain-neutral request/result/evidence seam for cross-Domain composition.",
       "responsibility_source": "module-doc",
       "public_symbols": [
         {
           "name": "CompositeContractError",
           "kind": "class",
-          "line": 50
+          "line": 57
         },
         {
           "name": "normalize_composite_request",
           "kind": "function",
-          "line": 58
+          "line": 65
         },
         {
           "name": "inherit_composite_runtime_selection",
           "kind": "function",
-          "line": 184
+          "line": 191
         },
         {
           "name": "build_composite_result_contract",
           "kind": "function",
-          "line": 221
+          "line": 228
         },
         {
           "name": "normalize_composite_section",
           "kind": "function",
-          "line": 323
+          "line": 330
         }
       ],
       "imports": [
         "agent.analysis_intent",
         "agent.contract_versions",
         "agent.data_kinds",
+        "agent.evidence.bundle",
+        "agent.evidence.composite",
         "agent.evidence.projection",
         "agent.evidence.registry",
         "agent.nested_schema",
@@ -1033,6 +1039,9 @@
         "agent.result_registry",
         "agent.result_summary",
         "agent.runtime_core.composition"
+      ],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
       ]
     },
     {
@@ -1312,25 +1321,25 @@
     {
       "path": "agent/application/composite_view.py",
       "language": "python",
-      "line_count": 567,
+      "line_count": 599,
       "layer": "application",
-      "role": "Application 用例与 HTTP 语义编排",
-      "stage": "M254-M325",
+      "role": "Composite 用户结果、来源质量与降级投影",
+      "stage": "M254-M334",
       "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
       "responsibility": "Domain-neutral user projection for a canonical Composite Result.",
       "responsibility_source": "module-doc",
       "public_symbols": [
         {
           "name": "CompositeViewError",
           "kind": "class",
-          "line": 41
+          "line": 43
         },
         {
           "name": "build_composite_view_projection",
           "kind": "function",
-          "line": 45
+          "line": 47
         }
       ],
       "imports": [
@@ -1338,6 +1347,8 @@
         "agent.answer_generation",
         "agent.application.composite_contract",
         "agent.data_kinds",
+        "agent.evidence.bundle",
+        "agent.evidence.composite",
         "agent.integration.provider_runtime",
         "agent.integration.provider_structured_output",
         "agent.result_completeness",
@@ -1345,6 +1356,9 @@
         "agent.runtime_core.composition",
         "agent.runtime_core.plan_receipt",
         "agent.runtime_core.selection_evidence"
+      ],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
       ]
     },
     {
@@ -4053,6 +4067,43 @@
       "imports": []
     },
     {
+      "path": "agent/evidence/bundle.py",
+      "language": "python",
+      "line_count": 350,
+      "layer": "evidence",
+      "role": "多来源证据聚合、去重、冲突与覆盖投影",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
+      "responsibility": "Bounded aggregation of heterogeneous evidence source records.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "build_evidence_bundle",
+          "kind": "function",
+          "line": 25
+        },
+        {
+          "name": "normalize_evidence_bundle",
+          "kind": "function",
+          "line": 151
+        },
+        {
+          "name": "evidence_quality_limitations",
+          "kind": "function",
+          "line": 192
+        }
+      ],
+      "imports": [
+        "agent.evidence.identity",
+        "agent.evidence.quality"
+      ],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
+      ]
+    },
+    {
       "path": "agent/evidence/component.py",
       "language": "python",
       "line_count": 205,
@@ -4084,6 +4135,45 @@
       "imports": [
         "agent.evidence.contract",
         "agent.evidence.revalidation"
+      ]
+    },
+    {
+      "path": "agent/evidence/composite.py",
+      "language": "python",
+      "line_count": 219,
+      "layer": "evidence",
+      "role": "Composite 事实来源 receipt 与跨域对齐投影",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
+      "responsibility": "Domain-neutral fact receipts and alignment metadata for Composite results.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "build_component_fact_receipts",
+          "kind": "function",
+          "line": 15
+        },
+        {
+          "name": "normalize_fact_receipts",
+          "kind": "function",
+          "line": 49
+        },
+        {
+          "name": "build_cross_domain_alignment",
+          "kind": "function",
+          "line": 79
+        },
+        {
+          "name": "normalize_alignment",
+          "kind": "function",
+          "line": 135
+        }
+      ],
+      "imports": [],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
       ]
     },
     {
@@ -4133,37 +4223,143 @@
       "imports": []
     },
     {
+      "path": "agent/evidence/identity.py",
+      "language": "python",
+      "line_count": 285,
+      "layer": "evidence",
+      "role": "来源定位、稳定身份与内容指纹",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
+      "responsibility": "Stable, domain-neutral identity for bounded evidence sources.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "build_source_identity",
+          "kind": "function",
+          "line": 42
+        },
+        {
+          "name": "normalize_source_identity",
+          "kind": "function",
+          "line": 111
+        },
+        {
+          "name": "build_source_id",
+          "kind": "function",
+          "line": 123
+        },
+        {
+          "name": "source_dedupe_key",
+          "kind": "function",
+          "line": 147
+        },
+        {
+          "name": "normalize_source_kind",
+          "kind": "function",
+          "line": 166
+        },
+        {
+          "name": "normalize_source_status",
+          "kind": "function",
+          "line": 171
+        },
+        {
+          "name": "normalize_source_locator",
+          "kind": "function",
+          "line": 182
+        },
+        {
+          "name": "normalize_content_hash",
+          "kind": "function",
+          "line": 232
+        },
+        {
+          "name": "normalize_timestamp",
+          "kind": "function",
+          "line": 237
+        }
+      ],
+      "imports": [],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
+      ]
+    },
+    {
       "path": "agent/evidence/projection.py",
       "language": "python",
-      "line_count": 280,
+      "line_count": 330,
       "layer": "evidence",
-      "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
-      "stage": "M71-M325",
+      "role": "共享 Evidence Registry、Bundle 与恢复投影",
+      "stage": "M71-M334",
       "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
       "responsibility": "Shared, bounded projection for result evidence and compatibility status.",
       "responsibility_source": "module-doc",
       "public_symbols": [
         {
           "name": "project_evidence_projection",
           "kind": "function",
-          "line": 36
+          "line": 38
         },
         {
           "name": "project_evidence_recovery",
           "kind": "function",
-          "line": 224
+          "line": 274
         }
       ],
       "imports": [
         "agent.action_lifecycle",
         "agent.capability_selection",
+        "agent.evidence.bundle",
+        "agent.evidence.composite",
         "agent.evidence.registry",
         "agent.planner_selection",
         "agent.recovery_action",
         "agent.result_completeness",
         "agent.workflow_selection"
+      ],
+      "tests": [
+        "tests/test_m177_evidence_projection.py",
+        "tests/test_m334_evidence_quality.py"
+      ]
+    },
+    {
+      "path": "agent/evidence/quality.py",
+      "language": "python",
+      "line_count": 251,
+      "layer": "evidence",
+      "role": "来源新鲜度、完整性与质量 receipt",
+      "stage": "M334",
+      "stability": "public-boundary",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
+      "responsibility": "Auditable freshness and completeness quality for evidence sources.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "build_source_quality",
+          "kind": "function",
+          "line": 34
+        },
+        {
+          "name": "project_source_record",
+          "kind": "function",
+          "line": 93
+        },
+        {
+          "name": "normalize_source_quality",
+          "kind": "function",
+          "line": 130
+        }
+      ],
+      "imports": [
+        "agent.evidence.identity"
+      ],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
       ]
     },
     {
@@ -5330,7 +5526,7 @@
       "line_count": 49,
       "layer": "integration",
       "role": "受控网络访问与网页证据适配器",
-      "stage": "M321-M333",
+      "stage": "M321-M334",
       "stability": "public-boundary",
       "semantic_source": "path-rule",
       "semantic_level": "package",
@@ -5342,10 +5538,10 @@
     {
       "path": "agent/network/web_fetch.py",
       "language": "python",
-      "line_count": 376,
+      "line_count": 382,
       "layer": "integration",
       "role": "受控网络访问与网页证据适配器",
-      "stage": "M321-M333",
+      "stage": "M321-M334",
       "stability": "public-boundary",
       "semantic_source": "path-rule",
       "semantic_level": "package",
@@ -5355,37 +5551,37 @@
         {
           "name": "WebFetchConfig",
           "kind": "class",
-          "line": 33
+          "line": 34
         },
         {
           "name": "WebFetchAdapter",
           "kind": "class",
-          "line": 42
+          "line": 43
         },
         {
           "name": "WebFetchAdapter.from_settings",
           "kind": "method",
-          "line": 63
+          "line": 64
         },
         {
           "name": "WebFetchAdapter.config",
           "kind": "method",
-          "line": 90
+          "line": 91
         },
         {
           "name": "WebFetchAdapter.invoke",
           "kind": "method",
-          "line": 93
+          "line": 94
         },
         {
           "name": "WebFetchAdapter.fetch",
           "kind": "method",
-          "line": 96
+          "line": 97
         },
         {
           "name": "web_fetch_tool_definition",
           "kind": "function",
-          "line": 254
+          "line": 256
         }
       ],
       "imports": []
@@ -5396,7 +5592,7 @@
       "line_count": 221,
       "layer": "integration",
       "role": "受控网络访问与网页证据适配器",
-      "stage": "M321-M333",
+      "stage": "M321-M334",
       "stability": "public-boundary",
       "semantic_source": "path-rule",
       "semantic_level": "package",
@@ -5459,10 +5655,10 @@
     {
       "path": "agent/network/web_search.py",
       "language": "python",
-      "line_count": 618,
+      "line_count": 627,
       "layer": "integration",
       "role": "受控网络访问与网页证据适配器",
-      "stage": "M321-M333",
+      "stage": "M321-M334",
       "stability": "public-boundary",
       "semantic_source": "path-rule",
       "semantic_level": "package",
@@ -5472,42 +5668,42 @@
         {
           "name": "WebSearchConfig",
           "kind": "class",
-          "line": 49
+          "line": 50
         },
         {
           "name": "WebSearchConfig.from_settings",
           "kind": "method",
-          "line": 61
+          "line": 62
         },
         {
           "name": "WebSearchAdapter",
           "kind": "class",
-          "line": 78
+          "line": 79
         },
         {
           "name": "WebSearchAdapter.from_settings",
           "kind": "method",
-          "line": 106
+          "line": 107
         },
         {
           "name": "WebSearchAdapter.config",
           "kind": "method",
-          "line": 110
+          "line": 111
         },
         {
           "name": "WebSearchAdapter.invoke",
           "kind": "method",
-          "line": 113
+          "line": 114
         },
         {
           "name": "WebSearchAdapter.search",
           "kind": "method",
-          "line": 122
+          "line": 123
         },
         {
           "name": "web_search_tool_definition",
           "kind": "function",
-          "line": 298
+          "line": 300
         }
       ],
       "imports": []
@@ -7065,36 +7261,43 @@
     {
       "path": "agent/result_summary.py",
       "language": "python",
-      "line_count": 906,
+      "line_count": 1071,
       "layer": "result",
-      "role": "结果契约、类型注册与视图声明",
-      "stage": "M46-M325",
+      "role": "领域中立结果摘要、来源质量与用户限制投影",
+      "stage": "M46-M334",
       "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
       "responsibility": "Domain-neutral, bounded summary projection for typed results.",
       "responsibility_source": "module-doc",
       "public_symbols": [
         {
           "name": "ResultSummaryError",
           "kind": "class",
-          "line": 109
+          "line": 117
         },
         {
           "name": "build_result_summary",
           "kind": "function",
-          "line": 113
+          "line": 121
         },
         {
           "name": "normalize_result_summary",
           "kind": "function",
-          "line": 148
+          "line": 159
         }
       ],
       "imports": [
         "agent.contract_versions",
         "agent.data_kinds",
+        "agent.evidence.bundle",
+        "agent.evidence.composite",
+        "agent.evidence.identity",
+        "agent.evidence.quality",
         "agent.result_completeness"
+      ],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
       ]
     },
     {
@@ -8296,13 +8499,13 @@
     {
       "path": "agent/runtime_core/projection.py",
       "language": "python",
-      "line_count": 278,
+      "line_count": 329,
       "layer": "runtime",
-      "role": "Runtime 核心规划、执行、恢复与投影",
-      "stage": "M253-M325",
+      "role": "Runtime 计划、结果与证据限制纯投影",
+      "stage": "M253-M334",
       "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
       "responsibility": "Pure Runtime projections used by planning and lifecycle orchestration.",
       "responsibility_source": "module-doc",
       "public_symbols": [
@@ -8349,56 +8552,63 @@
         {
           "name": "unique",
           "kind": "function",
-          "line": 198
+          "line": 249
         },
         {
           "name": "replan_context",
           "kind": "function",
-          "line": 209
+          "line": 260
         },
         {
           "name": "utc_now",
           "kind": "function",
-          "line": 217
+          "line": 268
         },
         {
           "name": "capability_evidence_cache_ttl",
           "kind": "function",
-          "line": 221
+          "line": 272
         },
         {
           "name": "resolve_result_references",
           "kind": "function",
-          "line": 231
+          "line": 282
         },
         {
           "name": "result_type_for_observability",
           "kind": "function",
-          "line": 250
+          "line": 301
         },
         {
           "name": "run_duration_ms",
           "kind": "function",
-          "line": 259
+          "line": 310
         },
         {
           "name": "run_error_category",
           "kind": "function",
-          "line": 266
+          "line": 317
         }
       ],
       "imports": [
         "agent.errors",
+        "agent.evidence.bundle",
+        "agent.evidence.composite",
         "agent.models",
         "agent.plan_quality",
         "agent.replanning",
-        "agent.result_completeness"
+        "agent.result_completeness",
+        "agent.result_summary"
+      ],
+      "tests": [
+        "tests/test_m326_result_completeness.py",
+        "tests/test_m334_evidence_quality.py"
       ]
     },
     {
       "path": "agent/runtime_core/react_runtime.py",
       "language": "python",
-      "line_count": 933,
+      "line_count": 935,
       "layer": "runtime",
       "role": "ReAct 决策与工具执行桥接",
       "stage": "M320",
@@ -15423,13 +15633,13 @@
     {
       "path": "web/src/console_result_projection.js",
       "language": "javascript",
-      "line_count": 846,
+      "line_count": 921,
       "layer": "frontend",
-      "role": "Console 前端状态、渲染与结果展示",
-      "stage": "M231-M325",
+      "role": "结构化结果、来源质量与跨域限制用户投影",
+      "stage": "M283-M334",
       "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
+      "semantic_source": "file-override",
+      "semantic_level": "file",
       "responsibility": "Domain-neutral, user-facing projection for the result workspace.",
       "responsibility_source": "module-doc",
       "public_symbols": [
@@ -15461,165 +15671,183 @@
         {
           "name": "normalizeSourceRecord",
           "kind": "function",
-          "line": 251
+          "line": 253
+        },
+        {
+          "name": "normalizeSourceQuality",
+          "kind": "function",
+          "line": 282
+        },
+        {
+          "name": "normalizeEvidenceBundle",
+          "kind": "function",
+          "line": 298
+        },
+        {
+          "name": "normalizeAlignment",
+          "kind": "function",
+          "line": 322
         },
         {
           "name": "normalizeSummaryFacts",
           "kind": "function",
-          "line": 272
+          "line": 331
         },
         {
           "name": "normalizeSummaryValue",
           "kind": "function",
-          "line": 284
+          "line": 343
         },
         {
           "name": "normalizeFailure",
           "kind": "function",
-          "line": 294
+          "line": 353
         },
         {
           "name": "normalizePlanningFailure",
           "kind": "function",
-          "line": 308
+          "line": 367
         },
         {
           "name": "statusLabelFor",
           "kind": "function",
-          "line": 323
+          "line": 382
         },
         {
           "name": "normalizeProviderRuntime",
           "kind": "function",
-          "line": 332
+          "line": 391
         },
         {
           "name": "buildPhases",
           "kind": "function",
-          "line": 355
+          "line": 414
         },
         {
           "name": "phase",
           "kind": "function",
-          "line": 400
+          "line": 459
         },
         {
           "name": "render",
           "kind": "function",
-          "line": 404
+          "line": 463
         },
         {
           "name": "renderResultSummary",
           "kind": "function",
-          "line": 454
+          "line": 513
         },
         {
           "name": "renderSummaryBlock",
           "kind": "function",
-          "line": 473
+          "line": 532
         },
         {
           "name": "renderSummaryEvidence",
           "kind": "function",
-          "line": 481
+          "line": 540
         },
         {
           "name": "formatSummaryValue",
           "kind": "function",
-          "line": 500
+          "line": 575
         },
         {
           "name": "renderFailure",
           "kind": "function",
-          "line": 509
+          "line": 584
         },
         {
           "name": "firstRecord",
           "kind": "function",
-          "line": 529
+          "line": 604
         },
         {
           "name": "firstList",
           "kind": "function",
-          "line": 533
+          "line": 608
         },
         {
           "name": "mergePlanningEvidence",
           "kind": "function",
-          "line": 537
+          "line": 612
         },
         {
           "name": "normalizeCanonicalPlan",
           "kind": "function",
-          "line": 578
+          "line": 653
         },
         {
           "name": "normalizePlannerAttempt",
           "kind": "function",
-          "line": 596
+          "line": 671
         },
         {
           "name": "boundedBudget",
           "kind": "function",
-          "line": 629
+          "line": 704
         },
         {
           "name": "normalizePlanCompleteness",
           "kind": "function",
-          "line": 633
+          "line": 708
         },
         {
           "name": "normalizeDiscovery",
           "kind": "function",
-          "line": 647
+          "line": 722
         },
         {
           "name": "normalizeSelectionEvidence",
           "kind": "function",
-          "line": 669
+          "line": 744
         },
         {
           "name": "normalizeAnalysisIntents",
           "kind": "function",
-          "line": 721
+          "line": 796
         },
         {
           "name": "normalizeKinds",
           "kind": "function",
-          "line": 737
+          "line": 812
         },
         {
           "name": "normalizeSections",
           "kind": "function",
-          "line": 744
+          "line": 819
         },
         {
           "name": "renderDiscovery",
           "kind": "function",
-          "line": 763
+          "line": 838
         },
         {
           "name": "renderSelectionEvidence",
           "kind": "function",
-          "line": 781
+          "line": 856
         },
         {
           "name": "renderAnalysisIntents",
           "kind": "function",
-          "line": 800
+          "line": 875
         },
         {
           "name": "normalizeRepairLineage",
           "kind": "function",
-          "line": 822
+          "line": 897
         },
         {
           "name": "safeTextList",
           "kind": "function",
-          "line": 837
+          "line": 912
         }
       ],
-      "imports": []
+      "imports": [],
+      "tests": [
+        "tests/test_m334_evidence_quality.py"
+      ]
     },
     {
       "path": "web/src/console_run_events.js",

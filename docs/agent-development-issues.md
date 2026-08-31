@@ -2330,3 +2330,24 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 
 - 诊断必须同时检查工具原始值、`StepRun.to_dict()`、SQLite payload、Artifact JSON、HTTP/SSE/事件投影和答案上下文；只检查最终页面不足以证明没有泄漏。
 - 新增需要模型临时消费的外部内容时，先定义“临时上下文”和“持久化证据”两种投影，并用极端输入锁定绝对大小；真实网络验收只记录脱敏状态、域名、字符数和哈希，不保存正文、Prompt、模型原文或密钥。
+
+## 2026-08-31 M334 验收入口与真实跨来源链路问题
+
+### 现象
+
+- M334 Docker quick、阶段验收和受影响回归均通过，但生产 acceptance 首次执行误报能力列表为空。
+- 真实模型 + 本地 GIS + `public` 网页模式的复杂请求实际执行了 3 个工具步骤；Provider 在有界预算内未完成，不能把该次请求记为成功。
+
+### 根因与处理
+
+- 通用 `GeneralCapabilityHost` 的 `/capabilities/runtime` 使用版本化 `capability_descriptors` 作为公共能力描述，而旧 acceptance 脚本只读取旧的 `capabilities` 数组；脚本现已兼容两种公开形状，并按 `capability_id`/`id` 分别校验。
+- 根快照只表达跨 Domain 能力聚合，不重复展开 GIS 数据文件证据；真实数据卷校验必须读取 `/domains/gis/capabilities/runtime`，而不是把通用根快照的空 `data_evidence` 解释为数据缺失。
+- 合法 `direct_answer`/`direct_tool` 计划可以没有工具清单；acceptance 不能对所有模式强制要求非空 `execution_policy.tools`。
+- acceptance 使用持久 SQLite 时，固定会话名会让重复执行遭遇 `session_domain_mismatch`；验收会话必须使用本次运行唯一 ID，不能清理或覆盖生产业务会话。
+- 公共网页 Provider 在当前 Docker 网络下仍可能不可达。真实验收只记录 `unavailable`、`search_network_error` 或 `provider_timeout` 等安全 reason code；没有可验证网页来源时不得补写或猜测最新信息。
+
+### 预防
+
+- 每次扩展公共契约后，先检查根 Host、Domain 子快照和 acceptance 读取的字段是否属于同一版本化平面；不要用旧字段非空作为新契约的唯一判据。
+- 生产 acceptance 必须可重复执行：会话、幂等键和临时 artifact 名称不得固定绑定到历史业务状态。
+- 真实模型验收需区分“模型已到达并执行工具”“Provider 超时”“网页网络不可达”和“GIS 数据不可用”，只提交脱敏计数、状态、域名与 reason code。

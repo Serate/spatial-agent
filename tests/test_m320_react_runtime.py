@@ -408,6 +408,53 @@ class M320ReactDecisionAdapterTests(unittest.TestCase):
             "metrics",
         )
 
+    def test_trusted_selection_overrides_model_result_label(self):
+        runtime = _runtime(
+            _ReactPlanner([]),
+            _RuntimeAdapter(),
+            InMemoryStateStore(),
+        )
+        # Simulate a provider without a tool-level result resolver. The
+        # selected capability remains the trusted source of the public type.
+        runtime._registry.result_type_for_tool = lambda *_args, **_kwargs: None
+        context = SimpleNamespace(
+            result=SimpleNamespace(
+                run_id="trusted-result-type",
+                plan=None,
+                steps=[],
+            ),
+            context_packet=SimpleNamespace(
+                payload={
+                    "sections": {
+                        "workflow_selection": {
+                            "selected_capability_id": "demo_capability",
+                            "candidate_details": [
+                                {"id": "demo_capability", "result_types": ["metrics"]}
+                            ],
+                        }
+                    }
+                }
+            ),
+            workflow=None,
+            completed=set(),
+            completed_results={},
+            resolved_request="读取已登记数据",
+        )
+
+        _step, plan = RuntimeReactExecution(runtime)._prepare_tool_action(
+            context,
+            _decision(
+                "call_tool",
+                tool_name="make_value",
+                arguments={"value": "demo"},
+                output_type="DatasetHealthReportResult",
+            ),
+            turn_index=1,
+            action_id="react-1",
+        )
+
+        self.assertEqual(plan.output["type"], "metrics")
+
     def test_decide_rejects_tool_outside_runtime_allowlist(self):
         planner = LLMPlanner(
             _LegacyClient(

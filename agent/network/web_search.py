@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Any, Callable, Iterable, Mapping
@@ -187,6 +188,7 @@ class WebSearchAdapter:
             items,
             self._allowed_domains,
             limit,
+            retrieved_at=_utc_timestamp(),
             policy=self._policy if self._config.mode != WEB_MODE_ALLOWLIST else None,
         )
         if sources:
@@ -523,6 +525,7 @@ def _project_sources(
     allowed_domains: tuple[str, ...],
     limit: int,
     *,
+    retrieved_at: str = "",
     policy: WebAccessPolicy | None = None,
 ) -> list[dict[str, str]]:
     sources = []
@@ -554,6 +557,8 @@ def _project_sources(
                 "snippet": _clean_text(item.get("snippet"), _MAX_SNIPPET),
             }
         )
+        if retrieved_at:
+            sources[-1]["retrieved_at"] = retrieved_at
         if len(sources) >= limit:
             break
     return sources
@@ -569,6 +574,10 @@ def _canonical_url(value: str) -> str:
 
 def _clean_text(value: Any, limit: int) -> str:
     return " ".join(str(value or "").split())[:limit]
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 def _response_is_invalid(body: bytes, content_type: str) -> bool:

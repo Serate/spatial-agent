@@ -38,6 +38,13 @@ from agent.runtime_core.composition import (
     project_component_inputs,
     validate_component_composition,
 )
+from agent.evidence.bundle import build_evidence_bundle, normalize_evidence_bundle
+from agent.evidence.composite import (
+    build_component_fact_receipts,
+    build_cross_domain_alignment,
+    normalize_alignment,
+    normalize_fact_receipts,
+)
 
 
 COMPOSITE_RESULT_TYPE = "composite_result"
@@ -381,9 +388,23 @@ def normalize_composite_section(value: Any, *, allow_legacy: bool = True) -> dic
                 "plan_fingerprint": str(raw["execution"].get("plan_fingerprint") or "")[:128],
                 "step_ids": [str(value)[:48] for value in (raw["execution"].get("step_ids") or [])[:16]],
             }
-        for key in ("failure", "degradation", "artifact", "evidence", "input_evidence"):
-            if isinstance(raw.get(key), Mapping):
-                item[key] = _bounded_value(raw[key], depth=0)
+        for key in (
+            "failure",
+            "degradation",
+            "artifact",
+            "evidence",
+            "evidence_bundle",
+            "fact_receipts",
+            "scope",
+            "input_evidence",
+        ):
+            raw_value = raw.get(key)
+            if key == "evidence_bundle" and isinstance(raw_value, Mapping):
+                item[key] = normalize_evidence_bundle(raw_value)
+            elif key == "fact_receipts" and isinstance(raw_value, list):
+                item[key] = normalize_fact_receipts(raw_value)
+            elif isinstance(raw_value, Mapping):
+                item[key] = _bounded_value(raw_value, depth=0)
         normalized_components.append(item)
     evidence = value.get("evidence")
     if not isinstance(evidence, Mapping):
@@ -474,6 +495,17 @@ def _project_component(spec: Mapping[str, Any], child: Any) -> dict[str, Any]:
         component["artifact"] = artifact
     evidence_registry = nested.get("evidence_registry") or payload.get("evidence_registry")
     component["evidence"] = _evidence_summary(evidence_registry, nested)
+    evidence_bundle = _child_evidence_bundle(nested)
+    if evidence_bundle is not None:
+        component["evidence_bundle"] = evidence_bundle
+    summary = nested.get("result_summary")
+    if isinstance(summary, Mapping):
+        receipts = build_component_fact_receipts(component, summary)
+        if receipts:
+            component["fact_receipts"] = receipts
+    scope = nested.get("analysis_scope") or nested.get("scope")
+    if isinstance(scope, Mapping):
+        component["scope"] = _project_scope(scope)
     execution = payload.get("_execution_evidence") or nested.get("execution")
     if isinstance(execution, Mapping):
         component["execution"] = {
@@ -504,6 +536,23 @@ def _build_composite_evidence(components: Sequence[Mapping[str, Any]], state: st
     blocked = [item["component_id"] for item in components if item.get("state") == "blocked"]
     pending = [item["component_id"] for item in components if item.get("state") == "pending"]
     artifacts = [item["artifact"] for item in components if isinstance(item.get("artifact"), Mapping) and item["artifact"].get("available")]
+    source_entries: list[Mapping[str, Any]] = []
+    for item in components:
+        bundle = item.get("evidence_bundle")
+        if isinstance(bundle, Mapping) and isinstance(bundle.get("entries"), list):
+            source_entries.extend(
+                entry for entry in bundle["entries"] if isinstance(entry, Mapping)
+            )
+    evidence_bundle = build_evidence_bundle(source_entries)
+    fact_receipts: list[dict[str, Any]] = []
+    for item in components:
+        fact_receipts.extend(normalize_fact_receipts(item.get("fact_receipts")))
+    alignment = build_cross_domain_alignment(components)
+    limitations: list[str] = []
+    if alignment["status"] in {"unknown", "conflict"}:
+        limitations.append(
+            "跨域数据的空间、时间或单位范围未完全对齐，系统未进行隐式拼接。"
+        )
     return {
         "schema_version": COMPOSITE_EVIDENCE_SCHEMA_VERSION,
         "state": state,
@@ -524,6 +573,10 @@ def _build_composite_evidence(components: Sequence[Mapping[str, Any]], state: st
             }
             for item in components
         ],
+        "evidence_bundle": evidence_bundle,
+        "fact_receipts": fact_receipts[:32],
+        "alignment": alignment,
+        "limitations": limitations[:8],
     }
 
 
@@ -750,6 +803,31 @@ def _evidence_summary(value: Any, nested: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _child_evidence_bundle(nested: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Read the child's already projected bundle without inspecting raw data."""
+
+    summary = nested.get("result_summary")
+    summary = summary if isinstance(summary, Mapping) else {}
+    evidence = summary.get("evidence")
+    evidence = evidence if isinstance(evidence, Mapping) else {}
+    bundle = evidence.get("evidence_bundle")
+    if not isinstance(bundle, Mapping):
+        bundle = nested.get("evidence_bundle")
+    if not isinstance(bundle, Mapping):
+        return None
+    return normalize_evidence_bundle(bundle)
+
+
+def _project_scope(value: Mapping[str, Any]) -> dict[str, str]:
+    """Keep only declared dimensions used for cross-domain alignment."""
+
+    return {
+        key: str(value[key])[:160]
+        for key in ("spatial_ref", "geography", "time_start", "time_end", "unit")
+        if value.get(key) not in (None, "")
+    }
+
+
 def _project_degradation(value: Mapping[str, Any]) -> dict[str, Any]:
     items = value.get("items")
     projected: dict[str, Any] = {
@@ -793,6 +871,10 @@ def _normalize_evidence(value: Mapping[str, Any], components: Sequence[Mapping[s
             for item in (value.get("component_evidence") or [])[:MAX_COMPONENTS]
             if isinstance(item, Mapping)
         ],
+        "evidence_bundle": normalize_evidence_bundle(value.get("evidence_bundle")),
+        "fact_receipts": normalize_fact_receipts(value.get("fact_receipts")),
+        "alignment": normalize_alignment(value.get("alignment")),
+        "limitations": _string_list(value.get("limitations")),
     }
 
 

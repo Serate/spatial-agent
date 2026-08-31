@@ -19,6 +19,8 @@ from agent.runtime_core.plan_receipt import project_canonical_plan_receipt
 from agent.runtime_core.selection_evidence import normalize_selection_evidence
 from agent.result_completeness import build_result_completeness
 from agent.result_summary import build_result_summary
+from agent.evidence.bundle import evidence_quality_limitations
+from agent.evidence.composite import normalize_alignment
 
 
 COMPOSITE_VIEW_SCHEMA_VERSION = "spatial-agent.composite-view.v1"
@@ -144,12 +146,29 @@ def _build_answer(
             message = _text(degradation.get("message"), 240)
             if message and message not in limitations:
                 limitations.append(message)
+    composite = result.get("composite") or result.get("_composite")
+    composite_evidence = composite.get("evidence") if isinstance(composite, Mapping) else None
+    if isinstance(composite_evidence, Mapping):
+        bundle = composite_evidence.get("evidence_bundle")
+        if isinstance(bundle, Mapping):
+            for message in evidence_quality_limitations(bundle):
+                if message not in limitations:
+                    limitations.append(message)
+        alignment = normalize_alignment(composite_evidence.get("alignment"))
+        if alignment.get("status") == "conflict":
+            message = "不同数据来源的空间、时间或单位范围存在差异，系统未进行隐式拼接。"
+            if message not in limitations:
+                limitations.append(message)
+        elif alignment.get("status") == "unknown":
+            message = "部分数据来源缺少可对齐的空间、时间或单位信息，系统未进行隐式拼接。"
+            if message not in limitations:
+                limitations.append(message)
     next_steps = _next_steps(state, limitations)
     return {
         "headline": headline,
         "summary": summary,
         "key_findings": findings[:_MAX_COMPONENTS],
-        "limitations": limitations[:_MAX_COMPONENTS],
+        "limitations": list(dict.fromkeys(limitations))[:_MAX_COMPONENTS],
         "next_steps": next_steps,
     }
 
@@ -292,6 +311,19 @@ def _build_evidence(
         result["answer_generation"] = project_answer_generation_evidence(
             answer_generation
         )
+    bundle = source.get("evidence_bundle")
+    if isinstance(bundle, Mapping):
+        from agent.evidence.bundle import normalize_evidence_bundle
+
+        result["evidence_bundle"] = normalize_evidence_bundle(bundle)
+    from agent.evidence.composite import normalize_alignment, normalize_fact_receipts
+
+    if "fact_receipts" in source:
+        result["fact_receipts"] = normalize_fact_receipts(source.get("fact_receipts"))
+    if "alignment" in source:
+        result["alignment"] = normalize_alignment(source.get("alignment"))
+    if isinstance(source.get("limitations"), list):
+        result["limitations"] = _safe_strings(source.get("limitations"), _MAX_COMPONENTS)
     return result
 
 

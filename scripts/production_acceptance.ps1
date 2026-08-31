@@ -148,14 +148,28 @@ function Assert-RuntimeCapabilitySnapshot($snapshot) {
     throw "runtime tool provider has no registered tools"
   }
 
+  # GeneralCapabilityHost exposes the newer descriptor plane while legacy
+  # Domain snapshots still expose the flattened capability plane.  The
+  # acceptance boundary must validate either public shape; treating an empty
+  # legacy list as failure would make the current general HTTP entrypoint
+  # impossible to accept.
+  $isGeneralSnapshot = $snapshot.schema_version -eq "spatial-agent.general-capability-catalog.v1"
   $capabilities = @($snapshot.capabilities)
+  if ($capabilities.Count -eq 0 -and $isGeneralSnapshot) {
+    $capabilities = @($snapshot.capability_descriptors)
+  }
   if ($capabilities.Count -lt 1) { throw "runtime capability list is empty" }
   foreach ($capability in $capabilities) {
-    if ([string]::IsNullOrWhiteSpace([string]$capability.id)) {
+    $capabilityId = if ($isGeneralSnapshot) { $capability.capability_id } else { $capability.id }
+    if ([string]::IsNullOrWhiteSpace([string]$capabilityId)) {
       throw "runtime capability id missing"
     }
-    if ($null -eq $capability.runtime_evidence -or $null -eq $capability.runtime_evidence.datasets) {
-      throw "runtime evidence missing for capability: $($capability.id)"
+    if ($isGeneralSnapshot) {
+      if ($null -eq $capability.availability -or $null -eq $capability.preconditions) {
+        throw "runtime descriptor evidence missing for capability: $capabilityId"
+      }
+    } elseif ($null -eq $capability.runtime_evidence -or $null -eq $capability.runtime_evidence.datasets) {
+      throw "runtime evidence missing for capability: $capabilityId"
     }
   }
 
@@ -389,8 +403,10 @@ function Assert-PlanningEvidence($payload, [string]$surface) {
   if ($payload.plan_evidence.execution_policy.schema_version -ne "spatial-agent.execution-policy.v1") {
     throw "$surface execution policy schema mismatch"
   }
-  if (@($payload.plan_evidence.execution_policy.tools).Count -lt 1) {
-    throw "$surface execution policy tools missing"
+  $executionPolicyTools = @($payload.plan_evidence.execution_policy.tools)
+  $executionPolicyMode = [string]$payload.plan_evidence.execution_policy.mode
+  if ($executionPolicyTools.Count -lt 1 -and $executionPolicyMode -notin @("direct_answer", "direct_tool")) {
+    throw "$surface execution policy tools missing for mode: $executionPolicyMode"
   }
   $selection = $payload.plan_evidence.workflow_selection
   if ($null -eq $selection -or $selection.schema_version -ne "spatial-agent.workflow-selection.v1") {
@@ -701,11 +717,22 @@ $live = Get-Json "$BaseUrl/health/live"
 $ready = Get-Json "$BaseUrl/health/ready"
 $capabilityCatalog = Get-Json "$BaseUrl/capabilities"
 $runtimeCapabilities = Get-Json "$BaseUrl/capabilities/runtime?max_files=1"
+$gisRuntimeCapabilities = Get-Json "$BaseUrl/domains/gis/capabilities/runtime?max_files=1"
 if ($live.status -ne "ok") { throw "liveness failed" }
 if ($ready.status -ne "ready") { throw "readiness failed: $($ready.status)" }
-if ($capabilityCatalog.version -ne "1.0" -or @($capabilityCatalog.capabilities).Count -lt 1) { throw "capability catalog failed" }
+if ($capabilityCatalog.version -ne "1.0") { throw "capability catalog version failed" }
+$catalogCapabilities = @($capabilityCatalog.capabilities)
+if ($catalogCapabilities.Count -eq 0 -and $capabilityCatalog.schema_version -eq "spatial-agent.general-capability-catalog.v1") {
+  $catalogCapabilities = @($capabilityCatalog.capability_descriptors)
+}
+if ($catalogCapabilities.Count -lt 1) { throw "capability catalog failed" }
 Assert-RuntimeCapabilitySnapshot $runtimeCapabilities
-$dataVolume = Assert-DataVolumeHealth $runtimeCapabilities
+$runtimeCapabilitiesForReport = @($runtimeCapabilities.capabilities)
+if ($runtimeCapabilitiesForReport.Count -eq 0 -and $runtimeCapabilities.schema_version -eq "spatial-agent.general-capability-catalog.v1") {
+  $runtimeCapabilitiesForReport = @($runtimeCapabilities.capability_descriptors)
+}
+$dataVolume = Assert-DataVolumeHealth $gisRuntimeCapabilities
+Assert-RuntimeCapabilitySnapshot $gisRuntimeCapabilities
 Assert-DeploymentEvidence $runtimeCapabilities "runtime capabilities"
 $releaseEvidence = Get-Json "$BaseUrl/release-evidence?max_files=1"
 Assert-DeploymentEvidence $releaseEvidence "release evidence"
@@ -819,7 +846,7 @@ $syncArtifactContract = Invoke-ContractHarness -payloads @($syncRun, $artifact) 
 
 $failureRun = Post-Json "$BaseUrl/runs" @{
   request = $adminRequest
-  session_id = "acceptance-failure-contract"
+  session_id = "acceptance-failure-contract-" + [guid]::NewGuid().ToString("N")
   planner = "rule"
   backend = "memory"
   preview_fingerprint = "sha256:acceptance-mismatch"
@@ -837,6 +864,7 @@ Assert-EvidenceRegistry $failureArtifact "failure artifact"
 
 $invalid = Post-JsonExpectError "$BaseUrl/runs" @{
   request = $adminRequest
+  session_id = "acceptance-invalid-request-" + [guid]::NewGuid().ToString("N")
   planner = "rule"
   backend = "invalid-backend"
 }
@@ -898,14 +926,14 @@ if ([int]$asyncObservation.lineage.replanning.count -ne [int]$final.result.repla
   status = "ok"
   liveness = $live.status
   readiness = $ready.status
-  capability_count = @($capabilityCatalog.capabilities).Count
+  capability_count = $catalogCapabilities.Count
   runtime_health = $runtimeCapabilities.health_status
   data_volume_status = $dataVolume.status
   core_data_health = $dataVolume.core_health
   optional_data_health = $dataVolume.optional_health
   core_missing_datasets = @($dataVolume.core_missing)
   optional_missing_datasets = @($dataVolume.optional_missing)
-  runtime_capability_count = @($runtimeCapabilities.capabilities).Count
+  runtime_capability_count = $runtimeCapabilitiesForReport.Count
   runtime_updated_at = $runtimeCapabilities.updated_at
   runtime_tool_provider = $runtimeCapabilities.tool_provider.id
   runtime_deployment_status = $runtimeCapabilities.deployment_evidence.status

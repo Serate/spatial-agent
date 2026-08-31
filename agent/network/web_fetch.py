@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Any, Callable, Iterable, Mapping
 from urllib.error import HTTPError, URLError
@@ -151,6 +152,7 @@ class WebFetchAdapter:
             "title": title[:_MAX_TITLE] or "未命名页面",
             "url": final_decision.url,
             "domain": final_decision.host,
+            "retrieved_at": _utc_timestamp(),
         }
         if preview:
             source_record["snippet"] = preview
@@ -364,6 +366,10 @@ def _bounded_float(value: Any, default: float, minimum: float, maximum: float) -
     except (TypeError, ValueError):
         return default
     return max(minimum, min(parsed, maximum))
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
 __all__ = [

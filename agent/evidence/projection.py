@@ -26,6 +26,8 @@ from agent.planner_selection import normalize_planner_selection_evidence
 from agent.capability_selection import normalize_capability_selection_evidence
 from agent.recovery_action import normalize_action_receipt
 from agent.workflow_selection import normalize_workflow_selection_evidence
+from agent.evidence.bundle import normalize_evidence_bundle
+from agent.evidence.composite import normalize_alignment
 
 
 EVIDENCE_PROJECTION_SCHEMA_VERSION = "spatial-agent.evidence-projection.v1"
@@ -111,11 +113,59 @@ def project_evidence_projection(
             "planner_selection": planner,
         },
     }
+    bundle = _read_evidence_bundle(payload, envelope)
+    if bundle is not None:
+        result["evidence_bundle"] = bundle
+        alignment = _read_cross_domain_alignment(payload, envelope)
+        if alignment is not None:
+            result["alignment"] = alignment
     if receipt is not None:
         result["action_receipt"] = receipt
         if isinstance(receipt.get("transition_evidence"), Mapping):
             result["transition_evidence"] = dict(receipt["transition_evidence"])
     return result
+
+
+def _read_evidence_bundle(
+    payload: Mapping[str, Any], envelope: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """Locate the canonical bundle without copying result or page bodies."""
+
+    candidates = [
+        envelope.get("evidence_bundle"),
+        payload.get("evidence_bundle"),
+    ]
+    for owner in (envelope, payload):
+        summary = owner.get("result_summary")
+        if isinstance(summary, Mapping):
+            evidence = summary.get("evidence")
+            if isinstance(evidence, Mapping):
+                candidates.append(evidence.get("evidence_bundle"))
+    for candidate in candidates:
+        if isinstance(candidate, Mapping):
+            return normalize_evidence_bundle(candidate)
+    return None
+
+
+def _read_cross_domain_alignment(
+    payload: Mapping[str, Any], envelope: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    candidates = [envelope.get("alignment"), payload.get("alignment")]
+    for owner in (envelope, payload):
+        summary = owner.get("result_summary")
+        if isinstance(summary, Mapping):
+            evidence = summary.get("evidence")
+            if isinstance(evidence, Mapping):
+                candidates.append(evidence.get("alignment"))
+        composite = owner.get("composite") or owner.get("_composite")
+        if isinstance(composite, Mapping):
+            evidence = composite.get("evidence")
+            if isinstance(evidence, Mapping):
+                candidates.append(evidence.get("alignment"))
+    for candidate in candidates:
+        if isinstance(candidate, Mapping):
+            return normalize_alignment(candidate)
+    return None
 
 
 def _stable_lifecycle_projection(payload: Mapping[str, Any]) -> dict[str, Any]:

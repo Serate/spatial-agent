@@ -15,9 +15,9 @@
 
 | 指标 | 数值 |
 | --- | ---: |
-| `agent/` 源码文件 | 207 |
-| 全仓源码文件 | 339 |
-| 职责覆盖 | 207/207 |
+| `agent/` 源码文件 | 211 |
+| 全仓源码文件 | 343 |
+| 职责覆盖 | 211/211 |
 | 语义覆盖率 | 100.0% |
 
 ### 语义层分布
@@ -29,7 +29,7 @@
 | `application` | 36 |
 | `data` | 2 |
 | `domain` | 11 |
-| `evidence` | 14 |
+| `evidence` | 18 |
 | `frontend` | 1 |
 | `integration` | 14 |
 | `observability` | 2 |
@@ -47,7 +47,7 @@
 | `agent/（根目录公共入口与契约）` | 114 | adapter (3), application (11), data (2), domain (11), evidence (7), frontend (1), integration (4), observability (2), persistence (7), planner (28), result (8), runtime (25), tooling (2), verification (3) |
 | `agent/analysis/` | 5 | analysis (5) |
 | `agent/application/` | 25 | application (25) |
-| `agent/evidence/` | 7 | evidence (7) |
+| `agent/evidence/` | 11 | evidence (11) |
 | `agent/integration/` | 6 | integration (6) |
 | `agent/network/` | 4 | integration (4) |
 | `agent/persistence/` | 8 | persistence (8) |
@@ -72,7 +72,7 @@
 | `agent/analysis_intent.py` | `planner` | Domain-neutral, bounded analysis intent contract. | `public-boundary` | `M311-M325` | `path-rule` | 2 | — |
 | `agent/analysis_ready_binding.py` | `adapter` | Compatibility facade for the canonical GIS analysis-ready binding. | `public-boundary` | `M69-M325` | `file-override` | 0 | — |
 | `agent/answer_composer.py` | `result` | Backward-compatible import for the GIS Domain Pack answer composer. | `public-boundary` | `M8-M325` | `path-rule` | 0 | — |
-| `agent/answer_generation.py` | `result` | Controlled natural-language answer generation for completed runs. | `public-boundary` | `M8-M325` | `path-rule` | 14 | — |
+| `agent/answer_generation.py` | `result` | Controlled natural-language answer generation for completed runs. | `public-boundary` | `M8-M334` | `file-override` | 14 | `tests/test_answer_generation.py`<br>`tests/test_m334_evidence_quality.py` |
 | `agent/answer_quality.py` | `result` | Small, domain-neutral checks for user-visible answer quality. | `public-boundary` | `M8-M325` | `path-rule` | 2 | — |
 | `agent/api_contract.py` | `application` | Shared HTTP request/response contract for the dev (stdlib) and production (FastAPI) entry points. | `public-boundary` | `M10-M325` | `path-rule` | 16 | — |
 | `agent/artifact_access.py` | `persistence` | Compatibility facade for canonical persistence artifact access. | `public-boundary` | `M14-M325` | `path-rule` | 0 | — |
@@ -150,7 +150,7 @@
 | `agent/request_understanding.py` | `planner` | Generic, bounded guidance for domain-owned request understanding. | `public-boundary` | `M77-M325` | `path-rule` | 2 | — |
 | `agent/result_completeness.py` | `result` | Domain-neutral completion projection for run results. | `public-boundary` | `M46-M325` | `path-rule` | 2 | — |
 | `agent/result_registry.py` | `result` | Domain-neutral result type metadata registry. | `public-boundary` | `M46-M325` | `path-rule` | 16 | — |
-| `agent/result_summary.py` | `result` | Domain-neutral, bounded summary projection for typed results. | `public-boundary` | `M46-M325` | `path-rule` | 3 | — |
+| `agent/result_summary.py` | `result` | Domain-neutral, bounded summary projection for typed results. | `public-boundary` | `M46-M334` | `file-override` | 3 | `tests/test_m334_evidence_quality.py` |
 | `agent/rule_planning.py` | `planner` | Compatibility facade for the former GIS plan composer. | `internal` | `M7-M325` | `path-rule` | 3 | — |
 | `agent/run_events.py` | `runtime` | Versioned, bounded lifecycle events for realtime Agent consumers. | `public-boundary` | `M13-M325` | `path-rule` | 6 | — |
 | `agent/runtime.py` | `runtime` | AgentRuntime 门面与生命周期入口 | `public-boundary` | `M318-M325` | `file-override` | 25 | `tests/test_m320_react_runtime.py` |
@@ -196,12 +196,12 @@
 | `agent/application/catalog.py` | `application` | Canonical runtime and Domain capability catalog application. | `public-boundary` | `M254-M325` | `path-rule` | 17 | — |
 | `agent/application/comparisons.py` | `application` | Compatibility application for bounded comparison scenarios. | `public-boundary` | `M254-M325` | `path-rule` | 4 | — |
 | `agent/application/composite.py` | `application` | Transport-neutral execution coordinator for bounded Composite requests. | `public-boundary` | `M254-M325` | `path-rule` | 3 | — |
-| `agent/application/composite_contract.py` | `application` | Domain-neutral request/result/evidence seam for cross-Domain composition. | `public-boundary` | `M254-M325` | `path-rule` | 5 | — |
+| `agent/application/composite_contract.py` | `application` | Domain-neutral request/result/evidence seam for cross-Domain composition. | `public-boundary` | `M254-M334` | `file-override` | 5 | `tests/test_m334_evidence_quality.py` |
 | `agent/application/composite_planner.py` | `application` | Domain-neutral Rule/LLM planner contract for Composite requests. | `public-boundary` | `M254-M325` | `path-rule` | 11 | — |
 | `agent/application/composite_planning.py` | `application` | Bounded Planner-facing projection for cross-Domain Composite requests. | `public-boundary` | `M254-M325` | `path-rule` | 5 | — |
 | `agent/application/composite_request_context.py` | `application` | Bounded, domain-neutral context for open Composite requests. | `public-boundary` | `M254-M325` | `path-rule` | 3 | — |
 | `agent/application/composite_runs.py` | `application` | Durable Composite run application built on the shared async lifecycle. | `public-boundary` | `M254-M325` | `path-rule` | 11 | — |
-| `agent/application/composite_view.py` | `application` | Domain-neutral user projection for a canonical Composite Result. | `public-boundary` | `M254-M325` | `path-rule` | 2 | — |
+| `agent/application/composite_view.py` | `application` | Domain-neutral user projection for a canonical Composite Result. | `public-boundary` | `M254-M334` | `file-override` | 2 | `tests/test_m334_evidence_quality.py` |
 | `agent/application/decisions.py` | `application` | Canonical decision application use case. | `public-boundary` | `M254-M325` | `path-rule` | 3 | — |
 | `agent/application/http.py` | `application` | Domain-neutral HTTP application dispatcher. | `public-boundary` | `M307-M325` | `file-override` | 3 | `tests/test_m313_realtime_events.py` |
 | `agent/application/http_transport.py` | `application` | Framework-neutral HTTP transport helpers. | `public-boundary` | `M254-M325` | `path-rule` | 8 | — |
@@ -221,9 +221,13 @@
 | 文件 | 层 | 职责 | 稳定性 | 阶段 | 来源 | 导出 | 验证入口 |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
 | `agent/evidence/__init__.py` | `evidence` | Canonical, domain-neutral evidence contracts and projections. | `public-boundary` | `M71-M325` | `path-rule` | 0 | — |
+| `agent/evidence/bundle.py` | `evidence` | Bounded aggregation of heterogeneous evidence source records. | `public-boundary` | `M334` | `file-override` | 3 | `tests/test_m334_evidence_quality.py` |
 | `agent/evidence/component.py` | `evidence` | Domain-neutral evidence projection for composed workflow components. | `public-boundary` | `M71-M325` | `path-rule` | 3 | — |
+| `agent/evidence/composite.py` | `evidence` | Domain-neutral fact receipts and alignment metadata for Composite results. | `public-boundary` | `M334` | `file-override` | 4 | `tests/test_m334_evidence_quality.py` |
 | `agent/evidence/contract.py` | `evidence` | Versioned, domain-neutral metadata for evidence projections. | `public-boundary` | `M71-M325` | `path-rule` | 6 | — |
-| `agent/evidence/projection.py` | `evidence` | Shared, bounded projection for result evidence and compatibility status. | `public-boundary` | `M71-M325` | `path-rule` | 2 | — |
+| `agent/evidence/identity.py` | `evidence` | Stable, domain-neutral identity for bounded evidence sources. | `public-boundary` | `M334` | `file-override` | 9 | `tests/test_m334_evidence_quality.py` |
+| `agent/evidence/projection.py` | `evidence` | Shared, bounded projection for result evidence and compatibility status. | `public-boundary` | `M71-M334` | `file-override` | 2 | `tests/test_m177_evidence_projection.py`<br>`tests/test_m334_evidence_quality.py` |
+| `agent/evidence/quality.py` | `evidence` | Auditable freshness and completeness quality for evidence sources. | `public-boundary` | `M334` | `file-override` | 3 | `tests/test_m334_evidence_quality.py` |
 | `agent/evidence/recovery.py` | `evidence` | Compatibility facade for the canonical evidence projection seam. | `public-boundary` | `M71-M325` | `path-rule` | 0 | — |
 | `agent/evidence/registry.py` | `evidence` | Domain-neutral registry for public evidence projections. | `public-boundary` | `M71-M325` | `path-rule` | 3 | — |
 | `agent/evidence/revalidation.py` | `evidence` | Bounded revalidation status derived from a transition evidence projection. | `public-boundary` | `M71-M325` | `path-rule` | 6 | — |
@@ -243,10 +247,10 @@
 
 | 文件 | 层 | 职责 | 稳定性 | 阶段 | 来源 | 导出 | 验证入口 |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
-| `agent/network/__init__.py` | `integration` | Network capabilities kept behind explicit, server-owned policy seams. | `public-boundary` | `M321-M333` | `path-rule` | 0 | — |
-| `agent/network/web_fetch.py` | `integration` | Bounded HTML fetching behind the shared public-web policy. | `public-boundary` | `M321-M333` | `path-rule` | 7 | — |
-| `agent/network/web_policy.py` | `integration` | Server-owned policy for bounded public web access. | `public-boundary` | `M321-M333` | `path-rule` | 10 | — |
-| `agent/network/web_search.py` | `integration` | Bounded public-web search adapter. | `public-boundary` | `M321-M333` | `path-rule` | 8 | — |
+| `agent/network/__init__.py` | `integration` | Network capabilities kept behind explicit, server-owned policy seams. | `public-boundary` | `M321-M334` | `path-rule` | 0 | — |
+| `agent/network/web_fetch.py` | `integration` | Bounded HTML fetching behind the shared public-web policy. | `public-boundary` | `M321-M334` | `path-rule` | 7 | — |
+| `agent/network/web_policy.py` | `integration` | Server-owned policy for bounded public web access. | `public-boundary` | `M321-M334` | `path-rule` | 10 | — |
+| `agent/network/web_search.py` | `integration` | Bounded public-web search adapter. | `public-boundary` | `M321-M334` | `path-rule` | 8 | — |
 
 ### `agent/persistence/`
 
@@ -293,7 +297,7 @@
 | `agent/runtime_core/planning_surface.py` | `runtime` | Runtime planning and replanning surface. | `public-boundary` | `M253-M325` | `path-rule` | 11 | — |
 | `agent/runtime_core/preview.py` | `runtime` | Planning-only Runtime preview seam. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
 | `agent/runtime_core/progress.py` | `runtime` | Real-time progress coordination for one Runtime Run. | `public-boundary` | `M253-M325` | `path-rule` | 11 | — |
-| `agent/runtime_core/projection.py` | `runtime` | Pure Runtime projections used by planning and lifecycle orchestration. | `public-boundary` | `M253-M325` | `path-rule` | 16 | — |
+| `agent/runtime_core/projection.py` | `runtime` | Pure Runtime projections used by planning and lifecycle orchestration. | `public-boundary` | `M253-M334` | `file-override` | 16 | `tests/test_m326_result_completeness.py`<br>`tests/test_m334_evidence_quality.py` |
 | `agent/runtime_core/react_runtime.py` | `runtime` | Runtime bridge for bounded, one-action-at-a-time ReAct execution. | `public-boundary` | `M320` | `file-override` | 2 | `tests/test_m320_react_runtime.py`<br>`tests/test_m322_tool_proposal.py` |
 | `agent/runtime_core/recovery.py` | `runtime` | Runtime cancel and retry recovery seam. | `public-boundary` | `M253-M325` | `path-rule` | 3 | — |
 | `agent/runtime_core/request_fact_readiness.py` | `runtime` | Bounded, domain-neutral readiness for Planner-facing request facts. | `public-boundary` | `M253-M325` | `path-rule` | 2 | — |
