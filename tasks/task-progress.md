@@ -801,3 +801,13 @@
 - 冻结下一阶段公共边界：Provider Health、通用多工具 ReAct、Result closure、实时体验和显式 Docker/live 验收；不引入 RAG、不开放任意代码自动上线、不新增专题硬编码。
 - 验证：文档索引与代码索引校验通过；未修改 M335 业务代码。
 - 下一步：M335-A 实现 Provider/网络健康安全投影和失败归因。
+
+### 工程问题治理：架构收敛 + 兼容修复（本阶段记录）
+
+- **兼容 re-export 缺口修复**（直接消除历史套件导入错误，属"33 个错误"的一部分）：`agent/runtime.py`（补 `_resolve_result_references`、`open_agent_defaults`）、`agent/service.py`（补 `export_run_summary`、`_analysis_ready_summary`）、`agent/memory.py`（补 `_extract_facts`）。效果：host 全量测试模块导入扫描从多个导入错误降到仅 2 个 fastapi 环境项。
+- **过期断言修复**：`tests/test_m158_evidence_registry.py` 证据注册表条目集补入 `capability_selection`（M334 新增的合法条目），使 `entry_count` 断言与契约一致。
+- **大文件拆分**（深模块化，均复验 + 可回滚）：`answer_evidence.py`、`openai_client.py`、`composite_planning_projection.py`、`workflow_templates`（common/catalog/compiler + facade）、`runtime_helpers.py`、`sqlite_store`（common/conversation_store + state store）、`run_lifecycle`（`_LifecycleContext`/`_recovery_actions` + 4 个零 self 方法）、`service_facade`（`_approval_run_projection`）。
+- **import 路径重写/归位**：`answer_evidence` → `agent/evidence/`、`workflow_template_*` → `agent/templates/`；其余新模块已落 `integration/`、`application/`、`runtime_core/`、`persistence/`。
+- 代码索引已重建校验：360 文件、100% 语义覆盖、0 错误。
+- git 安全点（可回滚）：`72d9e5c`、`3efb9a5`、`9c09b36`、`17ad940`、`16fcb66`、`70c9e1e`。
+- **剩余/未收口**：full-regression 历史套件的 55 失败 + 33 错误未逐项修复完成；按约定不再跑全量（太慢），改为受影响测试 + 精简 profile 收口；剩余失败多为基线既有（环境依赖/资源/断言过期）与中央类级重构，需逐项分类修复。
