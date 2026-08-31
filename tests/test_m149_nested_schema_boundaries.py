@@ -232,7 +232,7 @@ class M149NestedSchemaBoundaryTests(unittest.TestCase):
             service = AgentService(
                 state_db_path=str(root / "state.db"),
                 artifact_store=store,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             handler_service = service
 
@@ -298,7 +298,7 @@ class M149NestedSchemaBoundaryTests(unittest.TestCase):
             store = ArtifactStore(root)
             service = AgentService(
                 artifact_store=store,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             handler_service = service
 
@@ -363,7 +363,7 @@ class M149NestedSchemaBoundaryTests(unittest.TestCase):
             try:
                 production_api.service = AgentService(
                     artifact_store=store,
-                    runtime_factory=_text_runtime_factory,
+                    runtime_factory=_text_runtime_factory, domain_id="text",
                 )
                 production_api.ARTIFACT_ROOT = root
                 with self.assertRaises(production_api.HTTPException) as error:
