@@ -9200,7 +9200,7 @@
     {
       "path": "agent/runtime_core/run_lifecycle.py",
       "language": "python",
-      "line_count": 1243,
+      "line_count": 1181,
       "layer": "runtime",
       "role": "运行生命周期阶段编排",
       "stage": "M307",
@@ -9489,7 +9489,7 @@
     {
       "path": "agent/runtime_core/runtime_lifecycle_helpers.py",
       "language": "python",
-      "line_count": 71,
+      "line_count": 138,
       "layer": "runtime",
       "role": "Runtime 核心规划、执行、恢复与投影",
       "stage": "M253-M325",

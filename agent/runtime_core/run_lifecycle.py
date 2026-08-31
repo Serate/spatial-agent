@@ -277,30 +277,6 @@ class RuntimeRunLifecycle:
         if callable(unregister) and context.resolved_run_id:
             unregister(context.resolved_run_id)
 
-    def _start_phase(
-        self,
-        context: _LifecycleContext,
-        phase: str,
-        *,
-        status: str,
-        message: str,
-    ) -> None:
-        """Start budget/heartbeat tracking without duplicating lifecycle events."""
-
-        budget = context.budget
-        if budget is not None and budget.state() == "exhausted":
-            return
-        progress = context.progress
-        if progress is not None:
-            progress.start_phase(
-                phase,
-                status=status,
-                message=message,
-                emit_event=False,
-            )
-        elif budget is not None:
-            budget.start_phase(phase)
-
     # ------------------------------------------------------------------
     # Resolve and clarify
     # ------------------------------------------------------------------
@@ -376,7 +352,7 @@ class RuntimeRunLifecycle:
         """Create and persist the initial planning Result/context snapshot."""
 
         runtime = self._runtime
-        self._start_phase(
+        _start_phase(
             context,
             "clarify",
             status=RunStatus.PLANNING.value,
@@ -449,8 +425,8 @@ class RuntimeRunLifecycle:
 
     def _plan(self, context: _LifecycleContext) -> None:
         runtime = self._runtime
-        result = self._result(context)
-        self._start_phase(
+        result = _result(context)
+        _start_phase(
             context,
             "plan",
             status=RunStatus.PLANNING.value,
@@ -517,10 +493,10 @@ class RuntimeRunLifecycle:
         """Validate the candidate and build the same plan/evidence gates."""
 
         runtime = self._runtime
-        result = self._result(context)
+        result = _result(context)
         if context.candidate_plan is None:
             raise ToolError("planner returned no plan")
-        self._start_phase(
+        _start_phase(
             context,
             "validate",
             status=RunStatus.PLANNING.value,
@@ -585,7 +561,7 @@ class RuntimeRunLifecycle:
         )
 
     def _validate_fingerprints(self, context: _LifecycleContext) -> None:
-        result = self._result(context)
+        result = _result(context)
         if context.expected_plan_fingerprint is not None:
             actual_fingerprint = (result.plan_evidence.get("plan_identity") or {}).get(
                 "fingerprint"
@@ -627,7 +603,7 @@ class RuntimeRunLifecycle:
         if not context.require_confirmation:
             return False
         runtime = self._runtime
-        result = self._result(context)
+        result = _result(context)
         if runtime._decision_store is None:
             raise ToolError("decision store is unavailable")
         fingerprint = str(
@@ -670,10 +646,10 @@ class RuntimeRunLifecycle:
 
     def _execute(self, context: _LifecycleContext) -> None:
         runtime = self._runtime
-        result = self._result(context)
+        result = _result(context)
         if result.plan is None:
             raise ToolError("validated plan is unavailable for execution")
-        self._start_phase(
+        _start_phase(
             context,
             "execute",
             status=RunStatus.EXECUTING.value,
@@ -810,13 +786,13 @@ class RuntimeRunLifecycle:
                 index += 1
 
     def _answer_directly(self, context: _LifecycleContext) -> bool:
-        result = self._result(context)
+        result = _result(context)
         if result.plan is None or result.plan.output.get("type") != "direct_answer":
             return False
         runtime = self._runtime
         output = result.plan.output
         availability = output.get("availability")
-        self._start_phase(
+        _start_phase(
             context,
             "answer",
             status=RunStatus.PLANNING.value,
@@ -857,8 +833,8 @@ class RuntimeRunLifecycle:
 
     def _answer(self, context: _LifecycleContext) -> None:
         runtime = self._runtime
-        result = self._result(context)
-        self._start_phase(
+        result = _result(context)
+        _start_phase(
             context,
             "answer",
             status=RunStatus.EXECUTING.value,
@@ -920,10 +896,10 @@ class RuntimeRunLifecycle:
 
     def _handle_failure(self, context: _LifecycleContext, exc: Exception) -> None:
         runtime = self._runtime
-        result = self._result(context)
+        result = _result(context)
         from . import runtime_engine as _runtime_module
 
-        self._annotate_control_error(context, exc)
+        _annotate_control_error(context, exc)
 
         if isinstance(exc, ClarificationNeeded):
             result.status = RunStatus.NEEDS_CLARIFICATION
@@ -1001,7 +977,7 @@ class RuntimeRunLifecycle:
             _runtime_module._record_run_failure(result, exc, phase="control")
             self._announce_recovery(context)
             self._emit_failure_event(
-                context, phase=self._event_phase(context), message="分析已取消"
+                context, phase=_event_phase(context), message="分析已取消"
             )
             return
         if isinstance(exc, RunTimedOut):
@@ -1019,7 +995,7 @@ class RuntimeRunLifecycle:
             _runtime_module._record_run_failure(result, exc, phase="control")
             self._announce_recovery(context)
             self._emit_failure_event(
-                context, phase=self._event_phase(context), message="分析已超时"
+                context, phase=_event_phase(context), message="分析已超时"
             )
             return
 
@@ -1049,41 +1025,12 @@ class RuntimeRunLifecycle:
         self._announce_recovery(context)
         self._emit_failure_event(
             context,
-            phase=self._event_phase(context),
+            phase=_event_phase(context),
             message="分析未能完成",
         )
 
-    def _annotate_control_error(
-        self, context: _LifecycleContext, exc: Exception
-    ) -> None:
-        """Add stable phase metadata when the cooperative control raised first."""
-
-        if isinstance(exc, RunCancelled):
-            if not getattr(exc, "code", None):
-                exc.code = "run_cancelled"
-            return
-        if not isinstance(exc, RunTimedOut):
-            return
-        phase = str(
-            getattr(exc, "phase", None)
-            or (context.budget.phase if context.budget is not None else "")
-            or "run"
-        ).strip().lower()
-        if not getattr(exc, "code", None):
-            exc.code = {
-                "plan": "planner_timeout",
-                "validate": "planner_timeout",
-                "execute": "execution_timeout",
-                "answer": "answer_timeout",
-            }.get(phase, "run_timeout")
-        exc.phase = phase
-        if getattr(exc, "retryable", None) is None:
-            exc.retryable = phase in {"plan", "validate", "execute", "answer"}
-        if context.budget is not None and not getattr(exc, "budget", None):
-            exc.budget = context.budget.receipt()
-
     def _announce_recovery(self, context: _LifecycleContext) -> None:
-        result = self._result(context)
+        result = _result(context)
         actions = _recovery_actions(result)
         if not actions or context.progress is None:
             return
@@ -1100,14 +1047,6 @@ class RuntimeRunLifecycle:
             },
         )
 
-    def _event_phase(self, context: _LifecycleContext) -> str:
-        phase = str(
-            context.budget.phase if context.budget is not None else ""
-        ).strip().lower()
-        return phase if phase in {"resolve", "clarify", "plan", "validate", "execute", "answer", "evidence"} else (
-            "execute" if context.candidate_plan is not None else "plan"
-        )
-
     def _emit_failure_event(
         self,
         context: _LifecycleContext,
@@ -1116,7 +1055,7 @@ class RuntimeRunLifecycle:
         message: str,
     ) -> None:
         """Emit a safe failure milestone without forwarding exception text."""
-        result = self._result(context)
+        result = _result(context)
         failure = result.failure if isinstance(result.failure, Mapping) else {}
         actions = _recovery_actions(result)
         data = {
@@ -1147,13 +1086,13 @@ class RuntimeRunLifecycle:
         """Complete the evidence/state/event boundary exactly once."""
 
         runtime = self._runtime
-        result = self._result(context)
+        result = _result(context)
         from ..request_mode import derive_request_mode
 
         result.request_mode = derive_request_mode(result)
         if result.planner_metrics is None:
             result.planner_metrics = runtime._planner_metrics()
-        self._start_phase(
+        _start_phase(
             context,
             "evidence",
             status=result.status.value,
@@ -1232,12 +1171,11 @@ class RuntimeRunLifecycle:
         runtime._emit_run_event(result)
         return result
 
-    @staticmethod
-    def _result(context: _LifecycleContext) -> AgentRunResult:
-        if context.result is None:
-            raise RuntimeError("lifecycle result has not been initialized")
-        return context.result
-
-
-
-from .runtime_lifecycle_helpers import _LifecycleContext, _recovery_actions
+from .runtime_lifecycle_helpers import (
+    _LifecycleContext,
+    _recovery_actions,
+    _start_phase,
+    _event_phase,
+    _result,
+    _annotate_control_error,
+)
