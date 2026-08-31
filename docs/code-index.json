@@ -6,15 +6,15 @@
     "scripts",
     "web/src"
   ],
-  "file_count": 357,
+  "file_count": 358,
   "semantic_index": {
-    "classified_files": 357,
+    "classified_files": 358,
     "file_override_files": 41,
-    "path_rule_files": 316,
+    "path_rule_files": 317,
     "default_files": 0,
-    "agent_files": 225,
-    "agent_files_with_responsibility": 225,
-    "agent_files_with_module_doc": 211,
+    "agent_files": 226,
+    "agent_files_with_responsibility": 226,
+    "agent_files_with_module_doc": 212,
     "coverage_percent": 100.0
   },
   "files": [
@@ -9200,7 +9200,7 @@
     {
       "path": "agent/runtime_core/run_lifecycle.py",
       "language": "python",
-      "line_count": 1293,
+      "line_count": 1243,
       "layer": "runtime",
       "role": "运行生命周期阶段编排",
       "stage": "M307",
@@ -9213,17 +9213,17 @@
         {
           "name": "RuntimeRunLifecycle",
           "kind": "class",
-          "line": 80
+          "line": 40
         },
         {
           "name": "RuntimeRunLifecycle.run",
           "kind": "method",
-          "line": 87
+          "line": 47
         },
         {
           "name": "RuntimeRunLifecycle.resume_tool_approval",
           "kind": "method",
-          "line": 167
+          "line": 127
         }
       ],
       "imports": [],
@@ -9485,6 +9485,21 @@
         "agent.tools",
         "agent.workflow_selection"
       ]
+    },
+    {
+      "path": "agent/runtime_core/runtime_lifecycle_helpers.py",
+      "language": "python",
+      "line_count": 71,
+      "layer": "runtime",
+      "role": "Runtime 核心规划、执行、恢复与投影",
+      "stage": "M253-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Private context holder and bounded recovery choices for run lifecycle.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [],
+      "imports": []
     },
     {
       "path": "agent/runtime_core/selection_evidence.py",
