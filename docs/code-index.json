@@ -6,15 +6,15 @@
     "scripts",
     "web/src"
   ],
-  "file_count": 358,
+  "file_count": 359,
   "semantic_index": {
-    "classified_files": 358,
+    "classified_files": 359,
     "file_override_files": 41,
-    "path_rule_files": 317,
+    "path_rule_files": 318,
     "default_files": 0,
-    "agent_files": 226,
-    "agent_files_with_responsibility": 226,
-    "agent_files_with_module_doc": 212,
+    "agent_files": 227,
+    "agent_files_with_responsibility": 227,
+    "agent_files_with_module_doc": 213,
     "coverage_percent": 100.0
   },
   "files": [
@@ -1905,7 +1905,7 @@
     {
       "path": "agent/application/service_facade.py",
       "language": "python",
-      "line_count": 1272,
+      "line_count": 1246,
       "layer": "application",
       "role": "Application 用例与 HTTP 语义编排",
       "stage": "M254-M325",
@@ -1963,192 +1963,192 @@
         {
           "name": "AgentService.run_async",
           "kind": "method",
-          "line": 687
+          "line": 658
         },
         {
           "name": "AgentService.get_async_observability",
           "kind": "method",
-          "line": 698
+          "line": 669
         },
         {
           "name": "AgentService.list_run_events",
           "kind": "method",
-          "line": 701
+          "line": 672
         },
         {
           "name": "AgentService.retry",
           "kind": "method",
-          "line": 728
+          "line": 699
         },
         {
           "name": "AgentService.cancel",
           "kind": "method",
-          "line": 766
+          "line": 737
         },
         {
           "name": "AgentService.get_run",
           "kind": "method",
-          "line": 780
+          "line": 751
         },
         {
           "name": "AgentService.get_run_interaction",
           "kind": "method",
-          "line": 785
+          "line": 756
         },
         {
           "name": "AgentService.apply_run_interaction",
           "kind": "method",
-          "line": 882
+          "line": 853
         },
         {
           "name": "AgentService.list_runs",
           "kind": "method",
-          "line": 960
+          "line": 931
         },
         {
           "name": "AgentService.get_run_evidence",
           "kind": "method",
-          "line": 963
+          "line": 934
         },
         {
           "name": "AgentService.list_session_runs",
           "kind": "method",
-          "line": 966
+          "line": 937
         },
         {
           "name": "AgentService.list_sessions",
           "kind": "method",
-          "line": 969
+          "line": 940
         },
         {
           "name": "AgentService.create_session",
           "kind": "method",
-          "line": 972
+          "line": 943
         },
         {
           "name": "AgentService.clear_session",
           "kind": "method",
-          "line": 975
+          "line": 946
         },
         {
           "name": "AgentService.delete_session",
           "kind": "method",
-          "line": 978
+          "line": 949
         },
         {
           "name": "AgentService.metrics",
           "kind": "method",
-          "line": 981
+          "line": 952
         },
         {
           "name": "AgentService.capabilities",
           "kind": "method",
-          "line": 984
+          "line": 955
         },
         {
           "name": "AgentService.workflow_contract",
           "kind": "method",
-          "line": 992
+          "line": 963
         },
         {
           "name": "AgentService.execution_contract",
           "kind": "method",
-          "line": 1000
+          "line": 971
         },
         {
           "name": "AgentService.extract_request_facts",
           "kind": "method",
-          "line": 1013
+          "line": 984
         },
         {
           "name": "AgentService.discover",
           "kind": "method",
-          "line": 1022
+          "line": 993
         },
         {
           "name": "AgentService.select_workflow",
           "kind": "method",
-          "line": 1032
+          "line": 1003
         },
         {
           "name": "AgentService.resolve_capability_selection",
           "kind": "method",
-          "line": 1048
+          "line": 1019
         },
         {
           "name": "AgentService.domains",
           "kind": "method",
-          "line": 1065
+          "line": 1036
         },
         {
           "name": "AgentService.actions",
           "kind": "method",
-          "line": 1069
+          "line": 1040
         },
         {
           "name": "AgentService.execute_action",
           "kind": "method",
-          "line": 1077
+          "line": 1048
         },
         {
           "name": "AgentService.get_action_execution",
           "kind": "method",
-          "line": 1094
+          "line": 1065
         },
         {
           "name": "AgentService.list_action_executions",
           "kind": "method",
-          "line": 1098
+          "line": 1069
         },
         {
           "name": "AgentService.runtime_capabilities",
           "kind": "method",
-          "line": 1102
+          "line": 1073
         },
         {
           "name": "AgentService.release_evidence",
           "kind": "method",
-          "line": 1113
+          "line": 1084
         },
         {
           "name": "AgentService.close",
           "kind": "method",
-          "line": 1128
+          "line": 1099
         },
         {
           "name": "AgentService.list_memory",
           "kind": "method",
-          "line": 1142
+          "line": 1113
         },
         {
           "name": "AgentService.register_tool",
           "kind": "method",
-          "line": 1156
+          "line": 1127
         },
         {
           "name": "AgentService.list_dynamic_tools",
           "kind": "method",
-          "line": 1165
+          "line": 1136
         },
         {
           "name": "AgentService.estimate_area_handler",
           "kind": "method",
-          "line": 1169
+          "line": 1140
         },
         {
           "name": "AgentService.compare_buildability",
           "kind": "method",
-          "line": 1200
+          "line": 1171
         },
         {
           "name": "AgentService.compare_buildability_regions",
           "kind": "method",
-          "line": 1216
+          "line": 1187
         },
         {
           "name": "AgentService.compare_constrained_buildability",
           "kind": "method",
-          "line": 1256
+          "line": 1227
         }
       ],
       "imports": [
@@ -2162,6 +2162,7 @@
         "agent.application.run",
         "agent.application.run_recovery",
         "agent.application.service_async",
+        "agent.application.service_facade_helpers",
         "agent.application.service_format",
         "agent.application.service_sessions",
         "agent.application.service_state",
@@ -2176,6 +2177,21 @@
         "agent.runtime_factory",
         "agent.tooling"
       ]
+    },
+    {
+      "path": "agent/application/service_facade_helpers.py",
+      "language": "python",
+      "line_count": 38,
+      "layer": "application",
+      "role": "Application 用例与 HTTP 语义编排",
+      "stage": "M254-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Bounded pure projection helpers for AgentService.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [],
+      "imports": []
     },
     {
       "path": "agent/application/service_format.py",

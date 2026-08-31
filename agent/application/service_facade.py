@@ -485,7 +485,7 @@ class AgentService:
                 ),
                 "registered": [],
                 "registration_count": 0,
-                "run": self._approval_run_projection(closed),
+                "run": _approval_run_projection(closed),
             }
         record = self._state.tool_approval_store.resolve(
             approval_id.strip(),
@@ -519,7 +519,7 @@ class AgentService:
             ),
             "registered": registered,
             "registration_count": len(registered),
-            "run": self._approval_run_projection(resumed),
+            "run": _approval_run_projection(resumed),
         }
 
     def _approval_domain_id(self) -> str:
@@ -632,35 +632,6 @@ class AgentService:
             domain_routing_evidence=result.domain_routing_evidence,
             result_override=result,
         )
-
-    @staticmethod
-    def _approval_run_projection(value: Any) -> Dict[str, Any] | None:
-        if value is None:
-            return None
-        if isinstance(value, Mapping):
-            status = str(value.get("status") or "")[:32]
-            receipt = value.get("action_receipt")
-            return {
-                "run_id": str(value.get("run_id") or "")[:160],
-                "status": status,
-                "action_receipt_state": (
-                    str(receipt.get("state") or "")[:48]
-                    if isinstance(receipt, Mapping)
-                    else None
-                ),
-            }
-        status = getattr(value, "status", "")
-        status = getattr(status, "value", status)
-        receipt = getattr(value, "action_receipt", None)
-        return {
-            "run_id": str(getattr(value, "run_id", ""))[:160],
-            "status": str(status)[:32],
-            "action_receipt_state": (
-                str(receipt.get("state") or "")[:48]
-                if isinstance(receipt, dict)
-                else None
-            ),
-        }
 
     def _approval_recovery_by_id(self) -> Dict[str, Dict[str, Any]]:
         """Collect safe binding state from already-created Runtime instances."""
@@ -1270,3 +1241,6 @@ class AgentService:
             backend=backend,
             spatial_context=spatial_context,
         )
+
+
+from agent.application.service_facade_helpers import _approval_run_projection
