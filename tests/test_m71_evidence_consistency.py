@@ -26,7 +26,7 @@ ANALYSIS_READY = {
 class M71EvidenceConsistencyTests(unittest.TestCase):
     def test_threshold_and_region_comparisons_preserve_analysis_ready_evidence(self):
         service = AgentService()
-        with patch("agent.service._analysis_ready_summary", return_value=ANALYSIS_READY):
+        with patch("agent.application.comparisons._analysis_ready_summary", return_value=ANALYSIS_READY):
             threshold = service.compare_buildability("洪山区", [15, 20], backend="memory")
             regions = service.compare_buildability_regions(
                 ["洪山区", "江夏区"], threshold=20, backend="memory"

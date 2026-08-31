@@ -57,7 +57,7 @@ class M76ReleaseEvidenceTests(unittest.TestCase):
                 },
             },
         }
-        with patch("agent.service._analysis_ready_summary", return_value=evidence):
+        with patch("agent.application.comparisons._analysis_ready_summary", return_value=evidence):
             result = AgentService().compare_buildability("洪山区", [20], backend="memory")
         self.assertTrue(result["analysis_ready"]["output_manifest"]["outputs"]["dem"]["matched"])
 

@@ -50,7 +50,7 @@ class M73SourceBindingEvidenceTests(unittest.TestCase):
             "grid_alignment": {"status": "aligned"},
             "source_binding": SOURCE_BINDING,
         }
-        with patch("agent.service._analysis_ready_summary", return_value=evidence):
+        with patch("agent.application.comparisons._analysis_ready_summary", return_value=evidence):
             result = service.compare_buildability("洪山区", [20], backend="memory")
         self.assertEqual(result["analysis_ready"]["source_binding"]["fingerprint"], "sha256:abc123")
 

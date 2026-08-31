@@ -77,7 +77,7 @@ class M75OutputManifestEvidenceTests(unittest.TestCase):
         self.assertEqual(snapshot["analysis_ready"]["output_manifest"], output_manifest)
         service = AgentService()
         evidence = {"status": "ready", "output_manifest": output_manifest}
-        with patch("agent.service._analysis_ready_summary", return_value=evidence):
+        with patch("agent.application.comparisons._analysis_ready_summary", return_value=evidence):
             result = service.compare_buildability("洪山区", [20], backend="memory")
         self.assertEqual(result["analysis_ready"]["output_manifest"], output_manifest)
 
