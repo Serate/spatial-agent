@@ -63,7 +63,7 @@ class M94RuntimeGovernanceTests(unittest.TestCase):
         self.assertEqual(snapshot["tool_provider_health"]["status"], "ready")
         self.assertGreater(snapshot["tool_provider"]["tool_count"], 0)
         self.assertIn("tool_governance", snapshot)
-        self.assertEqual(snapshot["tool_governance"]["returned_tool_count"], 12)
+        self.assertEqual(snapshot["tool_governance"]["returned_tool_count"], 14)
 
     def test_runtime_capability_snapshot_exposes_provider_evidence(self):
         snapshot = runtime_capability_snapshot(max_files=1)

@@ -26,7 +26,7 @@ class _CapabilityProbeAdapter:
 
 def tool_provider_snapshot() -> Dict[str, Any]:
     """Return bounded provider evidence without invoking a business tool."""
-    schema_path = Path(__file__).resolve().parent.parent / "tools" / "schema" / "tool-definitions.json"
+    schema_path = Path(__file__).resolve().parents[3] / "tools" / "schema" / "tool-definitions.json"
     try:
         registry = ToolRegistry.from_json(str(schema_path), _CapabilityProbeAdapter())
         return {
