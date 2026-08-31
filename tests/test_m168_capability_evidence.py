@@ -103,7 +103,7 @@ class M168CapabilityEvidenceTests(unittest.TestCase):
             service = AgentService(
                 state_db_path=str(root / "state.db"),
                 artifact_store=ArtifactStore(root / "artifacts"),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 request = "请概括：证据需要跨入口保持一致。"

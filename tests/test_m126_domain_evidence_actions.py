@@ -35,7 +35,7 @@ def _request(port, method, path, payload=None):
 
 class M126DomainEvidenceActionTests(unittest.TestCase):
     def test_text_runtime_and_release_evidence_stay_domain_neutral(self):
-        service = AgentService(runtime_factory=_text_runtime_factory)
+        service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
         try:
             runtime = service.runtime_capabilities(backend="memory")
             release = service.release_evidence(backend="memory")
@@ -60,7 +60,7 @@ class M126DomainEvidenceActionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 response = service.execute_action(
@@ -87,7 +87,7 @@ class M126DomainEvidenceActionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 with self.assertRaises(ValueError) as raised:
@@ -109,7 +109,7 @@ class M126DomainEvidenceActionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
 
             class TextHandler(AgentApiHandler):

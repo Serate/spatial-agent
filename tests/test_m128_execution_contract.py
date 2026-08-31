@@ -41,7 +41,7 @@ class M128ExecutionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 run = service.run(
@@ -98,7 +98,7 @@ class M128ExecutionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 with self.assertRaises(ValueError) as caught:
@@ -125,7 +125,7 @@ class M128ExecutionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 run = service.run("请总结：契约需要可恢复。", backend="memory")
@@ -158,7 +158,7 @@ class M128ExecutionContractTests(unittest.TestCase):
             first = AgentService(
                 state_db_path=db_path,
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 submitted = first.run_async(
@@ -181,7 +181,7 @@ class M128ExecutionContractTests(unittest.TestCase):
             second = AgentService(
                 state_db_path=db_path,
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 restored = second.get_run(submitted["run_id"])
@@ -210,7 +210,7 @@ class M128ExecutionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
 
             class TextHandler(AgentApiHandler):

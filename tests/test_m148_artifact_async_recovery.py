@@ -41,7 +41,7 @@ class M148ArtifactAsyncRecoveryTests(unittest.TestCase):
             first = AgentService(
                 state_db_path=str(root / "state.db"),
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             submitted = first.run_async(
                 request="请摘要一段异步文本并保留证据。",
@@ -70,7 +70,7 @@ class M148ArtifactAsyncRecoveryTests(unittest.TestCase):
             recovered_service = AgentService(
                 state_db_path=str(root / "empty-state.db"),
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 recovered = recovered_service.get_run(submitted["run_id"])
@@ -107,7 +107,7 @@ class M148ArtifactAsyncRecoveryTests(unittest.TestCase):
             )
             service = AgentService(
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 observation = service.get_async_observability("m148-legacy-async")

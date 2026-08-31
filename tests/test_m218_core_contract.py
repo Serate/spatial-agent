@@ -107,7 +107,7 @@ class M218CoreContractTests(unittest.TestCase):
             service = AgentService(
                 state_db_path=str(root / "state.db"),
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 sync = service.run(

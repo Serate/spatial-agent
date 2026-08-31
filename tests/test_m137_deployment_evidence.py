@@ -16,7 +16,7 @@ def _text_runtime_factory(planner, backend, **kwargs):
 
 class M137DeploymentEvidenceTests(unittest.TestCase):
     def test_text_runtime_and_release_evidence_share_context_identity(self):
-        service = AgentService(runtime_factory=_text_runtime_factory)
+        service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
         try:
             runtime = service.runtime_capabilities(planner="rule", backend="memory")
             release = service.release_evidence(planner="rule", backend="memory")

@@ -118,7 +118,7 @@ class M146AsyncViewEvidenceTests(unittest.TestCase):
             first_service = AgentService(
                 state_db_path=database,
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             submitted = first_service.run_async(
                 request="请摘要这段异步文本并保留视图证据。",
@@ -139,7 +139,7 @@ class M146AsyncViewEvidenceTests(unittest.TestCase):
             second_service = AgentService(
                 state_db_path=database,
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 restored = second_service.get_run(submitted["run_id"])

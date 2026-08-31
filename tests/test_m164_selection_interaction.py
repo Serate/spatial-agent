@@ -122,7 +122,7 @@ class M164SelectionInteractionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="m164-interaction-") as directory:
             service = AgentService(
                 state_db_path=str(Path(directory) / "state.db"),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 result = service.run(request="概括一段文本", planner="rule", backend="memory")
@@ -140,7 +140,7 @@ class M164SelectionInteractionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="m164-action-") as directory:
             service = AgentService(
                 state_db_path=str(Path(directory) / "state.db"),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 waiting = service.run(

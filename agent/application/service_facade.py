@@ -88,8 +88,8 @@ class AgentService:
         self._resolved_domain_id = None
         if general and (runtime_factory is not None or domain_pack is not None or domain_id is not None):
             raise ValueError("general cannot be combined with runtime_factory, domain_pack, or domain_id")
-        if runtime_factory is not None and (domain_pack is not None or domain_id is not None):
-            raise ValueError("runtime_factory cannot be combined with domain_pack or domain_id")
+        if runtime_factory is not None and domain_pack is not None:
+            raise ValueError("runtime_factory cannot be combined with domain_pack")
         if domain_pack is not None and domain_id is not None:
             raise ValueError("domain_pack and domain_id are mutually exclusive")
         if general:
@@ -103,6 +103,8 @@ class AgentService:
         elif runtime_factory is not None:
             self._runtime_factory = runtime_factory
             self._runtime_context_snapshot = _compat_value("build_runtime_context_snapshot", build_runtime_context_snapshot)
+            if domain_id is not None:
+                self._configured_domain_id = resolve_domain_id(domain_id)
         elif domain_pack is not None:
             self._configured_domain_pack = domain_pack
             self._configured_domain_id = str(

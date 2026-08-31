@@ -119,7 +119,7 @@ class M124DomainActionTests(unittest.TestCase):
             service.close()
 
     def test_text_domain_exposes_no_gis_actions(self):
-        service = AgentService(runtime_factory=_text_runtime_factory)
+        service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
         try:
             actions = service.actions()
             self.assertEqual(actions["domain_id"], "text")
@@ -138,7 +138,7 @@ class M124DomainActionTests(unittest.TestCase):
 
     def test_dev_http_exposes_selected_domain_actions(self):
         class TextHandler(AgentApiHandler):
-            service = AgentService(runtime_factory=_text_runtime_factory)
+            service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), TextHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -161,7 +161,7 @@ class M124DomainActionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
 
             class TextHandler(AgentApiHandler):

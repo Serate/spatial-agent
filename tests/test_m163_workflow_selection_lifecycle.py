@@ -78,7 +78,7 @@ class M163WorkflowSelectionLifecycleTests(unittest.TestCase):
             first = AgentService(
                 state_db_path=str(root / "state.db"),
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 submitted = first.run_async(
@@ -117,7 +117,7 @@ class M163WorkflowSelectionLifecycleTests(unittest.TestCase):
             recovered_service = AgentService(
                 state_db_path=str(root / "empty-state.db"),
                 artifact_store=artifacts,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 recovered = recovered_service.get_run(submitted["run_id"])

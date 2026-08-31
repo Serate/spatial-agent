@@ -21,7 +21,7 @@ def _text_runtime_factory(planner, backend, **kwargs):
 
 class M113TextDomainTests(unittest.TestCase):
     def test_service_capabilities_are_owned_by_selected_domain(self):
-        service = AgentService(runtime_factory=_text_runtime_factory)
+        service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
         try:
             catalog = service.capabilities()
         finally:
@@ -45,7 +45,7 @@ class M113TextDomainTests(unittest.TestCase):
         self.assertEqual(snapshot["health_status"], "ready")
         self.assertEqual(snapshot["data_readiness"], "not_applicable")
 
-        service = AgentService(runtime_factory=_text_runtime_factory)
+        service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
         try:
             service_snapshot = service.runtime_capabilities(max_files=1)
         finally:
@@ -55,7 +55,7 @@ class M113TextDomainTests(unittest.TestCase):
 
     def test_http_capabilities_use_selected_domain_runtime(self):
         class TextHandler(AgentApiHandler):
-            service = AgentService(runtime_factory=_text_runtime_factory)
+            service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), TextHandler)
         thread = threading.Thread(
@@ -86,7 +86,7 @@ class M113TextDomainTests(unittest.TestCase):
 
     def test_http_runtime_capabilities_use_domain_evidence(self):
         class TextHandler(AgentApiHandler):
-            service = AgentService(runtime_factory=_text_runtime_factory)
+            service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), TextHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -161,7 +161,7 @@ class M113TextDomainTests(unittest.TestCase):
             service = AgentService(
                 state_db_path=str(root / "state.db"),
                 artifact_store=store,
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
 
             class TextHandler(AgentApiHandler):
@@ -232,7 +232,7 @@ class M113TextDomainTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 payload = service.run(

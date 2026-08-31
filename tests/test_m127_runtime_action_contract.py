@@ -51,7 +51,7 @@ class _LegacyDomain:
 
 class M127RuntimeActionContractTests(unittest.TestCase):
     def test_versioned_evidence_supports_provider_and_legacy_domain(self):
-        service = AgentService(runtime_factory=_text_runtime_factory)
+        service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
         try:
             runtime = service.runtime_capabilities(backend="memory")
             release = service.release_evidence(backend="memory")
@@ -67,7 +67,7 @@ class M127RuntimeActionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 first = service.execute_action(
@@ -102,7 +102,7 @@ class M127RuntimeActionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
             try:
                 with self.assertRaises(ValueError) as first_error:
@@ -147,7 +147,7 @@ class M127RuntimeActionContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(
                 artifact_store=ArtifactStore(directory),
-                runtime_factory=_text_runtime_factory,
+                runtime_factory=_text_runtime_factory, domain_id="text",
             )
 
             class TextHandler(AgentApiHandler):

@@ -97,7 +97,7 @@ class M136DeploymentEvidenceTests(unittest.TestCase):
 
     def test_text_and_gis_contexts_are_distinct_and_self_describing(self):
         gis_service = AgentService()
-        text_service = AgentService(runtime_factory=_text_runtime_factory)
+        text_service = AgentService(runtime_factory=_text_runtime_factory, domain_id="text")
         try:
             gis = gis_service.run("查询洪山区行政区边界", backend="memory")
             text = text_service.run("请摘要这段文本。", backend="memory")
