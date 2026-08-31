@@ -11,6 +11,7 @@ from agent.runtime_core.runtime_engine import (
     _plan_to_dict,
     _record_run_failure,
     _resolve_result_references,
+    run_domain_preflight,
 )
 from agent.agent_settings import open_agent_defaults
 from agent.runtime_state import (
@@ -25,5 +26,6 @@ __all__ = [
     "InMemoryStateStore",
     "PendingClarification",
     "open_agent_defaults",
+    "run_domain_preflight",
     "_resolve_result_references",
 ]
