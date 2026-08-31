@@ -190,9 +190,17 @@ class HTTPApplication:
             handler = self._action_handler
             if handler is None:
                 handler = getattr(service, "estimate_area_handler", None)
+            # Product defaults add planner/backend to the body; a Domain action
+            # input schema only accepts action-specific fields, so keep those as
+            # separate execution params and pass a clean action input.
+            action_input = {
+                key: value
+                for key, value in body.items()
+                if key not in ("planner", "backend", "idempotency_key")
+            }
             return service.execute_action(
                 action_id,
-                body,
+                action_input,
                 planner=body.get("planner", "rule"),
                 backend=body.get("backend", "local"),
                 idempotency_key=body.get("idempotency_key"),
