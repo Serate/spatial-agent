@@ -24,7 +24,7 @@ from .result_completeness import build_result_completeness
 from .result_summary import build_result_summary
 from .answer_quality import assess_answer, project_answer_quality
 from .runtime_core.run_budget import RunBudget
-from .answer_evidence import (
+from agent.evidence.answer_evidence import (
     ANSWER_GENERATION_SCHEMA_VERSION,
     fallback_answer_generation_evidence,
     project_answer_generation_evidence,

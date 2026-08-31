@@ -428,32 +428,6 @@
       ]
     },
     {
-      "path": "agent/answer_evidence.py",
-      "language": "python",
-      "line_count": 251,
-      "layer": "result",
-      "role": "答案组合、生成与用户语义投影",
-      "stage": "M8-M325",
-      "stability": "public-boundary",
-      "semantic_source": "path-rule",
-      "semantic_level": "package",
-      "responsibility": "Safe, bounded projection and sanitization of answer-generation evidence.",
-      "responsibility_source": "module-doc",
-      "public_symbols": [
-        {
-          "name": "fallback_answer_generation_evidence",
-          "kind": "function",
-          "line": 50
-        },
-        {
-          "name": "project_answer_generation_evidence",
-          "kind": "function",
-          "line": 66
-        }
-      ],
-      "imports": []
-    },
-    {
       "path": "agent/answer_generation.py",
       "language": "python",
       "line_count": 1101,
@@ -529,6 +503,7 @@
       ],
       "imports": [
         "agent.application.composite_view",
+        "agent.evidence.answer_evidence",
         "agent.integration.structured_response"
       ],
       "tests": [
@@ -4492,6 +4467,32 @@
       "responsibility": "Canonical, domain-neutral evidence contracts and projections.",
       "responsibility_source": "module-doc",
       "public_symbols": [],
+      "imports": []
+    },
+    {
+      "path": "agent/evidence/answer_evidence.py",
+      "language": "python",
+      "line_count": 251,
+      "layer": "evidence",
+      "role": "Evidence 契约、投影、注册与恢复 canonical 实现",
+      "stage": "M71-M325",
+      "stability": "public-boundary",
+      "semantic_source": "path-rule",
+      "semantic_level": "package",
+      "responsibility": "Safe, bounded projection and sanitization of answer-generation evidence.",
+      "responsibility_source": "module-doc",
+      "public_symbols": [
+        {
+          "name": "fallback_answer_generation_evidence",
+          "kind": "function",
+          "line": 50
+        },
+        {
+          "name": "project_answer_generation_evidence",
+          "kind": "function",
+          "line": 66
+        }
+      ],
       "imports": []
     },
     {
