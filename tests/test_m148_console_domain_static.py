@@ -48,7 +48,7 @@ class M148ConsoleDomainStaticTests(unittest.TestCase):
             self.assertNotIn(legacy_marker, self.shell)
         self.assertIn("createMapAdapter", self.gis_plugin)
         self.assertIn('surface: "visual"', self.gis_plugin)
-        self.assertIn("const registry = Object.freeze({register, renderWorkspace, reset, context})", self.registry)
+        self.assertIn("const registry = Object.freeze({register, renderWorkspace, reset, context, projectionToPanels})", self.registry)
         self.assertIn("return Object.freeze({SCHEMA_VERSION, mount, collectPayload})", self.action_host)
 
 
