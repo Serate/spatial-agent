@@ -6,12 +6,15 @@ from pathlib import Path
 
 
 class M78HttpContractTests(unittest.TestCase):
-    def test_both_entrypoints_import_shared_contract(self):
-        serve = (Path(__file__).parents[1] / "serve_api.py").read_text(encoding="utf-8")
-        self.assertIn("from agent.api_contract import", serve)
-        self.assertIn("from agent.application.http import HTTPApplication", serve)
-        self.assertIn("HTTPApplication", serve)
-        self.assertIn("error_status", serve)
+    def test_both_entrypoints_import_shared_transport_and_application(self):
+        root = Path(__file__).parents[1]
+        serve = (root / "serve_api.py").read_text(encoding="utf-8")
+        production = (root / "production_api.py").read_text(encoding="utf-8")
+        for source in (serve, production):
+            self.assertIn("from agent.application.http import HTTPApplication", source)
+            self.assertIn("from agent.application.http_transport import", source)
+            self.assertIn("error_projection", source)
+            self.assertIn("HTTPApplication", source)
 
     def test_shared_contract_maps_payloads_identically(self):
         from agent.api_contract import (
@@ -87,12 +90,13 @@ class M78HttpContractTests(unittest.TestCase):
         self.assertEqual(payload["status"], "COMPLETED")
         self.assertNotIn("error_category", payload)
 
-    def test_dev_server_uses_shared_error_mapping_in_post_path(self):
+    def test_dev_server_delegates_post_errors_to_shared_projection(self):
         serve = (Path(__file__).parents[1] / "serve_api.py").read_text(encoding="utf-8")
         post_section = serve.split("def do_POST")[1].split("def do_DELETE")[0]
-        # The dev server POST path must delegate to the shared error mapping,
-        # not hardcode 400/500.
-        self.assertIn("error_status(exc)", post_section)
+        # The dev server POST path must delegate to the shared transport error
+        # projection, not hardcode status codes or duplicate api-contract calls.
+        self.assertIn("self._write_error(exc)", post_section)
+        self.assertNotIn("error_status(exc)", post_section)
         self.assertNotIn("_write_json(400,", post_section)
         self.assertNotIn("_write_json(500,", post_section)
 

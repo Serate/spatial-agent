@@ -57,10 +57,15 @@ class DomainRegistry:
             ],
         }
 
-    def resolve_id(self, domain_id: str | None = None, *, default: str = "gis") -> str:
+    def resolve_id(self, domain_id: str | None = None, *, default: str | None = None) -> str:
         candidate = domain_id
         if candidate is None or not str(candidate).strip():
             candidate = os.environ.get("SPATIAL_AGENT_DOMAIN") or default
+        if candidate is None or not str(candidate).strip():
+            raise DomainSelectionError(
+                "a domain must be selected explicitly",
+                code="domain_required",
+            )
         candidate = str(candidate).strip().lower()
         if not _DOMAIN_ID_RE.fullmatch(candidate) or candidate not in self._entries:
             raise DomainSelectionError(
@@ -69,7 +74,7 @@ class DomainRegistry:
             )
         return candidate
 
-    def resolve(self, domain_id: str | None = None, *, default: str = "gis") -> Any:
+    def resolve(self, domain_id: str | None = None, *, default: str | None = None) -> Any:
         selected_id = self.resolve_id(domain_id, default=default)
         entry = self._entries[selected_id]
         pack = entry.factory()
@@ -140,9 +145,13 @@ def domain_registry() -> DomainRegistry:
     return _REGISTRY
 
 
-def resolve_domain_id(domain_id: str | None = None) -> str:
-    return _REGISTRY.resolve_id(domain_id)
+def resolve_domain_id(
+    domain_id: str | None = None, *, default: str | None = None
+) -> str:
+    return _REGISTRY.resolve_id(domain_id, default=default)
 
 
-def resolve_domain_pack(domain_id: str | None = None) -> Any:
-    return _REGISTRY.resolve(domain_id)
+def resolve_domain_pack(
+    domain_id: str | None = None, *, default: str | None = None
+) -> Any:
+    return _REGISTRY.resolve(domain_id, default=default)

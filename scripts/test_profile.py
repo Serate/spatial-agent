@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -57,7 +58,7 @@ def main() -> int:
     parser.add_argument(
         "--profile",
         action="append",
-        choices=("quick", "smoke", "ci", "stage", "full-stage", "gis-core", "live-short", "docker"),
+        choices=("quick", "smoke", "ci", "stage", "full-stage", "full-regression", "gis-core", "live-short", "docker"),
         default=None,
         help="profile to run; repeatable; default: quick",
     )
@@ -114,6 +115,10 @@ def _profile_catalog(args: argparse.Namespace) -> Dict[str, object]:
             "purpose": "explicit heavy phase gate: full global evaluation and model replay",
             "commands": [c.as_dict() for c in _full_stage_commands()],
         },
+        "full-regression": {
+            "purpose": "opt-in historical unittest discovery; environment-gated tests may skip or fail",
+            "commands": [c.as_dict() for c in _full_regression_commands()],
+        },
         "gis-core": {
             "purpose": "sampled real-data GIS gate; run with the GIS Python environment",
             "commands": [c.as_dict() for c in _gis_core_commands()],
@@ -142,6 +147,8 @@ def _commands_for_profiles(profiles: Iterable[str], args: argparse.Namespace) ->
             commands.extend(_stage_commands())
         elif profile == "full-stage":
             commands.extend(_full_stage_commands())
+        elif profile == "full-regression":
+            commands.extend(_full_regression_commands())
         elif profile == "gis-core":
             commands.extend(_gis_core_commands())
         elif profile == "live-short":
@@ -214,6 +221,16 @@ def _full_stage_commands() -> List[ProfileCommand]:
             "strict_global_offline_evaluation",
             [sys.executable, str(ROOT / "scripts" / "evaluate_global.py"), "--strict"],
         ),
+    ]
+
+
+def _full_regression_commands() -> List[ProfileCommand]:
+    return [
+        ProfileCommand(
+            "historical_unittest_discovery",
+            [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"],
+            {},
+        )
     ]
 
 
@@ -306,13 +323,83 @@ def _run_command(command: ProfileCommand) -> Dict[str, object]:
         encoding="utf-8",
         errors="replace",
     )
-    return {
+    result = {
         "name": command.name,
         "ok": completed.returncode == 0,
         "returncode": completed.returncode,
         "stdout_tail": _tail(completed.stdout),
         "stderr_tail": _tail(completed.stderr),
     }
+    if command.name == "historical_unittest_discovery":
+        result["unittest_report"] = _parse_unittest_report(
+            completed.stdout + "\n" + completed.stderr
+        )
+    return result
+
+
+def _parse_unittest_report(output: str) -> Dict[str, object]:
+    """Project unittest output into bounded counts and safe failure ids."""
+    text = str(output or "")
+    footer = re.search(
+        r"Ran\s+(?P<total>\d+)\s+tests?.*?(?P<outcome>FAILED(?:\s*\([^\n]+\))?|OK)",
+        text,
+        re.DOTALL,
+    )
+    total = int(footer.group("total")) if footer else 0
+    outcome = footer.group("outcome") if footer else "unknown"
+    counts = {"failures": 0, "errors": 0, "skipped": 0}
+    if footer and "failures=" in outcome:
+        for name in counts:
+            match = re.search(name + r"=(\d+)", outcome)
+            if match:
+                counts[name] = int(match.group(1))
+    failures = []
+    block_pattern = re.compile(
+        r"^(?P<kind>FAIL|ERROR):\s+(?P<test>[^\n]+)\n-+\n(?P<body>.*?)(?=^[-=]+\n(?:FAIL|ERROR):|^[-=]+\nRan\s|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    for match in block_pattern.finditer(text):
+        body = match.group("body").lower()
+        category = _classify_regression_block(body)
+        test_id = match.group("test").strip()[:240]
+        failures.append(
+            {
+                "kind": match.group("kind").lower(),
+                "test_id": test_id,
+                "category": category,
+            }
+        )
+    if not counts["failures"]:
+        counts["failures"] = sum(item["kind"] == "fail" for item in failures)
+    if not counts["errors"]:
+        counts["errors"] = sum(item["kind"] == "error" for item in failures)
+    counts["total"] = total
+    counts["passed"] = max(0, total - counts["failures"] - counts["errors"] - counts["skipped"])
+    by_category: Dict[str, int] = {}
+    for item in failures:
+        category = str(item["category"])
+        by_category[category] = by_category.get(category, 0) + 1
+    return {
+        "outcome": "passed" if outcome == "OK" else "failed",
+        "counts": counts,
+        "by_category": by_category,
+        "failures": failures[:512],
+    }
+
+
+def _classify_regression_block(body: str) -> str:
+    """Classify without persisting traceback text or machine-local paths."""
+    if any(token in body for token in ("no module named", "requires ", "skipunless", "optional dependency")):
+        return "environment_or_dependency"
+    if any(token in body for token in ("network", "openai", "api key", "live model")):
+        return "live_provider_gate"
+    if "importerror" in body or "modulenotfounderror" in body:
+        return "test_or_import_infrastructure"
+    if "assertionerror" in body:
+        return "assertion_contract"
+    if "permissionerror" in body or "resourcewarning" in body:
+        return "resource_lifecycle"
+    return "runtime_error"
 
 
 def _tail(value: str, max_lines: int = 30) -> str:

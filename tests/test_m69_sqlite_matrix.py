@@ -76,6 +76,37 @@ def _seed_recoverable_job(path, run_id, *, cancel=False, timeout_seconds=None):
 
 
 class M69SQLiteMatrixTests(unittest.TestCase):
+    def test_timeout_fence_rejects_late_worker_finish_and_snapshot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = str(Path(directory) / "state.db")
+            store = SQLiteStateStore(path)
+            run_id = "m69-timeout-fence"
+            store.create_async_job(
+                "m69-fence-key",
+                run_id,
+                {"request": "你好", "session_id": "m69-fence"},
+            )
+            store.save(
+                AgentRunResult(
+                    run_id=run_id,
+                    status=RunStatus.PLANNING,
+                    request="你好",
+                    session_id="m69-fence",
+                )
+            )
+            self.assertTrue(store.claim_async_job(run_id, 1234))
+            self.assertEqual(store.expire_async_job(run_id)["status"], "TIMED_OUT")
+
+            late = AgentRunResult(
+                run_id=run_id,
+                status=RunStatus.COMPLETED,
+                request="你好",
+                session_id="m69-fence",
+            )
+            self.assertFalse(store.save(late))
+            self.assertFalse(store.finish_async_job(run_id, "COMPLETED", 1234))
+            self.assertEqual(store.get_async_job(run_id)["status"], "TIMED_OUT")
+
     def test_three_workers_share_one_idempotent_submission(self):
         context = multiprocessing.get_context("spawn")
         with tempfile.TemporaryDirectory() as directory:

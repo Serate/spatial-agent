@@ -57,7 +57,7 @@ def build_runtime(
     root = Path(__file__).resolve().parent.parent
     if domain_pack is not None and domain_id is not None:
         raise ValueError("domain_pack and domain_id are mutually exclusive")
-    selected_domain_pack = domain_pack or resolve_domain_pack(domain_id)
+    selected_domain_pack = domain_pack or resolve_domain_pack(domain_id, default="gis")
     agent_defaults = open_agent_defaults()
     provider_factory = getattr(selected_domain_pack, "tool_provider", None)
     if callable(provider_factory):
@@ -219,7 +219,7 @@ def build_runtime_context_snapshot(
     root = Path(__file__).resolve().parent.parent
     if domain_pack is not None and domain_id is not None:
         raise ValueError("domain_pack and domain_id are mutually exclusive")
-    selected_domain_pack = domain_pack or resolve_domain_pack(domain_id)
+    selected_domain_pack = domain_pack or resolve_domain_pack(domain_id, default="gis")
     agent_defaults = open_agent_defaults()
     if allowed_permissions is None:
         allowed_permissions = _csv_env("SPATIAL_AGENT_PERMISSIONS") or default_permissions(

@@ -26,6 +26,7 @@ from agent.domain_routing_entry import (
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
+from agent.application.http_routes import resolve_route
 from agent.application.composite import CompositeApplication
 from agent.application.composite_runs import CompositeRunApplication
 from agent.application.composite_planning import (
@@ -68,7 +69,7 @@ domain_host = DomainRuntimeHost()
 domain_host.start()
 legacy_service = AgentService(
     general=True,
-    legacy_domain_id=resolve_domain_id(),
+    legacy_domain_id=resolve_domain_id("gis"),
 )
 legacy_service.start_reaper()
 domain_routing = DomainRoutingApplication(
@@ -164,6 +165,48 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             payload.update(environment_status())
             self._write_json(200, payload)
             return
+        shared_route = resolve_route("GET", parsed.path)
+        if shared_route is not None and shared_route.action != "run_events":
+            query = parse_qs(parsed.query)
+            query_payload = {
+                key: values[0]
+                for key, values in query.items()
+                if values
+            }
+            if shared_route.action in {
+                "action_executions",
+                "runs",
+                "sessions",
+                "session_runs",
+                "tool_approvals",
+            }:
+                query_payload["limit"] = int(
+                    query_payload.get(
+                        "limit",
+                        50 if shared_route.action in {"sessions", "tool_approvals"} else 20,
+                    )
+                )
+            elif shared_route.action == "memory":
+                query_payload["limit"] = int(query_payload.get("limit", 20))
+                query_payload["global_scope"] = query_payload.get("global", "0") in (
+                    "1", "true", "yes"
+                )
+            elif shared_route.action in {"runtime_capabilities", "release_evidence"}:
+                query_payload["max_files"] = int(query_payload.get("max_files", 10))
+            try:
+                result = self._http_application().read(
+                    shared_route.action,
+                    query_payload,
+                    resource_id=shared_route.resource_id,
+                )
+            except ValueError as exc:
+                self._write_error(exc, not_found=shared_route.resource_id is not None)
+            except Exception as exc:
+                self._write_error(exc)
+            else:
+                self._write_json(200, result)
+            return
+
         if parsed.path == "/capabilities":
             query = parse_qs(parsed.query)
             planner = query.get("planner", [None])[0]
@@ -595,6 +638,33 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             self._write_error(exc)
             return
+        shared_route = resolve_route("POST", parsed.path)
+        if shared_route is not None:
+            try:
+                payload = self._read_json()
+                if selection is not None:
+                    assert_domain_payload(selection, payload)
+                result = self._http_application().execute(
+                    shared_route.action,
+                    payload,
+                    run_id=shared_route.resource_id,
+                    template_id=shared_route.template_id,
+                )
+            except DomainRoutingApplicationError as exc:
+                self._write_error(
+                    exc,
+                    not_found=exc.code == "domain_routing_decision_not_found",
+                )
+                return
+            except (ValueError, WorkflowTemplateError) as exc:
+                self._write_error(exc)
+                return
+            except Exception as exc:
+                self._write_error(exc)
+                return
+            self._write_json(200, result)
+            return
+
         is_retry = parsed.path.startswith("/runs/") and parsed.path.endswith("/retry")
         is_cancel = parsed.path.startswith("/runs/") and parsed.path.endswith("/cancel")
         is_preview = parsed.path == "/runs/preview"
@@ -804,7 +874,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
     def _domain_request(self, parsed):
         """Bind this handler request to the service selected by its URL."""
         self.service = type(self).service
-        self._request_domain_id = getattr(self.service, "_resolved_domain_id", "gis")
+        self._request_domain_id = getattr(self.service, "_resolved_domain_id", None)
+        if not self._request_domain_id:
+            raise ValueError("service Domain is not bound")
         scope = parse_domain_path(parsed.path)
         if scope is None:
             return parsed, None
@@ -855,7 +927,9 @@ class AgentApiHandler(BaseHTTPRequestHandler):
             store_root = getattr(getattr(self.service, "_artifact_store", None), "_root", None)
             if store_root is not None:
                 root = Path(store_root)
-        domain_id = getattr(self, "_request_domain_id", "gis")
+        domain_id = getattr(self, "_request_domain_id", None)
+        if not domain_id:
+            return None
         metadata_root = self.artifact_root if parts[1] == "geojson" else None
         suffix = ".geojson" if kind == "geojson" else ".json"
         prefix = "action-" if kind == "action" else ""

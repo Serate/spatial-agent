@@ -23,6 +23,8 @@ TASK_PLAN_SCHEMA: Dict[str, Any] = {
             "additionalProperties": False,
             "properties": {
                 "type": {"type": "string", "minLength": 1, "maxLength": 96},
+                "availability": {"type": "string", "enum": ["available", "unavailable"]},
+                "reason_code": {"type": "string", "maxLength": 96},
             },
         },
         "steps": {
@@ -100,6 +102,16 @@ def parse_task_plan(payload: Mapping[str, Any], allowed_tools: Iterable[str]) ->
     output = payload.get("output", {})
     if not isinstance(output, dict):
         raise PlanningError("output must be an object")
+    availability = output.get("availability")
+    if availability is not None and availability not in {"available", "unavailable"}:
+        raise PlanningError("output availability must be available or unavailable")
+    reason_code = output.get("reason_code")
+    if reason_code is not None and (
+        not isinstance(reason_code, str) or len(reason_code) > 96
+    ):
+        raise PlanningError("output reason_code must be a bounded string")
+    if availability == "unavailable" and output.get("type") != "direct_answer":
+        raise PlanningError("unavailable output must be a direct_answer")
 
     assumptions = payload.get("assumptions", [])
     if not isinstance(assumptions, list) or not all(isinstance(item, str) for item in assumptions):

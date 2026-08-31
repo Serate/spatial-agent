@@ -742,7 +742,9 @@ if ($releaseEvidence.deployment_evidence.context_fingerprint -ne $runtimeCapabil
 
 $sessionId = "production-acceptance-" + [guid]::NewGuid().ToString("N")
 $adminRequest = ([char]0x67E5) + ([char]0x8BE2) + ([char]0x6D2A) + ([char]0x5C71) + ([char]0x533A) + ([char]0x884C) + ([char]0x653F) + ([char]0x533A) + ([char]0x8FB9) + ([char]0x754C)
-$preview = Post-Json "$BaseUrl/runs/preview" @{
+# Root runs are domain-neutral; use the explicit GIS route for spatial acceptance.
+$gisBaseUrl = "$BaseUrl/domains/gis"
+$preview = Post-Json "$gisBaseUrl/runs/preview" @{
   request = $adminRequest
   session_id = $sessionId
   planner = "rule"
@@ -760,7 +762,7 @@ if (-not ([string]$preview.plan_identity.fingerprint).StartsWith("sha256:")) {
   throw "preview fingerprint must be sha256"
 }
 
-$syncRun = Post-Json "$BaseUrl/runs" @{
+$syncRun = Post-Json "$gisBaseUrl/runs" @{
   request = $adminRequest
   session_id = $sessionId
   planner = "rule"
@@ -784,7 +786,7 @@ if ([string]::IsNullOrWhiteSpace([string]$syncRun.artifact_ref)) {
   throw "sync run artifact_ref missing"
 }
 $artifactName = Split-Path -Leaf ([string]$syncRun.artifact_ref)
-$artifact = Get-Json "$BaseUrl/artifacts/runs/$artifactName"
+$artifact = Get-Json "$gisBaseUrl/artifacts/runs/$artifactName"
 Assert-PlanningEvidence $artifact "artifact"
 Assert-EvidenceRegistry $artifact "artifact"
 if ($null -eq $artifact.evidence_registry -or $null -eq $syncRun.result.evidence_registry) {
@@ -793,10 +795,10 @@ if ($null -eq $artifact.evidence_registry -or $null -eq $syncRun.result.evidence
 if (($artifact.evidence_registry | ConvertTo-Json -Depth 50 -Compress) -ne ($syncRun.result.evidence_registry | ConvertTo-Json -Depth 50 -Compress)) {
   throw "sync/artifact evidence registry mismatch"
 }
-$syncEvidence = Get-Json "$BaseUrl/runs/$($syncRun.run_id)/evidence"
+$syncEvidence = Get-Json "$gisBaseUrl/runs/$($syncRun.run_id)/evidence"
 Assert-EvidenceRegistry $syncEvidence "sync run evidence endpoint"
 Assert-EvidenceProjection $syncEvidence "sync run evidence endpoint"
-$syncArtifactEvidence = Get-Json "$BaseUrl/artifacts/runs/$artifactName/evidence"
+$syncArtifactEvidence = Get-Json "$gisBaseUrl/artifacts/runs/$artifactName/evidence"
 Assert-EvidenceRegistry $syncArtifactEvidence "sync artifact evidence endpoint"
 Assert-EvidenceProjection $syncArtifactEvidence "sync artifact evidence endpoint"
 if (($syncEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress) -ne ($syncArtifactEvidence.evidence_registry | ConvertTo-Json -Depth 50 -Compress)) {
@@ -844,7 +846,7 @@ Assert-DeploymentEvidence $artifact "artifact"
 Assert-NestedSchemaContract $artifact "artifact"
 $syncArtifactContract = Invoke-ContractHarness -payloads @($syncRun, $artifact) -surface "sync/artifact"
 
-$failureRun = Post-Json "$BaseUrl/runs" @{
+$failureRun = Post-Json "$gisBaseUrl/runs" @{
   request = $adminRequest
   session_id = "acceptance-failure-contract-" + [guid]::NewGuid().ToString("N")
   planner = "rule"
@@ -856,13 +858,13 @@ if ($failureRun.status -ne "FAILED") { throw "failure contract run unexpectedly 
 Assert-FailureEvidence $failureRun "sync failure run"
 Assert-DeploymentEvidence $failureRun "sync failure run"
 $failureArtifactName = Split-Path -Leaf ([string]$failureRun.artifact_ref)
-$failureArtifact = Get-Json "$BaseUrl/artifacts/runs/$failureArtifactName"
+$failureArtifact = Get-Json "$gisBaseUrl/artifacts/runs/$failureArtifactName"
 Assert-FailureEvidence $failureArtifact "failure artifact"
 Assert-DeploymentEvidence $failureArtifact "failure artifact"
 Assert-EvidenceRegistry $failureRun "sync failure run"
 Assert-EvidenceRegistry $failureArtifact "failure artifact"
 
-$invalid = Post-JsonExpectError "$BaseUrl/runs" @{
+$invalid = Post-JsonExpectError "$gisBaseUrl/runs" @{
   request = $adminRequest
   session_id = "acceptance-invalid-request-" + [guid]::NewGuid().ToString("N")
   planner = "rule"
@@ -874,7 +876,8 @@ if ($invalid.payload.error_code -ne "invalid_request" -or $invalid.payload.error
 }
 
 $greeting = ([char]0x4F60) + ([char]0x597D)
-$asyncPayload = @{ request = $greeting; session_id = $sessionId; planner = "rule"; backend = "memory"; export_artifact = $true }
+$asyncSessionId = "production-acceptance-general-" + [guid]::NewGuid().ToString("N")
+$asyncPayload = @{ request = $greeting; session_id = $asyncSessionId; planner = "rule"; backend = "memory"; export_artifact = $true }
 $queued = Post-Json "$BaseUrl/runs/async" $asyncPayload
 if (-not $queued.run_id -or $queued.status -ne "QUEUED") { throw "async submission failed" }
 $duplicate = Post-Json "$BaseUrl/runs/async" $asyncPayload

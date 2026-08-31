@@ -9,6 +9,7 @@ those decisions in one place so the two servers cannot drift apart.
 from typing import Any, Dict
 
 from agent.cost_governance import BudgetExceeded, ConcurrencyLimited
+from agent.error_taxonomy import classify_exception
 from agent.geojson_exporter import DEFAULT_GEOJSON_MAX_FEATURES
 from agent.service import AgentService
 from agent.workflow_templates import (
@@ -282,23 +283,17 @@ def error_body(exc: Exception) -> Dict[str, str]:
 
 
 def failure_category_for_error(exc: Exception) -> str | None:
-    """Reuse the async failure taxonomy for HTTP-level failures."""
+    """Project the shared bounded taxonomy into the legacy HTTP label set."""
     if isinstance(exc, BudgetExceeded):
         return "budget"
     if isinstance(exc, ConcurrencyLimited):
         return "concurrency_limited"
-    text = str(exc or "").lower()
-    if any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
-        return "provider"
-    if any(token in text for token in ("planner", "plan", "schema", "规划")):
-        return "planning"
-    if any(token in text for token in ("tool", "action", "backend", "dataset", "raster", "栅格", "数据")):
-        return "tool"
-    if any(token in text for token in ("timeout", "timed out", "超时")):
-        return "timeout"
-    if isinstance(exc, ValueError):
+    classified = classify_exception(exc, phase="transport", source="http")
+    # ``invalid_input`` is the established public HTTP spelling; the canonical
+    # taxonomy calls the same class ``input``.
+    if classified["category"] == "input":
         return "invalid_input"
-    return "execution"
+    return classified["category"]
 
 
 def dispatch(service: AgentService, action: str, run_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:

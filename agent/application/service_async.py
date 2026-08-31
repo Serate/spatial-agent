@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Mapping
 
 from agent.models import AgentRunResult
+from agent.error_taxonomy import classify_error_message
 from agent.persistence.artifact_reference import (
     build_artifact_reference,
     normalize_artifact_reference,
@@ -668,7 +669,7 @@ def normalize_async_result_evidence(
 
 
 def failure_category_for(status: str, error: str = None, source: str = None) -> str:
-    """Classify failures using bounded labels; never return the source error."""
+    """Classify failures through the shared bounded taxonomy."""
     status = str(status or "").upper()
     if status == "COMPLETED":
         return None
@@ -682,20 +683,22 @@ def failure_category_for(status: str, error: str = None, source: str = None) -> 
         return "decision"
     if status == "REJECTED":
         return "rejected"
-    if source == "worker":
-        return "worker_exception"
-    text = str(error or "").lower()
-    if any(token in text for token in ("timeout", "timed out", "超时")):
-        return "timeout"
-    if any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
-        return "provider"
-    if any(token in text for token in ("planner", "plan", "schema", "规划")):
-        return "planning"
-    if any(token in text for token in ("tool", "backend", "dataset", "raster", "栅格", "数据")):
-        return "tool"
-    if status == "FAILED":
+    classified = classify_error_message(
+        error,
+        status=status,
+        phase="execution",
+        source=source,
+    )
+    category = classified["category"]
+    if category == "input":
+        return "invalid_input"
+    if category == "policy":
+        return "rejected"
+    if category == "data_unavailable":
+        return "data_unavailable"
+    if category == "internal" and status == "FAILED":
         return "execution"
-    return None
+    return category
 
 
 def async_event(status: str) -> str:

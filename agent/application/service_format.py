@@ -15,6 +15,7 @@ from agent.geojson_exporter import export_run_summary
 from agent.models import AgentRunResult
 from agent.provenance import build_provenance
 from agent.failure_contract import failure_from_payload
+from agent.error_taxonomy import classify_error_message
 from agent.result_completeness import build_result_completeness
 from agent.trace_formatter import format_trace
 from agent.workflow_templates import normalize_workflow_selection
@@ -201,26 +202,9 @@ def _attach_error_category(payload: Dict[str, Any]) -> None:
     error = payload.get("error")
     if not error:
         return
-    text = str(error).lower()
-    category = None
-    if status in {"CANCELLED", "TIMED_OUT"}:
-        category = "timeout" if status == "TIMED_OUT" else "cancelled"
-    elif status == "REJECTED":
-        category = "rejected"
-    elif status == "NEEDS_CLARIFICATION":
-        category = "clarification"
-    elif any(token in text for token in ("timeout", "timed out", "超时")):
-        category = "timeout"
-    elif any(token in text for token in ("openai", "provider", "http", "url", "socket", "network", "api")):
-        category = "provider"
-    elif any(token in text for token in ("planner", "plan", "schema", "规划")):
-        category = "planning"
-    elif any(token in text for token in ("tool", "backend", "dataset", "raster", "栅格", "数据")):
-        category = "tool"
-    elif status == "FAILED":
-        category = "execution"
-    if category:
-        payload["error_category"] = category
+    classification = classify_error_message(error, status=status)
+    payload["error_category"] = classification["category"]
+    payload.setdefault("error_code", classification["code"])
 
 
 def analysis_ready_summary(payload: Dict[str, Any]) -> Dict[str, Any] | None:

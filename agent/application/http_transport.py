@@ -79,17 +79,21 @@ def safe_artifact_path(
     suffix: str,
     prefix: str = "",
     *,
-    domain_id: str = "gis",
+    domain_id: str | None = None,
     metadata_root: Optional[Path] = None,
 ) -> Optional[Path]:
     """Resolve a bounded artifact path without exposing filesystem traversal."""
+
+    normalized_domain = str(domain_id or "").strip()[:80]
+    if not normalized_domain:
+        raise ValueError("domain_id must be bound for artifact access")
 
     kind = "geojson" if suffix == ".geojson" else ("action" if prefix else "run")
     return resolve_artifact_path(
         root,
         name,
         kind=kind,
-        domain_id=domain_id,
+        domain_id=normalized_domain,
         metadata_root=metadata_root,
     )
 

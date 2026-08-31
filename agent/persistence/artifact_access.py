@@ -21,8 +21,9 @@ def resolve_artifact_path(
 
     HTTP handlers must not infer authorization from a filename.  GeoJSON
     exports created by older versions do not carry a Domain field, so their
-    sibling run artifact is used as bounded metadata when available; legacy
-    unbound files retain the historical GIS default.
+    sibling run artifact is used as bounded metadata when available; unbound
+    files are readable only through an explicitly selected legacy Domain
+    adapter.
     """
 
     if kind not in {"run", "action", "geojson"}:
@@ -68,7 +69,10 @@ def resolve_artifact_path(
                     sibling_payload = None
                 if isinstance(sibling_payload, dict):
                     stored_domain = sibling_payload.get("domain_id")
-    stored_domain = str(stored_domain or "gis")[:80]
+    if not stored_domain:
+        if not domain_id:
+            return None
+        stored_domain = str(domain_id).strip()[:80]
     if domain_id and stored_domain != str(domain_id)[:80]:
         return None
     return candidate

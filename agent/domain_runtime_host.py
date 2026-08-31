@@ -60,10 +60,11 @@ class DomainRuntimeHost:
             if resolved not in normalized_ids:
                 normalized_ids.append(resolved)
         self._enabled_domain_ids = tuple(sorted(normalized_ids))
-        self._legacy_domain_id = self._registry.resolve_id(
-            legacy_domain_id
-            or os.environ.get("SPATIAL_AGENT_LEGACY_DOMAIN")
-            or "gis"
+        legacy_value = legacy_domain_id or os.environ.get(
+            "SPATIAL_AGENT_LEGACY_DOMAIN"
+        )
+        self._legacy_domain_id = (
+            self._registry.resolve_id(legacy_value) if legacy_value else None
         )
         self._service_factory = service_factory or self._default_service_factory
         self._services: dict[str, Any] = {}
@@ -77,7 +78,7 @@ class DomainRuntimeHost:
 
         return AgentService(
             domain_id=domain_id,
-            legacy_domain_id=self._legacy_domain_id,
+            legacy_domain_id=self._legacy_domain_id or domain_id,
         )
 
     def catalog(self) -> dict[str, Any]:

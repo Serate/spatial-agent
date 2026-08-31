@@ -274,6 +274,8 @@ def _project_workflow_selection(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _project_workflow_templates(value: Mapping[str, Any]) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or not value:
+        return {}
     projected = _copy_fields(
         value,
         (

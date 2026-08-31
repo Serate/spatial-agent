@@ -19,6 +19,7 @@ from contextlib import contextmanager
 from typing import Any, Iterable, Mapping, Protocol
 
 from .recovery_action import normalize_action_ids, project_available_actions
+from .persistence.sqlite_retry import retry_sqlite_write
 
 
 DECISION_LIFECYCLE_SCHEMA_VERSION = "spatial-agent.decision-lifecycle.v1"
@@ -206,6 +207,7 @@ class InMemoryDecisionStore:
         self._records: dict[str, DecisionRecord] = {}
         self._lock = threading.RLock()
 
+    @retry_sqlite_write
     def create(self, request: DecisionRequest) -> DecisionRecord:
         _validate_request(request)
         now = time.time()
@@ -351,6 +353,7 @@ class SQLiteDecisionStore:
                 """
             )
 
+    @retry_sqlite_write
     def restore(self, record: DecisionRecord) -> DecisionRecord:
         """Restore an artifact decision without overwriting a newer record.
 
@@ -394,6 +397,7 @@ class SQLiteDecisionStore:
             )
         return restored
 
+    @retry_sqlite_write
     def create(self, request: DecisionRequest) -> DecisionRecord:
         _validate_request(request)
         now = time.time()
@@ -492,6 +496,7 @@ class SQLiteDecisionStore:
             raise DecisionLifecycleError("decision not found", code="decision_not_found")
         return record
 
+    @retry_sqlite_write
     def _cas_update(self, old: DecisionRecord, new: DecisionRecord) -> None:
         with self._connection() as connection:
             cursor = connection.execute(

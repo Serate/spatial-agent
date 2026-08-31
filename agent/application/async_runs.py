@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 
 from agent.persistence.artifact_store import ArtifactStore
 from agent.failure_contract import build_failure_evidence
+from agent.error_taxonomy import classify_exception
 from agent.domain_routing_evidence import (
     DomainRoutingEvidenceError,
     bind_domain_routing_evidence,
@@ -113,6 +114,14 @@ class AsyncApplication:
     def _lock(self):
         return self._state.jobs_lock
 
+    def _selected_domain_id(self) -> str:
+        """Return the application-bound Domain; never infer a business Domain."""
+        domain_id = self._resolved_domain_id() or self._configured_domain_id()
+        normalized = str(domain_id or "").strip()[:80]
+        if not normalized:
+            raise ValueError("domain_id must be selected before async persistence")
+        return normalized
+
     def submit(self, **kwargs: Any) -> Dict[str, Any]:
         """Accept one idempotent async request and schedule at most one job."""
         request = kwargs.get("request", "")
@@ -172,7 +181,7 @@ class AsyncApplication:
                     getattr(existing_any, "domain_id", None)
                     or self._resolved_domain_id()
                     or self._configured_domain_id()
-                    or "gis"
+                    or self._selected_domain_id()
                 ) if existing_any is not None else None
                 if existing_any is not None and existing_domain != domain_id:
                     raise ValueError("run_id belongs to another domain: " + str(run_id))
@@ -189,8 +198,23 @@ class AsyncApplication:
                         )
                     early = (run_id, existing_result.status.value, True)
                 else:
-                    job = self._state.create_async_job(
-                        idempotency_key, run_id, job_payload
+                    initial_snapshot = AgentRunResult(
+                        run_id=run_id,
+                        status=RunStatus.PLANNING,
+                        request=request,
+                        session_id=session_id,
+                        domain_id=domain_id,
+                        domain_routing_evidence=job_payload.get(
+                            "domain_routing_evidence"
+                        ),
+                        runtime_context=job_payload.get("runtime_context"),
+                        workflow=job_payload.get("workflow"),
+                    )
+                    job = self._state.create_async_submission(
+                        idempotency_key,
+                        run_id,
+                        job_payload,
+                        initial_snapshot,
                     )
                     created = bool(job.pop("created", False))
                     if not created:
@@ -203,7 +227,7 @@ class AsyncApplication:
                             existing_payload.get("domain_id")
                             or self._resolved_domain_id()
                             or self._configured_domain_id()
-                            or "gis"
+                            or self._selected_domain_id()
                         )
                         if existing_domain != domain_id:
                             raise ValueError("idempotency_key belongs to another domain")
@@ -223,20 +247,6 @@ class AsyncApplication:
                             True,
                         )
                     else:
-                        self._state.save_run(
-                            AgentRunResult(
-                                run_id=run_id,
-                                status=RunStatus.PLANNING,
-                                request=request,
-                                session_id=session_id,
-                                domain_id=domain_id,
-                                domain_routing_evidence=job_payload.get(
-                                    "domain_routing_evidence"
-                                ),
-                                runtime_context=job_payload.get("runtime_context"),
-                                workflow=job_payload.get("workflow"),
-                            )
-                        )
                         self._append_event(
                             run_id,
                             phase="resolve",
@@ -379,7 +389,21 @@ class AsyncApplication:
             completed = True
         except Exception as exc:
             status = "FAILED"
-            failure_category = _failure_category(status, str(exc), source="worker")
+            classification = classify_exception(
+                exc,
+                status=status,
+                phase="execution",
+                source="worker",
+            )
+            failure_category = (
+                getattr(exc, "category", None) or classification["category"]
+            )
+            failure_code = getattr(exc, "code", None) or classification["code"]
+            failure_retryable = (
+                getattr(exc, "retryable", None)
+                if getattr(exc, "retryable", None) is not None
+                else classification["retryable"]
+            )
             if self._state.persistent:
                 result = self._state.get_run(run_id, domain_id=domain_id)
                 if result is None:
@@ -395,7 +419,7 @@ class AsyncApplication:
                         runtime_context=runtime_context,
                         error=str(exc),
                         error_category=failure_category,
-                        error_code=getattr(exc, "code", None),
+                        error_code=failure_code,
                     )
                 elif result.status in {
                     RunStatus.CREATED,
@@ -405,12 +429,12 @@ class AsyncApplication:
                     result.status = RunStatus.FAILED
                     result.error = str(exc)
                     result.error_category = failure_category
-                    result.error_code = getattr(exc, "code", None)
+                    result.error_code = failure_code
                 result.failure = build_failure_evidence(
                     status=result.status.value,
                     category=result.error_category or failure_category,
                     code=result.error_code,
-                    retryable=getattr(exc, "retryable", None),
+                    retryable=failure_retryable,
                 )
                 self._state.save_run(result)
             self._append_event(
@@ -486,7 +510,7 @@ class AsyncApplication:
                     payload.get("domain_id")
                     or self._resolved_domain_id()
                     or self._configured_domain_id()
-                    or "gis"
+                    or self._selected_domain_id()
                 ),
                 domain_routing_evidence=payload.get("domain_routing_evidence"),
                 runtime_context=payload.get("runtime_context"),

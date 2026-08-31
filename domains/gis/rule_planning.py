@@ -439,7 +439,10 @@ class RuleBasedPlanComposer:
         )
 
     def _build_legacy_road_slope(self, facts: PlanningFacts) -> TaskPlan:
-        slope = int(float(self._SLOPE_PATTERN.search(facts.request).group(1)))
+        slope_match = self._SLOPE_PATTERN.search(facts.request)
+        if slope_match is None:
+            raise ClarificationNeeded("missing slope threshold, for example: slope greater than 25 degrees")
+        slope = int(float(slope_match.group(1)))
         distance = self._DISTANCE_PATTERN.search(facts.request)
         if distance is None:
             raise ClarificationNeeded("missing road distance, for example: within 500 meters of roads")

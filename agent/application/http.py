@@ -422,9 +422,7 @@ class HTTPApplication:
             return {
                 "schema_version": "spatial-agent.evidence-reference.v1",
                 "run_id": artifact_payload.get("run_id"),
-                "domain_id": artifact_payload.get(
-                    "domain_id", body.get("domain_id", "gis")
-                ),
+                "domain_id": self._bound_domain_id(body, artifact_payload),
                 "artifact": {
                     "available": True,
                     "ref": body.get("artifact_ref"),
@@ -438,6 +436,20 @@ class HTTPApplication:
         if action == "routing_metrics":
             return self._routing_required().metrics()
         raise ValueError("unknown read action: " + action)
+
+    def _bound_domain_id(
+        self,
+        body: Dict[str, Any],
+        artifact_payload: Dict[str, Any],
+    ) -> str:
+        """Resolve an artifact's Domain from the selected application scope."""
+        candidate = artifact_payload.get("domain_id") or body.get("domain_id")
+        if not candidate:
+            candidate = getattr(self._service, "_resolved_domain_id", None)
+        normalized = str(candidate or "").strip()[:80]
+        if not normalized:
+            raise ValueError("domain_id must be bound for artifact evidence")
+        return normalized
 
     def _routing_required(self) -> Any:
         if self._routing is None:

@@ -41,7 +41,7 @@ class RuntimePreviewSurface:
     ) -> Dict[str, Any]:
         """Plan a request and return a bounded DAG preview without dispatching tools."""
         runtime = self._runtime
-        from .. import runtime as _runtime_module
+        from . import runtime_engine as _runtime_module
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ToolError("timeout_seconds must be positive")
         deadline = perf_counter() + timeout_seconds if timeout_seconds is not None else None

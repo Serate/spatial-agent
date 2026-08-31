@@ -27,6 +27,7 @@ from agent.decision_lifecycle import InMemoryDecisionStore, SQLiteDecisionStore
 from agent.persistence.memory import FactMemory
 from agent.observability import ObservabilityEmitter
 from agent.failure_contract import build_failure_evidence
+from agent.error_taxonomy import classify_exception
 from agent.models import AgentRunResult, RunStatus
 from agent.persistence.sqlite_store import SQLiteConversationStore, SQLiteStateStore
 from agent.tooling import InMemoryToolApprovalStore, SQLiteToolApprovalStore
@@ -91,7 +92,14 @@ class ServiceState:
     ) -> None:
         self._state_db_path = state_db_path
         self._domain_id = domain_id
-        self._legacy_domain_id = legacy_domain_id or domain_id or "gis"
+        self._legacy_domain_id = str(
+            legacy_domain_id
+            or domain_id
+            or os.environ.get("SPATIAL_AGENT_LEGACY_DOMAIN")
+            or "legacy"
+        ).strip()
+        if not self._legacy_domain_id or len(self._legacy_domain_id) > 80:
+            raise ValueError("legacy_domain_id must be a non-empty bounded value")
         self._state_store = (
             SQLiteStateStore(
                 state_db_path,
@@ -444,6 +452,19 @@ class ServiceState:
             return None
         return self._state_store.get(run_id, domain_id=domain_id)
 
+    def create_async_submission(
+        self,
+        idempotency_key: str,
+        run_id: str,
+        payload: Dict[str, Any],
+        snapshot: Any,
+    ) -> Dict[str, Any]:
+        if self._state_store is None:
+            return {"created": False}
+        return self._state_store.create_async_submission(
+            idempotency_key, run_id, payload, snapshot
+        )
+
     def create_async_job(self, idempotency_key: str, run_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         if self._state_store is None:
             return {"created": False}
@@ -650,19 +671,9 @@ class ServiceState:
         """Mark a job TIMED_OUT and persist the cancel request so the worker
         stops at its next cooperative checkpoint."""
         if self._state_store is not None:
-            self._state_store.request_cancel(run_id)
-            job = self._state_store.get_async_job(run_id)
-            if job is None or job.get("status") not in {
-                "QUEUED",
-                "RUNNING",
-                "CANCEL_REQUESTED",
-            }:
-                return
-            self._state_store.finish_async_job_by_run_id(
-                run_id, "TIMED_OUT", failure_category="timeout",
-            )
-            current_job = self._state_store.get_async_job(run_id)
-            if current_job is None or current_job.get("status") != "TIMED_OUT":
+            expire = getattr(self._state_store, "expire_async_job", None)
+            current_job = expire(run_id, failure_category="timeout") if callable(expire) else None
+            if current_job is None:
                 return
             existing = self._state_store.get(run_id, domain_id=self._domain_id)
             if existing is not None and existing.status in {
@@ -773,9 +784,29 @@ class ServiceState:
         payload["_async_requested"] = True
         try:
             self._artifact_store.write_run(payload)
-        except Exception:
-            # The SQLite/memory terminal snapshot remains authoritative when
-            # optional artifact publication is unavailable.
+        except Exception as exc:
+            classification = classify_exception(
+                exc,
+                phase="persistence",
+                source="artifact",
+            )
+            try:
+                self._observability.emit_run(
+                    run_id=str(result.run_id),
+                    session_id=result.session_id,
+                    name="async_timeout_artifact",
+                    status="FAILED",
+                    duration_ms=None,
+                    attributes={
+                        "error_category": classification["category"],
+                        "error_code": classification["code"],
+                        "failure_phase": classification["phase"],
+                        "failure_retryable": classification["retryable"],
+                    },
+                )
+            except Exception:
+                # Telemetry is deliberately isolated from the terminal state.
+                pass
             return
 
     def _append_timeout_event(self, run_id: str) -> None:
@@ -812,7 +843,7 @@ class ServiceState:
         self._reaper_stop.set()
         thread = self._reaper_thread
         if thread is not None and thread.is_alive():
-            thread.join(timeout=self._reaper_interval + 1.0)
+            thread.join()
         self._reaper_thread = None
 
     def _reaper_loop(self) -> None:
@@ -820,9 +851,29 @@ class ServiceState:
             try:
                 for run_id in self.expired_run_ids(domain_id=self._domain_id):
                     self.expire_job(run_id)
-            except Exception:
-                # A reaper failure must never kill the service; retry next tick.
-                pass
+            except Exception as exc:
+                classification = classify_exception(
+                    exc,
+                    phase="recovery",
+                    source="reaper",
+                )
+                try:
+                    self._observability.emit_run(
+                        run_id="reaper",
+                        session_id=None,
+                        name="async_reaper",
+                        status="FAILED",
+                        duration_ms=None,
+                        attributes={
+                            "error_category": classification["category"],
+                            "error_code": classification["code"],
+                            "failure_phase": classification["phase"],
+                            "failure_retryable": classification["retryable"],
+                        },
+                    )
+                except Exception:
+                    # A telemetry failure cannot stop future reaper ticks.
+                    pass
             self._reaper_stop.wait(self._reaper_interval)
 
 

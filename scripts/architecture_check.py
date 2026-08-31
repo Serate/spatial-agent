@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Run lightweight, dependency-free architecture boundary checks.
 
-This is a static guard for the refactor.  It intentionally reports current
-technical-debt metrics without failing merely because the migration is not
-complete yet.  Only forbidden top-level domain imports and missing canonical
-entrypoints are errors.
+This is a static guard for the refactor. Compatibility import modules must
+remain thin; canonical implementation modules may be larger while they are
+split by their existing application/runtime seams. Forbidden top-level domain
+imports, missing canonical entrypoints, and an oversized compatibility facade
+are errors.
 """
 
 from __future__ import annotations
@@ -108,7 +109,9 @@ def build_report() -> dict[str, Any]:
     errors: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
     runtime_path = ROOT / "agent" / "runtime.py"
+    runtime_engine_path = ROOT / "agent" / "runtime_core" / "runtime_engine.py"
     service_path = ROOT / "agent" / "service.py"
+    service_facade_path = ROOT / "agent" / "application" / "service_facade.py"
     index_path = ROOT / "web" / "src" / "index.html"
 
     overlap = sorted(PUBLIC_MODULES & COMPAT_MODULES)
@@ -172,88 +175,95 @@ def build_report() -> dict[str, Any]:
         if not required.exists():
             errors.append({"path": _relative(required), "code": "missing_entrypoint"})
 
+    # ``runtime.py`` and ``service.py`` are compatibility imports now.  Check
+    # their public surfaces, while retaining canonical implementation sizes as
+    # observability metrics rather than mislabeling them as facade debt.
+    runtime_source_path = runtime_engine_path if runtime_engine_path.exists() else runtime_path
+    service_source_path = service_facade_path if service_facade_path.exists() else service_path
     if runtime_path.exists() and _line_count(runtime_path) > 1000:
-        warnings.append({"path": _relative(runtime_path), "code": "runtime_god_module"})
-    if runtime_path.exists():
-        source = runtime_path.read_text(encoding="utf-8")
-        if "from .runtime_core import projection" not in source:
+        errors.append({"path": _relative(runtime_path), "code": "runtime_god_module"})
+    if service_path.exists() and _line_count(service_path) > 1000:
+        errors.append({"path": _relative(service_path), "code": "service_god_module"})
+    if runtime_source_path.exists():
+        source = runtime_source_path.read_text(encoding="utf-8")
+        if "from agent.runtime_core import projection" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_projection_seam_missing",
                 }
             )
-        if "from .runtime_core import planning" not in source:
+        if "from agent.runtime_core import planning" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_planning_seam_missing",
                 }
             )
-        if "from .runtime_core import execution" not in source:
+        if "from agent.runtime_core import execution" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_execution_seam_missing",
                 }
             )
-        if "from .runtime_core.control import RunControl" not in source:
+        if "from agent.runtime_core.control import RunControl" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_control_seam_missing",
                 }
             )
-        if "from .runtime_core.capabilities import RuntimeCapabilitySurface" not in source:
+        if "from agent.runtime_core.capabilities import RuntimeCapabilitySurface" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_capability_surface_missing",
                 }
             )
-        if "from .runtime_state import" not in source:
+        if "from agent.runtime_state import" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_state_seam_missing",
                 }
             )
-        if "from .runtime_core.planning_surface import RuntimePlanningSurface" not in source:
+        if "from agent.runtime_core.planning_surface import RuntimePlanningSurface" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_planning_surface_missing",
                 }
             )
-        if "from .runtime_core.run_lifecycle import RuntimeRunLifecycle" not in source:
+        if "from agent.runtime_core.run_lifecycle import RuntimeRunLifecycle" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_run_lifecycle_missing",
                 }
             )
-        if "from .runtime_core.decision_resume import RuntimeDecisionResume" not in source:
+        if "from agent.runtime_core.decision_resume import RuntimeDecisionResume" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_decision_resume_missing",
                 }
             )
-        if "from .runtime_core.recovery import RuntimeRecoverySurface" not in source:
+        if "from agent.runtime_core.recovery import RuntimeRecoverySurface" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_recovery_surface_missing",
                 }
             )
-        if "from .runtime_core.preview import RuntimePreviewSurface" not in source:
+        if "from agent.runtime_core.preview import RuntimePreviewSurface" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
                     "code": "runtime_preview_surface_missing",
                 }
             )
-        if "from .runtime_core.plan_evidence import" not in source:
+        if "from agent.runtime_core.plan_evidence import" not in source:
             errors.append(
                 {
                     "file": _relative(runtime_path),
@@ -262,8 +272,8 @@ def build_report() -> dict[str, Any]:
             )
     if service_path.exists() and _line_count(service_path) > 1000:
         warnings.append({"path": _relative(service_path), "code": "service_god_module"})
-    if service_path.exists():
-        source = service_path.read_text(encoding="utf-8")
+    if service_source_path.exists():
+        source = service_source_path.read_text(encoding="utf-8")
         if "from agent.application.run import RunApplication" not in source:
             errors.append(
                 {
@@ -374,7 +384,13 @@ def build_report() -> dict[str, Any]:
         "metrics": {
             "agent_python_files": len(list((ROOT / "agent").glob("*.py"))),
             "runtime_lines": _line_count(runtime_path) if runtime_path.exists() else 0,
+            "runtime_engine_lines": (
+                _line_count(runtime_engine_path) if runtime_engine_path.exists() else 0
+            ),
             "service_lines": _line_count(service_path) if service_path.exists() else 0,
+            "service_facade_lines": (
+                _line_count(service_facade_path) if service_facade_path.exists() else 0
+            ),
             "frontend_index_bytes": index_path.stat().st_size if index_path.exists() else 0,
             "compat_shims": sorted(COMPAT_SHIMS),
             "compat_facades": sorted(COMPAT_FACADES),

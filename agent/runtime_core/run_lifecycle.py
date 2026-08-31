@@ -24,7 +24,7 @@ from ..evidence_revalidation import (
     build_evidence_binding,
     build_evidence_revalidation_gate,
 )
-from ..errors import ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
+from ..errors import AnswerUnavailable, ClarificationNeeded, RequestRejected, RunCancelled, RunTimedOut, ToolError
 from ..models import AgentRunResult, RunStatus, StepRun, TaskPlan
 from ..result_completeness import build_result_completeness
 from .react_runtime import RuntimeReactExecution
@@ -586,7 +586,7 @@ class RuntimeRunLifecycle:
             progress=context.progress,
         )
         result.plan = plan
-        from .. import runtime as _runtime_module
+        from . import runtime_engine as _runtime_module
 
         result.plan_evidence = _runtime_module._build_plan_evidence(
             plan,
@@ -854,12 +854,22 @@ class RuntimeRunLifecycle:
         if result.plan is None or result.plan.output.get("type") != "direct_answer":
             return False
         runtime = self._runtime
+        output = result.plan.output
+        availability = output.get("availability")
         self._start_phase(
             context,
             "answer",
             status=RunStatus.PLANNING.value,
             message="正在整理回答",
         )
+        if availability == "unavailable":
+            message = str(output.get("message") or "answer capability is unavailable")
+            raise AnswerUnavailable(
+                message,
+                category="availability",
+                code=str(output.get("reason_code") or "answer_unavailable")[:96],
+                retryable=False,
+            )
         runtime._emit_progress_event(
             result.run_id,
             phase="answer",
@@ -951,7 +961,7 @@ class RuntimeRunLifecycle:
     def _handle_failure(self, context: _LifecycleContext, exc: Exception) -> None:
         runtime = self._runtime
         result = self._result(context)
-        from .. import runtime as _runtime_module
+        from . import runtime_engine as _runtime_module
 
         self._annotate_control_error(context, exc)
 
@@ -976,6 +986,29 @@ class RuntimeRunLifecycle:
             )
             self._announce_recovery(context)
             self._emit_failure_event(context, phase="clarify", message="需要补充信息")
+            return
+        if isinstance(exc, AnswerUnavailable):
+            result.status = RunStatus.FAILED
+            result.error = str(exc)
+            result.plan_evidence = runtime._failure_plan_evidence(
+                plan=context.candidate_plan,
+                workflow=context.workflow,
+                state="unavailable",
+                reason_code=getattr(exc, "code", None) or "answer_unavailable",
+                context_packet=context.context_packet,
+                repair_lineage=result.replan_events,
+            )
+            _runtime_module._record_run_failure(result, exc, phase="answer")
+            runtime._conversation_store.clear_pending(context.session_id)
+            # Keep the actionable offline explanation visible while routing the
+            # lifecycle through the same failure evidence as other unavailable
+            # provider/capability paths.
+            result.answer = str(exc)
+            self._emit_failure_event(
+                context,
+                phase="answer",
+                message="当前回答能力不可用，请切换真实模型后重试",
+            )
             return
         if isinstance(exc, RequestRejected):
             result.status = RunStatus.REJECTED

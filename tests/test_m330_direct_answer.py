@@ -61,6 +61,22 @@ class M330DirectAnswerTests(unittest.TestCase):
                 self.assertEqual(result.request_mode["tool_count"], 0)
                 self.assertFalse(result.request_mode["execution_started"])
 
+    def test_unavailable_general_capability_is_not_reported_as_completed(self):
+        runtime = build_general_runtime(
+            "rule",
+            "memory",
+            domain_ids=("gis",),
+        )
+
+        result = runtime.run("查询洪山区行政区边界")
+
+        self.assertEqual(result.status, RunStatus.FAILED)
+        self.assertEqual(result.error_code, "answer_unavailable")
+        self.assertEqual(result.failure["code"], "answer_unavailable")
+        self.assertEqual(result.failure["phase"], "answer")
+        self.assertIn("离线", result.answer)
+        self.assertEqual(result.request_mode["reason_code"], "unavailable")
+
     def test_model_answer_can_use_request_when_fact_packet_is_empty(self):
         request = SCENARIOS[0]
         client = _AnswerClient("反馈回路是结果反过来影响后续行为的循环过程。")

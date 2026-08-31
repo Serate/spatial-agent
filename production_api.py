@@ -28,6 +28,7 @@ from agent.domain_routing_entry import (
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
+from agent.application.http_routes import resolve_route
 from agent.application.composite import CompositeApplication
 from agent.application.composite_runs import CompositeRunApplication
 from agent.application.composite_planning import (
@@ -79,7 +80,7 @@ class UTF8JSONResponse(JSONResponse):
 
 host = DomainRuntimeHost()
 host.start()
-LEGACY_DOMAIN_ID = resolve_domain_id()
+LEGACY_DOMAIN_ID = resolve_domain_id("gis")
 # Plain product routes are domain-neutral.  Explicit ``/domains/{id}`` routes
 # continue to use the isolated services owned by ``DomainRuntimeHost``.
 service = AgentService(general=True, legacy_domain_id=LEGACY_DOMAIN_ID)
@@ -210,6 +211,41 @@ def _http_application(target_service: AgentService = None) -> HTTPApplication:
     )
 
 
+def _shared_read(
+    path: str,
+    payload: Optional[Dict[str, Any]] = None,
+    *,
+    target_service: AgentService = None,
+) -> Dict[str, Any]:
+    """Use the shared route table before entering FastAPI response glue."""
+    match = resolve_route("GET", path)
+    if match is None:
+        raise ValueError("unknown GET route: " + path)
+    return _http_application(target_service).read(
+        match.action,
+        payload or {},
+        resource_id=match.resource_id,
+    )
+
+
+def _shared_execute(
+    path: str,
+    payload: Optional[Dict[str, Any]] = None,
+    *,
+    target_service: AgentService = None,
+) -> Dict[str, Any]:
+    """Use the shared route table before entering FastAPI response glue."""
+    match = resolve_route("POST", path)
+    if match is None:
+        raise ValueError("unknown POST route: " + path)
+    return _http_application(target_service).execute(
+        match.action,
+        payload or {},
+        run_id=match.resource_id,
+        template_id=match.template_id,
+    )
+
+
 def _sse_line(event: Dict[str, Any]) -> str:
     """Encode one already-normalized RunEvent as an SSE message."""
     return "id: {}\nevent: run_event\ndata: {}\n\n".format(
@@ -296,8 +332,8 @@ def capabilities(
     planner: Optional[str] = None,
     backend: Optional[str] = None,
 ) -> Dict[str, Any]:
-    return _http_application().read(
-        "capabilities", {"planner": planner, "backend": backend}
+    return _shared_read(
+        "/capabilities", {"planner": planner, "backend": backend}
     )
 
 
@@ -349,16 +385,16 @@ def clear_unbound_domain_routing_session(session_id: str) -> Dict[str, Any]:
 
 @app.get("/actions")
 def actions(planner: Optional[str] = None, backend: Optional[str] = None) -> Dict[str, Any]:
-    return _http_application().read(
-        "actions", {"planner": planner, "backend": backend}
+    return _shared_read(
+        "/actions", {"planner": planner, "backend": backend}
     )
 
 
 @app.get("/action-executions/{execution_id}")
 def action_execution(execution_id: str) -> Dict[str, Any]:
     try:
-        return _http_application().read(
-            "action_execution", resource_id=execution_id
+        return _shared_read(
+            "/action-executions/" + execution_id,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -367,7 +403,7 @@ def action_execution(execution_id: str) -> Dict[str, Any]:
 @app.get("/action-executions")
 def action_executions(limit: int = 20) -> Dict[str, Any]:
     try:
-        return _http_application().read("action_executions", {"limit": limit})
+        return _shared_read("/action-executions", {"limit": limit})
     except Exception as exc:
         _raise_for(exc)
 
@@ -375,8 +411,8 @@ def action_executions(limit: int = 20) -> Dict[str, Any]:
 @app.get("/capabilities/runtime")
 def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
     try:
-        return _http_application().read(
-            "runtime_capabilities",
+        return _shared_read(
+            "/capabilities/runtime",
             {"max_files": max_files, "backend": "local"},
         )
     except ValueError as exc:
@@ -386,8 +422,8 @@ def runtime_capabilities(max_files: int = 10) -> Dict[str, Any]:
 @app.get("/release-evidence")
 def release_evidence(max_files: int = 10) -> Dict[str, Any]:
     try:
-        return _http_application().read(
-            "release_evidence",
+        return _shared_read(
+            "/release-evidence",
             {"max_files": max_files, "backend": "local"},
         )
     except ValueError as exc:
@@ -424,7 +460,7 @@ def console_styles():
 @app.post("/runs")
 def run(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("run", payload)
+        return _shared_execute("/runs", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -432,7 +468,7 @@ def run(payload: Dict[str, Any]):
 @app.post("/composite-runs")
 def composite_run(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("composite_run", payload)
+        return _shared_execute("/composite-runs", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -440,7 +476,7 @@ def composite_run(payload: Dict[str, Any]):
 @app.post("/composite-plans")
 def composite_plan(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("composite_plan", payload)
+        return _shared_execute("/composite-plans", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -448,7 +484,7 @@ def composite_plan(payload: Dict[str, Any]):
 @app.post("/composite-runs/async")
 def composite_run_async(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("composite_run_async", payload)
+        return _shared_execute("/composite-runs/async", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -490,7 +526,7 @@ def composite_detail(run_id: str):
 @app.post("/runs/auto")
 def run_auto(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("run_auto", payload)
+        return _shared_execute("/runs/auto", payload)
     except Exception as exc:
         _raise_for(
             exc,
@@ -502,7 +538,7 @@ def run_auto(payload: Dict[str, Any]):
 @app.post("/runs/preview")
 def preview(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("preview", payload)
+        return _shared_execute("/runs/preview", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -510,7 +546,7 @@ def preview(payload: Dict[str, Any]):
 @app.post("/runs/async")
 def run_async(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("run_async", payload)
+        return _shared_execute("/runs/async", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -518,7 +554,7 @@ def run_async(payload: Dict[str, Any]):
 @app.get("/decisions/{decision_id}")
 def get_decision(decision_id: str):
     try:
-        return _http_application().read("decision", resource_id=decision_id)
+        return _shared_read("/decisions/" + decision_id)
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -526,8 +562,8 @@ def get_decision(decision_id: str):
 @app.post("/decisions/{decision_id}/resolve")
 def resolve_decision(decision_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute(
-            "resolve_decision", payload, run_id=decision_id
+        return _shared_execute(
+            "/decisions/" + decision_id + "/resolve", payload
         )
     except Exception as exc:
         _raise_for(exc)
@@ -536,7 +572,7 @@ def resolve_decision(decision_id: str, payload: Dict[str, Any]):
 @app.get("/runs")
 def list_runs(limit: int = 20):
     try:
-        return _http_application().read("runs", {"limit": limit})
+        return _shared_read("/runs", {"limit": limit})
     except Exception as exc:
         _raise_for(exc)
 
@@ -544,7 +580,7 @@ def list_runs(limit: int = 20):
 @app.get("/sessions")
 def list_sessions(limit: int = 50):
     try:
-        return _http_application().read("sessions", {"limit": limit})
+        return _shared_read("/sessions", {"limit": limit})
     except Exception as exc:
         _raise_for(exc)
 
@@ -552,8 +588,8 @@ def list_sessions(limit: int = 50):
 @app.get("/sessions/{session_id}/runs")
 def list_session_runs(session_id: str, limit: int = 20):
     try:
-        return _http_application().read(
-            "session_runs", {"limit": limit}, resource_id=session_id
+        return _shared_read(
+            "/sessions/" + session_id + "/runs", {"limit": limit}
         )
     except Exception as exc:
         _raise_for(exc)
@@ -562,7 +598,7 @@ def list_session_runs(session_id: str, limit: int = 20):
 @app.post("/sessions")
 def create_session():
     try:
-        return _http_application().execute("session_create", {})
+        return _shared_execute("/sessions", {})
     except Exception as exc:
         _raise_for(exc, service_unavailable=True)
 
@@ -570,7 +606,7 @@ def create_session():
 @app.post("/sessions/{session_id}/clear")
 def clear_session(session_id: str):
     try:
-        return _http_application().execute("session_clear", {}, run_id=session_id)
+        return _shared_execute("/sessions/" + session_id + "/clear", {})
     except Exception as exc:
         _raise_for(exc)
 
@@ -585,7 +621,7 @@ def delete_session(session_id: str):
 
 @app.get("/metrics")
 def metrics():
-    return _http_application().read("metrics")
+    return _shared_read("/metrics")
 
 
 @app.get("/memory")
@@ -596,8 +632,8 @@ def memory(
     global_scope: bool = False,
 ):
     try:
-        return _http_application().read(
-            "memory",
+        return _shared_read(
+            "/memory",
             {
                 "session_id": session_id,
                 "query": query,
@@ -611,19 +647,19 @@ def memory(
 
 @app.get("/observability/health")
 def observability_health():
-    return _http_application().read("observability_health")
+    return _shared_read("/observability/health")
 
 
 @app.get("/tools/dynamic")
 def list_dynamic_tools():
-    return _http_application().read("dynamic_tools")
+    return _shared_read("/tools/dynamic")
 
 
 @app.get("/tools/approvals")
 def list_tool_approvals(limit: int = 50, status: Optional[str] = None):
     try:
-        return _http_application().read(
-            "tool_approvals", {"limit": limit, "status": status}
+        return _shared_read(
+            "/tools/approvals", {"limit": limit, "status": status}
         )
     except Exception as exc:
         _raise_for(exc)
@@ -632,7 +668,7 @@ def list_tool_approvals(limit: int = 50, status: Optional[str] = None):
 @app.get("/tools/approvals/{approval_id}")
 def get_tool_approval(approval_id: str):
     try:
-        return _http_application().read("tool_approval", resource_id=approval_id)
+        return _shared_read("/tools/approvals/" + approval_id)
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -640,8 +676,8 @@ def get_tool_approval(approval_id: str):
 @app.post("/tools/approvals/{approval_id}/resolve")
 def resolve_tool_approval(approval_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute(
-            "tool_approval_resolve", payload, run_id=approval_id
+        return _shared_execute(
+            "/tools/approvals/" + approval_id + "/resolve", payload
         )
     except Exception as exc:
         _raise_for(exc)
@@ -687,23 +723,23 @@ def domain_resolve_tool_approval(
 @app.post("/tools")
 def register_tool(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("tool_register", payload)
+        return _shared_execute("/tools", payload)
     except Exception as exc:
         _raise_for(exc)
 
 
 @app.get("/workflows")
 def workflows(planner: Optional[str] = None, backend: Optional[str] = None):
-    return _http_application().read(
-        "workflow", {"planner": planner, "backend": backend}
+    return _shared_read(
+        "/workflows", {"planner": planner, "backend": backend}
     )
 
 
 @app.post("/workflows/{template_id}/validate")
 def validate_workflow(template_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute(
-            "workflow_validate", payload, template_id=template_id
+        return _shared_execute(
+            "/workflows/" + template_id + "/validate", payload
         )
     except Exception as exc:
         _raise_for(exc)
@@ -712,8 +748,8 @@ def validate_workflow(template_id: str, payload: Dict[str, Any]):
 @app.post("/workflows/{template_id}/revise")
 def revise_workflow(template_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute(
-            "workflow_revise", payload, template_id=template_id
+        return _shared_execute(
+            "/workflows/" + template_id + "/revise", payload
         )
     except Exception as exc:
         _raise_for(exc)
@@ -722,10 +758,9 @@ def revise_workflow(template_id: str, payload: Dict[str, Any]):
 @app.get("/runs/{run_id}")
 def get_run(run_id: str, planner: Optional[str] = None, backend: Optional[str] = None):
     try:
-        return _http_application().read(
-            "run",
+        return _shared_read(
+            "/runs/" + run_id,
             {"planner": planner, "backend": backend},
-            resource_id=run_id,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -734,7 +769,7 @@ def get_run(run_id: str, planner: Optional[str] = None, backend: Optional[str] =
 @app.get("/runs/{run_id}/evidence")
 def run_evidence(run_id: str):
     try:
-        return _http_application().read("run_evidence", resource_id=run_id)
+        return _shared_read("/runs/" + run_id + "/evidence")
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -742,10 +777,9 @@ def run_evidence(run_id: str):
 @app.get("/runs/{run_id}/interaction")
 def run_interaction(run_id: str, planner: Optional[str] = None, backend: Optional[str] = None):
     try:
-        return _http_application().read(
-            "run_interaction",
+        return _shared_read(
+            "/runs/" + run_id + "/interaction",
             {"planner": planner, "backend": backend},
-            resource_id=run_id,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -754,8 +788,8 @@ def run_interaction(run_id: str, planner: Optional[str] = None, backend: Optiona
 @app.post("/runs/{run_id}/interaction")
 def apply_run_interaction(run_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute(
-            "interaction", payload, run_id=run_id
+        return _shared_execute(
+            "/runs/" + run_id + "/interaction", payload
         )
     except Exception as exc:
         _raise_for(exc)
@@ -765,9 +799,7 @@ def apply_run_interaction(run_id: str, payload: Dict[str, Any]):
 @app.get("/runs/{run_id}/async")
 def async_observability(run_id: str):
     try:
-        return _http_application().read(
-            "async_observability", resource_id=run_id
-        )
+        return _shared_read("/runs/" + run_id + "/async")
     except Exception as exc:
         _raise_for(exc, not_found=True)
 
@@ -814,7 +846,7 @@ async def run_events(
 @app.post("/comparisons")
 def compare(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("compare", payload)
+        return _shared_execute("/comparisons", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -822,7 +854,7 @@ def compare(payload: Dict[str, Any]):
 @app.post("/region-comparisons")
 def compare_regions(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("region_compare", payload)
+        return _shared_execute("/region-comparisons", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -830,7 +862,7 @@ def compare_regions(payload: Dict[str, Any]):
 @app.post("/constrained-comparisons")
 def compare_constrained(payload: Dict[str, Any]):
     try:
-        return _http_application().execute("constrained_compare", payload)
+        return _shared_execute("/constrained-comparisons", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -838,9 +870,7 @@ def compare_constrained(payload: Dict[str, Any]):
 @app.post("/actions/{action_id}")
 def execute_action(action_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute(
-            "domain_action", payload, run_id=action_id
-        )
+        return _shared_execute("/actions/" + action_id, payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -848,7 +878,7 @@ def execute_action(action_id: str, payload: Dict[str, Any]):
 @app.post("/runs/{run_id}/retry")
 def retry(run_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute("retry", payload, run_id=run_id)
+        return _shared_execute("/runs/" + run_id + "/retry", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -856,7 +886,7 @@ def retry(run_id: str, payload: Dict[str, Any]):
 @app.post("/runs/{run_id}/cancel")
 def cancel(run_id: str, payload: Dict[str, Any]):
     try:
-        return _http_application().execute("cancel", payload, run_id=run_id)
+        return _shared_execute("/runs/" + run_id + "/cancel", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -867,15 +897,18 @@ def _safe_artifact(
     suffix: str,
     prefix: str = "",
     *,
-    domain_id: str = "gis",
+    domain_id: Optional[str] = None,
     metadata_root: Optional[Path] = None,
 ) -> Path:
+    normalized_domain = str(domain_id or "").strip()[:80]
+    if not normalized_domain:
+        raise HTTPException(status_code=500, detail="artifact Domain is not bound")
     candidate = safe_artifact_path(
         root,
         name,
         suffix,
         prefix,
-        domain_id=domain_id,
+        domain_id=normalized_domain,
         metadata_root=metadata_root,
     )
     if candidate is None:

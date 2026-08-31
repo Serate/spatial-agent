@@ -427,20 +427,82 @@ class GeneralRuntimePack:
         }
 
     def rule_planner(self) -> Any:
-        return _GeneralRulePlanner()
+        return _GeneralRulePlanner(self._host)
 
 
 class _GeneralRulePlanner:
+    def __init__(self, host: GeneralCapabilityHost):
+        self._host = host
+
     def plan(self, request: str, workflow: Mapping[str, Any] | None = None, context: Mapping[str, Any] | None = None) -> TaskPlan:
-        del workflow, context
+        del workflow
+        output = {
+            "type": "direct_answer",
+            "message": "当前使用离线规则模式，无法生成开放式回答；请切换真实模型后重试。",
+        }
+        if self._requires_data_execution(context):
+            output.update(
+                {
+                    "availability": "unavailable",
+                    "reason_code": "answer_unavailable",
+                }
+            )
         return TaskPlan(
             goal=str(request or "")[:400],
             steps=[],
-            output={
-                "type": "direct_answer",
-                "message": "当前使用离线规则模式，无法生成开放式回答；请切换真实模型后重试。",
-            },
+            output=output,
         )
+
+    def _requires_data_execution(self, context: Mapping[str, Any] | None) -> bool:
+        sections = context.get("sections") if isinstance(context, Mapping) else None
+        discovery = sections.get("capability_discovery") if isinstance(sections, Mapping) else None
+        selected_id = (
+            str(discovery.get("selected_capability_id") or "").strip()
+            if isinstance(discovery, Mapping)
+            else ""
+        )
+        if not selected_id:
+            return False
+        catalog = self._host.capability_catalog()
+        capabilities = catalog.get("capabilities") if isinstance(catalog, Mapping) else None
+        selected = next(
+            (
+                item
+                for item in capabilities or ()
+                if isinstance(item, Mapping)
+                and str(item.get("id") or "").strip() == selected_id
+            ),
+            None,
+        )
+        if not isinstance(selected, Mapping):
+            return True
+        requirements = selected.get("request_requirements")
+        if not isinstance(requirements, Mapping) or not any(
+            requirements.get(key)
+            for key in ("entities", "datasets", "constraints", "clarification_fields")
+        ):
+            # A lexical match without declared input facts is still an open
+            # answer request; do not turn generic words such as “compare” into
+            # an unavailable data run.
+            return False
+        result_ids = {
+            str(item).strip()
+            for item in (selected.get("result_types") or ())
+            if str(item).strip()
+        }
+        result_specs = catalog.get("result_types") if isinstance(catalog, Mapping) else None
+        data_kinds = set()
+        for item in result_specs or ():
+            if not isinstance(item, Mapping) or str(item.get("type") or "") not in result_ids:
+                continue
+            data_kinds.update(
+                str(kind).strip()
+                for kind in (item.get("data_kinds") or ())
+                if str(kind).strip()
+            )
+        if data_kinds:
+            return not data_kinds.issubset({"text", "document_evidence"})
+        return bool(selected.get("tools") or selected.get("datasets"))
 
 
 def _merge_facts(request: str, values: list[tuple[str, RequestFacts]]) -> RequestFacts:

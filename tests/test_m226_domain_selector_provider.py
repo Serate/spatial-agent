@@ -156,6 +156,7 @@ class M226DomainSelectorProviderTests(unittest.TestCase):
             api_key="test-key",
             model="test-model",
             wire_api="responses",
+            structured_output_mode="json_schema",
             max_retries=0,
         )
         with mock.patch("urllib.request.urlopen", side_effect=urlopen):

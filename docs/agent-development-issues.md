@@ -2351,3 +2351,129 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 - 每次扩展公共契约后，先检查根 Host、Domain 子快照和 acceptance 读取的字段是否属于同一版本化平面；不要用旧字段非空作为新契约的唯一判据。
 - 生产 acceptance 必须可重复执行：会话、幂等键和临时 artifact 名称不得固定绑定到历史业务状态。
 - 真实模型验收需区分“模型已到达并执行工具”“Provider 超时”“网页网络不可达”和“GIS 数据不可用”，只提交脱敏计数、状态、域名与 reason code。
+
+## 2026-08-31 全量测试门禁与架构健康度审计
+
+### 结论
+
+本次审计确认：当前仓库的全量测试发现机制被主动截断，CI 不能证明全仓测试健康；当前 HEAD 还存在网页正文裁剪、异步运行稳定性、拒答状态语义和输出契约膨胀等问题。审计基线为本地干净工作树的 fc6128c，Docker 服务为 healthy。
+
+报告中的历史数字需要和当前状态区分：agent/runtime_core/run_lifecycle.py 的 run() 已经拆成显式阶段调用，当前约 80 行；但整个文件以及 Runtime、Service 等模块仍然偏大。当前没有未提交改动，因此“未提交改动引入回归”应改写为“当前 HEAD 包含回归”。
+
+### 已确认问题
+
+1. **顶层 unittest discover 被白名单截断**
+
+   tests/__init__.py 的 load_tests 只加载 test_dev_gate 和 test_http_contract。执行 python -m unittest discover -s tests -t . -v 只得到 Ran 4 tests。当前统计为 321 个 test_*.py 文件、1672 个测试方法。CI push/PR 只执行 python scripts/test_profile.py --profile ci，其中 quick 只有 2 个定向测试；手动 compact-regression 仍执行被同一 hook 截断的 discover。
+
+   这不是“所有测试都不能运行”，而是 README 中容易被理解为全量回归的命令和 CI 门禁都不能代表全仓健康。历史测试仍可按模块或显式 profile 运行，但没有一个默认门禁完整收集它们。
+
+2. **当前 HEAD 存在可复现失败**
+
+   以下关键样本在当前工作树逐模块运行仍失败：
+
+   - tests.test_m1.M1RuntimeTests.test_runtime_requests_missing_threshold：实际为 FAILED，预期为 NEEDS_CLARIFICATION；
+   - tests.test_m112_domain_pack.M112DomainPackTests.test_runtime_accepts_non_gis_domain_pack：实际得到 {'templates': []}，旧契约预期为 {}；
+   - tests.test_m78_http_contract：旧静态断言仍要求 serve_api.py 直接导入 agent.api_contract 和调用 error_status(exc)，当前入口已改为共享 HTTPApplication/传输层。
+
+   既有单模块审计中的通过/失败总数可以作为历史债务清单，但再次收口前必须用同一脚本、同一 Python/Docker 环境重算，不能只引用手挑模块的通过数。
+
+3. **M333 网页正文回归仍存在**
+
+   tests.test_m333_web_public.M333WebFetchTests.test_react_search_fetch_keeps_body_transient_and_projects_evidence 当前以 KeyError: text 失败。agent/answer_generation.py 的 _fit_answer_context() 在证据和步骤压缩后仍超出 _MAX_CONTEXT_CHARS = 12000 时，会把 web_documents 降级为 URL、域名和标题，导致答案模型拿不到正文。
+
+   M334 的证据扩展使该边界更容易触发；修复方向应是先压缩重复证据和执行细节，再为网页正文保留明确的最小合法预算，并用极端正文回归锁定行为。持久化和公开投影仍不得保存原始网页正文。
+
+4. **拒答状态被错误标记为成功**
+
+   精确执行 python run_demo.py --planner rule --backend memory "查询洪山区行政区边界" 得到：status=COMPLETED、steps=0、domain_id=general，答案却是“当前使用离线规则模式，无法生成开放式回答”；同时 result.completeness.state、budget_evidence.state 和 result_summary.state 都是完成态。
+
+   规则模式的受限回答可以是产品允许的结果，但不能同时被表示成完整成功。应区分“拒绝/不可完成”“澄清”“降级完成”和“正常完成”，并让 answer、result、completeness、summary 使用同一终态语义。
+
+5. **公共契约输出过度膨胀**
+
+   上述 CLI 输出的格式化 JSON 约 108096 个字符，压缩序列化后仍约 62361 个字符，包含大量嵌套证据、状态和 schema 字段。不同入口和结果类型的大小会不同，因此不能固定声称每次都是 105 KB；但当前确实缺少统一的公共输出预算和面向用户的最小投影。
+
+6. **架构门禁只报告 God Module，不会阻断**
+
+   python scripts/architecture_check.py --strict 返回 status: ok，同时报告 runtime_god_module 和 service_god_module warning。当前约为：runtime.py 1427 行、service.py 1254 行、composite_planning.py 1981 行、persistence/sqlite_store.py 1910 行、llm_planner.py 1832 行。后面三个大模块不在规模门禁中。
+
+   COMPAT_MODULES 当前登记 25 个 shim 和 4 个 facade，共 29 个条目。兼容层堆积和旧测试固定旧 import 路径的问题真实存在；但报告中“9 个 shim + 9 个真实模块”的分类不能直接视为当前准确数据。删除前需要建立生产引用和测试迁移清单，不能只删文件。
+
+7. **两套 HTTP 传输入口仍然存在**
+
+   serve_api.py（约 908 行）和 production_api.py（约 1485 行）都存在。二者已经共享 agent/application/http.py 的语义分发，但标准库 Handler 与 FastAPI 路由仍各自处理 URL、查询参数、响应状态和框架适配，静态契约也已漂移。后续应继续收敛共享传输适配或明确一个 canonical 部署入口。
+
+8. **通用 Runtime 仍有 GIS 默认值**
+
+   agent/domain_registry.py 的 resolve_id/resolve、agent/application/http.py 的 artifact evidence 路径，以及恢复/异步路径仍使用 "gis" 默认值或回退值。部分是历史兼容行为，但它们会让通用入口在缺少明确领域时隐式偏向 GIS，与“公共 Runtime 不推断领域策略”的目标冲突。
+
+9. **文档规模和事实同步失控**
+
+   当前 docs/ 有 258 个 Markdown 文件、约 34065 行。docs/agent-development-issues.md 旧记录中关于 runtime.py、service.py 和前端大小的数字已经明显过期。阶段文档应保留决策、契约和交接摘要，历史过程应归档，不能继续把每次小修改都扩展成独立长文档。
+
+10. **静默回退和仓库卫生风险**
+
+   agent/ 静态统计约有 114 处 except Exception 和 203 处 or "unknown"。这不是每一处都构成缺陷，但需要按边界分类：可恢复的外部依赖失败、用户输入错误、程序缺陷和未知异常不能共用同一个回退语义。
+
+   当前两个空的 spatial-agent-cdp-* 目录未被 .gitignore 覆盖；此前的 .impgraph_tmp.py 和 .importers_tmp.json 已不存在。.env.production 与 config/openai.local.json 仍被正确忽略，不能将密钥写入仓库。
+
+### 最小复验记录
+
+- python -m unittest discover -s tests -t . -v：Ran 4 tests ... OK，证明发现入口被截断；
+- python scripts/test_profile.py --profile ci：当前通过，但只覆盖 2 个 quick 测试和 service smoke，不等于全量回归；
+- python scripts/architecture_check.py --strict：返回 ok，同时产生 God Module warning；
+- Docker 定向运行 M333/M61：M333 正文裁剪失败；M61 在并发重复提交路径出现终态等待超时，异步契约的部分用例还受 Windows 文件锁影响；
+- 未运行全量 321 模块扫描，也未把历史工作树再次检出执行；因此历史“252/70、67”数字必须在建立新的全量收集器后重新生成。
+
+### 修复优先级
+
+1. 移除或改造 tests/__init__.py 的截断 hook，建立不会误称“全量”的 compact、CI 和完整离线回归入口；
+2. 生成可重复的模块级债务清单，标记历史失败、当前回归、环境失败和过期断言；
+3. 修复网页正文最小预算和拒答终态语义；
+4. 修正异步终态/资源释放问题，再验证 SQLite、artifact、HTTP、SSE 和重启恢复一致性；
+5. 重新定义架构门禁阈值，纳入所有核心大模块，清理兼容层和双 HTTP 传输胶水；
+6. 最后压缩公共契约和历史文档，保留用户投影、证据索引和诊断所需的最小字段。
+
+### 预防规则
+
+- 阶段验收必须同时记录测试发现数量、跳过数量、失败数量和运行命令；“定向回归全绿”不能写成“全量回归通过”。
+- 任何新增证据字段都必须检查答案上下文、HTTP、SSE、SQLite、Artifact 和前端投影的预算。
+- 失败、拒答、澄清、降级和完成必须共享统一的状态映射；不得仅因为流程返回了 payload 就标记为 completed。
+- 结构重构完成前，兼容 facade/shim、测试旧 import、生产引用和架构门禁豁免必须在同一份迁移清单中维护。
+
+## 2026-08-31 修复批次后的状态记录
+
+### 本批次已收口
+
+- M1 缺少坡度阈值现在返回 `NEEDS_CLARIFICATION`。
+- M78 静态 HTTP 契约已对齐当前 `HTTPApplication`/`http_transport` 入口。
+- M112 无工作流上下文时保持空投影 `{}`。
+- M330 通用规则模式下无法执行数据能力时返回 `FAILED`、`answer_unavailable`，不再伪装成 `COMPLETED`；普通概念性问题仍返回 `COMPLETED`。
+- M333 在 12000 字符答案上下文预算内尽量保留网页正文；原始正文和 `_model_context` 仍不得进入持久化或公开结果。
+- 新增 `full-regression` 历史 unittest 收集器，使用不带 `-t .` 的 flat discovery，避免 compact `tests.load_tests` hook 造成零测试或四测试假全量。
+- 生产 acceptance 的空间请求改为显式 `/domains/gis/...`，通用根路径与 GIS session 不再混用。
+
+### 当前验证结果
+
+- Docker 两个服务均为 `healthy`。
+- 修复相关定向测试：43 项通过。
+- failure contract 回归测试：3 项通过。
+- `quick`、`ci`、`stage`：通过。
+- `compileall`、Console 资源检查、`git diff --check`：通过。
+- Docker production acceptance：通过，包含 preview、同步运行、失败契约、异步幂等、artifact 和 evidence 校验。
+- CLI 探针确认：通用空间请求为 `FAILED / answer_unavailable`，概念性请求为 `COMPLETED`。
+
+### 仍未收口的问题
+
+1. `full-regression` 最近一次 Docker 结果为 `1663` 个测试、`55` 个失败、`33` 个错误、`32` 个跳过，退出码为 1。剩余结果仍需逐项区分代码回归、过期断言、环境依赖和测试资源问题。
+2. 异步重复提交、SQLite 文件锁、终态等待、日志文件句柄、socket 关闭和重启恢复边界仍需专项处理；历史测试中出现过 `ResourceWarning`、`BrokenPipeError` 和终态等待超时。
+3. `agent/runtime.py` 与 `agent/service.py` 仍触发 God Module warning；`composite_planning.py`、`sqlite_store.py` 和 `llm_planner.py` 也需要独立拆分评估。
+4. `serve_api.py` 与 `production_api.py` 虽共享语义 Application/Transport 层，仍保留两套框架适配、路由和响应胶水。
+5. 通用/恢复路径仍有 GIS 默认值和兼容回退，需要继续收敛显式 Domain 绑定。
+6. 公共 Result Envelope 仍可能过大，尚无统一的 HTTP、异步、SQLite、artifact 和 Console 最小投影预算。
+7. `except Exception` 与 `"unknown"` fallback 仍较多，Provider 超时、数据不可用、用户输入错误和程序异常的分类仍可能被合并。
+8. compact/CI 门禁仍然很小：默认 discovery 只有 4 项，`quick` 只有 2 项；历史全量收集器是耗时且当前不通过的手动 profile。
+9. 历史文档、兼容 shim/facade 和仓库卫生仍需整理；真实 GIS、live 模型/网络和完整 `full-stage` 尚未作为本轮最终证据运行。
+
+本记录保留历史审计结论，不改写之前的基线数字；后续修复应继续使用 Docker，并分别报告 compact、阶段验收和历史全量 collector 的实际通过、失败及跳过数量。

@@ -30,7 +30,7 @@ class RuntimeDecisionResume:
         timeout_seconds: Optional[float],
     ) -> AgentRunResult:
         runtime = self._runtime
-        from .. import runtime as _runtime_module
+        from . import runtime_engine as _runtime_module
         """Resume the exact persisted plan after an accepted decision.
 
         The plan is loaded from the waiting run snapshot instead of asking the

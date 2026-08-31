@@ -24,9 +24,22 @@ from .result_completeness import build_result_completeness
 from .result_summary import build_result_summary
 from .answer_quality import assess_answer, project_answer_quality
 from .runtime_core.run_budget import RunBudget
+from .answer_evidence import (
+    ANSWER_GENERATION_SCHEMA_VERSION,
+    fallback_answer_generation_evidence,
+    project_answer_generation_evidence,
+    _project_value,
+    _safe_text,
+    _safe_evidence_text,
+    _safe_reason_code,
+    _normalize_stream_text,
+    _contains_internal_reference,
+    _is_stream_fallback_eligible,
+    _stream_fallback_reason,
+    _normalize_composite_answer,
+)
 
 
-ANSWER_GENERATION_SCHEMA_VERSION = "spatial-agent.answer-generation.v1"
 COMPOSITE_ANSWER_SCHEMA_VERSION = "spatial-agent.composite-answer.v1"
 _MAX_ANSWER_CHARS = 6000
 ANSWER_GENERATION_SCHEMA: dict[str, Any] = {
@@ -77,29 +90,7 @@ _MAX_REQUEST_CHARS = 800
 _MAX_CONTEXT_CHARS = 12000
 _MAX_COMPONENTS = 8
 _MAX_STEP_COUNT = 16
-_MAX_MAPPING_ITEMS = 32
-_MAX_LIST_ITEMS = 12
-_MAX_STRING_CHARS = 240
-_OMITTED_KEYS = {
-    "api_key",
-    "authorization",
-    "credentials",
-    "password",
-    "secret",
-    "token",
-    "raw_response",
-    "prompt",
-    "messages",
-    "geometry",
-    "coordinates",
-    "features",
-    "geojson",
-    "result_ref",
-    "artifact_ref",
-    "path",
-    "file_path",
-    "dataset_path",
-}
+
 
 
 @dataclass(frozen=True)
@@ -515,6 +506,82 @@ def _fit_answer_context(packet: dict[str, Any], steps: list[dict[str, Any]]) -> 
     def size() -> int:
         return len(json.dumps(packet, ensure_ascii=False, separators=(",", ":")))
 
+    def compact_steps() -> None:
+        packet["steps"] = [
+            {
+                key: item[key]
+                for key in ("id", "tool", "status", "error")
+                if key in item
+            }
+            for item in packet.get("steps", [])
+            if isinstance(item, Mapping)
+        ]
+
+    def fit_web_documents() -> None:
+        documents = packet.get("web_documents")
+        if not isinstance(documents, list):
+            return
+        projected = [
+            {
+                key: item[key]
+                for key in ("url", "domain", "title")
+                if key in item
+            }
+            for item in documents
+            if isinstance(item, Mapping)
+        ]
+        texts = [
+            _safe_text(item.get("text"), 6000)
+            if isinstance(item, Mapping)
+            else ""
+            for item in documents
+        ]
+        # Keep the earliest source cards that fit before trimming their body.
+        # This gives the model at least one useful page whenever metadata can
+        # fit, instead of discarding every body as soon as the packet is wide.
+        selected_count = 0
+        for count in range(len(projected), 0, -1):
+            packet["web_documents"] = projected[:count]
+            if size() <= _MAX_CONTEXT_CHARS:
+                selected_count = count
+                break
+        if selected_count == 0:
+            packet.pop("web_documents", None)
+            return
+
+        selected = projected[:selected_count]
+        selected_texts = texts[:selected_count]
+        total_text = sum(len(text) for text in selected_texts)
+        if total_text <= 0:
+            packet["web_documents"] = selected
+            return
+
+        def with_text_budget(budget: int) -> list[dict[str, str]]:
+            remaining = max(0, int(budget))
+            result: list[dict[str, str]] = []
+            for index, metadata in enumerate(selected):
+                slots = selected_count - index
+                amount = min(len(selected_texts[index]), (remaining + slots - 1) // slots)
+                item = dict(metadata)
+                if amount:
+                    item["text"] = selected_texts[index][:amount]
+                result.append(item)
+                remaining -= amount
+            return result
+
+        low, high = 0, total_text
+        best = selected
+        while low <= high:
+            middle = (low + high) // 2
+            candidate = with_text_budget(middle)
+            packet["web_documents"] = candidate
+            if size() <= _MAX_CONTEXT_CHARS:
+                best = candidate
+                low = middle + 1
+            else:
+                high = middle - 1
+        packet["web_documents"] = best
+
     if size() <= _MAX_CONTEXT_CHARS:
         return
     summary = packet.get("result_summary")
@@ -545,34 +612,19 @@ def _fit_answer_context(packet: dict[str, Any], steps: list[dict[str, Any]]) -> 
     packet["steps"] = steps[:8]
     if size() <= _MAX_CONTEXT_CHARS:
         return
-    documents = packet.get("web_documents")
-    if isinstance(documents, list):
-        # Preserve page identity and source evidence, but remove body text
-        # only after optional execution details have been compacted.
-        packet["web_documents"] = [
-            {
-                key: item[key]
-                for key in ("url", "domain", "title")
-                if key in item
-            }
-            for item in documents
-            if isinstance(item, Mapping)
-        ]
-    packet["steps"] = [
-        {
-            "id": item.get("id"),
-            "tool": item.get("tool"),
-            "status": item.get("status"),
-            "error": item.get("error"),
-        }
-        for item in packet["steps"]
-    ]
+
+    # Execution facts are useful, but the transient page body is the only
+    # source text available to an answer model. Compact facts before removing
+    # that body so a bounded, non-empty excerpt survives when possible.
+    compact_steps()
+    fit_web_documents()
     if size() <= _MAX_CONTEXT_CHARS:
         return
-    packet.pop("web_documents", None)
+
     packet["assumptions"] = list(packet.get("assumptions") or [])[:3]
     packet["goal"] = _safe_text(packet.get("goal"), 240)
     packet["request"] = _safe_text(packet.get("request"), 400)
+    fit_web_documents()
     if size() <= _MAX_CONTEXT_CHARS:
         return
 
@@ -900,202 +952,6 @@ class LLMAnswerGenerator:
         evidence["fallback_reason"] = _stream_fallback_reason(cause)
         return AnswerGenerationResult(answer=generated.answer, evidence=evidence)
 
-
-def fallback_answer_generation_evidence(
-    reason_code: str,
-    *,
-    metrics: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Return safe evidence when template fallback was used."""
-
-    evidence = project_answer_generation_evidence(
-        metrics or {},
-        status="fallback",
-        available=False,
-    )
-    evidence["reason_code"] = _safe_reason_code(reason_code)
-    return evidence
-
-
-def project_answer_generation_evidence(
-    value: Mapping[str, Any] | None,
-    *,
-    status: str | None = None,
-    available: bool | None = None,
-) -> dict[str, Any]:
-    """Allowlist answer-generation metrics for result/async/artifact surfaces."""
-
-    source = value if isinstance(value, Mapping) else {}
-    normalized_status = _safe_text(
-        status if status is not None else source.get("status", "unavailable"),
-        32,
-    )
-    execution_mode = source.get("execution_mode")
-    existing_mode = source.get("mode")
-    result: dict[str, Any] = {
-        "schema_version": ANSWER_GENERATION_SCHEMA_VERSION,
-        "available": bool(
-            available if available is not None else source.get("available", False)
-        ),
-        "status": normalized_status,
-        "mode": (
-            "template_fallback"
-            if normalized_status == "fallback"
-            else existing_mode
-            if existing_mode in {"live_model", "template_fallback"}
-            else "live_model"
-            if execution_mode == "live_model"
-            else "template_fallback"
-            if normalized_status == "fallback"
-            else "unknown"
-        ),
-    }
-    for key in ("provider", "model", "wire_api", "error_type", "reason_code"):
-        if source.get(key):
-            safe_value = _safe_evidence_text(source[key])
-            if safe_value:
-                result[key] = safe_value
-    if normalized_status == "fallback" and "reason_code" not in result:
-        result["reason_code"] = "generation_unavailable"
-    if isinstance(source.get("streaming"), bool):
-        result["streaming"] = source["streaming"]
-    quality = project_answer_quality(source.get("quality"))
-    if quality is not None:
-        result["quality"] = quality
-    for key in ("attempts", "retries", "compact_recovery_attempts"):
-        try:
-            number = int(source.get(key))
-        except (TypeError, ValueError):
-            continue
-        if 0 <= number <= 32:
-            result[key] = number
-    try:
-        latency = float(source.get("latency_ms"))
-        if math.isfinite(latency) and latency >= 0:
-            result["latency_ms"] = round(min(latency, 86_400_000), 3)
-    except (TypeError, ValueError):
-        pass
-    usage = source.get("usage")
-    if isinstance(usage, Mapping):
-        safe_usage = {}
-        for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
-            try:
-                number = int(usage.get(key))
-            except (TypeError, ValueError):
-                continue
-            if 0 <= number <= 10_000_000:
-                safe_usage[key] = number
-        if safe_usage:
-            result["usage"] = safe_usage
-    return result
-
-
-def _project_value(value: Any, *, key: str = "", depth: int = 0) -> Any:
-    normalized_key = str(key or "").lower()
-    if normalized_key in _OMITTED_KEYS or any(token in normalized_key for token in ("password", "secret", "token")):
-        return None
-    if value is None or isinstance(value, (bool, int, str)):
-        return _safe_text(value, _MAX_STRING_CHARS) if isinstance(value, str) else value
-    if isinstance(value, float):
-        return round(value, 6) if math.isfinite(value) else None
-    if depth >= 4:
-        return "…"
-    if isinstance(value, Mapping):
-        projected = {}
-        for name, child in list(value.items())[:_MAX_MAPPING_ITEMS]:
-            child_key = str(name)[:96]
-            child_value = _project_value(child, key=child_key, depth=depth + 1)
-            if child_value is not None:
-                projected[child_key] = child_value
-        return projected
-    if isinstance(value, (list, tuple)):
-        return [
-            child
-            for child in (
-                _project_value(item, key=normalized_key, depth=depth + 1)
-                for item in list(value)[:_MAX_LIST_ITEMS]
-            )
-            if child is not None
-        ]
-    return _safe_text(value, _MAX_STRING_CHARS)
-
-
-def _safe_text(value: Any, limit: int) -> str:
-    text = str(value or "")
-    return text[:limit]
-
-
-def _safe_evidence_text(value: Any) -> str:
-    text = _safe_text(value, 96)
-    lowered = text.lower()
-    if any(marker in lowered for marker in ("prompt", "memory://", "artifact://", "result_ref", "tool_args")):
-        return ""
-    return text
-
-
-def _safe_reason_code(value: Any) -> str:
-    text = _safe_text(value, 96)
-    return text if re.fullmatch(r"[A-Za-z0-9_.-]{1,96}", text) else "generation_unavailable"
-
-
-def _normalize_stream_text(value: Any, *, max_length: int) -> str:
-    """Normalize a visible delta without persisting provider metadata."""
-
-    if not isinstance(value, str) or max_length <= 0:
-        return ""
-    return value.replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n")[:max_length]
-
-
-def _contains_internal_reference(value: str) -> bool:
-    lowered = value.lower()
-    return any(marker in lowered for marker in ("memory://", "artifact://", "result_ref", "prompt"))
-
-
-def _is_stream_fallback_eligible(error: PlanningError) -> bool:
-    """Allow a visible-answer fallback for bounded stream shape failures.
-
-    A relay may finish with reasoning-only chunks or reject SSE while its
-    structured endpoint remains usable. The fallback still validates the
-    answer schema; it never exposes those chunks or bypasses the budget.
-    """
-
-    return getattr(error, "code", None) in {
-        "stream_unsupported",
-        "invalid_model_response",
-        "provider_timeout",
-    }
-
-
-def _stream_fallback_reason(error: Exception) -> str:
-    code = str(getattr(error, "code", "") or "").strip()
-    return code if code in {
-        "stream_unsupported",
-        "invalid_model_response",
-        "provider_timeout",
-    } else "stream_unsupported"
-
-
-def _normalize_composite_answer(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        raise PlanningError("composite answer must be an object")
-    allowed = {"headline", "summary", "key_findings", "limitations", "next_steps"}
-    required = {"headline", "summary", "key_findings", "limitations"}
-    if not required.issubset(set(value)) or not set(value).issubset(allowed):
-        raise PlanningError("composite answer fields are invalid")
-    answer: dict[str, Any] = {
-        "headline": _safe_text(value.get("headline"), 160).strip(),
-        "summary": _safe_text(value.get("summary"), 800).strip(),
-    }
-    if not answer["headline"] or not answer["summary"]:
-        raise PlanningError("composite answer headline and summary are required")
-    for key in ("key_findings", "limitations", "next_steps"):
-        values = value.get(key)
-        if values is None and key == "next_steps":
-            values = []
-        if not isinstance(values, list):
-            raise PlanningError("composite answer lists are invalid")
-        answer[key] = [_safe_text(item, 320).strip() for item in values[:8] if _safe_text(item, 320).strip()]
-    return answer
 
 
 def _answer_budget_options(

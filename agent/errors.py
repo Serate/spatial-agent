@@ -2,6 +2,16 @@ class AgentError(Exception):
     """Base error for recoverable Agent failures."""
 
 
+class PersistenceError(AgentError):
+    """A bounded failure while reading or writing durable state."""
+
+    def __init__(self, message: str, *, code: str = "persistence_error", retryable: bool = True):
+        self.category = "persistence"
+        self.code = str(code)[:96]
+        self.retryable = bool(retryable)
+        super().__init__(message)
+
+
 class PlanningError(AgentError):
     """The request cannot be converted into an executable plan.
 
@@ -27,6 +37,10 @@ class ClarificationNeeded(PlanningError):
 
 class RequestRejected(PlanningError):
     """The request violates the runtime policy."""
+
+
+class AnswerUnavailable(PlanningError):
+    """The selected answer path is unavailable without changing the request."""
 
 
 class ToolError(AgentError):

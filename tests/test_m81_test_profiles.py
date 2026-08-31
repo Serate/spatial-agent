@@ -103,7 +103,54 @@ class M81TestProfileTests(unittest.TestCase):
         self.assertNotIn("--no-model-evaluation", global_args)
         self.assertNotIn("--no-model-replay", global_args)
 
-    def test_gis_core_profile_is_sampled_not_full_modules(self):
+    def test_full_regression_profile_opt_in_bypasses_compact_hook(self):
+        payload = self._profile_payload("full-regression")
+
+        self.assertEqual(
+            [item["name"] for item in payload["commands"]],
+            ["historical_unittest_discovery"],
+        )
+        command = payload["commands"][0]
+        self.assertEqual(command["env"], {})
+        self.assertEqual(
+            command["command"][-4:],
+            ["discover", "-s", "tests", "-v"],
+        )
+
+    def test_full_regression_report_is_bounded_and_classified(self):
+        from scripts.test_profile import _parse_unittest_report
+
+        report = _parse_unittest_report(
+            """test_ok (tests.test_sample.SampleTests.test_ok) ... ok
+
+======================================================================
+FAIL: test_bad (tests.test_sample.SampleTests.test_bad)
+----------------------------------------------------------------------
+AssertionError: expected value
+
+======================================================================
+ERROR: test_import (tests.test_other.OtherTests.test_import)
+----------------------------------------------------------------------
+ImportError: No module named optional_package
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.01s
+
+FAILED (failures=1, errors=1, skipped=0)
+"""
+        )
+
+        self.assertEqual(report["counts"], {
+            "failures": 1,
+            "errors": 1,
+            "skipped": 0,
+            "total": 3,
+            "passed": 1,
+        })
+        self.assertEqual(report["by_category"]["assertion_contract"], 1)
+        self.assertEqual(report["by_category"]["environment_or_dependency"], 1)
+        self.assertTrue(all("AssertionError" not in item for item in report["failures"]))
+
         payload = self._profile_payload("gis-core")
         command = payload["commands"][0]
         selected_tests = [item for item in command["command"] if item.startswith("tests.")]

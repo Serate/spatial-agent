@@ -160,7 +160,7 @@ class RunApplication:
             getattr(result, "domain_id", None)
             or self._resolved_domain_id()
             or self._configured_domain_id()
-            or "gis"
+            or self._legacy_domain_id
         )
         if isinstance(evidence, Mapping) and evidence.get("available") is True:
             return bind_domain_routing_evidence(
@@ -184,7 +184,7 @@ class RunApplication:
                 payload.get("domain_id")
                 or self._resolved_domain_id()
                 or self._configured_domain_id()
-                or "gis"
+                or self._legacy_domain_id
             ),
         )
         if record is not None:

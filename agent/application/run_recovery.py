@@ -60,6 +60,7 @@ class RunRecoveryApplication:
         domain_id_provider: Callable[[str, str], str],
         resolved_domain_id: Callable[[], Optional[str]],
         configured_domain_id: Callable[[], Optional[str]],
+        legacy_domain_id: str,
         reserve_action_receipt: Callable[..., Any],
         complete_action_receipt: Callable[..., Any],
         attach_async_observability: Callable[[Dict[str, Any], Optional[str]], None],
@@ -71,6 +72,7 @@ class RunRecoveryApplication:
         self._domain_id_provider = domain_id_provider
         self._resolved_domain_id = resolved_domain_id
         self._configured_domain_id = configured_domain_id
+        self._legacy_domain_id = str(legacy_domain_id).strip()[:80]
         self._reserve_action_receipt = reserve_action_receipt
         self._complete_action_receipt = complete_action_receipt
         self._attach_async_observability = attach_async_observability
@@ -342,7 +344,7 @@ class RunRecoveryApplication:
     def get_run_evidence(self, run_id: str) -> Dict[str, Any]:
         """Return a bounded, navigable evidence index for one run."""
         self._validate_run_id(run_id)
-        domain_id = self._resolved_domain_id() or self._configured_domain_id() or "gis"
+        domain_id = self._resolved_domain_id() or self._configured_domain_id() or self._legacy_domain_id
         artifact = self._artifact_store.read_run(run_id, domain_id=domain_id)
         registry = normalize_evidence_registry(
             artifact.get("evidence_registry") if isinstance(artifact, dict) else None
@@ -463,7 +465,7 @@ class RunRecoveryApplication:
 
     def _reject_cross_domain_run_id(self, run_id: str, domain_id: str) -> None:
         """Never let a detail/evidence read cross Domain ownership."""
-        configured = self._configured_domain_id() or "gis"
+        configured = self._configured_domain_id() or self._legacy_domain_id
         if self._state.persistent:
             other = self._state.get_run(run_id)
             if other is not None and (getattr(other, "domain_id", None) or configured) != domain_id:

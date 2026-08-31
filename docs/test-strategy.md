@@ -126,16 +126,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\production_acceptanc
 
 ## 完整矩阵
 
-以下命令仍保留，但不是日常默认：
+以下命令仍保留，但不是日常默认；它们职责不同，不能互相宣称覆盖对方：
 
 ~~~powershell
 docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile full-stage
-docker exec ai-agent-spatial-agent-1 python -m unittest discover -s tests -t . -v  # 只运行 compact active suite
+# compact active suite（当前 4 项）
+docker exec ai-agent-spatial-agent-1 python -m unittest discover -s tests -t . -v
+# 历史 unittest 全量收集器；会绕过 tests 包的 compact load_tests hook，环境依赖测试可能跳过或失败，需单独统计
+docker exec ai-agent-spatial-agent-1 python -m unittest discover -s tests -v
+docker exec ai-agent-spatial-agent-1 python scripts/test_profile.py --profile full-regression
 docker exec ai-agent-spatial-agent-1 python scripts/smoke_check.py --with-unit-tests
 docker exec ai-agent-spatial-agent-1 python scripts/live_baseline.py --allow-network --backend local
 ~~~
 
-历史里程碑测试仍可按模块显式运行，例如 `python -m unittest tests.test_m80_replanning -v`；它们不再参与默认 discovery。只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时，才运行对应完整矩阵。提交/PR 不自动运行 `stage` 的边界场景；阶段收口或风险明确时再运行 `stage`。即使需要扩展矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。
+`full-stage` 覆盖全局 acceptance、脱敏模型评测和回放，不收集每个历史 unittest 模块；
+`full-regression` 通过显式环境开关绕过 `tests.load_tests` 的 compact hook，收集历史
+unittest 模块，但不保证这些模块都具备 GIS、Node、FastAPI 或 live 环境。历史测试仍可按模块显式运行，
+例如 `python -m unittest tests.test_m80_replanning -v`。只有改动共享 Runtime、SQLite、HTTP 契约、生产部署、
+真实模型评测或数据卷配置时，才运行对应完整矩阵；即使扩展矩阵，也应先跑失败范围最小的 profile，再按失败边界追加专项命令。
 
 ## 记录规则
 

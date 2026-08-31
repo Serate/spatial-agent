@@ -2,9 +2,11 @@
 
 from typing import Any, Mapping
 
+from .error_taxonomy import FAILURE_CATEGORIES, FAILURE_PHASES, normalize_failure_fields
+
 
 FAILURE_SCHEMA_VERSION = "spatial-agent.failure.v1"
-_PHASES = {"planning", "execution", "control", "persistence", "unknown"}
+_PHASES = set(FAILURE_PHASES)
 
 
 def build_failure_evidence(
@@ -18,17 +20,19 @@ def build_failure_evidence(
     """Build bounded machine-readable failure metadata without raw messages."""
     normalized_status = str(status or "FAILED")[:32]
     normalized_category = _category_for_status(normalized_status, category)
-    normalized_code = str(code or _default_code(normalized_status, normalized_category))[:96]
-    normalized_phase = str(phase or _default_phase(normalized_status, normalized_category))
-    if normalized_phase not in _PHASES:
-        normalized_phase = "unknown"
+    fields = normalize_failure_fields(
+        {
+            "category": normalized_category,
+            "code": code,
+            "phase": phase,
+            "retryable": retryable,
+        },
+        status=normalized_status,
+    )
     return {
         "schema_version": FAILURE_SCHEMA_VERSION,
         "status": normalized_status,
-        "category": normalized_category,
-        "code": normalized_code,
-        "phase": normalized_phase,
-        "retryable": bool(retryable) if retryable is not None else False,
+        **fields,
     }
 
 
@@ -64,7 +68,7 @@ def _category_for_status(status: str, category: Any) -> str:
     if status == "NEEDS_CLARIFICATION":
         return "clarification"
     value = str(category or "execution")[:64]
-    return value or "execution"
+    return value if value in FAILURE_CATEGORIES else "internal"
 
 
 def _default_phase(status: str, category: str) -> str:

@@ -39,6 +39,7 @@ class M158EvidenceRegistryTests(unittest.TestCase):
             "action_lifecycle",
             "replanning",
             "workflow_selection",
+            "capability_selection",
             "planner_selection",
             "interaction",
         }

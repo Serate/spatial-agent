@@ -334,6 +334,9 @@ class M333WebFetchTests(unittest.TestCase):
             len(json.dumps(context, ensure_ascii=False, separators=(",", ":"))),
             12_000,
         )
+        self.assertTrue(
+            any(item.get("text") for item in context.get("web_documents", []))
+        )
         self.assertNotIn("prompt", json.dumps(context, ensure_ascii=False).lower())
 
     def test_answer_context_hard_limit_for_extreme_step_payload(self):

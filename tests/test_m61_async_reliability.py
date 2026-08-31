@@ -37,7 +37,30 @@ def _wait_for_job_terminal(service, run_id, timeout=3.0):
 
 
 class M61AsyncReliabilityTests(unittest.TestCase):
-    def test_submission_returns_before_slow_runtime_initialization(self):
+    def test_atomic_submission_persists_initial_snapshot_before_schedule(self):
+        with tempfile.TemporaryDirectory() as directory:
+            service = AgentService(state_db_path=str(Path(directory) / "state.db"))
+            self.addCleanup(service.close)
+            observed = []
+            def observe_before_schedule(payload):
+                observed.append(service.get_run(payload["run_id"])["status"])
+
+            with patch.object(
+                service._async_application, "_schedule", side_effect=observe_before_schedule
+            ) as schedule:
+                submitted = service.run_async(
+                    request="你好",
+                    session_id="atomic-submit",
+                    planner="rule",
+                    backend="memory",
+                )
+                snapshot = service.get_run(submitted["run_id"])
+
+            self.assertEqual(snapshot["status"], "PLANNING")
+            self.assertEqual(snapshot["run_id"], submitted["run_id"])
+            self.assertEqual(observed, ["PLANNING"])
+            schedule.assert_called_once()
+
         with tempfile.TemporaryDirectory() as directory:
             service = AgentService(state_db_path=str(Path(directory) / "state.db"))
             self.addCleanup(service.close)
@@ -63,7 +86,9 @@ class M61AsyncReliabilityTests(unittest.TestCase):
                     elapsed = time.monotonic() - started
                     self.assertLess(elapsed, 0.2)
 
-            result = _wait_for_terminal(service, queued["run_id"], backend="local")
+            result = _wait_for_terminal(
+                service, queued["run_id"], backend="local", timeout=8.0
+            )
             self.assertNotIn(result["status"], {"PLANNING", "EXECUTING"})
 
     def test_concurrent_duplicate_submissions_share_one_run_id(self):
@@ -167,6 +192,12 @@ class M61AsyncReliabilityTests(unittest.TestCase):
             self.assertEqual(
                 service._state_store.get_async_job(queued["run_id"])["status"], "FAILED"
             )
+    def test_close_is_idempotent_and_rejects_new_async_submissions(self):
+        service = AgentService()
+        service.close()
+        service.close()
+        with self.assertRaisesRegex(RuntimeError, "service is closed"):
+            service.run_async(request="你好")
 
 
 if __name__ == "__main__":

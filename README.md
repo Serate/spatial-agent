@@ -173,7 +173,7 @@ python scripts\test_profile.py --profile ci
 python scripts\test_profile.py --profile stage
 ~~~
 
-GitHub Actions 的 push/PR 默认 CI 运行 `ci` profile；完整离线回归只在手动触发 workflow 时运行。真实 GIS、真实模型与 Docker 仍是显式阶段验收，不访问 CI 外的私有配置或数据。
+GitHub Actions 的 push/PR 默认 CI 运行 `ci` profile；手动 workflow 另有 `full-regression` 历史 unittest 收集器。真实 GIS、真实模型与 Docker 仍是显式阶段验收，不访问 CI 外的私有配置或数据。
 
 真实 GIS、真实模型和 Docker 作为阶段验收或专项验证运行：
 
@@ -188,12 +188,17 @@ python scripts\test_profile.py --profile live-short --dataset-config D:\tmp\wuha
 python scripts\test_profile.py --profile docker --docker-base-url http://127.0.0.1:8088
 ~~~
 
-完整全量回归仍保留，但只在改动共享 Runtime、SQLite、HTTP 契约、生产部署、真实模型评测或数据卷配置时按需运行：
+## 按需扩展的离线回归
+
+`full-stage` 是全局 acceptance/evaluation 门禁，不等于历史 unittest 全量收集。默认的
+`python -m unittest discover -s tests -t . -v` 仍是 compact active suite（当前仅 4 项），
+用于快速验证稳定契约；`smoke_check.py --with-unit-tests` 也不会递归扩大默认 smoke。
+需要审计历史测试模块时，显式运行 `full-regression`；该入口可能包含依赖环境跳过或既有失败，
+必须单独报告实际的通过、失败和跳过数量：
 
 ~~~powershell
+python scripts\test_profile.py --profile full-regression
 python scripts\test_profile.py --profile full-stage
-python -m unittest discover -s tests -t . -v
-python scripts\smoke_check.py --with-unit-tests
 python scripts\evaluate_global.py --strict
 ~~~
 

@@ -17,6 +17,8 @@ import uuid
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 import sqlite3
+
+from agent.persistence.sqlite_retry import retry_sqlite_write
 from typing import Any, Protocol
 
 
@@ -275,6 +277,7 @@ def project_tool_approval_visibility(
 
 
 class ToolApprovalStore(Protocol):
+    @retry_sqlite_write
     def create_from_receipt(
         self,
         receipt: Mapping[str, Any],
@@ -309,6 +312,7 @@ class InMemoryToolApprovalStore:
         self._records: dict[str, ToolApprovalRecord] = {}
         self._lock = threading.RLock()
 
+    @retry_sqlite_write
     def create_from_receipt(
         self,
         receipt: Mapping[str, Any],
@@ -411,6 +415,7 @@ class SQLiteToolApprovalStore:
                 "ON tool_approvals(domain_id, status, updated_at)"
             )
 
+    @retry_sqlite_write
     def create_from_receipt(
         self,
         receipt: Mapping[str, Any],
@@ -528,6 +533,7 @@ class SQLiteToolApprovalStore:
         self._cas_update(record, updated)
         return updated
 
+    @retry_sqlite_write
     def _cas_update(self, old: ToolApprovalRecord, new: ToolApprovalRecord) -> None:
         with self._connection() as connection:
             cursor = connection.execute(
