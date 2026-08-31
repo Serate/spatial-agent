@@ -270,6 +270,8 @@ class M10HttpApiTests(unittest.TestCase):
     def test_http_api_retry_route_is_available(self):
         class TestHandler(AgentApiHandler):
             class FakeService:
+                _resolved_domain_id = "gis"
+
                 def retry(self, **kwargs):
                     return {"run_id": kwargs["run_id"], "status": "COMPLETED"}
 
@@ -294,6 +296,8 @@ class M10HttpApiTests(unittest.TestCase):
     def test_http_api_cancel_route_is_available(self):
         class TestHandler(AgentApiHandler):
             class FakeService:
+                _resolved_domain_id = "gis"
+
                 def cancel(self, **kwargs):
                     return {
                         "run_id": kwargs["run_id"],
@@ -322,6 +326,8 @@ class M10HttpApiTests(unittest.TestCase):
     def test_http_api_async_run_route_is_available(self):
         class TestHandler(AgentApiHandler):
             class FakeService:
+                _resolved_domain_id = "gis"
+
                 def run_async(self, **kwargs):
                     return {"run_id": "async-1", "status": "QUEUED"}
 
