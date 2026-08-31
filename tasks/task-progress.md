@@ -811,3 +811,11 @@
 - 代码索引已重建校验：360 文件、100% 语义覆盖、0 错误。
 - git 安全点（可回滚）：`72d9e5c`、`3efb9a5`、`9c09b36`、`17ad940`、`16fcb66`、`70c9e1e`。
 - **剩余/未收口**：full-regression 历史套件的 55 失败 + 33 错误未逐项修复完成；按约定不再跑全量（太慢），改为受影响测试 + 精简 profile 收口；剩余失败多为基线既有（环境依赖/资源/断言过期）与中央类级重构，需逐项分类修复。
+
+### Full-regression 完整基线（用户授权单次运行，容器内）
+
+- 命令：`python -m unittest discover -s tests -v`（容器 `ai-agent-spatial-agent-1` 内，已同步当前工作区源码）。
+- 结果：`Ran 1681 tests ... FAILED (failures=77, errors=42, skipped=32)`。
+- 完整失败/错误清单已存：`outputs/fullreg2-failures.txt`（FAILED 68 行 + ERRORED 36 行；unittest 汇总 77 失败 + 42 错误，含 subTest 多次断言）。
+- 说明：此计数高于文档基线（55+33），因工作区早期"架构收敛重构"（runtime/service 拆分、error_taxonomy、http_routes、composite 等）引入了一部分新的行为差异；逐项需判断"代码回归 vs 测试过时 vs 环境"。
+- 下一步：以此清单为输入，按受影响测试逐项分类修复；不再把 full-regression 作为日常门禁。
