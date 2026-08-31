@@ -1,40 +1,56 @@
 from typing import Any, Dict, List
+import re
 
 from .models import AgentRunResult, RunStatus, StepRun
+
+
+# Sensitive-in-token patterns to mask in user-readable traces.  A trace is a
+# public/persisted projection, so any credential-like content a user pasted
+# into a request must not leak into it.
+_SENSITIVE_PATTERNS = (
+    re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
+    re.compile(r"(?i)(api[_-]?key|token|password|secret|authorization|bearer)\s*[=:]\s*[^\s,;]{4,}"),
+)
+
+
+def _redact_sensitive(text: str) -> str:
+    for pattern in _SENSITIVE_PATTERNS:
+        text = pattern.sub("***", text)
+    return text
 
 
 def format_trace(result: AgentRunResult) -> List[str]:
     """Build a compact, user-readable trace from an Agent run."""
 
-    lines = ["Received request: " + result.request]
+    lines = ["Received request: " + _redact_sensitive(result.request)]
     if result.resolved_request and result.resolved_request != result.request:
-        lines.append("Resolved request: " + result.resolved_request)
+        lines.append("Resolved request: " + _redact_sensitive(result.resolved_request))
 
     if result.status == RunStatus.NEEDS_CLARIFICATION:
-        lines.append("Planning stopped: " + str(result.error))
+        lines.append("Planning stopped: " + _redact_sensitive(str(result.error)))
         lines.append("Waiting for user clarification.")
         return lines
 
     if result.status == RunStatus.REJECTED:
-        lines.append("Request rejected: " + str(result.error))
+        lines.append("Request rejected: " + _redact_sensitive(str(result.error)))
         return lines
 
     if result.status == RunStatus.FAILED:
-        lines.append("Run failed: " + str(result.error))
+        lines.append("Run failed: " + _redact_sensitive(str(result.error)))
         for step in result.steps:
             lines.append(_format_step(step))
         _append_replanning_trace(lines, result)
         return lines
 
     if result.status == RunStatus.CANCELLED:
-        lines.append("Run cancelled: " + str(result.error))
+        lines.append("Run cancelled: " + _redact_sensitive(str(result.error)))
         for step in result.steps:
             lines.append(_format_step(step))
         _append_replanning_trace(lines, result)
         return lines
 
     if result.status == RunStatus.TIMED_OUT:
-        lines.append("Run timed out: " + str(result.error))
+        lines.append("Run timed out: " + _redact_sensitive(str(result.error)))
         for step in result.steps:
             lines.append(_format_step(step))
         _append_replanning_trace(lines, result)

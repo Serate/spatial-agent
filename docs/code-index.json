@@ -10701,7 +10701,7 @@
     {
       "path": "agent/trace_formatter.py",
       "language": "python",
-      "line_count": 119,
+      "line_count": 135,
       "layer": "observability",
       "role": "执行轨迹格式化与可读投影",
       "stage": "M13-M325",
@@ -10714,7 +10714,7 @@
         {
           "name": "format_trace",
           "kind": "function",
-          "line": 6
+          "line": 22
         }
       ],
       "imports": []
