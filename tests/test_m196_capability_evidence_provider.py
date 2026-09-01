@@ -270,7 +270,7 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
             os.environ,
             {"SPATIAL_AGENT_CAPABILITY_EVIDENCE_TTL_SECONDS": "0"},
         ), patch(
-            "agent.runtime.resolve_runtime_evidence",
+            "agent.runtime_core.capabilities.resolve_runtime_evidence",
             side_effect=RuntimeError("private provider detail must not escape"),
         ):
             runtime = build_runtime("rule", "memory", domain_pack=TEXT_DOMAIN_PACK)
