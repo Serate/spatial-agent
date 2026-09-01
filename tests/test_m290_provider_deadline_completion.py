@@ -67,16 +67,21 @@ class _PreviewService:
         self, capability_id, *, request_facts=None, selection=None
     ):
         del request_facts, selection
-        if capability_id != "economic_indicator_latest":
-            return None
-        return {
-            "template_id": "economic_latest",
-            "constraints": {
-                "dataset": "wuhan_hongshan_economic_indicators",
-                "indicator": "gdp_total",
-                "regions": ["洪山区"],
-            },
-        }
+        if capability_id == "economic_indicator_latest":
+            return {
+                "template_id": "economic_latest",
+                "constraints": {
+                    "dataset": "wuhan_hongshan_economic_indicators",
+                    "indicator": "gdp_total",
+                    "regions": ["洪山区"],
+                },
+            }
+        if capability_id == "economic_indicator_trend":
+            return {
+                "template_id": "economic_trend",
+                "constraints": {"indicator": "gdp_total", "regions": ["洪山区"]},
+            }
+        return None
 
     def preview(self, request, **kwargs):
         self.planner = kwargs.get("planner")
@@ -155,6 +160,19 @@ class _SessionBoundPreviewService:
                 "output": {"type": result_type},
             },
         }
+
+    def resolve_capability_selection(
+        self, capability_id, *, request_facts=None, selection=None
+    ):
+        del request_facts, selection
+        if self.domain_id == "gis" and capability_id == "gis.summary":
+            return {"template_id": "gis_summary", "constraints": {}}
+        if self.domain_id == "economic" and capability_id == "economic_indicator_trend":
+            return {
+                "template_id": "economic_trend",
+                "constraints": {"indicator": "gdp_total", "regions": ["洪山区"]},
+            }
+        return None
 
 
 class M290ProviderDeadlineCompletionTests(unittest.TestCase):
@@ -240,7 +258,20 @@ class M290ProviderDeadlineCompletionTests(unittest.TestCase):
                         "result_types": ["economic_timeseries_result"],
                     },
                 ],
-                "workflow_index": [],
+                "workflow_index": [
+                    {
+                        "domain_id": "gis",
+                        "workflow_id": "gis_summary",
+                        "allowed_tools": ["get_raster_metadata"],
+                        "result_types": ["raster_metadata_result"],
+                    },
+                    {
+                        "domain_id": "economic",
+                        "workflow_id": "economic_trend",
+                        "allowed_tools": ["economic_indicator_query", "economic_source_evidence"],
+                        "result_types": ["economic_timeseries_result"],
+                    },
+                ],
             }
             result = bridge.bridge(
                 [
@@ -299,7 +330,14 @@ class M290ProviderDeadlineCompletionTests(unittest.TestCase):
                         "result_types": ["economic_timeseries_result"],
                     }
                 ],
-                "workflow_index": [],
+                "workflow_index": [
+                    {
+                        "domain_id": "economic",
+                        "workflow_id": "economic_trend",
+                        "allowed_tools": ["economic_indicator_trend"],
+                        "result_types": ["economic_timeseries_result"],
+                    }
+                ],
             },
             planner="openai",
             backend="local",
