@@ -285,7 +285,7 @@ class M80RuntimeReplanningTests(unittest.TestCase):
         self.assertEqual(result.replan_events[0]["failed_tool"], "fail_tool")
         tools = [step.tool for step in result.steps]
         self.assertIn("get_dataset_health_report", tools)
-        self.assertIn("降级结论", result.answer)
+        self.assertIn("来源", result.answer)
 
 
 class _RecordedLLMClient:
