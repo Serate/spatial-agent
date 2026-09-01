@@ -59,7 +59,7 @@ class _RepairClient:
                 "goal": "带有无效依赖的摘要计划",
                 "steps": [
                     {
-                        "id": "summary",
+                        "id": "summary-text",
                         "tool": "summarize_text",
                         "args": {"text": "M150 repair"},
                         "depends_on": ["missing-step"],
@@ -71,7 +71,7 @@ class _RepairClient:
             "goal": "修复后的摘要计划",
             "steps": [
                 {
-                    "id": "summary",
+                    "id": "summary-text",
                     "tool": "summarize_text",
                     "args": {"text": "M150 repair"},
                     "depends_on": [],
