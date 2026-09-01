@@ -116,7 +116,7 @@ class M191SelectionToRunTests(unittest.TestCase):
                         {
                             "action": "provide_facts",
                             "capability_id": "text_summary",
-                            "facts": {"source": "HTTP 用户输入"},
+                            "facts": {"text": "HTTP 用户输入"},
                             "require_confirmation": False,
                             "planner": "rule",
                             "backend": "memory",
