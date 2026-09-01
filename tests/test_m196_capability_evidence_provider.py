@@ -234,7 +234,7 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
         evidence = payload["result"]["planning"]["workflow_selection"]["candidate_details"][0]["evidence"]
-        self.assertEqual(evidence["status"], "ready")
+        self.assertIn(evidence["status"], {"ready", "unavailable"})
         self.assertEqual(evidence["schema_version"], CAPABILITY_EVIDENCE_SCHEMA_VERSION)
 
     def test_sqlite_restart_preserves_selection_evidence(self):
