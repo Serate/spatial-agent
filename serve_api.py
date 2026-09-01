@@ -193,6 +193,25 @@ class AgentApiHandler(BaseHTTPRequestHandler):
                 )
             elif shared_route.action in {"runtime_capabilities", "release_evidence"}:
                 query_payload["max_files"] = int(query_payload.get("max_files", 10))
+                if self.service is None:
+                    try:
+                        if query_payload["max_files"] < 1 or query_payload["max_files"] > 10:
+                            raise ValueError("max_files must be between 1 and 10")
+                        # A domain-neutral stdlib entry may serve the legacy
+                        # snapshot directly even when no Domain is bound.
+                        if shared_route.action == "runtime_capabilities":
+                            result = runtime_capability_snapshot(
+                                max_files=query_payload["max_files"]
+                            )
+                        else:
+                            result = release_evidence_snapshot(
+                                max_files=query_payload["max_files"]
+                            )
+                    except ValueError as exc:
+                        self._write_error(exc)
+                        return
+                    self._write_json(200, result)
+                    return
             try:
                 result = self._http_application().read(
                     shared_route.action,
@@ -875,11 +894,14 @@ class AgentApiHandler(BaseHTTPRequestHandler):
         """Bind this handler request to the service selected by its URL."""
         self.service = type(self).service
         self._request_domain_id = getattr(self.service, "_resolved_domain_id", None)
-        if not self._request_domain_id:
-            raise ValueError("service Domain is not bound")
         scope = parse_domain_path(parsed.path)
+        # Domain-agnostic endpoints may be served by the stdlib/domain-neutral
+        # service even when no Domain is bound; only domain-scoped paths require
+        # a bound Domain.
         if scope is None:
             return parsed, None
+        if not self._request_domain_id:
+            raise ValueError("service Domain is not bound")
         host = getattr(type(self), "host", None)
         if host is None:
             raise ValueError("multi-domain host is unavailable")
