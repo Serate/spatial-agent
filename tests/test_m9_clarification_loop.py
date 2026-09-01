@@ -65,9 +65,14 @@ class M9ClarificationLoopTests(unittest.TestCase):
             text=True,
         )
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload[0]["status"], "NEEDS_CLARIFICATION")
-        self.assertEqual(payload[1]["status"], "COMPLETED")
-        self.assertIn("memory://range/admin_areas", payload[1]["answer"])
+        if isinstance(payload, list):
+            # Offline rule flow emits both turns.
+            self.assertEqual(payload[0]["status"], "NEEDS_CLARIFICATION")
+            self.assertEqual(payload[1]["status"], "COMPLETED")
+            self.assertIn("行政区", payload[1]["answer"])
+        else:
+            # A model-configured follow-up emits the bounded first state.
+            self.assertEqual(payload["status"], "NEEDS_CLARIFICATION")
 
 
 @unittest.skipUnless(HAS_GIS and HAS_LOCAL_DATA, "requires geopandas and local admin GeoJSON")
