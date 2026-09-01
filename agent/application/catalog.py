@@ -16,6 +16,7 @@ from agent.domain_registry import domain_registry
 from agent.domain_registry import resolve_domain_id
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
 from agent.workflow_templates import workflow_template_catalog
+from agent.capability_catalog import capability_catalog as resolve_capability_catalog
 from agent.application.service_format import normalize_workflow_payload as _legacy_normalize_workflow
 
 
@@ -161,6 +162,11 @@ class CatalogApplication:
 
     def capabilities(self, planner: str = "rule", backend: str = "memory") -> Dict[str, Any]:
         """Return the selected Domain capability catalog."""
+        # A domain-neutral (general) entry has no single Domain to read, so it
+        # defaults to the legacy GIS catalog to keep the capability surface
+        # bounded and compatible with the historical default.
+        if self._configured_domain_id in (None, "general"):
+            return dict(resolve_capability_catalog())
         value = self.runtime(planner, backend).capability_catalog()
         return dict(value) if isinstance(value, Mapping) else {}
 
