@@ -31,6 +31,13 @@ from agent.artifact_store import ArtifactStore
 from evaluation.contract_harness import compare_results
 from agent.llm_planner import LLMPlanner
 from agent.replanning import ReplanningPolicy
+from agent.agent_settings import open_agent_defaults
+from agent.network import (
+    WebFetchAdapter,
+    WebSearchAdapter,
+    web_fetch_tool_definition,
+    web_search_tool_definition,
+)
 from agent.runtime import AgentRuntime
 from agent.service import AgentService
 from agent.tools import ToolRegistry
@@ -102,6 +109,20 @@ def _repair_runtime_factory(
     **_: Any,
 ) -> AgentRuntime:
     registry = ToolRegistry.from_provider(TextToolProvider())
+    defaults = open_agent_defaults()
+    if defaults["web_search_enabled"] and defaults.get("web_mode") != "off":
+        if "web_search" not in registry.names:
+            registry.register_tool(
+                "web_search",
+                web_search_tool_definition(),
+                WebSearchAdapter.from_settings(defaults).invoke,
+            )
+        if "web_fetch" not in registry.names:
+            registry.register_tool(
+                "web_fetch",
+                web_fetch_tool_definition(),
+                WebFetchAdapter.from_settings(defaults).invoke,
+            )
     return AgentRuntime(
         LLMPlanner(_RepairClient(), registry.names),
         registry,
