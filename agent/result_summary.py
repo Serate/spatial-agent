@@ -495,6 +495,15 @@ def _build_evidence(source: Mapping[str, Any], blocks: Sequence[Mapping[str, Any
     available = False
     count = 0
     raw = source.get("evidence")
+    # A rebuilt Result stores the bounded evidence under its summary; accept
+    # the existing ``result_summary.evidence`` when the top-level ``evidence``
+    # is not present so a re-projection (e.g. artifact recovery) preserves the
+    # same bounded evidence_bundle across paths.
+    if not isinstance(raw, Mapping):
+        summary = source.get("result_summary")
+        raw = summary.get("evidence") if isinstance(summary, Mapping) else None
+        if not isinstance(raw, Mapping):
+            raw = None
     if isinstance(raw, Mapping):
         available = bool(raw.get("available"))
         count = _count(raw.get("entry_count"), raw.get("entries"))
