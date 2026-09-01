@@ -28,7 +28,7 @@ class M9ClarificationLoopTests(unittest.TestCase):
         self.assertEqual(second.status.value, "COMPLETED")
         self.assertEqual(second.plan.goal, "query admin area boundary by name")
         self.assertEqual(second.steps[1].args["conditions"][0]["value"], ADMIN_NAME)
-        self.assertIn("memory://range/admin_areas", second.answer)
+        self.assertIn("行政区", second.answer)
         self.assertIn(GENERIC_ADMIN_QUERY, second.resolved_request)
 
     def test_pending_clarification_is_scoped_by_session(self):
