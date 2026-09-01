@@ -45,7 +45,7 @@ class FactsRequiredTextDomainPack(TextDomainPack):
             "candidate_ids": ["text_summary"],
             "candidate_count": 1,
             "missing_fields": [
-                {"id": "source", "label": "输入来源", "kind": "fact"}
+                {"id": "text", "label": "文本内容", "kind": "text"}
             ],
         }
 
@@ -69,7 +69,7 @@ class M191SelectionToRunTests(unittest.TestCase):
                 "provide_facts",
                 {
                     "capability_id": "text_summary",
-                    "facts": {"source": "用户输入文本"},
+                    "facts": {"text": "用户输入文本"},
                     "require_confirmation": False,
                 },
                 planner="rule",
