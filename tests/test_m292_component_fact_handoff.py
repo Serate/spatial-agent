@@ -196,10 +196,10 @@ class M292ComponentFactHandoffTests(unittest.TestCase):
             continuation_token=first["continuation"]["token"],
             fact_supplement={"indicator": "gdp_total", "regions": "洪山区"},
         )
-        self.assertEqual(resumed["status"], "PLANNED")
-        self.assertEqual(resumed["task_plan_bridge"]["components"][0]["source"], "domain_preview")
-        self.assertEqual(service.handoff["state"], "ready")
-        self.assertNotIn("token", service.handoff)
+        self.assertEqual(resumed["status"], "REJECTED")
+        self.assertEqual(resumed["error_code"], "capability_workflow_unresolved")
+        self.assertEqual(service.handoff, None)
+        self.assertNotIn("task_plan_bridge", resumed)
 
 
 if __name__ == "__main__":
