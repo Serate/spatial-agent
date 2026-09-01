@@ -40,7 +40,7 @@ class M35ProvenanceTests(unittest.TestCase):
             artifact["provenance"]["steps"][3]["input_bindings"][0]["source_step"],
             "filter-admin",
         )
-        self.assertNotIn("args", json.dumps(artifact))
+        self.assertNotIn("args", json.dumps(artifact["provenance"]))
         serialized = json.dumps(artifact)
         # Geometry is now a first-class, bounded result contract.  Raw step
         # arguments remain excluded, while the normalized geometry evidence is
