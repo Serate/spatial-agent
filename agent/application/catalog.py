@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, Mapping, Optional
 from agent.domain_registry import domain_registry
 from agent.domain_registry import resolve_domain_id
 from agent.runtime_factory import build_runtime, build_runtime_context_snapshot
+from agent.workflow_templates import workflow_template_catalog
 from agent.application.service_format import normalize_workflow_payload as _legacy_normalize_workflow
 
 
@@ -167,6 +168,11 @@ class CatalogApplication:
         self, planner: str = "rule", backend: str = "memory"
     ) -> Dict[str, Any]:
         """Return workflow templates and validator inputs for one Domain."""
+        # A domain-neutral (general) entry has no single Domain to read, so it
+        # defaults to the legacy GIS catalog to keep the workflow surface
+        # bounded and compatible with the historical default.
+        if self._configured_domain_id in (None, "general"):
+            return {"domain_id": "gis", "catalog": dict(workflow_template_catalog())}
         runtime = self.runtime(planner, backend)
         resolver = getattr(runtime, "workflow_contract", None)
         if not callable(resolver):
