@@ -343,7 +343,7 @@ class ExecutionPolicyResolver:
         actual_tools = _unique_strings(
             getattr(step, "tool", None) for step in steps
         )
-        allowed_tools = declared_tools or actual_tools
+        allowed_tools = actual_tools or declared_tools
         declared_results = _first_strings(
             workflow_value.get("result_types"),
             domain_value.get("result_types"),

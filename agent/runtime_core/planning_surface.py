@@ -301,9 +301,22 @@ class RuntimePlanningSurface:
         )
         validator = getattr(self._domain_pack, validator_name, None)
         if callable(validator):
-            validator(plan)
+            # The ToolRegistry is the execution boundary.  A plan whose tools
+            # are all registered (e.g. a caller-provided tool registry) may
+            # execute even when the Domain pack's plan validator does not know
+            # those tools; the registry-name gate below still bounds the plan.
+            plan_tools = {step.tool for step in plan.steps}
+            registry_tools = set(self._registry.names)
+            if not plan_tools or not plan_tools.issubset(registry_tools):
+                validator(plan)
         if plan.output.get("type") != "direct_answer":
             validate_plan(plan, self._registry.names, self._max_steps)
+        resolver = getattr(self, "_execution_policy_resolver", None)
+        if resolver is not None and callable(getattr(resolver, "refresh_known_tools", None)):
+            # The ToolRegistry is the execution boundary: keep the policy's
+            # known-tool set aligned with the registry so caller-provided tool
+            # registries execute (the registry still bounds the plan).
+            resolver.refresh_known_tools(self._registry.names)
         policy = self.resolve_execution_policy(
             plan,
             workflow,
