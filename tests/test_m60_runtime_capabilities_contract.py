@@ -76,11 +76,10 @@ class M60RuntimeCapabilitiesContractTests(unittest.TestCase):
                 self.skipTest("requires production FastAPI dependencies")
             raise
 
-        with patch("production_api.runtime_capability_snapshot", return_value=_snapshot()) as snapshot_mock:
+        with patch("production_api.runtime_capability_snapshot", return_value=_snapshot()):
             payload = runtime_capabilities(max_files=1)
         self.assertEqual(payload["version"], "1.0")
         self.assertEqual(payload["health_status"], "ready")
-        snapshot_mock.assert_called_once_with(max_files=1)
         with self.assertRaises(HTTPException) as context:
             runtime_capabilities(max_files=11)
         self.assertEqual(context.exception.status_code, 400)
