@@ -422,7 +422,7 @@ class M279CompositePlannerContractTests(unittest.TestCase):
         )
 
         self.assertEqual(response["status"], "NEEDS_CLARIFICATION")
-        self.assertEqual(response["request"]["schema_version"], "spatial-agent.composite-request.v1")
+        self.assertEqual(response["error_code"], "workflow_unbound")
 
     def test_fastapi_and_stdlib_routes_delegate_to_same_plan_command(self):
         import production_api
