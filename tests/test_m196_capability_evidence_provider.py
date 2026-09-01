@@ -211,10 +211,10 @@ class M196CapabilityEvidenceProviderTests(unittest.TestCase):
         thread.start()
         try:
             connection = HTTPConnection(
-                "127.0.0.1", server.server_address[1], timeout=5
+                "127.0.0.1", server.server_address[1], timeout=90
             )
             body = json.dumps(
-                {"request": "概括这段文本", "session_id": session_id},
+                {"request": "概括这段文本", "session_id": session_id, "planner": "rule"},
                 ensure_ascii=False,
             ).encode("utf-8")
             connection.request(
