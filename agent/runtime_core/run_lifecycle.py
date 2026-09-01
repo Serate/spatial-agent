@@ -453,6 +453,9 @@ class RuntimeRunLifecycle:
             # enforce high-risk rules after the planner returns, but an open
             # request is allowed to produce a direct tool or generic DAG
             # without being rejected merely because no workflow was selected.
+            runtime._require_workflow_selection(
+                context.context_packet, context.workflow
+            )
             context.candidate_plan = runtime._plan(
                 context.resolved_request,
                 context.workflow,
