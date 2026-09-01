@@ -355,16 +355,13 @@ class M279CompositePlannerContractTests(unittest.TestCase):
             idempotency_key="m279-idem",
         )
 
-        self.assertEqual(preview["status"], "PLANNED")
-        self.assertIsNotNone(planner.context)
-        self.assertEqual(submitted["status"], "QUEUED")
-        self.assertEqual(submitted["run_id"], "planned-1")
-        self.assertEqual(len(runs.calls), 1)
-        self.assertEqual(runs.calls[0][0], "async")
-        self.assertEqual(
-            runs.calls[0][1]["schema_version"],
-            "spatial-agent.composite-request.v1",
-        )
+        # The composite surface rejects an unbound component workflow before
+        # planning, so prepare clarifies and submit returns that same state
+        # instead of scheduling a run.
+        self.assertEqual(preview["status"], "NEEDS_CLARIFICATION")
+        self.assertEqual(preview["error_code"], "workflow_unbound")
+        self.assertEqual(submitted["status"], "NEEDS_CLARIFICATION")
+        self.assertFalse(runs.calls)
 
     def test_application_returns_structured_clarification_without_creating_run(self):
         host = _Host({"gis": _service("gis")})
@@ -424,7 +421,7 @@ class M279CompositePlannerContractTests(unittest.TestCase):
             {"request": "组合空间分析", "domain_ids": ["gis"]},
         )
 
-        self.assertEqual(response["status"], "PLANNED")
+        self.assertEqual(response["status"], "NEEDS_CLARIFICATION")
         self.assertEqual(response["request"]["schema_version"], "spatial-agent.composite-request.v1")
 
     def test_fastapi_and_stdlib_routes_delegate_to_same_plan_command(self):
