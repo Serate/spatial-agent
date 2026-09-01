@@ -54,8 +54,14 @@ class M139DomainIntentTests(unittest.TestCase):
             RuleBasedPlanner().plan("查询武汉城市绿地空间分布")
 
     def test_runtime_enriches_bare_planner_clarification_from_domain(self):
-        runtime = build_runtime("rule", "memory")
-        runtime._planner = _BareClarifyingPlanner()
+        from agent.runtime import AgentRuntime
+        from agent.tools import ToolRegistry
+        from domains.gis.domain import GIS_DOMAIN_PACK
+
+        registry = ToolRegistry.from_provider(
+            GIS_DOMAIN_PACK.tool_provider(backend_name="memory", root=ROOT)
+        )
+        runtime = AgentRuntime(_BareClarifyingPlanner(), registry, domain_pack=GIS_DOMAIN_PACK)
 
         payload = runtime.preview("查询道路与水体分布")
 
