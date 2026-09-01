@@ -874,7 +874,9 @@ def normalize_result(payload: Mapping[str, Any]) -> CrossEntryContract:
         result=result,
         artifact=artifact,
     )
-    evidence_projection = project_evidence_projection(payload)
+    evidence_projection = _comparison_evidence_projection(
+        project_evidence_projection(payload)
+    )
     evidence_selection = _mapping(evidence_projection.get("selection"))
     values = {
             "status": payload.get("status"),
@@ -1450,6 +1452,26 @@ def compare_core_results(
 
 def _mapping(value: Any) -> Dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _comparison_evidence_projection(value: Any) -> Dict[str, Any]:
+    """Remove recovery observations from cross-entry semantic comparison.
+
+    A recovered artifact is expected to report that it was recovered.  That is
+    valuable operational evidence, but it is not a change to the underlying
+    result and must not make a live and artifact-only view compare unequal.
+    The public projection remains untouched; only this comparison copy is
+    transport-neutral.
+    """
+    projection = _mapping(value)
+    lifecycle = _mapping(projection.get("lifecycle"))
+    lineage = _mapping(lifecycle.get("lineage"))
+    if lineage:
+        lineage.pop("recovered", None)
+        lineage.pop("recovery_count", None)
+        lifecycle["lineage"] = lineage
+        projection["lifecycle"] = lifecycle
+    return projection
 
 
 def _core_values(values: Mapping[str, Any]) -> Dict[str, Any]:

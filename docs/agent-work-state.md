@@ -8,24 +8,35 @@
 
 ## 当前阶段
 
-- 阶段：`M335` 通用多工具执行与 Provider 健康
-- 当前任务：M335-A Provider/网络健康与失败归因
-- 状态：M334 已完成并已收口；M335-0 初始化与契约边界已完成，等待实现 Provider Health
-- 基线：`722db01`
+- 阶段：`M336` HTTP 入口收敛
+- 当前任务：M336 阶段交付与提交前核对
+- 状态：M336-A～C 已实现；Docker 定向回归、编译和 readiness 已通过，待提交推送
+- 基线：`bd94880`
 - 协作：单 Agent，最大并发度 1；测试与 GIS 优先使用 Docker
 
 ## 阶段入口
 
-- [`docs/stages/M335/capability-map.md`](stages/M335/capability-map.md)
-- [`docs/stages/M335/spec.md`](stages/M335/spec.md)
-- [`docs/stages/M335/plan.md`](stages/M335/plan.md)
-- [`docs/stages/M335/handoff.md`](stages/M335/handoff.md)
+- [`docs/stages/M336/capability-map.md`](stages/M336/capability-map.md)
+- [`docs/stages/M336/spec.md`](stages/M336/spec.md)
+- [`docs/stages/M336/plan.md`](stages/M336/plan.md)
+- [`docs/stages/M336/handoff.md`](stages/M336/handoff.md)
 - [`tasks/current-state.md`](../tasks/current-state.md)
 - [`docs/document-index.json`](document-index.json)
 
 ## 当前任务必要文件
 
-- `docs/stages/M335/{capability-map.md,spec.md,plan.md,handoff.md}`
+- `docs/stages/M336/{capability-map.md,spec.md,plan.md,handoff.md}`
+- `agent/application/http_composition.py`
+- `agent/application/stdlib_http.py`
+- `production_api.py`
+- `serve_api.py`
+- `agent/application/http.py`
+- `agent/application/http_routes.py`
+- `agent/application/http_transport.py`
+- `tests/test_m78_http_contract.py`
+- `tests/test_m10_api_service.py`
+- `tests/test_m60_runtime_capabilities_contract.py`
+- `tests/test_m165_cross_entry_contract.py`
 - `tasks/current-state.md`
 - `docs/document-index.json`
 - `docs/agent-development-issues.md`
@@ -43,6 +54,7 @@
 
 - M331-D/E/F：答案质量 receipt、ReAct 事件、答案流、文档交接和阶段版本已完成；复杂真实模型规划延迟被列为 M332 输入。
 - M332-D/E/F：Runtime 超时/恢复、异步终态 fence、SSE/轮询/前端实时投影和真实 GIS 验收已完成；ReAct 后续超时不再覆盖先前成功的模型证据。Docker 定向回归 `15/15`、前端 smoke、compileall、architecture strict、服务 smoke、readiness `200` 均通过。
+- M163/M66 历史回归修复：artifact-only 恢复保留持久化 `result_summary.evidence_bundle`；Application 改为调用时解析 Runtime；契约比较归一化 interaction 运行身份。Docker 定向回归 `4/4` 通过。
 
 ## M333 已完成决策
 
@@ -70,3 +82,11 @@
 - M334-E：Docker `quick + stage + smoke`、受影响回归 `56/56`、compileall、architecture strict、readiness `200` 和生产 HTTP acceptance 通过；修复了 acceptance 对通用 descriptor、Domain 数据快照、合法空工具策略和固定会话的旧假设。
 - M334-E 真实验收：真实模型 + 本地 GIS + `public` 网页请求实际执行 3 个工具步骤，但 Provider 在有界预算内未完成；按 `provider_timeout`/网络不可用安全降级，未保存模型原文、Prompt、网页正文或密钥。
 - 下一阶段重点：M335 优先处理 Provider/网络健康、通用多工具 ReAct、多结果组合、数据对齐、实时体验和可重复 Docker/live 验收。
+
+## M336 HTTP 入口收敛交接
+
+- 已完成：共享 `HTTPComposition`；stdlib 传输适配器；FastAPI/stdlib 入口的共享装配、路由元数据、HTTPApplication 语义和错误投影。
+- 兼容修复：保留 `AgentApiHandler`、legacy snapshot/release evidence seam、动态 Service/Composite patch；artifact 临时根目录和 `max_files` 边界继续生效；每次请求重新绑定 Service。
+- 测试调整：旧 HTTP 测试对离线行为显式传入 `rule + memory`，避免无意触发产品默认的真实模型；静态断言改为验证 stdlib adapter 委托，不重新把传输实现塞回入口。
+- 验证：Docker 定向 HTTP/兼容回归 `30/30`；Docker `compileall` 通过；`/health/ready` 返回 200；`git diff --check` 通过。
+- 当前下一步：提交并推送 M336 版本，然后从项目全局评估 FastAPI 路由胶水、兼容 facade、状态投影和历史回归债务；不要默认读取完整历史文档或全量测试。

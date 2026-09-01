@@ -92,10 +92,24 @@ def _canonical_envelope(payload):
         if isinstance(value, dict):
             normalized = {}
             for key, item in value.items():
-                if key in {"run_id", "subject_id", "result_run_id"} and item:
+                if key in {
+                    "run_id",
+                    "subject_id",
+                    "result_run_id",
+                    "current_subject_id",
+                    "root_subject_id",
+                } and item:
                     normalized[key] = "<run>"
                 else:
                     normalized[key] = normalize_run_id_fields(item)
+            subject = value.get("subject")
+            if isinstance(subject, dict):
+                for identity in ("current", "root"):
+                    item = subject.get(identity)
+                    if isinstance(item, dict) and item.get("id"):
+                        normalized.setdefault("subject", {}).setdefault(identity, {})[
+                            "id"
+                        ] = "<run>"
             if value.get("schema_version") == "spatial-agent.artifact-reference.v1":
                 kind = value.get("kind")
                 marker = "<artifact>" if kind == "run" else "<geojson>"

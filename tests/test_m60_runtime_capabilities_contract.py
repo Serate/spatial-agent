@@ -76,8 +76,14 @@ class M60RuntimeCapabilitiesContractTests(unittest.TestCase):
                 self.skipTest("requires production FastAPI dependencies")
             raise
 
-        with patch("production_api.runtime_capability_snapshot", return_value=_snapshot()):
+        with patch("production_api.service") as service:
+            service.runtime_capabilities.return_value = _snapshot()
             payload = runtime_capabilities(max_files=1)
+            service.runtime_capabilities.assert_called_once_with(
+                max_files=1,
+                planner="openai",
+                backend="local",
+            )
         self.assertEqual(payload["version"], "1.0")
         self.assertEqual(payload["health_status"], "ready")
         with self.assertRaises(HTTPException) as context:

@@ -181,11 +181,21 @@ class M10HttpApiTests(unittest.TestCase):
         try:
             first = _post_json(
                 server.server_address[1],
-                {"request": GENERIC_ADMIN_QUERY, "session_id": "api-session"},
+                {
+                    "request": GENERIC_ADMIN_QUERY,
+                    "session_id": "api-session",
+                    "planner": "rule",
+                    "backend": "memory",
+                },
             )
             second = _post_json(
                 server.server_address[1],
-                {"request": ADMIN_NAME, "session_id": "api-session"},
+                {
+                    "request": ADMIN_NAME,
+                    "session_id": "api-session",
+                    "planner": "rule",
+                    "backend": "memory",
+                },
             )
         finally:
             server.shutdown()
@@ -359,7 +369,12 @@ class M10HttpApiTests(unittest.TestCase):
         try:
             payload = _post_json(
                 server.server_address[1],
-                {"request": "查询武汉城市绿地空间分布", "session_id": "clarification-http"},
+                {
+                    "request": "查询武汉城市绿地空间分布",
+                    "session_id": "clarification-http",
+                    "planner": "rule",
+                    "backend": "memory",
+                },
             )
         finally:
             server.shutdown()

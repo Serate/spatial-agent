@@ -20,25 +20,16 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from agent.environment_status import environment_status
 from agent.domain_http import assert_domain_payload
 from agent.domain_registry import resolve_domain_id
-from agent.domain_runtime_host import DomainRuntimeHost
 from agent.domain_routing_entry import (
-    DomainRoutingApplication,
     DomainRoutingApplicationError,
-    routing_state_from_environment,
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
 from agent.application.http_routes import resolve_route
-from agent.application.composite import CompositeApplication
-from agent.application.composite_runs import CompositeRunApplication
-from agent.application.composite_planning import (
-    CompositeCapabilityProjector,
-    CompositePlanningApplication,
+from agent.application.http_composition import (
+    build_http_application,
+    build_http_composition,
 )
-from agent.application.composite_planner import LLMCompositePlanner, RuleCompositePlanner
-from agent.answer_generation import LLMCompositeAnswerGenerator
-from agent.llm_planner import OpenAIPlannerClient
-from agent.integration.openai_config import load_answer_generation_config, load_openai_config
 from agent.application.http_transport import (
     error_projection,
     load_artifact_json,
@@ -53,80 +44,21 @@ from agent.web_assets import console_asset as resolve_console_asset
 from agent.web_assets import console_index as resolve_console_index
 from agent.web_assets import console_root
 
-
-def _composite_answer_generator():
-    """Build the default structured answer pass when a model is configured.
-
-    The run application still gates invocation on LLM planner evidence, so
-    Rule/Replay and direct execution paths remain offline.  An explicit
-    disable switch is retained for constrained deployments and CI.
-    """
-
-    if os.environ.get("SPATIAL_AGENT_DISABLE_LLM_ANSWER") == "1":
-        return None
-    try:
-        config = load_answer_generation_config()
-        if not config.get("api_key"):
-            return None
-        return LLMCompositeAnswerGenerator(OpenAIPlannerClient(**config))
-    except Exception:
-        return None
-
 class UTF8JSONResponse(JSONResponse):
     """Keep JSON responses unambiguous for clients without charset sniffing."""
 
     media_type = "application/json; charset=utf-8"
 
 
-host = DomainRuntimeHost()
-host.start()
 LEGACY_DOMAIN_ID = resolve_domain_id("gis")
 # Plain product routes are domain-neutral.  Explicit ``/domains/{id}`` routes
 # continue to use the isolated services owned by ``DomainRuntimeHost``.
-service = AgentService(general=True, legacy_domain_id=LEGACY_DOMAIN_ID)
-service.start_reaper()
-domain_routing = DomainRoutingApplication(
-    host,
-    state=routing_state_from_environment(),
-)
-composite_application = CompositeRunApplication(
-    coordinator=CompositeApplication(host=host, require_execution_binding=True),
-    answer_generator=_composite_answer_generator(),
-)
-
-
-def _rule_composite_candidate(request, _context):
-    """Offline fallback: ask for explicit planner/model selection."""
-    return {
-        "outcome": "needs_clarification",
-        "goal": "",
-        "message": "规则规划器不会猜测跨领域组合；请切换真实模型或明确提供组合能力。",
-        "components": [],
-    }
-
-
-def _composite_planner_factory(planner_name, _backend):
-    if str(planner_name).lower() == "openai":
-        return LLMCompositePlanner(OpenAIPlannerClient(**load_openai_config()))
-    return RuleCompositePlanner(_rule_composite_candidate)
-
-
-def _composite_repair_planner_factory(planner_name, _backend):
-    if str(planner_name).lower() == "openai":
-        config = load_openai_config()
-        config["max_retries"] = 0
-        return LLMCompositePlanner(OpenAIPlannerClient(**config))
-    return None
-
-
-composite_planning_application = CompositePlanningApplication(
-    host=host,
-    projector=CompositeCapabilityProjector(host),
-    planner=RuleCompositePlanner(_rule_composite_candidate),
-    composite_runs=composite_application,
-    planner_factory=_composite_planner_factory,
-    repair_planner_factory=_composite_repair_planner_factory,
-)
+_http_composition = build_http_composition(legacy_domain_id=LEGACY_DOMAIN_ID)
+host = _http_composition.host
+service = _http_composition.service
+domain_routing = _http_composition.routing
+composite_application = _http_composition.composite
+composite_planning_application = _http_composition.composite_planning
 
 
 def _close_host() -> None:
@@ -197,17 +129,11 @@ def _domain_service(
 
 def _http_application(target_service: AgentService = None) -> HTTPApplication:
     """Build the shared semantic dispatcher for the selected Service."""
-    return HTTPApplication(
+    return build_http_application(
         target_service or service,
-        use_product_defaults=True,
         routing=domain_routing,
         composite=composite_application,
         composite_planning=composite_planning_application,
-        action_handler=AgentService.estimate_area_handler,
-        on_session_clear=lambda session_id: domain_routing.forget_session(
-            session_id, keep_binding=True
-        ),
-        on_session_delete=domain_routing.forget_session,
     )
 
 

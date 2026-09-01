@@ -426,7 +426,21 @@ class RunRecoveryApplication:
     ) -> Dict[str, Any]:
         artifact_result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
         normalized_artifact_result = None
+        persisted_result_summary = None
         nested_schema_error = payload.get("nested_schema_warning")
+        for candidate in (
+            payload.get("result_summary"),
+            artifact_result.get("result_summary") if isinstance(artifact_result, dict) else None,
+        ):
+            if not isinstance(candidate, dict):
+                continue
+            try:
+                persisted_result_summary = normalize_result_summary(
+                    candidate, allow_legacy=True
+                )
+                break
+            except (TypeError, ValueError):
+                continue
         if artifact_result:
             try:
                 normalized_artifact_result = normalize_result_contract(artifact_result)
@@ -445,6 +459,12 @@ class RunRecoveryApplication:
             payload,
             registry=_runtime_result_registry(runtime),
         )
+        # The artifact contains the canonical bounded summary produced before
+        # persistence.  Rebuilding it from the already-projected result can
+        # manufacture generic evidence entries and lose the original bundle;
+        # keep the persisted summary as the recovery source of truth.
+        if persisted_result_summary is not None:
+            payload["result"]["result_summary"] = persisted_result_summary
         payload["result_summary"] = payload["result"].get("result_summary")
         artifact_views = (
             normalized_artifact_result.get("views")

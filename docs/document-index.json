@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
-  "updated": "2026-08-31",
-  "active_stage": "M335",
+  "updated": "2026-09-01",
+  "active_stage": "M336",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -11,7 +11,7 @@
       "docs/agent-work-state.md",
       "docs/document-index.json",
       "tasks/current-state.md",
-      "docs/stages/M335/handoff.md"
+      "docs/stages/M336/handoff.md"
     ],
     "never_default": [
       "docs/archive/",
@@ -65,7 +65,7 @@
   "stage_packages": [
     {
       "id": "M334",
-      "status": "active",
+      "status": "complete",
       "root": "docs/stages/M334",
       "capability_map": "docs/stages/M334/capability-map.md",
       "spec": "docs/stages/M334/spec.md",
@@ -544,7 +544,7 @@
     },
     {
       "id": "M335",
-      "status": "active",
+      "status": "complete",
       "root": "docs/stages/M335",
       "capability_map": "docs/stages/M335/capability-map.md",
       "spec": "docs/stages/M335/spec.md",
@@ -556,6 +556,39 @@
         "docs/stages/M335/handoff.md"
       ],
       "source_files": []
+    },
+    {
+      "id": "M336",
+      "status": "active",
+      "root": "docs/stages/M336",
+      "capability_map": "docs/stages/M336/capability-map.md",
+      "spec": "docs/stages/M336/spec.md",
+      "plan": "docs/stages/M336/plan.md",
+      "handoff": "docs/stages/M336/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M336/handoff.md"
+      ],
+      "source_files": [
+        "agent/application/http_composition.py",
+        "agent/application/stdlib_http.py",
+        "agent/application/http.py",
+        "agent/application/http_routes.py",
+        "agent/application/http_transport.py",
+        "production_api.py",
+        "serve_api.py",
+        "tests/test_m78_http_contract.py",
+        "tests/test_m10_api_service.py",
+        "tests/test_m60_runtime_capabilities_contract.py",
+        "tests/test_m165_cross_entry_contract.py"
+      ],
+      "verify": [
+        "Docker HTTP contract and compatibility regression",
+        "python -m compileall -q agent production_api.py serve_api.py",
+        "health/ready",
+        "git diff --check"
+      ]
     }
   ],
   "lookup": {

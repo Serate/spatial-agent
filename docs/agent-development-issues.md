@@ -2477,3 +2477,40 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 9. 历史文档、兼容 shim/facade 和仓库卫生仍需整理；真实 GIS、live 模型/网络和完整 `full-stage` 尚未作为本轮最终证据运行。
 
 本记录保留历史审计结论，不改写之前的基线数字；后续修复应继续使用 Docker，并分别报告 compact、阶段验收和历史全量 collector 的实际通过、失败及跳过数量。
+
+## 2026-09-01 M163/M66 历史回归修复
+
+### 问题与定位
+
+- **M163 artifact-only 恢复丢失 evidence bundle**：运行中的结果同时存在当前 evidence 和规范化的 `result_summary.evidence`。artifact 恢复重新生成摘要时，前者存在但没有 bundle，导致后者被跳过，恢复结果的 bundle 变为空或被重新生成出不一致的通用条目。
+- **M66 几何 fixture 未进入 Runtime**：`AgentService` 初始化时把 `self._runtime` 的 bound method 传给各 Application。测试之后替换 `service._runtime`，Application 仍调用旧绑定方法，因而返回真实的澄清结果而不是几何 fixture。
+- **M66 跨入口比较包含运行身份**：同步、异步运行的 `interaction` 会产生不同的 `current_subject_id`、`root_subject_id` 和 subject 内部 id。这些是合法的运行身份，不属于业务结果等价性，但旧比较归一化没有覆盖它们。
+
+### 修复与验证
+
+- artifact 恢复优先保留已持久化且已校验的 `result_summary`；摘要构建同时合并当前 evidence 与持久化 bundle，继续由 bundle normalizer 去重。
+- Application 通过动态 `_application_runtime` seam 在调用时解析 Service Runtime，保留自定义 Runtime 和测试注入能力。
+- 跨入口契约比较仅在比较副本中移除恢复次数/恢复标志和运行身份差异；公开 evidence 仍保留完整恢复事实。
+- Docker 定向回归：`tests.test_m163_workflow_selection_lifecycle` 与 `tests.test_m66_evidence_matrix` 共 **4/4 通过**。其中 M163 artifact 恢复、M66 无几何与真实几何、同步/异步/重启路径均已覆盖。
+
+本次修复未保存模型原文、Prompt、网页正文、密钥或私有配置；Docker 镜像已按源码重建并重启主服务。
+
+## 2026-09-01 M336 双 HTTP 入口收敛
+
+### 问题与根因
+
+- `production_api.py` 与 `serve_api.py` 虽然已经共享部分 `HTTPApplication` 语义，但标准库入口仍在文件内维护完整的 URL、query、JSON、artifact、SSE 和错误适配；两个入口的传输胶水容易漂移。
+- 历史测试直接导入 `serve_api.AgentApiHandler`，并通过模块级 snapshot、Service、Composite 和临时 artifact root 做替换；简单删除旧入口实现会破坏本地 GIS 脚本和可测试 seam。
+- HTTP 产品默认是 `openai + local`。旧的 HTTP 测试省略 planner/backend 时会意外发起真实模型网络调用，表现为 5 秒超时；这不是 stdlib 传输层死锁。
+
+### 修复
+
+- 新增 `agent/application/http_composition.py`，集中装配 Host、Service、DomainRouting、Composite 与 `HTTPApplication`。
+- 新增 `agent/application/stdlib_http.py`，集中标准库框架适配；`serve_api.py` 缩为启动入口、兼容导出和动态 patch seam。业务 action 仍由共享 route metadata 与 `HTTPApplication` 分发。
+- 标准库 adapter 恢复显式 artifact root 优先级、`max_files` 1～10 校验，并在每个请求开始时从 handler class seam 重新绑定 Service，防止跨请求 Domain 泄漏。
+- 过期源码测试迁移为验证 stdlib adapter 委托；历史离线 HTTP 测试显式传入 `rule + memory`，避免把默认真实模型网络当作离线回归。
+
+### 验证与后续
+
+- Docker 定向 HTTP/兼容回归：30/30 通过；Docker `compileall` 通过；生产 `/health/ready` 返回 200；`git diff --check` 通过。
+- 仍保留 FastAPI 路由函数作为 canonical 部署适配层；下一阶段需从全局评估其剩余胶水、兼容 facade、资源句柄告警和历史 full-regression 债务，不应再次复制业务 dispatch。

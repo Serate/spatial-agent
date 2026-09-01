@@ -802,6 +802,14 @@
 - 验证：文档索引与代码索引校验通过；未修改 M335 业务代码。
 - 下一步：M335-A 实现 Provider/网络健康安全投影和失败归因。
 
+### M163/M66：历史回归专项修复 — 已完成
+
+- 开始：基于 Git 历史提交 `e0aec84`、`1a80652`、`ed56e26` 和 HEAD `bd94880`，复现 M163 artifact-only 恢复与 M66 空间证据矩阵失败。
+- 修复：artifact 恢复优先采用已校验的持久化结果摘要，并合并 bundle 来源；Service Application 使用动态 Runtime 代理；跨入口比较副本隔离恢复观察字段和 interaction 运行身份。
+- 影响范围：`agent/result_summary.py`、`agent/application/run_recovery.py`、`agent/application/service_facade.py`、`evaluation/contract_harness.py` 及 M66 契约测试归一化。
+- 验证：Docker 重建并重启主服务；M163/M66 定向回归 `4/4` 通过。未执行全量历史回归，未调用真实模型。
+- 后续：回到 M335-A Provider/网络健康任务；本次 4 项定向回归作为历史兼容检查保留。
+
 ### 工程问题治理：架构收敛 + 兼容修复（本阶段记录）
 
 - **兼容 re-export 缺口修复**（直接消除历史套件导入错误，属"33 个错误"的一部分）：`agent/runtime.py`（补 `_resolve_result_references`、`open_agent_defaults`）、`agent/service.py`（补 `export_run_summary`、`_analysis_ready_summary`）、`agent/memory.py`（补 `_extract_facts`）。效果：host 全量测试模块导入扫描从多个导入错误降到仅 2 个 fastapi 环境项。
@@ -819,3 +827,11 @@
 - 完整失败/错误清单已存：`outputs/fullreg2-failures.txt`（FAILED 68 行 + ERRORED 36 行；unittest 汇总 77 失败 + 42 错误，含 subTest 多次断言）。
 - 说明：此计数高于文档基线（55+33），因工作区早期"架构收敛重构"（runtime/service 拆分、error_taxonomy、http_routes、composite 等）引入了一部分新的行为差异；逐项需判断"代码回归 vs 测试过时 vs 环境"。
 - 下一步：以此清单为输入，按受影响测试逐项分类修复；不再把 full-regression 作为日常门禁。
+
+### M336：HTTP 入口收敛 — 已实现，待提交推送
+
+- 规划：以共享 Composition Root 和标准库传输适配器收敛 `production_api.py`/`serve_api.py`，保留旧 `AgentApiHandler` 与动态测试 seam。
+- 实现：新增 `agent/application/http_composition.py` 与 `agent/application/stdlib_http.py`；FastAPI 与 stdlib 入口共享 Host、Service、Routing、Composite、HTTPApplication、route metadata 和错误投影。
+- 兼容修复：artifact 临时根目录优先级、`max_files` 1～10 校验、每请求重绑定 Service；旧 HTTP 测试的省略参数路径改为显式 `rule + memory`，避免触发产品默认真实模型网络。
+- 验证：Docker 定向回归 30/30；compileall 通过；生产容器 `/health/ready` 返回 200；`git diff --check` 通过。
+- 下一步：核对工作区后提交并推送 M336；推送后基于全局目标重新规划，不读取无关阶段历史。

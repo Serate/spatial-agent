@@ -69,6 +69,9 @@ class M165CrossEntryContractTests(unittest.TestCase):
         root = Path(__file__).parents[1]
         production = (root / "production_api.py").read_text(encoding="utf-8")
         development = (root / "serve_api.py").read_text(encoding="utf-8")
+        stdlib_transport = (
+            root / "agent" / "application" / "stdlib_http.py"
+        ).read_text(encoding="utf-8")
         for asset in (
                 "console_interaction.js",
                 "console_evidence_registry.js",
@@ -77,8 +80,9 @@ class M165CrossEntryContractTests(unittest.TestCase):
                 "console_gis_plugin.js",
             ):
             self.assertIn(asset, WEB_ASSETS)
-        for source in (production, development):
+        for source in (production, stdlib_transport):
             self.assertIn("application/javascript", source)
+        for source in (production, development, stdlib_transport):
             self.assertIn("agent.web_assets", source)
 
     def test_selection_interaction_is_transport_neutral(self):

@@ -495,13 +495,18 @@ def _build_evidence(source: Mapping[str, Any], blocks: Sequence[Mapping[str, Any
     available = False
     count = 0
     raw = source.get("evidence")
+    summary_evidence = None
+    summary = source.get("result_summary")
+    if isinstance(summary, Mapping):
+        candidate = summary.get("evidence")
+        if isinstance(candidate, Mapping):
+            summary_evidence = candidate
     # A rebuilt Result stores the bounded evidence under its summary; accept
     # the existing ``result_summary.evidence`` when the top-level ``evidence``
     # is not present so a re-projection (e.g. artifact recovery) preserves the
     # same bounded evidence_bundle across paths.
     if not isinstance(raw, Mapping):
-        summary = source.get("result_summary")
-        raw = summary.get("evidence") if isinstance(summary, Mapping) else None
+        raw = summary_evidence
         if not isinstance(raw, Mapping):
             raw = None
     if isinstance(raw, Mapping):
@@ -522,6 +527,20 @@ def _build_evidence(source: Mapping[str, Any], blocks: Sequence[Mapping[str, Any
             )
         statuses.extend(_safe_statuses(raw.get("status")))
         reason_codes.extend(_safe_reason_codes(raw.get("reason_code")))
+    # Persisted artifacts can contain a current, compact ``evidence`` object
+    # alongside the canonical bundle in ``result_summary.evidence``.  The
+    # former is intentionally smaller and may omit the bundle, but it must
+    # not hide the latter during a re-projection.  Merge the durable bundle
+    # entries from both locations; ``build_evidence_bundle`` de-duplicates
+    # them by source identity.
+    if isinstance(summary_evidence, Mapping):
+        summary_bundle = summary_evidence.get("evidence_bundle")
+        if isinstance(summary_bundle, Mapping):
+            summary_entries = summary_bundle.get("entries")
+            if isinstance(summary_entries, list):
+                bundle_entries.extend(
+                    item for item in summary_entries if isinstance(item, Mapping)
+                )
     composite = source.get("composite") or source.get("_composite")
     if isinstance(composite, Mapping):
         composite_evidence = composite.get("evidence")

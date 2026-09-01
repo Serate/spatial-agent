@@ -92,13 +92,22 @@ class M78HttpContractTests(unittest.TestCase):
 
     def test_dev_server_delegates_post_errors_to_shared_projection(self):
         serve = (Path(__file__).parents[1] / "serve_api.py").read_text(encoding="utf-8")
-        post_section = serve.split("def do_POST")[1].split("def do_DELETE")[0]
-        # The dev server POST path must delegate to the shared transport error
-        # projection, not hardcode status codes or duplicate api-contract calls.
+        stdlib = (
+            Path(__file__).parents[1]
+            / "agent"
+            / "application"
+            / "stdlib_http.py"
+        ).read_text(encoding="utf-8")
+        # The dev entrypoint delegates POST handling to the shared stdlib
+        # adapter.  The adapter owns the projection; serve_api must not grow
+        # a second hand-written POST implementation.
+        self.assertIn("from agent.application.stdlib_http import StdlibAgentApiHandler", serve)
+        self.assertIn("def do_POST", stdlib)
+        post_section = stdlib.split("def do_POST")[1].split("def do_DELETE")[0]
         self.assertIn("self._write_error(exc)", post_section)
-        self.assertNotIn("error_status(exc)", post_section)
-        self.assertNotIn("_write_json(400,", post_section)
-        self.assertNotIn("_write_json(500,", post_section)
+        self.assertNotIn("error_status(exc)", serve)
+        self.assertNotIn("_write_json(400,", serve)
+        self.assertNotIn("_write_json(500,", serve)
 
 
 if __name__ == "__main__":

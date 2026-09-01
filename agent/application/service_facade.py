@@ -175,7 +175,7 @@ class AgentService:
         self._run_recovery_application = RunRecoveryApplication(
             artifact_store=self._artifact_store,
             state=self._state,
-            runtime_provider=self._runtime,
+            runtime_provider=self._application_runtime,
             domain_id_provider=self._domain_id,
             resolved_domain_id=lambda: self._resolved_domain_id,
             configured_domain_id=lambda: self._configured_domain_id,
@@ -195,7 +195,7 @@ class AgentService:
         self._run_application = RunApplication(
             artifact_store=self._artifact_store,
             state=self._state,
-            runtime_provider=self._runtime,
+            runtime_provider=self._application_runtime,
             resolved_domain_id=lambda: self._resolved_domain_id,
             configured_domain_id=lambda: self._configured_domain_id,
             legacy_domain_id=self._legacy_domain_id,
@@ -204,7 +204,7 @@ class AgentService:
         )
         self._submission_application = SubmissionApplication(
             state=self._state,
-            runtime_provider=self._runtime,
+            runtime_provider=self._application_runtime,
             workflow_normalizer=self._normalize_workflow_payload,
             domain_id_provider=self._domain_id,
             execute_run=self._run_application.execute,
@@ -217,7 +217,7 @@ class AgentService:
         self._action_application = ActionApplication(
             artifact_store=self._artifact_store,
             state=self._state,
-            runtime_provider=self._runtime,
+            runtime_provider=self._application_runtime,
             runtime_context_provider=self._runtime_context,
             domain_id_provider=self._domain_id,
             resolved_domain_id=lambda: self._resolved_domain_id,
@@ -230,7 +230,7 @@ class AgentService:
         self._decision_application = DecisionApplication(
             artifact_store=self._artifact_store,
             state=self._state,
-            runtime_provider=self._runtime,
+            runtime_provider=self._application_runtime,
             run_provider=self.run,
             memory_run_provider=self._memory_run,
             resolved_domain_id=lambda: self._resolved_domain_id,
@@ -245,7 +245,7 @@ class AgentService:
                 run_id, planner=planner, backend=backend
             ),
             runtime_selector=self._infer_run_runtime_selection,
-            runtime_provider=self._runtime,
+            runtime_provider=self._application_runtime,
             normalize_workflow=self._normalize_workflow_payload,
             preview_provider=self.preview,
             run_provider=self.run,
@@ -260,7 +260,7 @@ class AgentService:
         self._async_application = AsyncApplication(
             artifact_store=self._artifact_store,
             state=self._state,
-            runtime_provider=self._runtime,
+            runtime_provider=self._application_runtime,
             memory_result_provider=self._memory_run,
             # Resolve the facade method at worker time.  Besides preserving
             # the compatibility seam, this keeps test/custom adapters that
@@ -1204,6 +1204,15 @@ class AgentService:
         runtime = self._catalog_application.runtime(planner, backend)
         self._resolved_domain_id = self._catalog_application.resolved_domain_id()
         return runtime
+
+    def _application_runtime(self, planner: str, backend: str):
+        """Resolve Runtime at call time for application seams.
+
+        Keeping this indirection instead of handing applications the bound
+        ``_runtime`` method preserves custom Runtime injection and test
+        adapters that replace the facade method after construction.
+        """
+        return self._runtime(planner, backend)
 
     def _normalize_workflow_payload(
         self,
