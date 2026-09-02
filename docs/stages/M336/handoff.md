@@ -34,7 +34,7 @@
 ## 验证结果
 
 - Docker 定向回归：`tests.test_m78_http_contract tests.test_http_contract tests.test_m10_api_service tests.test_m60_runtime_capabilities_contract tests.test_m165_cross_entry_contract`，**30/30 通过**。
-- 本次 FastAPI 适配器定向回归：HTTP/Domain Routing/SSE/artifact/跨入口共 **17/17 通过**；扩展 Composite 回归另有 **36/36 通过（1 项因容器无 PowerShell 跳过）**。
+- 本次 FastAPI 适配器定向回归：HTTP/Domain Routing/SSE/artifact/跨入口共 **17/17 通过**；扩展 Composite/跨入口回归共 36 项，其中 **35 项通过、1 项因容器无 PowerShell 跳过**。
 - Docker：`python -m compileall -q agent production_api.py serve_api.py` 通过。
 - 服务：`http://127.0.0.1:8088/health/ready` 返回 HTTP 200。
 - `git diff --check` 无空白错误；仅有 Git 的工作区换行提示。

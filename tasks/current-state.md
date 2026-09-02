@@ -62,5 +62,5 @@
 
 - `agent/application/fastapi_http.py` 集中 FastAPI 的依赖解析、共享分发、错误投影、SSE 和 artifact 响应；生产入口保留兼容路由函数但不复制传输实现。
 - Domain Routing catalog/select/override/clear 通过共享 route metadata 与 `HTTPApplication` 分发。
-- Docker 定向 HTTP/Domain Routing/SSE/artifact 回归 `17/17` 通过；扩展 Composite/跨入口回归 `36/36` 通过（1 项因容器无 PowerShell 跳过）。
+- Docker 定向 HTTP/Domain Routing/SSE/artifact 回归 `17/17` 通过；扩展 Composite/跨入口回归共 36 项，其中 `35` 项通过、`1` 项因容器无 PowerShell 跳过。
 - `compileall` 通过；现有容器持久化状态导致的 M150 session 绑定错误和容器缺少 PowerShell 的跳过项不归因于本次改动。
