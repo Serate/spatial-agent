@@ -65,7 +65,7 @@
   "stage_packages": [
     {
       "id": "M337",
-      "status": "in_progress",
+      "status": "complete",
       "root": "docs/stages/M337",
       "capability_map": "docs/stages/M337/capability-map.md",
       "spec": "docs/stages/M337/spec.md",

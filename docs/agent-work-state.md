@@ -9,8 +9,8 @@
 ## 当前阶段
 
 - 阶段：`M337` 兼容模块分类防回归
-- 当前任务：M337 阶段收尾，待提交推送
-- 状态：M337-A～D 已实现；本地/Docker 紧凑契约 10/10，strict、compileall 和 readiness 均通过
+- 当前任务：M337 已交付，进入全局重规划
+- 状态：M337-A～D 已实现并推送；本地/Docker 紧凑契约 10/10，strict、compileall 和 readiness 均通过
 - 基线：`dea1180`
 - 协作：单 Agent，最大并发度 1；测试与 GIS 优先使用 Docker
 
@@ -98,5 +98,5 @@
 - 已完成 M337-A/B：`scripts/architecture_check.py` 的三类清单改为不可变分类事实，报告增加分类 schema、逐模块分类、公共模块检查和稳定错误码；shim 通过 AST 限制为转发形状并受 80 行上限约束，facade 保留有限适配空间。
 - 新增 `tests/test_m337_compat_classification.py`，覆盖正常分类、公共模块缺失/非文件、公共/兼容重叠、shim 非转发/超长和 facade 豁免。
 - 当前验证：M337 + M262 定向契约 `10/10`，`python scripts/architecture_check.py --strict` 通过，目标文件 compileall 通过。
-- 当前下一步：提交并推送 M337 阶段版本，再按项目全局目标重新规划下一阶段。
+- 当前下一步：按项目全局目标评估兼容 facade、状态投影和历史回归债务，确定 M338 入口。
 - 必须保持：不删除历史 import、不移动生产模块、不把公共模块加入兼容豁免，不提交密钥、模型原文、Prompt 或运行产物。
