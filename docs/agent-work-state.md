@@ -8,10 +8,10 @@
 
 ## 当前阶段
 
-- 阶段：`M336` HTTP 入口收敛
-- 当前任务：M336-D FastAPI 传输适配器交付与提交前核对
-- 状态：M336-A～D 已实现；Docker 定向回归、编译和 readiness 已通过，待提交推送
-- 基线：`bd94880`
+- 阶段：`M337` 兼容模块分类防回归
+- 当前任务：M337 阶段收尾，待提交推送
+- 状态：M337-A～D 已实现；本地/Docker 紧凑契约 10/10，strict、compileall 和 readiness 均通过
+- 基线：`dea1180`
 - 协作：单 Agent，最大并发度 1；测试与 GIS 优先使用 Docker
 
 ## 阶段入口
@@ -92,3 +92,11 @@
 - 测试调整：旧 HTTP 测试对离线行为显式传入 `rule + memory`，避免无意触发产品默认的真实模型；静态断言改为验证 stdlib adapter 委托，不重新把传输实现塞回入口。
 - 验证：Docker 定向 HTTP/兼容回归 `30/30`；Docker `compileall` 通过；`/health/ready` 返回 200；`git diff --check` 通过。
 - 当前下一步：完成 M336-D 提交并推送版本，然后从项目全局评估兼容 facade、状态投影和历史回归债务；不要默认读取完整历史文档或全量测试。
+
+## M337 兼容模块分类防回归交接
+
+- 已完成 M337-A/B：`scripts/architecture_check.py` 的三类清单改为不可变分类事实，报告增加分类 schema、逐模块分类、公共模块检查和稳定错误码；shim 通过 AST 限制为转发形状并受 80 行上限约束，facade 保留有限适配空间。
+- 新增 `tests/test_m337_compat_classification.py`，覆盖正常分类、公共模块缺失/非文件、公共/兼容重叠、shim 非转发/超长和 facade 豁免。
+- 当前验证：M337 + M262 定向契约 `10/10`，`python scripts/architecture_check.py --strict` 通过，目标文件 compileall 通过。
+- 当前下一步：提交并推送 M337 阶段版本，再按项目全局目标重新规划下一阶段。
+- 必须保持：不删除历史 import、不移动生产模块、不把公共模块加入兼容豁免，不提交密钥、模型原文、Prompt 或运行产物。

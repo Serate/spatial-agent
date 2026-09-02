@@ -18,9 +18,11 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CLASSIFICATION_SCHEMA_VERSION = "spatial-agent.architecture-classification.v1"
+COMPAT_SHIM_MAX_LINES = 80
 # Simple historical re-exports.  These modules are deliberately allowed to
 # keep their one-way Domain import while old callers migrate.
-COMPAT_SHIMS = {
+COMPAT_SHIMS = frozenset({
     "agent/answer_composer.py",
     "agent/analysis_ready_binding.py",
     "agent/release_evidence.py",
@@ -46,30 +48,43 @@ COMPAT_SHIMS = {
     "agent/evidence_registry.py",
     "agent/evidence_revalidation.py",
     "agent/component_evidence.py",
-}
+})
 
 # Legacy facades with a small amount of compatibility adaptation.  They are
 # not public domain-neutral engines, but are also not simple re-exports.
-COMPAT_FACADES = {
+COMPAT_FACADES = frozenset({
     "agent/capability_routing.py",
     "agent/planner.py",
     "agent/rule_planning.py",
     "agent/spatial_intent.py",
-}
+})
 
 # Real public contracts/engines must never be hidden by a compatibility
 # exemption.  Keep this set explicit so the guard reports a classification
 # error if a future edit puts one back into a compat list.
-PUBLIC_MODULES = {
+PUBLIC_MODULES = frozenset({
     "agent/domain_catalog.py",
     "agent/domain_contract.py",
     "agent/domain_registry.py",
     "agent/request_model.py",
     "agent/result_registry.py",
     "agent/workflow_templates.py",
-}
+})
 
 COMPAT_MODULES = COMPAT_SHIMS | COMPAT_FACADES
+
+
+def _module_classification() -> dict[str, str]:
+    """Return the auditable category assigned to every manifest entry."""
+
+    classification: dict[str, str] = {}
+    for module in sorted(PUBLIC_MODULES):
+        classification[module] = "public"
+    for module in sorted(COMPAT_SHIMS):
+        classification[module] = "shim"
+    for module in sorted(COMPAT_FACADES):
+        classification[module] = "facade"
+    return classification
 
 
 def _relative(path: Path) -> str:
@@ -80,7 +95,75 @@ def _line_count(path: Path) -> int:
     return len(path.read_text(encoding="utf-8").splitlines())
 
 
+def _is_string_list(value: ast.AST) -> bool:
+    return isinstance(value, ast.List) and all(
+        isinstance(element, ast.Constant) and isinstance(element.value, str)
+        for element in value.elts
+    )
+
+
+def _shim_shape_error(path: Path) -> dict[str, Any] | None:
+    """Return an error when a compatibility shim contains implementation."""
+
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, SyntaxError) as exc:
+        return {
+            "code": "compat_shim_not_forwarder",
+            "file": _relative(path),
+            "reason": "syntax_error" if isinstance(exc, SyntaxError) else "unreadable",
+        }
+
+    forwarding_import = False
+    for index, node in enumerate(tree.body):
+        if isinstance(node, ast.Expr):
+            is_docstring = (
+                index == 0
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            )
+            if not is_docstring:
+                return {
+                    "code": "compat_shim_not_forwarder",
+                    "file": _relative(path),
+                    "line": node.lineno,
+                    "reason": "implementation_node",
+                }
+            continue
+        if isinstance(node, ast.Import):
+            forwarding_import = True
+            continue
+        if isinstance(node, ast.ImportFrom):
+            if node.module != "__future__":
+                forwarding_import = True
+            continue
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "__all__"
+            and _is_string_list(node.value)
+        ):
+            continue
+        return {
+            "code": "compat_shim_not_forwarder",
+            "file": _relative(path),
+            "line": getattr(node, "lineno", 0),
+            "reason": "implementation_node",
+        }
+
+    if not forwarding_import:
+        return {
+            "code": "compat_shim_not_forwarder",
+            "file": _relative(path),
+            "reason": "no_forwarding_import",
+        }
+    return None
+
+
 def _top_level_domain_imports(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file() or path.suffix != ".py":
+        return []
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except SyntaxError as exc:
@@ -122,12 +205,19 @@ def build_report() -> dict[str, Any]:
                 "modules": overlap,
             }
         )
+    for module in sorted(PUBLIC_MODULES):
+        path = ROOT / module
+        if not path.exists():
+            errors.append({"code": "public_module_missing", "file": module})
+        elif not path.is_file() or path.suffix != ".py":
+            errors.append({"code": "public_module_not_file", "file": module})
     for compat_kind, modules in (
         ("shim", COMPAT_SHIMS),
         ("facade", COMPAT_FACADES),
     ):
         for module in sorted(modules):
-            if not (ROOT / module).exists():
+            path = ROOT / module
+            if not path.exists() or not path.is_file():
                 errors.append(
                     {
                         "code": "compat_module_missing",
@@ -135,6 +225,21 @@ def build_report() -> dict[str, Any]:
                         "file": module,
                     }
                 )
+                continue
+            if compat_kind == "shim":
+                line_count = _line_count(path)
+                if line_count > COMPAT_SHIM_MAX_LINES:
+                    errors.append(
+                        {
+                            "code": "compat_shim_too_large",
+                            "file": module,
+                            "lines": line_count,
+                            "max_lines": COMPAT_SHIM_MAX_LINES,
+                        }
+                    )
+                shape_error = _shim_shape_error(path)
+                if shape_error is not None:
+                    errors.append(shape_error)
 
     for required in (
         ROOT / "agent" / "runtime.py",
@@ -382,6 +487,8 @@ def build_report() -> dict[str, Any]:
         "errors": errors[:32],
         "warnings": warnings[:32],
         "metrics": {
+            "classification_schema_version": CLASSIFICATION_SCHEMA_VERSION,
+            "module_classification": _module_classification(),
             "agent_python_files": len(list((ROOT / "agent").glob("*.py"))),
             "runtime_lines": _line_count(runtime_path) if runtime_path.exists() else 0,
             "runtime_engine_lines": (

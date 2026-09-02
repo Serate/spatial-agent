@@ -1,7 +1,7 @@
 {
   "schema_version": "spatial-agent.document-index.v1",
-  "updated": "2026-09-01",
-  "active_stage": "M336",
+  "updated": "2026-09-02",
+  "active_stage": "M337",
   "resume": {
     "command": "pwsh -NoProfile -File scripts/resume_context.ps1",
     "validator": "pwsh -NoProfile -File scripts/validate_document_index.ps1",
@@ -11,7 +11,7 @@
       "docs/agent-work-state.md",
       "docs/document-index.json",
       "tasks/current-state.md",
-      "docs/stages/M336/handoff.md"
+      "docs/stages/M337/handoff.md"
     ],
     "never_default": [
       "docs/archive/",
@@ -63,6 +63,34 @@
     }
   ],
   "stage_packages": [
+    {
+      "id": "M337",
+      "status": "in_progress",
+      "root": "docs/stages/M337",
+      "capability_map": "docs/stages/M337/capability-map.md",
+      "spec": "docs/stages/M337/spec.md",
+      "plan": "docs/stages/M337/plan.md",
+      "handoff": "docs/stages/M337/handoff.md",
+      "code_index": "docs/code-index.json",
+      "code_index_overrides": "docs/code-index-overrides.json",
+      "read_on_resume": [
+        "docs/stages/M337/handoff.md"
+      ],
+      "source_files": [
+        "scripts/architecture_check.py",
+        "tests/test_m262_architecture_convergence.py",
+        "tests/test_m337_compat_classification.py",
+        "docs/compatibility-matrix.md",
+        "docs/agent-development-issues.md",
+        "docs/agent-work-state.md",
+        "tasks/current-state.md"
+      ],
+      "verify": [
+        "M337 compact compatibility classification contract tests",
+        "scripts/architecture_check.py --strict",
+        "python -m compileall -q agent domains scripts"
+      ]
+    },
     {
       "id": "M334",
       "status": "complete",

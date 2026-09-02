@@ -2514,3 +2514,16 @@ worker 仍在正常执行，harness 的失败不是业务 run 失败。
 
 - Docker 定向 HTTP/兼容回归：30/30 通过；Docker `compileall` 通过；生产 `/health/ready` 返回 200；`git diff --check` 通过。
 - 仍保留 FastAPI 路由函数作为 canonical 部署适配层；下一阶段需从全局评估其剩余胶水、兼容 facade、资源句柄告警和历史 full-regression 债务，不应再次复制业务 dispatch。
+
+## 2026-09-02 M337 兼容模块分类防回归
+
+### 问题与处理
+
+- 架构守卫原先只检查兼容清单的交集和路径存在，公共模块误入兼容豁免集合，或 shim 重新承载实现时仍可能报告 `ok`。
+- M337 将 `COMPAT_SHIMS`、`COMPAT_FACADES` 和 `PUBLIC_MODULES` 固定为不可变分类事实；报告增加分类 schema、逐模块分类，并区分公共模块缺失/非 Python 文件、公共兼容重叠和兼容模块缺失。
+- `COMPAT_SHIMS` 通过 AST 限制为模块文档、导入、未来导入和字符串 `__all__`；超过 80 行或包含函数、类、赋值逻辑、控制流等实现时返回 `compat_shim_too_large` 或 `compat_shim_not_forwarder`。有限适配的 facade 不套用该规则。
+
+### 预防
+
+- 新增或迁移兼容入口时先更新分类清单，再运行 `python scripts/architecture_check.py --strict`；不要把真实公共契约加入兼容豁免。
+- 错误码必须保持稳定并由紧凑契约测试覆盖；本阶段不删除旧 import、不移动生产模块，也不以放宽守卫掩盖 shim 膨胀。

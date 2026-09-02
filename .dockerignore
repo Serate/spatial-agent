@@ -1,5 +1,6 @@
 .git
 .gitignore
+.agent-state/
 .env
 .env.*
 config/*.local.json

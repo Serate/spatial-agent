@@ -28,7 +28,7 @@
 - `COMPAT_FACADES`：包含有限兼容适配的旧入口。
 - `PUBLIC_MODULES`：`domain_contract`、`domain_registry`、`request_model`、`result_registry`、`workflow_templates` 等真实公共契约/引擎，不得进入兼容豁免集合。
 
-`scripts/architecture_check.py --strict` 输出三类清单并检查它们不重叠。当前检查范围是顶层 Domain import；递归 lazy import 检查保留为独立后续任务。
+`scripts/architecture_check.py --strict` 输出三类清单、分类 schema 版本和逐模块分类，并检查它们不重叠。对 `COMPAT_SHIMS` 还会用 AST 确认模块只包含文档、导入、未来导入和字符串 `__all__`，超过 80 行或包含实现节点则失败；`COMPAT_FACADES` 不套用 shim 形状规则。当前检查范围是顶层 Domain import；递归 lazy import 检查保留为独立后续任务。
 
 ## 删除条件
 
