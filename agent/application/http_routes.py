@@ -78,6 +78,7 @@ _ROUTE_SPECS = (
     _spec("GET", r"/action-executions", "action_executions"),
     _spec("GET", r"/capabilities/runtime", "runtime_capabilities"),
     _spec("GET", r"/capabilities", "capabilities"),
+    _spec("GET", r"/domain-routing/catalog", "routing_catalog"),
     _spec("GET", r"/release-evidence", "release_evidence"),
     _spec("GET", r"/workflows", "workflow"),
     _spec("GET", r"/decisions/(?P<decision_id>[^/]+)", "decision", resource_group="decision_id"),

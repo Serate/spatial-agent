@@ -18,6 +18,14 @@
 - 更新 API 文档与兼容矩阵，说明 canonical 入口与兼容入口。
 - Docker 编译、定向测试、readiness 和最小 HTTP acceptance。
 
+## M336-D：FastAPI 传输适配器收口
+
+- 新增 `agent/application/fastapi_http.py`，集中 FastAPI 的依赖解析、共享路由分发、错误投影、SSE 和 artifact 响应。
+- `production_api.py` 保留公开路由函数、装饰器和历史测试 seam，但仅通过适配器委托，不再自行复制 SSE/artifact 传输实现。
+- 将 Domain Routing catalog/select/override/clear 统一接入共享 route metadata 与 `HTTPApplication`，防止 FastAPI 与 stdlib 语义漂移。
+- 维持 FastAPI canonical、stdlib 本地兼容的部署边界；不在本阶段删除历史入口或改变 URL。
+- 用 Docker 运行 HTTP、SSE、artifact、Domain Routing 和跨入口定向回归，并更新交接文档。
+
 ## 风险与回滚
 
 - 历史测试直接导入 `AgentApiHandler`：保留同名 class 和 class attributes。

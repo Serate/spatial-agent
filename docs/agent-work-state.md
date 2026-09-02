@@ -9,8 +9,8 @@
 ## 当前阶段
 
 - 阶段：`M336` HTTP 入口收敛
-- 当前任务：M336 阶段交付与提交前核对
-- 状态：M336-A～C 已实现；Docker 定向回归、编译和 readiness 已通过，待提交推送
+- 当前任务：M336-D FastAPI 传输适配器交付与提交前核对
+- 状态：M336-A～D 已实现；Docker 定向回归、编译和 readiness 已通过，待提交推送
 - 基线：`bd94880`
 - 协作：单 Agent，最大并发度 1；测试与 GIS 优先使用 Docker
 
@@ -33,6 +33,7 @@
 - `agent/application/http.py`
 - `agent/application/http_routes.py`
 - `agent/application/http_transport.py`
+- `agent/application/fastapi_http.py`
 - `tests/test_m78_http_contract.py`
 - `tests/test_m10_api_service.py`
 - `tests/test_m60_runtime_capabilities_contract.py`
@@ -86,7 +87,8 @@
 ## M336 HTTP 入口收敛交接
 
 - 已完成：共享 `HTTPComposition`；stdlib 传输适配器；FastAPI/stdlib 入口的共享装配、路由元数据、HTTPApplication 语义和错误投影。
+- M336-D：FastAPI 的依赖解析、共享分发、错误投影、SSE、artifact 响应和 Domain Routing 命令已收敛到 `agent/application/fastapi_http.py`；`production_api.py` 仅保留路由声明、静态资源和兼容函数名。
 - 兼容修复：保留 `AgentApiHandler`、legacy snapshot/release evidence seam、动态 Service/Composite patch；artifact 临时根目录和 `max_files` 边界继续生效；每次请求重新绑定 Service。
 - 测试调整：旧 HTTP 测试对离线行为显式传入 `rule + memory`，避免无意触发产品默认的真实模型；静态断言改为验证 stdlib adapter 委托，不重新把传输实现塞回入口。
 - 验证：Docker 定向 HTTP/兼容回归 `30/30`；Docker `compileall` 通过；`/health/ready` 返回 200；`git diff --check` 通过。
-- 当前下一步：提交并推送 M336 版本，然后从项目全局评估 FastAPI 路由胶水、兼容 facade、状态投影和历史回归债务；不要默认读取完整历史文档或全量测试。
+- 当前下一步：完成 M336-D 提交并推送版本，然后从项目全局评估兼容 facade、状态投影和历史回归债务；不要默认读取完整历史文档或全量测试。

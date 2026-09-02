@@ -8,38 +8,26 @@ projection and artifact access are shared with ``serve_api.py`` through
 
 import atexit
 import asyncio
-import json
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from agent.environment_status import environment_status
-from agent.domain_http import assert_domain_payload
 from agent.domain_registry import resolve_domain_id
 from agent.domain_routing_entry import (
     DomainRoutingApplicationError,
 )
 from agent.service import AgentService
 from agent.application.http import HTTPApplication
-from agent.application.http_routes import resolve_route
 from agent.application.http_composition import (
-    build_http_application,
     build_http_composition,
 )
-from agent.application.http_transport import (
-    error_projection,
-    load_artifact_json,
-    safe_artifact_path,
-)
-from agent.run_events import (
-    page_contains_terminal_event,
-    validate_event_cursor,
-    validate_event_limit,
-)
+from agent.application.fastapi_http import FastAPIHttpAdapter
+from agent.application.http_transport import error_projection
 from agent.web_assets import console_asset as resolve_console_asset
 from agent.web_assets import console_index as resolve_console_index
 from agent.web_assets import console_root
@@ -59,6 +47,21 @@ service = _http_composition.service
 domain_routing = _http_composition.routing
 composite_application = _http_composition.composite
 composite_planning_application = _http_composition.composite_planning
+
+
+def _fastapi_dependencies() -> Dict[str, Any]:
+    """Resolve patched entry-point dependencies at request time."""
+
+    return {
+        "host": host,
+        "service": service,
+        "domain_routing": domain_routing,
+        "composite_application": composite_application,
+        "composite_planning_application": composite_planning_application,
+    }
+
+
+_fastapi_http = FastAPIHttpAdapter(_fastapi_dependencies)
 
 
 def _close_host() -> None:
@@ -108,33 +111,22 @@ def http_exception_handler(request, exc: HTTPException):
 
 
 def _raise_for(exc: Exception, *, not_found: bool = False, service_unavailable: bool = False):
-    status, payload = error_projection(
+    return _fastapi_http.raise_for(
         exc,
         not_found=not_found,
         service_unavailable=service_unavailable,
     )
-    raise HTTPException(status_code=status, detail=payload) from exc
 
 
 def _domain_service(
     domain_id: str,
     payload: Optional[Dict[str, Any]] = None,
 ) -> AgentService:
-    """Select the URL Domain before validating any redundant body claim."""
-
-    selection = host.select(domain_id, source="explicit")
-    assert_domain_payload(selection, payload)
-    return host.service(selection)
+    return _fastapi_http.domain_service(domain_id, payload)
 
 
 def _http_application(target_service: AgentService = None) -> HTTPApplication:
-    """Build the shared semantic dispatcher for the selected Service."""
-    return build_http_application(
-        target_service or service,
-        routing=domain_routing,
-        composite=composite_application,
-        composite_planning=composite_planning_application,
-    )
+    return _fastapi_http.http_application(target_service)
 
 
 def _shared_read(
@@ -143,15 +135,7 @@ def _shared_read(
     *,
     target_service: AgentService = None,
 ) -> Dict[str, Any]:
-    """Use the shared route table before entering FastAPI response glue."""
-    match = resolve_route("GET", path)
-    if match is None:
-        raise ValueError("unknown GET route: " + path)
-    return _http_application(target_service).read(
-        match.action,
-        payload or {},
-        resource_id=match.resource_id,
-    )
+    return _fastapi_http.read(path, payload, target_service=target_service)
 
 
 def _shared_execute(
@@ -160,24 +144,11 @@ def _shared_execute(
     *,
     target_service: AgentService = None,
 ) -> Dict[str, Any]:
-    """Use the shared route table before entering FastAPI response glue."""
-    match = resolve_route("POST", path)
-    if match is None:
-        raise ValueError("unknown POST route: " + path)
-    return _http_application(target_service).execute(
-        match.action,
-        payload or {},
-        run_id=match.resource_id,
-        template_id=match.template_id,
-    )
+    return _fastapi_http.execute(path, payload, target_service=target_service)
 
 
 def _sse_line(event: Dict[str, Any]) -> str:
-    """Encode one already-normalized RunEvent as an SSE message."""
-    return "id: {}\nevent: run_event\ndata: {}\n\n".format(
-        event["sequence"],
-        json.dumps(event, ensure_ascii=False, separators=(",", ":")),
-    )
+    return _fastapi_http.sse_line(event)
 
 
 async def _run_event_stream(
@@ -188,33 +159,15 @@ async def _run_event_stream(
     limit: int,
     request: Request,
 ):
-    """Replay persisted events and keep the connection alive with heartbeats."""
-    cursor = after
-    while True:
-        if await request.is_disconnected():
-            return
-        payload = reader.read(
-            "run_events",
-            {"after": cursor, "limit": limit},
-            resource_id=run_id,
-        )
-        events = payload.get("events") or []
-        if events:
-            for event in events:
-                yield _sse_line(event)
-            cursor = int(payload.get("next_cursor") or cursor)
-            if page_contains_terminal_event(events):
-                return
-            # ``terminal`` is Run-level state. If this is the last available
-            # page, there is no terminal event left to replay. Otherwise keep
-            # following next_cursor until the terminal event is delivered.
-            if payload.get("terminal") and not payload.get("has_more"):
-                return
-            continue
-        if payload.get("terminal"):
-            return
-        yield ": heartbeat\n\n"
-        await asyncio.sleep(0.75)
+    async for chunk in _fastapi_http.event_stream(
+        reader,
+        run_id,
+        after=after,
+        limit=limit,
+        request=request,
+        sleep=asyncio.sleep,
+    ):
+        yield chunk
 
 
 @app.get("/health/live")
@@ -270,7 +223,7 @@ def domains() -> Dict[str, Any]:
 
 @app.get("/domain-routing/catalog")
 def domain_routing_catalog() -> Dict[str, Any]:
-    return domain_routing.catalog()
+    return _shared_read("/domain-routing/catalog")
 
 
 @app.get("/domain-routing/metrics")
@@ -281,7 +234,7 @@ def domain_routing_metrics() -> Dict[str, Any]:
 @app.post("/domain-routing/select")
 def select_domain(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        return domain_routing.select(payload)
+        return _shared_execute("/domain-routing/select", payload)
     except Exception as exc:
         _raise_for(exc)
 
@@ -292,7 +245,9 @@ def override_domain_routing_decision(
     payload: Dict[str, Any],
 ) -> Dict[str, Any]:
     try:
-        return domain_routing.override(decision_id, payload)
+        return _shared_execute(
+            "/domain-routing/decisions/" + decision_id + "/select", payload
+        )
     except Exception as exc:
         _raise_for(
             exc,
@@ -304,7 +259,9 @@ def override_domain_routing_decision(
 @app.post("/domain-routing/sessions/{session_id}/clear")
 def clear_unbound_domain_routing_session(session_id: str) -> Dict[str, Any]:
     try:
-        return domain_routing.clear_unbound_session(session_id)
+        return _shared_execute(
+            "/domain-routing/sessions/" + session_id + "/clear", {}
+        )
     except Exception as exc:
         _raise_for(exc)
 
@@ -739,31 +696,12 @@ async def run_events(
     last_event_id: Optional[str] = Header(default=None, alias="Last-Event-ID"),
 ):
     try:
-        cursor = validate_event_cursor(
-            last_event_id if last_event_id is not None else after
-        )
-        event_limit = validate_event_limit(limit)
-        # Validate the resource before opening a streaming response so a
-        # missing/foreign run produces a normal JSON error status.
-        _http_application().read(
-            "run_events",
-            {"after": cursor, "limit": event_limit},
-            resource_id=run_id,
-        )
-        return StreamingResponse(
-            _run_event_stream(
-                _http_application(),
-                run_id,
-                after=cursor,
-                limit=event_limit,
-                request=request,
-            ),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
+        return _fastapi_http.event_stream_response(
+            run_id,
+            request,
+            after=last_event_id if last_event_id is not None else after,
+            limit=limit,
+            sleep=asyncio.sleep,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -826,33 +764,25 @@ def _safe_artifact(
     domain_id: Optional[str] = None,
     metadata_root: Optional[Path] = None,
 ) -> Path:
-    normalized_domain = str(domain_id or "").strip()[:80]
-    if not normalized_domain:
-        raise HTTPException(status_code=500, detail="artifact Domain is not bound")
-    candidate = safe_artifact_path(
+    return _fastapi_http.artifact_path(
         root,
         name,
         suffix,
         prefix,
-        domain_id=normalized_domain,
+        domain_id=domain_id,
         metadata_root=metadata_root,
     )
-    if candidate is None:
-        raise HTTPException(status_code=404, detail="artifact not found")
-    return candidate
 
 
 @app.get("/artifacts/runs/{name}")
 def run_artifact(name: str):
-    return FileResponse(
-        _safe_artifact(
-            ARTIFACT_ROOT,
-            name,
-            ".json",
-            domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
-            metadata_root=ARTIFACT_ROOT,
-        ),
-        media_type="application/json",
+    return _fastapi_http.artifact_response(
+        ARTIFACT_ROOT,
+        name,
+        ".json",
+        "application/json",
+        domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
+        metadata_root=ARTIFACT_ROOT,
     )
 
 
@@ -866,7 +796,7 @@ def run_artifact_manifest(name: str):
         metadata_root=ARTIFACT_ROOT,
     )
     try:
-        payload = load_artifact_json(path)
+        payload = _artifact_json(path)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="artifact not found") from exc
     return _http_application().read(
@@ -885,7 +815,7 @@ def run_artifact_evidence(name: str):
         metadata_root=ARTIFACT_ROOT,
     )
     try:
-        payload = load_artifact_json(path)
+        payload = _artifact_json(path)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="artifact not found") from exc
     return _http_application().read(
@@ -899,30 +829,26 @@ def run_artifact_evidence(name: str):
 
 @app.get("/artifacts/actions/{name}")
 def action_artifact(name: str):
-    return FileResponse(
-        _safe_artifact(
-            ARTIFACT_ROOT,
-            name,
-            ".json",
-            prefix="action-",
-            domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
-            metadata_root=ARTIFACT_ROOT,
-        ),
-        media_type="application/json",
+    return _fastapi_http.artifact_response(
+        ARTIFACT_ROOT,
+        name,
+        ".json",
+        "application/json",
+        prefix="action-",
+        domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
+        metadata_root=ARTIFACT_ROOT,
     )
 
 
 @app.get("/artifacts/geojson/{name}")
 def geojson_artifact(name: str):
-    return FileResponse(
-        _safe_artifact(
-            GEOJSON_ROOT,
-            name,
-            ".geojson",
-            domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
-            metadata_root=ARTIFACT_ROOT,
-        ),
-        media_type="application/geo+json",
+    return _fastapi_http.artifact_response(
+        GEOJSON_ROOT,
+        name,
+        ".geojson",
+        "application/geo+json",
+        domain_id=getattr(service, "_resolved_domain_id", LEGACY_DOMAIN_ID),
+        metadata_root=ARTIFACT_ROOT,
     )
 
 
@@ -1172,30 +1098,13 @@ async def domain_run_events(
 ):
     try:
         selected_service = _domain_service(domain_id)
-        reader = _http_application(selected_service)
-        cursor = validate_event_cursor(
-            last_event_id if last_event_id is not None else after
-        )
-        event_limit = validate_event_limit(limit)
-        reader.read(
-            "run_events",
-            {"after": cursor, "limit": event_limit},
-            resource_id=run_id,
-        )
-        return StreamingResponse(
-            _run_event_stream(
-                reader,
-                run_id,
-                after=cursor,
-                limit=event_limit,
-                request=request,
-            ),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
+        return _fastapi_http.event_stream_response(
+            run_id,
+            request,
+            after=last_event_id if last_event_id is not None else after,
+            limit=limit,
+            target_service=selected_service,
+            sleep=asyncio.sleep,
         )
     except Exception as exc:
         _raise_for(exc, not_found=True)
@@ -1365,36 +1274,29 @@ def _domain_artifact_path(
     suffix: str,
     prefix: str = "",
 ) -> Path:
-    """Resolve an artifact against the explicit URL Domain only."""
-
-    try:
-        selection = host.select(domain_id, source="explicit")
-        return _safe_artifact(
-            root,
-            name,
-            suffix,
-            prefix,
-            domain_id=selection.domain_id,
-            metadata_root=ARTIFACT_ROOT,
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        _raise_for(exc)
+    return _fastapi_http.domain_artifact_path(
+        domain_id,
+        root,
+        name,
+        suffix,
+        prefix,
+        metadata_root=ARTIFACT_ROOT,
+    )
 
 
 def _artifact_json(path: Path) -> Dict[str, Any]:
-    try:
-        return load_artifact_json(path)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail="artifact not found") from exc
+    return _fastapi_http.artifact_json(path)
 
 
 @app.get("/domains/{domain_id}/artifacts/runs/{name}")
 def domain_run_artifact(domain_id: str, name: str):
-    return FileResponse(
-        _domain_artifact_path(domain_id, ARTIFACT_ROOT, name, ".json"),
-        media_type="application/json",
+    return _fastapi_http.domain_artifact_response(
+        domain_id,
+        ARTIFACT_ROOT,
+        name,
+        ".json",
+        "application/json",
+        metadata_root=ARTIFACT_ROOT,
     )
 
 
@@ -1424,21 +1326,24 @@ def domain_run_artifact_evidence(domain_id: str, name: str):
 
 @app.get("/domains/{domain_id}/artifacts/actions/{name}")
 def domain_action_artifact(domain_id: str, name: str):
-    return FileResponse(
-        _domain_artifact_path(
-            domain_id,
-            ARTIFACT_ROOT,
-            name,
-            ".json",
-            prefix="action-",
-        ),
-        media_type="application/json",
+    return _fastapi_http.domain_artifact_response(
+        domain_id,
+        ARTIFACT_ROOT,
+        name,
+        ".json",
+        "application/json",
+        prefix="action-",
+        metadata_root=ARTIFACT_ROOT,
     )
 
 
 @app.get("/domains/{domain_id}/artifacts/geojson/{name}")
 def domain_geojson_artifact(domain_id: str, name: str):
-    return FileResponse(
-        _domain_artifact_path(domain_id, GEOJSON_ROOT, name, ".geojson"),
-        media_type="application/geo+json",
+    return _fastapi_http.domain_artifact_response(
+        domain_id,
+        GEOJSON_ROOT,
+        name,
+        ".geojson",
+        "application/geo+json",
+        metadata_root=ARTIFACT_ROOT,
     )

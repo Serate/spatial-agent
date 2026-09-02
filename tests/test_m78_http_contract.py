@@ -15,6 +15,15 @@ class M78HttpContractTests(unittest.TestCase):
             self.assertIn("from agent.application.http_transport import", source)
             self.assertIn("error_projection", source)
             self.assertIn("HTTPApplication", source)
+        self.assertIn(
+            "from agent.application.fastapi_http import FastAPIHttpAdapter",
+            production,
+        )
+        self.assertIn("_fastapi_http.event_stream_response", production)
+        self.assertNotIn("return StreamingResponse(", production)
+        self.assertIn('_shared_read("/domain-routing/catalog")', production)
+        self.assertIn('_shared_execute("/domain-routing/select", payload)', production)
+        self.assertNotIn("return domain_routing.select(payload)", production)
 
     def test_shared_contract_maps_payloads_identically(self):
         from agent.api_contract import (

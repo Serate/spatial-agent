@@ -5,8 +5,8 @@
 ## 当前阶段
 
 - 阶段：`M336` HTTP 入口收敛
-- 当前任务：M336 阶段交付与提交前核对
-- 状态：M336-A～C 已实现并完成 Docker 定向验收，下一步提交推送
+- 当前任务：M336-D FastAPI 传输适配器交付与提交前核对
+- 状态：M336-A～D 已实现并完成 Docker 定向验收，下一步提交推送
 - 基线：`bd94880`
 - 协作：单 Agent，最大并发度 1；测试、GIS 和 live 验收优先使用 Docker
 
@@ -20,6 +20,7 @@
 - `agent/application/http.py`
 - `agent/application/http_routes.py`
 - `agent/application/http_transport.py`
+- `agent/application/fastapi_http.py`
 - `tests/test_m78_http_contract.py`
 - `tests/test_m10_api_service.py`
 - `tests/test_m60_runtime_capabilities_contract.py`
@@ -56,3 +57,10 @@
 - 修复：显式 artifact root、`max_files` 范围和每请求 Service 重绑定；旧测试改为显式离线 planner/backend，避免真实模型网络造成非确定性超时。
 - 验证：Docker 相关回归 `30/30`，compileall 通过，`/health/ready` HTTP 200，diff check 通过。
 - 下一步：提交推送阶段版本；推送后基于全局目标重新规划，不读取无关阶段历史。
+
+## M336-D 收口记录
+
+- `agent/application/fastapi_http.py` 集中 FastAPI 的依赖解析、共享分发、错误投影、SSE 和 artifact 响应；生产入口保留兼容路由函数但不复制传输实现。
+- Domain Routing catalog/select/override/clear 通过共享 route metadata 与 `HTTPApplication` 分发。
+- Docker 定向 HTTP/Domain Routing/SSE/artifact 回归 `17/17` 通过；扩展 Composite/跨入口回归 `36/36` 通过（1 项因容器无 PowerShell 跳过）。
+- `compileall` 通过；现有容器持久化状态导致的 M150 session 绑定错误和容器缺少 PowerShell 的跳过项不归因于本次改动。
